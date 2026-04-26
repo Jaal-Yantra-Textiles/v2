@@ -8,8 +8,6 @@ import {
   DataTablePaginationState,
   DataTableFilteringState,
   Badge,
-  Select,
-  Label,
   Tooltip,
   TooltipProvider,
 } from "@medusajs/ui";
@@ -54,6 +52,8 @@ const IDLE_OPTIONS: Array<{ label: string; value: string }> = [
   { label: "7d", value: "10080" },
 ];
 
+// Tier options shown in the FilterMenu. Defaulting to `has_items` filters
+// out the empty browse-carts that storefront page-loads create.
 const TIER_OPTIONS: Array<{ label: string; value: AbandonedCartTier; help: string }> = [
   { label: "All", value: "all", help: "Every non-completed cart, including empty browse-carts." },
   { label: "Has items", value: "has_items", help: "At least one line item in the cart." },
@@ -170,8 +170,6 @@ const AbandonedCartsPage = () => {
   });
   const [filtering, setFiltering] = useState<DataTableFilteringState>({});
   const [search, setSearch] = useState<string>("");
-  const [tier, setTier] = useState<AbandonedCartTier>("has_items");
-  const [idleMinutes, setIdleMinutes] = useState<string>("60");
 
   const handleFilterChange = useCallback(
     debounce((newFilters: DataTableFilteringState) => setFiltering(newFilters), 300),
@@ -182,6 +180,16 @@ const AbandonedCartsPage = () => {
     debounce((newSearch: string) => setSearch(newSearch), 300),
     [],
   );
+
+  // Filter values come from the FilterMenu's `filtering` state. We coerce
+  // defensively because select filters can land as either a single string
+  // or undefined depending on whether the user has interacted with them.
+  const tierRaw = filtering["tier"];
+  const tier: AbandonedCartTier =
+    typeof tierRaw === "string" ? (tierRaw as AbandonedCartTier) : "has_items";
+
+  const idleRaw = filtering["idle_minutes"];
+  const idleMinutes = typeof idleRaw === "string" ? idleRaw : "60";
 
   const offset = pagination.pageIndex * pagination.pageSize;
 
@@ -202,7 +210,17 @@ const AbandonedCartsPage = () => {
   } = useAbandonedCarts(queryParams, { placeholderData: keepPreviousData });
 
   const filters = [
-    filterHelper.accessor("sales_channel" as any, {
+    filterHelper.accessor("tier" as any, {
+      type: "select",
+      label: "Tier",
+      options: TIER_OPTIONS.map((opt) => ({ label: opt.label, value: opt.value })),
+    }),
+    filterHelper.accessor("idle_minutes" as any, {
+      type: "select",
+      label: "Idle for at least",
+      options: IDLE_OPTIONS,
+    }),
+    filterHelper.accessor("has_shipping" as any, {
       type: "select",
       label: "Has shipping address",
       options: [
@@ -229,63 +247,20 @@ const AbandonedCartsPage = () => {
 
   if (isError) throw error;
 
-  const tierHelp = TIER_OPTIONS.find((t) => t.value === tier)?.help ?? "";
-
   return (
     <TooltipProvider>
       <Container className="divide-y p-0">
         <DataTable instance={table}>
-          <DataTable.Toolbar className="flex flex-col gap-y-3 px-6 py-4">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-y-3 gap-x-4 w-full">
-              <div>
-                <Heading>Abandoned Carts</Heading>
-                <Text className="text-ui-fg-subtle" size="small">
-                  Storefront carts that were started but never converted into an order.
-                </Text>
-              </div>
-              <div className="flex items-center gap-x-2">
-                <DataTable.Search placeholder="Search id, email, customer..." />
-                <DataTable.FilterMenu tooltip="Filter" />
-              </div>
-            </div>
-            <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
-              <div className="flex flex-col gap-y-1 min-w-[160px]">
-                <Label size="xsmall" className="text-ui-fg-subtle">
-                  Tier
-                </Label>
-                <Select value={tier} onValueChange={(v) => setTier(v as AbandonedCartTier)}>
-                  <Select.Trigger>
-                    <Select.Value />
-                  </Select.Trigger>
-                  <Select.Content>
-                    {TIER_OPTIONS.map((opt) => (
-                      <Select.Item key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-y-1 min-w-[120px]">
-                <Label size="xsmall" className="text-ui-fg-subtle">
-                  Idle for at least
-                </Label>
-                <Select value={idleMinutes} onValueChange={setIdleMinutes}>
-                  <Select.Trigger>
-                    <Select.Value />
-                  </Select.Trigger>
-                  <Select.Content>
-                    {IDLE_OPTIONS.map((opt) => (
-                      <Select.Item key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select>
-              </div>
-              <Text size="xsmall" className="text-ui-fg-muted pb-1.5">
-                {tierHelp}
+          <DataTable.Toolbar className="flex flex-col md:flex-row md:items-center justify-between gap-y-3 gap-x-4 px-6 py-4">
+            <div>
+              <Heading>Abandoned Carts</Heading>
+              <Text className="text-ui-fg-subtle" size="small">
+                Storefront carts that were started but never converted into an order.
               </Text>
+            </div>
+            <div className="flex items-center gap-x-2">
+              <DataTable.Search placeholder="Search id, email, customer..." />
+              <DataTable.FilterMenu tooltip="Filter" />
             </div>
           </DataTable.Toolbar>
           <DataTable.Table />
