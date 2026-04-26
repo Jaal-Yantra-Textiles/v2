@@ -1,8 +1,8 @@
 /dist
-.env
-.env.development
+**/.env
+**/.env.development
 **/.DS_Store
-/uploads
+apps/backend/uploads
 /node_modules
 "node_modules 2"/
 # Root yarn.lock is obsolete — project uses pnpm (pnpm-lock.yaml)
@@ -21,7 +21,7 @@ coverage
 # MikroORM writes a schema snapshot next to module migrations each time a
 # temporary integration-test database is spun up. These files are transient
 # and should never be committed.
-src/modules/**/migrations/.snapshot-medusa-*-integration-*.json
+apps/backend/src/modules/**/migrations/.snapshot-medusa-*-integration-*.json
 
 ./tsconfig.tsbuildinfo
 medusa-db.sql
@@ -57,7 +57,7 @@ apps/docs/build/
 
 .vscode/
 
-static/
+apps/backend/static/
 
 /medusa-docs
 
@@ -67,9 +67,9 @@ test_logs.txt
 
 .windsurfrules
 
-src/partner/.next
-src/partner/.env
-src/partner/node_modules/*
+apps/backend/src/partner/.next
+apps/backend/src/partner/.env
+apps/backend/src/partner/node_modules/*
 # Local Netlify folder
 .netlify
 .yarn
@@ -78,15 +78,15 @@ src/partner/node_modules/*
 debug/
 
 # Local patches (not committed)
-patches/
+apps/backend/patches/
 
 .claude/
 
 # Generated RAG/contextual index (regenerate with src/scripts/generate-contextual-index.ts)
 .contextual-index/
 
-# Generated specs (stored in DB, regenerate with src/scripts/specs/)
-specs/**
+# Generated specs (stored in DB, regenerate with apps/backend/src/scripts/specs/)
+apps/backend/specs/**
 
 # yalc local plugin linking
 .yalc/

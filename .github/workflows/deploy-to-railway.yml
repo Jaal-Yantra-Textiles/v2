@@ -3,6 +3,13 @@ name: Deploy to Railway
 on:
   push:
     branches: [main, master]
+    paths:
+      - 'apps/backend/**'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - '.dockerignore'
+      - '.github/workflows/deploy-to-railway.yml'
   workflow_dispatch:
 
 # Cancel any in-progress deploy on the same branch when a new push arrives
@@ -58,7 +65,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile
+          file: ./apps/backend/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
