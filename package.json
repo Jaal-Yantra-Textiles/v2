@@ -31,7 +31,9 @@
     "storefront-mobile:dev": "cd apps/storefront-mobile && pnpm start",
     "docs:dev": "cd apps/docs && pnpm start",
     "docs:build": "cd apps/docs && pnpm build",
-    "docs:serve": "cd apps/docs && pnpm serve"
+    "docs:serve": "cd apps/docs && pnpm serve",
+    "cm": "bash apps/backend/scripts/commit.sh",
+    "ph": "bash apps/backend/scripts/push.sh"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",
