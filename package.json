@@ -56,7 +56,7 @@
       "@tanstack/react-query": "^5.90.20",
       "effect": "^3.17.14",
       "clsx": "^2.1.0",
-      "zod": "3.25.76"
+      "zod": "^4.2.0"
     },
     "onlyBuiltDependencies": [
       "@medusajs/telemetry",
