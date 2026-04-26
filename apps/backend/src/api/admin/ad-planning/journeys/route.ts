@@ -36,7 +36,7 @@ const CreateJourneyEventSchema = z.object({
   ]),
   stage: z.enum(["awareness", "interest", "consideration", "intent", "conversion", "retention", "advocacy"]).optional(),
   channel: z.enum(["web", "social", "email", "sms", "phone", "in_person", "ad"]).optional(),
-  event_data: z.record(z.any()).optional(),
+  event_data: z.record(z.string(), z.any()).optional(),
 });
 
 /**

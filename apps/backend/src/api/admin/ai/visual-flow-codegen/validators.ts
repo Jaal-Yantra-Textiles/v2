@@ -2,7 +2,7 @@ import { z } from "@medusajs/framework/zod"
 
 export const AdminVisualFlowCodegenReq = z.object({
   prompt: z.string().min(1, { message: "prompt is required" }),
-  context: z.record(z.any()).optional(),
+  context: z.record(z.string(), z.any()).optional(),
   desiredOutputKeys: z.array(z.string()).optional(),
   allowExternalPackages: z.boolean().optional(),
   // Optional memory routing

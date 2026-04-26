@@ -188,7 +188,7 @@ export const POST = async (
   if (!validation.success) {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
-      validation.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ")
+      validation.error.issues.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ")
     )
   }
 

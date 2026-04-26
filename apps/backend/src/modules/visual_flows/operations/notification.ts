@@ -15,7 +15,7 @@ export const notificationOperation: OperationDefinition = {
     description: z.string().optional().describe("Notification description"),
     to: z.string().optional().describe("User ID to send to (optional)"),
     channel: z.string().default("feed").describe("Notification channel"),
-    data: z.record(z.any()).optional().describe("Additional data"),
+    data: z.record(z.string(), z.any()).optional().describe("Additional data"),
   }),
   
   defaultOptions: {

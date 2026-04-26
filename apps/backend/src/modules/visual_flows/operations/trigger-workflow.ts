@@ -13,7 +13,7 @@ export const triggerWorkflowOperation: OperationDefinition = {
   
   optionsSchema: z.object({
     workflow_name: z.string().describe("Name/ID of the workflow to trigger"),
-    input: z.record(z.any()).optional().describe("Input data for the workflow"),
+    input: z.record(z.string(), z.any()).optional().describe("Input data for the workflow"),
     wait_for_completion: z.boolean().default(true).describe("Wait for workflow to complete"),
   }),
   

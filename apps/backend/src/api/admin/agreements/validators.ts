@@ -10,7 +10,7 @@ export const CreateAgreementSchema = z.object({
   valid_until: z.string().transform((val) => val ? new Date(val) : undefined).optional(),
   from_email: z.string().email().optional(),
   content: z.string().optional(),
-  metadata: z.record(z.any()).default({}),
+  metadata: z.record(z.string(), z.any()).default({}),
 });
 
 // Update Agreement Schema
@@ -23,7 +23,7 @@ export const UpdateAgreementSchema = z.object({
   valid_until: z.string().transform((val) => val ? new Date(val) : undefined).optional(),
   from_email: z.string().email().optional(),
   content: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 // Query Parameters Schema

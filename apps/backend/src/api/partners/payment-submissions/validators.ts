@@ -19,7 +19,7 @@ export const CreatePaymentSubmissionSchema = z
         })
       )
       .optional(),
-    metadata: z.record(z.any()).optional(),
+    metadata: z.record(z.string(), z.any()).optional(),
   })
   .refine(
     (data) => (data.design_ids?.length || 0) + (data.task_ids?.length || 0) > 0,

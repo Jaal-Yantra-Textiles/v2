@@ -22,7 +22,7 @@ export const CreateReconciliationSchema = z.object({
   actual_amount: z.number().optional(),
   payment_id: z.string().optional(),
   notes: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export const UpdateReconciliationSchema = z.object({
@@ -31,7 +31,7 @@ export const UpdateReconciliationSchema = z.object({
     .enum(["Pending", "Matched", "Discrepant", "Settled", "Waived"])
     .optional(),
   notes: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export const SettleReconciliationSchema = z.object({

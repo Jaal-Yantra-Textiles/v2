@@ -44,13 +44,13 @@ const UpdateGoalSchema = z.object({
     pathname_pattern: z.string().optional(),
     min_time_seconds: z.number().optional(),
     min_scroll_percent: z.number().optional(),
-    custom_conditions: z.record(z.any()).optional(),
+    custom_conditions: z.record(z.string(), z.any()).optional(),
   }).optional(),
   default_value: z.number().optional().nullable(),
   value_from_event: z.boolean().optional(),
   is_active: z.boolean().optional(),
   priority: z.number().optional(),
-  metadata: z.record(z.any()).optional().nullable(),
+  metadata: z.record(z.string(), z.any()).optional().nullable(),
 });
 
 /**

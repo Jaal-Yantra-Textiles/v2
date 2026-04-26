@@ -25,7 +25,7 @@ const AnalyzeSentimentSchema = z.object({
   source_id: z.string(),
   person_id: z.string().optional(),
   website_id: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 /**

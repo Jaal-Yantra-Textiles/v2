@@ -19,12 +19,12 @@ import { z } from "@medusajs/framework/zod"
 export const MultiStepApiRequestInput = z.object({
     message: z.string(),
     threadId: z.string().optional(),
-    context: z.record(z.any()).optional(),
+    context: z.record(z.string(), z.any()).optional(),
 })
 
 export const MultiStepApiRequestOutput = z.object({
     result: z.any().optional(),
-    meta: z.record(z.any()).optional(),
+    meta: z.record(z.string(), z.any()).optional(),
     needsDisambiguation: z.boolean(),
     suspended: z.boolean().optional(),
     error: z.string().optional(),
@@ -40,7 +40,7 @@ const detectMultiStepIntent = createStep({
     id: "detect-multi-step",
     inputSchema: z.object({
         message: z.string(),
-        context: z.record(z.any()).optional(),
+        context: z.record(z.string(), z.any()).optional(),
     }),
     outputSchema: z.object({
         needsDisambiguation: z.boolean(),
@@ -51,7 +51,7 @@ const detectMultiStepIntent = createStep({
         targetMethod: z.string().optional(),
         searchField: z.string().optional(),
         linkQueryKey: z.string().optional(),
-        context: z.record(z.any()).optional(),
+        context: z.record(z.string(), z.any()).optional(),
     }),
     execute: async ({ inputData }) => {
         const message = inputData.message
@@ -277,13 +277,13 @@ const queryForMatches = createStep({
         identifier: z.string(),
         searchField: z.string().optional(),
         intent: z.enum(["list", "search", "detail"]).optional(),
-        context: z.record(z.any()).optional(),
+        context: z.record(z.string(), z.any()).optional(),
     }),
     outputSchema: z.object({
         matches: z.array(z.object({
             id: z.string(),
             display: z.string(),
-            metadata: z.record(z.any()),
+            metadata: z.record(z.string(), z.any()),
         })),
         totalCount: z.number().optional(),
     }),
@@ -370,7 +370,7 @@ const confirmSelection = createStep({
         matches: z.array(z.object({
             id: z.string(),
             display: z.string(),
-            metadata: z.record(z.any()),
+            metadata: z.record(z.string(), z.any()),
         })),
         resource: z.string(),
         intent: z.enum(["list", "search", "detail"]).optional(),
@@ -380,16 +380,16 @@ const confirmSelection = createStep({
         selectedId: z.string(),
         action: z.string().optional(), // "view-all" or "select"
         selectedDisplay: z.string().optional(),
-        selectedMetadata: z.record(z.any()).optional(),
-        context: z.record(z.any()).optional(),
+        selectedMetadata: z.record(z.string(), z.any()).optional(),
+        context: z.record(z.string(), z.any()).optional(),
     }),
     resumeSchema: z.object({
         selectedId: z.string(),
         confirmed: z.boolean(),
         action: z.string().optional(),
         selectedDisplay: z.string().optional(),
-        selectedMetadata: z.record(z.any()).optional(),
-        context: z.record(z.any()).optional(),
+        selectedMetadata: z.record(z.string(), z.any()).optional(),
+        context: z.record(z.string(), z.any()).optional(),
     }),
     suspendSchema: z.object({
         reason: z.string(),
@@ -474,14 +474,14 @@ const executeFinalApi = createStep({
         targetMethod: z.string(),
         selectedId: z.string(),
         linkQueryKey: z.string().optional(),
-        context: z.record(z.any()).optional(),
+        context: z.record(z.string(), z.any()).optional(),
         selectedDisplay: z.string().optional(),
-        selectedMetadata: z.record(z.any()).optional(),
+        selectedMetadata: z.record(z.string(), z.any()).optional(),
     }),
     outputSchema: z.object({
         needsDisambiguation: z.boolean().optional(),
         result: z.any().optional(),
-        meta: z.record(z.any()).optional(),
+        meta: z.record(z.string(), z.any()).optional(),
         error: z.string().optional(),
     }),
     execute: async ({ inputData }) => {
@@ -588,7 +588,7 @@ const finalizeOutput = createStep({
     inputSchema: z.object({
         needsDisambiguation: z.boolean(),
         result: z.any().optional(),
-        meta: z.record(z.any()).optional(),
+        meta: z.record(z.string(), z.any()).optional(),
         error: z.string().optional(),
     }),
     outputSchema: MultiStepApiRequestOutput,

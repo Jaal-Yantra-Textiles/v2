@@ -17,7 +17,7 @@ const attachMediaSchema = z.object({
       })
     )
     .min(1),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export async function POST(
@@ -64,7 +64,7 @@ export async function POST(
   if (!parsed.success) {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
-      parsed.error.errors.map((e) => e.message).join(", ")
+      parsed.error.issues.map((e) => e.message).join(", ")
     )
   }
 

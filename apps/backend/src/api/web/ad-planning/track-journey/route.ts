@@ -24,7 +24,7 @@ export const TrackJourneySchema = z.object({
     "custom"
   ]).default("page_view"),
   event_name: z.string().optional(),
-  event_data: z.record(z.any()).optional().nullable(),
+  event_data: z.record(z.string(), z.any()).optional().nullable(),
   channel: z.enum([
     "web",
     "social",
@@ -51,7 +51,7 @@ export const TrackJourneySchema = z.object({
   ad_campaign_id: z.string().optional().nullable(),
   source_type: z.string().optional().nullable(),
   source_id: z.string().optional().nullable(),
-  metadata: z.record(z.any()).optional().nullable(),
+  metadata: z.record(z.string(), z.any()).optional().nullable(),
 });
 
 export type TrackJourneyRequest = z.infer<typeof TrackJourneySchema>;

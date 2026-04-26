@@ -4,7 +4,7 @@ const inventoryLinkItemSchema = z.object({
   inventoryId: z.string(),
   plannedQuantity: z.number().int().optional(),
   locationId: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export const AdminPostDesignInventoryReq = z
@@ -34,7 +34,7 @@ export const AdminPatchDesignInventoryLinkReq = z
   .object({
     plannedQuantity: z.number().int().nullable().optional(),
     locationId: z.string().nullable().optional(),
-    metadata: z.record(z.any()).nullable().optional(),
+    metadata: z.record(z.string(), z.any()).nullable().optional(),
   })
   .refine(
     (body) =>

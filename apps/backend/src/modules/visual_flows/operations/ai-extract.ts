@@ -93,7 +93,7 @@ export const aiExtractOperation: OperationDefinition = {
       .default(false)
       .describe("Return empty object instead of failing the flow on error"),
     mock_response: z
-      .record(z.any())
+      .record(z.string(), z.any())
       .optional()
       .describe("If set, skip the AI call and return this object directly (useful for testing)"),
     use_mastra_eval: z

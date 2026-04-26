@@ -11,7 +11,7 @@ export const AdminRecreateProductionRunSchema = z.object({
   partner_id: z.string().min(1),
   run_type: z.enum(["production", "sample"]).optional(),
   notes: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export type AdminRecreateProductionRunReq = z.infer<

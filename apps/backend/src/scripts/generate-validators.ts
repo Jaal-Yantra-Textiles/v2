@@ -15,7 +15,7 @@ const toPascalCase = (str: string) =>
 const mapModelTypeToZod = (modelType: string): string => {
   if (modelType.startsWith('model.text')) return 'z.string()';
   if (modelType.startsWith('model.dateTime')) return 'z.coerce.date()';
-  if (modelType.startsWith('model.json')) return 'z.record(z.unknown())';
+  if (modelType.startsWith('model.json')) return 'z.record(z.string(), z.unknown())';
   if (modelType.startsWith('model.enum')) {
     const arrayMatch = modelType.match(/\(\[(.*?)\]\)/);
     if (arrayMatch && arrayMatch[1]) {

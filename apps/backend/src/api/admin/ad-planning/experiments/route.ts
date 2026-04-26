@@ -26,8 +26,8 @@ const CreateExperimentSchema = z.object({
   // Variants configuration - JSON array
   control_name: z.string().default("Control"),
   treatment_name: z.string().default("Treatment"),
-  control_config: z.record(z.any()).optional(),
-  treatment_config: z.record(z.any()).optional(),
+  control_config: z.record(z.string(), z.any()).optional(),
+  treatment_config: z.record(z.string(), z.any()).optional(),
   traffic_split: z.number().min(0).max(100).default(50),
   // Statistical settings
   target_sample_size: z.number().nullable().optional(),

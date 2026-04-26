@@ -16,7 +16,7 @@ export const conditionOperation: OperationDefinition = {
   ],
   
   optionsSchema: z.object({
-    filter_rule: z.record(z.any()).describe("Filter rule to evaluate"),
+    filter_rule: z.record(z.string(), z.any()).describe("Filter rule to evaluate"),
     // UI-only fields for the keyword-match builder — ignored at runtime
     condition_mode: z.enum(["expression", "keyword_match"]).optional(),
     expression: z.string().optional(),

@@ -50,7 +50,7 @@ export const buildRegistry = () => {
     target_completion_date: z.string().openapi({ format: "date-time" }).optional(),
     design_files: z.array(z.string()).optional(),
     thumbnail_url: z.string().openapi({ format: "uri" }).optional(),
-    custom_sizes: z.record(z.any()).optional(),
+    custom_sizes: z.record(z.string(), z.any()).optional(),
     color_palette: z.array(ColorPaletteItem).optional(),
     tags: z.array(z.string()).optional(),
     estimated_cost: z.number().optional(),
@@ -65,9 +65,9 @@ export const buildRegistry = () => {
         })
       )
       .optional(),
-    metadata: z.record(z.any()).optional(),
+    metadata: z.record(z.string(), z.any()).optional(),
     media_files: z.array(MediaFile).optional(),
-    moodboard: z.record(z.any()).optional(),
+    moodboard: z.record(z.string(), z.any()).optional(),
   })
 
   const UpdateDesignOpenAPISchema = DesignOpenAPISchema.partial()
@@ -78,11 +78,11 @@ export const buildRegistry = () => {
     last_name: z.string(),
     email: z.string().openapi({ format: "email" }),
     date_of_birth: z.string().openapi({ format: "date-time" }).nullable().optional(),
-    metadata: z.record(z.any()).optional(),
+    metadata: z.record(z.string(), z.any()).optional(),
     addresses: z.array(z.any()).optional(),
     state: z.enum(["Onboarding", "Onboarding Finished", "Stalled", "Conflicted"]).optional(),
     avatar: z.string().optional(),
-    public_metadata: z.record(z.any()).optional(),
+    public_metadata: z.record(z.string(), z.any()).optional(),
   })
 
   const UpdatePersonOpenAPISchema = PersonOpenAPISchema.partial()

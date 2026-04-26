@@ -13,7 +13,7 @@ export const readDataOperation: OperationDefinition = {
   optionsSchema: z.object({
     entity: z.string().describe("Entity name to query"),
     fields: z.array(z.string()).describe("Fields to retrieve"),
-    filters: z.record(z.any()).optional().describe("Filter conditions"),
+    filters: z.record(z.string(), z.any()).optional().describe("Filter conditions"),
     limit: z.number().optional().describe("Maximum number of records"),
     offset: z.number().optional().describe("Number of records to skip"),
   }),

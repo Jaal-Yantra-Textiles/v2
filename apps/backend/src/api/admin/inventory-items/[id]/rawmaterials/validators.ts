@@ -13,15 +13,15 @@ const materialTypeSchema = z.object({
     "Accessory",
     "Other"
   ]).optional().default("Other"),
-  properties: z.record(z.any()).optional(),
-  metadata: z.record(z.any()).optional()
+  properties: z.record(z.string(), z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional()
 });
 
 const rawMaterialDataSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().min(1, "Description is required").optional(),
   composition: z.string().min(1, "Composition is required"),
-  specifications: z.record(z.any()).optional(),
+  specifications: z.record(z.string(), z.any()).optional(),
   unit_of_measure: z.enum([
     "Meter",
     "Yard",
@@ -39,7 +39,7 @@ const rawMaterialDataSchema = z.object({
   width: z.string().optional(),
   weight: z.string().optional(),
   grade: z.string().optional(),
-  certification: z.record(z.any()).optional(),
+  certification: z.record(z.string(), z.any()).optional(),
   usage_guidelines: z.string().optional(),
   storage_requirements: z.string().optional(),
   status: z.enum([
@@ -48,10 +48,10 @@ const rawMaterialDataSchema = z.object({
     "Under_Review",
     "Development"
   ]).optional().default("Active"),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
   material_type: z.string().optional(),
   material_type_id: z.string().optional(),
-  media: z.record(z.any()).optional()
+  media: z.record(z.string(), z.any()).optional()
 });
 
 export const rawMaterialSchema = z.object({

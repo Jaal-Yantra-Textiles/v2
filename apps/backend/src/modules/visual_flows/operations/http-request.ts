@@ -12,7 +12,7 @@ export const httpRequestOperation: OperationDefinition = {
   optionsSchema: z.object({
     method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).default("GET"),
     url: z.string().describe("Request URL"),
-    headers: z.record(z.string()).optional().describe("Request headers"),
+    headers: z.record(z.string(), z.string()).optional().describe("Request headers"),
     body: z.any().optional().describe("Request body (for POST/PUT/PATCH)"),
     timeout_ms: z.number().optional().default(30000).describe("Request timeout in milliseconds"),
   }),

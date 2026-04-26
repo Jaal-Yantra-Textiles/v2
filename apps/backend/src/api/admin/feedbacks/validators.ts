@@ -8,7 +8,7 @@ export const FeedbackSchema = z.object({
   submitted_at: z.coerce.date(),
   reviewed_by: z.string().optional(),
   reviewed_at: z.coerce.date().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type Feedback = z.infer<typeof FeedbackSchema>;
@@ -21,7 +21,7 @@ export const UpdateFeedbackSchema = z.object({
   submitted_at: z.coerce.date().optional(),
   reviewed_by: z.string().optional(),
   reviewed_at: z.coerce.date().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type UpdateFeedback = z.infer<typeof UpdateFeedbackSchema>;

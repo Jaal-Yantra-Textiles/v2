@@ -24,7 +24,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     if (!optionsResult.success) {
       return res.status(400).json({
         error: "Invalid operation_options for this operation_type",
-        details: optionsResult.error.errors,
+        details: optionsResult.error.issues,
       })
     }
 
@@ -37,7 +37,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     res.status(201).json({ panel })
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      res.status(400).json({ error: "Validation error", details: error.errors })
+      res.status(400).json({ error: "Validation error", details: error.issues })
       return
     }
     res.status(400).json({ error: error.message })

@@ -37,10 +37,10 @@ export const bulkHttpRequestOperation: OperationDefinition = {
      * Body template per item. Supports {{ item.field }} and $index.
      */
     body: z
-      .record(z.any())
+      .record(z.string(), z.any())
       .optional()
       .describe("Body template. Use {{ item.field }} for per-item values."),
-    headers: z.record(z.string()).optional().describe("Extra request headers"),
+    headers: z.record(z.string(), z.string()).optional().describe("Extra request headers"),
     timeout_ms: z.number().optional().default(30000),
     continue_on_error: z.boolean().optional().default(true),
     max_items: z.number().int().min(1).max(500).optional().default(100),

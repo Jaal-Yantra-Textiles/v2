@@ -5,7 +5,7 @@ import { z } from "@medusajs/framework/zod"
 export const PartnerCreateProductReq = z
   .object({
     store_id: z.string().min(1, "store_id is required"),
-    product: z.record(z.any()),
+    product: z.record(z.string(), z.any()),
   })
   .strict()
 

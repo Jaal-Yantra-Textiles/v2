@@ -12,8 +12,8 @@ export const updateDataOperation: OperationDefinition = {
   optionsSchema: z.object({
     module: z.string().describe("Module identifier"),
     collection: z.string().describe("Collection/entity name"),
-    selector: z.record(z.any()).describe("Selector to find records (e.g., { id: '...' })"),
-    data: z.record(z.any()).describe("Data to update"),
+    selector: z.record(z.string(), z.any()).describe("Selector to find records (e.g., { id: '...' })"),
+    data: z.record(z.string(), z.any()).describe("Data to update"),
   }),
   
   defaultOptions: {

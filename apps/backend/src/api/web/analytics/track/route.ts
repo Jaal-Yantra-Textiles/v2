@@ -95,7 +95,7 @@ export const TrackEventSchema = z.object({
   utm_campaign: z.string().optional(),
   utm_term: z.string().optional(),
   utm_content: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 export type TrackEventRequest = z.infer<typeof TrackEventSchema>;

@@ -34,7 +34,7 @@ export const AdminPostConsumptionLogReq = z.object({
     .optional(),
   notes: z.string().optional(),
   locationId: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export type AdminPostConsumptionLogReq = z.infer<typeof AdminPostConsumptionLogReq>

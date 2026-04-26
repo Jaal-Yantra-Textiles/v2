@@ -29,7 +29,7 @@ export const CreatePaymentMethodForPartnerSchema = z.object({
   bank_name: z.string().optional(),
   ifsc_code: z.string().optional(),
   wallet_id: z.string().optional(),
-  metadata: z.record(z.any()).nullish(),
+  metadata: z.record(z.string(), z.any()).nullish(),
 })
 export type CreatePaymentMethodForPartner = z.infer<typeof CreatePaymentMethodForPartnerSchema>
 export const CreatePaymentMethodForPartner = CreatePaymentMethodForPartnerSchema

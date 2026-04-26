@@ -25,5 +25,5 @@ export const partnerUpdateSchema = z.object({
     is_verified: z.boolean().optional(),
     workspace_type: z.enum(['seller', 'manufacturer', 'individual']).optional(),
     whatsapp_number: z.string().nullable().optional(),
-    metadata: z.record(z.any()).nullable().optional(),
+    metadata: z.record(z.string(), z.any()).nullable().optional(),
 })

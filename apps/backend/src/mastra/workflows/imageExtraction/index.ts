@@ -30,7 +30,7 @@ export const itemSchema = z.object({
   unit: z.string().optional(),
   sku: z.string().optional(),
   confidence: z.number().min(0).max(1).optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 export const extractionResultSchema = z.object({

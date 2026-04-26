@@ -36,10 +36,12 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
       if (!optionsResult.success) {
         return res.status(400).json({
           error: "Invalid operation_options for this operation_type",
-          details: optionsResult.error.errors,
+          details: optionsResult.error.issues,
         })
       }
-      data.operation_options = optionsResult.data
+      // optionsResult.data narrows to `unknown` under Zod v4 generics; the
+      // operation registry validates it as a record-shaped schema, so cast.
+      data.operation_options = optionsResult.data as Record<string, any>
     }
 
     const panel = await service.updateStatsPanels({ id, ...data })
@@ -48,7 +50,7 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
     res.json({ panel })
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      res.status(400).json({ error: "Validation error", details: error.errors })
+      res.status(400).json({ error: "Validation error", details: error.issues })
       return
     }
     res.status(400).json({ error: error.message })

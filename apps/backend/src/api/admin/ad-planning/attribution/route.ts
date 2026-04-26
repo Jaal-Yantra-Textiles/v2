@@ -78,7 +78,7 @@ const CreateAttributionSchema = z.object({
   entry_page: z.string().optional(),
   session_pageviews: z.number().default(1),
   session_started_at: z.string(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 /**

@@ -6,7 +6,7 @@ import { visualFlowCodegenAgent } from "../../agents"
 const inputSchema = z.object({
   prompt: z.string().min(1, "prompt is required"),
   // Optional: Provide any structured context about the flow/node/available variables
-  context: z.record(z.any()).optional().default({}),
+  context: z.record(z.string(), z.any()).optional().default({}),
   // Optional: force the model to produce certain output keys
   desiredOutputKeys: z.array(z.string()).optional(),
   // Optional: allow the model to declare packages it wants to use

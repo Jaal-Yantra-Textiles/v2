@@ -85,7 +85,7 @@ const queryPlanSchema = z.object({
       step: z.number(),
       entity: z.string(),
       operation: z.enum(["list", "retrieve", "listAndCount", "count"]),
-      filters: z.record(z.any()),
+      filters: z.record(z.string(), z.any()),
       relations: z.array(z.string()).optional(),
       extract: z.string().optional(),
       linkedFields: z.array(z.string()).optional(), // For Query.graph linked modules
@@ -100,7 +100,7 @@ const queryPlanSchema = z.object({
     type: z.literal("workflow"),
     endpoint: z.string(),
     method: z.enum(["POST", "PUT", "PATCH"]),
-    body: z.record(z.any()).optional(),
+    body: z.record(z.string(), z.any()).optional(),
     workflowName: z.string().optional(),
   }).optional(),
 })
