@@ -19,10 +19,15 @@ import { z } from "@medusajs/framework/zod";
 import { personSchema, listPersonsQuerySchema, UpdatePersonSchema, ReadPersonQuerySchema } from "./admin/persons/validators";
 import { getPersonResourceDefinition } from "./admin/persons/resources/registry";
 
-// Helper function to wrap Zod schemas for compatibility with validateAndTransformBody
-const wrapSchema = <T extends z.ZodType>(schema: T) => {
-  return z.preprocess((obj) => obj, schema) as any;
-};
+// Helper function to wrap Zod schemas for compatibility with validateAndTransformBody.
+// Historically this wrapped with z.preprocess((obj) => obj, schema) — under Zod v3
+// that returned a ZodEffects that still allowed Medusa's API loader to call
+// .partial() through. Zod v4 returns a ZodPipe instead, which has no .partial(),
+// so the wrap broke route registration ("Cannot read properties of undefined
+// (reading 'partial')"). The preprocess was a no-op anyway — passing the schema
+// through verbatim keeps every call site working and lets Medusa's loader
+// access .partial / .extend / etc. on the underlying ZodObject.
+const wrapSchema = <T extends z.ZodType>(schema: T) => schema as any;
 
 const buildPersonResourceValidator =
   (type: "create" | "update") =>
