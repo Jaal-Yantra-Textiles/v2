@@ -15,8 +15,8 @@ import { InventoryOrderLinesGrid } from "./inventory-order-lines-grid";
 // Define a Zod schema for inventory order creation (scaffolded, update as per API contract)
 export const inventoryOrderFormSchema = z
   .object({
-    order_date: z.date({ required_error: "Order date is required" }),
-    expected_delivery_date: z.date({ required_error: "Expected delivery date is required" }),
+    order_date: z.date({ error: "Order date is required" }),
+    expected_delivery_date: z.date({ error: "Expected delivery date is required" }),
     // To location (required)
     stock_location_id: z.string().nonempty("To stock location is required"),
     // From location (optional)

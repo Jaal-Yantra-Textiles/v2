@@ -19,9 +19,10 @@ export const ListPaymentMethodsByPartnerQuery = ListPaymentMethodsByPartnerQuery
 // Create a payment method for a partner
 export const CreatePaymentMethodForPartnerSchema = z.object({
   type: z.enum(["bank_account", "cash_account", "digital_wallet"], {
-    required_error: "Value for InternalPaymentDetails.type is required, 'undefined' found",
-    invalid_type_error:
-      "Invalid value for InternalPaymentDetails.type. Expected one of: bank_account, cash_account, digital_wallet",
+    error: (issue) =>
+      issue.input === undefined
+        ? "Value for InternalPaymentDetails.type is required, 'undefined' found"
+        : "Invalid value for InternalPaymentDetails.type. Expected one of: bank_account, cash_account, digital_wallet",
   }),
   account_name: z.string().min(1),
   account_number: z.string().optional(),

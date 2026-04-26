@@ -13,7 +13,7 @@ import { z } from "@medusajs/framework/zod";
 const contactSchema = z.object({
   phone_number: z.string().min(1, "Phone number is required"),
   type: z.enum(["mobile", "home", "work"], {
-    required_error: "Contact type is required",
+    error: "Contact type is required",
   }),
 });
 
