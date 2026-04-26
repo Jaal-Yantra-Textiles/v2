@@ -228,6 +228,7 @@ import {
 import { webSubmitFormResponseSchema, webVerifyFormResponseSchema } from "./web/website/[domain]/forms/[handle]/validators";
 import { LinkDesignsToCustomerSchema } from "./admin/customers/[id]/designs/validators";
 import { CreateDesignOrderSchema } from "./admin/customers/[id]/design-order/validators";
+import { listAbandonedCartsQuerySchema } from "./admin/abandoned-carts/validators";
 
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
@@ -2090,6 +2091,12 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerCreatePaymentMethodForPartnerSchema)),
       ],
+    },
+    // Admin Abandoned Carts (read-only, backed by native Cart Module)
+    {
+      matcher: "/admin/abandoned-carts",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(listAbandonedCartsQuerySchema), {})],
     },
     // Admin Payments and Payment Methods
     // Payments root

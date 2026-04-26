@@ -1,0 +1,309 @@
+import {
+  Container,
+  Heading,
+  Text,
+  DataTable,
+  useDataTable,
+  createDataTableFilterHelper,
+  DataTablePaginationState,
+  DataTableFilteringState,
+  Badge,
+  Select,
+  Label,
+  Tooltip,
+  TooltipProvider,
+} from "@medusajs/ui";
+import { useNavigate } from "react-router-dom";
+import { keepPreviousData } from "@tanstack/react-query";
+import { defineRouteConfig } from "@medusajs/admin-sdk";
+import { ShoppingCart } from "@medusajs/icons";
+import { useCallback, useMemo, useState } from "react";
+import { createColumnHelper } from "@tanstack/react-table";
+import debounce from "lodash/debounce";
+import {
+  AbandonedCartListItem,
+  AbandonedCartTier,
+  AbandonedCartsQuery,
+  useAbandonedCarts,
+} from "../../hooks/api/abandoned-carts";
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const formatCurrency = (amount: number, currencyCode = "inr") =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: currencyCode.toUpperCase(),
+    maximumFractionDigits: 2,
+  }).format(amount);
+
+const formatIdle = (minutes: number) => {
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+};
+
+// Idle threshold options. Backed-by minutes value sent to the API.
+const IDLE_OPTIONS: Array<{ label: string; value: string }> = [
+  { label: "30m", value: "30" },
+  { label: "1h", value: "60" },
+  { label: "4h", value: "240" },
+  { label: "24h", value: "1440" },
+  { label: "3d", value: "4320" },
+  { label: "7d", value: "10080" },
+];
+
+const TIER_OPTIONS: Array<{ label: string; value: AbandonedCartTier; help: string }> = [
+  { label: "All", value: "all", help: "Every non-completed cart, including empty browse-carts." },
+  { label: "Has items", value: "has_items", help: "At least one line item in the cart." },
+  { label: "Recoverable", value: "recoverable", help: "Has items and a contact (email or customer)." },
+  { label: "Checkout", value: "checkout", help: "Has items, contact, and shipping address." },
+];
+
+// ─── Columns ─────────────────────────────────────────────────────────────────
+
+const columnHelper = createColumnHelper<AbandonedCartListItem>();
+
+const useColumns = () =>
+  useMemo(
+    () => [
+      columnHelper.accessor("items_preview", {
+        header: "Items",
+        cell: ({ getValue, row }) => {
+          const preview = getValue();
+          const total = row.original.items_count;
+          if (!preview.length) {
+            return <span className="text-ui-fg-muted">Empty</span>;
+          }
+          const first = preview[0];
+          const rest = preview.slice(1);
+          return (
+            <div className="flex items-center gap-x-1.5">
+              <span className="font-medium truncate max-w-[180px]">{first.title ?? "Untitled"}</span>
+              {rest.length > 0 && (
+                <Tooltip content={rest.map((i) => i.title ?? "Untitled").join(", ")}>
+                  <Badge size="2xsmall" color="grey" className="cursor-default">
+                    +{total - 1} more
+                  </Badge>
+                </Tooltip>
+              )}
+            </div>
+          );
+        },
+      }),
+      columnHelper.accessor("customer", {
+        header: "Customer",
+        cell: ({ getValue, row }) => {
+          const c = getValue();
+          const email = c?.email ?? row.original.email;
+          if (!c && !email)
+            return (
+              <Badge color="grey" size="2xsmall">
+                Guest
+              </Badge>
+            );
+          const fullName = [c?.first_name, c?.last_name].filter(Boolean).join(" ");
+          return (
+            <div className="flex flex-col">
+              {fullName && <span className="text-ui-fg-base">{fullName}</span>}
+              <span className="text-ui-fg-subtle text-xs">{email ?? "—"}</span>
+            </div>
+          );
+        },
+      }),
+      columnHelper.accessor("items_subtotal", {
+        header: "Subtotal",
+        cell: ({ getValue, row }) => {
+          const v = getValue();
+          if (!v) return <span className="text-ui-fg-muted">—</span>;
+          return <span>{formatCurrency(v, row.original.currency_code)}</span>;
+        },
+      }),
+      columnHelper.accessor("sales_channel", {
+        header: "Channel",
+        cell: ({ getValue }) => {
+          const sc = getValue();
+          if (!sc) return <span className="text-ui-fg-muted">—</span>;
+          return (
+            <Badge size="2xsmall" color="grey">
+              {sc.name}
+            </Badge>
+          );
+        },
+      }),
+      columnHelper.accessor("idle_minutes", {
+        header: "Last activity",
+        cell: ({ getValue }) => <span className="text-ui-fg-subtle">{formatIdle(getValue())}</span>,
+      }),
+      columnHelper.accessor("recovery_email_sent_at", {
+        header: "Recovery",
+        cell: ({ getValue }) => {
+          const sentAt = getValue();
+          if (!sentAt)
+            return (
+              <Badge size="2xsmall" color="grey">
+                Not sent
+              </Badge>
+            );
+          return (
+            <Badge size="2xsmall" color="blue">
+              Sent {formatIdle(Math.round((Date.now() - new Date(sentAt).getTime()) / 60000))}
+            </Badge>
+          );
+        },
+      }),
+    ],
+    [],
+  );
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+const filterHelper = createDataTableFilterHelper<AbandonedCartListItem>();
+
+const AbandonedCartsPage = () => {
+  const navigate = useNavigate();
+
+  const [pagination, setPagination] = useState<DataTablePaginationState>({
+    pageSize: 20,
+    pageIndex: 0,
+  });
+  const [filtering, setFiltering] = useState<DataTableFilteringState>({});
+  const [search, setSearch] = useState<string>("");
+  const [tier, setTier] = useState<AbandonedCartTier>("has_items");
+  const [idleMinutes, setIdleMinutes] = useState<string>("60");
+
+  const handleFilterChange = useCallback(
+    debounce((newFilters: DataTableFilteringState) => setFiltering(newFilters), 300),
+    [],
+  );
+
+  const handleSearchChange = useCallback(
+    debounce((newSearch: string) => setSearch(newSearch), 300),
+    [],
+  );
+
+  const offset = pagination.pageIndex * pagination.pageSize;
+
+  const queryParams: AbandonedCartsQuery = {
+    tier,
+    idle_minutes: Number(idleMinutes),
+    limit: pagination.pageSize,
+    offset,
+    q: search || undefined,
+  };
+
+  const {
+    abandoned_carts,
+    count,
+    isLoading,
+    isError,
+    error,
+  } = useAbandonedCarts(queryParams, { placeholderData: keepPreviousData });
+
+  const filters = [
+    filterHelper.accessor("sales_channel" as any, {
+      type: "select",
+      label: "Has shipping address",
+      options: [
+        { label: "Yes", value: "yes" },
+        { label: "No", value: "no" },
+      ],
+    }),
+  ];
+
+  const columns = useColumns();
+
+  const table = useDataTable({
+    columns,
+    data: abandoned_carts ?? [],
+    getRowId: (row) => row.id,
+    onRowClick: (_, row) => navigate(`/abandoned-carts/${(row as any).original?.id ?? row.id}`),
+    rowCount: count ?? 0,
+    isLoading,
+    filters,
+    pagination: { state: pagination, onPaginationChange: setPagination },
+    search: { state: search, onSearchChange: handleSearchChange },
+    filtering: { state: filtering, onFilteringChange: handleFilterChange },
+  });
+
+  if (isError) throw error;
+
+  const tierHelp = TIER_OPTIONS.find((t) => t.value === tier)?.help ?? "";
+
+  return (
+    <TooltipProvider>
+      <Container className="divide-y p-0">
+        <DataTable instance={table}>
+          <DataTable.Toolbar className="flex flex-col gap-y-3 px-6 py-4">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-y-3 gap-x-4 w-full">
+              <div>
+                <Heading>Abandoned Carts</Heading>
+                <Text className="text-ui-fg-subtle" size="small">
+                  Storefront carts that were started but never converted into an order.
+                </Text>
+              </div>
+              <div className="flex items-center gap-x-2">
+                <DataTable.Search placeholder="Search id, email, customer..." />
+                <DataTable.FilterMenu tooltip="Filter" />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+              <div className="flex flex-col gap-y-1 min-w-[160px]">
+                <Label size="xsmall" className="text-ui-fg-subtle">
+                  Tier
+                </Label>
+                <Select value={tier} onValueChange={(v) => setTier(v as AbandonedCartTier)}>
+                  <Select.Trigger>
+                    <Select.Value />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {TIER_OPTIONS.map((opt) => (
+                      <Select.Item key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-y-1 min-w-[120px]">
+                <Label size="xsmall" className="text-ui-fg-subtle">
+                  Idle for at least
+                </Label>
+                <Select value={idleMinutes} onValueChange={setIdleMinutes}>
+                  <Select.Trigger>
+                    <Select.Value />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {IDLE_OPTIONS.map((opt) => (
+                      <Select.Item key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
+              </div>
+              <Text size="xsmall" className="text-ui-fg-muted pb-1.5">
+                {tierHelp}
+              </Text>
+            </div>
+          </DataTable.Toolbar>
+          <DataTable.Table />
+          <DataTable.Pagination />
+        </DataTable>
+      </Container>
+    </TooltipProvider>
+  );
+};
+
+export default AbandonedCartsPage;
+
+export const config = defineRouteConfig({
+  label: "Abandoned Carts",
+  nested: "/orders",
+  icon: ShoppingCart,
+});
+
+export const handle = {
+  breadcrumb: () => "Abandoned Carts",
+};
