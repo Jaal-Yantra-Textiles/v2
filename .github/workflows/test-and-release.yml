@@ -75,6 +75,11 @@ jobs:
         ADMIN_CORS=http://localhost:7001
         STORE_CORS=http://localhost:8000
         NODE_ENV=test
+        # Test-only AES-256 key for the EncryptionService module. Not real
+        # cryptographic material — CI runs against a throwaway DB, no
+        # production data is encrypted with it. Generate prod keys via
+        # openssl rand -base64 32 and store in your secret manager.
+        ENCRYPTION_KEY=bPH59JuZDRQULLeDD62+NiwqwcChpOLN/j7aqu3A+Hw=
         EOF
 
     - name: Run integration tests
