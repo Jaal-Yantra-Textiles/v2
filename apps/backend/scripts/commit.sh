@@ -7,6 +7,7 @@
 #   bash apps/backend/scripts/commit.sh --ai            # let Qwen draft a one-line message
 #   bash apps/backend/scripts/commit.sh --emoji         # prepend a type emoji
 #   bash apps/backend/scripts/commit.sh --diff          # show staged diff before composing
+#   bash apps/backend/scripts/commit.sh --new-branch    # branch off origin/main first
 #
 # AI mode (--ai) reads the staged file list + diff and asks Qwen
 # (Alibaba DashScope, OpenAI-compatible API) for a conventional-commit
@@ -14,6 +15,11 @@
 #   DASHSCOPE_API_KEY    (required)
 #   DASHSCOPE_BASE_URL   (default: https://dashscope-intl.aliyuncs.com/compatible-mode/v1)
 #   DASHSCOPE_MODEL      (default: qwen-plus)
+#
+# --new-branch: fetches origin/main and creates a fresh branch off it,
+# carrying staged changes along, before composing the commit. When run on
+# `main` without --new-branch, you'll be prompted to branch off (soft
+# guard against accidental commits to main).
 #
 # Pre-commit linting / type-checking / secret scanning are intentionally
 # NOT run here — handle those via your editor, husky, or CI.
@@ -29,6 +35,7 @@ NC='\033[0m'
 SHOW_DIFF=false
 EMOJI_MODE=false
 AI_SUGGEST=false
+NEW_BRANCH_MODE=false
 
 DASHSCOPE_BASE_URL="${DASHSCOPE_BASE_URL:-https://dashscope-intl.aliyuncs.com/compatible-mode/v1}"
 DASHSCOPE_MODEL="${DASHSCOPE_MODEL:-qwen-plus}"
@@ -48,14 +55,19 @@ while [[ $# -gt 0 ]]; do
             AI_SUGGEST=true
             shift
             ;;
+        --new-branch|-b)
+            NEW_BRANCH_MODE=true
+            shift
+            ;;
         --help|-h)
             echo "Usage: bash apps/backend/scripts/commit.sh [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --ai      Draft the commit message via Qwen (DashScope) instead of prompting"
-            echo "  --diff    Show staged diff before composing"
-            echo "  --emoji   Prepend an emoji matching the commit type"
-            echo "  --help    Show this help"
+            echo "  --ai           Draft the commit message via Qwen (DashScope) instead of prompting"
+            echo "  --diff         Show staged diff before composing"
+            echo "  --emoji        Prepend an emoji matching the commit type"
+            echo "  --new-branch   Branch off origin/main before composing the commit"
+            echo "  --help         Show this help"
             exit 0
             ;;
         *)
@@ -327,6 +339,56 @@ if [ -z "$staged_files" ]; then
         echo -e "${RED}Please stage files before committing.${NC}"
         exit 1
     fi
+fi
+
+# --- Branch hygiene ------------------------------------------------------
+# Soft guard: when committing on `main` without --new-branch, prompt to
+# branch off. Prevents accidental commits to the integration branch.
+current_branch=$(git branch --show-current)
+if [ "$NEW_BRANCH_MODE" != true ] && [ "$current_branch" = "main" ]; then
+    echo -e "\n${YELLOW}You are on main.${NC}"
+    echo -e "${BLUE}Open a new branch off origin/main first? (Y/n)${NC}"
+    read -n 1 branch_off
+    echo
+    if [[ ! $branch_off =~ ^[Nn]$ ]]; then
+        NEW_BRANCH_MODE=true
+    fi
+fi
+
+if [ "$NEW_BRANCH_MODE" = true ]; then
+    # Suggest a default name from the staged paths. The user can always
+    # override; the suggestion is just to save typing.
+    scope_hint=$(suggest_scope)
+    default_branch_name="${scope_hint:-feat}/$(date +%Y%m%d)-wip"
+
+    echo -e "\n${BLUE}New branch name (default: ${GREEN}$default_branch_name${BLUE}, press enter to use):${NC}"
+    read new_branch_name
+    new_branch_name="${new_branch_name:-$default_branch_name}"
+
+    # Validate: must not already exist locally.
+    if git show-ref --verify --quiet "refs/heads/$new_branch_name"; then
+        echo -e "${RED}Branch '$new_branch_name' already exists locally. Aborting.${NC}"
+        exit 1
+    fi
+
+    echo -e "\n${BLUE}Fetching origin/main...${NC}"
+    if ! git fetch origin main 2>&1; then
+        echo -e "${RED}Failed to fetch origin/main. Aborting.${NC}"
+        exit 1
+    fi
+
+    echo -e "${BLUE}Creating branch ${GREEN}$new_branch_name${BLUE} off origin/main...${NC}"
+    # `git checkout -b new origin/main` carries the index + working tree
+    # along, so staged changes survive the switch. If main has moved in a
+    # way that conflicts with the working tree, git refuses — we surface
+    # that and let the user resolve manually rather than silently stashing.
+    if ! git checkout -b "$new_branch_name" origin/main 2>&1; then
+        echo -e "${RED}Could not branch off origin/main — likely a working-tree conflict${NC}"
+        echo -e "${YELLOW}Stash unstaged changes and retry, or branch manually.${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}Switched to ${new_branch_name} (from origin/main).${NC}"
+    current_branch="$new_branch_name"
 fi
 
 # Optional diff preview
