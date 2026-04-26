@@ -47,6 +47,10 @@ apps/**/.yarn/*
 
 .medusa
 
+# Turborepo task cache
+.turbo/
+apps/**/.turbo/
+
 # Docusaurus
 apps/docs/.docusaurus/
 apps/docs/build/

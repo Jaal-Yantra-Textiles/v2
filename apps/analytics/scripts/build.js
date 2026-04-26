@@ -2,20 +2,21 @@
 
 /**
  * Build script for analytics.js
- * 
- * This script minifies the client-side analytics tracking script
- * for production deployment using Terser with optimal settings.
- * 
- * Usage: yarn build:analytics
+ *
+ * Minifies the client-side analytics tracking script with Terser.
+ * Version in the preamble is read from this package's package.json
+ * so the CDN comment matches the deployed version.
  */
 
 const fs = require('fs');
 const path = require('path');
 const { minify } = require('terser');
 
-// Paths relative to project root
-const INPUT_FILE = path.join(__dirname, '../../assets/analytics.js');
-const OUTPUT_FILE = path.join(__dirname, '../../assets/analytics.min.js');
+const PACKAGE_JSON = path.join(__dirname, '../package.json');
+const INPUT_FILE = path.join(__dirname, '../src/analytics.js');
+const OUTPUT_FILE = path.join(__dirname, '../dist/analytics.min.js');
+
+const { version } = JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8'));
 
 async function buildAnalytics() {
   console.log('🔨 Building analytics.min.js for production...\n');
@@ -50,7 +51,7 @@ async function buildAnalytics() {
       },
       format: {
         comments: false, // Remove all comments
-        preamble: '/* JYT Analytics v1.0.0 | Privacy-focused tracking | https://jaalyantra.in */',
+        preamble: `/* JYT Analytics v${version} | Privacy-focused tracking | https://jaalyantra.in */`,
       },
     });
 
