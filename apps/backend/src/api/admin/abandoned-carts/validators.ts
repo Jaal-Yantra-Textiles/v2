@@ -20,6 +20,10 @@ export const listAbandonedCartsQuerySchema = z.object({
   region_id: z.string().optional(),
   customer_id: z.string().optional(),
   email: z.string().optional(),
+  // Whether the cart already has a shipping address attached. Useful
+  // for narrowing to "checkout-stage" abandoners who got past the
+  // address step. Accepts "yes" / "no" — anything else is ignored.
+  has_shipping: z.enum(["yes", "no"]).optional(),
   offset: z.preprocess(
     (val) => (val !== undefined && val !== null && val !== "" ? Number(val) : undefined),
     z.number().int().min(0).default(0),

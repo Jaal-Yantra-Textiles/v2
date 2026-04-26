@@ -87,6 +87,8 @@ export async function GET(
   if (validated.region_id) filters.region_id = validated.region_id
   if (validated.customer_id) filters.customer_id = validated.customer_id
   if (validated.email) filters.email = validated.email
+  if (validated.has_shipping === "yes") filters.shipping_address_id = { $ne: null }
+  if (validated.has_shipping === "no") filters.shipping_address_id = null
 
   const andClauses: Array<Record<string, any>> = []
 
