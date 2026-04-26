@@ -1,5 +1,6 @@
 packages:
   - "apps/analytics"
+  - "apps/backend"
   - "apps/partner-ui"
   - "apps/media-gallery"
   - "apps/storefront-starter"

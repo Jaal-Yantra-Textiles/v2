@@ -3,8 +3,20 @@ name: Test and Release
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'apps/backend/**'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/test-and-release.yml'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'apps/backend/**'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/test-and-release.yml'
 
 env:
   # Opt into Node.js 24 for JS-based actions. Node 20 runtime is deprecated
@@ -54,7 +66,7 @@ jobs:
 
     - name: Create test environment file
       run: |
-        cat << EOF > .env.test
+        cat << EOF > apps/backend/.env.test
         DATABASE_TYPE=postgres
         DATABASE_URL=postgresql://runner@localhost:5432/postgres
         REDIS_URL=redis://localhost:6379
@@ -66,7 +78,7 @@ jobs:
         EOF
 
     - name: Run integration tests
-      run: pnpm test:integration:http:batched
+      run: pnpm --filter @jyt/backend test:integration:http:batched
       env:
         NODE_ENV: test
         DATABASE_URL: postgresql://runner@localhost:5432/postgres

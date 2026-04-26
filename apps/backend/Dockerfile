@@ -3,6 +3,8 @@
 # Medusa server + worker image for Railway.
 # The same image is used for both services — MEDUSA_WORKER_MODE selects which
 # role to run (server runs migrations first; worker just starts).
+#
+# Built from the repo root context: `docker build -f apps/backend/Dockerfile .`
 # -----------------------------------------------------------------------------
 
 FROM node:20-slim AS builder
@@ -26,16 +28,17 @@ ENV VITE_MEDUSA_BACKEND_URL=${VITE_MEDUSA_BACKEND_URL}
 ENV VITE_MEDIA_GALLERY_BASE_URL=${VITE_MEDIA_GALLERY_BASE_URL}
 ENV VITE_STOREFRONT_URL=${VITE_STOREFRONT_URL}
 
-# Copy everything — pnpm-workspace.yaml references apps/* and pnpm expects
-# those manifests to exist. A .dockerignore trims node_modules/.medusa/etc.
+# Copy the entire workspace. pnpm-workspace.yaml references apps/* and pnpm
+# expects those manifests to exist. .dockerignore trims node_modules/.medusa/etc.
 COPY . .
 
 # Use the production Medusa config for the build.
-RUN cp medusa-config.prod.ts medusa-config.ts
+RUN cp apps/backend/medusa-config.prod.ts apps/backend/medusa-config.ts
 
 RUN pnpm install --frozen-lockfile
 
-# Root build script: medusa build + resolve:aliases + build:schemas.
+# Root build proxies to `pnpm --filter @jyt/backend build`, which runs from
+# apps/backend and produces apps/backend/.medusa/server.
 RUN pnpm run build
 
 # -----------------------------------------------------------------------------
@@ -57,8 +60,8 @@ WORKDIR /app
 # (needed for shamefully-hoist so Medusa's phantom deps resolve at runtime).
 # patches/ is intentionally excluded — the sole patch targets `medusa develop`
 # (dev-only) and is gitignored.
-COPY --from=builder /app/.medusa ./.medusa
-COPY --from=builder /app/workflow-schemas.json ./workflow-schemas.json
+COPY --from=builder /app/apps/backend/.medusa ./.medusa
+COPY --from=builder /app/apps/backend/workflow-schemas.json ./workflow-schemas.json
 COPY --from=builder /app/.npmrc ./.npmrc
 
 # Medusa compiles into .medusa/server with its own package.json. Install prod
