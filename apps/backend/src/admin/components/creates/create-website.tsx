@@ -17,7 +17,7 @@ export const websiteSchema = z.object({
   status: z.enum(["Active", "Inactive", "Maintenance", "Development"]).optional(),
   primary_language: z.string().optional(),
   supported_languages: z.record(z.string(), z.string()).optional(),
-  favicon_url: z.string().url().optional(),
+  favicon_url: z.url().optional(),
   analytics_id: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
 });

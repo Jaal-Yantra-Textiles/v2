@@ -6,8 +6,8 @@ export const SocialPostSchema = z.object({
   caption: z.string().optional(),
   // Additional raw input fields used by workflow normalization
   message: z.string().optional(),
-  link: z.string().url().optional(),
-  media_urls: z.array(z.string().url()).optional(),
+  link: z.url().optional(),
+  media_urls: z.array(z.url()).optional(),
   platform_name: z.string().optional(),
   post_type: z.enum(["photo", "feed", "reel"]).optional(),
   status: z.enum(["draft","scheduled","posted","failed","archived"]).default("draft").optional(),

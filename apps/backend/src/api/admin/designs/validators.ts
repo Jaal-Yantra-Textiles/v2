@@ -46,12 +46,12 @@ export const designSchema = z.object({
     "Superseded"
   ]).optional(),
   priority: z.enum(["Low", "Medium", "High", "Urgent"]).optional(),
-  target_completion_date: z.union([z.date(), z.string().datetime()]).optional().transform((val) => {
+  target_completion_date: z.union([z.date(), z.iso.datetime()]).optional().transform((val) => {
     if (!val) return null;
     return val instanceof Date ? val : new Date(val);
   }),
   design_files: z.array(z.string()).optional(),
-  thumbnail_url: z.string().url().optional(),
+  thumbnail_url: z.url().optional(),
   custom_sizes: z.record(z.any()).optional(),
   color_palette: colorPaletteSchema.optional(),
   tags: z.array(z.string()).optional(),
@@ -61,7 +61,7 @@ export const designSchema = z.object({
   metadata: z.record(z.any()).optional(),
   media_files: z.array(z.object({
     id: z.string().optional(),
-    url: z.string().url(),
+    url: z.url(),
     isThumbnail: z.boolean().optional().default(false)
   })).optional(),
   moodboard: z.record(z.any()).optional(),

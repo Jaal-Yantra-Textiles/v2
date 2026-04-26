@@ -82,7 +82,7 @@ export const createBlocksSchema = z.object({
 });
 
 export const deleteBlockSchema = z.object({
-  blockId: z.string().uuid("Invalid ID format"),
+  blockId: z.uuid("Invalid ID format"),
 });
 
 export const updateBlockSchema = blockBaseSchema.partial();

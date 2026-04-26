@@ -6,7 +6,7 @@ export const personTypeSchema = z.object({
 });
 
 export const deletePersonTypeSchema = z.object({
-  id: z.string().uuid("Invalid ID format"), // Assuming the ID is a UUID
+  id: z.uuid("Invalid ID format"), // Assuming the ID is a UUID
 });
 
 export const updatePersonTypeSchema = z.object({

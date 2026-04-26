@@ -18,7 +18,7 @@ import { RouteDrawer } from "../../../../../../../components/modal/route-drawer/
 
 // Define the schema for the test email form
 const testEmailSchema = zod.object({
-  email: zod.string().email("Valid email address is required"),
+  email: zod.email("Valid email address is required"),
   subject: zod.string().min(1, "Subject is required"),
   customMessage: zod.string().optional(),
 })

@@ -13,7 +13,7 @@ import { CategoryProviderFields, hasProviderFields } from "./category-provider-f
 const CreateSocialPlatformSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
-  base_url: z.string().url("Must be a valid URL").optional().or(z.literal('')),
+  base_url: z.url("Must be a valid URL").optional().or(z.literal('')),
   category: z.enum(["social", "payment", "shipping", "email", "sms", "analytics", "crm", "storage", "communication", "authentication", "other"]).optional(),
   auth_type: z.enum(["oauth2", "oauth1", "api_key", "bearer", "basic"]).optional(),
   status: z.enum(["active", "inactive", "error", "pending"]).optional(),

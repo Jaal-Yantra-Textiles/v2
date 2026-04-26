@@ -1,7 +1,7 @@
 import { z } from "@medusajs/framework/zod"
 
 const referenceImageSchema = z.object({
-  url: z.string().url(),
+  url: z.url(),
   weight: z.number().min(0).max(1).default(0.5).optional(),
   prompt: z.string().optional(),
 })

@@ -10,7 +10,7 @@ export const ReviseDesignSchema = z.object({
       designer_notes: z.string().optional(),
       tags: z.array(z.string()).optional(),
       target_completion_date: z
-        .union([z.date(), z.string().datetime()])
+        .union([z.date(), z.iso.datetime()])
         .optional()
         .transform((val) => {
           if (!val) return undefined

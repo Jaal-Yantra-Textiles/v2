@@ -18,7 +18,7 @@ const navigationLinkSchema = z.object({
 
 const socialLinkSchema = z.object({
   platform: z.string().min(1),
-  url: z.string().url(),
+  url: z.url(),
 }).passthrough()
 
 const trustBannerItemSchema = z.object({

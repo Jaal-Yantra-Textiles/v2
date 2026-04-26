@@ -12,7 +12,7 @@ import { useState } from "react";
 const personSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
   last_name: z.string().min(1, "Last name is required"),
-  email: z.string().email("Invalid email format"),
+  email: z.email("Invalid email format"),
   date_of_birth: z.date().nullable(),
   avatar: z.string().optional(),
 });

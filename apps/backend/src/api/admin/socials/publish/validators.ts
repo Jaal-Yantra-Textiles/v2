@@ -9,9 +9,9 @@ export const PublishContentSchema = z.object({
     type: z.enum(["photo", "video", "text", "reel"]),
     message: z.string().optional(),
     caption: z.string().optional(),
-    image_url: z.string().url().optional(),
-    video_url: z.string().url().optional(),
-    link: z.string().url().optional(),
+    image_url: z.url().optional(),
+    video_url: z.url().optional(),
+    link: z.url().optional(),
   }),
 }).refine(
   (data) => {

@@ -128,7 +128,7 @@ import WebsiteService from "../../../../../../../../modules/website/service";
 
 // Define the validation schema for the request body
 export const TestBlogEmailSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.email("Invalid email address"),
   subject: z.string().optional(),
   customMessage: z.string().optional(),
 });
