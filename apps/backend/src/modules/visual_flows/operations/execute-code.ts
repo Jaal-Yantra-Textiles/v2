@@ -57,13 +57,22 @@ const BUILTIN_SANDBOX_VARS = new Set([
  * Only finds variables that are actually being READ, not defined
  */
 function extractPotentialVariables(code: string): string[] {
-  // Remove comments and strings
+  // Remove strings BEFORE comments. The line-comment regex (`//.*$`)
+  // greedily eats from the first `//` to end-of-line, which destroys
+  // string contents like `"https://example.com"` — the `://` looks like
+  // a comment marker even though it's inside a string. That mangles the
+  // closing quote and causes downstream string content to leak through
+  // as identifiers (cart_id, unsubscribe, etc.).
+  //
+  // Stripping strings first replaces them with `""` so any `//` inside
+  // them is gone before the comment regex runs. Order is otherwise
+  // unchanged.
   let cleaned = code
-    .replace(/\/\/.*$/gm, "") // single line comments
-    .replace(/\/\*[\s\S]*?\*\//g, "") // multi-line comments
     .replace(/`[\s\S]*?`/g, '""') // template literals -> empty string
     .replace(/"[^"]*"/g, '""') // double-quoted strings
     .replace(/'[^']*'/g, '""') // single-quoted strings
+    .replace(/\/\/.*$/gm, "") // single line comments
+    .replace(/\/\*[\s\S]*?\*\//g, "") // multi-line comments
   
   // Remove object literal keys (word followed by colon, not preceded by ?)
   // e.g., { processed: true } -> processed should not be flagged
@@ -120,24 +129,33 @@ function validateCode(
     }
   }
   
-  // Report undefined variables as errors
+  // Report undefined variables as errors only when they look like actual
+  // npm packages — i.e. they're an exact match against a known whitelist.
+  //
+  // The previous heuristic (`v.includes("_")`) treated any snake_case
+  // identifier as a probable package, which caused false-positive blocks
+  // on perfectly normal user-code locals (cart_id, send_items, etc.).
+  // Bare snake_case is too common in user code to be a useful package
+  // signal — those go to warnings instead, and the sandbox will throw a
+  // real ReferenceError at execution time if they actually are missing.
   if (potentiallyUndefined.length > 0) {
-    // Group by likely package names (contain underscore or common package patterns)
-    const likelyPackages = potentiallyUndefined.filter(v => 
-      v.includes("_") || 
-      ["axios", "moment", "cheerio", "lodash", "dayjs", "date_fns", "qs", "nanoid"].some(p => 
-        v.toLowerCase().includes(p.replace("-", "_"))
-      )
-    )
-    
+    const KNOWN_PACKAGES = [
+      "axios", "moment", "cheerio", "lodash", "dayjs",
+      "date_fns", "qs", "nanoid",
+    ]
+    const likelyPackages = potentiallyUndefined.filter((v) => {
+      const norm = v.toLowerCase()
+      return KNOWN_PACKAGES.some((p) => norm === p.replace("-", "_"))
+    })
+
     if (likelyPackages.length > 0) {
       errors.push(
         `Undefined package(s): ${likelyPackages.join(", ")}. ` +
         `Add them to the "NPM Packages" field.`
       )
     }
-    
-    const otherUndefined = potentiallyUndefined.filter(v => !likelyPackages.includes(v))
+
+    const otherUndefined = potentiallyUndefined.filter((v) => !likelyPackages.includes(v))
     if (otherUndefined.length > 0 && otherUndefined.length <= 5) {
       warnings.push(`Potentially undefined: ${otherUndefined.join(", ")}`)
     }
