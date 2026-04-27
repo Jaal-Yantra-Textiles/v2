@@ -446,7 +446,12 @@ export const sendWhatsAppOperation: OperationDefinition = {
           messagingService,
           resolvedPartnerId,
           to,
-          platform?.id
+          platform?.id,
+          // Only meaningful for template mode — non-template sends don't
+          // carry a language. Pinning the resolved language on first
+          // contact prevents the next reminder from falling through to
+          // the phone-prefix heuristic.
+          resolvedLanguageCode
         )
 
         const msg = await messagingService.createMessagingMessages({
@@ -754,7 +759,14 @@ async function findOrCreateConversation(
   messagingService: any,
   partnerId: string | null,
   phone: string,
-  platformId: string | undefined
+  platformId: string | undefined,
+  // Optional language to pin on a NEWLY-created conversation. Skipped on
+  // the find path so we never overwrite a manually-changed preference.
+  // Without this, the very first reminder to a brand-new partner falls
+  // through resolveLanguageFromConversation (no row yet) → phone-prefix
+  // heuristic → "hi" for any +91 number, regardless of whether the
+  // partner_admin's preferred_language is "en".
+  initialLanguage: string | null = null
 ): Promise<string> {
   const phoneDigits = phone.replace(/[^0-9]/g, "")
 
@@ -790,14 +802,18 @@ async function findOrCreateConversation(
     )
   }
 
+  const conversationMetadata: Record<string, unknown> = {
+    consent_source: "system_notification",
+  }
+  if (initialLanguage) {
+    conversationMetadata.language = initialLanguage
+  }
   const created = await messagingService.createMessagingConversations({
     partner_id: partnerId,
     phone_number: phone,
     status: "active",
     default_sender_platform_id: platformId ?? null,
-    metadata: {
-      consent_source: "system_notification",
-    },
+    metadata: conversationMetadata,
   })
   return created.id
 }
