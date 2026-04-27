@@ -357,20 +357,55 @@ fi
 
 if [ "$NEW_BRANCH_MODE" = true ]; then
     # Suggest a default name from the staged paths. The user can always
-    # override; the suggestion is just to save typing.
+    # override; the suggestion is just to save typing. If the default
+    # collides with an existing local branch (typically because today's
+    # name was already used), auto-bump with -2, -3, ... so the prompt
+    # offers something fresh instead of aborting.
     scope_hint=$(suggest_scope)
     default_branch_name="${scope_hint:-feat}/$(date +%Y%m%d)-wip"
-
-    echo -e "\n${BLUE}New branch name (default: ${GREEN}$default_branch_name${BLUE}, press enter to use):${NC}"
-    read new_branch_name
-    new_branch_name="${new_branch_name:-$default_branch_name}"
-
-    # Validate: must not already exist locally.
-    if git show-ref --verify --quiet "refs/heads/$new_branch_name"; then
-        echo -e "${RED}Branch '$new_branch_name' already exists locally. Aborting.${NC}"
-        exit 1
+    if git show-ref --verify --quiet "refs/heads/$default_branch_name"; then
+        suffix=2
+        while git show-ref --verify --quiet "refs/heads/${default_branch_name}-${suffix}"; do
+            suffix=$((suffix + 1))
+            [ "$suffix" -gt 50 ] && break
+        done
+        default_branch_name="${default_branch_name}-${suffix}"
     fi
 
+    # Prompt with up to one retry if the user picks a colliding name.
+    new_branch_name=""
+    for attempt in 1 2; do
+        echo -e "\n${BLUE}New branch name (default: ${GREEN}$default_branch_name${BLUE}, press enter to use):${NC}"
+        read input_name
+        candidate="${input_name:-$default_branch_name}"
+
+        if ! git show-ref --verify --quiet "refs/heads/$candidate"; then
+            new_branch_name="$candidate"
+            break
+        fi
+
+        # Special case: the branch they're trying to create is the one
+        # they're already on. Treat that as "they want to commit here" —
+        # skip the branch dance, fall through to commit on current branch.
+        if [ "$candidate" = "$current_branch" ]; then
+            echo -e "${YELLOW}Already on '$candidate' — skipping branch creation.${NC}"
+            NEW_BRANCH_MODE=false
+            break
+        fi
+
+        if [ "$attempt" = "1" ]; then
+            echo -e "${YELLOW}Branch '$candidate' already exists locally. Pick another name.${NC}"
+        else
+            echo -e "${RED}Branch '$candidate' already exists locally. Aborting.${NC}"
+            exit 1
+        fi
+    done
+fi
+
+# Branch creation runs only if we still need a new branch (the prompt
+# above can flip NEW_BRANCH_MODE off when the candidate equals the
+# current branch).
+if [ "$NEW_BRANCH_MODE" = true ]; then
     echo -e "\n${BLUE}Fetching origin/main...${NC}"
     if ! git fetch origin main 2>&1; then
         echo -e "${RED}Failed to fetch origin/main. Aborting.${NC}"
