@@ -56,6 +56,11 @@ try {
   ]
 
   wweModule.waitWorkflowExecutions = async function patchedWaitWorkflowExecutions(container) {
+    // Guard against null container — happens during teardown after a
+    // bootstrap failure (e.g. the tokenx ESM error blocks app start,
+    // then the test runner calls this hook with no container and the
+    // .resolve() crashes, masking the real error).
+    if (!container || typeof container.resolve !== "function") return
     const wfe = container.resolve(Modules.WORKFLOW_ENGINE, { allowUnregistered: true })
     if (!wfe) return
 
