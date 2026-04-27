@@ -262,7 +262,24 @@ export const sendWhatsAppOperation: OperationDefinition = {
         ? await socialProvider.getWhatsAppForPlatform(container, platform.id)
         : socialProvider.getWhatsApp(container) // falls back to env-var-configured default
 
-      // 4. Send.
+      // 4. Send (outbox-flavored).
+      // Order of operations:
+      //   a. Resolve language for template mode (also fed into
+      //      findOrCreateConversation to pin the new conversation's
+      //      language preference).
+      //   b. find/create conversation NOW so the preflight write has
+      //      a conversation_id.
+      //   c. Pre-flight messaging_message row with status="pending".
+      //      A subsequent retry of the same context_id within the
+      //      dedup window finds this row and short-circuits — closes
+      //      the window where Meta succeeded but the persist crashed
+      //      and the next retry double-sent.
+      //   d. Per-mode dispatch (template / text / image) — calls Meta.
+      //   e. On success, update the preflight row to status="sent"
+      //      with the real content/wa_message_id/template_name.
+      //   f. On failure, update the preflight to status="failed" with
+      //      the error in metadata, then re-throw to the outer catch
+      //      which returns success: false.
       let waResponse: any = null
       let messageType: "template" | "text" | "media" = "template"
       let contentPreview = ""
@@ -272,6 +289,74 @@ export const sendWhatsAppOperation: OperationDefinition = {
       let resolvedTemplateName: string | null = null
       let resolvedLanguageCode: string | null = null
 
+      // (a) Language resolution — only meaningful for template mode but
+      // computed early so findOrCreateConversation can pin it on the new
+      // conversation row's metadata.
+      if (mode === "template") {
+        resolvedLanguageCode =
+          (options.language_code && interpolateString(options.language_code, dataChain).trim()) ||
+          (await resolveLanguageFromConversation(messagingService, partnerId, to)) ||
+          inferLanguageFromPhonePrefix(to) ||
+          process.env.WHATSAPP_TEMPLATE_LANG ||
+          "hi"
+      }
+
+      // (b) Find or create conversation. If this fails we cannot audit
+      // the send, so refuse to fire — better to error visibly than to
+      // call Meta blind.
+      let conversationId: string | null = null
+      try {
+        conversationId = await findOrCreateConversation(
+          messagingService,
+          resolvedPartnerId,
+          to,
+          platform?.id,
+          resolvedLanguageCode
+        )
+      } catch (convErr: any) {
+        return {
+          success: false,
+          error: `Failed to find/create conversation: ${convErr?.message ?? convErr}`,
+        }
+      }
+
+      // (c) Pre-flight write. The per-mode block can fill `messageType`
+      // up front from `mode` since the mapping is fixed.
+      const preflightMessageType: "template" | "text" | "media" =
+        mode === "template" ? "template" : mode === "image" ? "media" : "text"
+      const preflightMetadata: Record<string, unknown> = {
+        flow_id: context.flowId,
+        execution_id: context.executionId,
+        operation_key: context.operationKey,
+        sender_platform_id: platform?.id ?? null,
+        template_name: null, // filled post-Meta for template mode
+        language_code: resolvedLanguageCode,
+      }
+      let messageId: string | null = null
+      let persistError: string | null = null
+      try {
+        const msg = await messagingService.createMessagingMessages({
+          conversation_id: conversationId,
+          direction: "outbound",
+          sender_name: "Visual Flow",
+          content: "[pending]",
+          message_type: preflightMessageType,
+          wa_message_id: null,
+          status: "pending",
+          context_type: contextType ?? null,
+          context_id: contextId ?? null,
+          metadata: preflightMetadata,
+        })
+        messageId = msg?.id ?? null
+      } catch (preflightErr: any) {
+        // Pre-flight failed — proceed without outbox safety. The post-
+        // Meta persist branch below will fall through to a fresh write.
+        persistError = preflightErr?.message ?? "preflight failed"
+      }
+
+      // (d) Per-mode dispatch wrapped so a Meta failure can mark the
+      // preflight row as failed before re-throwing to the outer catch.
+      try {
       if (mode === "template") {
         const templateName = options.template_name
           ? interpolateString(options.template_name, dataChain).trim()
@@ -280,12 +365,7 @@ export const sendWhatsAppOperation: OperationDefinition = {
           return failed('mode="template" requires template_name')
         }
 
-        const lang =
-          (options.language_code && interpolateString(options.language_code, dataChain).trim()) ||
-          (await resolveLanguageFromConversation(messagingService, partnerId, to)) ||
-          inferLanguageFromPhonePrefix(to) ||
-          process.env.WHATSAPP_TEMPLATE_LANG ||
-          "hi"
+        const lang = resolvedLanguageCode ?? "hi"
 
         // Variables can arrive in two shapes from the saved options:
         //   1. literal array of strings, each maybe containing {{ }}
@@ -428,54 +508,70 @@ export const sendWhatsAppOperation: OperationDefinition = {
         messageType = "text"
         contentPreview = body.slice(0, 500)
       }
+      } catch (sendErr: any) {
+        // Meta call (or upstream send-leaf) threw. Mark the preflight
+        // row as failed so operators querying messaging_message see a
+        // tombstone — without this, the only signal that a send failed
+        // is the visual-flow execution log, which is harder to correlate
+        // with a specific partner / run.
+        if (messageId) {
+          try {
+            await messagingService.updateMessagingMessages({
+              id: messageId,
+              status: "failed",
+              metadata: {
+                ...preflightMetadata,
+                template_name: resolvedTemplateName,
+                error: sendErr?.message ?? "send failed",
+              },
+            })
+          } catch {
+            // Swallow — the original send error is the meaningful one.
+          }
+        }
+        throw sendErr
+      }
 
       const waMessageId: string | null = waResponse?.messages?.[0]?.id ?? null
 
-      // 5. Persist — find/create conversation, write outbound message row.
-      // Meta has already accepted the send. Any failure from here on
-      // (DB write, MikroORM constraint, etc.) should NOT fail the operation —
-      // it surfaces as `persist_error` in the result so the flow can branch
-      // on audit issues without re-sending. partner_id was already resolved
-      // in the guard above.
-      let conversationId: string | null = null
-      let messageId: string | null = null
-      let persistError: string | null = null
-
+      // (e) Persist — update the preflight row to its final state, OR
+      // (fallback) write a fresh row if preflight itself failed earlier.
+      // Meta has already accepted the send. Any failure here surfaces as
+      // `persist_error` in the result; the dedup row already exists so
+      // a retry won't double-send.
       try {
-        conversationId = await findOrCreateConversation(
-          messagingService,
-          resolvedPartnerId,
-          to,
-          platform?.id,
-          // Only meaningful for template mode — non-template sends don't
-          // carry a language. Pinning the resolved language on first
-          // contact prevents the next reminder from falling through to
-          // the phone-prefix heuristic.
-          resolvedLanguageCode
-        )
-
-        const msg = await messagingService.createMessagingMessages({
-          conversation_id: conversationId,
-          direction: "outbound",
-          sender_name: "Visual Flow",
-          content: contentPreview,
-          message_type: messageType,
-          wa_message_id: waMessageId,
-          status: waMessageId ? "sent" : "pending",
-          context_type: contextType ?? null,
-          context_id: contextId ?? null,
-          metadata: {
-            flow_id: context.flowId,
-            execution_id: context.executionId,
-            operation_key: context.operationKey,
-            sender_platform_id: platform?.id ?? null,
-            // Auditable record of what Meta actually saw — null for
-            // non-template modes (text/media don't have these concepts).
-            template_name: resolvedTemplateName,
-            language_code: resolvedLanguageCode,
-          },
-        })
-        messageId = msg?.id ?? null
+        if (messageId) {
+          await messagingService.updateMessagingMessages({
+            id: messageId,
+            content: contentPreview,
+            wa_message_id: waMessageId,
+            status: waMessageId ? "sent" : "pending",
+            message_type: messageType,
+            metadata: {
+              ...preflightMetadata,
+              template_name: resolvedTemplateName,
+            },
+          })
+        } else {
+          // Preflight failed (rare — DB unavailable). Write the row now
+          // so we still have an audit trail.
+          const msg = await messagingService.createMessagingMessages({
+            conversation_id: conversationId,
+            direction: "outbound",
+            sender_name: "Visual Flow",
+            content: contentPreview,
+            message_type: messageType,
+            wa_message_id: waMessageId,
+            status: waMessageId ? "sent" : "pending",
+            context_type: contextType ?? null,
+            context_id: contextId ?? null,
+            metadata: {
+              ...preflightMetadata,
+              template_name: resolvedTemplateName,
+            },
+          })
+          messageId = msg?.id ?? null
+        }
 
         // Conversation update: bump last_message_at, and when this is a
         // production_run context pin `pending_run_id` so the inbound handler
@@ -503,7 +599,7 @@ export const sendWhatsAppOperation: OperationDefinition = {
         }
         await messagingService.updateMessagingConversations(convUpdate)
       } catch (persistErr: any) {
-        persistError = persistErr?.message ?? "persist failed"
+        persistError = persistError ?? persistErr?.message ?? "persist failed"
       }
 
       // Notification Module audit row was already written by WhatsAppService
