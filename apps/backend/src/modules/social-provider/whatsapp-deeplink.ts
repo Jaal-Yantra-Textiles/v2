@@ -68,26 +68,79 @@ export function generatePartnerDeeplink(
   return { url, token }
 }
 
+export type DeeplinkVerifyError =
+  | "expired"
+  | "invalid_signature"
+  | "wrong_issuer"
+  | "malformed"
+  | "other"
+
+export type DeeplinkVerifyResult =
+  | {
+      ok: true
+      partnerId: string
+      runId?: string
+      type: string
+      iat?: number
+      exp?: number
+    }
+  | { ok: false; reason: DeeplinkVerifyError; message: string }
+
 /**
- * Verify a deep-link token and return the payload.
- * Returns null if the token is invalid or expired.
+ * Verify a deep-link token and return the payload, or a structured
+ * reason when verification fails. Callers can surface the specific
+ * reason to logs / responses so debugging "why doesn't this link work"
+ * doesn't require staring at the JWT.
  */
-export function verifyPartnerDeeplink(
-  token: string
-): { partnerId: string; runId?: string; type: string } | null {
+export function verifyPartnerDeeplinkResult(
+  token: string,
+): DeeplinkVerifyResult {
+  const secret = getSecret()
   try {
-    const secret = getSecret()
     const decoded = jwt.verify(token, secret, {
       issuer: DEEPLINK_ISSUER,
     }) as any
-
     return {
+      ok: true,
       partnerId: decoded.sub,
       runId: decoded.run_id,
       type: decoded.type,
+      iat: decoded.iat,
+      exp: decoded.exp,
     }
-  } catch {
-    return null
+  } catch (err: any) {
+    const name = err?.name || ""
+    const message = err?.message || "verification failed"
+    if (name === "TokenExpiredError") {
+      return { ok: false, reason: "expired", message }
+    }
+    if (name === "JsonWebTokenError") {
+      if (message.includes("issuer")) {
+        return { ok: false, reason: "wrong_issuer", message }
+      }
+      if (message.includes("signature") || message.includes("invalid")) {
+        return { ok: false, reason: "invalid_signature", message }
+      }
+      return { ok: false, reason: "malformed", message }
+    }
+    return { ok: false, reason: "other", message }
+  }
+}
+
+/**
+ * Verify a deep-link token and return the payload.
+ * Returns null if the token is invalid or expired. Kept for callers
+ * that don't care about the specific reason.
+ */
+export function verifyPartnerDeeplink(
+  token: string,
+): { partnerId: string; runId?: string; type: string } | null {
+  const result = verifyPartnerDeeplinkResult(token)
+  if (!result.ok) return null
+  return {
+    partnerId: result.partnerId,
+    runId: result.runId,
+    type: result.type,
   }
 }
 

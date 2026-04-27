@@ -2,7 +2,10 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import type { ConfigModule } from "@medusajs/framework/types"
 import jwt from "jsonwebtoken"
-import { verifyPartnerDeeplink } from "../../../modules/social-provider/whatsapp-deeplink"
+import {
+  verifyPartnerDeeplinkResult,
+  type DeeplinkVerifyError,
+} from "../../../modules/social-provider/whatsapp-deeplink"
 import { PARTNER_MODULE } from "../../../modules/partner"
 
 /**
@@ -41,14 +44,35 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     )
   }
 
-  const payload = verifyPartnerDeeplink(token)
+  const result = verifyPartnerDeeplinkResult(token)
 
-  if (!payload) {
+  if (!result.ok) {
+    // Surface the specific reason so the partner-ui (and logs) can
+    // distinguish "expired, send a new reminder" from "signature
+    // mismatch, the JWT_SECRET probably drifted". Without this we
+    // chase ghosts every time a link doesn't work.
+    const reasonMessages: Record<DeeplinkVerifyError, string> = {
+      expired:
+        "This recovery link has expired. Please request a new link via WhatsApp.",
+      invalid_signature:
+        "Link signature could not be verified. The server's signing secret may have changed since this link was issued — please request a new link.",
+      wrong_issuer:
+        "Link came from an unrecognized issuer. Please request a new link via WhatsApp.",
+      malformed:
+        "Link is malformed and cannot be parsed. Please request a new link via WhatsApp.",
+      other:
+        "Link could not be verified. Please request a new link via WhatsApp.",
+    }
+    console.warn(
+      `[wa-auth] verify failed reason=${result.reason} message=${result.message}`,
+    )
     throw new MedusaError(
       MedusaError.Types.UNAUTHORIZED,
-      "Invalid or expired token. Please request a new link via WhatsApp."
+      reasonMessages[result.reason],
     )
   }
+
+  const payload = result
 
   // 1. Verify the partner still exists and is active.
   const partnerService = req.scope.resolve(PARTNER_MODULE) as any

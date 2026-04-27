@@ -23,6 +23,9 @@ export const Login = () => {
   const { getWidgets } = useExtension()
 
   const from = location.state?.from?.pathname || "/"
+  // Surfaced by ProtectedRoute when a /partners/wa-auth exchange fails
+  // (expired link, signature drift, etc.) — see protected-route.tsx.
+  const waAuthError: string | undefined = location.state?.waAuthError
 
   const form = useForm<z.infer<typeof LoginSchema>>({
     resolver: zodResolver(LoginSchema),
@@ -81,6 +84,14 @@ export const Login = () => {
           </Text>
         </div>
         <div className="flex w-full flex-col gap-y-3">
+          {waAuthError && (
+            <Alert
+              className="bg-ui-bg-base items-center p-2"
+              variant="warning"
+            >
+              {waAuthError}
+            </Alert>
+          )}
           {getWidgets("login.before").map((Component, i) => {
             return <Component key={i} />
           })}
