@@ -93,16 +93,24 @@ const runId = run?.id || expectedRunId
 // order — thumbnail first (smallest, most likely present), then
 // structured collections. Each source can be a plain URL string or an
 // object with { url } / { image } / { src }.
+// Returns a trimmed non-empty URL or null. The object branch trims
+// every candidate field so a moodboard entry like { url: "  " }
+// resolves to null instead of leaking whitespace into the has_image
+// condition. Whitespace would route to send_image, which then exits
+// via skip_if_no_image, dropping the link-text fallback and leaving
+// the partner with no portal link.
 function pickUrl(value) {
   if (!value) return null
   if (typeof value === "string") return value.trim() || null
   if (typeof value === "object") {
-    return (
-      (typeof value.url === "string" && value.url) ||
-      (typeof value.image === "string" && value.image) ||
-      (typeof value.src === "string" && value.src) ||
-      null
-    )
+    const candidates = [value.url, value.image, value.src]
+    for (const c of candidates) {
+      if (typeof c === "string") {
+        const trimmed = c.trim()
+        if (trimmed) return trimmed
+      }
+    }
+    return null
   }
   return null
 }
