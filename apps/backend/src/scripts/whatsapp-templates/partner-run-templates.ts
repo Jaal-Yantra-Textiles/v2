@@ -23,6 +23,30 @@ export type ButtonSpec =
   | { type: "URL"; text: string; url: string }
   | { type: "PHONE_NUMBER"; text: string; phone_number: string }
 
+/**
+ * Optional media header attached to a template. Templates with a media
+ * header are exempt from WhatsApp's 24-hour customer-care window — the
+ * primary reason we use them for reminders that need to reach partners
+ * who haven't replied recently.
+ *
+ * Meta needs an `example_url` (publicly accessible) at approval time so
+ * its reviewers can preview the rendering. At send time the runtime
+ * passes the per-message image as a header parameter; if the runtime
+ * doesn't pass one, recipients see the example image.
+ *
+ * Today only IMAGE is wired through; VIDEO / DOCUMENT extensions slot
+ * in at the same `format` field with their respective example URLs.
+ */
+export type HeaderSpec = {
+  format: "IMAGE"
+  /**
+   * Publicly-reachable URL Meta downloads during template review. Used
+   * as the fallback header when the runtime doesn't provide a per-send
+   * image parameter. Should point at a representative brand asset.
+   */
+  example_url: string
+}
+
 export interface TemplateLanguageVariant {
   /** BCP-47 / Meta locale code, e.g. "en", "hi", "en_US". */
   language: string
@@ -39,6 +63,14 @@ export interface TemplateLanguageVariant {
   buttons?: ButtonSpec[]
   /** Optional short footer line. Meta caps at 60 chars. */
   footer?: string
+  /**
+   * Optional media header. When set, the management script emits a
+   * `HEADER` component during template create — making the template
+   * eligible for sends outside the 24-hour customer-care window.
+   * Same header config typically applies across languages, but it's
+   * declared per-variant so language-specific assets are possible.
+   */
+  header?: HeaderSpec
 }
 
 export interface TemplateSpec {
@@ -46,6 +78,20 @@ export interface TemplateSpec {
   category: "UTILITY" | "MARKETING" | "AUTHENTICATION"
   languages: TemplateLanguageVariant[]
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Shared header example
+//
+// The 3 reminder templates share the same example image. Meta downloads this
+// URL during template review to render the preview, and falls back to it at
+// send time when the runtime doesn't pass a per-message header parameter.
+// Override via env so staging can point at a sample asset without editing
+// the spec file.
+// ──────────────────────────────────────────────────────────────────────────────
+
+const REMINDER_HEADER_EXAMPLE_URL =
+  process.env.WHATSAPP_REMINDER_HEADER_EXAMPLE_URL ||
+  "https://cicilabel.com/static/whatsapp/reminder-header.jpg"
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Template definitions
@@ -161,9 +207,11 @@ const TEMPLATE_COMPLETED: TemplateSpec = {
  *   {{3}} run id
  *   {{4}} days since assignment
  *
- * No buttons — keep informational. The send_image follow-up node in the
- * existing wildcard flow attaches the design thumbnail + a no-password
- * portal deep-link as a separate WhatsApp message after the template.
+ * No buttons — keep informational. The IMAGE header carries the design
+ * thumbnail at send time, so this single template fully replaces the
+ * old "template + send_image follow-up" pair (which kept failing for
+ * any partner outside the 24-hour customer-care window — raw media
+ * sends are blocked there, but a media-header template is exempt).
  */
 const TEMPLATE_REMINDER_PENDING: TemplateSpec = {
   name: "jyt_production_run_reminder_pending_v1",
@@ -171,6 +219,10 @@ const TEMPLATE_REMINDER_PENDING: TemplateSpec = {
   languages: [
     {
       language: "en",
+      header: {
+        format: "IMAGE",
+        example_url: REMINDER_HEADER_EXAMPLE_URL,
+      },
       body:
         "Hi {{1}}, a quick reminder — production run {{3}} for design " +
         "{{2}} has been waiting for your response.\n\n" +
@@ -181,6 +233,10 @@ const TEMPLATE_REMINDER_PENDING: TemplateSpec = {
     },
     {
       language: "hi",
+      header: {
+        format: "IMAGE",
+        example_url: REMINDER_HEADER_EXAMPLE_URL,
+      },
       body:
         "नमस्ते {{1}}, याद दिला रहे हैं — डिज़ाइन {{2}} के लिए प्रोडक्शन " +
         "रन {{3}} अभी भी आपके उत्तर की प्रतीक्षा में है।\n\n" +
@@ -206,6 +262,10 @@ const TEMPLATE_REMINDER_NOT_STARTED: TemplateSpec = {
   languages: [
     {
       language: "en",
+      header: {
+        format: "IMAGE",
+        example_url: REMINDER_HEADER_EXAMPLE_URL,
+      },
       body:
         "Hi {{1}}, just checking in — you've accepted production run " +
         "{{3}} for design {{2}}, but we haven't seen it start yet.\n\n" +
@@ -217,6 +277,10 @@ const TEMPLATE_REMINDER_NOT_STARTED: TemplateSpec = {
     },
     {
       language: "hi",
+      header: {
+        format: "IMAGE",
+        example_url: REMINDER_HEADER_EXAMPLE_URL,
+      },
       body:
         "नमस्ते {{1}}, बस संपर्क कर रहे हैं — आपने डिज़ाइन {{2}} के लिए " +
         "प्रोडक्शन रन {{3}} स्वीकार किया है, लेकिन काम अभी शुरू नहीं " +
@@ -246,6 +310,10 @@ const TEMPLATE_REMINDER_IDLE: TemplateSpec = {
   languages: [
     {
       language: "en",
+      header: {
+        format: "IMAGE",
+        example_url: REMINDER_HEADER_EXAMPLE_URL,
+      },
       body:
         "Hi {{1}}, checking in on production run {{3}} for design {{2}} " +
         "— it's been quiet for a few days.\n\n" +
@@ -257,6 +325,10 @@ const TEMPLATE_REMINDER_IDLE: TemplateSpec = {
     },
     {
       language: "hi",
+      header: {
+        format: "IMAGE",
+        example_url: REMINDER_HEADER_EXAMPLE_URL,
+      },
       body:
         "नमस्ते {{1}}, डिज़ाइन {{2}} के लिए प्रोडक्शन रन {{3}} पर अपडेट " +
         "चाहिए — कुछ दिनों से कोई गतिविधि नहीं है।\n\n" +

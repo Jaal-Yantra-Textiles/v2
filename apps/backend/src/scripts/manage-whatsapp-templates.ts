@@ -400,6 +400,20 @@ async function fetchTemplateStatus(
 function buildComponents(lang: TemplateLanguageVariant): any[] {
   const components: any[] = []
 
+  // HEADER must come first in Meta's components array. Currently only
+  // IMAGE format is wired through — VIDEO / DOCUMENT slot in here when
+  // we need them. `header_handle` accepts a public URL during template
+  // creation; Meta downloads it to generate the approval-review preview
+  // and uses it as the fallback header when sends don't pass a per-
+  // message header parameter.
+  if (lang.header) {
+    components.push({
+      type: "HEADER",
+      format: lang.header.format,
+      example: { header_handle: [lang.header.example_url] },
+    })
+  }
+
   const body: any = { type: "BODY", text: lang.body }
   if (lang.examples && lang.examples.length > 0) {
     body.example = { body_text: [lang.examples] }

@@ -440,6 +440,14 @@ const FLOW_DEF = {
         mode: "template",
         template_name: "{{ resolve_template.template_name }}",
         variables: "{{ resolve_template.variables }}",
+        // Pass the design thumbnail as the template HEADER parameter.
+        // Templates with an IMAGE header are exempt from WhatsApp's
+        // 24-hour customer-care window, so reminders to partners who
+        // haven't replied recently will still deliver the image. When
+        // resolve_template.design_image_url is empty, send_whatsapp
+        // silently omits the parameter and Meta uses the template's
+        // example image fallback — never sends a broken header.
+        header_image_url: "{{ resolve_template.design_image_url }}",
         // Honor the partner's saved language preference. Empty string
         // (no preference on file) lets send_whatsapp's own resolver
         // chain (conv metadata → phone heuristic → env → "hi") take over.

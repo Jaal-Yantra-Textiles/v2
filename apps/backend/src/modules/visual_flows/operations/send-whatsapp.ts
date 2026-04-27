@@ -66,6 +66,15 @@ export const sendWhatsAppOperation: OperationDefinition = {
         'Template body placeholder values (strings). Each supports {{ }} interpolation. ' +
           "Order matches {{1}}, {{2}}, ... in the template body."
       ),
+    header_image_url: z
+      .string()
+      .optional()
+      .describe(
+        'Optional public HTTPS image URL passed as the template HEADER parameter. ' +
+          "Required if the template was approved with an IMAGE header AND you want " +
+          "a per-send image instead of the example one. Empty string is treated as " +
+          "\"no parameter\" — Meta uses the template's example_url instead. Supports {{ }} interpolation."
+      ),
 
     // Text-mode field
     body: z
@@ -303,15 +312,40 @@ export const sendWhatsAppOperation: OperationDefinition = {
             )
           : []
 
-        const components =
-          variableValues.length > 0
-            ? [
-                {
-                  type: "body" as const,
-                  parameters: variableValues.map((text) => ({ type: "text", text })),
-                },
-              ]
-            : []
+        // Optional HEADER parameter — only set when the operator passes a
+        // header_image_url AND it resolves to a non-empty value. Templates
+        // approved with an IMAGE header otherwise fall back to the example
+        // URL declared at template-creation time, so omitting this is safe.
+        // Order matters in Meta's API: HEADER must come before BODY.
+        const headerImageUrl = options.header_image_url
+          ? interpolateString(options.header_image_url, dataChain).trim()
+          : ""
+
+        type TemplateComponent = {
+          type: "body" | "button" | "header"
+          parameters: Array<{
+            type: string
+            text?: string
+            image?: { link: string }
+          }>
+          sub_type?: string
+          index?: number
+        }
+        const components: TemplateComponent[] = []
+        if (headerImageUrl) {
+          components.push({
+            type: "header",
+            parameters: [
+              { type: "image", image: { link: headerImageUrl } },
+            ],
+          })
+        }
+        if (variableValues.length > 0) {
+          components.push({
+            type: "body",
+            parameters: variableValues.map((text) => ({ type: "text", text })),
+          })
+        }
 
         // Audit context — picked up by WhatsAppService and written to the
         // Notification Module after Meta accepts the send. trigger_type
