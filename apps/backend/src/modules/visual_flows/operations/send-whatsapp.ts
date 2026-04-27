@@ -484,9 +484,15 @@ export const sendWhatsAppOperation: OperationDefinition = {
         }
         if (contextType === "production_run" && contextId) {
           const existingMeta = await getConversationMetadata(messagingService, conversationId)
+          // Use the bare run id, not the synthetic dedup-suffixed form.
+          // The inbound webhook routes button taps via this field — see
+          // whatsapp-message-handler.ts:307. With ":reminder:DATE" left
+          // on, every reminder dispatch overwrote the previously-pinned
+          // clean run id and partner taps on the original assignment
+          // message stopped routing.
           convUpdate.metadata = {
             ...existingMeta,
-            pending_run_id: contextId,
+            pending_run_id: stripDedupSuffix(contextId),
             pending_run_sent_at: new Date().toISOString(),
           }
         }
@@ -533,6 +539,22 @@ function failed(reason: string): OperationResult {
   }
 }
 
+/**
+ * The reminder dispatcher uses synthetic context_ids of the form
+ *   "<run_id>:reminder:<YYYY-MM-DD>"
+ * as a per-day dedup key. That value is correct for audit dedup but it
+ * MUST NOT leak into conversation.metadata.pending_run_id — the inbound
+ * webhook handler reads pending_run_id verbatim to route Accept/Decline
+ * button taps from the assignment template back to the production run,
+ * and the synthetic id 404s on lookup. Strip everything from the first
+ * ":reminder:" onward. Run ids never legitimately contain that segment.
+ */
+function stripDedupSuffix(id: string | null | undefined): string | null {
+  if (!id) return null
+  const idx = id.indexOf(":reminder:")
+  return idx >= 0 ? id.slice(0, idx) : id
+}
+
 async function findRecentOutboundByContext(
   messagingService: any,
   contextType: string,
@@ -549,9 +571,22 @@ async function findRecentOutboundByContext(
       },
       { take: 5, order: { created_at: "DESC" } }
     )
+    // Include "pending" so the outbox pre-flight row deduplicates a
+    // concurrent retry that arrives before the Meta call returns.
+    // "failed" is intentionally excluded — a previous attempt that
+    // errored should be allowed to retry. "delivered" and "read" come
+    // from Meta's status webhook, not the send path, but covering them
+    // keeps the filter symmetric.
     const matches = (rows || []).filter((r: any) => {
       const created = r?.created_at ? new Date(r.created_at) : null
-      return created && created >= cutoff && (r.status === "sent" || r.status === "delivered" || r.status === "read")
+      return (
+        created &&
+        created >= cutoff &&
+        (r.status === "pending" ||
+          r.status === "sent" ||
+          r.status === "delivered" ||
+          r.status === "read")
+      )
     })
     return matches[0] ?? null
   } catch {
