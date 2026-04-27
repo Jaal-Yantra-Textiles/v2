@@ -67,10 +67,29 @@ fi
 
 # --- Sync + show what will go --------------------------------------------
 if [ "$HAS_UPSTREAM" = true ]; then
-    echo -e "\n${BLUE}Updating local branch with remote changes (rebase)...${NC}"
-    if ! git pull --rebase; then
-        echo -e "${RED}Rebase failed. Resolve conflicts and try again.${NC}"
-        exit 1
+    # Refresh the remote ref so the ahead/behind counts below reflect
+    # what's actually on origin, not a stale tracking branch.
+    echo -e "\n${BLUE}Fetching ${current_branch} from origin...${NC}"
+    if ! git fetch origin "$current_branch" 2>&1; then
+        echo -e "${YELLOW}Fetch failed — proceeding with last-known remote state.${NC}"
+    fi
+
+    # Skip the rebase entirely when there's nothing to rebase onto. This
+    # avoids the common gotcha where the working tree has parked,
+    # unrelated edits and `git pull --rebase` refuses with "You have
+    # unstaged changes" — even though there are zero upstream commits
+    # to integrate. We still rebase when the remote IS ahead, but use
+    # --autostash so the dirty tree is preserved across the operation.
+    behind=$(git rev-list --count HEAD..@{u} 2>/dev/null || echo 0)
+
+    if [ "$behind" -gt 0 ]; then
+        echo -e "${BLUE}Remote is ${behind} commit(s) ahead — rebasing (with autostash)...${NC}"
+        if ! git pull --rebase --autostash; then
+            echo -e "${RED}Rebase failed. Resolve conflicts and try again.${NC}"
+            exit 1
+        fi
+    else
+        echo -e "${GREEN}Already up to date with origin/${current_branch} — skipping rebase.${NC}"
     fi
 
     unpushed_commits=$(git log @{u}..HEAD --oneline 2>/dev/null)
@@ -86,13 +105,27 @@ if [ "$HAS_UPSTREAM" = true ]; then
     echo -e "\n${BLUE}Total commits to push: ${GREEN}$commit_count${NC}"
 else
     echo -e "\n${YELLOW}No upstream tracking branch — first push will set it via --set-upstream.${NC}"
-    unpushed_commits=$(git log --oneline -10 2>/dev/null)
+    # Diff against origin/main (the integration baseline) so we show only
+    # commits unique to this branch. Falls back to a recent-history view
+    # if origin/main isn't available locally.
+    if git rev-parse --verify origin/main >/dev/null 2>&1; then
+        unpushed_commits=$(git log origin/main..HEAD --oneline 2>/dev/null)
+        baseline_label="origin/main"
+    else
+        unpushed_commits=$(git log --oneline -10 2>/dev/null)
+        baseline_label="recent history (origin/main unavailable)"
+    fi
+
+    commit_count=$(printf '%s\n' "$unpushed_commits" | grep -c '^[0-9a-f]')
+
     if [ -z "$unpushed_commits" ]; then
-        echo -e "${RED}No commits to push.${NC}"
+        echo -e "${RED}No commits ahead of $baseline_label — nothing to push.${NC}"
         exit 1
     fi
-    echo -e "\n${BLUE}Recent commits on this branch:${NC}"
+
+    echo -e "\n${BLUE}Commits ahead of ${baseline_label}:${NC}"
     echo -e "${GREEN}$unpushed_commits${NC}"
+    echo -e "\n${BLUE}Total commits to push: ${GREEN}$commit_count${NC}"
 fi
 
 # --- Confirm + push ------------------------------------------------------
