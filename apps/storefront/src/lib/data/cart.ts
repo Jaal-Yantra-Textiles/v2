@@ -117,10 +117,15 @@ export async function addToCart({
   variantId,
   quantity,
   countryCode,
+  visitorId,
 }: {
   variantId: string
   quantity: number
   countryCode: string
+  // Read from localStorage("jyt_visitor_id") on the client and passed
+  // through. Lets the backend's intent-scoring endpoint join cart →
+  // analytics_event/conversion rows for cart-recovery prioritization.
+  visitorId?: string
 }) {
   if (!variantId) {
     throw new Error("Missing variant ID when adding to cart")
@@ -134,6 +139,24 @@ export async function addToCart({
 
   const headers = {
     ...(await getAuthHeaders()),
+  }
+
+  // Stamp visitor_id on cart metadata exactly once, before adding the
+  // line item. We only write when the cart doesn't already carry one
+  // so a returning visitor on a different device doesn't clobber the
+  // original signal source. Failure is non-fatal — never block the
+  // add-to-cart on this best-effort enrichment.
+  if (visitorId && !(cart.metadata as Record<string, unknown> | null)?.visitor_id) {
+    try {
+      await sdk.store.cart.update(
+        cart.id,
+        { metadata: { ...(cart.metadata ?? {}), visitor_id: visitorId } },
+        {},
+        headers,
+      )
+    } catch (e) {
+      console.warn("[addToCart] visitor_id stamp failed", e)
+    }
   }
 
   await sdk.store.cart

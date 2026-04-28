@@ -128,10 +128,25 @@ export default function ProductActions({
 
     setIsAdding(true)
 
+    // The analytics snippet (analytics.min.js) writes its visitor id to
+    // localStorage["jyt_visitor_id"]. Reading it here and passing it
+    // through is what links this cart back to the visitor's browsing
+    // signals (scroll depth / time-on-page / pageviews) for the
+    // intent-score join used by cart recovery. Best-effort: if the
+    // analytics script hasn't loaded yet or storage is unavailable
+    // (private mode, SSR), we silently send undefined.
+    let visitorId: string | undefined
+    try {
+      visitorId = window.localStorage.getItem("jyt_visitor_id") ?? undefined
+    } catch {
+      visitorId = undefined
+    }
+
     await addToCart({
       variantId: selectedVariant.id,
       quantity: 1,
       countryCode,
+      visitorId,
     })
 
     setIsAdding(false)
