@@ -214,7 +214,7 @@ const TEMPLATE_COMPLETED: TemplateSpec = {
  * sends are blocked there, but a media-header template is exempt).
  */
 const TEMPLATE_REMINDER_PENDING: TemplateSpec = {
-  name: "jyt_production_run_reminder_pending_v1",
+  name: "jyt_production_run_reminder_pending_v2",
   category: "UTILITY",
   languages: [
     {
@@ -257,7 +257,7 @@ const TEMPLATE_REMINDER_PENDING: TemplateSpec = {
  *   {{4}} days since acceptance
  */
 const TEMPLATE_REMINDER_NOT_STARTED: TemplateSpec = {
-  name: "jyt_production_run_reminder_not_started_v1",
+  name: "jyt_production_run_reminder_not_started_v2",
   category: "UTILITY",
   languages: [
     {
@@ -305,7 +305,7 @@ const TEMPLATE_REMINDER_NOT_STARTED: TemplateSpec = {
  *   {{5}} total / target quantity
  */
 const TEMPLATE_REMINDER_IDLE: TemplateSpec = {
-  name: "jyt_production_run_reminder_idle_v1",
+  name: "jyt_production_run_reminder_idle_v2",
   category: "UTILITY",
   languages: [
     {

@@ -84,6 +84,16 @@ export default async function manageWhatsAppTemplates({ container }: ExecArgs) {
     .map((s) => s.trim())
     .filter(Boolean)
 
+  // Required for templates whose spec includes a media header — Meta's
+  // resumable-upload endpoint is APP-scoped, so we need the Meta App ID
+  // (the same number as the FACEBOOK_CLIENT_ID, since the App is what
+  // the OAuth consent flow registered against). META_APP_ID overrides
+  // when set, otherwise falls back to FACEBOOK_CLIENT_ID. Templates
+  // without a header don't need this — the script tolerates its absence
+  // and only complains when it actually has to upload.
+  const metaAppId =
+    process.env.META_APP_ID || process.env.FACEBOOK_CLIENT_ID || undefined
+
   // ── Resolve platform plans ────────────────────────────────────────────────
   const allPlatforms = await socials.findWhatsAppPlatforms()
   const platforms: PlatformPlan[] = []
@@ -178,7 +188,7 @@ export default async function manageWhatsAppTemplates({ container }: ExecArgs) {
                 `  · ${targetName} [${lang.language}] — exists (${matches[0].status}), skipping`
               )
             } else {
-              const created = await createTemplate(platform, spec, lang, targetName, logger)
+              const created = await createTemplate(platform, spec, lang, targetName, logger, metaAppId)
               if (created) {
                 createdIds.push({
                   platform: platform.label,
@@ -194,7 +204,7 @@ export default async function manageWhatsAppTemplates({ container }: ExecArgs) {
             for (const m of matches) {
               await deleteTemplate(platform, m, logger)
             }
-            const recreated = await createTemplate(platform, spec, lang, targetName, logger)
+            const recreated = await createTemplate(platform, spec, lang, targetName, logger, metaAppId)
             if (recreated) {
               createdIds.push({
                 platform: platform.label,
@@ -296,9 +306,39 @@ async function createTemplate(
   spec: TemplateSpec,
   lang: TemplateLanguageVariant,
   nameToUse: string,
-  logger: any
+  logger: any,
+  metaAppId: string | undefined
 ): Promise<{ id: string } | null> {
-  const components = buildComponents(lang)
+  // For templates with a media header, Meta needs an uploaded media
+  // *handle* in example.header_handle — not a public URL. The handle is
+  // returned by Meta's app-scoped resumable upload API after we push the
+  // image bytes. Do this once per (platform, language) before the
+  // template create call. Without metaAppId we can't upload, so skip the
+  // header gracefully and let buildComponents emit a body-only template
+  // (Meta will then reject if the spec requires the header — that error
+  // surfaces clearly).
+  let headerHandle: string | undefined
+  if (lang.header) {
+    if (!metaAppId) {
+      logger.error(
+        `  ✗ ${nameToUse} [${lang.language}] (${platform.label}) — header configured but META_APP_ID/FACEBOOK_CLIENT_ID is not set; skipping`
+      )
+      return null
+    }
+    const handle = await uploadHeaderHandle(
+      platform,
+      lang.header.example_url,
+      metaAppId,
+      logger
+    )
+    if (!handle) {
+      // uploadHeaderHandle already logged the specific failure.
+      return null
+    }
+    headerHandle = handle
+  }
+
+  const components = buildComponents(lang, headerHandle)
   const body = {
     name: nameToUse,
     language: lang.language,
@@ -397,20 +437,24 @@ async function fetchTemplateStatus(
   return null
 }
 
-function buildComponents(lang: TemplateLanguageVariant): any[] {
+function buildComponents(
+  lang: TemplateLanguageVariant,
+  headerHandle?: string
+): any[] {
   const components: any[] = []
 
-  // HEADER must come first in Meta's components array. Currently only
-  // IMAGE format is wired through — VIDEO / DOCUMENT slot in here when
-  // we need them. `header_handle` accepts a public URL during template
-  // creation; Meta downloads it to generate the approval-review preview
-  // and uses it as the fallback header when sends don't pass a per-
-  // message header parameter.
-  if (lang.header) {
+  // HEADER must come first in Meta's components array. The IMAGE format
+  // requires `example.header_handle` to be a HANDLE returned by Meta's
+  // resumable-upload API — *not* a plain URL. Meta rejects URLs with
+  // subcode 2388273 ("Templates with IMAGE header type need an
+  // example/sample"). The handle is computed by uploadHeaderHandle()
+  // before this is called and threaded in. VIDEO / DOCUMENT slot in
+  // here when we need them, with the same handle approach.
+  if (lang.header && headerHandle) {
     components.push({
       type: "HEADER",
       format: lang.header.format,
-      example: { header_handle: [lang.header.example_url] },
+      example: { header_handle: [headerHandle] },
     })
   }
 
@@ -440,6 +484,96 @@ function buildComponents(lang: TemplateLanguageVariant): any[] {
   }
 
   return components
+}
+
+/**
+ * Upload an image to Meta's app-scoped resumable-upload endpoint and
+ * return the handle suitable for use in template `example.header_handle`.
+ *
+ * Two HTTP calls:
+ *   1. POST /<APP_ID>/uploads?file_length=N&file_type=image/jpeg
+ *      → { id: "upload:<session>" }
+ *   2. POST /<session>  with header `file_offset: 0` and the binary body
+ *      → { h: "<handle>" }
+ *
+ * Auth: the per-platform access_token (Meta system user / WABA-scoped)
+ * is what we already use for template creates and lists. It needs the
+ * `whatsapp_business_management` scope, which the platform's existing
+ * tokens already have for create/list to work.
+ *
+ * Returns null on any failure; caller logs are sufficient (this helper
+ * just relays Meta's error string).
+ */
+async function uploadHeaderHandle(
+  platform: PlatformPlan,
+  imageUrl: string,
+  metaAppId: string,
+  logger: any
+): Promise<string | null> {
+  try {
+    // 1. Download the source image. Meta needs the binary, not the URL.
+    const imgResp = await fetch(imageUrl)
+    if (!imgResp.ok) {
+      logger.error(
+        `  ✗ image fetch failed (${imageUrl}): HTTP ${imgResp.status}`
+      )
+      return null
+    }
+    const imageBytes = Buffer.from(await imgResp.arrayBuffer())
+    const contentType = imgResp.headers.get("content-type") || "image/jpeg"
+
+    // 2. Open a resumable upload session.
+    const sessionUrl =
+      `${GRAPH_API_BASE}/${metaAppId}/uploads?` +
+      `file_length=${imageBytes.length}` +
+      `&file_type=${encodeURIComponent(contentType)}`
+    const sessionResp = await fetch(sessionUrl, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${platform.accessToken}` },
+    })
+    const sessionJson = (await sessionResp.json()) as any
+    if (!sessionResp.ok || !sessionJson?.id) {
+      const err = sessionJson?.error ?? {}
+      logger.error(
+        `  ✗ upload session failed (${platform.label}): ` +
+          `${err.message ?? `HTTP ${sessionResp.status}`}` +
+          (err.error_subcode ? ` subcode=${err.error_subcode}` : "")
+      )
+      return null
+    }
+    // sessionJson.id is "upload:..." — use as the next path segment.
+    const uploadSessionId = String(sessionJson.id)
+
+    // 3. PUT the bytes. Meta's docs use POST for this step (yes, POST
+    // even though it semantically uploads). file_offset=0 since we're
+    // sending the whole file in one request.
+    const uploadResp = await fetch(
+      `${GRAPH_API_BASE}/${uploadSessionId}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `OAuth ${platform.accessToken}`,
+          file_offset: "0",
+          "Content-Type": "application/octet-stream",
+        },
+        body: imageBytes,
+      }
+    )
+    const uploadJson = (await uploadResp.json()) as any
+    if (!uploadResp.ok || !uploadJson?.h) {
+      const err = uploadJson?.error ?? {}
+      logger.error(
+        `  ✗ upload binary failed (${platform.label}): ` +
+          `${err.message ?? `HTTP ${uploadResp.status}`}` +
+          (err.error_subcode ? ` subcode=${err.error_subcode}` : "")
+      )
+      return null
+    }
+    return uploadJson.h as string
+  } catch (e: any) {
+    logger.error(`  ✗ upload header handle threw: ${e?.message ?? e}`)
+    return null
+  }
 }
 
 function decryptToken(cfg: Record<string, any>, encryption: EncryptionService): string | null {

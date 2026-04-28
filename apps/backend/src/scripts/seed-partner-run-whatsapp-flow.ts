@@ -215,15 +215,15 @@ const map = {
   // carries a fresh per-day context_id so the 60-min dedup on
   // (context_type, context_id) does not swallow the next day's send.
   "production_run.reminder_assignment_pending": {
-    template: "jyt_production_run_reminder_pending_v1",
+    template: "jyt_production_run_reminder_pending_v2",
     vars: [partnerName, designName, runId, String(daysSinceAssignment)],
   },
   "production_run.reminder_not_started": {
-    template: "jyt_production_run_reminder_not_started_v1",
+    template: "jyt_production_run_reminder_not_started_v2",
     vars: [partnerName, designName, runId, String(daysSinceAccepted)],
   },
   "production_run.reminder_idle": {
-    template: "jyt_production_run_reminder_idle_v1",
+    template: "jyt_production_run_reminder_idle_v2",
     vars: [partnerName, designName, runId, producedQty, quantity],
   },
   // Add more mappings here as templates get approved in Meta.
