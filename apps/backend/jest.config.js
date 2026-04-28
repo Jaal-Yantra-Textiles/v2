@@ -4,7 +4,11 @@ loadEnv("test", process.cwd());
 module.exports = {
   setupFiles: ["./integration-tests/setup.js"],
   transform: {
-    // TypeScript / JSX / classic JS — same swc preset as before.
+    // TypeScript / JSX / classic JS — same swc preset as before, plus an
+    // explicit `module.type: "commonjs"` so output is CJS regardless of
+    // input shape. @swc/jest defaults to CJS for many cases but the
+    // default isn't applied uniformly — being explicit avoids the same
+    // class of failure that bit us on the .mjs branch below.
     "^.+\\.[jt]sx?$": [
       "@swc/jest",
       {
@@ -12,13 +16,18 @@ module.exports = {
           parser: { syntax: "typescript", tsx: true, decorators: true },
           target: "es5",
         },
+        module: { type: "commonjs" },
       },
     ],
     // ESM-only transitive deps (tokenx via @mastra/core) ship `.mjs`
-    // files. The typescript parser above rejects an ESM body so .mjs
-    // needs its own entry. target=es5 forces CJS output so Jest's
-    // CommonJS runtime can require() it without "Must use import to
-    // load ES Module".
+    // files. The typescript parser above rejects an ESM body, so .mjs
+    // needs its own entry with the ecmascript parser. target=es5 alone
+    // does NOT change module format — without `module.type: "commonjs"`
+    // swc preserves the source's `import`/`export` statements and Jest's
+    // CommonJS runtime then errors with "Must use import to load ES
+    // Module". With it, swc emits `Object.defineProperty(exports,...)`
+    // CJS that Jest can require(). Verified empirically against
+    // tokenx@1.3.0/dist/index.mjs.
     "^.+\\.mjs$": [
       "@swc/jest",
       {
@@ -26,6 +35,7 @@ module.exports = {
           parser: { syntax: "ecmascript" },
           target: "es5",
         },
+        module: { type: "commonjs" },
       },
     ],
   },
