@@ -165,6 +165,139 @@ Returns `null` if nothing matches — `send_image` then short-circuits via its f
 - Skip with `no_partner_on_event` for parent/bundle re-run rows (no partner_id)
 - Skip with `id_mismatch` when a read returned a row whose id doesn't match the expected payload id (double-checks the read_data fix)
 
+## April 28 Iteration — Reminder Pipeline Hardening + Media Templates
+
+A second pass driven by a specific symptom on prod: every reminder dispatch produced a `read template + failed media` pair in `messaging_message`. A targeted audit surfaced 14 candidate issues, 12 validated. The high-impact ones shipped here in PRs #162, #164, #165, #167 (plus #166 and #168 for CI infra).
+
+### What the audit found
+
+Numbers below match the audit list (kept here so future readers can reproduce the diagnosis path).
+
+| # | File:line | Severity | Symptom |
+|---|---|---|---|
+| 1 | `send-whatsapp.ts:519-524` | **Critical** | `pending_run_id` was being written as the synthetic `<run_id>:reminder:DATE` form. Inbound webhook reads that value verbatim to route Accept/Decline taps → 404 → "I couldn't tell which run this Accept refers to". Every reminder overwrote a previously-correct value, breaking later button taps on the assignment template. |
+| 3 | `send-whatsapp.ts:478-530` | **High** | Persist-after-send: Meta call succeeded → DB row write failed (transient pool exhaustion) → operation returned `success: true` with no dedup row → next event-bus retry double-sent the template. |
+| 5 | `send-whatsapp.ts:551-557` | **High** | Send failures (`template_not_found` during a Meta replace window, recipient-side rejections, etc.) were caught by the outer try/catch but **no `messaging_message` row was written**. Operators had no queryable trail keyed on `context_id` / `partner_id` — only the visual-flow execution log. |
+| 4 | `send-whatsapp.ts:283-288` | Medium | First reminder to a brand-new partner always defaulted to Hindi. The language chain was `option → conversation metadata → phone-prefix heuristic → env → "hi"`. A new partner has no conversation row yet, so chain fell through to `+91 → "hi"` regardless of the admin's `preferred_language`. |
+| 8 | `seed-partner-run-whatsapp-flow.ts:96-108` | Medium | `pickUrl` trimmed the string branch but **not** the object branch. A moodboard entry like `{url: "  "}` returned the whitespace verbatim, made `has_image` take the success branch, then `send_image` exited via `skip_if_no_image` — partner got the template but never the link-text fallback with the portal URL. |
+
+Audit items deferred (not in this iteration):
+
+- **#2 Skip `send_image` for reminder events** — depends on whether image goes into the template header (now done — see *Media-Header Reminder Templates* below). Still open: cleanly removing the `send_image` follow-up node from the seed flow once `_v2` is wired.
+- **#9 `production-run-activity-recorder` writes `reminder_sent` at event-emission time** — needs a new enum value (`reminder_attempted` → `reminder_delivered`) which is a schema migration.
+- **#13** the agent-flagged Hindi grammar bug was a false positive: `X में से Y` is "Y out of X" in Hindi (reversed from English), so `{{5}} में से {{4}}` correctly renders as "120 out of 250" when `{{4}}=120, {{5}}=250`.
+- **#6** the agent flagged the discoverer's `status: { $in: [...] }` filter as missing an `accepted` state, but the production-run model has no such state — `accepted_at` is set while `status` stays `sent_to_partner`. Filter is correct.
+
+### Fixes shipped
+
+#### A. `pending_run_id` strip — PR #165
+
+`send-whatsapp.ts` now passes `contextId` through a new `stripDedupSuffix()` helper before writing it to `conversation.metadata.pending_run_id`. Splits at the first `:reminder:` substring; everything after is dropped. Run ids are ULIDs and never legitimately contain `:reminder:`, so the trim is safe even when the upstream caller passes a clean id. Verified on prod: 0 conversations have a synthetic-id `pending_run_id` after the deploy.
+
+#### B. Outbox pattern + audit on send failure — PR #165
+
+Restructured `send-whatsapp.ts` so the dedup row exists *before* the Meta call, not after. Order is now:
+
+1. Resolve language (template mode only).
+2. `findOrCreateConversation` (was previously after Meta).
+3. Pre-flight `messaging_message.create` with `status='pending'`, `wa_message_id=null`, placeholder content `[pending]`.
+4. Per-mode dispatch wrapped in a try/catch:
+   - On Meta success: update preflight row to `status='sent'` with the real `wa_message_id`, content preview, and `metadata.template_name`.
+   - On Meta failure: update preflight to `status='failed'` with the error string in `metadata.error`, then re-throw to the outer catch.
+5. `findRecentOutboundByContext` was extended to also match `status='pending'` so a concurrent retry sees the in-flight preflight row and short-circuits.
+
+The outbox is what makes #3 and #5 both go away in one structural change. A retry within the dedup window now finds the preflight row and does not double-send. A failure leaves a queryable row with the underlying error.
+
+#### C. Pin language on conversation create — PR #165
+
+`findOrCreateConversation` gained an optional `initialLanguage` argument. When set (template mode passes the resolved `lang`), the new conversation row is created with `metadata.language = lang`. The next reminder to that partner finds the row in `resolveLanguageFromConversation` and skips the phone-prefix heuristic.
+
+Set only on **create**, never on find — admins changing language manually via the consent flow won't be trampled.
+
+#### D. `pickUrl` trims object-branch URLs — PR #165
+
+The string branch trimmed already; the object branch `{url, image, src}` did not. Now every candidate is run through `.trim()` and falsy results return `null`. Eliminates a class of "design has a thumbnail but partner gets no link" cases.
+
+### What was added
+
+#### E. Media-header reminder templates (_v2) — PR #164 + PR #167
+
+WhatsApp Cloud API blocks raw media (free-form `mode='image'`) outside the 24-hour customer-care window. For partners who hadn't replied recently, every reminder produced a `template (read)` + `media (failed)` pair in `messaging_message`. Templates with an `IMAGE` header are *exempt* from the 24h rule.
+
+Three coordinated changes:
+
+1. **`HeaderSpec` type and `header` field on `TemplateLanguageVariant`** — `partner-run-templates.ts`. Today only `IMAGE` format; VIDEO/DOCUMENT slot in at the same field.
+2. **`header_image_url` runtime parameter on `send_whatsapp`** — when set and non-empty after interpolation, the operation prepends a header parameter (`{type: "image", image: {link: ...}}`). When empty/missing, Meta uses the template's example URL fallback. The seed pipes `{{ resolve_template.design_image_url }}` through, so each reminder lands with the actual design photo, not the example.
+3. **`uploadHeaderHandle()` helper in the template manager** — Meta's Cloud API requires a *handle* (returned by their app-scoped resumable upload endpoint) in `example.header_handle`, not a public URL. Subcode `2388273` ("Templates with IMAGE header type need an example/sample, but it was not provided") was the giveaway. The helper does the 2-step pre-upload (POST to `/<META_APP_ID>/uploads` for a session id, then POST the binary to that session) before each `createTemplate` call. Reads `META_APP_ID` or `FACEBOOK_CLIENT_ID` from env.
+
+**Naming:** the spec was bumped `_v1 → _v2` in the seed and template references so Meta could approve the new headers alongside the live `_v1` (zero-downtime). Live traffic kept using `_v1` until the operator re-ran the partner-run flow seed. After that, `_v1` can be deleted manually from Meta Business Manager (the script's `cleanup` mode strips trailing `_vN` suffixes, so it targets the un-versioned base name — not `_v1`).
+
+#### F. WhatsApp deep-link auto-auth in partner-ui — PR #162
+
+A reminder's link `https://partner.jaalyantra.com/production-runs/<run>?wa_token=<jwt>` was landing on the login page. The `partner-ui` `ProtectedRoute` ran its `useMe()` check before noticing the `wa_token` query param, found no session, redirected to `/login` — and the deep-link's JWT was silently dropped.
+
+Three patches:
+
+1. **Strip `:reminder:DATE` suffix at URL build time** — `whatsapp-deeplink.ts`. Defensive: even if upstream passes a synthetic id, the URL path and JWT `run_id` claim stay clean.
+2. **`/partners/wa-auth` actually issues a Medusa session bearer** — was previously a verify-only endpoint that returned JSON. Now it looks up the partner's auth_identity (filtered by `app_metadata.partner_id` — set by `setAuthAppMetadataStep` to `partner.id`), and signs a Medusa-shaped bearer with the configured `http.jwtSecret` matching the payload layout produced by `generateJwtTokenForAuthIdentity`. Strips `:reminder:DATE` from the redirect path.
+3. **`ProtectedRoute` consumes `?wa_token`** — exchanges the deep-link for a session bearer at `/partners/wa-auth`, stores it in `localStorage` at `partner_ui_auth_token` (the SDK's configured `jwtTokenStorageKey`), strips the token from the URL via `navigate(replace)`, then resumes the normal flow. On exchange failure, falls through to `/login` with a structured error banner that distinguishes `expired` / `invalid_signature` / `wrong_issuer` / `malformed` / `other`.
+
+#### G. visual_flows execute_code validator — PR #160
+
+Tangentially related but flushed out by the cart-recovery flow's classify code. The validator's identifier extraction had two bugs:
+
+1. **`//` inside string literals** (e.g. `"https://example.com"`) was eaten by the line-comment regex, mangled the closing quote, and the next string-strip pass walked across multiple lines — leaking string content into the identifier list. Fixed by reordering the pipeline: strings first, comments after.
+2. **`v.includes("_")` flagged any snake_case identifier as a probable npm package**, blocking valid user code (`cart_id`, `send_items`, etc.) with `Undefined package(s)` errors. Narrowed to a known-package whitelist.
+
+Affects every `execute_code` node in every visual flow, including the partner-run-whatsapp flow's `resolve_template`.
+
+#### H. CI infra: jest tokenx ESM transform — PR #166 + PR #168
+
+`@mastra/core`'s CJS bundle requires the ESM-only `tokenx` package; Jest's CommonJS runtime can't `require()` ESM. Fixed in two passes:
+
+1. **PR #166**: added a `.mjs`-specific transform with swc's `ecmascript` parser, and a `transformIgnorePatterns` negative-lookahead so tokenx reaches the transform.
+2. **PR #168**: the actual blocker — without `module.type: "commonjs"` in the swc config, `target: "es5"` only changes JS *syntax*, not module *format*. swc was preserving `export` statements, so Node still saw ESM and `require()` still threw. Added explicit `module.type` to both transforms.
+
+Verified empirically by running `@swc/core` directly on `tokenx@1.3.0/dist/index.mjs`:
+
+| swc config | output |
+|---|---|
+| `target: "es5"` only | `export { approximateTokenSize, ... };` (still ESM) |
+| `target: "es5"` + `module.type: "commonjs"` | `Object.defineProperty(exports, "__esModule", ...)` (real CJS) |
+
+### Operator runbook for this iteration
+
+1. **Confirm `_v2` templates are APPROVED on every WABA you target:**
+   ```bash
+   cd apps/backend && set -a && . ./.env 2>/dev/null && set +a && \
+     MODE=dry-run npx medusa exec ./src/scripts/manage-whatsapp-templates.ts | grep _v2
+   ```
+   All 6 India variants (`pending_v2 / not_started_v2 / idle_v2` × `en/hi`) and 3 Australia variants (`× en`) should show `EXISTS (status=APPROVED)`.
+
+2. **Re-seed the partner-run-whatsapp flow** so it picks up the `_v2` names and the `header_image_url` parameter:
+   ```bash
+   # In the admin UI: rename the existing flow to "...[OLD]" and set status=draft.
+   cd apps/backend
+   npx medusa exec ./src/scripts/seed-partner-run-whatsapp-flow.ts
+   # In admin UI: flip the new flow to active.
+   ```
+
+3. **Spot-check after the next reminder cron fires** (UTC 04:30):
+   ```sql
+   SELECT id, message_type, status, context_id,
+          metadata->>'error' AS error, created_at
+   FROM messaging_message
+   WHERE direction='outbound' AND context_type='production_run'
+     AND created_at > NOW() - INTERVAL '2 hours'
+   ORDER BY created_at DESC LIMIT 10;
+
+   -- Confirm no synthetic id in pending_run_id
+   SELECT count(*) FROM messaging_conversation
+   WHERE metadata->>'pending_run_id' LIKE '%:reminder:%';  -- expect 0
+   ```
+
+4. **Cleanup of `_v1`** is still manual (delete each variant from Meta Business Manager UI). The script's `cleanup` mode targets the un-versioned base name, not `_v1`. Wait until `_v2` has been live for a few days before pulling the rug.
+
 ## Operational Runbook
 
 ### Deploy flow changes
@@ -219,7 +352,8 @@ Every inbound `msg` is now logged as `[whatsapp-webhook] Incoming message (raw):
 ## Known Gaps & Future Work
 
 ### WhatsApp template UX
-- **Template v4 with dynamic image header + URL button** — currently the image comes as a follow-up text-with-caption message. Moving it into the template header (media-header template) shows the partner the design *before* the Accept/Decline buttons, which is better UX. Requires Meta re-approval (1-3 days).
+- ~~**Template v4 with dynamic image header + URL button**~~ — **shipped in the April 28 iteration**. Reminder templates (`pending / not_started / idle`) are now `_v2` with an `IMAGE` header; `send_whatsapp` accepts a per-message `header_image_url` and the seed pipes the design's thumbnail through it. See *Media-Header Reminder Templates* above. The `assigned / cancelled / completed` templates (`_v3`) are still text-only — same upgrade pattern applies if/when needed.
+- **`send_image` follow-up node is now redundant** for reminder events (image is in the template header). Currently still wired in the seed for backward compat with non-reminder events; cleanly gating it on `!resolve_template.is_reminder` is open work (audit item #2).
 
 ### Data consistency
 - **Duplicate conversation rows per partner** — e.g. `393933806825` and `+393933806825` both exist for the same partner. `sendImageMessage` + dedup logic search by digit-normalized phone, so it doesn't break anything, but the duplicates confuse admin UI. A one-off normalization script merging duplicates by digit-compared phone would clean this up.
@@ -240,7 +374,7 @@ Every inbound `msg` is now logged as `[whatsapp-webhook] Incoming message (raw):
 
 ## File Index
 
-Changed this pass:
+### April 2026 (initial hardening)
 
 | Path | Purpose |
 |---|---|
@@ -256,3 +390,20 @@ Changed this pass:
 | `src/scripts/seed-partner-run-whatsapp-flow.ts` | Entity fixes, design image resolver, gen_link + send_image nodes |
 | `src/subscribers/whatsapp-partner-notifications.ts` | **Deleted** — legacy retired |
 | `.github/workflows/deploy-to-railway.yml` | Removed `migrate` and `changes` jobs |
+
+### April 28 iteration (reminder pipeline + media templates)
+
+| Path | PR | Purpose |
+|---|---|---|
+| `src/modules/visual_flows/operations/send-whatsapp.ts` | #165, #164 | Outbox pattern (preflight write before Meta call); audit row on send failure (`status=failed` + `metadata.error`); `pending_run_id` strip via `stripDedupSuffix()`; `header_image_url` runtime parameter; `findOrCreateConversation` accepts `initialLanguage` |
+| `src/modules/visual_flows/operations/execute-code.ts` | #160 | String-strip before comment-strip in identifier extraction; narrowed package-detection heuristic to a known whitelist |
+| `src/modules/social-provider/whatsapp-deeplink.ts` | #162 | `stripDedupSuffix()` on URL build; `verifyPartnerDeeplinkResult` returns structured error (`expired` / `invalid_signature` / `wrong_issuer` / `malformed` / `other`) |
+| `src/api/partners/wa-auth/route.ts` | #162 | Issues a Medusa-shaped session bearer (was verify-only); strips `:reminder:DATE` from redirect path; surfaces specific error reasons |
+| `src/scripts/whatsapp-templates/partner-run-templates.ts` | #164, #167 | `HeaderSpec` type; `header` field on language variants; `_v1 → _v2` rename for the 3 reminder templates; shared `REMINDER_HEADER_EXAMPLE_URL` (env-overridable via `WHATSAPP_REMINDER_HEADER_EXAMPLE_URL`) |
+| `src/scripts/manage-whatsapp-templates.ts` | #164, #167 | `buildComponents()` emits `HEADER` first when set; `uploadHeaderHandle()` does Meta's resumable upload pre-step (returns the handle for `example.header_handle`); reads `META_APP_ID` / `FACEBOOK_CLIENT_ID` from env |
+| `src/scripts/seed-partner-run-whatsapp-flow.ts` | #164, #165, #167 | `pickUrl` trims object-branch URLs; `_v2` template name references; `send_whatsapp` node passes `header_image_url: "{{ resolve_template.design_image_url }}"` |
+| `src/scripts/seed-production-run-reminders-flow.ts` | #167 | Operator-facing log line bumped to `_v2` template names |
+| `apps/partner-ui/src/components/authentication/protected-route/protected-route.tsx` | #162 | Consumes `?wa_token`, exchanges for bearer, strips token from URL, falls through to `/login` with structured error message on failure |
+| `apps/partner-ui/src/routes/login/login.tsx` | #162 | Renders `state.waAuthError` as a warning Alert above the form |
+| `apps/backend/jest.config.js` | #166, #168 | `.mjs` transform with swc `ecmascript` parser; `module.type: "commonjs"` on both transforms (forces CJS output regardless of source format); `transformIgnorePatterns` punches a hole for `tokenx` |
+| `apps/backend/integration-tests/setup.js` | #166 | Defensive null-guard on the patched `waitWorkflowExecutions` so a teardown call with no container surfaces a clean noop instead of crashing |
