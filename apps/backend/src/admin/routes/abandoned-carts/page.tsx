@@ -171,8 +171,14 @@ const AbandonedCartsPage = () => {
   const [filtering, setFiltering] = useState<DataTableFilteringState>({});
   const [search, setSearch] = useState<string>("");
 
+  // Filter clicks are discrete events — don't debounce them. Medusa's
+  // FilterMenu fires onFilteringChange three times per interaction
+  // (pick filter → pick value → close popover); a debounce here lets
+  // the close fire against stale state and the popover's onOpenChange
+  // helpfully calls instance.removeFilter, wiping the value the user
+  // just picked. Debouncing only ever made sense for the search input.
   const handleFilterChange = useCallback(
-    debounce((newFilters: DataTableFilteringState) => setFiltering(newFilters), 300),
+    (newFilters: DataTableFilteringState) => setFiltering(newFilters),
     [],
   );
 
