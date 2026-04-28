@@ -21,6 +21,7 @@ export { executeCodeOperation } from "./execute-code"
 export { aggregateProductAnalyticsOperation } from "./aggregate-product-analytics"
 export { aggregateDataOperation } from "./aggregate-data"
 export { timeSeriesOperation } from "./time-series"
+export { cartRecoveryStatsOperation } from "./cart-recovery-stats"
 export { bulkUpdateDataOperation } from "./bulk-update-data"
 export { bulkCreateDataOperation } from "./bulk-create-data"
 export { bulkHttpRequestOperation } from "./bulk-http-request"
@@ -48,6 +49,7 @@ import { executeCodeOperation } from "./execute-code"
 import { aggregateProductAnalyticsOperation } from "./aggregate-product-analytics"
 import { aggregateDataOperation } from "./aggregate-data"
 import { timeSeriesOperation } from "./time-series"
+import { cartRecoveryStatsOperation } from "./cart-recovery-stats"
 import { bulkUpdateDataOperation } from "./bulk-update-data"
 import { bulkCreateDataOperation } from "./bulk-create-data"
 import { bulkHttpRequestOperation } from "./bulk-http-request"
@@ -92,6 +94,7 @@ export function registerBuiltInOperations(): void {
   operationRegistry.register(aggregateProductAnalyticsOperation)
   operationRegistry.register(aggregateDataOperation)
   operationRegistry.register(timeSeriesOperation)
+  operationRegistry.register(cartRecoveryStatsOperation)
 }
 
 // Auto-register on import
