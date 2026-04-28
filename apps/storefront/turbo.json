@@ -1,0 +1,46 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "env": [
+        "MEDUSA_BACKEND_URL",
+        "MEDUSA_CLOUD_S3_HOSTNAME",
+        "MEDUSA_CLOUD_S3_PATHNAME",
+        "CONTACT_FORM_DOMAIN",
+        "CONTACT_FORM_HANDLE",
+        "REVALIDATE_SECRET",
+        "NEXT_PUBLIC_*"
+      ],
+      "passThroughEnv": [
+        "VERCEL",
+        "VERCEL_ENV",
+        "VERCEL_URL",
+        "VERCEL_BRANCH_URL",
+        "VERCEL_PROJECT_PRODUCTION_URL"
+      ]
+    },
+    "dev": {
+      "env": [
+        "MEDUSA_BACKEND_URL",
+        "MEDUSA_CLOUD_S3_HOSTNAME",
+        "MEDUSA_CLOUD_S3_PATHNAME",
+        "CONTACT_FORM_DOMAIN",
+        "CONTACT_FORM_HANDLE",
+        "REVALIDATE_SECRET",
+        "NEXT_PUBLIC_*"
+      ]
+    },
+    "start": {
+      "env": [
+        "MEDUSA_BACKEND_URL",
+        "MEDUSA_CLOUD_S3_HOSTNAME",
+        "MEDUSA_CLOUD_S3_PATHNAME",
+        "CONTACT_FORM_DOMAIN",
+        "CONTACT_FORM_HANDLE",
+        "REVALIDATE_SECRET",
+        "NEXT_PUBLIC_*"
+      ]
+    }
+  }
+}
