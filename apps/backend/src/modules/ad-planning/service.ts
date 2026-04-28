@@ -141,6 +141,45 @@ class AdPlanningService extends MedusaService({
   }
 
   /**
+   * Compute a 0-100 intent score for an anonymous visitor from
+   * already-aggregated browsing signals.
+   *
+   * Caller is responsible for the I/O (querying analytics_event /
+   * conversion). This function is pure so it can be unit-tested and
+   * reused from any route or workflow.
+   *
+   * Signal weights tuned against current prod data: a visitor who
+   * scrolled 100% AND spent 400s on a page hits ~70 (high) without
+   * any pageviews counted. Bots that load one page and bounce
+   * deterministically score 5 (low) — exactly the behavior we want.
+   */
+  computeIntentScore(signals: {
+    pageviews?: number;
+    maxScrollDepth?: number; // 0-100
+    totalTimeOnSite?: number; // seconds
+    hasEngagement?: boolean;
+  }): { score: number; level: "low" | "medium" | "high"; breakdown: Record<string, number> } {
+    const pageviewsPts = Math.min(20, (signals.pageviews ?? 0) * 5);
+    const scrollPts = Math.min(30, (signals.maxScrollDepth ?? 0) * 0.3);
+    const timePts = Math.min(40, (signals.totalTimeOnSite ?? 0) / 10);
+    const engagementPts = signals.hasEngagement ? 10 : 0;
+
+    const score = Math.round(pageviewsPts + scrollPts + timePts + engagementPts);
+    const level = score >= 70 ? "high" : score >= 30 ? "medium" : "low";
+
+    return {
+      score,
+      level,
+      breakdown: {
+        pageviews: Math.round(pageviewsPts),
+        scroll: Math.round(scrollPts),
+        time: Math.round(timePts),
+        engagement: engagementPts,
+      },
+    };
+  }
+
+  /**
    * Resolve UTM campaign to AdCampaign ID
    * Tries exact match first, then fuzzy matching
    */
