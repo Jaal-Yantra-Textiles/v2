@@ -274,8 +274,8 @@ export default async function seedProductionRunRemindersFlow({
   console.log(`     reminder template mappings (delete + re-run`)
   console.log(`     ./src/scripts/seed-partner-run-whatsapp-flow.ts).`)
   console.log(`  3. Approve these 3 WhatsApp templates on every WABA you target:`)
-  console.log(`     - jyt_production_run_reminder_pending_v1`)
-  console.log(`     - jyt_production_run_reminder_not_started_v1`)
-  console.log(`     - jyt_production_run_reminder_idle_v1`)
+  console.log(`     - jyt_production_run_reminder_pending_v2`)
+  console.log(`     - jyt_production_run_reminder_not_started_v2`)
+  console.log(`     - jyt_production_run_reminder_idle_v2`)
   console.log(`  4. Flip flow status: draft → active in the admin editor.`)
 }
