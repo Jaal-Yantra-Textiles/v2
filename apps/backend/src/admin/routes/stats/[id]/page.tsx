@@ -52,7 +52,10 @@ const DashboardDetailPage = () => {
     deleteDashboard.mutate(id, {
       onSuccess: () => {
         toast.success("Dashboard deleted")
-        navigate("/stats")
+        // replace: true so the deleted dashboard URL doesn't stay on
+        // the back stack — pressing back from /stats would otherwise
+        // land on the now-404 detail route.
+        navigate("/stats", { replace: true })
       },
       onError: (e) => toast.error(`Failed: ${e.message}`),
     })
