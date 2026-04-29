@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import {
   Container,
   Heading,
@@ -217,9 +217,9 @@ const AbandonedCartDetailPage = () => {
           {cart.customer && (
             <div className="pt-2">
               <Button asChild variant="transparent" size="small">
-                <a href={`/customers/${cart.customer.id}`}>
+                <Link to= {`/customers/${cart.customer.id}`}>
                   View customer →
-                </a>
+                </Link>
               </Button>
             </div>
           )}
