@@ -1,4 +1,4 @@
-import { clx } from "@medusajs/ui"
+import { clx, DropdownMenu } from "@medusajs/ui"
 import type { Message } from "../../../hooks/api/messaging"
 import { ContextCard } from "./context-card"
 
@@ -195,9 +195,14 @@ const ReplyPreview = ({ snapshot, isOutbound }: { snapshot: Message["reply_to_sn
 export const MessageBubble = ({
   message,
   onReply,
+  onCreatePayment,
 }: {
   message: Message
   onReply?: (message: Message) => void
+  // Optional — when provided, inbound messages get a kebab menu with a
+  // "Create payment request" entry. Page-level state owns the modal so
+  // we don't end up with N modals (one per bubble) in the DOM.
+  onCreatePayment?: (message: Message) => void
 }) => {
   const isOutbound = message.direction === "outbound"
 
@@ -264,17 +269,41 @@ export const MessageBubble = ({
         </div>
       </div>
 
-      {/* Reply button (right side for inbound) */}
-      {!isOutbound && onReply && (
-        <button
-          onClick={() => onReply(message)}
-          className="opacity-0 group-hover:opacity-100 transition-opacity mt-2 text-ui-fg-muted hover:text-ui-fg-base"
-          title="Reply"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path fillRule="evenodd" d="M7.793 2.232a.75.75 0 0 1-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 0 1 0 10.75H10.75a.75.75 0 0 1 0-1.5h2.875a3.875 3.875 0 0 0 0-7.75H3.622l4.146 3.957a.75.75 0 0 1-1.036 1.085l-5.5-5.25a.75.75 0 0 1 0-1.085l5.5-5.25a.75.75 0 0 1 1.06.025Z" clipRule="evenodd" />
-          </svg>
-        </button>
+      {/* Reply + actions (right side for inbound) */}
+      {!isOutbound && (onReply || onCreatePayment) && (
+        <div className="flex flex-col gap-y-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          {onReply && (
+            <button
+              onClick={() => onReply(message)}
+              className="text-ui-fg-muted hover:text-ui-fg-base"
+              title="Reply"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path fillRule="evenodd" d="M7.793 2.232a.75.75 0 0 1-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 0 1 0 10.75H10.75a.75.75 0 0 1 0-1.5h2.875a3.875 3.875 0 0 0 0-7.75H3.622l4.146 3.957a.75.75 0 0 1-1.036 1.085l-5.5-5.25a.75.75 0 0 1 0-1.085l5.5-5.25a.75.75 0 0 1 1.06.025Z" clipRule="evenodd" />
+              </svg>
+            </button>
+          )}
+          {onCreatePayment && (
+            <DropdownMenu>
+              <DropdownMenu.Trigger asChild>
+                <button
+                  className="text-ui-fg-muted hover:text-ui-fg-base"
+                  title="More actions"
+                  aria-label="More actions"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                    <path d="M10 4a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM10 11.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM11.5 17.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
+                  </svg>
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content side="right" align="start">
+                <DropdownMenu.Item onClick={() => onCreatePayment(message)}>
+                  Create payment request from this message
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu>
+          )}
+        </div>
       )}
     </div>
   )

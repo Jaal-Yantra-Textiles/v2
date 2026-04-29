@@ -13,6 +13,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { MessageBubble } from "../components/message-bubble"
 import { MessageInput, type SendPayload, type ReplyTo } from "../components/message-input"
 import { SenderPicker } from "../components/sender-picker"
+import { CreatePaymentFromMessageModal } from "../components/create-payment-from-message-modal"
 import type { Message } from "../../../hooks/api/messaging"
 import { type AdminDesign, useDesigns } from "../../../hooks/api/designs"
 
@@ -22,6 +23,10 @@ const ConversationThreadModal = () => {
   const [replyTo, setReplyTo] = useState<ReplyTo | null>(null)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState("")
+  // Single-modal-per-page pattern: kebab on a bubble sets the message
+  // and opens the payment modal. Keeps only one CreatePaymentModal in
+  // the DOM regardless of message count.
+  const [paymentMessage, setPaymentMessage] = useState<Message | null>(null)
 
   const { conversation, messages = [], isPending } = useConversationMessages(
     conversationId!,
@@ -162,7 +167,12 @@ const ConversationThreadModal = () => {
               ) : (
                 <div className="space-y-1 max-w-3xl mx-auto">
                   {messages.map((msg) => (
-                    <MessageBubble key={msg.id} message={msg} onReply={handleReply} />
+                    <MessageBubble
+                      key={msg.id}
+                      message={msg}
+                      onReply={handleReply}
+                      onCreatePayment={setPaymentMessage}
+                    />
                   ))}
                 </div>
               )}
@@ -181,6 +191,16 @@ const ConversationThreadModal = () => {
           </div>
         )}
       </RouteFocusModal.Body>
+
+      {conversation && (
+        <CreatePaymentFromMessageModal
+          open={!!paymentMessage}
+          onClose={() => setPaymentMessage(null)}
+          message={paymentMessage}
+          partnerId={conversation.partner_id}
+          partnerName={conversation.partner_name}
+        />
+      )}
     </RouteFocusModal>
   )
 }
