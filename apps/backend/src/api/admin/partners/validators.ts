@@ -39,6 +39,18 @@ export const listPartnersQuerySchema = z.object({
     }
     return undefined
   }, z.string().optional()),
+  // Pagination + filters used by the admin UI's partner list (page.tsx →
+  // usePartners). Without these the validator rejects the request with
+  // "Unrecognized fields: 'limit, offset'" and the table renders empty.
+  // Mirrors the schema for /admin/persons/partner so both list endpoints
+  // accept the same params.
+  offset: z.coerce.number().int().min(0).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  q: z.string().optional(),
+  name: z.string().optional(),
+  handle: z.string().optional(),
+  status: z.enum(["active", "inactive", "pending"]).optional(),
+  is_verified: z.enum(["true", "false"]).optional(),
 })
 
 export type PostPartnerWithAdminSchema = z.infer<typeof PostPartnerSchema>
