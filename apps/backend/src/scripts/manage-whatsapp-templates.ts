@@ -39,6 +39,15 @@ import {
   type TemplateSpec,
   type TemplateLanguageVariant,
 } from "./whatsapp-templates/partner-run-templates"
+import { PARTNER_PAYMENT_TEMPLATES } from "./whatsapp-templates/partner-payment-templates"
+
+// All templates this script manages. Add a new TemplateSpec[] here when
+// a new domain (e.g. shipping notifications) joins the system — Meta
+// upsert / cleanup logic stays untouched.
+const ALL_TEMPLATES: TemplateSpec[] = [
+  ...PARTNER_RUN_TEMPLATES,
+  ...PARTNER_PAYMENT_TEMPLATES,
+]
 
 const GRAPH_API_BASE = "https://graph.facebook.com/v21.0"
 
@@ -146,7 +155,7 @@ export default async function manageWhatsAppTemplates({ container }: ExecArgs) {
     }
     logger.info(`  ${existing.data.length} template variants currently on this WABA`)
 
-    for (const spec of PARTNER_RUN_TEMPLATES) {
+    for (const spec of ALL_TEMPLATES) {
       // Legacy = the same base name with any trailing _vN stripped. Used
       // exclusively by `cleanup` to delete pre-versioning templates after
       // a newer _vN is live.

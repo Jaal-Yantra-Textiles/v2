@@ -7,8 +7,10 @@ import {
 import {
   ContainerRegistrationKeys,
   MedusaError,
+  Modules,
 } from "@medusajs/framework/utils"
 import { LinkDefinition } from "@medusajs/framework/types"
+import type { IEventBusModuleService } from "@medusajs/types"
 import type { Link } from "@medusajs/modules-sdk"
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../modules/payment_submissions"
 import { PARTNER_MODULE } from "../../modules/partner"
@@ -498,6 +500,40 @@ const linkSubmissionToTasksStep = createStep(
   }
 )
 
+// Fire-and-forget event so subscribers (including the WhatsApp visual
+// flow seeded by seed-partner-payment-status-flow.ts) can react. Done
+// as the LAST step so a rollback in any earlier step skips the event.
+// Event name follows the production-run convention so the wildcard
+// trigger pattern `payment_submission.*` covers all status events.
+const emitSubmissionCreatedStep = createStep(
+  "emit-payment-submission-created",
+  async (
+    input: {
+      submission_id: string
+      partner_id: string
+      total_amount: number | null
+      currency: string | null
+    },
+    { container },
+  ) => {
+    const eventService = container.resolve(
+      Modules.EVENT_BUS,
+    ) as IEventBusModuleService
+    await eventService.emit([
+      {
+        name: "payment_submission.created",
+        data: {
+          payment_submission_id: input.submission_id,
+          partner_id: input.partner_id,
+          total_amount: input.total_amount,
+          currency: input.currency,
+        },
+      },
+    ])
+    return new StepResponse({ emitted: true })
+  },
+)
+
 // Workflow
 export const createPaymentSubmissionWorkflow = createWorkflow(
   "create-payment-submission",
@@ -534,6 +570,13 @@ export const createPaymentSubmissionWorkflow = createWorkflow(
     linkSubmissionToTasksStep({
       submission_id: submission.id,
       task_ids: input.task_ids || [],
+    })
+
+    emitSubmissionCreatedStep({
+      submission_id: submission.id,
+      partner_id: input.partner_id,
+      total_amount: submission.total_amount,
+      currency: submission.currency,
     })
 
     return new WorkflowResponse({ submission })

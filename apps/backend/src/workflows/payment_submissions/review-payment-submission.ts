@@ -9,8 +9,10 @@ import {
 import {
   ContainerRegistrationKeys,
   MedusaError,
+  Modules,
 } from "@medusajs/framework/utils"
 import { LinkDefinition } from "@medusajs/framework/types"
+import type { IEventBusModuleService } from "@medusajs/types"
 import type { Link } from "@medusajs/modules-sdk"
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../modules/payment_submissions"
 import { INTERNAL_PAYMENTS_MODULE } from "../../modules/internal_payments"
@@ -320,6 +322,60 @@ const markSubmissionPaidStep = createStep(
   }
 )
 
+// Emit a payment_submission.* event after a successful status change.
+// Decoupled from the status-update step so emission only happens after
+// the entire workflow path that produced the new status has succeeded
+// — a rollback in any later step skips the event.
+//
+// Two events of interest in this workflow:
+//   - payment_submission.rejected  → action=reject branch
+//   - payment_submission.paid      → action=approve branch (after the
+//                                    Approved → Paid transition below)
+//
+// We deliberately don't emit payment_submission.approved here: the
+// approve path goes Approved → Paid in the same atomic workflow, so
+// `.approved` would be a transient state the partner never observes.
+// If a future change holds at Approved (e.g. for human payment review),
+// add the event then.
+//
+// Note: each createStep call must produce a distinct step instance —
+// a single step can't be invoked from two different `when()` branches
+// in the same workflow ("Step X is already defined in workflow"). So
+// the rejected and paid emitters share a small handler factory but
+// land as two separate steps with their own ids.
+type EmitInput = {
+  event_name: string
+  submission_id: string
+  partner_id: string
+  total_amount: number | null
+  currency: string | null
+  rejection_reason?: string | null
+  payment_type?: string | null
+  payment_id?: string | null
+}
+const emitHandler = async (input: EmitInput, { container }: any) => {
+  const eventService = container.resolve(
+    Modules.EVENT_BUS,
+  ) as IEventBusModuleService
+  await eventService.emit([
+    {
+      name: input.event_name,
+      data: {
+        payment_submission_id: input.submission_id,
+        partner_id: input.partner_id,
+        total_amount: input.total_amount,
+        currency: input.currency,
+        rejection_reason: input.rejection_reason ?? null,
+        payment_type: input.payment_type ?? null,
+        payment_id: input.payment_id ?? null,
+      },
+    },
+  ])
+  return new StepResponse({ emitted: true })
+}
+const emitPaidEventStep = createStep("emit-payment-submission-paid", emitHandler)
+const emitRejectedEventStep = createStep("emit-payment-submission-rejected", emitHandler)
+
 // Workflow
 export const reviewPaymentSubmissionWorkflow = createWorkflow(
   "review-payment-submission",
@@ -375,6 +431,34 @@ export const reviewPaymentSubmissionWorkflow = createWorkflow(
     when(isApproval, (val) => val).then(() =>
       markSubmissionPaidStep({
         submission_id: input.submission_id,
+      })
+    )
+
+    // Approval branch: now in Paid status — fire the event so the
+    // payment-status visual flow can WhatsApp the partner.
+    when(isApproval, (val) => val).then(() =>
+      emitPaidEventStep({
+        event_name: "payment_submission.paid",
+        submission_id: input.submission_id,
+        partner_id: submission.partner_id,
+        total_amount: paymentAmount,
+        currency: submission.currency,
+        payment_type: input.payment_type ?? "Bank",
+        payment_id: payment!.id,
+      })
+    )
+
+    // Rejection branch: status is now Rejected. Fire the event so the
+    // partner gets notified with the reason.
+    const isRejection = transform(input, (i) => i.action === "reject")
+    when(isRejection, (val) => val).then(() =>
+      emitRejectedEventStep({
+        event_name: "payment_submission.rejected",
+        submission_id: input.submission_id,
+        partner_id: submission.partner_id,
+        total_amount: submission.total_amount,
+        currency: submission.currency,
+        rejection_reason: input.rejection_reason ?? null,
       })
     )
 
