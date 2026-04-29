@@ -11,7 +11,10 @@
  *   all          completed_at IS NULL
  *   has_items    + at least one cart line item exists
  *   recoverable  + (email IS NOT NULL OR customer_id IS NOT NULL)
- *   checkout     + shipping_address_id IS NOT NULL
+ *   checkout     + region_id IS NOT NULL  (storefront assigns region
+ *                  when the user picks a country, which is the right
+ *                  "reached checkout" signal — shipping_address comes
+ *                  later and is more granular than recovery cares about)
  *
  * Empty/dead carts (no items, idle > 24h) live in tier=all only — they
  * exist for cleanup, not recovery.
@@ -87,8 +90,8 @@ export async function GET(
   if (validated.region_id) filters.region_id = validated.region_id
   if (validated.customer_id) filters.customer_id = validated.customer_id
   if (validated.email) filters.email = validated.email
-  if (validated.has_shipping === "yes") filters.shipping_address_id = { $ne: null }
-  if (validated.has_shipping === "no") filters.shipping_address_id = null
+  if (validated.has_region === "yes") filters.region_id = { $ne: null }
+  if (validated.has_region === "no") filters.region_id = null
 
   const andClauses: Array<Record<string, any>> = []
 
@@ -119,7 +122,7 @@ export async function GET(
           { customer_id: { $ne: null } },
         ],
       })
-      andClauses.push({ shipping_address_id: { $ne: null } })
+      andClauses.push({ region_id: { $ne: null } })
       break
   }
 

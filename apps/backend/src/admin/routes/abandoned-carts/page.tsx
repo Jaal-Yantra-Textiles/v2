@@ -202,7 +202,7 @@ const AbandonedCartsPage = () => {
   const tier: AbandonedCartTier =
     (readFilterValue("tier") as AbandonedCartTier | undefined) ?? "has_items";
   const idleMinutes = readFilterValue("idle_minutes") ?? "60";
-  const hasShipping = readFilterValue("has_shipping") as
+  const hasRegion = readFilterValue("has_region") as
     | "yes"
     | "no"
     | undefined;
@@ -211,14 +211,14 @@ const AbandonedCartsPage = () => {
   // tier on page 5 leaves you stranded on a non-existent page.
   useEffect(() => {
     setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
-  }, [tier, idleMinutes, hasShipping, search]);
+  }, [tier, idleMinutes, hasRegion, search]);
 
   const offset = pagination.pageIndex * pagination.pageSize;
 
   const queryParams: AbandonedCartsQuery = {
     tier,
     idle_minutes: Number(idleMinutes),
-    has_shipping: hasShipping,
+    has_region: hasRegion,
     limit: pagination.pageSize,
     offset,
     q: search || undefined,
@@ -243,9 +243,9 @@ const AbandonedCartsPage = () => {
       label: "Idle for at least",
       options: IDLE_OPTIONS,
     }),
-    filterHelper.accessor("has_shipping" as any, {
+    filterHelper.accessor("has_region" as any, {
       type: "select",
-      label: "Has shipping address",
+      label: "Region picked",
       options: [
         { label: "Yes", value: "yes" },
         { label: "No", value: "no" },

@@ -93,7 +93,7 @@ const PANELS: SeedPanel[] = [
     type: "metric",
     operation_type: "cart_recovery_stats",
     operation_options: { last_days: WINDOW_DAYS, output: "summary" },
-    display: { field: "at_checkout", label: "Carts that reached the address step" },
+    display: { field: "at_checkout", label: "Carts that picked a region (reached checkout)" },
     width: 4,
     cache_ttl_seconds: CACHE_TTL,
   },

@@ -48,7 +48,7 @@ export type AbandonedCartsQuery = {
   region_id?: string;
   customer_id?: string;
   email?: string;
-  has_shipping?: "yes" | "no";
+  has_region?: "yes" | "no";
   offset?: number;
   limit?: number;
   order?: string;
