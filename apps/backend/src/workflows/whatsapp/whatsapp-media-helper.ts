@@ -1,3 +1,4 @@
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MEDIA_MODULE } from "../../modules/media"
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
@@ -6,6 +7,199 @@ import type SocialProviderService from "../../modules/social-provider/service"
 import { uploadAndOrganizeMediaWorkflow } from "../media/upload-and-organize-media"
 import { listSingleDesignsWorkflow } from "../designs/list-single-design"
 import { updateDesignWorkflow } from "../designs/update-design"
+
+export type PartnerSharedFolder = {
+  id: string
+  name: string
+  slug: string
+  fileCount: number
+  // Epoch ms of the most recent file in this folder; 0 when empty.
+  // Used for ordering ("most-recently-active first").
+  latestFileAt: number
+}
+
+/**
+ * List every folder shared with the partner via their linked people,
+ * with file counts and the latest file timestamp per folder. Sorted
+ * with the most-recently-active folder first; empty folders sink to
+ * the bottom in alphabetical order.
+ *
+ * Centralized so the resolver (silent-upload destination) and the
+ * `folders` WhatsApp command share one query. Adding sharing semantics
+ * later (e.g. ACL filtering) only needs to change this function.
+ */
+export async function listPartnerSharedFolders(
+  scope: any,
+  partnerId: string,
+): Promise<PartnerSharedFolder[]> {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+
+  const { data: partnerData } = await query.graph({
+    entity: "partners",
+    fields: ["people.id"],
+    filters: { id: partnerId },
+  } as any)
+  const personIds: string[] = ((partnerData?.[0] as any)?.people ?? [])
+    .map((p: any) => p?.id)
+    .filter(Boolean)
+  if (!personIds.length) return []
+
+  const { data: personData } = await query.graph({
+    entity: "person",
+    fields: [
+      "id",
+      "folders.id",
+      "folders.name",
+      "folders.slug",
+      "folders.media_files.id",
+      "folders.media_files.created_at",
+    ],
+    filters: { id: personIds },
+  } as any)
+
+  // Dedup folders that show up under multiple people; track best-of stats.
+  const byFolder = new Map<string, PartnerSharedFolder>()
+  for (const person of personData ?? []) {
+    for (const folder of (person as any).folders ?? []) {
+      if (!folder?.id) continue
+      const files = (folder as any).media_files ?? []
+      const fileCount = files.length
+      const latest = files
+        .map((f: any) => (f?.created_at ? Date.parse(f.created_at) : 0))
+        .reduce((a: number, b: number) => (b > a ? b : a), 0)
+      const prev = byFolder.get(folder.id)
+      if (!prev) {
+        byFolder.set(folder.id, {
+          id: folder.id,
+          name: folder.name,
+          slug: folder.slug,
+          fileCount,
+          latestFileAt: latest,
+        })
+      } else if (latest > prev.latestFileAt) {
+        prev.latestFileAt = latest
+        // fileCount may differ between persons if filters ever diverge;
+        // pick the larger so the partner sees what's actually there.
+        if (fileCount > prev.fileCount) prev.fileCount = fileCount
+      }
+    }
+  }
+
+  return [...byFolder.values()].sort((a, b) => {
+    if (b.latestFileAt !== a.latestFileAt) return b.latestFileAt - a.latestFileAt
+    return a.name.localeCompare(b.name)
+  })
+}
+
+/**
+ * Pick the partner's most active shared folder. Used by the WhatsApp
+ * inbound-media path: when a partner sends a photo outside any run
+ * context, we want it to land in their actual working folder rather
+ * than the per-partner WhatsApp catchall, so the admin doesn't have
+ * to move files around. "Most recent" beats "first alphabetical"
+ * because it tracks what the partner is actively collaborating on.
+ */
+export async function resolvePartnerDefaultSharedFolder(
+  scope: any,
+  partnerId: string,
+): Promise<{ id: string; name: string; slug: string } | null> {
+  const folders = await listPartnerSharedFolders(scope, partnerId)
+  if (!folders.length) return null
+  const winner = folders[0]
+  return { id: winner.id, name: winner.name, slug: winner.slug }
+}
+
+export type PartnerOpenWork = {
+  pendingRuns: Array<{
+    id: string
+    status: string
+    accepted: boolean
+    designName?: string
+  }>
+  pendingPayments: Array<{
+    id: string
+    status: string
+    totalAmount?: number | null
+    currency?: string | null
+    submittedAt?: string | null
+  }>
+}
+
+/**
+ * Aggregate everything a partner has open right now. Used by the
+ * WhatsApp `open` command to give partners a single read of their
+ * pending work without having to remember the separate `runs` and
+ * payment commands. Designs are excluded for v1 — the design ↔
+ * partner link is many-to-many with computed status, so the query
+ * is heavier and the production-run row already covers most active
+ * design work in practice.
+ */
+export async function getPartnerOpenWork(
+  scope: any,
+  partnerId: string,
+): Promise<PartnerOpenWork> {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+
+  const runsPromise = query
+    .graph({
+      entity: "production_runs",
+      fields: ["id", "status", "accepted_at", "design.name"],
+      filters: {
+        partner_id: partnerId,
+        status: { $in: ["sent_to_partner", "in_progress"] },
+      },
+      pagination: { skip: 0, take: 25 },
+    } as any)
+    .then(({ data }: any) =>
+      (data ?? []).map((r: any) => ({
+        id: r.id,
+        status: r.status,
+        accepted: !!r.accepted_at,
+        designName: r.design?.name,
+      })),
+    )
+    .catch(() => [])
+
+  // Status casing varies across handler code (see whatsapp-admin-handler
+  // using lowercase "pending"); the model itself defines a TitleCase enum
+  // including Draft / Pending / Under_Review. Match both shapes so the
+  // command works regardless of how submissions were created.
+  const paymentsPromise = query
+    .graph({
+      entity: "payment_submissions",
+      fields: ["id", "status", "total_amount", "currency", "submitted_at"],
+      filters: {
+        partner_id: partnerId,
+        status: {
+          $in: [
+            "Draft",
+            "Pending",
+            "Under_Review",
+            "draft",
+            "pending",
+            "under_review",
+          ],
+        },
+      },
+      pagination: { skip: 0, take: 25 },
+    } as any)
+    .then(({ data }: any) =>
+      (data ?? []).map((s: any) => ({
+        id: s.id,
+        status: s.status,
+        totalAmount: s.total_amount ?? null,
+        currency: s.currency ?? null,
+        submittedAt: s.submitted_at ?? null,
+      })),
+    )
+    .catch(() => [])
+
+  const [pendingRuns, pendingPayments] = await Promise.all([
+    runsPromise,
+    paymentsPromise,
+  ])
+  return { pendingRuns, pendingPayments }
+}
 
 /**
  * Find or create a media folder for a partner's WhatsApp media.
@@ -51,8 +245,12 @@ export async function downloadAndSaveWhatsAppMedia(
     partnerId: string
     partnerName: string
     caption?: string
+    // Override the default per-partner WhatsApp catchall folder. When
+    // set, the file is uploaded directly to this folder — used when the
+    // partner has a real shared working folder we'd rather route to.
+    targetFolderId?: string
   }
-): Promise<{ fileUrl: string; mimeType: string } | null> {
+): Promise<{ fileUrl: string; mimeType: string; folderId: string } | null> {
   const socialProvider = scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
   const whatsapp = socialProvider.getWhatsApp(scope)
 
@@ -74,12 +272,15 @@ export async function downloadAndSaveWhatsAppMedia(
 
     mimeType = downloaded.contentType || mimeType
 
-    // Step 3: Get or create the partner's media folder
-    const folderId = await getOrCreatePartnerMediaFolder(
-      scope,
-      options.partnerId,
-      options.partnerName
-    )
+    // Step 3: Resolve target folder. Prefer the caller-supplied override
+    // (a real shared folder); fall back to the per-partner WhatsApp
+    // catchall when nothing is shared with the partner yet.
+    const folderId = options.targetFolderId
+      ?? await getOrCreatePartnerMediaFolder(
+        scope,
+        options.partnerId,
+        options.partnerName
+      )
 
     // Step 4: Generate filename
     const ext = extensionFromMime(mimeType)
@@ -111,7 +312,7 @@ export async function downloadAndSaveWhatsAppMedia(
 
     if (!fileUrl) return null
 
-    return { fileUrl, mimeType }
+    return { fileUrl, mimeType, folderId }
   } catch (e: any) {
     console.error("[whatsapp-media] Failed to download/save media:", e.message)
     return null

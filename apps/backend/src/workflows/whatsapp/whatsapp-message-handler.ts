@@ -15,7 +15,13 @@ import { SOCIAL_PROVIDER_MODULE } from "../../modules/social-provider"
 import type SocialProviderService from "../../modules/social-provider/service"
 import { MESSAGING_MODULE } from "../../modules/messaging"
 import type { WhatsAppAuditContext } from "../../modules/social-provider/whatsapp-service"
-import { downloadAndSaveWhatsAppMedia, attachMediaToRunDesign } from "./whatsapp-media-helper"
+import {
+  downloadAndSaveWhatsAppMedia,
+  attachMediaToRunDesign,
+  resolvePartnerDefaultSharedFolder,
+  listPartnerSharedFolders,
+  getPartnerOpenWork,
+} from "./whatsapp-media-helper"
 import { BUTTON_TITLE_ACTIONS } from "../../scripts/whatsapp-templates/partner-run-templates"
 
 interface IncomingMessage {
@@ -331,13 +337,25 @@ export async function handleIncomingMessage(
     action = parsed.action
     runId = parsed.runId
   } else if (message.type === "image" || message.type === "video" || message.type === "document") {
-    // Save media to partner's media folder. If the partner recently tapped
-    // "Add Media" on a started run (button payload `media_<runId>`), we
-    // have a short-lived pointer to the target run on conversation.metadata
-    // — attach the file to that run's design. Outside that window we just
-    // keep the file in the inbox, same as before.
+    // Inbound media. Resolution order:
+    //   1. `active_media_run_id` — partner tapped "📸 Add Media" on a
+    //      started run (10-min TTL). Existing run-attachment behavior.
+    //   2. Single active run — auto-attach to it. Existing auto-route.
+    //   3. Partner has a shared folder — silent, no command needed.
+    //      File lands in the most-recently-active shared folder.
+    //   4. Fall back to per-partner WhatsApp catchall + inbox nudge.
+    //
+    // The destination folder is decided BEFORE we ask Meta for the
+    // download URL: if any folder is shared with the partner we route
+    // the upload there directly; otherwise downloadAndSaveWhatsAppMedia
+    // creates / reuses the catchall.
     if (message.mediaId) {
       try {
+        const sharedFolder = await resolvePartnerDefaultSharedFolder(
+          scope,
+          partner.partnerId,
+        ).catch(() => null)
+
         const saved = await downloadAndSaveWhatsAppMedia(scope, {
           mediaId: message.mediaId,
           mediaUrl: message.mediaUrl,
@@ -345,6 +363,7 @@ export async function handleIncomingMessage(
           partnerId: partner.partnerId,
           partnerName: partner.adminName,
           caption: message.text,
+          targetFolderId: sharedFolder?.id,
         })
 
         // Resolve the attachment target.
@@ -441,23 +460,33 @@ export async function handleIncomingMessage(
           const suffix = contextStillValid
             ? ""
             : " (auto-matched — you only have one run in progress)"
+          const folderSuffix = sharedFolder
+            ? ` Stored in *${sharedFolder.name}*.`
+            : ""
           await whatsapp.sendTextMessage(
             message.from,
-            `📎 Photo attached to run ${attachedRunId}${suffix}.`
+            `📎 Photo attached to run ${attachedRunId}${suffix}.${folderSuffix}`
           )
         } else if (attachError) {
           await whatsapp.sendTextMessage(message.from, attachError)
+        } else if (sharedFolder) {
+          // Silent shared-folder upload — the new default for partners
+          // not in the middle of a run. No command, no choice prompt.
+          await whatsapp.sendTextMessage(
+            message.from,
+            `✅ Thanks for sharing. Uploaded to your shared folder *${sharedFolder.name}*.`,
+          )
         } else if (!pointedRunId) {
-          // No tap, no single run to auto-match. Leave in the inbox and
-          // nudge — the message differs depending on why we couldn't
-          // auto-route so the partner knows what to do.
+          // No tap, no single run to auto-match, no shared folder.
+          // File is in the per-partner WhatsApp catchall — admin will
+          // see it in the inbox and assign appropriately.
           const hint =
             autoResolveReason === "multiple"
               ? "You have several runs in progress — tap *📸 Add Media* on the specific run, then send the photo."
-              : "To attach a photo to a specific run, tap *📸 Add Media* on a started run first, then send the photo."
+              : "We've received your file and will sort it shortly. (Tap *📸 Add Media* on a run to attach a photo to a specific run.)"
           await whatsapp.sendTextMessage(
             message.from,
-            `📥 Received — saved to your inbox. ${hint}`
+            `📥 Received. ${hint}`
           )
         }
       } catch (e: any) {
@@ -524,6 +553,10 @@ export async function handleIncomingMessage(
       case "runs":
       case "list":
         return await handleListRuns(scope, whatsapp, message.from, partner.partnerId)
+      case "folders":
+        return await handleListFolders(scope, whatsapp, message.from, partner.partnerId)
+      case "open":
+        return await handleShowOpenWork(scope, whatsapp, message.from, partner.partnerId)
       case "help":
         await sendHelpMessage(scope, whatsapp, message.from, partner.partnerId, partner.adminName, conversationMeta.language)
         return { handled: true, action: "help" }
@@ -590,6 +623,26 @@ function parseTextCommand(text: string): { action: string; runId: string; extra?
   // Greetings — treated as no specific action (nudge will handle)
   if (lower === "hi" || lower === "hello" || lower === "hey") {
     return { action: "", runId: "" }
+  }
+  // Multi-word matches must come before the single-word "list" → runs
+  // alias, otherwise "list folders" would resolve to action=runs.
+  if (
+    lower === "folders" ||
+    lower === "list folders" ||
+    lower === "my folders" ||
+    lower === "shared folders"
+  ) {
+    return { action: "folders", runId: "" }
+  }
+  if (
+    lower === "open" ||
+    lower === "todo" ||
+    lower === "open work" ||
+    lower === "what's open" ||
+    lower === "what is open" ||
+    lower === "pending"
+  ) {
+    return { action: "open", runId: "" }
   }
   if (lower === "runs" || lower === "list" || lower === "my runs") {
     return { action: "runs", runId: "" }
@@ -1225,6 +1278,99 @@ async function sendWelcomeCommands(
 /**
  * Show help when partner explicitly asks for it (already onboarded).
  */
+async function handleListFolders(
+  scope: any,
+  whatsapp: WhatsAppService,
+  phone: string,
+  partnerId: string,
+): Promise<HandlerResult> {
+  const folders = await listPartnerSharedFolders(scope, partnerId).catch(() => [])
+
+  if (!folders.length) {
+    await whatsapp.sendTextMessage(
+      phone,
+      `📁 No shared folders yet. Send a photo and we'll save it for you, or reach out to the team to get a folder shared with your account.`,
+    )
+    return { handled: true, action: "folders" }
+  }
+
+  const lines = folders.slice(0, 15).map((f, i) => {
+    const fileNote =
+      f.fileCount > 0
+        ? ` (${f.fileCount} ${f.fileCount === 1 ? "file" : "files"})`
+        : " (empty)"
+    return `${i + 1}. *${f.name}*${fileNote}`
+  })
+  const more = folders.length > 15 ? `\n…and ${folders.length - 15} more.` : ""
+  const tail = `\n\n_Send any photo and we'll save it to your most-recent folder._`
+
+  await whatsapp.sendTextMessage(
+    phone,
+    `📁 *Your shared folders (${folders.length}):*\n\n${lines.join("\n")}${more}${tail}`,
+  )
+  return { handled: true, action: "folders" }
+}
+
+async function handleShowOpenWork(
+  scope: any,
+  whatsapp: WhatsAppService,
+  phone: string,
+  partnerId: string,
+): Promise<HandlerResult> {
+  const work = await getPartnerOpenWork(scope, partnerId).catch(
+    () =>
+      ({
+        pendingRuns: [],
+        pendingPayments: [],
+      }) as Awaited<ReturnType<typeof getPartnerOpenWork>>,
+  )
+
+  if (!work.pendingRuns.length && !work.pendingPayments.length) {
+    await whatsapp.sendTextMessage(
+      phone,
+      `✅ All clear. Nothing pending right now.`,
+    )
+    return { handled: true, action: "open" }
+  }
+
+  const lines: string[] = []
+  if (work.pendingRuns.length) {
+    const awaitingAcceptance = work.pendingRuns.filter((r) => !r.accepted).length
+    const inProgress = work.pendingRuns.filter((r) => r.accepted).length
+    lines.push(
+      `*🛠 Production runs:* ${work.pendingRuns.length}` +
+        (awaitingAcceptance ? ` (${awaitingAcceptance} awaiting acceptance)` : "") +
+        (inProgress ? ` (${inProgress} in progress)` : ""),
+    )
+    for (const r of work.pendingRuns.slice(0, 5)) {
+      const tag = r.accepted ? "in progress" : "awaiting accept"
+      const name = r.designName ? ` — ${r.designName}` : ""
+      lines.push(`   • ${r.id}${name} _(${tag})_`)
+    }
+    if (work.pendingRuns.length > 5) {
+      lines.push(`   …and ${work.pendingRuns.length - 5} more — reply *runs*.`)
+    }
+  }
+
+  if (work.pendingPayments.length) {
+    if (lines.length) lines.push("")
+    lines.push(`*💳 Payment requests:* ${work.pendingPayments.length}`)
+    for (const p of work.pendingPayments.slice(0, 5)) {
+      const amt =
+        p.totalAmount != null
+          ? `${p.currency ? p.currency + " " : "₹"}${Number(p.totalAmount).toLocaleString("en-IN")}`
+          : "amount pending"
+      lines.push(`   • ${p.id} — ${amt} _(${p.status})_`)
+    }
+    if (work.pendingPayments.length > 5) {
+      lines.push(`   …and ${work.pendingPayments.length - 5} more.`)
+    }
+  }
+
+  await whatsapp.sendTextMessage(phone, `📋 *Open work:*\n\n${lines.join("\n")}`)
+  return { handled: true, action: "open" }
+}
+
 async function sendHelpMessage(
   scope: any,
   whatsapp: WhatsAppService,
@@ -1250,27 +1396,31 @@ async function sendHelpMessage(
     await whatsapp.sendTextMessage(
       phone,
       `*उपलब्ध कमांड:*\n` +
-      `• *runs* — अपने सक्रिय प्रोडक्शन रन देखें${activeCount > 0 ? ` (${activeCount})` : ""}\n` +
+      `• *open* — आपका लंबित कार्य देखें\n` +
+      `• *runs* — सक्रिय प्रोडक्शन रन${activeCount > 0 ? ` (${activeCount})` : ""}\n` +
+      `• *folders* — साझा फ़ोल्डर देखें\n` +
       `• *accept <run_id>* — असाइन किया गया रन स्वीकार करें\n` +
       `• *start <run_id>* — रन पर काम शुरू करें\n` +
       `• *finish <run_id>* — रन को पूरा हुआ चिह्नित करें\n` +
       `• *complete <run_id> <qty>* — उत्पादित मात्रा के साथ पूरा करें\n` +
       `• *status <run_id>* — रन विवरण देखें\n` +
       `• *help* — यह संदेश दिखाएं\n\n` +
-      `_या बटन दबाकर तुरंत कार्रवाई करें।_`
+      `_कोई भी फोटो भेजें — यह आपके साझा फ़ोल्डर में सेव हो जाएगा।_`
     )
   } else {
     await whatsapp.sendTextMessage(
       phone,
       `*Available Commands:*\n` +
-      `• *runs* — List your active production runs${activeCount > 0 ? ` (${activeCount})` : ""}\n` +
+      `• *open* — See your pending work (runs + payments)\n` +
+      `• *runs* — List active production runs${activeCount > 0 ? ` (${activeCount})` : ""}\n` +
+      `• *folders* — List your shared folders\n` +
       `• *accept <run_id>* — Accept an assigned run\n` +
       `• *start <run_id>* — Start working on a run\n` +
       `• *finish <run_id>* — Mark a run as finished\n` +
       `• *complete <run_id> <qty>* — Complete with produced quantity\n` +
       `• *status <run_id>* — View run details\n` +
       `• *help* — Show this message\n\n` +
-      `_Or tap buttons in messages to take quick actions._`
+      `_Send any photo — it'll be saved to your shared folder automatically._`
     )
   }
 }
