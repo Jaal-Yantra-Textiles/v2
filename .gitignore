@@ -18,10 +18,10 @@ coverage
 
 !src/**
 
-# MikroORM writes a schema snapshot next to module migrations each time a
-# temporary integration-test database is spun up. These files are transient
-# and should never be committed.
-apps/backend/src/modules/**/migrations/.snapshot-medusa-*-integration-*.json
+# MikroORM writes a schema snapshot next to module migrations every time it
+# connects to a database (integration tests, dev DB, exec scripts, etc.).
+# These files are per-machine state and regenerate on every run — never commit.
+apps/backend/src/modules/**/migrations/.snapshot-medusa-*.json
 
 ./tsconfig.tsbuildinfo
 medusa-db.sql
