@@ -4,7 +4,8 @@ import { z } from "@medusajs/framework/zod"
 // - all          : every cart not yet completed (includes empty browse-carts)
 // - has_items    : has at least one line item
 // - recoverable  : has items AND email or customer_id (we can reach them)
-// - checkout     : recoverable AND has shipping_address (highest intent)
+// - checkout     : recoverable AND region picked (highest intent — region is
+//                  set when the user picks a country, before the address form)
 const TIER_VALUES = ["all", "has_items", "recoverable", "checkout"] as const
 
 export const listAbandonedCartsQuerySchema = z.object({
@@ -20,10 +21,11 @@ export const listAbandonedCartsQuerySchema = z.object({
   region_id: z.string().optional(),
   customer_id: z.string().optional(),
   email: z.string().optional(),
-  // Whether the cart already has a shipping address attached. Useful
-  // for narrowing to "checkout-stage" abandoners who got past the
-  // address step. Accepts "yes" / "no" — anything else is ignored.
-  has_shipping: z.enum(["yes", "no"]).optional(),
+  // Whether the cart already has a region picked (the storefront sets
+  // region_id when the user selects their country, which is the right
+  // "got past the country step" signal — shipping_address is later and
+  // more granular than recovery cares about). Accepts "yes" / "no".
+  has_region: z.enum(["yes", "no"]).optional(),
   offset: z.preprocess(
     (val) => (val !== undefined && val !== null && val !== "" ? Number(val) : undefined),
     z.number().int().min(0).default(0),

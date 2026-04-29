@@ -78,12 +78,17 @@ export const cartRecoveryStatsOperation: OperationDefinition = {
       //    completed_at: null targets the recovery audience — completed
       //    orders aren't relevant to "stamping coverage" since the
       //    funnel finished.
+      //
+      //    `region_id` (not shipping_address_id) is the "reached
+      //    checkout" signal: the storefront assigns it when the user
+      //    picks a country, before the address form. Address-step
+      //    completion is more granular than recovery cares about.
       const cartsResult = await query.graph({
         entity: "cart",
         fields: [
           "id",
           "email",
-          "shipping_address_id",
+          "region_id",
           "created_at",
           "metadata",
         ],
@@ -96,7 +101,7 @@ export const cartRecoveryStatsOperation: OperationDefinition = {
       const carts: Array<{
         id: string
         email: string | null
-        shipping_address_id: string | null
+        region_id: string | null
         created_at: string
         metadata: Record<string, any> | null
       }> = (cartsResult?.data as any[]) ?? []
@@ -111,7 +116,7 @@ export const cartRecoveryStatsOperation: OperationDefinition = {
       const cartByVisitor = new Map<string, typeof carts[number]>()
       for (const c of carts) {
         if (c.email) withEmail++
-        if (c.shipping_address_id) atCheckout++
+        if (c.region_id) atCheckout++
         const v = (c.metadata as any)?.visitor_id as string | undefined
         if (typeof v === "string" && v.length > 0) {
           withVisitorId++

@@ -98,3 +98,11 @@ src/.DS_Store
 src/**/*.DS_Store
 
 node_modules 2/
+
+# Vercel CLI artefacts (project-link metadata, pulled env, build output)
+.vercel/
+**/.vercel/
+
+# Local env overrides pulled by `vercel env pull` etc.
+**/.env.local
+**/.env.*.local
