@@ -287,13 +287,32 @@ export async function downloadAndSaveWhatsAppMedia(
     const timestamp = Date.now()
     const filename = `wa-${timestamp}${ext}`
 
-    // Step 5: Upload via media workflow
+    // Step 5: Upload via media workflow.
+    //
+    // base64 is required here. The downstream file-s3 provider
+    // (@medusajs/file-s3 services/s3-file.js:68-79) format-detects the
+    // content string by attempting a base64 round-trip — if that
+    // succeeds it decodes as base64; otherwise it falls back to
+    // Buffer.from(content, "utf8"). Passing toString("binary") gives
+    // it a Latin-1 string of raw bytes that fails the round-trip and
+    // takes the utf8 path, which UTF-8-encodes every char >0x7f and
+    // lands the file on S3 with mojibake content (12.5MB instead of
+    // 8.2MB for a real JPEG, magic bytes c3 bf c3 98 instead of
+    // ff d8 ff e0 — file(1) reports "data", browsers fail to render).
+    //
+    // The admin UI sidesteps all of this by using a multi-part
+    // presigned-URL upload (admin/lib/uploads/upload-manager.ts) that
+    // PUTs raw binary directly to S3. The webhook path can't easily do
+    // that because Meta hands us a Buffer in Node, not a browser File,
+    // so we go through the workflow + file-s3 service. base64 is the
+    // only encoding that survives that hop. Memory cost: ~33% over
+    // the buffer (16 MB Meta cap → ~21 MB string, trivial for Node).
     const { result } = await uploadAndOrganizeMediaWorkflow(scope).run({
       input: {
         files: [{
           filename,
           mimeType,
-          content: downloaded.buffer.toString("binary"),
+          content: downloaded.buffer.toString("base64"),
         }],
         existingFolderId: folderId,
         metadata: {
