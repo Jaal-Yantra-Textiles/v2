@@ -158,9 +158,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params;
 
   try {
-    const website = await websiteService.retrieveWebsite(id, 
+    const website = await websiteService.retrieveWebsite(id,
       {
-        relations:['pages']  
+        relations:['pages', 'domains']
       }
     );
     res.status(200).json({ website });

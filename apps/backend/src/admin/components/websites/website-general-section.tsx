@@ -1,5 +1,6 @@
 import { PencilSquare, ChartBar, BoltSolid } from "@medusajs/icons";
 import {
+  Badge,
   Container,
   Heading,
   Text,
@@ -89,20 +90,38 @@ export function WebsiteGeneralSection({ website }: WebsiteGeneralSectionProps) {
           }]} />
         </div>
       </div>
-      <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
+      <div className="text-ui-fg-subtle grid grid-cols-2 items-start px-6 py-4">
         <Text size="small" leading="compact" weight="plus">
-          Domain
+          Domains
         </Text>
-        <Text size="small" leading="compact">
-          <a
-            href={`https://${website.domain}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-500 hover:underline"
-          >
-            {website.domain}
-          </a>
-        </Text>
+        <div className="flex flex-col gap-y-2">
+          <div className="flex items-center gap-x-2">
+            <a
+              href={`https://${website.domain}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-500 hover:underline text-sm"
+            >
+              {website.domain}
+            </a>
+            <Badge size="2xsmall" color="green">primary</Badge>
+          </div>
+          {(website.domains ?? [])
+            .filter((d) => d.domain !== website.domain && !d.is_primary)
+            .map((d) => (
+              <div key={d.id} className="flex items-center gap-x-2">
+                <a
+                  href={`https://${d.domain}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:underline text-sm"
+                >
+                  {d.domain}
+                </a>
+                <Badge size="2xsmall" color="grey">alias</Badge>
+              </div>
+            ))}
+        </div>
       </div>
       <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
         <Text size="small" leading="compact" weight="plus">
