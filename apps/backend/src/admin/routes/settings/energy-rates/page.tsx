@@ -8,6 +8,7 @@ import {
   DataTablePaginationState,
   DataTableFilteringState,
   Badge,
+  StatusBadge,
 } from "@medusajs/ui"
 import { keepPreviousData } from "@tanstack/react-query"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
@@ -97,9 +98,9 @@ const useColumns = () => {
       columnHelper.accessor("is_active", {
         header: "Status",
         cell: ({ getValue }) => (
-          <Badge color={getValue() ? "green" : "grey"}>
+          <StatusBadge color={getValue() ? "green" : "grey"}>
             {getValue() ? "Active" : "Inactive"}
-          </Badge>
+          </StatusBadge>
         ),
       }),
     ],

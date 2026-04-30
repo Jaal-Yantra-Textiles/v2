@@ -6,6 +6,7 @@ import {
   DataTableFilteringState,
   DataTablePaginationState,
   Heading,
+  StatusBadge,
   Text,
   Toaster,
   createDataTableFilterHelper,
@@ -100,9 +101,9 @@ const InboundEmailsPage = () => {
         cell: ({ getValue }) => {
           const status = getValue()
           return (
-            <Badge color={STATUS_COLORS[status] || "grey"} size="2xsmall">
+            <StatusBadge color={STATUS_COLORS[status] || "grey"}>
               {STATUS_LABELS[status] ?? status}
-            </Badge>
+            </StatusBadge>
           )
         },
       }),

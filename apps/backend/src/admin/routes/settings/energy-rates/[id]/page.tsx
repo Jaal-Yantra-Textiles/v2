@@ -6,6 +6,7 @@ import {
   Input,
   Label,
   Select,
+  StatusBadge,
   Switch,
   Text,
   Textarea,
@@ -135,9 +136,9 @@ const EnergyRateDetailPage = () => {
           <div>
             <div className="flex items-center gap-x-2">
               <Heading level="h1">{rate.name}</Heading>
-              <Badge color={rate.is_active ? "green" : "grey"}>
+              <StatusBadge color={rate.is_active ? "green" : "grey"}>
                 {rate.is_active ? "Active" : "Inactive"}
-              </Badge>
+              </StatusBadge>
             </div>
             <Text size="small" className="text-ui-fg-subtle">
               {ENERGY_TYPE_LABELS[rate.energy_type] || rate.energy_type} rate

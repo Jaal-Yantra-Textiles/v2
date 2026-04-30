@@ -5,6 +5,7 @@ import {
   DropdownMenu,
   Heading,
   IconButton,
+  StatusBadge,
   Text,
   toast,
   usePrompt,
@@ -111,9 +112,9 @@ const ProductionRunDetailPage = () => {
                 <Heading level="h1">
                   {run.run_type === "sample" ? "Sample" : "Production"} Run
                 </Heading>
-                <Badge color={statusColor(run.status)}>
+                <StatusBadge color={statusColor(run.status)}>
                   {formatStatus(String(run.status || "-"))}
-                </Badge>
+                </StatusBadge>
                 {isParent && <Badge color="blue">parent</Badge>}
               </div>
               <Text size="small" className="text-ui-fg-subtle">
@@ -412,9 +413,9 @@ const ProductionRunDetailPage = () => {
                                     )}
                                 </Text>
                               )}
-                              <Badge color={statusColor(String(t.status || ""))}>
+                              <StatusBadge color={statusColor(String(t.status || ""))}>
                                 {String(t.status || "-")}
-                              </Badge>
+                              </StatusBadge>
                             </div>
                           </div>
                           {t.description && (

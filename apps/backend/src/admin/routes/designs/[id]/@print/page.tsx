@@ -339,9 +339,9 @@ const DesignStitchingPrintPage = () => {
             <Heading level="h2">Design Info</Heading>
             <div className="flex items-center gap-x-2">
               {design.priority && (
-                <Badge color={priorityColor(design.priority)}>
+                <StatusBadge color={priorityColor(design.priority)}>
                   {design.priority}
-                </Badge>
+                </StatusBadge>
               )}
               {design.status && (
                 <StatusBadge color={statusColor(design.status)}>
@@ -769,9 +769,9 @@ const DesignStitchingPrintPage = () => {
                     <div className="flex items-center gap-2 mb-2">
                       <Text size="small" weight="plus">{spec.title}</Text>
                       <Badge size="2xsmall" color="blue">{spec.category}</Badge>
-                      <Badge size="2xsmall" color={spec.status === "Approved" ? "green" : "grey"}>
+                      <StatusBadge color={spec.status === "Approved" ? "green" : "grey"}>
                         {spec.status}
-                      </Badge>
+                      </StatusBadge>
                       {spec.version && (
                         <Text size="xsmall" className="text-ui-fg-muted">v{spec.version}</Text>
                       )}

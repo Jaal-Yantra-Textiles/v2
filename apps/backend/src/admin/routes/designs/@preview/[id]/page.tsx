@@ -99,9 +99,9 @@ const DesignPreviewPage = () => {
             <Heading level="h2">Details</Heading>
             <div className="flex items-center gap-x-2">
               {design.priority && (
-                <Badge color={priorityColor(design.priority)}>
+                <StatusBadge color={priorityColor(design.priority)}>
                   {design.priority}
-                </Badge>
+                </StatusBadge>
               )}
               {design.status && (
                 <StatusBadge color={statusColor(design.status)}>
