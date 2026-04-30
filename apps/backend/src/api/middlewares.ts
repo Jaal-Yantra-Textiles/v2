@@ -1440,6 +1440,31 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    // Partner Notifications (in-app bell)
+    {
+      matcher: "/partners/notifications",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/notifications/unread-count",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/notifications/mark-all-read",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     // Partner Storefront Pages
     {
       matcher: "/partners/storefront/pages",
