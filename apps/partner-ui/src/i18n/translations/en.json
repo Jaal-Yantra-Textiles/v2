@@ -272,7 +272,8 @@
         "customers": "Customers",
         "webStore": "WebStore",
         "content": "Content",
-        "theme": "Theme"
+        "theme": "Theme",
+        "analytics": "Analytics"
       },
       "settings": {
         "header": "Settings",

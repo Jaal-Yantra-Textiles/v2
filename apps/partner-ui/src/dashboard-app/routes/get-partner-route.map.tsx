@@ -847,6 +847,14 @@ export function getPartnerRouteMap(): RouteObject[] {
               lazy: () => import("../../routes/settings/theme"),
             },
             {
+              path: "/webstore/analytics",
+              errorElement: <ErrorBoundary />,
+              handle: {
+                breadcrumb: () => "Analytics",
+              },
+              lazy: () => import("../../routes/webstore/analytics"),
+            },
+            {
               path: "/profile",
               errorElement: <ErrorBoundary />,
               handle: {
