@@ -3,13 +3,20 @@ import {
   BellAlertDone,
   InformationCircleSolid,
 } from "@medusajs/icons"
-import { HttpTypes } from "@medusajs/types"
 import { clx, Drawer, Heading, IconButton, Text } from "@medusajs/ui"
 import { formatDistance } from "date-fns"
 import { TFunction } from "i18next"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { notificationQueryKeys, useNotifications } from "../../../hooks/api"
+
+import {
+  notificationQueryKeys,
+  PartnerNotification,
+  PartnerNotificationListParams,
+  PartnerNotificationListResponse,
+  useMarkAllPartnerNotificationsRead,
+  usePartnerNotificationsUnreadCount,
+} from "../../../hooks/api"
 import { sdk } from "../../../lib/client"
 import { FilePreview } from "../../common/file-preview"
 import { InfiniteList } from "../../common/infinite-list"
@@ -17,6 +24,7 @@ import { InfiniteList } from "../../common/infinite-list"
 interface NotificationData {
   title: string
   description?: string
+  url?: string
   file?: {
     filename?: string
     url?: string
@@ -24,17 +32,30 @@ interface NotificationData {
   }
 }
 
-const LAST_READ_NOTIFICATION_KEY = "notificationsLastReadAt"
+const buildListPath = (query?: PartnerNotificationListParams): string => {
+  if (!query) return "/partners/notifications"
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(query)) {
+    if (v === undefined || v === null || v === "") continue
+    qs.set(k, String(v))
+  }
+  const s = qs.toString()
+  return s ? `/partners/notifications?${s}` : "/partners/notifications"
+}
 
 export const Notifications = () => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const [hasUnread, setHasUnread] = useUnreadNotifications()
-  // This is used to show the unread icon on the notification when the drawer is open,
-  // so it should lag behind the local storage data and should only be reset on close
-  const [lastReadAt, setLastReadAt] = useState(
-    localStorage.getItem(LAST_READ_NOTIFICATION_KEY)
-  )
+
+  // Server is source of truth for read state. Poll the cheap count
+  // endpoint while the drawer is closed; pause when open since the
+  // mark-all-read mutation will reset it on close.
+  const { data: unreadData } = usePartnerNotificationsUnreadCount({
+    refetchInterval: open ? false : 60_000,
+  })
+  const hasUnread = (unreadData?.unread_count ?? 0) > 0
+
+  const { mutate: markAllRead } = useMarkAllPartnerNotificationsRead()
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -42,23 +63,17 @@ export const Notifications = () => {
         setOpen((prev) => !prev)
       }
     }
-
     document.addEventListener("keydown", onKeyDown)
-
-    return () => {
-      document.removeEventListener("keydown", onKeyDown)
-    }
+    return () => document.removeEventListener("keydown", onKeyDown)
   }, [])
 
   const handleOnOpen = (shouldOpen: boolean) => {
     if (shouldOpen) {
-      setHasUnread(false)
-      setOpen(true)
-      localStorage.setItem(LAST_READ_NOTIFICATION_KEY, new Date().toISOString())
-    } else {
-      setOpen(false)
-      setLastReadAt(localStorage.getItem(LAST_READ_NOTIFICATION_KEY))
+      // Bump the server's last-seen timestamp so the badge clears across
+      // tabs/sessions, not just this browser's localStorage.
+      markAllRead()
     }
+    setOpen(shouldOpen)
   }
 
   return (
@@ -83,27 +98,27 @@ export const Notifications = () => {
         </Drawer.Header>
         <Drawer.Body className="overflow-y-auto px-0">
           <InfiniteList<
-            HttpTypes.AdminNotificationListResponse,
-            HttpTypes.AdminNotification,
-            HttpTypes.AdminNotificationListParams
+            PartnerNotificationListResponse,
+            PartnerNotification,
+            PartnerNotificationListParams
           >
             responseKey="notifications"
             queryKey={notificationQueryKeys.all}
-            queryFn={(params) => sdk.admin.notification.list(params)}
+            queryFn={(params) =>
+              sdk.client.fetch<PartnerNotificationListResponse>(
+                buildListPath(params),
+                { method: "GET" },
+              )
+            }
             queryOptions={{ enabled: open }}
             renderEmpty={() => <NotificationsEmptyState t={t} />}
-            renderItem={(notification) => {
-              return (
-                <Notification
-                  key={notification.id}
-                  notification={notification}
-                  unread={
-                    Date.parse(notification.created_at) >
-                    (lastReadAt ? Date.parse(lastReadAt) : 0)
-                  }
-                />
-              )
-            }}
+            renderItem={(notification) => (
+              <Notification
+                key={notification.id}
+                notification={notification}
+                unread={notification.is_unread}
+              />
+            )}
           />
         </Drawer.Body>
       </Drawer.Content>
@@ -115,7 +130,7 @@ const Notification = ({
   notification,
   unread,
 }: {
-  notification: HttpTypes.AdminNotification
+  notification: PartnerNotification
   unread?: boolean
 }) => {
   const data = notification.data as unknown as NotificationData | undefined
@@ -126,58 +141,56 @@ const Notification = ({
   }
 
   return (
-    <>
-      <div className="relative flex items-start justify-center gap-3 border-b p-6">
-        <div className="text-ui-fg-muted flex size-5 items-center justify-center">
-          <InformationCircleSolid />
-        </div>
-        <div className="flex w-full flex-col gap-y-3">
-          <div className="flex flex-col">
-            <div className="flex items-center justify-between">
-              <Text size="small" leading="compact" weight="plus">
-                {data.title}
-              </Text>
-              <div className="align-center flex items-center justify-center gap-2">
-                <Text
-                  as={"span"}
-                  className={clx("text-ui-fg-subtle", {
-                    "text-ui-fg-base": unread,
-                  })}
-                  size="small"
-                  leading="compact"
-                  weight="plus"
-                >
-                  {formatDistance(notification.created_at, new Date(), {
-                    addSuffix: true,
-                  })}
-                </Text>
-                {unread && (
-                  <div
-                    className="bg-ui-bg-interactive h-2 w-2 rounded"
-                    role="status"
-                  />
-                )}
-              </div>
-            </div>
-            {!!data.description && (
+    <div className="relative flex items-start justify-center gap-3 border-b p-6">
+      <div className="text-ui-fg-muted flex size-5 items-center justify-center">
+        <InformationCircleSolid />
+      </div>
+      <div className="flex w-full flex-col gap-y-3">
+        <div className="flex flex-col">
+          <div className="flex items-center justify-between">
+            <Text size="small" leading="compact" weight="plus">
+              {data.title}
+            </Text>
+            <div className="align-center flex items-center justify-center gap-2">
               <Text
-                className="text-ui-fg-subtle whitespace-pre-line"
+                as="span"
+                className={clx("text-ui-fg-subtle", {
+                  "text-ui-fg-base": unread,
+                })}
                 size="small"
+                leading="compact"
+                weight="plus"
               >
-                {data.description}
+                {formatDistance(notification.created_at, new Date(), {
+                  addSuffix: true,
+                })}
               </Text>
-            )}
+              {unread && (
+                <div
+                  className="bg-ui-bg-interactive h-2 w-2 rounded"
+                  role="status"
+                />
+              )}
+            </div>
           </div>
-          {!!data?.file?.url && (
-            <FilePreview
-              filename={data.file.filename ?? ""}
-              url={data.file.url}
-              hideThumbnail
-            />
+          {!!data.description && (
+            <Text
+              className="text-ui-fg-subtle whitespace-pre-line"
+              size="small"
+            >
+              {data.description}
+            </Text>
           )}
         </div>
+        {!!data?.file?.url && (
+          <FilePreview
+            filename={data.file.filename ?? ""}
+            url={data.file.url}
+            hideThumbnail
+          />
+        )}
       </div>
-    </>
+    </div>
   )
 }
 
@@ -196,32 +209,4 @@ const NotificationsEmptyState = ({ t }: { t: TFunction }) => {
       </Text>
     </div>
   )
-}
-
-const useUnreadNotifications = () => {
-  const [hasUnread, setHasUnread] = useState(false)
-  const { notifications } = useNotifications(
-    { limit: 1, offset: 0, fields: "created_at" },
-    { refetchInterval: 60_000 }
-  )
-  const lastNotification = notifications?.[0]
-
-  useEffect(() => {
-    if (!lastNotification) {
-      return
-    }
-
-    const lastNotificationAsTimestamp = Date.parse(lastNotification.created_at)
-
-    const lastReadDatetime = localStorage.getItem(LAST_READ_NOTIFICATION_KEY)
-    const lastReadAsTimestamp = lastReadDatetime
-      ? Date.parse(lastReadDatetime)
-      : 0
-
-    if (lastNotificationAsTimestamp > lastReadAsTimestamp) {
-      setHasUnread(true)
-    }
-  }, [lastNotification])
-
-  return [hasUnread, setHasUnread] as const
 }
