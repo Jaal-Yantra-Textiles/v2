@@ -117,7 +117,7 @@ export const notificationOperation: OperationDefinition = {
       // requires `to` and the partner_id is the natural routing key.
       const to = explicitTo ?? partnerId ?? "admin"
 
-      const notification = await notificationService.createNotifications({
+      const created = await notificationService.createNotifications({
         to,
         channel: options.channel || "feed",
         template: "visual-flow-notification",
@@ -135,6 +135,9 @@ export const notificationOperation: OperationDefinition = {
         receiver_id: partnerId,
         idempotency_key: idempotencyKey,
       } as any)
+      // Single-input overload returns the row, but the cast widens it to
+      // `NotificationDTO[]`. Normalize to the single row.
+      const notification = (Array.isArray(created) ? created[0] : created) as { id: string }
 
       return {
         success: true,

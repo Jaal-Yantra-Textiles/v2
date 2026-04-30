@@ -6159,6 +6159,24 @@
         "placeholder": "{{ $last.analytics_id }}"
       },
       {
+        "name": "analytics_provider",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.analytics_provider }}"
+      },
+      {
+        "name": "analytics_custom_head",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.analytics_custom_head }}"
+      },
+      {
+        "name": "analytics_custom_body_end",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.analytics_custom_body_end }}"
+      },
+      {
         "name": "metadata",
         "type": "object",
         "required": false,
@@ -6415,6 +6433,24 @@
         "type": "id",
         "required": false,
         "placeholder": "{{ $last.analytics_id }}"
+      },
+      {
+        "name": "analytics_provider",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.analytics_provider }}"
+      },
+      {
+        "name": "analytics_custom_head",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.analytics_custom_head }}"
+      },
+      {
+        "name": "analytics_custom_body_end",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.analytics_custom_body_end }}"
       },
       {
         "name": "theme",
