@@ -21,6 +21,7 @@ import { usePartnerStores } from "../../../hooks/api/partner-stores"
 import { useMe } from "../../../hooks/api/users"
 import { Skeleton } from "../../common/skeleton"
 import { INavItem, NavItem } from "../../layout/nav-item"
+import { Notifications } from "../../layout/notifications"
 import { Shell } from "../../layout/shell"
 
 import { Link, useNavigate } from "react-router-dom"
@@ -274,7 +275,7 @@ const Searchbar = () => {
       type="button"
       onClick={toggleSearch}
       className={clx(
-        "bg-ui-bg-subtle transition-fg hover:bg-ui-bg-subtle-hover text-ui-fg-muted mx-3 flex items-center justify-between gap-x-2 rounded-md px-2 py-1.5 outline-none",
+        "bg-ui-bg-subtle transition-fg hover:bg-ui-bg-subtle-hover text-ui-fg-muted flex flex-1 items-center justify-between gap-x-2 rounded-md px-2 py-1.5 outline-none",
         "focus-visible:shadow-borders-focus"
       )}
     >
@@ -303,7 +304,10 @@ const CoreRouteSection = () => {
 
   return (
     <nav className="flex flex-col gap-y-1 py-3">
-      <Searchbar />
+      <div className="flex items-center gap-x-1 px-3">
+        <Searchbar />
+        <Notifications />
+      </div>
       {coreRoutes.map((route) => {
         return <NavItem key={route.to} {...route} />
       })}
