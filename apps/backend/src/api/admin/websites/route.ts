@@ -137,7 +137,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const workflowInput: ListWebsiteWorkflowInput = {
     config: {
-      relations: ["pages"],
+      relations: ["pages", "domains"],
       skip: offset,
       take: limit
     },

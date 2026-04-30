@@ -33,9 +33,19 @@ type Pages= [ {
   updated_at: Date;
 }]
 
-export type AdminWebsite = WebsiteSchema & { 
+export type WebsiteDomainAlias = {
+  id: string;
+  domain: string;
+  is_primary: boolean;
+  website_id?: string;
+  created_at?: Date;
+  updated_at?: Date;
+};
+
+export type AdminWebsite = WebsiteSchema & {
   id: string;
   pages: Pages
+  domains?: WebsiteDomainAlias[]
   created_at: Date;
   updated_at: Date;
 };

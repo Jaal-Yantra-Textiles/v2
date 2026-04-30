@@ -294,27 +294,24 @@ const createWebsiteRecordStep = createStep(
   }
 )
 
-// Step 8: Seed default pages for the website
+// Step 8: Seed default pages for the website. Always runs — the seed
+// workflow itself is idempotent (it skips slugs that already exist), so
+// re-provisions and previously-created-but-unseeded websites self-heal.
 const seedDefaultWebsitePagesStep = createStep(
   "seed-default-website-pages",
   async (
-    input: { websiteId: string; wasCreated: boolean },
+    input: { websiteId: string },
     { container }
   ) => {
-    // Only seed pages if we just created the website
-    if (!input.wasCreated) {
-      return new StepResponse({ skipped: true })
-    }
-
     try {
       const { result } = await seedDefaultPagesWorkflow(container).run({
         input: { website_id: input.websiteId },
       })
-      return new StepResponse({ skipped: false, pages: result?.pages })
+      return new StepResponse({ pages: result?.pages, skipped_slugs: result?.skipped })
     } catch (e: any) {
       // Non-fatal — provisioning should succeed even if page seeding fails
       console.error("[provision-storefront] Page seeding failed:", e.message)
-      return new StepResponse({ skipped: false, error: e.message })
+      return new StepResponse({ error: e.message })
     }
   }
 )
@@ -334,7 +331,6 @@ export const provisionStorefrontWorkflow = createWorkflow(
     // Step 2: Seed default pages for the website
     seedDefaultWebsitePagesStep({
       websiteId: websiteResult.website.id as unknown as string,
-      wasCreated: websiteResult.created as unknown as boolean,
     })
 
     // Step 3: Create Vercel project (linked directly to the storefront repo)
