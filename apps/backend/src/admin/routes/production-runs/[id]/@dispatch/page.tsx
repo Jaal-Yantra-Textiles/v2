@@ -3,6 +3,7 @@ import {
   Button,
   Container,
   Heading,
+  StatusBadge,
   Text,
   toast,
 } from "@medusajs/ui"
@@ -113,7 +114,7 @@ const DispatchProductionRunDrawerForm = () => {
             <Container className="p-4">
               <Text className="text-ui-fg-subtle">
                 Run must be in "approved" status to dispatch. Current status:{" "}
-                <Badge color="grey">{status?.replace(/_/g, " ")}</Badge>
+                <StatusBadge color="grey">{status?.replace(/_/g, " ")}</StatusBadge>
               </Text>
             </Container>
           ) : (

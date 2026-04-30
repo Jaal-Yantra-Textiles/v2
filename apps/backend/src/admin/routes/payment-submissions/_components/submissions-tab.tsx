@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { Button, Container, Badge, DataTable, useDataTable } from "@medusajs/ui"
+import { Button, Container, StatusBadge, DataTable, useDataTable } from "@medusajs/ui"
 import { createColumnHelper } from "@tanstack/react-table"
 import { keepPreviousData } from "@tanstack/react-query"
 import {
@@ -66,7 +66,7 @@ export const SubmissionsTab = () => {
       columnHelper.accessor("status", {
         header: "Status",
         cell: ({ getValue }) => (
-          <Badge color={statusColor(getValue())}>{getValue().replace("_", " ")}</Badge>
+          <StatusBadge color={statusColor(getValue())}>{getValue().replace("_", " ")}</StatusBadge>
         ),
       }),
       columnHelper.accessor("total_amount", {

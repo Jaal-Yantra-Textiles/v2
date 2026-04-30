@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Container, Badge, DataTable, useDataTable } from "@medusajs/ui"
+import { Container, Badge, DataTable, StatusBadge, useDataTable } from "@medusajs/ui"
 import { createColumnHelper } from "@tanstack/react-table"
 import { keepPreviousData } from "@tanstack/react-query"
 import {
@@ -67,7 +67,7 @@ export const ReconciliationTab = () => {
       columnHelper.accessor("status", {
         header: "Status",
         cell: ({ getValue }) => (
-          <Badge color={statusColor(getValue())}>{getValue()}</Badge>
+          <StatusBadge color={statusColor(getValue())}>{getValue()}</StatusBadge>
         ),
       }),
       columnHelper.accessor("expected_amount", {

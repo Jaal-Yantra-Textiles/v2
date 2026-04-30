@@ -1,5 +1,5 @@
 import { useParams, Link } from "react-router-dom";
-import { Badge, Heading, StatusBadge, Text } from "@medusajs/ui";
+import { Heading, StatusBadge, Text } from "@medusajs/ui";
 import { RouteDrawer } from "../../../../components/modal/route-drawer/route-drawer";
 import { useDesignRevisions } from "../../../../hooks/api/designs";
 
@@ -100,9 +100,7 @@ export default function RevisionHistoryPage() {
                             {entry.status?.replace(/_/g, " ")}
                           </StatusBadge>
                           {isCurrent && (
-                            <Badge color="blue" className="text-xs">
-                              Current
-                            </Badge>
+                            <StatusBadge color="blue">Current</StatusBadge>
                           )}
                         </div>
 
@@ -132,9 +130,9 @@ export default function RevisionHistoryPage() {
                         )}
 
                         {isFirst && !entry.revised_from_id && (
-                          <Badge color="green" className="mt-2 text-xs">
-                            Original
-                          </Badge>
+                          <div className="mt-2">
+                            <StatusBadge color="green">Original</StatusBadge>
+                          </div>
                         )}
                       </div>
                     </div>
