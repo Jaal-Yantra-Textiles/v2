@@ -309,9 +309,14 @@ const seedDefaultWebsitePagesStep = createStep(
       })
       return new StepResponse({ pages: result?.pages, skipped_slugs: result?.skipped })
     } catch (e: any) {
-      // Non-fatal — provisioning should succeed even if page seeding fails
+      // Non-fatal — provisioning should succeed even if page seeding fails.
+      // Return the same shape as the success path so the step's inferred
+      // output type stays unified.
       console.error("[provision-storefront] Page seeding failed:", e.message)
-      return new StepResponse({ error: e.message })
+      return new StepResponse({
+        pages: [] as { id: string; title: string; slug: string; blocks_created: number }[],
+        skipped_slugs: [] as string[],
+      })
     }
   }
 )
