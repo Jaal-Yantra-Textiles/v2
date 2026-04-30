@@ -19,10 +19,18 @@ export const GET = async (
 
     // Only return necessary data for public consumption
     const publicWebsiteData = {
+      // Stable id so storefronts can stamp it on outbound analytics events
+      // (the in-house tracker reads this for `data-website-id`).
+      id: (result as any).id,
       name: result.name,
       domain: result.domain,
       theme: result.theme || result.metadata?.theme || null,
       favicon_url: result.favicon_url || null,
+      analytics: {
+        provider: (result as any).analytics_provider ?? "in_house",
+        custom_head: (result as any).analytics_custom_head ?? null,
+        custom_body_end: (result as any).analytics_custom_body_end ?? null,
+      },
       pages: result.pages?.map(page => ({
         title: page.title,
         slug: page.slug,

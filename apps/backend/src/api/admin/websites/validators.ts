@@ -1,5 +1,7 @@
 import { z } from "@medusajs/framework/zod";
 
+const ANALYTICS_PROVIDER_VALUES = ["in_house", "custom", "off"] as const;
+
 export const websiteSchema = z.object({
   domain: z.string().min(1, "Domain is required"),
   name: z.string().min(1, "Name is required"),
@@ -9,6 +11,9 @@ export const websiteSchema = z.object({
   supported_languages: z.record(z.string(), z.string()).optional(),
   favicon_url: z.string().url().optional(),
   analytics_id: z.string().optional(),
+  analytics_provider: z.enum(ANALYTICS_PROVIDER_VALUES).optional(),
+  analytics_custom_head: z.string().nullish(),
+  analytics_custom_body_end: z.string().nullish(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -25,6 +30,9 @@ export const updateWebsiteSchema = z.object({
   supported_languages: z.record(z.string(), z.string()).optional(),
   favicon_url: z.string().url().optional(),
   analytics_id: z.string().optional(),
+  analytics_provider: z.enum(ANALYTICS_PROVIDER_VALUES).optional(),
+  analytics_custom_head: z.string().nullish(),
+  analytics_custom_body_end: z.string().nullish(),
   metadata: z.record(z.string(), z.unknown()).optional().nullish(),
 });
 

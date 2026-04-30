@@ -20,6 +20,9 @@ export type UpdateWebsiteStepInput = {
   supported_languages?: Record<string, unknown>;
   favicon_url?: string;
   analytics_id?: string;
+  analytics_provider?: "in_house" | "custom" | "off";
+  analytics_custom_head?: string | null;
+  analytics_custom_body_end?: string | null;
   theme?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
 };
