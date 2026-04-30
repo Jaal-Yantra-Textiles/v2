@@ -104,7 +104,7 @@ export const usePartnerNotificationsUnreadCount = (
     queryKey: notificationQueryKeys.list({ unread: true }),
     queryFn: () =>
       sdk.client.fetch<PartnerNotificationsUnreadCountResponse>(
-        "/partners/notifications/unread-count",
+        "/partners/notifications/unread",
         { method: "GET" },
       ),
     ...options,
@@ -121,7 +121,7 @@ export const useMarkAllPartnerNotificationsRead = (
   return useMutation({
     mutationFn: () =>
       sdk.client.fetch<PartnerNotificationsUnreadCountResponse>(
-        "/partners/notifications/mark-all-read",
+        "/partners/notifications/read",
         { method: "POST" },
       ),
     onSuccess: async (data, variables, context) => {

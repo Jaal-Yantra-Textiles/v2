@@ -1450,7 +1450,7 @@ export default defineMiddlewares({
       ],
     },
     {
-      matcher: "/partners/notifications/unread-count",
+      matcher: "/partners/notifications/unread",
       method: "GET",
       middlewares: [
         createCorsPartnerMiddleware(),
@@ -1458,7 +1458,7 @@ export default defineMiddlewares({
       ],
     },
     {
-      matcher: "/partners/notifications/mark-all-read",
+      matcher: "/partners/notifications/read",
       method: "POST",
       middlewares: [
         createCorsPartnerMiddleware(),

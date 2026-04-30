@@ -18,9 +18,13 @@ const SubscriptionPayment = model.define("subscription_payment", {
   failed_at: model.dateTime().nullable(),
   failure_reason: model.text().nullable(),
   metadata: model.json().nullable(),
+  // Nullable: a payment row is created BEFORE the subscription exists
+  // (PayU pre-payment intent). The PayU success callback then creates
+  // the subscription and links it back. Failure-only audit rows also
+  // stay orphan since no subscription was ever activated.
   subscription: model.belongsTo(() => PartnerSubscription, {
     mappedBy: "payments",
-  }),
+  }).nullable(),
 })
 
 export default SubscriptionPayment

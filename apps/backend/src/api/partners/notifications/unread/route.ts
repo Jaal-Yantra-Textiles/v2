@@ -1,5 +1,5 @@
 /**
- * GET /partners/notifications/unread-count
+ * GET /partners/notifications/unread
  *
  * Single-count endpoint for the bell badge. Counts notifications with
  * `receiver_id = partner.id` and `created_at > partner.metadata.notifications_last_seen_at`.

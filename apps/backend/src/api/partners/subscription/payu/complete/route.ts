@@ -56,15 +56,23 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         })
       }
 
-      // Activate subscription
+      // Activate subscription, then link the new subscription_id back
+      // onto the pending payment row so the FK reflects reality.
       if (partnerId && planId) {
-        await createPartnerSubscriptionWorkflow(req.scope).run({
+        const { result } = await createPartnerSubscriptionWorkflow(req.scope).run({
           input: {
             partner_id: partnerId,
             plan_id: planId,
             payment_provider: "payu",
           },
         })
+        const newSubscriptionId = (result as any)?.subscription?.id
+        if (paymentId && newSubscriptionId) {
+          await service.updateSubscriptionPayments({
+            id: paymentId,
+            subscription_id: newSubscriptionId,
+          } as any)
+        }
       }
 
       return res.redirect(302, `${partnerUiUrl}/settings/plan?payment=success`)

@@ -1,5 +1,5 @@
 /**
- * POST /partners/notifications/mark-all-read
+ * POST /partners/notifications/read
  *
  * Bumps `partner.metadata.notifications_last_seen_at` to now() so all
  * existing notifications become "read" from the bell's perspective.
