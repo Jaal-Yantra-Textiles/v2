@@ -16,6 +16,9 @@ export type CreateWebsiteStepInput = {
   supported_languages?: Record<string, unknown> | null;
   favicon_url?: string;
   analytics_id?: string;
+  analytics_provider?: "in_house" | "custom" | "off";
+  analytics_custom_head?: string | null;
+  analytics_custom_body_end?: string | null;
   metadata?: Record<string, unknown>;
 };
 

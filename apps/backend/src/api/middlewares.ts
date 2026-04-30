@@ -1423,6 +1423,23 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    // Partner Storefront Website Analytics
+    {
+      matcher: "/partners/storefront/website/analytics",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/storefront/website/analytics",
+      method: "PUT",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     // Partner Storefront Pages
     {
       matcher: "/partners/storefront/pages",
