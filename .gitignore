@@ -77,9 +77,6 @@ apps/backend/src/partner/node_modules/*
 
 debug/
 
-# Local patches (not committed)
-apps/backend/patches/
-
 .claude/
 
 # Generated RAG/contextual index (regenerate with src/scripts/generate-contextual-index.ts)
