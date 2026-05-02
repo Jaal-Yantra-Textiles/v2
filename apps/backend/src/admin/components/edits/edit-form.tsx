@@ -26,6 +26,16 @@ export const EditFormComponent = ({ form }: EditFormComponentProps) => {
     { name: "handle", type: "text", label: "Handle", required: true },
     { name: "domain", type: "text", label: "Domain", required: false },
     {
+      name: "type",
+      type: "select",
+      label: "Type",
+      required: true,
+      options: [
+        { value: "generic", label: "Generic" },
+        { value: "tour", label: "Tour" },
+      ],
+    },
+    {
       name: "status",
       type: "select",
       label: "Status",
@@ -48,6 +58,7 @@ export const EditFormComponent = ({ form }: EditFormComponentProps) => {
         title: form.title || "",
         handle: form.handle || "",
         domain: form.domain || "",
+        type: form.type || "generic",
         status: form.status || "draft",
         description: form.description || "",
         submit_label: form.submit_label || "",

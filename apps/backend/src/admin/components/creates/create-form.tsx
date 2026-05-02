@@ -13,6 +13,7 @@ const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
   handle: z.string().min(1, "Handle is required"),
   domain: z.string().min(1, "Domain is required"),
+  type: z.enum(["generic", "tour"]),
   status: z.enum(["draft", "published", "archived"]),
   description: z.string().optional(),
   submit_label: z.string().optional(),
@@ -27,6 +28,7 @@ export const CreateFormComponent = () => {
       title: "",
       handle: "",
       domain: "",
+      type: "generic",
       status: "draft",
       description: "",
       submit_label: "",
@@ -44,6 +46,7 @@ export const CreateFormComponent = () => {
         title: data.title,
         handle: data.handle,
         domain: data.domain,
+        type: data.type,
         status: data.status,
         description: data.description || undefined,
         submit_label: data.submit_label || undefined,
@@ -119,6 +122,27 @@ export const CreateFormComponent = () => {
                     <Form.Label>Domain</Form.Label>
                     <Form.Control>
                       <Input autoComplete="off" {...field} />
+                    </Form.Control>
+                    <Form.ErrorMessage />
+                  </Form.Item>
+                )}
+              />
+              <Form.Field
+                control={form.control}
+                name="type"
+                render={({ field: { value, onChange } }) => (
+                  <Form.Item>
+                    <Form.Label>Type</Form.Label>
+                    <Form.Control>
+                      <Select value={value} onValueChange={onChange}>
+                        <Select.Trigger>
+                          <Select.Value placeholder="Select type" />
+                        </Select.Trigger>
+                        <Select.Content>
+                          <Select.Item value="generic">Generic</Select.Item>
+                          <Select.Item value="tour">Tour</Select.Item>
+                        </Select.Content>
+                      </Select>
                     </Form.Control>
                     <Form.ErrorMessage />
                   </Form.Item>

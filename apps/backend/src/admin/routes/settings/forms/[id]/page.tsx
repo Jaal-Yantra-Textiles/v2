@@ -5,6 +5,7 @@ import { useForm } from "../../../../hooks/api/forms"
 import { formLoader } from "./loader"
 import { FormGeneralSection } from "../../../../components/forms/form-general-section"
 import { FormResponsesSection } from "../../../../components/forms/form-responses-section"
+import { TourSettingsSection } from "../../../../components/forms/tour-settings-section"
 
 const FormDetailPage = () => {
   const { id } = useParams()
@@ -21,6 +22,7 @@ const FormDetailPage = () => {
   return (
     <SingleColumnPage data={form} hasOutlet showJSON showMetadata>
       <FormGeneralSection form={form} />
+      <TourSettingsSection form={form} />
       <FormResponsesSection formId={form.id} />
     </SingleColumnPage>
   )

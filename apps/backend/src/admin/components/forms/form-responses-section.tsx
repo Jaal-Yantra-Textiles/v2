@@ -9,10 +9,15 @@ import {
 import { keepPreviousData } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
 import { createColumnHelper } from "@tanstack/react-table"
-import { Eye } from "@medusajs/icons"
+import { Eye, SquareTwoStack } from "@medusajs/icons"
+import { toast } from "sonner"
 import { EntityActions } from "../persons/personsActions"
 import { AdminFormResponse, useFormResponses } from "../../hooks/api/forms"
 import { useFormResponsesTableColumns } from "../../hooks/columns/useFormResponsesTableColumns"
+
+const TOUR_WEBSITE_ORIGIN: string =
+  (process.env.NEXT_PUBLIC_WEBSITE_URL?.replace(/\/$/, "") as string | undefined) ||
+  "https://jaalyantra.com"
 
 type FormResponsesSectionProps = {
   formId: string
@@ -41,19 +46,33 @@ export const FormResponsesSection = ({ formId }: FormResponsesSectionProps) => {
 
   const columnsBase = useFormResponsesTableColumns()
 
-  const responseActionsConfig = useMemo(
-    () => ({
-      actions: [
-        {
-          icon: <Eye />,
-          label: "View",
-          to: (resp: AdminFormResponse) =>
-            `/settings/forms/${formId}/responses/${resp.id}`,
+  const buildActionsConfig = (resp: AdminFormResponse) => {
+    const actions: any[] = [
+      {
+        icon: <Eye />,
+        label: "View",
+        to: (r: AdminFormResponse) =>
+          `/settings/forms/${formId}/responses/${r.id}`,
+      },
+    ]
+    if ((resp as any)?.verification_code) {
+      actions.push({
+        icon: <SquareTwoStack />,
+        label: "Copy visit link",
+        onClick: async (r: AdminFormResponse) => {
+          const code = (r as any)?.verification_code
+          const url = `${TOUR_WEBSITE_ORIGIN}/tours/visit/${code}`
+          try {
+            await navigator.clipboard.writeText(url)
+            toast.success("Visit link copied")
+          } catch {
+            toast.error("Could not copy — check clipboard permissions")
+          }
         },
-      ],
-    }),
-    [formId]
-  )
+      })
+    }
+    return { actions }
+  }
 
   const columns = useMemo(
     () => [
@@ -64,12 +83,13 @@ export const FormResponsesSection = ({ formId }: FormResponsesSectionProps) => {
         cell: ({ row }) => (
           <EntityActions
             entity={row.original}
-            actionsConfig={responseActionsConfig}
+            actionsConfig={buildActionsConfig(row.original)}
           />
         ),
       }),
     ],
-    [columnsBase, responseActionsConfig]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [columnsBase, formId]
   )
 
   const table = useDataTable({

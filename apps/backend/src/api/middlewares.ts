@@ -226,6 +226,7 @@ import {
   CreateRemoteAdSchema,
 } from "./admin/meta-ads/validators";
 import { webSubmitFormResponseSchema, webVerifyFormResponseSchema } from "./web/website/[domain]/forms/[handle]/validators";
+import { WebSaveTourItinerarySchema } from "./web/tour-visits/[token]/validators";
 import { LinkDesignsToCustomerSchema } from "./admin/customers/[id]/designs/validators";
 import { CreateDesignOrderSchema } from "./admin/customers/[id]/design-order/validators";
 import { listAbandonedCartsQuerySchema } from "./admin/abandoned-carts/validators";
@@ -3146,6 +3147,16 @@ export default defineMiddlewares({
       method: "GET",
       middlewares: [],
     },
+    {
+      matcher: "/web/tour-visits/:token",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/web/tour-visits/:token",
+      method: "PATCH",
+      middlewares: [validateAndTransformBody(wrapSchema(WebSaveTourItinerarySchema))],
+    },
 
     // Raw Materials Categories API
     {
@@ -3415,6 +3426,12 @@ export default defineMiddlewares({
       matcher: "/admin/forms/:id/responses/:response_id",
       method: "GET",
       middlewares: [],
+    },
+    {
+      matcher: "/admin/forms/:id/import-tour-bookings",
+      method: "POST",
+      bodyParser: false,
+      middlewares: [maybeMulterArray("file")],
     },
     {
       matcher: "/admin/persons/:id/agreements/send",

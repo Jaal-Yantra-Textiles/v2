@@ -91,6 +91,12 @@ export const FormGeneralSection = ({ form }: FormGeneralSectionProps) => {
         </div>
         <div className="grid grid-cols-2 items-center px-6 py-4">
           <Text size="small" leading="compact" weight="plus">
+            Type
+          </Text>
+          <Text size="small" leading="compact">{form.type || "generic"}</Text>
+        </div>
+        <div className="grid grid-cols-2 items-center px-6 py-4">
+          <Text size="small" leading="compact" weight="plus">
             Status
           </Text>
           <Text size="small" leading="compact">{form.status || "-"}</Text>

@@ -37,6 +37,7 @@ export type CreateFormStepInput = {
   handle: string
   title: string
   description?: string | null
+  type?: "generic" | "tour"
   status?: "draft" | "published" | "archived"
   submit_label?: string | null
   success_message?: string | null

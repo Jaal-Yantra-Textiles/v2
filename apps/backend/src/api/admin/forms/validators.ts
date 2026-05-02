@@ -33,6 +33,7 @@ export const AdminCreateFormSchema = z
     handle: z.string().min(1),
     title: z.string().min(1),
     description: z.string().nullable().optional(),
+    type: z.enum(["generic", "tour"]).default("generic"),
     status: z.enum(["draft", "published", "archived"]).default("draft"),
     submit_label: z.string().nullable().optional(),
     success_message: z.string().nullable().optional(),
@@ -52,6 +53,7 @@ export const AdminUpdateFormSchema = z
     handle: z.string().min(1).optional(),
     title: z.string().min(1).optional(),
     description: z.string().nullable().optional(),
+    type: z.enum(["generic", "tour"]).optional(),
     status: z.enum(["draft", "published", "archived"]).optional(),
     submit_label: z.string().nullable().optional(),
     success_message: z.string().nullable().optional(),
@@ -70,6 +72,7 @@ export const AdminSetFormFieldsSchema = z.object({
 export const AdminListFormsQuerySchema = z.object({
   q: z.string().optional(),
   status: z.enum(["draft", "published", "archived"]).optional(),
+  type: z.enum(["generic", "tour"]).optional(),
   website_id: z.string().optional(),
   domain: z.string().optional(),
   limit: z.coerce.number().min(1).max(100).default(20),
