@@ -4,6 +4,30 @@ import { randomBytes } from "crypto"
 import { FORMS_MODULE } from "../../../../../modules/forms"
 import FormsService from "../../../../../modules/forms/service"
 
+type Share = { token: string; mode: "read"; created_at: string }
+
+const requireOwnerResponse = async (
+  scope: MedusaRequest["scope"],
+  token: string
+) => {
+  if (!token || token.length < 16) {
+    throw new MedusaError(MedusaError.Types.NOT_FOUND, "Invalid visit token")
+  }
+  const forms: FormsService = scope.resolve(FORMS_MODULE)
+  const responses = await forms.listFormResponses(
+    { verification_code: token },
+    { take: 1 }
+  )
+  const response = responses?.[0]
+  if (!response) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      "Only the original recipient can manage share links."
+    )
+  }
+  return { forms, response }
+}
+
 /**
  * POST /web/tour-visits/:token/share
  *
@@ -16,33 +40,11 @@ import FormsService from "../../../../../modules/forms/service"
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const token = req.params.token
-  if (!token || token.length < 16) {
-    throw new MedusaError(MedusaError.Types.NOT_FOUND, "Invalid visit token")
-  }
+  const { forms, response } = await requireOwnerResponse(req.scope, token)
 
-  const forms: FormsService = req.scope.resolve(FORMS_MODULE)
-
-  const responses = await forms.listFormResponses(
-    { verification_code: token },
-    { take: 1 }
-  )
-  const response = responses?.[0]
-  if (!response) {
-    // Either the token is invalid or it's a share token (which can't mint more).
-    throw new MedusaError(
-      MedusaError.Types.NOT_ALLOWED,
-      "Only the original recipient can create share links."
-    )
-  }
-
-  const existingShares: Array<{
-    token: string
-    mode: "read"
-    created_at: string
-  }> =
-    Array.isArray((response.metadata as any)?.shares)
-      ? (response.metadata as any).shares
-      : []
+  const existingShares: Share[] = Array.isArray((response.metadata as any)?.shares)
+    ? (response.metadata as any).shares
+    : []
 
   // Cap at 3 active shares to avoid token sprawl. If they want more, they
   // can revoke an old one (revocation lives in a future enhancement).

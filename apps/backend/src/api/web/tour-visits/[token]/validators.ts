@@ -7,9 +7,9 @@ export const WebSaveTourItinerarySchema = z.object({
   // The wizard sends this only on the final "Confirm itinerary" click;
   // intermediate auto-saves leave it false.
   confirm: z.boolean().default(false),
-  // Public visit URL the customer is on; included in the confirmation
-  // email so they can return to their itinerary.
-  visit_url: z.string().url().optional(),
+  // The visit URL is derived server-side from PUBLIC_TOUR_VISIT_BASE_URL
+  // + the token (never trusted from the client) so a malicious payload
+  // can't redirect the confirmation email to a phishing domain.
 })
 
 export type WebSaveTourItinerary = z.infer<typeof WebSaveTourItinerarySchema>

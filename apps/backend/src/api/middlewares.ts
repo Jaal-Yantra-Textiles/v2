@@ -231,6 +231,53 @@ import { LinkDesignsToCustomerSchema } from "./admin/customers/[id]/designs/vali
 import { CreateDesignOrderSchema } from "./admin/customers/[id]/design-order/validators";
 import { listAbandonedCartsQuerySchema } from "./admin/abandoned-carts/validators";
 
+/**
+ * In-process per-IP rate limiter for public token-resolution routes.
+ * Lives in node memory — no Redis dep — so it doesn't coordinate across
+ * multiple instances. For prod scale, swap for a Redis-backed limiter
+ * (e.g. rate-limiter-flexible). For our current single-instance Railway
+ * deploy this is enough to stop a runaway client without adding deps.
+ *
+ * Default: 60 req / 60s / IP. Configurable via env if you need to tune.
+ */
+const createRateLimitMiddleware = (
+  options: { windowMs?: number; max?: number; key?: string } = {}
+) => {
+  const windowMs = options.windowMs ?? 60_000
+  const max = options.max ?? 60
+  const buckets = new Map<string, { resetAt: number; count: number }>()
+
+  return (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
+    const ip =
+      ((req.headers["x-forwarded-for"] as string) || "")
+        .split(",")[0]
+        ?.trim() ||
+      req.socket?.remoteAddress ||
+      "unknown"
+    const bucketKey = `${options.key || "default"}:${ip}`
+    const now = Date.now()
+    const bucket = buckets.get(bucketKey)
+
+    if (!bucket || bucket.resetAt < now) {
+      buckets.set(bucketKey, { resetAt: now + windowMs, count: 1 })
+      return next()
+    }
+
+    bucket.count += 1
+    if (bucket.count > max) {
+      res.setHeader(
+        "Retry-After",
+        Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)).toString()
+      )
+      res.status(429).json({
+        message: "Too many requests — please slow down and try again shortly.",
+      })
+      return
+    }
+    next()
+  }
+}
+
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
   return (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
@@ -3150,17 +3197,30 @@ export default defineMiddlewares({
     {
       matcher: "/web/tour-visits/:token",
       method: "GET",
-      middlewares: [],
+      middlewares: [createRateLimitMiddleware({ key: "tour-visit", max: 60 })],
     },
     {
       matcher: "/web/tour-visits/:token",
       method: "PATCH",
-      middlewares: [validateAndTransformBody(wrapSchema(WebSaveTourItinerarySchema))],
+      middlewares: [
+        createRateLimitMiddleware({ key: "tour-visit-write", max: 30 }),
+        validateAndTransformBody(wrapSchema(WebSaveTourItinerarySchema)),
+      ],
     },
     {
       matcher: "/web/guide-visits/:token",
       method: "GET",
-      middlewares: [],
+      middlewares: [createRateLimitMiddleware({ key: "guide-visit", max: 120 })],
+    },
+    {
+      matcher: "/web/tour-visits/:token/share",
+      method: "POST",
+      middlewares: [createRateLimitMiddleware({ key: "share-mint", max: 10 })],
+    },
+    {
+      matcher: "/web/tour-visits/:token/share/:share_token",
+      method: "DELETE",
+      middlewares: [createRateLimitMiddleware({ key: "share-revoke", max: 30 })],
     },
 
     // Raw Materials Categories API
