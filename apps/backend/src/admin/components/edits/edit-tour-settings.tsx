@@ -46,6 +46,7 @@ const guideSchema = z.object({
   photo_url: z.string().optional(),
   languages: z.string().optional(),
   instagram: z.string().optional(),
+  availability: z.enum(["available", "na"]).default("available"),
 })
 
 const tourSettingsSchema = z.object({
@@ -104,6 +105,7 @@ const buildDefaults = (form: AdminForm): TourSettingsFormData => {
       photo_url: g.photo_url ?? "",
       languages: Array.isArray(g.languages) ? g.languages.join(", ") : g.languages ?? "",
       instagram: g.instagram ?? "",
+      availability: g.availability === "na" ? "na" : "available",
     })),
   }
 }
@@ -170,6 +172,7 @@ export const EditTourSettingsComponent = ({ form }: EditTourSettingsProps) => {
           .map((s) => s.trim())
           .filter(Boolean),
         instagram: g.instagram?.trim() || null,
+        availability: g.availability === "na" ? "na" : "available",
       }))
 
     const headline = data.story_headline?.trim() || null
@@ -452,6 +455,28 @@ export const EditTourSettingsComponent = ({ form }: EditTourSettingsProps) => {
                                 <Form.Control>
                                   <Input autoComplete="off" placeholder="@handle" {...field} />
                                 </Form.Control>
+                              </Form.Item>
+                            )}
+                          />
+                          <Form.Field
+                            control={formCtx.control}
+                            name={`guides.${index}.availability` as const}
+                            render={({ field: { value, onChange } }) => (
+                              <Form.Item className="md:col-span-2">
+                                <Form.Label>Availability</Form.Label>
+                                <Form.Control>
+                                  <select
+                                    value={value || "available"}
+                                    onChange={(e) => onChange(e.target.value)}
+                                    className="bg-ui-bg-base txt-compact-small text-ui-fg-base placeholder:text-ui-fg-muted shadow-borders-base focus-visible:shadow-borders-interactive-with-active hover:bg-ui-bg-base-hover relative w-full appearance-none rounded-md px-2 py-1.5 outline-none"
+                                  >
+                                    <option value="available">Available — guide can be booked</option>
+                                    <option value="na">Not available — placeholder profile</option>
+                                  </select>
+                                </Form.Control>
+                                <Form.Hint>
+                                  &quot;Not available&quot; tags the guide on the visit page so customers know it&apos;s a placeholder rather than someone they&apos;ll meet.
+                                </Form.Hint>
                               </Form.Item>
                             )}
                           />

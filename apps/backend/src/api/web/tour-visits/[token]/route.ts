@@ -1,10 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
-import {
-  ContainerRegistrationKeys,
-  MedusaError,
-} from "@medusajs/framework/utils"
+import { MedusaError } from "@medusajs/framework/utils"
 import { FORMS_MODULE } from "../../../../modules/forms"
 import FormsService from "../../../../modules/forms/service"
+import { sendNotificationEmailWorkflow } from "../../../../workflows/email"
 import { buildPaymentSummary, computeCost, getSegments } from "./helpers"
 
 /**
@@ -42,14 +40,13 @@ const findResponseByToken = async (
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Visit token expired")
   }
 
-  const query: any = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data: forms_data } = await query.graph({
-    entity: "form",
-    filters: { id: response.form_id },
-    fields: ["*", "fields.*"],
-    pagination: { take: 1 },
-  })
-  const form = forms_data?.[0]
+  // query.graph treats `fields` as both a projection key and a relation
+  // name — when both collide the relation comes back empty. Resolve the
+  // service directly so we can use `relations: ['fields']` reliably.
+  const form = await (forms as any).retrieveForm(response.form_id, {
+    relations: ["fields"],
+  }).catch(() => null)
+
   if (!form) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
@@ -105,6 +102,7 @@ const buildPayload = (response: any, form: any) => {
       id: response.id,
       status: response.status,
       submitted_at: response.submitted_at,
+      updated_at: response.updated_at ?? response.submitted_at,
       answers,
       selected_segments: selected,
     },
@@ -133,6 +131,8 @@ export const PATCH = async (
   req: MedusaRequest<{
     selected_segments?: string[]
     answers?: Record<string, any>
+    confirm?: boolean
+    visit_url?: string
   }>,
   res: MedusaResponse
 ) => {
@@ -165,5 +165,57 @@ export const PATCH = async (
   })
 
   const next = Array.isArray(updated) ? updated[0] : updated
+
+  // Final-confirm path: send the customer their itinerary recap. Best-effort —
+  // if the email pipeline is down we still return success so the customer
+  // doesn't see a confused error after their click.
+  if (body.confirm && next.email) {
+    try {
+      const segs = getSegments(form)
+      const selectedSet = new Set(cleanedSelected)
+      const includedSegments = segs
+        .filter((s) => selectedSet.has(s.id) || s.required)
+        .map((s) => ({
+          title: s.title || s.id,
+          duration:
+            typeof s.duration_minutes === "number" && s.duration_minutes > 0
+              ? `${s.duration_minutes} min`
+              : null,
+          required: !!s.required,
+        }))
+
+      const headcount =
+        ((next.metadata as any)?.gyg?.headcount as Record<string, number>) || {}
+      const computed = computeCost(form, cleanedSelected, headcount)
+      const payment = buildPaymentSummary(next.metadata as any, computed)
+      const traveller = (next.metadata as any)?.gyg?.traveller || {}
+
+      await sendNotificationEmailWorkflow(req.scope).run({
+        input: {
+          to: next.email,
+          template: "tour-itinerary-confirmation",
+          data: {
+            first_name: traveller.first_name || "there",
+            tour_title:
+              (next.metadata as any)?.gyg?.product || form.title || "Your visit",
+            tour_date: (next.metadata as any)?.gyg?.tour_date || null,
+            visit_url: typeof body.visit_url === "string" ? body.visit_url : "",
+            segments: includedSegments,
+            has_payment: !!payment.paid_via_source || payment.add_ons_due > 0,
+            paid_provider: payment.paid_via_source?.provider || "",
+            paid_amount: payment.paid_via_source?.amount || 0,
+            paid_currency: payment.paid_via_source?.currency || "",
+            add_ons_amount: payment.add_ons_due,
+            add_ons_currency: payment.add_ons_currency,
+          },
+        },
+      })
+    } catch (err) {
+      // Log only — confirmation UX shouldn't fail because email is misbehaving.
+      // The customer already saw the in-app confirmation.
+      console.error("tour-itinerary-confirmation email failed", err)
+    }
+  }
+
   res.status(200).json(buildPayload(next, form))
 }
