@@ -17,18 +17,36 @@ import { buildPaymentSummary, computeCost, getSegments } from "./helpers"
 const findResponseByToken = async (
   scope: MedusaRequest["scope"],
   token: string
-): Promise<{ response: any; form: any }> => {
+): Promise<{ response: any; form: any; access_mode: "owner" | "share" }> => {
   if (!token || typeof token !== "string" || token.length < 16) {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Invalid visit token")
   }
 
   const forms: FormsService = scope.resolve(FORMS_MODULE)
 
+  // First try the canonical owner token.
   const responses = await forms.listFormResponses(
     { verification_code: token },
     { take: 1 }
   )
-  const response = responses?.[0]
+  let response = responses?.[0]
+  let access_mode: "owner" | "share" = "owner"
+
+  if (!response) {
+    // Fall back to checking metadata.shares[].token across responses. This is
+    // a small linear scan; for prod scale we'd add a dedicated table or a
+    // metadata jsonb index. Fine for current volumes.
+    const [allResponses] = await (forms as any).listAndCountFormResponses(
+      {},
+      { take: 1000 }
+    )
+    response = (allResponses || []).find((r: any) => {
+      const shares = (r.metadata as any)?.shares
+      return Array.isArray(shares) && shares.some((s: any) => s?.token === token)
+    })
+    if (response) access_mode = "share"
+  }
+
   if (!response) {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Visit not found")
   }
@@ -60,10 +78,14 @@ const findResponseByToken = async (
     )
   }
 
-  return { response, form }
+  return { response, form, access_mode }
 }
 
-const buildPayload = (response: any, form: any) => {
+const buildPayload = (
+  response: any,
+  form: any,
+  access_mode: "owner" | "share" = "owner"
+) => {
   const data = (response.data as Record<string, any>) || {}
   const selected: string[] = Array.isArray(data.selected_segments)
     ? data.selected_segments.filter((s: any) => typeof s === "string")
@@ -118,13 +140,14 @@ const buildPayload = (response: any, form: any) => {
     },
     cost: computed,
     payment,
+    access_mode,
   }
 }
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const token = req.params.token
-  const { response, form } = await findResponseByToken(req.scope, token)
-  res.status(200).json(buildPayload(response, form))
+  const { response, form, access_mode } = await findResponseByToken(req.scope, token)
+  res.status(200).json(buildPayload(response, form, access_mode))
 }
 
 export const PATCH = async (
@@ -137,7 +160,14 @@ export const PATCH = async (
   res: MedusaResponse
 ) => {
   const token = req.params.token
-  const { response, form } = await findResponseByToken(req.scope, token)
+  const { response, form, access_mode } = await findResponseByToken(req.scope, token)
+
+  if (access_mode === "share") {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      "This is a read-only share link. Ask the original recipient to make changes."
+    )
+  }
 
   const body = req.validatedBody || (req.body as any) || {}
   const incomingSelected: string[] = Array.isArray(body.selected_segments)
@@ -217,5 +247,5 @@ export const PATCH = async (
     }
   }
 
-  res.status(200).json(buildPayload(next, form))
+  res.status(200).json(buildPayload(next, form, access_mode))
 }

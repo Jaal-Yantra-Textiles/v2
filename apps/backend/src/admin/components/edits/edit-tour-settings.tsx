@@ -47,6 +47,7 @@ const guideSchema = z.object({
   languages: z.string().optional(),
   instagram: z.string().optional(),
   availability: z.enum(["available", "na"]).default("available"),
+  access_token: z.string().optional(),
 })
 
 const tourSettingsSchema = z.object({
@@ -106,8 +107,24 @@ const buildDefaults = (form: AdminForm): TourSettingsFormData => {
       languages: Array.isArray(g.languages) ? g.languages.join(", ") : g.languages ?? "",
       instagram: g.instagram ?? "",
       availability: g.availability === "na" ? "na" : "available",
+      access_token: g.access_token ?? "",
     })),
   }
+}
+
+/**
+ * 32-byte url-safe token. Stable across browsers (uses Web Crypto when
+ * available, falls back to Math.random for old environments — fine since
+ * the admin UI is logged-in territory anyway).
+ */
+const mintToken = (): string => {
+  const bytes =
+    typeof crypto !== "undefined" && crypto.getRandomValues
+      ? crypto.getRandomValues(new Uint8Array(32))
+      : new Uint8Array(Array.from({ length: 32 }, () => Math.floor(Math.random() * 256)))
+  let str = ""
+  for (const b of bytes) str += String.fromCharCode(b)
+  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
 }
 
 type EditTourSettingsProps = { form: AdminForm }
@@ -173,6 +190,7 @@ export const EditTourSettingsComponent = ({ form }: EditTourSettingsProps) => {
           .filter(Boolean),
         instagram: g.instagram?.trim() || null,
         availability: g.availability === "na" ? "na" : "available",
+        access_token: g.access_token?.trim() || mintToken(),
       }))
 
     const headline = data.story_headline?.trim() || null
@@ -476,6 +494,57 @@ export const EditTourSettingsComponent = ({ form }: EditTourSettingsProps) => {
                                 </Form.Control>
                                 <Form.Hint>
                                   &quot;Not available&quot; tags the guide on the visit page so customers know it&apos;s a placeholder rather than someone they&apos;ll meet.
+                                </Form.Hint>
+                              </Form.Item>
+                            )}
+                          />
+                          <Form.Field
+                            control={formCtx.control}
+                            name={`guides.${index}.access_token` as const}
+                            render={({ field: { value, onChange } }) => (
+                              <Form.Item className="md:col-span-2">
+                                <Form.Label optional>Guide dashboard token</Form.Label>
+                                <div className="flex gap-2">
+                                  <Form.Control>
+                                    <Input
+                                      autoComplete="off"
+                                      readOnly
+                                      placeholder="Save once to auto-generate"
+                                      value={value || ""}
+                                      onChange={(e) => onChange(e.target.value)}
+                                      className="font-mono text-xs"
+                                    />
+                                  </Form.Control>
+                                  <Button
+                                    type="button"
+                                    size="small"
+                                    variant="secondary"
+                                    onClick={() => onChange(mintToken())}
+                                  >
+                                    {value ? "Regenerate" : "Generate"}
+                                  </Button>
+                                  {value ? (
+                                    <Button
+                                      type="button"
+                                      size="small"
+                                      variant="secondary"
+                                      onClick={async () => {
+                                        try {
+                                          await navigator.clipboard.writeText(value)
+                                          toast.success("Token copied")
+                                        } catch {
+                                          toast.error("Could not copy")
+                                        }
+                                      }}
+                                    >
+                                      Copy
+                                    </Button>
+                                  ) : null}
+                                </div>
+                                <Form.Hint>
+                                  Share /guides/&lt;token&gt; with the guide. They&apos;ll see all
+                                  upcoming visits assigned to tours where they&apos;re listed.
+                                  Regenerating revokes the previous link.
                                 </Form.Hint>
                               </Form.Item>
                             )}

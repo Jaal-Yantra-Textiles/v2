@@ -46,6 +46,9 @@ const FLORENCE_SETTINGS = {
       // PLACEHOLDER: this profile is illustrative until we onboard the real
       // host. Customers see "Profile coming soon" treatment.
       availability: "na" as const,
+      // Demo dashboard token — replace with mintToken() when onboarding the
+      // actual guide so the demo link rotates out.
+      access_token: "demo_guide_giulio_GCcm1kTjJ8hP7Cpu5LwAiB2zLrRjcRiH",
     },
     {
       id: "anjali",
@@ -57,6 +60,7 @@ const FLORENCE_SETTINGS = {
         "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80",
       languages: ["English", "Bengali", "Italian"],
       availability: "na" as const,
+      access_token: "demo_guide_anjali_4uRXVmjEsMsGJBNXn5GaX9bHCRc4kN5n",
     },
   ],
   pricing: {
@@ -86,6 +90,11 @@ const FLORENCE_SETTINGS = {
       required: true,
       image_url:
         "https://images.unsplash.com/photo-1605557626634-7b4f2b3e9bff?auto=format&fit=crop&w=900&q=80",
+      location: {
+        address: "Via Benedetto Fortini 143, 50125 Firenze FI, Italy",
+        lat: 43.7569,
+        lng: 11.2885,
+      },
       links: [
         { label: "Fondazione Lisio (official site)", url: "https://www.fondazionelisio.org" },
       ],
@@ -102,6 +111,11 @@ const FLORENCE_SETTINGS = {
       required: true,
       image_url:
         "https://images.unsplash.com/photo-1604147495798-57beb5d6af73?auto=format&fit=crop&w=900&q=80",
+      location: {
+        address: "Via Romana 67, 50125 Firenze FI, Italy",
+        lat: 43.7604,
+        lng: 11.2436,
+      },
     },
     {
       id: "seg_antico_setificio",
@@ -115,6 +129,11 @@ const FLORENCE_SETTINGS = {
       required: false,
       image_url:
         "https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?auto=format&fit=crop&w=900&q=80",
+      location: {
+        address: "Via L. Bartolini 4, 50124 Firenze FI, Italy",
+        lat: 43.7706,
+        lng: 11.2392,
+      },
       links: [
         { label: "Antico Setificio Fiorentino", url: "https://anticosetificiofiorentino.com/" },
       ],
@@ -131,6 +150,9 @@ const FLORENCE_SETTINGS = {
       required: false,
       image_url:
         "https://images.unsplash.com/photo-1596443686116-d0d3b48aa4f4?auto=format&fit=crop&w=900&q=80",
+      location: {
+        address: "Studio outside Centro Storico — exact address shared by your guide.",
+      },
     },
     {
       id: "seg_transport_private",
@@ -157,6 +179,9 @@ const FLORENCE_SETTINGS = {
       required: false,
       image_url:
         "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=900&q=80",
+      location: {
+        address: "Trattoria neighbourhood near the workshops — venue confirmed by your guide.",
+      },
     },
   ],
 } as const
