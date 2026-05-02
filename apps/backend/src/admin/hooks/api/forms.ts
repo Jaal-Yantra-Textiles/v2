@@ -54,6 +54,7 @@ export type AdminFormField = {
 export type AdminFormsQuery = {
   q?: string
   status?: "draft" | "published" | "archived"
+  type?: "generic" | "tour"
   website_id?: string
   domain?: string
   offset?: number
@@ -76,6 +77,7 @@ export type CreateAdminFormPayload = {
   handle: string
   title: string
   description?: string | null
+  type?: "generic" | "tour"
   status?: "draft" | "published" | "archived"
   submit_label?: string | null
   success_message?: string | null
@@ -298,4 +300,46 @@ export const useFormResponses = (
   })
 
   return { ...data, ...rest }
+}
+
+export type ImportTourBookingsResponse = {
+  created_count: number
+  skipped_count: number
+  skipped_booking_refs: string[]
+}
+
+export const useImportTourBookings = (
+  formId: string,
+  options?: UseMutationOptions<
+    ImportTourBookingsResponse,
+    FetchError,
+    { file: File; tokenTtlDays?: number }
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ file, tokenTtlDays }) => {
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const url =
+        `/admin/forms/${formId}/import-tour-bookings` +
+        (typeof tokenTtlDays === "number"
+          ? `?token_ttl_days=${tokenTtlDays}`
+          : "")
+
+      return sdk.client.fetch<ImportTourBookingsResponse>(url, {
+        method: "POST",
+        body: formData,
+        headers: { "Content-Type": null as any },
+      })
+    },
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: formResponsesQueryKeys.list({ formId }) })
+      queryClient.invalidateQueries({ queryKey: formResponsesQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
 }

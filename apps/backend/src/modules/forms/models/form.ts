@@ -13,6 +13,8 @@ const Form = model
     title: model.text().searchable(),
     description: model.text().nullable(),
 
+    type: model.enum(["generic", "tour"]).default("generic"),
+
     status: model.enum(["draft", "published", "archived"]).default("draft"),
 
     submit_label: model.text().nullable(),

@@ -65,6 +65,9 @@ export const GET = async (
   if (queryParams.status) {
     filters.status = queryParams.status
   }
+  if (queryParams.type) {
+    filters.type = queryParams.type
+  }
   if (queryParams.website_id) {
     filters.website_id = queryParams.website_id
   }
