@@ -141,6 +141,20 @@ const buildPayload = (
     cost: computed,
     payment,
     access_mode,
+    // Owner sees the list of share tokens they've minted (so the wizard can
+    // render Revoke buttons). Share-mode viewers see an empty list.
+    shares:
+      access_mode === "owner" && Array.isArray((response.metadata as any)?.shares)
+        ? ((response.metadata as any).shares as Array<{
+            token: string
+            mode: string
+            created_at: string
+          }>).map((s) => ({
+            token: s.token,
+            mode: s.mode,
+            created_at: s.created_at,
+          }))
+        : [],
   }
 }
 
@@ -150,12 +164,23 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   res.status(200).json(buildPayload(response, form, access_mode))
 }
 
+/**
+ * Build the customer-facing visit URL server-side. Defaults to the
+ * production website host so a misconfigured deploy still mails out a
+ * working link instead of a localhost one.
+ */
+const buildVisitUrl = (token: string): string => {
+  const base = (
+    process.env.PUBLIC_TOUR_VISIT_BASE_URL || "https://jaalyantra.com"
+  ).replace(/\/$/, "")
+  return `${base}/tours/visit/${token}`
+}
+
 export const PATCH = async (
   req: MedusaRequest<{
     selected_segments?: string[]
     answers?: Record<string, any>
     confirm?: boolean
-    visit_url?: string
   }>,
   res: MedusaResponse
 ) => {
@@ -196,10 +221,17 @@ export const PATCH = async (
 
   const next = Array.isArray(updated) ? updated[0] : updated
 
-  // Final-confirm path: send the customer their itinerary recap. Best-effort —
-  // if the email pipeline is down we still return success so the customer
-  // doesn't see a confused error after their click.
-  if (body.confirm && next.email) {
+  // Final-confirm path: send the customer their itinerary recap on the
+  // first confirm only. Subsequent PATCHes with confirm:true (e.g. from a
+  // double-click or a returning visitor re-clicking Confirm) skip the
+  // email but still update the response. metadata.confirmed_at acts as
+  // the idempotency marker.
+  const previouslyConfirmedAt =
+    typeof (next.metadata as any)?.confirmed_at === "string"
+      ? (next.metadata as any).confirmed_at
+      : null
+
+  if (body.confirm && next.email && !previouslyConfirmedAt) {
     try {
       const segs = getSegments(form)
       const selectedSet = new Set(cleanedSelected)
@@ -229,7 +261,9 @@ export const PATCH = async (
             tour_title:
               (next.metadata as any)?.gyg?.product || form.title || "Your visit",
             tour_date: (next.metadata as any)?.gyg?.tour_date || null,
-            visit_url: typeof body.visit_url === "string" ? body.visit_url : "",
+            // Visit URL is constructed server-side from
+            // PUBLIC_TOUR_VISIT_BASE_URL — never trust the client.
+            visit_url: buildVisitUrl(token),
             segments: includedSegments,
             has_payment: !!payment.paid_via_source || payment.add_ons_due > 0,
             paid_provider: payment.paid_via_source?.provider || "",
@@ -240,9 +274,20 @@ export const PATCH = async (
           },
         },
       })
+
+      // Mark idempotency. Subsequent confirms by the same customer no
+      // longer trigger a duplicate email but their save still persists.
+      await (forms as any).updateFormResponses({
+        id: next.id,
+        metadata: {
+          ...((next.metadata as any) || {}),
+          confirmed_at: new Date().toISOString(),
+        },
+      })
     } catch (err) {
       // Log only — confirmation UX shouldn't fail because email is misbehaving.
-      // The customer already saw the in-app confirmation.
+      // The customer already saw the in-app confirmation. Note: we do NOT
+      // set confirmed_at here, so the next click will retry the email.
       console.error("tour-itinerary-confirmation email failed", err)
     }
   }
