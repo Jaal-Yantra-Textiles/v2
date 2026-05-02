@@ -3157,6 +3157,11 @@ export default defineMiddlewares({
       method: "PATCH",
       middlewares: [validateAndTransformBody(wrapSchema(WebSaveTourItinerarySchema))],
     },
+    {
+      matcher: "/web/guide-visits/:token",
+      method: "GET",
+      middlewares: [],
+    },
 
     // Raw Materials Categories API
     {
