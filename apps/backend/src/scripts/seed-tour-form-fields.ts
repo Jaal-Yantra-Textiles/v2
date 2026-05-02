@@ -72,6 +72,54 @@ const TOUR_DEFAULT_FIELDS = [
     placeholder: "Hotel name / neighbourhood",
   },
   {
+    name: "meeting_point_transport",
+    label: "Getting to the first meeting point",
+    type: "radio" as const,
+    required: false,
+    options: {
+      choices: [
+        { value: "walking", label: "Walking — send me directions" },
+        { value: "public", label: "Public transport — send me tickets/instructions" },
+        { value: "partner_taxi", label: "Partner taxi (~€15)" },
+        { value: "self", label: "I will arrange my own way" },
+      ],
+    },
+  },
+  {
+    name: "photo_permission",
+    label: "Photos on the day",
+    type: "radio" as const,
+    required: false,
+    options: {
+      choices: [
+        { value: "yes", label: "Yes, photos welcome" },
+        { value: "no_face", label: "Yes, but please not my face" },
+        { value: "no", label: "No photos of me, please" },
+      ],
+    },
+  },
+  {
+    name: "preferred_language",
+    label: "Preferred language for the day",
+    type: "text" as const,
+    required: false,
+    placeholder: "English",
+  },
+  {
+    name: "dietary",
+    label: "Dietary preferences & allergies",
+    type: "textarea" as const,
+    required: false,
+    placeholder: "Vegetarian, gluten-free, nut allergy…",
+  },
+  {
+    name: "access_needs",
+    label: "Access needs & pace",
+    type: "textarea" as const,
+    required: false,
+    placeholder: "Mobility, stairs, sensory considerations, energy level…",
+  },
+  {
     name: "emergency_contact_name",
     label: "Emergency contact name",
     type: "text" as const,
@@ -83,13 +131,6 @@ const TOUR_DEFAULT_FIELDS = [
     type: "phone" as const,
     required: false,
     placeholder: "+1 555 123 4567",
-  },
-  {
-    name: "notes_for_guide",
-    label: "Anything we should know about access, dietary needs, or pace?",
-    type: "textarea" as const,
-    required: false,
-    placeholder: "Mobility, allergies, birthdays, anything at all…",
   },
 ]
 

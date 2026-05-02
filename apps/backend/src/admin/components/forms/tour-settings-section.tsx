@@ -98,18 +98,39 @@ export const TourSettingsSection = ({ form }: TourSettingsSectionProps) => {
       ) : null}
 
       <div className="px-6 py-4">
-        <Text size="small" weight="plus" className="block">
-          Guides ({guides.length})
-        </Text>
-        {guides.length === 0 ? (
-          <Text size="xsmall" className="text-ui-fg-subtle">
-            None — add guides via &quot;Edit tour settings&quot;.
-          </Text>
-        ) : (
-          <Text size="xsmall" className="text-ui-fg-subtle">
-            {guides.map((g: any) => g.name).filter(Boolean).join(" · ")}
-          </Text>
-        )}
+        {(() => {
+          const availableCount = guides.filter(
+            (g: any) => g?.availability !== "na"
+          ).length
+          const naCount = guides.length - availableCount
+          return (
+            <>
+              <Text size="small" weight="plus" className="block">
+                Guides ({guides.length})
+                {guides.length > 0 ? (
+                  <span className="ml-2 font-normal text-ui-fg-subtle">
+                    {availableCount} available
+                    {naCount > 0 ? `, ${naCount} placeholder` : ""}
+                  </span>
+                ) : null}
+              </Text>
+              {guides.length === 0 ? (
+                <Text size="xsmall" className="text-ui-fg-subtle">
+                  None — add guides via &quot;Edit tour settings&quot;.
+                </Text>
+              ) : (
+                <Text size="xsmall" className="text-ui-fg-subtle">
+                  {guides
+                    .map((g: any) =>
+                      g?.availability === "na" ? `${g.name} (placeholder)` : g.name
+                    )
+                    .filter(Boolean)
+                    .join(" · ")}
+                </Text>
+              )}
+            </>
+          )
+        })()}
       </div>
 
       <div className="px-6 py-4">
