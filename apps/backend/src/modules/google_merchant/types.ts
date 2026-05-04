@@ -27,11 +27,11 @@ export interface GoogleMerchantApiConfig {
    *  e.g. "https://shop.example.com". Required for sync — workflows error without it. */
   landing_url_base?: string
 
-  /** Default availability when the product doesn't provide one. */
-  default_availability?: "in_stock" | "out_of_stock" | "preorder" | "backorder"
+  /** Default availability when the product doesn't provide one. Matches Merchant API v1 enum casing. */
+  default_availability?: "IN_STOCK" | "OUT_OF_STOCK" | "PREORDER" | "BACKORDER" | "LIMITED_AVAILABILITY"
 
-  /** Default condition when the product doesn't provide one. */
-  default_condition?: "new" | "refurbished" | "used"
+  /** Default condition when the product doesn't provide one. Matches Merchant API v1 enum casing. */
+  default_condition?: "NEW" | "REFURBISHED" | "USED"
 
   /** Default brand name when the product metadata doesn't have one. */
   default_brand?: string
@@ -53,8 +53,14 @@ export const API_CONFIG_KNOWN_KEYS: Array<keyof GoogleMerchantApiConfig> = [
   "channel",
 ]
 
-const AVAILABILITY_VALUES = new Set(["in_stock", "out_of_stock", "preorder", "backorder"])
-const CONDITION_VALUES = new Set(["new", "refurbished", "used"])
+const AVAILABILITY_VALUES = new Set([
+  "IN_STOCK",
+  "OUT_OF_STOCK",
+  "PREORDER",
+  "BACKORDER",
+  "LIMITED_AVAILABILITY",
+])
+const CONDITION_VALUES = new Set(["NEW", "REFURBISHED", "USED"])
 const CHANNEL_VALUES = new Set(["ONLINE_PRODUCTS", "LOCAL_PRODUCTS", "PRODUCTS"])
 
 /**
