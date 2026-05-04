@@ -24,7 +24,7 @@ export function mapProductToGoogleMerchant(
   const images: string[] = (product.images || []).map((img: any) => img.url).filter(Boolean)
 
   const stockQuantity = variant?.inventory_quantity ?? 1
-  const availability: GoogleMerchantProductPayload["availability"] = stockQuantity > 0 ? "in_stock" : "out_of_stock"
+  const availability: GoogleMerchantProductPayload["availability"] = stockQuantity > 0 ? "IN_STOCK" : "OUT_OF_STOCK"
 
   return {
     offerId: options.offerId,
@@ -36,7 +36,7 @@ export function mapProductToGoogleMerchant(
     contentLanguage: options.contentLanguage,
     feedLabel: options.feedLabel,
     availability,
-    condition: "new",
+    condition: "NEW",
     price: amountMicros
       ? { amountMicros, currencyCode: (priceRecord?.currency_code || options.currencyCode).toUpperCase() }
       : undefined,

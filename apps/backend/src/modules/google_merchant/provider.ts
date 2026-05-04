@@ -16,6 +16,15 @@ export interface GoogleTokenData {
   retrieved_at?: number
 }
 
+export type GoogleMerchantAvailability =
+  | "IN_STOCK"
+  | "OUT_OF_STOCK"
+  | "PREORDER"
+  | "BACKORDER"
+  | "LIMITED_AVAILABILITY"
+
+export type GoogleMerchantCondition = "NEW" | "REFURBISHED" | "USED"
+
 export interface GoogleMerchantProductPayload {
   offerId: string
   title: string
@@ -25,8 +34,8 @@ export interface GoogleMerchantProductPayload {
   additionalImageLinks?: string[]
   contentLanguage: string
   feedLabel: string
-  availability?: "in_stock" | "out_of_stock" | "preorder" | "backorder"
-  condition?: "new" | "refurbished" | "used"
+  availability?: GoogleMerchantAvailability
+  condition?: GoogleMerchantCondition
   price?: { amountMicros: string; currencyCode: string }
   brand?: string
   gtins?: string[]
@@ -159,14 +168,14 @@ export class GoogleMerchantProvider {
           offerId: payload.offerId,
           contentLanguage: payload.contentLanguage,
           feedLabel: payload.feedLabel,
-          attributes: {
+          productAttributes: {
             title: payload.title,
             description: payload.description,
             link: payload.link,
             imageLink: payload.imageLink,
             additionalImageLinks: payload.additionalImageLinks,
-            availability: payload.availability || "in_stock",
-            condition: payload.condition || "new",
+            availability: payload.availability || "IN_STOCK",
+            condition: payload.condition || "NEW",
             price: payload.price,
             brand: payload.brand,
             gtins: payload.gtins,
