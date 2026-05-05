@@ -3,6 +3,7 @@ import { SingleColumnPage } from "../../../../components/pages/single-column-pag
 import { useSocialPlatform } from "../../../../hooks/api/social-platforms";
 import { SocialPlatformGeneralSection } from "../../../../components/social-platforms/social-platform-general-section"; // Adjusted path
 import { WhatsAppTemplatesSection } from "../../../../components/social-platforms/whatsapp-templates-section";
+import { GoogleBusinessPanel } from "../../../../components/social-platforms/google-business-panel";
 import { SingleColumnPageSkeleton } from "../../../../components/table/skeleton"; // Assuming this path
 import { useTranslation } from "react-i18next";
 import { socialPlatformLoader } from "./loader";
@@ -26,15 +27,19 @@ export default function SocialPlatformDetailPage() {
   }
 
   return (
-    <SingleColumnPage 
-    showJSON 
-    showMetadata 
-    data={platform} 
+    <SingleColumnPage
+    showJSON
+    showMetadata
+    data={platform}
     hasOutlet>
         <SocialPlatformGeneralSection platform={platform} />
         {/* WhatsApp-specific sections */}
         {(platform.category === "communication" && platform.api_config?.provider === "whatsapp") && (
           <WhatsAppTemplatesSection platformId={platform.id} />
+        )}
+        {/* Google Business Manager — connection + bindings against the 6 endpoints. */}
+        {platform.category === "google" && (
+          <GoogleBusinessPanel platform={platform} />
         )}
     </SingleColumnPage>
   );

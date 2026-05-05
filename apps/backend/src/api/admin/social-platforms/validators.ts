@@ -12,6 +12,7 @@ export const ApiCategorySchema = z.enum([
   "storage",
   "communication",
   "authentication",
+  "google",
   "other",
 ]);
 

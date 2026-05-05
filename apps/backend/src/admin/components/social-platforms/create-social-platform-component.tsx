@@ -14,7 +14,7 @@ const CreateSocialPlatformSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
   base_url: z.string().url("Must be a valid URL").optional().or(z.literal('')),
-  category: z.enum(["social", "payment", "shipping", "email", "sms", "analytics", "crm", "storage", "communication", "authentication", "other"]).optional(),
+  category: z.enum(["social", "payment", "shipping", "email", "sms", "analytics", "crm", "storage", "communication", "authentication", "google", "other"]).optional(),
   auth_type: z.enum(["oauth2", "oauth1", "api_key", "bearer", "basic"]).optional(),
   status: z.enum(["active", "inactive", "error", "pending"]).optional(),
   // Provider type (shared across categories)
@@ -231,6 +231,12 @@ function buildApiConfig(category: string, data: Record<string, any>): Record<str
         api_key: data.api_key,
       })
       break
+
+    case "google":
+      // Credentials (client_id/client_secret/developer_token) are managed in
+      // the per-row Google Business Panel after creation. The create form
+      // just gets an empty api_config — strip the default `provider` key.
+      return {}
   }
 
   // Remove undefined/empty values
@@ -259,6 +265,8 @@ function inferAuthType(category: string, providerType?: string): string {
     case "crm":
       return providerType === "hubspot" ? "api_key" : "oauth2"
     case "authentication":
+      return "oauth2"
+    case "google":
       return "oauth2"
     default:
       return "api_key"
@@ -407,6 +415,7 @@ export const CreateSocialPlatformComponent = () => {
                           <Select.Item value="storage">Storage</Select.Item>
                           <Select.Item value="communication">Communication</Select.Item>
                           <Select.Item value="authentication">Authentication</Select.Item>
+                          <Select.Item value="google">Google Business Manager</Select.Item>
                           <Select.Item value="other">Other</Select.Item>
                         </Select.Content>
                       </Select>

@@ -54,6 +54,9 @@ export async function encryptSocialPlatformCredentials(
     encryptBearer("refresh_token")
     encryptBearer("page_access_token")
     encryptBearer("user_access_token")
+    // Google Business Manager: per-row OAuth client secret and Ads developer token
+    encryptBearer("client_secret")
+    encryptBearer("developer_token")
 
     // OAuth1 user credentials
     if (

@@ -14,17 +14,18 @@ import { sdk } from "../../lib/config"
 import { queryKeysFactory } from "../../lib/query-key-factory"
 
 // Types
-export type ApiCategory = 
-  | "social" 
-  | "payment" 
-  | "shipping" 
-  | "email" 
-  | "sms" 
-  | "analytics" 
-  | "crm" 
-  | "storage" 
-  | "communication" 
-  | "authentication" 
+export type ApiCategory =
+  | "social"
+  | "payment"
+  | "shipping"
+  | "email"
+  | "sms"
+  | "analytics"
+  | "crm"
+  | "storage"
+  | "communication"
+  | "authentication"
+  | "google"
   | "other"
 
 export type AuthType = 

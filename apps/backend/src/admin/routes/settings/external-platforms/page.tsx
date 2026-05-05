@@ -92,6 +92,7 @@ const SocialPlatformPage = () => {
         { label: "Storage", value: "storage" },
         { label: "Communication", value: "communication" },
         { label: "Authentication", value: "authentication" },
+        { label: "Google Business Manager", value: "google" },
         { label: "Other", value: "other" },
       ],
     }),

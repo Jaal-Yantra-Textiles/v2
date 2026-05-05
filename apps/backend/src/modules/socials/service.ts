@@ -1,5 +1,6 @@
 import SocialPost from "./models/SocialPost";
 import SocialPlatform from "./models/SocialPlatform";
+import SocialPlatformBinding from "./models/SocialPlatformBinding";
 import Sma from "./models/sma";
 import Hashtag from "./models/hashtag";
 import Mention from "./models/mention";
@@ -19,6 +20,7 @@ import type { WhatsAppPlatformApiConfig } from "./types/whatsapp-platform";
 class SocialsService extends MedusaService({
   SocialPost,
   SocialPlatform,
+  SocialPlatformBinding,
   Sma,
   Hashtag,
   Mention,
