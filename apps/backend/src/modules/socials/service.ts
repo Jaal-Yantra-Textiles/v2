@@ -12,6 +12,9 @@ import Ad from "./models/Ad";
 import LeadForm from "./models/LeadForm";
 import Lead from "./models/Lead";
 import AdInsights from "./models/AdInsights";
+import GoogleAdsCustomer from "./models/GoogleAdsCustomer";
+import GoogleAdsCampaign from "./models/GoogleAdsCampaign";
+import GoogleAdsAdGroup from "./models/GoogleAdsAdGroup";
 import { MedusaService } from "@medusajs/framework/utils";
 import { extractHashtags, extractMentions } from "./utils/text-extraction";
 import type { WhatsAppPlatformApiConfig } from "./types/whatsapp-platform";
@@ -33,6 +36,10 @@ class SocialsService extends MedusaService({
   LeadForm,
   Lead,
   AdInsights,
+  // Google Ads models (kept separate from Meta tables)
+  GoogleAdsCustomer,
+  GoogleAdsCampaign,
+  GoogleAdsAdGroup,
 }) {
   constructor() {
     super(...arguments)

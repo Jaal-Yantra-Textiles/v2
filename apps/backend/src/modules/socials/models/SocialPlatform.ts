@@ -3,6 +3,7 @@ import SocialPost from "./SocialPost";
 import AdAccount from "./AdAccount";
 import Lead from "./Lead";
 import SocialPlatformBinding from "./SocialPlatformBinding";
+import GoogleAdsCustomer from "./GoogleAdsCustomer";
 
 /**
  * SocialPlatform (External API Platform)
@@ -43,6 +44,7 @@ const SocialPlatform = model.define("SocialPlatform", {
   ad_accounts: model.hasMany(() => AdAccount, { mappedBy: "platform" }),
   leads: model.hasMany(() => Lead, { mappedBy: "platform" }),
   bindings: model.hasMany(() => SocialPlatformBinding, { mappedBy: "platform" }),
+  google_ads_customers: model.hasMany(() => GoogleAdsCustomer, { mappedBy: "platform" }),
 });
 
 export default SocialPlatform;
