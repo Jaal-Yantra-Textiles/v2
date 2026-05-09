@@ -18,11 +18,16 @@ import {
 } from "@medusajs/icons"
 import { Link } from "react-router-dom"
 import {
+  type GoogleAdsCampaign,
+  type GoogleAdsCustomer,
   type GoogleBinding,
   type GoogleService,
   useDeleteGoogleBinding,
+  useGoogleAdsCampaigns,
+  useGoogleAdsCustomers,
   useGoogleBindings,
   useRefreshGoogleToken,
+  useSyncGoogleAds,
 } from "../../hooks/api/google-business"
 import { type AdminSocialPlatform } from "../../hooks/api/social-platforms"
 import { CommonSection } from "../common/section-views"
@@ -62,11 +67,16 @@ export function GoogleBusinessPanel({
     apiConfig.refresh_token_encrypted
   )
 
+  const hasAdsBinding = useGoogleBindings(platform.id, "ads").count > 0
+
   return (
     <div className="flex flex-col gap-y-3">
       <ConnectionSection platform={platform} isConnected={isConnected} />
       <CredentialsSection apiConfig={apiConfig} />
       <BindingsSection platformId={platform.id} isConnected={isConnected} />
+      {isConnected && hasAdsBinding && (
+        <GoogleAdsDataSection platformId={platform.id} />
+      )}
     </div>
   )
 }
@@ -390,6 +400,199 @@ function ServiceBindingsCard({
           ))
         )}
       </div>
+    </div>
+  )
+}
+
+function GoogleAdsDataSection({ platformId }: { platformId: string }) {
+  const { customers, isLoading: loadingCustomers } =
+    useGoogleAdsCustomers(platformId)
+  const { campaigns, isLoading: loadingCampaigns } =
+    useGoogleAdsCampaigns(platformId)
+  const sync = useSyncGoogleAds(platformId)
+
+  const handleSync = async () => {
+    try {
+      const result = await sync.mutateAsync(undefined)
+      const errs = result.errors?.length || 0
+      const summary = `${result.customers_synced} customer(s), ${result.campaigns_synced} campaign(s), ${result.ad_groups_synced} ad group(s)`
+      if (errs === 0) {
+        toast.success(`Synced ${summary}`)
+      } else {
+        toast.warning(`Synced ${summary} with ${errs} error(s)`)
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Sync failed")
+    }
+  }
+
+  return (
+    <Container className="divide-y p-0">
+      <div className="flex items-center justify-between px-6 py-4">
+        <div>
+          <Heading level="h2">Google Ads data</Heading>
+          <Text className="text-ui-fg-subtle mt-1" size="small">
+            Synced campaigns and ad groups, used by ad-planning attribution.
+          </Text>
+        </div>
+        <Button
+          size="small"
+          variant="secondary"
+          onClick={handleSync}
+          isLoading={sync.isPending}
+        >
+          <ArrowPath /> Sync now
+        </Button>
+      </div>
+
+      <div className="px-6 py-4">
+        {loadingCustomers ? (
+          <Text size="small" className="text-ui-fg-subtle">
+            Loading…
+          </Text>
+        ) : customers.length === 0 ? (
+          <Text size="small" className="text-ui-fg-subtle">
+            No customers synced yet. Click <strong>Sync now</strong> to pull
+            campaigns from your bound Google Ads CIDs.
+          </Text>
+        ) : (
+          <div className="flex flex-col gap-y-4">
+            {customers.map((c) => (
+              <CustomerCampaignsCard
+                key={c.id}
+                customer={c}
+                campaigns={campaigns.filter((cp) => cp.customer_id === c.id)}
+                isLoading={loadingCampaigns}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </Container>
+  )
+}
+
+function CustomerCampaignsCard({
+  customer,
+  campaigns,
+  isLoading,
+}: {
+  customer: GoogleAdsCustomer
+  campaigns: GoogleAdsCampaign[]
+  isLoading: boolean
+}) {
+  return (
+    <div className="flex flex-col rounded-md border">
+      <div className="flex items-center justify-between border-b px-3 py-2">
+        <div className="flex flex-col">
+          <Text size="small" weight="plus">
+            {customer.descriptive_name || customer.customer_id}
+          </Text>
+          <Text size="xsmall" className="text-ui-fg-subtle">
+            {customer.customer_id}
+            {customer.currency_code ? ` · ${customer.currency_code}` : ""}
+            {customer.is_test_account ? " · test" : ""}
+            {customer.is_manager ? " · manager" : ""}
+          </Text>
+        </div>
+        <div className="flex items-center gap-x-2">
+          <StatusBadge
+            color={
+              customer.sync_status === "synced"
+                ? "green"
+                : customer.sync_status === "error"
+                  ? "red"
+                  : customer.sync_status === "syncing"
+                    ? "blue"
+                    : "orange"
+            }
+          >
+            {customer.sync_status}
+          </StatusBadge>
+          {customer.last_synced_at && (
+            <Text size="xsmall" className="text-ui-fg-subtle">
+              {new Date(customer.last_synced_at).toLocaleString()}
+            </Text>
+          )}
+        </div>
+      </div>
+      {customer.sync_error && (
+        <div className="border-b px-3 py-2">
+          <Text size="xsmall" className="text-ui-fg-error">
+            {customer.sync_error}
+          </Text>
+        </div>
+      )}
+      <div className="flex flex-col divide-y">
+        {isLoading ? (
+          <div className="px-3 py-2">
+            <Text size="xsmall" className="text-ui-fg-subtle">
+              Loading…
+            </Text>
+          </div>
+        ) : campaigns.length === 0 ? (
+          <div className="px-3 py-2">
+            <Text size="xsmall" className="text-ui-fg-subtle">
+              No campaigns synced for this customer.
+            </Text>
+          </div>
+        ) : (
+          campaigns.map((cp) => (
+            <div
+              key={cp.id}
+              className="flex items-center justify-between px-3 py-2"
+            >
+              <div className="flex min-w-0 flex-col">
+                <Text size="small" weight="plus" className="truncate">
+                  {cp.name}
+                </Text>
+                <Text size="xsmall" className="text-ui-fg-subtle truncate">
+                  {cp.advertising_channel_type}
+                  {cp.bidding_strategy_type
+                    ? ` · ${cp.bidding_strategy_type}`
+                    : ""}
+                </Text>
+              </div>
+              <div className="flex shrink-0 items-center gap-x-3">
+                <Metric label="impr" value={cp.impressions} />
+                <Metric label="clk" value={cp.clicks} />
+                <Metric label="conv" value={cp.conversions} />
+                <StatusBadge
+                  color={
+                    cp.status === "ENABLED"
+                      ? "green"
+                      : cp.status === "PAUSED"
+                        ? "orange"
+                        : "grey"
+                  }
+                >
+                  {cp.status}
+                </StatusBadge>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Metric({
+  label,
+  value,
+}: {
+  label: string
+  value: string | number
+}) {
+  const display = typeof value === "string" ? Number(value) : value
+  return (
+    <div className="flex flex-col items-end">
+      <Text size="xsmall" weight="plus">
+        {Number.isFinite(display) ? display.toLocaleString() : "—"}
+      </Text>
+      <Text size="xsmall" className="text-ui-fg-subtle">
+        {label}
+      </Text>
     </div>
   )
 }

@@ -36,12 +36,58 @@ export type GoogleRefreshResponse = {
   refreshed: boolean
 }
 
+export type GoogleAdsCustomer = {
+  id: string
+  customer_id: string
+  resource_name: string | null
+  descriptive_name: string | null
+  currency_code: string | null
+  time_zone: string | null
+  is_manager: boolean
+  is_test_account: boolean
+  last_synced_at: string | null
+  sync_status: "synced" | "syncing" | "error" | "pending"
+  sync_error: string | null
+}
+
+export type GoogleAdsCampaign = {
+  id: string
+  campaign_id: string
+  resource_name: string | null
+  name: string
+  status: string
+  serving_status: string | null
+  advertising_channel_type: string
+  bidding_strategy_type: string | null
+  start_date: string | null
+  end_date: string | null
+  budget_amount_micros: string | number | null
+  impressions: string | number
+  clicks: string | number
+  conversions: string | number
+  cost_micros: string | number
+  last_synced_at: string | null
+  customer_id: string
+}
+
+export type GoogleAdsSyncResponse = {
+  platform_id: string
+  customers_synced: number
+  campaigns_synced: number
+  ad_groups_synced: number
+  errors: Array<{ customer_id: string; message: string }>
+}
+
 const KEYS = {
   all: ["google-business"] as const,
   bindings: (platformId: string, service?: GoogleService) =>
     [...KEYS.all, "bindings", platformId, service ?? "all"] as const,
   resources: (platformId: string, service: GoogleService) =>
     [...KEYS.all, "accessible-resources", platformId, service] as const,
+  adsCustomers: (platformId: string) =>
+    [...KEYS.all, "ads-customers", platformId] as const,
+  adsCampaigns: (platformId: string, customerId?: string) =>
+    [...KEYS.all, "ads-campaigns", platformId, customerId ?? "all"] as const,
 }
 
 export function useInitiateGoogleConnect(platformId: string) {
@@ -141,6 +187,63 @@ export function useDeleteGoogleBinding(platformId: string) {
       sdk.client.fetch<{ id: string; deleted: boolean }>(
         `/admin/social-platforms/${platformId}/google/bindings/${bindingId}`,
         { method: "DELETE" }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.all })
+    },
+  })
+}
+
+export function useGoogleAdsCustomers(platformId: string, enabled = true) {
+  const query = useQuery({
+    queryKey: KEYS.adsCustomers(platformId),
+    queryFn: () =>
+      sdk.client.fetch<{ customers: GoogleAdsCustomer[]; count: number }>(
+        `/admin/social-platforms/${platformId}/google/ads/customers`,
+        { method: "GET" }
+      ),
+    enabled: enabled && !!platformId,
+  })
+  return {
+    customers: query.data?.customers || [],
+    count: query.data?.count || 0,
+    ...query,
+  }
+}
+
+export function useGoogleAdsCampaigns(
+  platformId: string,
+  customerId?: string,
+  enabled = true
+) {
+  const query = useQuery({
+    queryKey: KEYS.adsCampaigns(platformId, customerId),
+    queryFn: () =>
+      sdk.client.fetch<{
+        campaigns: GoogleAdsCampaign[]
+        count: number
+        customers: GoogleAdsCustomer[]
+      }>(`/admin/social-platforms/${platformId}/google/ads/campaigns`, {
+        method: "GET",
+        query: customerId ? { customer_id: customerId } : undefined,
+      }),
+    enabled: enabled && !!platformId,
+  })
+  return {
+    campaigns: query.data?.campaigns || [],
+    count: query.data?.count || 0,
+    customers: query.data?.customers || [],
+    ...query,
+  }
+}
+
+export function useSyncGoogleAds(platformId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input?: { customer_id?: string }) =>
+      sdk.client.fetch<GoogleAdsSyncResponse>(
+        `/admin/social-platforms/${platformId}/google/ads/sync`,
+        { method: "POST", body: input || {} }
       ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.all })
