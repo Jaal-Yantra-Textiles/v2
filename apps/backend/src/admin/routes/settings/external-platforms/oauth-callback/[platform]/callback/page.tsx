@@ -27,13 +27,26 @@ export default function OAuthCallbackDynamicPage() {
       return
     }
 
+    // Google Business Manager rows go through the per-row callback so the
+    // workflow can match the SocialPlatform by id and verify the state
+    // stored in api_config.pending_oauth_state.
+    const callbackUrl =
+      platform === "google"
+        ? `/admin/social-platforms/${id}/google/oauth-callback`
+        : `/admin/oauth/${platform}/callback`
+
+    const callbackBody =
+      platform === "google" ? { code, state } : { code, state, id }
+
     sdk.client
-      .fetch(`/admin/oauth/${platform}/callback`, {
+      .fetch(callbackUrl, {
         method: "POST",
-        body: { code, state, id },
+        body: callbackBody,
       })
       .then(() => {
         toast.success("API connected ✔")
+        localStorage.removeItem("oauth_platform_id")
+        localStorage.removeItem("oauth_platform_kind")
         navigate(`/settings/external-platforms/${id}`)
       })
       .catch((e: Error) => {

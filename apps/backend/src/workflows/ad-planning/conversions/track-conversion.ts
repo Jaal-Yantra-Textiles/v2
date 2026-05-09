@@ -13,6 +13,7 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { AD_PLANNING_MODULE } from "../../../modules/ad-planning";
 import type AdPlanningService from "../../../modules/ad-planning/service";
+import { SOCIALS_MODULE } from "../../../modules/socials";
 
 type TrackConversionInput = {
   conversion_type:
@@ -46,20 +47,31 @@ type TrackConversionInput = {
 };
 
 /**
- * Step 1: Resolve attribution for the session
+ * Step 1: Resolve attribution for the session.
+ *
+ * Resolution order:
+ *   1. Existing CampaignAttribution row for this session — preferred since
+ *      bulk-resolve has likely already fuzzy-matched it.
+ *   2. Google Ads sync data — when utm_source flags Google and we can match
+ *      utm_campaign against a synced GoogleAdsCampaign (by `campaign_id` or
+ *      `name`), claim the campaign as the attribution source. This is the
+ *      first real consumer of slice 1's sync data — without it the rows
+ *      were a graveyard.
+ *   3. Nothing — return nulls. Bulk-resolve job will revisit later.
  */
 const resolveAttributionStep = createStep(
   "resolve-attribution",
   async (
     input: {
       session_id?: string;
+      utm_source?: string;
       utm_campaign?: string;
     },
     { container }
   ) => {
     const adPlanningService: AdPlanningService = container.resolve(AD_PLANNING_MODULE);
 
-    // Check if we have existing attribution for this session
+    // 1. Check if we have existing attribution for this session
     if (input.session_id) {
       const existing = await adPlanningService.listCampaignAttributions({
         analytics_session_id: input.session_id,
@@ -75,7 +87,23 @@ const resolveAttributionStep = createStep(
       }
     }
 
-    // No resolved attribution, return nulls
+    // 2. Try synced Google Ads data when the source looks like Google
+    if (input.utm_campaign && isGoogleSource(input.utm_source)) {
+      const googleMatch = await matchGoogleAdsCampaign(
+        container,
+        input.utm_campaign
+      );
+      if (googleMatch) {
+        return new StepResponse({
+          ad_campaign_id: googleMatch.campaign_id,
+          ad_set_id: null,
+          ad_id: null,
+          platform: "google" as const,
+        });
+      }
+    }
+
+    // 3. No resolved attribution, return nulls
     return new StepResponse({
       ad_campaign_id: null,
       ad_set_id: null,
@@ -84,6 +112,52 @@ const resolveAttributionStep = createStep(
     });
   }
 );
+
+const GOOGLE_SOURCE_PATTERNS = ["google", "googleads", "adwords", "google_ads"];
+
+function isGoogleSource(utmSource?: string): boolean {
+  if (!utmSource) return false;
+  const normalized = utmSource.toLowerCase().replace(/[\s-]+/g, "_");
+  return GOOGLE_SOURCE_PATTERNS.includes(normalized);
+}
+
+/**
+ * Match a `utm_campaign` value against synced GoogleAdsCampaign rows.
+ *
+ * Tries exact campaign_id first (auto-tagging style), then case-insensitive
+ * name (manual tagging style). Returns the first match — duplicate names
+ * across CIDs would land on whichever Google's storage returns first, which
+ * is acceptable for a heuristic and doesn't lose data (the conversion still
+ * gets `platform: "google"` and a campaign_id we can reconcile later).
+ */
+async function matchGoogleAdsCampaign(
+  container: any,
+  utmCampaign: string
+): Promise<{ campaign_id: string } | null> {
+  const socials = container.resolve(SOCIALS_MODULE) as any;
+
+  // Exact campaign_id match — Google's auto-tagging often surfaces the
+  // numeric id when manual UTMs aren't set.
+  const byId = await socials.listGoogleAdsCampaigns(
+    { campaign_id: utmCampaign },
+    { take: 1 }
+  );
+  if (byId.length > 0) {
+    return { campaign_id: byId[0].campaign_id };
+  }
+
+  // Name match — case-insensitive exact. We deliberately avoid LIKE/% here
+  // because partial matches on free-text names would collide too easily.
+  const byName = await socials.listGoogleAdsCampaigns(
+    { name: utmCampaign },
+    { take: 1 }
+  );
+  if (byName.length > 0) {
+    return { campaign_id: byName[0].campaign_id };
+  }
+
+  return null;
+}
 
 /**
  * Step 2: Create the conversion record
@@ -274,6 +348,7 @@ export const trackConversionWorkflow = createWorkflow(
   (input: TrackConversionInput) => {
     const attribution = resolveAttributionStep({
       session_id: input.session_id,
+      utm_source: input.utm_source,
       utm_campaign: input.utm_campaign,
     });
 
