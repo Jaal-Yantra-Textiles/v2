@@ -6,6 +6,7 @@ import { SOCIALS_MODULE } from "../../../modules/socials"
 import { ENCRYPTION_MODULE } from "../../../modules/encryption"
 import type EncryptionService from "../../../modules/encryption/service"
 import type { GoogleService } from "../../../modules/social-provider/google-connection-service"
+import { withGoogleRetry } from "../../../modules/social-provider/google-retry"
 
 export type ListAccessibleResourcesInput = {
   platform_id: string
@@ -30,8 +31,8 @@ export type ListAccessibleResourcesOutput = {
 
 const MERCHANT_ACCOUNTS_URL = "https://merchantapi.googleapis.com/accounts/v1/accounts"
 const ADS_LIST_CUSTOMERS_URL =
-  "https://googleads.googleapis.com/v17/customers:listAccessibleCustomers"
-const ADS_API_BASE = "https://googleads.googleapis.com/v17"
+  "https://googleads.googleapis.com/v24/customers:listAccessibleCustomers"
+const ADS_API_BASE = "https://googleads.googleapis.com/v24"
 const GSC_SITES_URL = "https://searchconsole.googleapis.com/webmasters/v3/sites"
 const BP_ACCOUNTS_URL = "https://mybusinessaccountmanagement.googleapis.com/v1/accounts"
 
@@ -71,7 +72,7 @@ export const listAccessibleResourcesStep = createStep(
     }
 
     try {
-      const resources = await handler(input, container)
+      const resources = await handler(input, container, logger)
       return new StepResponse<ListAccessibleResourcesOutput>({
         service: input.service,
         resources,
@@ -85,13 +86,18 @@ export const listAccessibleResourcesStep = createStep(
 
 async function listMerchantAccounts(
   input: ListAccessibleResourcesInput,
-  _container: any
+  _container: any,
+  logger?: Logger
 ): Promise<AccessibleResource[]> {
   try {
-    const response = await axios.get(MERCHANT_ACCOUNTS_URL, {
-      headers: { Authorization: `Bearer ${input.access_token}` },
-      params: { pageSize: 250 },
-    })
+    const response = await withGoogleRetry(
+      () =>
+        axios.get(MERCHANT_ACCOUNTS_URL, {
+          headers: { Authorization: `Bearer ${input.access_token}` },
+          params: { pageSize: 250 },
+        }),
+      { label: "merchant.accounts.list", logger }
+    )
     const accounts = response.data?.accounts || []
     return accounts.map((a: any) => ({
       resource_id: String(a.accountId || a.name?.split("/").pop() || ""),
@@ -113,7 +119,8 @@ async function listMerchantAccounts(
 
 async function listAdsCustomers(
   input: ListAccessibleResourcesInput,
-  container: any
+  container: any,
+  logger?: Logger
 ): Promise<AccessibleResource[]> {
   const developerToken = await readDeveloperToken(input.platform_id, container)
   if (!developerToken) {
@@ -125,12 +132,16 @@ async function listAdsCustomers(
 
   let cidResourceNames: string[] = []
   try {
-    const listResponse = await axios.get(ADS_LIST_CUSTOMERS_URL, {
-      headers: {
-        Authorization: `Bearer ${input.access_token}`,
-        "developer-token": developerToken,
-      },
-    })
+    const listResponse = await withGoogleRetry(
+      () =>
+        axios.get(ADS_LIST_CUSTOMERS_URL, {
+          headers: {
+            Authorization: `Bearer ${input.access_token}`,
+            "developer-token": developerToken,
+          },
+        }),
+      { label: "ads.listAccessibleCustomers", logger }
+    )
     cidResourceNames = listResponse.data?.resourceNames || []
   } catch (e: any) {
     const msg = e.response?.data?.error?.message || e.message
@@ -150,19 +161,23 @@ async function listAdsCustomers(
     let label = cid
     let extra: Record<string, any> = { resource_name: rn }
     try {
-      const gaql = await axios.post(
-        `${ADS_API_BASE}/customers/${cid}/googleAds:searchStream`,
-        {
-          query:
-            "SELECT customer.descriptive_name, customer.currency_code, customer.time_zone, customer.manager, customer.test_account FROM customer LIMIT 1",
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${input.access_token}`,
-            "developer-token": developerToken,
-            "Content-Type": "application/json",
-          },
-        }
+      const gaql = await withGoogleRetry(
+        () =>
+          axios.post(
+            `${ADS_API_BASE}/customers/${cid}/googleAds:searchStream`,
+            {
+              query:
+                "SELECT customer.descriptive_name, customer.currency_code, customer.time_zone, customer.manager, customer.test_account FROM customer LIMIT 1",
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${input.access_token}`,
+                "developer-token": developerToken,
+                "Content-Type": "application/json",
+              },
+            }
+          ),
+        { label: `ads.searchStream(${cid})`, logger, maxAttempts: 3 }
       )
       const row = gaql.data?.[0]?.results?.[0]?.customer || gaql.data?.results?.[0]?.customer
       if (row) {
@@ -187,12 +202,17 @@ async function listAdsCustomers(
 
 async function listSearchConsoleSites(
   input: ListAccessibleResourcesInput,
-  _container: any
+  _container: any,
+  logger?: Logger
 ): Promise<AccessibleResource[]> {
   try {
-    const response = await axios.get(GSC_SITES_URL, {
-      headers: { Authorization: `Bearer ${input.access_token}` },
-    })
+    const response = await withGoogleRetry(
+      () =>
+        axios.get(GSC_SITES_URL, {
+          headers: { Authorization: `Bearer ${input.access_token}` },
+        }),
+      { label: "search-console.sites.list", logger }
+    )
     const sites = response.data?.siteEntry || []
     return sites.map((s: any) => ({
       resource_id: s.siteUrl,
@@ -210,13 +230,26 @@ async function listSearchConsoleSites(
 
 async function listBusinessProfileAccounts(
   input: ListAccessibleResourcesInput,
-  _container: any
+  _container: any,
+  logger?: Logger
 ): Promise<AccessibleResource[]> {
   try {
-    const response = await axios.get(BP_ACCOUNTS_URL, {
-      headers: { Authorization: `Bearer ${input.access_token}` },
-      params: { pageSize: 100 },
-    })
+    // Business Profile's default quota is famously low (1 RPM per project).
+    // Stretch the retries — a quota window can be 60s+, so allow waits up to
+    // a minute and let Retry-After dominate when Google sends one.
+    const response = await withGoogleRetry(
+      () =>
+        axios.get(BP_ACCOUNTS_URL, {
+          headers: { Authorization: `Bearer ${input.access_token}` },
+          params: { pageSize: 100 },
+        }),
+      {
+        label: "business-profile.accounts.list",
+        logger,
+        baseDelayMs: 2000,
+        maxDelayMs: 60_000,
+      }
+    )
     const accounts = response.data?.accounts || []
     return accounts.map((a: any) => ({
       resource_id: a.name, // "accounts/{accountId}"

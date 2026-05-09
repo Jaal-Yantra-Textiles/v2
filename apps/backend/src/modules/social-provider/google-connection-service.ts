@@ -1,6 +1,7 @@
 import axios from "axios"
 import { MedusaError } from "@medusajs/utils"
 import { OAuth2Token } from "./types"
+import { withGoogleRetry } from "./google-retry"
 
 /**
  * GoogleConnectionService
@@ -109,16 +110,20 @@ export class GoogleConnectionService {
 
   async exchangeCodeForToken(code: string): Promise<OAuth2Token> {
     try {
-      const response = await axios.post(
-        TOKEN_URL,
-        new URLSearchParams({
-          grant_type: "authorization_code",
-          code,
-          client_id: this.clientId,
-          client_secret: this.clientSecret,
-          redirect_uri: this.redirectUri,
-        }).toString(),
-        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      const response = await withGoogleRetry(
+        () =>
+          axios.post(
+            TOKEN_URL,
+            new URLSearchParams({
+              grant_type: "authorization_code",
+              code,
+              client_id: this.clientId,
+              client_secret: this.clientSecret,
+              redirect_uri: this.redirectUri,
+            }).toString(),
+            { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+          ),
+        { label: "oauth2.token.exchange", maxAttempts: 3 }
       )
       return {
         access_token: response.data.access_token,
@@ -140,15 +145,19 @@ export class GoogleConnectionService {
 
   async refreshAccessToken(refreshToken: string): Promise<OAuth2Token> {
     try {
-      const response = await axios.post(
-        TOKEN_URL,
-        new URLSearchParams({
-          grant_type: "refresh_token",
-          refresh_token: refreshToken,
-          client_id: this.clientId,
-          client_secret: this.clientSecret,
-        }).toString(),
-        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      const response = await withGoogleRetry(
+        () =>
+          axios.post(
+            TOKEN_URL,
+            new URLSearchParams({
+              grant_type: "refresh_token",
+              refresh_token: refreshToken,
+              client_id: this.clientId,
+              client_secret: this.clientSecret,
+            }).toString(),
+            { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+          ),
+        { label: "oauth2.token.refresh", maxAttempts: 3 }
       )
       return {
         access_token: response.data.access_token,
@@ -172,9 +181,13 @@ export class GoogleConnectionService {
     accessToken: string
   ): Promise<{ email?: string; sub?: string; name?: string }> {
     try {
-      const response = await axios.get(USERINFO_URL, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
+      const response = await withGoogleRetry(
+        () =>
+          axios.get(USERINFO_URL, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }),
+        { label: "oauth2.userinfo", maxAttempts: 3 }
+      )
       return response.data
     } catch (error: any) {
       const msg = error.response?.data?.error?.message || error.message
