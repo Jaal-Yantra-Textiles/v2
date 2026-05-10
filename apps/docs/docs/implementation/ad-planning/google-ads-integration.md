@@ -6,7 +6,9 @@ sidebar_position: 3
 
 # Google Ads Integration Plan (Proposal)
 
-> **Status:** draft. Sister document to [Meta Ads Integration Plan](./meta-ads-integration.md). Covers a from-zero implementation of Google Ads (formerly AdWords) tied into the existing Google Merchant integration so we can run Shopping, Performance Max, and Search campaigns directly from JYT.
+> **Status (May 2026):** Phases 0, 1, and 2 are shipped (PRs #203, #204). Phase 3 (campaign management write-back) and Phase 4 (Search ads) are still proposal-only. See [Google Ads — What's Shipped](./google-ads-shipped.md) for the actual implementation map, operator setup, and known gaps.
+>
+> Sister document to [Meta Ads Integration Plan](./meta-ads-integration.md). Covers a from-zero implementation of Google Ads (formerly AdWords) tied into the existing Google Merchant integration so we can run Shopping, Performance Max, and Search campaigns directly from JYT.
 
 ## Why now
 
