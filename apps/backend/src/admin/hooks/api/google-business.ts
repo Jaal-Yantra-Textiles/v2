@@ -78,6 +78,16 @@ export type GoogleAdsSyncResponse = {
   errors: Array<{ customer_id: string; message: string }>
 }
 
+export type GoogleAdsConversionAction = {
+  resource_name: string
+  conversion_action_id: string
+  name: string
+  type: string | null
+  status: string | null
+  category: string | null
+  include_in_conversions_metric: boolean | null
+}
+
 const KEYS = {
   all: ["google-business"] as const,
   bindings: (platformId: string, service?: GoogleService) =>
@@ -88,6 +98,8 @@ const KEYS = {
     [...KEYS.all, "ads-customers", platformId] as const,
   adsCampaigns: (platformId: string, customerId?: string) =>
     [...KEYS.all, "ads-campaigns", platformId, customerId ?? "all"] as const,
+  adsConversionActions: (platformId: string, customerId: string) =>
+    [...KEYS.all, "ads-conversion-actions", platformId, customerId] as const,
 }
 
 export function useInitiateGoogleConnect(platformId: string) {
@@ -249,4 +261,27 @@ export function useSyncGoogleAds(platformId: string) {
       qc.invalidateQueries({ queryKey: KEYS.all })
     },
   })
+}
+
+export function useGoogleAdsConversionActions(
+  platformId: string,
+  customerId: string | null,
+  enabled = true
+) {
+  const query = useQuery({
+    queryKey: KEYS.adsConversionActions(platformId, customerId || ""),
+    queryFn: () =>
+      sdk.client.fetch<{
+        customer_id: string
+        conversion_actions: GoogleAdsConversionAction[]
+      }>(
+        `/admin/social-platforms/${platformId}/google/ads/conversion-actions`,
+        { method: "GET", query: { customer_id: customerId } }
+      ),
+    enabled: enabled && !!platformId && !!customerId,
+  })
+  return {
+    conversionActions: query.data?.conversion_actions || [],
+    ...query,
+  }
 }

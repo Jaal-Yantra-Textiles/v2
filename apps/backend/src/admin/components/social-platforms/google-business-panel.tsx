@@ -75,7 +75,7 @@ export function GoogleBusinessPanel({
       <CredentialsSection apiConfig={apiConfig} />
       <BindingsSection platformId={platform.id} isConnected={isConnected} />
       {isConnected && hasAdsBinding && (
-        <GoogleAdsDataSection platformId={platform.id} />
+        <GoogleAdsDataSection platformId={platform.id} apiConfig={apiConfig} />
       )}
     </div>
   )
@@ -404,12 +404,24 @@ function ServiceBindingsCard({
   )
 }
 
-function GoogleAdsDataSection({ platformId }: { platformId: string }) {
+function GoogleAdsDataSection({
+  platformId,
+  apiConfig,
+}: {
+  platformId: string
+  apiConfig: Record<string, any>
+}) {
   const { customers, isLoading: loadingCustomers } =
     useGoogleAdsCustomers(platformId)
   const { campaigns, isLoading: loadingCampaigns } =
     useGoogleAdsCampaigns(platformId)
   const sync = useSyncGoogleAds(platformId)
+
+  const googleAds = (apiConfig.google_ads || {}) as Record<string, any>
+  const hasDefaultCustomer = !!googleAds.default_customer_id
+  const hasDefaultAction = !!googleAds.default_conversion_action
+  const defaultsComplete = hasDefaultCustomer && hasDefaultAction
+  const validateOnly = !!googleAds.validate_only
 
   const handleSync = async () => {
     try {
@@ -429,20 +441,42 @@ function GoogleAdsDataSection({ platformId }: { platformId: string }) {
   return (
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
-        <div>
+        <div className="flex flex-col gap-y-1">
           <Heading level="h2">Google Ads data</Heading>
-          <Text className="text-ui-fg-subtle mt-1" size="small">
+          <Text className="text-ui-fg-subtle" size="small">
             Synced campaigns and ad groups, used by ad-planning attribution.
           </Text>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <Badge
+              size="2xsmall"
+              color={defaultsComplete ? "green" : "orange"}
+            >
+              {defaultsComplete
+                ? "Upload defaults configured"
+                : "Upload defaults not set"}
+            </Badge>
+            {validateOnly && (
+              <Badge size="2xsmall" color="orange">
+                Dry run
+              </Badge>
+            )}
+          </div>
         </div>
-        <Button
-          size="small"
-          variant="secondary"
-          onClick={handleSync}
-          isLoading={sync.isPending}
-        >
-          <ArrowPath /> Sync now
-        </Button>
+        <div className="flex items-center gap-x-2">
+          <Button asChild size="small" variant="secondary">
+            <Link to="google-ads-defaults">
+              <Key /> Edit defaults
+            </Link>
+          </Button>
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={handleSync}
+            isLoading={sync.isPending}
+          >
+            <ArrowPath /> Sync now
+          </Button>
+        </div>
       </div>
 
       <div className="px-6 py-4">
