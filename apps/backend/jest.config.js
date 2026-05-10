@@ -1,3 +1,4 @@
+const path = require("path");
 const { loadEnv } = require("@medusajs/utils");
 loadEnv("test", process.cwd());
 
@@ -50,6 +51,21 @@ module.exports = {
     "node_modules/(?!.*tokenx)",
     "\\.pnp\\.[^\\/]+$",
   ],
+  // Jest 29's `Runtime.requireModule` short-circuits with
+  // ERR_REQUIRE_ESM BEFORE the .mjs transform runs whenever the resolved
+  // file is ESM by extension or by `"type": "module"` in package.json.
+  // tokenx ships only as ESM, so the transform-pass-through approach
+  // above is necessary but not sufficient — @mastra/core's CJS chunk
+  // does `require('tokenx')` from a CJS context which Jest rejects
+  // outright. Redirect tokenx to a CJS shim so the require() resolves
+  // to a real CJS file that Jest will load normally. Production isn't
+  // affected (Node's native ESM bridge handles tokenx fine there).
+  // Absolute path via __dirname (not <rootDir>) — `integration-tests/jest-shared.config.js`
+  // spreads this config but uses its own <rootDir>=integration-tests/, which would
+  // resolve "<rootDir>/test-shims/..." into a non-existent path.
+  moduleNameMapper: {
+    "^tokenx$": path.resolve(__dirname, "test-shims/tokenx.cjs"),
+  },
   testEnvironment: "node",
   moduleFileExtensions: ["js", "mjs", "ts", "tsx", "jsx", "json"],
   modulePathIgnorePatterns: ["dist/", "<rootDir>/.medusa/"],

@@ -81,7 +81,7 @@ const ConversionsPage = () => {
   const columns = useMemo(() => [
     columnHelper.accessor("conversion_type", {
       header: "Type",
-      cell: ({ getValue }) => {
+      cell: ({ getValue, row }) => {
         const type = getValue()
         const colors: Record<string, "green" | "blue" | "orange" | "purple" | "grey"> = {
           purchase: "green",
@@ -90,9 +90,11 @@ const ConversionsPage = () => {
           begin_checkout: "purple",
         }
         return (
-          <Badge color={colors[type] || "grey"} size="xsmall">
-            {type.replace(/_/g, " ")}
-          </Badge>
+          <Link to={`/ad-planning/conversions/${row.original.id}`}>
+            <Badge color={colors[type] || "grey"} size="xsmall" className="cursor-pointer">
+              {type.replace(/_/g, " ")}
+            </Badge>
+          </Link>
         )
       },
     }),
