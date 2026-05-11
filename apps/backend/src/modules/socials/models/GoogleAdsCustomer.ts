@@ -1,6 +1,7 @@
 import { model } from "@medusajs/framework/utils"
 import SocialPlatform from "./SocialPlatform"
 import GoogleAdsCampaign from "./GoogleAdsCampaign"
+import GoogleAdsInsights from "./GoogleAdsInsights"
 
 /**
  * GoogleAdsCustomer
@@ -44,6 +45,7 @@ const GoogleAdsCustomer = model.define("GoogleAdsCustomer", {
   campaigns: model.hasMany(() => GoogleAdsCampaign, {
     mappedBy: "customer",
   }),
+  insights: model.hasMany(() => GoogleAdsInsights, { mappedBy: "customer" }),
 })
 .indexes([
   {
