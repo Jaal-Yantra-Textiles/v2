@@ -16,6 +16,14 @@ export type SyncGoogleAdsInput = {
   access_token: string
   /** Optional: scope the sync to a single CID; defaults to all `ads` bindings */
   customer_id?: string
+  /** Pull ad-level rows (ad_group_ad) and write to GoogleAdsAd. Default true. */
+  include_ads?: boolean
+  /** Pull daily time-series and write to GoogleAdsInsights. Default true. */
+  include_insights?: boolean
+  /** Also pull device-breakdown insights at campaign + ad_group. Default false. */
+  include_breakdowns?: boolean
+  /** Window for aggregate metrics + daily insights. Default 30. Min 1, max 365. */
+  window_days?: number
 }
 
 export type SyncGoogleAdsOutput = {
@@ -23,6 +31,8 @@ export type SyncGoogleAdsOutput = {
   customers_synced: number
   campaigns_synced: number
   ad_groups_synced: number
+  ads_synced: number
+  insights_rows_synced: number
   errors: Array<{ customer_id: string; message: string }>
 }
 
@@ -31,54 +41,158 @@ const ADS_API_BASE = "https://googleads.googleapis.com/v24"
 const CUSTOMER_QUERY =
   "SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.time_zone, customer.manager, customer.test_account FROM customer LIMIT 1"
 
-// Aggregate-friendly campaign metrics over a 30d window. Ads' searchStream
-// doesn't allow `WHERE segments.date BETWEEN ...` and `LIMIT` together for
-// metric queries, so we keep it simple and let the caller filter status.
-const CAMPAIGN_QUERY = `
-  SELECT
-    campaign.id,
-    campaign.resource_name,
-    campaign.name,
-    campaign.status,
-    campaign.serving_status,
-    campaign.advertising_channel_type,
-    campaign.bidding_strategy_type,
-    campaign.start_date,
-    campaign.end_date,
-    campaign_budget.amount_micros,
-    metrics.impressions,
-    metrics.clicks,
-    metrics.conversions,
-    metrics.cost_micros
-  FROM campaign
-  WHERE segments.date DURING LAST_30_DAYS
-`.replace(/\s+/g, " ").trim()
+// Enriched aggregate metrics for the rolled-up rows on campaign / ad_group / ad.
+// GAQL won't let us combine `LIMIT` with `WHERE segments.date BETWEEN` for
+// metric queries, so we use `DURING LAST_N_DAYS`-style constants computed from
+// the runtime window.
+const AGGREGATE_METRICS_FIELDS = [
+  "metrics.impressions",
+  "metrics.clicks",
+  "metrics.ctr",
+  "metrics.average_cpc",
+  "metrics.average_cpm",
+  "metrics.average_cpv",
+  "metrics.cost_micros",
+  "metrics.conversions",
+  "metrics.conversions_value",
+  "metrics.all_conversions",
+  "metrics.all_conversions_value",
+  "metrics.view_through_conversions",
+  "metrics.video_views",
+  "metrics.video_view_rate",
+  "metrics.engagements",
+  "metrics.engagement_rate",
+  "metrics.interactions",
+  "metrics.interaction_rate",
+]
 
-const AD_GROUP_QUERY = `
-  SELECT
-    ad_group.id,
-    ad_group.resource_name,
-    ad_group.name,
-    ad_group.status,
-    ad_group.type,
-    ad_group.campaign,
-    metrics.impressions,
-    metrics.clicks,
-    metrics.conversions,
-    metrics.cost_micros
-  FROM ad_group
-  WHERE segments.date DURING LAST_30_DAYS
-`.replace(/\s+/g, " ").trim()
+// Optional video quartile rates — not all account types return these, so we
+// keep them in the daily insights query rather than the aggregate (cheaper
+// retry on partial-success).
+const VIDEO_QUARTILE_FIELDS = [
+  "metrics.video_quartile_p25_rate",
+  "metrics.video_quartile_p50_rate",
+  "metrics.video_quartile_p75_rate",
+  "metrics.video_quartile_p100_rate",
+]
+
+function buildCampaignAggregateQuery(windowDays: number): string {
+  return `
+    SELECT
+      campaign.id,
+      campaign.resource_name,
+      campaign.name,
+      campaign.status,
+      campaign.serving_status,
+      campaign.advertising_channel_type,
+      campaign.bidding_strategy_type,
+      campaign.start_date,
+      campaign.end_date,
+      campaign_budget.amount_micros,
+      ${AGGREGATE_METRICS_FIELDS.join(",\n      ")}
+    FROM campaign
+    WHERE segments.date DURING LAST_${windowDays}_DAYS
+  `.replace(/\s+/g, " ").trim()
+}
+
+function buildAdGroupAggregateQuery(windowDays: number): string {
+  return `
+    SELECT
+      ad_group.id,
+      ad_group.resource_name,
+      ad_group.name,
+      ad_group.status,
+      ad_group.type,
+      ad_group.campaign,
+      ${AGGREGATE_METRICS_FIELDS.join(",\n      ")}
+    FROM ad_group
+    WHERE segments.date DURING LAST_${windowDays}_DAYS
+  `.replace(/\s+/g, " ").trim()
+}
+
+// ad_group_ad rolls the placement (status, resource_name) and the creative
+// (ad_group_ad.ad.*) together. We flatten the most-useful creative fields per
+// ad type — RSAs use the asset arrays, image/video ads use the static fields.
+function buildAdAggregateQuery(windowDays: number): string {
+  return `
+    SELECT
+      ad_group_ad.ad.id,
+      ad_group_ad.ad.resource_name,
+      ad_group_ad.resource_name,
+      ad_group_ad.ad.name,
+      ad_group_ad.status,
+      ad_group_ad.ad.type,
+      ad_group_ad.ad.display_url,
+      ad_group_ad.ad.final_urls,
+      ad_group_ad.ad.final_mobile_urls,
+      ad_group_ad.ad.responsive_search_ad.headlines,
+      ad_group_ad.ad.responsive_search_ad.descriptions,
+      ad_group_ad.ad.responsive_display_ad.headlines,
+      ad_group_ad.ad.responsive_display_ad.descriptions,
+      ad_group_ad.ad.image_ad.image_url,
+      ad_group_ad.ad.video_ad.video.video_id,
+      ad_group_ad.ad_group,
+      ${AGGREGATE_METRICS_FIELDS.join(",\n      ")}
+    FROM ad_group_ad
+    WHERE segments.date DURING LAST_${windowDays}_DAYS
+  `.replace(/\s+/g, " ").trim()
+}
+
+// Daily insights — adds `segments.date` so each row is a per-day snapshot.
+// Video quartiles included here; if the account doesn't return them, GAQL
+// just omits the fields rather than failing the whole query.
+function buildDailyInsightsQuery(
+  level: "campaign" | "ad_group" | "ad",
+  windowDays: number,
+  breakdown?: "device" | "network"
+): string {
+  const entityFields =
+    level === "campaign"
+      ? ["campaign.id", "campaign.resource_name"]
+      : level === "ad_group"
+        ? ["ad_group.id", "ad_group.resource_name", "ad_group.campaign"]
+        : [
+            "ad_group_ad.ad.id",
+            "ad_group_ad.resource_name",
+            "ad_group_ad.ad_group",
+          ]
+  const breakdownFields: string[] = []
+  if (breakdown === "device") breakdownFields.push("segments.device")
+  if (breakdown === "network")
+    breakdownFields.push("segments.ad_network_type")
+
+  const from =
+    level === "campaign"
+      ? "campaign"
+      : level === "ad_group"
+        ? "ad_group"
+        : "ad_group_ad"
+
+  return `
+    SELECT
+      ${entityFields.join(",\n      ")},
+      segments.date,
+      ${breakdownFields.length ? breakdownFields.join(",\n      ") + "," : ""}
+      ${AGGREGATE_METRICS_FIELDS.join(",\n      ")},
+      ${VIDEO_QUARTILE_FIELDS.join(",\n      ")},
+      metrics.cost_per_conversion
+    FROM ${from}
+    WHERE segments.date DURING LAST_${windowDays}_DAYS
+  `.replace(/\s+/g, " ").trim()
+}
 
 /**
  * Pull-and-upsert Google Ads data for a SocialPlatform's `ads` bindings.
  *
  * Flow per CID:
- *   1. Hydrate customer fields (descriptive_name, currency, etc.)
- *   2. GAQL searchStream — campaigns with rolled-up 30d metrics
- *   3. GAQL searchStream — ad_groups with rolled-up 30d metrics
- *   4. Upsert (customer → campaigns → ad_groups) — keyed by Google IDs so
- *      re-syncs replace metrics in place rather than appending.
+ *   1. customer — descriptive_name, currency, timezone, MCC flags
+ *   2. campaigns aggregate + ad_groups aggregate (rolled-up window metrics)
+ *   3. ads aggregate (when include_ads — creative + metrics per ad_group_ad)
+ *   4. daily insights — campaign + ad_group [+ ad] time-series rows
+ *   5. device-breakdown insights (when include_breakdowns)
+ *
+ * Each (level, entity_id, date, device, network) insights row is keyed
+ * uniquely so re-syncs UPDATE in place rather than appending duplicates.
  *
  * Best-effort per CID: a failure on one customer doesn't stop the rest, but
  * the error is recorded on the customer row's `sync_status: "error"`.
@@ -89,6 +203,11 @@ export const syncGoogleAdsStep = createStep(
     const socials = container.resolve(SOCIALS_MODULE) as any
     const encryption = container.resolve(ENCRYPTION_MODULE) as EncryptionService
     const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
+
+    const includeAds = input.include_ads !== false
+    const includeInsights = input.include_insights !== false
+    const includeBreakdowns = input.include_breakdowns === true
+    const windowDays = Math.min(Math.max(input.window_days ?? 30, 1), 365)
 
     const developerToken = await readDeveloperToken(
       input.platform_id,
@@ -102,7 +221,6 @@ export const syncGoogleAdsStep = createStep(
       )
     }
 
-    // Resolve CIDs from bindings (or from explicit input)
     const bindings = await socials.listSocialPlatformBindings({
       platform_id: input.platform_id,
       service: "ads",
@@ -122,7 +240,6 @@ export const syncGoogleAdsStep = createStep(
       resource_label: (b.resource_label as string) || null,
       // login-customer-id precedence: per-binding settings > per-binding
       // metadata (auto-discovered from manager hierarchy) > workspace env.
-      // Standalone accounts can leave all three unset.
       login_customer_id:
         normalizeCid(b.settings?.login_customer_id) ||
         normalizeCid(b.metadata?.login_customer_id) ||
@@ -148,6 +265,8 @@ export const syncGoogleAdsStep = createStep(
     let customersSynced = 0
     let campaignsSynced = 0
     let adGroupsSynced = 0
+    let adsSynced = 0
+    let insightsRowsSynced = 0
     const errors: Array<{ customer_id: string; message: string }> = []
 
     for (const t of targets) {
@@ -156,43 +275,88 @@ export const syncGoogleAdsStep = createStep(
         headers["login-customer-id"] = t.login_customer_id
       }
       try {
-        const { customer, campaigns, adGroups } = await pullCidData(
+        const pulled = await pullCidData(
           t.customer_id,
           headers,
-          logger
+          logger,
+          { includeAds, includeInsights, includeBreakdowns, windowDays }
         )
 
         const customerRow = await upsertCustomer(socials, {
           platform_id: input.platform_id,
           binding_id: t.binding_id,
           customer_id: t.customer_id,
-          resource_name: customer.resource_name,
-          descriptive_name: customer.descriptive_name || t.resource_label,
-          currency_code: customer.currency_code,
-          time_zone: customer.time_zone,
-          is_manager: !!customer.manager,
-          is_test_account: !!customer.test_account,
+          resource_name: pulled.customer.resource_name,
+          descriptive_name:
+            pulled.customer.descriptive_name || t.resource_label,
+          currency_code: pulled.customer.currency_code,
+          time_zone: pulled.customer.time_zone,
+          is_manager: !!pulled.customer.manager,
+          is_test_account: !!pulled.customer.test_account,
         })
         customersSynced += 1
 
         const campaignRowsByCampaignId = await upsertCampaigns(
           socials,
           customerRow.id,
-          campaigns
+          pulled.campaigns
         )
-        campaignsSynced += campaigns.length
+        campaignsSynced += pulled.campaigns.length
 
-        const adGroupCount = await upsertAdGroups(
+        const adGroupRowsByAdGroupId = await upsertAdGroups(
           socials,
           campaignRowsByCampaignId,
-          adGroups
+          pulled.adGroups
         )
-        adGroupsSynced += adGroupCount
+        adGroupsSynced += adGroupRowsByAdGroupId.size
+
+        let adRowsByAdId: Map<string, string> = new Map()
+        if (includeAds) {
+          adRowsByAdId = await upsertAds(
+            socials,
+            adGroupRowsByAdGroupId,
+            pulled.ads
+          )
+          adsSynced += adRowsByAdId.size
+        }
+
+        if (includeInsights) {
+          const currency = pulled.customer.currency_code ?? null
+          insightsRowsSynced += await upsertInsights(socials, {
+            level: "campaign",
+            rows: pulled.insights.campaign,
+            entityMap: campaignRowsByCampaignId,
+            customerRowId: customerRow.id,
+            currency,
+          })
+          insightsRowsSynced += await upsertInsights(socials, {
+            level: "ad_group",
+            rows: pulled.insights.ad_group,
+            entityMap: adGroupRowsByAdGroupId,
+            customerRowId: customerRow.id,
+            currency,
+          })
+          if (includeBreakdowns) {
+            insightsRowsSynced += await upsertInsights(socials, {
+              level: "campaign",
+              rows: pulled.insights.campaign_by_device,
+              entityMap: campaignRowsByCampaignId,
+              customerRowId: customerRow.id,
+              currency,
+              breakdown: "device",
+            })
+            insightsRowsSynced += await upsertInsights(socials, {
+              level: "ad_group",
+              rows: pulled.insights.ad_group_by_device,
+              entityMap: adGroupRowsByAdGroupId,
+              customerRowId: customerRow.id,
+              currency,
+              breakdown: "device",
+            })
+          }
+        }
       } catch (e: any) {
         let msg = e.response?.data?.error?.message || e.message
-        // Most common 403 on a child CID: missing login-customer-id. Give
-        // the operator a usable next step right in the error row rather
-        // than the bare "status code 403".
         if (e.response?.status === 403 && !t.login_customer_id) {
           msg = `${msg} — likely missing login-customer-id (set settings.login_customer_id on the binding to the manager/MCC CID, or GOOGLE_ADS_LOGIN_CUSTOMER_ID env)`
         }
@@ -201,8 +365,6 @@ export const syncGoogleAdsStep = createStep(
         )
         errors.push({ customer_id: t.customer_id, message: msg })
 
-        // Mark the customer row (if it exists) as errored so the operator
-        // can see the last failure inline.
         try {
           await markCustomerError(socials, input.platform_id, t.customer_id, msg)
         } catch {
@@ -216,15 +378,25 @@ export const syncGoogleAdsStep = createStep(
       customers_synced: customersSynced,
       campaigns_synced: campaignsSynced,
       ad_groups_synced: adGroupsSynced,
+      ads_synced: adsSynced,
+      insights_rows_synced: insightsRowsSynced,
       errors,
     })
   }
 )
 
+type PullOpts = {
+  includeAds: boolean
+  includeInsights: boolean
+  includeBreakdowns: boolean
+  windowDays: number
+}
+
 async function pullCidData(
   cid: string,
   headers: Record<string, string>,
-  logger?: Logger
+  logger: Logger | undefined,
+  opts: PullOpts
 ) {
   const customerRes = await withGoogleRetry(
     () =>
@@ -235,14 +407,13 @@ async function pullCidData(
       ),
     { label: `ads.customer(${cid})`, logger, maxAttempts: 3 }
   )
-  const customerRow =
-    extractFirstRow(customerRes.data)?.customer ?? {}
+  const customerRow = extractFirstRow(customerRes.data)?.customer ?? {}
 
   const campaignsRes = await withGoogleRetry(
     () =>
       axios.post(
         `${ADS_API_BASE}/customers/${cid}/googleAds:searchStream`,
-        { query: CAMPAIGN_QUERY },
+        { query: buildCampaignAggregateQuery(opts.windowDays) },
         { headers }
       ),
     { label: `ads.campaigns(${cid})`, logger, maxAttempts: 3 }
@@ -253,12 +424,76 @@ async function pullCidData(
     () =>
       axios.post(
         `${ADS_API_BASE}/customers/${cid}/googleAds:searchStream`,
-        { query: AD_GROUP_QUERY },
+        { query: buildAdGroupAggregateQuery(opts.windowDays) },
         { headers }
       ),
     { label: `ads.adGroups(${cid})`, logger, maxAttempts: 3 }
   )
   const adGroups = extractAllRows(adGroupsRes.data)
+
+  let ads: any[] = []
+  if (opts.includeAds) {
+    try {
+      const adsRes = await withGoogleRetry(
+        () =>
+          axios.post(
+            `${ADS_API_BASE}/customers/${cid}/googleAds:searchStream`,
+            { query: buildAdAggregateQuery(opts.windowDays) },
+            { headers }
+          ),
+        { label: `ads.ads(${cid})`, logger, maxAttempts: 3 }
+      )
+      ads = extractAllRows(adsRes.data)
+    } catch (e: any) {
+      // Don't fail the whole sync over creative pull — log + continue.
+      logger?.warn?.(
+        `[google-ads] ad_group_ad pull failed for cid=${cid}: ${
+          e.response?.data?.error?.message || e.message
+        }`
+      )
+    }
+  }
+
+  const insights = {
+    campaign: [] as any[],
+    ad_group: [] as any[],
+    campaign_by_device: [] as any[],
+    ad_group_by_device: [] as any[],
+  }
+  if (opts.includeInsights) {
+    insights.campaign = await pullDailyInsights(
+      cid,
+      headers,
+      logger,
+      "campaign",
+      opts.windowDays
+    )
+    insights.ad_group = await pullDailyInsights(
+      cid,
+      headers,
+      logger,
+      "ad_group",
+      opts.windowDays
+    )
+    if (opts.includeBreakdowns) {
+      insights.campaign_by_device = await pullDailyInsights(
+        cid,
+        headers,
+        logger,
+        "campaign",
+        opts.windowDays,
+        "device"
+      )
+      insights.ad_group_by_device = await pullDailyInsights(
+        cid,
+        headers,
+        logger,
+        "ad_group",
+        opts.windowDays,
+        "device"
+      )
+    }
+  }
 
   return {
     customer: {
@@ -271,6 +506,37 @@ async function pullCidData(
     },
     campaigns,
     adGroups,
+    ads,
+    insights,
+  }
+}
+
+async function pullDailyInsights(
+  cid: string,
+  headers: Record<string, string>,
+  logger: Logger | undefined,
+  level: "campaign" | "ad_group" | "ad",
+  windowDays: number,
+  breakdown?: "device" | "network"
+): Promise<any[]> {
+  try {
+    const res = await withGoogleRetry(
+      () =>
+        axios.post(
+          `${ADS_API_BASE}/customers/${cid}/googleAds:searchStream`,
+          { query: buildDailyInsightsQuery(level, windowDays, breakdown) },
+          { headers }
+        ),
+      { label: `ads.insights.${level}${breakdown ? "." + breakdown : ""}(${cid})`, logger, maxAttempts: 3 }
+    )
+    return extractAllRows(res.data)
+  } catch (e: any) {
+    logger?.warn?.(
+      `[google-ads] daily insights pull failed for cid=${cid} level=${level}${
+        breakdown ? " breakdown=" + breakdown : ""
+      }: ${e.response?.data?.error?.message || e.message}`
+    )
+    return []
   }
 }
 
@@ -390,10 +656,12 @@ async function upsertCampaigns(
       start_date: cmp.startDate ?? cmp.start_date ?? null,
       end_date: cmp.endDate ?? cmp.end_date ?? null,
       budget_amount_micros: budget.amountMicros ?? budget.amount_micros ?? null,
-      impressions: metrics.impressions ?? 0,
-      clicks: metrics.clicks ?? 0,
-      conversions: metrics.conversions ?? 0,
-      cost_micros: metrics.costMicros ?? metrics.cost_micros ?? 0,
+      impressions: numericMetric(metrics.impressions),
+      clicks: numericMetric(metrics.clicks),
+      conversions: numericMetric(metrics.conversions),
+      cost_micros: numericMetric(
+        metrics.costMicros ?? metrics.cost_micros
+      ),
       last_synced_at: now,
     }
 
@@ -418,16 +686,11 @@ async function upsertAdGroups(
   socials: any,
   campaignRowsByCampaignId: Map<string, string>,
   rows: any[]
-): Promise<number> {
-  if (rows.length === 0) return 0
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>() // ad_group_id → row id
+  if (rows.length === 0) return out
 
-  // Map ad_group's parent campaign resource (`customers/X/campaigns/Y`) → our
-  // GoogleAdsCampaign row id.
-  let synced = 0
   const now = new Date()
-
-  // Pre-fetch existing ad groups across the synced campaigns so we don't
-  // pound the DB with lookups in a hot loop.
   const campaignRowIds = [...campaignRowsByCampaignId.values()]
   const existing = campaignRowIds.length
     ? await socials.listGoogleAdsAdGroups({ campaign_id: campaignRowIds })
@@ -444,8 +707,6 @@ async function upsertAdGroups(
     const campaignResource: string | undefined =
       ag.campaign || ag.campaign_resource_name || ag.campaignResource
 
-    // Parent campaign ID is "customers/X/campaigns/Y" — pull the trailing
-    // segment to match against our `campaign_id` keys.
     const parentCampaignId = campaignResource
       ? campaignResource.split("/").pop() ?? ""
       : ""
@@ -458,27 +719,299 @@ async function upsertAdGroups(
       name: ag.name || adGroupId,
       status: (ag.status as any) || "UNSPECIFIED",
       type: ag.type ?? null,
-      impressions: metrics.impressions ?? 0,
-      clicks: metrics.clicks ?? 0,
-      conversions: metrics.conversions ?? 0,
-      cost_micros: metrics.costMicros ?? metrics.cost_micros ?? 0,
+      impressions: numericMetric(metrics.impressions),
+      clicks: numericMetric(metrics.clicks),
+      conversions: numericMetric(metrics.conversions),
+      cost_micros: numericMetric(metrics.costMicros ?? metrics.cost_micros),
       last_synced_at: now,
     }
 
     const found = byKey.get(`${parentRowId}:${adGroupId}`)
+    let rowId: string
     if (found) {
       await socials.updateGoogleAdsAdGroups([
         { selector: { id: found.id }, data },
       ])
+      rowId = found.id
     } else {
-      await socials.createGoogleAdsAdGroups([
+      const [created] = await socials.createGoogleAdsAdGroups([
         { ...data, campaign_id: parentRowId },
       ])
+      rowId = created.id
+    }
+    out.set(adGroupId, rowId)
+  }
+
+  return out
+}
+
+async function upsertAds(
+  socials: any,
+  adGroupRowsByAdGroupId: Map<string, string>,
+  rows: any[]
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>() // ad_id → row id
+  if (rows.length === 0) return out
+
+  const now = new Date()
+  const adGroupRowIds = [...adGroupRowsByAdGroupId.values()]
+  const existing = adGroupRowIds.length
+    ? await socials.listGoogleAdsAds({ ad_group_id: adGroupRowIds })
+    : []
+  const byKey = new Map<string, any>()
+  for (const e of existing) {
+    byKey.set(`${e.ad_group_id}:${e.ad_id}`, e)
+  }
+
+  for (const row of rows) {
+    const agAd = row.adGroupAd || row.ad_group_ad || {}
+    const ad = agAd.ad || {}
+    const metrics = row.metrics || {}
+
+    const adId = String(ad.id ?? "")
+    const parentAdGroupResource: string | undefined =
+      agAd.adGroup || agAd.ad_group
+    const parentAdGroupId = parentAdGroupResource
+      ? parentAdGroupResource.split("/").pop() ?? ""
+      : ""
+    const parentRowId = adGroupRowsByAdGroupId.get(parentAdGroupId)
+    if (!adId || !parentRowId) continue
+
+    // Headlines/descriptions live under whichever creative variant the ad
+    // belongs to. RSAs ≠ RDAs ≠ Image/Video — pick the populated branch.
+    const rsa = ad.responsiveSearchAd || ad.responsive_search_ad || {}
+    const rda = ad.responsiveDisplayAd || ad.responsive_display_ad || {}
+    const headlines = rsa.headlines || rda.headlines || null
+    const descriptions = rsa.descriptions || rda.descriptions || null
+
+    const imageAd = ad.imageAd || ad.image_ad || {}
+    const videoAd = ad.videoAd || ad.video_ad || {}
+
+    const data = {
+      ad_id: adId,
+      resource_name: agAd.resourceName ?? agAd.resource_name ?? null,
+      ad_resource_name: ad.resourceName ?? ad.resource_name ?? null,
+      name: ad.name ?? null,
+      status: (agAd.status as any) || "UNSPECIFIED",
+      ad_status: (ad.status as any) || "UNSPECIFIED",
+      type: ad.type ?? null,
+      display_url: ad.displayUrl ?? ad.display_url ?? null,
+      final_urls: ad.finalUrls ?? ad.final_urls ?? null,
+      final_mobile_urls: ad.finalMobileUrls ?? ad.final_mobile_urls ?? null,
+      headlines,
+      descriptions,
+      image_url: imageAd.imageUrl ?? imageAd.image_url ?? null,
+      video_id: videoAd?.video?.videoId ?? videoAd?.video?.video_id ?? null,
+      impressions: numericMetric(metrics.impressions),
+      clicks: numericMetric(metrics.clicks),
+      conversions: numericMetric(metrics.conversions),
+      cost_micros: numericMetric(metrics.costMicros ?? metrics.cost_micros),
+      last_synced_at: now,
+    }
+
+    const found = byKey.get(`${parentRowId}:${adId}`)
+    let rowId: string
+    if (found) {
+      await socials.updateGoogleAdsAds([
+        { selector: { id: found.id }, data },
+      ])
+      rowId = found.id
+    } else {
+      const [created] = await socials.createGoogleAdsAds([
+        { ...data, ad_group_id: parentRowId },
+      ])
+      rowId = created.id
+    }
+    out.set(adId, rowId)
+  }
+
+  return out
+}
+
+type UpsertInsightsArgs = {
+  level: "customer" | "campaign" | "ad_group" | "ad"
+  rows: any[]
+  entityMap: Map<string, string> // google entity_id → row id
+  customerRowId: string
+  currency: string | null
+  breakdown?: "device" | "network"
+}
+
+async function upsertInsights(
+  socials: any,
+  args: UpsertInsightsArgs
+): Promise<number> {
+  const { rows, entityMap, customerRowId, level, currency, breakdown } = args
+  if (rows.length === 0) return 0
+
+  const now = new Date()
+
+  // Pre-fetch existing rows for this batch of entity row ids so we can
+  // do a single SELECT and then update/create in a tight loop.
+  const entityRowIds = [...entityMap.values()]
+  const filters: Record<string, any> = { level }
+  if (level === "campaign") filters.campaign_id = entityRowIds
+  if (level === "ad_group") filters.ad_group_id = entityRowIds
+  if (level === "ad") filters.ad_id = entityRowIds
+  if (level === "customer") filters.customer_id = customerRowId
+
+  const existing = entityRowIds.length || level === "customer"
+    ? await socials.listGoogleAdsInsights(filters)
+    : []
+
+  // Composite key. Nulls become "_" so 'no device' and device='_' don't
+  // collide.
+  const buildKey = (e: any) =>
+    [
+      e.level,
+      e.customer_id ?? "_",
+      e.campaign_id ?? "_",
+      e.ad_group_id ?? "_",
+      e.ad_id ?? "_",
+      e.date,
+      e.device ?? "_",
+      e.network ?? "_",
+      e.geo_country_code ?? "_",
+      e.geo_region ?? "_",
+    ].join("|")
+
+  const byKey = new Map<string, any>(existing.map((e: any) => [buildKey(e), e]))
+
+  let synced = 0
+  for (const row of rows) {
+    const segments = row.segments || {}
+    const metrics = row.metrics || {}
+    const date = segments.date as string | undefined
+    if (!date) continue
+
+    const entityGoogleId =
+      level === "campaign"
+        ? String(row.campaign?.id ?? "")
+        : level === "ad_group"
+          ? String(row.adGroup?.id ?? row.ad_group?.id ?? "")
+          : level === "ad"
+            ? String(row.adGroupAd?.ad?.id ?? row.ad_group_ad?.ad?.id ?? "")
+            : ""
+    const entityRowId =
+      level === "customer" ? customerRowId : entityMap.get(entityGoogleId)
+    if (!entityRowId && level !== "customer") continue
+
+    const data: Record<string, any> = {
+      level,
+      date,
+      time_increment: "1",
+      customer_id: level === "customer" ? customerRowId : null,
+      campaign_id: level === "campaign" ? entityRowId : null,
+      ad_group_id: level === "ad_group" ? entityRowId : null,
+      ad_id: level === "ad" ? entityRowId : null,
+
+      impressions: numericMetric(metrics.impressions),
+      clicks: numericMetric(metrics.clicks),
+      ctr: floatMetric(metrics.ctr),
+      cost_micros: numericMetric(
+        metrics.costMicros ?? metrics.cost_micros
+      ),
+      average_cpc_micros: numericMetric(
+        metrics.averageCpc ?? metrics.average_cpc
+      ),
+      average_cpm_micros: numericMetric(
+        metrics.averageCpm ?? metrics.average_cpm
+      ),
+      average_cpv_micros: numericMetric(
+        metrics.averageCpv ?? metrics.average_cpv
+      ),
+      conversions: floatMetric(metrics.conversions) ?? 0,
+      conversions_value: floatMetric(
+        metrics.conversionsValue ?? metrics.conversions_value
+      ),
+      all_conversions: floatMetric(
+        metrics.allConversions ?? metrics.all_conversions
+      ),
+      all_conversions_value: floatMetric(
+        metrics.allConversionsValue ?? metrics.all_conversions_value
+      ),
+      view_through_conversions: floatMetric(
+        metrics.viewThroughConversions ?? metrics.view_through_conversions
+      ),
+      cost_per_conversion_micros: numericMetric(
+        metrics.costPerConversion ?? metrics.cost_per_conversion
+      ),
+      video_views: numericMetric(
+        metrics.videoViews ?? metrics.video_views
+      ),
+      video_view_rate: floatMetric(
+        metrics.videoViewRate ?? metrics.video_view_rate
+      ),
+      video_quartile_p25_rate: floatMetric(
+        metrics.videoQuartileP25Rate ?? metrics.video_quartile_p25_rate
+      ),
+      video_quartile_p50_rate: floatMetric(
+        metrics.videoQuartileP50Rate ?? metrics.video_quartile_p50_rate
+      ),
+      video_quartile_p75_rate: floatMetric(
+        metrics.videoQuartileP75Rate ?? metrics.video_quartile_p75_rate
+      ),
+      video_quartile_p100_rate: floatMetric(
+        metrics.videoQuartileP100Rate ?? metrics.video_quartile_p100_rate
+      ),
+      engagements: numericMetric(metrics.engagements),
+      engagement_rate: floatMetric(
+        metrics.engagementRate ?? metrics.engagement_rate
+      ),
+      interactions: numericMetric(metrics.interactions),
+      interaction_rate: floatMetric(
+        metrics.interactionRate ?? metrics.interaction_rate
+      ),
+      search_impression_share: floatMetric(
+        metrics.searchImpressionShare ?? metrics.search_impression_share
+      ),
+      search_top_impression_share: floatMetric(
+        metrics.searchTopImpressionShare ??
+          metrics.search_top_impression_share
+      ),
+      search_absolute_top_impression_share: floatMetric(
+        metrics.searchAbsoluteTopImpressionShare ??
+          metrics.search_absolute_top_impression_share
+      ),
+      device: breakdown === "device" ? segments.device ?? null : null,
+      network:
+        breakdown === "network"
+          ? segments.adNetworkType ?? segments.ad_network_type ?? null
+          : null,
+      geo_country_code: null,
+      geo_region: null,
+      currency_code: currency,
+      raw_data: row,
+      synced_at: now,
+    }
+
+    const key = buildKey(data)
+    const found = byKey.get(key)
+    if (found) {
+      await socials.updateGoogleAdsInsights([
+        { selector: { id: found.id }, data },
+      ])
+    } else {
+      await socials.createGoogleAdsInsights([data])
     }
     synced += 1
   }
 
   return synced
+}
+
+// Google returns metric numerics as strings ("123") or numbers (12.3). Coerce
+// to a Number that the BigNumber column can swallow. Returns null for missing.
+function numericMetric(value: any): number {
+  if (value === null || value === undefined || value === "") return 0
+  const n = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(n) ? n : 0
+}
+
+function floatMetric(value: any): number | null {
+  if (value === null || value === undefined || value === "") return null
+  const n = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(n) ? n : null
 }
 
 function normalizeCid(value?: string | null): string | null {

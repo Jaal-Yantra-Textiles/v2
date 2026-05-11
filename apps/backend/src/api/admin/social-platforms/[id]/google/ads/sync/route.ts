@@ -5,6 +5,10 @@ import { syncGoogleAdsWorkflow } from "../../../../../../../workflows/google-ads
 type SyncBody = {
   /** Optional: scope sync to a single CID (must match an existing `ads` binding) */
   customer_id?: string
+  include_ads?: boolean
+  include_insights?: boolean
+  include_breakdowns?: boolean
+  window_days?: number
 }
 
 /**
@@ -35,6 +39,10 @@ export const POST = async (
     input: {
       platform_id: req.params.id,
       customer_id: customerId,
+      include_ads: body.include_ads,
+      include_insights: body.include_insights,
+      include_breakdowns: body.include_breakdowns,
+      window_days: body.window_days,
     },
   })
 

@@ -14,6 +14,14 @@ export type SyncGoogleAdsWorkflowInput = {
   platform_id: string
   /** Scope to a single CID; defaults to all `ads` bindings on the row. */
   customer_id?: string
+  /** Sync ad-level rows + creative. Default true. */
+  include_ads?: boolean
+  /** Sync daily time-series into GoogleAdsInsights. Default true. */
+  include_insights?: boolean
+  /** Also pull device-breakdown insights. Default false. */
+  include_breakdowns?: boolean
+  /** Window in days for aggregates + daily insights. Default 30. */
+  window_days?: number
 }
 
 export const syncGoogleAdsWorkflowId = "sync-google-ads-workflow"
@@ -39,6 +47,10 @@ export const syncGoogleAdsWorkflow = createWorkflow(
         platform_id: input.platform_id,
         access_token: refreshed.access_token,
         customer_id: input.customer_id,
+        include_ads: input.include_ads,
+        include_insights: input.include_insights,
+        include_breakdowns: input.include_breakdowns,
+        window_days: input.window_days,
       })
     )
 
