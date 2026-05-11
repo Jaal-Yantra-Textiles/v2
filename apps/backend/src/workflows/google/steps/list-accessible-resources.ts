@@ -154,6 +154,10 @@ async function listAdsCustomers(
   // Hydrate descriptive names via GAQL — best-effort per CID. A failure here
   // shouldn't drop the whole list; we surface the bare CID with no label
   // so the operator can still bind it.
+  //
+  // First pass: try with no login-customer-id (works for the user's own
+  // accounts + manager accounts). Children of a manager will 403 here —
+  // we fix that in the second pass using the manager → child map.
   const out: AccessibleResource[] = []
   for (const rn of cidResourceNames) {
     const cid = rn.split("/")[1]
@@ -179,7 +183,7 @@ async function listAdsCustomers(
           ),
         { label: `ads.searchStream(${cid})`, logger, maxAttempts: 3 }
       )
-      const row = gaql.data?.[0]?.results?.[0]?.customer || gaql.data?.results?.[0]?.customer
+      const row = extractFirstCustomer(gaql.data)
       if (row) {
         label = row.descriptiveName || cid
         extra = {
@@ -197,7 +201,118 @@ async function listAdsCustomers(
     out.push({ resource_id: cid, resource_label: label, metadata: extra })
   }
 
+  // Second pass: discover manager → child links so we can stash
+  // metadata.login_customer_id on every child. Without this header the
+  // sync step gets a 403 on any account that's nested under an MCC.
+  //
+  // We only query customer_client on rows the first pass tagged as a
+  // manager. customer_client returns ALL descendants under a manager,
+  // including itself — we map children → this manager so the picker
+  // can pass `settings.login_customer_id` straight through on bind.
+  const childToManager = new Map<string, string>()
+  const managers = out.filter((r) => r.metadata?.manager === true)
+  for (const mgr of managers) {
+    try {
+      const response = await withGoogleRetry(
+        () =>
+          axios.post(
+            `${ADS_API_BASE}/customers/${mgr.resource_id}/googleAds:searchStream`,
+            {
+              query:
+                "SELECT customer_client.client_customer, customer_client.id, customer_client.level, customer_client.manager FROM customer_client WHERE customer_client.level <= 5",
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${input.access_token}`,
+                "developer-token": developerToken,
+                "login-customer-id": mgr.resource_id,
+                "Content-Type": "application/json",
+              },
+            }
+          ),
+        { label: `ads.customer_client(${mgr.resource_id})`, logger, maxAttempts: 2 }
+      )
+      const rows = extractAllRows(response.data)
+      for (const r of rows) {
+        const childRn =
+          r.customerClient?.clientCustomer ||
+          r.customer_client?.client_customer ||
+          ""
+        const childCid = childRn.split("/").pop() || ""
+        if (!childCid || childCid === mgr.resource_id) continue
+        // First manager wins (lowest-level link). Don't overwrite if a
+        // higher MCC also lists this child — we want the most specific.
+        if (!childToManager.has(childCid)) {
+          childToManager.set(childCid, mgr.resource_id)
+        }
+      }
+    } catch (e: any) {
+      logger?.warn?.(
+        `[google-ads] customer_client discovery failed for manager=${mgr.resource_id}: ${
+          e.response?.data?.error?.message || e.message
+        }`
+      )
+    }
+  }
+
+  // Attach login_customer_id on children + retry the hydrate for any
+  // child that 403'd in the first pass (label stayed as bare CID).
+  for (const r of out) {
+    const loginCid = childToManager.get(r.resource_id)
+    if (!loginCid) continue
+    r.metadata = { ...(r.metadata || {}), login_customer_id: loginCid }
+    if (r.resource_label === r.resource_id) {
+      try {
+        const gaql = await withGoogleRetry(
+          () =>
+            axios.post(
+              `${ADS_API_BASE}/customers/${r.resource_id}/googleAds:searchStream`,
+              {
+                query:
+                  "SELECT customer.descriptive_name, customer.currency_code, customer.time_zone, customer.manager, customer.test_account FROM customer LIMIT 1",
+              },
+              {
+                headers: {
+                  Authorization: `Bearer ${input.access_token}`,
+                  "developer-token": developerToken,
+                  "login-customer-id": loginCid,
+                  "Content-Type": "application/json",
+                },
+              }
+            ),
+          { label: `ads.searchStream.retry(${r.resource_id})`, logger, maxAttempts: 2 }
+        )
+        const row = extractFirstCustomer(gaql.data)
+        if (row) {
+          r.resource_label = row.descriptiveName || r.resource_id
+          r.metadata = {
+            ...r.metadata,
+            descriptive_name: row.descriptiveName,
+            currency_code: row.currencyCode,
+            time_zone: row.timeZone,
+            manager: row.manager,
+            test_account: row.testAccount,
+          }
+        }
+      } catch {
+        // Still bindable with the login_customer_id we just attached.
+      }
+    }
+  }
+
   return out
+}
+
+function extractAllRows(data: any): any[] {
+  if (!data) return []
+  if (Array.isArray(data)) {
+    return data.flatMap((chunk) => chunk?.results || [])
+  }
+  return data.results || []
+}
+
+function extractFirstCustomer(data: any): any {
+  return extractAllRows(data)[0]?.customer ?? null
 }
 
 async function listSearchConsoleSites(

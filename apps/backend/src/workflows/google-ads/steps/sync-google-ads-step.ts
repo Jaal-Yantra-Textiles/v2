@@ -108,6 +108,10 @@ export const syncGoogleAdsStep = createStep(
       service: "ads",
     })
 
+    const envLoginCid = normalizeCid(
+      process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID
+    )
+
     const targets = (
       input.customer_id
         ? bindings.filter((b: any) => b.resource_id === input.customer_id)
@@ -116,6 +120,14 @@ export const syncGoogleAdsStep = createStep(
       binding_id: b.id as string,
       customer_id: String(b.resource_id),
       resource_label: (b.resource_label as string) || null,
+      // login-customer-id precedence: per-binding settings > per-binding
+      // metadata (auto-discovered from manager hierarchy) > workspace env.
+      // Standalone accounts can leave all three unset.
+      login_customer_id:
+        normalizeCid(b.settings?.login_customer_id) ||
+        normalizeCid(b.metadata?.login_customer_id) ||
+        envLoginCid ||
+        null,
     }))
 
     if (targets.length === 0) {
@@ -127,7 +139,7 @@ export const syncGoogleAdsStep = createStep(
       )
     }
 
-    const headers = {
+    const baseHeaders = {
       Authorization: `Bearer ${input.access_token}`,
       "developer-token": developerToken,
       "Content-Type": "application/json",
@@ -139,6 +151,10 @@ export const syncGoogleAdsStep = createStep(
     const errors: Array<{ customer_id: string; message: string }> = []
 
     for (const t of targets) {
+      const headers: Record<string, string> = { ...baseHeaders }
+      if (t.login_customer_id) {
+        headers["login-customer-id"] = t.login_customer_id
+      }
       try {
         const { customer, campaigns, adGroups } = await pullCidData(
           t.customer_id,
@@ -173,7 +189,13 @@ export const syncGoogleAdsStep = createStep(
         )
         adGroupsSynced += adGroupCount
       } catch (e: any) {
-        const msg = e.response?.data?.error?.message || e.message
+        let msg = e.response?.data?.error?.message || e.message
+        // Most common 403 on a child CID: missing login-customer-id. Give
+        // the operator a usable next step right in the error row rather
+        // than the bare "status code 403".
+        if (e.response?.status === 403 && !t.login_customer_id) {
+          msg = `${msg} — likely missing login-customer-id (set settings.login_customer_id on the binding to the manager/MCC CID, or GOOGLE_ADS_LOGIN_CUSTOMER_ID env)`
+        }
         logger?.warn?.(
           `[google-ads] sync failed for cid=${t.customer_id}: ${msg}`
         )
@@ -457,6 +479,12 @@ async function upsertAdGroups(
   }
 
   return synced
+}
+
+function normalizeCid(value?: string | null): string | null {
+  if (!value) return null
+  const digits = String(value).replace(/\D/g, "")
+  return digits.length ? digits : null
 }
 
 async function readDeveloperToken(
