@@ -1,3 +1,17 @@
+# [13.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.0.0...v13.1.0) (2026-05-11)
+
+
+### Bug Fixes
+
+* **cors:** also allow registered website + alias domains from DB ([703e92d](https://github.com/Jaal-Yantra-Textiles/v2/commit/703e92dc93594e521f09f4943a0a7201e465e557)), closes [#211](https://github.com/Jaal-Yantra-Textiles/v2/issues/211)
+* **cors:** auto-allow *.ROOT_DOMAIN in /web + /partners middlewares ([3426f53](https://github.com/Jaal-Yantra-Textiles/v2/commit/3426f5357f3461cb9b3932fe5fcdfc81fae8883f))
+
+
+### Features
+
+* **marketing:** hubs from stock_location + lead_time from production_runs ([6fb77af](https://github.com/Jaal-Yantra-Textiles/v2/commit/6fb77af6388141b37fcd3901e5c118c1d561fa03))
+* **marketing-seed:** seed 'contact' form handle for jyt-web /contact page ([991542e](https://github.com/Jaal-Yantra-Textiles/v2/commit/991542e1610ab56d640a3d255ce279c6ddfad03c))
+
 # [13.0.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v12.15.0...v13.0.0) (2026-05-11)
 
 
