@@ -73,10 +73,9 @@ export async function POST(
   }
 
   if (run.partner_id !== partnerId) {
-    throw new MedusaError(
-      MedusaError.Types.NOT_ALLOWED,
-      "This production run is not assigned to your partner account"
-    )
+    // Surface as NOT_FOUND so we don't leak that the run exists to a
+    // partner it isn't assigned to. Maps to 404 via Medusa's error handler.
+    throw new MedusaError(MedusaError.Types.NOT_FOUND, "Production run not found")
   }
   if (run.status === "cancelled") {
     return res.json({ production_run: run, message: "Already cancelled" })

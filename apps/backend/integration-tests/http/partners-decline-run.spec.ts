@@ -65,6 +65,40 @@ setupSharedTestSuite(() => {
       const a = await registerLoginCreatePartner(unique, "A")
       const b = await registerLoginCreatePartner(unique, "B")
 
+      // Templates required by start-dispatch / resume-dispatch so we can
+      // get bRun into "sent_to_partner" — the only status `assertCanAccept`
+      // allows. aRun stays at "approved" (decline doesn't gate on status).
+      const tplA = await api.post(
+        "/admin/task-templates",
+        {
+          name: `decline-step-a-${unique}`,
+          description: "decline spec step A",
+          priority: "medium",
+          estimated_duration: 30,
+          eventable: false,
+          notifiable: false,
+          metadata: { workflow_type: "production_run" },
+          category: "Production",
+        },
+        adminHeaders
+      )
+      expect(tplA.status).toBe(201)
+      const tplB = await api.post(
+        "/admin/task-templates",
+        {
+          name: `decline-step-b-${unique}`,
+          description: "decline spec step B",
+          priority: "medium",
+          estimated_duration: 30,
+          eventable: false,
+          notifiable: false,
+          metadata: { workflow_type: "production_run" },
+          category_id: tplA.data.task_template.category_id,
+        },
+        adminHeaders
+      )
+      expect(tplB.status).toBe(201)
+
       // Create a design and a parent run, then approve with both partners
       // assigned — gives us 2 child runs so we can decline one and keep
       // the other for the cross-partner + started checks.
@@ -161,6 +195,27 @@ setupSharedTestSuite(() => {
       // ── 6. Started run (started_at set) → 403, not allowed ──────────────
       // Accept + start Partner B's run so started_at is populated, then
       // try to decline — the route must refuse because work has begun.
+      // First, dispatch bRun to drive it to "sent_to_partner" so
+      // assertCanAccept passes (mirrors whatsapp-partner-flow.spec.ts).
+      const sd = await api.post(
+        `/admin/production-runs/${bRun.id}/start-dispatch`,
+        {},
+        adminHeaders
+      )
+      expect(sd.status).toBe(202)
+      const rd = await api.post(
+        `/admin/production-runs/${bRun.id}/resume-dispatch`,
+        { transaction_id: sd.data.transaction_id, template_names: [tplA.data.task_template.name, tplB.data.task_template.name] },
+        adminHeaders
+      )
+      expect(rd.status).toBe(200)
+      const dispatchDeadline = Date.now() + 15_000
+      while (Date.now() < dispatchDeadline) {
+        const r = await api.get(`/admin/production-runs/${bRun.id}`, adminHeaders)
+        if (String(r.data.production_run?.status) === "sent_to_partner") break
+        await new Promise((r) => setTimeout(r, 500))
+      }
+
       const accept = await api.post(
         `/partners/production-runs/${bRun.id}/accept`,
         {},
