@@ -278,13 +278,29 @@ const createRateLimitMiddleware = (
   }
 }
 
+// Every partner storefront we provision lives at <handle>.{ROOT_DOMAIN}
+// (see src/api/admin/partners/[id]/storefront/provision/route.ts). Building
+// the wildcard regex from that same env var means every new partner is
+// CORS-allowed automatically — no Railway env-var update per provisioning.
+// Match: https://anything.<root>.* with no further sub-subdomains so we
+// don't accidentally whitelist evil.cicilabel.com.attacker.com.
+function rootDomainOrigins(): RegExp[] {
+  const root = (process.env.ROOT_DOMAIN || "").trim()
+  if (!root) return []
+  // Escape dots in the root for regex literal use.
+  const escaped = root.replace(/\./g, "\\.")
+  // Single-label subdomain match; supports both http (local) and https (prod).
+  return [new RegExp(`^https?:\\/\\/[a-z0-9-]+\\.${escaped}$`, "i")]
+}
+
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
   return (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
     req.scope.resolve<ConfigModule>("configModule")
 
+    const envOrigins = parseCorsOrigins(process.env.WEB_CORS as string)
     const defaultOptions = {
-      origin: parseCorsOrigins(process.env.WEB_CORS as string),
+      origin: [...envOrigins, ...rootDomainOrigins()],
       credentials: true,
     }
 
@@ -304,8 +320,9 @@ const createCorsPartnerMiddleware = (corsOptions?: cors.CorsOptions) => {
       process.env.WEB_CORS ||
       ""
 
+    const envOrigins = parseCorsOrigins(partnerOrigins)
     const defaultOptions = {
-      origin: parseCorsOrigins(partnerOrigins),
+      origin: [...envOrigins, ...rootDomainOrigins()],
       credentials: true,
     }
     const options = { ...defaultOptions, ...corsOptions }
