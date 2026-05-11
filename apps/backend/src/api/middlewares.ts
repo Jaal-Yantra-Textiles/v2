@@ -13,7 +13,7 @@ import multer from "multer";
 import os from "os";
 import path from "path";
 import { ConfigModule } from "@medusajs/framework/types";
-import { parseCorsOrigins } from "@medusajs/framework/utils";
+import { parseCorsOrigins, ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import cors from "cors";
 import { z } from "@medusajs/framework/zod";
 import { personSchema, listPersonsQuerySchema, UpdatePersonSchema, ReadPersonQuerySchema } from "./admin/persons/validators";
@@ -282,7 +282,7 @@ const createRateLimitMiddleware = (
 // (see src/api/admin/partners/[id]/storefront/provision/route.ts). Building
 // the wildcard regex from that same env var means every new partner is
 // CORS-allowed automatically — no Railway env-var update per provisioning.
-// Match: https://anything.<root>.* with no further sub-subdomains so we
+// Match: https://anything.<root> with no further sub-subdomains so we
 // don't accidentally whitelist evil.cicilabel.com.attacker.com.
 function rootDomainOrigins(): RegExp[] {
   const root = (process.env.ROOT_DOMAIN || "").trim()
@@ -293,14 +293,108 @@ function rootDomainOrigins(): RegExp[] {
   return [new RegExp(`^https?:\\/\\/[a-z0-9-]+\\.${escaped}$`, "i")]
 }
 
+// Cache of allowed origins derived from the websites + website_domain
+// tables. A partner can register custom aliases (shop.partnername.com)
+// in the admin and they need to be CORS-allowed without an env-var edit.
+//
+// Refreshed lazily every CORS_DOMAIN_CACHE_TTL_MS — newly-added aliases
+// take at most one TTL before they're honored (per server instance).
+const CORS_DOMAIN_CACHE_TTL_MS = 60_000
+let corsDomainCache: { set: Set<string>; expiresAt: number } | null = null
+
+async function loadAllowedOriginsFromDb(scope: any): Promise<Set<string>> {
+  const set = new Set<string>()
+  try {
+    const query = scope.resolve(ContainerRegistrationKeys.QUERY) as any
+    const [websites, domains] = await Promise.all([
+      query
+        .graph({ entity: "websites", fields: ["domain"], pagination: { take: 1000 } })
+        .then((r: any) => r?.data || []),
+      query
+        .graph({ entity: "website_domain", fields: ["domain"], pagination: { take: 5000 } })
+        .then((r: any) => r?.data || [])
+        // website_domain may not be queryable in every env shape; fall
+        // through to just websites if it errors.
+        .catch(() => []),
+    ])
+    for (const w of websites) {
+      const d = String((w as any)?.domain || "").trim().toLowerCase()
+      if (!d) continue
+      set.add(`https://${d}`)
+      set.add(`http://${d}`)
+    }
+    for (const w of domains) {
+      const d = String((w as any)?.domain || "").trim().toLowerCase()
+      if (!d) continue
+      set.add(`https://${d}`)
+      set.add(`http://${d}`)
+    }
+  } catch {
+    // Surface as an empty cache for this refresh cycle — env-list +
+    // ROOT_DOMAIN regex still apply, so a transient DB blip doesn't
+    // suddenly lock partner storefronts out.
+  }
+  return set
+}
+
+async function getAllowedOriginsFromDb(scope: any): Promise<Set<string>> {
+  const now = Date.now()
+  if (corsDomainCache && now < corsDomainCache.expiresAt) {
+    return corsDomainCache.set
+  }
+  try {
+    const set = await loadAllowedOriginsFromDb(scope)
+    corsDomainCache = { set, expiresAt: now + CORS_DOMAIN_CACHE_TTL_MS }
+    return set
+  } catch {
+    // On failure, keep whatever cache we have (even if stale) rather
+    // than dropping all partner origins.
+    return corsDomainCache?.set ?? new Set<string>()
+  }
+}
+
+// Three-layer origin resolver used by both /web and /partners CORS:
+//   1. exact / regex matches from the *_CORS env var
+//   2. *.ROOT_DOMAIN regex (auto-provisioned partner subdomains)
+//   3. exact match against any registered website primary domain or alias
+function buildOriginAllowList(
+  envOrigins: (string | RegExp)[],
+  dbAllowed: Set<string>,
+  rootRegexes: RegExp[]
+) {
+  return (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
+    // No origin header (curl, same-origin server-to-server, beacon
+    // navigations) — let it through; the route still authenticates.
+    if (!origin) return cb(null, true)
+    const normalized = origin.toLowerCase()
+
+    for (const allowed of envOrigins) {
+      if (typeof allowed === "string") {
+        if (allowed.toLowerCase() === normalized) return cb(null, true)
+      } else if (allowed instanceof RegExp) {
+        if (allowed.test(origin)) return cb(null, true)
+      }
+    }
+    for (const re of rootRegexes) {
+      if (re.test(origin)) return cb(null, true)
+    }
+    if (dbAllowed.has(normalized)) return cb(null, true)
+
+    return cb(null, false)
+  }
+}
+
 // Utility function to create CORS middleware with configurable options
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
-  return (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
+  return async (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
     req.scope.resolve<ConfigModule>("configModule")
 
     const envOrigins = parseCorsOrigins(process.env.WEB_CORS as string)
-    const defaultOptions = {
-      origin: [...envOrigins, ...rootDomainOrigins()],
+    const rootRegexes = rootDomainOrigins()
+    const dbAllowed = await getAllowedOriginsFromDb(req.scope)
+
+    const defaultOptions: cors.CorsOptions = {
+      origin: buildOriginAllowList(envOrigins, dbAllowed, rootRegexes),
       credentials: true,
     }
 
@@ -310,7 +404,7 @@ const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
 }
 
 const createCorsPartnerMiddleware = (corsOptions?: cors.CorsOptions) => {
-  return (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
+  return async (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
     req.scope.resolve<ConfigModule>("configModule")
 
     const partnerOrigins =
@@ -321,8 +415,11 @@ const createCorsPartnerMiddleware = (corsOptions?: cors.CorsOptions) => {
       ""
 
     const envOrigins = parseCorsOrigins(partnerOrigins)
-    const defaultOptions = {
-      origin: [...envOrigins, ...rootDomainOrigins()],
+    const rootRegexes = rootDomainOrigins()
+    const dbAllowed = await getAllowedOriginsFromDb(req.scope)
+
+    const defaultOptions: cors.CorsOptions = {
+      origin: buildOriginAllowList(envOrigins, dbAllowed, rootRegexes),
       credentials: true,
     }
     const options = { ...defaultOptions, ...corsOptions }
