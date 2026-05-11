@@ -60,6 +60,19 @@ const FORMS: FormDef[] = [
       { name: "mode", label: "Mode", type: "text", required: false, order: 1 },
     ],
   },
+  {
+    handle: "contact",
+    title: "Contact us",
+    description: "General contact form used by the /contact page on jyt-web.",
+    success_message: "Thanks — we'll be in touch within one business day.",
+    fields: [
+      { name: "email", label: "Email", type: "email", required: true, order: 0 },
+      { name: "name", label: "Name", type: "text", required: true, order: 1 },
+      { name: "company", label: "Company", type: "text", required: false, order: 2 },
+      { name: "role", label: "Role", type: "text", required: false, order: 3 },
+      { name: "message", label: "Message", type: "textarea", required: true, order: 4 },
+    ],
+  },
 ]
 
 export default async function seedMarketingForms({ container }: ExecArgs) {
