@@ -1,0 +1,8 @@
+{
+  "label": "Marketing Web",
+  "position": 10,
+  "link": {
+    "type": "generated-index",
+    "description": "Architecture and design decisions for the public marketing site (apps/jyt-web)."
+  }
+}
