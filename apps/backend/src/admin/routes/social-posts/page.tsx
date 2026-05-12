@@ -3,8 +3,6 @@ import { useSocialPosts } from "../../hooks/api/social-posts"
 import { useSocialPostTableColumns } from "./hooks/use-social-post-table-columns"
 import { useNavigate } from "react-router-dom"
 import { AdminSocialPost } from "../../hooks/api/social-posts"
-import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { FolderIllustration } from "@medusajs/icons"
 import { useCallback, useState } from "react"
 import debounce from "lodash/debounce"
 
@@ -153,10 +151,7 @@ const SocialPostPage = () => {
   )
 }
 
-export const config = defineRouteConfig({
-  label: "Social Posts",
-  icon: FolderIllustration,
-})
+// Sidebar entry removed — reached via /admin/content hub. URL still works.
 
 export const handle = {
   breadcrumb: () => "Social Posts",

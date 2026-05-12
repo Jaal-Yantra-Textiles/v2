@@ -8,7 +8,6 @@
  * goal at a time.
  */
 
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import {
   Badge,
   Button,
@@ -226,9 +225,7 @@ const ConversionGoalsPage = () => {
   )
 }
 
-export const config = defineRouteConfig({
-  label: "Goals",
-})
+// Sidebar entry removed — reached via /admin/ad-planning hub. URL still works.
 
 export const handle = {
   breadcrumb: () => "Goals",

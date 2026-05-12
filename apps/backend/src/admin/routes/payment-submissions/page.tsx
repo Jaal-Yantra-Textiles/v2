@@ -1,5 +1,3 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { CurrencyDollar } from "@medusajs/icons"
 import { Heading, Text } from "@medusajs/ui"
 import { Fragment } from "react"
 import { useSearchParams, Outlet } from "react-router-dom"
@@ -63,10 +61,7 @@ const PaymentSubmissionsPage = () => {
   )
 }
 
-export const config = defineRouteConfig({
-  label: "Payment Submissions",
-  icon: CurrencyDollar,
-})
+// Sidebar entry removed — reached via /admin/operations hub. URL still works.
 
 export const handle = {
   breadcrumb: () => "Payment Submissions",

@@ -3,7 +3,6 @@
  * Create, manage, and analyze A/B experiments
  */
 
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import {
   Container,
   Heading,
@@ -418,9 +417,7 @@ const ExperimentsPage = () => {
   )
 }
 
-export const config = defineRouteConfig({
-  label: "Experiments",
-})
+// Sidebar entry removed — reached via /admin/ad-planning hub. URL still works.
 
 export const handle = {
   breadcrumb: () => "Experiments",

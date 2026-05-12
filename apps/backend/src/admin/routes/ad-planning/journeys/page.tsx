@@ -3,7 +3,6 @@
  * Funnel visualization + event log with cross-links
  */
 
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import {
   Container,
   Heading,
@@ -360,9 +359,7 @@ const JourneysPage = () => {
   )
 }
 
-export const config = defineRouteConfig({
-  label: "Journeys",
-})
+// Sidebar entry removed — reached via /admin/ad-planning hub. URL still works.
 
 export const handle = {
   breadcrumb: () => "Customer Journeys",

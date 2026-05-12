@@ -3,7 +3,6 @@
  * Displays all conversion events with filtering, summary stats, and drill-down links
  */
 
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import {
   Container,
   Heading,
@@ -275,9 +274,7 @@ const ConversionsPage = () => {
   )
 }
 
-export const config = defineRouteConfig({
-  label: "Conversions",
-})
+// Sidebar entry removed — reached via /admin/ad-planning hub. URL still works.
 
 export const handle = {
   breadcrumb: () => "Conversions",
