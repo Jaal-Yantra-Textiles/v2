@@ -1,3 +1,16 @@
+# [13.2.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.1.1...v13.2.0) (2026-05-12)
+
+
+### Bug Fixes
+
+* **google-ads:** surface Test-access dev token + specific error codes on sync 403 ([3996532](https://github.com/Jaal-Yantra-Textiles/v2/commit/399653294478e613d77e4d0ec1e5fda347fdb472))
+
+
+### Features
+
+* **ads:** generalize Meta Ads surface to /admin/ads/* + enrich Google sync ([1bf07a6](https://github.com/Jaal-Yantra-Textiles/v2/commit/1bf07a6f2a17a8a643a9a395528afe2f83292e10))
+* **admin:** unified /admin/ads UI for Meta + Google ([5acb99f](https://github.com/Jaal-Yantra-Textiles/v2/commit/5acb99fb1c9e55841bf4799292cc66fc326a753e)), closes [#215](https://github.com/Jaal-Yantra-Textiles/v2/issues/215)
+
 ## [13.1.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.1.0...v13.1.1) (2026-05-12)
 
 
