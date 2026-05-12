@@ -65,6 +65,7 @@ const PaymentSubmissionsPage = () => {
 
 export const config = defineRouteConfig({
   label: "Payment Submissions",
+  nested: "/orders",
   icon: CurrencyDollar,
 })
 
