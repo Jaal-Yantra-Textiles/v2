@@ -281,6 +281,7 @@ const MessagingPage = () => {
 
 export const config = defineRouteConfig({
   label: "Messages",
+  nested: "/customers",
   icon: ChatBubbleLeftRight,
 })
 

@@ -239,6 +239,7 @@ const AdPlanningDashboard = () => {
 
 export const config = defineRouteConfig({
   label: "Ad Planning",
+  nested: "/promotions",
   icon: ChartBar,
 })
 
