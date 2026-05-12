@@ -1,3 +1,10 @@
+## [13.1.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.1.0...v13.1.1) (2026-05-12)
+
+
+### Bug Fixes
+
+* **google-ads:** send login-customer-id so child CIDs under an MCC stop 403'ing ([685bbd5](https://github.com/Jaal-Yantra-Textiles/v2/commit/685bbd59010c65f4a1df030772513ea21e86ec7c))
+
 # [13.1.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.0.0...v13.1.0) (2026-05-11)
 
 
