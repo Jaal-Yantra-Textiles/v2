@@ -9,8 +9,6 @@ import {
   createDataTableFilterHelper,
   useDataTable,
 } from "@medusajs/ui"
-import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { PencilSquare } from "@medusajs/icons"
 import { keepPreviousData } from "@tanstack/react-query"
 import debounce from "lodash/debounce"
 import { useCallback, useState } from "react"
@@ -132,10 +130,7 @@ const WebsitesPage = () => {
 
 export default WebsitesPage
 
-export const config = defineRouteConfig({
-  label: "Websites",
-  icon: PencilSquare,
-})
+// Sidebar entry removed — reached via /admin/content hub. URL still works.
 
 export const handle = {
   breadcrumb: () => "Websites",

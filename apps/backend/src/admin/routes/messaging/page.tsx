@@ -14,9 +14,7 @@ import {
   toast,
 } from "@medusajs/ui"
 import { Link, Outlet, useNavigate } from "react-router-dom"
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import {
-  ChatBubbleLeftRight,
   Plus,
   Trash,
   ArchiveBox,
@@ -279,10 +277,7 @@ const MessagingPage = () => {
   )
 }
 
-export const config = defineRouteConfig({
-  label: "Messages",
-  icon: ChatBubbleLeftRight,
-})
+// Sidebar entry removed — reached via /admin/audience hub. URL still works.
 
 export default MessagingPage
 

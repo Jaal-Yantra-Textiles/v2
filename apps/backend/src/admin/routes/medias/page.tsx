@@ -17,9 +17,8 @@ import { EntityActions } from "../../components/persons/personsActions";
 import { AdminMediaFolder } from "../../hooks/api/media-folders";
 import { useMedias } from "../../hooks/api/media-folders/use-medias";
 import debounce from "lodash/debounce";
-import { Folder, PencilSquare } from "@medusajs/icons";
+import { PencilSquare } from "@medusajs/icons";
 import CreateButton from "../../components/creates/create-button";
-import { defineRouteConfig } from "@medusajs/admin-sdk";
 
 type SortingState = { id: string; desc: boolean } | null;
 
@@ -429,10 +428,7 @@ const AllMediaPage = () => {
 
 export default AllMediaPage;
 
-export const config = defineRouteConfig({
-  label: "Medias",
-  icon: Folder,
-});
+// Sidebar entry removed — reached via /admin/operations hub. URL still works.
 
 export const handle = {
   breadcrumb: () => "Medias",
