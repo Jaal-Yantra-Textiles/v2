@@ -3,7 +3,6 @@
  * Landing page with live metrics summary and links to all ad-planning modules
  */
 
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { ChartBar } from "@medusajs/icons"
 import { Container, Heading, Text, Button, Badge } from "@medusajs/ui"
 import { Link, Outlet } from "react-router-dom"
@@ -237,9 +236,10 @@ const AdPlanningDashboard = () => {
   )
 }
 
-export const config = defineRouteConfig({
-  label: "Ad Planning",
-  icon: ChartBar,
-})
+// Sidebar entry intentionally removed: this route is now reached via the
+// Operations hub at /admin/operations (see src/admin/routes/operations/page.tsx).
+// The URL /admin/ad-planning still resolves to this page — only the standalone
+// sidebar item is gone. Re-export `config` if you want it back at the top
+// of the sidebar.
 
 export default AdPlanningDashboard

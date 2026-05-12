@@ -1,4 +1,3 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import {
   Container,
   Heading,
@@ -13,7 +12,7 @@ import {
   toast,
   usePrompt,
 } from "@medusajs/ui"
-import { ChartBar, PencilSquare, Trash, SquareTwoStack, Plus } from "@medusajs/icons"
+import { PencilSquare, Trash, SquareTwoStack, Plus } from "@medusajs/icons"
 import { useNavigate } from "react-router-dom"
 import { useCallback, useMemo, useState } from "react"
 import { createColumnHelper } from "@tanstack/react-table"
@@ -250,10 +249,7 @@ const StatsPage = () => {
   )
 }
 
-export const config = defineRouteConfig({
-  label: "Stats",
-  icon: ChartBar,
-})
+// Sidebar entry removed — reached via /admin/operations hub. URL still works.
 
 export const handle = {
   breadcrumb: () => "Stats",

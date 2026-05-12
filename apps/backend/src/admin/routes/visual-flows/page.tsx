@@ -1,6 +1,5 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { 
-  Container, 
+import {
+  Container,
   Heading, 
   Button, 
   StatusBadge,
@@ -13,9 +12,6 @@ import {
   toast,
   usePrompt,
 } from "@medusajs/ui"
-import { 
-  ArrowPath,
-} from "@medusajs/icons"
 import { useNavigate, Outlet } from "react-router-dom"
 import { 
   useVisualFlows, 
@@ -306,10 +302,7 @@ const VisualFlowsPage = () => {
   )
 }
 
-export const config = defineRouteConfig({
-  label: "Visual Flows",
-  icon: ArrowPath,
-})
+// Sidebar entry removed — reached via /admin/operations hub. URL still works.
 
 export const handle = {
   breadcrumb: () => "Visual Flows",
