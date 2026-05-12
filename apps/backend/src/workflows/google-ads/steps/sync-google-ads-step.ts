@@ -189,13 +189,7 @@ export const syncGoogleAdsStep = createStep(
         )
         adGroupsSynced += adGroupCount
       } catch (e: any) {
-        let msg = e.response?.data?.error?.message || e.message
-        // Most common 403 on a child CID: missing login-customer-id. Give
-        // the operator a usable next step right in the error row rather
-        // than the bare "status code 403".
-        if (e.response?.status === 403 && !t.login_customer_id) {
-          msg = `${msg} — likely missing login-customer-id (set settings.login_customer_id on the binding to the manager/MCC CID, or GOOGLE_ADS_LOGIN_CUSTOMER_ID env)`
-        }
+        const msg = formatGoogleAdsError(e, { hasLoginCid: !!t.login_customer_id })
         logger?.warn?.(
           `[google-ads] sync failed for cid=${t.customer_id}: ${msg}`
         )
@@ -479,6 +473,98 @@ async function upsertAdGroups(
   }
 
   return synced
+}
+
+/**
+ * Decode Google Ads API errors into a human-readable line. The raw axios
+ * `e.message` is just "Request failed with status code 403" — useless on
+ * its own. Google packs the real reason into `response.data.error.details[].errors[]`
+ * as a `GoogleAdsFailure`, but only when the developer token has enough
+ * access to even produce one; at Test-access level it often returns a
+ * bare 403 with no JSON body.
+ *
+ * We extract whatever signal we can find and append our own hint for the
+ * two confusables operators run into most: missing login-customer-id and
+ * Test-access dev tokens (the latter looks IDENTICAL to a missing-cid
+ * error unless we explicitly call it out).
+ */
+function formatGoogleAdsError(
+  e: any,
+  ctx: { hasLoginCid: boolean }
+): string {
+  const status: number | undefined = e?.response?.status
+  const data: any = e?.response?.data
+
+  // Google's normal failure shape — extract the first specific error code.
+  let specificCode: string | null = null
+  let specificMessage: string | null = null
+
+  const topMessage: string | null =
+    (typeof data?.error?.message === "string" && data.error.message) || null
+
+  const details: any[] = Array.isArray(data?.error?.details)
+    ? data.error.details
+    : []
+  for (const detail of details) {
+    const errors: any[] = Array.isArray(detail?.errors) ? detail.errors : []
+    for (const err of errors) {
+      const codeMap = err?.errorCode || {}
+      // errorCode is a one-of: { authorizationError | authenticationError | ... }
+      for (const k of Object.keys(codeMap)) {
+        const v = codeMap[k]
+        if (typeof v === "string") {
+          specificCode = `${k}:${v}`
+          specificMessage = err?.message || specificMessage
+          break
+        }
+      }
+      if (specificCode) break
+    }
+    if (specificCode) break
+  }
+
+  // Known authorization-error → operator-facing hint. Order matters:
+  // check the most-specific code first.
+  const code = specificCode || ""
+  let hint: string | null = null
+
+  if (
+    code.includes("DEVELOPER_TOKEN_NOT_APPROVED") ||
+    code.includes("DEVELOPER_TOKEN_PROHIBITED") ||
+    code.includes("DEVELOPER_TOKEN_NEEDS_APPROVAL")
+  ) {
+    hint =
+      "developer token is at Test access — production accounts return 403 until it's upgraded. Apply for Basic access at https://ads.google.com/aw/apicenter, or bind a customer with customer.test_account=true."
+  } else if (code.includes("DEVELOPER_TOKEN_NOT_WHITELISTED_FOR_CUSTOMER")) {
+    hint =
+      "this customer is not whitelisted for the developer token. The token's MCC must be linked to this customer (or grant Basic access from the apicenter)."
+  } else if (
+    code.includes("USER_PERMISSION_DENIED") ||
+    code.includes("CUSTOMER_NOT_ENABLED")
+  ) {
+    hint =
+      "the OAuth user does not have access to this customer. Re-grant access in Google Ads → Tools → Access and security, or reconnect this platform with an account that has access."
+  } else if (status === 403 && !ctx.hasLoginCid) {
+    // Generic 403 with no specific code — most often missing login-customer-id.
+    // Only surface this when we don't already have one set, otherwise the
+    // hint is misleading.
+    hint =
+      "likely missing login-customer-id (set settings.login_customer_id on the binding to the manager/MCC CID, or GOOGLE_ADS_LOGIN_CUSTOMER_ID env) — or, if all three accessible CIDs return 403 even with login-customer-id, the developer token is at Test access (apply for Basic at https://ads.google.com/aw/apicenter)."
+  } else if (status === 403 && ctx.hasLoginCid) {
+    // Bare 403 *with* a login-customer-id set — almost always Test access.
+    // Calling it out saves the operator a second round of debugging.
+    hint =
+      "login-customer-id is set but Google still returned 403. Most common cause: developer token is at Test access — production accounts return 403 regardless of login-customer-id. Verify at https://ads.google.com/aw/apicenter."
+  }
+
+  const parts: string[] = []
+  if (specificMessage) parts.push(specificMessage)
+  else if (topMessage) parts.push(topMessage)
+  else parts.push(e?.message || "Unknown Google Ads error")
+  if (specificCode) parts.push(`[${specificCode}]`)
+  if (hint) parts.push(`— ${hint}`)
+
+  return parts.join(" ")
 }
 
 function normalizeCid(value?: string | null): string | null {
