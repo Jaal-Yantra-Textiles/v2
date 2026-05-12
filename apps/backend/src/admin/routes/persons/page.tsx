@@ -4,8 +4,6 @@ import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilte
 // Sort state is a single active sort — `null` means default backend order.
 type SortingState = { id: string; desc: boolean } | null
 import { Link, Outlet, useNavigate } from "react-router-dom";
-import { defineRouteConfig } from "@medusajs/admin-sdk";
-import { Users } from "@medusajs/icons";
 import CreateButton from "../../components/creates/create-button";
 import { usePersons } from "../../hooks/api/persons";
 import { useMemo, useState, useCallback } from "react";
@@ -256,10 +254,7 @@ export default PersonsPage;
 
 
 
-export const config = defineRouteConfig({
-  label: "People",
-  icon: Users,
-});
+// Sidebar entry removed — reached via /admin/audience hub. URL still works.
 
 
 export const handle = {

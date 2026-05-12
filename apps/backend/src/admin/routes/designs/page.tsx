@@ -15,8 +15,7 @@ import {
 } from "@medusajs/ui";
 import { Outlet, useNavigate, useSearchParams } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
-import { defineRouteConfig } from "@medusajs/admin-sdk";
-import { ToolsSolid, PencilSquare, Eye, ArrowPath } from "@medusajs/icons";
+import { PencilSquare, Eye, ArrowPath } from "@medusajs/icons";
 import CreateButton from "../../components/creates/create-button";
 import { RecreateForProductionDrawer } from "../../components/designs/recreate-for-production-drawer";
 import { BulkLinkPartnerDrawer } from "../../components/designs/bulk-link-partner-drawer";
@@ -736,10 +735,7 @@ const DesignsPage = () => {
 
 export default DesignsPage;
 
-export const config = defineRouteConfig({
-  label: "Designs",
-  icon: ToolsSolid,
-});
+// Sidebar entry removed — reached via /admin/production hub. URL still works.
 
 
 export const handle = {

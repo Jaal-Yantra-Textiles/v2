@@ -25,13 +25,13 @@ type CardProps = {
 const QuickLinkCard = ({ title, description, to }: CardProps) => (
   <Link
     to={to}
-    className="block outline-none focus:shadow-borders-interactive-with-focus rounded-lg"
+    className="block h-full outline-none focus:shadow-borders-interactive-with-focus rounded-lg"
   >
-    <div className="shadow-elevation-card-rest bg-ui-bg-component hover:bg-ui-bg-component-hover rounded-lg p-5 transition-colors">
+    <div className="shadow-elevation-card-rest bg-ui-bg-component hover:bg-ui-bg-component-hover rounded-lg p-5 transition-colors h-full flex flex-col min-h-[110px]">
       <Text size="base" leading="compact" weight="plus">
         {title}
       </Text>
-      <Text size="small" leading="compact" className="text-ui-fg-subtle mt-1">
+      <Text size="small" leading="compact" className="text-ui-fg-subtle mt-1 flex-1">
         {description}
       </Text>
     </div>
