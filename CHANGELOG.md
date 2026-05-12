@@ -1,3 +1,17 @@
+# [13.3.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.2.0...v13.3.0) (2026-05-12)
+
+
+### Bug Fixes
+
+* **admin:** hide ad-planning sub-routes from sidebar + add missing Goals card ([40ab83d](https://github.com/Jaal-Yantra-Textiles/v2/commit/40ab83d59fb9c06914ec095f7830586377c38a76))
+
+
+### Features
+
+* **admin:** /admin/operations hub gathers reporting + tools behind one entry ([dfac85d](https://github.com/Jaal-Yantra-Textiles/v2/commit/dfac85db2bc7f4651d04f9a6023ce4ad04f0359b))
+* **admin:** 3 more hubs — Production, Audience, Content — + equal-height cards ([a43de4d](https://github.com/Jaal-Yantra-Textiles/v2/commit/a43de4dbfa6f42618e216cee4ee3b9a9f245637e))
+* **search-console:** per-website Google Search Console view + sync ([3b50af7](https://github.com/Jaal-Yantra-Textiles/v2/commit/3b50af7d982227d2bbed6aea60febe30c53fd3a7)), closes [#218](https://github.com/Jaal-Yantra-Textiles/v2/issues/218)
+
 # [13.2.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.1.1...v13.2.0) (2026-05-12)
 
 
