@@ -258,7 +258,6 @@ export default PersonsPage;
 
 export const config = defineRouteConfig({
   label: "People",
-  nested: "/customers",
   icon: Users,
 });
 
