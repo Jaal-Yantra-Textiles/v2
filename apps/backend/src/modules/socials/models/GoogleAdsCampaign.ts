@@ -1,6 +1,7 @@
 import { model } from "@medusajs/framework/utils"
 import GoogleAdsCustomer from "./GoogleAdsCustomer"
 import GoogleAdsAdGroup from "./GoogleAdsAdGroup"
+import GoogleAdsInsights from "./GoogleAdsInsights"
 
 /**
  * GoogleAdsCampaign
@@ -66,6 +67,7 @@ const GoogleAdsCampaign = model.define("GoogleAdsCampaign", {
   ad_groups: model.hasMany(() => GoogleAdsAdGroup, {
     mappedBy: "campaign",
   }),
+  insights: model.hasMany(() => GoogleAdsInsights, { mappedBy: "campaign" }),
 
   metadata: model.json().nullable(),
 })
