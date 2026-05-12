@@ -229,6 +229,11 @@ const AdPlanningDashboard = () => {
             description="Campaign attribution analysis and insights"
             to="/ad-planning/attribution"
           />
+          <QuickLinkCard
+            title="Goals"
+            description="Track marketing goals and their progress"
+            to="/ad-planning/goals"
+          />
         </div>
       </div>
       <Outlet />

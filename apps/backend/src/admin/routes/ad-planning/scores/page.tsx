@@ -3,7 +3,6 @@
  * View customer CLV, engagement scores, and churn risk
  */
 
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import {
   Container,
   Heading,
@@ -266,9 +265,7 @@ const ScoresPage = () => {
   )
 }
 
-export const config = defineRouteConfig({
-  label: "Scores",
-})
+// Sidebar entry removed — reached via /admin/ad-planning hub. URL still works.
 
 export const handle = {
   breadcrumb: () => "Customer Scores",

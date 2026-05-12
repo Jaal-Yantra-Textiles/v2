@@ -3,7 +3,6 @@
  * Campaign attribution analysis and insights
  */
 
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import {
   Container,
   Heading,
@@ -311,9 +310,7 @@ const AttributionPage = () => {
   )
 }
 
-export const config = defineRouteConfig({
-  label: "Attribution",
-})
+// Sidebar entry removed — reached via /admin/ad-planning hub. URL still works.
 
 export const handle = {
   breadcrumb: () => "Attribution",
