@@ -34,6 +34,12 @@
   overflow: auto;
 }
 
+/* Outline every docked pane so the split structure is obvious. */
+.flexlayout__tabset {
+  border: 1px solid var(--ui-border-strong);
+  background-color: var(--ui-bg-base);
+}
+
 /* ── Tab bar ──────────────────────────────────────────────────────── */
 .flexlayout__tabset_tabbar_outer {
   background-color: var(--ui-bg-subtle);
@@ -117,13 +123,30 @@
 }
 
 /* ── Splitters between panes ──────────────────────────────────────── */
+/*
+ * Default FlexLayout splitter is ~6px wide and reads as a near-invisible
+ * line in light themes. Bump to --ui-border-strong with a small hairline
+ * on either side so the divide between panes is obvious without being
+ * loud, and use --ui-fg-interactive on hover/drag so the active resize
+ * handle reads at a glance.
+ */
 .flexlayout__splitter {
-  background-color: var(--ui-border-base);
+  background-color: var(--ui-border-strong);
+  background-clip: padding-box;
+  border-left: 1px solid var(--ui-border-base);
+  border-right: 1px solid var(--ui-border-base);
+}
+
+.flexlayout__splitter_horz {
+  border-left: 0;
+  border-right: 0;
+  border-top: 1px solid var(--ui-border-base);
+  border-bottom: 1px solid var(--ui-border-base);
 }
 
 .flexlayout__splitter:hover,
 .flexlayout__splitter_drag {
-  background-color: var(--ui-border-interactive);
+  background-color: var(--ui-fg-interactive);
 }
 
 /* ── Drag-and-drop overlay rectangles ─────────────────────────────── */
