@@ -46,8 +46,12 @@ import "flexlayout-react/style/light.css"
  */
 
 const DESK_ADD_PANEL_EVENT = "desk:add-panel"
-const LAYOUT_STORAGE_KEY = "jyt:desk:layout-v1"
-const PATHS_STORAGE_KEY = "jyt:desk:tab-paths-v1"
+// Bumped from v1 → v2 to drop stale blobs saved during the broken
+// "display:none Layout" period, where clicks added tabs to the model
+// but the workspace never rendered them. v1 storage would hydrate all
+// those phantom tabs on the next load.
+const LAYOUT_STORAGE_KEY = "jyt:desk:layout-v2"
+const PATHS_STORAGE_KEY = "jyt:desk:tab-paths-v2"
 
 const buildEmptyJson = (): IJsonModel => ({
   global: {
