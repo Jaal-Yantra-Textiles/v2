@@ -68,25 +68,32 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background-color: var(--ui-bg-base);
+  background-color: var(--ui-bg-base) !important;
   color: var(--ui-fg-subtle);
-  border: 1px solid var(--ui-border-base);
+  /* Outline (not border) so the override survives any later flexlayout
+     CSS that unsets border-style. !important is intentional here — the
+     default theme has no border, so any later rule on `border` shorthand
+     would kill ours. */
+  outline: 1px solid var(--ui-border-strong) !important;
+  outline-offset: -1px;
   border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   cursor: pointer;
   user-select: none;
 }
 
 .flexlayout__tab_button--unselected:hover {
-  background-color: var(--ui-bg-base-hover);
-  border-color: var(--ui-border-strong);
+  background-color: var(--ui-bg-base-hover) !important;
+  outline-color: var(--ui-fg-muted) !important;
   color: var(--ui-fg-base);
 }
 
 .flexlayout__tab_button--selected {
-  background-color: var(--ui-bg-base);
+  background-color: var(--ui-bg-base) !important;
   color: var(--ui-fg-base);
-  border-color: var(--ui-border-interactive);
-  box-shadow: 0 0 0 1px var(--ui-border-interactive);
+  outline: 2px solid var(--ui-fg-interactive) !important;
+  outline-offset: -2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .flexlayout__tab_button_content {
