@@ -96,8 +96,15 @@ export const POST = async (
       period_end: (() => { const d = new Date(); d.setMonth(d.getMonth() + 1); return d })(),
     })
 
-    // Generate PayU hash
-    const hashString = `${payuKey}|${txnid}|${amount}|${productinfo}|${firstname}|${email}|||||||||||${payuSalt}`
+    // Hash must be computed from the SAME udf values that the form posts to PayU,
+    // otherwise PayU rejects the request with an invalid-hash error.
+    const udf1 = (pendingPayment as any).id
+    const udf2 = plan_id
+    const udf3 = partner.id
+    const udf4 = ""
+    const udf5 = ""
+
+    const hashString = `${payuKey}|${txnid}|${amount}|${productinfo}|${firstname}|${email}|${udf1}|${udf2}|${udf3}|${udf4}|${udf5}||||||${payuSalt}`
     const hash = crypto.createHash("sha512").update(hashString).digest("hex")
 
     const partnerUiUrl = process.env.PARTNER_UI_URL || "https://partner.jaalyantra.com"
@@ -122,9 +129,11 @@ export const POST = async (
         hash,
         surl: `${backendUrl}/partners/subscription/payu/complete`,
         furl: `${backendUrl}/partners/subscription/payu/complete`,
-        udf1: (pendingPayment as any).id,
-        udf2: plan_id,
-        udf3: partner.id,
+        udf1,
+        udf2,
+        udf3,
+        udf4,
+        udf5,
       },
     })
     return

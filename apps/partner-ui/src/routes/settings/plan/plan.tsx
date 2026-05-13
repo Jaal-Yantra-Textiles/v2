@@ -165,8 +165,13 @@ export const SettingsPlan = () => {
     if (!confirmed) return
 
     try {
-      await subscribe({ plan_id: plan.id })
-      toast.success(t("partner.plan.toast.switchedTo", { plan: plan.name }))
+      const result = await subscribe({ plan_id: plan.id })
+      // Only the free-plan path activates synchronously. Paid plans get
+      // redirected to PayU/Stripe; the surl callback comes back with
+      // ?payment=success which the useEffect above turns into a toast.
+      if ((result as any)?.subscription) {
+        toast.success(t("partner.plan.toast.switchedTo", { plan: plan.name }))
+      }
     } catch (e: any) {
       toast.error(t("partner.plan.toast.switchFailed"), {
         description: e?.message || t("partner.plan.toast.somethingWrong"),
