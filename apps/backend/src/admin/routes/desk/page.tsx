@@ -3,14 +3,15 @@ import { ArrowLeft, GridLayout } from "@medusajs/icons"
 import { IconButton, Text } from "@medusajs/ui"
 import {
   Action,
+  Actions,
+  BorderNode,
+  DockLocation,
   IJsonModel,
-  ILayoutApi,
   ITabSetRenderValues,
   Layout,
   Model,
   TabNode,
   TabSetNode,
-  BorderNode,
 } from "flexlayout-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
@@ -18,7 +19,6 @@ import {
   setFocusedTab,
   subscribeTabStore,
   useActiveTab,
-  useTabCount,
 } from "./active-tab-store"
 import { EmptyDesk } from "./EmptyDesk"
 import { EntityPanel } from "./EntityPanel"
@@ -32,18 +32,17 @@ import "flexlayout-react/style/light.css"
 /**
  * Desk — multi-pane workspace at /admin/desk using flexlayout-react.
  *
- * Each tab is an entity instance (Designs, etc.) rendered via EntityPanel,
- * which wraps the route subtree in its own MemoryRouter so panel-internal
- * navigation (clicking a row, opening an overlay) stays inside the tab.
+ * Each tab is an entity instance rendered via EntityPanel, which wraps
+ * the route subtree in its own MemoryRouter so panel-internal navigation
+ * (clicking a row, opening an overlay) stays inside the tab.
  *
- * UX shape:
- *   - No tabs open → centered EmptyDesk with entity card grid.
- *   - At least one tab → FlexLayout tab strip with a "+" picker, and
- *     the breadcrumb area shows "Desk · {ActiveEntity}" + a back arrow
- *     that calls navigate(-1) inside the active tab.
+ * UX:
+ *   - No tabs → centered EmptyDesk with entity card grid.
+ *   - At least one tab → FlexLayout tab strip with a "+" picker in every
+ *     tabset, plus a breadcrumb showing "← Desk · {ActiveEntity} · {path}".
  *
- * The breadcrumb communicates with the active tab through the small
- * active-tab-store — no lifted React context required.
+ * The breadcrumb communicates with the active tab through a small
+ * module-level active-tab-store — no lifted React context required.
  */
 
 const DESK_ADD_PANEL_EVENT = "desk:add-panel"
@@ -70,12 +69,6 @@ const buildEmptyJson = (): IJsonModel => ({
   },
 })
 
-/**
- * Hydrate the FlexLayout JSON from localStorage if a valid blob is
- * present, otherwise fall back to an empty workspace. The schema key
- * (-v1) lets us invalidate stored layouts in one shot when EntityPanel
- * config shapes change.
- */
 const loadPersistedLayout = (): IJsonModel => {
   if (typeof window === "undefined") return buildEmptyJson()
   try {
@@ -107,7 +100,7 @@ const persistLayout = (model: Model): void => {
       JSON.stringify(model.toJson())
     )
   } catch {
-    // quota / privacy mode — best-effort
+    // best-effort
   }
 }
 
@@ -120,9 +113,33 @@ const persistPaths = (paths: Record<string, string>): void => {
   }
 }
 
+/**
+ * Truth source for "is the workspace empty" — the FlexLayout model, not
+ * the active-tab-store. The store only populates when EntityPanels mount;
+ * if we gated Layout rendering on the store, the very first click on an
+ * empty desk would deadlock: model has a tab, store doesn't yet, Layout
+ * stays hidden, tab never mounts.
+ */
+const modelHasAnyTab = (model: Model): boolean => {
+  let found = false
+  model.visitNodes((n) => {
+    if (n.getType() === "tab") found = true
+  })
+  return found
+}
+
+/** Find the first tabset in the model — used as the default insertion target. */
+const firstTabsetId = (model: Model): string | undefined => {
+  let id: string | undefined
+  model.visitNodes((n) => {
+    if (!id && n.getType() === "tabset") id = n.getId()
+  })
+  return id
+}
+
 const Desk = () => {
   const [model] = useState<Model>(() => Model.fromJson(loadPersistedLayout()))
-  const layoutRef = useRef<ILayoutApi>(null)
+  const [hasTabs, setHasTabs] = useState(() => modelHasAnyTab(model))
   const counterRef = useRef<Record<EntityKey, number>>({
     designs: 0,
     "production-runs": 0,
@@ -136,7 +153,6 @@ const Desk = () => {
    * so the inner MemoryRouter starts on the right route.
    */
   const persistedPathsRef = useRef<Record<string, string>>(loadPersistedPaths())
-  const tabCount = useTabCount()
 
   const factory = useCallback((node: TabNode) => {
     const c = node.getComponent() as EntityKey
@@ -153,6 +169,13 @@ const Desk = () => {
     )
   }, [])
 
+  /**
+   * Adds a tab directly via model.doAction(Actions.addNode(...)) rather
+   * than the Layout-ref API. This means it works *before* the Layout has
+   * mounted — important because we conditionally render Layout vs
+   * EmptyDesk, and the first click on an empty desk happens while Layout
+   * is still unmounted.
+   */
   const addPanel = useCallback(
     (entityKey: EntityKey) => {
       counterRef.current[entityKey] = (counterRef.current[entityKey] || 0) + 1
@@ -160,32 +183,23 @@ const Desk = () => {
       const entity = ENTITY_REGISTRY[entityKey]
       const tabId = `${entityKey}-${n}-${Date.now()}`
 
-      // If we have an active tabset, add there; otherwise the model has
-      // an empty initial tabset we can drop into.
-      const added = layoutRef.current?.addTabToActiveTabSet({
-        type: "tab",
-        id: tabId,
-        name: `${entity.label} ${n}`,
-        component: entityKey,
-      })
-      if (!added) {
-        // Fallback for the empty model where no tabset is active yet —
-        // there's still a tabset from buildEmptyJson, find it and target it.
-        let firstTabsetId: string | undefined
-        model.visitNodes((node) => {
-          if (!firstTabsetId && node.getType() === "tabset") {
-            firstTabsetId = node.getId()
-          }
-        })
-        if (firstTabsetId) {
-          layoutRef.current?.addTabToTabSet(firstTabsetId, {
+      const targetTabsetId = firstTabsetId(model)
+      if (!targetTabsetId) return
+
+      model.doAction(
+        Actions.addNode(
+          {
             type: "tab",
             id: tabId,
             name: `${entity.label} ${n}`,
             component: entityKey,
-          })
-        }
-      }
+          },
+          targetTabsetId,
+          DockLocation.CENTER,
+          -1,
+          true
+        )
+      )
     },
     [model]
   )
@@ -201,17 +215,20 @@ const Desk = () => {
     return () => window.removeEventListener(DESK_ADD_PANEL_EVENT, handler)
   }, [addPanel])
 
-  // Keep the active-tab-store's focused tab id in sync with FlexLayout's
-  // selection AND persist the layout JSON to localStorage on every model
-  // action (add/move/close/select) so the workspace survives reload.
+  /**
+   * On every model action: update hasTabs (derived state), mirror the
+   * selected tab to the active-tab-store so the breadcrumb sees it, and
+   * persist the layout to localStorage.
+   */
   const onModelChange = useCallback((m: Model, _action: Action) => {
+    setHasTabs(modelHasAnyTab(m))
     const tabset = m.getActiveTabset()
     setFocusedTab(tabset?.getSelectedNode()?.getId() ?? null)
     persistLayout(m)
   }, [])
 
-  // Mirror every internal-path change from the active-tab-store into
-  // localStorage so tabs resume on the exact route after reload.
+  // Mirror tab path changes into localStorage so reloads resume on the
+  // exact route inside each tab.
   useEffect(() => {
     const unsub = subscribeTabStore(() => {
       persistPaths(getTabPathnames())
@@ -219,14 +236,12 @@ const Desk = () => {
     return unsub
   }, [])
 
-  // After hydration, fire the focused-tab signal once so the breadcrumb
-  // wakes up to the persisted active tab without waiting for a click.
+  // After hydration, point the breadcrumb at whatever tab is selected.
   useEffect(() => {
     const tabset = model.getActiveTabset()
     setFocusedTab(tabset?.getSelectedNode()?.getId() ?? null)
   }, [model])
 
-  // Add a "+" picker to every tabset's sticky-buttons area.
   const onRenderTabSet = useCallback(
     (_node: TabSetNode | BorderNode, renderValues: ITabSetRenderValues) => {
       renderValues.stickyButtons.push(
@@ -239,33 +254,21 @@ const Desk = () => {
   return (
     <div className="flex flex-col" style={{ height: "calc(100vh - 56px)" }}>
       <div className="flex-1 min-h-0 relative">
-        {tabCount === 0 ? (
-          <EmptyDesk onSelect={addPanel} />
-        ) : null}
-        <div
-          className="absolute inset-0"
-          style={{ display: tabCount === 0 ? "none" : "block" }}
-        >
+        {hasTabs ? (
           <Layout
-            ref={layoutRef}
             model={model}
             factory={factory}
             onModelChange={onModelChange}
             onRenderTabSet={onRenderTabSet}
           />
-        </div>
+        ) : (
+          <EmptyDesk onSelect={addPanel} />
+        )}
       </div>
     </div>
   )
 }
 
-/**
- * Breadcrumb rendered in the topbar slot. Reads the active tab from the
- * external store. When no tab is focused it just shows "Desk"; when a
- * tab is active it shows the entity label and a back arrow wired to
- * the tab's internal navigate (so clicking "<" calls navigate(-1) inside
- * the active panel's MemoryRouter).
- */
 const DeskBreadcrumb = () => {
   const activeTab = useActiveTab()
 
