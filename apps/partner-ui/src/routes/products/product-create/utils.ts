@@ -13,6 +13,8 @@ export const normalizeProductFormValues = (
     ?.filter((media) => !media.isThumbnail)
     .map((media) => ({ url: media.url }))
 
+  const productTitle = values.title.trim()
+
   return {
     status: values.status,
     is_giftcard: false,
@@ -33,7 +35,7 @@ export const normalizeProductFormValues = (
     mid_code: values.mid_code || undefined,
     hs_code: values.hs_code || undefined,
     thumbnail,
-    title: values.title.trim(),
+    title: productTitle,
     subtitle: values.subtitle?.trim(),
     description: values.description?.trim(),
     discountable: values.discountable,
@@ -44,14 +46,16 @@ export const normalizeProductFormValues = (
     options: values.options.filter((o) => o.title), // clean temp. values
     variants: normalizeVariants(
       values.variants.filter((variant) => variant.should_create),
-      values.regionsCurrencyMap
+      values.regionsCurrencyMap,
+      productTitle
     ),
   }
 }
 
 export const normalizeVariants = (
   variants: ProductCreateSchemaType["variants"],
-  regionsCurrencyMap: Record<string, string>
+  regionsCurrencyMap: Record<string, string>,
+  productTitle?: string
 ): HttpTypes.AdminCreateProductVariant[] => {
   return variants.map((variant) => {
     const inventoryItems = (variant.inventory || [])
@@ -77,7 +81,10 @@ export const normalizeVariants = (
       )
 
     return {
-    title: variant.title || Object.values(variant.options || {}).join(" / "),
+    title:
+      variant.title ||
+      productTitle ||
+      Object.values(variant.options || {}).join(" / "),
     options: variant.options,
     sku: variant.sku || undefined,
     manage_inventory: !!variant.manage_inventory,
