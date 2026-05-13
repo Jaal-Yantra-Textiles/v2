@@ -107,6 +107,28 @@
   white-space: nowrap;
 }
 
+/*
+ * Inline rename input — flexlayout-react swaps the tab label for a
+ * textbox on double-click. Style it like a Medusa Input so the
+ * rename interaction feels native to the admin.
+ */
+.flexlayout__tab_button_textbox {
+  font: inherit;
+  height: 22px;
+  min-width: 80px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--ui-border-base);
+  background-color: var(--ui-bg-field);
+  color: var(--ui-fg-base);
+  outline: none;
+}
+
+.flexlayout__tab_button_textbox:focus {
+  border-color: var(--ui-border-interactive);
+  box-shadow: 0 0 0 2px rgb(from var(--ui-border-interactive) r g b / 0.2);
+}
+
 /* close (×) button on each tab */
 .flexlayout__tab_button_trailing {
   width: 14px;
