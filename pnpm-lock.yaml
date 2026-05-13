@@ -315,6 +315,9 @@ importers:
       dayjs:
         specifier: ^1.11.19
         version: 1.11.19
+      dockview-react:
+        specifier: ^6.2.2
+        version: 6.2.2(react@18.3.1)
       esbuild:
         specifier: ^0.27.1
         version: 0.27.3
@@ -327,6 +330,9 @@ importers:
       file-saver:
         specifier: ^2.0.5
         version: 2.0.5
+      flexlayout-react:
+        specifier: ^0.9.1
+        version: 0.9.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       framer-motion:
         specifier: ^12.4.3
         version: 12.34.3(@emotion/is-prop-valid@1.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -11048,6 +11054,17 @@ packages:
     resolution: {integrity: sha512-h1ErTglQAVv2gCnOpD3sFS6uolDbOKHDU1BZq+Kl3npPqroU3dYL42lUgMfd5UimlwtRgp7C9dLGwqQ5D2HYgQ==}
     engines: {node: '>=16'}
 
+  dockview-core@6.2.2:
+    resolution: {integrity: sha512-n/ZfgbLB0k9u8dyWlHg1G/GAfWkFowd+0PtfVyo6O/SCkAbBZgQA+VxA3gZc1BuBmZNIHWocbbX43WsGjDUJrA==}
+
+  dockview-react@6.2.2:
+    resolution: {integrity: sha512-PFhk+CfXj3lBR+M4wRrYXfHV+wvk4nXJlWSCP8pZF0hw8VX18ZyK9M1/MzAiF5gMOcediwGWA8uqV0NYMw5RtA==}
+
+  dockview@6.2.2:
+    resolution: {integrity: sha512-Ydc1/gINOsnkumzkKOHqlViS6Z4nbq6zuozOYz7mRWOLr1nw49MGul8SHUD2fxXfwk2oABd8zGNdA2J+x+sKpQ==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
   doctrine@2.1.0:
     resolution: {integrity: sha512-35mSku4ZXK0vfCuHEDAwt55dg2jNajHZ1odvF+8SSr82EsZY4QmXfuWso8oEd8zRhVObSN18aM0CjSdoBX7zIw==}
     engines: {node: '>=0.10.0'}
@@ -11847,6 +11864,12 @@ packages:
 
   flatted@3.4.1:
     resolution: {integrity: sha512-IxfVbRFVlV8V/yRaGzk0UVIcsKKHMSfYw66T/u4nTwlWteQePsxe//LjudR1AMX4tZW3WFCh3Zqa/sjlqpbURQ==}
+
+  flexlayout-react@0.9.1:
+    resolution: {integrity: sha512-sB/93gKvDUBcukvxeNsu88ziobdsBfZQCDk9tTaxZOruaefpCpjpkSjhrhgoomWmTrSz8xnpHj8QcUaRf0Begg==}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
 
   fn.name@1.1.0:
     resolution: {integrity: sha512-GRnmB5gPyJpAhTQdSZTSp9uaPSvl09KoYcMQtsB9rQoOmzs9dH6ffeccH+Z+cv6P68Hu5bC6JjRh4Ah/mHSNRw==}
@@ -34426,6 +34449,19 @@ snapshots:
 
   doc-path@4.1.1: {}
 
+  dockview-core@6.2.2: {}
+
+  dockview-react@6.2.2(react@18.3.1):
+    dependencies:
+      dockview: 6.2.2(react@18.3.1)
+    transitivePeerDependencies:
+      - react
+
+  dockview@6.2.2(react@18.3.1):
+    dependencies:
+      dockview-core: 6.2.2
+      react: 18.3.1
+
   doctrine@2.1.0:
     dependencies:
       esutils: 2.0.3
@@ -35565,6 +35601,11 @@ snapshots:
   flatbuffers@1.12.0: {}
 
   flatted@3.4.1: {}
+
+  flexlayout-react@0.9.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+    dependencies:
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
 
   fn.name@1.1.0: {}
 
