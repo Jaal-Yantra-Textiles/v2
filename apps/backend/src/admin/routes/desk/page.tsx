@@ -255,18 +255,22 @@ const Desk = () => {
     [addPanel]
   )
 
+  // Layout must always be mounted so its onModelChange is wired and can
+  // flip hasTabs to true when the first tab arrives. EmptyDesk is an
+  // overlay shown on top while the model has no tabs.
   return (
     <div className="flex flex-col" style={{ height: "calc(100vh - 56px)" }}>
       <div className="flex-1 min-h-0 relative">
-        {hasTabs ? (
-          <Layout
-            model={model}
-            factory={factory}
-            onModelChange={onModelChange}
-            onRenderTabSet={onRenderTabSet}
-          />
-        ) : (
-          <EmptyDesk onSelect={addPanel} />
+        <Layout
+          model={model}
+          factory={factory}
+          onModelChange={onModelChange}
+          onRenderTabSet={onRenderTabSet}
+        />
+        {!hasTabs && (
+          <div className="absolute inset-0 z-10 bg-ui-bg-base">
+            <EmptyDesk onSelect={addPanel} />
+          </div>
         )}
       </div>
     </div>
