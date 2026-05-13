@@ -7,6 +7,7 @@ import { getPartnerFromAuthContext } from "../helpers"
 import { DEPLOYMENT_MODULE } from "../../../modules/deployment"
 import type DeploymentService from "../../../modules/deployment/service"
 import updatePartnerWorkflow from "../../../workflows/partners/update-partner"
+import { getStorefrontRefs } from "./helpers"
 
 const STOREFRONT_META_KEYS = [
   "vercel_project_id",
@@ -39,9 +40,9 @@ export const GET = async (
   }
 
   const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
-  const vercelProjectId = partner.metadata?.vercel_project_id
+  const refs = getStorefrontRefs(partner)
 
-  if (!vercelProjectId) {
+  if (!refs.vercelProjectId) {
     return res.json({
       provisioned: false,
       message: "Storefront has not been provisioned yet",
@@ -51,7 +52,7 @@ export const GET = async (
   }
 
   try {
-    const project = await deployment.getProject(vercelProjectId)
+    const project = await deployment.getProject(refs.vercelProjectId)
     const latestDeployment = project.latestDeployments?.[0]
 
     let deploymentInfo: {
@@ -86,11 +87,11 @@ export const GET = async (
         id: project.id,
         name: project.name,
       },
-      domain: partner.metadata?.storefront_domain || null,
-      storefront_url: partner.metadata?.storefront_domain
-        ? `https://${partner.metadata.storefront_domain}`
+      domain: refs.storefrontDomain,
+      storefront_url: refs.storefrontDomain
+        ? `https://${refs.storefrontDomain}`
         : null,
-      provisioned_at: partner.metadata?.storefront_provisioned_at || null,
+      provisioned_at: refs.storefrontProvisionedAt,
       latest_deployment: deploymentInfo,
       vercel_configured: deployment.isVercelConfigured(),
       cloudflare_configured: deployment.isCloudflareConfigured(),
@@ -99,12 +100,19 @@ export const GET = async (
     // If Vercel returns 404, the project was deleted — treat as not provisioned
     const is404 = e.message?.includes("(404)") || e.message?.includes("NOT_FOUND")
     if (is404) {
-      // Clean up stale metadata via workflow
+      // Clean up stale references via workflow — clear both columns and legacy metadata.
       try {
         await updatePartnerWorkflow(req.scope).run({
           input: {
             id: partner.id,
-            data: { metadata: stripStorefrontKeys(partner.metadata) },
+            data: {
+              metadata: stripStorefrontKeys(partner.metadata),
+              vercel_project_id: null,
+              vercel_project_name: null,
+              vercel_last_deployment_id: null,
+              vercel_linked: false,
+              storefront_domain: null,
+            },
           },
         })
       } catch {
@@ -122,14 +130,14 @@ export const GET = async (
     res.json({
       provisioned: true,
       project: {
-        id: vercelProjectId,
-        name: partner.metadata?.vercel_project_name || null,
+        id: refs.vercelProjectId,
+        name: refs.vercelProjectName,
       },
-      domain: partner.metadata?.storefront_domain || null,
-      storefront_url: partner.metadata?.storefront_domain
-        ? `https://${partner.metadata.storefront_domain}`
+      domain: refs.storefrontDomain,
+      storefront_url: refs.storefrontDomain
+        ? `https://${refs.storefrontDomain}`
         : null,
-      provisioned_at: partner.metadata?.storefront_provisioned_at || null,
+      provisioned_at: refs.storefrontProvisionedAt,
       latest_deployment: null,
       error: `Could not fetch Vercel status: ${e.message}`,
       vercel_configured: deployment.isVercelConfigured(),
@@ -155,8 +163,9 @@ export const DELETE = async (
   }
 
   const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
-  const vercelProjectId = partner.metadata?.vercel_project_id
-  const storefrontDomain = partner.metadata?.storefront_domain
+  const refs = getStorefrontRefs(partner)
+  const vercelProjectId = refs.vercelProjectId
+  const storefrontDomain = refs.storefrontDomain
 
   if (!vercelProjectId) {
     throw new MedusaError(

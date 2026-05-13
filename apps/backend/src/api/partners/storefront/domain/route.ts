@@ -10,6 +10,7 @@ import type { VercelDomainConfig } from "../../../../modules/deployment/service"
 import { WEBSITE_MODULE } from "../../../../modules/website"
 import type WebsiteService from "../../../../modules/website/service"
 import updatePartnerWorkflow from "../../../../workflows/partners/update-partner"
+import { getStorefrontRefs } from "../helpers"
 
 /**
  * Determines if a domain is an apex (root) domain.
@@ -64,7 +65,7 @@ export const GET = async (
     )
   }
 
-  const vercelProjectId = partner.metadata?.vercel_project_id
+  const vercelProjectId = getStorefrontRefs(partner).vercelProjectId
   if (!vercelProjectId) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
@@ -117,7 +118,7 @@ export const POST = async (
     )
   }
 
-  const vercelProjectId = partner.metadata?.vercel_project_id
+  const vercelProjectId = getStorefrontRefs(partner).vercelProjectId
   if (!vercelProjectId) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
@@ -217,7 +218,7 @@ export const DELETE = async (
     )
   }
 
-  const vercelProjectId = partner.metadata?.vercel_project_id
+  const vercelProjectId = getStorefrontRefs(partner).vercelProjectId
   const customDomain = partner.metadata?.custom_domain as string | undefined
 
   if (!vercelProjectId || !customDomain) {
