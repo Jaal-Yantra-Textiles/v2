@@ -329,6 +329,23 @@ const ThemeEditorInner = () => {
     [sendPreview, debouncedSave]
   )
 
+  // writeSection: like updateForm but writes the WHOLE section value rather
+  // than shallow-merging fields. Use this when updating arrays or deeply
+  // nested objects (the bridge needs to see the full new section). Also
+  // fires sendPreview, which the bare `setForm + debouncedSave` pattern in
+  // a couple of panels does not.
+  const writeSection = useCallback(
+    (section: keyof WebsiteTheme, value: any) => {
+      const current = formRef.current
+      const newForm = { ...current, [section]: value }
+      formRef.current = newForm
+      setForm(newForm)
+      sendPreview(section, value)
+      debouncedSave(newForm)
+    },
+    [sendPreview, debouncedSave]
+  )
+
   const handleSave = async () => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     try {
@@ -537,10 +554,10 @@ const ThemeEditorInner = () => {
               <NavigationPanel form={form} setForm={setFormSynced} debouncedSave={debouncedSave} />
             )}
             {activeSection === "footer" && (
-              <FooterPanel form={form} updateForm={updateForm} setForm={setFormSynced} debouncedSave={debouncedSave} />
+              <FooterPanel form={form} updateForm={updateForm} writeSection={writeSection} setForm={setFormSynced} debouncedSave={debouncedSave} />
             )}
             {activeSection === "home_sections" && (
-              <HomeSectionsPanel form={form} updateForm={updateForm} setForm={setFormSynced} debouncedSave={debouncedSave} />
+              <HomeSectionsPanel form={form} updateForm={updateForm} writeSection={writeSection} setForm={setFormSynced} debouncedSave={debouncedSave} />
             )}
             {activeSection === "typography" && (
               <TypographyPanel form={form} updateForm={updateForm} />
@@ -1357,9 +1374,11 @@ function NavigationPanel({
 function FooterPanel({
   form,
   updateForm,
+  writeSection,
   setForm,
   debouncedSave,
 }: PanelProps & {
+  writeSection: (section: keyof WebsiteTheme, value: any) => void
   setForm: (f: WebsiteTheme) => void
   debouncedSave: (f: WebsiteTheme) => void
 }) {
@@ -1385,14 +1404,9 @@ function FooterPanel({
           <Label size="xsmall">Newsletter Signup</Label>
           <Switch
             checked={form.footer?.show_newsletter === true}
-            onCheckedChange={(checked) => {
-              const newForm = {
-                ...form,
-                footer: { ...form.footer, show_newsletter: checked },
-              }
-              setForm(newForm)
-              debouncedSave(newForm)
-            }}
+            onCheckedChange={(checked) =>
+              writeSection("footer", { ...form.footer, show_newsletter: checked })
+            }
           />
         </div>
         {form.footer?.show_newsletter && (
@@ -1423,20 +1437,15 @@ function FooterPanel({
             <Label size="xsmall">Social Links</Label>
             <button
               className="text-xs text-ui-fg-interactive hover:underline"
-              onClick={() => {
-                const newForm = {
-                  ...form,
-                  footer: {
-                    ...form.footer,
-                    social_links: [
-                      ...(form.footer?.social_links || []),
-                      { platform: "Facebook", url: "" },
-                    ],
-                  },
-                }
-                setForm(newForm)
-                debouncedSave(newForm)
-              }}
+              onClick={() =>
+                writeSection("footer", {
+                  ...form.footer,
+                  social_links: [
+                    ...(form.footer?.social_links || []),
+                    { platform: "Facebook", url: "" },
+                  ],
+                })
+              }
             >
               + Add
             </button>
@@ -1452,12 +1461,7 @@ function FooterPanel({
                     ...social_links[i],
                     platform: e.target.value,
                   }
-                  const newForm = {
-                    ...form,
-                    footer: { ...form.footer, social_links },
-                  }
-                  setForm(newForm)
-                  debouncedSave(newForm)
+                  writeSection("footer", { ...form.footer, social_links })
                 }}
               >
                 {SOCIAL_PLATFORMS.map((p) => (
@@ -1474,27 +1478,19 @@ function FooterPanel({
                 onChange={(e) => {
                   const social_links = [...(form.footer?.social_links || [])]
                   social_links[i] = { ...social_links[i], url: e.target.value }
-                  const newForm = {
-                    ...form,
-                    footer: { ...form.footer, social_links },
-                  }
-                  setForm(newForm)
-                  debouncedSave(newForm)
+                  writeSection("footer", { ...form.footer, social_links })
                 }}
               />
               <button
                 className="text-ui-fg-muted hover:text-ui-fg-error shrink-0"
-                onClick={() => {
-                  const social_links = (form.footer?.social_links || []).filter(
-                    (_, idx) => idx !== i
-                  )
-                  const newForm = {
-                    ...form,
-                    footer: { ...form.footer, social_links },
-                  }
-                  setForm(newForm)
-                  debouncedSave(newForm)
-                }}
+                onClick={() =>
+                  writeSection("footer", {
+                    ...form.footer,
+                    social_links: (form.footer?.social_links || []).filter(
+                      (_, idx) => idx !== i
+                    ),
+                  })
+                }
               >
                 <Trash className="w-3.5 h-3.5" />
               </button>
@@ -1509,9 +1505,11 @@ function FooterPanel({
 function HomeSectionsPanel({
   form,
   updateForm,
+  writeSection,
   setForm,
   debouncedSave,
 }: PanelProps & {
+  writeSection: (section: keyof WebsiteTheme, value: any) => void
   setForm: (f: WebsiteTheme) => void
   debouncedSave: (f: WebsiteTheme) => void
 }) {
@@ -1608,23 +1606,13 @@ function HomeSectionsPanel({
           desc="Each section here only renders if it's included in the order below."
         />
         <CollapsibleEditor title="Trust Banner">
-          <TrustBannerEditor
-            hs={hs}
-            form={form}
-            setForm={setForm}
-            debouncedSave={debouncedSave}
-          />
+          <TrustBannerEditor hs={hs} writeSection={writeSection} />
         </CollapsibleEditor>
         <CollapsibleEditor title="Text + Image">
           <TextWithImageEditor hs={hs} updateForm={updateForm} />
         </CollapsibleEditor>
         <CollapsibleEditor title="Testimonials">
-          <TestimonialsEditor
-            hs={hs}
-            form={form}
-            setForm={setForm}
-            debouncedSave={debouncedSave}
-          />
+          <TestimonialsEditor hs={hs} writeSection={writeSection} />
         </CollapsibleEditor>
         <CollapsibleEditor title="Banner">
           <BannerEditor hs={hs} updateForm={updateForm} />
@@ -1703,32 +1691,23 @@ type SubEditorProps = {
   updateForm: PanelProps["updateForm"]
 }
 
-type SubEditorWithFormProps = SubEditorProps & {
-  form: WebsiteTheme
-  setForm: (f: WebsiteTheme) => void
-  debouncedSave: (f: WebsiteTheme) => void
+type SubEditorWithWriteProps = {
+  hs: NonNullable<WebsiteTheme["home_sections"]>
+  writeSection: (section: keyof WebsiteTheme, value: any) => void
 }
 
-function TrustBannerEditor({
-  hs,
-  form,
-  setForm,
-  debouncedSave,
-}: SubEditorWithFormProps) {
+function TrustBannerEditor({ hs, writeSection }: SubEditorWithWriteProps) {
   const tb = hs.trust_banner || {}
   const items = tb.items || []
 
-  const writeItems = (next: Array<{ icon?: string; text: string }>) => {
-    const newForm = {
-      ...form,
-      home_sections: {
-        ...hs,
-        trust_banner: { ...tb, items: next },
-      },
-    }
-    setForm(newForm)
-    debouncedSave(newForm)
-  }
+  const writeTrustBanner = (patch: Partial<typeof tb>) =>
+    writeSection("home_sections", {
+      ...hs,
+      trust_banner: { ...tb, ...patch },
+    })
+
+  const writeItems = (next: Array<{ icon?: string; text: string }>) =>
+    writeTrustBanner({ items: next })
 
   return (
     <>
@@ -1739,33 +1718,13 @@ function TrustBannerEditor({
             type="color"
             className="h-7 w-7 cursor-pointer rounded border border-ui-border-base shrink-0"
             value={tb.background || "#000000"}
-            onChange={(e) => {
-              const newForm = {
-                ...form,
-                home_sections: {
-                  ...hs,
-                  trust_banner: { ...tb, background: e.target.value },
-                },
-              }
-              setForm(newForm)
-              debouncedSave(newForm)
-            }}
+            onChange={(e) => writeTrustBanner({ background: e.target.value })}
           />
           <Input
             size="small"
             placeholder="#000000"
             value={tb.background || ""}
-            onChange={(e) => {
-              const newForm = {
-                ...form,
-                home_sections: {
-                  ...hs,
-                  trust_banner: { ...tb, background: e.target.value },
-                },
-              }
-              setForm(newForm)
-              debouncedSave(newForm)
-            }}
+            onChange={(e) => writeTrustBanner({ background: e.target.value })}
           />
         </div>
       </div>
@@ -1873,45 +1832,26 @@ function TextWithImageEditor({ hs, updateForm }: SubEditorProps) {
   )
 }
 
-function TestimonialsEditor({
-  hs,
-  form,
-  setForm,
-  debouncedSave,
-}: SubEditorWithFormProps) {
+function TestimonialsEditor({ hs, writeSection }: SubEditorWithWriteProps) {
   const ts = hs.testimonials || {}
   const items = ts.items || []
 
+  const writeTestimonials = (patch: Partial<typeof ts>) =>
+    writeSection("home_sections", {
+      ...hs,
+      testimonials: { ...ts, ...patch },
+    })
+
   const writeItems = (
     next: Array<{ quote: string; author: string; role?: string; avatar_url?: string }>
-  ) => {
-    const newForm = {
-      ...form,
-      home_sections: {
-        ...hs,
-        testimonials: { ...ts, items: next },
-      },
-    }
-    setForm(newForm)
-    debouncedSave(newForm)
-  }
+  ) => writeTestimonials({ items: next })
 
   return (
     <>
       <FieldInput
         label="Heading"
         value={ts.heading || ""}
-        onChange={(v) => {
-          const newForm = {
-            ...form,
-            home_sections: {
-              ...hs,
-              testimonials: { ...ts, heading: v },
-            },
-          }
-          setForm(newForm)
-          debouncedSave(newForm)
-        }}
+        onChange={(v) => writeTestimonials({ heading: v })}
         placeholder="What customers say"
       />
       <div className="flex items-center justify-between pt-1">
