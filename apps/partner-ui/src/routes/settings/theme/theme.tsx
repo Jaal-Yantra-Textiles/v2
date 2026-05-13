@@ -1601,30 +1601,565 @@ function HomeSectionsPanel({
           placeholder="Shop by Category"
         />
 
-        <div className="pt-2 border-t border-ui-border-base" />
+        <div className="pt-3 border-t border-ui-border-base" />
 
-        <div className="space-y-1">
-          <Label size="xsmall">Sections Order</Label>
-          <Text size="xsmall" className="text-ui-fg-muted">
-            Drag to reorder (comma-separated)
-          </Text>
+        <SectionHeading
+          title="Section Content"
+          desc="Each section here only renders if it's included in the order below."
+        />
+        <CollapsibleEditor title="Trust Banner">
+          <TrustBannerEditor
+            hs={hs}
+            form={form}
+            setForm={setForm}
+            debouncedSave={debouncedSave}
+          />
+        </CollapsibleEditor>
+        <CollapsibleEditor title="Text + Image">
+          <TextWithImageEditor hs={hs} updateForm={updateForm} />
+        </CollapsibleEditor>
+        <CollapsibleEditor title="Testimonials">
+          <TestimonialsEditor
+            hs={hs}
+            form={form}
+            setForm={setForm}
+            debouncedSave={debouncedSave}
+          />
+        </CollapsibleEditor>
+        <CollapsibleEditor title="Banner">
+          <BannerEditor hs={hs} updateForm={updateForm} />
+        </CollapsibleEditor>
+        <CollapsibleEditor title="Newsletter">
+          <NewsletterEditor hs={hs} updateForm={updateForm} />
+        </CollapsibleEditor>
+
+        <div className="pt-3 border-t border-ui-border-base" />
+
+        <SectionsOrderEditor hs={hs} updateForm={updateForm} />
+      </div>
+    </>
+  )
+}
+
+const SECTION_KEYS = [
+  "hero",
+  "trust_banner",
+  "collections",
+  "text_with_image",
+  "categories",
+  "testimonials",
+  "banner",
+  "newsletter",
+] as const
+
+type SectionKey = (typeof SECTION_KEYS)[number]
+
+const SECTION_LABELS: Record<SectionKey, string> = {
+  hero: "Hero",
+  trust_banner: "Trust Banner",
+  collections: "Collections",
+  text_with_image: "Text + Image",
+  categories: "Categories",
+  testimonials: "Testimonials",
+  banner: "Banner",
+  newsletter: "Newsletter",
+}
+
+const DEFAULT_SECTIONS_ORDER: SectionKey[] = [
+  "hero",
+  "trust_banner",
+  "collections",
+  "text_with_image",
+  "categories",
+  "testimonials",
+  "banner",
+  "newsletter",
+]
+
+function CollapsibleEditor({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
+  // Using <details>/<summary> keeps the panel scrollable and accessible
+  // without needing a controlled-state spaghetti for five sub-panels.
+  return (
+    <details className="group rounded border border-ui-border-base bg-ui-bg-subtle">
+      <summary className="cursor-pointer list-none px-2 py-1.5 flex items-center justify-between text-xs text-ui-fg-base">
+        <span className="font-medium">{title}</span>
+        <span className="text-ui-fg-muted text-[10px] group-open:rotate-90 transition-transform">
+          ▶
+        </span>
+      </summary>
+      <div className="px-2 pb-2 pt-1 space-y-2">{children}</div>
+    </details>
+  )
+}
+
+type SubEditorProps = {
+  hs: NonNullable<WebsiteTheme["home_sections"]>
+  updateForm: PanelProps["updateForm"]
+}
+
+type SubEditorWithFormProps = SubEditorProps & {
+  form: WebsiteTheme
+  setForm: (f: WebsiteTheme) => void
+  debouncedSave: (f: WebsiteTheme) => void
+}
+
+function TrustBannerEditor({
+  hs,
+  form,
+  setForm,
+  debouncedSave,
+}: SubEditorWithFormProps) {
+  const tb = hs.trust_banner || {}
+  const items = tb.items || []
+
+  const writeItems = (next: Array<{ icon?: string; text: string }>) => {
+    const newForm = {
+      ...form,
+      home_sections: {
+        ...hs,
+        trust_banner: { ...tb, items: next },
+      },
+    }
+    setForm(newForm)
+    debouncedSave(newForm)
+  }
+
+  return (
+    <>
+      <div className="space-y-1">
+        <Label size="xsmall">Background</Label>
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            className="h-7 w-7 cursor-pointer rounded border border-ui-border-base shrink-0"
+            value={tb.background || "#000000"}
+            onChange={(e) => {
+              const newForm = {
+                ...form,
+                home_sections: {
+                  ...hs,
+                  trust_banner: { ...tb, background: e.target.value },
+                },
+              }
+              setForm(newForm)
+              debouncedSave(newForm)
+            }}
+          />
           <Input
             size="small"
-            placeholder="hero, collections, categories"
-            value={(hs.sections_order || ["hero", "collections", "categories"]).join(", ")}
+            placeholder="#000000"
+            value={tb.background || ""}
             onChange={(e) => {
-              const order = e.target.value
-                .split(",")
-                .map((s) => s.trim())
-                .filter((s) =>
-                  ["hero", "collections", "categories"].includes(s)
-                ) as Array<"hero" | "collections" | "categories">
-              updateForm("home_sections", { ...hs, sections_order: order })
+              const newForm = {
+                ...form,
+                home_sections: {
+                  ...hs,
+                  trust_banner: { ...tb, background: e.target.value },
+                },
+              }
+              setForm(newForm)
+              debouncedSave(newForm)
             }}
           />
         </div>
       </div>
+      <div className="flex items-center justify-between pt-1">
+        <Label size="xsmall">Items</Label>
+        <button
+          className="text-xs text-ui-fg-interactive hover:underline"
+          onClick={() => writeItems([...items, { text: "" }])}
+        >
+          + Add
+        </button>
+      </div>
+      {items.map((it, i) => (
+        <div key={i} className="flex items-center gap-1">
+          <Input
+            size="small"
+            placeholder="Icon"
+            className="w-[60px] shrink-0"
+            value={it.icon || ""}
+            onChange={(e) => {
+              const next = [...items]
+              next[i] = { ...next[i], icon: e.target.value }
+              writeItems(next)
+            }}
+          />
+          <Input
+            size="small"
+            placeholder="Text (required)"
+            className="flex-1"
+            value={it.text}
+            onChange={(e) => {
+              const next = [...items]
+              next[i] = { ...next[i], text: e.target.value }
+              writeItems(next)
+            }}
+          />
+          <button
+            className="text-ui-fg-muted hover:text-ui-fg-error shrink-0"
+            onClick={() => writeItems(items.filter((_, idx) => idx !== i))}
+          >
+            <Trash className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ))}
     </>
+  )
+}
+
+function TextWithImageEditor({ hs, updateForm }: SubEditorProps) {
+  const t = hs.text_with_image || {}
+  const write = (patch: Partial<typeof t>) =>
+    updateForm("home_sections", {
+      ...hs,
+      text_with_image: { ...t, ...patch },
+    })
+
+  return (
+    <>
+      <FieldInput
+        label="Title"
+        value={t.title || ""}
+        onChange={(v) => write({ title: v })}
+      />
+      <FieldInput
+        label="Description"
+        value={t.description || ""}
+        onChange={(v) => write({ description: v })}
+      />
+      <ImageUploadField
+        label="Image"
+        value={t.image_url || ""}
+        onChange={(v) => write({ image_url: v })}
+        compact
+      />
+      <FieldInput
+        label="CTA Text"
+        value={t.cta_text || ""}
+        onChange={(v) => write({ cta_text: v })}
+      />
+      <FieldInput
+        label="CTA Link"
+        value={t.cta_link || ""}
+        onChange={(v) => write({ cta_link: v })}
+        placeholder="/collections/all"
+      />
+      <div className="space-y-1">
+        <Label size="xsmall">Layout</Label>
+        <div className="grid grid-cols-2 gap-1">
+          {(["image-left", "image-right"] as const).map((v) => (
+            <button
+              key={v}
+              className={`px-2 py-1 text-xs rounded border ${
+                (t.layout || "image-left") === v
+                  ? "border-ui-fg-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                  : "border-ui-border-base text-ui-fg-subtle"
+              }`}
+              onClick={() => write({ layout: v })}
+            >
+              {v === "image-left" ? "Image Left" : "Image Right"}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  )
+}
+
+function TestimonialsEditor({
+  hs,
+  form,
+  setForm,
+  debouncedSave,
+}: SubEditorWithFormProps) {
+  const ts = hs.testimonials || {}
+  const items = ts.items || []
+
+  const writeItems = (
+    next: Array<{ quote: string; author: string; role?: string; avatar_url?: string }>
+  ) => {
+    const newForm = {
+      ...form,
+      home_sections: {
+        ...hs,
+        testimonials: { ...ts, items: next },
+      },
+    }
+    setForm(newForm)
+    debouncedSave(newForm)
+  }
+
+  return (
+    <>
+      <FieldInput
+        label="Heading"
+        value={ts.heading || ""}
+        onChange={(v) => {
+          const newForm = {
+            ...form,
+            home_sections: {
+              ...hs,
+              testimonials: { ...ts, heading: v },
+            },
+          }
+          setForm(newForm)
+          debouncedSave(newForm)
+        }}
+        placeholder="What customers say"
+      />
+      <div className="flex items-center justify-between pt-1">
+        <Label size="xsmall">Items</Label>
+        <button
+          className="text-xs text-ui-fg-interactive hover:underline"
+          onClick={() => writeItems([...items, { quote: "", author: "" }])}
+        >
+          + Add
+        </button>
+      </div>
+      {items.map((it, i) => (
+        <div
+          key={i}
+          className="space-y-1 rounded border border-ui-border-base p-1.5"
+        >
+          <div className="flex items-center justify-end">
+            <button
+              className="text-ui-fg-muted hover:text-ui-fg-error"
+              onClick={() => writeItems(items.filter((_, idx) => idx !== i))}
+              aria-label="Remove testimonial"
+            >
+              <Trash className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <Input
+            size="small"
+            placeholder="Quote"
+            value={it.quote}
+            onChange={(e) => {
+              const next = [...items]
+              next[i] = { ...next[i], quote: e.target.value }
+              writeItems(next)
+            }}
+          />
+          <Input
+            size="small"
+            placeholder="Author"
+            value={it.author}
+            onChange={(e) => {
+              const next = [...items]
+              next[i] = { ...next[i], author: e.target.value }
+              writeItems(next)
+            }}
+          />
+          <Input
+            size="small"
+            placeholder="Role (optional)"
+            value={it.role || ""}
+            onChange={(e) => {
+              const next = [...items]
+              next[i] = { ...next[i], role: e.target.value }
+              writeItems(next)
+            }}
+          />
+          <Input
+            size="small"
+            placeholder="Avatar URL (optional)"
+            value={it.avatar_url || ""}
+            onChange={(e) => {
+              const next = [...items]
+              next[i] = { ...next[i], avatar_url: e.target.value }
+              writeItems(next)
+            }}
+          />
+        </div>
+      ))}
+    </>
+  )
+}
+
+function BannerEditor({ hs, updateForm }: SubEditorProps) {
+  const b = hs.banner || {}
+  const write = (patch: Partial<typeof b>) =>
+    updateForm("home_sections", {
+      ...hs,
+      banner: { ...b, ...patch },
+    })
+
+  return (
+    <>
+      <FieldInput
+        label="Title"
+        value={b.title || ""}
+        onChange={(v) => write({ title: v })}
+      />
+      <FieldInput
+        label="Description"
+        value={b.description || ""}
+        onChange={(v) => write({ description: v })}
+      />
+      <ImageUploadField
+        label="Background Image"
+        value={b.background_image_url || ""}
+        onChange={(v) => write({ background_image_url: v })}
+        compact
+      />
+      <div className="space-y-1">
+        <Label size="xsmall">Background Color</Label>
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            className="h-7 w-7 cursor-pointer rounded border border-ui-border-base shrink-0"
+            value={b.background_color || "#000000"}
+            onChange={(e) => write({ background_color: e.target.value })}
+          />
+          <Input
+            size="small"
+            placeholder="#000000"
+            value={b.background_color || ""}
+            onChange={(e) => write({ background_color: e.target.value })}
+          />
+        </div>
+      </div>
+      <FieldInput
+        label="CTA Text"
+        value={b.cta_text || ""}
+        onChange={(v) => write({ cta_text: v })}
+      />
+      <FieldInput
+        label="CTA Link"
+        value={b.cta_link || ""}
+        onChange={(v) => write({ cta_link: v })}
+        placeholder="/collections/sale"
+      />
+    </>
+  )
+}
+
+function NewsletterEditor({ hs, updateForm }: SubEditorProps) {
+  const n = hs.newsletter || {}
+  const write = (patch: Partial<typeof n>) =>
+    updateForm("home_sections", {
+      ...hs,
+      newsletter: { ...n, ...patch },
+    })
+
+  return (
+    <>
+      <FieldInput
+        label="Heading"
+        value={n.heading || ""}
+        onChange={(v) => write({ heading: v })}
+        placeholder="Join our newsletter"
+      />
+      <FieldInput
+        label="Description"
+        value={n.description || ""}
+        onChange={(v) => write({ description: v })}
+      />
+      <FieldInput
+        label="Placeholder"
+        value={n.placeholder || ""}
+        onChange={(v) => write({ placeholder: v })}
+        placeholder="you@example.com"
+      />
+      <FieldInput
+        label="Button Text"
+        value={n.button_text || ""}
+        onChange={(v) => write({ button_text: v })}
+        placeholder="Subscribe"
+      />
+    </>
+  )
+}
+
+function SectionsOrderEditor({ hs, updateForm }: SubEditorProps) {
+  const order = (hs.sections_order || DEFAULT_SECTIONS_ORDER) as SectionKey[]
+
+  const writeOrder = (next: SectionKey[]) =>
+    updateForm("home_sections", { ...hs, sections_order: next })
+
+  const move = (from: number, to: number) => {
+    if (to < 0 || to >= order.length) return
+    const next = [...order]
+    const [removed] = next.splice(from, 1)
+    next.splice(to, 0, removed)
+    writeOrder(next)
+  }
+
+  const toggle = (key: SectionKey) => {
+    if (order.includes(key)) {
+      writeOrder(order.filter((k) => k !== key))
+    } else {
+      writeOrder([...order, key])
+    }
+  }
+
+  const inactive = SECTION_KEYS.filter((k) => !order.includes(k))
+
+  return (
+    <div className="space-y-2">
+      <Label size="xsmall">Sections Order</Label>
+      <Text size="xsmall" className="text-ui-fg-muted">
+        Use arrows to reorder. Toggle a section to hide it from the homepage.
+      </Text>
+      <ul className="space-y-1">
+        {order.map((key, i) => (
+          <li
+            key={key}
+            className="flex items-center gap-1 rounded border border-ui-border-base bg-ui-bg-base px-1.5 py-1 text-xs"
+          >
+            <span className="flex-1 truncate">{SECTION_LABELS[key]}</span>
+            <button
+              className="text-ui-fg-muted hover:text-ui-fg-base px-1 disabled:opacity-40"
+              aria-label="Move up"
+              disabled={i === 0}
+              onClick={() => move(i, i - 1)}
+            >
+              ↑
+            </button>
+            <button
+              className="text-ui-fg-muted hover:text-ui-fg-base px-1 disabled:opacity-40"
+              aria-label="Move down"
+              disabled={i === order.length - 1}
+              onClick={() => move(i, i + 1)}
+            >
+              ↓
+            </button>
+            <button
+              className="text-ui-fg-muted hover:text-ui-fg-error px-1"
+              aria-label="Remove from order"
+              onClick={() => toggle(key)}
+            >
+              <Trash className="w-3.5 h-3.5" />
+            </button>
+          </li>
+        ))}
+      </ul>
+      {inactive.length > 0 && (
+        <div className="space-y-1 pt-1">
+          <Label size="xsmall" className="text-ui-fg-muted">
+            Hidden sections
+          </Label>
+          <div className="flex flex-wrap gap-1">
+            {inactive.map((key) => (
+              <button
+                key={key}
+                className="text-xs rounded border border-dashed border-ui-border-base px-2 py-0.5 text-ui-fg-subtle hover:text-ui-fg-base"
+                onClick={() => toggle(key)}
+              >
+                + {SECTION_LABELS[key]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
