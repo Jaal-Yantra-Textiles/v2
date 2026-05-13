@@ -1,3 +1,16 @@
+# [13.4.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.3.0...v13.4.0) (2026-05-13)
+
+
+### Bug Fixes
+
+* **partner-subscription:** correct PayU hash + gate plan activation on verification ([d970f98](https://github.com/Jaal-Yantra-Textiles/v2/commit/d970f98b81cc5c08fb012aec3b8dc7a8bcc70c76))
+* **partner-storefront:** read columns first, strip legacy metadata on write ([f3628cb](https://github.com/Jaal-Yantra-Textiles/v2/commit/f3628cbb2576a9b9e0f79ac2712e2ca00c68a009))
+
+
+### Features
+
+* **partner-storefront:** apply Vercel's recommended DNS via Cloudflare ([7ebb4a5](https://github.com/Jaal-Yantra-Textiles/v2/commit/7ebb4a5edff6f80e8a8b64c70d6d031381acfb92))
+
 # [13.3.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.2.0...v13.3.0) (2026-05-12)
 
 
