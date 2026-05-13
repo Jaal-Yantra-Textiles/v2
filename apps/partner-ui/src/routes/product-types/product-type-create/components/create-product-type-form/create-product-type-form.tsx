@@ -38,7 +38,7 @@ export const CreateProductTypeForm = () => {
             })
           )
 
-          handleSuccess(`/settings/product-types/${product_type.id}`)
+          handleSuccess(`/product-types/${product_type.id}`)
         },
         onError: (e) => {
           toast.error(e.message)
