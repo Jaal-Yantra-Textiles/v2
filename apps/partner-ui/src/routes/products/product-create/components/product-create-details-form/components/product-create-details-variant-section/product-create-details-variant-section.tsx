@@ -255,7 +255,7 @@ export const ProductCreateVariantsSection = ({
       "variants",
       decorateVariantsWithDefaultValues([
         {
-          title: "Default variant",
+          title: "",
           should_create: true,
           variant_rank: 0,
           options: {

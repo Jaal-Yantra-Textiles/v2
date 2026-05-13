@@ -92,8 +92,9 @@ export const POST = async (
     )
   }
 
+  const productTitle = body.title.trim()
   const productInput: any = {
-    title: body.title.trim(),
+    title: productTitle,
     description: body.description?.trim() || undefined,
     status: body.status ?? ProductStatus.PUBLISHED,
     thumbnail: body.thumbnail || body.images?.[0] || undefined,
@@ -104,7 +105,7 @@ export const POST = async (
     ],
     variants: [
       {
-        title: "Default variant",
+        title: productTitle,
         options: { "Default option": "Default option value" },
         manage_inventory: true,
         prices: [{ amount: body.price, currency_code: currencyCode }],
