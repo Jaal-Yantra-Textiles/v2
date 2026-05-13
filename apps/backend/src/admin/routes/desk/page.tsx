@@ -1,6 +1,6 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { ArrowLeft, GridLayout } from "@medusajs/icons"
-import { IconButton, Text } from "@medusajs/ui"
+import { GridLayout } from "@medusajs/icons"
+import { Text } from "@medusajs/ui"
 import {
   Action,
   Actions,
@@ -28,6 +28,7 @@ import {
   type EntityKey,
 } from "./EntityPicker"
 import "flexlayout-react/style/light.css"
+import "./desk.css"
 
 /**
  * Desk — multi-pane workspace at /admin/desk using flexlayout-react.
@@ -286,14 +287,6 @@ const DeskBreadcrumb = () => {
 
   return (
     <div className="flex items-center gap-x-2">
-      <IconButton
-        size="small"
-        variant="transparent"
-        aria-label="Back in tab"
-        onClick={() => activeTab.navigate(-1)}
-      >
-        <ArrowLeft />
-      </IconButton>
       <Text size="small" className="text-ui-fg-base">
         Desk
       </Text>
@@ -303,7 +296,10 @@ const DeskBreadcrumb = () => {
       <Text size="small" weight="plus">
         {activeTab.entityLabel}
       </Text>
-      <Text size="small" className="text-ui-fg-subtle font-mono truncate max-w-[280px]">
+      <Text
+        size="small"
+        className="text-ui-fg-subtle font-mono truncate max-w-[280px]"
+      >
         {activeTab.pathname}
       </Text>
     </div>
