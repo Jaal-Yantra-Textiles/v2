@@ -74,36 +74,59 @@
  *   data-[state=active]:text-ui-fg-base data-[state=active]:bg-ui-bg-base
  *   data-[state=active]:shadow-elevation-card-rest
  */
+/*
+ * Every tab is a squared, bordered cell on the bg-subtle strip and
+ * they sit immediately next to each other (negative right margin so
+ * adjacent borders overlap to a single 1px line — the "connected
+ * cells" look from the reference screenshot). The active tab keeps
+ * the same outline but bumps to --ui-border-strong + the dark-mode-
+ * aware elevation token so it reads as the current tab without
+ * breaking the connected row.
+ */
 .flexlayout__tab_button {
   font-size: 12px;
   font-weight: 600;
-  height: 26px;
-  margin: 5px 4px 5px 0;
+  height: 28px;
+  margin: 4px 0 4px 0;
   padding: 0 10px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background-color: transparent;
+  background-color: var(--ui-bg-base);
   color: var(--ui-fg-subtle);
-  border: 1px solid transparent;
-  border-radius: 6px;
+  border: 1px solid var(--ui-border-base);
+  border-radius: 4px;
   cursor: pointer;
   user-select: none;
   transition:
     color 120ms ease,
     background-color 120ms ease,
+    border-color 120ms ease,
     box-shadow 120ms ease;
+}
+
+/* Adjacent tabs share their border edge — no gap, no double-border. */
+.flexlayout__tab_button + .flexlayout__tab_button {
+  margin-left: -1px;
 }
 
 .flexlayout__tab_button--unselected:hover {
   color: var(--ui-fg-base);
   background-color: var(--ui-bg-base-hover);
+  border-color: var(--ui-border-strong);
+  /* Lift above neighbouring tabs so the hover ring isn't clipped by the
+     overlapping border of the next tab. */
+  position: relative;
+  z-index: 1;
 }
 
 .flexlayout__tab_button--selected {
   background-color: var(--ui-bg-base);
   color: var(--ui-fg-base);
+  border-color: var(--ui-border-strong);
   box-shadow: var(--elevation-card-rest);
+  position: relative;
+  z-index: 2;
 }
 
 .flexlayout__tab_button_content {
