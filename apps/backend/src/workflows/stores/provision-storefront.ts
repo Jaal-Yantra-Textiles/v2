@@ -201,7 +201,19 @@ const triggerVercelDeploymentStep = createStep(
   }
 )
 
-// Step 6: Save Vercel metadata to partner
+// Step 6: Save Vercel metadata to partner.
+// Columns are the source of truth. After writing them we strip legacy keys
+// from partner.metadata so we don't keep stale dual state — every read
+// helper falls back to metadata for older partners, and this is the
+// migration step for any partner that gets re-provisioned.
+const LEGACY_STOREFRONT_METADATA_KEYS = [
+  "vercel_project_id",
+  "vercel_project_name",
+  "vercel_last_deployment_id",
+  "storefront_domain",
+  "storefront_provisioned_at",
+] as const
+
 const saveStorefrontMetadataStep = createStep(
   "save-storefront-metadata",
   async (
@@ -220,6 +232,17 @@ const saveStorefrontMetadataStep = createStep(
   ) => {
     const domain = `${input.handle}.${input.rootDomain}`
     const partnerService: PartnerService = container.resolve("partner")
+
+    // Read current metadata so we can strip the legacy keys in the same write.
+    const existing = await partnerService.retrievePartner(input.partnerId)
+    const currentMeta = (existing?.metadata || {}) as Record<string, any>
+    const cleanedMeta: Record<string, any> = {}
+    for (const [k, v] of Object.entries(currentMeta)) {
+      if (!(LEGACY_STOREFRONT_METADATA_KEYS as readonly string[]).includes(k)) {
+        cleanedMeta[k] = v
+      }
+    }
+
     await partnerService.updatePartners({
       id: input.partnerId,
       storefront_domain: domain,
@@ -230,6 +253,7 @@ const saveStorefrontMetadataStep = createStep(
       storefront_repo: input.storefrontRepo,
       storefront_root_dir: input.storefrontRootDir ?? null,
       storefront_branch: input.storefrontBranch ?? "main",
+      metadata: Object.keys(cleanedMeta).length > 0 ? cleanedMeta : null,
     })
 
     return new StepResponse({ success: true })

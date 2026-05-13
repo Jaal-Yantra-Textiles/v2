@@ -2,6 +2,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { DEPLOYMENT_MODULE } from "../../../../../modules/deployment"
 import type DeploymentService from "../../../../../modules/deployment/service"
+import { getStorefrontRefs } from "../../../../partners/storefront/helpers"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -21,9 +22,9 @@ export const GET = async (
   }
 
   const partner = partners[0] as any
-  const vercelProjectId = partner.metadata?.vercel_project_id
+  const refs = getStorefrontRefs(partner)
 
-  if (!vercelProjectId) {
+  if (!refs.vercelProjectId) {
     return res.json({
       provisioned: false,
       message: "Storefront has not been provisioned yet",
@@ -32,7 +33,7 @@ export const GET = async (
 
   try {
     const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
-    const project = await deployment.getProject(vercelProjectId)
+    const project = await deployment.getProject(refs.vercelProjectId)
     const latestDeployment = project.latestDeployments?.[0]
 
     let deploymentInfo: {
@@ -67,25 +68,25 @@ export const GET = async (
         id: project.id,
         name: project.name,
       },
-      domain: partner.metadata?.storefront_domain || null,
-      storefront_url: partner.metadata?.storefront_domain
-        ? `https://${partner.metadata.storefront_domain}`
+      domain: refs.storefrontDomain,
+      storefront_url: refs.storefrontDomain
+        ? `https://${refs.storefrontDomain}`
         : null,
-      provisioned_at: partner.metadata?.storefront_provisioned_at || null,
+      provisioned_at: refs.storefrontProvisionedAt,
       latest_deployment: deploymentInfo,
     })
   } catch (e: any) {
     res.json({
       provisioned: true,
       project: {
-        id: vercelProjectId,
-        name: partner.metadata?.vercel_project_name || null,
+        id: refs.vercelProjectId,
+        name: refs.vercelProjectName,
       },
-      domain: partner.metadata?.storefront_domain || null,
-      storefront_url: partner.metadata?.storefront_domain
-        ? `https://${partner.metadata.storefront_domain}`
+      domain: refs.storefrontDomain,
+      storefront_url: refs.storefrontDomain
+        ? `https://${refs.storefrontDomain}`
         : null,
-      provisioned_at: partner.metadata?.storefront_provisioned_at || null,
+      provisioned_at: refs.storefrontProvisionedAt,
       latest_deployment: null,
       error: `Could not fetch Vercel status: ${e.message}`,
     })

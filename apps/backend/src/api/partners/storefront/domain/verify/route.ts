@@ -8,6 +8,7 @@ import { DEPLOYMENT_MODULE } from "../../../../../modules/deployment"
 import type DeploymentService from "../../../../../modules/deployment/service"
 import type { VercelDomainConfig } from "../../../../../modules/deployment/service"
 import updatePartnerWorkflow from "../../../../../workflows/partners/update-partner"
+import { getStorefrontRefs } from "../../helpers"
 
 function isApexDomain(domain: string): boolean {
   return domain.split(".").length === 2
@@ -43,7 +44,7 @@ export const POST = async (
     )
   }
 
-  const vercelProjectId = partner.metadata?.vercel_project_id
+  const vercelProjectId = getStorefrontRefs(partner).vercelProjectId
   const customDomain = partner.metadata?.custom_domain as string | undefined
 
   if (!vercelProjectId || !customDomain) {

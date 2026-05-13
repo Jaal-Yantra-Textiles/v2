@@ -5,6 +5,40 @@ import { WEBSITE_MODULE } from "../../../modules/website"
 import WebsiteService from "../../../modules/website/service"
 
 /**
+ * Storefront identifiers live on dedicated partner columns now
+ * (vercel_project_id, vercel_project_name, storefront_domain,
+ * vercel_last_deployment_id). Older records still hold them in
+ * partner.metadata. Always read via this helper so the fallback is
+ * consistent across every route and we can't accidentally miss a
+ * provisioned partner because the read side only checked metadata.
+ */
+export type StorefrontRefs = {
+  vercelProjectId: string | null
+  vercelProjectName: string | null
+  storefrontDomain: string | null
+  vercelLastDeploymentId: string | null
+  storefrontProvisionedAt: string | null
+}
+
+export const getStorefrontRefs = (partner: any): StorefrontRefs => ({
+  vercelProjectId:
+    partner?.vercel_project_id ?? partner?.metadata?.vercel_project_id ?? null,
+  vercelProjectName:
+    partner?.vercel_project_name ??
+    partner?.metadata?.vercel_project_name ??
+    null,
+  storefrontDomain:
+    partner?.storefront_domain ?? partner?.metadata?.storefront_domain ?? null,
+  vercelLastDeploymentId:
+    partner?.vercel_last_deployment_id ??
+    partner?.metadata?.vercel_last_deployment_id ??
+    null,
+  // No column for this one — stays metadata-only.
+  storefrontProvisionedAt:
+    partner?.metadata?.storefront_provisioned_at ?? null,
+})
+
+/**
  * Gets the partner's website.
  * Uses table columns first (website_id, storefront_domain), falls back to metadata.
  */
