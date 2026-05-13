@@ -53,30 +53,40 @@
 }
 
 /* ── Tab buttons ──────────────────────────────────────────────────── */
+/*
+ * Tabs read as outlined pills sitting on the tab bar — visible borders
+ * make it obvious how many tabs are open and where each one ends. The
+ * selected tab uses --ui-border-interactive so it pops without needing
+ * the underline indicator.
+ */
 .flexlayout__tab_button {
   font-size: 12px;
   font-weight: 500;
-  height: 100%;
+  height: 26px;
+  margin: 4px 4px 4px 0;
   padding: 0 10px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 0;
-  background: transparent;
+  background-color: var(--ui-bg-base);
   color: var(--ui-fg-subtle);
+  border: 1px solid var(--ui-border-base);
+  border-radius: 6px;
   cursor: pointer;
   user-select: none;
 }
 
 .flexlayout__tab_button--unselected:hover {
   background-color: var(--ui-bg-base-hover);
+  border-color: var(--ui-border-strong);
   color: var(--ui-fg-base);
 }
 
 .flexlayout__tab_button--selected {
   background-color: var(--ui-bg-base);
   color: var(--ui-fg-base);
-  box-shadow: inset 0 -2px 0 0 var(--ui-fg-interactive);
+  border-color: var(--ui-border-interactive);
+  box-shadow: 0 0 0 1px var(--ui-border-interactive);
 }
 
 .flexlayout__tab_button_content {
