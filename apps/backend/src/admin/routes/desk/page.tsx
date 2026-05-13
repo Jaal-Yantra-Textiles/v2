@@ -27,6 +27,7 @@ import {
   EntityPickerDropdown,
   type EntityKey,
 } from "./EntityPicker"
+import { useDeskWorkspace } from "./use-desk-workspace"
 import "flexlayout-react/style/light.css"
 import "./desk.css"
 
@@ -143,7 +144,9 @@ const firstTabsetId = (model: Model): string | undefined => {
 }
 
 const Desk = () => {
-  const [model] = useState<Model>(() => Model.fromJson(loadPersistedLayout()))
+  const [model, setModel] = useState<Model>(() =>
+    Model.fromJson(loadPersistedLayout())
+  )
   const [hasTabs, setHasTabs] = useState(() => modelHasAnyTab(model))
   const counterRef = useRef<Record<EntityKey, number>>({
     designs: 0,
@@ -158,6 +161,40 @@ const Desk = () => {
    * so the inner MemoryRouter starts on the right route.
    */
   const persistedPathsRef = useRef<Record<string, string>>(loadPersistedPaths())
+
+  const {
+    workspace: serverWorkspace,
+    isReady: serverReady,
+    save: saveToServer,
+  } = useDeskWorkspace()
+  /**
+   * Server reconcile: the first GET response replaces the local model
+   * ONLY if the local model is empty (no tabs). This handles the
+   * cross-browser case — a new browser starts empty and adopts the
+   * server snapshot — without ever wiping a session the user is
+   * already working in.
+   */
+  const hasReconciledRef = useRef(false)
+  useEffect(() => {
+    if (!serverReady || hasReconciledRef.current) return
+    hasReconciledRef.current = true
+    if (!serverWorkspace?.layout) return
+    if (modelHasAnyTab(model)) return // user is already working — don't clobber
+
+    try {
+      const incoming = Model.fromJson(serverWorkspace.layout as IJsonModel)
+      persistedPathsRef.current = {
+        ...persistedPathsRef.current,
+        ...(serverWorkspace.tab_paths || {}),
+      }
+      setModel(incoming)
+      setHasTabs(modelHasAnyTab(incoming))
+      persistLayout(incoming)
+      persistPaths(serverWorkspace.tab_paths || {})
+    } catch {
+      // malformed server blob — keep local
+    }
+  }, [serverReady, serverWorkspace, model])
 
   const factory = useCallback((node: TabNode) => {
     const c = node.getComponent() as EntityKey
@@ -222,24 +259,33 @@ const Desk = () => {
 
   /**
    * On every model action: update hasTabs (derived state), mirror the
-   * selected tab to the active-tab-store so the breadcrumb sees it, and
-   * persist the layout to localStorage.
+   * selected tab to the active-tab-store so the breadcrumb sees it,
+   * persist to localStorage instantly, and queue a debounced PUT to the
+   * server so the layout follows the user across browsers.
    */
-  const onModelChange = useCallback((m: Model, _action: Action) => {
-    setHasTabs(modelHasAnyTab(m))
-    const tabset = m.getActiveTabset()
-    setFocusedTab(tabset?.getSelectedNode()?.getId() ?? null)
-    persistLayout(m)
-  }, [])
+  const onModelChange = useCallback(
+    (m: Model, _action: Action) => {
+      setHasTabs(modelHasAnyTab(m))
+      const tabset = m.getActiveTabset()
+      setFocusedTab(tabset?.getSelectedNode()?.getId() ?? null)
+      persistLayout(m)
+      saveToServer({
+        layout: m.toJson(),
+        tab_paths: getTabPathnames(),
+      })
+    },
+    [saveToServer]
+  )
 
-  // Mirror tab path changes into localStorage so reloads resume on the
-  // exact route inside each tab.
+  // Mirror tab path changes into localStorage AND queue a server save.
   useEffect(() => {
     const unsub = subscribeTabStore(() => {
-      persistPaths(getTabPathnames())
+      const paths = getTabPathnames()
+      persistPaths(paths)
+      saveToServer({ layout: model.toJson(), tab_paths: paths })
     })
     return unsub
-  }, [])
+  }, [model, saveToServer])
 
   // After hydration, point the breadcrumb at whatever tab is selected.
   useEffect(() => {
