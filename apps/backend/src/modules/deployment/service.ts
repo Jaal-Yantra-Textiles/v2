@@ -65,6 +65,16 @@ export type EnsureCnameResult = {
   reason?: string
 }
 
+export type ApplyRecommendedDnsResult = {
+  action: "created" | "updated" | "exists" | "skipped" | "failed"
+  type?: "CNAME" | "A"
+  name?: string
+  content?: string
+  record?: CloudflareDnsRecord
+  reason?: string
+  error?: string
+}
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 const VERCEL_API_BASE = "https://api.vercel.com"
@@ -525,6 +535,89 @@ class DeploymentService {
     })
     this.log("info", `CNAME created successfully`, { id: created.id, name: created.name })
     return { action: "created", record: created }
+  }
+
+  /**
+   * Apply whatever DNS Vercel currently recommends for `domain` into
+   * Cloudflare. Subdomains get a CNAME to recommendedCNAME[0].value (e.g.
+   * `dc034fcb6b63fdce.vercel-dns-017.com` for newer per-project routing);
+   * apex domains get an A record to recommendedIPv4[0].value[0]. Falls
+   * back to the generic cname.vercel-dns.com / 76.76.21.21 if Vercel
+   * returned no recommendation.
+   *
+   * Used in two places that previously had to be kept in sync manually:
+   *   - initial provision (replaces hardcoded ensureVercelCname)
+   *   - the verify/refresh endpoint (which used to only *return* the
+   *     recommended records, leaving DNS apply to the operator)
+   */
+  async applyRecommendedDns(
+    domain: string
+  ): Promise<ApplyRecommendedDnsResult> {
+    if (!this.isCloudflareConfigured()) {
+      return { action: "skipped", reason: "Cloudflare not configured" }
+    }
+
+    let config: VercelDomainConfig | null = null
+    try {
+      config = await this.getDomainConfig(domain)
+    } catch (e: any) {
+      // Non-fatal — we'll still apply a sensible fallback so the storefront
+      // resolves while the operator investigates the Vercel-side error.
+      this.log(
+        "warn",
+        `applyRecommendedDns: getDomainConfig failed for ${domain}, using fallback target`,
+        { error: e.message }
+      )
+    }
+
+    const isApex = domain.split(".").length === 2
+    const recommendedCNAME = config?.recommendedCNAME?.[0]?.value
+    const recommendedIPv4 = config?.recommendedIPv4?.[0]?.value?.[0]
+
+    const type: "CNAME" | "A" = isApex ? "A" : "CNAME"
+    const content = isApex
+      ? recommendedIPv4 || "76.76.21.21"
+      : recommendedCNAME || "cname.vercel-dns.com"
+
+    try {
+      const existing = await this.listDnsRecords({ name: domain, type })
+
+      if (existing.length > 0) {
+        const record = existing[0]
+        if (record.content === content) {
+          this.log("info", `applyRecommendedDns: ${type} already current for ${domain}`)
+          return { action: "exists", type, name: domain, content, record }
+        }
+        const updated = await this.updateDnsRecord(record.id, {
+          name: domain,
+          content,
+          type,
+          proxied: false,
+        })
+        this.log(
+          "info",
+          `applyRecommendedDns: updated ${type} for ${domain} → ${content}`
+        )
+        return { action: "updated", type, name: domain, content, record: updated }
+      }
+
+      const created = await this.createDnsRecord({
+        name: domain,
+        content,
+        type,
+        proxied: false,
+      })
+      this.log(
+        "info",
+        `applyRecommendedDns: created ${type} for ${domain} → ${content}`
+      )
+      return { action: "created", type, name: domain, content, record: created }
+    } catch (e: any) {
+      this.log("error", `applyRecommendedDns failed for ${domain}`, {
+        error: e.message,
+      })
+      return { action: "failed", type, name: domain, content, error: e.message }
+    }
   }
 
   /**

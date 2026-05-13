@@ -30,7 +30,19 @@ function buildDnsRecords(
 
 /**
  * POST /partners/storefront/domain/verify
- * Trigger domain ownership verification on Vercel.
+ *
+ * Re-checks Vercel domain ownership AND — when the domain lives inside
+ * the Cloudflare zone we control — pushes whatever DNS Vercel currently
+ * recommends so the domain self-heals without operator intervention.
+ *
+ * Apply-step behaviour:
+ *   - Always attempts applyRecommendedDns(domain). The deployment service
+ *     skips/fails gracefully when CF isn't configured or the domain isn't
+ *     in our zone, so partner-owned domains (shop.example.com) fall
+ *     through to the existing "return instructions" path unharmed.
+ *   - Re-verifies with Vercel after applying so the response reflects the
+ *     post-apply state (DNS propagation can still cause this to remain
+ *     false for a few minutes).
  */
 export const POST = async (
   req: AuthenticatedMedusaRequest,
@@ -55,6 +67,13 @@ export const POST = async (
   }
 
   const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
+
+  // Apply Vercel's recommended DNS via Cloudflare. No-op for domains
+  // outside our zone — they'll get the instructions in dns_records below.
+  const applied = await deployment.applyRecommendedDns(customDomain)
+
+  // Verify after applying so a successful CF write can flip verified=true
+  // in the same call (subject to Vercel's propagation window).
   const result = await deployment.verifyDomain(vercelProjectId, customDomain)
 
   if (result.verified) {
@@ -84,6 +103,7 @@ export const POST = async (
     verification: result.verification || null,
     misconfigured: config?.misconfigured ?? true,
     configured_by: config?.configuredBy ?? null,
+    applied,
     dns_records: buildDnsRecords(customDomain, config),
   })
 }

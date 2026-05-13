@@ -141,13 +141,17 @@ const addVercelDomainStep = createStep(
   }
 )
 
-// Step 4a: Create Cloudflare CNAME record pointing to Vercel
+// Step 4a: Create Cloudflare DNS record using Vercel's recommended target
+// for this specific project. The recommendation is fetched at runtime so
+// per-project CNAMEs (e.g. dc034fcb6b63fdce.vercel-dns-017.com) are applied
+// directly rather than the generic cname.vercel-dns.com fallback.
 const createCloudflareCnameStep = createStep(
   "create-cloudflare-cname",
   async (input: { subdomain: string; rootDomain: string }, { container }) => {
     const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
+    const fullDomain = `${input.subdomain}.${input.rootDomain}`
     try {
-      const result = await deployment.ensureVercelCname(input.subdomain, input.rootDomain)
+      const result = await deployment.applyRecommendedDns(fullDomain)
       console.log("[provision-storefront] Cloudflare DNS result:", JSON.stringify(result))
       return new StepResponse(result as any)
     } catch (e: any) {
