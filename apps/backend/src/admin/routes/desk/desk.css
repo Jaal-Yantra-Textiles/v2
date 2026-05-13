@@ -60,11 +60,16 @@
  * the underline indicator.
  */
 /*
- * Match the @medusajs/ui Tabs.Trigger visual: rounded-full pill,
- * transparent default, white bg + soft shadow-elevation-card-rest on
- * the active tab. Source classes were:
- *   txt-compact-small-plus text-ui-fg-subtle rounded-full
- *   border border-transparent bg-transparent px-2.5 py-1
+ * Tabs styled after @medusajs/ui Tabs.Trigger, but with a small
+ * border-radius (not full pill) per user preference, and using
+ * `var(--elevation-card-rest)` for the active tab shadow — that token
+ * is defined by the Medusa UI preset for both light AND dark themes
+ * (dark mode adds a 1px ring of zinc-800 so the active pill is
+ * clearly visible even when the surface is dark).
+ *
+ * Source classes mimicked:
+ *   txt-compact-small-plus text-ui-fg-subtle
+ *   border border-transparent bg-transparent
  *   hover:text-ui-fg-base
  *   data-[state=active]:text-ui-fg-base data-[state=active]:bg-ui-bg-base
  *   data-[state=active]:shadow-elevation-card-rest
@@ -81,7 +86,7 @@
   background-color: transparent;
   color: var(--ui-fg-subtle);
   border: 1px solid transparent;
-  border-radius: 9999px;
+  border-radius: 6px;
   cursor: pointer;
   user-select: none;
   transition:
@@ -92,15 +97,13 @@
 
 .flexlayout__tab_button--unselected:hover {
   color: var(--ui-fg-base);
+  background-color: var(--ui-bg-base-hover);
 }
 
 .flexlayout__tab_button--selected {
   background-color: var(--ui-bg-base);
   color: var(--ui-fg-base);
-  /* shadow-elevation-card-rest equivalent — subtle 1px border + lift. */
-  box-shadow:
-    0 0 0 1px rgba(15, 23, 42, 0.08),
-    0 1px 2px rgba(15, 23, 42, 0.06);
+  box-shadow: var(--elevation-card-rest);
 }
 
 .flexlayout__tab_button_content {
