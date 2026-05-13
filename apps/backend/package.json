@@ -124,6 +124,7 @@
     "esbuild-wasm": "^0.27.1",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
+    "flexlayout-react": "^0.9.1",
     "framer-motion": "^12.4.3",
     "fzf": "0.5.2",
     "geoip-lite": "^1.4.10",

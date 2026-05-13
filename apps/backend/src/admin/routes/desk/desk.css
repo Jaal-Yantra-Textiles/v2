@@ -1,0 +1,261 @@
+/*
+ * FlexLayout theme overrides for the Desk workspace.
+ *
+ * Imported AFTER `flexlayout-react/style/light.css` so these rules win
+ * the cascade. We map FlexLayout's surface colors / borders / typography
+ * onto Medusa's --ui-* design tokens so the workspace feels native to
+ * the admin (rather than the FlexLayout default which clashes with
+ * Medusa's container styles).
+ */
+
+/* ── Root + content surfaces ──────────────────────────────────────── */
+.flexlayout__layout {
+  --color-text: var(--ui-fg-base);
+  --color-background: var(--ui-bg-base);
+  --color-base: var(--ui-bg-base);
+  --color-1: var(--ui-bg-base);
+  --color-2: var(--ui-bg-subtle);
+  --color-3: var(--ui-bg-component);
+  --color-4: var(--ui-bg-component-hover);
+  --color-6: var(--ui-bg-base);
+  --color-drag1: var(--ui-fg-interactive);
+  --color-drag2: var(--ui-fg-interactive);
+  --color-drag1-background: var(--ui-bg-component-hover);
+  --color-drag2-background: var(--ui-bg-component-hover);
+
+  font-family: inherit;
+  color: var(--ui-fg-base);
+  background-color: var(--ui-bg-base);
+}
+
+.flexlayout__tab {
+  background-color: var(--ui-bg-base);
+  color: var(--ui-fg-base);
+  overflow: auto;
+}
+
+/* Outline every docked pane so the split structure is obvious. */
+.flexlayout__tabset {
+  border: 1px solid var(--ui-border-strong);
+  background-color: var(--ui-bg-base);
+}
+
+/* ── Tab bar ──────────────────────────────────────────────────────── */
+.flexlayout__tabset_tabbar_outer {
+  background-color: var(--ui-bg-subtle);
+  border-bottom: 1px solid var(--ui-border-base);
+  min-height: 36px;
+  height: 36px;
+}
+
+.flexlayout__tabset_tabbar_inner {
+  padding-left: 8px;
+}
+
+/* ── Tab buttons ──────────────────────────────────────────────────── */
+/*
+ * Tabs read as outlined pills sitting on the tab bar — visible borders
+ * make it obvious how many tabs are open and where each one ends. The
+ * selected tab uses --ui-border-interactive so it pops without needing
+ * the underline indicator.
+ */
+/*
+ * Tabs styled after @medusajs/ui Tabs.Trigger, but with a small
+ * border-radius (not full pill) per user preference, and using
+ * `var(--elevation-card-rest)` for the active tab shadow — that token
+ * is defined by the Medusa UI preset for both light AND dark themes
+ * (dark mode adds a 1px ring of zinc-800 so the active pill is
+ * clearly visible even when the surface is dark).
+ *
+ * Source classes mimicked:
+ *   txt-compact-small-plus text-ui-fg-subtle
+ *   border border-transparent bg-transparent
+ *   hover:text-ui-fg-base
+ *   data-[state=active]:text-ui-fg-base data-[state=active]:bg-ui-bg-base
+ *   data-[state=active]:shadow-elevation-card-rest
+ */
+/*
+ * Every tab is a squared, bordered cell on the bg-subtle strip and
+ * they sit immediately next to each other (negative right margin so
+ * adjacent borders overlap to a single 1px line — the "connected
+ * cells" look from the reference screenshot). The active tab keeps
+ * the same outline but bumps to --ui-border-strong + the dark-mode-
+ * aware elevation token so it reads as the current tab without
+ * breaking the connected row.
+ */
+.flexlayout__tab_button {
+  font-size: 12px;
+  font-weight: 600;
+  height: 28px;
+  margin: 4px 0 4px 0;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--ui-bg-base);
+  color: var(--ui-fg-subtle);
+  border: 1px solid var(--ui-border-base);
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+/* Adjacent tabs share their border edge — no gap, no double-border. */
+.flexlayout__tab_button + .flexlayout__tab_button {
+  margin-left: -1px;
+}
+
+.flexlayout__tab_button--unselected:hover {
+  color: var(--ui-fg-base);
+  background-color: var(--ui-bg-base-hover);
+  border-color: var(--ui-border-strong);
+  /* Lift above neighbouring tabs so the hover ring isn't clipped by the
+     overlapping border of the next tab. */
+  position: relative;
+  z-index: 1;
+}
+
+.flexlayout__tab_button--selected {
+  background-color: var(--ui-bg-base);
+  color: var(--ui-fg-base);
+  border-color: var(--ui-border-strong);
+  box-shadow: var(--elevation-card-rest);
+  position: relative;
+  z-index: 2;
+}
+
+.flexlayout__tab_button_content {
+  white-space: nowrap;
+}
+
+/*
+ * Inline rename input — flexlayout-react swaps the tab label for a
+ * textbox on double-click. Style it like a Medusa Input so the
+ * rename interaction feels native to the admin.
+ */
+.flexlayout__tab_button_textbox {
+  font: inherit;
+  height: 22px;
+  min-width: 80px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--ui-border-base);
+  background-color: var(--ui-bg-field);
+  color: var(--ui-fg-base);
+  outline: none;
+}
+
+.flexlayout__tab_button_textbox:focus {
+  border-color: var(--ui-border-interactive);
+  box-shadow: 0 0 0 2px rgb(from var(--ui-border-interactive) r g b / 0.2);
+}
+
+/* close (×) button on each tab */
+.flexlayout__tab_button_trailing {
+  width: 14px;
+  height: 14px;
+  margin-left: 2px;
+  border-radius: 4px;
+  color: var(--ui-fg-muted);
+  opacity: 0.7;
+}
+
+.flexlayout__tab_button_trailing:hover {
+  background-color: var(--ui-bg-base-pressed);
+  color: var(--ui-fg-base);
+  opacity: 1;
+}
+
+/* ── Toolbar / sticky buttons (the "+" picker lives here) ─────────── */
+.flexlayout__tab_toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+  background-color: transparent;
+}
+
+.flexlayout__tab_toolbar_button {
+  background: transparent;
+  border: 0;
+  color: var(--ui-fg-muted);
+  border-radius: 4px;
+  padding: 2px;
+  cursor: pointer;
+}
+
+.flexlayout__tab_toolbar_button:hover {
+  background-color: var(--ui-bg-base-hover);
+  color: var(--ui-fg-base);
+}
+
+/* ── Splitters between panes ──────────────────────────────────────── */
+/*
+ * Default FlexLayout splitter is ~6px wide and reads as a near-invisible
+ * line in light themes. Bump to --ui-border-strong with a small hairline
+ * on either side so the divide between panes is obvious without being
+ * loud, and use --ui-fg-interactive on hover/drag so the active resize
+ * handle reads at a glance.
+ */
+.flexlayout__splitter {
+  background-color: var(--ui-border-strong);
+  background-clip: padding-box;
+  border-left: 1px solid var(--ui-border-base);
+  border-right: 1px solid var(--ui-border-base);
+}
+
+.flexlayout__splitter_horz {
+  border-left: 0;
+  border-right: 0;
+  border-top: 1px solid var(--ui-border-base);
+  border-bottom: 1px solid var(--ui-border-base);
+}
+
+.flexlayout__splitter:hover,
+.flexlayout__splitter_drag {
+  background-color: var(--ui-fg-interactive);
+}
+
+/* ── Drag-and-drop overlay rectangles ─────────────────────────────── */
+.flexlayout__outline_rect {
+  border: 2px solid var(--ui-fg-interactive);
+  background-color: rgb(from var(--ui-fg-interactive) r g b / 0.08);
+  border-radius: 6px;
+}
+
+.flexlayout__outline_rect_edge {
+  border: 2px dashed var(--ui-fg-interactive);
+  border-radius: 6px;
+}
+
+/* ── Overflow menu (when tabs don't fit) ──────────────────────────── */
+.flexlayout__popup_menu_container {
+  background-color: var(--ui-bg-component);
+  border: 1px solid var(--ui-border-base);
+  border-radius: 6px;
+  box-shadow: var(--shadow-elevation-flyout, 0 4px 12px rgba(0, 0, 0, 0.08));
+  font-size: 12px;
+  color: var(--ui-fg-base);
+}
+
+.flexlayout__popup_menu_item:hover {
+  background-color: var(--ui-bg-base-hover);
+}
+
+/* ── Empty-tabset placeholder text ────────────────────────────────── */
+.flexlayout__tabset-empty {
+  background-color: var(--ui-bg-base);
+}
+
+/* ── Border (sidebars docked to layout edges, if used later) ──────── */
+.flexlayout__border {
+  background-color: var(--ui-bg-subtle);
+  border-color: var(--ui-border-base);
+  color: var(--ui-fg-subtle);
+  font-size: 12px;
+}
