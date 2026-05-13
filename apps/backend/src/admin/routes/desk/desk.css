@@ -59,41 +59,48 @@
  * selected tab uses --ui-border-interactive so it pops without needing
  * the underline indicator.
  */
+/*
+ * Match the @medusajs/ui Tabs.Trigger visual: rounded-full pill,
+ * transparent default, white bg + soft shadow-elevation-card-rest on
+ * the active tab. Source classes were:
+ *   txt-compact-small-plus text-ui-fg-subtle rounded-full
+ *   border border-transparent bg-transparent px-2.5 py-1
+ *   hover:text-ui-fg-base
+ *   data-[state=active]:text-ui-fg-base data-[state=active]:bg-ui-bg-base
+ *   data-[state=active]:shadow-elevation-card-rest
+ */
 .flexlayout__tab_button {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   height: 26px;
-  margin: 4px 4px 4px 0;
+  margin: 5px 4px 5px 0;
   padding: 0 10px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background-color: var(--ui-bg-base) !important;
+  background-color: transparent;
   color: var(--ui-fg-subtle);
-  /* Outline (not border) so the override survives any later flexlayout
-     CSS that unsets border-style. !important is intentional here — the
-     default theme has no border, so any later rule on `border` shorthand
-     would kill ours. */
-  outline: 1px solid var(--ui-border-strong) !important;
-  outline-offset: -1px;
-  border-radius: 6px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  border: 1px solid transparent;
+  border-radius: 9999px;
   cursor: pointer;
   user-select: none;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .flexlayout__tab_button--unselected:hover {
-  background-color: var(--ui-bg-base-hover) !important;
-  outline-color: var(--ui-fg-muted) !important;
   color: var(--ui-fg-base);
 }
 
 .flexlayout__tab_button--selected {
-  background-color: var(--ui-bg-base) !important;
+  background-color: var(--ui-bg-base);
   color: var(--ui-fg-base);
-  outline: 2px solid var(--ui-fg-interactive) !important;
-  outline-offset: -2px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  /* shadow-elevation-card-rest equivalent — subtle 1px border + lift. */
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.08),
+    0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 .flexlayout__tab_button_content {
