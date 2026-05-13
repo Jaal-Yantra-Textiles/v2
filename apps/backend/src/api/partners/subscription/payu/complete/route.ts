@@ -34,13 +34,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const service: PartnerPlanService = req.scope.resolve(PARTNER_PLAN_MODULE)
 
-  // Verify PayU reverse hash
-  const reverseHashString = `${payuSalt}|${status}|||||${udf5}|${udf4}|${partnerId}|${planId}|${paymentId}|${email}|${firstname}|${productinfo}|${amount}|${txnid}|${payuKey}`
+  // PayU reverse hash:
+  //   SALT|status|udf10|udf9|udf8|udf7|udf6|udf5|udf4|udf3|udf2|udf1|email|firstname|productinfo|amount|txnid|key
+  // udf6..udf10 are empty in our flow → 6 pipes (5 empty fields) between status and udf5.
+  const reverseHashString = `${payuSalt}|${status}||||||${udf5}|${udf4}|${partnerId}|${planId}|${paymentId}|${email}|${firstname}|${productinfo}|${amount}|${txnid}|${payuKey}`
   const expectedHash = crypto.createHash("sha512").update(reverseHashString).digest("hex")
 
-  if (status.toLowerCase() === "success") {
-    const isValidHash = receivedHash === expectedHash
+  const isValidHash = !!receivedHash && receivedHash === expectedHash
+  const isSuccess = status.toLowerCase() === "success"
 
+  if (isSuccess && isValidHash) {
     try {
       // Update payment record
       if (paymentId) {
@@ -51,7 +54,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           paid_at: new Date(),
           provider_data: {
             ...body,
-            hash_verified: isValidHash,
+            hash_verified: true,
           },
         })
       }
@@ -82,19 +85,32 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
-  // Payment failed
+  // Anything that isn't (success + valid hash) is a failure path.
+  // A "success" status with a hash mismatch is treated as failure: never
+  // activate a subscription without verified payment confirmation.
   try {
     if (paymentId) {
+      const failure_reason = isSuccess && !isValidHash
+        ? "PayU hash verification failed"
+        : (body.error_Message || body.unmappedstatus || status || "Payment failed")
       await service.updateSubscriptionPayments({
         id: paymentId,
         status: SubscriptionPaymentStatus.FAILED,
         failed_at: new Date(),
-        failure_reason: body.error_Message || body.unmappedstatus || status || "Payment failed",
-        provider_data: body,
+        failure_reason,
+        provider_data: { ...body, hash_verified: isValidHash },
       })
     }
   } catch (e) {
     console.error("[PayU Subscription] Error recording failure:", e)
+  }
+
+  if (isSuccess && !isValidHash) {
+    console.warn(`[PayU Subscription] Hash mismatch: txnid=${txnid}`)
+    return res.redirect(
+      302,
+      `${partnerUiUrl}/settings/plan?payment=error&message=${encodeURIComponent("Hash verification failed")}`
+    )
   }
 
   return res.redirect(302, `${partnerUiUrl}/settings/plan?payment=failed`)
