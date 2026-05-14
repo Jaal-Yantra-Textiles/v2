@@ -83,7 +83,7 @@
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.205.0",
     "@opentelemetry/instrumentation-pg": "^0.58.0",
     "@opentelemetry/resources": "^2.1.0",
-    "@opentelemetry/sdk-node": "^0.205.0",
+    "@opentelemetry/sdk-node": "^0.217.0",
     "@opentelemetry/sdk-trace-node": "^2.1.0",
     "@sentry/node": "^10.27.0",
     "@sentry/opentelemetry": "^10.40.0",
