@@ -142,12 +142,12 @@ async function getProducts(req: MedusaRequest, res: MedusaResponse) {
       products.map((p: any) => p.variants).flat(1)
     )
   }
-  await wrapProductsWithTaxPrices(req as any, products)
+  await wrapProductsWithTaxPrices(req as any, products as any)
 
   res.json({
     products,
-    count: metadata.count,
-    offset: metadata.skip,
-    limit: metadata.take,
+    count: metadata?.count ?? 0,
+    offset: metadata?.skip ?? 0,
+    limit: metadata?.take ?? queryConfig.pagination?.take ?? 50,
   })
 }
