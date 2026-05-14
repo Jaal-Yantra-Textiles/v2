@@ -24,6 +24,7 @@ import {
 import { Skeleton } from "../../../components/common/skeleton"
 import { ImageUploadField } from "../../../components/common/image-upload-field"
 import { useStorefrontStatus } from "../../../hooks/api/storefront"
+import { useProducts } from "../../../hooks/api/products"
 
 const SOCIAL_PLATFORMS = [
   "Facebook",
@@ -192,10 +193,11 @@ const HOMEPAGE_SECTIONS = new Set<ThemeSection>([
   "home_sections",
 ])
 
-// Sections that only edit properties (no iframe navigation needed)
+// Sections that only edit properties (no iframe navigation needed).
+// product_page and cart used to be here but now drive iframe navigation —
+// they fall back to InlinePreview only when no real URL can be resolved
+// (e.g. no products exist yet for product_page).
 const PANEL_ONLY_SECTIONS = new Set<ThemeSection>([
-  "product_page",
-  "cart",
   "typography",
   "buttons",
   "animations",
@@ -206,6 +208,13 @@ const ThemeEditorInner = () => {
   const { mutateAsync: updateTheme, isPending: isSaving } =
     useUpdateWebsiteTheme()
   const { data: storefrontStatus } = useStorefrontStatus()
+
+  // Sample product for the product_page panel preview. Lazy enough that
+  // editors without products still load — we fall back to InlinePreview
+  // for product_page when no handle is available.
+  const { products } = useProducts(undefined)
+  const sampleProductHandle =
+    (products?.[0] as { handle?: string } | undefined)?.handle
 
   const [form, setForm] = useState<WebsiteTheme>({})
   const formRef = useRef<WebsiteTheme>({})
@@ -379,6 +388,31 @@ const ThemeEditorInner = () => {
       // Panel-only sections — no iframe navigation
       if (PANEL_ONLY_SECTIONS.has(section)) return
 
+      // Product page: navigate to a sample product detail page. If no
+      // product exists yet, fall back to / and let the InlinePreview
+      // overlay render via the empty-product branch.
+      if (section === "product_page") {
+        const target = sampleProductHandle ? `/products/${sampleProductHandle}` : "/"
+        if (iframePath !== target) {
+          setIframePath(target)
+          setIframeReady(false)
+          iframeReadyRef.current = false
+        }
+        return
+      }
+
+      // Cart panel: navigate to /cart. Empty-state UI is fine for
+      // previewing the cart panel's empty fields; populated state would
+      // require an existing cart on the partner.
+      if (section === "cart") {
+        if (iframePath !== "/cart") {
+          setIframePath("/cart")
+          setIframeReady(false)
+          iframeReadyRef.current = false
+        }
+        return
+      }
+
       // Homepage sections: navigate to / if not there, then scroll
       if (HOMEPAGE_SECTIONS.has(section)) {
         if (iframePath !== "/") {
@@ -399,7 +433,7 @@ const ThemeEditorInner = () => {
         }
       }
     },
-    [iframePath, iframeReady]
+    [iframePath, iframeReady, sampleProductHandle]
   )
 
   if (isPending) {
@@ -530,8 +564,11 @@ const ThemeEditorInner = () => {
               sandbox="allow-scripts allow-same-origin allow-forms"
             />
           </div>
-          {/* Inline preview for panel-only sections (product, cart, typography, buttons) */}
-          {PANEL_ONLY_SECTIONS.has(activeSection) && (
+          {/* Inline preview for panel-only sections (typography, buttons,
+              animations), plus product_page when the partner has no products
+              yet so the iframe can't navigate to a real detail page. */}
+          {(PANEL_ONLY_SECTIONS.has(activeSection) ||
+            (activeSection === "product_page" && !sampleProductHandle)) && (
             <div className="absolute inset-3 rounded-lg bg-white shadow-elevation-card-rest overflow-y-auto z-10">
               <InlinePreview section={activeSection} form={form} />
             </div>
