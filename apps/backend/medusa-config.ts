@@ -99,6 +99,7 @@ module.exports = defineConfig({
     },
     {
       resolve: "./src/modules/deployment",
+      definition: { isQueryable: false },
     },
     {
       resolve: "./src/modules/custom-s3-provider",
@@ -108,6 +109,7 @@ module.exports = defineConfig({
     },
     {
       resolve: "./src/modules/social-provider",
+      definition: { isQueryable: false },
     },
     {
       resolve: "./src/modules/partner-payment-config",
@@ -343,12 +345,14 @@ module.exports = defineConfig({
   },
   {
     resolve: "./src/modules/external_stores",
+    definition: { isQueryable: false },
   },
   {
     resolve: "./src/modules/google_merchant",
   },
   {
     resolve: "./src/modules/encryption",
+    definition: { isQueryable: false },
   },
   {
     resolve: "./src/modules/visual_flows",

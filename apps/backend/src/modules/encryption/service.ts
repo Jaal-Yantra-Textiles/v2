@@ -1,5 +1,5 @@
 import crypto from "crypto"
-import { MedusaError } from "@medusajs/utils"
+import { MedusaError, MedusaService } from "@medusajs/framework/utils"
 
 /**
  * Encrypted data structure returned by encryption operations
@@ -24,12 +24,13 @@ export interface EncryptedData {
  * const decrypted = encryptionService.decrypt(encrypted)
  * ```
  */
-class EncryptionService {
+class EncryptionService extends MedusaService({}) {
   private readonly algorithm = "aes-256-gcm"
   private readonly keyVersion: number
   private readonly encryptionKey: Buffer
 
   constructor() {
+    super(...arguments)
     // Get encryption key from environment
     const keyString = process.env.ENCRYPTION_KEY || process.env.ENCRYPTION_KEY_V1
     

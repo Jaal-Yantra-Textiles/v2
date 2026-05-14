@@ -168,6 +168,53 @@ setupSharedTestSuite(({ api, getContainer }) => {
       expect(byHandleRes.data.products[0].variants.length).toBeGreaterThan(0)
     })
 
+    // Regression: upstream Medusa's /store/products bypass for category/tag
+    // filters checks `filterableFields.category_id` after the validator has
+    // already renamed it to `categories.id`, so the request hits the index
+    // engine which doesn't index product.categories -> 500.
+    // We override the route locally (apps/backend/src/api/store/products/route.ts)
+    // to check both names.
+    test("GET /store/products?category_id filters by product category without 500", async () => {
+      const { adminHeaders, salesChannelId, publishableKey } = await fullSetup(api, getContainer)
+
+      const catRes = await api.post(
+        "/admin/product-categories",
+        { name: "SF Test Category", handle: "sf-test-category", is_active: true, is_internal: false },
+        adminHeaders
+      )
+      expect(catRes.status).toBe(200)
+      const categoryId = catRes.data.product_category.id
+
+      const prodRes = await api.post(
+        "/admin/products",
+        {
+          title: "SF Category Product",
+          handle: "sf-category-product",
+          status: "published",
+          sales_channels: [{ id: salesChannelId }],
+          categories: [{ id: categoryId }],
+          options: [{ title: "Size", values: ["S"] }],
+          variants: [{
+            title: "Small",
+            options: { Size: "S" },
+            prices: [{ amount: 2999, currency_code: "usd" }],
+            manage_inventory: false,
+          }],
+        },
+        adminHeaders
+      )
+      expect(prodRes.status).toBe(200)
+      const productId = prodRes.data.product.id
+
+      const listRes = await api.get("/store/products", {
+        headers: { "x-publishable-api-key": publishableKey },
+        params: { "category_id[]": categoryId },
+      })
+      expect(listRes.status).toBe(200)
+      const product = listRes.data.products.find((p: any) => p.id === productId)
+      expect(product).toBeTruthy()
+    })
+
     test("GET /web/storefront/:subdomain resolves partner correctly", async () => {
       const { partner, storeId, salesChannelId, publishableKey } = await fullSetup(api, getContainer)
 

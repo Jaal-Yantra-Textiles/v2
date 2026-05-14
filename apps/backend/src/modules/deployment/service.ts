@@ -5,6 +5,8 @@
  * Usage: container.resolve("deployment") as DeploymentService
  */
 
+import { MedusaService } from "@medusajs/framework/utils";
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type VercelProject = {
@@ -80,7 +82,7 @@ export type ApplyRecommendedDnsResult = {
 const VERCEL_API_BASE = "https://api.vercel.com"
 const CLOUDFLARE_API_BASE = "https://api.cloudflare.com/client/v4"
 
-class DeploymentService {
+class DeploymentService extends MedusaService({}) {
   private log(level: "info" | "warn" | "error", msg: string, data?: any) {
     const prefix = `[DeploymentService]`
     if (data) {
