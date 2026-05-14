@@ -199,7 +199,7 @@ export function CreateShippingOptionsForm({
       })
 
       if (!result.success) {
-        const [firstError, ...rest] = result.error.errors
+        const [firstError, ...rest] = result.error.issues
 
         for (const error of rest) {
           const _path = error.path.join(".") as keyof CreateShippingOptionSchema
