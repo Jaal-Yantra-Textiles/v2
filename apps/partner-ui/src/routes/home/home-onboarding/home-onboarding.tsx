@@ -209,7 +209,7 @@ const OnboardingForm = () => {
     for (const person of filled) {
       const result = personSchema.safeParse(person)
       if (!result.success) {
-        const firstError = result.error.errors[0]
+        const firstError = result.error.issues[0]
         setError(`${firstError.path.join(".")} - ${firstError.message}`)
         return false
       }

@@ -82,7 +82,7 @@
     "react-jwt": "^1.2.0",
     "react-router-dom": "6.20.1",
     "typescript": "^5.9.3",
-    "zod": "3.25.76"
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@medusajs/admin-shared": "2.14.2",

@@ -61,7 +61,7 @@ export const CreateCategoryForm = ({
       })
 
       if (!result.success) {
-        result.error.errors.forEach((error) => {
+        result.error.issues.forEach((error) => {
           form.setError(error.path.join(".") as keyof CreateCategorySchema, {
             type: "manual",
             message: error.message,
