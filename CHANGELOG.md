@@ -1,3 +1,22 @@
+# [13.5.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.4.0...v13.5.0) (2026-05-14)
+
+
+### Bug Fixes
+
+* **theme-editor:** close live-preview gaps for footer + home-section panels ([3347028](https://github.com/Jaal-Yantra-Textiles/v2/commit/33470289156a493f593937595edafeea2b59a13d))
+* **partners:** default variant title falls back to product title ([24bd47d](https://github.com/Jaal-Yantra-Textiles/v2/commit/24bd47dcf818256219bbc4f742b5e78ef9b14c01))
+* **website:** make page-by-domain lookup honor aliases + partner fallback ([8926513](https://github.com/Jaal-Yantra-Textiles/v2/commit/892651393c1475e429e39a8972a6a601508216ba))
+* **store:** override /store/products to bypass index engine for category/tag ([12ea843](https://github.com/Jaal-Yantra-Textiles/v2/commit/12ea8438c55dadb36701937a551f10bc9651af75))
+* **partner-ui:** redirect to /product-types after creating a type ([4866de5](https://github.com/Jaal-Yantra-Textiles/v2/commit/4866de558188c55dc5936d79711e335b4bbbe119))
+* **store:** satisfy TS in /store/products getProducts override ([fb3a95d](https://github.com/Jaal-Yantra-Textiles/v2/commit/fb3a95d6cd75986c44ac5cf4ca3976dcfbccae70))
+* **partners:** scope product-collection handle per store ([95be014](https://github.com/Jaal-Yantra-Textiles/v2/commit/95be0144e4e9b3dbc1882f61d784948285546db3))
+
+
+### Features
+
+* **theme-editor:** add editor panels for the 5 home sub-sections + a real sections-order UI ([02ce894](https://github.com/Jaal-Yantra-Textiles/v2/commit/02ce894643810a4b1d98ad859fb2f8e9ebb11a64))
+* **theme-editor:** lift InlinePreview overlay for product_page and cart ([6a98619](https://github.com/Jaal-Yantra-Textiles/v2/commit/6a9861940d63a6a56cb7e0e5f202b086e01c45b4))
+
 # [13.4.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.3.0...v13.4.0) (2026-05-13)
 
 
