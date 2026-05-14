@@ -47,7 +47,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@emoji-mart/data": "1.2.1",
-    "@excalidraw/excalidraw": "^0.18.0",
+    "@excalidraw/excalidraw": "^0.18.1",
     "@faker-js/faker": "^9.7.0",
     "@fal-ai/client": "^1.9.4",
     "@floating-ui/react": "^0.27.14",
