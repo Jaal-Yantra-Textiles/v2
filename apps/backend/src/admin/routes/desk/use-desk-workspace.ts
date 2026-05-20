@@ -1,3 +1,4 @@
+import { toast } from "@medusajs/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import debounce from "lodash/debounce"
 import { useEffect, useMemo, useRef } from "react"
@@ -41,6 +42,10 @@ export const useDeskWorkspace = () => {
     staleTime: Infinity,
   })
 
+  // Throttle save-failed toasts: if the server hiccups we still try every
+  // 750ms via the debounced save, but the user only needs to know once
+  // until things start working again.
+  const lastErrorToastRef = useRef<number>(0)
   const mutation = useMutation({
     mutationFn: (blob: DeskWorkspaceBlob) =>
       sdk.client.fetch<{ workspace: DeskWorkspaceBlob }>(
@@ -49,6 +54,16 @@ export const useDeskWorkspace = () => {
       ),
     onSuccess: (data) => {
       queryClient.setQueryData(QUERY_KEY, { workspace: data.workspace })
+      lastErrorToastRef.current = 0
+    },
+    onError: () => {
+      const now = Date.now()
+      if (now - lastErrorToastRef.current < 30_000) return
+      lastErrorToastRef.current = now
+      toast.warning("Desk workspace not saved", {
+        description:
+          "Your layout is still cached locally, but couldn't be saved to your account. Retrying…",
+      })
     },
   })
 
@@ -75,10 +90,29 @@ export const useDeskWorkspace = () => {
     []
   )
 
+  // Cancel any in-flight debounced save, drop the server blob, and clear
+  // our query cache. The caller is responsible for clearing localStorage
+  // and resetting its FlexLayout model in the same tick.
+  const reset = useMemo(
+    () => async (): Promise<void> => {
+      debouncedSaveRef.current.cancel()
+      try {
+        await sdk.client.fetch("/admin/desk/workspace", { method: "DELETE" })
+      } catch {
+        // best-effort — localStorage clear in the caller is what the user
+        // actually sees; server cleanup will re-sync on next change.
+      }
+      queryClient.setQueryData(QUERY_KEY, { workspace: null })
+      lastErrorToastRef.current = 0
+    },
+    [queryClient]
+  )
+
   return {
     workspace: query.data?.workspace ?? null,
     isReady: !query.isPending,
     error: query.error,
     save,
+    reset,
   }
 }

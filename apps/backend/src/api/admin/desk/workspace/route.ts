@@ -68,6 +68,23 @@ export const GET = async (
   res.json({ workspace })
 }
 
+export const DELETE = async (
+  req: AuthenticatedMedusaRequest,
+  res: MedusaResponse
+) => {
+  const userId = getUserId(req)
+  const userService = req.scope.resolve(Modules.USER) as IUserModuleService
+
+  const user = await userService.retrieveUser(userId)
+  const currentMeta = (user.metadata as Record<string, unknown>) || {}
+  if (WORKSPACE_KEY in currentMeta) {
+    const { [WORKSPACE_KEY]: _removed, ...rest } = currentMeta
+    await userService.updateUsers({ id: userId, metadata: rest })
+  }
+
+  res.json({ workspace: null })
+}
+
 export const PUT = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse

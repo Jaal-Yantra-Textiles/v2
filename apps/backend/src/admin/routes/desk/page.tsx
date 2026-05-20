@@ -27,6 +27,11 @@ import {
   EntityPickerDropdown,
   type EntityKey,
 } from "./EntityPicker"
+import {
+  clearPersisted,
+  loadPersisted,
+  persistFromModel,
+} from "./persistence"
 import { useDeskWorkspace } from "./use-desk-workspace"
 import "flexlayout-react/style/light.css"
 import "./desk.css"
@@ -48,12 +53,6 @@ import "./desk.css"
  */
 
 const DESK_ADD_PANEL_EVENT = "desk:add-panel"
-// Bumped from v1 → v2 to drop stale blobs saved during the broken
-// "display:none Layout" period, where clicks added tabs to the model
-// but the workspace never rendered them. v1 storage would hydrate all
-// those phantom tabs on the next load.
-const LAYOUT_STORAGE_KEY = "jyt:desk:layout-v2"
-const PATHS_STORAGE_KEY = "jyt:desk:tab-paths-v2"
 
 const buildEmptyJson = (): IJsonModel => ({
   global: {
@@ -74,50 +73,6 @@ const buildEmptyJson = (): IJsonModel => ({
     ],
   },
 })
-
-const loadPersistedLayout = (): IJsonModel => {
-  if (typeof window === "undefined") return buildEmptyJson()
-  try {
-    const raw = window.localStorage.getItem(LAYOUT_STORAGE_KEY)
-    if (!raw) return buildEmptyJson()
-    const parsed = JSON.parse(raw) as IJsonModel
-    if (!parsed?.layout) return buildEmptyJson()
-    return parsed
-  } catch {
-    return buildEmptyJson()
-  }
-}
-
-const loadPersistedPaths = (): Record<string, string> => {
-  if (typeof window === "undefined") return {}
-  try {
-    const raw = window.localStorage.getItem(PATHS_STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as Record<string, string>) : {}
-  } catch {
-    return {}
-  }
-}
-
-const persistLayout = (model: Model): void => {
-  if (typeof window === "undefined") return
-  try {
-    window.localStorage.setItem(
-      LAYOUT_STORAGE_KEY,
-      JSON.stringify(model.toJson())
-    )
-  } catch {
-    // best-effort
-  }
-}
-
-const persistPaths = (paths: Record<string, string>): void => {
-  if (typeof window === "undefined") return
-  try {
-    window.localStorage.setItem(PATHS_STORAGE_KEY, JSON.stringify(paths))
-  } catch {
-    // best-effort
-  }
-}
 
 /**
  * Truth source for "is the workspace empty" — the FlexLayout model, not
@@ -144,8 +99,11 @@ const firstTabsetId = (model: Model): string | undefined => {
 }
 
 const Desk = () => {
+  // Single read of localStorage at mount: gives us layout + tab_paths in
+  // one shot, applies any forward-migration from the legacy v2 split keys.
+  const persistedRef = useRef(loadPersisted())
   const [model, setModel] = useState<Model>(() =>
-    Model.fromJson(loadPersistedLayout())
+    Model.fromJson(persistedRef.current.layout ?? buildEmptyJson())
   )
   const [hasTabs, setHasTabs] = useState(() => modelHasAnyTab(model))
   const counterRef = useRef<Record<EntityKey, number>>({
@@ -160,13 +118,28 @@ const Desk = () => {
    * live paths into the active-tab-store; we just need the initial value
    * so the inner MemoryRouter starts on the right route.
    */
-  const persistedPathsRef = useRef<Record<string, string>>(loadPersistedPaths())
+  const persistedPathsRef = useRef<Record<string, string>>(
+    persistedRef.current.tab_paths
+  )
 
   const {
     workspace: serverWorkspace,
     isReady: serverReady,
     save: saveToServer,
+    reset: resetServer,
   } = useDeskWorkspace()
+
+  const resetWorkspace = useCallback(() => {
+    // Drop everything: server, localStorage, in-memory model. Skip the
+    // reconcile-from-server guard so the next mount actually starts clean.
+    void resetServer()
+    clearPersisted()
+    hasReconciledRef.current = true
+    persistedPathsRef.current = {}
+    const fresh = Model.fromJson(buildEmptyJson())
+    setModel(fresh)
+    setHasTabs(false)
+  }, [resetServer])
   /**
    * Server reconcile: the first GET response replaces the local model
    * ONLY if the local model is empty (no tabs). This handles the
@@ -189,8 +162,7 @@ const Desk = () => {
       }
       setModel(incoming)
       setHasTabs(modelHasAnyTab(incoming))
-      persistLayout(incoming)
-      persistPaths(serverWorkspace.tab_paths || {})
+      persistFromModel(incoming, serverWorkspace.tab_paths || {})
     } catch {
       // malformed server blob — keep local
     }
@@ -268,11 +240,9 @@ const Desk = () => {
       setHasTabs(modelHasAnyTab(m))
       const tabset = m.getActiveTabset()
       setFocusedTab(tabset?.getSelectedNode()?.getId() ?? null)
-      persistLayout(m)
-      saveToServer({
-        layout: m.toJson(),
-        tab_paths: getTabPathnames(),
-      })
+      const paths = getTabPathnames()
+      persistFromModel(m, paths)
+      saveToServer({ layout: m.toJson(), tab_paths: paths })
     },
     [saveToServer]
   )
@@ -281,7 +251,7 @@ const Desk = () => {
   useEffect(() => {
     const unsub = subscribeTabStore(() => {
       const paths = getTabPathnames()
-      persistPaths(paths)
+      persistFromModel(model, paths)
       saveToServer({ layout: model.toJson(), tab_paths: paths })
     })
     return unsub
@@ -296,10 +266,14 @@ const Desk = () => {
   const onRenderTabSet = useCallback(
     (_node: TabSetNode | BorderNode, renderValues: ITabSetRenderValues) => {
       renderValues.stickyButtons.push(
-        <EntityPickerDropdown key="add-tab" onSelect={addPanel} />
+        <EntityPickerDropdown
+          key="add-tab"
+          onSelect={addPanel}
+          onReset={resetWorkspace}
+        />
       )
     },
-    [addPanel]
+    [addPanel, resetWorkspace]
   )
 
   // Layout must always be mounted so its onModelChange is wired and can

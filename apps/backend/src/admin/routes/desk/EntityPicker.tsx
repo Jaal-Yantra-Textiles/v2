@@ -1,5 +1,5 @@
 import { DropdownMenu, IconButton, Text } from "@medusajs/ui"
-import { Plus } from "@medusajs/icons"
+import { Plus, Trash } from "@medusajs/icons"
 import { designsEntityConfig } from "./entities/designs"
 import { productionRunsEntityConfig } from "./entities/production-runs"
 import { partnersEntityConfig } from "./entities/partners"
@@ -50,8 +50,15 @@ const ENTITY_ENTRIES = Object.entries(ENTITY_REGISTRY) as [
  */
 export const EntityPickerDropdown = ({
   onSelect,
+  onReset,
 }: {
   onSelect: (key: EntityKey) => void
+  /**
+   * Optional. When provided, shows a "Reset workspace" item below the
+   * entity list. Used to clear local + server desk state when the layout
+   * gets into a state the user wants to abandon.
+   */
+  onReset?: () => void
 }) => (
   <DropdownMenu>
     <DropdownMenu.Trigger asChild>
@@ -70,6 +77,18 @@ export const EntityPickerDropdown = ({
           {entity.label}
         </DropdownMenu.Item>
       ))}
+      {onReset && (
+        <>
+          <DropdownMenu.Separator />
+          <DropdownMenu.Item
+            onClick={onReset}
+            className="text-ui-fg-error gap-x-2"
+          >
+            <Trash />
+            Reset workspace
+          </DropdownMenu.Item>
+        </>
+      )}
     </DropdownMenu.Content>
   </DropdownMenu>
 )
