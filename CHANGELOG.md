@@ -1,3 +1,31 @@
+# [13.6.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.5.0...v13.6.0) (2026-05-20)
+
+
+### Bug Fixes
+
+* **admin/inventory:** accept fields query param on raw-materials list ([1538b24](https://github.com/Jaal-Yantra-Textiles/v2/commit/1538b24bce0d82ba4a832d3970f15ddeb455a5eb))
+* **lockfile:** add deploy/cloudflare importer entry ([3c3a9b9](https://github.com/Jaal-Yantra-Textiles/v2/commit/3c3a9b965cee9482f36a5dfbfd6349d9fb172163))
+* **desk:** always mount Layout, overlay EmptyDesk on top when empty ([832d4e9](https://github.com/Jaal-Yantra-Textiles/v2/commit/832d4e92c155cefaf258a77f2c39892376609e9f))
+* **desk:** bump localStorage key to v2 to drop broken-period blobs ([62b75e9](https://github.com/Jaal-Yantra-Textiles/v2/commit/62b75e925778bc6ea6107d95a7dd0ff5923d1de6))
+* **desk:** derive empty state from model, not the active-tab-store ([361deb0](https://github.com/Jaal-Yantra-Textiles/v2/commit/361deb09e8f45c62b72bef8d300459351c6c2c21))
+* **deploy:** lock manifest to deployed prod state (rev:6) ([7af3604](https://github.com/Jaal-Yantra-Textiles/v2/commit/7af3604c58c1cf7712b85f48c7e21944fa2e4f81))
+* **ci:** lowercase GHCR image + pin sha as primary tag ([c93b1d5](https://github.com/Jaal-Yantra-Textiles/v2/commit/c93b1d56a5bd7eb914ded6f30ab9dbdc591e1a29))
+* **partner-ui:** migrate to zod v4 (broken by backend 2.15.2 bump) ([1df678b](https://github.com/Jaal-Yantra-Textiles/v2/commit/1df678be1d2844b9afd66af68b2f37a49f147a67))
+* **docs:** pin react-router inside v5 react-router-dom subtree ([2470dd9](https://github.com/Jaal-Yantra-Textiles/v2/commit/2470dd9386d7f7111f37d2c4404798b550603674))
+* **ci:** unblock copilot svc deploy in CI ([55a1933](https://github.com/Jaal-Yantra-Textiles/v2/commit/55a1933db2312f9948fcd24e5472f7624a92328c)), closes [#237](https://github.com/Jaal-Yantra-Textiles/v2/issues/237)
+* **ci:** use --force on copilot svc deploy so ECS actually rolls tasks ([6cde967](https://github.com/Jaal-Yantra-Textiles/v2/commit/6cde96762dd2ca32218f501446e06ce9baed6afc)), closes [#239](https://github.com/Jaal-Yantra-Textiles/v2/issues/239)
+
+
+### Features
+
+* **desk:** Alt+W keyboard shortcut to close active tab ([693297d](https://github.com/Jaal-Yantra-Textiles/v2/commit/693297df9d3fc86c79f79bce02df308278ef7466))
+* **ci:** auto-deploy to AWS ECS on push to main ([bf3b7c8](https://github.com/Jaal-Yantra-Textiles/v2/commit/bf3b7c852ced11e3e82716770fa20a14a19dc697))
+* **deploy:** AWS ECS Fargate infrastructure (Phase 0) ([8cf04d9](https://github.com/Jaal-Yantra-Textiles/v2/commit/8cf04d97c1a0af796f991e5e5ba356601179cf9b)), closes [#1](https://github.com/Jaal-Yantra-Textiles/v2/issues/1)
+* **desk:** cross-tab open helper (openTabAt) ([a9d7c27](https://github.com/Jaal-Yantra-Textiles/v2/commit/a9d7c27189aa251ec9999e047e653b668930a4ef))
+* **desk:** persist workspace UI to db via user.metadata ([b06c76c](https://github.com/Jaal-Yantra-Textiles/v2/commit/b06c76c02439ce8eadbccb375566fbeaea03c72c))
+* **desk:** versioned persistence + save-failed toast + reset action ([d0e861f](https://github.com/Jaal-Yantra-Textiles/v2/commit/d0e861f566da46e5d14b29a81cdf3006243e30c2))
+* **deploy:** wire ECS deploy events + email alerts to SNS ([6ff3e65](https://github.com/Jaal-Yantra-Textiles/v2/commit/6ff3e6522cf6f68273d190f692dcd923cad36090))
+
 # [13.5.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.4.0...v13.5.0) (2026-05-14)
 
 
