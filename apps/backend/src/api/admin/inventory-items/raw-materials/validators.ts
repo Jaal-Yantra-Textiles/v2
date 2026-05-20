@@ -1,15 +1,11 @@
 import { z } from "@medusajs/framework/zod"
+import { createFindParams } from "@medusajs/medusa/api/utils/validators"
 
-export const ListInventoryItemRawMaterialsQuerySchema = z.object({
+export const ListInventoryItemRawMaterialsQuerySchema = createFindParams({
+  limit: 10,
+  offset: 0,
+}).extend({
   q: z.string().optional(),
-  limit: z.preprocess(
-    (val) => (val != null && typeof val === "string" ? parseInt(val) : val),
-    z.number().min(1).max(100).optional().default(10)
-  ),
-  offset: z.preprocess(
-    (val) => (val != null && typeof val === "string" ? parseInt(val) : val),
-    z.number().min(0).optional().default(0)
-  ),
   filters: z.preprocess(
     (val) => {
       if (typeof val === "string") {
