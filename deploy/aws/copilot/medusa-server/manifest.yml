@@ -1,0 +1,147 @@
+# The Medusa API server.
+# Public-facing via ALB; auto-scales 1→5 tasks on CPU/memory pressure.
+#
+# Image is pulled from ECR. The CI workflow mirrors the latest
+# ghcr.io/jaal-yantra-textiles/v2 image into ECR before each deploy.
+
+name: medusa-server
+type: Load Balanced Web Service
+
+http:
+  path: '/'
+  alias: v3.jaalyantra.com
+  healthcheck:
+    path: '/health'
+    healthy_threshold: 2
+    unhealthy_threshold: 3
+    interval: 30s
+    timeout: 5s
+    grace_period: 90s  # Medusa boot + predeploy:force migrations
+
+image:
+  # ECR location wins; the CI workflow updates :latest before `svc deploy`.
+  # For local-only experiments, swap this for a build block (commented).
+  location: 369351873445.dkr.ecr.us-east-1.amazonaws.com/jyt-medusa:latest
+  # build:
+  #   dockerfile: ../../../apps/backend/Dockerfile
+  #   context: ../../../
+  port: 9000
+
+cpu: 512        # 0.5 vCPU
+memory: 1024    # 1 GB. NOTE: Medusa is resident at ~750 MB so we hug the
+                # 75% scale-out threshold and pin to 5 tasks. Bumping to 2048
+                # was attempted 2026-05-20 but tripped the circuit breaker —
+                # tasks went silent for >90s ~4 min after boot, killed by ALB.
+                # Root cause suspected to be the perennial.to workflow stall
+                # (see task #18). Re-attempt after that lands.
+
+# Auto-scaling. min 1 to avoid cold-starts; max 5 mirrors Railway's ceiling.
+count:
+  range:
+    min: 1
+    max: 5
+    # spot_from omitted on purpose — server stays on regular Fargate.
+    # Spot interruption (2-min warning) would surface as 5xx responses to users.
+  cooldown:
+    scale_in_cooldown: 120s
+    scale_out_cooldown: 60s
+  cpu_percentage: 60
+  memory_percentage: 75
+  # Optional: requests_per_task if we want request-rate scaling instead of CPU.
+  # Tune after observing real traffic.
+
+# Public subnets for Phase 0 (saves $32/mo NAT Gateway).
+# Tighten to private+NAT in Phase 1 hardening.
+network:
+  vpc:
+    placement: public
+
+# Non-secret config + role flag.
+variables:
+  NODE_ENV: production
+  MEDUSA_WORKER_MODE: server
+
+# Secrets: rotating values come from Secrets Manager.
+# Non-rotating config (CORS, URLs, etc.) comes from SSM Parameter Store — listed
+# in the SSM section below; ECS resolves both at task start.
+secrets:
+  ADMIN_CORS: /jyt/prod/ADMIN_CORS
+  ADMIN_OPENAPI_CATALOG_TOKEN: /jyt/prod/ADMIN_OPENAPI_CATALOG_TOKEN
+  ADMIN_OPENAPI_CATALOG_URL: /jyt/prod/ADMIN_OPENAPI_CATALOG_URL
+  ADMIN_RAG_EMBED_PROVIDER: /jyt/prod/ADMIN_RAG_EMBED_PROVIDER
+  ADMIN_RAG_INDEX_VERSION: /jyt/prod/ADMIN_RAG_INDEX_VERSION
+  AUTH_CORS: /jyt/prod/AUTH_CORS
+  CLOUDFLARE_API_TOKEN: /jyt/prod/CLOUDFLARE_API_TOKEN
+  CLOUDFLARE_ZONE_ID: /jyt/prod/CLOUDFLARE_ZONE_ID
+  COOKIE_SECRET: /jyt/prod/COOKIE_SECRET
+  DATABASE_URL: /jyt/prod/DATABASE_URL
+  DELHIVERY_API_TOKEN: /jyt/prod/DELHIVERY_API_TOKEN
+  ENCRYPTION_KEY: /jyt/prod/ENCRYPTION_KEY
+  ENCRYPTION_KEY_VERSION: /jyt/prod/ENCRYPTION_KEY_VERSION
+  FACEBOOK_CLIENT_ID: /jyt/prod/FACEBOOK_CLIENT_ID
+  FACEBOOK_CLIENT_SECRET: /jyt/prod/FACEBOOK_CLIENT_SECRET
+  FACEBOOK_REDIRECT_URI: /jyt/prod/FACEBOOK_REDIRECT_URI
+  FACEBOOK_WEBHOOK_VERIFY_TOKEN: /jyt/prod/FACEBOOK_WEBHOOK_VERIFY_TOKEN
+  FAL_KEY: /jyt/prod/FAL_KEY
+  FRONTEND_URL: /jyt/prod/FRONTEND_URL
+  GOOGLE_REDIRECT_URI: /jyt/prod/GOOGLE_REDIRECT_URI
+  JWT_SECRET: /jyt/prod/JWT_SECRET
+  MAILEROO_API_KEY: /jyt/prod/MAILEROO_API_KEY
+  MAILEROO_FROM_DOMAIN: /jyt/prod/MAILEROO_FROM_DOMAIN
+  MAILEROO_FROM_EMAIL: /jyt/prod/MAILEROO_FROM_EMAIL
+  MAILEROO_FROM_NAME: /jyt/prod/MAILEROO_FROM_NAME
+  MAILJET_API_KEY: /jyt/prod/MAILJET_API_KEY
+  MAILJET_FROM_EMAIL: /jyt/prod/MAILJET_FROM_EMAIL
+  MAILJET_FROM_NAME: /jyt/prod/MAILJET_FROM_NAME
+  MAILJET_SECRET_KEY: /jyt/prod/MAILJET_SECRET_KEY
+  MASTRA_ENABLE_EMBEDDINGS: /jyt/prod/MASTRA_ENABLE_EMBEDDINGS
+  MEDUSA_BACKEND_URL: /jyt/prod/MEDUSA_BACKEND_URL
+  MEDUSA_FF_CACHING: /jyt/prod/MEDUSA_FF_CACHING
+  MEDUSA_FF_INDEX_ENGINE: /jyt/prod/MEDUSA_FF_INDEX_ENGINE
+  MEDUSA_FF_VIEW_CONFIGURATIONS: /jyt/prod/MEDUSA_FF_VIEW_CONFIGURATIONS
+  MISTRAL_API_KEY: /jyt/prod/MISTRAL_API_KEY
+  OPENAI_API_KEY: /jyt/prod/OPENAI_API_KEY
+  OPENROUTER_API_KEY: /jyt/prod/OPENROUTER_API_KEY
+  PARTNER_CORS: /jyt/prod/PARTNER_CORS
+  PAYU_MERCHANT_KEY: /jyt/prod/PAYU_MERCHANT_KEY
+  PAYU_MERCHANT_SALT: /jyt/prod/PAYU_MERCHANT_SALT
+  PAYU_MODE: /jyt/prod/PAYU_MODE
+  REDIS_URL: /jyt/prod/REDIS_URL
+  RESEND_API_KEY: /jyt/prod/RESEND_API_KEY
+  RESEND_FROM_EMAIL: /jyt/prod/RESEND_FROM_EMAIL
+  ROOT_DOMAIN: /jyt/prod/ROOT_DOMAIN
+  S3_ACCESS_KEY_ID: /jyt/prod/S3_ACCESS_KEY_ID
+  S3_BUCKET: /jyt/prod/S3_BUCKET
+  S3_ENDPOINT: /jyt/prod/S3_ENDPOINT
+  S3_FILE_URL: /jyt/prod/S3_FILE_URL
+  S3_PREFIX: /jyt/prod/S3_PREFIX
+  S3_REGION: /jyt/prod/S3_REGION
+  S3_SECRET_ACCESS_KEY: /jyt/prod/S3_SECRET_ACCESS_KEY
+  SENTRY_DSN: /jyt/prod/SENTRY_DSN
+  STORE_CORS: /jyt/prod/STORE_CORS
+  STRIPE_API_KEY: /jyt/prod/STRIPE_API_KEY
+  STRIPE_WEBHOOK_SECRET: /jyt/prod/STRIPE_WEBHOOK_SECRET
+  VERCEL_STOREFRONT_REPO: /jyt/prod/VERCEL_STOREFRONT_REPO
+  VERCEL_TEAM_ID: /jyt/prod/VERCEL_TEAM_ID
+  VERCEL_TOKEN: /jyt/prod/VERCEL_TOKEN
+  WEB_CORS: /jyt/prod/WEB_CORS
+  WHATSAPP_ACCESS_TOKEN: /jyt/prod/WHATSAPP_ACCESS_TOKEN
+  WHATSAPP_INITIATION_TEMPLATE: /jyt/prod/WHATSAPP_INITIATION_TEMPLATE
+  WHATSAPP_INITIATION_TEMPLATE_LANG: /jyt/prod/WHATSAPP_INITIATION_TEMPLATE_LANG
+  WHATSAPP_PHONE_NUMBER_ID: /jyt/prod/WHATSAPP_PHONE_NUMBER_ID
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN: /jyt/prod/WHATSAPP_WEBHOOK_VERIFY_TOKEN
+  X_CLIENT_ID: /jyt/prod/X_CLIENT_ID
+  X_CLIENT_SECRET: /jyt/prod/X_CLIENT_SECRET
+  X_REDIRECT_URI: /jyt/prod/X_REDIRECT_URI
+  X_SCOPE: /jyt/prod/X_SCOPE
+
+# Logging — 14-day retention to keep CW costs down.
+logging:
+  retention: 14
+
+# Storage: ephemeral. Medusa writes uploads directly to R2; nothing
+# important touches local disk.
+
+# Per-environment overrides go here if we ever need them.
+environments:
+  prod: {}

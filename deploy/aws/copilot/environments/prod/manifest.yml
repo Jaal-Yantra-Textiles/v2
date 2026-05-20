@@ -1,0 +1,22 @@
+# The production environment.
+# Using Copilot's default network topology: 2 public + 2 private subnets across
+# 2 AZs, with NAT Gateways for outbound from the private subnets.
+#
+# We previously specified a public-only topology to save the ~$32/mo NAT cost.
+# That conflicted with the default config baked in at `env init` time. Phase 1
+# hardening can revisit this — `network.vpc.subnets.private: []` if Copilot
+# supports it, or recreate the env from scratch with custom CIDRs across the
+# correct AZs.
+
+name: prod
+type: Environment
+
+# ALB on HTTPS with a real ACM cert for v3.jaalyantra.com.
+# Copilot creates an HTTPS:443 listener and binds this cert as the default.
+http:
+  public:
+    certificates:
+      - arn:aws:acm:us-east-1:369351873445:certificate/ef83b066-dc30-402e-81af-ae7d6a2affbc
+
+observability:
+  container_insights: false   # extra ~$8/mo per cluster; skip Phase 0
