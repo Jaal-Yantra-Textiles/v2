@@ -38,6 +38,15 @@ const sections = [
     badge: "Both",
     badgeColor: "purple" as const,
   },
+  {
+    title: "Protocol",
+    description:
+      "Contracts, transaction, references on working with people and artisans and partners.",
+    href: "/docs/protocol/intro",
+    icon: DocumentText,
+    badge: "Both",
+    badgeColor: "purple" as const,
+  },
 ]
 
 function SectionCard({

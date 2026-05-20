@@ -39,31 +39,19 @@
  *
  * Notes:
  *   - The route uses validated query middleware; supply `filters` or `q` through that schema.
- *   - Middleware may set `req.remoteQueryConfig.fields` to limit returned raw-material fields.
+ *   - Middleware may set `req.queryConfig.fields` to limit returned raw-material fields.
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { getAllInventoryWithRawMaterial, RawMaterialAllowedFields } from "../[id]/rawmaterials/helpers";
 import type { ListInventoryItemRawMaterialsQuery } from "./validators";
 
-interface QueryParams {
-  limit?: string;
-  offset?: string;
-  [key: string]: any;
-}
-
 export const GET = async (
-  req: MedusaRequest & {
-    remoteQueryConfig?: {
-      fields?: RawMaterialAllowedFields[];
-    };
-  },
+  req: MedusaRequest,
   res: MedusaResponse,
 ) => {
-  // Use validatedQuery from middleware schema
   const qv = ((req as any).validatequery ?? (req as any).validatedQuery) as Partial<ListInventoryItemRawMaterialsQuery> | undefined
   const limit = Number(qv?.limit ?? 10)
   const offset = Number(qv?.offset ?? 0)
-  // Build filters to pass into helper. Helper understands `q` inside the filters object.
   const filters = {
     ...(qv?.filters || {}),
     ...(qv?.q ? { q: qv.q } : {}),
@@ -72,7 +60,7 @@ export const GET = async (
   const inventoryWithRawMaterials = await getAllInventoryWithRawMaterial(
     req.scope,
     filters,
-    req.remoteQueryConfig?.fields || ["*"],
+    (req.queryConfig?.fields as RawMaterialAllowedFields[]) || ["*"],
   );
 
   const total = inventoryWithRawMaterials.length

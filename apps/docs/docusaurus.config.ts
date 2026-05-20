@@ -73,6 +73,12 @@ const config: Config = {
           position: "left",
           label: "Reference",
         },
+        {
+          type: "docSidebar",
+          sidebarId: "protocolSidebar",
+          position: "left",
+          label: "Protocol",
+        },
       ],
     },
     footer: {
@@ -84,6 +90,7 @@ const config: Config = {
             { label: "Guides", to: "/docs/guides/intro" },
             { label: "Implementation", to: "/docs/implementation/intro" },
             { label: "Reference", to: "/docs/reference/intro" },
+            { label: "Protocol", to: "/docs/protocol/intro" },
           ],
         },
       ],

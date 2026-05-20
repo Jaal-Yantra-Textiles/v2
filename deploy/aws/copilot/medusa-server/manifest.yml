@@ -13,10 +13,14 @@ http:
   healthcheck:
     path: '/health'
     healthy_threshold: 2
-    unhealthy_threshold: 3
+    unhealthy_threshold: 5  # 3 → 5: gives 150s of mid-run slack so a slow
+                            # workflow tick doesn't kill an otherwise-healthy task.
     interval: 30s
     timeout: 5s
-    grace_period: 90s  # Medusa boot + predeploy:force migrations
+    grace_period: 240s      # 90s → 240s. Medusa logs "Server is ready" before
+                            # finishing module linking + workflow engine resume.
+                            # Per Railway behavior, full readiness takes 3-4 min;
+                            # 240s grace + 5×30s threshold = 390s kill window.
 
 image:
   # ECR location wins; the CI workflow updates :latest before `svc deploy`.
@@ -28,27 +32,16 @@ image:
   port: 9000
 
 cpu: 512        # 0.5 vCPU
-memory: 1024    # 1 GB. NOTE: Medusa is resident at ~750 MB so we hug the
-                # 75% scale-out threshold and pin to 5 tasks. Bumping to 2048
-                # was attempted 2026-05-20 but tripped the circuit breaker —
-                # tasks went silent for >90s ~4 min after boot, killed by ALB.
-                # Root cause suspected to be the perennial.to workflow stall
-                # (see task #18). Re-attempt after that lands.
+memory: 2048    # 2 GB. Bumped on 2026-05-20 along with RDS max_connections
+                # bump to 200 (was 79) and switch to fixed count: 1. Even
+                # so, rolling deploys still see some concurrent-bootstrap
+                # failures; investigation continues (task #18).
 
-# Auto-scaling. min 1 to avoid cold-starts; max 5 mirrors Railway's ceiling.
-count:
-  range:
-    min: 1
-    max: 5
-    # spot_from omitted on purpose — server stays on regular Fargate.
-    # Spot interruption (2-min warning) would surface as 5xx responses to users.
-  cooldown:
-    scale_in_cooldown: 120s
-    scale_out_cooldown: 60s
-  cpu_percentage: 60
-  memory_percentage: 75
-  # Optional: requests_per_task if we want request-rate scaling instead of CPU.
-  # Tune after observing real traffic.
+# Fixed count: 1. Autoscaling disabled.
+# Default ECS rolling deploy with desired=1: 1 new task launches + 1 old
+# drains. Total of 2 tasks in flight = manageable connection demand.
+# Re-enable autoscaling once the boot-stall is understood/fixed.
+count: 1
 
 # Public subnets for Phase 0 (saves $32/mo NAT Gateway).
 # Tighten to private+NAT in Phase 1 hardening.

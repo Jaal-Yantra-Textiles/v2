@@ -6,3 +6,4 @@ packages:
   - "apps/storefront-starter"
   - "apps/storefront"
   - "deploy/cloudflare"
+  - "apps/docs"

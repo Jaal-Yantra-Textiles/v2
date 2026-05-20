@@ -8,7 +8,8 @@
     "apps/partner-ui",
     "apps/media-gallery",
     "apps/storefront-starter",
-    "apps/storefront"
+    "apps/storefront",
+    "apps/docs"
   ],
   "description": "JYT Commerce monorepo: Medusa backend, partner UI, web storefront, mobile, analytics, docs.",
   "author": "Medusa (https://medusajs.com) and JYT (https://jaalyantra.in)",
@@ -53,6 +54,13 @@
     "overrides": {
       "react-router-dom": "6.30.3",
       "react-router": "6.30.3",
+      "@docusaurus/core>react-router-dom": "5.3.4",
+      "@docusaurus/core>react-router": "5.3.4",
+      "@docusaurus/core>react-router-config": "5.1.1",
+      "@docusaurus/theme-classic>react-router-dom": "5.3.4",
+      "@docusaurus/preset-classic>react-router-dom": "5.3.4",
+      "react-router-dom@^5>react-router": "5.3.4",
+      "react-router-config@^5>react-router": "5.3.4",
       "@tanstack/react-query": "^5.90.20",
       "effect": "^3.17.14",
       "clsx": "^2.1.0",
