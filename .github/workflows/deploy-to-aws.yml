@@ -195,8 +195,15 @@ jobs:
 
       - name: Deploy medusa-server
         working-directory: deploy/aws
+        # --force is required because the manifest uses `image.location` (a
+        # static ECR ref :latest), not `image.build`. With image.location,
+        # copilot ignores --tag and the CFN change set has no diff, so ECS
+        # never rolls new tasks even though a new image was just pushed to
+        # ECR :latest. --force makes ECS roll tasks, which pull :latest and
+        # pick up the freshly mirrored image. --tag is kept for parity with
+        # the worker and for any future move to image.build.
         run: |
-          copilot svc deploy --name medusa-server --env prod \
+          copilot svc deploy --name medusa-server --env prod --force \
             --tag "${{ needs.build-and-push.outputs.image_tag }}"
 
   deploy-worker:
@@ -221,8 +228,9 @@ jobs:
 
       - name: Deploy medusa-worker
         working-directory: deploy/aws
+        # See the medusa-server deploy step above for why --force is needed.
         run: |
-          copilot svc deploy --name medusa-worker --env prod \
+          copilot svc deploy --name medusa-worker --env prod --force \
             --tag "${{ needs.build-and-push.outputs.image_tag }}"
 
   # ─────────────────────────────────────────────────────────────────────────
