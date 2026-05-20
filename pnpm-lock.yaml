@@ -327,6 +327,9 @@ importers:
       file-saver:
         specifier: ^2.0.5
         version: 2.0.5
+      flexlayout-react:
+        specifier: ^0.9.1
+        version: 0.9.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       framer-motion:
         specifier: ^12.4.3
         version: 12.34.3(@emotion/is-prop-valid@1.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -11847,6 +11850,12 @@ packages:
 
   flatted@3.4.1:
     resolution: {integrity: sha512-IxfVbRFVlV8V/yRaGzk0UVIcsKKHMSfYw66T/u4nTwlWteQePsxe//LjudR1AMX4tZW3WFCh3Zqa/sjlqpbURQ==}
+
+  flexlayout-react@0.9.1:
+    resolution: {integrity: sha512-sB/93gKvDUBcukvxeNsu88ziobdsBfZQCDk9tTaxZOruaefpCpjpkSjhrhgoomWmTrSz8xnpHj8QcUaRf0Begg==}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
 
   fn.name@1.1.0:
     resolution: {integrity: sha512-GRnmB5gPyJpAhTQdSZTSp9uaPSvl09KoYcMQtsB9rQoOmzs9dH6ffeccH+Z+cv6P68Hu5bC6JjRh4Ah/mHSNRw==}
@@ -35565,6 +35574,11 @@ snapshots:
   flatbuffers@1.12.0: {}
 
   flatted@3.4.1: {}
+
+  flexlayout-react@0.9.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+    dependencies:
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
 
   fn.name@1.1.0: {}
 
