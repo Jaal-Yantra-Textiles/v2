@@ -1,0 +1,69 @@
+# Cloudflare Workers + Containers config for the JYT Medusa backend.
+#
+# Location: repo root.
+#   This file lives at the root *on purpose* — wrangler builds the container
+#   image with the directory containing wrangler.toml as the Docker build
+#   context. The Dockerfile at apps/backend/Dockerfile does `COPY . .` and
+#   expects the pnpm-workspace.yaml at the root to be visible, so the root
+#   must be the context.
+#
+# Run from repo root: `wrangler deploy`
+# Runbook + secret list: deploy/cloudflare/README.md
+
+name = "medusa-router"
+main = "deploy/cloudflare/src/worker.ts"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat"]
+
+# ─── Cron trigger: keep the singleton worker container alive ──────────────
+# The worker container has no inbound HTTP route, so CF would otherwise reap
+# it. This cron fires every minute and pokes the worker via getContainer().
+# Combined with sleepAfter=1h on MedusaWorker, this gives us a 60× safety
+# margin — any single missed fire is fine.
+[triggers]
+crons = ["* * * * *"]
+
+# ─── API server containers (HA pair, behind the routing Worker) ───────────
+[[containers]]
+class_name = "MedusaServer"
+image = "./apps/backend/Dockerfile"
+instance_type = "standard-2"   # 1 vCPU, 6 GiB RAM, 12 GB disk
+max_instances = 2              # HA pair; getRandom() in worker.ts spreads load
+
+[[durable_objects.bindings]]
+name = "MEDUSA_SERVER"
+class_name = "MedusaServer"
+
+# ─── Background worker container (singleton, no HTTP port) ────────────────
+[[containers]]
+class_name = "MedusaWorker"
+image = "./apps/backend/Dockerfile"
+instance_type = "standard-1"   # 1/2 vCPU, 4 GiB RAM, 8 GB disk
+max_instances = 1              # singleton — 2 instances would double-run cron jobs
+
+[[durable_objects.bindings]]
+name = "MEDUSA_WORKER"
+class_name = "MedusaWorker"
+
+# ─── Durable Object migrations (required when introducing Container classes) ──
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MedusaServer", "MedusaWorker"]
+
+# ─── Non-secret vars (everything else goes via `wrangler secret put`) ──────
+[vars]
+NODE_ENV = "production"
+
+# ─── Observability: stdout/stderr → Workers logs ───────────────────────────
+[observability]
+enabled = true
+
+# ─── Routes ────────────────────────────────────────────────────────────────
+# Phase 1: deploy without a custom route. The Worker is reachable at
+#   https://medusa-router.<your-subdomain>.workers.dev
+# Add a [[routes]] block here when ready to cut over a real hostname.
+#
+# Example (uncomment + edit when ready):
+# [[routes]]
+# pattern = "api.jaalyantra.in/*"
+# zone_name = "jaalyantra.in"

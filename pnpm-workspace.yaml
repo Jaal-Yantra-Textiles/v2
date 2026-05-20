@@ -5,3 +5,4 @@ packages:
   - "apps/media-gallery"
   - "apps/storefront-starter"
   - "apps/storefront"
+  - "deploy/cloudflare"
