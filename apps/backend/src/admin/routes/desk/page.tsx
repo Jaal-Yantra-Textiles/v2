@@ -1,6 +1,6 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { GridLayout } from "@medusajs/icons"
-import { Text } from "@medusajs/ui"
+import { Container, Heading, Text } from "@medusajs/ui"
 import {
   Action,
   Actions,
@@ -333,11 +333,26 @@ const Desk = () => {
     [addPanel, resetWorkspace]
   )
 
+  // Wrap in the Medusa-canonical Container pattern (see /admin/content +
+  // /admin/medias for prior art): `divide-y p-0` gives an auto-divider
+  // between the heading section and the workspace area below. The tab
+  // strip then naturally appears immediately under the divider, which is
+  // the "post-divider" position the user expected.
+  //
   // Layout must always be mounted so its onModelChange is wired and can
   // flip hasTabs to true when the first tab arrives. EmptyDesk is an
   // overlay shown on top while the model has no tabs.
   return (
-    <div className="flex flex-col" style={{ height: "calc(100vh - 56px)" }}>
+    <Container
+      className="divide-y p-0 flex flex-col overflow-hidden"
+      style={{ height: "calc(100vh - 56px)" }}
+    >
+      <div className="px-6 py-4 shrink-0">
+        <Heading>Desk</Heading>
+        <Text size="small" className="text-ui-fg-subtle">
+          Multi-pane workspace. Drag tabs to split panes. Alt+W closes the active tab.
+        </Text>
+      </div>
       <div className="flex-1 min-h-0 relative">
         <Layout
           model={model}
@@ -351,7 +366,7 @@ const Desk = () => {
           </div>
         )}
       </div>
-    </div>
+    </Container>
   )
 }
 

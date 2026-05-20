@@ -43,7 +43,9 @@
 /* ── Tab bar ──────────────────────────────────────────────────────── */
 .flexlayout__tabset_tabbar_outer {
   background-color: var(--ui-bg-subtle);
-  border-bottom: 1px solid var(--ui-border-base);
+  /* Bumped from --ui-border-base → --ui-border-strong so the seam between
+     the tab strip and the content area below is unmistakable. */
+  border-bottom: 1px solid var(--ui-border-strong);
   min-height: 36px;
   height: 36px;
 }
@@ -54,47 +56,32 @@
 
 /* ── Tab buttons ──────────────────────────────────────────────────── */
 /*
- * Tabs read as outlined pills sitting on the tab bar — visible borders
- * make it obvious how many tabs are open and where each one ends. The
- * selected tab uses --ui-border-interactive so it pops without needing
- * the underline indicator.
- */
-/*
- * Tabs styled after @medusajs/ui Tabs.Trigger, but with a small
- * border-radius (not full pill) per user preference, and using
- * `var(--elevation-card-rest)` for the active tab shadow — that token
- * is defined by the Medusa UI preset for both light AND dark themes
- * (dark mode adds a 1px ring of zinc-800 so the active pill is
- * clearly visible even when the surface is dark).
+ * Visual hierarchy:
+ *  - Inactive tabs blend into the bg-subtle strip (transparent border,
+ *    matching background) so they read as "labels on the rail" — no
+ *    competing edges
+ *  - Hover lifts a tab onto bg-base with a strong border, giving a
+ *    discrete, clearly-bounded affordance
+ *  - The selected tab raises off the strip onto bg-base with the
+ *    dark-mode-aware elevation token, so exactly one pill at any time
+ *    reads as "this is what you're looking at"
  *
- * Source classes mimicked:
- *   txt-compact-small-plus text-ui-fg-subtle
- *   border border-transparent bg-transparent
- *   hover:text-ui-fg-base
- *   data-[state=active]:text-ui-fg-base data-[state=active]:bg-ui-bg-base
- *   data-[state=active]:shadow-elevation-card-rest
- */
-/*
- * Every tab is a squared, bordered cell on the bg-subtle strip and
- * they sit immediately next to each other (negative right margin so
- * adjacent borders overlap to a single 1px line — the "connected
- * cells" look from the reference screenshot). The active tab keeps
- * the same outline but bumps to --ui-border-strong + the dark-mode-
- * aware elevation token so it reads as the current tab without
- * breaking the connected row.
+ * Tabs are separated by a 4px gap (instead of the prior negative-margin
+ * connected-cells trick) — each pill is its own discrete object with
+ * unambiguous start/end edges.
  */
 .flexlayout__tab_button {
   font-size: 12px;
   font-weight: 600;
   height: 28px;
-  margin: 4px 0 4px 0;
+  margin: 4px 2px 4px 2px;
   padding: 0 10px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background-color: var(--ui-bg-base);
+  background-color: transparent;
   color: var(--ui-fg-subtle);
-  border: 1px solid var(--ui-border-base);
+  border: 1px solid transparent;
   border-radius: 4px;
   cursor: pointer;
   user-select: none;
@@ -105,19 +92,10 @@
     box-shadow 120ms ease;
 }
 
-/* Adjacent tabs share their border edge — no gap, no double-border. */
-.flexlayout__tab_button + .flexlayout__tab_button {
-  margin-left: -1px;
-}
-
 .flexlayout__tab_button--unselected:hover {
   color: var(--ui-fg-base);
-  background-color: var(--ui-bg-base-hover);
+  background-color: var(--ui-bg-base);
   border-color: var(--ui-border-strong);
-  /* Lift above neighbouring tabs so the hover ring isn't clipped by the
-     overlapping border of the next tab. */
-  position: relative;
-  z-index: 1;
 }
 
 .flexlayout__tab_button--selected {
@@ -125,8 +103,6 @@
   color: var(--ui-fg-base);
   border-color: var(--ui-border-strong);
   box-shadow: var(--elevation-card-rest);
-  position: relative;
-  z-index: 2;
 }
 
 .flexlayout__tab_button_content {
