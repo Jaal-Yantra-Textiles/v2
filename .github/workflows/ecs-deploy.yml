@@ -1,0 +1,99 @@
+name: Deploy to ECS Fargate
+
+# Phase 0: manually triggered. We don't auto-deploy on push because the GHCR
+# image is built by a separate workflow — we only run when that image is
+# known-good. Phase 2 candidate: chain via `workflow_run` once the GHCR
+# build workflow name is confirmed and stable.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'GHCR tag to mirror to ECR and deploy (default: latest)'
+        required: false
+        default: 'latest'
+      services:
+        description: 'Which services to deploy'
+        required: true
+        type: choice
+        default: 'both'
+        options:
+          - both
+          - medusa-server
+          - medusa-worker
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: jyt-medusa
+  GHCR_IMAGE: ghcr.io/jaal-yantra-textiles/v2
+
+permissions:
+  id-token: write   # AWS OIDC
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # The role's trust policy must allow the GitHub OIDC provider with
+          # repo: Jaal-Yantra-Textiles/jyt (or whatever the repo slug is) and
+          # the `ecs-deploy.yml` workflow.
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/jyt-github-actions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Mirror image GHCR → ECR
+        env:
+          TAG: ${{ inputs.tag }}
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          docker pull "${GHCR_IMAGE}:${TAG}"
+          docker tag  "${GHCR_IMAGE}:${TAG}" "${REGISTRY}/${ECR_REPOSITORY}:${TAG}"
+          docker tag  "${GHCR_IMAGE}:${TAG}" "${REGISTRY}/${ECR_REPOSITORY}:latest"
+          docker push "${REGISTRY}/${ECR_REPOSITORY}:${TAG}"
+          docker push "${REGISTRY}/${ECR_REPOSITORY}:latest"
+
+      - name: Install AWS Copilot CLI
+        run: |
+          curl -fsSL -o /tmp/copilot \
+            https://github.com/aws/copilot-cli/releases/latest/download/copilot-linux
+          chmod +x /tmp/copilot
+          sudo mv /tmp/copilot /usr/local/bin/copilot
+          copilot --version
+
+      - name: Deploy medusa-server
+        if: ${{ inputs.services == 'both' || inputs.services == 'medusa-server' }}
+        working-directory: deploy/aws
+        run: copilot svc deploy --name medusa-server --env prod --tag "${{ inputs.tag }}"
+
+      - name: Deploy medusa-worker
+        if: ${{ inputs.services == 'both' || inputs.services == 'medusa-worker' }}
+        working-directory: deploy/aws
+        run: copilot svc deploy --name medusa-worker --env prod --tag "${{ inputs.tag }}"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Deploy summary"
+            echo ""
+            echo "- Tag: \`${{ inputs.tag }}\`"
+            echo "- Services: \`${{ inputs.services }}\`"
+            echo "- Region: \`${{ env.AWS_REGION }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

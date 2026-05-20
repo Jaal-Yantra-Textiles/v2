@@ -1,0 +1,236 @@
+name: Deploy to AWS ECS
+
+# Auto-deploys on push to main when backend code or AWS infra config changes.
+# Replaces the old Railway pipeline (deploy-to-railway.yml.disabled).
+#
+# Sequence per run:
+#   1. Build a Docker image, push to GHCR (sha-<hash> + :latest)
+#   2. Mirror the same image to ECR
+#   3. `copilot svc deploy` for medusa-server + medusa-worker (parallel)
+#   4. Poll /health on the public ALB until green (or fail)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/backend/**'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - '.dockerignore'
+      - 'deploy/aws/**'
+      - '.github/workflows/deploy-to-aws.yml'
+  workflow_dispatch:
+
+# Serialize deploys on the same branch — but don't cancel a deploy
+# mid-flight; if you push twice in quick succession, the second waits.
+concurrency:
+  group: deploy-aws-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: jyt-medusa
+  GHCR_REGISTRY: ghcr.io
+  GHCR_IMAGE: ghcr.io/${{ github.repository }}
+  # Same Node.js 24 opt-in as the old Railway pipeline used.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+permissions:
+  id-token: write   # AWS OIDC token request
+  contents: read
+  packages: write   # GHCR push
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # 1. Build & push image to GHCR. Same image serves server and worker.
+  #    The :latest tag is what our ECS task definitions reference;
+  #    sha-<hash> is the auditable, immutable tag.
+  # ─────────────────────────────────────────────────────────────────────────
+  build-and-push:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+      image_ref: ${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GHCR_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.GHCR_IMAGE }}
+          tags: |
+            type=sha,format=long,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./apps/backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Baked into the Vite admin bundle at build time. Public URLs, not secrets.
+          build-args: |
+            MEDUSA_BACKEND_URL=${{ vars.MEDUSA_BACKEND_URL }}
+            VITE_MEDUSA_BACKEND_URL=${{ vars.MEDUSA_BACKEND_URL }}
+            VITE_MEDIA_GALLERY_BASE_URL=${{ vars.VITE_MEDIA_GALLERY_BASE_URL }}
+            VITE_STOREFRONT_URL=${{ vars.VITE_STOREFRONT_URL }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build summary
+        run: |
+          {
+            echo "### Image"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Tags | \`${{ steps.meta.outputs.tags }}\` |"
+            echo "| SHA-tag | \`${{ steps.meta.outputs.version }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 2. Mirror the image to ECR (one-shot) so both services can deploy from it.
+  #    ECR keeps `:latest` + the same `sha-<hash>` tag for traceability.
+  # ─────────────────────────────────────────────────────────────────────────
+  mirror-to-ecr:
+    name: Mirror Image → ECR
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    outputs:
+      ecr_image: ${{ steps.mirror.outputs.ecr_image }}
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/jyt-github-actions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to GHCR (pull only)
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GHCR_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Pull from GHCR + push to ECR
+        id: mirror
+        env:
+          GHCR_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          # ECS task definitions reference :latest. We also tag the sha for
+          # auditing — if a regression appears, you can pin to a known-good sha.
+          SRC="${GHCR_IMAGE}:${GHCR_TAG}"
+          DST_SHA="${ECR_REGISTRY}/${ECR_REPOSITORY}:${GHCR_TAG}"
+          DST_LATEST="${ECR_REGISTRY}/${ECR_REPOSITORY}:latest"
+
+          docker pull "$SRC"
+          docker tag  "$SRC" "$DST_SHA"
+          docker tag  "$SRC" "$DST_LATEST"
+          docker push "$DST_SHA"
+          docker push "$DST_LATEST"
+
+          echo "ecr_image=${DST_SHA}" >> "$GITHUB_OUTPUT"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 3. Deploy server + worker in parallel via Copilot. Each deploy is its
+  #    own job so a worker-only or server-only failure is visible separately.
+  # ─────────────────────────────────────────────────────────────────────────
+  deploy-server:
+    name: Deploy medusa-server
+    runs-on: ubuntu-latest
+    needs: mirror-to-ecr
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/jyt-github-actions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install AWS Copilot CLI
+        run: |
+          curl -fsSL -o /tmp/copilot https://github.com/aws/copilot-cli/releases/latest/download/copilot-linux
+          chmod +x /tmp/copilot
+          sudo mv /tmp/copilot /usr/local/bin/copilot
+          copilot --version
+
+      - name: Deploy medusa-server
+        working-directory: deploy/aws
+        run: |
+          copilot svc deploy --name medusa-server --env prod \
+            --tag "${{ needs.build-and-push.outputs.image_tag }}"
+
+  deploy-worker:
+    name: Deploy medusa-worker
+    runs-on: ubuntu-latest
+    needs: mirror-to-ecr
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/jyt-github-actions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install AWS Copilot CLI
+        run: |
+          curl -fsSL -o /tmp/copilot https://github.com/aws/copilot-cli/releases/latest/download/copilot-linux
+          chmod +x /tmp/copilot
+          sudo mv /tmp/copilot /usr/local/bin/copilot
+          copilot --version
+
+      - name: Deploy medusa-worker
+        working-directory: deploy/aws
+        run: |
+          copilot svc deploy --name medusa-worker --env prod \
+            --tag "${{ needs.build-and-push.outputs.image_tag }}"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 4. Health-check the public endpoint after both deploys are done.
+  # ─────────────────────────────────────────────────────────────────────────
+  health-check:
+    name: Health Check — v3.jaalyantra.com
+    runs-on: ubuntu-latest
+    needs: [deploy-server, deploy-worker]
+    if: always() && needs.deploy-server.result == 'success'
+    steps:
+      - name: Poll /health until ready
+        env:
+          BACKEND_URL: ${{ vars.MEDUSA_BACKEND_URL }}
+        run: |
+          MAX_ATTEMPTS=20
+          INTERVAL=15
+          HEALTH_URL="${BACKEND_URL%/}/health"
+          echo "Polling ${HEALTH_URL} (max ${MAX_ATTEMPTS} × ${INTERVAL}s)"
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$HEALTH_URL" || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ healthy (attempt ${i}, HTTP ${HTTP_CODE})"
+              exit 0
+            fi
+            echo "⏳ attempt ${i}/${MAX_ATTEMPTS} — HTTP ${HTTP_CODE}"
+            sleep "$INTERVAL"
+          done
+          echo "❌ did not become healthy in time"
+          exit 1
