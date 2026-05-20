@@ -255,6 +255,38 @@ const Desk = () => {
   }, [addPanel])
 
   /**
+   * Keyboard shortcut: Alt+W (Option+W on Mac) closes the active tab.
+   * Cmd+W is hijacked by every browser, so Alt+W is the next-best
+   * muscle memory borrowed from IDE-style tab UX. We ignore the event
+   * when an input/textarea/contenteditable is focused so typing "w"
+   * inside a form doesn't nuke the tab.
+   */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "w" && e.key !== "W") return
+      if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
+      const target = e.target as HTMLElement | null
+      if (target) {
+        const tag = target.tagName
+        if (
+          tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          tag === "SELECT" ||
+          target.isContentEditable
+        ) {
+          return
+        }
+      }
+      const activeTabId = model.getActiveTabset()?.getSelectedNode()?.getId()
+      if (!activeTabId) return
+      e.preventDefault()
+      model.doAction(Actions.deleteTab(activeTabId))
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [model])
+
+  /**
    * On every model action: update hasTabs (derived state), mirror the
    * selected tab to the active-tab-store so the breadcrumb sees it,
    * persist to localStorage instantly, and queue a debounced PUT to the
