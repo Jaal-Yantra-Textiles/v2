@@ -107,18 +107,25 @@ export const EntityPanel = ({
 }) => {
   const initial =
     initialPath || config.initialPath || config.routes[0]?.path || "/"
+  // Outer wrapper takes the full FlexLayout panel height and provides the
+  // panel background, so any natural-height inner page (Medusa Containers
+  // sized to their content) renders against a solid colour all the way to
+  // the panel bottom rather than leaving an awkward empty band. The inner
+  // wrapper is min-h-full so a tall page still scrolls naturally.
   return (
-    <div className="h-full overflow-auto">
-      <RouterReset>
-        <MemoryRouter initialEntries={[initial]}>
-          <TabStatePublisher
-            tabId={tabId}
-            entityKey={entityKey}
-            entityLabel={entityLabel}
-          />
-          <Routes>{config.routes.map(renderRoute)}</Routes>
-        </MemoryRouter>
-      </RouterReset>
+    <div className="h-full overflow-auto bg-ui-bg-base">
+      <div className="min-h-full">
+        <RouterReset>
+          <MemoryRouter initialEntries={[initial]}>
+            <TabStatePublisher
+              tabId={tabId}
+              entityKey={entityKey}
+              entityLabel={entityLabel}
+            />
+            <Routes>{config.routes.map(renderRoute)}</Routes>
+          </MemoryRouter>
+        </RouterReset>
+      </div>
     </div>
   )
 }

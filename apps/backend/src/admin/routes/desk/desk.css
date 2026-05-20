@@ -32,20 +32,25 @@
   background-color: var(--ui-bg-base);
   color: var(--ui-fg-base);
   overflow: auto;
+  /* Divider between the tab strip and the panel content. Matches the
+     Container's divide-y stroke color (--ui-border-base) so the two
+     seams above and below the tab strip read as the same kind of line. */
+  border-top: 1px solid var(--ui-border-base);
 }
 
 /* Outline every docked pane so the split structure is obvious. */
 .flexlayout__tabset {
-  border: 1px solid var(--ui-border-strong);
   background-color: var(--ui-bg-base);
 }
 
 /* ── Tab bar ──────────────────────────────────────────────────────── */
 .flexlayout__tabset_tabbar_outer {
   background-color: var(--ui-bg-subtle);
-  /* Bumped from --ui-border-base → --ui-border-strong so the seam between
-     the tab strip and the content area below is unmistakable. */
-  border-bottom: 1px solid var(--ui-border-strong);
+  /* No bottom border here — the divider lives on .flexlayout__tab below
+     so it uses the same token and weight as the Container's divide-y
+     above. Having the border on the strip risked it disappearing in
+     dark mode because --ui-border-strong has very low contrast against
+     --ui-bg-subtle there. */
   min-height: 36px;
   height: 36px;
 }
