@@ -16,6 +16,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   getTabPathnames,
+  registerOpenTabHandler,
   setFocusedTab,
   subscribeTabStore,
   useActiveTab,
@@ -189,9 +190,14 @@ const Desk = () => {
    * mounted — important because we conditionally render Layout vs
    * EmptyDesk, and the first click on an empty desk happens while Layout
    * is still unmounted.
+   *
+   * `initialPath` (optional) pre-seeds the inner MemoryRouter's starting
+   * path, used by cross-tab actions like "open this partner in a new
+   * tab" so the new tab jumps straight to the detail page instead of
+   * the entity's list view.
    */
   const addPanel = useCallback(
-    (entityKey: EntityKey) => {
+    (entityKey: EntityKey, initialPath?: string) => {
       counterRef.current[entityKey] = (counterRef.current[entityKey] || 0) + 1
       const n = counterRef.current[entityKey]
       const entity = ENTITY_REGISTRY[entityKey]
@@ -199,6 +205,15 @@ const Desk = () => {
 
       const targetTabsetId = firstTabsetId(model)
       if (!targetTabsetId) return
+
+      if (initialPath) {
+        // Seed the path the factory will read when the panel mounts.
+        // TabStatePublisher will overwrite this once the panel mounts.
+        persistedPathsRef.current = {
+          ...persistedPathsRef.current,
+          [tabId]: initialPath,
+        }
+      }
 
       model.doAction(
         Actions.addNode(
@@ -217,6 +232,16 @@ const Desk = () => {
     },
     [model]
   )
+
+  // Expose addPanel as the cross-tab open handler so any page inside an
+  // EntityPanel can call openTabAt(entityKey, path) to spawn a sibling tab.
+  useEffect(() => {
+    return registerOpenTabHandler((entityKey, path) => {
+      if (ENTITY_REGISTRY[entityKey as EntityKey]) {
+        addPanel(entityKey as EntityKey, path)
+      }
+    })
+  }, [addPanel])
 
   useEffect(() => {
     const handler = (e: Event) => {

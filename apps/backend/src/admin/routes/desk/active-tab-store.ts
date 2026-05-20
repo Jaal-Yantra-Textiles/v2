@@ -31,6 +31,30 @@ type Listener = () => void
 const listeners = new Set<Listener>()
 const notify = () => listeners.forEach((l) => l())
 
+/**
+ * Cross-tab open: any component rendered inside an EntityPanel (i.e. inside
+ * the inner MemoryRouter) can call `openTabAt(entityKey, path)` to spawn
+ * a new tab in the workspace and jump it straight to a specific route.
+ * Used for "open this design's partner in a new tab" style links.
+ *
+ * The handler is registered by the desk page on mount; if no handler is
+ * registered (e.g. the helper somehow gets called outside the desk), the
+ * call is a no-op rather than a crash.
+ */
+export type OpenTabFn = (entityKey: string, path?: string) => void
+let openTabHandler: OpenTabFn | null = null
+
+export const registerOpenTabHandler = (fn: OpenTabFn): (() => void) => {
+  openTabHandler = fn
+  return () => {
+    if (openTabHandler === fn) openTabHandler = null
+  }
+}
+
+export const openTabAt: OpenTabFn = (entityKey, path) => {
+  openTabHandler?.(entityKey, path)
+}
+
 export const setTabState = (s: TabState): void => {
   tabRegistry.set(s.tabId, s)
   notify()
