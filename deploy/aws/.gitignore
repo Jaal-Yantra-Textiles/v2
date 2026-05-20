@@ -3,7 +3,6 @@ secrets.local.env
 secrets.*.env
 !secrets.example.env
 
-# Copilot generates a workspace marker that contains your app + account binding.
-# It's environment-specific so committing it can confuse multi-developer setups.
-# If you want it committed (most teams do), delete this line.
-copilot/.workspace
+# Copilot's workspace marker (deploy/aws/copilot/.workspace) IS committed
+# so the CI runner can resolve the application name. The file contains only
+# `application: jyt` — no secrets.
