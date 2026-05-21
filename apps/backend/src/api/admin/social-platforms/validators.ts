@@ -13,6 +13,7 @@ export const ApiCategorySchema = z.enum([
   "communication",
   "authentication",
   "google",
+  "ai", // AI/LLM providers (OpenRouter, DashScope, Cloudflare AI, Vercel AI, custom)
   "other",
 ]);
 

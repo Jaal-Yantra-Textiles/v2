@@ -188,6 +188,15 @@ const SocialPlatformPage = () => {
               <Button
                 size="small"
                 variant="secondary"
+                onClick={() =>
+                  navigate("/settings/external-platforms/create-ai")
+                }
+              >
+                Create AI provider
+              </Button>
+              <Button
+                size="small"
+                variant="secondary"
                 onClick={() => navigate("/settings/external-platforms/create")}
               >
                 Create
