@@ -3089,11 +3089,12 @@ export default defineMiddlewares({
     // Store AI endpoints
     {
       matcher: "/store/ai/search",
-      method: "POST",
+      method: "GET",
       // Public — no customer auth. Discovery should work for anonymous
-      // visitors. Body validation only.
+      // visitors. GET with query-string params so the call is idempotent
+      // and matches the SDK's `client.fetch(..., { query })` convention.
       middlewares: [
-        validateAndTransformBody(wrapSchema(StoreAiSearchSchema)),
+        validateAndTransformQuery(wrapSchema(StoreAiSearchSchema), {}),
       ],
     },
     {

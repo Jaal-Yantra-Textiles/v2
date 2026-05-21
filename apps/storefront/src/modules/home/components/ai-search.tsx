@@ -1,7 +1,7 @@
 "use client"
 
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import { sdk } from "@lib/config"
+import { searchAiProducts } from "@lib/data/ai-search"
 import { useEffect, useRef, useState } from "react"
 
 /**
@@ -17,47 +17,14 @@ import { useEffect, useRef, useState } from "react"
  * paid LLM, so we want one call per "thought" rather than per keystroke,
  * but the user shouldn't notice waiting.
  */
-type Variant = {
-  id: string
-  title?: string | null
-  calculated_price?: {
-    calculated_amount?: number | null
-    currency_code?: string | null
-  } | null
-}
-
-type StorefrontAttribution =
-  | { kind: "main" }
-  | {
-      kind: "partner"
-      url?: string
-      partner_name: string
-      partner_handle: string
-      sales_channel_name?: string
-    }
-
-type SearchProduct = {
-  id: string
-  handle: string
-  title: string
-  thumbnail?: string | null
-  variants?: Variant[]
-  storefront?: StorefrontAttribution
-}
-
-type SearchResponse = {
-  query: string
-  mode: "vector" | "lexical"
-  interpretation: {
-    keywords: string[]
-    color?: string
-    material?: string
-    min_price?: number
-    max_price?: number
-  }
-  products: SearchProduct[]
-  count: number
-}
+// Types come from the server action file so the wire shape is defined
+// in one place. The action lives in lib/data/ai-search and itself maps
+// to GET /store/ai/search on the Medusa backend.
+import type {
+  AiSearchProduct as SearchProduct,
+  AiSearchResponse as SearchResponse,
+  AiSearchVariant as Variant,
+} from "@lib/data/ai-search"
 
 const DEBOUNCE_MS = 350
 const MIN_QUERY_LEN = 2
@@ -89,10 +56,10 @@ export default function AiSearch() {
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
-  // Tracks the AbortController of the most recent in-flight request so
-  // we cancel old requests when the user keeps typing — otherwise a
-  // slow earlier response could overwrite a faster later one.
-  const inflightRef = useRef<AbortController | null>(null)
+  // Token identifying the most recent request — server actions don't
+  // accept an AbortSignal, so we discard responses that don't match
+  // the latest token instead of cancelling the in-flight call.
+  const inflightRef = useRef<symbol | null>(null)
 
   // Close on outside click.
   useEffect(() => {
@@ -114,23 +81,17 @@ export default function AiSearch() {
     }
 
     const handle = window.setTimeout(async () => {
-      inflightRef.current?.abort()
-      const controller = new AbortController()
-      inflightRef.current = controller
+      const myToken = Symbol()
+      inflightRef.current = myToken
       setLoading(true)
       try {
-        const r = await sdk.client.fetch<SearchResponse>("/store/ai/search", {
-          method: "POST",
-          body: { query: trimmed, limit: 6 },
-          signal: controller.signal,
-        } as any)
-        if (controller.signal.aborted) return
+        const r = await searchAiProducts(trimmed, 6)
+        if (inflightRef.current !== myToken) return
         setResponse(r)
-      } catch (e) {
-        if ((e as any)?.name === "AbortError") return
-        setResponse(null)
+      } catch {
+        if (inflightRef.current === myToken) setResponse(null)
       } finally {
-        if (!controller.signal.aborted) setLoading(false)
+        if (inflightRef.current === myToken) setLoading(false)
       }
     }, DEBOUNCE_MS)
 
