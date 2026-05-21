@@ -47,9 +47,14 @@ type ProviderType =
   | "dashscope"
   | "cloudflare"
   | "vercel_ai_gateway"
+  | "fal"
   | "custom"
 
-type Role = "ai_search_chat" | "ai_search_embed" | "ai_product_description"
+type Role =
+  | "ai_search_chat"
+  | "ai_search_embed"
+  | "ai_product_description"
+  | "ai_image_gen"
 
 type PlatformPlan = {
   name: string
@@ -140,6 +145,20 @@ const planFromEnv = (): PlatformPlan[] => {
       default_model:
         process.env.PRODUCT_SEARCH_CLOUDFLARE_MODEL ||
         "@cf/baai/bge-base-en-v1.5",
+    })
+  }
+
+  // ── Image gen role: FAL ────────────────────────────────────────────────
+  if (process.env.FAL_KEY) {
+    plans.push({
+      name: "FAL image gen (env backfill)",
+      provider_type: "fal",
+      role: "ai_image_gen",
+      is_default: true,
+      api_key: process.env.FAL_KEY,
+      // FAL's SDK chooses the endpoint per call; default_model is
+      // informational only unless an admin wants to pin one.
+      default_model: process.env.FAL_DEFAULT_MODEL,
     })
   }
 

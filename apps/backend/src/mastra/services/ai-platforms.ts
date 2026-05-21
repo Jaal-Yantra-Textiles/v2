@@ -43,12 +43,14 @@ export type AiProviderType =
   | "dashscope"
   | "cloudflare"
   | "vercel_ai_gateway"
+  | "fal"
   | "custom"
 
 export type AiRole =
   | "ai_search_chat"
   | "ai_search_embed"
   | "ai_product_description"
+  | "ai_image_gen"
   // String escape hatch so callers can use ad-hoc roles without
   // bumping this union every time.
   | (string & {})
@@ -85,6 +87,12 @@ const PROVIDER_DEFAULTS: Record<
     baseUrl: "https://gateway.ai.cloudflare.com/v1", // overridable; admin
     // can set api_config.base_url for the actual endpoint.
   },
+  fal: {
+    // FAL has its own SDK — not OpenAI-compatible. The helper here is
+    // only used to surface the API key; callers use the @fal-ai/client
+    // SDK directly with `fal.config({ credentials })`.
+    defaultModelHint: "fal-ai/flux/schnell",
+  },
   custom: {},
 }
 
@@ -106,6 +114,10 @@ const normalizeProviderType = (raw: unknown): AiProviderType | null => {
     case "vercel_ai_gateway":
     case "vercel-ai-gateway":
       return "vercel_ai_gateway"
+    case "fal":
+    case "fal_ai":
+    case "fal-ai":
+      return "fal"
     case "custom":
     case "openai_compatible":
     case "openai-compatible":
@@ -197,7 +209,11 @@ export const getAiPlatformForRole = async (
     }
     baseUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`
   }
-  if (!baseUrl) {
+  // FAL (and any future SDK-only provider) doesn't need a baseUrl —
+  // the SDK calls FAL's gateway directly. All other providers must
+  // resolve to one so the OpenAI-compatible adapter has somewhere to
+  // point.
+  if (!baseUrl && providerType !== "fal") {
     console.warn(
       `[ai-platforms] platform ${chosen.id} (provider=${providerType}) has no base_url`
     )
@@ -208,7 +224,7 @@ export const getAiPlatformForRole = async (
     platformId: chosen.id,
     providerType,
     apiKey,
-    baseUrl,
+    baseUrl: baseUrl ?? "",
     defaultModel: apiConfig.default_model ?? meta.default_model ?? null,
     accountId,
   }

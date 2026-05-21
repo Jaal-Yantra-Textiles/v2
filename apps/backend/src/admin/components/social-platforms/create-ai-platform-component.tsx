@@ -38,6 +38,7 @@ const ProviderTypeEnum = z.enum([
   "dashscope",
   "cloudflare",
   "vercel_ai_gateway",
+  "fal",
   "custom",
 ])
 
@@ -45,6 +46,7 @@ const RoleEnum = z.enum([
   "ai_search_chat",
   "ai_search_embed",
   "ai_product_description",
+  "ai_image_gen",
 ])
 
 const Schema = z.object({
@@ -84,6 +86,7 @@ const PROVIDER_LABELS: Record<z.infer<typeof ProviderTypeEnum>, string> = {
   dashscope: "DashScope (Qwen)",
   cloudflare: "Cloudflare Workers AI",
   vercel_ai_gateway: "Vercel AI Gateway",
+  fal: "FAL (image gen)",
   custom: "Custom (OpenAI-compatible)",
 }
 
@@ -91,6 +94,7 @@ const ROLE_LABELS: Record<z.infer<typeof RoleEnum>, string> = {
   ai_search_chat: "Storefront search — chat / extraction",
   ai_search_embed: "Storefront search — embeddings",
   ai_product_description: "Product image → description",
+  ai_image_gen: "Image generation / segmentation (FAL)",
 }
 
 const DEFAULT_MODEL_HINTS: Record<z.infer<typeof ProviderTypeEnum>, string> = {
@@ -98,6 +102,7 @@ const DEFAULT_MODEL_HINTS: Record<z.infer<typeof ProviderTypeEnum>, string> = {
   dashscope: "qwen-turbo  (chat) / text-embedding-v3 (embed)",
   cloudflare: "@cf/meta/llama-3.1-8b-instruct (chat) / @cf/baai/bge-base-en-v1.5 (embed)",
   vercel_ai_gateway: "openai/gpt-4o-mini",
+  fal: "fal-ai/flux/schnell — optional; FAL endpoint is chosen per-call",
   custom: "your-model-id",
 }
 
