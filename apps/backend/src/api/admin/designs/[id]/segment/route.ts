@@ -3,6 +3,7 @@ import {
   MedusaResponse,
 } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
+import { resolveFalCredentials } from "../../../../../mastra/services/fal-credentials"
 import { SegmentImageReq } from "./validators"
 
 /**
@@ -27,15 +28,16 @@ export const POST = async (
     )
   }
 
-  if (!process.env.FAL_KEY) {
+  const falKey = await resolveFalCredentials(req.scope as any)
+  if (!falKey) {
     throw new MedusaError(
       MedusaError.Types.UNEXPECTED_STATE,
-      "FAL_KEY environment variable is not configured"
+      "FAL credentials not configured. Add an AI provider with provider_type=fal and role=ai_image_gen in Settings → External Platforms, or set the FAL_KEY env var."
     )
   }
 
   const { fal } = await import("@fal-ai/client")
-  fal.config({ credentials: process.env.FAL_KEY })
+  fal.config({ credentials: falKey })
 
   // If base64, upload to fal storage first
   let resolvedImageUrl = image_url

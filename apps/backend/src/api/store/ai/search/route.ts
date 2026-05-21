@@ -81,8 +81,16 @@ const applyPriceFilter = (
   return true
 }
 
-export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  const { query, limit } = (req as any).validatedBody as StoreAiSearchReq
+export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  // Read from validatedQuery — the middleware in api/middlewares.ts uses
+  // validateAndTransformQuery so query-string params land here. Both
+  // validatedQuery and the older validatequery spelling are tolerated
+  // (different Medusa versions use different names).
+  const qv =
+    (req as any).validatedQuery ??
+    (req as any).validatequery ??
+    {}
+  const { query, limit } = qv as StoreAiSearchReq
   const queryService = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
   // 1. Interpret the query. Passes req.scope so the extractor can

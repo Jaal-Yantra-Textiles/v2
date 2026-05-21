@@ -4,6 +4,7 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
+import { resolveFalCredentials } from "../../mastra/services/fal-credentials"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -27,9 +28,12 @@ const CATVTON_CLOTH_TYPE_MAP: Record<string, string> = {
 // ---------------------------------------------------------------------------
 // Helper: upload a base64 image to fal.ai storage and return a public URL
 // ---------------------------------------------------------------------------
-async function uploadBase64ToFal(base64DataUrl: string): Promise<string> {
+async function uploadBase64ToFal(
+  base64DataUrl: string,
+  credentials: string
+): Promise<string> {
   const { fal } = await import("@fal-ai/client")
-  fal.config({ credentials: process.env.FAL_KEY! })
+  fal.config({ credentials })
 
   const match = base64DataUrl.match(/^data:([^;]+);base64,(.+)$/)
   if (!match) throw new Error("Invalid base64 data URL")
@@ -49,16 +53,22 @@ async function uploadBase64ToFal(base64DataUrl: string): Promise<string> {
 // ---------------------------------------------------------------------------
 const catVtonStep = createStep(
   "cat-vton-step",
-  async (input: TryOnGarmentInput): Promise<StepResponse<{ result_url: string }, null>> => {
-    if (!process.env.FAL_KEY) {
-      throw new Error("FAL_KEY environment variable is not set")
+  async (
+    input: TryOnGarmentInput,
+    { container }
+  ): Promise<StepResponse<{ result_url: string }, null>> => {
+    const falKey = await resolveFalCredentials(container as any)
+    if (!falKey) {
+      throw new Error(
+        "FAL credentials not configured. Add an AI provider with provider_type=fal and role=ai_image_gen in Settings → External Platforms, or set the FAL_KEY env var."
+      )
     }
     const { fal } = await import("@fal-ai/client")
-    fal.config({ credentials: process.env.FAL_KEY })
+    fal.config({ credentials: falKey })
 
     // Upload face photo to fal storage (becomes human_image_url)
     console.log("[TryOn] Uploading face image to fal storage…")
-    const humanUrl = await uploadBase64ToFal(input.face_image_base64)
+    const humanUrl = await uploadBase64ToFal(input.face_image_base64, falKey)
 
     // Resolve garment URL (upload base64 if needed, or use URL directly)
     let garmentUrl: string
@@ -66,7 +76,7 @@ const catVtonStep = createStep(
       garmentUrl = input.garment_image_url
     } else if (input.garment_image_base64) {
       console.log("[TryOn] Uploading garment image to fal storage…")
-      garmentUrl = await uploadBase64ToFal(input.garment_image_base64)
+      garmentUrl = await uploadBase64ToFal(input.garment_image_base64, falKey)
     } else {
       throw new Error("Either garment_image_url or garment_image_base64 is required")
     }
