@@ -1,3 +1,23 @@
+# [13.7.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.6.0...v13.7.0) (2026-05-21)
+
+
+### Bug Fixes
+
+* **ai-search:** hard timeout + PgVector id + inline encrypt + AI filter ([00434e7](https://github.com/Jaal-Yantra-Textiles/v2/commit/00434e7ab38f74800e9fb3c7498b768593dbfbe7))
+* **storefront/search:** route AI search through a server action ([36adfb8](https://github.com/Jaal-Yantra-Textiles/v2/commit/36adfb8f23c4d0dfea6dde64fc4aa5c33ba3f990))
+
+
+### Features
+
+* **ai:** Create-AI-provider admin UI + env-vars backfill script ([469adc1](https://github.com/Jaal-Yantra-Textiles/v2/commit/469adc1c1ce3728477b2a648a3f5897a3dac3b12)), closes [#242](https://github.com/Jaal-Yantra-Textiles/v2/issues/242)
+* **store/ai/search:** free OpenRouter → DashScope → CF Workers AI chain ([bf0ebb9](https://github.com/Jaal-Yantra-Textiles/v2/commit/bf0ebb9d5d7a68060663fb60826714660811300b))
+* **ai:** lookup AI provider config from external-platforms (env fallback) ([bf67d95](https://github.com/Jaal-Yantra-Textiles/v2/commit/bf67d954262870c75d0b451e8d154a3bf5396dc7))
+* **ai:** migrate FAL_KEY to External Platforms (new role ai_image_gen) ([203b081](https://github.com/Jaal-Yantra-Textiles/v2/commit/203b081e3e0cf64ab08c3c48f118af2682225939))
+* **storefront/home:** one-shot hero + responsive coming-soon search ([7bc5bba](https://github.com/Jaal-Yantra-Textiles/v2/commit/7bc5bbaf03bf353fddafee8853363326a35ba7e5))
+* **store/ai/search:** partner-storefront attribution + CF embeddings ([c06ddaf](https://github.com/Jaal-Yantra-Textiles/v2/commit/c06ddaff67ca6cae0963fad25f67a07111625a7e))
+* **store/ai:** semantic product search backed by PgVector ([1348450](https://github.com/Jaal-Yantra-Textiles/v2/commit/1348450def2c8ca94a74b90db3cb77fd90b84866))
+* **storefront/home:** wire natural-language product search ([a1a30e9](https://github.com/Jaal-Yantra-Textiles/v2/commit/a1a30e904bd0c3ace8bcead1e455350b7db95ac9))
+
 # [13.6.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.5.0...v13.6.0) (2026-05-20)
 
 
