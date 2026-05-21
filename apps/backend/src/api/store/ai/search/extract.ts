@@ -177,6 +177,41 @@ const buildAttempts = (query: string): Attempt[] => {
  * chain (OpenRouter free → DashScope → Cloudflare). All-failures
  * degrade to a single-keyword interpretation so search still works.
  */
+/**
+ * Hard ceiling for the whole LLM-extraction step. Free OpenRouter models
+ * frequently queue for 30-60s, which blows past the storefront's
+ * server-action timeout (10s on Vercel) and surfaces as a 504 to the
+ * customer. The LLM is *enrichment* — when it can't return in this
+ * budget we fall through to the single-keyword interpretation and the
+ * downstream lexical search still works.
+ *
+ * Override with STOREFRONT_SEARCH_EXTRACT_BUDGET_MS for ops.
+ */
+const EXTRACT_BUDGET_MS = Number(
+  process.env.STOREFRONT_SEARCH_EXTRACT_BUDGET_MS ?? 4500
+)
+
+const withTimeout = async <T>(
+  p: Promise<T>,
+  ms: number,
+  label: string
+): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  try {
+    return await Promise.race([
+      p,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`${label} timed out after ${ms}ms`)),
+          ms
+        )
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 export const extractSearchInterpretation = async (
   query: string,
   container?: MedusaContainer
@@ -194,10 +229,14 @@ export const extractSearchInterpretation = async (
       const cfg = await getAiPlatformForRole(container, "ai_search_chat")
       if (cfg) {
         try {
-          const { object } = await generateObject({
-            ...opts,
-            model: buildChatModel(cfg),
-          })
+          const { object } = await withTimeout(
+            generateObject({
+              ...opts,
+              model: buildChatModel(cfg),
+            }),
+            EXTRACT_BUDGET_MS,
+            `db-platform:${cfg.providerType}`
+          )
           return object
         } catch (e: any) {
           console.warn(
@@ -217,11 +256,13 @@ export const extractSearchInterpretation = async (
     }
   }
 
-  // 2. Env-var chain (legacy / unconfigured deployments).
+  // 2. Env-var chain (legacy / unconfigured deployments). Each attempt
+  // shares the same budget so the whole extract still respects the
+  // ceiling — one slow attempt can't burn time for the next.
   const attempts = buildAttempts(query)
   for (const attempt of attempts) {
     try {
-      return await attempt.call()
+      return await withTimeout(attempt.call(), EXTRACT_BUDGET_MS, attempt.name)
     } catch (e: any) {
       console.warn(
         `[store/ai/search] ${attempt.name} failed:`,
