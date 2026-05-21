@@ -11,9 +11,11 @@
  * (which indexes products) can evolve independently.
  *
  * Embedding provider selection (env: PRODUCT_SEARCH_EMBED_PROVIDER):
- *   • hf_local   — Xenova/all-MiniLM-L6-v2, 384 dims, runs in-process (default)
- *   • google     — text-embedding-004, 768 dims, needs GOOGLE_GENERATIVE_AI_API_KEY
- *   • dashscope  — text-embedding-v3, 1024 dims, needs DASHSCOPE_API_KEY (user has credits)
+ *   • hf_local    — Xenova/all-MiniLM-L6-v2, 384 dims, runs in-process (default)
+ *   • google      — text-embedding-004, 768 dims, needs GOOGLE_GENERATIVE_AI_API_KEY
+ *   • dashscope   — text-embedding-v3, 1024 dims, needs DASHSCOPE_API_KEY
+ *   • cloudflare  — @cf/baai/bge-base-en-v1.5, 768 dims, needs
+ *                   CLOUDFLARE_AI_ACCOUNT_ID + CLOUDFLARE_AI_TOKEN
  *
  * IMPORTANT: switching providers changes the vector dimension, which is
  * incompatible with the existing PgVector index. Changing provider means:
@@ -33,10 +35,11 @@ const INDEX_NAME = "product_search_v1"
 const HF_DEFAULT_MODEL = "Xenova/all-MiniLM-L6-v2"
 const GOOGLE_EMBEDDING_MODEL = "text-embedding-004"
 const DASHSCOPE_EMBEDDING_MODEL = "text-embedding-v3"
+const CLOUDFLARE_EMBEDDING_MODEL = "@cf/baai/bge-base-en-v1.5"
 
 // ── Embedding provider ─────────────────────────────────────────────────
 
-type EmbeddingProvider = "google" | "hf_local" | "dashscope"
+type EmbeddingProvider = "google" | "hf_local" | "dashscope" | "cloudflare"
 
 const getEmbeddingProvider = (): EmbeddingProvider => {
   // Storefront search has its own env so it can be tuned independently
@@ -51,6 +54,7 @@ const getEmbeddingProvider = (): EmbeddingProvider => {
     .toLowerCase()
   if (p === "google") return "google"
   if (p === "dashscope" || p === "qwen") return "dashscope"
+  if (p === "cloudflare" || p === "cf") return "cloudflare"
   return "hf_local"
 }
 
@@ -85,6 +89,23 @@ const getDashscopeClient = () => {
   return _dashscopeClient
 }
 
+let _cloudflareClient: ReturnType<typeof createOpenAI> | null = null
+const getCloudflareClient = () => {
+  if (_cloudflareClient) return _cloudflareClient
+  const accountId = process.env.CLOUDFLARE_AI_ACCOUNT_ID
+  const token = process.env.CLOUDFLARE_AI_TOKEN
+  if (!accountId || !token) {
+    throw new Error(
+      "PRODUCT_SEARCH_EMBED_PROVIDER=cloudflare but CLOUDFLARE_AI_ACCOUNT_ID / CLOUDFLARE_AI_TOKEN are not set"
+    )
+  }
+  _cloudflareClient = createOpenAI({
+    baseURL: `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`,
+    apiKey: token,
+  })
+  return _cloudflareClient
+}
+
 export const embedTexts = async (values: string[]): Promise<number[][]> => {
   if (!values.length) return []
   const provider = getEmbeddingProvider()
@@ -101,6 +122,16 @@ export const embedTexts = async (values: string[]): Promise<number[][]> => {
       process.env.PRODUCT_SEARCH_DASHSCOPE_MODEL || DASHSCOPE_EMBEDDING_MODEL
     const { embeddings } = await embedMany({
       model: ds.embedding(modelId),
+      values,
+    })
+    return embeddings as number[][]
+  }
+  if (provider === "cloudflare") {
+    const cf = getCloudflareClient()
+    const modelId =
+      process.env.PRODUCT_SEARCH_CLOUDFLARE_MODEL || CLOUDFLARE_EMBEDDING_MODEL
+    const { embeddings } = await embedMany({
+      model: cf.embedding(modelId),
       values,
     })
     return embeddings as number[][]

@@ -26,12 +26,23 @@ type Variant = {
   } | null
 }
 
+type StorefrontAttribution =
+  | { kind: "main" }
+  | {
+      kind: "partner"
+      url?: string
+      partner_name: string
+      partner_handle: string
+      sales_channel_name?: string
+    }
+
 type SearchProduct = {
   id: string
   handle: string
   title: string
   thumbnail?: string | null
   variants?: Variant[]
+  storefront?: StorefrontAttribution
 }
 
 type SearchResponse = {
@@ -181,6 +192,62 @@ export default function AiSearch() {
           {hasResults &&
             response!.products.map((p) => {
               const price = formatPrice(p.variants)
+              const attribution = p.storefront
+              const isPartner =
+                attribution?.kind === "partner" && Boolean(attribution.url)
+
+              const thumb = p.thumbnail ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={p.thumbnail}
+                  alt=""
+                  className="h-12 w-12 rounded-md object-cover sm:h-14 sm:w-14"
+                />
+              ) : (
+                <div className="h-12 w-12 rounded-md bg-neutral-100 sm:h-14 sm:w-14" />
+              )
+
+              const body = (
+                <>
+                  {thumb}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-medium text-neutral-900 sm:text-base">
+                        {p.title}
+                      </p>
+                      {isPartner && (
+                        <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-800 sm:text-[11px]">
+                          Partner store
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-neutral-500 sm:text-sm">
+                      {price ? `from ${price}` : null}
+                      {isPartner && attribution.partner_name ? (
+                        <>
+                          {price ? " · " : ""}
+                          sold by {attribution.partner_name}
+                        </>
+                      ) : null}
+                    </p>
+                  </div>
+                </>
+              )
+
+              if (isPartner && attribution.url) {
+                return (
+                  <a
+                    key={p.id}
+                    href={attribution.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-amber-50/40 focus:bg-amber-50/40 focus:outline-none"
+                    onClick={() => setOpen(false)}
+                  >
+                    {body}
+                  </a>
+                )
+              }
               return (
                 <LocalizedClientLink
                   key={p.id}
@@ -188,26 +255,7 @@ export default function AiSearch() {
                   className="flex items-center gap-3 px-4 py-3 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-none"
                   onClick={() => setOpen(false)}
                 >
-                  {p.thumbnail ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={p.thumbnail}
-                      alt=""
-                      className="h-12 w-12 rounded-md object-cover sm:h-14 sm:w-14"
-                    />
-                  ) : (
-                    <div className="h-12 w-12 rounded-md bg-neutral-100 sm:h-14 sm:w-14" />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-neutral-900 sm:text-base">
-                      {p.title}
-                    </p>
-                    {price && (
-                      <p className="text-xs text-neutral-500 sm:text-sm">
-                        from {price}
-                      </p>
-                    )}
-                  </div>
+                  {body}
                 </LocalizedClientLink>
               )
             })}

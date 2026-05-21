@@ -24,6 +24,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { searchProducts } from "../../../../mastra/rag/productCatalog"
 import { extractSearchInterpretation } from "./extract"
+import { attachStorefrontAttribution } from "./storefront-attribution"
 import type { StoreAiSearchReq } from "./validators"
 
 const PRODUCT_FIELDS = [
@@ -38,6 +39,12 @@ const PRODUCT_FIELDS = [
   "variants.title",
   "variants.calculated_price.calculated_amount",
   "variants.calculated_price.currency_code",
+  // Pull sales_channels so attachStorefrontAttribution can decide
+  // whether each hit belongs to the main JYT storefront or a partner's
+  // — partner products link out to their own domain, main products
+  // link locally so country-code prefixing works as usual.
+  "sales_channels.id",
+  "sales_channels.name",
 ]
 
 const buildEnrichedQuery = (
@@ -132,11 +139,21 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     )
     .slice(0, limit)
 
+  // 5. Attribute each hit to a storefront (main vs partner) so the UI
+  // can render the right link target. Partner-owned products link out
+  // to the partner's domain instead of the local /products/<handle>
+  // — clicking them locally would 404 because they aren't published
+  // through the main sales channel.
+  const attributed = await attachStorefrontAttribution(
+    filtered as any,
+    req.scope as any
+  )
+
   res.json({
     query,
     mode,
     interpretation,
-    products: filtered,
-    count: filtered.length,
+    products: attributed,
+    count: attributed.length,
   })
 }
