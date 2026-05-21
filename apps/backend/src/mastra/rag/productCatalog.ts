@@ -10,12 +10,19 @@
  * the admin RAG (which indexes API endpoints) and the storefront search
  * (which indexes products) can evolve independently.
  *
- * Embedding provider selection (env: PRODUCT_SEARCH_EMBED_PROVIDER):
- *   • hf_local    — Xenova/all-MiniLM-L6-v2, 384 dims, runs in-process (default)
- *   • google      — text-embedding-004, 768 dims, needs GOOGLE_GENERATIVE_AI_API_KEY
- *   • dashscope   — text-embedding-v3, 1024 dims, needs DASHSCOPE_API_KEY
- *   • cloudflare  — @cf/baai/bge-base-en-v1.5, 768 dims, needs
- *                   CLOUDFLARE_AI_ACCOUNT_ID + CLOUDFLARE_AI_TOKEN
+ * Embedding provider resolution order:
+ *
+ *   1. DB-configured platform for role `ai_search_embed` (admin UI:
+ *      Settings → External Platforms with category=ai, metadata.role=
+ *      ai_search_embed, metadata.is_default=true). When set, this takes
+ *      precedence — the admin picked it deliberately.
+ *
+ *   2. PRODUCT_SEARCH_EMBED_PROVIDER env var:
+ *        • hf_local    — Xenova/all-MiniLM-L6-v2, 384 dims (default)
+ *        • google      — text-embedding-004, 768 dims, needs GOOGLE_GENERATIVE_AI_API_KEY
+ *        • dashscope   — text-embedding-v3, 1024 dims, needs DASHSCOPE_API_KEY
+ *        • cloudflare  — @cf/baai/bge-base-en-v1.5, 768 dims, needs
+ *                        CLOUDFLARE_AI_ACCOUNT_ID + CLOUDFLARE_AI_TOKEN
  *
  * IMPORTANT: switching providers changes the vector dimension, which is
  * incompatible with the existing PgVector index. Changing provider means:
@@ -25,11 +32,16 @@
  * The LLM extraction layer (extract.ts) DOES fall back across providers
  * because each call is independent, but embeddings have to commit.
  */
+import type { MedusaContainer } from "@medusajs/framework"
 import { createOpenAI } from "@ai-sdk/openai"
 import { PgVector } from "@mastra/pg"
 import { embedMany } from "ai"
 import { google } from "@ai-sdk/google"
 import crypto from "crypto"
+import {
+  buildEmbeddingModel,
+  getAiPlatformForRole,
+} from "../services/ai-platforms"
 
 const INDEX_NAME = "product_search_v1"
 const HF_DEFAULT_MODEL = "Xenova/all-MiniLM-L6-v2"
@@ -106,8 +118,33 @@ const getCloudflareClient = () => {
   return _cloudflareClient
 }
 
-export const embedTexts = async (values: string[]): Promise<number[][]> => {
+export const embedTexts = async (
+  values: string[],
+  container?: MedusaContainer
+): Promise<number[][]> => {
   if (!values.length) return []
+
+  // 1. DB-configured platform wins when present and successful. We only
+  // try the env fallback if no platform is configured — if the admin
+  // set up a platform that's failing, surfacing the error rather than
+  // silently switching is more honest.
+  if (container) {
+    try {
+      const cfg = await getAiPlatformForRole(container, "ai_search_embed")
+      if (cfg) {
+        const model = buildEmbeddingModel(cfg)
+        const { embeddings } = await embedMany({ model, values })
+        return embeddings as number[][]
+      }
+    } catch (e: any) {
+      console.warn(
+        "[productCatalog] db-configured embed platform failed; falling through to env:",
+        e?.message ?? e
+      )
+    }
+  }
+
+  // 2. Env-var path (existing logic).
   const provider = getEmbeddingProvider()
   if (provider === "hf_local") {
     const extractor = await getHfExtractor()
@@ -247,7 +284,8 @@ export type UpsertResult = {
  * back with the same text_hash, we skip the re-embed.
  */
 export const upsertProducts = async (
-  products: IndexableProduct[]
+  products: IndexableProduct[],
+  container?: MedusaContainer
 ): Promise<UpsertResult> => {
   const result: UpsertResult = { upserted: 0, skipped: 0, errors: 0 }
   if (!products.length) return result
@@ -295,7 +333,7 @@ export const upsertProducts = async (
   for (let i = 0; i < toEmbed.length; i += BATCH) {
     const slice = toEmbed.slice(i, i + BATCH)
     try {
-      const embeddings = await embedTexts(slice.map((c) => c.text))
+      const embeddings = await embedTexts(slice.map((c) => c.text), container)
       vectors.push(...embeddings)
     } catch (e) {
       console.warn("[productCatalog] embed batch failed", (e as any)?.message)
@@ -353,12 +391,13 @@ export type ProductSearchHit = {
  */
 export const searchProducts = async (
   query: string,
-  topK = 12
+  topK = 12,
+  container?: MedusaContainer
 ): Promise<ProductSearchHit[]> => {
   if (!query.trim()) return []
   let queryVector: number[] = []
   try {
-    const [v] = await embedTexts([query])
+    const [v] = await embedTexts([query], container)
     queryVector = Array.isArray(v) ? v : []
   } catch (e) {
     console.warn("[productCatalog] query embed failed", (e as any)?.message)

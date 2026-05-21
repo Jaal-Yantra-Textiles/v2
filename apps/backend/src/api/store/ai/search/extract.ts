@@ -1,33 +1,35 @@
 /**
  * LLM extraction layer for /store/ai/search.
  *
- * Tries provider chain in this order, returning the first that succeeds:
+ * Provider resolution order:
  *
- *   1. OpenRouter (free models only). Uses the existing
- *      mastra/providers/dynamic-text-model resolver, which auto-selects
- *      the best currently-available free model from the live OpenRouter
- *      catalogue and evicts models whose free tier has ended.
+ *   1. **DB-configured AI platform** for role `ai_search_chat` (admin
+ *      configured one in Settings → External Platforms). When present,
+ *      this is the ONLY provider we try — admins picked it deliberately,
+ *      so silently switching to env-var providers on a model error
+ *      would mask configuration problems.
  *
- *   2. DashScope (Qwen) via its OpenAI-compatible endpoint. Used when
- *      DASHSCOPE_API_KEY is set — the user has credits there so this is
- *      a reliable paid fallback. Default model qwen-turbo (cheap, fast,
- *      tool-use capable); override with STOREFRONT_SEARCH_DASHSCOPE_MODEL.
+ *   2. **Env-var fallback chain** when no DB platform is configured.
+ *      Tried in this order, first success wins:
+ *        a. OpenRouter free models via the existing
+ *           dynamicFreeTextModel resolver
+ *        b. DashScope (Qwen) when DASHSCOPE_API_KEY is set
+ *        c. Cloudflare Workers AI when CLOUDFLARE_AI_ACCOUNT_ID +
+ *           CLOUDFLARE_AI_TOKEN are set
  *
- *   3. Cloudflare Workers AI via its OpenAI-compatible endpoint at
- *      api.cloudflare.com/client/v4/accounts/<id>/ai/v1. Used when both
- *      CLOUDFLARE_AI_ACCOUNT_ID and CLOUDFLARE_AI_TOKEN are set. Default
- *      model @cf/meta/llama-3.1-8b-instruct (also tool-use capable);
- *      override with STOREFRONT_SEARCH_CLOUDFLARE_MODEL.
- *
- * If all three fail (no providers configured, all rate-limited, schema
- * mismatch from a particular model, etc.) we fall back to treating the
- * raw query as a single keyword so search still works — just without
- * the LLM enrichment.
+ *   3. If everything fails (no providers, all rate-limited, schema
+ *      mismatch) we fall back to treating the raw query as a single
+ *      keyword so search still works — just without the LLM enrichment.
  */
+import type { MedusaContainer } from "@medusajs/framework"
 import { createOpenAI } from "@ai-sdk/openai"
 import { generateObject } from "ai"
 import { z } from "zod"
 import { dynamicFreeTextModel } from "../../../../mastra/providers/dynamic-text-model"
+import {
+  buildChatModel,
+  getAiPlatformForRole,
+} from "../../../../mastra/services/ai-platforms"
 
 const SearchInterpretationSchema = z.object({
   keywords: z
@@ -168,14 +170,54 @@ const buildAttempts = (query: string): Attempt[] => {
 
 /**
  * Convert a natural-language shopper query into a small structured
- * interpretation. Walks the provider chain in order, returning the
- * first successful result. If every provider fails (or none are
- * configured), falls back to treating the raw query as a single
- * keyword so /store/ai/search degrades gracefully to lexical search.
+ * interpretation.
+ *
+ * If the admin has configured a platform for role `ai_search_chat`
+ * we use that exclusively. Otherwise we walk the env-var fallback
+ * chain (OpenRouter free → DashScope → Cloudflare). All-failures
+ * degrade to a single-keyword interpretation so search still works.
  */
 export const extractSearchInterpretation = async (
-  query: string
+  query: string,
+  container?: MedusaContainer
 ): Promise<SearchInterpretation> => {
+  const opts = {
+    schema: SearchInterpretationSchema,
+    system: SYSTEM_PROMPT,
+    prompt: query,
+    temperature: 0.1,
+  }
+
+  // 1. DB-configured platform — wins if present.
+  if (container) {
+    try {
+      const cfg = await getAiPlatformForRole(container, "ai_search_chat")
+      if (cfg) {
+        try {
+          const { object } = await generateObject({
+            ...opts,
+            model: buildChatModel(cfg),
+          })
+          return object
+        } catch (e: any) {
+          console.warn(
+            `[store/ai/search] db-platform ${cfg.platformId} (${cfg.providerType}) failed:`,
+            e?.message ?? e
+          )
+          // Fall through to env chain — better degraded behaviour
+          // than failing the search outright when one DB-configured
+          // provider has a transient issue.
+        }
+      }
+    } catch (e: any) {
+      console.warn(
+        "[store/ai/search] getAiPlatformForRole failed:",
+        e?.message ?? e
+      )
+    }
+  }
+
+  // 2. Env-var chain (legacy / unconfigured deployments).
   const attempts = buildAttempts(query)
   for (const attempt of attempts) {
     try {
