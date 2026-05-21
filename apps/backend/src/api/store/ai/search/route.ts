@@ -37,8 +37,13 @@ const PRODUCT_FIELDS = [
   "status",
   "variants.id",
   "variants.title",
-  "variants.calculated_price.calculated_amount",
-  "variants.calculated_price.currency_code",
+  // NB: omitting `variants.calculated_price.*` deliberately. Medusa
+  // requires a pricing context (currency_code or region_id) to compute
+  // those amounts and throws otherwise; the search route doesn't yet
+  // resolve the visitor's region. The storefront UI already degrades
+  // gracefully when amounts are absent — "no price shown" rather than
+  // a failed request. Plumb a real pricing context in the chat-modal
+  // PR when the frontend can pass region_id alongside the query.
   // Pull sales_channels so attachStorefrontAttribution can decide
   // whether each hit belongs to the main JYT storefront or a partner's
   // — partner products link out to their own domain, main products
