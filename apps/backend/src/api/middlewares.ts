@@ -104,6 +104,7 @@ import { createStoreSchema } from "./admin/stores/validators";
 import { UpdateInventoryOrderTask } from "./admin/inventory-orders/[id]/tasks/[taskId]/validators";
 import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/test/route";
 import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema, ConnectWhatsAppSchema } from "./admin/social-platforms/validators";
+import { StoreAiSearchSchema } from "./store/ai/search/validators";
 import { StoreGenerateAiImageReqSchema } from "./store/ai/imagegen/validators";
 import { StoreTryOnReqSchema } from "./store/ai/tryon/validators";
 import { AccessFeeConfirmSchema } from "./store/ai/accessfee/validators";
@@ -3086,6 +3087,15 @@ export default defineMiddlewares({
     },
 
     // Store AI endpoints
+    {
+      matcher: "/store/ai/search",
+      method: "POST",
+      // Public — no customer auth. Discovery should work for anonymous
+      // visitors. Body validation only.
+      middlewares: [
+        validateAndTransformBody(wrapSchema(StoreAiSearchSchema)),
+      ],
+    },
     {
       matcher: "/store/ai/imagegen",
       method: "POST",
