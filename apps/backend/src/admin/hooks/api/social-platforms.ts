@@ -26,6 +26,7 @@ export type ApiCategory =
   | "communication"
   | "authentication"
   | "google"
+  | "ai"
   | "other"
 
 export type AuthType = 
@@ -73,6 +74,7 @@ export type AdminCreateSocialPlatformPayload = {
   base_url?: string
   description?: string
   status?: PlatformStatus
+  api_config?: Record<string, any>
   metadata?: Record<string, any>
 }
 
