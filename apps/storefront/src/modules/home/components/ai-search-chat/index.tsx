@@ -209,7 +209,16 @@ const AiSearchChat = forwardRef<AiSearchChatHandle>((_props, ref) => {
         onClick={() => setOpen(false)}
         tabIndex={-1}
       />
-      <div className="relative z-10 flex h-full w-full flex-col bg-white sm:h-auto sm:max-h-[80vh] sm:max-w-2xl sm:rounded-2xl sm:shadow-2xl">
+      {/*
+        Important: the panel uses a fixed h-full on mobile and a fixed
+        sm:h-[80vh] (not sm:h-auto) on desktop. With h-auto the panel
+        shrinks to content, which leaves the flex-1 message list with
+        nothing to grow into — and `overflow-y-auto` only kicks in when
+        the container has a bounded height. min-h-0 on the message list
+        further insures the flex item can actually shrink below its
+        intrinsic content height so overflow can compute.
+      */}
+      <div className="relative z-10 flex h-full w-full flex-col bg-white sm:h-[80vh] sm:max-h-[640px] sm:w-full sm:max-w-2xl sm:rounded-2xl sm:shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex flex-col">
@@ -247,7 +256,7 @@ const AiSearchChat = forwardRef<AiSearchChatHandle>((_props, ref) => {
         {/* Message list */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5"
+          className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5"
         >
           {thread.messages.length === 0 && !loading && (
             <EmptyState />
@@ -315,9 +324,21 @@ const assistantSummary = (
   products: AiSearchProduct[] | undefined
 ): string => {
   const n = products?.length ?? 0
-  if (n === 0) return `Nothing matched "${query}". Try simpler keywords.`
-  if (n === 1) return `Here's one match for "${query}".`
-  return `Here are ${n} matches for "${query}".`
+  if (n === 0) {
+    return `I couldn't find anything for "${query}" in our catalogue yet. Want to try simpler words, or describe the feel (e.g. "soft, lightweight, summery")?`
+  }
+  // Pick the top title for a hint of context — feels less like an
+  // index page and more like a recommendation. The full list of
+  // products is rendered below this text by the ProductRow grid.
+  const lead = products?.[0]?.title
+  if (n === 1) {
+    return lead
+      ? `Found one — "${lead}" looks like a fit. Tap it for details.`
+      : `Found one match.`
+  }
+  return lead
+    ? `Got it — here are ${n} pieces you might like, starting with "${lead}". Tap any of them to see more.`
+    : `Got it — here are ${n} pieces you might like.`
 }
 
 const EmptyState = () => (
