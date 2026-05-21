@@ -41,6 +41,7 @@ import {
 import { createSocialPlatformWorkflow } from "../workflows/socials/create-social-platform"
 import { SOCIALS_MODULE } from "../modules/socials"
 import type SocialsService from "../modules/socials/service"
+import { encryptSocialPlatformCredentials } from "../subscribers/social-platform-credentials-encryption"
 
 type ProviderType =
   | "openrouter"
@@ -229,7 +230,7 @@ export default async function backfillAiPlatformsFromEnv({
         ...(plan.account_id ? { account_id: plan.account_id } : {}),
         ...(plan.base_url ? { base_url: plan.base_url } : {}),
       }
-      await createSocialPlatformWorkflow(container as any).run({
+      const { result } = await createSocialPlatformWorkflow(container as any).run({
         input: {
           name: plan.name,
           category: "ai",
@@ -245,6 +246,25 @@ export default async function backfillAiPlatformsFromEnv({
           },
         },
       })
+
+      // The social-platform-credentials-encryption subscriber would
+      // normally do this, but it runs async on the event bus — and
+      // one-off Fargate tasks tear down right after the script
+      // returns, sometimes before the subscriber finishes for the
+      // last row. Calling encryptSocialPlatformCredentials synchronously
+      // here closes that race so every backfilled row exits the script
+      // with `api_key_encrypted` populated and the plaintext nulled.
+      try {
+        const platformId = (result as any)?.id
+        if (platformId) {
+          await encryptSocialPlatformCredentials(platformId, container as any)
+        }
+      } catch (e: any) {
+        logger.warn(
+          `[ai-platforms backfill] inline encrypt failed for "${plan.name}": ${e?.message ?? e}`
+        )
+      }
+
       created++
     } catch (e: any) {
       logger.error(

@@ -190,7 +190,11 @@ const getStore = (): PgVector => {
   const conn =
     process.env.POSTGRES_CONNECTION_STRING || process.env.DATABASE_URL
   if (!conn) throw new Error("DATABASE_URL not set — required for PgVector")
-  _store = new PgVector({ connectionString: conn })
+  // @mastra/pg ≥ 1.11.0 requires an `id` per PgVector instance — the
+  // lib uses it to namespace the in-process telemetry / pool. Earlier
+  // versions accepted just connectionString; passing both is safe in
+  // both worlds. Same shape mastra/memory.ts already uses.
+  _store = new PgVector({ id: "product-search-vector", connectionString: conn })
   return _store
 }
 

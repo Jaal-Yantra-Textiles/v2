@@ -93,6 +93,7 @@ const SocialPlatformPage = () => {
         { label: "Communication", value: "communication" },
         { label: "Authentication", value: "authentication" },
         { label: "Google Business Manager", value: "google" },
+        { label: "AI", value: "ai" },
         { label: "Other", value: "other" },
       ],
     }),
