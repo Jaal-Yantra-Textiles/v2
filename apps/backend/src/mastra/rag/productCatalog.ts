@@ -331,8 +331,13 @@ export const upsertProducts = async (
   result.skipped = candidates.length - toEmbed.length
   if (!toEmbed.length) return result
 
-  // Batch embed in chunks of 64 to keep memory + per-call latency reasonable.
-  const BATCH = 64
+  // Batch embed in chunks of 10. DashScope's embedding endpoint caps
+  // `input.contents` at 10 items per request and rejects larger batches
+  // with `InternalError.Algo.InvalidParameter`. The other providers
+  // (HF local, Google, Cloudflare bge) are comfortable at this size too,
+  // so 10 is the safe lowest-common-denominator until we plumb per-
+  // provider batch limits through `mastra/services/ai-platforms.ts`.
+  const BATCH = 10
   const vectors: number[][] = []
   for (let i = 0; i < toEmbed.length; i += BATCH) {
     const slice = toEmbed.slice(i, i + BATCH)
