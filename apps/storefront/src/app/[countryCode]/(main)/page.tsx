@@ -1,8 +1,10 @@
 import { Metadata } from "next"
+import { cookies } from "next/headers"
 
 import FeaturedProducts from "@modules/home/components/featured-products"
 import Hero from "@modules/home/components/hero"
 import HolidaySection from "@modules/home/components/holidays"
+import HeroSeenMarker, { HERO_SEEN_COOKIE } from "@modules/home/components/home-stage"
 import PartnerShowcase from "@modules/home/components/partner-showcase"
 import ScrollStage from "@modules/home/components/scroll-stage"
 import { listCollections } from "@lib/data/collections"
@@ -67,25 +69,53 @@ export default async function Home(props: {
     return null
   }
 
+  // Cookie-gated hero: first-time visitors see the full scroll-driven
+  // ScrollStage (hero pinned, holiday rises over it). Returning visitors
+  // land directly on the holiday section. HeroSeenMarker (a tiny client
+  // component below) sets the cookie on every render, so once a visitor
+  // has hit any page their next request reads the cookie and skips the
+  // hero. Branching on the server keeps Hero's listPublicMedia call out
+  // of the hot path for returning visitors and avoids hydration flicker.
+  const cookieStore = await cookies()
+  const heroSeen = cookieStore.has(HERO_SEEN_COOKIE)
+  const holidaySection = <HolidaySection countryCode={countryCode} />
+
   return (
     <>
-      <ScrollStage
-        hero={<Hero />}
-        holiday={<HolidaySection countryCode={countryCode} />}
-      />
-      <div className="mx-auto mt-10 w-full max-w-3xl px-4 sm:px-0">
+      {heroSeen ? (
+        holidaySection
+      ) : (
+        <ScrollStage hero={<Hero />} holiday={holidaySection} />
+      )}
+      <HeroSeenMarker />
+      <div className="mx-auto mt-8 w-full max-w-3xl px-4 sm:mt-10 sm:px-6">
         <label className="sr-only" htmlFor="coming-soon-search">
-          Coming soon search
+          Search products
         </label>
-        <input
-          id="coming-soon-search"
-          type="text"
-          disabled
-          placeholder="Soon you can search by entering list of ideas your favorite product coming soon"
-          className="w-full rounded-full border border-dashed border-neutral-300 bg-neutral-100 px-6 py-3 text-base text-neutral-500 placeholder:text-neutral-500"
-        />
-        <p className="mt-2 text-center text-sm text-neutral-500">
-          We&apos;re building powerful discovery tools—stay tuned!
+        <div className="relative">
+          <svg
+            aria-hidden="true"
+            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 sm:left-5 sm:h-5 sm:w-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            id="coming-soon-search"
+            type="text"
+            disabled
+            placeholder="Search soon — describe what you want"
+            className="w-full rounded-full border border-dashed border-neutral-300 bg-neutral-100 pl-11 pr-5 py-2.5 text-sm text-neutral-500 placeholder:text-neutral-500 sm:pl-12 sm:pr-6 sm:py-3 sm:text-base"
+          />
+        </div>
+        <p className="mt-2 text-center text-xs text-neutral-500 sm:text-sm">
+          Powerful natural-language discovery coming soon.
         </p>
       </div>
       <div id="shop" className="py-12">
