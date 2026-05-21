@@ -1,8 +1,11 @@
 import { Metadata } from "next"
+import { cookies } from "next/headers"
 
+import AiSearch from "@modules/home/components/ai-search"
 import FeaturedProducts from "@modules/home/components/featured-products"
 import Hero from "@modules/home/components/hero"
 import HolidaySection from "@modules/home/components/holidays"
+import HeroSeenMarker, { HERO_SEEN_COOKIE } from "@modules/home/components/home-stage"
 import PartnerShowcase from "@modules/home/components/partner-showcase"
 import ScrollStage from "@modules/home/components/scroll-stage"
 import { listCollections } from "@lib/data/collections"
@@ -67,26 +70,27 @@ export default async function Home(props: {
     return null
   }
 
+  // Cookie-gated hero: first-time visitors see the full scroll-driven
+  // ScrollStage (hero pinned, holiday rises over it). Returning visitors
+  // land directly on the holiday section. HeroSeenMarker (a tiny client
+  // component below) sets the cookie on every render, so once a visitor
+  // has hit any page their next request reads the cookie and skips the
+  // hero. Branching on the server keeps Hero's listPublicMedia call out
+  // of the hot path for returning visitors and avoids hydration flicker.
+  const cookieStore = await cookies()
+  const heroSeen = cookieStore.has(HERO_SEEN_COOKIE)
+  const holidaySection = <HolidaySection countryCode={countryCode} />
+
   return (
     <>
-      <ScrollStage
-        hero={<Hero />}
-        holiday={<HolidaySection countryCode={countryCode} />}
-      />
-      <div className="mx-auto mt-10 w-full max-w-3xl px-4 sm:px-0">
-        <label className="sr-only" htmlFor="coming-soon-search">
-          Coming soon search
-        </label>
-        <input
-          id="coming-soon-search"
-          type="text"
-          disabled
-          placeholder="Soon you can search by entering list of ideas your favorite product coming soon"
-          className="w-full rounded-full border border-dashed border-neutral-300 bg-neutral-100 px-6 py-3 text-base text-neutral-500 placeholder:text-neutral-500"
-        />
-        <p className="mt-2 text-center text-sm text-neutral-500">
-          We&apos;re building powerful discovery tools—stay tuned!
-        </p>
+      {heroSeen ? (
+        holidaySection
+      ) : (
+        <ScrollStage hero={<Hero />} holiday={holidaySection} />
+      )}
+      <HeroSeenMarker />
+      <div className="mx-auto mt-8 w-full max-w-3xl px-4 sm:mt-10 sm:px-6">
+        <AiSearch />
       </div>
       <div id="shop" className="py-12">
         <ul className="flex flex-col gap-x-6">
