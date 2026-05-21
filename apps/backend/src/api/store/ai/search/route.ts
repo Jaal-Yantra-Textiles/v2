@@ -85,15 +85,27 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const { query, limit } = (req as any).validatedBody as StoreAiSearchReq
   const queryService = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // 1. Interpret the query.
-  const interpretation = await extractSearchInterpretation(query)
+  // 1. Interpret the query. Passes req.scope so the extractor can
+  // resolve the admin-configured AI platform for role "ai_search_chat";
+  // when none is configured the extractor walks the env-var fallback
+  // chain (OpenRouter free → DashScope → Cloudflare).
+  const interpretation = await extractSearchInterpretation(
+    query,
+    req.scope as any
+  )
 
-  // 2. Try vector search first.
+  // 2. Try vector search first. Pass req.scope so productCatalog can
+  // resolve the admin-configured embedding platform for role
+  // ai_search_embed (env fallback when unconfigured).
   const enriched = buildEnrichedQuery(query, interpretation)
   let productIds: string[] = []
   let mode: "vector" | "lexical" = "vector"
   try {
-    const hits = await searchProducts(enriched, Math.max(limit * 3, 24))
+    const hits = await searchProducts(
+      enriched,
+      Math.max(limit * 3, 24),
+      req.scope as any
+    )
     productIds = hits.map((h) => h.product_id).filter(Boolean)
   } catch {
     productIds = []

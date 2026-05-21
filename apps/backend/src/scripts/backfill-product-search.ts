@@ -57,7 +57,7 @@ export default async function backfillProductSearch({ container }: ExecArgs) {
     )
 
     if (!DRY_RUN) {
-      const result = await upsertProducts(batch as any)
+      const result = await upsertProducts(batch as any, container)
       totals.upserted += result.upserted
       totals.skipped += result.skipped
       totals.errors += result.errors

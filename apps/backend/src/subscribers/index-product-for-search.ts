@@ -57,7 +57,7 @@ const indexOne = async (
       )
       return
     }
-    const result = await upsertProducts([product as any])
+    const result = await upsertProducts([product as any], container)
     logger?.debug?.(
       `[product-search] indexed product ${productId}: ` +
         `upserted=${result.upserted} skipped=${result.skipped} errors=${result.errors}`
