@@ -1,23 +1,34 @@
-import { createOpenRouter } from "@openrouter/ai-sdk-provider"
+/**
+ * LLM extraction layer for /store/ai/search.
+ *
+ * Tries provider chain in this order, returning the first that succeeds:
+ *
+ *   1. OpenRouter (free models only). Uses the existing
+ *      mastra/providers/dynamic-text-model resolver, which auto-selects
+ *      the best currently-available free model from the live OpenRouter
+ *      catalogue and evicts models whose free tier has ended.
+ *
+ *   2. DashScope (Qwen) via its OpenAI-compatible endpoint. Used when
+ *      DASHSCOPE_API_KEY is set — the user has credits there so this is
+ *      a reliable paid fallback. Default model qwen-turbo (cheap, fast,
+ *      tool-use capable); override with STOREFRONT_SEARCH_DASHSCOPE_MODEL.
+ *
+ *   3. Cloudflare Workers AI via its OpenAI-compatible endpoint at
+ *      api.cloudflare.com/client/v4/accounts/<id>/ai/v1. Used when both
+ *      CLOUDFLARE_AI_ACCOUNT_ID and CLOUDFLARE_AI_TOKEN are set. Default
+ *      model @cf/meta/llama-3.1-8b-instruct (also tool-use capable);
+ *      override with STOREFRONT_SEARCH_CLOUDFLARE_MODEL.
+ *
+ * If all three fail (no providers configured, all rate-limited, schema
+ * mismatch from a particular model, etc.) we fall back to treating the
+ * raw query as a single keyword so search still works — just without
+ * the LLM enrichment.
+ */
+import { createOpenAI } from "@ai-sdk/openai"
 import { generateObject } from "ai"
 import { z } from "zod"
+import { dynamicFreeTextModel } from "../../../../mastra/providers/dynamic-text-model"
 
-/**
- * Schema the LLM is asked to produce. Keep this small and concrete —
- * every field is something we know how to map onto a Medusa product
- * query (q-search, price range, category match, tag match). Adding
- * fields here without wiring them through to the query downstream
- * silently inflates token cost for no benefit.
- *
- * `keywords` is the most important field: a short list of nouns/
- * adjectives extracted from the query that we then OR-join into the
- * Medusa `q` parameter. Models are asked to NOT include filler words
- * (find, show, want, looking, for, the, etc.) so the q-search stays
- * focused on substantive terms.
- *
- * Price fields are optional — we only set them when the LLM finds a
- * "under X" / "below X" / "between X and Y" pattern.
- */
 const SearchInterpretationSchema = z.object({
   keywords: z
     .array(z.string().min(1).max(40))
@@ -63,41 +74,118 @@ Rules:
 - If a price ceiling or floor is mentioned, extract it as an integer in major currency units. Ignore the currency symbol — just the number.
 - Never fabricate fields. If something isn't in the query, omit it.`
 
-let _model: ReturnType<ReturnType<typeof createOpenRouter>["chat"]> | null = null
+// ── Provider builders (lazy) ───────────────────────────────────────────
 
-const getModel = () => {
-  if (_model) return _model
-  const openrouter = createOpenRouter({
-    apiKey: process.env.OPENROUTER_API_KEY,
+let _dashscope: ReturnType<typeof createOpenAI> | null = null
+const getDashscope = () => {
+  if (_dashscope) return _dashscope
+  const apiKey = process.env.DASHSCOPE_API_KEY
+  if (!apiKey) return null
+  _dashscope = createOpenAI({
+    baseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    apiKey,
   })
-  // Cheap, fast, free-tier — sufficient for a structured one-shot
-  // extraction. Override via env if you want a different model.
-  const id = process.env.STOREFRONT_SEARCH_MODEL || "google/gemini-2.5-flash"
-  _model = openrouter.chat(id)
-  return _model
+  return _dashscope
+}
+
+let _cloudflare: ReturnType<typeof createOpenAI> | null = null
+const getCloudflare = () => {
+  if (_cloudflare) return _cloudflare
+  const accountId = process.env.CLOUDFLARE_AI_ACCOUNT_ID
+  const token = process.env.CLOUDFLARE_AI_TOKEN
+  if (!accountId || !token) return null
+  _cloudflare = createOpenAI({
+    baseURL: `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`,
+    apiKey: token,
+  })
+  return _cloudflare
+}
+
+// ── Provider chain ─────────────────────────────────────────────────────
+
+type Attempt = { name: string; call: () => Promise<SearchInterpretation> }
+
+const buildAttempts = (query: string): Attempt[] => {
+  const opts = {
+    schema: SearchInterpretationSchema,
+    system: SYSTEM_PROMPT,
+    prompt: query,
+    temperature: 0.1,
+  }
+  const attempts: Attempt[] = []
+
+  // 1. OpenRouter free models (via existing dynamic rotator)
+  if (process.env.OPENROUTER_API_KEY) {
+    attempts.push({
+      name: "openrouter:free",
+      call: async () => {
+        const { object } = await generateObject({
+          ...opts,
+          model: dynamicFreeTextModel,
+        })
+        return object
+      },
+    })
+  }
+
+  // 2. DashScope (Qwen)
+  const dashscope = getDashscope()
+  if (dashscope) {
+    const modelId =
+      process.env.STOREFRONT_SEARCH_DASHSCOPE_MODEL || "qwen-turbo"
+    attempts.push({
+      name: `dashscope:${modelId}`,
+      call: async () => {
+        const { object } = await generateObject({
+          ...opts,
+          model: dashscope(modelId),
+        })
+        return object
+      },
+    })
+  }
+
+  // 3. Cloudflare Workers AI
+  const cloudflare = getCloudflare()
+  if (cloudflare) {
+    const modelId =
+      process.env.STOREFRONT_SEARCH_CLOUDFLARE_MODEL ||
+      "@cf/meta/llama-3.1-8b-instruct"
+    attempts.push({
+      name: `cloudflare:${modelId}`,
+      call: async () => {
+        const { object } = await generateObject({
+          ...opts,
+          model: cloudflare(modelId),
+        })
+        return object
+      },
+    })
+  }
+
+  return attempts
 }
 
 /**
  * Convert a natural-language shopper query into a small structured
- * interpretation we can map onto a Medusa product query. Fails closed:
- * if the LLM call errors out, returns a minimal interpretation that
- * treats the raw query as a single keyword, so search degrades to a
- * normal text match rather than crashing.
+ * interpretation. Walks the provider chain in order, returning the
+ * first successful result. If every provider fails (or none are
+ * configured), falls back to treating the raw query as a single
+ * keyword so /store/ai/search degrades gracefully to lexical search.
  */
 export const extractSearchInterpretation = async (
   query: string
 ): Promise<SearchInterpretation> => {
-  try {
-    const { object } = await generateObject({
-      model: getModel(),
-      schema: SearchInterpretationSchema,
-      system: SYSTEM_PROMPT,
-      prompt: query,
-      // Low temperature: this is extraction, not creative writing.
-      temperature: 0.1,
-    })
-    return object
-  } catch {
-    return { keywords: [query] }
+  const attempts = buildAttempts(query)
+  for (const attempt of attempts) {
+    try {
+      return await attempt.call()
+    } catch (e: any) {
+      console.warn(
+        `[store/ai/search] ${attempt.name} failed:`,
+        e?.message ?? e
+      )
+    }
   }
+  return { keywords: [query] }
 }

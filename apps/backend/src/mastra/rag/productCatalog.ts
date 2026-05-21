@@ -10,12 +10,20 @@
  * the admin RAG (which indexes API endpoints) and the storefront search
  * (which indexes products) can evolve independently.
  *
- * Embedding provider falls back through:
- *   1. HF local (Xenova/all-MiniLM-L6-v2, 384 dims) — free, runs in-process
- *   2. Google text-embedding-004 — when GOOGLE_GENERATIVE_AI_API_KEY set
- *      and ADMIN_RAG_EMBED_PROVIDER=google
- * HF local is the default — no API key requirement, predictable cost.
+ * Embedding provider selection (env: PRODUCT_SEARCH_EMBED_PROVIDER):
+ *   • hf_local   — Xenova/all-MiniLM-L6-v2, 384 dims, runs in-process (default)
+ *   • google     — text-embedding-004, 768 dims, needs GOOGLE_GENERATIVE_AI_API_KEY
+ *   • dashscope  — text-embedding-v3, 1024 dims, needs DASHSCOPE_API_KEY (user has credits)
+ *
+ * IMPORTANT: switching providers changes the vector dimension, which is
+ * incompatible with the existing PgVector index. Changing provider means:
+ *   1. drop product_search_v1 in PG (or bump INDEX_NAME)
+ *   2. re-run scripts/backfill-product-search.ts
+ * There's no on-the-fly fallback for embeddings — it's a one-time choice.
+ * The LLM extraction layer (extract.ts) DOES fall back across providers
+ * because each call is independent, but embeddings have to commit.
  */
+import { createOpenAI } from "@ai-sdk/openai"
 import { PgVector } from "@mastra/pg"
 import { embedMany } from "ai"
 import { google } from "@ai-sdk/google"
@@ -24,16 +32,25 @@ import crypto from "crypto"
 const INDEX_NAME = "product_search_v1"
 const HF_DEFAULT_MODEL = "Xenova/all-MiniLM-L6-v2"
 const GOOGLE_EMBEDDING_MODEL = "text-embedding-004"
+const DASHSCOPE_EMBEDDING_MODEL = "text-embedding-v3"
 
 // ── Embedding provider ─────────────────────────────────────────────────
 
-type EmbeddingProvider = "google" | "hf_local"
+type EmbeddingProvider = "google" | "hf_local" | "dashscope"
 
 const getEmbeddingProvider = (): EmbeddingProvider => {
-  const p = String(process.env.ADMIN_RAG_EMBED_PROVIDER || "hf_local")
+  // Storefront search has its own env so it can be tuned independently
+  // from the admin RAG (which indexes API endpoints, not products).
+  // Falls back to ADMIN_RAG_EMBED_PROVIDER for backwards compat.
+  const p = String(
+    process.env.PRODUCT_SEARCH_EMBED_PROVIDER ||
+      process.env.ADMIN_RAG_EMBED_PROVIDER ||
+      "hf_local"
+  )
     .trim()
     .toLowerCase()
   if (p === "google") return "google"
+  if (p === "dashscope" || p === "qwen") return "dashscope"
   return "hf_local"
 }
 
@@ -52,6 +69,22 @@ const getHfExtractor = async () => {
   return hfExtractorPromise
 }
 
+let _dashscopeClient: ReturnType<typeof createOpenAI> | null = null
+const getDashscopeClient = () => {
+  if (_dashscopeClient) return _dashscopeClient
+  const apiKey = process.env.DASHSCOPE_API_KEY
+  if (!apiKey) {
+    throw new Error(
+      "PRODUCT_SEARCH_EMBED_PROVIDER=dashscope but DASHSCOPE_API_KEY is not set"
+    )
+  }
+  _dashscopeClient = createOpenAI({
+    baseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    apiKey,
+  })
+  return _dashscopeClient
+}
+
 export const embedTexts = async (values: string[]): Promise<number[][]> => {
   if (!values.length) return []
   const provider = getEmbeddingProvider()
@@ -61,6 +94,16 @@ export const embedTexts = async (values: string[]): Promise<number[][]> => {
     const list =
       out && typeof out.tolist === "function" ? out.tolist() : out
     return Array.isArray(list[0]) ? (list as number[][]) : [list as number[]]
+  }
+  if (provider === "dashscope") {
+    const ds = getDashscopeClient()
+    const modelId =
+      process.env.PRODUCT_SEARCH_DASHSCOPE_MODEL || DASHSCOPE_EMBEDDING_MODEL
+    const { embeddings } = await embedMany({
+      model: ds.embedding(modelId),
+      values,
+    })
+    return embeddings as number[][]
   }
   // Google path. We rely on the AI SDK's embedMany so the wire format
   // shake-out is handled for us.
