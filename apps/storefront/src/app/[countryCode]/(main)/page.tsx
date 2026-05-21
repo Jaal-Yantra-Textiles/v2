@@ -1,6 +1,7 @@
 import { Metadata } from "next"
 import { cookies } from "next/headers"
 
+import AiSearch from "@modules/home/components/ai-search"
 import FeaturedProducts from "@modules/home/components/featured-products"
 import Hero from "@modules/home/components/hero"
 import HolidaySection from "@modules/home/components/holidays"
@@ -89,34 +90,7 @@ export default async function Home(props: {
       )}
       <HeroSeenMarker />
       <div className="mx-auto mt-8 w-full max-w-3xl px-4 sm:mt-10 sm:px-6">
-        <label className="sr-only" htmlFor="coming-soon-search">
-          Search products
-        </label>
-        <div className="relative">
-          <svg
-            aria-hidden="true"
-            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 sm:left-5 sm:h-5 sm:w-5"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="11" cy="11" r="7" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            id="coming-soon-search"
-            type="text"
-            disabled
-            placeholder="Search soon — describe what you want"
-            className="w-full rounded-full border border-dashed border-neutral-300 bg-neutral-100 pl-11 pr-5 py-2.5 text-sm text-neutral-500 placeholder:text-neutral-500 sm:pl-12 sm:pr-6 sm:py-3 sm:text-base"
-          />
-        </div>
-        <p className="mt-2 text-center text-xs text-neutral-500 sm:text-sm">
-          Powerful natural-language discovery coming soon.
-        </p>
+        <AiSearch />
       </div>
       <div id="shop" className="py-12">
         <ul className="flex flex-col gap-x-6">
