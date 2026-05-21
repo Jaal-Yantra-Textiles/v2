@@ -1,18 +1,12 @@
 import { getLocaleHeader } from "@lib/util/get-locale-header"
 import Medusa, { FetchArgs, FetchInput } from "@medusajs/js-sdk"
 
-// Defaults to standard port for Medusa server.
-//
-// Two env vars to support both sides:
-//   - NEXT_PUBLIC_MEDUSA_BACKEND_URL — inlined into client bundles at
-//     build time so client components (e.g. AiSearch dropdown) call
-//     the right host. Without this prefix, Next.js strips the value
-//     from the client bundle and the SDK falls back to localhost.
-//   - MEDUSA_BACKEND_URL — server-runtime fallback for SSR + RSC.
-const MEDUSA_BACKEND_URL =
-  process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
-  process.env.MEDUSA_BACKEND_URL ||
-  "http://localhost:9000"
+// Defaults to standard port for Medusa server
+let MEDUSA_BACKEND_URL = "http://localhost:9000"
+
+if (process.env.MEDUSA_BACKEND_URL) {
+  MEDUSA_BACKEND_URL = process.env.MEDUSA_BACKEND_URL
+}
 
 export const sdk = new Medusa({
   baseUrl: MEDUSA_BACKEND_URL,
