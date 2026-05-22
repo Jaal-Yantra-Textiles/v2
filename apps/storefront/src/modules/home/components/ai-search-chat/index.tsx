@@ -1,97 +1,120 @@
 "use client"
 
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import { searchAiProducts, type AiSearchProduct } from "@lib/data/ai-search"
+import { useChat } from "@ai-sdk/react"
+import { DefaultChatTransport, type UIMessage } from "ai"
 import {
-  clearThread,
-  emptyThread,
-  loadThread,
-  newMessageId,
-  saveThread,
-  type AiChatMessage,
-  type AiChatThread,
-} from "@lib/util/ai-chat-thread"
-import {
-  forwardRef,
+  type Ref,
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react"
+import {
+  loadPreferences,
+  savePreferences,
+  toWireFormat,
+  type AiChatPreferences,
+} from "@lib/util/ai-chat-preferences"
+import { getOrCreateVisitorId } from "@lib/util/visitor-id"
+import OnboardingForm from "./onboarding"
 
 /**
- * Chat-style search modal.
+ * Chat-style concierge modal.
  *
- * Renders as a focused overlay over the /store page. The trigger
- * (see ./trigger.tsx) opens it; closing returns the customer to the
- * underlying list. The conversation is persisted to localStorage via
- * `lib/util/ai-chat-thread.ts` so a quick navigation or reload doesn't
- * lose context.
+ * Streams responses from POST /api/ai-chat (proxy → /store/ai/chat).
+ * Uses `useChat` from @ai-sdk/react so tool-call lifecycles, partial
+ * tokens, and message parts all wire up correctly. The transport
+ * appends `visitor_id` + `prefs` to every request body so the agent
+ * has personalisation context on every turn.
  *
- * What it does NOT do yet (deferred until the chat thread sync PR):
- *   - server-side persistence on sign-in
- *   - multi-turn refinement (each user turn currently issues an
- *     independent search; the backend doesn't accept prior turns as
- *     context yet)
+ * Onboarding renders the very first time a customer opens the chat
+ * (or until they tap "skip"); after that, the modal goes straight to
+ * the conversation view. Prefs persist locally — see
+ * `lib/util/ai-chat-preferences.ts`.
+ *
+ * Visitor id reuses `localStorage["jyt_visitor_id"]` so the chat ties
+ * back to the same anonymous identity used by cart + analytics. A
+ * future iteration will sync threads server-side on sign-in.
  */
-
-const PLACEHOLDER = "Describe what you want — e.g. soft cotton dress under 2000"
-
-const formatRelativeTime = (ts: number): string => {
-  const seconds = Math.round((Date.now() - ts) / 1000)
-  if (seconds < 30) return "just now"
-  if (seconds < 60) return `${seconds}s ago`
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.round(hours / 24)
-  return `${days}d ago`
-}
 
 export type AiSearchChatHandle = {
   open: (initialQuery?: string) => void
   close: () => void
 }
 
-const AiSearchChat = forwardRef<AiSearchChatHandle>((_props, ref) => {
+type ProductHit = {
+  id: string
+  handle: string
+  title: string
+  subtitle?: string | null
+  thumbnail?: string | null
+  storefront?:
+    | { kind: "main" }
+    | {
+        kind: "partner"
+        url?: string
+        partner_name: string
+        partner_handle: string
+        sales_channel_name?: string
+      }
+}
+
+type SearchToolOutput = {
+  products?: ProductHit[]
+  mode?: "vector" | "lexical"
+  count?: number
+  error?: string
+}
+
+const PLACEHOLDER = "Ask me anything — products, fabrics, sizing…"
+
+type AiSearchChatProps = { ref?: Ref<AiSearchChatHandle> }
+
+export default function AiSearchChat({ ref }: AiSearchChatProps) {
   const [open, setOpen] = useState(false)
-  const [thread, setThread] = useState<AiChatThread>(() => emptyThread())
   const [input, setInput] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [prefs, setPrefs] = useState<AiChatPreferences>({})
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  // Lazily resolved on open — SSR can't touch localStorage.
+  const visitorIdRef = useRef<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
-  // Token that identifies the latest in-flight request. Stale responses
-  // are discarded if the user has since typed a new query.
-  const inflightRef = useRef<symbol | null>(null)
 
-  // Hydrate the persisted thread on first mount only — open/close cycles
-  // should not refetch, otherwise mid-conversation state would jump.
-  useEffect(() => {
-    setThread(loadThread())
-  }, [])
+  // useChat transport — re-built when prefs change so the body
+  // closure picks up the latest personalisation snapshot.
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/ai-chat",
+        body: () => ({
+          visitor_id: visitorIdRef.current ?? "anonymous",
+          prefs: toWireFormat(prefs),
+        }),
+      }),
+    [prefs]
+  )
 
-  // Save thread to localStorage whenever it changes, but skip the very
-  // first render so we don't pointlessly write the empty thread back.
-  const firstRenderRef = useRef(true)
-  useEffect(() => {
-    if (firstRenderRef.current) {
-      firstRenderRef.current = false
-      return
-    }
-    saveThread(thread)
-  }, [thread])
+  const { messages, sendMessage, status, error, setMessages, stop } = useChat({
+    transport,
+  })
 
-  // Imperative handle so the trigger can open the modal with an
-  // already-typed query.
+  const isStreaming = status === "submitted" || status === "streaming"
+
   useImperativeHandle(
     ref,
     () => ({
       open: (initialQuery) => {
+        // Read prefs + visitor id at open time so we always have the
+        // freshest values (another tab may have updated localStorage).
+        const loaded = loadPreferences()
+        setPrefs(loaded)
+        visitorIdRef.current = getOrCreateVisitorId()
+        setShowOnboarding(!loaded.onboarded)
         setOpen(true)
         if (initialQuery !== undefined) setInput(initialQuery)
-        // Focus on next tick after the input is mounted.
         window.setTimeout(() => inputRef.current?.focus(), 0)
       },
       close: () => setOpen(false),
@@ -99,7 +122,6 @@ const AiSearchChat = forwardRef<AiSearchChatHandle>((_props, ref) => {
     []
   )
 
-  // Close on Escape.
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
@@ -109,7 +131,6 @@ const AiSearchChat = forwardRef<AiSearchChatHandle>((_props, ref) => {
     return () => window.removeEventListener("keydown", onKey)
   }, [open])
 
-  // Lock body scroll while the modal is open.
   useEffect(() => {
     if (!open) return
     const prev = document.body.style.overflow
@@ -119,77 +140,48 @@ const AiSearchChat = forwardRef<AiSearchChatHandle>((_props, ref) => {
     }
   }, [open])
 
-  // Autoscroll to the bottom of the conversation when messages change.
   useEffect(() => {
     if (!scrollRef.current) return
-    scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
-  }, [thread.messages.length, loading])
+    scrollRef.current.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: "smooth",
+    })
+  }, [messages, isStreaming])
 
-  const submit = useCallback(async () => {
-    const trimmed = input.trim()
-    if (trimmed.length < 2 || loading) return
-
-    const userMsg: AiChatMessage = {
-      id: newMessageId(),
-      role: "user",
-      content: trimmed,
-      ts: Date.now(),
-    }
-    setThread((t) => ({
-      ...t,
-      messages: [...t.messages, userMsg],
-      updated_at: Date.now(),
-    }))
-    setInput("")
-    setLoading(true)
-
-    const myToken = Symbol()
-    inflightRef.current = myToken
-
-    try {
-      const r = await searchAiProducts(trimmed, 8)
-      if (inflightRef.current !== myToken) return
-      const assistantMsg: AiChatMessage = {
-        id: newMessageId(),
-        role: "assistant",
-        content: r ? assistantSummary(trimmed, r.products) : "Couldn't reach the search service. Try again.",
-        ts: Date.now(),
-        products: r?.products ?? undefined,
-        interpretation: r?.interpretation,
-        mode: r?.mode,
-        count: r?.count,
-        failed: !r,
-      }
-      setThread((t) => ({
-        ...t,
-        messages: [...t.messages, assistantMsg],
-        updated_at: Date.now(),
-      }))
-    } catch {
-      if (inflightRef.current === myToken) {
-        setThread((t) => ({
-          ...t,
-          messages: [
-            ...t.messages,
-            {
-              id: newMessageId(),
-              role: "assistant",
-              content: "Search hit an error. Try again.",
-              ts: Date.now(),
-              failed: true,
-            },
-          ],
-          updated_at: Date.now(),
-        }))
-      }
-    } finally {
-      if (inflightRef.current === myToken) setLoading(false)
-    }
-  }, [input, loading])
+  const onSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault()
+      const trimmed = input.trim()
+      if (trimmed.length < 2 || isStreaming) return
+      sendMessage({ text: trimmed })
+      setInput("")
+    },
+    [input, isStreaming, sendMessage]
+  )
 
   const onClear = useCallback(() => {
-    clearThread()
-    setThread(emptyThread())
+    setMessages([])
+  }, [setMessages])
+
+  const onOnboardingDone = useCallback((next: AiChatPreferences) => {
+    setPrefs(next)
+    setShowOnboarding(false)
+    window.setTimeout(() => inputRef.current?.focus(), 0)
+  }, [])
+
+  const onOnboardingSkip = useCallback(() => {
+    // Persist the onboarded flag so we don't show this again — but
+    // leave the empty prefs in state as-is. savePreferences() in the
+    // skip handler already wrote { onboarded: true }.
+    setPrefs((p) => ({ ...p, onboarded: true }))
+    setShowOnboarding(false)
+    window.setTimeout(() => inputRef.current?.focus(), 0)
+  }, [])
+
+  const onResetPrefs = useCallback(() => {
+    savePreferences({ onboarded: false })
+    setPrefs({ onboarded: false })
+    setShowOnboarding(true)
   }, [])
 
   if (!open) return null
@@ -198,45 +190,44 @@ const AiSearchChat = forwardRef<AiSearchChatHandle>((_props, ref) => {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Search products"
+      aria-label="AI concierge"
       className="fixed inset-0 z-50 flex flex-col bg-white sm:items-center sm:justify-center sm:bg-black/40 sm:p-6"
     >
-      {/* Click backdrop to close */}
       <button
         type="button"
-        aria-label="Close search"
+        aria-label="Close"
         className="absolute inset-0 hidden cursor-default sm:block"
         onClick={() => setOpen(false)}
         tabIndex={-1}
       />
-      {/*
-        Important: the panel uses a fixed h-full on mobile and a fixed
-        sm:h-[80vh] (not sm:h-auto) on desktop. With h-auto the panel
-        shrinks to content, which leaves the flex-1 message list with
-        nothing to grow into — and `overflow-y-auto` only kicks in when
-        the container has a bounded height. min-h-0 on the message list
-        further insures the flex item can actually shrink below its
-        intrinsic content height so overflow can compute.
-      */}
-      <div className="relative z-10 flex h-full w-full flex-col bg-white sm:h-[80vh] sm:max-h-[640px] sm:w-full sm:max-w-2xl sm:rounded-2xl sm:shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 sm:px-6 sm:py-4">
+      <div className="relative z-10 flex h-full w-full flex-col bg-white sm:h-[80vh] sm:max-h-[680px] sm:w-full sm:max-w-2xl sm:rounded-2xl sm:shadow-2xl">
+        <header className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex flex-col">
             <p className="text-sm font-medium text-neutral-900 sm:text-base">
-              AI search
+              Cici concierge
             </p>
             <p className="text-xs text-neutral-500">
-              Describe what you want, get matching products.
+              Ask about products, fabrics, custom design, or sizing.
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {thread.messages.length > 0 && (
+            {!showOnboarding && messages.length > 0 && (
               <button
                 type="button"
                 onClick={onClear}
                 className="text-xs text-neutral-500 underline-offset-2 hover:text-neutral-900 hover:underline"
               >
                 Clear
+              </button>
+            )}
+            {!showOnboarding && (
+              <button
+                type="button"
+                onClick={onResetPrefs}
+                className="text-xs text-neutral-500 underline-offset-2 hover:text-neutral-900 hover:underline"
+                title="Update your preferences"
+              >
+                Prefs
               </button>
             )}
             <button
@@ -251,155 +242,204 @@ const AiSearchChat = forwardRef<AiSearchChatHandle>((_props, ref) => {
               </svg>
             </button>
           </div>
-        </div>
+        </header>
 
-        {/* Message list */}
-        <div
-          ref={scrollRef}
-          className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5"
-        >
-          {thread.messages.length === 0 && !loading && (
-            <EmptyState />
-          )}
-          <ol className="flex flex-col gap-4">
-            {thread.messages.map((m) => (
-              <li key={m.id}>
-                {m.role === "user" ? (
-                  <UserBubble content={m.content} ts={m.ts} />
-                ) : (
-                  <AssistantBubble msg={m} />
-                )}
-              </li>
-            ))}
-            {loading && (
-              <li>
-                <AssistantSkeleton />
-              </li>
-            )}
-          </ol>
-        </div>
-
-        {/* Input row */}
-        <div className="border-t border-neutral-200 p-3 sm:p-4">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              void submit()
-            }}
-            className="flex items-center gap-2"
-          >
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={PLACEHOLDER}
-              className="flex-1 rounded-full border border-neutral-300 bg-white px-4 py-2.5 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none focus:ring-1 focus:ring-neutral-500 sm:text-base"
-              maxLength={200}
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <button
-              type="submit"
-              disabled={loading || input.trim().length < 2}
-              className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
+        {showOnboarding ? (
+          <OnboardingForm
+            initial={prefs}
+            onDone={onOnboardingDone}
+            onSkip={onOnboardingSkip}
+          />
+        ) : (
+          <>
+            <div
+              ref={scrollRef}
+              className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5"
             >
-              {loading ? "…" : "Send"}
-            </button>
-          </form>
-        </div>
+              {messages.length === 0 && !isStreaming && <EmptyState prefs={prefs} />}
+              <ol className="flex flex-col gap-4">
+                {messages.map((m) => (
+                  <li key={m.id}>
+                    {m.role === "user" ? (
+                      <UserBubble msg={m} />
+                    ) : (
+                      <AssistantBubble msg={m} />
+                    )}
+                  </li>
+                ))}
+                {isStreaming && messages[messages.length - 1]?.role !== "assistant" && (
+                  <li>
+                    <AssistantSkeleton />
+                  </li>
+                )}
+                {error && (
+                  <li>
+                    <div className="rounded-2xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">
+                      Something went wrong. {error.message ? `(${error.message})` : ""} Try again.
+                    </div>
+                  </li>
+                )}
+              </ol>
+            </div>
+
+            <div className="border-t border-neutral-200 p-3 sm:p-4">
+              <form onSubmit={onSubmit} className="flex items-center gap-2">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder={PLACEHOLDER}
+                  disabled={isStreaming}
+                  className="flex-1 rounded-full border border-neutral-300 bg-white px-4 py-2.5 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none focus:ring-1 focus:ring-neutral-500 disabled:cursor-not-allowed disabled:opacity-60 sm:text-base"
+                  maxLength={500}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                {isStreaming ? (
+                  <button
+                    type="button"
+                    onClick={() => stop()}
+                    className="rounded-full bg-neutral-200 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-300 sm:text-base"
+                  >
+                    Stop
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={input.trim().length < 2}
+                    className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
+                  >
+                    Send
+                  </button>
+                )}
+              </form>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
-})
-
-AiSearchChat.displayName = "AiSearchChat"
-
-export default AiSearchChat
+}
 
 // ── Sub-components ─────────────────────────────────────────────────────
 
-const assistantSummary = (
-  query: string,
-  products: AiSearchProduct[] | undefined
-): string => {
-  const n = products?.length ?? 0
-  if (n === 0) {
-    return `I couldn't find anything for "${query}" in our catalogue yet. Want to try simpler words, or describe the feel (e.g. "soft, lightweight, summery")?`
-  }
-  // Pick the top title for a hint of context — feels less like an
-  // index page and more like a recommendation. The full list of
-  // products is rendered below this text by the ProductRow grid.
-  const lead = products?.[0]?.title
-  if (n === 1) {
-    return lead
-      ? `Found one — "${lead}" looks like a fit. Tap it for details.`
-      : `Found one match.`
-  }
-  return lead
-    ? `Got it — here are ${n} pieces you might like, starting with "${lead}". Tap any of them to see more.`
-    : `Got it — here are ${n} pieces you might like.`
+const EmptyState = ({ prefs }: { prefs: AiChatPreferences }) => {
+  const hasPrefs =
+    (prefs.colors?.length ?? 0) +
+      (prefs.materials?.length ?? 0) +
+      (prefs.styles?.length ?? 0) >
+    0
+  return (
+    <div className="flex h-full flex-col items-center justify-center py-12 text-center">
+      <div className="mb-3 text-3xl">🪡</div>
+      <p className="text-sm text-neutral-700 sm:text-base">
+        {hasPrefs ? "Where should we start?" : "Ask in your own words."}
+      </p>
+      <p className="mt-1 max-w-sm text-xs text-neutral-500 sm:text-sm">
+        Try <em>"show me a soft handwoven cotton kurta"</em>, ask{" "}
+        <em>"how does custom design work?"</em>, or pick a fabric you like.
+      </p>
+    </div>
+  )
 }
 
-const EmptyState = () => (
-  <div className="flex h-full flex-col items-center justify-center py-12 text-center">
-    <div className="mb-3 text-3xl">🪡</div>
-    <p className="text-sm text-neutral-700 sm:text-base">
-      Ask in your own words.
-    </p>
-    <p className="mt-1 max-w-sm text-xs text-neutral-500 sm:text-sm">
-      Try things like <em>"soft cotton dress for summer"</em>,{" "}
-      <em>"red silk under 3000"</em>, or <em>"naturally dyed handloom"</em>.
-    </p>
-  </div>
-)
+const messageText = (msg: UIMessage): string => {
+  const parts = (msg as any).parts as Array<any> | undefined
+  if (!parts) return ""
+  return parts
+    .filter((p) => p?.type === "text")
+    .map((p) => p.text ?? "")
+    .join("")
+}
 
-const UserBubble = ({ content, ts }: { content: string; ts: number }) => (
+const UserBubble = ({ msg }: { msg: UIMessage }) => (
   <div className="flex justify-end">
-    <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-neutral-900 px-3.5 py-2 text-sm text-white sm:text-base">
-      {content}
-      <div className="mt-0.5 text-right text-[10px] text-neutral-400 sm:text-[11px]">
-        {formatRelativeTime(ts)}
-      </div>
+    <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-neutral-900 px-3.5 py-2 text-sm text-white sm:text-base whitespace-pre-wrap">
+      {messageText(msg)}
     </div>
   </div>
 )
 
-const AssistantBubble = ({ msg }: { msg: AiChatMessage }) => {
-  const products = msg.products ?? []
+const AssistantBubble = ({ msg }: { msg: UIMessage }) => {
+  const parts = (msg as any).parts as Array<any> | undefined
+  if (!parts?.length) {
+    return (
+      <div className="flex justify-start">
+        <div className="rounded-2xl rounded-bl-sm border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-sm text-neutral-900 sm:text-base">
+          <AssistantTypingDots />
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="flex justify-start">
       <div className="w-full max-w-[92%] rounded-2xl rounded-bl-sm border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-sm text-neutral-900 sm:text-base">
-        <p>{msg.content}</p>
-        {products.length > 0 && (
-          <ul className="mt-3 flex flex-col gap-2">
-            {products.map((p) => (
-              <ProductRow key={p.id} product={p} />
-            ))}
-          </ul>
-        )}
-        {msg.interpretation && (
-          <p className="mt-2 text-[11px] text-neutral-500 sm:text-xs">
-            Interpreted as:{" "}
-            {[
-              msg.interpretation.keywords?.join(", "),
-              msg.interpretation.color,
-              msg.interpretation.material,
-              msg.interpretation.max_price ? `under ${msg.interpretation.max_price}` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-        )}
+        {parts.map((part: any, i: number) => {
+          if (part.type === "text") {
+            return (
+              <p key={i} className="whitespace-pre-wrap">
+                {part.text}
+              </p>
+            )
+          }
+          // Tool calls in the v5 protocol are typed as `tool-<name>`.
+          if (typeof part.type === "string" && part.type.startsWith("tool-")) {
+            return <SearchProductsCall key={i} part={part} />
+          }
+          return null
+        })}
       </div>
     </div>
   )
 }
 
-const ProductRow = ({ product }: { product: AiSearchProduct }) => {
+const SearchProductsCall = ({ part }: { part: any }) => {
+  const state = part?.state as string | undefined
+  // Show a small "looking up" pill while the tool is running.
+  if (state === "input-streaming" || state === "input-available") {
+    const args = part.input ?? {}
+    const summary = [args.query, args.color, args.material]
+      .filter(Boolean)
+      .join(" · ")
+    return (
+      <p className="mt-2 inline-flex items-center gap-2 rounded-full bg-neutral-100 px-2.5 py-1 text-xs text-neutral-600">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400" />
+        Looking for{summary ? ` "${summary}"` : ""}…
+      </p>
+    )
+  }
+  if (state === "output-error") {
+    return (
+      <p className="mt-2 text-xs text-red-600">
+        Couldn't reach the catalogue right now.
+      </p>
+    )
+  }
+  if (state === "output-available") {
+    const output = part.output as SearchToolOutput
+    const products = output?.products ?? []
+    if (!products.length) {
+      return (
+        <p className="mt-2 text-xs text-neutral-500">
+          No matches in the catalogue for that.
+        </p>
+      )
+    }
+    return (
+      <ul className="mt-3 flex flex-col gap-2">
+        {products.map((p) => (
+          <ProductRow key={p.id} product={p} />
+        ))}
+      </ul>
+    )
+  }
+  return null
+}
+
+const ProductRow = ({ product }: { product: ProductHit }) => {
   const attribution = product.storefront
   const isPartner = attribution?.kind === "partner" && Boolean(attribution.url)
-
   const inner = (
     <>
       {product.thumbnail ? (
@@ -414,25 +454,20 @@ const ProductRow = ({ product }: { product: AiSearchProduct }) => {
       )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-medium sm:text-base">
-            {product.title}
-          </p>
+          <p className="truncate text-sm font-medium sm:text-base">{product.title}</p>
           {isPartner && (
             <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-800 sm:text-[11px]">
               Partner
             </span>
           )}
         </div>
-        {isPartner && attribution.partner_name && (
-          <p className="text-xs text-neutral-500">
-            sold by {attribution.partner_name}
-          </p>
+        {isPartner && attribution.kind === "partner" && attribution.partner_name && (
+          <p className="text-xs text-neutral-500">sold by {attribution.partner_name}</p>
         )}
       </div>
     </>
   )
-
-  if (isPartner && attribution.url) {
+  if (isPartner && attribution.kind === "partner" && attribution.url) {
     return (
       <li>
         <a
@@ -458,14 +493,18 @@ const ProductRow = ({ product }: { product: AiSearchProduct }) => {
   )
 }
 
+const AssistantTypingDots = () => (
+  <span className="flex items-center gap-1">
+    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400" />
+    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400 [animation-delay:120ms]" />
+    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400 [animation-delay:240ms]" />
+  </span>
+)
+
 const AssistantSkeleton = () => (
   <div className="flex justify-start">
     <div className="rounded-2xl rounded-bl-sm border border-neutral-200 bg-neutral-50 px-3.5 py-3">
-      <div className="flex items-center gap-1">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400" />
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400 [animation-delay:120ms]" />
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400 [animation-delay:240ms]" />
-      </div>
+      <AssistantTypingDots />
     </div>
   </div>
 )
