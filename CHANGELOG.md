@@ -1,3 +1,15 @@
+# [13.9.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.8.0...v13.9.0) (2026-05-22)
+
+
+### Bug Fixes
+
+* **storefront/chat-onboarding:** scroll the middle content on big screens ([bf34570](https://github.com/Jaal-Yantra-Textiles/v2/commit/bf345707a488c518afb97801acd66b571e895da3))
+
+
+### Features
+
+* **storefront/hero:** album-backed painting + centred chat search bar ([cdde428](https://github.com/Jaal-Yantra-Textiles/v2/commit/cdde4282762228bb6791843362dbefc9c1fee84f))
+
 # [13.8.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.7.0...v13.8.0) (2026-05-22)
 
 
