@@ -1,3 +1,10 @@
+# [13.10.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.9.0...v13.10.0) (2026-05-22)
+
+
+### Features
+
+* **storefront/chat:** onboarding as full-viewport focus modal + exit prompt ([d04199f](https://github.com/Jaal-Yantra-Textiles/v2/commit/d04199f23b81df3a46b7d6709c5369aa1a4ea450))
+
 # [13.9.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.8.0...v13.9.0) (2026-05-22)
 
 
