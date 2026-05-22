@@ -20,6 +20,7 @@ import {
 } from "@lib/util/ai-chat-preferences"
 import { getOrCreateVisitorId } from "@lib/util/visitor-id"
 import OnboardingForm from "./onboarding"
+import ExitPrompt from "./exit-prompt"
 
 /**
  * Chat-style concierge modal.
@@ -78,6 +79,13 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
   const [input, setInput] = useState("")
   const [prefs, setPrefs] = useState<AiChatPreferences>({})
   const [showOnboarding, setShowOnboarding] = useState(false)
+  // Dirty state of the onboarding form. Lives here (not in
+  // OnboardingForm) so the close path can decide whether to confirm.
+  const [onboardingDirty, setOnboardingDirty] = useState(false)
+  // When set, the exit prompt is showing because the user tried to
+  // close with unsaved selections. Confirming the prompt calls into
+  // this callback.
+  const [pendingClose, setPendingClose] = useState<null | (() => void)>(null)
   // Lazily resolved on open — SSR can't touch localStorage.
   const visitorIdRef = useRef<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -122,14 +130,31 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
     []
   )
 
+  // Centralised close request. Backdrop click, the X button, and the
+  // Escape key all flow through this so the dirty-prompt is enforced
+  // exactly once and the "Leave" / "Cancel" paths agree. Returning
+  // early when the exit prompt is already on screen prevents the
+  // prompt from blinking when the user hammers Escape.
+  const requestClose = useCallback(() => {
+    if (pendingClose) return
+    if (showOnboarding && onboardingDirty) {
+      setPendingClose(() => () => {
+        setOpen(false)
+        setPendingClose(null)
+      })
+      return
+    }
+    setOpen(false)
+  }, [pendingClose, showOnboarding, onboardingDirty])
+
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false)
+      if (e.key === "Escape") requestClose()
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [open])
+  }, [open, requestClose])
 
   useEffect(() => {
     if (!open) return
@@ -166,6 +191,7 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
   const onOnboardingDone = useCallback((next: AiChatPreferences) => {
     setPrefs(next)
     setShowOnboarding(false)
+    setOnboardingDirty(false)
     window.setTimeout(() => inputRef.current?.focus(), 0)
   }, [])
 
@@ -175,6 +201,7 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
     // skip handler already wrote { onboarded: true }.
     setPrefs((p) => ({ ...p, onboarded: true }))
     setShowOnboarding(false)
+    setOnboardingDirty(false)
     window.setTimeout(() => inputRef.current?.focus(), 0)
   }, [])
 
@@ -186,21 +213,41 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
 
   if (!open) return null
 
+  // Two layouts share the same backdrop:
+  //   - Onboarding: FocusModal-style. The panel is the full viewport on
+  //     every breakpoint so the form has space to breathe and body
+  //     scroll is fully blocked (the dialog itself is the scroll
+  //     container). No rounded panel, no backdrop padding.
+  //   - Chat: standard centred panel that floats inside a dimmed
+  //     backdrop on sm+.
+  const panelLayout = showOnboarding
+    ? // Full-bleed on every breakpoint.
+      "flex h-full w-full flex-col bg-white"
+    : // Centred panel with a dimmed backdrop on sm+.
+      "flex h-full w-full flex-col bg-white sm:h-[80vh] sm:max-h-[680px] sm:w-full sm:max-w-2xl sm:rounded-2xl sm:shadow-2xl"
+  const wrapperLayout = showOnboarding
+    ? "fixed inset-0 z-50 flex flex-col bg-white"
+    : "fixed inset-0 z-50 flex flex-col bg-white sm:items-center sm:justify-center sm:bg-black/40 sm:p-6"
+
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="AI concierge"
-      className="fixed inset-0 z-50 flex flex-col bg-white sm:items-center sm:justify-center sm:bg-black/40 sm:p-6"
+      aria-label={showOnboarding ? "Tell us what you like" : "AI concierge"}
+      className={wrapperLayout}
     >
-      <button
-        type="button"
-        aria-label="Close"
-        className="absolute inset-0 hidden cursor-default sm:block"
-        onClick={() => setOpen(false)}
-        tabIndex={-1}
-      />
-      <div className="relative z-10 flex h-full w-full flex-col bg-white sm:h-[80vh] sm:max-h-[680px] sm:w-full sm:max-w-2xl sm:rounded-2xl sm:shadow-2xl">
+      {/* Backdrop click only closes the chat view — onboarding is a
+          focus modal, so backdrop is solid and not clickable. */}
+      {!showOnboarding && (
+        <button
+          type="button"
+          aria-label="Close"
+          className="absolute inset-0 hidden cursor-default sm:block"
+          onClick={requestClose}
+          tabIndex={-1}
+        />
+      )}
+      <div className={`relative z-10 ${panelLayout}`}>
         <header className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex flex-col">
             <p className="text-sm font-medium text-neutral-900 sm:text-base">
@@ -232,7 +279,7 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
             )}
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={requestClose}
               aria-label="Close"
               className="rounded-full p-1 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
             >
@@ -249,6 +296,7 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
             initial={prefs}
             onDone={onOnboardingDone}
             onSkip={onOnboardingSkip}
+            onDirtyChange={setOnboardingDirty}
           />
         ) : (
           <>
@@ -318,6 +366,17 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
           </>
         )}
       </div>
+      {/* Unsaved-changes prompt — appears above the modal when the user
+          tries to dismiss the onboarding sheet mid-edit. */}
+      <ExitPrompt
+        open={!!pendingClose}
+        title="Unsaved selections"
+        description="You've started telling us what you like. Leave anyway?"
+        confirmLabel="Leave"
+        cancelLabel="Keep editing"
+        onCancel={() => setPendingClose(null)}
+        onConfirm={() => pendingClose?.()}
+      />
     </div>
   )
 }

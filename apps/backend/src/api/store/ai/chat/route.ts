@@ -51,18 +51,42 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     search_products: createSearchProductsTool(req.scope as any),
   }
 
-  // Normalise the inbound UI messages. The AI-SDK v5 client posts
-  // {role, parts:[{type:"text",text}]}; older clients may post
-  // {role, content:"..."}. Coerce both into the parts shape so
-  // convertToModelMessages produces clean ModelMessages.
+  // Normalise the inbound UI messages.
+  //
+  // The AI-SDK v5 client posts {id, role, parts:[{type:"text",text}, …,
+  // {type:"tool-search_products", state, input, output, toolCallId, …}]}.
+  // Older clients may post {role, content:"..."}.
+  //
+  // Two things to strip before `convertToModelMessages`:
+  //
+  //   1. `id` on each message — UI-only field. Some OpenAI-compatible
+  //      shims (DashScope, Cloudflare) bubble it into the upstream
+  //      payload and reject with "invalid request: unrecognised fields,
+  //      id". The model doesn't need it.
+  //
+  //   2. Tool parts from prior turns. The client serialises them with
+  //      the full SDK shape (state machine, tool-call ids, inputs,
+  //      outputs). When `convertToModelMessages` rebuilds the ModelMessage
+  //      from these it can produce assistant/tool message pairs whose
+  //      tool_call_id format the provider doesn't accept — same
+  //      "unrecognised field" error, different keys. Pruning tool parts
+  //      from history is lossy (the model can't remember it searched
+  //      already and may re-call the tool) but keeps the request shape
+  //      clean. Phase 2 will move thread state server-side and let us
+  //      serialise tool calls in a canonical shape.
   const messages = body.messages.map((m: any) => {
-    if (Array.isArray(m.parts) && m.parts.length) {
-      return { id: m.id, role: m.role, parts: m.parts }
-    }
+    const parts = Array.isArray(m.parts) ? m.parts : null
+    const textParts = parts
+      ? parts
+          .filter((p: any) => p?.type === "text" && typeof p.text === "string" && p.text.length > 0)
+          .map((p: any) => ({ type: "text", text: p.text }))
+      : [{ type: "text", text: String(m.content ?? "") }]
+
     return {
-      id: m.id,
       role: m.role,
-      parts: [{ type: "text", text: String(m.content ?? "") }],
+      parts: textParts.length
+        ? textParts
+        : [{ type: "text", text: "" }],
     }
   })
 
