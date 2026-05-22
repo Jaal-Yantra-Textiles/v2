@@ -38,6 +38,17 @@ html {
   animation: floatY 7s ease-in-out infinite;
 }
 
+/* One-shot fade-in for the hero painting. Plain CSS so the hero
+   doesn't need a Framer Motion import. */
+@keyframes heroFadeIn {
+  from { opacity: 0; transform: scale(1.02); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.hero-fade-in {
+  animation: heroFadeIn 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* Nav: dark mode — white text overriding Medusa CSS variables */
 [data-dark="true"] header nav,
 [data-dark="true"] header nav a,
