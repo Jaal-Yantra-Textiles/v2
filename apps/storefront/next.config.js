@@ -52,6 +52,16 @@ const nextConfig = {
         hostname: "automatic.jaalyantra.com",
       },
       {
+        // CDN in front of the public R2 bucket — used by the hero album
+        // and any other album-scoped public media.
+        protocol: "https",
+        hostname: "cdn.jaalyantra.com",
+      },
+      {
+        protocol: "https",
+        hostname: "**.r2.dev",
+      },
+      {
         protocol: "https",
         hostname: "medusa-server-testing.s3.amazonaws.com",
       },

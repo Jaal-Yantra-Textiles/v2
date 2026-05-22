@@ -31,12 +31,16 @@ export async function listPublicMedia({
   random = true,
   offset,
   seed,
+  albumId,
 }: {
   limit?: number
   type?: string
   random?: boolean
   offset?: number
   seed?: string
+  /** Optional album id — restricts the result to media that's been
+   * added to this album via AlbumMedia. */
+  albumId?: string
 } = {}): Promise<ListPublicMediaResponse> {
   const next = { ...(await getCacheOptions("web_media")) }
 
@@ -48,6 +52,7 @@ export async function listPublicMedia({
       random: random ? "true" : "false",
       ...(typeof offset === "number" ? { offset: String(offset) } : {}),
       ...(seed ? { seed } : {}),
+      ...(albumId ? { album_id: albumId } : {}),
     },
     next,
     cache: random ? "no-store" : "force-cache",
