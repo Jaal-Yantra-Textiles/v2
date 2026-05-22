@@ -1,7 +1,6 @@
 import { Metadata } from "next"
 import { cookies } from "next/headers"
 
-import AiSearchTrigger from "@modules/home/components/ai-search-chat/trigger"
 import FeaturedProducts from "@modules/home/components/featured-products"
 import Hero from "@modules/home/components/hero"
 import HolidaySection from "@modules/home/components/holidays"
@@ -89,12 +88,6 @@ export default async function Home(props: {
         <ScrollStage hero={<Hero />} holiday={holidaySection} />
       )}
       <HeroSeenMarker />
-      <div className="mx-auto mt-8 flex w-full max-w-2xl flex-col items-center gap-2 px-4 sm:mt-10 sm:px-6">
-        <AiSearchTrigger />
-        <p className="text-center text-xs text-neutral-500 sm:text-sm">
-          Natural-language discovery — opens a conversation with AI.
-        </p>
-      </div>
       <div id="shop" className="py-12">
         <ul className="flex flex-col gap-x-6">
           <FeaturedProducts collections={collections} region={region} />

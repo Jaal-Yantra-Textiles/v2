@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   savePreferences,
   type AiChatPreferences,
@@ -37,6 +37,12 @@ type Props = {
   initial?: AiChatPreferences
   onDone: (prefs: AiChatPreferences) => void
   onSkip: () => void
+  /**
+   * Notifies the parent when the form transitions between clean and
+   * dirty. The parent uses this to gate "are you sure you want to
+   * leave?" prompts on close attempts.
+   */
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 const toggleIn = (list: string[] | undefined, value: string): string[] => {
@@ -46,7 +52,12 @@ const toggleIn = (list: string[] | undefined, value: string): string[] => {
     : [...current, value]
 }
 
-export default function OnboardingForm({ initial, onDone, onSkip }: Props) {
+export default function OnboardingForm({
+  initial,
+  onDone,
+  onSkip,
+  onDirtyChange,
+}: Props) {
   const [colors, setColors] = useState<string[]>(initial?.colors ?? [])
   const [styles, setStyles] = useState<string[]>(initial?.styles ?? [])
   const [materials, setMaterials] = useState<string[]>(initial?.materials ?? [])
@@ -55,6 +66,27 @@ export default function OnboardingForm({ initial, onDone, onSkip }: Props) {
   const [maxPrice, setMaxPrice] = useState<number | undefined>(
     initial?.price_range?.max
   )
+
+  // Dirty when any field has been edited away from the initial value.
+  // Shallow set-equality is enough for the chip groups (no duplicates,
+  // unordered semantics, small lists). The parent uses this to decide
+  // whether closing should prompt the user.
+  const sameSet = (a: string[], b: string[] | undefined) => {
+    const other = b ?? []
+    if (a.length !== other.length) return false
+    return a.every((v) => other.includes(v))
+  }
+  const dirty =
+    !sameSet(colors, initial?.colors) ||
+    !sameSet(styles, initial?.styles) ||
+    !sameSet(materials, initial?.materials) ||
+    size !== initial?.body?.size ||
+    fit !== initial?.body?.fit ||
+    maxPrice !== initial?.price_range?.max
+
+  useEffect(() => {
+    onDirtyChange?.(dirty)
+  }, [dirty, onDirtyChange])
 
   const submit = () => {
     const next: AiChatPreferences = {
