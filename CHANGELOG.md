@@ -1,3 +1,18 @@
+# [13.8.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.7.0...v13.8.0) (2026-05-22)
+
+
+### Bug Fixes
+
+* **productCatalog:** cap embed batch at 10 to satisfy DashScope limit ([686cc35](https://github.com/Jaal-Yantra-Textiles/v2/commit/686cc351771e1bb79fa31de4bd1b4b9425475041))
+* **store/ai/search:** drop calculated_price fields pending pricing context ([8be2417](https://github.com/Jaal-Yantra-Textiles/v2/commit/8be241742ee5e0cd53a30fcf4e90fe528ac0bef7))
+* **storefront/chat-modal:** scroll behaviour + friendlier reply copy ([ef8a292](https://github.com/Jaal-Yantra-Textiles/v2/commit/ef8a292db4964bab59d89e185f4b7ff8874093c9))
+
+
+### Features
+
+* **storefront:** chat-modal search at home + inline product search on /store ([6ffd5ed](https://github.com/Jaal-Yantra-Textiles/v2/commit/6ffd5edf21640877165ce32794996ce3d6b393ed))
+* **storefront/chat-agent:** streaming concierge with onboarding + brand corpus ([c636a66](https://github.com/Jaal-Yantra-Textiles/v2/commit/c636a66e0d3c8444ebe8d6c32c608a24353d71ef))
+
 # [13.7.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.6.0...v13.7.0) (2026-05-21)
 
 
