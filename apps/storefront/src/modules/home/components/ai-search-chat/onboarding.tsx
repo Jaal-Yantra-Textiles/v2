@@ -74,9 +74,16 @@ export default function OnboardingForm({ initial, onDone, onSkip }: Props) {
     onSkip()
   }
 
+  // The onboarding mounts as a direct flex-child of the modal panel
+  // (`flex flex-col` with bounded `sm:h-[80vh] sm:max-h-[680px]`).
+  // To play nicely with that, the root uses `flex-1 min-h-0` so it
+  // takes the remaining space after the modal header — NOT `h-full`,
+  // which doesn't grow flex items along the main axis. The middle
+  // section is the only scroll region, so the headline at the top and
+  // the action buttons at the bottom stay anchored on big screens.
   return (
-    <div className="flex h-full flex-col overflow-y-auto">
-      <div className="px-4 py-4 sm:px-6 sm:py-5">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="shrink-0 px-4 py-4 sm:px-6 sm:py-5">
         <h2 className="text-lg font-medium text-neutral-900 sm:text-xl">
           Hey there — quick intro?
         </h2>
@@ -86,7 +93,7 @@ export default function OnboardingForm({ initial, onDone, onSkip }: Props) {
         </p>
       </div>
 
-      <div className="flex-1 space-y-5 px-4 pb-4 sm:px-6 sm:pb-5">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-5">
         <ChipGroup
           label="Colors you reach for"
           options={COLOR_OPTIONS}
@@ -162,7 +169,7 @@ export default function OnboardingForm({ initial, onDone, onSkip }: Props) {
         </div>
       </div>
 
-      <div className="border-t border-neutral-200 p-4 sm:p-5">
+      <div className="shrink-0 border-t border-neutral-200 p-4 sm:p-5">
         <div className="flex items-center gap-3">
           <button
             type="button"

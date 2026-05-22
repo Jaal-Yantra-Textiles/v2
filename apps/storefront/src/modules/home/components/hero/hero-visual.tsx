@@ -1,202 +1,183 @@
 "use client"
 
-import { motion } from "framer-motion"
-import HeroScrollButton from "./hero-scroll-button"
 import imageLoader from "@lib/util/image-loader"
+import { useRef, useState } from "react"
+import AiSearchChat, {
+  type AiSearchChatHandle,
+} from "../ai-search-chat"
+import HeroScrollButton from "./hero-scroll-button"
 
 interface HeroVisualProps {
   imageUrl: string | null
   alt?: string
-  floatingImageUrl: string | null
+  /** Optional credit line (artist/source) rendered subtly at bottom. */
+  credit?: string | null
 }
 
 // Routes Cloudflare-hosted heroes through `/cdn-cgi/image/...` (so the
 // browser-fetched source is already <4MB) and falls back to Vercel's
 // optimizer for everything else. Same logic as the next/image custom loader.
-function nextImg(url: string, w: 384 | 640 | 750 | 1080, q = 85) {
+function nextImg(url: string, w: 1080 | 1920 | 2400 = 1920, q = 82) {
   return imageLoader({ src: url, width: w, quality: q })
 }
 
-export default function HeroVisual({ imageUrl, alt, floatingImageUrl }: HeroVisualProps) {
+/**
+ * Painting-backed hero with a centred chat-trigger search bar.
+ *
+ * The chat modal (AiSearchChat) is rendered here so the trigger can
+ * .open() it directly — placing them in the same component means a
+ * click on the search bar pops the same concierge experience that
+ * lives elsewhere on the storefront, with no prop drilling.
+ *
+ * Layout: a single full-bleed image fills the viewport. A subtle
+ * top→bottom darkening keeps the search bar + CTAs legible against
+ * paintings of any luminance. The "Cici Label" wordmark and the
+ * smaller CTAs sit below the bar so the artwork can breathe.
+ *
+ * Performance: the painting renders with `loading="eager"` and
+ * `fetchPriority="high"` since it's LCP. The CSS `animate-fade-in`
+ * class is replaced with a plain Tailwind opacity transition so we
+ * don't need a Framer Motion import for a one-shot fade.
+ */
+export default function HeroVisual({ imageUrl, alt, credit }: HeroVisualProps) {
+  const chatRef = useRef<AiSearchChatHandle>(null)
+  const [input, setInput] = useState("")
+
+  const openChat = () => {
+    chatRef.current?.open(input.trim() || undefined)
+    setInput("")
+  }
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    openChat()
+  }
+
   return (
-    <div id="hero-section" className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden bg-[#0a0a0a] select-none px-4 sm:px-0">
+    <section
+      id="hero-section"
+      className="relative isolate flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-neutral-900 select-none"
+    >
+      {/* ── Painting ───────────────────────────────────────────────── */}
+      {imageUrl ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={nextImg(imageUrl, 1920)}
+          srcSet={`${nextImg(imageUrl, 1080)} 1080w, ${nextImg(imageUrl, 1920)} 1920w, ${nextImg(imageUrl, 2400)} 2400w`}
+          sizes="100vw"
+          alt={alt || "Hero artwork"}
+          className="absolute inset-0 h-full w-full object-cover hero-fade-in"
+          fetchPriority="high"
+          loading="eager"
+          draggable={false}
+        />
+      ) : (
+        // Quiet placeholder gradient while the album fills up.
+        <div
+          className="absolute inset-0 hero-fade-in"
+          style={{
+            background:
+              "radial-gradient(ellipse at center, #25201d 0%, #0a0a0a 70%)",
+          }}
+        />
+      )}
 
-      {/* Noise overlay */}
+      {/* Darkening overlay — soft on top, deeper at bottom — so the
+          search input and CTAs stay legible regardless of painting
+          luminance. */}
       <div
-        className="absolute inset-0 pointer-events-none opacity-[0.025]"
+        aria-hidden
+        className="absolute inset-0"
         style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
-          backgroundRepeat: "repeat",
-          backgroundSize: "128px",
+          background:
+            "linear-gradient(to bottom, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.20) 35%, rgba(0,0,0,0.55) 100%)",
         }}
       />
 
-      {/* Top editorial rule */}
-      <motion.div
-        initial={{ scaleX: 0 }}
-        animate={{ scaleX: 1 }}
-        transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
-        className="absolute top-[18%] left-0 right-0 h-px bg-white/10 origin-left pointer-events-none"
-      />
-
-      {/* ── MAIN IMAGE — behind everything, z-0 ── */}
-      {imageUrl && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
-          className="absolute z-0 blob-morph overflow-hidden shadow-2xl"
-          style={{
-            width: "clamp(180px, 38vw, 400px)",
-            aspectRatio: "3/4",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -52%)",
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={nextImg(imageUrl, 640)}
-            alt={alt || "Cici Label model"}
-            className="w-full h-full object-cover"
-            draggable={false}
-          />
-          {/* Dark vignette so text stays readable */}
-          <div
-            className="absolute inset-0"
-            style={{ background: "linear-gradient(to bottom, rgba(10,10,10,0.15) 0%, rgba(10,10,10,0.55) 100%)" }}
-          />
-        </motion.div>
-      )}
-
-      {/* Purple glow behind image */}
+      {/* Subtle film grain. Pure CSS, no asset. */}
       <div
-        className="absolute z-0 pointer-events-none"
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.04]"
         style={{
-          width: "clamp(200px, 50vw, 500px)",
-          aspectRatio: "1",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -52%)",
-          background: "radial-gradient(ellipse, rgba(155,114,207,0.25) 0%, transparent 70%)",
-          filter: "blur(40px)",
+          backgroundImage:
+            "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+          backgroundSize: "192px",
         }}
       />
 
-      {/* Floating image — top-left, hidden on mobile */}
-      {floatingImageUrl && (
-        <motion.div
-          initial={{ opacity: 0, y: -60 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1], delay: 0.6 }}
-          className="absolute left-[3%] top-0 z-10 pointer-events-none float-image hidden sm:block"
-          style={{ width: "clamp(120px, 14vw, 200px)" }}
+      {/* ── Centre stack ───────────────────────────────────────────── */}
+      <div className="relative z-10 flex w-full max-w-2xl flex-col items-center px-6 text-center text-white">
+        <h1
+          className="font-serif text-balance text-3xl tracking-tight sm:text-4xl md:text-5xl"
+          style={{ textShadow: "0 2px 24px rgba(0,0,0,0.45)" }}
         >
-          <div
-            className="w-full overflow-hidden shadow-2xl"
-            style={{
-              height: "clamp(200px, 50vh, 440px)",
-              borderRadius: "0 0 50% 50% / 0 0 40% 40%",
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={nextImg(floatingImageUrl, 384)}
-              alt=""
-              className="w-full h-full object-cover object-top"
-              draggable={false}
-            />
-          </div>
-          {/* Fade to black at bottom */}
-          <div
-            className="absolute bottom-0 left-0 right-0 h-1/3 pointer-events-none"
-            style={{ background: "linear-gradient(to bottom, transparent, #0a0a0a)" }}
-          />
-        </motion.div>
-      )}
-
-      {/* ── TEXT STACK — all in front of image (z-20+) ── */}
-
-      {/* CICI — outline stroke */}
-      <motion.div
-        initial={{ opacity: 0, y: -32 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 1.1, ease: "easeOut", delay: 0.25 }}
-        aria-hidden
-        className="relative z-20 pointer-events-none"
-      >
-        <span
-          className="font-serif leading-none tracking-tighter"
-          style={{
-            fontSize: "clamp(64px, 20vw, 260px)",
-            WebkitTextStroke: "1.5px rgba(255,255,255,0.55)",
-            color: "transparent",
-          }}
+          Find your next favourite piece
+        </h1>
+        <p
+          className="mt-3 max-w-md text-sm text-white/80 sm:text-base"
+          style={{ textShadow: "0 1px 12px rgba(0,0,0,0.55)" }}
         >
-          CICI
-        </span>
-      </motion.div>
-
-      {/* LABEL — solid white */}
-      <motion.div
-        initial={{ opacity: 0, y: 28 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 1, ease: "easeOut", delay: 0.7 }}
-        aria-hidden
-        className="relative z-20 pointer-events-none"
-        style={{ marginTop: "clamp(-16px, -2.5vh, -28px)" }}
-      >
-        <span
-          className="font-serif leading-none tracking-tighter text-white"
-          style={{ fontSize: "clamp(44px, 13vw, 180px)" }}
-        >
-          LABEL
-        </span>
-      </motion.div>
-
-      {/* Divider */}
-      <motion.div
-        initial={{ scaleX: 0 }}
-        animate={{ scaleX: 1 }}
-        transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.9 }}
-        className="relative z-20 h-px w-16 sm:w-24 bg-white/25 mt-4 sm:mt-6 origin-center"
-      />
-
-      {/* Tagline */}
-      <motion.div
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.9, ease: "easeOut", delay: 1.05 }}
-        className="relative z-20 mt-4 sm:mt-5 px-6"
-      >
-        <p className="text-white/40 text-[10px] sm:text-xs tracking-[0.2em] sm:tracking-[0.25em] uppercase font-sans text-center">
-          Unique pieces with artists across the globe
+          Handloom-woven, naturally dyed, made by artisan partners
+          across India. Ask in your own words.
         </p>
-      </motion.div>
 
-      {/* CTA — stacked on mobile, side-by-side on sm+ */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.9, ease: "easeOut", delay: 1.15 }}
-        className="relative z-20 flex flex-col sm:flex-row items-center gap-3 mt-5 sm:mt-5 w-full max-w-xs sm:max-w-none sm:w-auto"
-      >
-        <a
-          href="/design"
-          className="w-full sm:w-auto text-center px-6 sm:px-8 py-3 border border-white/25 text-white text-xs tracking-[0.18em] sm:tracking-[0.2em] uppercase font-sans transition-all duration-300 hover:bg-white hover:text-black hover:border-white"
+        <form
+          onSubmit={onSubmit}
+          className="mt-7 flex w-full max-w-lg items-center gap-2 rounded-full bg-white/95 p-1.5 shadow-2xl backdrop-blur-sm focus-within:bg-white"
         >
-          Design your first piece
-        </a>
-        <HeroScrollButton targetId="shop" />
-      </motion.div>
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask me anything — fabrics, fits, custom design…"
+            aria-label="Ask the Cici Label concierge"
+            className="flex-1 bg-transparent px-4 py-2 text-sm text-neutral-900 placeholder:text-neutral-500 focus:outline-none sm:text-base"
+            maxLength={200}
+            autoComplete="off"
+            spellCheck={false}
+            onFocus={openChat}
+          />
+          <button
+            type="submit"
+            className="rounded-full bg-neutral-900 px-5 py-2 text-sm font-medium text-white transition hover:bg-neutral-800 sm:px-6 sm:text-base"
+          >
+            Ask
+          </button>
+        </form>
 
-      {/* Bottom editorial rule */}
-      <motion.div
-        initial={{ scaleX: 0 }}
-        animate={{ scaleX: 1 }}
-        transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
-        className="absolute bottom-[10%] left-0 right-0 h-px bg-white/10 origin-right pointer-events-none"
-      />
-    </div>
+        {/* Small wordmark + CTAs underneath */}
+        <div className="mt-8 flex flex-col items-center gap-4">
+          <p
+            className="font-serif text-base tracking-[0.18em] text-white/85 sm:text-lg"
+            style={{ textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}
+          >
+            Cici Label
+          </p>
+          <div className="flex flex-col items-center gap-3 sm:flex-row">
+            <a
+              href="/design"
+              className="text-xs uppercase tracking-[0.22em] text-white/70 underline underline-offset-[6px] decoration-white/30 transition hover:text-white hover:decoration-white sm:text-[11px]"
+            >
+              Design your first piece
+            </a>
+            <span className="hidden h-3 w-px bg-white/20 sm:inline-block" />
+            <HeroScrollButton targetId="shop" />
+          </div>
+        </div>
+      </div>
+
+      {/* Optional credit line — bottom-left. Renders only when the
+          MediaFile has a caption or description set. */}
+      {credit && (
+        <p className="absolute bottom-3 left-4 z-10 text-[10px] tracking-wide text-white/40 sm:text-xs">
+          {credit}
+        </p>
+      )}
+
+      {/* Render the chat modal here so the search trigger can open it
+          inline. Mounted once on the hero — the same component is also
+          mounted elsewhere on the storefront where needed. */}
+      <AiSearchChat ref={chatRef} />
+    </section>
   )
 }
