@@ -105,6 +105,7 @@ import { UpdateInventoryOrderTask } from "./admin/inventory-orders/[id]/tasks/[t
 import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/test/route";
 import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema, ConnectWhatsAppSchema } from "./admin/social-platforms/validators";
 import { StoreAiSearchSchema } from "./store/ai/search/validators";
+import { StoreAiChatSchema } from "./store/ai/chat/validators";
 import { StoreGenerateAiImageReqSchema } from "./store/ai/imagegen/validators";
 import { StoreTryOnReqSchema } from "./store/ai/tryon/validators";
 import { AccessFeeConfirmSchema } from "./store/ai/accessfee/validators";
@@ -3095,6 +3096,15 @@ export default defineMiddlewares({
       // and matches the SDK's `client.fetch(..., { query })` convention.
       middlewares: [
         validateAndTransformQuery(wrapSchema(StoreAiSearchSchema), {}),
+      ],
+    },
+    {
+      matcher: "/store/ai/chat",
+      method: "POST",
+      // Public — same reasoning as /store/ai/search. visitor_id in the
+      // body is the join key; we don't gate on a customer session.
+      middlewares: [
+        validateAndTransformBody(wrapSchema(StoreAiChatSchema)),
       ],
     },
     {
