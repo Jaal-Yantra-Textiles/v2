@@ -1,5 +1,5 @@
 import { MedusaContainer } from "@medusajs/framework"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 
 export const refetchPartner = async (
     partnerId: string,
@@ -269,6 +269,105 @@ export const scopeAndAggregateVariantInventory = <T extends any>(
         }
     }
     return variants
+}
+
+/**
+ * Auto-create inventory_level rows at the partner's stock location(s) for
+ * any inventory items linked to the given variants (only those with
+ * `manage_inventory: true`).
+ *
+ * Why this exists: `createProductVariantsWorkflow` creates inventory items
+ * for managed variants and links variant ↔ inventory_item, but it does NOT
+ * create the inventory_level row that ties the item to a specific stock
+ * location. The partner-ui's inventory detail route
+ * (`partners/inventory-items/:id`) then 404s because its access check
+ * requires a level at `store.default_location_id`.
+ *
+ * Used by the product POST and the variant single-POST / batch-POST routes
+ * to keep all three create paths consistent. Idempotent: pre-existing
+ * levels are skipped, so it's safe to call on already-linked variants.
+ *
+ * Non-fatal by design — the variant/product was already created. We log
+ * and swallow so an inventory-link blip can't unwind the create.
+ */
+export const ensureInventoryLevelsForVariants = async (
+    container: MedusaContainer,
+    store: { id?: string; default_sales_channel_id?: string | null },
+    variantIds: string[],
+): Promise<void> => {
+    if (!variantIds.length) return
+    if (!store?.default_sales_channel_id) return
+
+    try {
+        const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+        const inventoryService = container.resolve(Modules.INVENTORY) as any
+
+        // Resolve the partner's stock locations via the store's default
+        // sales channel. Same query the product POST uses, so multi-location
+        // partners get a level at every linked location.
+        const { data: channels } = await query.graph({
+            entity: "sales_channels",
+            fields: ["stock_locations.id"],
+            filters: { id: store.default_sales_channel_id },
+        })
+        const locationIds: string[] = []
+        for (const loc of channels?.[0]?.stock_locations || []) {
+            if (loc?.id) locationIds.push(loc.id)
+        }
+        if (!locationIds.length) return
+
+        // Pull inventory_item ids from the newly created variants
+        // (skip non-managed variants — they have no inventory items).
+        const { data: variants } = await query.graph({
+            entity: "product_variants",
+            fields: ["manage_inventory", "inventory_items.inventory.id"],
+            filters: { id: variantIds },
+        })
+
+        const inventoryItemIds: string[] = []
+        for (const v of (variants as any[]) || []) {
+            if (!v.manage_inventory) continue
+            for (const ii of v.inventory_items || []) {
+                if (ii?.inventory?.id) inventoryItemIds.push(ii.inventory.id)
+            }
+        }
+        if (!inventoryItemIds.length) return
+
+        const levelsToCreate: Array<{
+            inventory_item_id: string
+            location_id: string
+            stocked_quantity?: number
+        }> = []
+
+        for (const itemId of inventoryItemIds) {
+            const existing = await inventoryService.listInventoryLevels({
+                inventory_item_id: itemId,
+            })
+            const existingLocationIds = new Set(
+                (existing as any[]).map((l) => l.location_id),
+            )
+            for (const locId of locationIds) {
+                if (!existingLocationIds.has(locId)) {
+                    levelsToCreate.push({
+                        inventory_item_id: itemId,
+                        location_id: locId,
+                        stocked_quantity: 0,
+                    })
+                }
+            }
+        }
+
+        if (levelsToCreate.length) {
+            await inventoryService.createInventoryLevels(levelsToCreate)
+        }
+    } catch (e: any) {
+        // Non-fatal: the variant/product was created successfully; we just
+        // couldn't seed inventory levels. Log so we notice in CI / prod.
+        console.error(
+            "[partner-helpers/ensureInventoryLevelsForVariants] failed:",
+            e?.message ?? e,
+        )
+    }
 }
 
 /**

@@ -233,6 +233,120 @@ setupSharedTestSuite(() => {
         // Store was created with defaults, so there should be shipping options
         expect(res.data.count).toBeGreaterThanOrEqual(0)
       })
+
+      it("POST /partners/stores/:id/shipping-options/:optionId persists prices", async () => {
+        // Regression test for the bare-service silent-drop bug: the route
+        // previously called fulfillmentService.updateShippingOptions(id, body)
+        // which doesn't know about the pricing module, so the `prices` array
+        // was dropped on the floor and the API returned 200 with the option
+        // unchanged. Fix routes through updateShippingOptionsWorkflow.
+
+        // Scaffold: find a service_zone on the location's shipping
+        // fulfillment_set. The store-create workflow seeded one.
+        const locRes = await api.get(
+          `/partners/stores/${partner.storeId}/locations/${partner.locationId}`,
+          { headers: partner.headers }
+        )
+        const shippingSet = (
+          locRes.data.stock_location.fulfillment_sets || []
+        ).find((fs: any) => fs.type === "shipping")
+        const serviceZoneId = shippingSet?.service_zones?.[0]?.id
+        expect(serviceZoneId).toBeDefined()
+
+        // Ensure a shipping profile exists.
+        let profilesRes = await api.get(`/partners/shipping-profiles`, {
+          headers: partner.headers,
+        })
+        let profileId = profilesRes.data.shipping_profiles?.[0]?.id
+        if (!profileId) {
+          const profileCreateRes = await api.post(
+            `/partners/shipping-profiles`,
+            { name: "Default Test Profile", type: "default" },
+            { headers: partner.headers }
+          )
+          profileId = profileCreateRes.data.shipping_profile?.id
+        }
+        expect(profileId).toBeDefined()
+
+        // Create a shipping option with an initial price. The CREATE
+        // route uses createShippingOptionsWorkflow already, so this
+        // half is known-good — we only need it to set up state for the
+        // UPDATE test below.
+        const createRes = await api.post(
+          `/partners/stores/${partner.storeId}/shipping-options`,
+          {
+            name: "Test Option",
+            service_zone_id: serviceZoneId,
+            shipping_profile_id: profileId,
+            provider_id: "manual_manual",
+            price_type: "flat",
+            type: {
+              label: "Standard",
+              description: "Standard",
+              code: "standard",
+            },
+            prices: [{ currency_code: partner.currencyCode, amount: 100 }],
+          },
+          { headers: partner.headers }
+        )
+        expect(createRes.status).toBe(201)
+        const optionId = createRes.data.shipping_option.id
+
+        // The actual test: UPDATE the price via POST and confirm it
+        // persists. HTTP 200 alone passed even with the silent-drop bug.
+        const newAmount = 7777
+        const updateRes = await api.post(
+          `/partners/stores/${partner.storeId}/shipping-options/${optionId}`,
+          {
+            prices: [{ currency_code: partner.currencyCode, amount: newAmount }],
+          },
+          { headers: partner.headers }
+        )
+        expect(updateRes.status).toBe(200)
+
+        const verifyRes = await api.get(
+          `/partners/stores/${partner.storeId}/shipping-options/${optionId}`,
+          { headers: partner.headers }
+        )
+        const persisted = (verifyRes.data.shipping_option.prices || []).find(
+          (p: any) =>
+            p.currency_code === partner.currencyCode &&
+            // Exclude conditional / region-scoped prices for this assertion.
+            !(p.price_rules || []).length
+        )
+        expect(persisted?.amount).toBe(newAmount)
+
+        // Region-scoped price: the partner-ui's pricing grid has a
+        // separate "region" column that sends `{ region_id, amount }`
+        // (no `rules` wrapper) in the same `prices` array. The workflow
+        // accepts that shape and stores it with a price_rule for the
+        // region. Verify the round-trip works for that path too — this
+        // is what the user reported as "price update per location still
+        // not working" before the route fix.
+        const regionAmount = 8888
+        const regionUpdateRes = await api.post(
+          `/partners/stores/${partner.storeId}/shipping-options/${optionId}`,
+          {
+            prices: [{ region_id: partner.regionId, amount: regionAmount }],
+          },
+          { headers: partner.headers }
+        )
+        expect(regionUpdateRes.status).toBe(200)
+
+        const regionVerifyRes = await api.get(
+          `/partners/stores/${partner.storeId}/shipping-options/${optionId}`,
+          { headers: partner.headers }
+        )
+        const regionPersisted = (
+          regionVerifyRes.data.shipping_option.prices || []
+        ).find((p: any) =>
+          (p.price_rules || []).some(
+            (r: any) =>
+              r.attribute === "region_id" && r.value === partner.regionId
+          )
+        )
+        expect(regionPersisted?.amount).toBe(regionAmount)
+      })
     })
 
     describe("Store Tax Regions", () => {
@@ -242,6 +356,41 @@ setupSharedTestSuite(() => {
         })
         expect(res.status).toBe(200)
         expect(Array.isArray(res.data.tax_regions)).toBe(true)
+      })
+
+      it("POST /partners/stores/:id/tax-regions accepts provider_id (regression)", async () => {
+        // The partner-ui's tax-region create form always sends
+        // `provider_id` in the body. The validator used to omit it from
+        // the schema, so the strict middleware errored out with
+        // "Unrecognized fields: 'provider_id'" before the route ever
+        // ran. This test exercises the exact shape the form sends.
+        const res = await api.post(
+          `/partners/stores/${partner.storeId}/tax-regions`,
+          {
+            country_code: "fr",
+            provider_id: "tp_system",
+            default_tax_rate: {
+              code: "fr-vat",
+              name: "France VAT",
+              rate: 20,
+            },
+          },
+          { headers: partner.headers, validateStatus: () => true }
+        )
+        // Some test environments may not have a "tp_system" provider
+        // registered; in that case the workflow itself will reject with
+        // a different error. The point of THIS test is that we get past
+        // the body validator — i.e., not a 400 "Unrecognized fields"
+        // before any handler runs.
+        if (res.status >= 400) {
+          expect(String(res.data?.message ?? "")).not.toMatch(
+            /Unrecognized fields/i
+          )
+        } else {
+          expect(res.status).toBe(201)
+          expect(res.data.tax_region).toBeDefined()
+          expect(res.data.tax_region.country_code).toBe("fr")
+        }
       })
     })
   })

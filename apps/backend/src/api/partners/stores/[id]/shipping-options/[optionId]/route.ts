@@ -1,6 +1,9 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
-import { deleteShippingOptionsWorkflow } from "@medusajs/medusa/core-flows"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import {
+  deleteShippingOptionsWorkflow,
+  updateShippingOptionsWorkflow,
+} from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess } from "../../../../helpers"
 import { PartnerUpdateShippingOptionReq } from "../../validators"
 
@@ -17,7 +20,14 @@ export const GET = async (
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: options } = await query.graph({
     entity: "shipping_options",
-    fields: ["*", "prices.*", "rules.*", "type.*", "shipping_profile.*"],
+    // `prices.price_rules.*` MUST be expanded — the partner-ui's pricing
+    // grid uses `price.price_rules` to bucket prices into currency vs
+    // region vs conditional columns (see
+    // `apps/partner-ui/src/routes/locations/.../edit-shipping-options-pricing-form.tsx`
+    // `getDefaultValues`). Without this expansion, every region-scoped
+    // price is misread as a currency price, region cells render empty,
+    // and saving overwrites the wrong cell.
+    fields: ["*", "prices.*", "prices.price_rules.*", "rules.*", "type.*", "shipping_profile.*"],
     filters: { id: req.params.optionId },
   })
 
@@ -43,13 +53,36 @@ export const POST = async (
 
   const body = PartnerUpdateShippingOptionReq.parse(req.body)
 
-  const fulfillmentService = req.scope.resolve(Modules.FULFILLMENT) as any
-  const updated = await fulfillmentService.updateShippingOptions(
-    req.params.optionId,
-    body
-  )
+  // Use updateShippingOptionsWorkflow rather than the bare fulfillment
+  // service. Shipping option prices live in the pricing module and are
+  // linked to the option via a remote price_set link — the fulfillment
+  // service has no knowledge of that link, so passing a `prices` field
+  // through it returns 200 but silently drops every price. The workflow
+  // updates the option AND its linked price_set in one go (same path the
+  // standard admin uses).
+  await updateShippingOptionsWorkflow(req.scope).run({
+    input: [
+      {
+        id: req.params.optionId,
+        ...body,
+      } as any,
+    ],
+  })
 
-  res.json({ shipping_option: updated })
+  // Refetch with prices so the client gets the full updated shape — the
+  // workflow result alone doesn't include the resolved price rows.
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: options } = await query.graph({
+    entity: "shipping_options",
+    fields: ["*", "prices.*", "prices.price_rules.*", "rules.*", "type.*", "shipping_profile.*"],
+    filters: { id: req.params.optionId },
+  })
+
+  if (!options?.[0]) {
+    throw new MedusaError(MedusaError.Types.NOT_FOUND, "Shipping option not found")
+  }
+
+  res.json({ shipping_option: options[0] })
 }
 
 export const DELETE = async (

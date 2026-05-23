@@ -30,10 +30,16 @@ export const POST = async (
 
   const body = req.body as Record<string, any>
   const inventoryService = req.scope.resolve(Modules.INVENTORY) as any
-  const updated = await inventoryService.updateInventoryLevels(
-    { inventory_item_id: id, location_id: locationId },
-    body
-  )
+  // `updateInventoryLevels` takes a SINGLE data argument — the selector
+  // fields (`inventory_item_id`, `location_id`) and the new values must
+  // live on the same object. The previous call passed them split across
+  // two args; the second was interpreted as `Context` and silently
+  // dropped, so HTTP returned 200 but `stocked_quantity` never persisted.
+  const updated = await inventoryService.updateInventoryLevels({
+    inventory_item_id: id,
+    location_id: locationId,
+    ...body,
+  })
 
   res.json({ inventory_item: updated })
 }
