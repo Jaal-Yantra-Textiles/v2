@@ -55,6 +55,13 @@ export const GET = async (
                     id: fs.id,
                     name: fs.name,
                     type: fs.type,
+                    // The partner-ui's order-create-fulfillment form
+                    // reads shippingOption.service_zone.fulfillment_set.location.id
+                    // to default the location selector. Without including
+                    // location here, the form crashes during render with
+                    // "undefined is not an object (evaluating
+                    // 'shippingOption.service_zone.fulfillment_set.location.id')".
+                    location: { id: location.id, name: location.name },
                   },
                 },
               })

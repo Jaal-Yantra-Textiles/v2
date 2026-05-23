@@ -18,6 +18,8 @@ import cors from "cors";
 import { z } from "@medusajs/framework/zod";
 import { personSchema, listPersonsQuerySchema, UpdatePersonSchema, ReadPersonQuerySchema } from "./admin/persons/validators";
 import { getPersonResourceDefinition } from "./admin/persons/resources/registry";
+import { AdminGetOrdersOrderParams } from "@medusajs/medusa/api/admin/orders/validators";
+import { retrieveTransformQueryConfig as retrieveOrderTransformQueryConfig } from "@medusajs/medusa/api/admin/orders/query-config";
 
 // Helper function to wrap Zod schemas for compatibility with validateAndTransformBody.
 // Historically this wrapped with z.preprocess((obj) => obj, schema) — under Zod v3
@@ -3928,11 +3930,21 @@ export default defineMiddlewares({
       ],
     },
     {
+      // Without `validateAndTransformQuery` here, the route hands raw
+      // field strings (incl. bare relation paths like `region.automatic_taxes`)
+      // straight to MikroORM populate, which trips
+      // "Cannot read properties of undefined (reading 'kind')". Reusing
+      // admin's exact query config keeps partner-ui field requests in
+      // lockstep with what admin already validates.
       matcher: "/partners/orders/:id",
       method: ["GET", "POST"],
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(
+          AdminGetOrdersOrderParams,
+          retrieveOrderTransformQueryConfig
+        ),
       ],
     },
     {

@@ -3,30 +3,28 @@ import { getOrderDetailWorkflow } from "@medusajs/medusa/core-flows"
 import { Modules } from "@medusajs/framework/utils"
 import { validatePartnerOrderOwnership } from "../../helpers"
 
-const DEFAULT_FIELDS = [
-  "id", "status", "created_at", "canceled_at", "email",
-  "display_id", "custom_display_id", "currency_code", "metadata",
-  "total", "credit_line_total", "item_subtotal", "item_total",
-  "item_tax_total", "original_item_tax_total", "item_discount_total",
-  "shipping_subtotal", "original_total", "original_tax_total",
-  "subtotal", "discount_total", "discount_subtotal",
-  "shipping_total", "shipping_tax_total", "original_shipping_tax_total",
-  "shipping_discount_total", "tax_total", "refundable_total", "order_change",
-  "*customer", "*items", "*items.variant", "*items.variant.product",
-  "*items.variant.options", "+items.variant.manage_inventory",
-  "*items.variant.inventory_items.inventory",
-  "+items.variant.inventory_items.required_quantity",
-  "+summary", "*shipping_address", "*billing_address",
-  "*sales_channel", "*promotions", "*shipping_methods", "*credit_lines",
-  "*fulfillments",
-  "+fulfillments.shipping_option.service_zone.fulfillment_set.type",
-  "*fulfillments.items", "*fulfillments.labels",
-  "*payment_collections", "*payment_collections.payments",
-  "*payment_collections.payments.refunds",
-  "*payment_collections.payments.refunds.refund_reason",
-  "region.automatic_taxes",
-]
-
+/**
+ * GET / POST partner order detail.
+ *
+ * Field selection is handled by `validateAndTransformQuery` middleware
+ * (registered in `apps/backend/src/api/middlewares.ts`) using Medusa's
+ * own admin order query config. That middleware:
+ *
+ *   1. Validates `?fields=...` from the request
+ *   2. Merges with the admin defaults (`retrieveTransformQueryConfig.defaults`)
+ *   3. Normalises field paths so bare cross-module references
+ *      (e.g. `region.automatic_taxes`) get expanded via remote-link
+ *      instead of being passed to MikroORM as a bare populate
+ *
+ * Without the middleware, bare relation paths trip
+ * "Cannot read properties of undefined (reading 'kind')" inside
+ * MikroORM's `expandDotPaths` because the Order entity has only
+ * `region_id` scalars, not ORM relations for cross-module entities.
+ *
+ * The previous DEFAULT_FIELDS-on-the-route approach bypassed the
+ * middleware and broke whenever the partner-ui added a new field — see
+ * the order detail crash that motivated this refactor.
+ */
 export const GET = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
@@ -35,8 +33,9 @@ export const GET = async (
 
   const { result } = await getOrderDetailWorkflow(req.scope).run({
     input: {
-      fields: DEFAULT_FIELDS,
+      fields: (req as any).queryConfig.fields,
       order_id: req.params.id,
+      version: (req as any).validatedQuery?.version,
     },
   })
 

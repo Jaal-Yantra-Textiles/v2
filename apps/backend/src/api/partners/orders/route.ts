@@ -7,6 +7,11 @@ const DEFAULT_FIELDS = [
   "custom_display_id", "payment_status", "fulfillment_status",
   "total", "currency_code",
   "*customer", "*sales_channel", "*payment_collections",
+  // shipping_address (carrying country_code) is needed by the partner-ui
+  // orders table — it renders a country-flag icon per row and falls back
+  // to the customer email/name. Without it, the country column stays
+  // blank.
+  "*shipping_address",
 ]
 
 export const GET = async (

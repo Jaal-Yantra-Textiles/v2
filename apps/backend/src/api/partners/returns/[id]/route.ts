@@ -11,7 +11,8 @@ export const GET = async (
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "return",
-    fields: ["*", "*items", "*items.item", "*shipping_methods"],
+    // `relation.*` not `*relation` — see ../route.ts for the rationale.
+    fields: ["*", "items.*", "items.item.*", "shipping_methods.*"],
     filters: { id: req.params.id },
   })
 
