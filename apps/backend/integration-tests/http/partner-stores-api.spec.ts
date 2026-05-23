@@ -357,6 +357,41 @@ setupSharedTestSuite(() => {
         expect(res.status).toBe(200)
         expect(Array.isArray(res.data.tax_regions)).toBe(true)
       })
+
+      it("POST /partners/stores/:id/tax-regions accepts provider_id (regression)", async () => {
+        // The partner-ui's tax-region create form always sends
+        // `provider_id` in the body. The validator used to omit it from
+        // the schema, so the strict middleware errored out with
+        // "Unrecognized fields: 'provider_id'" before the route ever
+        // ran. This test exercises the exact shape the form sends.
+        const res = await api.post(
+          `/partners/stores/${partner.storeId}/tax-regions`,
+          {
+            country_code: "fr",
+            provider_id: "tp_system",
+            default_tax_rate: {
+              code: "fr-vat",
+              name: "France VAT",
+              rate: 20,
+            },
+          },
+          { headers: partner.headers, validateStatus: () => true }
+        )
+        // Some test environments may not have a "tp_system" provider
+        // registered; in that case the workflow itself will reject with
+        // a different error. The point of THIS test is that we get past
+        // the body validator — i.e., not a 400 "Unrecognized fields"
+        // before any handler runs.
+        if (res.status >= 400) {
+          expect(String(res.data?.message ?? "")).not.toMatch(
+            /Unrecognized fields/i
+          )
+        } else {
+          expect(res.status).toBe(201)
+          expect(res.data.tax_region).toBeDefined()
+          expect(res.data.tax_region.country_code).toBe("fr")
+        }
+      })
     })
   })
 })

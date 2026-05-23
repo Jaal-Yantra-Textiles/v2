@@ -182,19 +182,41 @@ export const PartnerUpdateSalesChannelReq = z.object({
 export type PartnerUpdateSalesChannelReqType = z.infer<typeof PartnerUpdateSalesChannelReq>
 
 // Tax Regions
-export const PartnerCreateTaxRegionReq = z.object({
-  country_code: z.string().min(1),
-  province_code: z.string().nullable().optional(),
-  parent_id: z.string().nullable().optional(),
-  default_tax_rate: z
-    .object({
-      rate: z.number().optional(),
-      code: z.string().optional(),
-      name: z.string().optional(),
-    })
-    .optional(),
-  metadata: z.record(z.string(), z.any()).optional(),
-})
+//
+// Shape mirrors Medusa core's `CreateTaxRegion` admin validator (see
+// `@medusajs/medusa/dist/api/admin/tax-regions/validators.js`) so the
+// partner endpoint can hand the body straight to `createTaxRegionsWorkflow`.
+//
+// `provider_id` MUST be accepted at the partner edge — the partner-ui's
+// tax-region create form (apps/partner-ui/src/routes/tax-regions/tax-region-create/...)
+// always sends it. Without it here, the strict middleware errors out
+// with "Unrecognized fields: 'provider_id'" before the route ever runs.
+//
+// The refinement matches admin behavior: a root tax region (no
+// `parent_id`) requires a `provider_id`; a province-level region
+// inherits its parent's provider.
+export const PartnerCreateTaxRegionReq = z
+  .object({
+    country_code: z.string().min(1),
+    provider_id: z.string().nullable().optional(),
+    province_code: z.string().nullable().optional(),
+    parent_id: z.string().nullable().optional(),
+    default_tax_rate: z
+      .object({
+        rate: z.number().optional(),
+        code: z.string().optional(),
+        name: z.string().optional(),
+        is_combinable: z.boolean().optional(),
+        metadata: z.record(z.string(), z.any()).nullable().optional(),
+      })
+      .optional(),
+    metadata: z.record(z.string(), z.any()).optional(),
+  })
+  .refine((data) => data.parent_id || data.provider_id, {
+    path: ["provider_id"],
+    message:
+      "Provider is required when creating a non-province tax region.",
+  })
 
 export type PartnerCreateTaxRegionReqType = z.infer<typeof PartnerCreateTaxRegionReq>
 
