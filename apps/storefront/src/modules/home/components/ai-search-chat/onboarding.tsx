@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useImperativeHandle, useState, type Ref } from "react"
+import { Heading, Input, Label, Text } from "@medusajs/ui"
 import {
   savePreferences,
   type AiChatPreferences,
@@ -13,9 +14,14 @@ import {
  * size / price range) so the agent can personalise from turn one
  * instead of asking onboarding-style questions in chat.
  *
- * "Skip" is intentional and prominent: shoppers who'd rather just
- * chat shouldn't have to fill anything. `onboarded` is set either way
- * so we don't ask again.
+ * Renders only the FORM BODY (no header, no action buttons). The
+ * parent owns FocusModal layout and renders the action buttons in
+ * FocusModal.Footer so they stay pinned. Submit/skip are exposed via
+ * `ref.current.submit()` / `ref.current.skip()`.
+ *
+ * "Skip" is intentional. Shoppers who'd rather just chat shouldn't
+ * have to fill anything. `onboarded` is set either way so we don't
+ * ask again.
  */
 
 const COLOR_OPTIONS = [
@@ -33,16 +39,22 @@ const MATERIAL_OPTIONS = ["cotton", "silk", "linen", "muslin"]
 const SIZE_OPTIONS = ["XS", "S", "M", "L", "XL"]
 const FIT_OPTIONS: ChatFit[] = ["relaxed", "fitted"]
 
+export type OnboardingHandle = {
+  submit: () => void
+  skip: () => void
+}
+
 type Props = {
   initial?: AiChatPreferences
   onDone: (prefs: AiChatPreferences) => void
   onSkip: () => void
   /**
    * Notifies the parent when the form transitions between clean and
-   * dirty. The parent uses this to gate "are you sure you want to
-   * leave?" prompts on close attempts.
+   * dirty. The parent uses this to gate the unsaved-changes Prompt on
+   * close attempts.
    */
   onDirtyChange?: (dirty: boolean) => void
+  ref?: Ref<OnboardingHandle>
 }
 
 const toggleIn = (list: string[] | undefined, value: string): string[] => {
@@ -57,6 +69,7 @@ export default function OnboardingForm({
   onDone,
   onSkip,
   onDirtyChange,
+  ref,
 }: Props) {
   const [colors, setColors] = useState<string[]>(initial?.colors ?? [])
   const [styles, setStyles] = useState<string[]>(initial?.styles ?? [])
@@ -69,8 +82,7 @@ export default function OnboardingForm({
 
   // Dirty when any field has been edited away from the initial value.
   // Shallow set-equality is enough for the chip groups (no duplicates,
-  // unordered semantics, small lists). The parent uses this to decide
-  // whether closing should prompt the user.
+  // unordered semantics, small lists).
   const sameSet = (a: string[], b: string[] | undefined) => {
     const other = b ?? []
     if (a.length !== other.length) return false
@@ -106,117 +118,99 @@ export default function OnboardingForm({
     onSkip()
   }
 
-  // The onboarding mounts as a direct flex-child of the modal panel
-  // (`flex flex-col` with bounded `sm:h-[80vh] sm:max-h-[680px]`).
-  // To play nicely with that, the root uses `flex-1 min-h-0` so it
-  // takes the remaining space after the modal header — NOT `h-full`,
-  // which doesn't grow flex items along the main axis. The middle
-  // section is the only scroll region, so the headline at the top and
-  // the action buttons at the bottom stay anchored on big screens.
+  useImperativeHandle(ref, () => ({ submit, skip }), [submit, skip])
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 px-4 py-4 sm:px-6 sm:py-5">
-        <h2 className="text-lg font-medium text-neutral-900 sm:text-xl">
+    <div className="space-y-6 px-6 py-6">
+      <div>
+        <Heading level="h2" className="text-ui-fg-base">
           Hey there — quick intro?
-        </h2>
-        <p className="mt-1 text-sm text-neutral-500 sm:text-base">
+        </Heading>
+        <Text size="small" className="mt-1 text-ui-fg-subtle">
           Tell us a little about what you like so we can show you the right
-          pieces. Skip if you'd rather just chat.
-        </p>
+          pieces. Skip if you&apos;d rather just chat.
+        </Text>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-5">
-        <ChipGroup
-          label="Colors you reach for"
-          options={COLOR_OPTIONS}
-          selected={colors}
-          onToggle={(v) => setColors((s) => toggleIn(s, v))}
-        />
-        <ChipGroup
-          label="Materials you like"
-          options={MATERIAL_OPTIONS}
-          selected={materials}
-          onToggle={(v) => setMaterials((s) => toggleIn(s, v))}
-        />
-        <ChipGroup
-          label="Style"
-          options={STYLE_OPTIONS}
-          selected={styles}
-          onToggle={(v) => setStyles((s) => toggleIn(s, v))}
-        />
+      <ChipGroup
+        label="Colors you reach for"
+        options={COLOR_OPTIONS}
+        selected={colors}
+        onToggle={(v) => setColors((s) => toggleIn(s, v))}
+      />
+      <ChipGroup
+        label="Materials you like"
+        options={MATERIAL_OPTIONS}
+        selected={materials}
+        onToggle={(v) => setMaterials((s) => toggleIn(s, v))}
+      />
+      <ChipGroup
+        label="Style"
+        options={STYLE_OPTIONS}
+        selected={styles}
+        onToggle={(v) => setStyles((s) => toggleIn(s, v))}
+      />
 
-        <div>
-          <p className="mb-2 text-sm font-medium text-neutral-700">
-            Usual size
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {SIZE_OPTIONS.map((s) => (
-              <Chip
-                key={s}
-                label={s}
-                selected={size === s}
-                onClick={() => setSize(size === s ? undefined : s)}
-              />
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <p className="mb-2 text-sm font-medium text-neutral-700">
-            Fit preference
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {FIT_OPTIONS.map((f) => (
-              <Chip
-                key={f}
-                label={f}
-                selected={fit === f}
-                onClick={() => setFit(fit === f ? undefined : f)}
-              />
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="mb-2 block text-sm font-medium text-neutral-700">
-            Comfortable spend per piece (optional)
-          </label>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-neutral-500">up to</span>
-            <input
-              type="number"
-              inputMode="numeric"
-              min={500}
-              max={50000}
-              step={500}
-              placeholder="e.g. 5000"
-              value={maxPrice ?? ""}
-              onChange={(e) => {
-                const n = Number(e.target.value)
-                setMaxPrice(Number.isFinite(n) && n > 0 ? Math.round(n) : undefined)
-              }}
-              className="w-36 rounded-md border border-neutral-300 px-3 py-1.5 text-sm focus:border-neutral-500 focus:outline-none focus:ring-1 focus:ring-neutral-500"
+      <div>
+        <Label size="small" weight="plus" className="text-ui-fg-base">
+          Usual size
+        </Label>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {SIZE_OPTIONS.map((s) => (
+            <Chip
+              key={s}
+              label={s}
+              selected={size === s}
+              onClick={() => setSize(size === s ? undefined : s)}
             />
-          </div>
+          ))}
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-neutral-200 p-4 sm:p-5">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={submit}
-            className="flex-1 rounded-full bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 sm:text-base"
-          >
-            Looks good
-          </button>
-          <button
-            type="button"
-            onClick={skip}
-            className="rounded-full px-4 py-2.5 text-sm text-neutral-500 hover:text-neutral-900 sm:text-base"
-          >
-            Skip
-          </button>
+      <div>
+        <Label size="small" weight="plus" className="text-ui-fg-base">
+          Fit preference
+        </Label>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {FIT_OPTIONS.map((f) => (
+            <Chip
+              key={f}
+              label={f}
+              selected={fit === f}
+              onClick={() => setFit(fit === f ? undefined : f)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <Label
+          htmlFor="ai-chat-max-price"
+          size="small"
+          weight="plus"
+          className="text-ui-fg-base"
+        >
+          Comfortable spend per piece (optional)
+        </Label>
+        <div className="mt-2 flex items-center gap-2">
+          <Text size="small" className="text-ui-fg-subtle">
+            up to
+          </Text>
+          <Input
+            id="ai-chat-max-price"
+            type="number"
+            inputMode="numeric"
+            min={500}
+            max={50000}
+            step={500}
+            placeholder="e.g. 5000"
+            value={maxPrice ?? ""}
+            onChange={(e) => {
+              const n = Number(e.target.value)
+              setMaxPrice(Number.isFinite(n) && n > 0 ? Math.round(n) : undefined)
+            }}
+            className="w-36"
+          />
         </div>
       </div>
     </div>
@@ -235,8 +229,10 @@ const ChipGroup = ({
   onToggle: (value: string) => void
 }) => (
   <div>
-    <p className="mb-2 text-sm font-medium text-neutral-700">{label}</p>
-    <div className="flex flex-wrap gap-2">
+    <Label size="small" weight="plus" className="text-ui-fg-base">
+      {label}
+    </Label>
+    <div className="mt-2 flex flex-wrap gap-2">
       {options.map((o) => (
         <Chip
           key={o}
@@ -263,8 +259,8 @@ const Chip = ({
     onClick={onClick}
     className={`rounded-full border px-3 py-1.5 text-sm transition ${
       selected
-        ? "border-neutral-900 bg-neutral-900 text-white"
-        : "border-neutral-300 bg-white text-neutral-700 hover:border-neutral-500"
+        ? "border-ui-border-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+        : "border-ui-border-base bg-ui-bg-base text-ui-fg-base hover:border-ui-border-strong"
     }`}
   >
     {label}
