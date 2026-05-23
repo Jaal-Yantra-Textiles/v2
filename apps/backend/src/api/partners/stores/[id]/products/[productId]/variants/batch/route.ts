@@ -2,13 +2,16 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { batchProductVariantsWorkflow } from "@medusajs/medusa/core-flows"
 import { remapVariantResponse } from "@medusajs/medusa/api/admin/products/helpers"
-import { validatePartnerStoreAccess } from "../../../../../../helpers"
+import {
+  ensureInventoryLevelsForVariants,
+  validatePartnerStoreAccess,
+} from "../../../../../../helpers"
 
 export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerStoreAccess(
+  const { store } = await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
     req.scope
@@ -31,6 +34,14 @@ export const POST = async (
 
   const createdIds = result.created?.map((v: any) => v.id) ?? []
   const updatedIds = result.updated?.map((v: any) => v.id) ?? []
+
+  // Auto-seed inventory_level rows at the partner's stock location for any
+  // managed-inventory variants in the create batch. Same gap the single-POST
+  // route plugs — without this, the partner-ui inventory page 404s when
+  // partners try to manage stocks for batch-created variants.
+  if (createdIds.length) {
+    await ensureInventoryLevelsForVariants(req.scope, store, createdIds)
+  }
 
   const variantFields = [
     "*",

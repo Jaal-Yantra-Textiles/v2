@@ -271,6 +271,59 @@ setupSharedTestSuite(() => {
         expect(adminVariant.prices.length).toBeGreaterThan(0)
       })
 
+      it("creates a managed-inventory variant and partner inventory page round-trips (no 404)", async () => {
+        // Regression test for the inventory_level gap surfaced by the
+        // variant ↔ price_set fix. createProductVariantsWorkflow creates
+        // the inventory item and links variant ↔ item, but NOT the
+        // inventory_level row at the partner's location. The partner-ui's
+        // inventory detail route (`/partners/inventory-items/:id`) treats
+        // missing levels as 404, blocking stock updates entirely.
+        const unique = Date.now()
+        const res = await api.post(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}/variants`,
+          {
+            title: "Managed",
+            sku: `SP-MGD-${unique}`,
+            options: { Size: "L" },
+            manage_inventory: true,
+          },
+          { headers: partner.headers }
+        )
+        expect(res.status).toBe(201)
+
+        // Locate the freshly-created inventory item via the partner variant
+        // detail GET (which expands inventory_items.inventory).
+        const variantId = res.data.variant.id
+        const variantRes = await api.get(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}/variants/${variantId}`,
+          { headers: partner.headers }
+        )
+        const inventoryItemId =
+          variantRes.data.variant?.inventory_items?.[0]?.inventory?.id ??
+          variantRes.data.variant?.inventory_items?.[0]?.inventory_item_id
+        expect(inventoryItemId).toBeDefined()
+
+        // The 404 repro: GET /partners/inventory-items/:id must now succeed
+        // because the helper created the inventory_level at the partner's
+        // default location.
+        const inventoryRes = await api.get(
+          `/partners/inventory-items/${inventoryItemId}`,
+          { headers: partner.headers }
+        )
+        expect(inventoryRes.status).toBe(200)
+        expect(inventoryRes.data.inventory_item?.location_levels?.length).toBeGreaterThan(0)
+
+        // And the partner can actually adjust stock on that level.
+        const locationId =
+          inventoryRes.data.inventory_item.location_levels[0].location_id
+        const adjustRes = await api.post(
+          `/partners/inventory-items/${inventoryItemId}/levels/${locationId}`,
+          { stocked_quantity: 42 },
+          { headers: partner.headers }
+        )
+        expect(adjustRes.status).toBe(200)
+      })
+
       it("creates a variant WITHOUT prices and admin still sees prices: []", async () => {
         // The exact admin-crash scenario: a partner adds a variant but enters
         // no price. The bare-service path created a variant with no price_set

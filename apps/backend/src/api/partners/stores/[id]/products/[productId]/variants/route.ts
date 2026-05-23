@@ -2,7 +2,11 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { createProductVariantsWorkflow } from "@medusajs/medusa/core-flows"
 import { remapVariantResponse } from "@medusajs/medusa/api/admin/products/helpers"
-import { scopeAndAggregateVariantInventory, validatePartnerStoreAccess } from "../../../../../helpers"
+import {
+  ensureInventoryLevelsForVariants,
+  scopeAndAggregateVariantInventory,
+  validatePartnerStoreAccess,
+} from "../../../../../helpers"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -40,7 +44,7 @@ export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerStoreAccess(
+  const { store } = await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
     req.scope
@@ -69,6 +73,14 @@ export const POST = async (
   // The workflow returns the created variant with `prices` already populated
   // from the freshly-created price_set; just unwrap and return.
   const variant = result?.[0]
+
+  // Auto-seed an inventory_level at the partner's stock location for
+  // managed-inventory variants. The workflow creates the inventory item
+  // and the variant ↔ item link, but NOT the level row — without that row
+  // the partner-ui's inventory detail page 404s on this item.
+  if (variant?.id) {
+    await ensureInventoryLevelsForVariants(req.scope, store, [variant.id])
+  }
 
   res.status(201).json({ variant })
 }
