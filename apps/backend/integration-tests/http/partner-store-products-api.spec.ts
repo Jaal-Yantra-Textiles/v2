@@ -314,6 +314,12 @@ setupSharedTestSuite(() => {
         expect(inventoryRes.data.inventory_item?.location_levels?.length).toBeGreaterThan(0)
 
         // And the partner can actually adjust stock on that level.
+        // HTTP 200 alone is not enough — the inventory module's
+        // `updateInventoryLevels` takes a single arg (selector + new
+        // values merged). Earlier the route passed them as two args, so
+        // the value was silently dropped and the response was a 200 with
+        // no actual change. We re-GET to assert the stocked_quantity
+        // persisted.
         const locationId =
           inventoryRes.data.inventory_item.location_levels[0].location_id
         const adjustRes = await api.post(
@@ -322,6 +328,15 @@ setupSharedTestSuite(() => {
           { headers: partner.headers }
         )
         expect(adjustRes.status).toBe(200)
+
+        const verifyRes = await api.get(
+          `/partners/inventory-items/${inventoryItemId}`,
+          { headers: partner.headers }
+        )
+        const level = (verifyRes.data.inventory_item.location_levels || []).find(
+          (l: any) => l.location_id === locationId
+        )
+        expect(level?.stocked_quantity).toBe(42)
       })
 
       it("creates a variant WITHOUT prices and admin still sees prices: []", async () => {
