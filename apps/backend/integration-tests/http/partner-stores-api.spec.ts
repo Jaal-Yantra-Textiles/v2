@@ -315,6 +315,37 @@ setupSharedTestSuite(() => {
             !(p.price_rules || []).length
         )
         expect(persisted?.amount).toBe(newAmount)
+
+        // Region-scoped price: the partner-ui's pricing grid has a
+        // separate "region" column that sends `{ region_id, amount }`
+        // (no `rules` wrapper) in the same `prices` array. The workflow
+        // accepts that shape and stores it with a price_rule for the
+        // region. Verify the round-trip works for that path too — this
+        // is what the user reported as "price update per location still
+        // not working" before the route fix.
+        const regionAmount = 8888
+        const regionUpdateRes = await api.post(
+          `/partners/stores/${partner.storeId}/shipping-options/${optionId}`,
+          {
+            prices: [{ region_id: partner.regionId, amount: regionAmount }],
+          },
+          { headers: partner.headers }
+        )
+        expect(regionUpdateRes.status).toBe(200)
+
+        const regionVerifyRes = await api.get(
+          `/partners/stores/${partner.storeId}/shipping-options/${optionId}`,
+          { headers: partner.headers }
+        )
+        const regionPersisted = (
+          regionVerifyRes.data.shipping_option.prices || []
+        ).find((p: any) =>
+          (p.price_rules || []).some(
+            (r: any) =>
+              r.attribute === "region_id" && r.value === partner.regionId
+          )
+        )
+        expect(regionPersisted?.amount).toBe(regionAmount)
       })
     })
 

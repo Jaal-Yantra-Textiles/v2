@@ -20,12 +20,17 @@ export const GET = async (
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // Get shipping options through the location → fulfillment sets → service zones chain
+  // Get shipping options through the location → fulfillment sets → service zones chain.
+  // `prices.price_rules.*` must be expanded so the partner-ui's pricing
+  // grid can bucket each price into the right column (region vs
+  // currency vs conditional) — without it, every region price is
+  // misread as a currency price.
   const { data: locations } = await query.graph({
     entity: "stock_locations",
     fields: [
       "fulfillment_sets.service_zones.shipping_options.*",
       "fulfillment_sets.service_zones.shipping_options.prices.*",
+      "fulfillment_sets.service_zones.shipping_options.prices.price_rules.*",
       "fulfillment_sets.service_zones.shipping_options.rules.*",
       "fulfillment_sets.service_zones.shipping_options.type.*",
       "fulfillment_sets.service_zones.shipping_options.shipping_profile.*",

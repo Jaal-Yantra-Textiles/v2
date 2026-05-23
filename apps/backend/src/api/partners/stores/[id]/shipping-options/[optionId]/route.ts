@@ -20,7 +20,14 @@ export const GET = async (
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: options } = await query.graph({
     entity: "shipping_options",
-    fields: ["*", "prices.*", "rules.*", "type.*", "shipping_profile.*"],
+    // `prices.price_rules.*` MUST be expanded — the partner-ui's pricing
+    // grid uses `price.price_rules` to bucket prices into currency vs
+    // region vs conditional columns (see
+    // `apps/partner-ui/src/routes/locations/.../edit-shipping-options-pricing-form.tsx`
+    // `getDefaultValues`). Without this expansion, every region-scoped
+    // price is misread as a currency price, region cells render empty,
+    // and saving overwrites the wrong cell.
+    fields: ["*", "prices.*", "prices.price_rules.*", "rules.*", "type.*", "shipping_profile.*"],
     filters: { id: req.params.optionId },
   })
 
