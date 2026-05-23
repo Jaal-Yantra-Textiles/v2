@@ -4,6 +4,24 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport, type UIMessage } from "ai"
 import {
+  Button,
+  FocusModal as FocusModalBase,
+  Heading,
+  IconButton,
+  Input,
+  Prompt as PromptBase,
+  Text,
+} from "@medusajs/ui"
+
+// @medusajs/ui ships with @types/react v18; the storefront runs on
+// React 19's types. The runtime is fine — only the type metadata
+// disagrees on what `ReactNode` / `children` looks like — so we cast
+// these two components at the import boundary and let everything
+// downstream type-check normally.
+const FocusModal = FocusModalBase as any
+const Prompt = PromptBase as any
+import { XMark } from "@medusajs/icons"
+import {
   type Ref,
   useCallback,
   useEffect,
@@ -19,26 +37,30 @@ import {
   type AiChatPreferences,
 } from "@lib/util/ai-chat-preferences"
 import { getOrCreateVisitorId } from "@lib/util/visitor-id"
-import OnboardingForm from "./onboarding"
-import ExitPrompt from "./exit-prompt"
+import OnboardingForm, { type OnboardingHandle } from "./onboarding"
 
 /**
- * Chat-style concierge modal.
+ * Chat-style concierge modal, built on Medusa UI's `FocusModal`.
  *
- * Streams responses from POST /api/ai-chat (proxy → /store/ai/chat).
- * Uses `useChat` from @ai-sdk/react so tool-call lifecycles, partial
- * tokens, and message parts all wire up correctly. The transport
- * appends `visitor_id` + `prefs` to every request body so the agent
- * has personalisation context on every turn.
+ * Why FocusModal:
+ *   - It's a Radix Dialog under the hood, so scroll lock, focus trap,
+ *     and Escape-to-close come for free — no hand-rolled body styles
+ *     or keydown listeners.
+ *   - Onboarding and chat both live inside the same FocusModal — the
+ *     layout naturally fills the viewport on mobile and a centered
+ *     panel on desktop without us choreographing two CSS variants.
  *
- * Onboarding renders the very first time a customer opens the chat
- * (or until they tap "skip"); after that, the modal goes straight to
- * the conversation view. Prefs persist locally — see
- * `lib/util/ai-chat-preferences.ts`.
+ * Unsaved-changes guard uses `Prompt` from Medusa UI (matches the
+ * pattern in apps/backend/src/admin/components/modal/route-modal-form.tsx).
+ * When onboarding has unsaved selections, the close attempt — whether
+ * via Radix's X button, Escape, or pointer-outside — is intercepted by
+ * `onEscapeKeyDown` / `onPointerDownOutside` / the controlled
+ * `onOpenChange` and pops the Prompt instead.
  *
- * Visitor id reuses `localStorage["jyt_visitor_id"]` so the chat ties
- * back to the same anonymous identity used by cart + analytics. A
- * future iteration will sync threads server-side on sign-in.
+ * Streams from /api/ai-chat via `useChat` from @ai-sdk/react with a
+ * DefaultChatTransport so tool-call lifecycles, partial tokens, and
+ * message parts all wire up correctly. visitor_id + prefs go in the
+ * body on every turn for personalisation.
  */
 
 export type AiSearchChatHandle = {
@@ -79,17 +101,17 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
   const [input, setInput] = useState("")
   const [prefs, setPrefs] = useState<AiChatPreferences>({})
   const [showOnboarding, setShowOnboarding] = useState(false)
-  // Dirty state of the onboarding form. Lives here (not in
-  // OnboardingForm) so the close path can decide whether to confirm.
+  // Dirty state of the onboarding form — populated by the child via
+  // onDirtyChange. We keep it here (not inside OnboardingForm) so the
+  // Radix close interceptors can read it.
   const [onboardingDirty, setOnboardingDirty] = useState(false)
-  // When set, the exit prompt is showing because the user tried to
-  // close with unsaved selections. Confirming the prompt calls into
-  // this callback.
-  const [pendingClose, setPendingClose] = useState<null | (() => void)>(null)
-  // Lazily resolved on open — SSR can't touch localStorage.
+  // True when the unsaved-changes Prompt is on screen.
+  const [confirmingClose, setConfirmingClose] = useState(false)
+
   const visitorIdRef = useRef<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const onboardingRef = useRef<OnboardingHandle>(null)
 
   // useChat transport — re-built when prefs change so the body
   // closure picks up the latest personalisation snapshot.
@@ -115,12 +137,11 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
     ref,
     () => ({
       open: (initialQuery) => {
-        // Read prefs + visitor id at open time so we always have the
-        // freshest values (another tab may have updated localStorage).
         const loaded = loadPreferences()
         setPrefs(loaded)
         visitorIdRef.current = getOrCreateVisitorId()
         setShowOnboarding(!loaded.onboarded)
+        setOnboardingDirty(false)
         setOpen(true)
         if (initialQuery !== undefined) setInput(initialQuery)
         window.setTimeout(() => inputRef.current?.focus(), 0)
@@ -130,40 +151,32 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
     []
   )
 
-  // Centralised close request. Backdrop click, the X button, and the
-  // Escape key all flow through this so the dirty-prompt is enforced
-  // exactly once and the "Leave" / "Cancel" paths agree. Returning
-  // early when the exit prompt is already on screen prevents the
-  // prompt from blinking when the user hammers Escape.
+  // Single place that decides whether a close attempt should pop the
+  // Prompt or actually close. Used by onOpenChange (X button), the
+  // explicit close button in the header, and indirectly by the
+  // onEscapeKeyDown / onPointerDownOutside guards on FocusModal.Content
+  // (those preventDefault THEN call this).
   const requestClose = useCallback(() => {
-    if (pendingClose) return
     if (showOnboarding && onboardingDirty) {
-      setPendingClose(() => () => {
-        setOpen(false)
-        setPendingClose(null)
-      })
+      setConfirmingClose(true)
       return
     }
     setOpen(false)
-  }, [pendingClose, showOnboarding, onboardingDirty])
+  }, [showOnboarding, onboardingDirty])
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") requestClose()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [open, requestClose])
-
-  useEffect(() => {
-    if (!open) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = prev
-    }
-  }, [open])
+  // Radix calls onOpenChange when the user does anything that
+  // dismisses the dialog. We only intercept the close direction —
+  // opening always goes through our imperative handle.
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (next) {
+        setOpen(true)
+        return
+      }
+      requestClose()
+    },
+    [requestClose]
+  )
 
   useEffect(() => {
     if (!scrollRef.current) return
@@ -196,9 +209,6 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
   }, [])
 
   const onOnboardingSkip = useCallback(() => {
-    // Persist the onboarded flag so we don't show this again — but
-    // leave the empty prefs in state as-is. savePreferences() in the
-    // skip handler already wrote { onboarded: true }.
     setPrefs((p) => ({ ...p, onboarded: true }))
     setShowOnboarding(false)
     setOnboardingDirty(false)
@@ -209,102 +219,92 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
     savePreferences({ onboarded: false })
     setPrefs({ onboarded: false })
     setShowOnboarding(true)
+    setOnboardingDirty(false)
   }, [])
 
-  if (!open) return null
-
-  // Two layouts share the same backdrop:
-  //   - Onboarding: FocusModal-style. The panel is the full viewport on
-  //     every breakpoint so the form has space to breathe and body
-  //     scroll is fully blocked (the dialog itself is the scroll
-  //     container). No rounded panel, no backdrop padding.
-  //   - Chat: standard centred panel that floats inside a dimmed
-  //     backdrop on sm+.
-  const panelLayout = showOnboarding
-    ? // Full-bleed on every breakpoint.
-      "flex h-full w-full flex-col bg-white"
-    : // Centred panel with a dimmed backdrop on sm+.
-      "flex h-full w-full flex-col bg-white sm:h-[80vh] sm:max-h-[680px] sm:w-full sm:max-w-2xl sm:rounded-2xl sm:shadow-2xl"
-  const wrapperLayout = showOnboarding
-    ? "fixed inset-0 z-50 flex flex-col bg-white"
-    : "fixed inset-0 z-50 flex flex-col bg-white sm:items-center sm:justify-center sm:bg-black/40 sm:p-6"
-
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={showOnboarding ? "Tell us what you like" : "AI concierge"}
-      className={wrapperLayout}
-    >
-      {/* Backdrop click only closes the chat view — onboarding is a
-          focus modal, so backdrop is solid and not clickable. */}
-      {!showOnboarding && (
-        <button
-          type="button"
-          aria-label="Close"
-          className="absolute inset-0 hidden cursor-default sm:block"
-          onClick={requestClose}
-          tabIndex={-1}
-        />
-      )}
-      <div className={`relative z-10 ${panelLayout}`}>
-        <header className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 sm:px-6 sm:py-4">
-          <div className="flex flex-col">
-            <p className="text-sm font-medium text-neutral-900 sm:text-base">
-              Cici concierge
-            </p>
-            <p className="text-xs text-neutral-500">
-              Ask about products, fabrics, custom design, or sizing.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {!showOnboarding && messages.length > 0 && (
-              <button
-                type="button"
-                onClick={onClear}
-                className="text-xs text-neutral-500 underline-offset-2 hover:text-neutral-900 hover:underline"
+    <FocusModal open={open} onOpenChange={handleOpenChange}>
+      <FocusModal.Content
+        // Block dismissal while onboarding has unsaved selections. The
+        // Prompt is opened directly here; we never let Radix close the
+        // dialog out from under the user.
+        onEscapeKeyDown={(e: Event) => {
+          if (showOnboarding && onboardingDirty) {
+            e.preventDefault()
+            setConfirmingClose(true)
+          }
+        }}
+        onPointerDownOutside={(e: Event) => {
+          if (showOnboarding && onboardingDirty) {
+            e.preventDefault()
+            setConfirmingClose(true)
+          }
+        }}
+        onInteractOutside={(e: Event) => {
+          if (showOnboarding && onboardingDirty) {
+            e.preventDefault()
+          }
+        }}
+      >
+        <FocusModal.Header>
+          <div className="flex items-center justify-between gap-2 px-2">
+            <div className="flex flex-col">
+              <FocusModal.Title asChild>
+                <Heading level="h2" className="text-ui-fg-base">
+                  Cici concierge
+                </Heading>
+              </FocusModal.Title>
+              <FocusModal.Description asChild>
+                <Text size="small" className="text-ui-fg-subtle">
+                  Ask about products, fabrics, custom design, or sizing.
+                </Text>
+              </FocusModal.Description>
+            </div>
+            <div className="flex items-center gap-2">
+              {!showOnboarding && messages.length > 0 && (
+                <Button variant="transparent" size="small" onClick={onClear}>
+                  Clear
+                </Button>
+              )}
+              {!showOnboarding && (
+                <Button
+                  variant="transparent"
+                  size="small"
+                  onClick={onResetPrefs}
+                  title="Update your preferences"
+                >
+                  Prefs
+                </Button>
+              )}
+              <IconButton
+                variant="transparent"
+                size="small"
+                aria-label="Close"
+                onClick={requestClose}
               >
-                Clear
-              </button>
-            )}
-            {!showOnboarding && (
-              <button
-                type="button"
-                onClick={onResetPrefs}
-                className="text-xs text-neutral-500 underline-offset-2 hover:text-neutral-900 hover:underline"
-                title="Update your preferences"
-              >
-                Prefs
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={requestClose}
-              aria-label="Close"
-              className="rounded-full p-1 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
+                <XMark />
+              </IconButton>
+            </div>
           </div>
-        </header>
+        </FocusModal.Header>
 
-        {showOnboarding ? (
-          <OnboardingForm
-            initial={prefs}
-            onDone={onOnboardingDone}
-            onSkip={onOnboardingSkip}
-            onDirtyChange={setOnboardingDirty}
-          />
-        ) : (
-          <>
-            <div
-              ref={scrollRef}
-              className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5"
-            >
-              {messages.length === 0 && !isStreaming && <EmptyState prefs={prefs} />}
+        <FocusModal.Body
+          ref={scrollRef}
+          className="flex flex-col overflow-y-auto"
+        >
+          {showOnboarding ? (
+            <OnboardingForm
+              ref={onboardingRef}
+              initial={prefs}
+              onDone={onOnboardingDone}
+              onSkip={onOnboardingSkip}
+              onDirtyChange={setOnboardingDirty}
+            />
+          ) : (
+            <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
+              {messages.length === 0 && !isStreaming && (
+                <EmptyState prefs={prefs} />
+              )}
               <ol className="flex flex-col gap-4">
                 {messages.map((m) => (
                   <li key={m.id}>
@@ -315,69 +315,116 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
                     )}
                   </li>
                 ))}
-                {isStreaming && messages[messages.length - 1]?.role !== "assistant" && (
-                  <li>
-                    <AssistantSkeleton />
-                  </li>
-                )}
+                {isStreaming &&
+                  messages[messages.length - 1]?.role !== "assistant" && (
+                    <li>
+                      <AssistantSkeleton />
+                    </li>
+                  )}
                 {error && (
                   <li>
-                    <div className="rounded-2xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">
-                      Something went wrong. {error.message ? `(${error.message})` : ""} Try again.
+                    <div className="rounded-2xl border border-ui-border-error bg-ui-bg-base-error/10 px-3.5 py-3 text-sm text-ui-fg-error">
+                      Something went wrong.{" "}
+                      {error.message ? `(${error.message})` : ""} Try again.
                     </div>
                   </li>
                 )}
               </ol>
             </div>
+          )}
+        </FocusModal.Body>
 
-            <div className="border-t border-neutral-200 p-3 sm:p-4">
-              <form onSubmit={onSubmit} className="flex items-center gap-2">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder={PLACEHOLDER}
-                  disabled={isStreaming}
-                  className="flex-1 rounded-full border border-neutral-300 bg-white px-4 py-2.5 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none focus:ring-1 focus:ring-neutral-500 disabled:cursor-not-allowed disabled:opacity-60 sm:text-base"
-                  maxLength={500}
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                {isStreaming ? (
-                  <button
-                    type="button"
-                    onClick={() => stop()}
-                    className="rounded-full bg-neutral-200 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-300 sm:text-base"
-                  >
-                    Stop
-                  </button>
-                ) : (
-                  <button
-                    type="submit"
-                    disabled={input.trim().length < 2}
-                    className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
-                  >
-                    Send
-                  </button>
-                )}
-              </form>
+        <FocusModal.Footer>
+          {showOnboarding ? (
+            <div className="flex w-full items-center justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => onboardingRef.current?.skip()}
+              >
+                Skip
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => onboardingRef.current?.submit()}
+              >
+                Looks good
+              </Button>
             </div>
-          </>
-        )}
-      </div>
-      {/* Unsaved-changes prompt — appears above the modal when the user
-          tries to dismiss the onboarding sheet mid-edit. */}
-      <ExitPrompt
-        open={!!pendingClose}
-        title="Unsaved selections"
-        description="You've started telling us what you like. Leave anyway?"
-        confirmLabel="Leave"
-        cancelLabel="Keep editing"
-        onCancel={() => setPendingClose(null)}
-        onConfirm={() => pendingClose?.()}
-      />
-    </div>
+          ) : (
+            <form
+              onSubmit={onSubmit}
+              className="flex w-full items-center gap-2"
+            >
+              <Input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={PLACEHOLDER}
+                disabled={isStreaming}
+                className="flex-1"
+                maxLength={500}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              {isStreaming ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => stop()}
+                >
+                  Stop
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={input.trim().length < 2}
+                >
+                  Send
+                </Button>
+              )}
+            </form>
+          )}
+        </FocusModal.Footer>
+      </FocusModal.Content>
+
+      {/* Unsaved-changes guard. Mirrors the Prompt pattern in admin's
+          route-modal-form.tsx (apps/backend/src/admin/components/modal). */}
+      <Prompt
+        open={confirmingClose}
+        onOpenChange={(o: boolean) => {
+          if (!o) setConfirmingClose(false)
+        }}
+        variant="confirmation"
+      >
+        <Prompt.Content>
+          <Prompt.Header>
+            <Prompt.Title>Unsaved selections</Prompt.Title>
+            <Prompt.Description>
+              You&apos;ve started telling us what you like. Leave anyway?
+            </Prompt.Description>
+          </Prompt.Header>
+          <Prompt.Footer>
+            <Prompt.Cancel
+              type="button"
+              onClick={() => setConfirmingClose(false)}
+            >
+              Keep editing
+            </Prompt.Cancel>
+            <Prompt.Action
+              type="button"
+              onClick={() => {
+                setConfirmingClose(false)
+                setOpen(false)
+              }}
+            >
+              Leave
+            </Prompt.Action>
+          </Prompt.Footer>
+        </Prompt.Content>
+      </Prompt>
+    </FocusModal>
   )
 }
 
@@ -390,15 +437,16 @@ const EmptyState = ({ prefs }: { prefs: AiChatPreferences }) => {
       (prefs.styles?.length ?? 0) >
     0
   return (
-    <div className="flex h-full flex-col items-center justify-center py-12 text-center">
+    <div className="flex flex-col items-center justify-center py-12 text-center">
       <div className="mb-3 text-3xl">🪡</div>
-      <p className="text-sm text-neutral-700 sm:text-base">
+      <Text className="text-ui-fg-base">
         {hasPrefs ? "Where should we start?" : "Ask in your own words."}
-      </p>
-      <p className="mt-1 max-w-sm text-xs text-neutral-500 sm:text-sm">
-        Try <em>"show me a soft handwoven cotton kurta"</em>, ask{" "}
-        <em>"how does custom design work?"</em>, or pick a fabric you like.
-      </p>
+      </Text>
+      <Text size="small" className="mt-1 max-w-sm text-ui-fg-subtle">
+        Try <em>&quot;show me a soft handwoven cotton kurta&quot;</em>, ask{" "}
+        <em>&quot;how does custom design work?&quot;</em>, or pick a fabric you
+        like.
+      </Text>
     </div>
   )
 }
@@ -414,7 +462,7 @@ const messageText = (msg: UIMessage): string => {
 
 const UserBubble = ({ msg }: { msg: UIMessage }) => (
   <div className="flex justify-end">
-    <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-neutral-900 px-3.5 py-2 text-sm text-white sm:text-base whitespace-pre-wrap">
+    <div className="max-w-[80%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-ui-bg-interactive px-3.5 py-2 text-sm text-ui-fg-on-color sm:text-base">
       {messageText(msg)}
     </div>
   </div>
@@ -425,7 +473,7 @@ const AssistantBubble = ({ msg }: { msg: UIMessage }) => {
   if (!parts?.length) {
     return (
       <div className="flex justify-start">
-        <div className="rounded-2xl rounded-bl-sm border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-sm text-neutral-900 sm:text-base">
+        <div className="rounded-2xl rounded-bl-sm border border-ui-border-base bg-ui-bg-subtle px-3.5 py-3 text-sm text-ui-fg-base sm:text-base">
           <AssistantTypingDots />
         </div>
       </div>
@@ -433,7 +481,7 @@ const AssistantBubble = ({ msg }: { msg: UIMessage }) => {
   }
   return (
     <div className="flex justify-start">
-      <div className="w-full max-w-[92%] rounded-2xl rounded-bl-sm border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-sm text-neutral-900 sm:text-base">
+      <div className="w-full max-w-[92%] rounded-2xl rounded-bl-sm border border-ui-border-base bg-ui-bg-subtle px-3.5 py-3 text-sm text-ui-fg-base sm:text-base">
         {parts.map((part: any, i: number) => {
           if (part.type === "text") {
             return (
@@ -442,7 +490,6 @@ const AssistantBubble = ({ msg }: { msg: UIMessage }) => {
               </p>
             )
           }
-          // Tool calls in the v5 protocol are typed as `tool-<name>`.
           if (typeof part.type === "string" && part.type.startsWith("tool-")) {
             return <SearchProductsCall key={i} part={part} />
           }
@@ -455,23 +502,22 @@ const AssistantBubble = ({ msg }: { msg: UIMessage }) => {
 
 const SearchProductsCall = ({ part }: { part: any }) => {
   const state = part?.state as string | undefined
-  // Show a small "looking up" pill while the tool is running.
   if (state === "input-streaming" || state === "input-available") {
     const args = part.input ?? {}
     const summary = [args.query, args.color, args.material]
       .filter(Boolean)
       .join(" · ")
     return (
-      <p className="mt-2 inline-flex items-center gap-2 rounded-full bg-neutral-100 px-2.5 py-1 text-xs text-neutral-600">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400" />
+      <p className="mt-2 inline-flex items-center gap-2 rounded-full bg-ui-bg-base-pressed px-2.5 py-1 text-xs text-ui-fg-subtle">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ui-fg-muted" />
         Looking for{summary ? ` "${summary}"` : ""}…
       </p>
     )
   }
   if (state === "output-error") {
     return (
-      <p className="mt-2 text-xs text-red-600">
-        Couldn't reach the catalogue right now.
+      <p className="mt-2 text-xs text-ui-fg-error">
+        Couldn&apos;t reach the catalogue right now.
       </p>
     )
   }
@@ -480,7 +526,7 @@ const SearchProductsCall = ({ part }: { part: any }) => {
     const products = output?.products ?? []
     if (!products.length) {
       return (
-        <p className="mt-2 text-xs text-neutral-500">
+        <p className="mt-2 text-xs text-ui-fg-subtle">
           No matches in the catalogue for that.
         </p>
       )
@@ -509,20 +555,26 @@ const ProductRow = ({ product }: { product: ProductHit }) => {
           className="h-12 w-12 shrink-0 rounded-md object-cover sm:h-14 sm:w-14"
         />
       ) : (
-        <div className="h-12 w-12 shrink-0 rounded-md bg-neutral-200 sm:h-14 sm:w-14" />
+        <div className="h-12 w-12 shrink-0 rounded-md bg-ui-bg-base-pressed sm:h-14 sm:w-14" />
       )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-medium sm:text-base">{product.title}</p>
+          <p className="truncate text-sm font-medium sm:text-base">
+            {product.title}
+          </p>
           {isPartner && (
-            <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-800 sm:text-[11px]">
+            <span className="shrink-0 rounded-full border border-ui-tag-orange-border bg-ui-tag-orange-bg px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ui-tag-orange-text sm:text-[11px]">
               Partner
             </span>
           )}
         </div>
-        {isPartner && attribution.kind === "partner" && attribution.partner_name && (
-          <p className="text-xs text-neutral-500">sold by {attribution.partner_name}</p>
-        )}
+        {isPartner &&
+          attribution.kind === "partner" &&
+          attribution.partner_name && (
+            <p className="text-xs text-ui-fg-subtle">
+              sold by {attribution.partner_name}
+            </p>
+          )}
       </div>
     </>
   )
@@ -533,7 +585,7 @@ const ProductRow = ({ product }: { product: ProductHit }) => {
           href={attribution.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-3 rounded-lg bg-white p-2 hover:bg-amber-50/40"
+          className="flex items-center gap-3 rounded-lg bg-ui-bg-base p-2 hover:bg-ui-bg-base-hover"
         >
           {inner}
         </a>
@@ -544,7 +596,7 @@ const ProductRow = ({ product }: { product: ProductHit }) => {
     <li>
       <LocalizedClientLink
         href={`/products/${product.handle}`}
-        className="flex items-center gap-3 rounded-lg bg-white p-2 hover:bg-neutral-100"
+        className="flex items-center gap-3 rounded-lg bg-ui-bg-base p-2 hover:bg-ui-bg-base-hover"
       >
         {inner}
       </LocalizedClientLink>
@@ -554,15 +606,15 @@ const ProductRow = ({ product }: { product: ProductHit }) => {
 
 const AssistantTypingDots = () => (
   <span className="flex items-center gap-1">
-    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400" />
-    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400 [animation-delay:120ms]" />
-    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400 [animation-delay:240ms]" />
+    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ui-fg-muted" />
+    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ui-fg-muted [animation-delay:120ms]" />
+    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ui-fg-muted [animation-delay:240ms]" />
   </span>
 )
 
 const AssistantSkeleton = () => (
   <div className="flex justify-start">
-    <div className="rounded-2xl rounded-bl-sm border border-neutral-200 bg-neutral-50 px-3.5 py-3">
+    <div className="rounded-2xl rounded-bl-sm border border-ui-border-base bg-ui-bg-subtle px-3.5 py-3">
       <AssistantTypingDots />
     </div>
   </div>
