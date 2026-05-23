@@ -116,8 +116,26 @@ const createRegionStep = createStep<CreateStoreWithDefaultsInput["region"], any,
     const regions = existingRegionsRes?.data || []
 
     const reqCountries = (input.countries || []).map((c) => String(c).toLowerCase())
+    const reqCurrency = String(input.currency_code || "").toLowerCase()
 
+    // Match by BOTH country and currency.
+    //
+    // Previously this matched on country alone, which caused a real cross-tenant
+    // bug: if one partner's onboarding created an "India Region" with currency
+    // EUR (whether by mistake or deliberately), the next partner picking INR for
+    // their India store would be linked to the SAME EUR region. Their store's
+    // supported_currencies would say INR but the linked region returned EUR —
+    // breaking the partner-ui shipping pricing grid (region cells refused to
+    // render because the region's currency wasn't in store.supported_currencies).
+    //
+    // Requiring currency match means partners with the same country but
+    // different currencies get separate region rows. Partners with the same
+    // country AND currency continue to share, which is desirable — they're
+    // pointing at the same canonical row that admin will eventually curate.
     const matchedRegion = regions.find((r: any) => {
+      if (String(r?.currency_code || "").toLowerCase() !== reqCurrency) {
+        return false
+      }
       const countries = Array.isArray(r?.countries) ? r.countries : []
       return countries.some((ct: any) => {
         const code = String(ct?.iso_2 || ct?.country_code || ct?.code || "").toLowerCase()
@@ -220,12 +238,44 @@ const finalizeDefaultsStep = createStep(
       },
     })
 
+    // Expand supported_currencies to include EVERY currency the admin
+    // catalog supports. Reason: under the inheritance model (see
+    // partners/stores/[id]/regions/route.ts), every partner inherits
+    // ALL admin-curated regions automatically. The partner-ui's pricing
+    // grids filter price columns by `store.supported_currencies` — if
+    // that list only contains the partner's chosen currency (e.g. INR),
+    // every other region's column refuses to render and the partner can't
+    // price products for customers in those countries.
+    //
+    // Partner-chosen currency keeps `is_default: true`; admin-catalog
+    // currencies are added as non-default. Idempotent: existing entries
+    // in the input list are preserved as-is.
+    const partnerProvided = input.supported_currencies || []
+    const seenCodes = new Set(
+      partnerProvided.map((c) => String(c.currency_code).toLowerCase())
+    )
+
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+    const { data: allRegions } = await query.graph({
+      entity: "region",
+      fields: ["currency_code"],
+    })
+
+    const expandedSupportedCurrencies = [...partnerProvided]
+    for (const r of (allRegions || []) as any[]) {
+      const cc = String(r.currency_code || "").toLowerCase()
+      if (cc && !seenCodes.has(cc)) {
+        expandedSupportedCurrencies.push({ currency_code: cc, is_default: false })
+        seenCodes.add(cc)
+      }
+    }
+
     // Update store to reference defaults and supported currencies
     const { result } = await updateStoresWorkflow(container).run({
       input: {
         selector: { id: input.storeId },
         update: {
-          supported_currencies: input.supported_currencies,
+          supported_currencies: expandedSupportedCurrencies,
           default_sales_channel_id: input.salesChannelId,
           default_region_id: input.regionId,
           default_location_id: input.locationId,

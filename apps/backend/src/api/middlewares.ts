@@ -897,12 +897,14 @@ export default defineMiddlewares({
       ],
     },
     {
+      // POST is locked at the route level (admin-managed catalog).
+      // Body validator removed so the lockdown message reaches the client
+      // rather than a misleading "Unrecognized fields" validation error.
       matcher: "/partners/stores/:id/regions",
       method: "POST",
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
-        validateAndTransformBody(wrapSchema(PartnerCreateRegionReq)),
       ],
     },
     {
@@ -914,12 +916,12 @@ export default defineMiddlewares({
       ],
     },
     {
+      // POST update is locked at the route level.
       matcher: "/partners/stores/:id/regions/:regionId",
       method: "POST",
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
-        validateAndTransformBody(wrapSchema(PartnerUpdateRegionReq)),
       ],
     },
     {
@@ -1943,12 +1945,12 @@ export default defineMiddlewares({
       ],
     },
     {
+      // POST is locked at the route level (admin-managed catalog).
       matcher: "/partners/stores/:id/tax-regions",
       method: "POST",
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
-        validateAndTransformBody(wrapSchema(PartnerCreateTaxRegionReq)),
       ],
     },
     {
@@ -1960,12 +1962,12 @@ export default defineMiddlewares({
       ],
     },
     {
+      // POST update is locked at the route level.
       matcher: "/partners/stores/:id/tax-regions/:taxRegionId",
       method: "POST",
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
-        validateAndTransformBody(wrapSchema(PartnerUpdateTaxRegionReq)),
       ],
     },
     {

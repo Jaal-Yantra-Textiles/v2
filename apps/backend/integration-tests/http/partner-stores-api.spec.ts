@@ -151,21 +151,41 @@ setupSharedTestSuite(() => {
       })
     })
 
-    describe("Store Regions (partner-scoped via link)", () => {
-      it("GET /partners/stores/:id/regions returns partner's linked regions", async () => {
+    describe("Store Regions (marketplace inheritance model)", () => {
+      it("GET /partners/stores/:id/regions returns ALL admin regions (no per-partner filter)", async () => {
+        // Under the marketplace inheritance model, every partner sees the
+        // full admin-curated region catalog automatically. This means
+        // when a customer from any of those countries lands on a partner
+        // storefront, pricing/tax resolution works — no per-partner
+        // subscription step that could leave gaps.
         const res = await api.get(`/partners/stores/${partner.storeId}/regions`, {
           headers: partner.headers,
         })
         expect(res.status).toBe(200)
         expect(Array.isArray(res.data.regions)).toBe(true)
-        // The default region created during store setup should be linked
         expect(res.data.regions.length).toBeGreaterThanOrEqual(1)
 
         const defaultRegion = res.data.regions.find((r: any) => r.id === partner.regionId)
         expect(defaultRegion).toBeDefined()
       })
 
-      it("POST /partners/stores/:id/regions creates and links a new region", async () => {
+      it("second partner sees first partner's region too (inheritance)", async () => {
+        // Two partners onboarding sequentially. Under the inheritance
+        // model, partner 2 should see partner 1's region in their list
+        // (and vice versa) because both inherit the full admin catalog.
+        const partner2 = await createPartnerWithStore(api, adminHeaders)
+
+        const res2 = await api.get(
+          `/partners/stores/${partner2.storeId}/regions`,
+          { headers: partner2.headers }
+        )
+        // Both partners' region ids should appear in partner 2's list.
+        const ids = (res2.data.regions || []).map((r: any) => r.id)
+        expect(ids).toContain(partner.regionId)
+        expect(ids).toContain(partner2.regionId)
+      })
+
+      it("POST /partners/stores/:id/regions is refused — admin-managed catalog", async () => {
         const res = await api.post(
           `/partners/stores/${partner.storeId}/regions`,
           {
@@ -173,42 +193,58 @@ setupSharedTestSuite(() => {
             currency_code: partner.currencyCode,
             countries: ["gb"],
           },
-          { headers: partner.headers }
+          { headers: partner.headers, validateStatus: () => true }
         )
-        expect(res.status).toBe(201)
-        expect(res.data.region).toBeDefined()
-        expect(res.data.region.name).toBe("EU Region")
-
-        // Verify the new region appears in the partner's region list
-        const listRes = await api.get(`/partners/stores/${partner.storeId}/regions`, {
-          headers: partner.headers,
-        })
-        expect(listRes.data.regions.length).toBeGreaterThanOrEqual(2)
-        const euRegion = listRes.data.regions.find((r: any) => r.name === "EU Region")
-        expect(euRegion).toBeDefined()
+        expect(res.status).toBeGreaterThanOrEqual(400)
+        expect(res.status).toBeLessThan(500)
+        expect(String(res.data?.message ?? "")).toMatch(/admin-managed/i)
       })
 
-      it("regions are scoped per partner - another partner cannot see them", async () => {
-        // Create a second region for partner 1
-        await api.post(
+      it("POST /partners/stores/:id/regions/:regionId is refused — no partner mutation of shared rows", async () => {
+        const res = await api.post(
+          `/partners/stores/${partner.storeId}/regions/${partner.regionId}`,
+          { name: "Hijacked Region Name" },
+          { headers: partner.headers, validateStatus: () => true }
+        )
+        expect(res.status).toBeGreaterThanOrEqual(400)
+        expect(res.status).toBeLessThan(500)
+        expect(String(res.data?.message ?? "")).toMatch(/cannot modify/i)
+
+        // And nothing actually changed.
+        const verify = await api.get(
           `/partners/stores/${partner.storeId}/regions`,
-          {
-            name: "Partner1 Region",
-            currency_code: partner.currencyCode,
-            countries: ["de"],
-          },
           { headers: partner.headers }
         )
+        const region = verify.data.regions.find((r: any) => r.id === partner.regionId)
+        expect(region?.name).not.toBe("Hijacked Region Name")
+      })
 
-        // Create partner 2
-        const partner2 = await createPartnerWithStore(api, adminHeaders)
+      it("DELETE /partners/stores/:id/regions/:regionId is refused — partners don't opt out of inherited regions", async () => {
+        const delRes = await api.delete(
+          `/partners/stores/${partner.storeId}/regions/${partner.regionId}`,
+          { headers: partner.headers, validateStatus: () => true }
+        )
+        expect(delRes.status).toBeGreaterThanOrEqual(400)
+        expect(delRes.status).toBeLessThan(500)
+        expect(String(delRes.data?.message ?? "")).toMatch(/cannot delete/i)
 
-        // Partner 2 should NOT see partner 1's regions
-        const res2 = await api.get(`/partners/stores/${partner2.storeId}/regions`, {
-          headers: partner2.headers,
-        })
-        const partner1Region = res2.data.regions.find((r: any) => r.name === "Partner1 Region")
-        expect(partner1Region).toBeUndefined()
+        // The region still appears in the partner's list (inherited from admin catalog).
+        const listRes = await api.get(
+          `/partners/stores/${partner.storeId}/regions`,
+          { headers: partner.headers }
+        )
+        const stillVisible = listRes.data.regions.find(
+          (r: any) => r.id === partner.regionId
+        )
+        expect(stillVisible).toBeDefined()
+
+        // Admin-side row is also intact.
+        const adminRes = await api.get(
+          `/admin/regions/${partner.regionId}`,
+          adminHeaders
+        )
+        expect(adminRes.status).toBe(200)
+        expect(adminRes.data.region.id).toBe(partner.regionId)
       })
     })
 
@@ -358,39 +394,43 @@ setupSharedTestSuite(() => {
         expect(Array.isArray(res.data.tax_regions)).toBe(true)
       })
 
-      it("POST /partners/stores/:id/tax-regions accepts provider_id (regression)", async () => {
-        // The partner-ui's tax-region create form always sends
-        // `provider_id` in the body. The validator used to omit it from
-        // the schema, so the strict middleware errored out with
-        // "Unrecognized fields: 'provider_id'" before the route ever
-        // ran. This test exercises the exact shape the form sends.
+      it("POST /partners/stores/:id/tax-regions is refused — admin-managed catalog", async () => {
         const res = await api.post(
           `/partners/stores/${partner.storeId}/tax-regions`,
           {
             country_code: "fr",
             provider_id: "tp_system",
-            default_tax_rate: {
-              code: "fr-vat",
-              name: "France VAT",
-              rate: 20,
-            },
+            default_tax_rate: { code: "fr-vat", name: "France VAT", rate: 20 },
           },
           { headers: partner.headers, validateStatus: () => true }
         )
-        // Some test environments may not have a "tp_system" provider
-        // registered; in that case the workflow itself will reject with
-        // a different error. The point of THIS test is that we get past
-        // the body validator — i.e., not a 400 "Unrecognized fields"
-        // before any handler runs.
-        if (res.status >= 400) {
-          expect(String(res.data?.message ?? "")).not.toMatch(
-            /Unrecognized fields/i
-          )
-        } else {
-          expect(res.status).toBe(201)
-          expect(res.data.tax_region).toBeDefined()
-          expect(res.data.tax_region.country_code).toBe("fr")
-        }
+        expect(res.status).toBeGreaterThanOrEqual(400)
+        expect(res.status).toBeLessThan(500)
+        expect(String(res.data?.message ?? "")).toMatch(/admin-managed/i)
+      })
+
+      it("POST /partners/stores/:id/tax-regions/:taxRegionId is refused", async () => {
+        // We don't have a tax_region id to target here without seeding one,
+        // but the route must refuse before any handler logic — so even a
+        // bogus id should produce the lockdown message, not a 404.
+        const res = await api.post(
+          `/partners/stores/${partner.storeId}/tax-regions/txreg_doesnt_matter`,
+          { province_code: "tampered" },
+          { headers: partner.headers, validateStatus: () => true }
+        )
+        expect(res.status).toBeGreaterThanOrEqual(400)
+        expect(res.status).toBeLessThan(500)
+        expect(String(res.data?.message ?? "")).toMatch(/cannot modify/i)
+      })
+
+      it("DELETE /partners/stores/:id/tax-regions/:taxRegionId is refused", async () => {
+        const res = await api.delete(
+          `/partners/stores/${partner.storeId}/tax-regions/txreg_doesnt_matter`,
+          { headers: partner.headers, validateStatus: () => true }
+        )
+        expect(res.status).toBeGreaterThanOrEqual(400)
+        expect(res.status).toBeLessThan(500)
+        expect(String(res.data?.message ?? "")).toMatch(/cannot delete/i)
       })
     })
   })

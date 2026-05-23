@@ -1,6 +1,5 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { createTaxRegionsWorkflow } from "@medusajs/medusa/core-flows"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { validatePartnerStoreAccess, getPartnerFromAuthContext } from "../../../helpers"
 import partnerRegionLink from "../../../../../links/partner-region"
 
@@ -69,21 +68,31 @@ export const GET = async (
   })
 }
 
+/**
+ * POST (create) is intentionally refused.
+ *
+ * Tax regions encode legal/jurisdictional facts (a country's tax authority,
+ * the default rate, the provider that calculates it). They are an
+ * admin-managed shared catalog — the GET above filters them by the
+ * partner's region countries so partners see only the tax regions
+ * relevant to them, but the rows themselves are global.
+ *
+ * Allowing a partner to create a tax region would let one tenant pollute
+ * the global tax catalog (and, since the GET filters by country, every
+ * other partner in the same country would see the new row too). Admin
+ * curates; partners consume.
+ *
+ * If partners need per-store tax rate overrides later, the right model
+ * is a separate `partner_tax_rate` override module (mirroring
+ * `partner_payment_config`), resolved at checkout — not direct mutation
+ * of the shared tax_region row.
+ */
 export const POST = async (
-  req: AuthenticatedMedusaRequest,
-  res: MedusaResponse
+  _req: AuthenticatedMedusaRequest,
+  _res: MedusaResponse
 ) => {
-  await validatePartnerStoreAccess(
-    req.auth_context,
-    req.params.id,
-    req.scope
+  throw new MedusaError(
+    MedusaError.Types.NOT_ALLOWED,
+    "Partners cannot create tax regions. Tax regions are an admin-managed shared catalog; contact admin to onboard tax for a new country."
   )
-
-  const body = req.body as Record<string, any>
-
-  const { result } = await createTaxRegionsWorkflow(req.scope).run({
-    input: [body] as any,
-  })
-
-  res.status(201).json({ tax_region: result[0] })
 }

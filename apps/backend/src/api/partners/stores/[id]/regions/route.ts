@@ -1,56 +1,54 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import { createRegionsWorkflow } from "@medusajs/medusa/core-flows"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { validatePartnerStoreAccess } from "../../../helpers"
-import { getPartnerFromAuthContext } from "../../../helpers"
-import { PartnerCreateRegionReq } from "../validators"
-import partnerRegionLink from "../../../../../links/partner-region"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  const { store } = await validatePartnerStoreAccess(
+  await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
     req.scope
   )
 
-  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // Get regions linked to this partner via the partner-region link table
-  const { data: links } = await query.graph({
-    entity: partnerRegionLink.entryPoint,
-    filters: { partner_id: partner!.id },
+  // Marketplace inheritance model: every partner sees ALL admin-curated
+  // regions automatically. There is no per-partner subscription / picker
+  // — admin defines the markets JYT serves, partners inherit all of them
+  // on their storefronts.
+  //
+  // Why: when a customer from a country lands on a partner storefront,
+  // Medusa's pricing/tax engine resolves their country → region. If the
+  // partner hadn't "linked" to that region (in the older subscription
+  // model), the customer saw no prices and couldn't check out. Inheriting
+  // everything by default eliminates that footgun and matches Medusa's
+  // marketplace recipe pattern (vendors share parent regions).
+  //
+  // The legacy `partner_region` link is intentionally NOT consulted here.
+  // It still exists for backwards-compat data but no longer scopes
+  // visibility. Per-partner customization (tax, payment credentials) lives
+  // in the override modules — partner_tax_region (planned) and the
+  // existing partner_payment_config — not in region row mutation.
+  const { data: regions } = await query.graph({
+    entity: "region",
     fields: [
-      "region_id",
-      "region.*",
-      "region.countries.*",
+      "id",
+      "name",
+      "currency_code",
+      "automatic_taxes",
+      "metadata",
+      "created_at",
+      "updated_at",
+      "countries.*",
     ],
   })
 
-  const regions = (links || [])
-    .map((l: any) => l.region)
-    .filter(Boolean)
-
-  // Also include the store's default region if it's not already in the list
-  if (store.default_region_id) {
-    const hasDefault = regions.some((r: any) => r.id === store.default_region_id)
-    if (!hasDefault) {
-      const { data: defaultRegions } = await query.graph({
-        entity: "region",
-        fields: ["id", "name", "currency_code", "automatic_taxes", "metadata", "created_at", "updated_at", "countries.*"],
-        filters: { id: store.default_region_id },
-      })
-      if (defaultRegions?.[0]) {
-        regions.unshift(defaultRegions[0])
-      }
-    }
-  }
-
-  // Enrich with payment providers
-  const regionIds = regions.map((r: any) => r.id)
+  // Enrich with payment providers (admin's choice per region; partner
+  // credentials are overlaid at runtime via partner_payment_config).
+  const regionList = (regions || []) as any[]
+  const regionIds = regionList.map((r) => r.id)
   let providersByRegion: Record<string, any[]> = {}
   if (regionIds.length > 0) {
     try {
@@ -72,7 +70,7 @@ export const GET = async (
     }
   }
 
-  const enrichedRegions = regions.map((r: any) => ({
+  const enrichedRegions = regionList.map((r) => ({
     ...r,
     payment_providers: providersByRegion[r.id] || [],
   }))
@@ -85,53 +83,28 @@ export const GET = async (
   })
 }
 
+/**
+ * POST is intentionally refused.
+ *
+ * Regions are admin-managed in the marketplace inheritance model — admin
+ * curates the markets JYT serves; every partner storefront inherits all
+ * of them automatically (see GET above). There's no per-partner region
+ * creation because partners don't "own" regions; they operate within
+ * the markets admin has set up.
+ *
+ * If a partner needs JYT to serve a new country, admin adds it via the
+ * standard admin API and every partner immediately gains coverage.
+ *
+ * Per-partner customization that DOES make sense (tax rates per state,
+ * payment-provider credentials per region) lives in override modules
+ * — partner_tax_region (planned) and partner_payment_config (existing).
+ */
 export const POST = async (
-  req: AuthenticatedMedusaRequest,
-  res: MedusaResponse
+  _req: AuthenticatedMedusaRequest,
+  _res: MedusaResponse
 ) => {
-  const { store } = await validatePartnerStoreAccess(
-    req.auth_context,
-    req.params.id,
-    req.scope
+  throw new MedusaError(
+    MedusaError.Types.NOT_ALLOWED,
+    "Partners cannot create regions directly. Regions are admin-managed; contact admin to add support for a new country."
   )
-
-  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
-  const body = PartnerCreateRegionReq.parse(req.body)
-  const { payment_providers: paymentProviderIds, ...regionData } = body
-
-  const { result } = await createRegionsWorkflow(req.scope).run({
-    input: {
-      regions: [regionData],
-    },
-  })
-
-  const region = result[0]
-
-  // Link region to partner via the partner-region link
-  const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
-  await remoteLink.create({
-    partner: { partner_id: partner!.id },
-    [Modules.REGION]: { region_id: region.id },
-  })
-
-  // Link payment providers to the new region
-  if (paymentProviderIds?.length) {
-    await remoteLink.create(
-      paymentProviderIds.map((providerId: string) => ({
-        [Modules.REGION]: { region_id: region.id },
-        [Modules.PAYMENT]: { payment_provider_id: providerId },
-      }))
-    )
-  }
-
-  // If the store doesn't have a default region yet, set it
-  if (!store.default_region_id) {
-    const storeService = req.scope.resolve(Modules.STORE)
-    await (storeService as any).updateStores({
-      id: store.id,
-      default_region_id: region.id,
-    })
-  }
-
-  res.status(201).json({ region })
 }
