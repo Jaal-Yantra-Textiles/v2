@@ -23,7 +23,21 @@ export function useConfigurableTableColumns<TData = any>(
       return []
     }
 
-    return apiColumns.map(apiColumn => {
+    // Defensive dedupe. If the entity columns endpoint ever returns two
+    // entries with the same `field` (and it has — observed on `orders`
+    // where the React tree warned about duplicate `actions` keys), the
+    // generated columns would share `id: apiColumn.field` and React
+    // tree-builds it as siblings with identical keys. Keep the first
+    // occurrence per field; later ones get silently dropped.
+    const seen = new Set<string>()
+    const uniqueApiColumns = apiColumns.filter((c) => {
+      if (!c?.field) return false
+      if (seen.has(c.field)) return false
+      seen.add(c.field)
+      return true
+    })
+
+    return uniqueApiColumns.map(apiColumn => {
       let renderType = apiColumn.computed?.type
 
       if (!renderType) {
