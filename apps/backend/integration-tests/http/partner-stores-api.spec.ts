@@ -233,6 +233,89 @@ setupSharedTestSuite(() => {
         // Store was created with defaults, so there should be shipping options
         expect(res.data.count).toBeGreaterThanOrEqual(0)
       })
+
+      it("POST /partners/stores/:id/shipping-options/:optionId persists prices", async () => {
+        // Regression test for the bare-service silent-drop bug: the route
+        // previously called fulfillmentService.updateShippingOptions(id, body)
+        // which doesn't know about the pricing module, so the `prices` array
+        // was dropped on the floor and the API returned 200 with the option
+        // unchanged. Fix routes through updateShippingOptionsWorkflow.
+
+        // Scaffold: find a service_zone on the location's shipping
+        // fulfillment_set. The store-create workflow seeded one.
+        const locRes = await api.get(
+          `/partners/stores/${partner.storeId}/locations/${partner.locationId}`,
+          { headers: partner.headers }
+        )
+        const shippingSet = (
+          locRes.data.stock_location.fulfillment_sets || []
+        ).find((fs: any) => fs.type === "shipping")
+        const serviceZoneId = shippingSet?.service_zones?.[0]?.id
+        expect(serviceZoneId).toBeDefined()
+
+        // Ensure a shipping profile exists.
+        let profilesRes = await api.get(`/partners/shipping-profiles`, {
+          headers: partner.headers,
+        })
+        let profileId = profilesRes.data.shipping_profiles?.[0]?.id
+        if (!profileId) {
+          const profileCreateRes = await api.post(
+            `/partners/shipping-profiles`,
+            { name: "Default Test Profile", type: "default" },
+            { headers: partner.headers }
+          )
+          profileId = profileCreateRes.data.shipping_profile?.id
+        }
+        expect(profileId).toBeDefined()
+
+        // Create a shipping option with an initial price. The CREATE
+        // route uses createShippingOptionsWorkflow already, so this
+        // half is known-good — we only need it to set up state for the
+        // UPDATE test below.
+        const createRes = await api.post(
+          `/partners/stores/${partner.storeId}/shipping-options`,
+          {
+            name: "Test Option",
+            service_zone_id: serviceZoneId,
+            shipping_profile_id: profileId,
+            provider_id: "manual_manual",
+            price_type: "flat",
+            type: {
+              label: "Standard",
+              description: "Standard",
+              code: "standard",
+            },
+            prices: [{ currency_code: partner.currencyCode, amount: 100 }],
+          },
+          { headers: partner.headers }
+        )
+        expect(createRes.status).toBe(201)
+        const optionId = createRes.data.shipping_option.id
+
+        // The actual test: UPDATE the price via POST and confirm it
+        // persists. HTTP 200 alone passed even with the silent-drop bug.
+        const newAmount = 7777
+        const updateRes = await api.post(
+          `/partners/stores/${partner.storeId}/shipping-options/${optionId}`,
+          {
+            prices: [{ currency_code: partner.currencyCode, amount: newAmount }],
+          },
+          { headers: partner.headers }
+        )
+        expect(updateRes.status).toBe(200)
+
+        const verifyRes = await api.get(
+          `/partners/stores/${partner.storeId}/shipping-options/${optionId}`,
+          { headers: partner.headers }
+        )
+        const persisted = (verifyRes.data.shipping_option.prices || []).find(
+          (p: any) =>
+            p.currency_code === partner.currencyCode &&
+            // Exclude conditional / region-scoped prices for this assertion.
+            !(p.price_rules || []).length
+        )
+        expect(persisted?.amount).toBe(newAmount)
+      })
     })
 
     describe("Store Tax Regions", () => {
