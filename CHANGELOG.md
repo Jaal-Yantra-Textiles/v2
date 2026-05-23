@@ -1,3 +1,15 @@
+## [13.10.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.10.0...v13.10.1) (2026-05-23)
+
+
+### Bug Fixes
+
+* **partner-api:** accept provider_id on tax-region create ([774c825](https://github.com/Jaal-Yantra-Textiles/v2/commit/774c8254823668d1aa429b8f086b3d9374c83789))
+* **partner-api:** expand price_rules so region prices render in pricing grid ([e94d802](https://github.com/Jaal-Yantra-Textiles/v2/commit/e94d8028ee36a33c6b0f577284c3af64d663dc0b))
+* **partner-api:** persist prices on shipping-option update ([bc1610b](https://github.com/Jaal-Yantra-Textiles/v2/commit/bc1610b51c70399973573aaf75df429deb7e0218))
+* **partner-api:** persist stocked_quantity on level update ([51e99ae](https://github.com/Jaal-Yantra-Textiles/v2/commit/51e99ae3c6158569273c457eb5237bec600fe9d9))
+* **partner-api:** route variant create/update through workflows ([2115875](https://github.com/Jaal-Yantra-Textiles/v2/commit/21158755d50a4d9e1ce2afa091f9b4b8cbfdde67))
+* **partner-api:** seed inventory_level rows for new variants ([95ec961](https://github.com/Jaal-Yantra-Textiles/v2/commit/95ec961a1257e536dbef9dff63220e9e31a8e820))
+
 # [13.10.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.9.0...v13.10.0) (2026-05-22)
 
 
