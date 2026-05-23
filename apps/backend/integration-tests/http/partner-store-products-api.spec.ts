@@ -218,7 +218,14 @@ setupSharedTestSuite(() => {
         expect(res.data.variants.length).toBe(2) // S and M created in setup
       })
 
-      it("creates a new variant", async () => {
+      it("creates a new variant with prices that persist through admin GET", async () => {
+        // Regression test for the "module links causing stress" workaround:
+        // partner variant POST previously bypassed createProductVariantsWorkflow
+        // and called the bare product service. That skipped the price_set link
+        // creation, so admin's /products/:id/prices page crashed with
+        // `undefined is not an object (evaluating 'l.prices.reduce')`.
+        // The fix routes the create through the workflow, which creates an
+        // empty price_set per variant and links it.
         const unique = Date.now()
         const res = await api.post(
           `/partners/stores/${partner.storeId}/products/${partner.productId}/variants`,
@@ -233,6 +240,13 @@ setupSharedTestSuite(() => {
         expect(res.status).toBe(201)
         expect(res.data.variant).toBeDefined()
         expect(res.data.variant.title).toBe("Large")
+        // The workflow response includes prices (sourced from the freshly
+        // created price_set). Bare service would have returned no prices.
+        expect(Array.isArray(res.data.variant.prices)).toBe(true)
+        const createdPrice = (res.data.variant.prices || []).find(
+          (p: any) => p.currency_code === partner.currencyCode
+        )
+        expect(createdPrice?.amount).toBe(1400)
 
         // Verify variant count increased
         const listRes = await api.get(
@@ -240,17 +254,89 @@ setupSharedTestSuite(() => {
           { headers: partner.headers }
         )
         expect(listRes.data.variants.length).toBe(3)
+
+        // Critical assertion: admin's GET /admin/products/:id must return the
+        // new variant with `prices` as an array (not undefined). Without the
+        // price_set link, this field is undefined and the admin UI crashes.
+        const adminRes = await api.get(
+          `/admin/products/${partner.productId}`,
+          adminHeaders
+        )
+        expect(adminRes.status).toBe(200)
+        const adminVariant = (adminRes.data.product.variants || []).find(
+          (v: any) => v.sku === `SP-L-${unique}`
+        )
+        expect(adminVariant).toBeDefined()
+        expect(Array.isArray(adminVariant.prices)).toBe(true)
+        expect(adminVariant.prices.length).toBeGreaterThan(0)
       })
 
-      it("updates a variant", async () => {
+      it("creates a variant WITHOUT prices and admin still sees prices: []", async () => {
+        // The exact admin-crash scenario: a partner adds a variant but enters
+        // no price. The bare-service path created a variant with no price_set
+        // link → admin's GET returned variant.prices === undefined → the
+        // /products/:id/prices page crashed on `variant.prices.reduce(...)`.
+        // With the workflow, an empty price_set is created and linked, so
+        // admin sees `prices: []` and renders the empty-price row safely.
+        const unique = Date.now()
+        const res = await api.post(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}/variants`,
+          {
+            title: "Priceless",
+            sku: `SP-P-${unique}`,
+            options: { Size: "L" },
+            // No `prices` field at all
+          },
+          { headers: partner.headers }
+        )
+        expect(res.status).toBe(201)
+        expect(res.data.variant.title).toBe("Priceless")
+
+        const adminRes = await api.get(
+          `/admin/products/${partner.productId}`,
+          adminHeaders
+        )
+        const adminVariant = (adminRes.data.product.variants || []).find(
+          (v: any) => v.sku === `SP-P-${unique}`
+        )
+        expect(adminVariant).toBeDefined()
+        // The field MUST be a defined array (even if empty) so the admin's
+        // `variant.prices.reduce` doesn't throw.
+        expect(Array.isArray(adminVariant.prices)).toBe(true)
+        expect(adminVariant.prices.length).toBe(0)
+      })
+
+      it("updates a variant including prices", async () => {
+        // The single-variant UPDATE used to call the bare product service,
+        // which silently dropped any `prices` field (the product module has
+        // no knowledge of the pricing module). Now it goes through
+        // updateProductVariantsWorkflow, which properly threads prices
+        // through updatePriceSetsStep.
         const variantId = partner.variantIds[0]
         const res = await api.post(
           `/partners/stores/${partner.storeId}/products/${partner.productId}/variants/${variantId}`,
-          { title: "Extra Small" },
+          {
+            title: "Extra Small",
+            prices: [{ amount: 4242, currency_code: partner.currencyCode }],
+          },
           { headers: partner.headers }
         )
         expect(res.status).toBe(200)
         expect(res.data.variant.title).toBe("Extra Small")
+
+        // Verify the price update actually persisted (bare service would
+        // have silently dropped it).
+        const listRes = await api.get(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}/variants`,
+          { headers: partner.headers }
+        )
+        const updated = listRes.data.variants.find(
+          (v: any) => v.id === variantId
+        )
+        const updatedPrice = (updated?.prices || []).find(
+          (p: any) => p.currency_code === partner.currencyCode
+        )
+        expect(updatedPrice?.amount).toBe(4242)
       })
 
       it("POST /variants/batch updates multiple variant prices in one call", async () => {

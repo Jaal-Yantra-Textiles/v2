@@ -1,6 +1,9 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
-import { deleteProductVariantsWorkflow } from "@medusajs/medusa/core-flows"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import {
+  deleteProductVariantsWorkflow,
+  updateProductVariantsWorkflow,
+} from "@medusajs/medusa/core-flows"
 import { remapVariantResponse } from "@medusajs/medusa/api/admin/products/helpers"
 import { scopeAndAggregateVariantInventory, validatePartnerStoreAccess } from "../../../../../../helpers"
 
@@ -72,13 +75,30 @@ export const POST = async (
   )
 
   const body = req.body as Record<string, any>
-  const productService = req.scope.resolve(Modules.PRODUCT) as any
-  const updated = await productService.updateProductVariants(
-    req.params.variantId,
-    body
-  )
 
-  res.json({ variant: updated })
+  // Use updateProductVariantsWorkflow rather than the bare product service.
+  // The bare service belongs to the product module and has no knowledge of
+  // the pricing module — passing a `prices` field through it silently drops
+  // the prices. The workflow looks up the variant's price_set link via
+  // getVariantPricingLinkStep and updates prices through updatePriceSetsStep.
+  //
+  // Caveat: for variants created before this fix (via the old bare-service
+  // create path), there is no price_set link to update. A backfill script
+  // creates the missing links separately.
+  const { result } = await updateProductVariantsWorkflow(req.scope).run({
+    input: {
+      product_variants: [
+        {
+          id: req.params.variantId,
+          ...body,
+        },
+      ],
+    },
+  })
+
+  const variant = result?.[0]
+
+  res.json({ variant })
 }
 
 export const DELETE = async (
