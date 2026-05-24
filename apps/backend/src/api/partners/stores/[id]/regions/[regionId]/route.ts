@@ -179,7 +179,13 @@ export const POST = async (
         ((old.countries || []).map((c: any) => c.iso_2).filter(Boolean) as string[]),
       automatic_taxes: bodyRegionData.automatic_taxes ?? old.automatic_taxes,
       is_tax_inclusive: bodyRegionData.is_tax_inclusive ?? old.is_tax_inclusive,
-      metadata: bodyRegionData.metadata ?? old.metadata,
+      metadata: {
+        ...(bodyRegionData.metadata ?? old.metadata ?? {}),
+        // Mark the clone as partner-created — same convention as the
+        // POST /regions route. Admin can filter partner-owned regions
+        // by metadata.created_by_partner_id.
+        created_by_partner_id: partner!.id,
+      },
       payment_providers: bodyProviderIds ?? oldProviderIds,
     }
 

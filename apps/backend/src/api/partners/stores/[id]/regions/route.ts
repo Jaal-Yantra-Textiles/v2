@@ -69,9 +69,41 @@ export const GET = async (
     pagination,
   })
 
+  // Partner-specific enrichment: inline payment_providers on each
+  // region in the list so the partner-ui table view can render a
+  // providers column without a per-row GET. Allowed under the parity
+  // contract — additional fields on the resource, not new envelope
+  // keys. One batched join keyed by region_id.
+  let providersByRegion: Record<string, any[]> = {}
+  const regionIds = (regions || []).map((r: any) => r.id)
+  if (regionIds.length) {
+    try {
+      const { data: providerLinks } = await query.graph({
+        entity: "region_payment_provider",
+        filters: { region_id: regionIds },
+        fields: ["region_id", "payment_provider.*"],
+      })
+      for (const link of providerLinks || []) {
+        if (!providersByRegion[link.region_id]) {
+          providersByRegion[link.region_id] = []
+        }
+        if (link.payment_provider) {
+          providersByRegion[link.region_id].push(link.payment_provider)
+        }
+      }
+    } catch {
+      // region_payment_provider link may not exist in some setups
+    }
+  }
+
+  const enrichedRegions = (regions || []).map((r: any) => ({
+    ...r,
+    payment_providers: providersByRegion[r.id] || [],
+  }))
+
   res.json({
-    regions,
-    count: metadata?.count ?? regions.length,
+    regions: enrichedRegions,
+    count: metadata?.count ?? enrichedRegions.length,
     offset: metadata?.skip ?? pagination.skip ?? 0,
     limit: metadata?.take ?? pagination.take ?? 20,
   })
@@ -91,9 +123,22 @@ export const POST = async (
   const body = (req as any).validatedBody as PartnerCreateRegionReqType
   const { payment_providers: paymentProviderIds, ...regionData } = body
 
+  // Stamp the creating partner on the region's metadata so admin (and
+  // future analytics / cleanup tooling) can tell partner-created
+  // regions apart from admin-seeded ones. Goes into metadata rather
+  // than a top-level field to stay inside the admin contract — admin's
+  // CreateRegion body has no partner_id slot.
+  const regionDataWithProvenance = {
+    ...regionData,
+    metadata: {
+      ...(regionData.metadata ?? {}),
+      created_by_partner_id: partner!.id,
+    },
+  }
+
   const { result } = await createRegionsWorkflow(req.scope).run({
     input: {
-      regions: [regionData],
+      regions: [regionDataWithProvenance],
     },
   })
 
