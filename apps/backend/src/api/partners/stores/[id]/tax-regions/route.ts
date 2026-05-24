@@ -57,61 +57,41 @@ export const GET = async (
     }
   }
 
-  // Filter tax regions by partner's country codes — lowercase set so
-  // the comparison matches regardless of stored case.
-  const filters: Record<string, any> = {}
+  // Mirror admin's handler: read filters + queryConfig populated by
+  // the validateAndTransformQuery middleware (wired in middlewares.ts
+  // using admin's own AdminGetTaxRegionsParams validator). Admin's
+  // transform layer handles parent_id: "null" → IS NULL, country_code
+  // operator maps, etc. natively. The partner's ownership constraint
+  // (country_code limited to the partner's region countries) is the
+  // only thing we add on top — it OVERRIDES any user-supplied
+  // country_code filter so a partner can't escape their scope.
+  //
+  // See apps/docs/notes/PARTNER_API_PARITY.md and the
+  // feedback_mirror_admin_not_invent memory for why we mirror admin
+  // rather than rolling our own filter pipeline.
+  const filterableFields = (req as any).filterableFields ?? {}
+  const queryConfig = (req as any).queryConfig ?? {}
+  const pagination = queryConfig.pagination ?? { skip: 0, take: 20 }
+
+  const filters: Record<string, any> = {
+    ...filterableFields,
+  }
   if (countryCodes.length) {
     filters.country_code = [...new Set(countryCodes)]
   }
 
-  // Pass-through filterable params from the request query so partner-ui
-  // can ask focused questions like "children of this tax_region"
-  // (parent_id=X) or "roots only" (parent_id="null"). Without this,
-  // the backend silently dropped them and returned every tax_region
-  // in the partner's countries — caused the cross-country leak where
-  // South Africa's provinces section listed India's regions and vice
-  // versa. Surfaced by partner-ui testing of PR
-  // feat/partner-regions-admin-parity.
-  //
-  // Special handling for `parent_id: "null"` (literal string): the
-  // top-level tax-region list uses this convention to mean "roots
-  // only" (parent_id IS NULL). Convert the string to actual null so
-  // query.graph emits the right SQL — otherwise it does a literal
-  // string comparison and returns zero rows.
-  //
-  // PR B will replace this with proper validateAndTransformQuery
-  // middleware (mirroring admin's full filter set); for now the
-  // pass-through is the smallest fix that closes the leak.
-  const passthroughKeys = [
-    "parent_id",
-    "province_code",
-    "id",
-    "provider_id",
-  ] as const
-  for (const key of passthroughKeys) {
-    const raw = (req.query as any)?.[key]
-    if (raw === undefined || raw === "") continue
-    if (raw === "null" || raw === null) {
-      // Explicit operator form — `{ field: null }` in MikroORM/query.graph
-      // does a literal `field = NULL` compare (always false in SQL); the
-      // `$eq: null` form correctly emits `field IS NULL`.
-      filters[key] = { $eq: null }
-    } else {
-      filters[key] = raw
-    }
-  }
-
-  const { data: taxRegions } = await query.graph({
+  const { data: taxRegions, metadata } = await query.graph({
     entity: "tax_regions",
-    fields: ["*", "tax_rates.*", "children.*"],
-    ...(Object.keys(filters).length ? { filters } : {}),
+    fields: queryConfig.fields ?? ["*", "tax_rates.*", "children.*"],
+    filters,
+    pagination,
   })
 
   res.json({
     tax_regions: taxRegions || [],
-    count: taxRegions?.length || 0,
-    offset: 0,
-    limit: 20,
+    count: metadata?.count ?? taxRegions?.length ?? 0,
+    offset: metadata?.skip ?? pagination.skip ?? 0,
+    limit: metadata?.take ?? pagination.take ?? 20,
   })
 }
 

@@ -208,6 +208,11 @@ import {
 import {
   listTransformQueryConfig as partnerPaymentProvidersListTransformQueryConfig,
 } from "./partners/stores/[id]/payment-providers/query-config";
+// Reuse admin's tax-region list validator + query-config directly so
+// partner inherits admin's filter semantics (parent_id, country_code,
+// province_code operator maps, etc.) without copying & drifting.
+import { AdminGetTaxRegionsParams } from "@medusajs/medusa/api/admin/tax-regions/validators";
+import { listTransformQueryConfig as adminTaxRegionListTransformQueryConfig } from "@medusajs/medusa/api/admin/tax-regions/query-config";
 import {
   listInboundEmailsQuerySchema,
   extractInboundEmailSchema,
@@ -1984,6 +1989,17 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+        // Mirror admin's list middleware — same validator + query-config.
+        // Partner-ui sends `parent_id: "null"` to mean roots-only, same
+        // as admin's dashboard. Admin's validator + transform layer
+        // converts that string to the IS NULL semantic; we get that
+        // behavior for free by reusing admin's pieces directly. The
+        // handler still adds the partner ownership country_code scope
+        // on top of `req.filterableFields`.
+        validateAndTransformQuery(
+          wrapSchema(AdminGetTaxRegionsParams),
+          adminTaxRegionListTransformQueryConfig
+        ),
       ],
     },
     {
