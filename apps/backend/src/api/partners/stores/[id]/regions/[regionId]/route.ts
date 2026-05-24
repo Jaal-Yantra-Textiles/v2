@@ -293,7 +293,11 @@ export const DELETE = async (
 ) => {
   const { store, partner, regionId } = await verifyRegionOwnership(req)
 
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
+
+  // Dismiss this partner's link first — from their perspective, the
+  // region disappears regardless of whether the underlying row survives.
   try {
     await remoteLink.dismiss({
       partner: { partner_id: partner!.id },
@@ -303,7 +307,20 @@ export const DELETE = async (
     // Link may not exist
   }
 
-  await deleteRegionsWorkflow(req.scope).run({ input: { ids: [regionId] } })
+  // Ref-counted delete: only wipe the region row when no other partner
+  // is linked. If another partner still links to this row, deleting it
+  // would cascade across tenants — exactly the data-leak PR #257 set
+  // out to prevent. The dismissal above is the partner's "delete"
+  // from their perspective; the response shape stays admin-identical.
+  const { data: remaining } = await query.graph({
+    entity: partnerRegionLink.entryPoint,
+    filters: { region_id: regionId },
+    fields: ["partner_id"],
+  })
+
+  if (!remaining?.length) {
+    await deleteRegionsWorkflow(req.scope).run({ input: { ids: [regionId] } })
+  }
 
   if (store.default_region_id === regionId) {
     const storeService = req.scope.resolve(Modules.STORE) as any
