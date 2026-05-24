@@ -2,8 +2,15 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { deleteRegionsWorkflow } from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess, getPartnerFromAuthContext } from "../../../../helpers"
-import { PartnerUpdateRegionReq } from "../../validators"
+import { PartnerUpdateRegionReqType } from "../../validators"
 import partnerRegionLink from "../../../../../../links/partner-region"
+
+// Partner-scoped single-region routes. See sibling `route.ts` for the
+// wire-contract / parity rules. This file enforces ownership via the
+// `partner_region` link as the *only* source of truth — no fallback to
+// `store.default_region_id`. Provisioning is expected to always link
+// the partner's default region; if it isn't linked, the partner
+// doesn't own it.
 
 async function verifyRegionOwnership(req: AuthenticatedMedusaRequest) {
   const { store } = await validatePartnerStoreAccess(
@@ -16,18 +23,16 @@ async function verifyRegionOwnership(req: AuthenticatedMedusaRequest) {
   const regionId = req.params.regionId
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // Check if region is linked to this partner
   const { data: links } = await query.graph({
     entity: partnerRegionLink.entryPoint,
     filters: { partner_id: partner!.id, region_id: regionId },
     fields: ["region_id"],
   })
 
-  // Also allow access if it's the store's default region (for backwards compatibility)
-  if (!links?.length && store.default_region_id !== regionId) {
+  if (!links?.length) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
-      "Region not found for this partner"
+      `Region with id "${regionId}" not found`
     )
   }
 
@@ -41,26 +46,24 @@ export const GET = async (
   const { regionId } = await verifyRegionOwnership(req)
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const queryConfig = (req as any).queryConfig ?? {}
+
   const { data: regions } = await query.graph({
     entity: "region",
-    fields: [
-      "id",
-      "name",
-      "currency_code",
-      "automatic_taxes",
-      "metadata",
-      "created_at",
-      "updated_at",
-      "countries.*",
-    ],
+    fields: queryConfig.fields ?? [],
     filters: { id: regionId },
   })
 
   if (!regions?.[0]) {
-    throw new MedusaError(MedusaError.Types.NOT_FOUND, "Region not found")
+    throw new MedusaError(
+      MedusaError.Types.NOT_FOUND,
+      `Region with id "${regionId}" not found`
+    )
   }
 
-  // Fetch payment providers linked to this region
+  // Partner-specific enrichment: inline payment providers from the
+  // region_payment_provider join. Allowed under the parity contract —
+  // additional field on the resource, not a new envelope key.
   let paymentProviders: any[] = []
   try {
     const { data: providerLinks } = await query.graph({
@@ -84,7 +87,7 @@ export const POST = async (
 ) => {
   const { regionId } = await verifyRegionOwnership(req)
 
-  const body = PartnerUpdateRegionReq.parse(req.body)
+  const body = (req as any).validatedBody as PartnerUpdateRegionReqType
   const { payment_providers: paymentProviderIds, ...regionData } = body
 
   const regionService = req.scope.resolve(Modules.REGION) as any
@@ -93,10 +96,8 @@ export const POST = async (
     ...regionData,
   })
 
-  // Handle payment provider linking separately if provided
   if (paymentProviderIds) {
     const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
-    // Remove existing payment provider links
     try {
       const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
       const { data: existingLinks } = await query.graph({
@@ -115,7 +116,6 @@ export const POST = async (
     } catch {
       // No existing links
     }
-    // Create new links
     if (paymentProviderIds.length > 0) {
       await remoteLink.create(
         paymentProviderIds.map((providerId: string) => ({
@@ -135,7 +135,6 @@ export const DELETE = async (
 ) => {
   const { store, partner, regionId } = await verifyRegionOwnership(req)
 
-  // Remove the partner-region link
   const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
   try {
     await remoteLink.dismiss({
@@ -148,7 +147,6 @@ export const DELETE = async (
 
   await deleteRegionsWorkflow(req.scope).run({ input: { ids: [regionId] } })
 
-  // Clear the store's default region if it was the deleted one
   if (store.default_region_id === regionId) {
     const storeService = req.scope.resolve(Modules.STORE) as any
     await storeService.updateStores({
