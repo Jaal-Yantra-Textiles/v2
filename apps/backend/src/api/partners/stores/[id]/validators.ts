@@ -1,13 +1,23 @@
 import { z } from "@medusajs/framework/zod"
 
+// Region body validators
+//
+// Shape mirrors Medusa core's `AdminCreateRegion` / `AdminUpdateRegion`
+// validators (see `@medusajs/medusa/dist/api/admin/regions/validators.js`)
+// so partner clients can send the same body as admin clients. The
+// `is_tax_inclusive` field MUST be accepted at the partner edge — admin
+// includes it and `.strict()` here would otherwise reject it.
+//
+// See apps/docs/notes/PARTNER_API_PARITY.md for the audit register.
 export const PartnerCreateRegionReq = z.object({
   name: z.string().min(1),
   currency_code: z.string().min(1),
   countries: z.array(z.string()).optional(),
-  payment_providers: z.array(z.string()).optional(),
   automatic_taxes: z.boolean().optional(),
-  metadata: z.record(z.string(), z.any()).optional(),
-})
+  is_tax_inclusive: z.boolean().optional(),
+  payment_providers: z.array(z.string()).optional(),
+  metadata: z.record(z.string(), z.any()).nullable().optional(),
+}).strict()
 
 export type PartnerCreateRegionReqType = z.infer<typeof PartnerCreateRegionReq>
 
@@ -15,12 +25,32 @@ export const PartnerUpdateRegionReq = z.object({
   name: z.string().optional(),
   currency_code: z.string().optional(),
   countries: z.array(z.string()).optional(),
-  payment_providers: z.array(z.string()).optional(),
   automatic_taxes: z.boolean().optional(),
-  metadata: z.record(z.string(), z.any()).optional(),
-})
+  is_tax_inclusive: z.boolean().optional(),
+  payment_providers: z.array(z.string()).optional(),
+  metadata: z.record(z.string(), z.any()).nullable().optional(),
+}).strict()
 
 export type PartnerUpdateRegionReqType = z.infer<typeof PartnerUpdateRegionReq>
+
+// Region list query validator
+//
+// Mirrors `AdminGetRegionsParams` (`@medusajs/medusa/dist/api/admin/regions/
+// validators.js`). Pagination defaults match admin's `listTransformQueryConfig`
+// (limit: 20, offset: 0) — the transform config wins over the validator's
+// own default of 50.
+export const PartnerListRegionsParams = z.object({
+  q: z.string().optional(),
+  id: z.union([z.string(), z.array(z.string())]).optional(),
+  currency_code: z.union([z.string(), z.array(z.string())]).optional(),
+  name: z.union([z.string(), z.array(z.string())]).optional(),
+  fields: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+  order: z.string().optional(),
+})
+
+export type PartnerListRegionsParamsType = z.infer<typeof PartnerListRegionsParams>
 
 export const PartnerUpdateLocationReq = z.object({
   name: z.string().optional(),
