@@ -64,6 +64,37 @@ export const GET = async (
     filters.country_code = [...new Set(countryCodes)]
   }
 
+  // Pass-through filterable params from the request query so partner-ui
+  // can ask focused questions like "children of this tax_region"
+  // (parent_id=X) or "roots only" (parent_id="null"). Without this,
+  // the backend silently dropped them and returned every tax_region
+  // in the partner's countries — caused the cross-country leak where
+  // South Africa's provinces section listed India's regions and vice
+  // versa. Surfaced by partner-ui testing of PR
+  // feat/partner-regions-admin-parity.
+  //
+  // Special handling for `parent_id: "null"` (literal string): the
+  // top-level tax-region list uses this convention to mean "roots
+  // only" (parent_id IS NULL). Convert the string to actual null so
+  // query.graph emits the right SQL — otherwise it does a literal
+  // string comparison and returns zero rows.
+  //
+  // PR B will replace this with proper validateAndTransformQuery
+  // middleware (mirroring admin's full filter set); for now the
+  // pass-through is the smallest fix that closes the leak.
+  const passthroughKeys = [
+    "parent_id",
+    "province_code",
+    "id",
+    "provider_id",
+  ] as const
+  for (const key of passthroughKeys) {
+    let value = (req.query as any)?.[key]
+    if (value === undefined || value === "") continue
+    if (value === "null") value = null
+    filters[key] = value
+  }
+
   const { data: taxRegions } = await query.graph({
     entity: "tax_regions",
     fields: ["*", "tax_rates.*", "children.*"],
