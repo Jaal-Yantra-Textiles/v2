@@ -189,6 +189,7 @@ import {
   PartnerUpdateRegionReq,
   PartnerListRegionsParams,
   PartnerGetRegionParams,
+  PartnerListPaymentProvidersParams,
   PartnerUpdateLocationReq,
   PartnerCreateFulfillmentSetReq,
   PartnerUpdateFulfillmentProvidersReq,
@@ -204,6 +205,9 @@ import {
   listTransformQueryConfig as partnerRegionListTransformQueryConfig,
   retrieveTransformQueryConfig as partnerRegionRetrieveTransformQueryConfig,
 } from "./partners/stores/[id]/regions/query-config";
+import {
+  listTransformQueryConfig as partnerPaymentProvidersListTransformQueryConfig,
+} from "./partners/stores/[id]/payment-providers/query-config";
 import {
   listInboundEmailsQuerySchema,
   extractInboundEmailSchema,
@@ -893,6 +897,19 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner Store Payment Providers (discovery endpoint for region UI)
+    {
+      matcher: "/partners/stores/:id/payment-providers",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(
+          wrapSchema(PartnerListPaymentProvidersParams),
+          partnerPaymentProvidersListTransformQueryConfig
+        ),
       ],
     },
     // Partner Store Regions — mirrors admin region middleware wiring

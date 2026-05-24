@@ -61,6 +61,28 @@ export const PartnerGetRegionParams = z.object({
 
 export type PartnerGetRegionParamsType = z.infer<typeof PartnerGetRegionParams>
 
+// Payment-providers list query validator
+//
+// Mirrors `AdminGetPaymentProvidersParams` (`@medusajs/medusa/dist/api/
+// admin/payments/validators.js`). The endpoint is a discovery aid for
+// the partner UI so it can populate region-create / region-update
+// forms. Per the user's "open list" decision (see
+// feedback_partner_region_extend_not_lockdown), all enabled providers
+// are returned by default; the partner may filter by `is_enabled` like
+// admin can.
+export const PartnerListPaymentProvidersParams = z.object({
+  id: z.union([z.string(), z.array(z.string())]).optional(),
+  is_enabled: z
+    .union([z.boolean(), z.string().transform((v) => v === "true")])
+    .optional(),
+  fields: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+  order: z.string().optional(),
+})
+
+export type PartnerListPaymentProvidersParamsType = z.infer<typeof PartnerListPaymentProvidersParams>
+
 export const PartnerUpdateLocationReq = z.object({
   name: z.string().optional(),
   address: z
