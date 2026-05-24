@@ -4,6 +4,7 @@ import {
   createRegionsWorkflow,
   deleteRegionsWorkflow,
   updateRegionsWorkflow,
+  updateShippingOptionsWorkflow,
 } from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess, getPartnerFromAuthContext } from "../../../../helpers"
 import { PartnerUpdateRegionReqType } from "../../validators"
@@ -183,9 +184,90 @@ export const POST = async (
       })
     }
 
-    // TODO: shipping_option prices keyed on the old region_id need to
-    // be copied onto the clone so the partner's existing shipping
-    // configuration keeps working. Handled in the next commit.
+    // Copy shipping-option prices keyed on the old region_id onto the
+    // clone, so the partner's existing shipping configuration keeps
+    // working without manual re-pricing. We walk the partner's
+    // shipping options via the store → location → fulfillment_sets →
+    // service_zones chain and, for each price whose price_rules
+    // include `region_id = oldRegionId`, push a new price onto the
+    // option with `region_id = newRegion.id` and the same amount and
+    // currency. `updateShippingOptionsWorkflow` upserts by id
+    // presence; passing prices without `id` is additive.
+    //
+    // Wrapped in try/catch per option — a missing price_set on a stale
+    // option shouldn't fail the whole clone. Worst case the partner
+    // re-prices manually for that option.
+    if (store.default_location_id) {
+      try {
+        const { data: locations } = await query.graph({
+          entity: "stock_locations",
+          fields: [
+            "fulfillment_sets.service_zones.shipping_options.id",
+            "fulfillment_sets.service_zones.shipping_options.prices.amount",
+            "fulfillment_sets.service_zones.shipping_options.prices.currency_code",
+            "fulfillment_sets.service_zones.shipping_options.prices.price_rules.attribute",
+            "fulfillment_sets.service_zones.shipping_options.prices.price_rules.value",
+          ],
+          filters: { id: store.default_location_id },
+        })
+
+        const location = locations?.[0] as any
+        for (const fset of location?.fulfillment_sets ?? []) {
+          for (const zone of fset?.service_zones ?? []) {
+            for (const opt of zone?.shipping_options ?? []) {
+              const clonedPrices: Array<{
+                amount: number
+                currency_code: string
+                rules?: Array<{ attribute: string; value: string; operator: string }>
+              }> = []
+              for (const price of opt?.prices ?? []) {
+                const matchesOldRegion = (price?.price_rules ?? []).some(
+                  (r: any) => r?.attribute === "region_id" && r?.value === regionId
+                )
+                if (!matchesOldRegion) continue
+                // Preserve any other price_rules besides the region one;
+                // swap the region_id rule for the new region.
+                const otherRules = (price.price_rules ?? [])
+                  .filter((r: any) => r?.attribute !== "region_id")
+                  .map((r: any) => ({
+                    attribute: r.attribute,
+                    value: r.value,
+                    operator: r.operator ?? "eq",
+                  }))
+                clonedPrices.push({
+                  amount: price.amount,
+                  currency_code: price.currency_code,
+                  rules: [
+                    { attribute: "region_id", value: newRegion.id, operator: "eq" },
+                    ...otherRules,
+                  ],
+                })
+              }
+              if (!clonedPrices.length) continue
+              try {
+                await updateShippingOptionsWorkflow(req.scope).run({
+                  input: [{ id: opt.id, prices: clonedPrices } as any],
+                })
+              } catch (err) {
+                // Log via console only — Medusa logger access here is awkward
+                // and we don't want to fail the clone over one option.
+                // eslint-disable-next-line no-console
+                console.warn(
+                  `[partner-region clone] failed to copy shipping prices for option ${opt.id}:`,
+                  err
+                )
+              }
+            }
+          }
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[partner-region clone] failed to enumerate partner shipping options:`,
+          err
+        )
+      }
+    }
 
     res.json({ region: newRegion })
     return
