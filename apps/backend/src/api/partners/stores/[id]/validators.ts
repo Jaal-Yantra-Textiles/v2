@@ -52,6 +52,15 @@ export const PartnerListRegionsParams = z.object({
 
 export type PartnerListRegionsParamsType = z.infer<typeof PartnerListRegionsParams>
 
+// Region retrieve query validator — `?fields=...` for single-region GET
+// and for response-shape on POST create / update (admin uses the same
+// validator for those response paths, see admin's middlewares.js).
+export const PartnerGetRegionParams = z.object({
+  fields: z.string().optional(),
+})
+
+export type PartnerGetRegionParamsType = z.infer<typeof PartnerGetRegionParams>
+
 export const PartnerUpdateLocationReq = z.object({
   name: z.string().optional(),
   address: z

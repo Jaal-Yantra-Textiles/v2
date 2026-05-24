@@ -187,6 +187,8 @@ import { PartnerCreateProductReq } from "./partners/products/validators";
 import {
   PartnerCreateRegionReq,
   PartnerUpdateRegionReq,
+  PartnerListRegionsParams,
+  PartnerGetRegionParams,
   PartnerUpdateLocationReq,
   PartnerCreateFulfillmentSetReq,
   PartnerUpdateFulfillmentProvidersReq,
@@ -198,6 +200,10 @@ import {
   PartnerCreateTaxRegionReq,
   PartnerUpdateTaxRegionReq,
 } from "./partners/stores/[id]/validators";
+import {
+  listTransformQueryConfig as partnerRegionListTransformQueryConfig,
+  retrieveTransformQueryConfig as partnerRegionRetrieveTransformQueryConfig,
+} from "./partners/stores/[id]/regions/query-config";
 import {
   listInboundEmailsQuerySchema,
   extractInboundEmailSchema,
@@ -889,13 +895,20 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
-    // Partner Store Regions
+    // Partner Store Regions — mirrors admin region middleware wiring
+    // (`@medusajs/medusa/dist/api/admin/regions/middlewares.js`). Query
+    // middleware on POST routes provides the response field shape after
+    // the workflow runs, identical to admin's pattern.
     {
       matcher: "/partners/stores/:id/regions",
       method: "GET",
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(
+          wrapSchema(PartnerListRegionsParams),
+          partnerRegionListTransformQueryConfig
+        ),
       ],
     },
     {
@@ -905,6 +918,10 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerCreateRegionReq)),
+        validateAndTransformQuery(
+          wrapSchema(PartnerGetRegionParams),
+          partnerRegionRetrieveTransformQueryConfig
+        ),
       ],
     },
     {
@@ -913,6 +930,10 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(
+          wrapSchema(PartnerGetRegionParams),
+          partnerRegionRetrieveTransformQueryConfig
+        ),
       ],
     },
     {
@@ -922,6 +943,10 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerUpdateRegionReq)),
+        validateAndTransformQuery(
+          wrapSchema(PartnerGetRegionParams),
+          partnerRegionRetrieveTransformQueryConfig
+        ),
       ],
     },
     {
