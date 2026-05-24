@@ -11,7 +11,16 @@ export const DEFAULT_PROPERTIES = [
   "currency_code",
 ]
 
-export const DEFAULT_RELATIONS = ["*customer", "*sales_channel", "*payment_collections"]
+// `*shipping_address` carries `country_code` used by the country-flag
+// column in the table AND falls back to address first/last name for
+// guest orders that have `customer_id = null`. Without it the country
+// column renders empty.
+export const DEFAULT_RELATIONS = [
+  "*customer",
+  "*sales_channel",
+  "*payment_collections",
+  "*shipping_address",
+]
 
 export const DEFAULT_FIELDS = `${DEFAULT_PROPERTIES.join(
   ","

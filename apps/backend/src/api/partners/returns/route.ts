@@ -19,7 +19,13 @@ export const GET = async (
 
   const { data } = await query.graph({
     entity: "return",
-    fields: ["*", "*items", "*items.item"],
+    // query.graph's "expand relation" syntax is `relation.*`, not
+    // `*relation`. The asterisk-prefix form gets passed to MikroORM as a
+    // literal field name on certain entities (Return here) and throws
+    // "Entity 'Return' does not have property '*items'". Admin uses the
+    // suffix form throughout — see @medusajs/medusa/api/admin/returns/
+    // query-config.js defaultAdminDetailsReturnFields.
+    fields: ["*", "items.*", "items.item.*"],
     filters,
   })
 

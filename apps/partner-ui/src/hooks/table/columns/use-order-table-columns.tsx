@@ -9,7 +9,10 @@ import {
   DateCell,
   DateHeader,
 } from "../../../components/table/table-cells/common/date-cell"
-import { CountryCell } from "../../../components/table/table-cells/order/country-cell"
+import {
+  CountryCell,
+  CountryHeader,
+} from "../../../components/table/table-cells/order/country-cell"
 import {
   CustomerCell,
   CustomerHeader,
@@ -119,9 +122,20 @@ export const useOrderTableColumns = (props: UseOrderTableColumnsProps) => {
         },
       }),
       columnHelper.display({
-        id: "actions",
+        id: "country",
+        header: () => <CountryHeader />,
         cell: ({ row }) => {
-          const country = row.original.shipping_address?.country
+          // Backend `shipping_address` ships `country_code` (scalar) but
+          // not the joined `country` relation. CountryCell needs an object
+          // with `iso_2` and `display_name`, so we synthesize one from
+          // the code — that's enough for the flag + tooltip.
+          const code = row.original.shipping_address?.country_code
+          const country = code
+            ? ({
+                iso_2: code,
+                display_name: code.toUpperCase(),
+              } as HttpTypes.AdminRegionCountry)
+            : null
 
           return <CountryCell country={country} />
         },

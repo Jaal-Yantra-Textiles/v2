@@ -11,7 +11,9 @@ export const GET = async (
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "order",
-    fields: ["*", "*items", "*shipping_methods", "+summary"],
+    // `relation.*` not `*relation` — the asterisk-prefix form has tripped
+    // MikroORM on several entities. Admin uses the suffix form.
+    fields: ["*", "items.*", "shipping_methods.*", "+summary"],
     filters: { id: req.params.id },
   })
 

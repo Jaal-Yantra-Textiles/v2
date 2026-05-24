@@ -2,11 +2,32 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { getOrdersListWorkflow } from "@medusajs/medusa/core-flows"
 import { getPartnerSalesChannelId, tryGetPartnerSalesChannelId } from "../helpers"
 
+// IMPORTANT: use the `relation.*` suffix syntax, not `*relation` prefix.
+//
+// `getOrdersListWorkflow` -> `useRemoteQueryStep` -> `query.graph` only
+// understands `relation.*` (expand all fields of a relation). The
+// `*relation` form is admin's user-facing convention, but the admin
+// middleware (`validateAndTransformQuery` -> `prepareListQuery`) rewrites
+// it to `relation.*` before handing it to the workflow — see
+// node_modules/@medusajs/framework/.../get-query-config.js#prepareListQuery.
+// We don't run that middleware here, so we have to write the canonical
+// form ourselves.
+//
+// Symptom of getting this wrong: `customer`, `sales_channel`, and
+// `shipping_address` all come back as `null` in the response and even
+// their `_id` scalars get dropped — the orders list table renders blank
+// cells for those columns.
 const DEFAULT_FIELDS = [
   "id", "status", "created_at", "email", "display_id",
   "custom_display_id", "payment_status", "fulfillment_status",
   "total", "currency_code",
-  "*customer", "*sales_channel", "*payment_collections",
+  "customer_id",
+  "sales_channel_id",
+  "shipping_address_id",
+  "customer.*",
+  "sales_channel.*",
+  "payment_collections.*",
+  "shipping_address.*",
 ]
 
 export const GET = async (

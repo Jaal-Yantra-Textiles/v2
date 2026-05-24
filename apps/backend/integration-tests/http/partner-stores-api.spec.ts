@@ -234,6 +234,32 @@ setupSharedTestSuite(() => {
         expect(res.data.count).toBeGreaterThanOrEqual(0)
       })
 
+      it("GET /partners/stores/:id/shipping-options includes service_zone.fulfillment_set.location (regression)", async () => {
+        // The partner-ui's order-create-fulfillment form reads
+        // `shippingOption.service_zone.fulfillment_set.location.id` to
+        // default the location selector. The route builds service_zone
+        // and fulfillment_set inline (not joined from the graph), so if
+        // we forget to attach `location`, the form crashes at render
+        // with "undefined is not an object (evaluating
+        // 'shippingOption.service_zone.fulfillment_set.location.id')".
+        const res = await api.get(
+          `/partners/stores/${partner.storeId}/shipping-options`,
+          { headers: partner.headers }
+        )
+        expect(res.status).toBe(200)
+        const opts = res.data.shipping_options as any[]
+        if (!opts.length) {
+          return
+        }
+        const opt = opts[0]
+        expect(opt.service_zone).toBeDefined()
+        expect(opt.service_zone.fulfillment_set).toBeDefined()
+        expect(opt.service_zone.fulfillment_set.location).toBeDefined()
+        expect(opt.service_zone.fulfillment_set.location.id).toBe(
+          partner.locationId
+        )
+      })
+
       it("POST /partners/stores/:id/shipping-options/:optionId persists prices", async () => {
         // Regression test for the bare-service silent-drop bug: the route
         // previously called fulfillmentService.updateShippingOptions(id, body)

@@ -1103,7 +1103,12 @@ function getMissingLineItemIds(order: AdminOrder, changes: AdminOrderChange[]) {
   const existingItemsMap = new Map(order.items.map((item) => [item.id, true]))
 
   changes.forEach((change) => {
-    change.actions.forEach((action) => {
+    // Defensive `?? []` — the partner /partners/orders/:id/changes
+    // endpoint used to return changes without their actions populated
+    // (broken `*actions` field syntax) and the whole timeline crashed
+    // at this line. The backend is now fixed but the guard prevents
+    // future drift from re-crashing render.
+    ;(change.actions ?? []).forEach((action) => {
       if (!action.details?.reference_id) {
         return
       }
