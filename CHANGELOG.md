@@ -1,3 +1,11 @@
+## [13.10.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.10.1...v13.10.2) (2026-05-24)
+
+
+### Bug Fixes
+
+* **partner-api:** order/return/shipping-option field-shape crashes ([53531ea](https://github.com/Jaal-Yantra-Textiles/v2/commit/53531ea1291716cbaf930e8c4f585e5dfd767cad))
+* **partner:** orders list relations + country column + plugins query ([a11fc52](https://github.com/Jaal-Yantra-Textiles/v2/commit/a11fc520e0403f3adc4c209e736569d8af4271ee))
+
 ## [13.10.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.10.0...v13.10.1) (2026-05-23)
 
 
