@@ -6,6 +6,7 @@ import { InformationCircleSolid } from "@medusajs/icons"
 import { Button, Heading, Input, Text, toast, Tooltip } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
 import { Form } from "../../../../../components/common/form"
+import { SwitchBox } from "../../../../../components/common/switch-box"
 import { CountrySelect } from "../../../../../components/inputs/country-select"
 import { PercentageInput } from "../../../../../components/inputs/percentage-input"
 import {
@@ -32,7 +33,9 @@ const TaxRegionCreateSchema = z
       float: z.number().optional(),
       value: z.string().optional(),
     }),
+    is_combinable: z.boolean().optional(),
     country_code: z.string(),
+    province_code: z.string().optional(),
     provider_id: z.string(),
   })
   .superRefine(({ provider_id, country_code }, ctx) => {
@@ -74,7 +77,9 @@ export const TaxRegionCreateForm = ({ parentId }: TaxRegionCreateFormProps) => {
         value: "",
       },
       code: "",
+      is_combinable: false,
       country_code: "",
+      province_code: "",
       provider_id: "",
     },
     resolver: zodResolver(TaxRegionCreateSchema),
@@ -91,12 +96,14 @@ export const TaxRegionCreateForm = ({ parentId }: TaxRegionCreateFormProps) => {
               ? undefined
               : parseFloat(values.rate.value!),
           code: values.code,
+          is_combinable: values.is_combinable,
         }
       : undefined
 
     await mutateAsync(
       {
         country_code: values.country_code,
+        province_code: values.province_code || undefined,
         parent_id: parentId,
         default_tax_rate: defaultRate,
         provider_id: values.provider_id,
@@ -170,6 +177,39 @@ export const TaxRegionCreateForm = ({ parentId }: TaxRegionCreateFormProps) => {
                         <Form.ErrorMessage />
                       </Form.Item>
                     )}
+                  />
+                </div>
+                {/*
+                  Province / sub-region code — optional, lets the partner
+                  create a province-level tax region directly (e.g.
+                  country=us, province=ca for California). Admin's
+                  AdminCreateTaxRegion accepts the same field. Province
+                  tax regions still inherit their provider from the parent
+                  country tax region; admin's flow handles that via
+                  parent_id. For now the field is just collected here —
+                  the backend handler passes it through to
+                  createTaxRegionsWorkflow.
+                */}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Form.Field
+                    control={form.control}
+                    name="province_code"
+                    render={({ field }) => {
+                      return (
+                        <Form.Item>
+                          <Form.Label optional>
+                            {t("fields.province") || "Province code"}
+                          </Form.Label>
+                          <Form.Control>
+                            <Input
+                              {...field}
+                              placeholder="e.g. ca, on, mh"
+                            />
+                          </Form.Control>
+                          <Form.ErrorMessage />
+                        </Form.Item>
+                      )
+                    }}
                   />
                 </div>
               </div>
@@ -253,6 +293,22 @@ export const TaxRegionCreateForm = ({ parentId }: TaxRegionCreateFormProps) => {
                       }}
                     />
                   </div>
+                  {/*
+                    Combinable — matches the admin tax-rate form and the
+                    sibling tax-region-tax-rate-create form. When true,
+                    this default rate stacks with other applicable rates
+                    instead of taking precedence. Same SwitchBox component
+                    used elsewhere for parity look-and-feel.
+                  */}
+                  <SwitchBox
+                    control={form.control}
+                    name="is_combinable"
+                    label={t("taxRegions.fields.isCombinable.label") || "Combinable"}
+                    description={
+                      t("taxRegions.fields.isCombinable.hint") ||
+                      "When enabled, this rate stacks with other applicable rates instead of overriding them."
+                    }
+                  />
                 </div>
               </div>
             </div>
