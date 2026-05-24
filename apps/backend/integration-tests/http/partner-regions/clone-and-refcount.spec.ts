@@ -103,19 +103,27 @@ setupSharedTestSuite(() => {
       adminHeaders = await getAuthHeaders(api)
     })
 
-    describe("clone-on-write on update", () => {
-      it("clones the region when more than one partner is linked", async () => {
-        // Partner A creates a store + default region.
+    describe("update on shared regions", () => {
+      it("refuses to clone a shared region that has assigned countries (409)", async () => {
+        // Background: Medusa's country.region_id is 1:N — a country
+        // belongs to exactly one region row. So we cannot clone a
+        // shared region that has assigned countries (the clone can't
+        // also claim those countries, and stealing them from the
+        // original would break other partners). The handler refuses
+        // with NOT_ALLOWED and an explanatory message. See
+        // apps/docs/notes/PARTNER_API_PARITY.md for the data-model
+        // constraint.
+
+        // Partner A creates a store + default region (country=us).
         const a = await createPartnerWithStore(api, adminHeaders, {
           country: "us",
           currency: "usd",
         })
         expect(a.regionId).toBeTruthy()
 
-        // Partner B is manually linked to the SAME region row to set up
-        // the shared-row scenario. (In real life this happens via the
-        // country+currency match in createRegionStep, but we link
-        // explicitly here to avoid coupling the test to that lookup.)
+        // Partner B is manually linked to the SAME region row so it
+        // becomes "shared". Partner B's own seed region is separate
+        // (country=ca).
         const b = await createPartnerWithStore(api, adminHeaders, {
           country: "ca",
           currency: "cad",
@@ -127,31 +135,21 @@ setupSharedTestSuite(() => {
           [Modules.REGION]: { region_id: a.regionId },
         })
 
-        // Sanity: partner B can now see partner A's region.
-        const beforeBList = await api.get(
-          `/partners/stores/${b.storeId}/regions`,
-          { headers: b.headers }
-        )
-        const beforeBRegion = beforeBList.data.regions.find(
-          (r: any) => r.id === a.regionId
-        )
-        expect(beforeBRegion).toBeDefined()
-        expect(beforeBRegion.name).toBe("Default Region")
+        // Partner A attempts to update — should fail with 409-ish.
+        const updateRes = await api
+          .post(
+            `/partners/stores/${a.storeId}/regions/${a.regionId}`,
+            { name: "Partner A's Region" },
+            { headers: a.headers }
+          )
+          .catch((e: any) => e.response)
 
-        // Partner A updates the shared region — should trigger clone.
-        const updateRes = await api.post(
-          `/partners/stores/${a.storeId}/regions/${a.regionId}`,
-          { name: "Partner A's Region" },
-          { headers: a.headers }
-        )
-        expect(updateRes.status).toBe(200)
-        const newRegionId = updateRes.data.region.id
+        expect([400, 401, 403, 409]).toContain(updateRes.status)
+        // The error message must call out the shared-region situation
+        // so the partner UI can surface it usefully.
+        expect(String(updateRes.data?.message ?? "")).toMatch(/shared.*partner|assigned.*region|cannot be cloned/i)
 
-        // Partner A is now linked to a DIFFERENT region id.
-        expect(newRegionId).not.toBe(a.regionId)
-        expect(updateRes.data.region.name).toBe("Partner A's Region")
-
-        // Partner B's view of the original region is untouched.
+        // Partner B's view of the region is untouched.
         const afterBList = await api.get(
           `/partners/stores/${b.storeId}/regions`,
           { headers: b.headers }

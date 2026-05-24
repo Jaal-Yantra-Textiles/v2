@@ -57,9 +57,10 @@ One section per partner module. Status: ✅ matches admin / ⚠️ drift identif
 - **Partner-only additions:**
   - `payment_providers` inlined on single GET — enrichment, kept
   - Ownership filter via `partner_region` link on every verb
-  - Clone-on-write inside update handler when link count > 1
+  - Clone-on-write inside update handler when link count > 1 — **constrained by the data-model finding below**
   - Ref-counted delete (only invoke `deleteRegionsWorkflow` when last partner linked)
 - **Intentional divergences:** none in PR A.
+- **Data-model constraint surfaced by tests:** Medusa's `country.region_id` is 1:N — each country belongs to exactly one region row. So clone-on-write *cannot* fire when a shared region has assigned countries (`createRegionsWorkflow` rejects with `"Countries with codes: ... are already assigned to a region"`, and giving up the countries on the original would break the other linked partners). The handler instead returns `NOT_ALLOWED` with a message explaining the situation and pointing the partner at the platform admin. Clone-on-write still works for the (rare) shared-without-countries case. This finding came directly from the parity test suite catching a 400 — exactly the drift-detection use case the suite was designed for. Follow-up consideration: admin-side workflow for "platform admin provisions a per-partner region" path (tracked in `feedback_partner_region_extend_not_lockdown` memory).
 
 ### Tax Region
 

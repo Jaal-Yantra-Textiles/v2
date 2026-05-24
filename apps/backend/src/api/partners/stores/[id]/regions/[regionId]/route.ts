@@ -132,6 +132,29 @@ export const POST = async (
     }
     const old = existing[0] as any
 
+    // Medusa's data model makes country a 1:N relation to region —
+    // a country belongs to exactly one region row. So we *cannot*
+    // clone a shared region that has assigned countries: the
+    // createRegionsWorkflow rejects with "Countries with codes: ...
+    // are already assigned to a region", and giving up the countries
+    // on the original would break the other partners still linked to
+    // it. Refuse the clone with a 409-equivalent error and explain
+    // the situation. The partner can still update sole-owned regions
+    // freely. See feedback_partner_region_extend_not_lockdown memory
+    // and apps/docs/notes/PARTNER_API_PARITY.md for the data-model
+    // background.
+    const oldCountryCodes = (old.countries || [])
+      .map((c: any) => c.iso_2)
+      .filter(Boolean)
+    if (oldCountryCodes.length > 0) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `Region "${regionId}" is shared with other partners and has assigned countries (${oldCountryCodes.join(", ")}). ` +
+          `Medusa's data model assigns each country to exactly one region, so this region cannot be cloned for per-partner customization. ` +
+          `Ask the platform admin to provision a dedicated region for your store.`
+      )
+    }
+
     // Read existing payment providers so the clone inherits them when
     // the update body doesn't redefine them.
     let oldProviderIds: string[] = []
