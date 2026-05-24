@@ -33,33 +33,13 @@ export const PartnerUpdateRegionReq = z.object({
 
 export type PartnerUpdateRegionReqType = z.infer<typeof PartnerUpdateRegionReq>
 
-// Region list query validator
-//
-// Mirrors `AdminGetRegionsParams` (`@medusajs/medusa/dist/api/admin/regions/
-// validators.js`). Pagination defaults match admin's `listTransformQueryConfig`
-// (limit: 20, offset: 0) — the transform config wins over the validator's
-// own default of 50.
-export const PartnerListRegionsParams = z.object({
-  q: z.string().optional(),
-  id: z.union([z.string(), z.array(z.string())]).optional(),
-  currency_code: z.union([z.string(), z.array(z.string())]).optional(),
-  name: z.union([z.string(), z.array(z.string())]).optional(),
-  fields: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(20),
-  offset: z.coerce.number().int().min(0).default(0),
-  order: z.string().optional(),
-})
-
-export type PartnerListRegionsParamsType = z.infer<typeof PartnerListRegionsParams>
-
-// Region retrieve query validator — `?fields=...` for single-region GET
-// and for response-shape on POST create / update (admin uses the same
-// validator for those response paths, see admin's middlewares.js).
-export const PartnerGetRegionParams = z.object({
-  fields: z.string().optional(),
-})
-
-export type PartnerGetRegionParamsType = z.infer<typeof PartnerGetRegionParams>
+// Region list + retrieve query validators are no longer defined here —
+// the middleware imports them directly from
+// `@medusajs/medusa/api/admin/regions/validators` so partner inherits
+// admin's full filter set (operator maps, $and/$or, no max-limit cap,
+// etc.) without copying and drifting. See apps/docs/notes/
+// PARTNER_API_PARITY.md and the feedback_mirror_admin_not_invent memory
+// for the rationale.
 
 // Payment-providers list query validator
 //

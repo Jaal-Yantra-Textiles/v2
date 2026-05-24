@@ -187,8 +187,6 @@ import { PartnerCreateProductReq } from "./partners/products/validators";
 import {
   PartnerCreateRegionReq,
   PartnerUpdateRegionReq,
-  PartnerListRegionsParams,
-  PartnerGetRegionParams,
   PartnerListPaymentProvidersParams,
   PartnerUpdateLocationReq,
   PartnerCreateFulfillmentSetReq,
@@ -201,10 +199,21 @@ import {
   PartnerCreateTaxRegionReq,
   PartnerUpdateTaxRegionReq,
 } from "./partners/stores/[id]/validators";
+// Reuse admin's region list + retrieve validators and query-config
+// directly so partner inherits admin's full filter / pagination
+// semantics (no max limit cap, operator-map filters, $and/$or)
+// without copying & drifting. Same pattern applied to tax-regions
+// in commit 8e6c1bf — and reinforced by the limit=9999 400 from
+// the partner-ui pricing grid where my hand-rolled max(200) cap
+// silently broke the page.
+import {
+  AdminGetRegionsParams,
+  AdminGetRegionParams,
+} from "@medusajs/medusa/api/admin/regions/validators";
 import {
   listTransformQueryConfig as partnerRegionListTransformQueryConfig,
   retrieveTransformQueryConfig as partnerRegionRetrieveTransformQueryConfig,
-} from "./partners/stores/[id]/regions/query-config";
+} from "@medusajs/medusa/api/admin/regions/query-config";
 import {
   listTransformQueryConfig as partnerPaymentProvidersListTransformQueryConfig,
 } from "./partners/stores/[id]/payment-providers/query-config";
@@ -928,7 +937,7 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformQuery(
-          wrapSchema(PartnerListRegionsParams),
+          wrapSchema(AdminGetRegionsParams),
           partnerRegionListTransformQueryConfig
         ),
       ],
@@ -941,7 +950,7 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerCreateRegionReq)),
         validateAndTransformQuery(
-          wrapSchema(PartnerGetRegionParams),
+          wrapSchema(AdminGetRegionParams),
           partnerRegionRetrieveTransformQueryConfig
         ),
       ],
@@ -953,7 +962,7 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformQuery(
-          wrapSchema(PartnerGetRegionParams),
+          wrapSchema(AdminGetRegionParams),
           partnerRegionRetrieveTransformQueryConfig
         ),
       ],
@@ -966,7 +975,7 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerUpdateRegionReq)),
         validateAndTransformQuery(
-          wrapSchema(PartnerGetRegionParams),
+          wrapSchema(AdminGetRegionParams),
           partnerRegionRetrieveTransformQueryConfig
         ),
       ],
