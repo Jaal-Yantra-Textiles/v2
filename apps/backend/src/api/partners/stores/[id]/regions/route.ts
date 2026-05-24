@@ -161,14 +161,59 @@ export const POST = async (
     )
   }
 
-  // If the store doesn't have a default region yet, set it.
-  if (!store.default_region_id) {
-    const storeService = req.scope.resolve(Modules.STORE)
-    await (storeService as any).updateStores({
-      id: store.id,
-      default_region_id: region.id,
-    })
-  }
+  // Auto-expand store.supported_currencies + maybe set default region.
+  // Partner-ui's product pricing grid disables the currency column for
+  // any region whose currency_code isn't in store.supported_currencies
+  // — so without this, a partner could create an Africa/zar region and
+  // then be unable to enter prices for it. We just add the missing
+  // currency, never replace `is_default`, and don't touch entries that
+  // are already there.
+  await ensureStoreSupportsCurrencyAndDefault(
+    req.scope.resolve(Modules.STORE) as any,
+    store,
+    region.currency_code,
+    region.id
+  )
 
   res.status(201).json({ region })
+}
+
+async function ensureStoreSupportsCurrencyAndDefault(
+  storeService: any,
+  store: any,
+  currencyCode: string | undefined,
+  newRegionId: string
+) {
+  const existing = (store.supported_currencies || []) as Array<{
+    currency_code: string
+    is_default?: boolean
+  }>
+
+  const wantedCurrency = currencyCode ? String(currencyCode).toLowerCase() : null
+  const needsCurrency =
+    !!wantedCurrency &&
+    !existing.some(
+      (c) => String(c.currency_code).toLowerCase() === wantedCurrency
+    )
+  const needsDefault = !store.default_region_id
+
+  if (!needsCurrency && !needsDefault) return
+
+  const update: Record<string, any> = { id: store.id }
+
+  if (needsCurrency) {
+    update.supported_currencies = [
+      ...existing.map((c) => ({
+        currency_code: c.currency_code,
+        is_default: !!c.is_default,
+      })),
+      { currency_code: wantedCurrency!, is_default: false },
+    ]
+  }
+
+  if (needsDefault) {
+    update.default_region_id = newRegionId
+  }
+
+  await storeService.updateStores(update)
 }

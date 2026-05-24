@@ -205,13 +205,18 @@ export const POST = async (
     })
 
     // If the store's default was the original row, point it at the clone.
-    if (store.default_region_id === regionId) {
-      const storeService = req.scope.resolve(Modules.STORE) as any
-      await storeService.updateStores({
-        id: store.id,
-        default_region_id: newRegion.id,
-      })
-    }
+    // Also auto-expand supported_currencies if the clone introduced a
+    // currency the store doesn't yet support (partner could have changed
+    // currency_code in the update body) — without this the pricing grid
+    // disables the currency column for the new region. See sibling
+    // `route.ts` for the rationale.
+    await ensureStoreSupportsCurrencyAndDefaultOnUpdate(
+      req.scope.resolve(Modules.STORE) as any,
+      store,
+      newRegion.currency_code,
+      regionId,
+      newRegion.id
+    )
 
     // Copy shipping-option prices keyed on the old region_id onto the
     // clone, so the partner's existing shipping configuration keeps
@@ -313,7 +318,64 @@ export const POST = async (
     },
   })
 
+  // If the partner changed currency_code, auto-expand store
+  // supported_currencies so the pricing grid can render the new
+  // currency column. No-op if the currency was already supported.
+  await ensureStoreSupportsCurrencyAndDefaultOnUpdate(
+    req.scope.resolve(Modules.STORE) as any,
+    store,
+    result[0]?.currency_code,
+    regionId,
+    regionId
+  )
+
   res.json({ region: result[0] })
+}
+
+// Shared helper: ensures store.supported_currencies includes the
+// (possibly-new) region currency, and rewires default_region_id from
+// the old id to the new one when the clone-on-write path moved the
+// partner's pointer. Idempotent — re-runs are safe.
+async function ensureStoreSupportsCurrencyAndDefaultOnUpdate(
+  storeService: any,
+  store: any,
+  currencyCode: string | undefined,
+  oldRegionId: string,
+  newRegionId: string
+) {
+  const existing = (store.supported_currencies || []) as Array<{
+    currency_code: string
+    is_default?: boolean
+  }>
+
+  const wantedCurrency = currencyCode ? String(currencyCode).toLowerCase() : null
+  const needsCurrency =
+    !!wantedCurrency &&
+    !existing.some(
+      (c) => String(c.currency_code).toLowerCase() === wantedCurrency
+    )
+  const needsDefaultRepoint =
+    store.default_region_id === oldRegionId && oldRegionId !== newRegionId
+
+  if (!needsCurrency && !needsDefaultRepoint) return
+
+  const update: Record<string, any> = { id: store.id }
+
+  if (needsCurrency) {
+    update.supported_currencies = [
+      ...existing.map((c) => ({
+        currency_code: c.currency_code,
+        is_default: !!c.is_default,
+      })),
+      { currency_code: wantedCurrency!, is_default: false },
+    ]
+  }
+
+  if (needsDefaultRepoint) {
+    update.default_region_id = newRegionId
+  }
+
+  await storeService.updateStores(update)
 }
 
 export const DELETE = async (
