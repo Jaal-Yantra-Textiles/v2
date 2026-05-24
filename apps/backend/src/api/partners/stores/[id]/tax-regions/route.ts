@@ -89,10 +89,16 @@ export const GET = async (
     "provider_id",
   ] as const
   for (const key of passthroughKeys) {
-    let value = (req.query as any)?.[key]
-    if (value === undefined || value === "") continue
-    if (value === "null") value = null
-    filters[key] = value
+    const raw = (req.query as any)?.[key]
+    if (raw === undefined || raw === "") continue
+    if (raw === "null" || raw === null) {
+      // Explicit operator form — `{ field: null }` in MikroORM/query.graph
+      // does a literal `field = NULL` compare (always false in SQL); the
+      // `$eq: null` form correctly emits `field IS NULL`.
+      filters[key] = { $eq: null }
+    } else {
+      filters[key] = raw
+    }
   }
 
   const { data: taxRegions } = await query.graph({
