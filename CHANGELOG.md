@@ -1,3 +1,10 @@
+## [13.11.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.11.0...v13.11.1) (2026-05-25)
+
+
+### Bug Fixes
+
+* **scripts:** backfills + tax-seed honor DRY_RUN env var (not just --dry-run arg) ([edfbbc8](https://github.com/Jaal-Yantra-Textiles/v2/commit/edfbbc8d938cc1dc79f56fbae49b2658419c8647)), closes [#259](https://github.com/Jaal-Yantra-Textiles/v2/issues/259) [#261](https://github.com/Jaal-Yantra-Textiles/v2/issues/261)
+
 # [13.11.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.10.2...v13.11.0) (2026-05-25)
 
 
