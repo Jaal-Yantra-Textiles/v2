@@ -1,3 +1,36 @@
+# [13.11.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.10.2...v13.11.0) (2026-05-25)
+
+
+### Bug Fixes
+
+* **stores:** createRegionStep matches by country AND currency ([3e2db0c](https://github.com/Jaal-Yantra-Textiles/v2/commit/3e2db0ce3847b1f32cdb21a75eedbeca887996a3)), closes [#257](https://github.com/Jaal-Yantra-Textiles/v2/issues/257) [#257](https://github.com/Jaal-Yantra-Textiles/v2/issues/257)
+* **partner-api:** refuse clone-on-write when shared region has countries ([eeba41a](https://github.com/Jaal-Yantra-Textiles/v2/commit/eeba41a2d5b558da4135f9b9c1098e8c116db95f))
+* **partner-ui:** region + tax-region hooks actually send query params ([55a7fef](https://github.com/Jaal-Yantra-Textiles/v2/commit/55a7fef0cf68566a3c57870d8110b2ecba44a698))
+* **partner-ui:** region create/edit pickers show all currencies ([5c1e237](https://github.com/Jaal-Yantra-Textiles/v2/commit/5c1e2372dd8002634bcfe487d8fec05db1c4a34e))
+* **partner-api:** region list reuses admin's validator + query-config (no max-limit cap) ([f7605be](https://github.com/Jaal-Yantra-Textiles/v2/commit/f7605be97ea080f3e6889d4e6b044a0b1bebb496))
+* **partner-api:** supported_currencies auto-expand uses updateStoresWorkflow + helpers.ts loads relation ([10608c6](https://github.com/Jaal-Yantra-Textiles/v2/commit/10608c688161ed374c1838d6a040eaba517118de))
+* **partner-api:** tax-region list honors parent_id (and friends) from query ([c4a774a](https://github.com/Jaal-Yantra-Textiles/v2/commit/c4a774a88f8795362ca8e5e97be7464e3efa40de))
+* **partner-api:** tax-region list reuses admin's validator + middleware ([8e6c1bf](https://github.com/Jaal-Yantra-Textiles/v2/commit/8e6c1bf0fe28df6373a3b39a0adef2807567e2b1))
+* **partner-api:** tax-region list+create lowercase country/province codes ([2761b50](https://github.com/Jaal-Yantra-Textiles/v2/commit/2761b5019d2d2860fae56439a62cce6416e43793))
+* **partner-api:** tax-region NULL filter uses \$eq operator form ([266217a](https://github.com/Jaal-Yantra-Textiles/v2/commit/266217ae93072c031ab8bf6dd3762cb8110b73c9))
+
+
+### Features
+
+* **partner-api:** auto-expand store.supported_currencies on region create/update ([7e94fd5](https://github.com/Jaal-Yantra-Textiles/v2/commit/7e94fd5f7192ed7351d38bc5317962bc7c551ca3))
+* **scripts:** backfill partner_region links from store.default_region_id ([caafae7](https://github.com/Jaal-Yantra-Textiles/v2/commit/caafae718b2a01dfd71d2d64330cb814e5ee8254))
+* **partner-api:** clone-on-write copies shipping-option region prices ([a6de176](https://github.com/Jaal-Yantra-Textiles/v2/commit/a6de176e21faa74710dc638442125be8ee01be83))
+* **partner-api:** enrich region list with payment_providers + stamp partner provenance ([e6fb8ca](https://github.com/Jaal-Yantra-Textiles/v2/commit/e6fb8ca24ec554410339a46d0dd912460ae44077))
+* **partner-api:** GET /partners/stores/:id/payment-providers ([7fe4383](https://github.com/Jaal-Yantra-Textiles/v2/commit/7fe43834dd572c104aaa13efb3f1e8dee4601b25))
+* **partner-ui:** info banner above partner region list ([3fed9da](https://github.com/Jaal-Yantra-Textiles/v2/commit/3fed9dafde5d0f241542612723c50e59112d9a25)), closes [#259](https://github.com/Jaal-Yantra-Textiles/v2/issues/259) [#259](https://github.com/Jaal-Yantra-Textiles/v2/issues/259)
+* **partner-api:** ref-counted region DELETE ([6808f4e](https://github.com/Jaal-Yantra-Textiles/v2/commit/6808f4ea61092bd22a6b225e9d61c2c2ee0a6fef)), closes [#257](https://github.com/Jaal-Yantra-Textiles/v2/issues/257)
+* **partner-api:** region GET handlers use middleware-set queryConfig ([f16d702](https://github.com/Jaal-Yantra-Textiles/v2/commit/f16d7025e621b5f3ad3b7b69cfebff629d6338d5))
+* **partner-api:** region update via workflow + clone-on-write on shared rows ([0ac4e08](https://github.com/Jaal-Yantra-Textiles/v2/commit/0ac4e08a7237bb081cf49b5ff943fd5b90fc7f91)), closes [#257](https://github.com/Jaal-Yantra-Textiles/v2/issues/257) [#257](https://github.com/Jaal-Yantra-Textiles/v2/issues/257)
+* **partner-api:** region validators mirror admin shape ([b55e1ef](https://github.com/Jaal-Yantra-Textiles/v2/commit/b55e1efb3a4dcf724fea719abf8ccd80890927bc))
+* **scripts:** seed canonical tax_regions for every admin region's countries ([052e443](https://github.com/Jaal-Yantra-Textiles/v2/commit/052e4438941b9b9261a9d3db531563f9284f2733)), closes [#259](https://github.com/Jaal-Yantra-Textiles/v2/issues/259)
+* **partner-ui:** tax-region create exposes is_combinable + province_code ([4874f37](https://github.com/Jaal-Yantra-Textiles/v2/commit/4874f3732d84017dcaf555f29a8bfd9cb4f25a28))
+* **partner-api:** wire region query middleware (parity scaffolding) ([5c440ee](https://github.com/Jaal-Yantra-Textiles/v2/commit/5c440eec753d98d26239d40fad85fdd72e43d38d))
+
 ## [13.10.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.10.1...v13.10.2) (2026-05-24)
 
 
