@@ -32,11 +32,11 @@ export const useTaxRegion = (
   const storeId = stores?.[0]?.id
 
   const { data, ...rest } = useQuery({
-    queryKey: taxRegionsQueryKeys.detail(id),
+    queryKey: taxRegionsQueryKeys.detail(id, query),
     queryFn: async () =>
       sdk.client.fetch<{ tax_region: any }>(
         `/partners/stores/${storeId}/tax-regions/${id}`,
-        { method: "GET" }
+        { method: "GET", query: query as Record<string, any> | undefined }
       ),
     enabled: !!storeId && (options?.enabled !== false),
     ...options,
@@ -64,7 +64,7 @@ export const useTaxRegions = (
     queryFn: () =>
       sdk.client.fetch<{ tax_regions: any[]; count: number }>(
         `/partners/stores/${storeId}/tax-regions`,
-        { method: "GET" }
+        { method: "GET", query: query as Record<string, any> | undefined }
       ),
     queryKey: taxRegionsQueryKeys.list(query),
     enabled: !!storeId && (options?.enabled !== false),

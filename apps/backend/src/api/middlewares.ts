@@ -187,6 +187,7 @@ import { PartnerCreateProductReq } from "./partners/products/validators";
 import {
   PartnerCreateRegionReq,
   PartnerUpdateRegionReq,
+  PartnerListPaymentProvidersParams,
   PartnerUpdateLocationReq,
   PartnerCreateFulfillmentSetReq,
   PartnerUpdateFulfillmentProvidersReq,
@@ -198,6 +199,29 @@ import {
   PartnerCreateTaxRegionReq,
   PartnerUpdateTaxRegionReq,
 } from "./partners/stores/[id]/validators";
+// Reuse admin's region list + retrieve validators and query-config
+// directly so partner inherits admin's full filter / pagination
+// semantics (no max limit cap, operator-map filters, $and/$or)
+// without copying & drifting. Same pattern applied to tax-regions
+// in commit 8e6c1bf — and reinforced by the limit=9999 400 from
+// the partner-ui pricing grid where my hand-rolled max(200) cap
+// silently broke the page.
+import {
+  AdminGetRegionsParams,
+  AdminGetRegionParams,
+} from "@medusajs/medusa/api/admin/regions/validators";
+import {
+  listTransformQueryConfig as partnerRegionListTransformQueryConfig,
+  retrieveTransformQueryConfig as partnerRegionRetrieveTransformQueryConfig,
+} from "@medusajs/medusa/api/admin/regions/query-config";
+import {
+  listTransformQueryConfig as partnerPaymentProvidersListTransformQueryConfig,
+} from "./partners/stores/[id]/payment-providers/query-config";
+// Reuse admin's tax-region list validator + query-config directly so
+// partner inherits admin's filter semantics (parent_id, country_code,
+// province_code operator maps, etc.) without copying & drifting.
+import { AdminGetTaxRegionsParams } from "@medusajs/medusa/api/admin/tax-regions/validators";
+import { listTransformQueryConfig as adminTaxRegionListTransformQueryConfig } from "@medusajs/medusa/api/admin/tax-regions/query-config";
 import {
   listInboundEmailsQuerySchema,
   extractInboundEmailSchema,
@@ -889,13 +913,33 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
-    // Partner Store Regions
+    // Partner Store Payment Providers (discovery endpoint for region UI)
+    {
+      matcher: "/partners/stores/:id/payment-providers",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(
+          wrapSchema(PartnerListPaymentProvidersParams),
+          partnerPaymentProvidersListTransformQueryConfig
+        ),
+      ],
+    },
+    // Partner Store Regions — mirrors admin region middleware wiring
+    // (`@medusajs/medusa/dist/api/admin/regions/middlewares.js`). Query
+    // middleware on POST routes provides the response field shape after
+    // the workflow runs, identical to admin's pattern.
     {
       matcher: "/partners/stores/:id/regions",
       method: "GET",
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(
+          wrapSchema(AdminGetRegionsParams),
+          partnerRegionListTransformQueryConfig
+        ),
       ],
     },
     {
@@ -905,6 +949,10 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerCreateRegionReq)),
+        validateAndTransformQuery(
+          wrapSchema(AdminGetRegionParams),
+          partnerRegionRetrieveTransformQueryConfig
+        ),
       ],
     },
     {
@@ -913,6 +961,10 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(
+          wrapSchema(AdminGetRegionParams),
+          partnerRegionRetrieveTransformQueryConfig
+        ),
       ],
     },
     {
@@ -922,6 +974,10 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerUpdateRegionReq)),
+        validateAndTransformQuery(
+          wrapSchema(AdminGetRegionParams),
+          partnerRegionRetrieveTransformQueryConfig
+        ),
       ],
     },
     {
@@ -1942,6 +1998,17 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+        // Mirror admin's list middleware — same validator + query-config.
+        // Partner-ui sends `parent_id: "null"` to mean roots-only, same
+        // as admin's dashboard. Admin's validator + transform layer
+        // converts that string to the IS NULL semantic; we get that
+        // behavior for free by reusing admin's pieces directly. The
+        // handler still adds the partner ownership country_code scope
+        // on top of `req.filterableFields`.
+        validateAndTransformQuery(
+          wrapSchema(AdminGetTaxRegionsParams),
+          adminTaxRegionListTransformQueryConfig
+        ),
       ],
     },
     {

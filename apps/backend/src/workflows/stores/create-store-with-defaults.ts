@@ -107,7 +107,13 @@ const createSalesChannelStep = createStep(
 const createRegionStep = createStep<CreateStoreWithDefaultsInput["region"], any, { regionId: string }>(
   "create-region-step",
   async (input: CreateStoreWithDefaultsInput["region"], { container }) => {
-    // Reuse an existing region if any requested country already belongs to one
+    // Reuse an existing region if any requested country already belongs
+    // to one — BUT ONLY when the currency_code also matches. Without the
+    // currency check, partner A provisioning "India INR" would reuse a
+    // seeded "India EUR" region and inherit its currency, silently
+    // leaking the EUR partner's region into the INR partner's store.
+    // This is the real data-leak source PR #257 identified, and the
+    // single most important guardrail for shared-tier safety.
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
     const existingRegionsRes = await query.graph({
       entity: "region",
@@ -116,8 +122,10 @@ const createRegionStep = createStep<CreateStoreWithDefaultsInput["region"], any,
     const regions = existingRegionsRes?.data || []
 
     const reqCountries = (input.countries || []).map((c) => String(c).toLowerCase())
+    const reqCurrency = String(input.currency_code || "").toLowerCase()
 
     const matchedRegion = regions.find((r: any) => {
+      if (String(r?.currency_code || "").toLowerCase() !== reqCurrency) return false
       const countries = Array.isArray(r?.countries) ? r.countries : []
       return countries.some((ct: any) => {
         const code = String(ct?.iso_2 || ct?.country_code || ct?.code || "").toLowerCase()

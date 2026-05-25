@@ -1,9 +1,22 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
-import { deleteRegionsWorkflow } from "@medusajs/medusa/core-flows"
+import {
+  createRegionsWorkflow,
+  deleteRegionsWorkflow,
+  updateRegionsWorkflow,
+  updateShippingOptionsWorkflow,
+  updateStoresWorkflow,
+} from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess, getPartnerFromAuthContext } from "../../../../helpers"
-import { PartnerUpdateRegionReq } from "../../validators"
+import { PartnerUpdateRegionReqType } from "../../validators"
 import partnerRegionLink from "../../../../../../links/partner-region"
+
+// Partner-scoped single-region routes. See sibling `route.ts` for the
+// wire-contract / parity rules. This file enforces ownership via the
+// `partner_region` link as the *only* source of truth — no fallback to
+// `store.default_region_id`. Provisioning is expected to always link
+// the partner's default region; if it isn't linked, the partner
+// doesn't own it.
 
 async function verifyRegionOwnership(req: AuthenticatedMedusaRequest) {
   const { store } = await validatePartnerStoreAccess(
@@ -16,18 +29,16 @@ async function verifyRegionOwnership(req: AuthenticatedMedusaRequest) {
   const regionId = req.params.regionId
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // Check if region is linked to this partner
   const { data: links } = await query.graph({
     entity: partnerRegionLink.entryPoint,
     filters: { partner_id: partner!.id, region_id: regionId },
     fields: ["region_id"],
   })
 
-  // Also allow access if it's the store's default region (for backwards compatibility)
-  if (!links?.length && store.default_region_id !== regionId) {
+  if (!links?.length) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
-      "Region not found for this partner"
+      `Region with id "${regionId}" not found`
     )
   }
 
@@ -41,26 +52,24 @@ export const GET = async (
   const { regionId } = await verifyRegionOwnership(req)
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const queryConfig = (req as any).queryConfig ?? {}
+
   const { data: regions } = await query.graph({
     entity: "region",
-    fields: [
-      "id",
-      "name",
-      "currency_code",
-      "automatic_taxes",
-      "metadata",
-      "created_at",
-      "updated_at",
-      "countries.*",
-    ],
+    fields: queryConfig.fields ?? [],
     filters: { id: regionId },
   })
 
   if (!regions?.[0]) {
-    throw new MedusaError(MedusaError.Types.NOT_FOUND, "Region not found")
+    throw new MedusaError(
+      MedusaError.Types.NOT_FOUND,
+      `Region with id "${regionId}" not found`
+    )
   }
 
-  // Fetch payment providers linked to this region
+  // Partner-specific enrichment: inline payment providers from the
+  // region_payment_provider join. Allowed under the parity contract —
+  // additional field on the resource, not a new envelope key.
   let paymentProviders: any[] = []
   try {
     const { data: providerLinks } = await query.graph({
@@ -82,51 +91,298 @@ export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  const { regionId } = await verifyRegionOwnership(req)
+  const { store, partner, regionId } = await verifyRegionOwnership(req)
 
-  const body = PartnerUpdateRegionReq.parse(req.body)
-  const { payment_providers: paymentProviderIds, ...regionData } = body
+  const body = (req as any).validatedBody as PartnerUpdateRegionReqType
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
 
-  const regionService = req.scope.resolve(Modules.REGION) as any
-  const updated = await regionService.updateRegions({
-    id: regionId,
-    ...regionData,
+  // Clone-on-write: if more than one partner is linked to this region
+  // row, we don't mutate it in place — that would bleed across tenants.
+  // Instead we clone the row, move this partner's link to the clone,
+  // and apply the update to the clone. The partner UI sees a normal
+  // update response; the seam is hidden. The original row keeps serving
+  // other partners exactly as before.
+  const { data: allLinks } = await query.graph({
+    entity: partnerRegionLink.entryPoint,
+    filters: { region_id: regionId },
+    fields: ["partner_id"],
   })
+  const isShared = (allLinks?.length ?? 0) > 1
 
-  // Handle payment provider linking separately if provided
-  if (paymentProviderIds) {
-    const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
-    // Remove existing payment provider links
+  if (isShared) {
+    // Read existing region so the clone starts from current state.
+    const { data: existing } = await query.graph({
+      entity: "region",
+      filters: { id: regionId },
+      fields: [
+        "id",
+        "name",
+        "currency_code",
+        "automatic_taxes",
+        "is_tax_inclusive",
+        "metadata",
+        "countries.iso_2",
+      ],
+    })
+    if (!existing?.[0]) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Region with id "${regionId}" not found`
+      )
+    }
+    const old = existing[0] as any
+
+    // Medusa's data model makes country a 1:N relation to region —
+    // a country belongs to exactly one region row. So we *cannot*
+    // clone a shared region that has assigned countries: the
+    // createRegionsWorkflow rejects with "Countries with codes: ...
+    // are already assigned to a region", and giving up the countries
+    // on the original would break the other partners still linked to
+    // it. Refuse the clone with a 409-equivalent error and explain
+    // the situation. The partner can still update sole-owned regions
+    // freely. See feedback_partner_region_extend_not_lockdown memory
+    // and apps/docs/notes/PARTNER_API_PARITY.md for the data-model
+    // background.
+    const oldCountryCodes = (old.countries || [])
+      .map((c: any) => c.iso_2)
+      .filter(Boolean)
+    if (oldCountryCodes.length > 0) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `Region "${regionId}" is shared with other partners and has assigned countries (${oldCountryCodes.join(", ")}). ` +
+          `Medusa's data model assigns each country to exactly one region, so this region cannot be cloned for per-partner customization. ` +
+          `Ask the platform admin to provision a dedicated region for your store.`
+      )
+    }
+
+    // Read existing payment providers so the clone inherits them when
+    // the update body doesn't redefine them.
+    let oldProviderIds: string[] = []
     try {
-      const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-      const { data: existingLinks } = await query.graph({
+      const { data: providerLinks } = await query.graph({
         entity: "region_payment_provider",
         filters: { region_id: regionId },
         fields: ["payment_provider_id"],
       })
-      if (existingLinks?.length) {
-        await remoteLink.dismiss(
-          existingLinks.map((l: any) => ({
-            [Modules.REGION]: { region_id: regionId },
-            [Modules.PAYMENT]: { payment_provider_id: l.payment_provider_id },
-          }))
+      oldProviderIds = (providerLinks || []).map((l: any) => l.payment_provider_id)
+    } catch {
+      // Link may not exist
+    }
+
+    const { payment_providers: bodyProviderIds, ...bodyRegionData } = body
+
+    const mergedInput = {
+      name: bodyRegionData.name ?? old.name,
+      currency_code: bodyRegionData.currency_code ?? old.currency_code,
+      countries:
+        bodyRegionData.countries ??
+        ((old.countries || []).map((c: any) => c.iso_2).filter(Boolean) as string[]),
+      automatic_taxes: bodyRegionData.automatic_taxes ?? old.automatic_taxes,
+      is_tax_inclusive: bodyRegionData.is_tax_inclusive ?? old.is_tax_inclusive,
+      metadata: {
+        ...(bodyRegionData.metadata ?? old.metadata ?? {}),
+        // Mark the clone as partner-created — same convention as the
+        // POST /regions route. Admin can filter partner-owned regions
+        // by metadata.created_by_partner_id.
+        created_by_partner_id: partner!.id,
+      },
+      payment_providers: bodyProviderIds ?? oldProviderIds,
+    }
+
+    const { result } = await createRegionsWorkflow(req.scope).run({
+      input: { regions: [mergedInput] },
+    })
+    const newRegion = result[0]
+
+    // Move this partner's link from the original row to the clone.
+    await remoteLink.dismiss({
+      partner: { partner_id: partner!.id },
+      [Modules.REGION]: { region_id: regionId },
+    })
+    await remoteLink.create({
+      partner: { partner_id: partner!.id },
+      [Modules.REGION]: { region_id: newRegion.id },
+    })
+
+    // If the store's default was the original row, point it at the clone.
+    // Also auto-expand supported_currencies if the clone introduced a
+    // currency the store doesn't yet support (partner could have changed
+    // currency_code in the update body) — without this the pricing grid
+    // disables the currency column for the new region. See sibling
+    // `route.ts` for the rationale.
+    await ensureStoreSupportsCurrencyAndDefaultOnUpdate(
+      req.scope,
+      store,
+      newRegion.currency_code,
+      regionId,
+      newRegion.id
+    )
+
+    // Copy shipping-option prices keyed on the old region_id onto the
+    // clone, so the partner's existing shipping configuration keeps
+    // working without manual re-pricing. We walk the partner's
+    // shipping options via the store → location → fulfillment_sets →
+    // service_zones chain and, for each price whose price_rules
+    // include `region_id = oldRegionId`, push a new price onto the
+    // option with `region_id = newRegion.id` and the same amount and
+    // currency. `updateShippingOptionsWorkflow` upserts by id
+    // presence; passing prices without `id` is additive.
+    //
+    // Wrapped in try/catch per option — a missing price_set on a stale
+    // option shouldn't fail the whole clone. Worst case the partner
+    // re-prices manually for that option.
+    if (store.default_location_id) {
+      try {
+        const { data: locations } = await query.graph({
+          entity: "stock_locations",
+          fields: [
+            "fulfillment_sets.service_zones.shipping_options.id",
+            "fulfillment_sets.service_zones.shipping_options.prices.amount",
+            "fulfillment_sets.service_zones.shipping_options.prices.currency_code",
+            "fulfillment_sets.service_zones.shipping_options.prices.price_rules.attribute",
+            "fulfillment_sets.service_zones.shipping_options.prices.price_rules.value",
+          ],
+          filters: { id: store.default_location_id },
+        })
+
+        const location = locations?.[0] as any
+        for (const fset of location?.fulfillment_sets ?? []) {
+          for (const zone of fset?.service_zones ?? []) {
+            for (const opt of zone?.shipping_options ?? []) {
+              const clonedPrices: Array<{
+                amount: number
+                currency_code: string
+                rules?: Array<{ attribute: string; value: string; operator: string }>
+              }> = []
+              for (const price of opt?.prices ?? []) {
+                const matchesOldRegion = (price?.price_rules ?? []).some(
+                  (r: any) => r?.attribute === "region_id" && r?.value === regionId
+                )
+                if (!matchesOldRegion) continue
+                // Preserve any other price_rules besides the region one;
+                // swap the region_id rule for the new region.
+                const otherRules = (price.price_rules ?? [])
+                  .filter((r: any) => r?.attribute !== "region_id")
+                  .map((r: any) => ({
+                    attribute: r.attribute,
+                    value: r.value,
+                    operator: r.operator ?? "eq",
+                  }))
+                clonedPrices.push({
+                  amount: price.amount,
+                  currency_code: price.currency_code,
+                  rules: [
+                    { attribute: "region_id", value: newRegion.id, operator: "eq" },
+                    ...otherRules,
+                  ],
+                })
+              }
+              if (!clonedPrices.length) continue
+              try {
+                await updateShippingOptionsWorkflow(req.scope).run({
+                  input: [{ id: opt.id, prices: clonedPrices } as any],
+                })
+              } catch (err) {
+                // Log via console only — Medusa logger access here is awkward
+                // and we don't want to fail the clone over one option.
+                // eslint-disable-next-line no-console
+                console.warn(
+                  `[partner-region clone] failed to copy shipping prices for option ${opt.id}:`,
+                  err
+                )
+              }
+            }
+          }
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[partner-region clone] failed to enumerate partner shipping options:`,
+          err
         )
       }
-    } catch {
-      // No existing links
     }
-    // Create new links
-    if (paymentProviderIds.length > 0) {
-      await remoteLink.create(
-        paymentProviderIds.map((providerId: string) => ({
-          [Modules.REGION]: { region_id: regionId },
-          [Modules.PAYMENT]: { payment_provider_id: providerId },
-        }))
-      )
-    }
+
+    res.json({ region: newRegion })
+    return
   }
 
-  res.json({ region: updated })
+  // Sole owner: update in place via admin's workflow. The workflow
+  // accepts the full body shape (matches AdminUpdateRegion), including
+  // payment_providers, and manages region_payment_provider links
+  // internally — no manual link plumbing needed.
+  const { result } = await updateRegionsWorkflow(req.scope).run({
+    input: {
+      selector: { id: regionId },
+      update: body,
+    },
+  })
+
+  // If the partner changed currency_code, auto-expand store
+  // supported_currencies so the pricing grid can render the new
+  // currency column. No-op if the currency was already supported.
+  await ensureStoreSupportsCurrencyAndDefaultOnUpdate(
+    req.scope,
+    store,
+    result[0]?.currency_code,
+    regionId,
+    regionId
+  )
+
+  res.json({ region: result[0] })
+}
+
+// Shared helper: ensures store.supported_currencies includes the
+// (possibly-new) region currency, and rewires default_region_id from
+// the old id to the new one when the clone-on-write path moved the
+// partner's pointer. Idempotent — re-runs are safe.
+//
+// Uses updateStoresWorkflow because direct storeService.updateStores
+// silently no-ops on supported_currencies updates (it's a managed
+// relation). Same lesson as the seed.ts pattern.
+async function ensureStoreSupportsCurrencyAndDefaultOnUpdate(
+  scope: any,
+  store: any,
+  currencyCode: string | undefined,
+  oldRegionId: string,
+  newRegionId: string
+) {
+  const existing = (store.supported_currencies || []) as Array<{
+    currency_code: string
+    is_default?: boolean
+  }>
+
+  const wantedCurrency = currencyCode ? String(currencyCode).toLowerCase() : null
+  const needsCurrency =
+    !!wantedCurrency &&
+    !existing.some(
+      (c) => String(c.currency_code).toLowerCase() === wantedCurrency
+    )
+  const needsDefaultRepoint =
+    store.default_region_id === oldRegionId && oldRegionId !== newRegionId
+
+  if (!needsCurrency && !needsDefaultRepoint) return
+
+  const update: Record<string, any> = {}
+
+  if (needsCurrency) {
+    update.supported_currencies = [
+      ...existing.map((c) => ({
+        currency_code: c.currency_code,
+        is_default: !!c.is_default,
+      })),
+      { currency_code: wantedCurrency!, is_default: false },
+    ]
+  }
+
+  if (needsDefaultRepoint) {
+    update.default_region_id = newRegionId
+  }
+
+  await updateStoresWorkflow(scope).run({
+    input: { selector: { id: store.id }, update },
+  })
 }
 
 export const DELETE = async (
@@ -135,8 +391,11 @@ export const DELETE = async (
 ) => {
   const { store, partner, regionId } = await verifyRegionOwnership(req)
 
-  // Remove the partner-region link
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
+
+  // Dismiss this partner's link first — from their perspective, the
+  // region disappears regardless of whether the underlying row survives.
   try {
     await remoteLink.dismiss({
       partner: { partner_id: partner!.id },
@@ -146,9 +405,21 @@ export const DELETE = async (
     // Link may not exist
   }
 
-  await deleteRegionsWorkflow(req.scope).run({ input: { ids: [regionId] } })
+  // Ref-counted delete: only wipe the region row when no other partner
+  // is linked. If another partner still links to this row, deleting it
+  // would cascade across tenants — exactly the data-leak PR #257 set
+  // out to prevent. The dismissal above is the partner's "delete"
+  // from their perspective; the response shape stays admin-identical.
+  const { data: remaining } = await query.graph({
+    entity: partnerRegionLink.entryPoint,
+    filters: { region_id: regionId },
+    fields: ["partner_id"],
+  })
 
-  // Clear the store's default region if it was the deleted one
+  if (!remaining?.length) {
+    await deleteRegionsWorkflow(req.scope).run({ input: { ids: [regionId] } })
+  }
+
   if (store.default_region_id === regionId) {
     const storeService = req.scope.resolve(Modules.STORE) as any
     await storeService.updateStores({

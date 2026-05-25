@@ -45,9 +45,11 @@ export const RegionEdit = () => {
 
   const isLoading = isRegionLoading || isStoreLoading || isPreferenceLoading
 
-  const storeCurrencies = (store?.supported_currencies ?? []).map(
-    (c) => currencies[c.currency_code.toUpperCase()]
-  )
+  // Show every known currency, not just the store's
+  // `supported_currencies` — same rationale as region-create. The
+  // partner can change a region's currency to anything the system
+  // knows; the backend doesn't gate on supported_currencies.
+  const allCurrencies = Object.values(currencies)
 
   if (isRegionError) {
     throw regionError
@@ -69,7 +71,7 @@ export const RegionEdit = () => {
       {!isLoading && region && (
         <EditRegionForm
           region={region}
-          currencies={storeCurrencies}
+          currencies={allCurrencies}
           pricePreferences={pricePreferences}
         />
       )}

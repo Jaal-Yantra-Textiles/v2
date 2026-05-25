@@ -1,13 +1,23 @@
 import { z } from "@medusajs/framework/zod"
 
+// Region body validators
+//
+// Shape mirrors Medusa core's `AdminCreateRegion` / `AdminUpdateRegion`
+// validators (see `@medusajs/medusa/dist/api/admin/regions/validators.js`)
+// so partner clients can send the same body as admin clients. The
+// `is_tax_inclusive` field MUST be accepted at the partner edge — admin
+// includes it and `.strict()` here would otherwise reject it.
+//
+// See apps/docs/notes/PARTNER_API_PARITY.md for the audit register.
 export const PartnerCreateRegionReq = z.object({
   name: z.string().min(1),
   currency_code: z.string().min(1),
   countries: z.array(z.string()).optional(),
-  payment_providers: z.array(z.string()).optional(),
   automatic_taxes: z.boolean().optional(),
-  metadata: z.record(z.string(), z.any()).optional(),
-})
+  is_tax_inclusive: z.boolean().optional(),
+  payment_providers: z.array(z.string()).optional(),
+  metadata: z.record(z.string(), z.any()).nullable().optional(),
+}).strict()
 
 export type PartnerCreateRegionReqType = z.infer<typeof PartnerCreateRegionReq>
 
@@ -15,12 +25,43 @@ export const PartnerUpdateRegionReq = z.object({
   name: z.string().optional(),
   currency_code: z.string().optional(),
   countries: z.array(z.string()).optional(),
-  payment_providers: z.array(z.string()).optional(),
   automatic_taxes: z.boolean().optional(),
-  metadata: z.record(z.string(), z.any()).optional(),
-})
+  is_tax_inclusive: z.boolean().optional(),
+  payment_providers: z.array(z.string()).optional(),
+  metadata: z.record(z.string(), z.any()).nullable().optional(),
+}).strict()
 
 export type PartnerUpdateRegionReqType = z.infer<typeof PartnerUpdateRegionReq>
+
+// Region list + retrieve query validators are no longer defined here —
+// the middleware imports them directly from
+// `@medusajs/medusa/api/admin/regions/validators` so partner inherits
+// admin's full filter set (operator maps, $and/$or, no max-limit cap,
+// etc.) without copying and drifting. See apps/docs/notes/
+// PARTNER_API_PARITY.md and the feedback_mirror_admin_not_invent memory
+// for the rationale.
+
+// Payment-providers list query validator
+//
+// Mirrors `AdminGetPaymentProvidersParams` (`@medusajs/medusa/dist/api/
+// admin/payments/validators.js`). The endpoint is a discovery aid for
+// the partner UI so it can populate region-create / region-update
+// forms. Per the user's "open list" decision (see
+// feedback_partner_region_extend_not_lockdown), all enabled providers
+// are returned by default; the partner may filter by `is_enabled` like
+// admin can.
+export const PartnerListPaymentProvidersParams = z.object({
+  id: z.union([z.string(), z.array(z.string())]).optional(),
+  is_enabled: z
+    .union([z.boolean(), z.string().transform((v) => v === "true")])
+    .optional(),
+  fields: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+  order: z.string().optional(),
+})
+
+export type PartnerListPaymentProvidersParamsType = z.infer<typeof PartnerListPaymentProvidersParams>
 
 export const PartnerUpdateLocationReq = z.object({
   name: z.string().optional(),

@@ -37,7 +37,7 @@ export const useRegion = (
     queryFn: async () =>
       sdk.client.fetch<{ region: HttpTypes.AdminRegion }>(
         `/partners/stores/${storeId}/regions/${id}`,
-        { method: "GET" }
+        { method: "GET", query }
       ),
     enabled: !!storeId && (options?.enabled !== false),
     ...options,
@@ -65,7 +65,7 @@ export const useRegions = (
     queryFn: () =>
       sdk.client.fetch<PaginatedResponse<{ regions: HttpTypes.AdminRegion[] }>>(
         `/partners/stores/${storeId}/regions`,
-        { method: "GET" }
+        { method: "GET", query }
       ),
     queryKey: regionsQueryKeys.list(query),
     enabled: !!storeId && (options?.enabled !== false),
