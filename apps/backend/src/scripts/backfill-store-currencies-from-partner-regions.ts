@@ -23,8 +23,12 @@ import partnerRegionLink from "../links/partner-region"
  * Run:
  *   npx medusa exec ./src/scripts/backfill-store-currencies-from-partner-regions.ts
  *
- * Dry run:
- *   npx medusa exec ./src/scripts/backfill-store-currencies-from-partner-regions.ts --dry-run
+ * Dry run — logs what would happen, mutates nothing. Two equivalent ways:
+ *   - Args:    npx medusa exec ./src/scripts/backfill-store-currencies-from-partner-regions.ts -- --dry-run
+ *   - Env var: DRY_RUN=1 npx medusa exec ./src/scripts/backfill-store-currencies-from-partner-regions.ts
+ *
+ * deploy/aws/scripts/run-backfill.sh uses the env-var form when spawning
+ * one-shot ECS tasks.
  */
 export default async function backfillStoreCurrencies({
   container,
@@ -33,7 +37,8 @@ export default async function backfillStoreCurrencies({
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
 
-  const dryRun = (args ?? []).includes("--dry-run")
+  const dryRun =
+    (args ?? []).includes("--dry-run") || process.env.DRY_RUN === "1"
   if (dryRun) {
     logger.info("DRY RUN — no stores will be updated.")
   }

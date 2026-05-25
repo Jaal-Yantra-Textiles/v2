@@ -19,8 +19,13 @@ import partnerRegionLink from "../links/partner-region"
  * Run:
  *   npx medusa exec ./src/scripts/backfill-partner-region-links.ts
  *
- * Dry run (logs what would happen, creates nothing):
- *   npx medusa exec ./src/scripts/backfill-partner-region-links.ts --dry-run
+ * Dry run — logs what would happen, creates nothing. Two equivalent ways:
+ *   - Args:        npx medusa exec ./src/scripts/backfill-partner-region-links.ts -- --dry-run
+ *   - Env var:     DRY_RUN=1 npx medusa exec ./src/scripts/backfill-partner-region-links.ts
+ *
+ * The env-var form is what deploy/aws/scripts/run-backfill.sh uses when
+ * spawning a one-shot ECS task (the script sets DRY_RUN as a container
+ * env var, not as a positional arg). Both forms are honored here.
  */
 export default async function backfillPartnerRegionLinks({
   container,
@@ -30,7 +35,8 @@ export default async function backfillPartnerRegionLinks({
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as any
 
-  const dryRun = (args ?? []).includes("--dry-run")
+  const dryRun =
+    (args ?? []).includes("--dry-run") || process.env.DRY_RUN === "1"
   if (dryRun) {
     logger.info("DRY RUN — no links will be created.")
   }

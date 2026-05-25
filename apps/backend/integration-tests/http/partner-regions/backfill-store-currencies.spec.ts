@@ -227,5 +227,45 @@ setupSharedTestSuite(() => {
         before.map((c) => c.currency_code).sort()
       )
     })
+
+    it("DRY_RUN=1 env var also triggers dry-run mode", async () => {
+      // run-backfill.sh sets DRY_RUN as a container env var. Both args
+      // and env-var paths must trigger dry-run. Without this, ECS-spawned
+      // dry-runs silently apply real mutations.
+      const a = await createPartnerWithStore(api, adminHeaders)
+      const container = getContainer()
+      const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as any
+      const storeService = container.resolve(Modules.STORE) as any
+
+      const adminRegionRes = await api.post(
+        "/admin/regions",
+        { name: "Africa", currency_code: "zar", countries: ["za"] },
+        adminHeaders
+      )
+      await remoteLink.create({
+        partner: { partner_id: a.partnerId },
+        [Modules.REGION]: { region_id: adminRegionRes.data.region.id },
+      })
+      await storeService.updateStores({
+        id: a.storeId,
+        supported_currencies: [{ currency_code: a.currencyCode, is_default: true }],
+      })
+
+      const before = await readSupportedCurrencies(container, a.storeId)
+
+      const prev = process.env.DRY_RUN
+      process.env.DRY_RUN = "1"
+      try {
+        await backfillStoreCurrencies({ container, args: [] } as any)
+      } finally {
+        if (prev === undefined) delete process.env.DRY_RUN
+        else process.env.DRY_RUN = prev
+      }
+
+      const after = await readSupportedCurrencies(container, a.storeId)
+      expect(after.map((c) => c.currency_code).sort()).toEqual(
+        before.map((c) => c.currency_code).sort()
+      )
+    })
   })
 })

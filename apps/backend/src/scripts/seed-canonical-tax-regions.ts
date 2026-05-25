@@ -26,8 +26,12 @@ import { createTaxRegionsWorkflow } from "@medusajs/medusa/core-flows"
  * Run:
  *   npx medusa exec ./src/scripts/seed-canonical-tax-regions.ts
  *
- * Dry run (logs intent, creates nothing):
- *   npx medusa exec ./src/scripts/seed-canonical-tax-regions.ts --dry-run
+ * Dry run — logs intent, creates nothing. Two equivalent ways:
+ *   - Args:    npx medusa exec ./src/scripts/seed-canonical-tax-regions.ts -- --dry-run
+ *   - Env var: DRY_RUN=1 npx medusa exec ./src/scripts/seed-canonical-tax-regions.ts
+ *
+ * deploy/aws/scripts/run-backfill.sh uses the env-var form when spawning
+ * one-shot ECS tasks.
  */
 
 // Statutory standard rates as of 2026-05. Conservative — only
@@ -108,7 +112,8 @@ export default async function seedCanonicalTaxRegions({
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
 
-  const dryRun = (args ?? []).includes("--dry-run")
+  const dryRun =
+    (args ?? []).includes("--dry-run") || process.env.DRY_RUN === "1"
   if (dryRun) {
     logger.info("DRY RUN — no tax_regions will be created.")
   }
