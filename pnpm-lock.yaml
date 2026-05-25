@@ -116,28 +116,28 @@ importers:
         version: 5.2.2(react-hook-form@7.71.2(react@18.3.1))
       '@mastra/core':
         specifier: latest
-        version: 1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6)
+        version: 1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6)
       '@mastra/evals':
         specifier: latest
-        version: 1.2.1(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))(zod@4.3.6)
+        version: 1.2.2(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))(zod@4.3.6)
       '@mastra/loggers':
         specifier: latest
-        version: 1.1.1(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))
+        version: 1.1.1(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))
       '@mastra/mcp':
         specifier: ^1.0.0
-        version: 1.0.2(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(zod@4.3.6)
+        version: 1.0.2(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))(@types/json-schema@7.0.15)(zod@4.3.6)
       '@mastra/memory':
         specifier: latest
-        version: 1.17.1(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))(zod@4.3.6)
+        version: 1.19.0(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))(zod@4.3.6)
       '@mastra/observability':
         specifier: ^1.2.1
-        version: 1.2.1(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))
+        version: 1.2.1(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))
       '@mastra/pg':
         specifier: ^1.7.0
-        version: 1.7.0(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))
+        version: 1.7.0(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))
       '@mastra/rag':
         specifier: ^2.1.2
-        version: 2.1.2(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))(zod@4.3.6)
+        version: 2.1.2(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))(zod@4.3.6)
       '@medusajs/admin-sdk':
         specifier: 2.15.2
         version: 2.15.2
@@ -173,10 +173,10 @@ importers:
         version: 2.15.2(@medusajs/admin-sdk@2.15.2)(@medusajs/cli@2.15.2(@types/node@20.19.34))(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(@medusajs/icons@2.15.2(react@18.3.1))(@medusajs/test-utils@2.15.2)(@medusajs/ui@4.1.12(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
       '@medusajs/medusa':
         specifier: 2.15.2
-        version: 2.15.2(@emotion/is-prop-valid@1.4.0)(@medusajs/admin-sdk@2.15.2)(@medusajs/cli@2.15.2(@types/node@20.19.34))(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(@medusajs/icons@2.15.2(react@18.3.1))(@medusajs/test-utils@2.15.2)(@medusajs/ui@4.1.12(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(@swc/core@1.7.28(@swc/helpers@0.5.19))(@types/node@20.19.34)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(awilix@8.0.1)(picomatch@4.0.4)(posthog-node@5.17.2)(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.9.3)(yalc@1.0.0-pre.53)(yaml@2.8.2)
+        version: 2.15.2(@emotion/is-prop-valid@1.4.0)(@medusajs/admin-sdk@2.15.2)(@medusajs/cli@2.15.2(@types/node@20.19.34))(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(@medusajs/icons@2.15.2(react@18.3.1))(@medusajs/test-utils@2.15.2)(@medusajs/ui@4.1.12(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(@swc/core@1.7.28(@swc/helpers@0.5.19))(@types/node@20.19.34)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(awilix@8.0.1)(picomatch@4.0.4)(posthog-node@5.35.0(rxjs@7.8.2))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.9.3)(yalc@1.0.0-pre.53)(yaml@2.9.0)
       '@medusajs/medusa-oas-cli':
         specifier: 2.15.2
-        version: 2.15.2(@emotion/is-prop-valid@1.4.0)(@medusajs/admin-sdk@2.15.2)(@medusajs/cli@2.15.2(@types/node@20.19.34))(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(@medusajs/icons@2.15.2(react@18.3.1))(@medusajs/test-utils@2.15.2)(@medusajs/ui@4.1.12(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(@swc/core@1.7.28(@swc/helpers@0.5.19))(@types/node@20.19.34)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(awilix@8.0.1)(enzyme@3.11.0)(express@5.2.1)(openapi-types@12.1.3)(picomatch@4.0.4)(posthog-node@5.17.2)(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.9.3)(yalc@1.0.0-pre.53)(yaml@2.8.2)
+        version: 2.15.2(@emotion/is-prop-valid@1.4.0)(@medusajs/admin-sdk@2.15.2)(@medusajs/cli@2.15.2(@types/node@20.19.34))(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(@medusajs/icons@2.15.2(react@18.3.1))(@medusajs/test-utils@2.15.2)(@medusajs/ui@4.1.12(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(@swc/core@1.7.28(@swc/helpers@0.5.19))(@types/node@20.19.34)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(awilix@8.0.1)(enzyme@3.11.0)(express@5.2.1)(openapi-types@12.1.3)(picomatch@4.0.4)(posthog-node@5.35.0(rxjs@7.8.2))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.9.3)(yalc@1.0.0-pre.53)(yaml@2.9.0)
       '@medusajs/types':
         specifier: 2.15.2
         version: 2.15.2(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))
@@ -284,7 +284,7 @@ importers:
         version: 2.5.6
       '@uploadthing/react':
         specifier: 7.1.0
-        version: 7.1.0(next@15.3.9(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(react@18.3.1)(uploadthing@7.2.0(express@5.2.1)(next@15.3.9(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2)))
+        version: 7.1.0(next@15.3.9(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(react@18.3.1)(uploadthing@7.2.0(express@5.2.1)(next@15.3.9(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0)))
       '@xenova/transformers':
         specifier: ^2.17.2
         version: 2.17.2
@@ -464,7 +464,7 @@ importers:
         version: 1.2.1
       uploadthing:
         specifier: 7.2.0
-        version: 7.2.0(express@5.2.1)(next@15.3.9(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2))
+        version: 7.2.0(express@5.2.1)(next@15.3.9(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
       use-file-picker:
         specifier: ^2.1.2
         version: 2.1.4(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react@18.3.1)
@@ -525,7 +525,7 @@ importers:
         version: 0.6.0
       mastra:
         specifier: latest
-        version: 1.6.3(@hono/node-server@1.19.9(hono@4.12.15))(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))(typescript@5.9.3)(zod@4.3.6)
+        version: 1.10.0(@hono/node-server@1.19.14(hono@4.12.15))(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))(rxjs@7.8.2)(typescript@5.9.3)(zod@4.3.6)
       prop-types:
         specifier: ^15.8.1
         version: 15.8.1
@@ -582,7 +582,7 @@ importers:
         version: 4.1.9(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.3)
       '@medusajs/ui-preset':
         specifier: 2.14.2
-        version: 2.14.2(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2))
+        version: 2.14.2(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
       autoprefixer:
         specifier: ^10.4.24
         version: 10.4.27(postcss@8.5.6)
@@ -603,7 +603,7 @@ importers:
         version: 18.3.1(react@18.3.1)
       tailwindcss:
         specifier: '3'
-        version: 3.4.19(tsx@4.21.0)(yaml@2.8.2)
+        version: 3.4.19(tsx@4.21.0)(yaml@2.9.0)
     devDependencies:
       '@docusaurus/module-type-aliases':
         specifier: 3.9.2
@@ -693,8 +693,8 @@ importers:
         specifier: 7.2.0
         version: 7.2.0
       i18next-http-backend:
-        specifier: 2.4.2
-        version: 2.4.2
+        specifier: 3.0.5
+        version: 3.0.5
       lodash.debounce:
         specifier: ^4.0.8
         version: 4.0.8
@@ -755,7 +755,7 @@ importers:
         version: 2.14.2(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))
       '@medusajs/ui-preset':
         specifier: 2.14.2
-        version: 2.14.2(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2))
+        version: 2.14.2(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
       '@types/qs':
         specifier: ^6.9.15
         version: 6.14.0
@@ -776,16 +776,16 @@ importers:
         version: 8.5.6
       tailwindcss:
         specifier: ^3.4.14
-        version: 3.4.19(tsx@4.21.0)(yaml@2.8.2)
+        version: 3.4.19(tsx@4.21.0)(yaml@2.9.0)
       tsup:
         specifier: ^8.3.5
-        version: 8.5.1(@swc/core@1.7.28(@swc/helpers@0.5.19))(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
+        version: 8.5.1(@swc/core@1.7.28(@swc/helpers@0.5.19))(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.9.0)
       vite:
         specifier: ^5.4.11
         version: 5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)
       vite-plugin-inspect:
         specifier: 0.8.7
-        version: 0.8.7(rollup@4.59.0)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))
+        version: 0.8.7(rollup@4.60.4)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))
       vitest:
         specifier: ^2.1.4
         version: 2.1.9(@types/node@20.19.34)(happy-dom@18.0.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)
@@ -800,13 +800,13 @@ importers:
         version: 2.2.9(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
       '@medusajs/icons':
         specifier: latest
-        version: 2.14.1(react@19.0.4)
+        version: 2.15.3(react@19.0.4)
       '@medusajs/js-sdk':
         specifier: latest
-        version: 2.14.1
+        version: 2.15.3
       '@medusajs/ui':
         specifier: latest
-        version: 4.1.8(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)(typescript@5.9.3)
+        version: 4.1.13(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)(typescript@5.9.3)
       '@radix-ui/react-accordion':
         specifier: ^1.2.1
         version: 1.2.2(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
@@ -891,10 +891,10 @@ importers:
         version: 7.29.0
       '@medusajs/types':
         specifier: latest
-        version: 2.14.1(ioredis@5.9.3)
+        version: 2.15.3(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))
       '@medusajs/ui-preset':
         specifier: latest
-        version: 2.14.1(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2))
+        version: 2.15.3(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
       '@types/lodash':
         specifier: ^4.14.195
         version: 4.17.24
@@ -936,7 +936,7 @@ importers:
         version: 2.8.8
       tailwindcss:
         specifier: ^3.0.23
-        version: 3.4.19(tsx@4.21.0)(yaml@2.8.2)
+        version: 3.4.19(tsx@4.21.0)(yaml@2.9.0)
       typescript:
         specifier: ^5.3.2
         version: 5.9.3
@@ -951,13 +951,13 @@ importers:
         version: 2.2.9(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
       '@medusajs/icons':
         specifier: latest
-        version: 2.13.4(react@19.0.4)
+        version: 2.15.3(react@19.0.4)
       '@medusajs/js-sdk':
         specifier: latest
-        version: 2.13.4
+        version: 2.15.3
       '@medusajs/ui':
         specifier: latest
-        version: 4.1.4(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)(typescript@5.9.3)
+        version: 4.1.13(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)(typescript@5.9.3)
       '@radix-ui/react-accordion':
         specifier: ^1.2.1
         version: 1.2.2(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
@@ -1003,10 +1003,10 @@ importers:
         version: 7.29.0
       '@medusajs/types':
         specifier: latest
-        version: 2.13.4(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))
+        version: 2.15.3(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))
       '@medusajs/ui-preset':
         specifier: latest
-        version: 2.13.4(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2))
+        version: 2.15.3(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
       '@types/lodash':
         specifier: ^4.14.195
         version: 4.17.24
@@ -1048,7 +1048,7 @@ importers:
         version: 2.8.8
       tailwindcss:
         specifier: ^3.0.23
-        version: 3.4.19(tsx@4.21.0)(yaml@2.8.2)
+        version: 3.4.19(tsx@4.21.0)(yaml@2.9.0)
       typescript:
         specifier: ^5.3.2
         version: 5.9.3
@@ -1070,9 +1070,20 @@ importers:
 
 packages:
 
-  '@a2a-js/sdk@0.2.5':
-    resolution: {integrity: sha512-VTDuRS5V0ATbJ/LkaQlisMnTAeYKXAK6scMguVBstf+KIBQ7HIuKhiXLv+G/hvejkV+THoXzoNifInAkU81P1g==}
+  '@a2a-js/sdk@0.3.13':
+    resolution: {integrity: sha512-BZr0f9JVNQs3GKOM9xINWCh6OKIJWZFPyqqVqTym5mxO2Eemc6I/0zL7zWnljHzGdaf5aZQyQN5xa6PSH62q+A==}
     engines: {node: '>=18'}
+    peerDependencies:
+      '@bufbuild/protobuf': ^2.10.2
+      '@grpc/grpc-js': ^1.11.0
+      express: ^4.21.2 || ^5.1.0
+    peerDependenciesMeta:
+      '@bufbuild/protobuf':
+        optional: true
+      '@grpc/grpc-js':
+        optional: true
+      express:
+        optional: true
 
   '@ai-sdk/anthropic@1.2.12':
     resolution: {integrity: sha512-YSzjlko7JvuiyQFmI9RN1tNZdEiZxc+6xld/0tq/VkJaHpEzGAb1yiNxxvmYVcjvfu/PcvCxAAYXmTYQQ63IHQ==}
@@ -1134,12 +1145,6 @@ packages:
     peerDependencies:
       zod: ^4.2.0
 
-  '@ai-sdk/provider-utils@3.0.23':
-    resolution: {integrity: sha512-60GYsRj5wIJQRcq5YwYJq4KhwLeStceXEJiZdecP1miiH+6FMmrnc7lZDOJoQ6m9lrudEb+uI4LEwddLz5+rPQ==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^4.2.0
-
   '@ai-sdk/provider-utils@3.0.25':
     resolution: {integrity: sha512-CvsRu+32Y8a167s+lrIBtsybvgTHp8j9y+6BeTvLeoW3Q+okw/b4CnNUFOLIXsRaKHQKAH+IHNJPYWywfpw0LA==}
     engines: {node: '>=18'}
@@ -1152,8 +1157,8 @@ packages:
     peerDependencies:
       zod: ^4.2.0
 
-  '@ai-sdk/provider-utils@4.0.23':
-    resolution: {integrity: sha512-z8GlDaCmRSDlqkMF2f4/RFgWxdarvIbyuk+m6WXT1LYgsnGiXRJGTD2Z1+SDl3LqtFuRtGX1aghYvQLoHL/9pg==}
+  '@ai-sdk/provider-utils@4.0.27':
+    resolution: {integrity: sha512-ubkAJ+xODouwtmN1tYlvTPphH1hPOBfZaEQe8U7skGvFAnIRs9PPpsq57bC2+Ky/MB4yzhd6YOsxTAx9sGpazw==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^4.2.0
@@ -1168,6 +1173,10 @@ packages:
 
   '@ai-sdk/provider@2.0.3':
     resolution: {integrity: sha512-h88OPkavHTiN9tMn2l5awAznGB0lXzjcLhgR1/rvjB2zlLprsNxbM2tt6OJsHUxduLC3klq0/eqaSf6fX5XVww==}
+    engines: {node: '>=18'}
+
+  '@ai-sdk/provider@3.0.10':
+    resolution: {integrity: sha512-Q3BZ27qfpYqnCYGvE3vt+Qi6LGOF9R5Nmzn+9JoM1lCRsD9mYaIhfJLkSunN48nfGXJ6n+XNV0J/XVpqGQl7Dw==}
     engines: {node: '>=18'}
 
   '@ai-sdk/provider@3.0.8':
@@ -1528,6 +1537,12 @@ packages:
     peerDependencies:
       '@babel/core': ^7.0.0
 
+  '@babel/helper-create-class-features-plugin@7.29.3':
+    resolution: {integrity: sha512-RpLYy2sb51oNLjuu1iD3bwBqCBWUzjO0ocp+iaCP/lJtb2CPLcnC2Fftw+4sAzaMELGeWTgExSKADbdo0GFVzA==}
+    engines: {node: '>=6.9.0'}
+    peerDependencies:
+      '@babel/core': ^7.0.0
+
   '@babel/helper-create-regexp-features-plugin@7.28.5':
     resolution: {integrity: sha512-N1EhvLtHzOvj7QQOUCCS3NrPJP8c5W6ZXCHDn7Yialuy1iu4r5EmIYkXlKNqT99Ciw+W0mDqWoR6HWMZlFP3hw==}
     engines: {node: '>=6.9.0'}
@@ -1608,6 +1623,11 @@ packages:
 
   '@babel/parser@7.29.0':
     resolution: {integrity: sha512-IyDgFV5GeDUVX4YdF/3CPULtVGSXXMLh1xVIgdCgxApktqnQV0r7/8Nqthg+8YLGaAtdyIlo2qIdZrbCv4+7ww==}
+    engines: {node: '>=6.0.0'}
+    hasBin: true
+
+  '@babel/parser@7.29.3':
+    resolution: {integrity: sha512-b3ctpQwp+PROvU/cttc4OYl4MzfJUWy6FZg+PMXfzmt/+39iHVF0sDfqay8TQM3JA2EUOyKcFZt75jWriQijsA==}
     engines: {node: '>=6.0.0'}
     hasBin: true
 
@@ -2150,6 +2170,10 @@ packages:
 
   '@babel/runtime@7.28.6':
     resolution: {integrity: sha512-05WQkdpL9COIMz4LjTxGpPNCdlpyimKppYNoJ5Di5EUObifl8t4tuLuUBBZEpoLYOmfvIWrsp9fCl0HoPRVTdA==}
+    engines: {node: '>=6.9.0'}
+
+  '@babel/runtime@7.29.2':
+    resolution: {integrity: sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g==}
     engines: {node: '>=6.9.0'}
 
   '@babel/template@7.28.6':
@@ -3467,17 +3491,23 @@ packages:
       react: ^18 || ^19 || ^19.0.0-rc
       react-dom: ^18 || ^19 || ^19.0.0-rc
 
+  '@hono/node-server@1.19.14':
+    resolution: {integrity: sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw==}
+    engines: {node: '>=18.14.1'}
+    peerDependencies:
+      hono: ^4
+
   '@hono/node-server@1.19.9':
     resolution: {integrity: sha512-vHL6w3ecZsky+8P5MD+eFfaGTyCeOHUIFYMGpQGbrBTSmNNoxv0if69rEZ5giu36weC5saFuznL411gRX7bJDw==}
     engines: {node: '>=18.14.1'}
     peerDependencies:
       hono: ^4
 
-  '@hono/node-ws@1.3.0':
-    resolution: {integrity: sha512-ju25YbbvLuXdqBCmLZLqnNYu1nbHIQjoyUqA8ApZOeL1k4skuiTcw5SW77/5SUYo2Xi2NVBJoVlfQurnKEp03Q==}
+  '@hono/node-ws@1.3.1':
+    resolution: {integrity: sha512-vo/MwCnpJAVHBkGzWjCJ28wF45fYHAfbPZcH2rodZODHtch2GHA94KtMfusmVycTUtsLAsaNsHhtY6P8X3RQsA==}
     engines: {node: '>=18.14.1'}
     peerDependencies:
-      '@hono/node-server': ^1.19.2
+      '@hono/node-server': ^1.19.11
       hono: ^4.6.0
 
   '@hookform/error-message@2.0.1':
@@ -3992,21 +4022,21 @@ packages:
     resolution: {integrity: sha512-qC72D4+CDdjGqJvkFMMEAtancHUQ7/d/tAiHf64z8MopFDmcrtbcJuerDtFceuAfQJ2pDSfCKCtbqoGBNnwg0w==}
     engines: {node: '>=8'}
 
-  '@mastra/core@1.28.0':
-    resolution: {integrity: sha512-6F4YkAxYxg2uJCzaS++PV9H/C3QbYv4DO71nJIuL1hbTzf41GK4i8rjmv5xDsXcvQF6CJ3OCtkP2wlZws02bHA==}
+  '@mastra/core@1.36.0':
+    resolution: {integrity: sha512-BEhDZPQeDcJ6jQRHtpfFLuoRiWAuv9dTCIjeWbXokzwDamI3D9jkyNzpBFJwFwy2S/a4jBTu4+d61nOaP7knTQ==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       zod: ^4.2.0
 
-  '@mastra/deployer@1.28.0':
-    resolution: {integrity: sha512-j9PoQ1qyDrbT0FEQA3ZH/13En5vqjfGq5NtOtIEM3F1KOnIdgMKOxm3nOd5rz19eQePvpIXxqXIs9Ar75wu9JQ==}
+  '@mastra/deployer@1.36.0':
+    resolution: {integrity: sha512-lZbfghkQwfx2MpcE3NfNTrZcS3NaLucJ5jAROHkh05MYxw0ofqiyuvJoTemtkz6Rsp5qqkrpwBAzbpJX8FeNaQ==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
-      '@mastra/core': '>=1.0.0-0 <2.0.0-0'
+      '@mastra/core': '>=1.34.0-0 <2.0.0-0'
       zod: ^4.2.0
 
-  '@mastra/evals@1.2.1':
-    resolution: {integrity: sha512-wiXRiHctOBUqtguDbw2ypt3BCrhNDJbQYUKrSSaeNnGrVNrFG6LH2rJgy+TdM/6fBEPzLw/sK3E4s4S11DlptQ==}
+  '@mastra/evals@1.2.2':
+    resolution: {integrity: sha512-gosPPA6xP8P6rvIbhwG6SVkRSkS6+Ku3FF11ViVHH5UAy0Qu244DqCfnpseKkOBwWpoyRVb1aFC03GhnuZ28kg==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       '@mastra/core': '>=1.0.0-0 <2.0.0-0'
@@ -4025,8 +4055,8 @@ packages:
       '@mastra/core': '>=1.0.0-0 <2.0.0-0'
       zod: ^4.2.0
 
-  '@mastra/memory@1.17.1':
-    resolution: {integrity: sha512-+g/lAqrmVStETkW++JG3qXgtcQedZ2l6hrVNng51ykjIAa2EDI2++Nm7Z8kJquVtUzT++c0rH6kpQG4033m0sQ==}
+  '@mastra/memory@1.19.0':
+    resolution: {integrity: sha512-vmW1zTX9/mnjTj/FeO3qaE1pP1y4dvaLzJwzIsm7zyZNMk9N/hsvk6dNA9WdvujkZfLDnrTBRafD2jNd12nt1Q==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       '@mastra/core': '>=1.4.1-0 <2.0.0-0'
@@ -4051,17 +4081,17 @@ packages:
       '@mastra/core': '>=1.0.0-0 <2.0.0-0'
       zod: ^4.2.0
 
-  '@mastra/schema-compat@1.2.9':
-    resolution: {integrity: sha512-1/RgazXqi1Wdyx8aR81CVS+sRyzlTGUL1YhhHkSULoEY8aXs58bvWkH/6iixlYsY0xGvn+0OPLCeSRkBCtDx4Q==}
+  '@mastra/schema-compat@1.2.10':
+    resolution: {integrity: sha512-8Fg8PeO7GsRPOrEZAzc5udZgsF9ZDxih5JSoxjgnR79d0ImjKffhcoysPW6wIYXPEZ5i6/QDNR7rCazZZSD5Tg==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       zod: ^4.2.0
 
-  '@mastra/server@1.28.0':
-    resolution: {integrity: sha512-RP5dWET+WyhXr67t8eK0/XChXvrGYzkVW65dOuqTs28gwR53GTIQR+h76N4cUFZ0dsxbcCKZbINwTuF7mIa/SQ==}
+  '@mastra/server@1.36.0':
+    resolution: {integrity: sha512-3YJf007Mf0EQ0kgtZOOD+cqGqDC2YAuEeWmprPe4CgOul2AVOFc58UJu8tVYNi0cnUZuU2Pp1PufCLkitPJ0Wg==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
-      '@mastra/core': '>=1.13.2-0 <2.0.0-0'
+      '@mastra/core': '>=1.34.0-0 <2.0.0-0'
       zod: ^4.2.0
 
   '@mdx-js/mdx@3.1.1':
@@ -4294,16 +4324,6 @@ packages:
     peerDependencies:
       '@medusajs/framework': 2.15.2
 
-  '@medusajs/icons@2.13.4':
-    resolution: {integrity: sha512-oqNE8aAXnZaQ1+mAL2FzSsZIbrf7uxihW5TRaLGF/G+zYylx7OxG93XGX6wCqztuQJJoUrICYaaBilyFRzriXg==}
-    peerDependencies:
-      react: ^18.3.1
-
-  '@medusajs/icons@2.14.1':
-    resolution: {integrity: sha512-geHY+dMOCfHdYMdaZGynkjzQHgbJf3/pU/XBdnUjMBP2x6fyQcD5Bgu/1S3GdKwxxjk48pAGqIjw7+VsxLnRjA==}
-    peerDependencies:
-      react: ^19.2.5
-
   '@medusajs/icons@2.14.2':
     resolution: {integrity: sha512-MdiX1Z3h9yMTqJ5Jmd4XC8goMzMttZJiDSPEBTzWAYpsfXn9G0Dp3bbFg2k7DiJPb4lOBzLPbw+LuwtnUCfpGA==}
     peerDependencies:
@@ -4313,6 +4333,11 @@ packages:
     resolution: {integrity: sha512-EFegQ/zR03QNadG9JGADR82Nhhi15Ok64qlqXD6R1fVWw+6j98cypnrqaNaWbuelMbsfU3tIzV30tB2S4C9TNw==}
     peerDependencies:
       react: ^19.2.5
+
+  '@medusajs/icons@2.15.3':
+    resolution: {integrity: sha512-N2c5cTLCBF+Qlbk0cXc4WqXLc3lLuOpJKgzOXpy0XrJn/ws/lYsvoR+4qbsv5q6rVtdYvYoj3cUlk+HUS0//lw==}
+    peerDependencies:
+      react: ^18.3.1 || ^19.0.0
 
   '@medusajs/index@2.15.2':
     resolution: {integrity: sha512-WAZsGi7Dx89RsTbOha65Q5mg5jQw72f0VUpZWSEh7cxym8q+NnEcjDPIoW7ujRQI3nT+h9sfBcMKLzTgl+CO9g==}
@@ -4326,20 +4351,16 @@ packages:
     peerDependencies:
       '@medusajs/framework': 2.15.2
 
-  '@medusajs/js-sdk@2.13.4':
-    resolution: {integrity: sha512-OpkGSi0jz5XbywKCGtHhD96zTnE9fVVb+tOuxJWL42cUcdWXOUZ/q4nes7r1bp+JXb67yeDglptd3rdrjtR6cg==}
-    engines: {node: '>=20'}
-
-  '@medusajs/js-sdk@2.14.1':
-    resolution: {integrity: sha512-WOQVw8EuAHnIEqNjaJWWtckzZmnsGC9HH2/dEEN9YdqpzomJNZ/vEoDxVwWSHwNPJD6y8DUjkQ+RZ9+6t8gJ/g==}
-    engines: {node: '>=20'}
-
   '@medusajs/js-sdk@2.14.2':
     resolution: {integrity: sha512-nNpkzcQU8WhPEcXIoh7ET+1y8qSaRsAeoYtci+naCdT7U0/f4jT4vpBH1vI5E3P+sWvSO+fAVvkhVoHc0OY+bQ==}
     engines: {node: '>=20'}
 
   '@medusajs/js-sdk@2.15.2':
     resolution: {integrity: sha512-98G8idoFZoOF3UJfcg/Fe1ocOzb3InTeTYQvtwybDGTi6eWbUTMwR/jCkDm6P/ipb5puCRP9uz5TpzB51+WrCw==}
+    engines: {node: '>=20'}
+
+  '@medusajs/js-sdk@2.15.3':
+    resolution: {integrity: sha512-2nVGvHSLnK7PU/uDBS92T6jyjE4z5dM7frOgdoR2I7Gicalg5TqR6OerkFytkmHk1bI3JgMwiZvm1C7bDyCB7Q==}
     engines: {node: '>=20'}
 
   '@medusajs/link-modules@2.15.2':
@@ -4546,30 +4567,6 @@ packages:
     peerDependencies:
       '@medusajs/framework': 2.15.2
 
-  '@medusajs/types@2.13.4':
-    resolution: {integrity: sha512-tp9jXAwTWC8eN29QcYe9GK78iprJ+K9YnwAfneUdZgn++wHaqnn/gAkrJxRmEiFlB/xgwlDT+49xzbBEqPLTYw==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      ioredis: ^5.4.1
-      vite: ^5.4.21
-    peerDependenciesMeta:
-      ioredis:
-        optional: true
-      vite:
-        optional: true
-
-  '@medusajs/types@2.14.1':
-    resolution: {integrity: sha512-L70AWL+wdadzPPFIxCIld8Hsw8sBt4wpqTKZe6vsx0wizUSUptQMzzDoPOPC/cRMjgt7hEPXwCcghRICKYsI8w==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      ioredis: ^5.4.1
-      vite: ^5.4.21
-    peerDependenciesMeta:
-      ioredis:
-        optional: true
-      vite:
-        optional: true
-
   '@medusajs/types@2.14.2':
     resolution: {integrity: sha512-vWzzuG9hXrGMVhrwrUL+LiOi2cuvAoPRyDVdQeA7USdt7ooC+Tb6tWv6E9Sf1wFR3OoUa3S7Ft25qIXmVpV1AQ==}
     engines: {node: '>=20'}
@@ -4594,18 +4591,25 @@ packages:
       vite:
         optional: true
 
-  '@medusajs/ui-preset@2.13.4':
-    resolution: {integrity: sha512-MnjL9FdmHmsGzkeGG8d22fMom5R9Tk1lyya/tnHQG939W58AkRk3vjND8zsqz6vItsDy046YFAIZBDoCoH0WtQ==}
+  '@medusajs/types@2.15.3':
+    resolution: {integrity: sha512-JEEFw7cfAX5vqdc7cWbFnpejDpZ9++kejePHyCoRxojo2wOOME6expGSO5HENwZ1vxSlwtkBPNZsZqEJb1tf3g==}
+    engines: {node: '>=20'}
     peerDependencies:
-      tailwindcss: ^3.4.3
-
-  '@medusajs/ui-preset@2.14.1':
-    resolution: {integrity: sha512-xTDFhpuwuNqGIZA6jRI16Ez7izR5y0wWEPowwQBLghCwQxh9E0osDcoyuaDVFQmCSKdlfPF8pdxRK860qXZLIg==}
-    peerDependencies:
-      tailwindcss: ^3.4.3
+      ioredis: ^5.4.1
+      vite: ^5.4.21
+    peerDependenciesMeta:
+      ioredis:
+        optional: true
+      vite:
+        optional: true
 
   '@medusajs/ui-preset@2.14.2':
     resolution: {integrity: sha512-1+0xDeV8zJkmTN+vyHQY7YFF3JW+nmRETT5pnrJQtQOALVofYO0tM3hM8W15ahg8HJV8c5hKRVpoffplB1mU3w==}
+    peerDependencies:
+      tailwindcss: ^3.4.3
+
+  '@medusajs/ui-preset@2.15.3':
+    resolution: {integrity: sha512-3E1ZqR4uhGf7Js18DVT3D9C49YPi0oD6bceZpEOS/pZNvHb9naCfqSfivPlz+YtXH01/Vp0zzBPU4RF0POmnFA==}
     peerDependencies:
       tailwindcss: ^3.4.3
 
@@ -4615,14 +4619,8 @@ packages:
       react: ^18.3.1
       react-dom: ^18.3.1
 
-  '@medusajs/ui@4.1.4':
-    resolution: {integrity: sha512-UrXUCsGY3JoRHFfRDzx5hvyH9NI0FlSTkiddeiPLED71lgTqO0MHUrOA7M9cCovM7L8naM3Xn7KY8xPMXDGc5w==}
-    peerDependencies:
-      react: ^18.3.1
-      react-dom: ^18.3.1
-
-  '@medusajs/ui@4.1.8':
-    resolution: {integrity: sha512-bu04wxRNABWHJzbDmoBqhjTt4AAkTgxyzNt5MfcBDAcjO1YGcsU/JLL6lRGSRC9Aqi1t22KcB4MXWUpd7OB8cw==}
+  '@medusajs/ui@4.1.13':
+    resolution: {integrity: sha512-KoUn3kmtfyn2tyMv8WjBpQHveqwAARTKkEnJ+avXdclQ1wblMFST1EHTwmUKqZCMAIszDovkn5Oa0v7ZFzynOQ==}
     peerDependencies:
       react: ^18.3.1
       react-dom: ^18.3.1
@@ -4700,6 +4698,16 @@ packages:
 
   '@modelcontextprotocol/sdk@1.27.1':
     resolution: {integrity: sha512-sr6GbP+4edBwFndLbM60gf07z0FQ79gaExpnsjMGePXqFcSSb7t6iscpjk9DhFhwd+mTEQrzNafGP8/iGGFYaA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@cfworker/json-schema': ^4.1.1
+      zod: ^4.2.0
+    peerDependenciesMeta:
+      '@cfworker/json-schema':
+        optional: true
+
+  '@modelcontextprotocol/sdk@1.29.0':
+    resolution: {integrity: sha512-zo37mZA9hJWpULgkRpowewez1y6ML5GsXJPY8FI0tBBCd77HEvza4jDqRKOXgHNn867PVGCyTdzqpz0izu5ZjQ==}
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
@@ -5719,8 +5727,11 @@ packages:
   '@poppinss/exception@1.2.3':
     resolution: {integrity: sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw==}
 
-  '@posthog/core@1.7.1':
-    resolution: {integrity: sha512-kjK0eFMIpKo9GXIbts8VtAknsoZ18oZorANdtuTj1CbgS28t4ZVq//HAWhnxEuXRTrtkd+SUJ6Ux3j2Af8NCuA==}
+  '@posthog/core@1.29.8':
+    resolution: {integrity: sha512-wdX4/WzZ+sV92z4ppC9SjOWdztY/0bN74SbJFy1X8/1N8+aNTSHsGEKHtbHitkIkJc861oYWr4ZzOoV0iVDP4w==}
+
+  '@posthog/types@1.375.0':
+    resolution: {integrity: sha512-ykjHtJv1eUnEUQIuCavMi/+lnBhZPRVnFDrbG6m4fS+vZ3ajn8dGooPpbWjF33Uo4g7W4ew51dBtJGf2evvurA==}
 
   '@prisma/instrumentation@7.2.0':
     resolution: {integrity: sha512-Rh9Z4x5kEj1OdARd7U18AtVrnL6rmLSI0qYShaB4W7Wx5BKbgzndWF+QnuzMb7GLfVdlT5aYCXoPQVYuYtVu0g==}
@@ -7374,8 +7385,18 @@ packages:
     cpu: [arm]
     os: [android]
 
+  '@rollup/rollup-android-arm-eabi@4.60.4':
+    resolution: {integrity: sha512-F5QXMSiFebS9hKZj02XhWLLnRpJ3B3AROP0tWbFBSj+6kCbg5m9j5JoHKd4mmSVy5mS/IMQloYgYxCuJC0fxEQ==}
+    cpu: [arm]
+    os: [android]
+
   '@rollup/rollup-android-arm64@4.59.0':
     resolution: {integrity: sha512-hZ+Zxj3SySm4A/DylsDKZAeVg0mvi++0PYVceVyX7hemkw7OreKdCvW2oQ3T1FMZvCaQXqOTHb8qmBShoqk69Q==}
+    cpu: [arm64]
+    os: [android]
+
+  '@rollup/rollup-android-arm64@4.60.4':
+    resolution: {integrity: sha512-GxxTKApUpzRhof7poWvCJHRF51C67u1R7D6DiluBE8wKU1u5GWE8t+v81JvJYtbawoBFX1hLv5Ei4eVjkWokaw==}
     cpu: [arm64]
     os: [android]
 
@@ -7384,8 +7405,18 @@ packages:
     cpu: [arm64]
     os: [darwin]
 
+  '@rollup/rollup-darwin-arm64@4.60.4':
+    resolution: {integrity: sha512-tua0TaJxMOB1R0V0RS1jFZ/RpURFDJIOR2A6jWwQeawuFyS4gBW+rntLRaQd0EQ4bd6Vp44Z2rXW+YYDBsj6IA==}
+    cpu: [arm64]
+    os: [darwin]
+
   '@rollup/rollup-darwin-x64@4.59.0':
     resolution: {integrity: sha512-ZW2KkwlS4lwTv7ZVsYDiARfFCnSGhzYPdiOU4IM2fDbL+QGlyAbjgSFuqNRbSthybLbIJ915UtZBtmuLrQAT/w==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@rollup/rollup-darwin-x64@4.60.4':
+    resolution: {integrity: sha512-CSKq7MsP+5PFIcydhAiR1K0UhEI1A2jWXVKHPCBZ151yOutENwvnPocgVHkivu2kviURtCEB6zUQw0vs8RrhMg==}
     cpu: [x64]
     os: [darwin]
 
@@ -7394,13 +7425,29 @@ packages:
     cpu: [arm64]
     os: [freebsd]
 
+  '@rollup/rollup-freebsd-arm64@4.60.4':
+    resolution: {integrity: sha512-+O8OkVdyvXMtJEciu2wS/pzm1IxntEEQx3z5TAVy4l32G0etZn+RsA48ARRrFm6Ri8fvqPQfgrvNxSjKAbnd3g==}
+    cpu: [arm64]
+    os: [freebsd]
+
   '@rollup/rollup-freebsd-x64@4.59.0':
     resolution: {integrity: sha512-d3DuZi2KzTMjImrxoHIAODUZYoUUMsuUiY4SRRcJy6NJoZ6iIqWnJu9IScV9jXysyGMVuW+KNzZvBLOcpdl3Vg==}
     cpu: [x64]
     os: [freebsd]
 
+  '@rollup/rollup-freebsd-x64@4.60.4':
+    resolution: {integrity: sha512-Iw3oMskH3AfNuhU0MSN7vNbdi4me/NiYo2azqPz/Le16zHSa+3RRmliCMWWQmh4lcndccU40xcJuTYJZxNo/lw==}
+    cpu: [x64]
+    os: [freebsd]
+
   '@rollup/rollup-linux-arm-gnueabihf@4.59.0':
     resolution: {integrity: sha512-t4ONHboXi/3E0rT6OZl1pKbl2Vgxf9vJfWgmUoCEVQVxhW6Cw/c8I6hbbu7DAvgp82RKiH7TpLwxnJeKv2pbsw==}
+    cpu: [arm]
+    os: [linux]
+    libc: [glibc]
+
+  '@rollup/rollup-linux-arm-gnueabihf@4.60.4':
+    resolution: {integrity: sha512-EIPRXTVQpHyF8WOo219AD2yEltPehLTcTMz2fn6JsatLYSzQf00hj3rulF+yauOlF9/FtM2WpkT/hJh/KJFGhA==}
     cpu: [arm]
     os: [linux]
     libc: [glibc]
@@ -7411,8 +7458,20 @@ packages:
     os: [linux]
     libc: [musl]
 
+  '@rollup/rollup-linux-arm-musleabihf@4.60.4':
+    resolution: {integrity: sha512-J3Yh9PzzF1Ovah2At+lHiGQdsYgArxBbXv/zHfSyaiFQEqvNv7DcW98pCrmdjCZBrqBiKrKKe2V+aaSGWuBe/w==}
+    cpu: [arm]
+    os: [linux]
+    libc: [musl]
+
   '@rollup/rollup-linux-arm64-gnu@4.59.0':
     resolution: {integrity: sha512-jYgUGk5aLd1nUb1CtQ8E+t5JhLc9x5WdBKew9ZgAXg7DBk0ZHErLHdXM24rfX+bKrFe+Xp5YuJo54I5HFjGDAA==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@rollup/rollup-linux-arm64-gnu@4.60.4':
+    resolution: {integrity: sha512-BFDEZMYfUvLn37ONE1yMBojPxnMlTFsdyNoqncT0qFq1mAfllL+ATMMJd8TeuVMiX84s1KbcxcZbXInmcO2mRg==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
@@ -7423,8 +7482,20 @@ packages:
     os: [linux]
     libc: [musl]
 
+  '@rollup/rollup-linux-arm64-musl@4.60.4':
+    resolution: {integrity: sha512-pc9EYOSlOgdQ2uPl1o9PF6/kLSgaUosia7gOuS8mB69IxJvlclko1MECXysjs5ryez1/5zjYqx3+xYU0TU6R1A==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
   '@rollup/rollup-linux-loong64-gnu@4.59.0':
     resolution: {integrity: sha512-gbUSW/97f7+r4gHy3Jlup8zDG190AuodsWnNiXErp9mT90iCy9NKKU0Xwx5k8VlRAIV2uU9CsMnEFg/xXaOfXg==}
+    cpu: [loong64]
+    os: [linux]
+    libc: [glibc]
+
+  '@rollup/rollup-linux-loong64-gnu@4.60.4':
+    resolution: {integrity: sha512-NxnomyxYerDh5n4iLrNa+sH+Z+U4BMEE46V2PgQ/hoB909i8gV1M5wPojWg9fk1jWpO3IQnOs20K4wyZuFLEFQ==}
     cpu: [loong64]
     os: [linux]
     libc: [glibc]
@@ -7435,8 +7506,20 @@ packages:
     os: [linux]
     libc: [musl]
 
+  '@rollup/rollup-linux-loong64-musl@4.60.4':
+    resolution: {integrity: sha512-nbJnQ8a3z1mtmrwImCYhc6BGpThAyYVRQxw9uKSKG4wR6aAYno9sVjJ0zaZcW9BPJX1GbrDPf+SvdWjgTuDmnw==}
+    cpu: [loong64]
+    os: [linux]
+    libc: [musl]
+
   '@rollup/rollup-linux-ppc64-gnu@4.59.0':
     resolution: {integrity: sha512-sw1o3tfyk12k3OEpRddF68a1unZ5VCN7zoTNtSn2KndUE+ea3m3ROOKRCZxEpmT9nsGnogpFP9x6mnLTCaoLkA==}
+    cpu: [ppc64]
+    os: [linux]
+    libc: [glibc]
+
+  '@rollup/rollup-linux-ppc64-gnu@4.60.4':
+    resolution: {integrity: sha512-2EU6acNrQLd8tYvo/LXW535wupT3m6fo7HKo6lr7ktQoItxTyOL1ZCR/GfGCuXl2vR+zmfI6eRXkSemafv+iVg==}
     cpu: [ppc64]
     os: [linux]
     libc: [glibc]
@@ -7447,8 +7530,20 @@ packages:
     os: [linux]
     libc: [musl]
 
+  '@rollup/rollup-linux-ppc64-musl@4.60.4':
+    resolution: {integrity: sha512-WeBtoMuaMxiiIrO2IYP3xs6GMWkJP2C0EoT8beTLkUPmzV1i/UcOSVw1d5r9KBODtHKilG5yFxsGRnBbK3wJ4A==}
+    cpu: [ppc64]
+    os: [linux]
+    libc: [musl]
+
   '@rollup/rollup-linux-riscv64-gnu@4.59.0':
     resolution: {integrity: sha512-NDYMpsXYJJaj+I7UdwIuHHNxXZ/b/N2hR15NyH3m2qAtb/hHPA4g4SuuvrdxetTdndfj9b1WOmy73kcPRoERUg==}
+    cpu: [riscv64]
+    os: [linux]
+    libc: [glibc]
+
+  '@rollup/rollup-linux-riscv64-gnu@4.60.4':
+    resolution: {integrity: sha512-FJHFfqpKUI3A10WrWKiFbBZ7yVbGT4q4B5o1qKFFojqpaYoh9LrQgqWCmmcxQzVSXYtyB5bzkXrYzlHTs21MYA==}
     cpu: [riscv64]
     os: [linux]
     libc: [glibc]
@@ -7459,8 +7554,20 @@ packages:
     os: [linux]
     libc: [musl]
 
+  '@rollup/rollup-linux-riscv64-musl@4.60.4':
+    resolution: {integrity: sha512-mcEl6CUT5IAUmQf1m9FYSmVqCJlpQ8r8eyftFUHG8i9OhY7BkBXSUdnLH5DOf0wCOjcP9v/QO93zpmF1SptCCw==}
+    cpu: [riscv64]
+    os: [linux]
+    libc: [musl]
+
   '@rollup/rollup-linux-s390x-gnu@4.59.0':
     resolution: {integrity: sha512-oF87Ie3uAIvORFBpwnCvUzdeYUqi2wY6jRFWJAy1qus/udHFYIkplYRW+wo+GRUP4sKzYdmE1Y3+rY5Gc4ZO+w==}
+    cpu: [s390x]
+    os: [linux]
+    libc: [glibc]
+
+  '@rollup/rollup-linux-s390x-gnu@4.60.4':
+    resolution: {integrity: sha512-ynt3JxVd2w2buzoKDWIyiV1pJW93xlQic1THVLXilz429oijRpSHivZAgp65KBu+cMcgf1eVVjdnTLvPxgCuoQ==}
     cpu: [s390x]
     os: [linux]
     libc: [glibc]
@@ -7471,8 +7578,20 @@ packages:
     os: [linux]
     libc: [glibc]
 
+  '@rollup/rollup-linux-x64-gnu@4.60.4':
+    resolution: {integrity: sha512-Boiz5+MsaROEWDf+GGEwF8VMHGhlUoQMtIPjOgA5fv4osupqTVnJteQNKJwUcnUog2G55jYXH7KZFFiJe0TEzQ==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
   '@rollup/rollup-linux-x64-musl@4.59.0':
     resolution: {integrity: sha512-2UdiwS/9cTAx7qIUZB/fWtToJwvt0Vbo0zmnYt7ED35KPg13Q0ym1g442THLC7VyI6JfYTP4PiSOWyoMdV2/xg==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@rollup/rollup-linux-x64-musl@4.60.4':
+    resolution: {integrity: sha512-+qfSY27qIrFfI/Hom04KYFw3GKZSGU4lXus51wsb5EuySfFlWRwjkKWoE9emgRw/ukoT4Udsj4W/+xxG8VbPKg==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
@@ -7482,8 +7601,18 @@ packages:
     cpu: [x64]
     os: [openbsd]
 
+  '@rollup/rollup-openbsd-x64@4.60.4':
+    resolution: {integrity: sha512-VpTfOPHgVXEBeeR8hZ2O0F3aSso+JDWqTWmTmzcQKted54IAdUVbxE+j/MVxUsKa8L20HJhv3vUezVPoquqWjA==}
+    cpu: [x64]
+    os: [openbsd]
+
   '@rollup/rollup-openharmony-arm64@4.59.0':
     resolution: {integrity: sha512-tt9KBJqaqp5i5HUZzoafHZX8b5Q2Fe7UjYERADll83O4fGqJ49O1FsL6LpdzVFQcpwvnyd0i+K/VSwu/o/nWlA==}
+    cpu: [arm64]
+    os: [openharmony]
+
+  '@rollup/rollup-openharmony-arm64@4.60.4':
+    resolution: {integrity: sha512-IPOsh5aRYuLv/nkU51X10Bf75Bsf6+gZdx1X+QP5QM6lIJFHHqbHLG0uJn/hWthzo13UAc2umiUorqZy3axoZg==}
     cpu: [arm64]
     os: [openharmony]
 
@@ -7492,8 +7621,18 @@ packages:
     cpu: [arm64]
     os: [win32]
 
+  '@rollup/rollup-win32-arm64-msvc@4.60.4':
+    resolution: {integrity: sha512-4QzE9E81OohJ/HKzHhsqU+zcYYojVOXlFMs1DdyMT6qXl/niOH7AVElmmEdUNHHS/oRkc++d5k6Vy85zFs0DEw==}
+    cpu: [arm64]
+    os: [win32]
+
   '@rollup/rollup-win32-ia32-msvc@4.59.0':
     resolution: {integrity: sha512-UKFMHPuM9R0iBegwzKF4y0C4J9u8C6MEJgFuXTBerMk7EJ92GFVFYBfOZaSGLu6COf7FxpQNqhNS4c4icUPqxA==}
+    cpu: [ia32]
+    os: [win32]
+
+  '@rollup/rollup-win32-ia32-msvc@4.60.4':
+    resolution: {integrity: sha512-zTPgT1YuHHcd+Tmx7h8aml0FWFVelV5N54oHow9SLj+GfoDy/huQ+UV396N/C7KpMDMiPspRktzM1/0r1usYEA==}
     cpu: [ia32]
     os: [win32]
 
@@ -7502,8 +7641,18 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@rollup/rollup-win32-x64-gnu@4.60.4':
+    resolution: {integrity: sha512-DRS4G7mi9lJxqEDezIkKCaUIKCrLUUDCUaCsTPCi/rtqaC6D/jjwslMQyiDU50Ka0JKpeXeRBFBAXwArY52vBw==}
+    cpu: [x64]
+    os: [win32]
+
   '@rollup/rollup-win32-x64-msvc@4.59.0':
     resolution: {integrity: sha512-2HRCml6OztYXyJXAvdDXPKcawukWY2GpR5/nxKp4iBgiO3wcoEGkAaqctIbZcNB6KlUQBIqt8VYkNSj2397EfA==}
+    cpu: [x64]
+    os: [win32]
+
+  '@rollup/rollup-win32-x64-msvc@4.60.4':
+    resolution: {integrity: sha512-QVTUovf40zgTqlFVrKA1uXMVvU2QWEFWfAH8Wdc48IxLvrJMQVMBRjuQyUpzZCDkakImib9eVazbWlC6ksWtJw==}
     cpu: [x64]
     os: [win32]
 
@@ -8549,9 +8698,6 @@ packages:
   '@types/connect@3.4.38':
     resolution: {integrity: sha512-K6uROf1LD88uDQqJCktA4yzL1YYAK6NgfsI0v/mTgyPKWsX1CnJ0XPSDhViejru1GcRkLWb8RlzFYJRqGUbaug==}
 
-  '@types/cors@2.8.19':
-    resolution: {integrity: sha512-mFNylyeyqN93lfe/9CSxOGREz8cpzAhH+E93xJ4xWQf62V8sQ/24reV2nyzUWM6H6Xji+GGHpkbLe7pVoUEskg==}
-
   '@types/d3-array@3.2.2':
     resolution: {integrity: sha512-hOLWVbm7uRza0BYXpIIW5pxfrKe0W+D5lrFiAEYR+pb6w3N2SwSMaJbXdUfSEv+dT4MfHBLtn5js0LAWaO6otw==}
 
@@ -8614,6 +8760,9 @@ packages:
 
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
+
+  '@types/estree@1.0.9':
+    resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
 
   '@types/express-serve-static-core@4.19.8':
     resolution: {integrity: sha512-02S5fmqeoKzVZCHPZid4b8JH2eM5HzQLZWN2FohQEy/0eXTq8VXZfSN6Pcr3F6N9R/vNrj7cpgbhjie6m/1tCA==}
@@ -9368,6 +9517,9 @@ packages:
   ajv@6.14.0:
     resolution: {integrity: sha512-IWrosm/yrn43eiKqkfkHis7QioDleaXQHdDVPKg0FSwwd/DuvyX79TZnFOnYpB7dcsFAMmtFztZuXPDvSePkFw==}
 
+  ajv@6.15.0:
+    resolution: {integrity: sha512-fgFx7Hfoq60ytK2c7DhnF8jIvzYgOMxfugjLOSMHjLIPgenqa7S7oaagATUq99mV6IYvN2tRmC0wnTYX6iPbMw==}
+
   ajv@8.13.0:
     resolution: {integrity: sha512-PRA911Blj99jR5RMeTunVbNXMF6Lp4vZXnk5GQjcnUWUTsrXtekg/pnmFFI2u/I36Y/2bITGS30GZCXei6uNkA==}
 
@@ -9922,6 +10074,10 @@ packages:
     resolution: {integrity: sha512-oKlSFMcMwpUg2ednkhQ454wfWiU/ul3CkJe/PEHcTKuiX6RpbehUiFMXu13HalGZxfUwCQzZG747YXBn1im9ww==}
     engines: {node: '>= 0.4'}
 
+  call-bind@1.0.9:
+    resolution: {integrity: sha512-a/hy+pNsFUTR+Iz8TCJvXudKVLAnz/DyeSUo10I5yvFDQJBFU2s9uqQpoSrJlroHUKoKqzg+epxyP9lqFdzfBQ==}
+    engines: {node: '>= 0.4'}
+
   call-bound@1.0.4:
     resolution: {integrity: sha512-+ys997U96po4Kx/ABpBCqhA9EuxJaQWDQg7295H4hBphv3IZg0boBKuwYpt4YXp6MZ5AmZQnU/tyMTlRpaSejg==}
     engines: {node: '>= 0.4'}
@@ -10036,8 +10192,17 @@ packages:
   chardet@2.1.1:
     resolution: {integrity: sha512-PsezH1rqdV9VvyNhxxOW32/d75r01NY7TQCmOqomRo15ZSOKbpTFVsfjghxo6JloQUCGnH4k1LGu0R4yCLlWQQ==}
 
-  chat@4.26.0:
-    resolution: {integrity: sha512-QToDnIEGpyb8yQA6YLMHOSRK30YVk4RtsyFyuWFYyB2c4jQlyIrSWtwVK7qyvmvqzQp9uDwCdJRAhS8GtCHAGQ==}
+  chat@4.29.0:
+    resolution: {integrity: sha512-KdPfzaie5ivYytyRICTERg5xT+LeCbYefokvNAqTHe92eqkFaoTMXXkSitikxJVWhZIb2YoXF1b9UZHyzSzKzw==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      ai: ^6.0.182
+      zod: ^4.2.0
+    peerDependenciesMeta:
+      ai:
+        optional: true
+      zod:
+        optional: true
 
   check-error@2.1.3:
     resolution: {integrity: sha512-PAJdDJusoxnwm1VwW07VWwUN1sl7smmC3OKggvndJFadxxDRyFJBX/ggnu/KE4kQAB7a3Dp8f/YXC1FlUprWmA==}
@@ -10389,13 +10554,17 @@ packages:
     resolution: {integrity: sha512-FveZTNuGw04cxlAiWbzi6zTAL/lhehaWbTtgluJh4/E95DqMwTmha3KZN1aAWA8cFIhHzMZUvLevkw5Rqk+tSQ==}
     engines: {node: '>= 0.6'}
 
-  content-disposition@1.0.1:
-    resolution: {integrity: sha512-oIXISMynqSqm241k6kcQ5UwttDILMK4BiurCfGEREw6+X9jkkpEe5T9FZaApyLGGOnFuyMWZpdolTXMtvEJ08Q==}
+  content-disposition@1.1.0:
+    resolution: {integrity: sha512-5jRCH9Z/+DRP7rkvY83B+yGIGX96OYdJmzngqnw2SBSxqCFPd0w2km3s5iawpGX8krnwSGmF0FW5Nhr0Hfai3g==}
     engines: {node: '>=18'}
 
   content-type@1.0.5:
     resolution: {integrity: sha512-nTjqfcBFEipKdXCv4YDQWCfmcLZKm81ldF0pAopTvyrFGVbcR6P/VAAd5G7N+0tTr8QqiU0tFadD6FK4NtJwOA==}
     engines: {node: '>= 0.6'}
+
+  content-type@2.0.0:
+    resolution: {integrity: sha512-j/O/d7GcZCyNl7/hwZAb606rzqkyvaDctLmckbxLzHvFBzTJHuGEdodATcP3yIRoDrLHkIATJuvzbFlp/ki2cQ==}
+    engines: {node: '>=18'}
 
   conventional-changelog-angular@7.0.0:
     resolution: {integrity: sha512-ROjNchA9LgfNMTTFSIWPzebCwOGFdgkEq45EnvvrmSLvCtAw0HSmrCs7/ty+wAeYUZyNay0YMUNYFTRL72PkBQ==}
@@ -10522,6 +10691,10 @@ packages:
     resolution: {integrity: sha512-p0SaNjrHOnQeR8/VnfGbmg9te2kfyYSQ7Sc/j/6DtPL3JQvKxmjO9TSjNFpujqV3vEYYBvNNvXSxzyksBWAx1Q==}
     engines: {node: '>=12.0.0'}
 
+  croner@10.0.1:
+    resolution: {integrity: sha512-ixNtAJndqh173VQ4KodSdJEI6nuioBWI0V1ITNKhZZsO0pEMoDxz539T4FTTbSZ/xIOSuDnzxLVRqBVSvPNE2g==}
+    engines: {node: '>=18.0'}
+
   cross-env@7.0.3:
     resolution: {integrity: sha512-+/HKd6EgcQCJGh2PSjZuUitQBQynKor4wrFbRg4DtAgS1aWO+gU52xpH7M9ScGgXSYmAVS9bIJ8EzuaGw0oNAw==}
     engines: {node: '>=10.14', npm: '>=6', yarn: '>=1'}
@@ -10532,6 +10705,9 @@ packages:
 
   cross-fetch@4.0.0:
     resolution: {integrity: sha512-e4a5N8lVvuLgAWgnCrLr2PP0YyDOTHa9H/Rj54dirp61qXnNq46m82bRhNqIA5VccJtWBvPTFRV3TtvHUKPB1g==}
+
+  cross-fetch@4.1.0:
+    resolution: {integrity: sha512-uKm5PU+MHTootlWEY+mZ4vvXoCn4fLQxT9dSc1sXVMSFkINTJVN8cAQROpwcKm8bJ/c7rgZVIBWzH5T78sNZZw==}
 
   cross-inspect@1.0.1:
     resolution: {integrity: sha512-Pcw1JTvZLSJH83iiGWt6fRcT+BjZlCDRVwYLbUcHzv/CRpB7r0MlSrGbIyQvVSNyGnbt7G4AXuyCiDR3POvZ1A==}
@@ -11207,8 +11383,8 @@ packages:
   emoticon@4.1.0:
     resolution: {integrity: sha512-VWZfnxqwNcc51hIy/sbOdEem6D+cVtpPzEEtVAFdaas30+1dgkyaOQ4sQ6Bp0tOMqWO1v+HQfYaoodOkdhK6SQ==}
 
-  empathic@2.0.0:
-    resolution: {integrity: sha512-i6UzDscO/XfAcNYD75CfICkmfLedpyPDdozrLMmQc5ORaQcdMoc21OnlEylMIqI7U8eniKrPMxxtj8k0vhmJhA==}
+  empathic@2.0.1:
+    resolution: {integrity: sha512-YGRs8knHhKHVShLkFET/rWAU8kmHbOV5LwN938RHI0pljAJ1Gf6SzXsSmRaEzcXTtOOmVqJ5+WtQPL5uigY50Q==}
     engines: {node: '>=14'}
 
   enabled@2.0.0:
@@ -11276,6 +11452,10 @@ packages:
 
   es-abstract@1.24.1:
     resolution: {integrity: sha512-zHXBLhP+QehSSbsS9Pt23Gg964240DPd6QCf8WpkqEXxQ7fhdZzYsocOr5u7apWonsS5EjZDmTF+/slGMyasvw==}
+    engines: {node: '>= 0.4'}
+
+  es-abstract@1.24.2:
+    resolution: {integrity: sha512-2FpH9Q5i2RRwyEP1AylXe6nYLR5OhaJTZwmlcP0dL/+JCbgg7yyEo/sEK6HeGZRf3dFpWwThaRHVApXSkW3xeg==}
     engines: {node: '>= 0.4'}
 
   es-aggregate-error@1.0.14:
@@ -11588,6 +11768,10 @@ packages:
     resolution: {integrity: sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg==}
     engines: {node: '>=18.0.0'}
 
+  eventsource-parser@3.0.8:
+    resolution: {integrity: sha512-70QWGkr4snxr0OXLRWsFLeRBIRPuQOvt4s8QYjmUlmlkyTZkRqS7EDVRZtzU3TiyDbXSzaOeF0XUKy8PchzukQ==}
+    engines: {node: '>=18.0.0'}
+
   eventsource@3.0.7:
     resolution: {integrity: sha512-CRT1WTyuQoD771GW56XEZFQ/ZoSfWid1alKGDYMmkt2yl8UXrVR4pspqWNEcqKvVIzg6PAltWjxcSSPrboA4iA==}
     engines: {node: '>=18.0.0'}
@@ -11630,6 +11814,12 @@ packages:
 
   express-rate-limit@8.2.1:
     resolution: {integrity: sha512-PCZEIEIxqwhzw4KF0n7QF4QqruVTcF73O5kFKUnGOyjbCCgizBBiFaYpd/fnBLUMPw/BWw9OsiN7GgrNYr7j6g==}
+    engines: {node: '>= 16'}
+    peerDependencies:
+      express: '>= 4.11'
+
+  express-rate-limit@8.5.2:
+    resolution: {integrity: sha512-5Kb34ipNX694DH48vN9irak1Qx30nb0PLYHXfJgw4YEjiC3ZEmZJhwOp+VfiCYwFzvFTdB9QkArYS5kXa2cx2A==}
     engines: {node: '>= 16'}
     peerDependencies:
       express: '>= 4.11'
@@ -12111,6 +12301,9 @@ packages:
   get-tsconfig@4.13.6:
     resolution: {integrity: sha512-shZT/QMiSHc/YBLxxOkMtgSid5HFoauqCE3/exfsEcwg1WkeqjG+V40yBbBrsD+jW2HDXcs28xOfcbm2jI8Ddw==}
 
+  get-tsconfig@4.14.0:
+    resolution: {integrity: sha512-yTb+8DXzDREzgvYmh6s9vHsSVCHeC0G3PI5bEXNBHtmshPnO+S5O7qgLEOn0I5QvMy6kpZN8K1NKGyilLb93wA==}
+
   getopts@2.3.0:
     resolution: {integrity: sha512-5eDf9fuSXwxBL6q5HX+dhDj+dslFGWzU5thZ9kNKUkcPtaPdatmUFKwHFrLb/uf/WpA4BHET+AX3Scl56cAjpA==}
 
@@ -12280,6 +12473,10 @@ packages:
     resolution: {integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==}
     engines: {node: '>= 0.4'}
 
+  hasown@2.0.3:
+    resolution: {integrity: sha512-ej4AhfhfL2Q2zpMmLo7U1Uv9+PyhIZpgQLGT1F9miIGmiCJIoCgSmczFdrc97mWT4kVY72KA+WnnhJ5pghSvSg==}
+    engines: {node: '>= 0.4'}
+
   hast-util-from-parse5@8.0.3:
     resolution: {integrity: sha512-3kxEVkEKt0zvcZ3hCRYI8rqrgwtlIOFMWkbclACvjlDw8Li9S2hk/d51OI0nr/gIpdMHNepwgOKqZ/sy0Clpyg==}
 
@@ -12347,6 +12544,10 @@ packages:
 
   hono@4.12.15:
     resolution: {integrity: sha512-qM0jDhFEaCBb4TxoW7f53Qrpv9RBiayUHo0S52JudprkhvpjIrGoU1mnnr29Fvd1U335ZFPZQY1wlkqgfGXyLg==}
+    engines: {node: '>=16.9.0'}
+
+  hono@4.12.21:
+    resolution: {integrity: sha512-uV63apnb0kyPtAUwoWgaGh9HyIFcv8lgmzPZSiTBQAFOFGIzka5EZ1dZocmGnn0XdX0+XTqJ6Tqv7selMuGLRQ==}
     engines: {node: '>=16.9.0'}
 
   hook-std@3.0.0:
@@ -12496,6 +12697,9 @@ packages:
 
   i18next-http-backend@2.4.2:
     resolution: {integrity: sha512-wKrgGcaFQ4EPjfzBTjzMU0rbFTYpa0S5gv9N/d8WBmWS64+IgJb7cHddMvV+tUkse7vUfco3eVs2lB+nJhPo3w==}
+
+  i18next-http-backend@3.0.5:
+    resolution: {integrity: sha512-QaWHnsxieEDcqKe+vo/RFqpiIFRi/KBqlOSPcUlvinBaISCeiTRCbtrazHAjtHtsLC66oDsROAH8frWkQzfMMQ==}
 
   i18next@23.7.11:
     resolution: {integrity: sha512-A/vOkw8vY99YHU9A1Td3I1dcTiYaPnwBWzrpVzfXUXSYgogK3cmBcmop/0cnXPc6QpUWIyqaugKNxRUEZVk9Nw==}
@@ -12666,6 +12870,10 @@ packages:
     resolution: {integrity: sha512-NWv9YLW4PoW2B7xtzaS3NCot75m6nK7Icdv0o3lfMceJVRfSoQwqD4wEH5rLwoKJwUiZ/rfpiVBhnaF0FK4HoA==}
     engines: {node: '>= 12'}
 
+  ip-address@10.2.0:
+    resolution: {integrity: sha512-/+S6j4E9AHvW9SWMSEY9Xfy66O5PWvVEJ08O0y5JGyEKQpojb0K0GKpz/v5HJ/G0vi3D2sjGK78119oXZeE0qA==}
+    engines: {node: '>= 12'}
+
   ip-address@5.9.4:
     resolution: {integrity: sha512-dHkI3/YNJq4b/qQaz+c8LuarD3pY24JqZWfjB8aZx1gtpc2MDILu9L9jpZe1sHpzo/yWFweQVn+U//FhazUxmw==}
     engines: {node: '>= 0.10'}
@@ -12735,6 +12943,10 @@ packages:
 
   is-core-module@2.16.1:
     resolution: {integrity: sha512-UfoeMA6fIJ8wTYFEUjelnaGI67v6+N7qXJEvQuIGa99l4xsCruSYOVSQ0uPANn4dAzm8lkYPaKLrrijLq7x23w==}
+    engines: {node: '>= 0.4'}
+
+  is-core-module@2.16.2:
+    resolution: {integrity: sha512-evOr8xfXKxE6qSR0hSXL2r3sd7ALj8+7jQEUvPYcm5sgZFdJ+AYzT6yNmJenvIYQBgIGwfwz08sL8zoL7yq2BA==}
     engines: {node: '>= 0.4'}
 
   is-data-view@1.0.2:
@@ -13213,6 +13425,9 @@ packages:
   jose@6.1.3:
     resolution: {integrity: sha512-0TpaTfihd4QMNwrz/ob2Bp7X04yuxJkjRGi4aKmOqwhov54i6u79oCv7T+C7lo70MKH6BesI3vscD1yb/yzKXQ==}
 
+  jose@6.2.3:
+    resolution: {integrity: sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw==}
+
   jotai-scope@0.7.2:
     resolution: {integrity: sha512-Gwed97f3dDObrO43++2lRcgOqw4O2sdr4JCjP/7eHK1oPACDJ7xKHGScpJX9XaflU+KBHXF+VhwECnzcaQiShg==}
     peerDependencies:
@@ -13285,8 +13500,8 @@ packages:
   json-pointer@0.6.2:
     resolution: {integrity: sha512-vLWcKbOaXlO+jvRy4qNd+TI1QUPZzfJj1tpJ3vAXDych5XJf93ftpUKe5pKCrzyIIwgBJcOcCVRUfqQP25afBw==}
 
-  json-schema-to-zod@2.7.0:
-    resolution: {integrity: sha512-eW59l3NQ6sa3HcB+Ahf7pP6iGU7MY4we5JsPqXQ2ZcIPF8QxSg/lkY8lN0Js/AG0NjMbk+nZGUfHlceiHF+bwQ==}
+  json-schema-to-zod@2.8.1:
+    resolution: {integrity: sha512-fRr1mHgZ7hboLKBUdR428gd9dIHUFGivUqOeiDcSmyXkNZCtB1uGaZLvsjZ4GaN5pwBIs+TGIOf6s+Rp5/R/zA==}
     hasBin: true
 
   json-schema-traverse@0.4.1:
@@ -13772,12 +13987,12 @@ packages:
     engines: {node: '>= 12'}
     hasBin: true
 
-  mastra@1.6.3:
-    resolution: {integrity: sha512-HE1FbsVuOFvHCV15nzTo9vr7+xhs+OfQwUcWkRWqiBx4Ilc41jmla/uHGS+lc9GA6AdRpEYwrfCMLkMUigUnNQ==}
+  mastra@1.10.0:
+    resolution: {integrity: sha512-AJNN8mmPvGBnJR9RKWca9me4Ny6DV40YCt+SRLEtHq6zC69rfLs9RPrU0GNK2lN8EYKm1EOEO44cUK5SvQXlEQ==}
     engines: {node: '>=22.13.0'}
     hasBin: true
     peerDependencies:
-      '@mastra/core': '>=1.1.0-0 <2.0.0-0'
+      '@mastra/core': '>=1.34.0-0 <2.0.0-0'
       zod: ^4.2.0
 
   match-sorter@6.4.0:
@@ -14200,6 +14415,9 @@ packages:
   mlly@1.8.0:
     resolution: {integrity: sha512-l8D9ODSRWLe2KHJSifWGwBqpTZXIXTeo8mlKjY+E2HAakaTeNpqAyBZ8GSqLzHgw4XmHmC8whvpjJNMbFZN7/g==}
 
+  mlly@1.8.2:
+    resolution: {integrity: sha512-d+ObxMQFmbt10sretNDytwt85VrbkhhUA/JBGm1MPaWJ65Cl4wOgLaB1NYvJSZ0Ef03MMEU/0xpPMXUIQ29UfA==}
+
   mnemonist@0.38.3:
     resolution: {integrity: sha512-2K9QYubXx/NAjv4VLq1d1Ly8pWNC5L3BrixtdkyTegXWJIqY+zLNDhhX/A+ZwWt70tB1S8H4BE8FLYEFyNoOBw==}
 
@@ -14238,8 +14456,8 @@ packages:
   monaco-editor@0.55.1:
     resolution: {integrity: sha512-jz4x+TJNFHwHtwuV9vA9rMujcZRb0CEilTEwG2rRSpe/A7Jdkuj8xPKttCgOh+v/lkHy7HsZ64oj+q3xoAFl9A==}
 
-  moo@0.5.2:
-    resolution: {integrity: sha512-iSAJLHYKnX41mKcJKjqvnAN9sf0LMDTXDEvFv+ffuRR9a1MIuXLjMNL6EsnDHSkKLTWNqQQ5uo61P4EbU4NU+Q==}
+  moo@0.5.3:
+    resolution: {integrity: sha512-m2fmM2dDm7GZQsY7KK2cme8agi+AAljILjQnof7p1ZMDe6dQ4bdnSMx0cPppudoeNv5hEFQirN6u+O4fDE0IWA==}
 
   morgan@1.10.1:
     resolution: {integrity: sha512-223dMRJtI/l25dJKWpgij2cMtywuG/WiUKXdvwfbhGKBhy1puASqXwFzmWZ7+K73vUPoR7SS2Qz2cI/g9MKw0A==}
@@ -15032,6 +15250,9 @@ packages:
   path-to-regexp@8.3.0:
     resolution: {integrity: sha512-7jdwVIRtsP8MYpdXSwOS0YdD0Du+qOoF/AEPIt88PcCFrZCzx41oxku1jD88hZBwbNUIEfpqvuhjFaMAqMTWnA==}
 
+  path-to-regexp@8.4.2:
+    resolution: {integrity: sha512-qRcuIdP69NPm4qbACK+aDogI5CBDMi1jKe0ry5rSQJz8JVLsC7jV8XpiJjGRLLol3N+R5ihGYcrPLTno6pAdBA==}
+
   path-type@4.0.0:
     resolution: {integrity: sha512-gDKb8aZMDeD/tZWs9P6+q0J9Mwkdl6xMV8TjnGP3qJVJ06bdMgkbBlLU8IdfOsIsFz2BW1rNVT3XuNEl8zPAvw==}
     engines: {node: '>=8'}
@@ -15141,6 +15362,10 @@ packages:
 
   picomatch@2.3.1:
     resolution: {integrity: sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA==}
+    engines: {node: '>=8.6'}
+
+  picomatch@2.3.2:
+    resolution: {integrity: sha512-V7+vQEJ06Z+c5tSye8S+nHUfI51xoXIXjHQ99cQtKUkQqqO1kO/KCJUfZXuB47h/YBlDhah2H3hdUGXn8ie0oA==}
     engines: {node: '>=8.6'}
 
   picomatch@4.0.3:
@@ -15711,9 +15936,14 @@ packages:
     resolution: {integrity: sha512-EMsphSQ1YkQqKZL2cuG0zHkmjCCzQqQ71l2GXITqRwjhRleCdv00bDk/ktaSi0LnlaPzAc3535KTrjXsTdtx7A==}
     engines: {node: '>=12'}
 
-  posthog-node@5.17.2:
-    resolution: {integrity: sha512-lz3YJOr0Nmiz0yHASaINEDHqoV+0bC3eD8aZAG+Ky292dAnVYul+ga/dMX8KCBXg8hHfKdxw0SztYD5j6dgUqQ==}
-    engines: {node: '>=20'}
+  posthog-node@5.35.0:
+    resolution: {integrity: sha512-5Hos1mlwrZtzZbh1Pij1FyU9p4R3bajVtAKjPZ3vxhAScsGeyLsF5KqMaEAw3EYWmsX9SQ5CbYZtSlHf+nkw6g==}
+    engines: {node: ^20.20.0 || >=22.22.0}
+    peerDependencies:
+      rxjs: ^7.0.0
+    peerDependenciesMeta:
+      rxjs:
+        optional: true
 
   potpack@1.0.2:
     resolution: {integrity: sha512-choctRBIV9EMT9WGAZHn3V7t0Z2pMQyl0EZE6pFc/6ml3ssw7Dlf/oAOvFwjm1HVsqfQN8GfeFyJ+d8tRzqueQ==}
@@ -15931,10 +16161,6 @@ packages:
 
   quotemeta@0.0.0:
     resolution: {integrity: sha512-1XGObUh7RN5b58vKuAsrlfqT+Rc4vmw8N4pP9gFCq1GFlTdV0Ex/D2Ro1Drvrqj++HPi3ig0Np17XPslELeMRA==}
-
-  radash@12.1.1:
-    resolution: {integrity: sha512-h36JMxKRqrAxVD8201FrCpyeNuUY9Y5zZwujr20fFO77tpUtGa6EZzfKw/3WaiBX95fq7+MpsuMLNdSnORAwSA==}
-    engines: {node: '>=14.18.0'}
 
   radix-ui@1.1.2:
     resolution: {integrity: sha512-P2F30iTIG/eheoZbF3QXo7kDoFgnj/zxX1NwPq02G00ggq7OSXFsMuyn98WHtQCql2DsO8ZCbBk+VbbgVrlwOg==}
@@ -16563,6 +16789,11 @@ packages:
     engines: {node: '>= 0.4'}
     hasBin: true
 
+  resolve@1.22.12:
+    resolution: {integrity: sha512-TyeJ1zif53BPfHootBGwPRYT1RUt6oGWsaQr8UyZW/eAm9bKoijtvruSDEmZHm92CwS9nj7/fWttqPCgzep8CA==}
+    engines: {node: '>= 0.4'}
+    hasBin: true
+
   resolve@2.0.0-next.6:
     resolution: {integrity: sha512-3JmVl5hMGtJ3kMmB3zi3DL25KfkCEyy3Tw7Gmw7z5w8M9WlwoPFnIvwChzu1+cF3iaK3sp18hhPz8ANeimdJfA==}
     engines: {node: '>= 0.4'}
@@ -16621,6 +16852,11 @@ packages:
     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
     hasBin: true
 
+  rollup@4.60.4:
+    resolution: {integrity: sha512-WHeFSbZYsPu3+bLoNRUuAO+wavNlocOPf3wSHTP7hcFKVnJeWsYlCDbr3mTS14FCizf9ccIxXA8sGL8zKeQN3g==}
+    engines: {node: '>=18.0.0', npm: '>=8.0.0'}
+    hasBin: true
+
   rope-sequence@1.3.4:
     resolution: {integrity: sha512-UT5EDe2cu2E/6O4igUr5PSFs23nvvukicWHx6GnOPlHAiiYbzNuCRQCuiUdHJQcqKalLKlrYJnjY0ySGsXNQXQ==}
 
@@ -16666,6 +16902,10 @@ packages:
 
   safe-array-concat@1.1.3:
     resolution: {integrity: sha512-AURm5f0jYEOydBj7VQlVvDrjeFgthDdEF5H1dP+6mNpoXOMo1quQqJ4wvJDyRZ9+pO3kGWoOdmV08cSv2aJV6Q==}
+    engines: {node: '>=0.4'}
+
+  safe-array-concat@1.1.4:
+    resolution: {integrity: sha512-wtZlHyOje6OZTGqAoaDKxFkgRtkF9CnHAVnCHKfuj200wAgL+bSJhdsCD2l0Qx/2ekEXjPWcyKkfGb5CPboslg==}
     engines: {node: '>=0.4'}
 
   safe-buffer@5.1.2:
@@ -17087,6 +17327,7 @@ packages:
 
   sliced@1.0.1:
     resolution: {integrity: sha512-VZBmZP8WU3sMOZm1bdgTadsQbcscK0UM8oKxKVBs4XAhUo2Xxzm/OFMGBkPusxw9xL3Uy8LrzEqGqJhclsr0yA==}
+    deprecated: Unsupported
 
   slugify@1.4.7:
     resolution: {integrity: sha512-tf+h5W1IrjNm/9rKKj0JU2MDMruiopx0jjVA5zCdBtcGjfp0+c5rHw/zADLC3IeKlGHtVbHtpfzvYA0OYT+HKg==}
@@ -17892,9 +18133,9 @@ packages:
     resolution: {integrity: sha512-TkRKr9sUTxEH8MdfuCSP7VizJyzRNMjj2J2do2Jr3Kym598JVdEksuzPQCnlFPW4ky9Q+iA+ma9BGm06XQBy8g==}
     engines: {node: '>= 0.6'}
 
-  type-is@2.0.1:
-    resolution: {integrity: sha512-OZs6gsjF4vMp32qrCbiVSkrFmXtG/AZhY3t0iAMrMBiAZyV9oALtXO8hsrHbMXF9x6L3grlFuwW2oAz7cav+Gw==}
-    engines: {node: '>= 0.6'}
+  type-is@2.1.0:
+    resolution: {integrity: sha512-faYHw0anBbc/kWF3zFTEnxSFOAGUX9GFbOBthvDdLsIlEoWOFOtS0zgCiQYwIskL9iGXZL3kAXD8OoZ4GmMATA==}
+    engines: {node: '>= 18'}
 
   typed-array-buffer@1.0.3:
     resolution: {integrity: sha512-nAYYwfY3qnzX30IkA6AQZjVbtK6duGontcQm1WSG1MD94YLqK0515GNApXkoxKOWMusVssAHWLh9SeaoefYFGw==}
@@ -17918,10 +18159,10 @@ packages:
   typedarray@0.0.6:
     resolution: {integrity: sha512-/aCDEGatGvZ2BIk+HmLf4ifCJFwvKFNb9/JeZPMulfgFracn9QFcAf5GO8B/mweUjSoblS5In0cWhqpfs/5PQA==}
 
-  typescript-paths@1.5.1:
-    resolution: {integrity: sha512-lYErSLCON2MSplVV5V/LBgD4UNjMgY3guATdFCZY2q1Nr6OZEu4q6zX/rYMsG1TaWqqQSszg6C9EU7AGWMDrIw==}
+  typescript-paths@1.5.2:
+    resolution: {integrity: sha512-s5iiRIWOSw80dBgPACm0asPQZHHQcbPz69f26eRq01dStusuD11idZ0NDcAbkj6WuUGcRwJediPOsrArIS92eg==}
     peerDependencies:
-      typescript: ^4.7.2 || ^5
+      typescript: ^4.7.2 || ^5 || ^6
 
   typescript@5.6.3:
     resolution: {integrity: sha512-hjcS1mhfuyi4WW8IWtjP7brDrG2cuDZukyrYrSauoXGNgx0S7zceP07adYkJycEr56BOUTNPzbInooiN3fn1qw==}
@@ -17942,6 +18183,9 @@ packages:
 
   ufo@1.6.3:
     resolution: {integrity: sha512-yDJTmhydvl5lJzBmy/hyOAA0d+aqCBuwl818haVdYCRrWV84o7YyeVm4QlVHStqNrrJSTb6jKuFAVqAFsr+K3Q==}
+
+  ufo@1.6.4:
+    resolution: {integrity: sha512-JFNbkD1Svwe0KvGi8GOeLcP4kAWQ609twvCdcHxq1oSL8svv39ZuSvajcD8B+5D0eL4+s1Is2D/O6KN3qcTeRA==}
 
   uglify-js@3.19.3:
     resolution: {integrity: sha512-v3Xu+yuwBXisp6QYTcH4UbH+xYJXqnq2m/LtQVWKWzYc1iehYnLixoQDN9FH6/j9/oybfd6W9Ghwkl8+UMKTKQ==}
@@ -17973,6 +18217,10 @@ packages:
 
   undici@7.24.8:
     resolution: {integrity: sha512-6KQ/+QxK49Z/p3HO6E5ZCZWNnCasyZLa5ExaVYyvPxUwKtbCPMKELJOqh7EqOle0t9cH/7d2TaaTRRa6Nhs4YQ==}
+    engines: {node: '>=20.18.1'}
+
+  undici@7.25.0:
+    resolution: {integrity: sha512-xXnp4kTyor2Zq+J1FfPI6Eq3ew5h6Vl0F/8d9XU5zZQf1tX9s2Su1/3PiMmUANFULpmksxkClamIZcaUqryHsQ==}
     engines: {node: '>=20.18.1'}
 
   unenv@2.0.0-rc.24:
@@ -18211,10 +18459,11 @@ packages:
 
   uuid@10.0.0:
     resolution: {integrity: sha512-8XkAphELsDnEGrDxUOHB3RGvXz6TeuYSGEZBOjtTtPm2lwhGBjLgOzLHB63IUWfBpNucQjND6d3AOudO+H3RWQ==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
-  uuid@11.1.0:
-    resolution: {integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==}
+  uuid@11.1.1:
+    resolution: {integrity: sha512-vIYxrBCC/N/K+Js3qSN88go7kIfNPssr/hHCesKCQNAjmgvYS2oqr69kIufEG+O4+PfezOH4EbIeHCfFov8ZgQ==}
     hasBin: true
 
   uuid@13.0.0:
@@ -18223,6 +18472,7 @@ packages:
 
   uuid@8.3.2:
     resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   uuid@9.0.1:
@@ -18635,6 +18885,18 @@ packages:
       utf-8-validate:
         optional: true
 
+  ws@8.20.1:
+    resolution: {integrity: sha512-It4dO0K5v//JtTXuPkfEOaI3uUN87iYPnqo/ZzqCoG3g8uhA66QUMs/SrM0YK7/NAu+r4LMh/9dq2A7k+rHs+w==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   wsl-utils@0.1.0:
     resolution: {integrity: sha512-h3Fbisa2nKGPxCpm89Hk33lBLsnaGBvctQopaBSOW/uIs6FTe1ATyAnKFJrzVs9vpGdsTe73WF3V4lIsk4Gacw==}
     engines: {node: '>=18'}
@@ -18681,12 +18943,17 @@ packages:
   yaml-ast-parser@0.0.43:
     resolution: {integrity: sha512-2PTINUwsRqSd+s8XxKaJWQlUuEMHJQyEuh2edBbW8KNJz0SJPwUSD2zRWqezFEdN7IzAgeuYHFUCF7o8zRdZ0A==}
 
-  yaml@1.10.2:
-    resolution: {integrity: sha512-r3vXyErRCYJ7wg28yvBY5VSoAF8ZvlcW9/BwUzEtUsjvX/DKs24dIkuwjtuprwJJHsbyUbLApepYTR1BN4uHrg==}
+  yaml@1.10.3:
+    resolution: {integrity: sha512-vIYeF1u3CjlhAFekPPAk2h/Kv4T3mAkMox5OymRiJQB0spDP10LHvt+K7G9Ny6NuuMAb25/6n1qyUjAcGNf/AA==}
     engines: {node: '>= 6'}
 
   yaml@2.8.2:
     resolution: {integrity: sha512-mplynKqc1C2hTVYxd0PU2xQAc22TI1vShAYGksCCfxbn/dFwnHTNi1bvYsBTkhdUNtGIf5xNOg938rrSSYvS9A==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
+  yaml@2.9.0:
+    resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
     engines: {node: '>= 14.6'}
     hasBin: true
 
@@ -18773,6 +19040,11 @@ packages:
     peerDependencies:
       zod: ^4.2.0
 
+  zod-to-json-schema@3.25.2:
+    resolution: {integrity: sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA==}
+    peerDependencies:
+      zod: ^4.2.0
+
   zod-validation-error@5.0.0:
     resolution: {integrity: sha512-hmk+pkyKq7Q71PiWVSDUc3VfpzpvcRHZ3QPw9yEMVvmtCekaMeOHnbr3WbxfrgEnQTv6haGP4cmv0Ojmihzsxw==}
     engines: {node: '>=18.0.0'}
@@ -18820,16 +19092,13 @@ packages:
 
 snapshots:
 
-  '@a2a-js/sdk@0.2.5':
+  '@a2a-js/sdk@0.3.13(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(express@5.2.1)':
     dependencies:
-      '@types/cors': 2.8.19
-      '@types/express': 4.17.25
-      body-parser: 2.2.2
-      cors: 2.8.6
-      express: 4.22.1
-      uuid: 11.1.0
-    transitivePeerDependencies:
-      - supports-color
+      uuid: 11.1.1
+    optionalDependencies:
+      '@bufbuild/protobuf': 2.11.0
+      '@grpc/grpc-js': 1.14.3
+      express: 5.2.1
 
   '@ai-sdk/anthropic@1.2.12(zod@4.3.6)':
     dependencies:
@@ -18896,18 +19165,11 @@ snapshots:
       eventsource-parser: 3.0.6
       zod: 4.3.6
 
-  '@ai-sdk/provider-utils@3.0.23(zod@4.3.6)':
-    dependencies:
-      '@ai-sdk/provider': 2.0.1
-      '@standard-schema/spec': 1.1.0
-      eventsource-parser: 3.0.6
-      zod: 4.3.6
-
   '@ai-sdk/provider-utils@3.0.25(zod@4.3.6)':
     dependencies:
       '@ai-sdk/provider': 2.0.3
       '@standard-schema/spec': 1.1.0
-      eventsource-parser: 3.0.6
+      eventsource-parser: 3.0.8
       zod: 4.3.6
 
   '@ai-sdk/provider-utils@4.0.15(zod@4.3.6)':
@@ -18917,11 +19179,11 @@ snapshots:
       eventsource-parser: 3.0.6
       zod: 4.3.6
 
-  '@ai-sdk/provider-utils@4.0.23(zod@4.3.6)':
+  '@ai-sdk/provider-utils@4.0.27(zod@4.3.6)':
     dependencies:
-      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider': 3.0.10
       '@standard-schema/spec': 1.1.0
-      eventsource-parser: 3.0.6
+      eventsource-parser: 3.0.8
       zod: 4.3.6
 
   '@ai-sdk/provider@1.1.3':
@@ -18933,6 +19195,10 @@ snapshots:
       json-schema: 0.4.0
 
   '@ai-sdk/provider@2.0.3':
+    dependencies:
+      json-schema: 0.4.0
+
+  '@ai-sdk/provider@3.0.10':
     dependencies:
       json-schema: 0.4.0
 
@@ -18955,7 +19221,7 @@ snapshots:
       '@ai-sdk/provider': 1.1.3
       '@ai-sdk/provider-utils': 2.2.8(zod@4.3.6)
       zod: 4.3.6
-      zod-to-json-schema: 3.25.1(zod@4.3.6)
+      zod-to-json-schema: 3.25.2(zod@4.3.6)
 
   '@algolia/abtesting@1.15.2':
     dependencies:
@@ -19079,8 +19345,8 @@ snapshots:
   '@ardatan/relay-compiler@12.0.3(graphql@16.13.0)':
     dependencies:
       '@babel/generator': 7.29.1
-      '@babel/parser': 7.29.0
-      '@babel/runtime': 7.28.6
+      '@babel/parser': 7.29.3
+      '@babel/runtime': 7.29.2
       chalk: 4.1.2
       fb-watchman: 2.0.2
       graphql: 16.13.0
@@ -19717,6 +19983,19 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@babel/helper-create-class-features-plugin@7.29.3(@babel/core@7.29.0)':
+    dependencies:
+      '@babel/core': 7.29.0
+      '@babel/helper-annotate-as-pure': 7.27.3
+      '@babel/helper-member-expression-to-functions': 7.28.5
+      '@babel/helper-optimise-call-expression': 7.27.1
+      '@babel/helper-replace-supers': 7.28.6(@babel/core@7.29.0)
+      '@babel/helper-skip-transparent-expression-wrappers': 7.27.1
+      '@babel/traverse': 7.29.0
+      semver: 6.3.1
+    transitivePeerDependencies:
+      - supports-color
+
   '@babel/helper-create-regexp-features-plugin@7.28.5(@babel/core@7.29.0)':
     dependencies:
       '@babel/core': 7.29.0
@@ -19731,7 +20010,7 @@ snapshots:
       '@babel/helper-plugin-utils': 7.28.6
       debug: 4.4.3(supports-color@8.1.1)
       lodash.debounce: 4.0.8
-      resolve: 1.22.11
+      resolve: 1.22.12
     transitivePeerDependencies:
       - supports-color
 
@@ -19812,9 +20091,13 @@ snapshots:
 
   '@babel/parser@7.25.6':
     dependencies:
-      '@babel/types': 7.29.0
+      '@babel/types': 7.25.6
 
   '@babel/parser@7.29.0':
+    dependencies:
+      '@babel/types': 7.29.0
+
+  '@babel/parser@7.29.3':
     dependencies:
       '@babel/types': 7.29.0
 
@@ -20336,7 +20619,7 @@ snapshots:
     dependencies:
       '@babel/core': 7.29.0
       '@babel/helper-annotate-as-pure': 7.27.3
-      '@babel/helper-create-class-features-plugin': 7.28.6(@babel/core@7.29.0)
+      '@babel/helper-create-class-features-plugin': 7.29.3(@babel/core@7.29.0)
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-skip-transparent-expression-wrappers': 7.27.1
       '@babel/plugin-syntax-typescript': 7.28.6(@babel/core@7.29.0)
@@ -20479,6 +20762,8 @@ snapshots:
 
   '@babel/runtime@7.28.6': {}
 
+  '@babel/runtime@7.29.2': {}
+
   '@babel/template@7.28.6':
     dependencies:
       '@babel/code-frame': 7.29.0
@@ -20489,9 +20774,9 @@ snapshots:
     dependencies:
       '@babel/code-frame': 7.29.0
       '@babel/generator': 7.29.1
-      '@babel/parser': 7.29.0
+      '@babel/parser': 7.25.6
       '@babel/template': 7.28.6
-      '@babel/types': 7.29.0
+      '@babel/types': 7.25.6
       debug: 4.4.3(supports-color@8.1.1)
       globals: 11.12.0
     transitivePeerDependencies:
@@ -22307,15 +22592,19 @@ snapshots:
       react-dom: 19.0.4(react@19.0.4)
       use-sync-external-store: 1.6.0(react@19.0.4)
 
+  '@hono/node-server@1.19.14(hono@4.12.15)':
+    dependencies:
+      hono: 4.12.15
+
   '@hono/node-server@1.19.9(hono@4.12.15)':
     dependencies:
       hono: 4.12.15
 
-  '@hono/node-ws@1.3.0(@hono/node-server@1.19.9(hono@4.12.15))(hono@4.12.15)':
+  '@hono/node-ws@1.3.1(@hono/node-server@1.19.14(hono@4.12.15))(hono@4.12.21)':
     dependencies:
-      '@hono/node-server': 1.19.9(hono@4.12.15)
-      hono: 4.12.15
-      ws: 8.20.0
+      '@hono/node-server': 1.19.14(hono@4.12.15)
+      hono: 4.12.21
+      ws: 8.20.1
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -22930,81 +23219,86 @@ snapshots:
     dependencies:
       '@lukeed/csprng': 1.1.0
 
-  '@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6)':
+  '@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6)':
     dependencies:
-      '@a2a-js/sdk': 0.2.5
-      '@ai-sdk/provider-utils-v5': '@ai-sdk/provider-utils@3.0.23(zod@4.3.6)'
-      '@ai-sdk/provider-utils-v6': '@ai-sdk/provider-utils@4.0.23(zod@4.3.6)'
-      '@ai-sdk/provider-v5': '@ai-sdk/provider@2.0.1'
-      '@ai-sdk/provider-v6': '@ai-sdk/provider@3.0.8'
+      '@a2a-js/sdk': 0.3.13(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(express@5.2.1)
+      '@ai-sdk/provider-utils-v5': '@ai-sdk/provider-utils@3.0.25(zod@4.3.6)'
+      '@ai-sdk/provider-utils-v6': '@ai-sdk/provider-utils@4.0.27(zod@4.3.6)'
+      '@ai-sdk/provider-v5': '@ai-sdk/provider@2.0.3'
+      '@ai-sdk/provider-v6': '@ai-sdk/provider@3.0.10'
       '@ai-sdk/ui-utils-v5': '@ai-sdk/ui-utils@1.2.11(zod@4.3.6)'
       '@isaacs/ttlcache': 2.1.4
       '@lukeed/uuid': 2.0.1
-      '@mastra/schema-compat': 1.2.9(zod@4.3.6)
-      '@modelcontextprotocol/sdk': 1.27.1(zod@4.3.6)
+      '@mastra/schema-compat': 1.2.10(zod@4.3.6)
+      '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
       '@sindresorhus/slugify': 2.2.1
       '@standard-schema/spec': 1.1.0
       ajv: 8.18.0
-      chat: 4.26.0
+      chat: 4.29.0(ai@5.0.138(zod@4.3.6))(zod@4.3.6)
+      croner: 10.0.1
       dotenv: 17.3.1
       execa: 9.6.1
+      fastq: 1.20.1
       gray-matter: 4.0.3
       hono: 4.12.15
-      hono-openapi: 1.3.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(hono@4.12.15)(openapi-types@12.1.3)
+      hono-openapi: 1.3.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(hono@4.12.15)(openapi-types@12.1.3)
       ignore: 7.0.5
-      js-tiktoken: 1.0.21
       json-schema: 0.4.0
       lru-cache: 11.3.5
       p-map: 7.0.4
       p-retry: 7.1.1
       picomatch: 4.0.3
-      radash: 12.1.1
+      posthog-node: 5.35.0(rxjs@7.8.2)
       tokenx: 1.3.0
       ws: 8.20.0
       xxhash-wasm: 1.1.0
       zod: 4.3.6
     transitivePeerDependencies:
+      - '@bufbuild/protobuf'
       - '@cfworker/json-schema'
+      - '@grpc/grpc-js'
       - '@hono/standard-validator'
       - '@standard-community/standard-json'
       - '@standard-community/standard-openapi'
       - '@types/json-schema'
+      - ai
       - bufferutil
+      - express
       - openapi-types
+      - rxjs
       - supports-color
       - utf-8-validate
 
-  '@mastra/deployer@1.28.0(@hono/node-server@1.19.9(hono@4.12.15))(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))(typescript@5.9.3)(zod@4.3.6)':
+  '@mastra/deployer@1.36.0(@hono/node-server@1.19.14(hono@4.12.15))(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))(typescript@5.9.3)(zod@4.3.6)':
     dependencies:
       '@babel/core': 7.29.0
       '@babel/preset-typescript': 7.28.5(@babel/core@7.29.0)
       '@babel/traverse': 7.29.0
-      '@hono/node-ws': 1.3.0(@hono/node-server@1.19.9(hono@4.12.15))(hono@4.12.15)
-      '@mastra/core': 1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6)
-      '@mastra/server': 1.28.0(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))(zod@4.3.6)
-      '@optimize-lodash/rollup-plugin': 5.1.0(rollup@4.59.0)
-      '@rollup/plugin-alias': 6.0.0(rollup@4.59.0)
-      '@rollup/plugin-commonjs': 29.0.2(rollup@4.59.0)
-      '@rollup/plugin-esm-shim': 0.1.8(rollup@4.59.0)
-      '@rollup/plugin-json': 6.1.0(rollup@4.59.0)
-      '@rollup/plugin-node-resolve': 16.0.3(rollup@4.59.0)
-      '@rollup/plugin-virtual': 3.0.2(rollup@4.59.0)
+      '@hono/node-ws': 1.3.1(@hono/node-server@1.19.14(hono@4.12.15))(hono@4.12.21)
+      '@mastra/core': 1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6)
+      '@mastra/server': 1.36.0(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))(zod@4.3.6)
+      '@optimize-lodash/rollup-plugin': 5.1.0(rollup@4.60.4)
+      '@rollup/plugin-alias': 6.0.0(rollup@4.60.4)
+      '@rollup/plugin-commonjs': 29.0.2(rollup@4.60.4)
+      '@rollup/plugin-esm-shim': 0.1.8(rollup@4.60.4)
+      '@rollup/plugin-json': 6.1.0(rollup@4.60.4)
+      '@rollup/plugin-node-resolve': 16.0.3(rollup@4.60.4)
+      '@rollup/plugin-virtual': 3.0.2(rollup@4.60.4)
       '@sindresorhus/slugify': 2.2.1
       '@types/babel__traverse': 7.28.0
-      empathic: 2.0.0
+      empathic: 2.0.1
       esbuild: 0.27.7
       find-workspaces: 0.3.1
       fs-extra: 11.3.4
-      hono: 4.12.15
+      hono: 4.12.21
       local-pkg: 1.1.2
-      resolve-from: 5.0.0
       resolve.exports: 2.0.3
-      rollup: 4.59.0
-      rollup-plugin-esbuild: 6.2.1(esbuild@0.27.7)(rollup@4.59.0)
+      rollup: 4.60.4
+      rollup-plugin-esbuild: 6.2.1(esbuild@0.27.7)(rollup@4.60.4)
       strip-json-comments: 5.0.3
       tinyglobby: 0.2.16
-      typescript-paths: 1.5.1(typescript@5.9.3)
-      ws: 8.20.0
+      typescript-paths: 1.5.2(typescript@5.9.3)
+      ws: 8.20.1
       zod: 4.3.6
     transitivePeerDependencies:
       - '@hono/node-server'
@@ -23013,25 +23307,25 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@mastra/evals@1.2.1(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))(zod@4.3.6)':
+  '@mastra/evals@1.2.2(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))(zod@4.3.6)':
     dependencies:
-      '@mastra/core': 1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6)
+      '@mastra/core': 1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6)
       compromise: 14.15.0
       keyword-extractor: 0.0.28
       sentiment: 5.0.2
       string-similarity: 4.0.4
       zod: 4.3.6
 
-  '@mastra/loggers@1.1.1(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))':
+  '@mastra/loggers@1.1.1(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))':
     dependencies:
-      '@mastra/core': 1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6)
+      '@mastra/core': 1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6)
       pino: 10.3.1
       pino-pretty: 13.1.3
 
-  '@mastra/mcp@1.0.2(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(zod@4.3.6)':
+  '@mastra/mcp@1.0.2(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))(@types/json-schema@7.0.15)(zod@4.3.6)':
     dependencies:
       '@apidevtools/json-schema-ref-parser': 14.2.1(@types/json-schema@7.0.15)
-      '@mastra/core': 1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6)
+      '@mastra/core': 1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6)
       '@modelcontextprotocol/sdk': 1.27.1(zod@4.3.6)
       exit-hook: 5.1.0
       fast-deep-equal: 3.1.3
@@ -23044,10 +23338,10 @@ snapshots:
       - '@types/json-schema'
       - supports-color
 
-  '@mastra/memory@1.17.1(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))(zod@4.3.6)':
+  '@mastra/memory@1.19.0(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))(zod@4.3.6)':
     dependencies:
-      '@mastra/core': 1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6)
-      '@mastra/schema-compat': 1.2.9(zod@4.3.6)
+      '@mastra/core': 1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6)
+      '@mastra/schema-compat': 1.2.10(zod@4.3.6)
       async-mutex: 0.5.0
       image-size: 2.0.2
       json-schema: 0.4.0
@@ -23059,22 +23353,22 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@mastra/observability@1.2.1(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))':
+  '@mastra/observability@1.2.1(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))':
     dependencies:
-      '@mastra/core': 1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6)
+      '@mastra/core': 1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6)
 
-  '@mastra/pg@1.7.0(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))':
+  '@mastra/pg@1.7.0(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))':
     dependencies:
-      '@mastra/core': 1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6)
+      '@mastra/core': 1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6)
       async-mutex: 0.5.0
       pg: 8.20.0
       xxhash-wasm: 1.1.0
     transitivePeerDependencies:
       - pg-native
 
-  '@mastra/rag@2.1.2(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))(zod@4.3.6)':
+  '@mastra/rag@2.1.2(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))(zod@4.3.6)':
     dependencies:
-      '@mastra/core': 1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6)
+      '@mastra/core': 1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6)
       '@paralleldrive/cuid2': 2.3.1
       big.js: 7.0.1
       js-tiktoken: 1.0.21
@@ -23085,18 +23379,18 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@mastra/schema-compat@1.2.9(zod@4.3.6)':
+  '@mastra/schema-compat@1.2.10(zod@4.3.6)':
     dependencies:
-      json-schema-to-zod: 2.7.0
+      json-schema-to-zod: 2.8.1
       zod: 4.3.6
       zod-from-json-schema: 0.5.2
       zod-from-json-schema-v3: zod-from-json-schema@0.0.5
-      zod-to-json-schema: 3.25.1(zod@4.3.6)
+      zod-to-json-schema: 3.25.2(zod@4.3.6)
 
-  '@mastra/server@1.28.0(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))(zod@4.3.6)':
+  '@mastra/server@1.36.0(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))(zod@4.3.6)':
     dependencies:
-      '@mastra/core': 1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6)
-      hono: 4.12.15
+      '@mastra/core': 1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6)
+      hono: 4.12.21
       zod: 4.3.6
 
   '@mdx-js/mdx@3.1.1':
@@ -23137,7 +23431,7 @@ snapshots:
 
   '@mediapipe/tasks-vision@0.10.17': {}
 
-  '@medusajs/admin-bundler@2.15.2(@emotion/is-prop-valid@1.4.0)(@types/node@20.19.34)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(picomatch@4.0.4)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)':
+  '@medusajs/admin-bundler@2.15.2(@emotion/is-prop-valid@1.4.0)(@types/node@20.19.34)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(picomatch@4.0.4)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.9.0)':
     dependencies:
       '@medusajs/admin-shared': 2.15.2
       '@medusajs/admin-vite-plugin': 2.15.2(picomatch@4.0.4)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))
@@ -23150,7 +23444,7 @@ snapshots:
       glob: 13.0.6
       outdent: 0.8.0
       postcss: 8.5.6
-      tailwindcss: 3.4.19(tsx@4.21.0)(yaml@2.8.2)
+      tailwindcss: 3.4.19(tsx@4.21.0)(yaml@2.9.0)
       vite: 5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)
     transitivePeerDependencies:
       - '@emotion/is-prop-valid'
@@ -23217,10 +23511,10 @@ snapshots:
     dependencies:
       '@medusajs/framework': 2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6)
 
-  '@medusajs/analytics-posthog@2.15.2(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(posthog-node@5.17.2)':
+  '@medusajs/analytics-posthog@2.15.2(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(posthog-node@5.35.0(rxjs@7.8.2))':
     dependencies:
       '@medusajs/framework': 2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6)
-      posthog-node: 5.17.2
+      posthog-node: 5.35.0(rxjs@7.8.2)
 
   '@medusajs/analytics@2.15.2(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))':
     dependencies:
@@ -23525,14 +23819,6 @@ snapshots:
     dependencies:
       '@medusajs/framework': 2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6)
 
-  '@medusajs/icons@2.13.4(react@19.0.4)':
-    dependencies:
-      react: 19.0.4
-
-  '@medusajs/icons@2.14.1(react@19.0.4)':
-    dependencies:
-      react: 19.0.4
-
   '@medusajs/icons@2.14.2(react@18.3.1)':
     dependencies:
       react: 18.3.1
@@ -23540,6 +23826,10 @@ snapshots:
   '@medusajs/icons@2.15.2(react@18.3.1)':
     dependencies:
       react: 18.3.1
+
+  '@medusajs/icons@2.15.3(react@19.0.4)':
+    dependencies:
+      react: 19.0.4
 
   '@medusajs/index@2.15.2(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))':
     dependencies:
@@ -23549,22 +23839,17 @@ snapshots:
     dependencies:
       '@medusajs/framework': 2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6)
 
-  '@medusajs/js-sdk@2.13.4':
-    dependencies:
-      fetch-event-stream: 0.1.6
-      qs: 6.15.0
-
-  '@medusajs/js-sdk@2.14.1':
-    dependencies:
-      fetch-event-stream: 0.1.6
-      qs: 6.15.0
-
   '@medusajs/js-sdk@2.14.2':
     dependencies:
       fetch-event-stream: 0.1.6
       qs: 6.15.0
 
   '@medusajs/js-sdk@2.15.2':
+    dependencies:
+      fetch-event-stream: 0.1.6
+      qs: 6.15.0
+
+  '@medusajs/js-sdk@2.15.3':
     dependencies:
       fetch-event-stream: 0.1.6
       qs: 6.15.0
@@ -23601,9 +23886,9 @@ snapshots:
       react-dom: 18.3.1(react@18.3.1)
       react-router-dom: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
 
-  '@medusajs/medusa-oas-cli@2.15.2(@emotion/is-prop-valid@1.4.0)(@medusajs/admin-sdk@2.15.2)(@medusajs/cli@2.15.2(@types/node@20.19.34))(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(@medusajs/icons@2.15.2(react@18.3.1))(@medusajs/test-utils@2.15.2)(@medusajs/ui@4.1.12(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(@swc/core@1.7.28(@swc/helpers@0.5.19))(@types/node@20.19.34)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(awilix@8.0.1)(enzyme@3.11.0)(express@5.2.1)(openapi-types@12.1.3)(picomatch@4.0.4)(posthog-node@5.17.2)(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.9.3)(yalc@1.0.0-pre.53)(yaml@2.8.2)':
-    dependencies:
-      '@medusajs/medusa': 2.15.2(@emotion/is-prop-valid@1.4.0)(@medusajs/admin-sdk@2.15.2)(@medusajs/cli@2.15.2(@types/node@20.19.34))(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(@medusajs/icons@2.15.2(react@18.3.1))(@medusajs/test-utils@2.15.2)(@medusajs/ui@4.1.12(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(@swc/core@1.7.28(@swc/helpers@0.5.19))(@types/node@20.19.34)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(awilix@8.0.1)(picomatch@4.0.4)(posthog-node@5.17.2)(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.9.3)(yalc@1.0.0-pre.53)(yaml@2.8.2)
+  ? '@medusajs/medusa-oas-cli@2.15.2(@emotion/is-prop-valid@1.4.0)(@medusajs/admin-sdk@2.15.2)(@medusajs/cli@2.15.2(@types/node@20.19.34))(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(@medusajs/icons@2.15.2(react@18.3.1))(@medusajs/test-utils@2.15.2)(@medusajs/ui@4.1.12(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(@swc/core@1.7.28(@swc/helpers@0.5.19))(@types/node@20.19.34)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(awilix@8.0.1)(enzyme@3.11.0)(express@5.2.1)(openapi-types@12.1.3)(picomatch@4.0.4)(posthog-node@5.35.0(rxjs@7.8.2))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.9.3)(yalc@1.0.0-pre.53)(yaml@2.9.0)'
+  : dependencies:
+      '@medusajs/medusa': 2.15.2(@emotion/is-prop-valid@1.4.0)(@medusajs/admin-sdk@2.15.2)(@medusajs/cli@2.15.2(@types/node@20.19.34))(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(@medusajs/icons@2.15.2(react@18.3.1))(@medusajs/test-utils@2.15.2)(@medusajs/ui@4.1.12(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(@swc/core@1.7.28(@swc/helpers@0.5.19))(@types/node@20.19.34)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(awilix@8.0.1)(picomatch@4.0.4)(posthog-node@5.35.0(rxjs@7.8.2))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.9.3)(yalc@1.0.0-pre.53)(yaml@2.9.0)
       '@medusajs/utils': 2.15.2(@types/node@20.19.34)(express@5.2.1)
       '@readme/json-schema-ref-parser': 1.2.0
       '@readme/openapi-parser': 2.7.0(openapi-types@12.1.3)
@@ -23663,15 +23948,15 @@ snapshots:
       - yalc
       - yaml
 
-  '@medusajs/medusa@2.15.2(@emotion/is-prop-valid@1.4.0)(@medusajs/admin-sdk@2.15.2)(@medusajs/cli@2.15.2(@types/node@20.19.34))(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(@medusajs/icons@2.15.2(react@18.3.1))(@medusajs/test-utils@2.15.2)(@medusajs/ui@4.1.12(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(@swc/core@1.7.28(@swc/helpers@0.5.19))(@types/node@20.19.34)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(awilix@8.0.1)(picomatch@4.0.4)(posthog-node@5.17.2)(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.9.3)(yalc@1.0.0-pre.53)(yaml@2.8.2)':
+  '@medusajs/medusa@2.15.2(@emotion/is-prop-valid@1.4.0)(@medusajs/admin-sdk@2.15.2)(@medusajs/cli@2.15.2(@types/node@20.19.34))(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(@medusajs/icons@2.15.2(react@18.3.1))(@medusajs/test-utils@2.15.2)(@medusajs/ui@4.1.12(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(@swc/core@1.7.28(@swc/helpers@0.5.19))(@types/node@20.19.34)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(awilix@8.0.1)(picomatch@4.0.4)(posthog-node@5.35.0(rxjs@7.8.2))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.9.3)(yalc@1.0.0-pre.53)(yaml@2.9.0)':
     dependencies:
       '@inquirer/checkbox': 2.5.0
       '@inquirer/confirm': 2.0.17
       '@inquirer/input': 2.3.0
-      '@medusajs/admin-bundler': 2.15.2(@emotion/is-prop-valid@1.4.0)(@types/node@20.19.34)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(picomatch@4.0.4)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
+      '@medusajs/admin-bundler': 2.15.2(@emotion/is-prop-valid@1.4.0)(@types/node@20.19.34)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(picomatch@4.0.4)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.9.0)
       '@medusajs/analytics': 2.15.2(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))
       '@medusajs/analytics-local': 2.15.2(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))
-      '@medusajs/analytics-posthog': 2.15.2(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(posthog-node@5.17.2)
+      '@medusajs/analytics-posthog': 2.15.2(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(posthog-node@5.35.0(rxjs@7.8.2))
       '@medusajs/api-key': 2.15.2(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))
       '@medusajs/auth': 2.15.2(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))
       '@medusajs/auth-emailpass': 2.15.2(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))
@@ -23736,7 +24021,7 @@ snapshots:
       uuid: 9.0.1
     optionalDependencies:
       '@swc/core': 1.7.28(@swc/helpers@0.5.19)
-      posthog-node: 5.17.2
+      posthog-node: 5.35.0(rxjs@7.8.2)
       react-dom: 18.3.1(react@18.3.1)
       yalc: 1.0.0-pre.53
     transitivePeerDependencies:
@@ -23944,7 +24229,7 @@ snapshots:
       ulid: 2.4.0
     optionalDependencies:
       '@medusajs/core-flows': 2.15.2(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))
-      '@medusajs/medusa': 2.15.2(@emotion/is-prop-valid@1.4.0)(@medusajs/admin-sdk@2.15.2)(@medusajs/cli@2.15.2(@types/node@20.19.34))(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(@medusajs/icons@2.15.2(react@18.3.1))(@medusajs/test-utils@2.15.2)(@medusajs/ui@4.1.12(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(@swc/core@1.7.28(@swc/helpers@0.5.19))(@types/node@20.19.34)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(awilix@8.0.1)(picomatch@4.0.4)(posthog-node@5.17.2)(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.9.3)(yalc@1.0.0-pre.53)(yaml@2.8.2)
+      '@medusajs/medusa': 2.15.2(@emotion/is-prop-valid@1.4.0)(@medusajs/admin-sdk@2.15.2)(@medusajs/cli@2.15.2(@types/node@20.19.34))(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(@medusajs/icons@2.15.2(react@18.3.1))(@medusajs/test-utils@2.15.2)(@medusajs/ui@4.1.12(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(@swc/core@1.7.28(@swc/helpers@0.5.19))(@types/node@20.19.34)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(awilix@8.0.1)(picomatch@4.0.4)(posthog-node@5.35.0(rxjs@7.8.2))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.9.3)(yalc@1.0.0-pre.53)(yaml@2.9.0)
     transitivePeerDependencies:
       - debug
       - supports-color
@@ -23952,19 +24237,6 @@ snapshots:
   '@medusajs/translation@2.15.2(@medusajs/framework@2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))':
     dependencies:
       '@medusajs/framework': 2.15.2(@medusajs/cli@2.15.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6)
-
-  '@medusajs/types@2.13.4(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))':
-    dependencies:
-      bignumber.js: 9.3.1
-    optionalDependencies:
-      ioredis: 5.9.3
-      vite: 5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)
-
-  '@medusajs/types@2.14.1(ioredis@5.9.3)':
-    dependencies:
-      bignumber.js: 9.3.1
-    optionalDependencies:
-      ioredis: 5.9.3
 
   '@medusajs/types@2.14.2(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))':
     dependencies:
@@ -23980,23 +24252,24 @@ snapshots:
       ioredis: 5.9.3
       vite: 5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)
 
-  '@medusajs/ui-preset@2.13.4(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2))':
+  '@medusajs/types@2.15.3(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))':
     dependencies:
-      '@tailwindcss/forms': 0.5.11(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2))
-      tailwindcss: 3.4.19(tsx@4.21.0)(yaml@2.8.2)
-      tailwindcss-animate: 1.0.7(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2))
+      bignumber.js: 9.3.1
+    optionalDependencies:
+      ioredis: 5.9.3
+      vite: 5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)
 
-  '@medusajs/ui-preset@2.14.1(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2))':
+  '@medusajs/ui-preset@2.14.2(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))':
     dependencies:
-      '@tailwindcss/forms': 0.5.11(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2))
-      tailwindcss: 3.4.19(tsx@4.21.0)(yaml@2.8.2)
-      tailwindcss-animate: 1.0.7(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2))
+      '@tailwindcss/forms': 0.5.11(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
+      tailwindcss: 3.4.19(tsx@4.21.0)(yaml@2.9.0)
+      tailwindcss-animate: 1.0.7(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
 
-  '@medusajs/ui-preset@2.14.2(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2))':
+  '@medusajs/ui-preset@2.15.3(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))':
     dependencies:
-      '@tailwindcss/forms': 0.5.11(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2))
-      tailwindcss: 3.4.19(tsx@4.21.0)(yaml@2.8.2)
-      tailwindcss-animate: 1.0.7(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2))
+      '@tailwindcss/forms': 0.5.11(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
+      tailwindcss: 3.4.19(tsx@4.21.0)(yaml@2.9.0)
+      tailwindcss-animate: 1.0.7(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
 
   '@medusajs/ui@4.1.12(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)':
     dependencies:
@@ -24026,40 +24299,12 @@ snapshots:
       - '@types/react-dom'
       - typescript
 
-  '@medusajs/ui@4.1.4(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)(typescript@5.9.3)':
+  '@medusajs/ui@4.1.13(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)(typescript@5.9.3)':
     dependencies:
       '@dnd-kit/core': 6.3.1(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
       '@dnd-kit/sortable': 8.0.0(@dnd-kit/core@6.3.1(react-dom@19.0.4(react@19.0.4))(react@19.0.4))(react@19.0.4)
       '@dnd-kit/utilities': 3.2.2(react@19.0.4)
-      '@medusajs/icons': 2.13.4(react@19.0.4)
-      '@radix-ui/react-dialog': 1.1.4(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
-      '@radix-ui/react-dismissable-layer': 1.1.4(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
-      '@tanstack/react-table': 8.20.5(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
-      clsx: 2.1.1
-      copy-to-clipboard: 3.3.3
-      cva: 1.0.0-beta.1(typescript@5.9.3)
-      lodash.isequal: 4.5.0
-      prism-react-renderer: 2.4.1(react@19.0.4)
-      prismjs: 1.30.0
-      radix-ui: 1.1.2(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
-      react: 19.0.4
-      react-aria: 3.46.0(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
-      react-currency-input-field: 3.10.0(react@19.0.4)
-      react-dom: 19.0.4(react@19.0.4)
-      react-stately: 3.44.0(react@19.0.4)
-      sonner: 1.7.4(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
-      tailwind-merge: 2.6.1
-    transitivePeerDependencies:
-      - '@types/react'
-      - '@types/react-dom'
-      - typescript
-
-  '@medusajs/ui@4.1.8(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)(typescript@5.9.3)':
-    dependencies:
-      '@dnd-kit/core': 6.3.1(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
-      '@dnd-kit/sortable': 8.0.0(@dnd-kit/core@6.3.1(react-dom@19.0.4(react@19.0.4))(react@19.0.4))(react@19.0.4)
-      '@dnd-kit/utilities': 3.2.2(react@19.0.4)
-      '@medusajs/icons': 2.14.1(react@19.0.4)
+      '@medusajs/icons': 2.15.3(react@19.0.4)
       '@radix-ui/react-dialog': 1.1.4(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
       '@radix-ui/react-dismissable-layer': 1.1.4(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
       '@tanstack/react-table': 8.20.5(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
@@ -24370,6 +24615,28 @@ snapshots:
       raw-body: 3.0.2
       zod: 4.3.6
       zod-to-json-schema: 3.25.1(zod@4.3.6)
+    transitivePeerDependencies:
+      - supports-color
+
+  '@modelcontextprotocol/sdk@1.29.0(zod@4.3.6)':
+    dependencies:
+      '@hono/node-server': 1.19.14(hono@4.12.15)
+      ajv: 8.18.0
+      ajv-formats: 3.0.1(ajv@8.18.0)
+      content-type: 1.0.5
+      cors: 2.8.6
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.0.8
+      express: 5.2.1
+      express-rate-limit: 8.5.2(express@5.2.1)
+      hono: 4.12.15
+      jose: 6.2.3
+      json-schema-typed: 8.0.2
+      pkce-challenge: 5.0.1
+      raw-body: 3.0.2
+      zod: 4.3.6
+      zod-to-json-schema: 3.25.2(zod@4.3.6)
     transitivePeerDependencies:
       - supports-color
 
@@ -25469,11 +25736,11 @@ snapshots:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/core': 2.5.1(@opentelemetry/api@1.9.0)
 
-  '@optimize-lodash/rollup-plugin@5.1.0(rollup@4.59.0)':
+  '@optimize-lodash/rollup-plugin@5.1.0(rollup@4.60.4)':
     dependencies:
       '@optimize-lodash/transform': 3.0.6
-      '@rollup/pluginutils': 5.3.0(rollup@4.59.0)
-      rollup: 4.59.0
+      '@rollup/pluginutils': 5.3.0(rollup@4.60.4)
+      rollup: 4.60.4
 
   '@optimize-lodash/transform@3.0.6':
     dependencies:
@@ -25678,9 +25945,11 @@ snapshots:
 
   '@poppinss/exception@1.2.3': {}
 
-  '@posthog/core@1.7.1':
+  '@posthog/core@1.29.8':
     dependencies:
-      cross-spawn: 7.0.6
+      '@posthog/types': 1.375.0
+
+  '@posthog/types@1.375.0': {}
 
   '@prisma/instrumentation@7.2.0(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -26037,7 +26306,7 @@ snapshots:
 
   '@radix-ui/react-collection@1.0.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
       '@radix-ui/react-compose-refs': 1.0.0(react@18.3.1)
       '@radix-ui/react-context': 1.0.0(react@18.3.1)
       '@radix-ui/react-primitive': 1.0.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -26083,7 +26352,7 @@ snapshots:
 
   '@radix-ui/react-compose-refs@1.0.0(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
       react: 18.3.1
 
   '@radix-ui/react-compose-refs@1.1.1(@types/react@18.3.28)(react@18.3.1)':
@@ -26348,7 +26617,7 @@ snapshots:
 
   '@radix-ui/react-dismissable-layer@1.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
       '@radix-ui/primitive': 1.0.0
       '@radix-ui/react-compose-refs': 1.0.0(react@18.3.1)
       '@radix-ui/react-primitive': 1.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -26495,7 +26764,7 @@ snapshots:
 
   '@radix-ui/react-focus-guards@1.0.0(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
       react: 18.3.1
 
   '@radix-ui/react-focus-guards@1.1.1(@types/react@18.3.28)(react@18.3.1)':
@@ -26518,7 +26787,7 @@ snapshots:
 
   '@radix-ui/react-focus-scope@1.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
       '@radix-ui/react-compose-refs': 1.0.0(react@18.3.1)
       '@radix-ui/react-primitive': 1.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@radix-ui/react-use-callback-ref': 1.0.0(react@18.3.1)
@@ -27080,7 +27349,7 @@ snapshots:
 
   '@radix-ui/react-portal@1.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
       '@radix-ui/react-primitive': 1.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
@@ -27165,7 +27434,7 @@ snapshots:
 
   '@radix-ui/react-primitive@1.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
       '@radix-ui/react-slot': 1.0.0(react@18.3.1)
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
@@ -27587,13 +27856,13 @@ snapshots:
 
   '@radix-ui/react-slot@1.0.0(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
       '@radix-ui/react-compose-refs': 1.0.0(react@18.3.1)
       react: 18.3.1
 
   '@radix-ui/react-slot@1.0.1(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
       '@radix-ui/react-compose-refs': 1.0.0(react@18.3.1)
       react: 18.3.1
 
@@ -27977,7 +28246,7 @@ snapshots:
 
   '@radix-ui/react-use-callback-ref@1.0.0(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
       react: 18.3.1
 
   '@radix-ui/react-use-callback-ref@1.1.0(@types/react@18.3.28)(react@18.3.1)':
@@ -28027,7 +28296,7 @@ snapshots:
 
   '@radix-ui/react-use-escape-keydown@1.0.0(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
       '@radix-ui/react-use-callback-ref': 1.0.0(react@18.3.1)
       react: 18.3.1
 
@@ -28054,7 +28323,7 @@ snapshots:
 
   '@radix-ui/react-use-layout-effect@1.0.0(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
       react: 18.3.1
 
   '@radix-ui/react-use-layout-effect@1.1.0(@types/react@18.3.28)(react@18.3.1)':
@@ -30263,13 +30532,13 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.0-beta.53': {}
 
-  '@rollup/plugin-alias@6.0.0(rollup@4.59.0)':
+  '@rollup/plugin-alias@6.0.0(rollup@4.60.4)':
     optionalDependencies:
-      rollup: 4.59.0
+      rollup: 4.60.4
 
-  '@rollup/plugin-commonjs@29.0.2(rollup@4.59.0)':
+  '@rollup/plugin-commonjs@29.0.2(rollup@4.60.4)':
     dependencies:
-      '@rollup/pluginutils': 5.3.0(rollup@4.59.0)
+      '@rollup/pluginutils': 5.3.0(rollup@4.60.4)
       commondir: 1.0.1
       estree-walker: 2.0.2
       fdir: 6.5.0(picomatch@4.0.4)
@@ -30277,116 +30546,191 @@ snapshots:
       magic-string: 0.30.21
       picomatch: 4.0.4
     optionalDependencies:
-      rollup: 4.59.0
+      rollup: 4.60.4
 
-  '@rollup/plugin-esm-shim@0.1.8(rollup@4.59.0)':
+  '@rollup/plugin-esm-shim@0.1.8(rollup@4.60.4)':
     dependencies:
       magic-string: 0.30.21
-      mlly: 1.8.0
+      mlly: 1.8.2
     optionalDependencies:
-      rollup: 4.59.0
+      rollup: 4.60.4
 
-  '@rollup/plugin-json@6.1.0(rollup@4.59.0)':
+  '@rollup/plugin-json@6.1.0(rollup@4.60.4)':
     dependencies:
-      '@rollup/pluginutils': 5.3.0(rollup@4.59.0)
+      '@rollup/pluginutils': 5.3.0(rollup@4.60.4)
     optionalDependencies:
-      rollup: 4.59.0
+      rollup: 4.60.4
 
-  '@rollup/plugin-node-resolve@16.0.3(rollup@4.59.0)':
+  '@rollup/plugin-node-resolve@16.0.3(rollup@4.60.4)':
     dependencies:
-      '@rollup/pluginutils': 5.3.0(rollup@4.59.0)
+      '@rollup/pluginutils': 5.3.0(rollup@4.60.4)
       '@types/resolve': 1.20.2
       deepmerge: 4.3.1
       is-module: 1.0.0
-      resolve: 1.22.11
+      resolve: 1.22.12
     optionalDependencies:
-      rollup: 4.59.0
+      rollup: 4.60.4
 
-  '@rollup/plugin-virtual@3.0.2(rollup@4.59.0)':
+  '@rollup/plugin-virtual@3.0.2(rollup@4.60.4)':
     optionalDependencies:
-      rollup: 4.59.0
+      rollup: 4.60.4
 
-  '@rollup/pluginutils@5.3.0(rollup@4.59.0)':
+  '@rollup/pluginutils@5.3.0(rollup@4.60.4)':
     dependencies:
       '@types/estree': 1.0.8
       estree-walker: 2.0.2
       picomatch: 4.0.4
     optionalDependencies:
-      rollup: 4.59.0
+      rollup: 4.60.4
 
   '@rollup/rollup-android-arm-eabi@4.59.0':
+    optional: true
+
+  '@rollup/rollup-android-arm-eabi@4.60.4':
     optional: true
 
   '@rollup/rollup-android-arm64@4.59.0':
     optional: true
 
+  '@rollup/rollup-android-arm64@4.60.4':
+    optional: true
+
   '@rollup/rollup-darwin-arm64@4.59.0':
+    optional: true
+
+  '@rollup/rollup-darwin-arm64@4.60.4':
     optional: true
 
   '@rollup/rollup-darwin-x64@4.59.0':
     optional: true
 
+  '@rollup/rollup-darwin-x64@4.60.4':
+    optional: true
+
   '@rollup/rollup-freebsd-arm64@4.59.0':
+    optional: true
+
+  '@rollup/rollup-freebsd-arm64@4.60.4':
     optional: true
 
   '@rollup/rollup-freebsd-x64@4.59.0':
     optional: true
 
+  '@rollup/rollup-freebsd-x64@4.60.4':
+    optional: true
+
   '@rollup/rollup-linux-arm-gnueabihf@4.59.0':
+    optional: true
+
+  '@rollup/rollup-linux-arm-gnueabihf@4.60.4':
     optional: true
 
   '@rollup/rollup-linux-arm-musleabihf@4.59.0':
     optional: true
 
+  '@rollup/rollup-linux-arm-musleabihf@4.60.4':
+    optional: true
+
   '@rollup/rollup-linux-arm64-gnu@4.59.0':
+    optional: true
+
+  '@rollup/rollup-linux-arm64-gnu@4.60.4':
     optional: true
 
   '@rollup/rollup-linux-arm64-musl@4.59.0':
     optional: true
 
+  '@rollup/rollup-linux-arm64-musl@4.60.4':
+    optional: true
+
   '@rollup/rollup-linux-loong64-gnu@4.59.0':
+    optional: true
+
+  '@rollup/rollup-linux-loong64-gnu@4.60.4':
     optional: true
 
   '@rollup/rollup-linux-loong64-musl@4.59.0':
     optional: true
 
+  '@rollup/rollup-linux-loong64-musl@4.60.4':
+    optional: true
+
   '@rollup/rollup-linux-ppc64-gnu@4.59.0':
+    optional: true
+
+  '@rollup/rollup-linux-ppc64-gnu@4.60.4':
     optional: true
 
   '@rollup/rollup-linux-ppc64-musl@4.59.0':
     optional: true
 
+  '@rollup/rollup-linux-ppc64-musl@4.60.4':
+    optional: true
+
   '@rollup/rollup-linux-riscv64-gnu@4.59.0':
+    optional: true
+
+  '@rollup/rollup-linux-riscv64-gnu@4.60.4':
     optional: true
 
   '@rollup/rollup-linux-riscv64-musl@4.59.0':
     optional: true
 
+  '@rollup/rollup-linux-riscv64-musl@4.60.4':
+    optional: true
+
   '@rollup/rollup-linux-s390x-gnu@4.59.0':
+    optional: true
+
+  '@rollup/rollup-linux-s390x-gnu@4.60.4':
     optional: true
 
   '@rollup/rollup-linux-x64-gnu@4.59.0':
     optional: true
 
+  '@rollup/rollup-linux-x64-gnu@4.60.4':
+    optional: true
+
   '@rollup/rollup-linux-x64-musl@4.59.0':
+    optional: true
+
+  '@rollup/rollup-linux-x64-musl@4.60.4':
     optional: true
 
   '@rollup/rollup-openbsd-x64@4.59.0':
     optional: true
 
+  '@rollup/rollup-openbsd-x64@4.60.4':
+    optional: true
+
   '@rollup/rollup-openharmony-arm64@4.59.0':
+    optional: true
+
+  '@rollup/rollup-openharmony-arm64@4.60.4':
     optional: true
 
   '@rollup/rollup-win32-arm64-msvc@4.59.0':
     optional: true
 
+  '@rollup/rollup-win32-arm64-msvc@4.60.4':
+    optional: true
+
   '@rollup/rollup-win32-ia32-msvc@4.59.0':
+    optional: true
+
+  '@rollup/rollup-win32-ia32-msvc@4.60.4':
     optional: true
 
   '@rollup/rollup-win32-x64-gnu@4.59.0':
     optional: true
 
+  '@rollup/rollup-win32-x64-gnu@4.60.4':
+    optional: true
+
   '@rollup/rollup-win32-x64-msvc@4.59.0':
+    optional: true
+
+  '@rollup/rollup-win32-x64-msvc@4.60.4':
     optional: true
 
   '@rtsao/scc@1.1.0': {}
@@ -30401,7 +30745,7 @@ snapshots:
       fs-extra: 11.3.4
       import-lazy: 4.0.0
       jju: 1.4.0
-      resolve: 1.22.11
+      resolve: 1.22.12
       semver: 7.5.4
     optionalDependencies:
       '@types/node': 20.19.34
@@ -30747,7 +31091,7 @@ snapshots:
 
   '@slorber/react-helmet-async@1.3.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
       invariant: 2.2.4
       prop-types: 15.8.1
       react: 18.3.1
@@ -31108,7 +31452,7 @@ snapshots:
 
   '@stablelib/base64@1.0.1': {}
 
-  '@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6)':
+  '@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6)':
     dependencies:
       '@standard-schema/spec': 1.1.0
       '@types/json-schema': 7.0.15
@@ -31116,11 +31460,11 @@ snapshots:
     optionalDependencies:
       effect: 3.19.19
       zod: 4.3.6
-      zod-to-json-schema: 3.25.1(zod@4.3.6)
+      zod-to-json-schema: 3.25.2(zod@4.3.6)
 
-  '@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6)':
+  '@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6)':
     dependencies:
-      '@standard-community/standard-json': 0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6)
+      '@standard-community/standard-json': 0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6)
       '@standard-schema/spec': 1.1.0
       openapi-types: 12.1.3
     optionalDependencies:
@@ -31305,10 +31649,10 @@ snapshots:
     dependencies:
       defer-to-connect: 2.0.1
 
-  '@tailwindcss/forms@0.5.11(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2))':
+  '@tailwindcss/forms@0.5.11(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))':
     dependencies:
       mini-svg-data-uri: 1.4.4
-      tailwindcss: 3.4.19(tsx@4.21.0)(yaml@2.8.2)
+      tailwindcss: 3.4.19(tsx@4.21.0)(yaml@2.9.0)
 
   '@tanstack/query-core@5.90.20': {}
 
@@ -31611,7 +31955,7 @@ snapshots:
 
   '@types/babel__core@7.20.5':
     dependencies:
-      '@babel/parser': 7.29.0
+      '@babel/parser': 7.29.3
       '@babel/types': 7.29.0
       '@types/babel__generator': 7.27.0
       '@types/babel__template': 7.4.4
@@ -31623,7 +31967,7 @@ snapshots:
 
   '@types/babel__template@7.4.4':
     dependencies:
-      '@babel/parser': 7.29.0
+      '@babel/parser': 7.29.3
       '@babel/types': 7.29.0
 
   '@types/babel__traverse@7.28.0':
@@ -31654,10 +31998,6 @@ snapshots:
       '@types/node': 20.19.34
 
   '@types/connect@3.4.38':
-    dependencies:
-      '@types/node': 20.19.34
-
-  '@types/cors@2.8.19':
     dependencies:
       '@types/node': 20.19.34
 
@@ -31725,6 +32065,8 @@ snapshots:
       '@types/estree': 1.0.8
 
   '@types/estree@1.0.8': {}
+
+  '@types/estree@1.0.9': {}
 
   '@types/express-serve-static-core@4.19.8':
     dependencies:
@@ -32222,12 +32564,12 @@ snapshots:
 
   '@uploadthing/mime-types@0.3.1': {}
 
-  '@uploadthing/react@7.1.0(next@15.3.9(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(react@18.3.1)(uploadthing@7.2.0(express@5.2.1)(next@15.3.9(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2)))':
+  '@uploadthing/react@7.1.0(next@15.3.9(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(react@18.3.1)(uploadthing@7.2.0(express@5.2.1)(next@15.3.9(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0)))':
     dependencies:
       '@uploadthing/shared': 7.1.0
       file-selector: 0.6.0
       react: 18.3.1
-      uploadthing: 7.2.0(express@5.2.1)(next@15.3.9(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2))
+      uploadthing: 7.2.0(express@5.2.1)(next@15.3.9(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
     optionalDependencies:
       next: 15.3.9(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3)
 
@@ -32575,12 +32917,23 @@ snapshots:
     dependencies:
       ajv: 6.14.0
 
+  ajv-keywords@3.5.2(ajv@6.15.0):
+    dependencies:
+      ajv: 6.15.0
+
   ajv-keywords@5.1.0(ajv@8.18.0):
     dependencies:
       ajv: 8.18.0
       fast-deep-equal: 3.1.3
 
   ajv@6.14.0:
+    dependencies:
+      fast-deep-equal: 3.1.3
+      fast-json-stable-stringify: 2.1.0
+      json-schema-traverse: 0.4.1
+      uri-js: 4.4.1
+
+  ajv@6.15.0:
     dependencies:
       fast-deep-equal: 3.1.3
       fast-json-stable-stringify: 2.1.0
@@ -32662,7 +33015,7 @@ snapshots:
   anymatch@3.1.3:
     dependencies:
       normalize-path: 3.0.0
-      picomatch: 2.3.1
+      picomatch: 2.3.2
 
   append-field@1.0.0: {}
 
@@ -32769,9 +33122,9 @@ snapshots:
 
   array.prototype.filter@1.0.4:
     dependencies:
-      call-bind: 1.0.8
+      call-bind: 1.0.9
       define-properties: 1.2.1
-      es-abstract: 1.24.1
+      es-abstract: 1.24.2
       es-array-method-boxes-properly: 1.0.0
       es-object-atoms: 1.1.1
       is-string: 1.1.1
@@ -33129,7 +33482,7 @@ snapshots:
       on-finished: 2.4.1
       qs: 6.15.0
       raw-body: 3.0.2
-      type-is: 2.0.1
+      type-is: 2.1.0
     transitivePeerDependencies:
       - supports-color
 
@@ -33294,6 +33647,13 @@ snapshots:
       get-intrinsic: 1.3.0
       set-function-length: 1.2.2
 
+  call-bind@1.0.9:
+    dependencies:
+      call-bind-apply-helpers: 1.0.2
+      es-define-property: 1.0.1
+      get-intrinsic: 1.3.0
+      set-function-length: 1.2.2
+
   call-bound@1.0.4:
     dependencies:
       call-bind-apply-helpers: 1.0.2
@@ -33419,7 +33779,7 @@ snapshots:
 
   chardet@2.1.1: {}
 
-  chat@4.26.0:
+  chat@4.29.0(ai@5.0.138(zod@4.3.6))(zod@4.3.6):
     dependencies:
       '@workflow/serde': 4.1.0-beta.2
       mdast-util-to-string: 4.0.0
@@ -33428,6 +33788,9 @@ snapshots:
       remark-stringify: 11.0.0
       remend: 1.3.0
       unified: 11.0.5
+    optionalDependencies:
+      ai: 5.0.138(zod@4.3.6)
+      zod: 4.3.6
     transitivePeerDependencies:
       - supports-color
 
@@ -33463,7 +33826,7 @@ snapshots:
       parse5: 7.3.0
       parse5-htmlparser2-tree-adapter: 7.1.0
       parse5-parser-stream: 7.1.2
-      undici: 7.24.8
+      undici: 7.25.0
       whatwg-mimetype: 4.0.0
 
   chokidar@3.6.0:
@@ -33820,9 +34183,11 @@ snapshots:
     dependencies:
       safe-buffer: 5.2.1
 
-  content-disposition@1.0.1: {}
+  content-disposition@1.1.0: {}
 
   content-type@1.0.5: {}
+
+  content-type@2.0.0: {}
 
   conventional-changelog-angular@7.0.0:
     dependencies:
@@ -33953,6 +34318,8 @@ snapshots:
     dependencies:
       luxon: 3.7.2
 
+  croner@10.0.1: {}
+
   cross-env@7.0.3:
     dependencies:
       cross-spawn: 7.0.6
@@ -33964,6 +34331,12 @@ snapshots:
       - encoding
 
   cross-fetch@4.0.0:
+    dependencies:
+      node-fetch: 2.7.0
+    transitivePeerDependencies:
+      - encoding
+
+  cross-fetch@4.1.0:
     dependencies:
       node-fetch: 2.7.0
     transitivePeerDependencies:
@@ -34632,7 +35005,7 @@ snapshots:
 
   emoticon@4.1.0: {}
 
-  empathic@2.0.0: {}
+  empathic@2.0.1: {}
 
   enabled@2.0.0: {}
 
@@ -34752,6 +35125,63 @@ snapshots:
       own-keys: 1.0.1
       regexp.prototype.flags: 1.5.4
       safe-array-concat: 1.1.3
+      safe-push-apply: 1.0.0
+      safe-regex-test: 1.1.0
+      set-proto: 1.0.0
+      stop-iteration-iterator: 1.1.0
+      string.prototype.trim: 1.2.10
+      string.prototype.trimend: 1.0.9
+      string.prototype.trimstart: 1.0.8
+      typed-array-buffer: 1.0.3
+      typed-array-byte-length: 1.0.3
+      typed-array-byte-offset: 1.0.4
+      typed-array-length: 1.0.7
+      unbox-primitive: 1.1.0
+      which-typed-array: 1.1.20
+
+  es-abstract@1.24.2:
+    dependencies:
+      array-buffer-byte-length: 1.0.2
+      arraybuffer.prototype.slice: 1.0.4
+      available-typed-arrays: 1.0.7
+      call-bind: 1.0.9
+      call-bound: 1.0.4
+      data-view-buffer: 1.0.2
+      data-view-byte-length: 1.0.2
+      data-view-byte-offset: 1.0.1
+      es-define-property: 1.0.1
+      es-errors: 1.3.0
+      es-object-atoms: 1.1.1
+      es-set-tostringtag: 2.1.0
+      es-to-primitive: 1.3.0
+      function.prototype.name: 1.1.8
+      get-intrinsic: 1.3.0
+      get-proto: 1.0.1
+      get-symbol-description: 1.1.0
+      globalthis: 1.0.4
+      gopd: 1.2.0
+      has-property-descriptors: 1.0.2
+      has-proto: 1.2.0
+      has-symbols: 1.1.0
+      hasown: 2.0.3
+      internal-slot: 1.1.0
+      is-array-buffer: 3.0.5
+      is-callable: 1.2.7
+      is-data-view: 1.0.2
+      is-negative-zero: 2.0.3
+      is-regex: 1.2.1
+      is-set: 2.0.3
+      is-shared-array-buffer: 1.0.4
+      is-string: 1.1.1
+      is-typed-array: 1.1.15
+      is-weakref: 1.1.1
+      math-intrinsics: 1.1.0
+      object-inspect: 1.13.4
+      object-keys: 1.1.1
+      object.assign: 4.1.7
+      own-keys: 1.0.1
+      regexp.prototype.flags: 1.5.4
+      safe-array-concat: 1.1.4
       safe-push-apply: 1.0.0
       safe-regex-test: 1.1.0
       set-proto: 1.0.0
@@ -34968,8 +35398,8 @@ snapshots:
       '@typescript-eslint/parser': 8.57.1(eslint@8.10.0)(typescript@5.9.3)
       eslint: 8.10.0
       eslint-import-resolver-node: 0.3.9
-      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint@8.10.0))(eslint@8.10.0)
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint@8.10.0))(eslint@8.10.0))(eslint@8.10.0)
+      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@8.10.0)
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@8.10.0)
       eslint-plugin-jsx-a11y: 6.10.2(eslint@8.10.0)
       eslint-plugin-react: 7.37.5(eslint@8.10.0)
       eslint-plugin-react-hooks: 5.2.0(eslint@8.10.0)
@@ -34988,7 +35418,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint@8.10.0))(eslint@8.10.0):
+  eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0)(eslint@8.10.0):
     dependencies:
       '@nolyfill/is-core-module': 1.0.39
       debug: 4.4.3(supports-color@8.1.1)
@@ -34999,22 +35429,22 @@ snapshots:
       tinyglobby: 0.2.16
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint@8.10.0))(eslint@8.10.0))(eslint@8.10.0)
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@8.10.0)
     transitivePeerDependencies:
       - supports-color
 
-  eslint-module-utils@2.12.1(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint@8.10.0))(eslint@8.10.0))(eslint@8.10.0):
+  eslint-module-utils@2.12.1(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1)(eslint@8.10.0):
     dependencies:
       debug: 3.2.7
     optionalDependencies:
       '@typescript-eslint/parser': 8.57.1(eslint@8.10.0)(typescript@5.9.3)
       eslint: 8.10.0
       eslint-import-resolver-node: 0.3.9
-      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint@8.10.0))(eslint@8.10.0)
+      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@8.10.0)
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint@8.10.0))(eslint@8.10.0))(eslint@8.10.0):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@8.10.0):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.1.9
@@ -35025,7 +35455,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 8.10.0
       eslint-import-resolver-node: 0.3.9
-      eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint@8.10.0))(eslint@8.10.0))(eslint@8.10.0)
+      eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.57.1(eslint@8.10.0)(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1)(eslint@8.10.0)
       hasown: 2.0.2
       is-core-module: 2.16.1
       is-glob: 4.0.3
@@ -35239,9 +35669,11 @@ snapshots:
 
   eventsource-parser@3.0.6: {}
 
+  eventsource-parser@3.0.8: {}
+
   eventsource@3.0.7:
     dependencies:
-      eventsource-parser: 3.0.6
+      eventsource-parser: 3.0.8
 
   exceljs@4.4.0:
     dependencies:
@@ -35315,6 +35747,11 @@ snapshots:
       express: 5.2.1
       ip-address: 10.0.1
 
+  express-rate-limit@8.5.2(express@5.2.1):
+    dependencies:
+      express: 5.2.1
+      ip-address: 10.2.0
+
   express-session@1.19.0:
     dependencies:
       cookie: 0.7.2
@@ -35368,7 +35805,7 @@ snapshots:
     dependencies:
       accepts: 2.0.0
       body-parser: 2.2.2
-      content-disposition: 1.0.1
+      content-disposition: 1.1.0
       content-type: 1.0.5
       cookie: 0.7.2
       cookie-signature: 1.2.2
@@ -35392,7 +35829,7 @@ snapshots:
       send: 1.2.1
       serve-static: 2.2.1
       statuses: 2.0.2
-      type-is: 2.0.1
+      type-is: 2.1.0
       vary: 1.1.2
     transitivePeerDependencies:
       - supports-color
@@ -35630,7 +36067,7 @@ snapshots:
     dependencies:
       fast-glob: 3.3.3
       pkg-types: 1.3.1
-      yaml: 2.8.2
+      yaml: 2.9.0
 
   fix-dts-default-cjs-exports@1.0.1:
     dependencies:
@@ -35858,6 +36295,10 @@ snapshots:
     dependencies:
       resolve-pkg-maps: 1.0.0
 
+  get-tsconfig@4.14.0:
+    dependencies:
+      resolve-pkg-maps: 1.0.0
+
   getopts@2.3.0: {}
 
   git-log-parser@1.2.1:
@@ -36045,6 +36486,10 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
+  hasown@2.0.3:
+    dependencies:
+      function-bind: 1.1.2
+
   hast-util-from-parse5@8.0.3:
     dependencies:
       '@types/hast': 3.0.4
@@ -36154,7 +36599,7 @@ snapshots:
 
   history@4.10.1:
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
       loose-envify: 1.4.0
       resolve-pathname: 3.0.0
       tiny-invariant: 1.3.3
@@ -36167,16 +36612,18 @@ snapshots:
     dependencies:
       react-is: 16.13.1
 
-  hono-openapi@1.3.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(hono@4.12.15)(openapi-types@12.1.3):
+  hono-openapi@1.3.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(hono@4.12.15)(openapi-types@12.1.3):
     dependencies:
-      '@standard-community/standard-json': 0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6)
-      '@standard-community/standard-openapi': 0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6)
+      '@standard-community/standard-json': 0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6)
+      '@standard-community/standard-openapi': 0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6)
       '@types/json-schema': 7.0.15
       openapi-types: 12.1.3
     optionalDependencies:
       hono: 4.12.15
 
   hono@4.12.15: {}
+
+  hono@4.12.21: {}
 
   hook-std@3.0.0: {}
 
@@ -36360,6 +36807,12 @@ snapshots:
   i18next-http-backend@2.4.2:
     dependencies:
       cross-fetch: 4.0.0
+    transitivePeerDependencies:
+      - encoding
+
+  i18next-http-backend@3.0.5:
+    dependencies:
+      cross-fetch: 4.1.0
     transitivePeerDependencies:
       - encoding
 
@@ -36547,6 +37000,8 @@ snapshots:
 
   ip-address@10.0.1: {}
 
+  ip-address@10.2.0: {}
+
   ip-address@5.9.4:
     dependencies:
       jsbn: 1.1.0
@@ -36622,6 +37077,10 @@ snapshots:
   is-core-module@2.16.1:
     dependencies:
       hasown: 2.0.2
+
+  is-core-module@2.16.2:
+    dependencies:
+      hasown: 2.0.3
 
   is-data-view@1.0.2:
     dependencies:
@@ -36730,7 +37189,7 @@ snapshots:
 
   is-reference@1.2.1:
     dependencies:
-      '@types/estree': 1.0.8
+      '@types/estree': 1.0.9
 
   is-regex@1.2.1:
     dependencies:
@@ -36852,7 +37311,7 @@ snapshots:
   istanbul-lib-instrument@5.2.1:
     dependencies:
       '@babel/core': 7.29.0
-      '@babel/parser': 7.29.0
+      '@babel/parser': 7.29.3
       '@istanbuljs/schema': 0.1.3
       istanbul-lib-coverage: 3.2.2
       semver: 6.3.1
@@ -36862,7 +37321,7 @@ snapshots:
   istanbul-lib-instrument@6.0.3:
     dependencies:
       '@babel/core': 7.29.0
-      '@babel/parser': 7.29.0
+      '@babel/parser': 7.29.3
       '@istanbuljs/schema': 0.1.3
       istanbul-lib-coverage: 3.2.2
       semver: 7.7.4
@@ -37264,6 +37723,8 @@ snapshots:
 
   jose@6.1.3: {}
 
+  jose@6.2.3: {}
+
   jotai-scope@0.7.2(jotai@2.11.0(@types/react@18.3.28)(react@18.3.1))(react@18.3.1):
     dependencies:
       jotai: 2.11.0(@types/react@18.3.28)(react@18.3.1)
@@ -37322,7 +37783,7 @@ snapshots:
     dependencies:
       foreach: 2.0.6
 
-  json-schema-to-zod@2.7.0: {}
+  json-schema-to-zod@2.8.1: {}
 
   json-schema-traverse@0.4.1: {}
 
@@ -37756,13 +38217,15 @@ snapshots:
 
   marked@4.3.0: {}
 
-  mastra@1.6.3(@hono/node-server@1.19.9(hono@4.12.15))(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))(typescript@5.9.3)(zod@4.3.6):
+  mastra@1.10.0(@hono/node-server@1.19.14(hono@4.12.15))(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))(rxjs@7.8.2)(typescript@5.9.3)(zod@4.3.6):
     dependencies:
+      '@babel/parser': 7.29.3
+      '@babel/types': 7.29.0
       '@clack/prompts': 1.2.0
       '@expo/devcert': 1.2.1
-      '@mastra/core': 1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6)
-      '@mastra/deployer': 1.28.0(@hono/node-server@1.19.9(hono@4.12.15))(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))(typescript@5.9.3)(zod@4.3.6)
-      '@mastra/loggers': 1.1.1(@mastra/core@1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6))
+      '@mastra/core': 1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6)
+      '@mastra/deployer': 1.36.0(@hono/node-server@1.19.14(hono@4.12.15))(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))(typescript@5.9.3)(zod@4.3.6)
+      '@mastra/loggers': 1.1.1(@mastra/core@1.36.0(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@5.0.138(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.2)(zod@4.3.6))
       archiver: 7.0.1
       commander: 14.0.3
       dotenv: 17.3.1
@@ -37772,13 +38235,13 @@ snapshots:
       local-pkg: 1.1.2
       openapi-fetch: 0.17.0
       picocolors: 1.1.1
-      posthog-node: 5.17.2
-      prettier: 3.8.3
+      posthog-node: 5.35.0(rxjs@7.8.2)
       semver: 7.7.4
       serve: 14.2.6
       serve-handler: 6.1.7
       shell-quote: 1.8.3
       strip-json-comments: 5.0.3
+      tinyglobby: 0.2.16
       yocto-spinner: 1.1.0
       zod: 4.3.6
     transitivePeerDependencies:
@@ -37786,6 +38249,7 @@ snapshots:
       - bare-abort-controller
       - bufferutil
       - react-native-b4a
+      - rxjs
       - supports-color
       - typescript
       - utf-8-validate
@@ -38610,6 +39074,13 @@ snapshots:
       pkg-types: 1.3.1
       ufo: 1.6.3
 
+  mlly@1.8.2:
+    dependencies:
+      acorn: 8.16.0
+      pathe: 2.0.3
+      pkg-types: 1.3.1
+      ufo: 1.6.4
+
   mnemonist@0.38.3:
     dependencies:
       obliterator: 1.6.1
@@ -38639,7 +39110,7 @@ snapshots:
       dompurify: 3.2.7
       marked: 14.0.0
 
-  moo@0.5.2: {}
+  moo@0.5.3: {}
 
   morgan@1.10.1:
     dependencies:
@@ -38758,7 +39229,7 @@ snapshots:
   nearley@2.20.1:
     dependencies:
       commander: 2.20.3
-      moo: 0.5.2
+      moo: 0.5.3
       railroad-diagrams: 1.0.0
       randexp: 0.4.6
 
@@ -38976,14 +39447,14 @@ snapshots:
     dependencies:
       '@exodus/schemasafe': 1.3.0
       should: 13.2.3
-      yaml: 1.10.2
+      yaml: 1.10.3
 
   oas-resolver@2.5.6:
     dependencies:
       node-fetch-h2: 2.3.0
       oas-kit-common: 1.0.8
       reftools: 1.1.9
-      yaml: 1.10.2
+      yaml: 1.10.3
       yargs: 17.7.2
 
   oas-schema-walker@1.1.5: {}
@@ -38997,7 +39468,7 @@ snapshots:
       oas-schema-walker: 1.1.5
       reftools: 1.1.9
       should: 13.2.3
-      yaml: 1.10.2
+      yaml: 1.10.3
 
   object-assign@4.1.1: {}
 
@@ -39412,6 +39883,8 @@ snapshots:
 
   path-to-regexp@8.3.0: {}
 
+  path-to-regexp@8.4.2: {}
+
   path-type@4.0.0: {}
 
   path-type@6.0.0: {}
@@ -39520,6 +39993,8 @@ snapshots:
 
   picomatch@2.3.1: {}
 
+  picomatch@2.3.2: {}
+
   picomatch@4.0.3: {}
 
   picomatch@4.0.4: {}
@@ -39584,7 +40059,7 @@ snapshots:
   pkg-types@1.3.1:
     dependencies:
       confbox: 0.1.8
-      mlly: 1.8.0
+      mlly: 1.8.2
       pathe: 2.0.3
 
   pkg-types@2.3.0:
@@ -39634,7 +40109,7 @@ snapshots:
 
   polished@4.3.1:
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
 
   pony-cause@2.1.11: {}
 
@@ -39794,14 +40269,14 @@ snapshots:
       '@csstools/utilities': 2.0.0(postcss@8.5.6)
       postcss: 8.5.6
 
-  postcss-load-config@6.0.1(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(yaml@2.8.2):
+  postcss-load-config@6.0.1(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(yaml@2.9.0):
     dependencies:
       lilconfig: 3.1.3
     optionalDependencies:
       jiti: 1.21.7
       postcss: 8.5.6
       tsx: 4.21.0
-      yaml: 2.8.2
+      yaml: 2.9.0
 
   postcss-loader@7.3.4(postcss@8.5.6)(typescript@5.6.3)(webpack@5.105.4):
     dependencies:
@@ -40135,9 +40610,11 @@ snapshots:
 
   postgres-interval@4.0.2: {}
 
-  posthog-node@5.17.2:
+  posthog-node@5.35.0(rxjs@7.8.2):
     dependencies:
-      '@posthog/core': 1.7.1
+      '@posthog/core': 1.29.8
+    optionalDependencies:
+      rxjs: 7.8.2
 
   potpack@1.0.2: {}
 
@@ -40430,8 +40907,6 @@ snapshots:
   quick-lru@5.1.1: {}
 
   quotemeta@0.0.0: {}
-
-  radash@12.1.1: {}
 
   radix-ui@1.1.2(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
@@ -41213,7 +41688,7 @@ snapshots:
 
   readdirp@3.6.0:
     dependencies:
-      picomatch: 2.3.1
+      picomatch: 2.3.2
 
   readdirp@4.1.2: {}
 
@@ -41241,7 +41716,7 @@ snapshots:
 
   rechoir@0.8.0:
     dependencies:
-      resolve: 1.22.11
+      resolve: 1.22.12
 
   recma-build-jsx@1.0.0:
     dependencies:
@@ -41409,7 +41884,7 @@ snapshots:
 
   relay-runtime@12.0.0:
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
       fbjs: 3.0.5
       invariant: 2.2.4
     transitivePeerDependencies:
@@ -41565,6 +42040,13 @@ snapshots:
       path-parse: 1.0.7
       supports-preserve-symlinks-flag: 1.0.0
 
+  resolve@1.22.12:
+    dependencies:
+      es-errors: 1.3.0
+      is-core-module: 2.16.2
+      path-parse: 1.0.7
+      supports-preserve-symlinks-flag: 1.0.0
+
   resolve@2.0.0-next.6:
     dependencies:
       es-errors: 1.3.0
@@ -41606,13 +42088,13 @@ snapshots:
 
   robust-predicates@3.0.2: {}
 
-  rollup-plugin-esbuild@6.2.1(esbuild@0.27.7)(rollup@4.59.0):
+  rollup-plugin-esbuild@6.2.1(esbuild@0.27.7)(rollup@4.60.4):
     dependencies:
       debug: 4.4.3(supports-color@8.1.1)
       es-module-lexer: 1.7.0
       esbuild: 0.27.7
-      get-tsconfig: 4.13.6
-      rollup: 4.59.0
+      get-tsconfig: 4.14.0
+      rollup: 4.60.4
       unplugin-utils: 0.2.5
     transitivePeerDependencies:
       - supports-color
@@ -41648,6 +42130,37 @@ snapshots:
       '@rollup/rollup-win32-x64-msvc': 4.59.0
       fsevents: 2.3.3
 
+  rollup@4.60.4:
+    dependencies:
+      '@types/estree': 1.0.8
+    optionalDependencies:
+      '@rollup/rollup-android-arm-eabi': 4.60.4
+      '@rollup/rollup-android-arm64': 4.60.4
+      '@rollup/rollup-darwin-arm64': 4.60.4
+      '@rollup/rollup-darwin-x64': 4.60.4
+      '@rollup/rollup-freebsd-arm64': 4.60.4
+      '@rollup/rollup-freebsd-x64': 4.60.4
+      '@rollup/rollup-linux-arm-gnueabihf': 4.60.4
+      '@rollup/rollup-linux-arm-musleabihf': 4.60.4
+      '@rollup/rollup-linux-arm64-gnu': 4.60.4
+      '@rollup/rollup-linux-arm64-musl': 4.60.4
+      '@rollup/rollup-linux-loong64-gnu': 4.60.4
+      '@rollup/rollup-linux-loong64-musl': 4.60.4
+      '@rollup/rollup-linux-ppc64-gnu': 4.60.4
+      '@rollup/rollup-linux-ppc64-musl': 4.60.4
+      '@rollup/rollup-linux-riscv64-gnu': 4.60.4
+      '@rollup/rollup-linux-riscv64-musl': 4.60.4
+      '@rollup/rollup-linux-s390x-gnu': 4.60.4
+      '@rollup/rollup-linux-x64-gnu': 4.60.4
+      '@rollup/rollup-linux-x64-musl': 4.60.4
+      '@rollup/rollup-openbsd-x64': 4.60.4
+      '@rollup/rollup-openharmony-arm64': 4.60.4
+      '@rollup/rollup-win32-arm64-msvc': 4.60.4
+      '@rollup/rollup-win32-ia32-msvc': 4.60.4
+      '@rollup/rollup-win32-x64-gnu': 4.60.4
+      '@rollup/rollup-win32-x64-msvc': 4.60.4
+      fsevents: 2.3.3
+
   rope-sequence@1.3.4: {}
 
   roughjs@4.6.4:
@@ -41663,7 +42176,7 @@ snapshots:
       depd: 2.0.0
       is-promise: 4.0.0
       parseurl: 1.3.3
-      path-to-regexp: 8.3.0
+      path-to-regexp: 8.4.2
     transitivePeerDependencies:
       - supports-color
 
@@ -41702,6 +42215,14 @@ snapshots:
   safe-array-concat@1.1.3:
     dependencies:
       call-bind: 1.0.8
+      call-bound: 1.0.4
+      get-intrinsic: 1.3.0
+      has-symbols: 1.1.0
+      isarray: 2.0.5
+
+  safe-array-concat@1.1.4:
+    dependencies:
+      call-bind: 1.0.9
       call-bound: 1.0.4
       get-intrinsic: 1.3.0
       has-symbols: 1.1.0
@@ -41852,8 +42373,8 @@ snapshots:
   schema-utils@3.3.0:
     dependencies:
       '@types/json-schema': 7.0.15
-      ajv: 6.14.0
-      ajv-keywords: 3.5.2(ajv@6.14.0)
+      ajv: 6.15.0
+      ajv-keywords: 3.5.2(ajv@6.15.0)
 
   schema-utils@4.3.3:
     dependencies:
@@ -42695,7 +43216,7 @@ snapshots:
       oas-schema-walker: 1.1.5
       oas-validator: 5.0.8
       reftools: 1.1.9
-      yaml: 1.10.2
+      yaml: 1.10.3
       yargs: 17.7.2
     transitivePeerDependencies:
       - encoding
@@ -42726,13 +43247,13 @@ snapshots:
 
   tailwind-merge@2.6.1: {}
 
-  tailwindcss-animate@1.0.7(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2)):
+  tailwindcss-animate@1.0.7(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0)):
     dependencies:
-      tailwindcss: 3.4.19(tsx@4.21.0)(yaml@2.8.2)
+      tailwindcss: 3.4.19(tsx@4.21.0)(yaml@2.9.0)
 
   tailwindcss-radix@2.9.0: {}
 
-  tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2):
+  tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0):
     dependencies:
       '@alloc/quick-lru': 5.2.0
       arg: 5.0.2
@@ -42751,7 +43272,7 @@ snapshots:
       postcss: 8.5.6
       postcss-import: 15.1.0(postcss@8.5.6)
       postcss-js: 4.1.0(postcss@8.5.6)
-      postcss-load-config: 6.0.1(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(yaml@2.8.2)
+      postcss-load-config: 6.0.1(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(yaml@2.9.0)
       postcss-nested: 6.2.0(postcss@8.5.6)
       postcss-selector-parser: 6.1.2
       resolve: 1.22.11
@@ -43046,7 +43567,7 @@ snapshots:
 
   tslib@2.8.1: {}
 
-  tsup@8.5.1(@swc/core@1.7.28(@swc/helpers@0.5.19))(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2):
+  tsup@8.5.1(@swc/core@1.7.28(@swc/helpers@0.5.19))(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.9.0):
     dependencies:
       bundle-require: 5.1.0(esbuild@0.27.3)
       cac: 6.7.14
@@ -43057,7 +43578,7 @@ snapshots:
       fix-dts-default-cjs-exports: 1.0.1
       joycon: 3.1.1
       picocolors: 1.1.1
-      postcss-load-config: 6.0.1(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(yaml@2.8.2)
+      postcss-load-config: 6.0.1(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(yaml@2.9.0)
       resolve-from: 5.0.0
       rollup: 4.59.0
       source-map: 0.7.6
@@ -43143,9 +43664,9 @@ snapshots:
       media-typer: 0.3.0
       mime-types: 2.1.35
 
-  type-is@2.0.1:
+  type-is@2.1.0:
     dependencies:
-      content-type: 1.0.5
+      content-type: 2.0.0
       media-typer: 1.1.0
       mime-types: 3.0.2
 
@@ -43188,7 +43709,7 @@ snapshots:
 
   typedarray@0.0.6: {}
 
-  typescript-paths@1.5.1(typescript@5.9.3):
+  typescript-paths@1.5.2(typescript@5.9.3):
     dependencies:
       typescript: 5.9.3
 
@@ -43201,6 +43722,8 @@ snapshots:
   uc.micro@2.1.0: {}
 
   ufo@1.6.3: {}
+
+  ufo@1.6.4: {}
 
   uglify-js@3.19.3:
     optional: true
@@ -43233,6 +43756,8 @@ snapshots:
   undici-types@6.21.0: {}
 
   undici@7.24.8: {}
+
+  undici@7.25.0: {}
 
   unenv@2.0.0-rc.24:
     dependencies:
@@ -43389,7 +43914,7 @@ snapshots:
       semver-diff: 4.0.0
       xdg-basedir: 5.1.0
 
-  uploadthing@7.2.0(express@5.2.1)(next@15.3.9(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.8.2)):
+  uploadthing@7.2.0(express@5.2.1)(next@15.3.9(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0)):
     dependencies:
       '@effect/platform': 0.69.8(effect@3.19.19)
       '@uploadthing/mime-types': 0.3.1
@@ -43398,7 +43923,7 @@ snapshots:
     optionalDependencies:
       express: 5.2.1
       next: 15.3.9(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3)
-      tailwindcss: 3.4.19(tsx@4.21.0)(yaml@2.8.2)
+      tailwindcss: 3.4.19(tsx@4.21.0)(yaml@2.9.0)
 
   upper-case-first@2.0.2:
     dependencies:
@@ -43520,7 +44045,7 @@ snapshots:
 
   uuid@10.0.0: {}
 
-  uuid@11.1.0: {}
+  uuid@11.1.1: {}
 
   uuid@13.0.0: {}
 
@@ -43608,10 +44133,10 @@ snapshots:
       - supports-color
       - terser
 
-  vite-plugin-inspect@0.8.7(rollup@4.59.0)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)):
+  vite-plugin-inspect@0.8.7(rollup@4.60.4)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)):
     dependencies:
       '@antfu/utils': 0.7.10
-      '@rollup/pluginutils': 5.3.0(rollup@4.59.0)
+      '@rollup/pluginutils': 5.3.0(rollup@4.60.4)
       debug: 4.4.3(supports-color@8.1.1)
       error-stack-parser-es: 0.1.5
       fs-extra: 11.3.3
@@ -44033,6 +44558,8 @@ snapshots:
 
   ws@8.20.0: {}
 
+  ws@8.20.1: {}
+
   wsl-utils@0.1.0:
     dependencies:
       is-wsl: 3.1.1
@@ -44072,9 +44599,11 @@ snapshots:
 
   yaml-ast-parser@0.0.43: {}
 
-  yaml@1.10.2: {}
+  yaml@1.10.3: {}
 
   yaml@2.8.2: {}
+
+  yaml@2.9.0: {}
 
   yargs-parser@18.1.3:
     dependencies:
@@ -44194,6 +44723,10 @@ snapshots:
       zod: 4.3.6
 
   zod-to-json-schema@3.25.1(zod@4.3.6):
+    dependencies:
+      zod: 4.3.6
+
+  zod-to-json-schema@3.25.2(zod@4.3.6):
     dependencies:
       zod: 4.3.6
 
