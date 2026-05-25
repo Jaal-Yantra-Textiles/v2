@@ -5,6 +5,7 @@ import {
   deleteRegionsWorkflow,
   updateRegionsWorkflow,
   updateShippingOptionsWorkflow,
+  updateStoresWorkflow,
 } from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess, getPartnerFromAuthContext } from "../../../../helpers"
 import { PartnerUpdateRegionReqType } from "../../validators"
@@ -211,7 +212,7 @@ export const POST = async (
     // disables the currency column for the new region. See sibling
     // `route.ts` for the rationale.
     await ensureStoreSupportsCurrencyAndDefaultOnUpdate(
-      req.scope.resolve(Modules.STORE) as any,
+      req.scope,
       store,
       newRegion.currency_code,
       regionId,
@@ -322,7 +323,7 @@ export const POST = async (
   // supported_currencies so the pricing grid can render the new
   // currency column. No-op if the currency was already supported.
   await ensureStoreSupportsCurrencyAndDefaultOnUpdate(
-    req.scope.resolve(Modules.STORE) as any,
+    req.scope,
     store,
     result[0]?.currency_code,
     regionId,
@@ -336,8 +337,12 @@ export const POST = async (
 // (possibly-new) region currency, and rewires default_region_id from
 // the old id to the new one when the clone-on-write path moved the
 // partner's pointer. Idempotent — re-runs are safe.
+//
+// Uses updateStoresWorkflow because direct storeService.updateStores
+// silently no-ops on supported_currencies updates (it's a managed
+// relation). Same lesson as the seed.ts pattern.
 async function ensureStoreSupportsCurrencyAndDefaultOnUpdate(
-  storeService: any,
+  scope: any,
   store: any,
   currencyCode: string | undefined,
   oldRegionId: string,
@@ -359,7 +364,7 @@ async function ensureStoreSupportsCurrencyAndDefaultOnUpdate(
 
   if (!needsCurrency && !needsDefaultRepoint) return
 
-  const update: Record<string, any> = { id: store.id }
+  const update: Record<string, any> = {}
 
   if (needsCurrency) {
     update.supported_currencies = [
@@ -375,7 +380,9 @@ async function ensureStoreSupportsCurrencyAndDefaultOnUpdate(
     update.default_region_id = newRegionId
   }
 
-  await storeService.updateStores(update)
+  await updateStoresWorkflow(scope).run({
+    input: { selector: { id: store.id }, update },
+  })
 }
 
 export const DELETE = async (

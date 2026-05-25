@@ -50,7 +50,16 @@ export const validatePartnerStoreAccess = async (
     const query = container.resolve(ContainerRegistrationKeys.QUERY)
     const { data } = await query.graph({
         entity: "partners",
-        fields: ["id", "stores.*"],
+        // `stores.supported_currencies.*` MUST be expanded — partner
+        // routes that mutate regions / payments rely on the live
+        // supported_currencies array on the returned store to compute
+        // whether they need to expand currencies on the fly. Without
+        // the expansion the array comes back undefined, the helper
+        // treats it as empty, and an updateStores call writes a
+        // single-entry array stripping the default-currency flag —
+        // which then breaks every subsequent createRegionsWorkflow
+        // with "There should be a default currency set for the store".
+        fields: ["id", "stores.*", "stores.supported_currencies.*"],
         filters: { id: partner.id },
     })
 
@@ -82,7 +91,16 @@ export const getPartnerStore = async (
     const query = container.resolve(ContainerRegistrationKeys.QUERY)
     const { data } = await query.graph({
         entity: "partners",
-        fields: ["id", "stores.*"],
+        // `stores.supported_currencies.*` MUST be expanded — partner
+        // routes that mutate regions / payments rely on the live
+        // supported_currencies array on the returned store to compute
+        // whether they need to expand currencies on the fly. Without
+        // the expansion the array comes back undefined, the helper
+        // treats it as empty, and an updateStores call writes a
+        // single-entry array stripping the default-currency flag —
+        // which then breaks every subsequent createRegionsWorkflow
+        // with "There should be a default currency set for the store".
+        fields: ["id", "stores.*", "stores.supported_currencies.*"],
         filters: { id: partner.id },
     })
 
@@ -116,7 +134,16 @@ export const tryGetPartnerStore = async (
     const query = container.resolve(ContainerRegistrationKeys.QUERY)
     const { data } = await query.graph({
         entity: "partners",
-        fields: ["id", "stores.*"],
+        // `stores.supported_currencies.*` MUST be expanded — partner
+        // routes that mutate regions / payments rely on the live
+        // supported_currencies array on the returned store to compute
+        // whether they need to expand currencies on the fly. Without
+        // the expansion the array comes back undefined, the helper
+        // treats it as empty, and an updateStores call writes a
+        // single-entry array stripping the default-currency flag —
+        // which then breaks every subsequent createRegionsWorkflow
+        // with "There should be a default currency set for the store".
+        fields: ["id", "stores.*", "stores.supported_currencies.*"],
         filters: { id: partner.id },
     })
 

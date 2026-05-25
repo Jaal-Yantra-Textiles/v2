@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import { createRegionsWorkflow } from "@medusajs/medusa/core-flows"
+import { createRegionsWorkflow, updateStoresWorkflow } from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess } from "../../../helpers"
 import { getPartnerFromAuthContext } from "../../../helpers"
 import { PartnerCreateRegionReqType } from "../validators"
@@ -169,7 +169,7 @@ export const POST = async (
   // currency, never replace `is_default`, and don't touch entries that
   // are already there.
   await ensureStoreSupportsCurrencyAndDefault(
-    req.scope.resolve(Modules.STORE) as any,
+    req.scope,
     store,
     region.currency_code,
     region.id
@@ -179,7 +179,7 @@ export const POST = async (
 }
 
 async function ensureStoreSupportsCurrencyAndDefault(
-  storeService: any,
+  scope: any,
   store: any,
   currencyCode: string | undefined,
   newRegionId: string
@@ -199,7 +199,12 @@ async function ensureStoreSupportsCurrencyAndDefault(
 
   if (!needsCurrency && !needsDefault) return
 
-  const update: Record<string, any> = { id: store.id }
+  // Use updateStoresWorkflow — the direct storeService.updateStores
+  // returns [] for supported_currencies updates (it's a managed
+  // relation that needs the workflow's link plumbing). Other fields
+  // like default_region_id work via direct service, but bundling them
+  // through one workflow call is cleaner anyway.
+  const update: Record<string, any> = {}
 
   if (needsCurrency) {
     update.supported_currencies = [
@@ -215,5 +220,7 @@ async function ensureStoreSupportsCurrencyAndDefault(
     update.default_region_id = newRegionId
   }
 
-  await storeService.updateStores(update)
+  await updateStoresWorkflow(scope).run({
+    input: { selector: { id: store.id }, update },
+  })
 }
