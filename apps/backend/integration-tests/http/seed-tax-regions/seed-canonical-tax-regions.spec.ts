@@ -120,5 +120,32 @@ setupSharedTestSuite(() => {
       const after = await readTaxRegionsForCountry(container, "us")
       expect(after.length).toBe(0)
     })
+
+    it("DRY_RUN=1 env var also triggers dry-run mode", async () => {
+      // run-backfill.sh sets DRY_RUN as a container env var. Both args
+      // and env-var paths must trigger dry-run so ECS-spawned previews
+      // don't silently create rows.
+      const container = getContainer()
+      await api.post(
+        "/admin/regions",
+        { name: "Test JP", currency_code: "jpy", countries: ["jp"] },
+        adminHeaders
+      )
+
+      const before = await readTaxRegionsForCountry(container, "jp")
+      expect(before.length).toBe(0)
+
+      const prev = process.env.DRY_RUN
+      process.env.DRY_RUN = "1"
+      try {
+        await seedCanonicalTaxRegions({ container, args: [] } as any)
+      } finally {
+        if (prev === undefined) delete process.env.DRY_RUN
+        else process.env.DRY_RUN = prev
+      }
+
+      const after = await readTaxRegionsForCountry(container, "jp")
+      expect(after.length).toBe(0)
+    })
   })
 })

@@ -185,5 +185,31 @@ setupSharedTestSuite(() => {
       await backfillPartnerRegionLinks({ container, args: ["--dry-run"] } as any)
       expect(await countLinks(container, a.partnerId, a.regionId!)).toBe(0)
     })
+
+    it("DRY_RUN=1 env var also triggers dry-run mode", async () => {
+      // deploy/aws/scripts/run-backfill.sh passes DRY_RUN as an env var
+      // (not as a positional arg). Both paths must lead to the same
+      // dry-run behavior — without this, a "dry-run" deploy step
+      // silently runs the real backfill (which is how the prod
+      // migration ran for real instead of preview on 2026-05-25).
+      const a = await createPartnerWithStore(api, adminHeaders)
+      const container = getContainer()
+      const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as any
+
+      await remoteLink.dismiss({
+        partner: { partner_id: a.partnerId },
+        [Modules.REGION]: { region_id: a.regionId },
+      })
+
+      const before = process.env.DRY_RUN
+      process.env.DRY_RUN = "1"
+      try {
+        await backfillPartnerRegionLinks({ container, args: [] } as any)
+      } finally {
+        if (before === undefined) delete process.env.DRY_RUN
+        else process.env.DRY_RUN = before
+      }
+      expect(await countLinks(container, a.partnerId, a.regionId!)).toBe(0)
+    })
   })
 })
