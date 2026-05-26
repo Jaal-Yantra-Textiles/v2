@@ -32,7 +32,8 @@
     "generate:plans": "ts-node src/scripts/generate-route-plans.ts",
     "seed:plans": "ts-node src/scripts/seed-plans.ts",
     "specs:store": "medusa exec ./src/scripts/specs/store-specs-in-db.ts",
-    "specs:store:direct": "npx tsx src/scripts/specs/store-specs-in-db.ts"
+    "specs:store:direct": "npx tsx src/scripts/specs/store-specs-in-db.ts",
+    "check:prod-config": "node ./scripts/check-prod-config-parity.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.1.17",
