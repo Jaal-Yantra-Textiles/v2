@@ -60,14 +60,18 @@ export const PricingEdit = ({
 
   // Build variantIndex -> currency|region_id -> FxPriceMetadata so the
   // pricing grid can render the FX badge on auto-converted cells.
+  // The discriminator is the presence of a linked `fx_price_meta` row
+  // on a price — see apps/backend/src/links/price-fx-meta.ts. The
+  // partner-side products GET route walks variants.price_set.prices
+  // and re-attaches `fx_price_meta` onto the flattened variant.prices.
   const fxAutoMetadata = useMemo<FxAutoMetadataMap | undefined>(() => {
     if (!variants?.length) return undefined
     const result: FxAutoMetadataMap = {}
     variants.forEach((variant: any, idx: number) => {
       const byKey: Record<string, FxPriceMetadata> = {}
       ;(variant.prices ?? []).forEach((price: any) => {
-        const meta = price?.metadata as FxPriceMetadata | undefined
-        if (!meta?.is_auto_converted) return
+        const meta = price?.fx_price_meta as FxPriceMetadata | undefined
+        if (!meta) return
         const key = price.rules?.region_id ?? price.currency_code
         if (!key) return
         byKey[key] = meta

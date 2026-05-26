@@ -18,6 +18,8 @@ export const GET = async (
   // Fetch prices via the price_set relation so we can reconstruct the flat
   // `rules` object from `price_rules` — the `prices.*` relation only returns
   // denormalized `rules_count`, which breaks region-scoped pricing in the UI.
+  // `price_set.prices.fx_price_meta.*` pulls our 1:1 link rows so the UI
+  // can render the FX badge + tooltip on auto-converted cells.
   const { data: products } = await query.graph({
     entity: "products",
     fields: [
@@ -25,6 +27,7 @@ export const GET = async (
       "variants.*",
       "variants.price_set.prices.*",
       "variants.price_set.prices.price_rules.*",
+      "variants.price_set.prices.fx_price_meta.*",
       "variants.options.*",
       "variants.inventory_items.*",
       "variants.inventory_items.inventory.*",
@@ -46,28 +49,27 @@ export const GET = async (
 
   const product = products[0] as any
 
-  // `remapVariantResponse` (used by remapProductResponse) explicitly drops
-  // `price.metadata` when flattening price_set.prices → variant.prices.
-  // The partner UI needs metadata to render FX-auto-converted badges, so
-  // capture it before the remap and re-attach to the flattened prices by
-  // price.id. Empty objects are skipped to keep the response slim.
-  const metadataByPriceId = new Map<string, Record<string, unknown>>()
+  // `remapVariantResponse` (used by remapProductResponse) flattens
+  // `variant.price_set.prices` → `variant.prices` but only copies a
+  // hand-picked subset of fields. Our `fx_price_meta` link rows are
+  // not in that allow-list, so capture them by price.id before the
+  // remap and re-attach to the flattened prices afterwards.
+  const fxMetaByPriceId = new Map<string, any>()
   for (const variant of product.variants || []) {
     for (const price of variant.price_set?.prices || []) {
-      const meta = price.metadata as Record<string, unknown> | null | undefined
-      if (meta && Object.keys(meta).length) {
-        metadataByPriceId.set(price.id, meta)
+      if (price.fx_price_meta) {
+        fxMetaByPriceId.set(price.id, price.fx_price_meta)
       }
     }
   }
 
   scopeAndAggregateVariantInventory(product.variants || [], store?.default_location_id)
   const remapped: any = remapProductResponse(product)
-  if (metadataByPriceId.size) {
+  if (fxMetaByPriceId.size) {
     for (const variant of remapped.variants || []) {
       for (const price of variant.prices || []) {
-        const meta = metadataByPriceId.get(price.id)
-        if (meta) price.metadata = meta
+        const meta = fxMetaByPriceId.get(price.id)
+        if (meta) price.fx_price_meta = meta
       }
     }
   }

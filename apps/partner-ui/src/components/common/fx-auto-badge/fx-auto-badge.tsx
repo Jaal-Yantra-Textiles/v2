@@ -1,7 +1,11 @@
 import { Tooltip } from "@medusajs/ui"
 
+// Mirrors the backend `fx_price_meta` link row attached to a Price
+// via the price-fx-meta link (see apps/backend/src/links/). Presence
+// of an `fx_price_meta` row on a price means "this was created by
+// the FX fanout (or daily re-rate)" — no separate flag needed.
 export type FxPriceMetadata = {
-  is_auto_converted?: boolean
+  id?: string
   base_currency?: string
   base_amount?: number
   fx_rate?: number
