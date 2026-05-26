@@ -41,7 +41,7 @@ export const FxAutoBadge = ({
     <Tooltip content={tooltipText} maxWidth={320}>
       <span
         aria-label="auto-converted"
-        className="text-ui-fg-muted bg-ui-bg-subtle pointer-events-auto absolute right-1 top-1 select-none rounded px-1 text-[10px] leading-tight"
+        className="text-ui-fg-muted bg-ui-bg-subtle pointer-events-auto absolute right-1 top-1 z-[3] select-none rounded px-1 text-[10px] leading-tight"
       >
         FX
       </span>
