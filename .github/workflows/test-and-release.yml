@@ -58,6 +58,9 @@ jobs:
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
 
+    - name: Check medusa-config dev/prod parity
+      run: pnpm --filter @jyt/backend check:prod-config
+
     - name: Setup Database
       run: |
         psql -h localhost -U postgres -d postgres -c "CREATE USER runner SUPERUSER CREATEDB CREATEROLE;"
