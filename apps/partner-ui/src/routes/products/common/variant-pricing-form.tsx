@@ -108,8 +108,13 @@ const useVariantPriceGridColumns = ({
         },
         getCellDecorator: fxAutoMetadata
           ? (context, key, kind) => {
+              // Presence of an fx_price_meta row is the discriminator
+              // (no separate `is_auto_converted` flag). The metadata
+              // map is keyed by currency code for currency cells and
+              // region id for region cells; pre-filtered by
+              // pricing-edit.tsx to only contain auto rows.
               const meta = fxAutoMetadata[context.row.index]?.[key]
-              if (!meta?.is_auto_converted) return null
+              if (!meta) return null
               const target =
                 kind === "region"
                   ? regions.find((r) => r.id === key)?.currency_code ?? key

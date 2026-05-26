@@ -51,6 +51,16 @@ import FxRatesService from "../../modules/fx_rates/service"
 export type FanoutPricesInput = {
   /** Source price id (the one the partner just set). */
   source_price_id: string
+  /**
+   * Optional: the store whose supported_currencies drive the fanout.
+   * Pass this from contexts where you already know the store (partner
+   * routes, scripts). When omitted, the workflow derives it by walking
+   * price_set → variant → product → sales_channel and looking up the
+   * store where `default_sales_channel_id` matches — useful as a
+   * fallback but slower and dependent on the product being linked to
+   * a sales_channel that's the default for exactly one store.
+   */
+  store_id?: string
 }
 
 export type FanoutPricesOutput = {
@@ -105,23 +115,37 @@ const fanoutPricesStep = createStep(
       return new StepResponse(output)
     }
 
-    // 2. Resolve price_set → variant → product → store via the
-    //    Medusa-managed product_variant_price_set link.
-    const { data: variantLinks } = await query.graph({
-      entity: "product_variant_price_set",
-      filters: { price_set_id: source.price_set_id },
-      fields: [
-        "variant_id",
-        "variant.product.sales_channels.store_id",
-      ],
-    })
-    const variantLink = (variantLinks ?? [])[0] as any
-    const storeId =
-      variantLink?.variant?.product?.sales_channels?.[0]?.store_id
+    // 2. Resolve the store. If the caller passed `store_id`, trust it
+    //    (partner routes always know their store and this is the fast
+    //    path). Otherwise fall back to deriving via the product's
+    //    sales_channels → the store whose default_sales_channel_id
+    //    matches. Note: sales_channel ↔ store is NOT a Medusa link —
+    //    store.default_sales_channel_id is a plain column, so this
+    //    requires a separate query.
+    let storeId = input.store_id
     if (!storeId) {
-      output.skipped_reason =
-        "no store resolvable from price_set → variant → product → sales_channel"
-      return new StepResponse(output)
+      const { data: variantLinks } = await query.graph({
+        entity: "product_variant_price_set",
+        filters: { price_set_id: source.price_set_id },
+        fields: ["variant.product.sales_channels.id"],
+      })
+      const channelIds = ((variantLinks ?? []) as any[])
+        .flatMap((vl) => vl?.variant?.product?.sales_channels ?? [])
+        .map((sc: any) => sc?.id)
+        .filter(Boolean)
+      if (channelIds.length) {
+        const { data: stores } = await query.graph({
+          entity: "stores",
+          filters: { default_sales_channel_id: channelIds },
+          fields: ["id"],
+        })
+        storeId = (stores ?? [])[0]?.id
+      }
+      if (!storeId) {
+        output.skipped_reason =
+          "no store resolvable from price_set → variant → product → sales_channel → store"
+        return new StepResponse(output)
+      }
     }
 
     // 3. Read store + opt-out flag + supported currencies.

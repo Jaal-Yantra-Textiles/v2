@@ -2,6 +2,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { batchProductVariantsWorkflow } from "@medusajs/medusa/core-flows"
 import { remapVariantResponse } from "@medusajs/medusa/api/admin/products/helpers"
+import fanoutPricesWorkflow from "../../../../../../../../workflows/fx/fanout-prices"
 import {
   ensureInventoryLevelsForVariants,
   validatePartnerStoreAccess,
@@ -72,6 +73,45 @@ export const POST = async (
       filters: { id: updatedIds },
     })
     updated = (data as any[]).map((v) => remapVariantResponse(v))
+  }
+
+  // FX fanout — Medusa's pricing module doesn't emit a `price.created`
+  // event we can subscribe to, so we kick off the fanout workflow
+  // here for every non-auto price on the touched variants. The workflow
+  // is idempotent (its "already priced" check skips currencies that
+  // already exist; its fx_price_meta guard skips prices that are
+  // themselves auto-derived). Errors are logged + swallowed so a
+  // failing fanout never tanks the partner's save.
+  const logger = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+  const touched = [...created, ...updated]
+  const fanoutTargets: string[] = []
+  for (const variant of touched) {
+    for (const price of variant?.prices ?? []) {
+      if (price?.id) fanoutTargets.push(price.id)
+    }
+  }
+  if (fanoutTargets.length) {
+    await Promise.allSettled(
+      fanoutTargets.map(async (priceId) => {
+        try {
+          const { result: fanoutResult } = await fanoutPricesWorkflow(req.scope).run({
+            input: { source_price_id: priceId, store_id: store.id },
+          })
+          if (fanoutResult?.skipped_reason) {
+            logger.info(
+              `[fanout] price ${priceId} skipped: ${fanoutResult.skipped_reason}`
+            )
+          } else if (fanoutResult?.created_count) {
+            logger.info(
+              `[fanout] price ${priceId} created ${fanoutResult.created_count} auto-prices`
+            )
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          logger.warn(`[fanout] price ${priceId} workflow failed: ${message}`)
+        }
+      })
+    )
   }
 
   res.json({

@@ -54,18 +54,30 @@ export const DELETE = async (
     throw new MedusaError(MedusaError.Types.NOT_FOUND, `price ${priceId} not found`)
   }
 
+  // Scope check: the price's variant's product must be in a
+  // sales_channel that's the default for this partner's store.
+  // (Medusa's sales_channel ↔ store relation is not a link — it's
+  // store.default_sales_channel_id as a column, so we have to do a
+  // two-step query.)
   const { data: variantLinks } = await query.graph({
     entity: "product_variant_price_set",
     filters: { price_set_id: price.price_set_id },
-    fields: ["variant.product.sales_channels.store_id"],
+    fields: ["variant.product.sales_channels.id"],
   })
-  const storeIds: string[] = []
-  for (const vl of variantLinks ?? []) {
-    for (const sc of (vl as any).variant?.product?.sales_channels ?? []) {
-      if (sc?.store_id) storeIds.push(sc.store_id)
-    }
+  const channelIds = ((variantLinks ?? []) as any[])
+    .flatMap((vl) => vl?.variant?.product?.sales_channels ?? [])
+    .map((sc: any) => sc?.id)
+    .filter(Boolean)
+  let owningStoreIds: string[] = []
+  if (channelIds.length) {
+    const { data: stores } = await query.graph({
+      entity: "stores",
+      filters: { default_sales_channel_id: channelIds },
+      fields: ["id"],
+    })
+    owningStoreIds = (stores ?? []).map((s: any) => s.id)
   }
-  if (!storeIds.includes(store.id)) {
+  if (!owningStoreIds.includes(store.id)) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
       `price ${priceId} does not belong to this partner's store`
