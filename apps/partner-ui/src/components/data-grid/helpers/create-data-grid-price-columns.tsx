@@ -1,6 +1,7 @@
 import { HttpTypes } from "@medusajs/types"
 import { ColumnDef } from "@tanstack/react-table"
 import { TFunction } from "i18next"
+import { ReactNode } from "react"
 import { FieldPath, FieldValues } from "react-hook-form"
 import { IncludesTaxTooltip } from "../../common/tax-badge/tax-badge"
 import { DataGridCurrencyCell } from "../components/data-grid-currency-cell"
@@ -20,7 +21,24 @@ type CreateDataGridPriceColumnsProps<
     context: FieldContext<TData>,
     value: string
   ) => FieldPath<TFieldValues> | null
+  // Optional overlay rendered on top of each price cell. Used to mark
+  // FX-auto-converted cells with a small badge.
+  getCellDecorator?: (
+    context: FieldContext<TData>,
+    key: string,
+    kind: "currency" | "region"
+  ) => ReactNode | null
   t: TFunction
+}
+
+const withDecorator = (cell: ReactNode, decorator: ReactNode | null) => {
+  if (!decorator) return cell
+  return (
+    <div className="relative size-full">
+      {cell}
+      {decorator}
+    </div>
+  )
 }
 
 export const createDataGridPriceColumns = <
@@ -32,6 +50,7 @@ export const createDataGridPriceColumns = <
   pricePreferences,
   isReadyOnly,
   getFieldName,
+  getCellDecorator,
   t,
 }: CreateDataGridPriceColumnsProps<TData, TFieldValues>): ColumnDef<
   TData,
@@ -77,7 +96,10 @@ export const createDataGridPriceColumns = <
             return <DataGridReadonlyCell context={context} />
           }
 
-          return <DataGridCurrencyCell code={currency} context={context} />
+          return withDecorator(
+            <DataGridCurrencyCell code={currency} context={context} />,
+            getCellDecorator?.(context, currency, "currency")
+          )
         },
       })
     }) ?? []),
@@ -123,11 +145,12 @@ export const createDataGridPriceColumns = <
             return null
           }
 
-          return (
+          return withDecorator(
             <DataGridCurrencyCell
               code={region.currency_code}
               context={context}
-            />
+            />,
+            getCellDecorator?.(context, region.id, "region")
           )
         },
       })

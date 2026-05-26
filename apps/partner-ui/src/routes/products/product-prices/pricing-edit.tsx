@@ -6,12 +6,16 @@ import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { z as zod } from "@medusajs/framework/zod"
 
+import { FxPriceMetadata } from "../../../components/common/fx-auto-badge/fx-auto-badge"
 import { RouteFocusModal, useRouteModal } from "../../../components/modals"
 import { KeyboundForm } from "../../../components/utilities/keybound-form"
 import { useUpdateProductVariantsBatch } from "../../../hooks/api/products"
 import { useRegions } from "../../../hooks/api/regions"
 import { castNumber } from "../../../lib/cast-number"
-import { VariantPricingForm } from "../common/variant-pricing-form"
+import {
+  FxAutoMetadataMap,
+  VariantPricingForm,
+} from "../common/variant-pricing-form"
 
 export const UpdateVariantPricesSchema = zod.object({
   variants: zod.array(
@@ -53,6 +57,25 @@ export const PricingEdit = ({
   const variants = variantId
     ? product.variants?.filter((v) => v.id === variantId)
     : product.variants
+
+  // Build variantIndex -> currency|region_id -> FxPriceMetadata so the
+  // pricing grid can render the FX badge on auto-converted cells.
+  const fxAutoMetadata = useMemo<FxAutoMetadataMap | undefined>(() => {
+    if (!variants?.length) return undefined
+    const result: FxAutoMetadataMap = {}
+    variants.forEach((variant: any, idx: number) => {
+      const byKey: Record<string, FxPriceMetadata> = {}
+      ;(variant.prices ?? []).forEach((price: any) => {
+        const meta = price?.metadata as FxPriceMetadata | undefined
+        if (!meta?.is_auto_converted) return
+        const key = price.rules?.region_id ?? price.currency_code
+        if (!key) return
+        byKey[key] = meta
+      })
+      if (Object.keys(byKey).length) result[idx] = byKey
+    })
+    return Object.keys(result).length ? result : undefined
+  }, [variants])
 
   const form = useForm<UpdateVariantPricesSchemaType>({
     defaultValues: {
@@ -124,7 +147,7 @@ export const PricingEdit = ({
       <KeyboundForm onSubmit={handleSubmit} className="flex size-full flex-col">
         <RouteFocusModal.Header />
         <RouteFocusModal.Body className="flex flex-col overflow-hidden">
-          <VariantPricingForm form={form as any} />
+          <VariantPricingForm form={form as any} fxAutoMetadata={fxAutoMetadata} />
         </RouteFocusModal.Body>
         <RouteFocusModal.Footer>
           <div className="flex w-full items-center justify-end gap-x-2">

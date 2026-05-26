@@ -45,9 +45,34 @@ export const GET = async (
   }
 
   const product = products[0] as any
-  scopeAndAggregateVariantInventory(product.variants || [], store?.default_location_id)
 
-  res.json({ product: remapProductResponse(product) })
+  // `remapVariantResponse` (used by remapProductResponse) explicitly drops
+  // `price.metadata` when flattening price_set.prices → variant.prices.
+  // The partner UI needs metadata to render FX-auto-converted badges, so
+  // capture it before the remap and re-attach to the flattened prices by
+  // price.id. Empty objects are skipped to keep the response slim.
+  const metadataByPriceId = new Map<string, Record<string, unknown>>()
+  for (const variant of product.variants || []) {
+    for (const price of variant.price_set?.prices || []) {
+      const meta = price.metadata as Record<string, unknown> | null | undefined
+      if (meta && Object.keys(meta).length) {
+        metadataByPriceId.set(price.id, meta)
+      }
+    }
+  }
+
+  scopeAndAggregateVariantInventory(product.variants || [], store?.default_location_id)
+  const remapped: any = remapProductResponse(product)
+  if (metadataByPriceId.size) {
+    for (const variant of remapped.variants || []) {
+      for (const price of variant.prices || []) {
+        const meta = metadataByPriceId.get(price.id)
+        if (meta) price.metadata = meta
+      }
+    }
+  }
+
+  res.json({ product: remapped })
 }
 
 export const POST = async (
