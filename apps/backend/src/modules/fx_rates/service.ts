@@ -1,9 +1,10 @@
 import { MedusaService, MedusaError } from "@medusajs/framework/utils"
 import FxRate from "./models/fx-rate"
+import FxPriceMeta from "./models/fx-price-meta"
 import { FxProvider, FxProviderResult } from "./providers/types"
 import { OpenErApiProvider } from "./providers/open-er-api-provider"
 
-class FxRatesService extends MedusaService({ FxRate }) {
+class FxRatesService extends MedusaService({ FxRate, FxPriceMeta }) {
   /**
    * Provider used for `refreshRatesFromProvider()`. Swappable via
    * `setProvider()` for tests / future paid providers; default is

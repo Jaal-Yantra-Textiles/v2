@@ -16,35 +16,36 @@ import FxRatesService from "../../modules/fx_rates/service"
  * currencies using FX rates from the fx_rates module.
  *
  * Algorithm:
- *   1. Resolve the source price → its price_set.
- *   2. Skip if the source itself is `metadata.is_auto_converted` —
- *      otherwise the subscriber would infinitely recurse on the
- *      auto-prices this workflow creates.
- *   3. Resolve the price_set → variant → product → first sales_channel
- *      → store. Single store assumption (one product belongs to one
- *      sales channel which belongs to one store). Skip if the chain
- *      breaks (orphan variants, products without a sales channel).
- *   4. Read store.supported_currencies — these are the currencies the
- *      partner is willing to display prices in.
+ *   1. Resolve the source price.
+ *   2. Recursion guard: query for the link
+ *      `price ↔ fx_price_meta`. If the source already has an
+ *      `fx_price_meta` row, fanout was the thing that created it —
+ *      skip, otherwise the price.created event would trigger an
+ *      infinite re-emit loop.
+ *   3. Resolve price_set → variant → product → first sales_channel
+ *      → store. Skip if the chain breaks.
+ *   4. Read store.supported_currencies — these are the currencies
+ *      the partner is willing to display prices in.
  *   5. For each currency in supported_currencies that the price_set
  *      doesn't already have a row for, compute the converted amount
- *      via FX (cross-rate through the service's most-common-base
- *      logic), and create a new price row stamped with
- *      `metadata.is_auto_converted: true` + `base_currency` +
- *      `base_amount` so the daily re-rate (PR G5) can refresh it
- *      cleanly.
+ *      via FX and call `addPrices` to attach a new price row to the
+ *      price_set.
+ *   6. For each newly created price, create an `fx_price_meta` row
+ *      (base_currency, base_amount, fx_rate, source_price_id) and
+ *      a Medusa link between `price.id` and `fx_price_meta.id`. The
+ *      link is the discriminator the recursion guard, UI badge,
+ *      strip-on-edit, and daily re-rate all read.
  *
- * Non-goals (deferred to other PRs):
- *   - Per-product base-currency override (G6+ if ever needed)
- *   - Re-rating already-auto-converted prices (G5's job)
- *   - Removing auto-prices when the source is deleted (track in PR
- *     G3 follow-up if it becomes a real problem)
+ * Why a separate fx_price_meta table:
+ *   Medusa's `Price` model has no `metadata` column (verified). An
+ *   earlier draft tried to stash the FX audit fields in `metadata`
+ *   and it silently dropped — discovered when the recursion guard
+ *   never fired. See apps/docs/notes/FX_AUTO_CONVERSION.md.
  *
  * Failure semantics:
- *   Per-currency errors are logged + counted but never abort the
- *   whole fanout. A missing FX rate for one quote currency shouldn't
- *   stop the other 5. The workflow returns a summary the subscriber
- *   can log.
+ *   Per-currency errors during rate lookup are logged + counted but
+ *   never abort the whole fanout. If `addPrices` itself fails the
+ *   step throws so the workflow reports failure to the subscriber.
  */
 
 export type FanoutPricesInput = {
@@ -65,6 +66,7 @@ const fanoutPricesStep = createStep(
   async (input: FanoutPricesInput, { container }) => {
     const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
     const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const link = container.resolve(ContainerRegistrationKeys.LINK)
     const pricingService = container.resolve(Modules.PRICING) as any
     const fxService = container.resolve(FX_RATES_MODULE) as FxRatesService
 
@@ -75,7 +77,8 @@ const fanoutPricesStep = createStep(
       errors: [],
     }
 
-    // 1. Resolve the source price + its price_set and existing siblings.
+    // 1. Load source price + its fx_price_meta link (which doubles as
+    //    the recursion guard).
     const { data: prices } = await query.graph({
       entity: "price",
       filters: { id: input.source_price_id },
@@ -84,7 +87,7 @@ const fanoutPricesStep = createStep(
         "amount",
         "currency_code",
         "price_set_id",
-        "metadata",
+        "fx_price_meta.id",
       ],
     })
     const source = prices?.[0] as any
@@ -93,11 +96,12 @@ const fanoutPricesStep = createStep(
       return new StepResponse(output)
     }
 
-    if (source.metadata?.is_auto_converted) {
-      // Guard against the subscriber → workflow → emit price.created
-      // → subscriber recursion. Auto-converted prices never re-trigger
-      // fanout.
-      output.skipped_reason = "source is is_auto_converted"
+    if (source.fx_price_meta?.id) {
+      // The source price was itself created by a previous fanout (it
+      // has an fx_price_meta row + link). Without this guard the
+      // subscriber → workflow → addPrices → price.created loop would
+      // recurse forever.
+      output.skipped_reason = "source is auto-converted (fx_price_meta exists)"
       return new StepResponse(output)
     }
 
@@ -111,19 +115,28 @@ const fanoutPricesStep = createStep(
         "variant.product.sales_channels.store_id",
       ],
     })
-    const link = (variantLinks ?? [])[0] as any
-    const storeId = link?.variant?.product?.sales_channels?.[0]?.store_id
+    const variantLink = (variantLinks ?? [])[0] as any
+    const storeId =
+      variantLink?.variant?.product?.sales_channels?.[0]?.store_id
     if (!storeId) {
       output.skipped_reason =
         "no store resolvable from price_set → variant → product → sales_channel"
       return new StepResponse(output)
     }
 
-    // 3. Read the store's supported currencies.
+    // 3. Read store + opt-out flag + supported currencies.
     const storeService = container.resolve(Modules.STORE) as any
     const store: any = await storeService.retrieveStore(storeId, {
       relations: ["supported_currencies"],
     })
+
+    // Partner-controlled toggle (default ON). When false, partner
+    // has opted out of cross-currency fanout for this store.
+    if (store?.metadata?.fx_auto_convert === false) {
+      output.skipped_reason = "store has fx_auto_convert disabled"
+      return new StepResponse(output)
+    }
+
     const supportedCurrencies: Array<{
       currency_code: string
       is_default?: boolean
@@ -148,13 +161,11 @@ const fanoutPricesStep = createStep(
     const sourceCurrency = String(source.currency_code).toLowerCase()
     const sourceAmount = Number(source.amount)
 
-    // 5. Fan out — one new price per supported currency that isn't
-    //    already in the price_set.
+    // 5. For each missing currency, compute converted amount.
     const newPrices: Array<{
       amount: number
       currency_code: string
-      price_set_id: string
-      metadata: Record<string, unknown>
+      fx_rate: number
     }> = []
 
     for (const sc of supportedCurrencies) {
@@ -171,14 +182,7 @@ const fanoutPricesStep = createStep(
         newPrices.push({
           amount: convertedAmount,
           currency_code: target,
-          price_set_id: source.price_set_id,
-          metadata: {
-            is_auto_converted: true,
-            base_currency: sourceCurrency,
-            base_amount: sourceAmount,
-            fx_rate: rate,
-            source_price_id: source.id,
-          },
+          fx_rate: rate,
         })
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
@@ -189,27 +193,80 @@ const fanoutPricesStep = createStep(
       }
     }
 
-    if (newPrices.length > 0) {
-      // Use the pricing module's addPrices on the price_set rather
-      // than createPrices alone — the latter requires the rules wiring
-      // that addPrices handles for us.
-      try {
-        await pricingService.addPrices({
-          priceSetId: source.price_set_id,
-          prices: newPrices.map(({ price_set_id: _ps, ...p }) => p),
-        })
-        output.created_count = newPrices.length
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        for (const p of newPrices) {
-          output.errors.push({ currency: p.currency_code, error: message })
-        }
-        logger.error(
-          `[fanout-prices] bulk addPrices failed for price_set ${source.price_set_id}: ${message}`
-        )
-      }
+    if (newPrices.length === 0) {
+      return new StepResponse(output)
     }
 
+    // 6. Bulk-create the price rows on the price_set. addPrices
+    //    returns the updated PriceSet with its full prices array; we
+    //    locate the rows we just added by currency_code (none can
+    //    collide since we filtered out already-priced currencies
+    //    above).
+    let returnedPriceSet: any
+    try {
+      returnedPriceSet = await pricingService.addPrices({
+        priceSetId: source.price_set_id,
+        prices: newPrices.map((p) => ({
+          amount: p.amount,
+          currency_code: p.currency_code,
+        })),
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      for (const p of newPrices) {
+        output.errors.push({ currency: p.currency_code, error: message })
+      }
+      logger.error(
+        `[fanout-prices] bulk addPrices failed for price_set ${source.price_set_id}: ${message}`
+      )
+      return new StepResponse(output)
+    }
+
+    const createdPrices: Array<{ id: string; currency_code: string }> = (
+      returnedPriceSet?.prices ?? []
+    ).filter((p: any) => {
+      const c = String(p.currency_code).toLowerCase()
+      return newPrices.some((np) => np.currency_code === c)
+    })
+
+    // 7. Write FxPriceMeta rows + Medusa links. One row + one link
+    //    per newly created price.
+    const metasToCreate = createdPrices
+      .map((p) => {
+        const match = newPrices.find(
+          (np) => np.currency_code === String(p.currency_code).toLowerCase()
+        )
+        if (!match) return null
+        return {
+          price_id: p.id,
+          base_currency: sourceCurrency,
+          base_amount: sourceAmount,
+          fx_rate: match.fx_rate,
+          source_price_id: source.id,
+        }
+      })
+      .filter(Boolean) as Array<{
+      price_id: string
+      base_currency: string
+      base_amount: number
+      fx_rate: number
+      source_price_id: string
+    }>
+
+    if (metasToCreate.length) {
+      const created = await fxService.createFxPriceMetas(
+        metasToCreate.map(({ price_id: _omit, ...rest }) => rest)
+      )
+      // createFxPriceMetas returns the created rows in input order,
+      // so we can zip them back to their target price ids.
+      const linksToCreate = metasToCreate.map((m, i) => ({
+        [Modules.PRICING]: { price_id: m.price_id },
+        [FX_RATES_MODULE]: { fx_price_meta_id: created[i].id },
+      }))
+      await link.create(linksToCreate)
+    }
+
+    output.created_count = createdPrices.length
     return new StepResponse(output)
   }
 )

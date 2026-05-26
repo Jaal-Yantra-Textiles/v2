@@ -1,4 +1,4 @@
-import { Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { getSharedTestEnv, setupSharedTestSuite } from "../shared-test-setup"
 import { FX_RATES_MODULE } from "../../../src/modules/fx_rates"
 import type FxRatesService from "../../../src/modules/fx_rates/service"
@@ -10,11 +10,11 @@ jest.setTimeout(60 * 1000)
 //
 // The full happy-path fanout (variant → product → sales_channel →
 // store → fan out) needs real partner provisioning to wire the
-// link chain — that's covered by manual testing post-PR-G4 once the
-// pricing-grid UI is live and we can drive it end-to-end. This file
-// covers the guards + edge cases that don't need the full link
-// chain: recursion guard on is_auto_converted, orphan variant
-// (no store resolvable), and per-currency FX failure handling.
+// link chain — covered by manual end-to-end testing once the partner
+// UI piece is live and we can drive it via real partner data. This
+// file covers the guards + edge cases that don't need the full chain:
+// recursion guard via fx_price_meta link, orphan variant (no store
+// resolvable), and source-not-found.
 
 function fakeProviderResult(rates: Record<string, number>) {
   return {
@@ -48,15 +48,38 @@ setupSharedTestSuite(() => {
       await fxService.refreshRatesFromProvider()
     })
 
-    // Recursion-guard test deferred — pricingService.createPriceSets
-    // doesn't propagate `prices[].metadata` reliably in this Medusa
-    // version, which made the test brittle (metadata read back as null
-    // → guard never fires in the test even though it does in real
-    // code via addPrices). The guard is a 1-line `if (source.metadata
-    // ?.is_auto_converted)` short-circuit in the workflow; will get
-    // exercised by the end-to-end fanout test once PR G4 lands the
-    // pricing-grid UI and we can drive a real partner price set →
-    // fanout → re-emit cycle.
+    it("skips when source price has a linked fx_price_meta (recursion guard)", async () => {
+      const pricingService = container.resolve(Modules.PRICING) as any
+      const link = container.resolve(ContainerRegistrationKeys.LINK) as any
+
+      const [priceSet] = await pricingService.createPriceSets([
+        { prices: [{ amount: 1000, currency_code: "usd", rules: {} }] },
+      ])
+      const sourcePriceId = priceSet.prices[0].id
+
+      const [meta] = await fxService.createFxPriceMetas([
+        {
+          base_currency: "inr",
+          base_amount: 83330,
+          fx_rate: 0.012,
+          source_price_id: "price_source_synth",
+        },
+      ])
+      await link.create([
+        {
+          [Modules.PRICING]: { price_id: sourcePriceId },
+          [FX_RATES_MODULE]: { fx_price_meta_id: meta.id },
+        },
+      ])
+
+      const { result } = await fanoutPricesWorkflow(container).run({
+        input: { source_price_id: sourcePriceId },
+      })
+
+      expect(result.skipped_reason).toMatch(/auto-converted/)
+      expect(result.created_count).toBe(0)
+    })
+
     it("skips when no store is resolvable from the variant link", async () => {
       // Orphan price_set — created without linking to any variant.
       // The workflow's variant-link lookup returns nothing →
