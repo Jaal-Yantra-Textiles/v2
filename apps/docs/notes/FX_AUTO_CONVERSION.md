@@ -1,6 +1,10 @@
 # FX Auto-Conversion + Storefront "We Don't Ship Here" Fixture
 
-> Status: **DRAFT** — design doc before code. Review and mark up.
+> Status: **SHIPPED** as of 2026-05-26. This is the original design doc — some pieces evolved during build (most notably: `price.metadata` doesn't exist in Medusa, switched to an `fx_price_meta` link table; and the pricing module emits no per-price events, switched the subscriber to direct invocation from the partner route).
+>
+> **For the implementation that actually shipped, read `FX_IMPLEMENTATION_GUIDE.md`.**
+> **For the Medusa gotchas we hit, read `MEDUSA_PRICING_QUIRKS.md`.**
+>
 > Date: 2026-05-25
 > Owner: Saransh
 > Companion to `SAAS_TIERS.md` and `PARTNER_API_PARITY.md`.
