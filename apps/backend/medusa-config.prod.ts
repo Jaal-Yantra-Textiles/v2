@@ -416,5 +416,8 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/ai_usage",
   },
+  {
+    resolve: "./src/modules/fx_rates",
+  },
 ],
 });
