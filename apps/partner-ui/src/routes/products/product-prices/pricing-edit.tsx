@@ -11,7 +11,9 @@ import { RouteFocusModal, useRouteModal } from "../../../components/modals"
 import { KeyboundForm } from "../../../components/utilities/keybound-form"
 import { useUpdateProductVariantsBatch } from "../../../hooks/api/products"
 import { useRegions } from "../../../hooks/api/regions"
+import { usePartnerStores } from "../../../hooks/api/partner-stores"
 import { castNumber } from "../../../lib/cast-number"
+import { sdk } from "../../../lib/client"
 import {
   FxAutoMetadataMap,
   VariantPricingForm,
@@ -41,6 +43,8 @@ export const PricingEdit = ({
   const { t } = useTranslation()
   const { handleSuccess } = useRouteModal()
   const { mutateAsync, isPending } = useUpdateProductVariantsBatch(product.id)
+  const { stores } = usePartnerStores()
+  const storeId = stores?.[0]?.id
 
   const { regions } = useRegions({ limit: 9999 })
   const regionsCurrencyMap = useMemo(() => {
@@ -81,6 +85,37 @@ export const PricingEdit = ({
     return Object.keys(result).length ? result : undefined
   }, [variants])
 
+  // Snapshot price.id + amount + (optional) fx_price_meta per
+  // (variantIdx, key) so the submit handler can detect which
+  // auto-converted cells the partner actually edited and detach
+  // their fx_price_meta marker.
+  const initialPricesByKey = useMemo(() => {
+    const result: Record<
+      number,
+      Record<
+        string,
+        { id: string; amount: number; hasFxMeta: boolean }
+      >
+    > = {}
+    variants?.forEach((variant: any, idx: number) => {
+      const byKey: Record<
+        string,
+        { id: string; amount: number; hasFxMeta: boolean }
+      > = {}
+      ;(variant.prices ?? []).forEach((price: any) => {
+        const key = price.rules?.region_id ?? price.currency_code
+        if (!key) return
+        byKey[key] = {
+          id: price.id,
+          amount: Number(price.amount),
+          hasFxMeta: !!price.fx_price_meta,
+        }
+      })
+      result[idx] = byKey
+    })
+    return result
+  }, [variants])
+
   const form = useForm<UpdateVariantPricesSchemaType>({
     defaultValues: {
       variants: variants?.map((variant: any) => ({
@@ -100,6 +135,12 @@ export const PricingEdit = ({
   })
 
   const handleSubmit = form.handleSubmit(async (values) => {
+    // Collect price ids whose underlying row was auto-converted AND
+    // whose amount the partner just changed — these need their
+    // fx_price_meta marker detached so daily re-rate leaves them
+    // alone going forward.
+    const fxMetasToDetach: string[] = []
+
     const reqData = values.variants.map((variant, ind) => ({
       id: variants[ind].id,
       prices: Object.entries(variant.prices || {})
@@ -130,6 +171,15 @@ export const PricingEdit = ({
 
           const amount = castNumber(value)
 
+          const initial = initialPricesByKey[ind]?.[currencyCodeOrRegionId]
+          if (
+            initial?.hasFxMeta &&
+            existingId &&
+            initial.amount !== amount
+          ) {
+            fxMetasToDetach.push(existingId)
+          }
+
           return {
             id: existingId,
             currency_code: currencyCode,
@@ -140,7 +190,21 @@ export const PricingEdit = ({
     }))
 
     await mutateAsync(reqData, {
-      onSuccess: () => {
+      onSuccess: async () => {
+        // Fire-and-forget: detach the FX marker from any cell the
+        // partner just took manual control of. We don't block the
+        // success flow on these — if one fails, the cell stays
+        // auto-converted and the next save will retry.
+        if (fxMetasToDetach.length && storeId) {
+          await Promise.allSettled(
+            fxMetasToDetach.map((priceId) =>
+              sdk.client.fetch(
+                `/partners/stores/${storeId}/prices/${priceId}/fx-meta`,
+                { method: "DELETE" }
+              )
+            )
+          )
+        }
         handleSuccess("..")
       },
     })

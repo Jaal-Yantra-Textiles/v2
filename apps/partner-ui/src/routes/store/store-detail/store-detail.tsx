@@ -8,6 +8,7 @@ import { SingleColumnPageSkeleton } from "../../../components/common/skeleton"
 import { SingleColumnPage } from "../../../components/layout/pages"
 import { useExtension } from "../../../providers/extension-provider"
 import { StoreCurrencySection } from "./components/store-currency-section"
+import { StoreFxSection } from "./components/store-fx-section"
 import { StoreLocaleSection } from "./components/store-locale-section"
 import { useFeatureFlag } from "../../../providers/feature-flag-provider"
 
@@ -42,6 +43,7 @@ export const StoreDetail = () => {
     >
       <StoreGeneralSection store={store} />
       <StoreCurrencySection store={store} />
+      <StoreFxSection store={store} />
       {isTranslationsEnabled && <StoreLocaleSection store={store} />}
     </SingleColumnPage>
   )
