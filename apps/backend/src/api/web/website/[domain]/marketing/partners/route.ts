@@ -22,9 +22,17 @@ type PublicPartner = {
   story: string | null
 }
 
+type DomainAlias = {
+  domain: string
+  url: string
+  verified: boolean
+  primary: boolean
+}
+
 type PublicBrand = PublicPartner & {
   storefront_url: string
   is_live: boolean
+  domains: DomainAlias[]
 }
 
 const ARTISAN_LIMIT = 6
@@ -69,18 +77,50 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       story: typeof meta.story === "string" ? meta.story : null,
     }
 
-    if (p.workspace_type === "individual" || p.workspace_type === "manufacturer") {
-      if (artisans.length < ARTISAN_LIMIT) artisans.push(base)
-    } else if (p.workspace_type === "seller" && p.vercel_linked) {
+    // A partner is a "live brand" when they actually have a provisioned
+    // storefront, not based on workspace_type (which is a partner-UI
+    // sidebar concept that's defaulted to "manufacturer" on every row).
+    const isLiveBrand = p.vercel_linked === true && !!p.storefront_domain
+
+    if (isLiveBrand) {
       if (brands.length < BRAND_LIMIT) {
+        // Domain aliases: the cicilabel subdomain is the canonical /
+        // always-available host; custom_domain (e.g. ielocraft.in) is an
+        // optional verified alias. Prefer the verified custom domain as
+        // storefront_url when present so links in marketing UI point at
+        // the partner's branded host.
+        const customDomain =
+          typeof meta.custom_domain === "string" ? meta.custom_domain : null
+        const customVerified = meta.custom_domain_verified === true
+        const primaryHost =
+          customDomain && customVerified ? customDomain : p.storefront_domain!
+
+        const domains: DomainAlias[] = [
+          {
+            domain: p.storefront_domain!,
+            url: `https://${p.storefront_domain}`,
+            verified: true,
+            primary: primaryHost === p.storefront_domain,
+          },
+        ]
+        if (customDomain) {
+          domains.push({
+            domain: customDomain,
+            url: `https://${customDomain}`,
+            verified: customVerified,
+            primary: primaryHost === customDomain,
+          })
+        }
+
         brands.push({
           ...base,
-          storefront_url: p.storefront_domain
-            ? `https://${p.storefront_domain}`
-            : `/storefront/${p.handle}`,
+          storefront_url: `https://${primaryHost}`,
           is_live: true,
+          domains,
         })
       }
+    } else if (artisans.length < ARTISAN_LIMIT) {
+      artisans.push(base)
     }
   }
 

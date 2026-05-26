@@ -2,8 +2,8 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 type RawPartner = {
-  workspace_type: "seller" | "manufacturer" | "individual"
   vercel_linked: boolean
+  storefront_domain: string | null
 }
 
 type RawWebsite = {
@@ -58,7 +58,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const [partnersRes, websitesRes, locationsRes, runsRes] = await Promise.all([
     query.graph({
       entity: "partners",
-      fields: ["workspace_type", "vercel_linked"],
+      fields: ["vercel_linked", "storefront_domain"],
       filters: { status: "active" },
       pagination: { take: 1000 },
     }),
@@ -81,11 +81,13 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     }).catch(() => ({ data: [] })),
   ])
 
+  // Anyone without a provisioned storefront counts as an artisan. Aligned
+  // with the partners route — workspace_type is a sidebar concept, not a
+  // marketing classifier.
   let artisans = 0
   for (const p of (partnersRes.data || []) as unknown as RawPartner[]) {
-    if (p.workspace_type === "individual" || p.workspace_type === "manufacturer") {
-      artisans++
-    }
+    const isLiveBrand = p.vercel_linked === true && !!p.storefront_domain
+    if (!isLiveBrand) artisans++
   }
 
   // brands_live = active brand storefronts. Exclude the platform's own
