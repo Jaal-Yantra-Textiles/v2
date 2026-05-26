@@ -1,3 +1,10 @@
+## [13.12.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.12.0...v13.12.1) (2026-05-26)
+
+
+### Bug Fixes
+
+* **prod-config:** register fx_rates module in medusa-config.prod.ts ([#266](https://github.com/Jaal-Yantra-Textiles/v2/issues/266)) ([afad332](https://github.com/Jaal-Yantra-Textiles/v2/commit/afad3323a34f60f3c784f9545572a32cfce65771)), closes [#263](https://github.com/Jaal-Yantra-Textiles/v2/issues/263)
+
 # [13.12.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.11.1...v13.12.0) (2026-05-26)
 
 
