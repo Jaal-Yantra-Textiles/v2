@@ -114,6 +114,7 @@ import { AccessFeeConfirmSchema } from "./store/ai/accessfee/validators";
 import { listSocialPostsQuerySchema, SocialPostSchema, UpdateSocialPostSchema } from "./admin/social-posts/validators";
 import { ConfirmBody } from "./admin/persons/geocode-addresses/[transaction_id]/confirm/validators";
 import { listPublicPersonsQuerySchema } from "./web/persons/validators";
+import { personContactRequestSchema } from "./web/persons/[id]/contact/validators";
 import { LinkDesignValidator, UnlinkDesignValidator } from "./admin/products/[id]/linkDesign/validators";
 import { sendToPartnerSchema } from "./admin/inventory-orders/[id]/send-to-partner/validators";
 import { EmailTemplateQueryParams, EmailTemplateSchema, UpdateEmailTemplateSchema } from "./admin/email-templates/validators";
@@ -3519,6 +3520,11 @@ export default defineMiddlewares({
       matcher: "/web/persons",
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(listPublicPersonsQuerySchema), {})],
+    },
+    {
+      matcher: "/web/persons/:id/contact",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(personContactRequestSchema))],
     },
     {
       matcher: "/admin/products/:id/hang-tag",
