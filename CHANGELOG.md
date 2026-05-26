@@ -1,3 +1,17 @@
+# [13.13.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.12.1...v13.13.0) (2026-05-26)
+
+
+### Bug Fixes
+
+* **fx:** replace price.metadata stuffing with fx_price_meta link table ([#269](https://github.com/Jaal-Yantra-Textiles/v2/issues/269)) ([7867aa0](https://github.com/Jaal-Yantra-Textiles/v2/commit/7867aa03a89b8721a1318f444783f7db402bb682))
+
+
+### Features
+
+* **fx:** fanout subscriber + workflow on variant price create (PR G3) ([#265](https://github.com/Jaal-Yantra-Textiles/v2/issues/265)) ([d0590dd](https://github.com/Jaal-Yantra-Textiles/v2/commit/d0590dd3d1b13254e41ecb82a3f29e949e58ae3b))
+* **fx:** partner-ui FX badge on auto-converted price cells (G4a) ([#268](https://github.com/Jaal-Yantra-Textiles/v2/issues/268)) ([e0a496a](https://github.com/Jaal-Yantra-Textiles/v2/commit/e0a496a783440b05faf177b0e20c0aa4b4665125))
+* **fx:** partner-ui strip-on-edit + store auto-convert toggle (G4b) ([#270](https://github.com/Jaal-Yantra-Textiles/v2/issues/270)) ([4691e1a](https://github.com/Jaal-Yantra-Textiles/v2/commit/4691e1ac93aba7cf2c20004d440f0c49f3211d62)), closes [#269](https://github.com/Jaal-Yantra-Textiles/v2/issues/269) [#269](https://github.com/Jaal-Yantra-Textiles/v2/issues/269) [post-#269](https://github.com/post-/issues/269)
+
 ## [13.12.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.12.0...v13.12.1) (2026-05-26)
 
 
