@@ -75,7 +75,13 @@ export const GET = async (
   // contract — additional fields on the resource, not new envelope
   // keys. One batched join keyed by region_id.
   let providersByRegion: Record<string, any[]> = {}
-  const regionIds = (regions || []).map((r: any) => r.id)
+  // Defensive `r?.id` — if the middleware wiring ever regresses again
+  // and query.graph returns sparse rows (PR #271 → fix/partner-regions
+  // -restore-query-middleware), we skip undefined entries instead of
+  // crashing the whole route.
+  const regionIds = (regions || [])
+    .map((r: any) => r?.id)
+    .filter((id: string | undefined): id is string => !!id)
   if (regionIds.length) {
     try {
       const { data: providerLinks } = await query.graph({

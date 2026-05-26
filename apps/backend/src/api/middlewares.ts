@@ -198,6 +198,22 @@ import {
   PartnerCreateTaxRegionReq,
   PartnerUpdateTaxRegionReq,
 } from "./partners/stores/[id]/validators";
+// Reuse admin's region list + retrieve validators and query-config so
+// partner inherits admin's full filter / pagination semantics (no
+// max-limit cap, operator-map filters, $and/$or) without copy+drift.
+// PR #271 (FX bug sweep) accidentally deleted these imports + the
+// validateAndTransformQuery wiring on the 4 region routes, which
+// regressed every partner regions GET to 500 (`req.queryConfig`
+// undefined → handler fell through to `fields: []` → query.graph
+// returned sparse rows → `.map(r => r.id)` choked).
+import {
+  AdminGetRegionsParams,
+  AdminGetRegionParams,
+} from "@medusajs/medusa/api/admin/regions/validators";
+import {
+  listTransformQueryConfig as partnerRegionListTransformQueryConfig,
+  retrieveTransformQueryConfig as partnerRegionRetrieveTransformQueryConfig,
+} from "@medusajs/medusa/api/admin/regions/query-config";
 import {
   listInboundEmailsQuerySchema,
   extractInboundEmailSchema,
@@ -896,6 +912,10 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(
+          wrapSchema(AdminGetRegionsParams),
+          partnerRegionListTransformQueryConfig
+        ),
       ],
     },
     {
@@ -905,6 +925,10 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerCreateRegionReq)),
+        validateAndTransformQuery(
+          wrapSchema(AdminGetRegionParams),
+          partnerRegionRetrieveTransformQueryConfig
+        ),
       ],
     },
     {
@@ -913,6 +937,10 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(
+          wrapSchema(AdminGetRegionParams),
+          partnerRegionRetrieveTransformQueryConfig
+        ),
       ],
     },
     {
@@ -922,6 +950,10 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerUpdateRegionReq)),
+        validateAndTransformQuery(
+          wrapSchema(AdminGetRegionParams),
+          partnerRegionRetrieveTransformQueryConfig
+        ),
       ],
     },
     {
