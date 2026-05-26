@@ -1,3 +1,11 @@
+# [13.12.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.11.1...v13.12.0) (2026-05-26)
+
+
+### Features
+
+* **fx:** new fx_rates module + open.er-api.com fetcher + seed script (PR G1) ([398d435](https://github.com/Jaal-Yantra-Textiles/v2/commit/398d4354960c1811fb1a1a392fce507389913b6d)), closes [#262](https://github.com/Jaal-Yantra-Textiles/v2/issues/262) [#259](https://github.com/Jaal-Yantra-Textiles/v2/issues/259)
+* **fx:** refresh-fx-rates workflow + daily visual flow seed (PR G2) ([98c605e](https://github.com/Jaal-Yantra-Textiles/v2/commit/98c605e0e7dc79b50ffae382a61c68d118012b74)), closes [#259](https://github.com/Jaal-Yantra-Textiles/v2/issues/259)
+
 ## [13.11.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.11.0...v13.11.1) (2026-05-25)
 
 
