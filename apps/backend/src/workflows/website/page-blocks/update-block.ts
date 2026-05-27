@@ -55,15 +55,20 @@ export const updateBlockStep = createStep(
       }
     }
 
-    // Update the block
-    const updatedBlock = await websiteService.updateBlocks({
+    // Update the block. `updateBlocks` returns an array; unwrap so
+    // downstream `result.id` works in the route handler. Without this
+    // the PUT route's refetchBlock(result.id, ...) fell through to
+    // `{ id: undefined }` and returned an arbitrary first block row
+    // (same shape as the page PUT bug fixed in #285).
+    const updatedRaw = await websiteService.updateBlocks({
       selector: {
         id: input.block_id
       },
       data:{
         ...input,
       }
-    }) as unknown as Block;
+    }) as unknown;
+    const updatedBlock = (Array.isArray(updatedRaw) ? updatedRaw[0] : updatedRaw) as Block;
 
     return new StepResponse(updatedBlock, {
       blockId: input.block_id,
