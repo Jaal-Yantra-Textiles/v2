@@ -3,6 +3,10 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { STATS_MODULE } from "../../../../../../modules/stats"
 import StatsService from "../../../../../../modules/stats/service"
 import { resolvePanel } from "../../../../../../modules/stats/resolver"
+import {
+  isPanelPublic,
+  stripExcludedColumns,
+} from "../../../../../../modules/stats/public-utils"
 
 /**
  * GET /web/stats/panels/:id/data
@@ -48,9 +52,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     throw err
   }
 
-  const isPublic =
-    (panel.metadata && (panel.metadata as Record<string, any>).public) === true
-  if (!isPublic) {
+  if (!isPanelPublic(panel)) {
     // Same 404 shape as "doesn't exist" so we don't reveal which panels
     // exist privately.
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Panel not found")
@@ -69,34 +71,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     { skipCache: false }
   )
 
-  // Server-side column denylist on the records before they ship over
-  // the wire. Mirrors `resolveColumns` in the admin renderer so the
-  // public payload can never leak a column the editor wanted hidden.
   const display = (panel.display ?? {}) as Record<string, any>
-  const deny = new Set<string>(
-    Array.isArray(display.exclude_columns)
-      ? (display.exclude_columns as string[])
-      : []
-  )
-  let data = result.data
-  if (deny.size > 0 && data && typeof data === "object") {
-    const records = (data as any).records ?? (data as any).groups
-    if (Array.isArray(records)) {
-      const stripped = records.map((row: any) => {
-        if (!row || typeof row !== "object") return row
-        const out: Record<string, any> = {}
-        for (const [k, v] of Object.entries(row)) {
-          if (!deny.has(k)) out[k] = v
-        }
-        return out
-      })
-      data = {
-        ...(data as Record<string, any>),
-        records: (data as any).records !== undefined ? stripped : undefined,
-        groups: (data as any).groups !== undefined ? stripped : undefined,
-      }
-    }
-  }
+  const data = stripExcludedColumns(display, result.data)
 
   res.setHeader(
     "Cache-Control",
