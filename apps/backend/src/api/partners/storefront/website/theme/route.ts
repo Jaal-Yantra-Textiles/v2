@@ -1,5 +1,5 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { getPartnerWebsite } from "../../helpers"
+import { getPartnerWebsite, triggerStorefrontRevalidate } from "../../helpers"
 import { updateWebsiteWorkflow } from "../../../../../workflows/website/update-website"
 import { WebsiteTheme } from "./validators"
 
@@ -71,6 +71,12 @@ export const PUT = async (
   if (errors.length > 0) {
     throw errors[0]
   }
+
+  // Theme touches the root layout (branding, footer, navigation,
+  // colours, every home section). Path-scoped revalidation isn't
+  // enough — flush the whole app's data cache via paths:['/'].
+  // Fire-and-forget; logged but never blocks the response.
+  triggerStorefrontRevalidate(website, { paths: ["/"] }).catch(() => {})
 
   res.json({ theme: merged })
 }
