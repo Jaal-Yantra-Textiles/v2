@@ -180,6 +180,42 @@ a JYT umbrella account.
 **Effort:** 1-2 days for the parity surface, more if we wire Meta
 ad-account onboarding per partner.
 
+#### 20. Share-publicly UX on the stats-panel editor
+
+**Context:** PRs #281 + #283 + #284 walked us through what the
+"shareable panel" surface needs to actually look like.
+- #281 added `GET /web/stats/panels/:id/data` + a
+  `metadata.public === true` opt-in gate + an `isPanelPublic` helper
+- #283 reverted the gate on the blog injector — admin authoring is
+  the auth there; the gate broke the editor flow because every
+  embedded panel rendered as "data not available" until someone
+  separately PATCHed the flag
+- #284 removed the REST endpoint and the unused helper. Only path
+  exposing panel data outside admin today is the blog injector
+
+What we actually want, when we get back to this:
+1. **Panel editor UI** — when an admin saves a panel, a checkbox
+   "Share publicly" sets `metadata.public: true`. Off by default.
+2. **Visible affordance** — when public, surface a copy-link to the
+   public REST URL (re-add `/web/stats/panels/:id/data`) so admins
+   can hand it to a third-party dashboard / status page / blog
+   author without picking through metadata.
+3. **Audit fields** — `metadata.public_set_by` (admin id) +
+   `metadata.public_set_at` for trail when it's flipped.
+4. **Restore the helpers** — `isPanelPublic` + the REST endpoint
+   come back exactly as #281 had them. The strip
+   (`stripExcludedColumns`) is already in place for column-hiding.
+
+**Why deferred now:** without the editor UI, the gate is friction —
+admins forget to flag panels, blog embeds break silently. Better to
+build the path through the editor in one go than retrofit a hidden
+metadata field.
+
+**First step:** wireframe the panel-editor settings tab + decide
+where the public-link lives (panel detail page sidebar? action menu?).
+**Effort:** 1 day for the editor toggle + REST endpoint restore +
+helper restore, +0.5 day for the link/affordance UI.
+
 ### Infrastructure / SaaS posture
 
 #### 10. Dedicated instance per partner (Pro tier)

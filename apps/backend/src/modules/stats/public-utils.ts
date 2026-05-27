@@ -1,19 +1,21 @@
 /**
- * Shared helpers for the public (blog + REST) panel paths.
- * Two places resolve panels for non-admin consumers:
- *   1. inject-panel-data.ts — pre-injects data into TipTap nodes when
- *      serving a blog page
- *   2. api/web/stats/panels/[id]/data — direct REST read
+ * Helpers used by `inject-panel-data.ts` when serving a blog page —
+ * the only public consumer of panel data right now. (The REST endpoint
+ * at `/web/stats/panels/:id/data` was removed pending a proper share-
+ * publicly UX from the panel editor — see
+ * `apps/docs/notes/PLATFORM_ROADMAP_2026_05.md` item #20.)
  *
- * Both must enforce the same `metadata.public` gate AND apply the same
- * `display.exclude_columns` strip so a panel can't leak via one path
- * but be hidden by the other.
+ * If/when that ships, `isPanelPublic` can be re-introduced here as the
+ * gate; until then, blog injector is the only public path and admin
+ * authoring is the auth (admin embedded the panel in the post = admin
+ * approved its surface).
  */
 
 /**
- * Mirrors the renderer's `resolveColumns` semantics on the backend so
- * public consumers can't ship rows with keys the editor told the
- * renderer to hide.
+ * Mirrors the admin renderer's `resolveColumns` semantics on the
+ * backend so public consumers can't ship rows with keys the editor
+ * told the renderer to hide (e.g. a `raw_materials` panel that joins
+ * `inventory_item.*` for context).
  *
  * Returns a shallow clone with `records` / `groups` stripped of denied
  * keys. Falls through unchanged when there's nothing to strip.
@@ -45,12 +47,4 @@ export function stripExcludedColumns(
     records: (data as any).records !== undefined ? stripped : undefined,
     groups: (data as any).groups !== undefined ? stripped : undefined,
   }
-}
-
-/**
- * Public-gate check shared by the blog injector and the public REST
- * endpoint. Opt-in via `panel.metadata.public === true`.
- */
-export function isPanelPublic(panel: { metadata?: any }): boolean {
-  return ((panel?.metadata as Record<string, any>)?.public) === true
 }
