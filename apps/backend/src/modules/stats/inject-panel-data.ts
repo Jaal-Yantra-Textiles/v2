@@ -2,7 +2,7 @@ import { MedusaContainer } from "@medusajs/framework/types"
 import { STATS_MODULE } from "."
 import StatsService from "./service"
 import { resolvePanel } from "./resolver"
-import { isPanelPublic, stripExcludedColumns } from "./public-utils"
+import { stripExcludedColumns } from "./public-utils"
 
 type TipTapNode = {
   type?: string
@@ -69,20 +69,17 @@ export async function injectStatsPanelData<T extends TipTapNode | TipTapNode[] |
       try {
         const panel = await service.retrieveStatsPanel(panelId)
 
-        // Public gate — without this, anything a blog editor pastes
-        // into TipTap gets resolved and exposed; an internal-KPI panel
-        // embedded in a public blog would leak the data wholesale.
-        // Panels must opt in via metadata.public = true.
-        if (!isPanelPublic(panel)) {
-          panelDataMap.set(panelId, {
-            data: null,
-            display: {},
-            panelType: panel.type,
-            error: "panel_not_public",
-            resolved_at: new Date().toISOString(),
-          })
-          return
-        }
+        // No public-gate here — the admin who authored the blog post
+        // is the authorisation. Adding a `metadata.public` opt-in
+        // (PR #281) broke the editor flow: the admin picks the panel
+        // in the blog editor, but the panel still wouldn't render
+        // unless someone separately PATCHed the panel record. Reverted
+        // (PR #283). The exclude_columns strip below still applies so
+        // joined-entity columns can be hidden per-panel via display
+        // config. The public REST endpoint at
+        // /web/stats/panels/:id/data still keeps the gate — different
+        // threat model (anyone with a panel id vs. admin-authored
+        // blog content).
 
         const result = await resolvePanel(container, {
           id: panel.id,
