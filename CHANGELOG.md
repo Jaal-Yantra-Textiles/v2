@@ -1,3 +1,19 @@
+# [13.15.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.14.0...v13.15.0) (2026-05-27)
+
+
+### Bug Fixes
+
+* **chat:** declare AI SDK extra fields explicitly (Medusa forces .strict) ([0bf1c92](https://github.com/Jaal-Yantra-Textiles/v2/commit/0bf1c920338d08d4ba8e43363de30320e6b77b35)), closes [#289](https://github.com/Jaal-Yantra-Textiles/v2/issues/289)
+* **storefront-chat:** passthrough validator + full-width input + z + focus ([f0787e4](https://github.com/Jaal-Yantra-Textiles/v2/commit/f0787e4d1d871905789b45723597804594a02291))
+* **pages:** published_at silently overwritten + draft pages stamped ([fbaaaad](https://github.com/Jaal-Yantra-Textiles/v2/commit/fbaaaadad16a127acef41e6d4982178e298453ed)), closes [#1](https://github.com/Jaal-Yantra-Textiles/v2/issues/1)
+* **blocks:** PUT response returned wrong block (same shape as [#285](https://github.com/Jaal-Yantra-Textiles/v2/issues/285)) ([b88dde3](https://github.com/Jaal-Yantra-Textiles/v2/commit/b88dde37b8dd1b63f5a65dc52d74f36707e3ecc4))
+* **pages:** TS overload mismatch on createPages (published_at coercion) ([3d4980b](https://github.com/Jaal-Yantra-Textiles/v2/commit/3d4980bcaf085c6815d37c8630d48b2aa29dffe3))
+
+
+### Features
+
+* **marketing:** add intent + traffic to /marketing/metrics ([4bf4784](https://github.com/Jaal-Yantra-Textiles/v2/commit/4bf47840a89c9d6a68feaf6798457ab88b51482f)), closes [#284](https://github.com/Jaal-Yantra-Textiles/v2/issues/284)
+
 # [13.14.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.13.0...v13.14.0) (2026-05-27)
 
 
