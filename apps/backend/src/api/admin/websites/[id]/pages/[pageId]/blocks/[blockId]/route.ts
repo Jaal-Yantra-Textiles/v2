@@ -32,14 +32,17 @@ export const PUT = async (
     res: MedusaResponse,
   ) => {
     const blockId = req.params.blockId;
-    const { result } = await updateBlockWorkflow(req.scope).run({
+    await updateBlockWorkflow(req.scope).run({
       input: {
         block_id: blockId,
         ...req.validatedBody
       },
     });
-  
-    const block = await refetchBlock(result.id, req.params.pageId, req.scope);
+
+    // Refetch by URL-derived blockId, not workflow result — defensive
+    // against the workflow returning an array or otherwise lacking an
+    // .id (same family of bug as the page PUT fixed in #285).
+    const block = await refetchBlock(blockId, req.params.pageId, req.scope);
     res.json(block);
   };
 
