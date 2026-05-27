@@ -58,21 +58,26 @@ const PrefsSchema = z
   })
   .partial()
 
-export const StoreAiChatSchema = z
-  .object({
-    // Capped at 40 turns (20 round-trips) — more than that and the system
-    // prompt + brand corpus would dominate tokens anyway.
-    messages: z.array(UiMessageSchema).min(1).max(40),
-    prefs: PrefsSchema.optional(),
-    visitor_id: z.string().min(1).max(80),
-  })
-  // `.passthrough()` — AI SDK v6 introduced extra top-level fields
-  // (`id` for chat session, `trigger` for "submit" | "regenerate" etc.)
-  // that newer client versions send automatically. Without passthrough
-  // the route 4xxs with `Unrecognized fields: 'id, trigger'`. The
-  // handler only consumes the three required fields above; extras are
-  // ignored.
-  .passthrough()
+export const StoreAiChatSchema = z.object({
+  // Capped at 40 turns (20 round-trips) — more than that and the system
+  // prompt + brand corpus would dominate tokens anyway.
+  messages: z.array(UiMessageSchema).min(1).max(40),
+  prefs: PrefsSchema.optional(),
+  visitor_id: z.string().min(1).max(80),
+
+  // ──────────────────────────────────────────────────────────────────
+  // AI SDK v6 (`useChat`) sends these extra top-level fields on every
+  // request. Medusa's `zodValidator` (in
+  // `@medusajs/framework/dist/zod/zod-helpers.js`) FORCIBLY calls
+  // `.strict()` on any schema with that method, which overrides
+  // `.passthrough()` — so we have to declare known SDK fields
+  // explicitly here. If a future AI SDK version adds more fields,
+  // they'll need to be listed too. The handler ignores them; they're
+  // here purely to satisfy the forced strict check.
+  // ──────────────────────────────────────────────────────────────────
+  id: z.string().optional(),
+  trigger: z.string().optional(),
+})
 
 export type StoreAiChatReq = z.infer<typeof StoreAiChatSchema>
 export type StoreAiChatPrefs = z.infer<typeof PrefsSchema>
