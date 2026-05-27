@@ -27,6 +27,15 @@ type RawProductionRun = {
 const LEAD_TIME_WINDOW_DAYS = 90
 const LEAD_TIME_MAX_ROWS = 5000
 
+// Cart + traffic windows are shorter than lead-time so the marketing
+// headline reflects recent demand, not a stale 90-day rollup.
+const INTENT_WINDOW_DAYS = 30
+const TRAFFIC_WINDOW_DAYS = 30
+// Cap on cart rows scanned. Today: ~100 carts / 30d in prod, so 5000
+// is plenty of headroom without turning a marketing endpoint into a
+// slow query.
+const INTENT_FETCH_LIMIT = 5_000
+
 // GMV projection — conservative throughput baseline. Per-brand/per-artisan
 // monthly revenue floor expressed in the website's currency (INR for
 // jaalyantra, USD for kindhealth). Tuned for "defensible run-rate" framing
@@ -51,11 +60,21 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { domain } = req.params
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // Pull partners + websites + stock_locations + recent production_runs in
-  // parallel. Each feeds a different stat below; running them concurrently
-  // keeps the endpoint inside its 60s cache window comfortably.
-  const leadWindowFrom = new Date(Date.now() - LEAD_TIME_WINDOW_DAYS * 24 * 60 * 60 * 1000)
-  const [partnersRes, websitesRes, locationsRes, runsRes] = await Promise.all([
+  // Pull every input in parallel. Each feeds a different stat below;
+  // running them concurrently keeps the endpoint inside its 60s cache
+  // window comfortably.
+  const now = Date.now()
+  const leadWindowFrom = new Date(now - LEAD_TIME_WINDOW_DAYS * 24 * 60 * 60 * 1000)
+  const intentWindowFrom = new Date(now - INTENT_WINDOW_DAYS * 24 * 60 * 60 * 1000)
+  const trafficWindowFrom = new Date(now - TRAFFIC_WINDOW_DAYS * 24 * 60 * 60 * 1000)
+  const [
+    partnersRes,
+    websitesRes,
+    locationsRes,
+    runsRes,
+    cartsRes,
+    trafficRes,
+  ] = await Promise.all([
     query.graph({
       entity: "partners",
       fields: ["vercel_linked", "storefront_domain"],
@@ -78,6 +97,30 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       fields: ["id", "status", "started_at", "completed_at"],
       filters: { status: "completed", completed_at: { $gte: leadWindowFrom } },
       pagination: { take: LEAD_TIME_MAX_ROWS, order: { completed_at: "DESC" } },
+    }).catch(() => ({ data: [] })),
+    // Recent abandoned/active carts as the conversion-intent signal
+    // for the marketing-site "what's actually happening" strip.
+    // `completed_at: null` targets the recovery audience so we don't
+    // double-count completed orders. Email-present is the strongest
+    // no-cost intent marker; the full intent score lives in the
+    // cart_recovery dashboard but is overkill for a headline.
+    query.graph({
+      entity: "cart",
+      fields: ["id", "email", "created_at"],
+      filters: {
+        created_at: { $gte: intentWindowFrom },
+        completed_at: null,
+      },
+      pagination: { take: INTENT_FETCH_LIMIT },
+    }).catch(() => ({ data: [] })),
+    // Visitor counts from analytics_daily_stats — pre-aggregated per
+    // day per website. Sum across the window for the marketing
+    // headline.
+    query.graph({
+      entity: "analytics_daily_stats",
+      fields: ["unique_visitors", "pageviews", "date"],
+      filters: { date: { $gte: trafficWindowFrom } },
+      pagination: { take: 1000 },
     }).catch(() => ({ data: [] })),
   ])
 
@@ -126,6 +169,30 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     ? Math.round(leadSumMs / leadSamples / (1000 * 60 * 60 * 24))
     : null
 
+  // Conversion-intent signal: open carts in window, with email-present
+  // count as the strongest no-cost intent marker.
+  const carts = (cartsRes.data || []) as Array<{
+    id: string
+    email: string | null
+    created_at: string | null
+  }>
+  const cartsTotal = carts.length
+  const cartsWithEmail = carts.filter((c) => !!c.email && c.email !== "").length
+
+  // Traffic: sum of daily aggregates over the trailing window.
+  const trafficDays = (trafficRes.data || []) as Array<{
+    unique_visitors: number | null
+    pageviews: number | null
+  }>
+  const uniqueVisitors = trafficDays.reduce(
+    (acc, d) => acc + (Number(d.unique_visitors) || 0),
+    0
+  )
+  const pageviews = trafficDays.reduce(
+    (acc, d) => acc + (Number(d.pageviews) || 0),
+    0
+  )
+
   const currency = DEFAULT_CURRENCY_BY_TLD[domain.toLowerCase()] || "USD"
   const perBrand = PROJECTION_PER_BRAND_MONTHLY[currency] ?? PROJECTION_PER_BRAND_MONTHLY.USD
   const perArtisan = PROJECTION_PER_ARTISAN_MONTHLY[currency] ?? PROJECTION_PER_ARTISAN_MONTHLY.USD
@@ -151,6 +218,20 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         per_brand_monthly: perBrand,
         per_artisan_monthly: perArtisan,
       },
+    },
+    // Conversion-intent signals — carts started but not yet completed
+    // in the trailing window. Marketing site uses these as evidence of
+    // active demand from real visitors (not synthetic projections).
+    intent: {
+      carts_30d: cartsTotal,
+      carts_with_email_30d: cartsWithEmail,
+      window_days: INTENT_WINDOW_DAYS,
+    },
+    // Organic traffic from in-house analytics. Same window as intent.
+    traffic: {
+      unique_visitors_30d: uniqueVisitors,
+      pageviews_30d: pageviews,
+      window_days: TRAFFIC_WINDOW_DAYS,
     },
     last_updated: new Date().toISOString(),
   })
