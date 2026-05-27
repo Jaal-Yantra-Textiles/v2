@@ -2,6 +2,7 @@ import { MedusaContainer } from "@medusajs/framework/types"
 import { STATS_MODULE } from "."
 import StatsService from "./service"
 import { resolvePanel } from "./resolver"
+import { isPanelPublic, stripExcludedColumns } from "./public-utils"
 
 type TipTapNode = {
   type?: string
@@ -67,6 +68,22 @@ export async function injectStatsPanelData<T extends TipTapNode | TipTapNode[] |
     Array.from(ids).map(async (panelId) => {
       try {
         const panel = await service.retrieveStatsPanel(panelId)
+
+        // Public gate — without this, anything a blog editor pastes
+        // into TipTap gets resolved and exposed; an internal-KPI panel
+        // embedded in a public blog would leak the data wholesale.
+        // Panels must opt in via metadata.public = true.
+        if (!isPanelPublic(panel)) {
+          panelDataMap.set(panelId, {
+            data: null,
+            display: {},
+            panelType: panel.type,
+            error: "panel_not_public",
+            resolved_at: new Date().toISOString(),
+          })
+          return
+        }
+
         const result = await resolvePanel(container, {
           id: panel.id,
           dashboard_id: (panel as any).dashboard_id,
@@ -75,9 +92,11 @@ export async function injectStatsPanelData<T extends TipTapNode | TipTapNode[] |
           display: (panel.display ?? {}) as Record<string, any>,
           cache_ttl_seconds: panel.cache_ttl_seconds,
         })
+
+        const display = (panel.display ?? {}) as Record<string, any>
         panelDataMap.set(panelId, {
-          data: result.data,
-          display: panel.display ?? {},
+          data: stripExcludedColumns(display, result.data),
+          display,
           panelType: panel.type,
           error: result.error,
           resolved_at: result.resolved_at,
