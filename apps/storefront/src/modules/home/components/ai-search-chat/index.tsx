@@ -20,7 +20,7 @@ import {
 // downstream type-check normally.
 const FocusModal = FocusModalBase as any
 const Prompt = PromptBase as any
-import { XMark } from "@medusajs/icons"
+import { ArrowUpMini, StopCircleSolid, XMark } from "@medusajs/icons"
 import {
   type Ref,
   useCallback,
@@ -225,6 +225,21 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
   return (
     <FocusModal open={open} onOpenChange={handleOpenChange}>
       <FocusModal.Content
+        // Lift the modal above the sticky nav (z-50 in
+        // layout/templates/nav/nav-scroll-header.tsx) and the cart
+        // dropdown (z-50 too). Without this bump, the top of the
+        // FocusModal sits behind "CICI Label Store" and the visitor
+        // can't reach the close button or first input row.
+        className="z-[100]"
+        // Don't restore focus to whatever opened the modal — there's
+        // no `<Dialog.Trigger>` (we open imperatively from the hero),
+        // so Radix's default restore-focus algorithm walks the page
+        // and lands on the first focusable thing it finds (which has
+        // been our footer Send button → page jumps awkwardly on
+        // close). preventDefault tells Radix to leave focus alone.
+        onCloseAutoFocus={(e: Event) => {
+          e.preventDefault()
+        }}
         // Block dismissal while onboarding has unsaved selections. The
         // Prompt is opened directly here; we never let Radix close the
         // dialog out from under the user.
@@ -351,10 +366,12 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
               </Button>
             </div>
           ) : (
-            <form
-              onSubmit={onSubmit}
-              className="flex w-full items-center gap-2"
-            >
+            // Input + send-icon laid out as a single rounded "search-bar"
+            // affordance — input spans full width, icon button sits
+            // absolutely inside it on the right. No separate Send word,
+            // and on small screens the input no longer collapses into a
+            // narrow corner column.
+            <form onSubmit={onSubmit} className="relative w-full">
               <Input
                 ref={inputRef}
                 type="text"
@@ -362,28 +379,34 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={PLACEHOLDER}
                 disabled={isStreaming}
-                className="flex-1"
+                className="w-full pr-12"
                 maxLength={500}
                 autoComplete="off"
                 spellCheck={false}
               />
-              {isStreaming ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => stop()}
-                >
-                  Stop
-                </Button>
-              ) : (
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={input.trim().length < 2}
-                >
-                  Send
-                </Button>
-              )}
+              <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
+                {isStreaming ? (
+                  <IconButton
+                    type="button"
+                    variant="transparent"
+                    size="small"
+                    aria-label="Stop generating"
+                    onClick={() => stop()}
+                  >
+                    <StopCircleSolid />
+                  </IconButton>
+                ) : (
+                  <IconButton
+                    type="submit"
+                    variant="primary"
+                    size="small"
+                    aria-label="Send message"
+                    disabled={input.trim().length < 2}
+                  >
+                    <ArrowUpMini />
+                  </IconButton>
+                )}
+              </div>
             </form>
           )}
         </FocusModal.Footer>

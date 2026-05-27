@@ -58,13 +58,21 @@ const PrefsSchema = z
   })
   .partial()
 
-export const StoreAiChatSchema = z.object({
-  // Capped at 40 turns (20 round-trips) — more than that and the system
-  // prompt + brand corpus would dominate tokens anyway.
-  messages: z.array(UiMessageSchema).min(1).max(40),
-  prefs: PrefsSchema.optional(),
-  visitor_id: z.string().min(1).max(80),
-})
+export const StoreAiChatSchema = z
+  .object({
+    // Capped at 40 turns (20 round-trips) — more than that and the system
+    // prompt + brand corpus would dominate tokens anyway.
+    messages: z.array(UiMessageSchema).min(1).max(40),
+    prefs: PrefsSchema.optional(),
+    visitor_id: z.string().min(1).max(80),
+  })
+  // `.passthrough()` — AI SDK v6 introduced extra top-level fields
+  // (`id` for chat session, `trigger` for "submit" | "regenerate" etc.)
+  // that newer client versions send automatically. Without passthrough
+  // the route 4xxs with `Unrecognized fields: 'id, trigger'`. The
+  // handler only consumes the three required fields above; extras are
+  // ignored.
+  .passthrough()
 
 export type StoreAiChatReq = z.infer<typeof StoreAiChatSchema>
 export type StoreAiChatPrefs = z.infer<typeof PrefsSchema>
