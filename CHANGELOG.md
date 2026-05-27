@@ -1,3 +1,25 @@
+# [13.14.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.13.0...v13.14.0) (2026-05-27)
+
+
+### Bug Fixes
+
+* **stats:** blog injector + REST endpoint share public/exclude rules ([e076b3b](https://github.com/Jaal-Yantra-Textiles/v2/commit/e076b3b0d6972df999ab4489d18e1215b57d2dff)), closes [#281](https://github.com/Jaal-Yantra-Textiles/v2/issues/281)
+* **marketing:** classify live brands by storefront, not workspace_type ([#276](https://github.com/Jaal-Yantra-Textiles/v2/issues/276)) ([550ee6f](https://github.com/Jaal-Yantra-Textiles/v2/commit/550ee6f293582d04fd4895d536aca7dea1ebb2f9))
+* **stats:** drop public-gate on blog injector (admin authoring is the auth) ([39f0ecd](https://github.com/Jaal-Yantra-Textiles/v2/commit/39f0ecd59d52d09bd105e5f56e52903e6311d309)), closes [#281](https://github.com/Jaal-Yantra-Textiles/v2/issues/281)
+* **fx:** real fanout trigger + ui badge + delete-fx-meta auth + scoping ([#271](https://github.com/Jaal-Yantra-Textiles/v2/issues/271)) ([9234ba0](https://github.com/Jaal-Yantra-Textiles/v2/commit/9234ba09f81f4a5fc9f0f790404eb9a1f8783333)), closes [#269](https://github.com/Jaal-Yantra-Textiles/v2/issues/269)
+* **partner-api:** restore validateAndTransformQuery on region routes ([#278](https://github.com/Jaal-Yantra-Textiles/v2/issues/278)) ([477e1e9](https://github.com/Jaal-Yantra-Textiles/v2/commit/477e1e94ad496ee34a355b103150b4699eeda8b1)), closes [#271](https://github.com/Jaal-Yantra-Textiles/v2/issues/271)
+
+
+### Features
+
+* **theme:** accept text_color on trust_banner + banner ([09620a0](https://github.com/Jaal-Yantra-Textiles/v2/commit/09620a05b1a5be1088c5a04c039aeaf1c4988fb1))
+* **fx:** daily re-rate auto-converted prices workflow + visual flow (G5) ([#272](https://github.com/Jaal-Yantra-Textiles/v2/issues/272)) ([1116c74](https://github.com/Jaal-Yantra-Textiles/v2/commit/1116c74c3cabd34aebb2a09f5ee095d8a1e8a9ab))
+* **stats:** pagination + column include/exclude on panels ([8885f71](https://github.com/Jaal-Yantra-Textiles/v2/commit/8885f7112683d0feae05e0c3cd2e181ed9a420d7))
+* **web:** public contact endpoint for atlas map ([#275](https://github.com/Jaal-Yantra-Textiles/v2/issues/275)) ([7a41230](https://github.com/Jaal-Yantra-Textiles/v2/commit/7a41230d9d016d9bcc88e93fedd7ad21b9bc6d2f))
+* **web:** public GET /web/stats/panels/:id/data for blog embeds ([7531017](https://github.com/Jaal-Yantra-Textiles/v2/commit/75310174cb72ed27ed92a80efe9ef111070e5eb4))
+* **partners:** revalidate storefront cache on theme update ([3c59edd](https://github.com/Jaal-Yantra-Textiles/v2/commit/3c59edd5dcf814188ca1ddda13ef4aca4bf79385))
+* **fx:** storefront RegionNotServedFallback + contact endpoint (PR H) ([#273](https://github.com/Jaal-Yantra-Textiles/v2/issues/273)) ([d2b289a](https://github.com/Jaal-Yantra-Textiles/v2/commit/d2b289ae5bf77ada0375781e05b809d91d2db3e5))
+
 # [13.13.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.12.1...v13.13.0) (2026-05-26)
 
 
