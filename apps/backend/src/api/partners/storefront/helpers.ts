@@ -145,3 +145,67 @@ export const validatePartnerBlockOwnership = async (
 
   return { partner, website, page, block }
 }
+
+/**
+ * Fire-and-forget POST to the partner's storefront `/api/revalidate`
+ * so Next.js's data cache (force-cache + tag-keyed) drops its stale
+ * copy of the theme / blocks / etc. Without this hop, partner edits
+ * are saved on the backend but invisible to visitors until the next
+ * storefront-starter deploy.
+ *
+ * - Skips silently when STOREFRONT_REVALIDATE_SECRET isn't set (dev,
+ *   tests, or instances that don't run a revalidate endpoint yet).
+ * - Hard 5s timeout — never lets a slow / dead storefront block the
+ *   partner's mutation response.
+ * - Logs but doesn't throw. Theme PUT must not 500 because the
+ *   webhook flaked.
+ *
+ * Pass `paths: ['/']` for theme/layout edits (revalidates everything
+ * via 'layout' scope). Pass specific `paths` like `['/products/foo']`
+ * for narrow updates. Pass `tags` if you've wired specific cache tags.
+ */
+export const triggerStorefrontRevalidate = async (
+  website: { domain?: string | null },
+  opts: { paths?: string[]; tags?: string[] } = {}
+): Promise<void> => {
+  const secret = process.env.STOREFRONT_REVALIDATE_SECRET
+  if (!secret) {
+    return
+  }
+  const domain = website?.domain
+  if (!domain) {
+    return
+  }
+
+  const url = domain.startsWith("http")
+    ? `${domain.replace(/\/$/, "")}/api/revalidate`
+    : `https://${domain}/api/revalidate`
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 5000)
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-revalidate-secret": secret,
+      },
+      body: JSON.stringify({
+        paths: opts.paths,
+        tags: opts.tags,
+      }),
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      console.warn(
+        `[storefront-revalidate] ${url} returned ${res.status}`
+      )
+    }
+  } catch (err: any) {
+    console.warn(
+      `[storefront-revalidate] ${url} failed: ${err?.message || err}`
+    )
+  } finally {
+    clearTimeout(timer)
+  }
+}
