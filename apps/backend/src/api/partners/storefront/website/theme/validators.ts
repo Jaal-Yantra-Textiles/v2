@@ -161,6 +161,9 @@ export const websiteThemeSchema = z.object({
         .object({
           items: z.array(trustBannerItemSchema).optional(),
           background: hexColor,
+          // Optional explicit text colour. Renderer auto-flips text
+          // light/dark based on `background` luminance when omitted.
+          text_color: hexColor,
         })
         .passthrough()
         .optional(),
@@ -188,6 +191,10 @@ export const websiteThemeSchema = z.object({
           description: z.string().optional(),
           background_image_url: z.string().optional(),
           background_color: hexColor,
+          // Optional explicit text colour. Renderer auto-flips text
+          // light/dark based on `background_color` luminance when
+          // omitted.
+          text_color: hexColor,
           cta_text: z.string().optional(),
           cta_link: z.string().optional(),
         })
