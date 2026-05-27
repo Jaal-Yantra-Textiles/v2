@@ -34,11 +34,19 @@ export const createPageStep = createStep(
       // First verify the website exists
       await websiteService.retrieveWebsite(input.website_id);
       
-      // Create the Page entity - database will handle uniqueness
+      // Only stamp `published_at` when the page is created in a
+      // Published state and the client didn't supply one. Previously
+      // we always stamped — which left Draft pages with a publish
+      // date (visible bug example: page 01JQ4HWCE05SD9WKDDNZ9A45KY
+      // had status=Draft + published_at=2025-03-24).
+      const shouldAutoStamp =
+        input.status === "Published" &&
+        (input.published_at === undefined || input.published_at === null);
+
       const page = await websiteService.createPages({
         ...input,
         last_modified: new Date(),
-        published_at: new Date(),
+        ...(shouldAutoStamp ? { published_at: new Date() } : {}),
       })
 
       // Return the created entity and its ID for potential compensation

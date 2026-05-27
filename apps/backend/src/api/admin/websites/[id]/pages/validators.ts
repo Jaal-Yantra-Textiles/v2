@@ -23,10 +23,22 @@ const pageBaseSchema = z.object({
   meta_title: z.string().optional(),
   meta_description: z.string().optional(),
   meta_keywords: z.string().optional(),
-  published_at: z.union([z.date(), z.string().datetime()]).optional().transform((val) => {
-    if (!val) return null;
-    return val instanceof Date ? val : new Date(val);
-  }),
+  // Three valid client intents:
+  //   undefined → "don't touch" — must stay undefined so the update
+  //               workflow can skip the field (previously coerced to
+  //               null, which nuked published_at on every update)
+  //   null      → "explicitly clear" (e.g. unpublishing back to draft
+  //               with manual clear)
+  //   Date/ISO  → "set to this value"
+  // Auto-stamping on Draft→Published happens in the workflow, not
+  // here — the validator stays a pure pass-through.
+  published_at: z.union([z.date(), z.string().datetime(), z.null()])
+    .optional()
+    .transform((val) => {
+      if (val === undefined) return undefined;
+      if (val === null) return null;
+      return val instanceof Date ? val : new Date(val);
+    }),
   metadata: z.record(z.string(), z.unknown()).optional(),
   genMetaDataLLM: z.boolean().optional().default(false),
   public_metadata: z.record(z.string(), z.unknown()).optional(),

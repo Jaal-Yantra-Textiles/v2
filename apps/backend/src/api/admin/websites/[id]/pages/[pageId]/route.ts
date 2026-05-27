@@ -73,7 +73,7 @@ export const PUT = async (
 ) => {
   
   const { id: websiteId, pageId } = req.params;
-  const { result, errors } = await updatePageWorkflow(req.scope).run({
+  const { errors } = await updatePageWorkflow(req.scope).run({
     input: {
       id: pageId,
       website_id: websiteId,
@@ -85,7 +85,10 @@ export const PUT = async (
     console.warn("Error reported at", errors);
     throw errors;
   }
-  const page = await refetchPage(result.id, websiteId, req.scope, ["*"]);
+  // Refetch by the URL-derived `pageId`, not the workflow result —
+  // even though the workflow now returns a proper object, this stays
+  // defensive: the page id we care about is the one in the URL.
+  const page = await refetchPage(pageId, websiteId, req.scope, ["*"]);
 
   res.status(200).json({ page });
 };

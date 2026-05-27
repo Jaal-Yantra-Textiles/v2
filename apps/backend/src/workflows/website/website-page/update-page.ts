@@ -34,29 +34,51 @@ export const updatePageStep = createStep(
     
     // Get the current state for compensation
     const originalPage = await websiteService.retrievePage(input.id);
-    
-    // Update the Page entity
-    let updatedPage;
-    await websiteService.updatePages(
-      {
-        selector: {
-          id: input.id,
-        },
-        data: {
-          ...input,
-          last_modified: new Date()
-        },
+
+    // Build the update payload from `input`, but strip undefined keys
+    // so we don't blindly overwrite existing columns (e.g. published_at)
+    // when the client didn't send them.
+    const data: Record<string, any> = { last_modified: new Date() };
+    for (const [k, v] of Object.entries(input)) {
+      if (v !== undefined && k !== "id" && k !== "website_id") {
+        data[k] = v;
       }
-    ).catch(error => {
-      if(error.message.includes("already exist")) {
+    }
+
+    // Auto-stamp `published_at` on the Draft→Published transition when
+    // the client didn't supply an explicit value. Republishing an
+    // already-Published page doesn't re-stamp (preserves the original
+    // publish date so feeds + SEO don't churn).
+    if (
+      input.status === "Published" &&
+      originalPage.status !== "Published" &&
+      input.published_at === undefined
+    ) {
+      data.published_at = new Date();
+    }
+
+    // Update the Page entity
+    let updated: any;
+    try {
+      updated = await websiteService.updatePages({
+        selector: { id: input.id },
+        data,
+      });
+    } catch (error: any) {
+      if (error?.message?.includes("already exist")) {
         throw new MedusaError(
           MedusaError.Types.DUPLICATE_ERROR,
           `Page with slug: ${input.slug} already exist`
         );
       }
-    }).then(page => {
-      updatedPage = page;
-    });
+      throw error;
+    }
+
+    // `updatePages` returns an array — unwrap to a single object so
+    // downstream `result.id` works. Previously this was the array,
+    // which made the route's refetchPage(result.id, …) fall through
+    // to `id: undefined` and return an arbitrary first row.
+    const updatedPage = Array.isArray(updated) ? updated[0] : updated;
 
     // Return the updated entity and compensation data
     return new StepResponse(updatedPage, {
