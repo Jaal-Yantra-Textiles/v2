@@ -1,9 +1,20 @@
 # WhatsApp Product Creation for Partners
 
-> Status: **DESIGN** — not yet built.
-> Date: 2026-05-29
+> Status: **IN PROGRESS** — W1 already shipped; W2 (workflow + tests) landed 2026-05-30.
+> Date: 2026-05-29 (design), 2026-05-30 (W2 update)
 > Owner: Saransh
 > Companion to `WEBHOOK_SETUP_GUIDE.md` (Meta WhatsApp wiring) and `PARTNER_API_PARITY.md` (the quick-create endpoint we reuse).
+
+## Build progress
+
+| PR | Status | Notes |
+|----|--------|-------|
+| W1 — media rehost helper | ✅ **already shipped** | `downloadAndSaveWhatsAppMedia` at `apps/backend/src/workflows/whatsapp/whatsapp-media-helper.ts:239`. Handles Bearer auth on Meta presigned URL + base64 round-trip for file-s3 provider (the second one had bitten us before — well-documented in the source). |
+| W2 — `createDraftProductFromExtractionWorkflow` | ✅ shipped 2026-05-30 | `apps/backend/src/workflows/whatsapp/create-draft-product-from-extraction.ts`. 4 steps: resolve store → rehost media → build product input → invoke `createProductsWorkflow` with `status: DRAFT`. 4 integration tests passing. |
+| W3 — webhook emits `whatsapp.message_received` event + subscriber registration | ⏳ next |
+| W4 — `seed-partner-product-create-flow.ts` for one pilot partner | ⏳ |
+| W5 — Confirm/Edit/Cancel flow + roll-out | ⏳ |
+| W6 — Polish (caption-only, photo-only, dedupe verify) | ⏳ |
 
 ## Goal
 
