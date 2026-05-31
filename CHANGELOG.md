@@ -1,3 +1,18 @@
+# [13.16.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.15.0...v13.16.0) (2026-05-31)
+
+
+### Bug Fixes
+
+* **visual-flows:** add ai_extract_platform to operation_type enum + migration ([127b237](https://github.com/Jaal-Yantra-Textiles/v2/commit/127b237beb1e801b7746f4609655db51ce67d97f)), closes [#297](https://github.com/Jaal-Yantra-Textiles/v2/issues/297)
+* **scripts:** seed-partner-page-fixtures uses correct workflow result shape ([f78e07d](https://github.com/Jaal-Yantra-Textiles/v2/commit/f78e07dac001089833e002e44ce8a663dbd393b7)), closes [#291](https://github.com/Jaal-Yantra-Textiles/v2/issues/291) [#291](https://github.com/Jaal-Yantra-Textiles/v2/issues/291) [#294](https://github.com/Jaal-Yantra-Textiles/v2/issues/294) [#295](https://github.com/Jaal-Yantra-Textiles/v2/issues/295)
+
+
+### Features
+
+* **whatsapp:** emit whatsapp.message_received event from webhook (W3) ([4444d34](https://github.com/Jaal-Yantra-Textiles/v2/commit/4444d3479d3f82c834f974708b1f35cfd9f0a5a0))
+* **visual-flows:** platform-aware ai_extract_platform operation ([f89994c](https://github.com/Jaal-Yantra-Textiles/v2/commit/f89994cf5d9f758fde1593fe4a8c4c57a5fa6fa4))
+* **whatsapp:** seed Partner WhatsApp Product Create visual flow (W4) ([319551f](https://github.com/Jaal-Yantra-Textiles/v2/commit/319551fe530c7ce67f26a9fd1dba61e481452b4d))
+
 # [13.15.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.14.0...v13.15.0) (2026-05-27)
 
 
