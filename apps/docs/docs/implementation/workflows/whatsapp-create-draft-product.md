@@ -307,8 +307,8 @@ pnpm test:integration:http:shared ./integration-tests/http/whatsapp-create-draft
 | W1 — media rehost helper | ✅ shipped (pre-existing) | `downloadAndSaveWhatsAppMedia` at `whatsapp-media-helper.ts:239` |
 | **W2 — this workflow** | ✅ shipped | `createDraftProductFromExtractionWorkflow` |
 | W3 — webhook emits `whatsapp.message_received` event | ✅ shipped 2026-05-31 | `whatsapp/route.ts` emits after parse + identity resolution; subscriber registers the name |
-| W4 — `seed-partner-product-create-flow.ts` | ⏳ next | Seeds the inbound flow for one pilot partner |
-| W5 — Confirm/Edit/Cancel handling | ⏳ | Button-reply handler flips DRAFT → PUBLISHED, deletes on cancel |
+| W4 — `seed-partner-product-create-flow.ts` | ✅ shipped 2026-05-31 | Single shared flow; fires for any verified-WhatsApp partner. Seed via `run-backfill.sh seed-partner-product-create-flow` |
+| W5 — Confirm/Edit/Cancel handling | ⏳ next | Button-reply handler flips DRAFT → PUBLISHED, deletes on cancel |
 | W6 — Polish: caption-only edges, photo-only edges, dedup verify | ⏳ | |
 
 ---
