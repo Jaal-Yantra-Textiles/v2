@@ -1,3 +1,10 @@
+## [13.17.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.17.0...v13.17.1) (2026-05-31)
+
+
+### Bug Fixes
+
+* **whatsapp:** single reply for product-create + absolute admin URL ([f3a466b](https://github.com/Jaal-Yantra-Textiles/v2/commit/f3a466bfc5479eea528ccaa1f054d1bc8bf92ef9))
+
 # [13.17.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.16.0...v13.17.0) (2026-05-31)
 
 
