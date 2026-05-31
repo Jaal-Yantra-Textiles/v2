@@ -1,9 +1,10 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { Modules } from "@medusajs/framework/utils"
 import crypto from "crypto"
 import { SOCIAL_PROVIDER_MODULE } from "../../../../modules/social-provider"
 import type SocialProviderService from "../../../../modules/social-provider/service"
 import type WhatsAppService from "../../../../modules/social-provider/whatsapp-service"
-import { handleIncomingMessage } from "../../../../workflows/whatsapp/whatsapp-message-handler"
+import { handleIncomingMessage, resolvePartnerByPhone } from "../../../../workflows/whatsapp/whatsapp-message-handler"
 import { resolveAdminByPhone, handleAdminMessage } from "../../../../workflows/whatsapp/whatsapp-admin-handler"
 import  { MESSAGING_MODULE } from "../../../../modules/messaging"
 
@@ -322,6 +323,36 @@ async function processWhatsAppWebhook(
           // Handlers receive the sender-bound wa so replies go out from the
           // same number that received the inbound message.
           const admin = await resolveAdminByPhone(scope, incomingMessage.from)
+          const partner = admin ? null : await resolvePartnerByPhone(scope, incomingMessage.from)
+
+          // Emit a generic event so visual flows can subscribe to inbound
+          // WhatsApp messages without authoring custom subscribers. Partner /
+          // admin handlers below still run unchanged — the event is additive.
+          // Fire-and-forget: an emit failure must not break message handling.
+          try {
+            const eventBus = scope.resolve(Modules.EVENT_BUS) as any
+            await eventBus.emit([{
+              name: "whatsapp.message_received",
+              data: {
+                from: incomingMessage.from,
+                message_id: incomingMessage.messageId,
+                type: incomingMessage.type,
+                text: incomingMessage.text ?? null,
+                caption: incomingMessage.text ?? null,
+                media_ids: incomingMessage.mediaId ? [incomingMessage.mediaId] : [],
+                media_url: incomingMessage.mediaUrl ?? null,
+                media_mime_type: incomingMessage.mediaMimeType ?? null,
+                reply_to_wa_message_id: incomingMessage.replyToWaMessageId ?? null,
+                sender_platform_id: wa.getSenderPlatformId?.() ?? null,
+                partner_id: partner?.partnerId ?? null,
+                partner_name: partner?.adminName ?? null,
+                admin_user_id: admin?.userId ?? null,
+              },
+            }])
+          } catch (e: any) {
+            console.warn("[whatsapp-webhook] Failed to emit whatsapp.message_received:", e.message)
+          }
+
           if (admin) {
             const result = await handleAdminMessage(scope, incomingMessage, admin, wa)
             console.log("[whatsapp-webhook] Admin handled:", result)

@@ -55,7 +55,7 @@ interface ResolvedPartner {
   isNewVerification?: boolean // true if this admin's WhatsApp was just auto-verified
 }
 
-async function resolvePartnerByPhone(
+export async function resolvePartnerByPhone(
   scope: any,
   phone: string
 ): Promise<ResolvedPartner | null> {

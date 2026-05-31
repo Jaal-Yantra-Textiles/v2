@@ -27,7 +27,7 @@ Partner sends 📷 + "Saree silk ₹4500"
 │  - HMAC signature check                        │
 │  - parseWebhookMessage()                       │
 │  - returns 200 OK to Meta immediately          │
-│  - emit("whatsapp.message_received", …)   ⏳W3 │
+│  - emit("whatsapp.message_received", …)    ✅W3 │
 └─────────────────────┬──────────────────────────┘
                       │
                       ▼
@@ -306,8 +306,8 @@ pnpm test:integration:http:shared ./integration-tests/http/whatsapp-create-draft
 |----|--------|-------------|
 | W1 — media rehost helper | ✅ shipped (pre-existing) | `downloadAndSaveWhatsAppMedia` at `whatsapp-media-helper.ts:239` |
 | **W2 — this workflow** | ✅ shipped | `createDraftProductFromExtractionWorkflow` |
-| W3 — webhook emits `whatsapp.message_received` event | ⏳ next | The trigger that lets a visual flow listen for inbound messages |
-| W4 — `seed-partner-product-create-flow.ts` | ⏳ | Seeds the inbound flow for one pilot partner |
+| W3 — webhook emits `whatsapp.message_received` event | ✅ shipped 2026-05-31 | `whatsapp/route.ts` emits after parse + identity resolution; subscriber registers the name |
+| W4 — `seed-partner-product-create-flow.ts` | ⏳ next | Seeds the inbound flow for one pilot partner |
 | W5 — Confirm/Edit/Cancel handling | ⏳ | Button-reply handler flips DRAFT → PUBLISHED, deletes on cancel |
 | W6 — Polish: caption-only edges, photo-only edges, dedup verify | ⏳ | |
 
