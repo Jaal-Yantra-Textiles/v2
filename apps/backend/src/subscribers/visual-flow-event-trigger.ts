@@ -255,5 +255,11 @@ export const config: SubscriberConfig = {
     // Inbound Emails
     "inbound_emails.inbound-email.created",
     "inbound_emails.inbound-email.updated",
+
+    // WhatsApp inbound messages — fires for every parsed inbound message
+    // (text, image, video, document, audio, interactive). Used by flows that
+    // need to react to partner replies, e.g. auto-create draft products from
+    // photo+caption messages via createDraftProductFromExtractionWorkflow.
+    "whatsapp.message_received",
   ],
 }
