@@ -103,7 +103,7 @@ const FLOW_DEF = {
         id: "extract_attrs",
         type: "operation",
         position: { x: X_LEFT, y: Y_EXTRACT },
-        data: { label: "Extract Attributes from Caption", operationKey: "extract_attrs", operationType: "ai_extract" },
+        data: { label: "Extract Attributes from Caption", operationKey: "extract_attrs", operationType: "ai_extract_platform" },
       },
       {
         id: "create_draft",
@@ -166,15 +166,20 @@ const FLOW_DEF = {
     // Caption-only for v1. Output keys map 1:1 to W2's `extracted` input.
     // Title is required — if the model can't infer one, W2 throws and the
     // flow logs the failure with the partner's caption attached.
+    //
+    // Uses `ai_extract_platform` so provider / api_key / model are read from
+    // the admin-configured External Platform (Settings → External Platforms,
+    // category=ai, metadata.role=ai_search_chat). Rotating to a different
+    // provider or model is a UI action — no flow edit, no redeploy.
     {
       operation_key: "extract_attrs",
-      operation_type: "ai_extract",
+      operation_type: "ai_extract_platform",
       name: "Extract Attributes from Caption",
       sort_order: 1,
       position_x: X_LEFT,
       position_y: Y_EXTRACT,
       options: {
-        model: "google/gemini-2.5-flash-preview",
+        role: "ai_search_chat",
         input: "{{ $trigger.caption }}",
         system_prompt:
           "Extract product attributes from this textile product caption from a partner artisan. " +
