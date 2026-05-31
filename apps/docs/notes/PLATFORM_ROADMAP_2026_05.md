@@ -127,6 +127,27 @@ notification routing per channel.
 through every email touchpoint, log which fire and which don't.
 **Effort:** 2-3 hours testing + fixes as we find gaps.
 
+#### 21. Fix layout issues in pagination-based panels on web-jyt
+
+The marketing site (web-jyt) has layout regressions inside the
+panels that paginate content — cards/tiles overflow or wrap
+awkwardly, controls misalign on certain breakpoints. Add this once
+we have a screenshot or page to repro against.
+**First step:** capture the broken state per breakpoint (mobile /
+tablet / desktop) on the offending panels, then fix in the
+storefront-starter (or web-jyt directly if the panel lives there).
+**Effort:** half a day depending on how many breakpoints regress.
+
+#### 22. Restore the painting from the New York Gallery open archive
+
+A painting tile from the NY Gallery (open archive section on
+jaalyantra.com) is broken — likely a missing image asset or a
+stale URL after a recent archive move.
+**First step:** open the gallery page, identify the broken
+painting, trace the asset source (S3 path / CDN URL / WordPress
+import), restore or re-link.
+**Effort:** 1-2 hours.
+
 ### Partner platform extensions
 
 #### 4. Per-order transaction fee billing per partner
@@ -294,6 +315,32 @@ contact, load into the persons module so they show on the
 **First step:** identify 1-2 source registries, hand-curate a 50-row
 CSV first to validate the schema, then write the importer.
 **Effort:** 1 day for the importer, ongoing for sourcing.
+
+#### 23. Browser extension — design moodboard clipper
+
+A Chrome / Firefox extension that logs into the JYT API (admin or
+partner auth) and lets the user clip images from any web page
+straight into a design's moodboard. Walks the DOM of the active
+tab, extracts `<img>` src + alt + nearby caption text, lets the
+user pick which to keep, and POSTs them to
+`/admin/designs/:id/moodboard` (or the partner equivalent). Same
+flow useful for collecting raw reference data — patterns, fabric
+swatches, gallery images — without the manual "save image →
+upload to admin" loop.
+
+**Why this is high-leverage:** designers already source references
+from Pinterest / Behance / museum archives. Today every reference
+takes a download + admin upload + tagging round trip. Reducing that
+to one click while browsing is a clear ergonomic win and unblocks
+faster moodboard-driven design briefs.
+
+**First step:** scaffold a minimal MV3 extension (manifest +
+popup + content script), wire admin-token storage (settings page
+with paste-the-key UX), implement `<img>` harvest on the active
+tab, then the POST. Pick which design to attach via a search
+combo box backed by `/admin/designs?q=…`.
+**Effort:** 2-3 days for a usable v1; ongoing polish for the
+selection UX, dedup, and HEIC/AVIF support.
 
 ---
 
