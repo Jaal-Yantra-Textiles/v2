@@ -55,10 +55,10 @@ export default async function seedPartnerPageFixtures({ container }: ExecArgs) {
       },
     },
   })
-  console.log(`   → ${order1.result.id} created`)
+  console.log(`   → ${order1.result.order.id} created`)
 
   await sendInventoryOrderToPartnerWorkflow(container).run({
-    input: { inventoryOrderId: order1.result.id, partnerId: PARTNER_ID, adminNotes: "Sent to weaving partner." } as any,
+    input: { inventoryOrderId: order1.result.order.id, partnerId: PARTNER_ID, adminNotes: "Sent to weaving partner." } as any,
   })
   console.log(`   → linked to partner ${PARTNER_ID}`)
 
@@ -90,10 +90,10 @@ export default async function seedPartnerPageFixtures({ container }: ExecArgs) {
       metadata: { po_reference: "PO-2026-03-PA" },
     },
   })
-  console.log(`   → ${order2.result.id} created`)
+  console.log(`   → ${order2.result.order.id} created`)
 
   await sendInventoryOrderToPartnerWorkflow(container).run({
-    input: { inventoryOrderId: order2.result.id, partnerId: PARTNER_ID, adminNotes: "Dispatched." } as any,
+    input: { inventoryOrderId: order2.result.order.id, partnerId: PARTNER_ID, adminNotes: "Dispatched." } as any,
   })
 
   console.log("\n✓ seeded 2 inventory orders linked to partner", PARTNER_ID)
