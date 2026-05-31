@@ -303,7 +303,13 @@ export const createDraftProductFromExtractionWorkflow = createWorkflow(
         ({ created, media }): CreateDraftProductFromExtractionResult => ({
           product_id: created.product_id,
           product_title: created.product_title,
-          admin_url: `/app/products/${created.product_id}`,
+          // Build an absolute admin URL when MEDUSA_BACKEND_URL is set so the
+          // partner can tap the link from the WhatsApp reply directly. Falls
+          // back to the relative path for local dev and tests where no
+          // public hostname is configured.
+          admin_url: process.env.MEDUSA_BACKEND_URL
+            ? `${process.env.MEDUSA_BACKEND_URL.replace(/\/$/, "")}/app/products/${created.product_id}`
+            : `/app/products/${created.product_id}`,
           rehosted_image_urls: media.image_urls,
           status: "draft",
         })
