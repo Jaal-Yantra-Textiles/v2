@@ -27,6 +27,7 @@ export { bulkCreateDataOperation } from "./bulk-create-data"
 export { bulkHttpRequestOperation } from "./bulk-http-request"
 export { bulkTriggerWorkflowOperation } from "./bulk-trigger-workflow"
 export { aiExtractOperation } from "./ai-extract"
+export { aiExtractPlatformOperation } from "./ai-extract-platform"
 export { generatePartnerDeeplinkOperation } from "./generate-partner-deeplink"
 
 // Import all operations and register them
@@ -55,6 +56,7 @@ import { bulkCreateDataOperation } from "./bulk-create-data"
 import { bulkHttpRequestOperation } from "./bulk-http-request"
 import { bulkTriggerWorkflowOperation } from "./bulk-trigger-workflow"
 import { aiExtractOperation } from "./ai-extract"
+import { aiExtractPlatformOperation } from "./ai-extract-platform"
 import { generatePartnerDeeplinkOperation } from "./generate-partner-deeplink"
 
 // Register all built-in operations
@@ -82,6 +84,7 @@ export function registerBuiltInOperations(): void {
   operationRegistry.register(triggerWorkflowOperation)
   operationRegistry.register(triggerFlowOperation)
   operationRegistry.register(aiExtractOperation)
+  operationRegistry.register(aiExtractPlatformOperation)
   
   // Utility operations
   operationRegistry.register(transformOperation)
