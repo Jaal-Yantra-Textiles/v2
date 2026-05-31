@@ -97,7 +97,7 @@ const FLOW_DEF = {
         id: "eligible",
         type: "operation",
         position: { x: X_CENTER, y: Y_ELIGIBLE },
-        data: { label: "Eligible? (verified partner + image + caption)", operationKey: "eligible", operationType: "condition" },
+        data: { label: "Eligible? (verified partner + image|document + caption)", operationKey: "eligible", operationType: "condition" },
       },
       {
         id: "extract_attrs",
@@ -137,25 +137,30 @@ const FLOW_DEF = {
     // ── 1. Eligibility check ──────────────────────────────────────────────
     // All three must hold:
     //   partner_id is set        → sender resolved to a verified partner
-    //   type === "image"         → photo, not text / interactive / status
+    //   type in (image, document) → photo, OR a doc the partner used the
+    //                               file-picker for. WhatsApp clients send
+    //                               iPhone-shot photos as "document" when
+    //                               the user picks them via Files instead of
+    //                               Photos — same product intent, just the
+    //                               picker preserves original quality.
     //   caption non-empty        → partner described the product
-    // Anything else (admin DMs, text messages, status updates, unverified
+    // Everything else (admin DMs, text messages, status updates, unverified
     // numbers, photos without captions) falls through to log_skip.
     {
       operation_key: "eligible",
       operation_type: "condition",
-      name: "Eligible? (verified partner + image + caption)",
+      name: "Eligible? (verified partner + image|document + caption)",
       sort_order: 0,
       position_x: X_CENTER,
       position_y: Y_ELIGIBLE,
       options: {
         condition_mode: "expression",
         expression:
-          "$trigger.partner_id != null && $trigger.type === 'image' && ($trigger.caption || '').length > 0",
+          "$trigger.partner_id != null && ($trigger.type === 'image' || $trigger.type === 'document') && ($trigger.caption || '').length > 0",
         filter_rule: {
           _and: [
             { "$trigger.partner_id": { _null: false } },
-            { "$trigger.type": { _eq: "image" } },
+            { "$trigger.type": { _in: ["image", "document"] } },
             { "$trigger.caption": { _empty: false } },
           ],
         },
