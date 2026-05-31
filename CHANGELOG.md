@@ -1,3 +1,16 @@
+# [13.17.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.16.0...v13.17.0) (2026-05-31)
+
+
+### Bug Fixes
+
+* **visual-flows:** migration 20260531 preserves generate_partner_deeplink ([f96ece2](https://github.com/Jaal-Yantra-Textiles/v2/commit/f96ece2567e3f239723b349a67b0fee2049d00f1)), closes [#298](https://github.com/Jaal-Yantra-Textiles/v2/issues/298)
+
+
+### Features
+
+* **whatsapp:** accept document type in product-create flow + roadmap items ([f880165](https://github.com/Jaal-Yantra-Textiles/v2/commit/f8801651b6be9a00cd289d61532a5527927bdbc5)), closes [#21](https://github.com/Jaal-Yantra-Textiles/v2/issues/21) [#22](https://github.com/Jaal-Yantra-Textiles/v2/issues/22) [#23](https://github.com/Jaal-Yantra-Textiles/v2/issues/23)
+* **whatsapp:** createDraftProductFromExtractionWorkflow (W2) ([ad7af96](https://github.com/Jaal-Yantra-Textiles/v2/commit/ad7af96339895e495b40d71f71ef94eb9941a879))
+
 # [13.16.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.15.0...v13.16.0) (2026-05-31)
 
 
