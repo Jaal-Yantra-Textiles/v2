@@ -480,14 +480,35 @@ export async function handleIncomingMessage(
           // No tap, no single run to auto-match, no shared folder.
           // File is in the per-partner WhatsApp catchall — admin will
           // see it in the inbox and assign appropriately.
-          const hint =
-            autoResolveReason === "multiple"
-              ? "You have several runs in progress — tap *📸 Add Media* on the specific run, then send the photo."
-              : "We've received your file and will sort it shortly. (Tap *📸 Add Media* on a run to attach a photo to a specific run.)"
-          await whatsapp.sendTextMessage(
-            message.from,
-            `📥 Received. ${hint}`
-          )
+          //
+          // Two branches depending on whether the partner gave a caption:
+          //
+          //   With caption  → suppress this reply entirely. That's the W4
+          //                   entry condition; the "Partner WhatsApp —
+          //                   Product Create" visual flow owns the reply
+          //                   and sends "✅ Draft product created — open
+          //                   in admin" via its notify_partner step.
+          //                   Without this guard the partner sees two
+          //                   messages for one inbound.
+          //
+          //   Without caption → nudge toward W4. The legacy "Tap 📸 Add
+          //                   Media on a run" hint is misleading now —
+          //                   it points at the production-run lifecycle,
+          //                   not product create. Tell partners how to
+          //                   turn this into a draft if that's what they
+          //                   wanted; otherwise admin still sees the file
+          //                   in their inbox.
+          const hasCaption = typeof message.text === "string" && message.text.trim().length > 0
+          if (!hasCaption) {
+            const hint =
+              autoResolveReason === "multiple"
+                ? "You have several runs in progress — tap *📸 Add Media* on the specific run, then send the photo."
+                : "Add a caption (e.g. \"Saree silk ₹4500\") and re-send to create a draft product on your storefront. Otherwise admin will sort it from your inbox."
+            await whatsapp.sendTextMessage(
+              message.from,
+              `📥 Received. ${hint}`
+            )
+          }
         }
       } catch (e: any) {
         console.warn("[whatsapp-handler] Failed to save media:", e.message)
