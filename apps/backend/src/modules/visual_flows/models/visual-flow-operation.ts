@@ -11,7 +11,7 @@ export const VisualFlowOperation = model.define("visual_flow_operation", {
   operation_key: model.text(),
   
   // Operation type — keep in sync with the DB CHECK constraint
-  // (see migrations/Migration20260418100000.ts for the latest authoritative list).
+  // (see migrations/Migration20260531000000.ts for the latest authoritative list).
   operation_type: model.enum([
     "condition",
     "create_data",
@@ -34,6 +34,7 @@ export const VisualFlowOperation = model.define("visual_flow_operation", {
     "sleep",
     "log",
     "ai_extract",
+    "ai_extract_platform",
     "aggregate_product_analytics",
   ]),
   
