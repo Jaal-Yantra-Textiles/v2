@@ -171,6 +171,44 @@ exist in admin, what needs to be added to partners. Use the
 PARTNER_API_PARITY.md recipe.
 **Effort:** 2-3 days end-to-end, plus tests.
 
+#### 24. Standardise partner-ui orders onto the Medusa `order` entity
+
+Today partner-ui surfaces two parallel order concepts — `design_orders`
+and `inventory_orders` — each with its own modules, APIs, partner
+routes, lifecycle workflows, and UI screens. The underlying intent
+(partner receives work, partner does work, partner gets paid) is the
+same; only the artifact differs (a design vs a raw-material PO). The
+fragmentation costs us in three places: partners learn two mental
+models, status/notification logic duplicates, and every new
+cross-cutting feature (FX, tax, partner statements, audit) ships
+twice.
+
+Consolidate by promoting Medusa's core `order` entity to the single
+home for partner work-orders, distinguishing the two flavours by
+`order.metadata.kind in (design, inventory)` (or a typed extension
+column). Keep the existing route paths as shims that translate to the
+unified order under the hood — no breaking changes for live
+storefronts or the partner SDK — while folding the actions
+(accept / decline / mark shipped / etc.) into a single set of UI
+panels driven off `order.status` + `order.metadata.kind`.
+
+**Why now:** it's pre-condition work for several backlog items —
+per-order transaction fee billing (#4), partner statements, and the
+FX/region propagation work all need a single order surface to act on
+rather than two parallel ones.
+
+**First step:** write a small mapping doc — for each
+`design_order` and `inventory_order` field, where it lives on
+`order` + `order_line_item` + `order.metadata`. Identify the gaps
+(fields that don't fit cleanly) and decide column extension vs.
+metadata. Then a thin shim PR that creates one new
+`order.metadata.kind` order alongside an existing legacy create, to
+validate the model without removing anything yet.
+
+**Effort:** 1 day for the mapping + shim, then 3-5 days to migrate
+the partner-ui panels onto the unified surface and quietly
+back-migrate existing rows.
+
 #### 8. Menu / submenu wizard for partner-ui personalization
 
 Today every partner sees the same sidebar. Wizard lets the partner
