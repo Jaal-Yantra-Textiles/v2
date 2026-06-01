@@ -29,13 +29,22 @@ only links each partner's `default_region_id`).
 
 ### 0A — Unblock affected partners (one-off, ~30 min)
 
-For each currently-active partner store:
-1. Insert `partner_region` rows linking the partner to every admin
-   region (India, Europe, America, Indonesia, Australia)
-2. Run `backfill-store-currencies-from-partner-regions.ts` —
-   `supported_currencies` extends with `aud, eur, usd, idr`
-3. Trigger FX fanout sweep across all existing variants on those
-   stores so AUD/EUR/USD/IDR prices materialize from the INR base
+Scripts + runbook landed 2026-06-01 (branch
+`feat/backfill-all-regions-to-partners`). Operator runbook lives at
+`PLATFORM_0A_RUNBOOK.md`. The three passes:
+
+1. `backfill-all-admin-regions-to-partners.ts` — cross-products every
+   partner with every admin region into `partner_region`.
+2. `backfill-store-currencies-from-partner-regions.ts` (existing) —
+   extends `store.supported_currencies` for every linked region.
+3. `fanout-existing-variant-prices.ts` — replays the FX fanout
+   workflow against existing variant prices so AUD/EUR/USD/IDR rows
+   materialize from the INR base.
+
+All three are idempotent + dry-run aware. `deploy/aws/scripts/run-backfill.sh`
+threads `REGION_IDS`/`PARTNER_IDS`/`CONCURRENCY` through to the
+Fargate one-off task. Recommended canary: one partner via
+`PARTNER_IDS=par_x`, verify, then full sweep.
 
 **Acceptance:** GOF + 6+ other live partner storefronts stop showing
 the "we don't ship here" fallback for AU/EU/US/ID visitors.
