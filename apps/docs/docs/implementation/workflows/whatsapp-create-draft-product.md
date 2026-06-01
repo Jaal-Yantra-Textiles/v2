@@ -48,7 +48,8 @@ Partner sends 📷 + "Saree silk ₹4500"
 │     ──────────────────────────────────────╮    │
 │     │ createDraftProductFromExtraction…   │ ← THIS DOC
 │     ──────────────────────────────────────╯    │
-│  5. send_whatsapp: Confirm/Edit/Cancel buttons │
+│  5. send_whatsapp (interactive):               │
+│     ✅ Confirm  /  🗑️ Cancel              ✅W5 │
 └────────────────────────────────────────────────┘
                       │
                       ▼
@@ -307,15 +308,44 @@ pnpm test:integration:http:shared ./integration-tests/http/whatsapp-create-draft
 | W1 — media rehost helper | ✅ shipped (pre-existing) | `downloadAndSaveWhatsAppMedia` at `whatsapp-media-helper.ts:239` |
 | **W2 — this workflow** | ✅ shipped | `createDraftProductFromExtractionWorkflow` |
 | W3 — webhook emits `whatsapp.message_received` event | ✅ shipped 2026-05-31 | `whatsapp/route.ts` emits after parse + identity resolution; subscriber registers the name |
-| W4 — `seed-partner-product-create-flow.ts` | ✅ shipped 2026-05-31 | Single shared flow; fires for any verified-WhatsApp partner. Seed via `run-backfill.sh seed-partner-product-create-flow` |
-| W5 — Confirm/Edit/Cancel handling | ⏳ next | Button-reply handler flips DRAFT → PUBLISHED, deletes on cancel |
-| W6 — Polish: caption-only edges, photo-only edges, dedup verify | ⏳ | |
+| W4 — `seed-partner-product-create-flow.ts` | ✅ shipped 2026-05-31 | Single shared flow; fires for any verified-WhatsApp partner. Seed via `run-backfill.sh seed-partner-product-create-flow`. Now uses `ai_extract_platform` (provider/model from admin-configured platforms, no hardcoded model id) |
+| W5 — Confirm / Cancel interactive buttons | ✅ shipped 2026-06-01 | Flow reply switched from `mode: "text"` to `mode: "interactive"`; tap-Confirm flips DRAFT → PUBLISHED, tap-Cancel deletes. `handleProductCreateButtonReply` dispatches on `wa_pc_confirm:*` / `wa_pc_cancel:*` ids before the production-run parser. Edit deferred to W6. |
+| W6 — Polish | ⏳ next | Edit button (free-text correction with conversation state), caption-only edges, photo-only edges, dedup verify, vision support on `ai_extract_platform` |
+
+---
+
+## W5 — Confirm / Cancel button taps
+
+After the workflow returns a `prod_…`, the flow's `notify_partner` step now sends an `interactive` message with two reply buttons instead of a plain text. The button ids encode the action and the product id:
+
+| Button | id (sent by Meta) | Server action |
+|---|---|---|
+| ✅ Confirm | `wa_pc_confirm:prod_…` | `productService.updateProducts({ id, status: "published" })` + reply with the admin link |
+| 🗑️ Cancel | `wa_pc_cancel:prod_…` | `productService.deleteProducts([id])` + reply confirming removal |
+
+When a tap arrives, the inbound webhook lands in `handleIncomingMessage` (`apps/backend/src/workflows/whatsapp/whatsapp-message-handler.ts`). Before the existing production-run lifecycle parser sees the message, a new prefix check routes anything starting with `wa_pc_` to `handleProductCreateButtonReply`. That handler resolves the product, validates state, and mutates.
+
+### Idempotency rules
+
+- Confirm tap on an **already-published** product → no-op, friendly "Already published" reply
+- Cancel tap on an **already-published** product → refuses to delete (live storefront product); replies with the admin link instead. Partner can still unpublish from admin.
+- Either tap with a missing/deleted product → "no longer available" reply
+
+### Edit (deferred to W6)
+
+Adding a third button (`Edit`) needs a small state machine: stash `pending_product_edit_id` on `messaging_conversation.metadata`, then route the next free-text from that partner into an "update title / price" handler rather than the standard intent dispatcher. Skipped for v1 — partners can resend a new photo + caption today, which creates a fresh draft. Worth the build once we see real usage volume.
+
+### Meta classification
+
+`mode: "interactive"` is **free-form** from Meta's perspective — same 24-hour window restriction as text and image. That's fine here because the flow fires immediately after the partner sent us a photo, which opens the window. The `send_whatsapp` operation's new `skip_if_outside_window` option would block the send if we ever tried to use interactive buttons unprompted — see [WhatsApp Send Modes & 24h Window](./whatsapp-send-modes-and-window-guard).
 
 ---
 
 ## Related
 
-- [AI Extract Operation](./ai-extract-operation) — the prior node that produces the `extracted` payload this workflow consumes
+- [AI Extract Operation](./ai-extract-operation) — the original text-only operation; superseded by `ai_extract_platform` for new flows
+- [AI Extract Platform Operation](./ai-extract-platform-operation) — provider / model resolved from admin-configured External Platforms; what W4's `extract_attrs` node uses today
+- [WhatsApp Send Modes & 24h Window](./whatsapp-send-modes-and-window-guard) — when free-form messages deliver, when they get silently skipped
 - [Partner WhatsApp — Production Run Flow](./whatsapp-partner-run-flow) — the outbound counterpart; same engine, opposite direction
 - `apps/docs/notes/WHATSAPP_PRODUCT_CREATE.md` — the design doc with the full proposed message flow + tradeoff matrix between handler-only and visual-flow paths
 - `apps/backend/src/workflows/whatsapp/whatsapp-media-helper.ts` — the rehost helper this workflow calls

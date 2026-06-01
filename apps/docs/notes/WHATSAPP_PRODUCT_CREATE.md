@@ -1,20 +1,27 @@
 # WhatsApp Product Creation for Partners
 
-> Status: **IN PROGRESS** — W1 already shipped; W2 (workflow + tests) landed 2026-05-30.
-> Date: 2026-05-29 (design), 2026-05-30 (W2 update)
+> Status: **W1–W5 SHIPPED (2026-06-01)** — partner-facing end-to-end works in prod. W6 polish next.
+> Date: 2026-05-29 (design), 2026-05-30 (W2), 2026-05-31 (W3+W4), 2026-06-01 (W5)
 > Owner: Saransh
-> Companion to `WEBHOOK_SETUP_GUIDE.md` (Meta WhatsApp wiring) and `PARTNER_API_PARITY.md` (the quick-create endpoint we reuse).
+> Implementation: `apps/docs/docs/implementation/workflows/whatsapp-create-draft-product.md`
+> Companion notes: `WHATSAPP_LANGUAGE_PERSISTENCE.md` (dual-write fix surfaced during W5 prod test), `WEBHOOK_SETUP_GUIDE.md` (Meta wiring), `PARTNER_API_PARITY.md`.
 
 ## Build progress
 
 | PR | Status | Notes |
 |----|--------|-------|
 | W1 — media rehost helper | ✅ **already shipped** | `downloadAndSaveWhatsAppMedia` at `apps/backend/src/workflows/whatsapp/whatsapp-media-helper.ts:239`. Handles Bearer auth on Meta presigned URL + base64 round-trip for file-s3 provider (the second one had bitten us before — well-documented in the source). |
-| W2 — `createDraftProductFromExtractionWorkflow` | ✅ shipped 2026-05-30 | `apps/backend/src/workflows/whatsapp/create-draft-product-from-extraction.ts`. 4 steps: resolve store → rehost media → build product input → invoke `createProductsWorkflow` with `status: DRAFT`. 4 integration tests passing. |
-| W3 — webhook emits `whatsapp.message_received` event + subscriber registration | ⏳ next |
-| W4 — `seed-partner-product-create-flow.ts` for one pilot partner | ⏳ |
-| W5 — Confirm/Edit/Cancel flow + roll-out | ⏳ |
-| W6 — Polish (caption-only, photo-only, dedupe verify) | ⏳ |
+| W2 — `createDraftProductFromExtractionWorkflow` (#292) | ✅ shipped 2026-05-30 | `apps/backend/src/workflows/whatsapp/create-draft-product-from-extraction.ts`. 4 steps: resolve store → rehost media → build product input → invoke `createProductsWorkflow` with `status: DRAFT`. 4 integration tests passing. |
+| W3 — webhook emits `whatsapp.message_received` (#294) | ✅ shipped 2026-05-31 | `whatsapp/route.ts` emits after parse + identity resolution; `visual-flow-event-trigger` subscriber registers the event name. |
+| W4 — `seed-partner-product-create-flow.ts` (#295) | ✅ shipped 2026-05-31 | Single shared flow; fires for any verified-WhatsApp partner. Eligibility now accepts `image` OR `document` (the iPhone-via-Files-picker path). Seeded via `run-backfill.sh seed-partner-product-create-flow`. Live flow id `vflow_01KT1BYKKZA5C0KYTQ4GC27QEM`. |
+| W4.1 — `ai_extract_platform` operation (#297, #298, #299) | ✅ shipped 2026-05-31 | Provider / model resolved from admin-configured External Platforms (no hardcoded model id). W4's `extract_attrs` step uses `role: ai_search_chat` → currently DashScope `qwen-plus`. |
+| W5 — Confirm / Cancel interactive buttons (#302) | ✅ shipped 2026-06-01 | `mode: "interactive"` added to `send_whatsapp`; `handleProductCreateButtonReply` dispatches `wa_pc_confirm:*` / `wa_pc_cancel:*` taps before the production-run parser. Tap Confirm flips DRAFT → PUBLISHED; tap Cancel deletes. Refuses to delete an already-published product. |
+| W6 — Polish | ⏳ next | Edit button (stateful "send a corrected line" flow), vision support on `ai_extract_platform`, photo-only / caption-only edges, dedup verify. |
+
+## Cross-cutting fixes shipped during W5 prod test
+
+- **24h window guard** (#302) — `seed-partner-run-whatsapp-flow.ts`'s text + image deep-link follow-ups were silently failing for partners outside Meta's 24-hour service window. Added `skip_if_outside_window` option to `send_whatsapp`; set `true` on `send_image` and `send_link_text`. Patched live flow in place. See `apps/docs/docs/implementation/workflows/whatsapp-send-modes-and-window-guard.md`.
+- **Language preference dual-write** (#302) — Partner taps "हिंदी" → was saved to `conversation.metadata.language` only, not `partner_admin.preferred_language`. Every outbound template fell back to English. Fixed at write time + ran a backfill across existing conversations. See `WHATSAPP_LANGUAGE_PERSISTENCE.md`.
 
 ## Goal
 
