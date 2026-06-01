@@ -45,7 +45,7 @@ export const sendWhatsAppOperation: OperationDefinition = {
         "SocialPlatform row id to send from. Omit to auto-route by country code."
       ),
 
-    mode: z.enum(["template", "text", "image"]).default("template"),
+    mode: z.enum(["template", "text", "image", "interactive"]).default("template"),
 
     // Template-mode fields
     template_name: z
@@ -105,6 +105,45 @@ export const sendWhatsAppOperation: OperationDefinition = {
         'When mode="image" and image_url resolves empty, exit cleanly via the ' +
           '"failure" branch instead of erroring. Lets flows send images only when ' +
           "the source data has one, without an upstream condition node."
+      ),
+
+    // Interactive-mode fields (mode="interactive")
+    // Renders a reply-buttons message: body text + 1-3 tap buttons. The
+    // button id arrives back on the webhook as message.buttonReplyId so a
+    // downstream handler (e.g. whatsapp-message-handler.ts) can dispatch.
+    // Like text + image, this only delivers inside Meta's 24-hour window —
+    // pair with skip_if_outside_window when sending unprompted.
+    interactive_body: z
+      .string()
+      .optional()
+      .describe(
+        'Required when mode="interactive". Body text shown above the buttons. ' +
+          "Supports {{ }} interpolation. Max 1024 chars per Meta."
+      ),
+    interactive_buttons: z
+      .array(
+        z.object({
+          id: z.string().describe("Button id (max 256 chars). Returned on the webhook as buttonReplyId."),
+          title: z.string().describe("Button label shown to recipient (max 20 chars)."),
+        })
+      )
+      .optional()
+      .describe(
+        'Required when mode="interactive". 1-3 reply buttons (Meta caps at 3). ' +
+          "Each id + title supports {{ }} interpolation."
+      ),
+
+    // 24-hour conversation window guard. Applies to text / image / interactive
+    // (all free-form modes Meta blocks outside the window). Templates are
+    // unaffected — they're explicitly designed to initiate conversations.
+    skip_if_outside_window: z
+      .boolean()
+      .default(false)
+      .describe(
+        "When true and mode is text|image|interactive, skip the send if the " +
+          "conversation has no inbound message in the last 24 hours. Prevents " +
+          'silent "outside window" rejections from Meta when the recipient ' +
+          "hasn't talked to us recently — common for unprompted follow-ups."
       ),
 
     // Audit / dedup
@@ -289,6 +328,46 @@ export const sendWhatsAppOperation: OperationDefinition = {
       //   f. On failure, update the preflight to status="failed" with
       //      the error in metadata, then re-throw to the outer catch
       //      which returns success: false.
+      // 2c. 24-hour conversation window guard.
+      //
+      // Templates can initiate conversations. Free-form modes (text /
+      // image / interactive) can ONLY be delivered while the recipient's
+      // 24-hour "service window" is open — i.e. they messaged us within
+      // the last 24 hours. Outside that window Meta rejects with code
+      // 131047 and the call wastes an API hit + writes a noisy failed
+      // row.
+      //
+      // When the caller opts in via skip_if_outside_window, look up the
+      // most recent inbound messaging_message for this recipient and
+      // exit cleanly via the failure branch if none in the last 24h.
+      if (
+        options.skip_if_outside_window &&
+        (mode === "text" || mode === "image" || mode === "interactive")
+      ) {
+        const lastInbound = await findLastInboundForRecipient(
+          messagingService,
+          resolvedPartnerId,
+          to
+        )
+        const windowMs = 24 * 60 * 60 * 1000
+        const insideWindow =
+          lastInbound && lastInbound.created_at
+            ? Date.now() - new Date(lastInbound.created_at).getTime() < windowMs
+            : false
+        if (!insideWindow) {
+          return {
+            success: true,
+            data: {
+              sent: false,
+              reason: "outside_24h_window",
+              last_inbound_at: lastInbound?.created_at ?? null,
+              mode,
+              _branch: "failure",
+            },
+          }
+        }
+      }
+
       let waResponse: any = null
       let messageType: "template" | "text" | "media" = "template"
       let contentPreview = ""
@@ -513,6 +592,74 @@ export const sendWhatsAppOperation: OperationDefinition = {
         })
         messageType = "media"
         contentPreview = `[image] ${caption || imageUrl}`.slice(0, 500)
+      } else if (mode === "interactive") {
+        // Interactive reply-buttons message (1-3 tap buttons).
+        // Button ids returned on the inbound webhook as
+        // message.buttonReplyId; downstream handlers dispatch on the id
+        // prefix (e.g. "wa_pc_confirm:..." for the W4 product-create
+        // confirm flow).
+        const interactiveBody = options.interactive_body
+          ? interpolateString(options.interactive_body, dataChain).slice(0, 1024)
+          : ""
+        if (!interactiveBody.trim()) {
+          return failed('mode="interactive" requires interactive_body')
+        }
+
+        const buttonsRaw: unknown = interpolateVariables(
+          options.interactive_buttons,
+          dataChain
+        )
+        const buttons = Array.isArray(buttonsRaw)
+          ? buttonsRaw
+              .map((b: any) => ({
+                id: typeof b?.id === "string" ? interpolateString(b.id, dataChain).trim() : "",
+                title: typeof b?.title === "string" ? interpolateString(b.title, dataChain).trim() : "",
+              }))
+              .filter((b) => b.id && b.title)
+          : []
+        if (buttons.length === 0) {
+          return failed('mode="interactive" requires at least one interactive_buttons entry')
+        }
+        if (buttons.length > 3) {
+          return failed('mode="interactive" supports at most 3 buttons (Meta cap)')
+        }
+
+        const triggerType =
+          (typeof dataChain?.$trigger?.event === "string"
+            ? dataChain.$trigger.event
+            : null) || `visual_flow:${context.flowId}`
+
+        waResponse = await whatsapp.sendInteractiveMessage(
+          to,
+          {
+            type: "button",
+            body: { text: interactiveBody },
+            action: {
+              buttons: buttons.slice(0, 3).map((b) => ({
+                type: "reply",
+                reply: { id: b.id.slice(0, 256), title: b.title.slice(0, 20) },
+              })),
+            },
+          } as any,
+          {
+            template: null,
+            partner_id: resolvedPartnerId,
+            resource_type: contextType ?? null,
+            resource_id: contextId ?? null,
+            trigger_type: triggerType,
+            idempotency_key: contextType && contextId ? `${contextType}:${contextId}:interactive` : null,
+            data: {
+              mode: "interactive",
+              flow_id: context.flowId,
+              execution_id: context.executionId,
+              operation_key: context.operationKey,
+              platform_id: platform?.id ?? null,
+              button_ids: buttons.map((b) => b.id),
+            },
+          }
+        )
+        messageType = "text"
+        contentPreview = `[buttons] ${interactiveBody} (${buttons.map((b) => b.title).join(" | ")})`.slice(0, 500)
       } else {
         const body = options.body ? interpolateString(options.body, dataChain) : ""
         if (!body.trim()) {
@@ -688,6 +835,41 @@ function stripDedupSuffix(id: string | null | undefined): string | null {
   if (!id) return null
   const idx = id.indexOf(":reminder:")
   return idx >= 0 ? id.slice(0, idx) : id
+}
+
+/**
+ * Find the most recent inbound message for a recipient phone (and partner
+ * if known), used by skip_if_outside_window to compute Meta's 24-hour
+ * service window.
+ *
+ * We query messages tagged with this conversation's partner_id + phone via
+ * the underlying conversation row, falling back to phone-only when no
+ * partner is set. Returns the message row (with created_at) or null.
+ */
+async function findLastInboundForRecipient(
+  messagingService: any,
+  partnerId: string | null,
+  phone: string
+): Promise<{ created_at: Date | string } | null> {
+  try {
+    // Find conversations for this recipient. Phone is the most stable
+    // anchor; partner_id narrows in multi-tenant cases.
+    const convFilter: Record<string, any> = { phone_number: phone }
+    if (partnerId) convFilter.partner_id = partnerId
+    const [convs] = await messagingService.listAndCountMessagingConversations(
+      convFilter,
+      { take: 5, order: { last_message_at: "DESC" } }
+    )
+    if (!convs?.length) return null
+    const conversationIds = convs.map((c: any) => c.id)
+    const [rows] = await messagingService.listAndCountMessagingMessages(
+      { conversation_id: conversationIds, direction: "inbound" },
+      { take: 1, order: { created_at: "DESC" } }
+    )
+    return rows?.[0] ?? null
+  } catch {
+    return null
+  }
 }
 
 async function findRecentOutboundByContext(

@@ -248,11 +248,21 @@ const FLOW_DEF = {
       options: {
         to:         "{{ $trigger.from }}",
         partner_id: "{{ $trigger.partner_id }}",
-        mode:       "text",
-        body:
-          "✅ Draft product created: *{{ create_draft.result.product_title }}*\n\n" +
-          "Open in admin to review price, add description, and publish:\n" +
-          "{{ create_draft.result.admin_url }}",
+        // W5 — interactive Confirm / Cancel buttons. The partner just
+        // sent us a photo so we're inside Meta's 24-hour window; no
+        // skip_if_outside_window needed. Button taps return on the
+        // inbound webhook with buttonReplyId = "wa_pc_confirm:<id>" or
+        // "wa_pc_cancel:<id>", which whatsapp-message-handler dispatches
+        // to handleProductCreateButtonReply.
+        mode:       "interactive",
+        interactive_body:
+          "✅ Draft product created: *{{ create_draft.result.product_title }}*\n" +
+          "Admin: {{ create_draft.result.admin_url }}\n\n" +
+          "Tap *Confirm* to publish, or *Cancel* to remove the draft.",
+        interactive_buttons: [
+          { id: "wa_pc_confirm:{{ create_draft.result.product_id }}", title: "✅ Confirm" },
+          { id: "wa_pc_cancel:{{ create_draft.result.product_id }}",  title: "🗑️ Cancel" },
+        ],
         context_type: "whatsapp_product_create",
         context_id:   "{{ $trigger.message_id }}",
         dedup_window_minutes: 60,
