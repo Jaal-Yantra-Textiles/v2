@@ -1,3 +1,10 @@
+# [13.18.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.17.1...v13.18.0) (2026-06-01)
+
+
+### Features
+
+* **whatsapp:** W5 Confirm/Cancel + 24h window guard + language persist ([9522e9f](https://github.com/Jaal-Yantra-Textiles/v2/commit/9522e9f97a80fc9d170673486d582199dd515c71))
+
 ## [13.17.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.17.0...v13.17.1) (2026-05-31)
 
 
