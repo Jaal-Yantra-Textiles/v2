@@ -21,6 +21,20 @@ on:
       - 'deploy/aws/**'
       - '.github/workflows/deploy-to-aws.yml'
   workflow_dispatch:
+    inputs:
+      deploy_services:
+        # When false (the default for dispatch), the workflow builds +
+        # mirrors the image only — copilot svc deploy is skipped. This
+        # is the safe path for branch dispatches: the sha-tagged image
+        # ends up in GHCR + ECR so run-backfill.sh can target it for a
+        # one-off task, but the live medusa-server / medusa-worker
+        # services keep running whatever :latest already pointed at.
+        #
+        # Push-to-main always deploys (the `if` on the deploy jobs
+        # below treats push events as deploy_services=true).
+        description: "Also deploy medusa-server + medusa-worker (push-to-main always does this)"
+        type: boolean
+        default: false
 
 # Serialize deploys on the same branch — but don't cancel a deploy
 # mid-flight; if you push twice in quick succession, the second waits.
@@ -117,6 +131,17 @@ jobs:
             echo "|---|---|"
             echo "| Tags | \`${{ steps.meta.outputs.tags }}\` |"
             echo "| SHA-tag | \`${{ steps.meta.outputs.version }}\` |"
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.deploy_services }}" != "true" ]; then
+              echo ""
+              echo "**Build-only dispatch.** Live services were not redeployed."
+              echo ""
+              echo "To run a backfill against this image:"
+              echo ""
+              echo "\`\`\`bash"
+              echo "IMAGE_TAG=${{ steps.meta.outputs.version }} DRY_RUN=1 FOLLOW=1 \\"
+              echo "  ./deploy/aws/scripts/run-backfill.sh <script-name>"
+              echo "\`\`\`"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ─────────────────────────────────────────────────────────────────────────
@@ -163,9 +188,21 @@ jobs:
 
           docker pull "$SRC"
           docker tag  "$SRC" "$DST_SHA"
-          docker tag  "$SRC" "$DST_LATEST"
           docker push "$DST_SHA"
-          docker push "$DST_LATEST"
+
+          # Only move :latest forward when this build is a push to main.
+          # A branch dispatch must NOT rewrite :latest, because the
+          # medusa-server + medusa-worker task definitions reference
+          # :latest, and ECS would pull the branch image on the next
+          # task replacement (autoscale, host drain, etc.) — silently
+          # deploying unmerged code.
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            docker tag  "$SRC" "$DST_LATEST"
+            docker push "$DST_LATEST"
+            echo "Tagged ECR :latest"
+          else
+            echo "Skipping :latest tag (ref=${GITHUB_REF}); only sha-tag was pushed."
+          fi
 
           echo "ecr_image=${DST_SHA}" >> "$GITHUB_OUTPUT"
 
@@ -177,6 +214,11 @@ jobs:
     name: Deploy medusa-server
     runs-on: ubuntu-latest
     needs: [build-and-push, mirror-to-ecr]
+    # Push to main always deploys. Manual dispatch only deploys when
+    # the operator explicitly checked `deploy_services`. Branch
+    # dispatches default to build-only so they don't roll the prod
+    # service.
+    if: github.event_name == 'push' || inputs.deploy_services == true
     steps:
       - uses: actions/checkout@v4
 
@@ -210,6 +252,8 @@ jobs:
     name: Deploy medusa-worker
     runs-on: ubuntu-latest
     needs: [build-and-push, mirror-to-ecr]
+    # See deploy-server above for the rationale.
+    if: github.event_name == 'push' || inputs.deploy_services == true
     steps:
       - uses: actions/checkout@v4
 

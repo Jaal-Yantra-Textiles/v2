@@ -22,6 +22,19 @@
 #   BATCH=50              -> exposed to scripts that batch (e.g. product search)
 #   DRY_RUN=1             -> exposed to scripts that support it
 #   FOLLOW=1              -> tail CloudWatch logs until the task exits
+#   IMAGE_TAG=sha-<hash>  -> run against a specific image tag instead of
+#                            whatever the live task def uses (:latest).
+#                            Used to dry-run scripts that haven't been
+#                            merged to main yet — the deploy workflow
+#                            supports a workflow_dispatch with
+#                            deploy_services=false that builds + mirrors
+#                            an image without rolling the prod service;
+#                            grab its sha tag from the build summary and
+#                            pass it here.
+#   ECR_REGISTRY=...      -> override the ECR account ref. Auto-detected
+#                            from the existing task def when IMAGE_TAG
+#                            is set; only needed if your shell already
+#                            has it cached.
 
 set -euo pipefail
 
@@ -48,14 +61,88 @@ echo "== Container:       $CONTAINER_NAME"
 echo "== Script:          $SCRIPT_NAME"
 echo "== BATCH:           ${BATCH:-(unset, script default)}"
 echo "== DRY_RUN:         ${DRY_RUN:-0}"
+echo "== IMAGE_TAG:       ${IMAGE_TAG:-(unset, use live task def image)}"
 echo
 
-# Resolve the latest active task def revision.
-TASK_DEF_ARN=$(aws ecs describe-task-definition \
-  --task-definition "$TASK_FAMILY" \
-  --region "$AWS_REGION" \
-  --query "taskDefinition.taskDefinitionArn" \
-  --output text)
+# Resolve the task definition to run against.
+#
+# Default path (no IMAGE_TAG): use the current active revision of the
+# medusa-server family. The one-off task pulls whatever image that
+# revision references (:latest in prod today).
+#
+# Branch dry-run path (IMAGE_TAG set): describe the current revision,
+# swap the container image to the supplied sha tag, register a new
+# revision in the family, and target that new revision. The new
+# revision is a one-off — `copilot svc deploy` references the family
+# by name and would still pick whatever the manifest says when the
+# next real deploy runs, so this side-revision doesn't pollute the
+# normal deploy path. ECS keeps old revisions free of charge.
+if [ -n "${IMAGE_TAG:-}" ]; then
+  echo "Registering a one-off task def revision with image tag ${IMAGE_TAG}…"
+  # Write describe-task-definition output to a temp file so python can
+  # read it positionally — `python3 - <<'PY'` heredocs take over stdin,
+  # so we can't pipe JSON in alongside the heredoc.
+  CURRENT_DEF_FILE=$(mktemp -t run-backfill-current-td.XXXXXX.json)
+  aws ecs describe-task-definition \
+    --task-definition "$TASK_FAMILY" \
+    --region "$AWS_REGION" \
+    --output json > "$CURRENT_DEF_FILE"
+
+  # Compose the new image ref. If ECR_REGISTRY isn't passed in, parse
+  # it out of the existing image on the current task def. `-c` reads
+  # code from the arg so stdin is free for the pipe.
+  if [ -z "${ECR_REGISTRY:-}" ]; then
+    CURRENT_IMAGE=$(python3 -c "
+import json, sys
+td = json.load(open(sys.argv[1]))['taskDefinition']
+for c in td['containerDefinitions']:
+    if c['name'] == sys.argv[2]:
+        print(c['image']); break
+" "$CURRENT_DEF_FILE" "$CONTAINER_NAME")
+    # An image looks like 123456789012.dkr.ecr.us-east-1.amazonaws.com/jyt-medusa:latest
+    ECR_REGISTRY="${CURRENT_IMAGE%/*}"
+  fi
+  NEW_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY:-jyt-medusa}:${IMAGE_TAG}"
+  echo "  New image: ${NEW_IMAGE}"
+
+  # Filter the current task def down to the fields register-task-definition
+  # accepts and swap the container image. describe-task-definition returns
+  # extra fields (revision, status, registeredAt, taskDefinitionArn,
+  # requiresAttributes, compatibilities, registeredBy) that register-
+  # task-definition rejects.
+  NEW_DEF_FILE=$(mktemp -t run-backfill-taskdef.XXXXXX.json)
+  python3 - "$CURRENT_DEF_FILE" "$CONTAINER_NAME" "$NEW_IMAGE" "$NEW_DEF_FILE" <<'PY'
+import json, sys
+in_path, container_name, new_image, out_path = sys.argv[1:]
+td = json.load(open(in_path))['taskDefinition']
+allowed_keys = {
+  'family', 'taskRoleArn', 'executionRoleArn', 'networkMode',
+  'containerDefinitions', 'volumes', 'placementConstraints',
+  'requiresCompatibilities', 'cpu', 'memory', 'tags',
+  'pidMode', 'ipcMode', 'proxyConfiguration', 'inferenceAccelerators',
+  'ephemeralStorage', 'runtimePlatform',
+}
+filtered = {k: v for k, v in td.items() if k in allowed_keys and v is not None}
+for c in filtered.get('containerDefinitions', []):
+    if c.get('name') == container_name:
+        c['image'] = new_image
+with open(out_path, 'w') as f:
+    json.dump(filtered, f)
+PY
+
+  TASK_DEF_ARN=$(aws ecs register-task-definition \
+    --region "$AWS_REGION" \
+    --cli-input-json "file://${NEW_DEF_FILE}" \
+    --query "taskDefinition.taskDefinitionArn" \
+    --output text)
+  echo "  Registered: ${TASK_DEF_ARN}"
+else
+  TASK_DEF_ARN=$(aws ecs describe-task-definition \
+    --task-definition "$TASK_FAMILY" \
+    --region "$AWS_REGION" \
+    --query "taskDefinition.taskDefinitionArn" \
+    --output text)
+fi
 echo "Using task definition: $TASK_DEF_ARN"
 
 # Compose the command override. WORKDIR inside the runtime image is
@@ -98,7 +185,10 @@ if [ ${#ENV_LIST[@]} -gt 0 ]; then
 fi
 
 OVERRIDES_FILE=$(mktemp -t run-backfill-overrides.XXXXXX.json)
-trap 'rm -f "$OVERRIDES_FILE"' EXIT
+# Single EXIT trap cleans up both temp files — the IMAGE_TAG path
+# above also creates NEW_DEF_FILE, which we want gone whether or not
+# the run-task call succeeded.
+trap 'rm -f "$OVERRIDES_FILE" "${NEW_DEF_FILE:-}" "${CURRENT_DEF_FILE:-}"' EXIT
 
 python3 - "$CONTAINER_NAME" "$OVERRIDES_FILE" "$ENV_JSON" "${CMD_PARTS[@]}" <<'PY'
 import json, sys
