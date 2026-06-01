@@ -270,6 +270,16 @@ export async function handleIncomingMessage(
         language: lang,
         onboarded: true,
       })
+      // Also persist onto the partner_admin row(s). The conversation
+      // metadata is the source of truth for the *handler* but outbound
+      // visual flows (seed-partner-run-whatsapp-flow.ts, seed-partner-
+      // payment-status-flow.ts, …) read partner.admins[*].preferred_language
+      // when resolving template language. Without this write, partners
+      // who tap "हिंदी" still get every subsequent template in English.
+      // Match priority: admin whose phone equals message.from first; fall
+      // back to all admins on this partner so we don't miss when the
+      // selecting number isn't yet stored on a specific admin row.
+      await persistPartnerAdminLanguage(scope, partner.partnerId, message.from, lang)
       await sendWelcomeCommands(scope, whatsapp, message.from, partner.partnerId, partner.adminName, lang)
       return { handled: true, action: `language_selected_${lang}` }
     }
@@ -294,6 +304,19 @@ export async function handleIncomingMessage(
   let runId = ""
 
   if (message.type === "interactive" && message.buttonReplyId) {
+    // W5 — product-create Confirm / Cancel taps. Distinct prefix so the
+    // production-run dispatch below doesn't try to parse them. Exit
+    // immediately once handled; the product status mutation IS the
+    // intent — no follow-on action needed.
+    if (message.buttonReplyId.startsWith("wa_pc_")) {
+      return await handleProductCreateButtonReply(
+        scope,
+        whatsapp,
+        message,
+        partner
+      )
+    }
+
     // Precedence:
     //   1. Template quick-reply buttons → arrive as the localized title
     //      (e.g. "✅ Accept" / "✅ स्वीकार करें") with no runId embedded.
@@ -1691,5 +1714,170 @@ async function persistOutboundMessage(
   // Notification Module audit row was already written by WhatsAppService
   // sendRequest() — the wrapper at the top of handleIncomingMessage passes
   // a default audit context to the underlying send.
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Language preference persistence
+//
+// When a partner taps "हिंदी" / "English" on the onboarding language
+// prompt, we used to store the choice only in conversation.metadata.
+// Outbound visual flows (assignment, payment-status, reminders) look at
+// partner.admins[*].preferred_language to pick the template language,
+// and that field stayed NULL — so Hindi-selected partners still got
+// every template in English.
+//
+// Strategy:
+//   1. Find the admin whose phone matches the inbound message.from.
+//   2. If none matches (admins commonly have no phone on file), apply
+//      to every admin on the partner so we don't silently miss.
+//   3. Use updatePartnerAdmins for each match.
+//
+// Failures are non-fatal — the conversation.metadata.language write
+// already gave us the correct handler-side behaviour; this is purely a
+// hardening pass on the outbound side.
+async function persistPartnerAdminLanguage(
+  scope: any,
+  partnerId: string,
+  fromPhone: string,
+  lang: string
+): Promise<void> {
+  try {
+    const partnerService = scope.resolve(PARTNER_MODULE) as any
+    const [partners] = await partnerService.listAndCountPartners(
+      { id: partnerId },
+      { take: 1, relations: ["admins"] }
+    )
+    const partner = partners?.[0]
+    if (!partner) return
+
+    const normalizedFrom = (fromPhone || "").replace(/[^0-9]/g, "")
+    const admins = Array.isArray(partner.admins) ? partner.admins : []
+
+    // Phone-matched admin wins. Fallback: apply to all admins so we
+    // don't depend on phone being set (it commonly isn't).
+    const matched = admins.find((a: any) => {
+      if (!a?.phone) return false
+      const norm = String(a.phone).replace(/[^0-9]/g, "")
+      return !!norm && (norm === normalizedFrom || norm.endsWith(normalizedFrom) || normalizedFrom.endsWith(norm))
+    })
+
+    const targets = matched ? [matched] : admins
+    await Promise.all(
+      targets
+        .filter((a: any) => a && a.id && a.preferred_language !== lang)
+        .map((a: any) =>
+          partnerService.updatePartnerAdmins({ id: a.id, preferred_language: lang })
+        )
+    )
+  } catch (e: any) {
+    console.warn("[whatsapp-handler] Failed to persist partner admin language:", e?.message)
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// W5 — product create Confirm / Cancel button handler
+//
+// W4's notify_partner step sends a buttons message after a DRAFT product
+// is auto-created from the partner's WhatsApp photo + caption. The
+// buttons are wa_pc_confirm:<product_id> / wa_pc_cancel:<product_id>.
+// On tap, we mutate the product directly here — no separate workflow
+// indirection. Edit is deferred to v2 (would need conversation-metadata
+// state tracking for the next text-message intent).
+//
+// Idempotency: if the partner taps Confirm twice the second tap is a
+// no-op with a friendly message. If they tap Cancel after Confirm
+// (product already PUBLISHED), refuse so the live storefront product
+// isn't accidentally deleted.
+async function handleProductCreateButtonReply(
+  scope: any,
+  whatsapp: any,
+  message: IncomingMessage,
+  partner: { partnerId: string; adminName: string }
+): Promise<HandlerResult> {
+  const raw = (message.buttonReplyId || "").replace(/^wa_pc_/, "")
+  const colon = raw.indexOf(":")
+  const action = colon >= 0 ? raw.slice(0, colon) : raw
+  const productId = colon >= 0 ? raw.slice(colon + 1) : ""
+
+  if (!productId) {
+    await whatsapp.sendTextMessage(
+      message.from,
+      "Sorry — I couldn't tell which product this button is for."
+    )
+    return { handled: true, action: "product_create_button_no_id" }
+  }
+
+  const { Modules } = await import("@medusajs/framework/utils")
+  const productService = scope.resolve(Modules.PRODUCT) as any
+
+  let product: any
+  try {
+    product = await productService.retrieveProduct(productId)
+  } catch {
+    await whatsapp.sendTextMessage(
+      message.from,
+      "That product is no longer available."
+    )
+    return { handled: true, action: "product_create_button_not_found" }
+  }
+
+  const adminBase = (process.env.MEDUSA_BACKEND_URL || "").replace(/\/$/, "")
+  const adminLink = adminBase ? `${adminBase}/app/products/${productId}` : `/app/products/${productId}`
+
+  if (action === "confirm") {
+    if (product.status === "published") {
+      await whatsapp.sendTextMessage(
+        message.from,
+        `Already published: *${product.title}*\n${adminLink}`
+      )
+      return { handled: true, action: "product_create_confirm_already_published" }
+    }
+    try {
+      await productService.updateProducts({ id: productId, status: "published" })
+    } catch (e: any) {
+      await whatsapp.sendTextMessage(
+        message.from,
+        `Couldn't publish *${product.title}* — ${e?.message || "unknown error"}. Try again from admin: ${adminLink}`
+      )
+      return { handled: true, action: "product_create_confirm_failed" }
+    }
+    await whatsapp.sendTextMessage(
+      message.from,
+      `✅ Published: *${product.title}*\n${adminLink}`
+    )
+    return { handled: true, action: "product_create_confirmed" }
+  }
+
+  if (action === "cancel") {
+    if (product.status === "published") {
+      // Don't auto-delete live products. Partner can still delete from
+      // admin if they really mean it.
+      await whatsapp.sendTextMessage(
+        message.from,
+        `*${product.title}* is already published. Open admin to unpublish or delete:\n${adminLink}`
+      )
+      return { handled: true, action: "product_create_cancel_after_publish" }
+    }
+    try {
+      await productService.deleteProducts([productId])
+    } catch (e: any) {
+      await whatsapp.sendTextMessage(
+        message.from,
+        `Couldn't remove *${product.title}* — ${e?.message || "unknown error"}.`
+      )
+      return { handled: true, action: "product_create_cancel_failed" }
+    }
+    await whatsapp.sendTextMessage(
+      message.from,
+      `🗑️ Cancelled — *${product.title}* removed.`
+    )
+    return { handled: true, action: "product_create_cancelled" }
+  }
+
+  await whatsapp.sendTextMessage(
+    message.from,
+    "Unrecognised action — open admin to manage this product."
+  )
+  return { handled: true, action: "product_create_button_unknown" }
 }
 

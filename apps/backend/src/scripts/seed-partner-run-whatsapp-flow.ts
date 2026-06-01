@@ -529,12 +529,19 @@ const FLOW_DEF = {
         // to swallow it as a duplicate.
         dedup_window_minutes: 0,
         require_partner: true,
+        // Image mode is free-form too — Meta blocks it outside the 24-hour
+        // window for partners who haven't messaged us recently. Skip
+        // silently instead of generating noisy failed sends.
+        skip_if_outside_window: true,
       },
     },
 
     // ── 6f. Send the portal link as plain text (no-image branch) ──────────
-    // The template send opened the 24-hour session window, so a follow-up
-    // text delivers without needing another approved template.
+    // Free-form text only delivers inside Meta's 24-hour conversation
+    // window — i.e. when the partner messaged us within the last day.
+    // skip_if_outside_window guards against silent rejections for partners
+    // we haven't heard from recently. The utility template above always
+    // lands; this follow-up is best-effort.
     {
       operation_key: "send_link_text",
       operation_type: "send_whatsapp",
@@ -553,6 +560,7 @@ const FLOW_DEF = {
         context_id: "{{ resolve_template.context_id }}",
         dedup_window_minutes: 0,
         require_partner: true,
+        skip_if_outside_window: true,
       },
     },
 
