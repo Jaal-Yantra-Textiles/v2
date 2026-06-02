@@ -119,31 +119,40 @@ export default async function fanoutExistingVariantPrices({
       }
 
       // 2. All variants whose product lives in the store's default
-      //    sales channel. price_set.prices is what we need for fanout
-      //    inputs.
-      const { data: variants } = await query.graph({
-        entity: "product_variants",
-        filters: { "product.sales_channels.id": channelId } as any,
+      //    sales channel. Query the `product` entity instead of
+      //    `product_variants` — query.graph filters only auto-join
+      //    a single relation hop, and `product_variants → product →
+      //    sales_channels` is two hops, which produced a postgres
+      //    "missing FROM-clause entry for sales_channels" error
+      //    against prod. Walking products → variants → prices works
+      //    because product → sales_channels is a single direct
+      //    relation. Nested-object filter syntax matches the working
+      //    pattern in apps/backend/src/api/store/products/route.ts.
+      const { data: products } = await query.graph({
+        entity: "product",
+        filters: { sales_channels: { id: channelId } } as any,
         fields: [
           "id",
-          "product.id",
-          "price_set.prices.id",
+          "variants.id",
+          "variants.price_set.prices.id",
         ],
       })
 
       let storeVariants = 0
       let storePrices = 0
-      for (const variant of (variants ?? []) as any[]) {
-        storeVariants++
-        const prices = variant?.price_set?.prices ?? []
-        for (const price of prices) {
-          if (!price?.id) continue
-          storePrices++
-          targets.push({
-            partnerId: partner.id,
-            storeId: store.id,
-            priceId: price.id,
-          })
+      for (const product of (products ?? []) as any[]) {
+        for (const variant of product?.variants ?? []) {
+          storeVariants++
+          const prices = variant?.price_set?.prices ?? []
+          for (const price of prices) {
+            if (!price?.id) continue
+            storePrices++
+            targets.push({
+              partnerId: partner.id,
+              storeId: store.id,
+              priceId: price.id,
+            })
+          }
         }
       }
       variantsScanned += storeVariants
