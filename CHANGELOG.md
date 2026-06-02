@@ -1,3 +1,10 @@
+## [13.19.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.19.0...v13.19.1) (2026-06-02)
+
+
+### Bug Fixes
+
+* **backfill:** fanout script multi-hop sales_channels filter ([43e7321](https://github.com/Jaal-Yantra-Textiles/v2/commit/43e7321919c676767ad96914a6f2c74812958bca))
+
 # [13.19.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.18.0...v13.19.0) (2026-06-02)
 
 
