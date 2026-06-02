@@ -1,3 +1,13 @@
+# [13.19.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.18.0...v13.19.0) (2026-06-02)
+
+
+### Features
+
+* **ci:** build-only workflow_dispatch + guard :latest on main ([938e788](https://github.com/Jaal-Yantra-Textiles/v2/commit/938e788ceb8be040c3d102fd90a64bf2d63fb61b))
+* **backfill:** cross-product all partners × all admin regions ([c907a7c](https://github.com/Jaal-Yantra-Textiles/v2/commit/c907a7ca1b220dcdc268e748a6b1c880ffb7ac47))
+* **backfill:** replay FX fanout across existing variant prices ([13de08a](https://github.com/Jaal-Yantra-Textiles/v2/commit/13de08ad0890f2ca30823573441ef4cd9dc914d1))
+* **ops:** run-backfill.sh IMAGE_TAG override ([c43f09e](https://github.com/Jaal-Yantra-Textiles/v2/commit/c43f09e4b909521e591da36623c38fc51a7bcfdd))
+
 # [13.18.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.17.1...v13.18.0) (2026-06-01)
 
 
