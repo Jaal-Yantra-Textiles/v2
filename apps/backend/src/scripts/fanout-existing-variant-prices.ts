@@ -119,29 +119,45 @@ export default async function fanoutExistingVariantPrices({
       }
 
       // 2. All variants whose product lives in the store's default
-      //    sales channel. Query the `product` entity instead of
-      //    `product_variants` — query.graph filters only auto-join
-      //    a single relation hop, and `product_variants → product →
-      //    sales_channels` is two hops, which produced a postgres
-      //    "missing FROM-clause entry for sales_channels" error
-      //    against prod. Walking products → variants → prices works
-      //    because product → sales_channels is a single direct
-      //    relation. Nested-object filter syntax matches the working
-      //    pattern in apps/backend/src/api/store/products/route.ts.
-      const { data: products } = await query.graph({
-        entity: "product",
-        filters: { sales_channels: { id: channelId } } as any,
+      //    sales channel. Pivot via the `sales_channel` entity and walk
+      //    through the `products_link` join model — this is the path
+      //    that the partner list-store-products workflow uses
+      //    (apps/backend/src/workflows/partner/list-store-products.ts).
+      //
+      //    Other shapes that didn't work, captured here so the next
+      //    person doesn't re-discover:
+      //    - `product_variants` with `"product.sales_channels.id"`
+      //      filter → postgres "missing FROM-clause entry for table
+      //      sales_channels" (two-hop traversal not auto-joined).
+      //    - `product` with `{ sales_channels: { id } }` filter →
+      //      mikro-orm "Trying to query by not existing property
+      //      Product.sales_channels" (the relation lives on the link
+      //      entity, not on Product directly).
+      const { data: scData } = await query.graph({
+        entity: "sales_channel",
+        filters: { id: channelId },
         fields: [
           "id",
-          "variants.id",
-          "variants.price_set.prices.id",
+          "products_link.product.id",
+          "products_link.product.variants.id",
+          "products_link.product.variants.price_set.prices.id",
         ],
       })
 
+      const links = ((scData?.[0] as any)?.products_link ?? []) as Array<{
+        product?: {
+          id?: string
+          variants?: Array<{
+            id?: string
+            price_set?: { prices?: Array<{ id?: string }> }
+          }>
+        }
+      }>
+
       let storeVariants = 0
       let storePrices = 0
-      for (const product of (products ?? []) as any[]) {
-        for (const variant of product?.variants ?? []) {
+      for (const link of links) {
+        for (const variant of link?.product?.variants ?? []) {
           storeVariants++
           const prices = variant?.price_set?.prices ?? []
           for (const price of prices) {
