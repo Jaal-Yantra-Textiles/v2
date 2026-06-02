@@ -1,3 +1,10 @@
+## [13.19.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.19.1...v13.19.2) (2026-06-02)
+
+
+### Bug Fixes
+
+* **backfill:** pivot fanout script via sales_channel entity ([98f8b9c](https://github.com/Jaal-Yantra-Textiles/v2/commit/98f8b9c9d8c2ab4f4c54b00e2541ac8424cd3c05)), closes [#306](https://github.com/Jaal-Yantra-Textiles/v2/issues/306)
+
 ## [13.19.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.19.0...v13.19.1) (2026-06-02)
 
 
