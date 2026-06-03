@@ -1,3 +1,11 @@
+# [13.20.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.19.2...v13.20.0) (2026-06-03)
+
+
+### Features
+
+* **admin:** region partner-coverage widget + share-to-all endpoint ([590c87d](https://github.com/Jaal-Yantra-Textiles/v2/commit/590c87d793fd95b32e7c1ea18c1f0731cbeb7b37))
+* **regions:** subscriber propagates new regions to all partners ([6172650](https://github.com/Jaal-Yantra-Textiles/v2/commit/6172650df40cdcb1867e4601ab3b3f09ac81f5b4))
+
 ## [13.19.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.19.1...v13.19.2) (2026-06-02)
 
 
