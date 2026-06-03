@@ -47,9 +47,31 @@ Fargate one-off task. Recommended canary: one partner via
 `PARTNER_IDS=par_x`, verify, then full sweep.
 
 **Acceptance:** GOF + 6+ other live partner storefronts stop showing
-the "we don't ship here" fallback for AU/EU/US/ID visitors.
+the "we don't ship here" fallback for AU/EU/US/ID visitors. **Closed
+out 2026-06-02** — 94 links created, 11 stores' currencies extended,
+200 auto-prices materialized; canary verified against Sharlho + Ielo
+(USD/EUR/AUD price resolution).
 
 ### 0B — Subscriber on `region.created` / `region.updated` (~half day)
+
+**Status: SHIPPED 2026-06-03.** Branch `feat/0b-region-propagate-subscriber`.
+
+Components landed:
+- `src/workflows/regions/propagate-region-to-partners.ts` — single
+  source of truth for the propagation logic. Takes `region_id` +
+  `{ trigger_fanout?, partner_ids? }`, returns counts.
+- `src/subscribers/region-propagate.ts` — handles `region.created` and
+  `region.updated`. Fanout gated behind `REGION_PROPAGATE_FANOUT=1`
+  (default off; partners' next variant save fans out via the existing
+  batch-route hook).
+- `GET /admin/regions/:id/partner-coverage` — counts + unlinked
+  partners list.
+- `POST /admin/regions/:id/share-to-all` — manual re-run with optional
+  `trigger_fanout` + `partner_ids` scoping.
+- Admin widget on `region.details.side.after` — shows "Linked to
+  N/M partners" + "Share to all" button with FX-fanout opt-in
+  checkbox.
+- 4 integration tests (`integration-tests/http/partner-regions/region-propagate-subscriber.spec.ts`) all green.
 
 Subscriber listens for region create/update on admin side, then for
 every active partner:
