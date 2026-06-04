@@ -179,6 +179,54 @@ painting, trace the asset source (S3 path / CDN URL / WordPress
 import), restore or re-link.
 **Effort:** 1-2 hours.
 
+#### 25. Partner assignment on design production runs — diagnosed 2026-06-03
+
+Reported against prod run `01KPET5HBGNH9QXGC0MC8RHR39`. Investigation
+reproduced the validator error on design `01JQ4H4JKX4TMXJZ3GH9TA02MT`
+(test partner Saransh Sharma) and surfaced **three** related bugs, not
+two:
+
+**25a — Validator rejects `template_names: null` (FIX IN-FLIGHT).**
+The admin UI's "Send to production" toggle sends
+`template_names: null` when no global templates are picked, but
+`AssignmentSchema.template_names = z.array(z.string()).optional()`
+rejects null (only undefined or array is allowed). Result: the entire
+request 400s with "Field 'assignments, 0, template_names' is required"
+and the production run is never created, so no WhatsApp event ever
+fires. Fix: switch to `.nullish()` on both
+`apps/backend/src/api/admin/production-runs/validators.ts` and
+`apps/backend/src/api/admin/designs/[id]/production-runs/validators.ts`.
+
+**25b — Admin UI double-dispatches via `sendMutation` (FIX IN-FLIGHT).**
+The route `POST /admin/designs/:id/production-runs` already
+auto-dispatches each child whose `dispatch_template_names` is set from
+per-assignment templates (route.ts:218–233). The form submit handler
+in `src/admin/routes/designs/[id]/@production-run/page.tsx` then loops
+again calling `sendMutation` with the **global** `values.template_names`
+(empty when per-assignment templates were used) — hitting
+`AdminSendProductionRunToProductionReq.template_names.min(1)` and
+400ing. Fix: skip the manual loop when `hasPerAssignmentTemplates`
+is true (backend already did the work).
+
+**25c — WhatsApp doesn't fire even when the run reaches
+`sent_to_partner`** (SEPARATE TRACK). Once 25a + 25b are fixed, the
+event `production_run.sent_to_partner` does fire and the
+`Partner WhatsApp — Production Run (all events)` visual flow
+(`vflow_01KQ9RSZ1TFMB7MQ0Y64P4E98Y`) does match — but executions show
+up as `status=cancelled` with `"Workflow cancelled during execution"`
+(unhelpful). Saransh's partner profile also has no `phone` /
+`whatsapp_phone` / `whatsapp_phone_number` set on any field, so even
+a successful flow has no target. Two follow-ups:
+- Diagnose the cancelled flow executions — likely a step error swallowed
+  into a generic cancel. Inspect the resolve_template code node + the
+  send_whatsapp operation logs.
+- Backfill / enforce a `whatsapp_phone_number` on the partner profile
+  (or surface a clear admin-side warning when assigning a partner with
+  no WA contact — silent skip is worse than visible failure).
+
+**Effort:** 25a + 25b shipping now. 25c is its own diagnosis session
+(~2-3 hours).
+
 ### Partner platform extensions
 
 #### 4. Per-order transaction fee billing per partner
