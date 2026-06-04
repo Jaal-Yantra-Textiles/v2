@@ -127,6 +127,39 @@ one who doesn't) at the DB level.
 
 #### 5. Tax config per store working as expected
 
+**Status: AUDIT + E2E TEST SHIPPED 2026-06-04.** Branch
+`feat/5-tax-coverage-audit-and-test`. Each partner shares the global
+canonical tax_regions (PR #261); cart-tax lookup matches the
+shipping address's country against `tax_region.country_code`. If no
+row (or no default rate) exists for that country, the cart shows
+`tax_total = 0` and the partner under-bills — silently.
+
+Shipped:
+- `apps/backend/src/scripts/audit-tax-coverage.ts` — walks every
+  partner via `query.graph({ entity: "partner", ... })`, lists
+  every country covered by their regions, and flags any country
+  that lacks a tax_region row **with a default rate > 0**. Exports
+  `computeTaxCoverage()` returning a typed report so tests + admin
+  surfaces can consume it without log-scraping. Skips US/UM (no
+  federal sales tax — partner handles state-level themselves).
+- `integration-tests/http/tax-coverage-audit-and-cart.spec.ts` — 6
+  tests covering: audit reports zero gaps for fully-covered partner,
+  surfaces partner with AO (no curated rate), skips US correctly,
+  TaxModule.getTaxLines returns AU=10% GST + IN=18% GST, returns
+  zero for an unseeded country (the silent-undercharge scenario).
+
+**Next step (post-deploy):** run
+`./deploy/aws/scripts/run-backfill.sh audit-tax-coverage` on prod to
+surface any partner whose region covers a country without a canonical
+default rate. If gaps surface, follow up by either (a) extending
+`COUNTRY_DEFAULT_TAX_RATES` in `seed-canonical-tax-regions.ts` for
+that country and re-seeding, or (b) admin sets the rate manually via
+the existing tax_regions admin UI.
+
+---
+
+**Original problem statement (for the record):**
+
 Each partner should have tax_regions provisioned for the countries
 their regions cover (PR #261 seeded canonical tax_regions). Verify
 end-to-end: order in AU calculates 10% GST, order in EU calculates
