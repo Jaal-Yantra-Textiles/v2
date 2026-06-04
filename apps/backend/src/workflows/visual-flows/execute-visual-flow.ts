@@ -4,15 +4,40 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
+import type { IEventBusModuleService } from "@medusajs/framework/types"
+import { Modules } from "@medusajs/framework/utils"
 import { VISUAL_FLOWS_MODULE } from "../../modules/visual_flows"
 import VisualFlowService from "../../modules/visual_flows/service"
-import { 
-  operationRegistry, 
-  DataChain, 
+import {
+  operationRegistry,
+  DataChain,
   OperationContext,
   getAllowedEnvVars,
   interpolateVariables,
 } from "../../modules/visual_flows/operations"
+
+/**
+ * Lifecycle event emit helper.
+ *
+ * Why a helper: the execution workflow lives downstream of the event
+ * bus on the boot graph, so we resolve lazily. A missing or
+ * misconfigured event bus must never be the reason a real execution
+ * (or its compensation) fails — observability is strictly additive
+ * here. Errors are swallowed because the execution row + log table
+ * still hold the truth even if the email never goes out.
+ */
+async function emitFlowLifecycleEvent(
+  container: any,
+  name: "visual_flow_execution.started" | "visual_flow_execution.failed",
+  data: Record<string, any>
+) {
+  try {
+    const eventBus = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService
+    await eventBus.emit({ name, data })
+  } catch {
+    // Intentional: see comment above.
+  }
+}
 
 // ============ Types ============
 
@@ -112,7 +137,7 @@ const initializeExecutionStep = createStep(
     await service.updateExecutionStatus(execution.id, "running", {
       data_chain: dataChain,
     })
-    
+
     // Log trigger
     await service.addExecutionLog({
       execution_id: execution.id,
@@ -122,18 +147,101 @@ const initializeExecutionStep = createStep(
       output_data: dataChain.$trigger,
       duration_ms: 0,
     })
-    
+
+    // Lifecycle: emit `visual_flow_execution.started` so admins (or
+    // any other subscriber) can surface an in-progress flow. Until
+    // this hook existed, executions only became visible to admins
+    // when they completed or failed — long flows had no kick-off
+    // signal at all.
+    await emitFlowLifecycleEvent(container, "visual_flow_execution.started", {
+      flow_id: input.flowId,
+      flow_name: (input.flow as any)?.name,
+      flow_metadata: (input.flow as any)?.metadata ?? null,
+      execution_id: execution.id,
+      triggered_by: input.triggeredBy,
+      triggered_by_event: incomingEventName,
+      started_at: new Date().toISOString(),
+    })
+
+    // The compensation needs more than `executionId` so it can emit a
+    // rich `visual_flow_execution.failed` event (flow name + metadata
+    // for recipient resolution; trigger fields for the email body).
+    // The execution log table holds the per-operation failure detail
+    // and is read at compensation time.
     return new StepResponse(
       { executionId: execution.id, dataChain },
-      execution.id // For compensation
+      {
+        executionId: execution.id,
+        flowId: input.flowId,
+        flowName: (input.flow as any)?.name,
+        flowMetadata: (input.flow as any)?.metadata ?? null,
+        triggeredBy: input.triggeredBy,
+        triggeredByEvent: incomingEventName,
+      }
     )
   },
-  // Compensation: mark execution as cancelled
-  async (executionId: string, { container }) => {
+  // Compensation: mark execution as cancelled + emit the failure event
+  // so admins get an email instead of staring at a silent
+  // status=cancelled row. We dig the actual operation-level error out
+  // of the execution log because the workflow-engine error is the
+  // generic "Workflow cancelled during execution" string, which is
+  // exactly the unhelpful surface roadmap item 26 set out to fix.
+  async (
+    rollbackData:
+      | {
+          executionId: string
+          flowId: string
+          flowName?: string
+          flowMetadata?: Record<string, any> | null
+          triggeredBy?: string
+          triggeredByEvent?: string
+        }
+      | undefined,
+    { container }
+  ) => {
+    if (!rollbackData?.executionId) return
     const service: VisualFlowService = container.resolve(VISUAL_FLOWS_MODULE)
-    await service.updateExecutionStatus(executionId, "cancelled", {
-      error: "Workflow cancelled during execution",
+
+    // Pull the most recent failure log row for this execution — the
+    // log table is the only place the per-operation error survives
+    // once the workflow engine rethrows the generic cancel message.
+    let failingOperationKey: string | null = null
+    let operationErrorMessage: string | null = null
+    try {
+      const logs = await (service as any).listVisualFlowExecutionLogs(
+        { execution_id: rollbackData.executionId, status: "failure" },
+        { take: 1, order: { created_at: "DESC" } }
+      )
+      const latest = logs?.[0]
+      if (latest) {
+        failingOperationKey = latest.operation_key ?? null
+        operationErrorMessage = latest.error ?? null
+      }
+    } catch {
+      // Best-effort lookup — fall through to a generic event.
+    }
+
+    const errorMessage =
+      operationErrorMessage ||
+      (failingOperationKey
+        ? `Operation '${failingOperationKey}' failed`
+        : "Workflow cancelled during execution")
+
+    await service.updateExecutionStatus(rollbackData.executionId, "cancelled", {
+      error: errorMessage,
       completed_at: new Date(),
+    })
+
+    await emitFlowLifecycleEvent(container, "visual_flow_execution.failed", {
+      flow_id: rollbackData.flowId,
+      flow_name: rollbackData.flowName,
+      flow_metadata: rollbackData.flowMetadata ?? null,
+      execution_id: rollbackData.executionId,
+      triggered_by: rollbackData.triggeredBy,
+      triggered_by_event: rollbackData.triggeredByEvent,
+      failing_operation_key: failingOperationKey,
+      error_message: errorMessage,
+      failed_at: new Date().toISOString(),
     })
   }
 )

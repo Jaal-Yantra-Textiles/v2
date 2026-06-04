@@ -244,6 +244,45 @@ follow-up admin affordance.
 
 #### 26. Email notification when a visual flow fails
 
+**Status: SHIPPED 2026-06-04.** Branch `feat/26-visual-flow-failure-email`.
+Expanded from the original spec — covers **start + failure** lifecycle
+hooks, not just failure (user picked the broader shape so admins also
+notice flows that began but never landed). The shipped surface:
+
+- `apps/backend/src/workflows/visual-flows/execute-visual-flow.ts` —
+  emits `visual_flow_execution.started` after the execution row goes
+  to `running`, and emits `visual_flow_execution.failed` from the
+  compensation path. The compensation now reads the latest failure
+  row from `visual_flow_execution_log` so the failed event carries
+  the **real** operation error (not the generic
+  `"Workflow cancelled during execution"`) plus the
+  `failing_operation_key`. The execution row's `error` field gets the
+  same upgrade.
+- `apps/backend/src/subscribers/visual-flow-lifecycle-email.ts` —
+  listens on `["visual_flow_execution.started",
+  "visual_flow_execution.failed"]`. Recipient resolution:
+  `flow.metadata.failure_email` → `VISUAL_FLOW_FAILURE_EMAIL` env →
+  bail silently. In-memory throttle keyed by
+  `started:<flow_id>` or `failed:<flow_id>:<fingerprint>`; ULID-aware
+  fingerprint (`[0-9a-z]{12,}` collapses Crockford base32 ids) keeps
+  identical-shape errors in the same bucket.
+- `apps/backend/src/scripts/seed-visual-flow-lifecycle-email-templates.ts` —
+  upserts both `visual-flow-started` and `visual-flow-failure`
+  templates so admins can edit the body/subject in the admin UI
+  without a redeploy.
+- 2 integration tests in
+  `integration-tests/http/visual-flow-lifecycle-email.spec.ts` —
+  end-to-end lifecycle event capture against a flow with an
+  `execute_code` step that throws, plus a fingerprint unit test on
+  ULID-shaped messages.
+
+**Re-seed required after deploy:**
+`npx medusa exec ./src/scripts/seed-visual-flow-lifecycle-email-templates.ts`.
+
+---
+
+**Original problem statement (for the record):**
+
 Direct follow-up to the 25c diagnosis. Today, when a visual-flow
 execution errors out (a Meta API rejection, a missing
 template, an unreachable image URL, a thrown step) it lands as
@@ -328,12 +367,12 @@ Fix outline:
   behaviour, `/partners/designs` visibility, plus the backfill
   scenarios (recovery, no-op, dry-run).
 
-**Next step (post-deploy):** run
+**Closed out 2026-06-04** — backfill ran on prod via
 `./deploy/aws/scripts/run-backfill.sh backfill-design-partners-from-runs`
-with `DRY_RUN=1` first, then for real, to repair the existing drift
-on prod (e.g. design `01KPET5HBGNH9QXGC0MC8RHR39` re-assigned to
-Sharlho via a production run but linked to Shramdaan in
-`design_partners_link`).
+(dry-run first, then real). 17 (design, partner) pairs walked, 16
+already linked, 1 created: design `01KPET5HBGNH9QXGC0MC8RHR39` ↔
+partner `01K4PJMNMNRGMK0ZXMKBBDZDGD` (Sharlho) — exactly the drift
+reported. Zero errors.
 
 ### Partner platform extensions
 
