@@ -278,6 +278,42 @@ Implementation outline:
 **Effort:** 2-3 hours for the subscriber + email template + throttle.
 Plus a one-line seed for the email template body.
 
+#### 27. Auto-link partner to design on production-run assignment
+
+Surfaced 2026-06-04 testing partner-side visibility after the bug-25
+fix. Design `01KPET5HBGNH9QXGC0MC8RHR39` ("White Envelope Dress")
+was originally linked in `design_partners_link` to Shramdaan. Admin
+then created a production run + assigned it to Sharlho (Tarunsharma).
+Sharlho can see the production run in `/partners/production-runs`
+(filtered by `run.partner_id`) but the design **doesn't** appear in
+`/partners/designs` — that endpoint queries `design_partners_link`,
+which the production-run-assignment path never updates. Two sources
+of truth that drift on re-assignment.
+
+Desired behavior: **additive multi-partner.** A design can have many
+partners, and assigning a production run to a partner should
+automatically upsert a `design_partners_link` row for that
+(design, partner) pair without removing any existing link rows.
+Explicit assignment via the admin design-partner UI continues to
+work as a separate path. `design_partners_link` is already
+`isList: true` on both sides, so the schema supports multi already.
+
+Fix outline:
+- `approveProductionRunWorkflow` gains a `linkPartnersToDesignStep`
+  that iterates over `assignments` (post-creation), looks up existing
+  `design_partners_link` rows for the (design_id, partner_id) pair,
+  and creates only the missing ones. Idempotent + safe to re-run.
+- One-shot backfill script `backfill-design-partners-from-runs.ts`
+  walks every existing non-cancelled production run with a
+  `partner_id` + `design_id` and creates the missing link rows.
+  Mirrors the `backfill-all-admin-regions-to-partners.ts` recipe
+  from 0A — dry-run aware, scoped via `--partner-ids` /
+  `--design-ids`, surfaced via `run-backfill.sh`.
+
+**Effort:** 1-2 hours for the workflow step + backfill script +
+integration test, plus the run via `run-backfill.sh` afterward to
+fix the existing drift on prod.
+
 ### Partner platform extensions
 
 #### 4. Per-order transaction fee billing per partner
