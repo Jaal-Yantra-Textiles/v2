@@ -73,6 +73,7 @@ import { AdminPutDesignTaskReq } from "./admin/designs/[id]/tasks/[taskId]/valid
 import {
   AdminApproveProductionRunReq,
   AdminCreateProductionRunReq,
+  AdminCancelProductionRunReq,
   AdminResumeDispatchProductionRunReq,
   AdminSendProductionRunToProductionReq,
   AdminStartDispatchProductionRunReq,
@@ -3244,7 +3245,13 @@ export default defineMiddlewares({
     {
       matcher: "/admin/production-runs/:id/cancel",
       method: "POST",
-      middlewares: [authenticate("user", ["session", "bearer"])],
+      // Admin routes get auth automatically via Medusa's admin route
+      // loader — explicit authenticate("user", …) here only narrowed the
+      // accepted auth modes to session + bearer, which blocked sk_*
+      // (secret key) tooling like backfill scripts and the prod
+      // operator CLI. Other production-run POST routes don't restrict
+      // and accept sk_, so this one was the odd one out.
+      middlewares: [validateAndTransformBody(wrapSchema(AdminCancelProductionRunReq))],
     },
     {
       matcher: "/admin/production-runs/:id/start-dispatch",

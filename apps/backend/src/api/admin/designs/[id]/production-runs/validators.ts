@@ -5,7 +5,11 @@ const ProductionAssignmentSchema = z.object({
   role: z.string().optional(),
   quantity: z.number().positive(),
   order: z.number().int().positive().optional(),
-  template_names: z.array(z.string()).optional(),
+  // See production-runs/validators.ts for the rationale. The admin UI's
+  // "Send to production" toggle sends `template_names: null` when no
+  // templates are picked — `.optional()` alone rejected that with
+  // "Field is required" and never let the request reach the workflow.
+  template_names: z.array(z.string()).nullish(),
 })
 
 export const AdminCreateDesignProductionRunSchema = z.object({

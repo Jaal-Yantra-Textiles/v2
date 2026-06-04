@@ -373,6 +373,20 @@ const CreateProductionRunDrawerForm = () => {
         return
       }
 
+      // When per-assignment template_names are set, the backend route
+      // already auto-dispatches each child (see
+      // apps/backend/src/api/admin/designs/[id]/production-runs/route.ts
+      // — the for-loop over children with dispatch_template_names).
+      // Calling sendMutation here would be a redundant second dispatch,
+      // and with `values.template_names = []` (global empty because the
+      // user picked per-assignment templates) the strict `min(1)`
+      // validator on /send-to-production would 400.
+      if (hasPerAssignmentTemplates) {
+        toast.success("Sent to production")
+        handleSuccess()
+        return
+      }
+
       const children = (res as any)?.children as any[] | undefined
       const parent = (res as any)?.production_run as any
 

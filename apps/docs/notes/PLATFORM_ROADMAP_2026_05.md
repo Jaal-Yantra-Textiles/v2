@@ -179,6 +179,69 @@ painting, trace the asset source (S3 path / CDN URL / WordPress
 import), restore or re-link.
 **Effort:** 1-2 hours.
 
+#### 25. Partner assignment on design production runs — diagnosed 2026-06-03
+
+Reported against prod run `01KPET5HBGNH9QXGC0MC8RHR39`. Investigation
+reproduced the validator error on design `01JQ4H4JKX4TMXJZ3GH9TA02MT`
+(test partner Saransh Sharma) and surfaced **three** related bugs, not
+two:
+
+**25a — Validator rejects `template_names: null` (FIX IN-FLIGHT).**
+The admin UI's "Send to production" toggle sends
+`template_names: null` when no global templates are picked, but
+`AssignmentSchema.template_names = z.array(z.string()).optional()`
+rejects null (only undefined or array is allowed). Result: the entire
+request 400s with "Field 'assignments, 0, template_names' is required"
+and the production run is never created, so no WhatsApp event ever
+fires. Fix: switch to `.nullish()` on both
+`apps/backend/src/api/admin/production-runs/validators.ts` and
+`apps/backend/src/api/admin/designs/[id]/production-runs/validators.ts`.
+
+**25b — Admin UI double-dispatches via `sendMutation` (FIX IN-FLIGHT).**
+The route `POST /admin/designs/:id/production-runs` already
+auto-dispatches each child whose `dispatch_template_names` is set from
+per-assignment templates (route.ts:218–233). The form submit handler
+in `src/admin/routes/designs/[id]/@production-run/page.tsx` then loops
+again calling `sendMutation` with the **global** `values.template_names`
+(empty when per-assignment templates were used) — hitting
+`AdminSendProductionRunToProductionReq.template_names.min(1)` and
+400ing. Fix: skip the manual loop when `hasPerAssignmentTemplates`
+is true (backend already did the work).
+
+**25c — `header_image_url` forwarded to no-header templates** (FIX
+IN-FLIGHT). Verified against Meta's actual deployed config via
+`GET /admin/social-platforms/whatsapp/templates`:
+`jyt_production_run_assigned_v3` (en + hi, status APPROVED) has BODY +
+BUTTONS but **no HEADER component** — yet the seeded visual flow's
+`send_whatsapp` operation unconditionally forwards
+`header_image_url: "{{ resolve_template.design_image_url }}"`. Meta
+rejects with code 132018 ("Template does not contain title component,
+no parameters allowed") and the WhatsApp never sends. Same shape for
+`jyt_production_run_cancelled_v3` + `jyt_production_run_completed_v3`.
+The 3 reminder templates are unaffected — they were approved with an
+IMAGE header.
+
+Fix: `seed-partner-run-whatsapp-flow.ts` map gains a `has_header`
+flag per event. The resolve_template code returns
+`design_image_url: config.has_header ? designImageUrl : null`. The
+existing `send_whatsapp` operation already skips the header
+component when the URL resolves to empty, so no operation-side
+change is needed. **Re-seed required in prod** after merge —
+delete the existing flow `vflow_01KQ9RSZ1TFMB7MQ0Y64P4E98Y` and
+re-run `npx medusa exec ./src/scripts/seed-partner-run-whatsapp-flow.ts`.
+
+**25d — Partner profile missing whatsapp_phone_number** (DEFERRED,
+SEPARATE TRACK). Saransh's partner profile has no `phone` /
+`whatsapp_phone` / `whatsapp_phone_number` on any field — but the
+seed's resolve_template falls back to the first active admin's
+`phone` (which prod payload showed populated), so partner-side
+WhatsApp does have a phone target. Just worth surfacing a clear
+admin warning when assigning a partner without a primary WA contact.
+Out of scope for the bug 25 PR.
+
+**Effort:** 25a + 25b + 25c shipping in this PR. 25d is a small
+follow-up admin affordance.
+
 ### Partner platform extensions
 
 #### 4. Per-order transaction fee billing per partner
