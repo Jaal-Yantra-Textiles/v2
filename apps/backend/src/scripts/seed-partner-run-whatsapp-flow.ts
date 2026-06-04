@@ -298,7 +298,7 @@ return {
   //    to FALLBACK_HEADER_URL (same brand asset Meta already saw at
   //    template-create time, override via env per environment).
   design_image_url: config.has_header
-    ? (designImageUrl || "https://cicilabel.com/static/whatsapp/reminder-header.jpg")
+    ? (designImageUrl || "https://automatic.jaalyantra.com/automatica/logo-2-2.jpeg")
     : null,
   design_name: designName,
 }
