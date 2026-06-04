@@ -242,6 +242,42 @@ Out of scope for the bug 25 PR.
 **Effort:** 25a + 25b + 25c shipping in this PR. 25d is a small
 follow-up admin affordance.
 
+#### 26. Email notification when a visual flow fails
+
+Direct follow-up to the 25c diagnosis. Today, when a visual-flow
+execution errors out (a Meta API rejection, a missing
+template, an unreachable image URL, a thrown step) it lands as
+`status=cancelled` with the unhelpful generic message
+`"Workflow cancelled during execution"` and nobody finds out until
+someone reports the downstream symptom (partner says "I never got a
+WhatsApp"). The 25c bug went undiagnosed for days because of
+exactly this silence.
+
+Fix: hook a notification on flow-execution failure that sends an
+admin email summarising the failure — flow name, execution id,
+event/trigger, the failing operation key + the error message Meta
+or the runtime returned. Use the existing `email_templates` system
+(see `apps/backend/src/api/admin/email-templates/` and the
+`partner-created-from-admin` template used by partner provisioning)
+so admins can edit the body / variables in the admin UI without a
+deploy. Recipients: configurable per flow (`flow.metadata.failure_email`
+or a global `VISUAL_FLOW_FAILURE_EMAIL` env var fallback).
+
+Implementation outline:
+- Subscriber on `visual_flow_execution.failed` (or
+  `visual_flow_execution.cancelled` if there's no `.failed` event yet —
+  add one in the execution engine).
+- Lookup the flow's owner / configured recipient. Fall back to env.
+- Render `visual-flow-failure` email template with: flow name, exec
+  id, event name, trigger payload (truncated), failing operation
+  key, error text, link to the admin execution-detail page.
+- Send via the existing email provider (Mailjet / whatever is wired).
+- Throttle per flow_id + error fingerprint to avoid duplicate
+  flood when a broken template fans out 100 reminders in one minute.
+
+**Effort:** 2-3 hours for the subscriber + email template + throttle.
+Plus a one-line seed for the email template body.
+
 ### Partner platform extensions
 
 #### 4. Per-order transaction fee billing per partner
