@@ -6,12 +6,17 @@ import {
   WorkflowResponse,
   transform,
 } from "@medusajs/framework/workflows-sdk"
+import type { LinkDefinition } from "@medusajs/framework/types"
 
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
 
 import { PRODUCTION_POLICY_MODULE } from "../../modules/production_policy"
 import type ProductionPolicyService from "../../modules/production_policy/service"
+
+import { DESIGN_MODULE } from "../../modules/designs"
+import { PARTNER_MODULE } from "../../modules/partner"
+import designPartnersLink from "../../links/design-partners-link"
 
 export type ProductionRunAssignment = {
   partner_id: string
@@ -188,6 +193,78 @@ const approveProductionRunStep = createStep(
   }
 )
 
+/**
+ * Roadmap item 27 — when an admin assigns a production run to a
+ * partner, that partner should also appear in the design's
+ * `design_partners_link` so the design surfaces in the partner's
+ * `/partners/designs` listing. The path was previously additive in
+ * intent but only the production-run side got updated, leaving
+ * /partners/designs blind to assignments that came in via this
+ * workflow. Re-using `designPartnersLink.entryPoint` keeps the
+ * idempotency check cheap and avoids duplicate rows.
+ */
+const linkDesignToPartnersStep = createStep(
+  "link-design-to-partners",
+  async (
+    input: { design_id: string | null; partner_ids: string[] },
+    { container }
+  ) => {
+    if (!input.design_id || !input.partner_ids.length) {
+      return new StepResponse({ created: 0, already_linked: 0 }, [])
+    }
+
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const remoteLink = container.resolve(
+      ContainerRegistrationKeys.LINK
+    ) as any
+
+    // Existing links for this design — used to skip already-linked pairs.
+    // Querying once and filtering in memory is cheaper than N round trips
+    // when an admin assigns to many partners at once.
+    const { data: existing } = await query.graph({
+      entity: designPartnersLink.entryPoint,
+      filters: { design_id: input.design_id },
+      fields: ["partner_id"],
+    })
+    const linkedPartnerIds = new Set<string>(
+      (existing ?? []).map((l: any) => l.partner_id).filter(Boolean)
+    )
+
+    const toCreate: LinkDefinition[] = []
+    let alreadyLinked = 0
+    for (const partnerId of input.partner_ids) {
+      if (!partnerId) continue
+      if (linkedPartnerIds.has(partnerId)) {
+        alreadyLinked++
+        continue
+      }
+      toCreate.push({
+        [DESIGN_MODULE]: { design_id: input.design_id },
+        [PARTNER_MODULE]: { partner_id: partnerId },
+      })
+      // Track in the local set so duplicate partner_ids in the same
+      // assignments array don't push two link entries.
+      linkedPartnerIds.add(partnerId)
+    }
+
+    if (toCreate.length) {
+      await remoteLink.create(toCreate)
+    }
+
+    return new StepResponse(
+      { created: toCreate.length, already_linked: alreadyLinked },
+      toCreate
+    )
+  },
+  async (links: LinkDefinition[] | undefined, { container }) => {
+    if (!links?.length) return
+    const remoteLink = container.resolve(
+      ContainerRegistrationKeys.LINK
+    ) as any
+    await remoteLink.dismiss(links)
+  }
+)
+
 export const approveProductionRunWorkflow = createWorkflow(
   "approve-production-run",
   (input: ApproveProductionRunInput) => {
@@ -212,6 +289,19 @@ export const approveProductionRunWorkflow = createWorkflow(
       production_run_id: input.production_run_id,
       assignments,
     })
+
+    // After child runs land, mirror the (design, partner) edges into
+    // `design_partners_link` so the partners-side `/partners/designs`
+    // surface picks them up. Compensation rolls the link rows we
+    // created (idempotent — already-linked pairs are no-ops on both
+    // create and rollback).
+    const designPartnerLinkInput = transform({ run, assignments }, (data) => ({
+      design_id: ((data.run as any)?.design_id as string | null) ?? null,
+      partner_ids: ((data.assignments as any[]) ?? [])
+        .map((a) => a?.partner_id as string | undefined)
+        .filter((id): id is string => !!id),
+    }))
+    linkDesignToPartnersStep(designPartnerLinkInput)
 
     return new WorkflowResponse(approved)
   }

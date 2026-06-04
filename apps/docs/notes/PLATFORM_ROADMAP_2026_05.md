@@ -280,8 +280,9 @@ Plus a one-line seed for the email template body.
 
 #### 27. Auto-link partner to design on production-run assignment
 
-Surfaced 2026-06-04 testing partner-side visibility after the bug-25
-fix. Design `01KPET5HBGNH9QXGC0MC8RHR39` ("White Envelope Dress")
+**Status: SHIPPED 2026-06-04.** Branch `feat/27-design-partner-auto-link`.
+Surfaced earlier the same day testing partner-side visibility after
+the bug-25 fix. Design `01KPET5HBGNH9QXGC0MC8RHR39` ("White Envelope Dress")
 was originally linked in `design_partners_link` to Shramdaan. Admin
 then created a production run + assigned it to Sharlho (Tarunsharma).
 Sharlho can see the production run in `/partners/production-runs`
@@ -310,9 +311,29 @@ Fix outline:
   from 0A — dry-run aware, scoped via `--partner-ids` /
   `--design-ids`, surfaced via `run-backfill.sh`.
 
-**Effort:** 1-2 hours for the workflow step + backfill script +
-integration test, plus the run via `run-backfill.sh` afterward to
-fix the existing drift on prod.
+**Shipped:**
+- `linkDesignToPartnersStep` added to
+  `apps/backend/src/workflows/production-runs/approve-production-run.ts`.
+  Runs after the children are created, upserts only the
+  missing `(design_id, partner_id)` pairs, and has a rollback that
+  dismisses just the rows it created.
+- `apps/backend/src/scripts/backfill-design-partners-from-runs.ts`
+  walks every non-cancelled production_run with `partner_id` +
+  `design_id`, creates the missing link rows. Mirrors the 0A recipe:
+  `DRY_RUN=1`, `--partner-ids` / `--design-ids` scoping, error
+  surfacing, exit code 1 on failures.
+- 7 integration tests in
+  `integration-tests/http/production-run-design-partner-auto-link.spec.ts`
+  covering auto-link on first assignment, idempotency, additive
+  behaviour, `/partners/designs` visibility, plus the backfill
+  scenarios (recovery, no-op, dry-run).
+
+**Next step (post-deploy):** run
+`./deploy/aws/scripts/run-backfill.sh backfill-design-partners-from-runs`
+with `DRY_RUN=1` first, then for real, to repair the existing drift
+on prod (e.g. design `01KPET5HBGNH9QXGC0MC8RHR39` re-assigned to
+Sharlho via a production run but linked to Shramdaan in
+`design_partners_link`).
 
 ### Partner platform extensions
 
