@@ -1,3 +1,20 @@
+# [13.21.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.20.0...v13.21.0) (2026-06-04)
+
+
+### Bug Fixes
+
+* **production-runs:** accept template_names=null on assignments ([66c4eea](https://github.com/Jaal-Yantra-Textiles/v2/commit/66c4eea78d516322834b1df0456124c603b3fa58))
+* **production-runs:** drop explicit auth on cancel route ([201100c](https://github.com/Jaal-Yantra-Textiles/v2/commit/201100c5d2fe672063dcbd32af88b6fb313d67d6))
+* **whatsapp:** only forward header_image_url to templates with IMAGE header ([68d0a89](https://github.com/Jaal-Yantra-Textiles/v2/commit/68d0a8902f9347f90260a36ea57d5d7227a741ac))
+* **whatsapp:** runtime fallback URL for IMAGE-header templates ([93ab127](https://github.com/Jaal-Yantra-Textiles/v2/commit/93ab1277234a3e8b62fca2c35c99580a364d648f))
+* **admin:** skip redundant sendMutation when per-assignment templates used ([cac75bc](https://github.com/Jaal-Yantra-Textiles/v2/commit/cac75bcc6125d4f44a7dda1f0538971b37e08214))
+* **whatsapp:** use a reachable brand asset as IMAGE-header fallback ([06786c3](https://github.com/Jaal-Yantra-Textiles/v2/commit/06786c30affa2228c080f636e00aa3e5b1c7446d))
+
+
+### Features
+
+* **production-runs:** auto-link partners to design on assignment ([b31f093](https://github.com/Jaal-Yantra-Textiles/v2/commit/b31f09351a0ccab9684757145e731098abcf2b0f))
+
 # [13.20.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.19.2...v13.20.0) (2026-06-03)
 
 
