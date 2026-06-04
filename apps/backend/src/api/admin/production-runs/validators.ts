@@ -37,6 +37,10 @@ export const AdminSendProductionRunToProductionReq = z.object({
 
 export const AdminStartDispatchProductionRunReq = z.object({})
 
+export const AdminCancelProductionRunReq = z.object({
+  reason: z.string().optional(),
+})
+
 export const AdminResumeDispatchProductionRunReq = z.object({
   template_names: z.array(z.string()).min(1),
   transaction_id: z.string().min(1),
