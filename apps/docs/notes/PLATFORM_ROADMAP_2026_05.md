@@ -208,24 +208,39 @@ again calling `sendMutation` with the **global** `values.template_names`
 400ing. Fix: skip the manual loop when `hasPerAssignmentTemplates`
 is true (backend already did the work).
 
-**25c — WhatsApp doesn't fire even when the run reaches
-`sent_to_partner`** (SEPARATE TRACK). Once 25a + 25b are fixed, the
-event `production_run.sent_to_partner` does fire and the
-`Partner WhatsApp — Production Run (all events)` visual flow
-(`vflow_01KQ9RSZ1TFMB7MQ0Y64P4E98Y`) does match — but executions show
-up as `status=cancelled` with `"Workflow cancelled during execution"`
-(unhelpful). Saransh's partner profile also has no `phone` /
-`whatsapp_phone` / `whatsapp_phone_number` set on any field, so even
-a successful flow has no target. Two follow-ups:
-- Diagnose the cancelled flow executions — likely a step error swallowed
-  into a generic cancel. Inspect the resolve_template code node + the
-  send_whatsapp operation logs.
-- Backfill / enforce a `whatsapp_phone_number` on the partner profile
-  (or surface a clear admin-side warning when assigning a partner with
-  no WA contact — silent skip is worse than visible failure).
+**25c — `header_image_url` forwarded to no-header templates** (FIX
+IN-FLIGHT). Verified against Meta's actual deployed config via
+`GET /admin/social-platforms/whatsapp/templates`:
+`jyt_production_run_assigned_v3` (en + hi, status APPROVED) has BODY +
+BUTTONS but **no HEADER component** — yet the seeded visual flow's
+`send_whatsapp` operation unconditionally forwards
+`header_image_url: "{{ resolve_template.design_image_url }}"`. Meta
+rejects with code 132018 ("Template does not contain title component,
+no parameters allowed") and the WhatsApp never sends. Same shape for
+`jyt_production_run_cancelled_v3` + `jyt_production_run_completed_v3`.
+The 3 reminder templates are unaffected — they were approved with an
+IMAGE header.
 
-**Effort:** 25a + 25b shipping now. 25c is its own diagnosis session
-(~2-3 hours).
+Fix: `seed-partner-run-whatsapp-flow.ts` map gains a `has_header`
+flag per event. The resolve_template code returns
+`design_image_url: config.has_header ? designImageUrl : null`. The
+existing `send_whatsapp` operation already skips the header
+component when the URL resolves to empty, so no operation-side
+change is needed. **Re-seed required in prod** after merge —
+delete the existing flow `vflow_01KQ9RSZ1TFMB7MQ0Y64P4E98Y` and
+re-run `npx medusa exec ./src/scripts/seed-partner-run-whatsapp-flow.ts`.
+
+**25d — Partner profile missing whatsapp_phone_number** (DEFERRED,
+SEPARATE TRACK). Saransh's partner profile has no `phone` /
+`whatsapp_phone` / `whatsapp_phone_number` on any field — but the
+seed's resolve_template falls back to the first active admin's
+`phone` (which prod payload showed populated), so partner-side
+WhatsApp does have a phone target. Just worth surfacing a clear
+admin warning when assigning a partner without a primary WA contact.
+Out of scope for the bug 25 PR.
+
+**Effort:** 25a + 25b + 25c shipping in this PR. 25d is a small
+follow-up admin affordance.
 
 ### Partner platform extensions
 

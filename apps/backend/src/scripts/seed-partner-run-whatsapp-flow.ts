@@ -198,38 +198,53 @@ const daysSinceStarted = ageInDays(run?.started_at) ?? 3
 // they were re-approved in Meta with the button/ratio fixes. When you bump
 // the spec to _v3, update these names to match after the new versions are
 // APPROVED in all target WABAs.
+// Templates with \`has_header: true\` are approved in Meta with an IMAGE
+// header component — the send_whatsapp node forwards design_image_url
+// as the header parameter. Templates with \`has_header: false\` have NO
+// header component, and sending one anyway makes Meta reject the call
+// with code 132018 ("Template does not contain title component, no
+// parameters allowed"). Keep these flags in sync with the spec in
+// src/scripts/whatsapp-templates/partner-run-templates.ts.
 const map = {
   "production_run.sent_to_partner": {
     template: "jyt_production_run_assigned_v3",
     vars: [partnerName, designName, quantity, runId],
+    has_header: false,
   },
   "production_run.cancelled": {
     template: "jyt_production_run_cancelled_v3",
     vars: [partnerName, runId, designName, notes],
+    has_header: false,
   },
   "production_run.completed": {
     template: "jyt_production_run_completed_v3",
     vars: [partnerName, runId, designName, producedQty],
+    has_header: false,
   },
   // Reminders — fired daily by the scheduled reminder seed. Each event
   // carries a fresh per-day context_id so the 60-min dedup on
   // (context_type, context_id) does not swallow the next day's send.
+  // All three reminder templates were approved with an IMAGE header,
+  // so design_image_url is forwarded.
   "production_run.reminder_assignment_pending": {
     template: "jyt_production_run_reminder_pending_v2",
     vars: [partnerName, designName, runId, String(daysSinceAssignment)],
+    has_header: true,
   },
   "production_run.reminder_not_started": {
     template: "jyt_production_run_reminder_not_started_v2",
     vars: [partnerName, designName, runId, String(daysSinceAccepted)],
+    has_header: true,
   },
   "production_run.reminder_idle": {
     template: "jyt_production_run_reminder_idle_v2",
     vars: [partnerName, designName, runId, producedQty, quantity],
+    has_header: true,
   },
   // Add more mappings here as templates get approved in Meta.
-  // "production_run.accepted":  { template: "…", vars: [...] },
-  // "production_run.started":   { template: "…", vars: [...] },
-  // "production_run.finished":  { template: "…", vars: [...] },
+  // "production_run.accepted":  { template: "…", vars: [...], has_header: false },
+  // "production_run.started":   { template: "…", vars: [...], has_header: false },
+  // "production_run.finished":  { template: "…", vars: [...], has_header: false },
 }
 
 const config = map[eventName]
@@ -270,7 +285,12 @@ return {
   // run_id is always the raw run id — use this for deep links and any
   // user-facing display so the per-day suffix never leaks out.
   run_id: runId,
-  design_image_url: designImageUrl,
+  // Only forward design_image_url when the mapped template was approved
+  // with an IMAGE header component. Sending it for a no-header template
+  // makes Meta reject with code 132018 ("Template does not contain title
+  // component, no parameters allowed") — that bug originally killed every
+  // production_run.sent_to_partner WhatsApp on prod, see roadmap 25c.
+  design_image_url: config.has_header ? designImageUrl : null,
   design_name: designName,
 }
 `
