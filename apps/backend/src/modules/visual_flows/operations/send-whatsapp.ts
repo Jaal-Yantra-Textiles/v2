@@ -471,10 +471,17 @@ export const sendWhatsAppOperation: OperationDefinition = {
             )
           : []
 
-        // Optional HEADER parameter — only set when the operator passes a
-        // header_image_url AND it resolves to a non-empty value. Templates
-        // approved with an IMAGE header otherwise fall back to the example
-        // URL declared at template-creation time, so omitting this is safe.
+        // HEADER parameter rules (Meta is strict, see roadmap 25c):
+        //  - Template has NO header component → must NOT push a header
+        //    parameter. Doing so → code 132018.
+        //  - Template HAS an IMAGE header → MUST push a real URL. The
+        //    `example_url` declared at template-creation time is used
+        //    ONLY during Meta's template review and is NOT a runtime
+        //    fallback — sending nothing for an IMAGE-header template
+        //    → code 132012.
+        // The caller is responsible for resolving the right value
+        // (empty/null for no-header templates, a real URL for IMAGE
+        // headers). Empty string here means "skip the parameter".
         // Order matters in Meta's API: HEADER must come before BODY.
         const headerImageUrl = options.header_image_url
           ? interpolateString(options.header_image_url, dataChain).trim()

@@ -285,12 +285,21 @@ return {
   // run_id is always the raw run id — use this for deep links and any
   // user-facing display so the per-day suffix never leaks out.
   run_id: runId,
-  // Only forward design_image_url when the mapped template was approved
-  // with an IMAGE header component. Sending it for a no-header template
-  // makes Meta reject with code 132018 ("Template does not contain title
-  // component, no parameters allowed") — that bug originally killed every
-  // production_run.sent_to_partner WhatsApp on prod, see roadmap 25c.
-  design_image_url: config.has_header ? designImageUrl : null,
+  // Header parameter rules (Meta is strict):
+  //  - has_header=false → must NOT send a header parameter at all,
+  //    otherwise Meta rejects with code 132018 ("Template does not
+  //    contain title component, no parameters allowed").
+  //  - has_header=true  → MUST send a real IMAGE URL. The example_url
+  //    declared at template-creation time is only used during Meta's
+  //    template review and does NOT fall back at send time, so omitting
+  //    the parameter (or sending null) makes Meta reject with code
+  //    132012 ("header: Format mismatch, expected IMAGE, received
+  //    UNKNOWN"). When the design has no resolvable image we fall back
+  //    to FALLBACK_HEADER_URL (same brand asset Meta already saw at
+  //    template-create time, override via env per environment).
+  design_image_url: config.has_header
+    ? (designImageUrl || "https://cicilabel.com/static/whatsapp/reminder-header.jpg")
+    : null,
   design_name: designName,
 }
 `
