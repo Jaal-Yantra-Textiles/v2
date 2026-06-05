@@ -74,9 +74,9 @@ export type FanoutPricesOutput = {
 const fanoutPricesStep = createStep(
   "fanout-prices-step",
   async (input: FanoutPricesInput, { container }) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
-    const link = container.resolve(ContainerRegistrationKeys.LINK)
+    const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const link: any = container.resolve(ContainerRegistrationKeys.LINK)
     const pricingService = container.resolve(Modules.PRICING) as any
     const fxService = container.resolve(FX_RATES_MODULE) as FxRatesService
 

@@ -42,7 +42,7 @@ export const deleteDesignStep = createStep(
 const resolveDesignPartnerLinksStep = createStep(
   "resolve-design-partner-links",
   async (input: { design_id: string }, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY);
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY);
     const { data } = await query.graph({
       entity: designPartnersLink.entryPoint,
       filters: { design_id: input.design_id },
