@@ -50,22 +50,40 @@ export default async function backfillClassifyProductsTaxClass({
     logger.info(`Partner scope: ${partnerIdFilter.join(", ")}`)
   }
 
-  // Resolve product IDs in scope. Partner-scoped path goes via the
-  // partner → stores → products link; the unscoped path queries
-  // every product on the install (fine for typical catalogue sizes).
+  // Resolve product IDs in scope. Partner-scoped path goes
+  // partner → stores.default_sales_channel_id → products in that
+  // sales channel. NOTE: `Store` has no direct `products` relation in
+  // this codebase's link graph — products attach to a store via its
+  // default sales channel (see POST /partners/products). And per the
+  // query.graph filter-shape gotcha, `product.sales_channels` isn't an
+  // ORM relation either, so we pivot through `sales_channel` →
+  // `products_link.product.id`.
   let productIds: string[] = []
   if (partnerIdFilter?.length) {
     const { data: partners } = await query.graph({
       entity: "partner",
       filters: { id: partnerIdFilter },
-      fields: ["id", "stores.products.id"],
+      fields: ["id", "stores.default_sales_channel_id"],
       pagination: { skip: 0, take: 1000 },
     })
-    const seen = new Set<string>()
+    const channelIds = new Set<string>()
     for (const p of (partners ?? []) as any[]) {
       for (const s of p.stores ?? []) {
-        for (const prod of s.products ?? []) {
-          if (prod?.id) seen.add(prod.id)
+        if (s?.default_sales_channel_id) channelIds.add(s.default_sales_channel_id)
+      }
+    }
+
+    const seen = new Set<string>()
+    for (const channelId of channelIds) {
+      const { data: scData } = await query.graph({
+        entity: "sales_channel",
+        filters: { id: channelId },
+        fields: ["id", "products_link.product.id"],
+      })
+      for (const sc of (scData ?? []) as any[]) {
+        for (const link of sc.products_link ?? []) {
+          const pid = link?.product?.id
+          if (pid) seen.add(pid)
         }
       }
     }
@@ -90,22 +108,11 @@ export default async function backfillClassifyProductsTaxClass({
   const errors: Array<{ product_id: string; error: string }> = []
 
   for (const productId of productIds) {
-    if (dryRun) {
-      // Even in dry-run, call the classifier — it has a `decision`
-      // branch for the "no-change" and "skipped" paths that mutates
-      // nothing. For the assign/clear paths we just report intent
-      // and don't dispatch. Easier than re-implementing the price
-      // lookup inline.
-      // We still execute the workflow because its mutation path
-      // requires the product_type seed to exist; if it doesn't,
-      // the call returns `skipped` cleanly. For a real "would
-      // mutate" preview we'd need a more elaborate split, but the
-      // current report is good enough for capacity planning.
-    }
-
     try {
+      // `dry_run` is threaded into the workflow so a preview computes
+      // the decision WITHOUT mutating the product's type_id.
       const { result } = await classifyProductTaxClassWorkflow(container).run({
-        input: { product_id: productId },
+        input: { product_id: productId, dry_run: dryRun },
       })
       switch (result.decision) {
         case "assigned":

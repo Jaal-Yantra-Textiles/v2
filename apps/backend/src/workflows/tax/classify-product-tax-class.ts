@@ -46,6 +46,13 @@ export const JYT_MANAGED_TAX_CLASS_VALUES = new Set<string>([
 
 export type ClassifyProductInput = {
   product_id: string
+  /**
+   * When true, compute the decision (`assigned` / `cleared` /
+   * `no-change` / `skipped`) but DO NOT mutate the product's type_id.
+   * Used by the backfill's `--dry-run` so a preview is actually a
+   * preview. The returned `decision` still reflects what WOULD happen.
+   */
+  dry_run?: boolean
 }
 
 export type ClassifyProductResult = {
@@ -174,6 +181,21 @@ const classifyProductStep = createStep(
         reason: shouldAssign
           ? `Already classified as over-2500 (max INR ${maxInr})`
           : `Already unclassified (max INR ${maxInr ?? "none"})`,
+        max_inr_price: maxInr,
+        new_type_id: desiredTypeId,
+        prev_type_id: prevTypeId,
+      })
+    }
+
+    // Dry-run: report the decision that WOULD be made, mutate nothing.
+    if (input.dry_run) {
+      return new StepResponse({
+        product_id: input.product_id,
+        decision: desiredTypeId ? "assigned" : "cleared",
+        reason:
+          (desiredTypeId
+            ? `WOULD assign — max INR price ${maxInr} ≥ ${IN_TEXTILE_THRESHOLD_INR}`
+            : `WOULD clear — max INR price ${maxInr ?? "none"} < ${IN_TEXTILE_THRESHOLD_INR}`),
         max_inr_price: maxInr,
         new_type_id: desiredTypeId,
         prev_type_id: prevTypeId,
