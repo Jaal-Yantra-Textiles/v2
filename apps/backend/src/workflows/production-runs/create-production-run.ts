@@ -46,6 +46,17 @@ export type CreateProductionRunInput = {
   order_line_item_id?: string
   metadata?: Record<string, any>
   task_ids?: string[]
+  // Roadmap #6 Phase 4 — partner self-serve runs.
+  status?:
+    | "draft"
+    | "pending_review"
+    | "approved"
+    | "sent_to_partner"
+    | "in_progress"
+    | "completed"
+    | "cancelled"
+  execution_mode?: "in_house" | "outsourced"
+  sub_partner_id?: string | null
 }
 
 const fetchDesignSnapshotStep = createStep(
@@ -142,7 +153,17 @@ const createProductionRunStep = createStep(
       snapshot: input.snapshot,
       captured_at: input.captured_at,
       metadata: input.payload.metadata,
-    })
+      // Phase 4: only set when explicitly provided so admin/order
+      // paths keep the model defaults (status=pending_review,
+      // execution_mode=in_house).
+      ...(input.payload.status ? { status: input.payload.status } : {}),
+      ...(input.payload.execution_mode
+        ? { execution_mode: input.payload.execution_mode }
+        : {}),
+      ...(input.payload.sub_partner_id !== undefined
+        ? { sub_partner_id: input.payload.sub_partner_id }
+        : {}),
+    } as any)
 
     const run = Array.isArray(created) ? created[0] : created
     return new StepResponse(run, (run as any).id)

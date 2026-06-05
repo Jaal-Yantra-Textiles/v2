@@ -178,6 +178,7 @@ import { AdminRecreateProductionRunSchema } from "./admin/designs/recreate-produ
 import { listDesignsQuerySchema, PartnerCreateDesignReq, PartnerUpdateDesignReq } from "./partners/designs/validators";
 import { listProductionRunsQuerySchema } from "./partners/production-runs/validators";
 import { PartnerPostDesignInventoryReq, PartnerPatchDesignInventoryLinkReq, PartnerDeleteDesignInventoryReq } from "./partners/designs/[designId]/inventory/validators";
+import { PartnerCreateProductionRunReq } from "./partners/designs/[designId]/production-runs/validators";
 import { PartnerPostConsumptionLogReq } from "./partners/designs/[designId]/consumption-logs/validators";
 import { PartnerPostProductionRunConsumptionLogReq } from "./partners/production-runs/[id]/consumption-logs/validators";
 import { listPartnersQuerySchema, PostPartnerSchema } from "./admin/partners/validators";
@@ -3879,6 +3880,15 @@ export default defineMiddlewares({
       matcher: "/partners/designs/:designId/cost",
       method: "GET",
       middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // Roadmap #6 Phase 4 — partner-originated (self-approved) runs
+      matcher: "/partners/designs/:designId/production-runs",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerCreateProductionRunReq)),
+      ],
     },
     {
       matcher: "/partners/designs/:designId/consumption-logs",
