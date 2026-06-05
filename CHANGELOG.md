@@ -1,3 +1,13 @@
+# [13.22.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.21.0...v13.22.0) (2026-06-05)
+
+
+### Features
+
+* **tax:** audit script + e2e test for partner tax coverage ([02c3fbd](https://github.com/Jaal-Yantra-Textiles/v2/commit/02c3fbd48ffae8ba4333d1042e306ea0008497b2)), closes [#261](https://github.com/Jaal-Yantra-Textiles/v2/issues/261)
+* **tax:** auto-classify products by INR price for the IN GST split ([4eaabc2](https://github.com/Jaal-Yantra-Textiles/v2/commit/4eaabc2579b1e7d3e490aaa8a7e91896e94cd9e0))
+* **tax:** document IN two-tier GST + flag IN-covering partners in audit ([b2f05d0](https://github.com/Jaal-Yantra-Textiles/v2/commit/b2f05d0d36194630613d1c921e223db128242da3)), closes [#5](https://github.com/Jaal-Yantra-Textiles/v2/issues/5)
+* **visual-flows:** emit started + failed lifecycle events + admin email ([67a9bb0](https://github.com/Jaal-Yantra-Textiles/v2/commit/67a9bb01ce1842b12b8ed62ba8c619ccc2638af1))
+
 # [13.21.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.20.0...v13.21.0) (2026-06-04)
 
 
