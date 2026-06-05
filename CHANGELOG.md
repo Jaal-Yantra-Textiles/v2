@@ -1,3 +1,10 @@
+## [13.23.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.23.0...v13.23.1) (2026-06-05)
+
+
+### Bug Fixes
+
+* **consumption-log:** add missing production_run_id column (repair) ([f95acd5](https://github.com/Jaal-Yantra-Textiles/v2/commit/f95acd5cc747ffbd368de16c2c5964855f7e4cd9))
+
 # [13.23.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.22.0...v13.23.0) (2026-06-05)
 
 
