@@ -54,6 +54,13 @@ const Design = model.define("design", {
   revised_from_id: model.text().nullable(),
   revision_number: model.number().default(1),
   revision_notes: model.text().translatable().nullable(),
+  // Partner self-serve (roadmap #6): when a partner CREATES a design
+  // for their own pipeline, this is set to their partner id. Admin-
+  // created designs leave it null. Used to (a) exclude partner-owned
+  // designs from the global admin design list by default, and (b)
+  // guard partner edit/delete to the owning partner. Visibility to the
+  // owning partner still flows through design_partners_link as usual.
+  owner_partner_id: model.text().nullable(),
   metadata: model.json().nullable(),
   media_files: model.json().nullable(),
   moodboard: model.json().nullable(),

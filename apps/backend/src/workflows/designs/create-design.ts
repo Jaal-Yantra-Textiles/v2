@@ -44,6 +44,9 @@ type CreateDesignStepInput = {
   size_sets?: Array<{ size_label: string; measurements: Record<string, number> }>;
   origin_source?: "manual" | "ai-mistral" | "ai-other";
   customer_id_for_link?: string;
+  // Roadmap #6: set when a partner creates the design for their own
+  // pipeline. Null/undefined for admin-created designs.
+  owner_partner_id?: string | null;
 };
 
 export const createDesignStep = createStep(
@@ -77,6 +80,7 @@ export const createDesignStep = createStep(
       media_files: input.media_files as Record<string, unknown> | null | undefined,
       moodboard: input.moodboard,
       origin_source: input.origin_source,
+      owner_partner_id: input.owner_partner_id ?? null,
     });
     // Persist structured colors if provided
     if (normalizedColors?.length) {

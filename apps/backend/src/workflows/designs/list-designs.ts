@@ -27,6 +27,12 @@ export type ListDesignsStepInput = {
     partner_id?: string;
     created_at?: DateComparisonOperator;
     target_completion_date?: DateComparisonOperator;
+    /**
+     * Roadmap #6: by default the admin list EXCLUDES partner-owned
+     * designs (`owner_partner_id IS NOT NULL`) so partner self-serve
+     * WIP doesn't pollute the global pool. Pass `true` to include them.
+     */
+    include_partner_owned?: boolean;
   };
   pagination: {
     offset: number;
@@ -53,6 +59,7 @@ export const listDesignsStep = createStep(
     const {
       partner_id,
       q,
+      include_partner_owned,
       ...restFilters
     } = input.filters || {}
 
@@ -105,6 +112,13 @@ export const listDesignsStep = createStep(
       applyDateFilter("created_at", filters?.created_at)
       applyDateFilter("target_completion_date", filters?.target_completion_date)
 
+      // Roadmap #6: exclude partner-owned designs from the global admin
+      // list unless explicitly requested. `owner_partner_id IS NULL`
+      // keeps admin-created designs only.
+      if (!include_partner_owned) {
+        normalized.owner_partner_id = null
+      }
+
       return normalized
     }
 
@@ -112,8 +126,14 @@ export const listDesignsStep = createStep(
 
     // When partner filter is provided, leverage the index module so we can filter across the link
     if (partner_id) {
+      // The index module doesn't index `owner_partner_id`, and when an
+      // admin explicitly filters by partner they want that partner's
+      // designs regardless of who created them — so the partner-owned
+      // exclusion does not apply on this path.
+      const { owner_partner_id: _ownerExcluded, ...indexableFilters } =
+        normalizedFilters
       const indexFilters = {
-        ...normalizedFilters,
+        ...indexableFilters,
         partners: { id: partner_id },
       }
 
