@@ -67,31 +67,57 @@ address against a ₹4,999 variant — the cart returned
 - Above-₹2,500 SKUs: **under-charged** at 5% (should be 18%) — partner
   collects ₹100 less per ₹770 in price than they owe at filing.
 
-### Why we don't fix this in canonical seed
+### Why we don't fix this in the canonical seed
 
 The seed creates ONE `default_tax_rate` per country. A single flat
 value is wrong for India regardless of whether it's 5% or 18%. The
-fix has to be at the partner level via either:
+fix has to be a **non-default rate scoped to a product_type** — what
+Medusa's docs and the partner-ui call a "tax override".
 
-1. **Per-product_type rules** — partner tags variants with a JYT-
-   provided `tax_class` product_type
-   (`textile_under_2500` / `textile_over_2500`), then creates a
-   second tax_rate on the IN tax_region scoped to the over-2500
-   class. Burden: every time a SKU crosses the threshold the tag has
-   to be updated.
-2. **Per-product rules** — explicit `rules: [{reference: "product",
-   reference_id: prod_*}]` for each above-₹2,500 SKU. Manual upkeep
-   per SKU; OK for catalogs of a few dozen, painful at hundreds.
-3. **Custom TaxProvider** — replace `tp_system` with a JYT provider
-   that knows about price bands natively. Heaviest lift but the
-   right shape long-term; not on the roadmap yet.
+### Shipped approach (PR #TBD): JYT-managed product_type +
+### auto-classifier
+
+A second seed script + a price-event subscriber automates the
+classification end-to-end:
+
+1. **`scripts/seed-in-textile-tax-class.ts`** — idempotent. Creates
+   one JYT-managed `product_type` with value
+   `jyt_tax_in_textile_over_2500`, ensures the IN `tax_region` has
+   the default 5% rate, and adds a non-default 18% `tax_rate` with
+   `rules: [{reference: "product_type", reference_id: <ptyp_id>}]`.
+2. **`workflows/tax/classify-product-tax-class.ts`** — given a
+   `product_id`, resolves the max INR variant price and assigns or
+   clears the JYT-managed type. Refuses to overwrite a
+   partner-managed `type_id` (anything that isn't one of the values
+   in `JYT_MANAGED_TAX_CLASS_VALUES`).
+3. **`subscribers/classify-product-tax-class.ts`** — listens on
+   `product.created` and `product.updated`, runs the workflow.
+4. **`scripts/backfill-classify-products-tax-class.ts`** — one-shot
+   for the historical catalogue. `--partner-ids=` scoped, `--dry-run`
+   aware. Re-runnable.
+
+The conservative tradeoff: a product carries **one** `type_id`. If
+variants A (₹1,500) and B (₹3,000) sit on the same product, the
+product gets `jyt_tax_in_textile_over_2500` (max-price strategy).
+Variant A then over-collects at 18% rather than the statutory 5%.
+Over-collecting beats under-collecting on the tax-liability side, but
+it's worth telling partners with mixed-price products to split them
+into separate listings.
+
+### Partner-side UI already supports this
+
+`apps/partner-ui/src/routes/tax-regions/tax-region-tax-override-create/`
+exposes a form bound to `POST /partners/tax-rates` (active
+references: `product`, `product_type`, `shipping_option`). Partners
+can see and manage the JYT-created override row alongside any custom
+overrides of their own — they don't need a separate admin tool.
 
 ### Audit script behaviour
 
 `scripts/audit-tax-coverage.ts` flags partners whose regions cover
 India with a `review_needed` note so future audits surface the
-exposure without a manual reminder. It does **not** automate the
-fix — that's a partner-config decision.
+exposure without a manual reminder. The classifier handles the rest
+automatically.
 
 ## When to add a new section here
 

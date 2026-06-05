@@ -156,9 +156,17 @@ Shipped:
 
 **End-to-end verification (2026-06-05):** curled the prod store API (`/store/carts` + `/store/products` + line-items + shipping address) with Sharlho's publishable key against an AU shipping address. Cart returned `subtotal=66.70 AUD, tax_total=6.67 AUD, total=73.37 AUD` — effective rate exactly **10%** AU-GST. ✓
 
-**IN follow-up surfaced + documented (PR #TBD):** the same probe against an IN shipping address showed `tax_total=5%` on a ₹4,999 variant. Researched: India's apparel/textile GST (post 22-Sept-2025 reform) is **5% ≤₹2,500/piece, 18% above**, and the threshold is per-piece price, not catalogue-wide. Sharlho's tax_region is set to flat 5% which is correct sub-₹2,500 and under-collects above. Medusa's `tax_rate_rules` can only condition on `product` or `product_type` — **not** on `unit_price` — so a single canonical default rate can't capture price-band reality. Captured in `apps/docs/notes/TAX_NOTES.md`; `audit-tax-coverage` extended to flag IN-covering partners under a new `review_needed` field so future audits surface the exposure without manual reminders.
+**IN follow-up shipped (PR #TBD):** the same probe against an IN shipping address showed `tax_total=5%` on a ₹4,999 variant. Researched: India's apparel/textile GST (post 22-Sept-2025 reform) is **5% ≤₹2,500/piece, 18% above**, and the threshold is per-piece price, not catalogue-wide. Sharlho's tax_region was set to flat 5% which is correct sub-₹2,500 and under-collects above.
 
-The proper fix (per-product_type tagging convention, or a custom JYTTaxProvider that knows price bands) is deferred — partner-side configuration on a case-by-case basis is the working pattern today.
+Medusa's `tax_rate_rules` can only condition on `product`, `product_type`, or `shipping_option` — **not** on `unit_price`. We bridge the gap by auto-classifying products by max INR variant price:
+
+- `seed-in-textile-tax-class.ts` creates a JYT-managed product_type (`jyt_tax_in_textile_over_2500`) + adds a non-default 18% rate on the IN tax_region with `rules: [{reference: "product_type", reference_id: <ptyp_id>}]`.
+- `classify-product-tax-class` workflow + `product.created`/`product.updated` subscriber auto-assigns or clears the type as variant prices change.
+- `backfill-classify-products-tax-class.ts` catches up the historical catalogue.
+- The existing partner-ui at `apps/partner-ui/src/routes/tax-regions/tax-region-tax-override-create/` already lists + manages these overrides (supports product / product_type / shipping_option references).
+- Documentation lives in `apps/docs/notes/TAX_NOTES.md` with the conservative max-price tradeoff for mixed-variant products.
+
+`audit-tax-coverage` still flags IN-covering partners under `review_needed` so admins can spot-check classification health.
 
 **Incident sidebar (worth memorialising):** while shipping this we hit a Copilot IAM gotcha — PR #315's `VISUAL_FLOW_FAILURE_EMAIL` SSM param was created without the `copilot-application=jyt` + `copilot-environment=prod` tags Copilot's auto-generated `SecretsPolicy` requires. Both #315 and #316 deploys silently failed for the same reason; server stayed on the pre-#315 task def. Fix was `aws ssm add-tags-to-resource` + re-run the workflow. Saved as memory `reference_copilot_ssm_tag_requirement`.
 
