@@ -2165,6 +2165,15 @@ export default defineMiddlewares({
       ],
     },
     {
+      // Roadmap #6 Phase 5 — partner run cost-summary (admin parity)
+      matcher: "/partners/production-runs/:id/cost-summary",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       matcher: "/partners/production-runs/:id/accept",
       method: "POST",
       middlewares: [

@@ -188,6 +188,18 @@ partner lifecycle endpoints (today the originating partner drives the
 lifecycle). Needs the partner run-list + lifecycle guards to also match
 `sub_partner_id`.
 
+**Phase 5 backend shipped (2026-06-05).** `GET
+/partners/production-runs/:id/cost-summary` — admin parity, scoped to
+the run's `partner_id` OR `sub_partner_id`. Computation extracted into
+`src/modules/production_runs/cost-summary.ts` (`computeRunCostSummary`)
+so partner + admin produce identical numbers; admin route can adopt the
+helper later. **Remaining for Phase 5:** the raw-material **order
+placement UI** — the backend `POST /partners/inventory-orders` already
+exists; this is a partner-ui create form (frontend) + optional
+`POST /partners/raw-materials` if partners need to define their own
+materials. Partner-ui work across all phases (forms/panels) is the
+outstanding frontend track.
+
 ### Phase 5 — Partner production cost-summary + raw-material order placement UI
 
 - `GET /partners/production-runs/[id]/cost-summary` — parity with the
