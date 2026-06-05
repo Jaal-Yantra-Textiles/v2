@@ -16,6 +16,7 @@ import { DesignConsumptionLogsSection } from "./components/design-consumption-lo
 import { DesignProductionSection } from "./components/design-production-section"
 import { DesignOwnerActionsSection } from "./components/design-owner-actions-section"
 import { DesignInventoryBomSection } from "./components/design-inventory-bom-section"
+import { DesignCostSection } from "./components/design-cost-section"
 
 type MarkLinkAttrs = { href?: string; target?: string }
 type Mark = {
@@ -445,6 +446,8 @@ export const DesignDetail = () => {
 
         {/* Production & Material Usage — highest priority for partners */}
         {design && <DesignInventoryBomSection design={design} />}
+
+        {design && <DesignCostSection design={design} />}
 
         {design && <DesignProductionSection design={design} />}
 
