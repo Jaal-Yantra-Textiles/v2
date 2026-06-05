@@ -7,14 +7,35 @@ export type TaxCoverageGap = {
   handle: string
   missing: string[]
   covered: string[]
+  review_needed: string[]
 }
 
 export type TaxCoverageReport = {
   canonical_countries: string[]
   partners_audited: number
   partners_with_gaps: number
+  partners_with_reviews: number
   globally_missing: string[]
   per_partner: TaxCoverageGap[]
+}
+
+/**
+ * Countries whose statutory tax depends on a per-line attribute
+ * (price band, customer class, etc.) that Medusa's `tax_rate_rules`
+ * cannot express on its own — `rules.reference` only accepts
+ * "product" or "product_type". A single canonical default rate is
+ * therefore unavoidably wrong for some portion of a partner's
+ * catalogue. See `apps/docs/notes/TAX_NOTES.md` for the per-country
+ * detail and the partner-side workarounds.
+ *
+ * Audit treats these as "review needed" rather than "missing": the
+ * tax_region exists and a rate flows, but the partner should verify
+ * the rate matches the slab their catalogue actually falls into.
+ */
+const COUNTRIES_REQUIRING_REVIEW: Record<string, string> = {
+  in:
+    "IN apparel/textile GST is 5% ≤₹2,500/piece, 18% above. Verify whether " +
+    "partner's tax_region rate matches their catalogue. See TAX_NOTES.md.",
 }
 
 /**
@@ -105,13 +126,16 @@ export async function computeTaxCoverage(
 
   // 3. Per-partner coverage. A gap = a country the partner's region
   //    covers but no canonical tax_region exists for. The cart-tax
-  //    lookup falls back to zero in that case.
+  //    lookup falls back to zero in that case. A `review_needed`
+  //    entry = a country whose statutory tax can't be captured by a
+  //    single canonical rate (see COUNTRIES_REQUIRING_REVIEW).
   const perPartner: TaxCoverageGap[] = []
   const globallyMissing = new Set<string>()
 
   for (const partner of (partners ?? []) as any[]) {
     const missing = new Set<string>()
     const covered = new Set<string>()
+    const reviewNeeded = new Set<string>()
     for (const region of partner.regions ?? []) {
       for (const c of region.countries ?? []) {
         const code = c?.iso_2 ? String(c.iso_2).toLowerCase() : ""
@@ -127,6 +151,9 @@ export async function computeTaxCoverage(
           missing.add(code)
           globallyMissing.add(code)
         }
+        if (COUNTRIES_REQUIRING_REVIEW[code]) {
+          reviewNeeded.add(code)
+        }
       }
     }
     perPartner.push({
@@ -135,6 +162,7 @@ export async function computeTaxCoverage(
       handle: partner.handle ?? "",
       missing: [...missing].sort(),
       covered: [...covered].sort(),
+      review_needed: [...reviewNeeded].sort(),
     })
   }
 
@@ -142,6 +170,7 @@ export async function computeTaxCoverage(
     canonical_countries: [...canonicalCountries].sort(),
     partners_audited: perPartner.length,
     partners_with_gaps: perPartner.filter((p) => p.missing.length).length,
+    partners_with_reviews: perPartner.filter((p) => p.review_needed.length).length,
     globally_missing: [...globallyMissing].sort(),
     per_partner: perPartner,
   }
@@ -183,22 +212,31 @@ export default async function auditTaxCoverage({ container, args }: ExecArgs) {
   logger.info("─── Per-partner coverage ───")
   for (const p of report.per_partner) {
     const tag = `${p.name} (${p.handle || "(no handle)"}) [${p.partner_id}]`
-    if (!p.missing.length) {
+    if (p.missing.length) {
+      logger.warn(
+        `✗ ${tag}: MISSING ${p.missing.join(", ").toUpperCase()} ` +
+          `(covered: ${p.covered.join(", ").toUpperCase() || "—"})`
+      )
+    } else {
       logger.info(`✓ ${tag}: all ${p.covered.length} covered countries have tax_regions`)
-      continue
     }
-    logger.warn(
-      `✗ ${tag}: MISSING ${p.missing.join(", ").toUpperCase()} ` +
-        `(covered: ${p.covered.join(", ").toUpperCase() || "—"})`
-    )
+    // Review flags are independent of missing-ness — a partner can be
+    // fully covered AND still need to review whether their canonical
+    // rate matches their catalogue (e.g. IN price-band split).
+    for (const country of p.review_needed) {
+      logger.warn(
+        `  ⚠ REVIEW ${country.toUpperCase()}: ${COUNTRIES_REQUIRING_REVIEW[country]}`
+      )
+    }
   }
 
   logger.info("")
   logger.info("─── Summary ───")
-  logger.info(`partners_audited     = ${report.partners_audited}`)
-  logger.info(`partners_with_gaps   = ${report.partners_with_gaps}`)
+  logger.info(`partners_audited      = ${report.partners_audited}`)
+  logger.info(`partners_with_gaps    = ${report.partners_with_gaps}`)
+  logger.info(`partners_with_reviews = ${report.partners_with_reviews}`)
   logger.info(
-    `globally_missing     = ${report.globally_missing.length}` +
+    `globally_missing      = ${report.globally_missing.length}` +
       (report.globally_missing.length
         ? ` (${report.globally_missing.join(", ").toUpperCase()})`
         : "")
@@ -210,7 +248,13 @@ export default async function auditTaxCoverage({ container, args }: ExecArgs) {
       "Fix: re-run seed-canonical-tax-regions.ts — idempotent, " +
         "creates the missing rows from the curated rate table."
     )
+  } else if (report.partners_with_reviews) {
+    logger.info("")
+    logger.info(
+      `✓ No gaps. ${report.partners_with_reviews} partner(s) flagged for review ` +
+        `— see apps/docs/notes/TAX_NOTES.md for context.`
+    )
   } else {
-    logger.info("✓ No gaps. Every partner-covered country has a canonical tax_region.")
+    logger.info("✓ No gaps, no reviews needed. Every partner-covered country has a canonical tax_region with a matching rate.")
   }
 }

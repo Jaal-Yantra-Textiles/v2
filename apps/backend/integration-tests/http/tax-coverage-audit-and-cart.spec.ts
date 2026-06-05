@@ -214,6 +214,32 @@ setupSharedTestSuite(() => {
 
       expect(report.partners_with_gaps).toBe(0)
       expect(report.per_partner[0].missing).not.toContain("us")
+      expect(report.per_partner[0].review_needed).toEqual([])
+    })
+
+    it("flags IN-covering partners for review (price-band rule limitation)", async () => {
+      const container = getContainer()
+
+      // Partner covers IN. Seed canonical so the row + 18% default
+      // exist — i.e. coverage is fine; the review flag exists
+      // because India's actual statutory rate is 5%/18% split at
+      // ₹2,500/piece which Medusa's tax_rate_rules can't express.
+      const { partnerId } = await createPartnerWithRegion(
+        api,
+        adminHeaders,
+        "in-only",
+        ["in"]
+      )
+      await seedCanonicalTaxRegions({ container, args: [] } as any)
+
+      const report = await computeTaxCoverage(container, {
+        partnerIdFilter: [partnerId],
+      })
+
+      expect(report.partners_with_gaps).toBe(0)
+      expect(report.partners_with_reviews).toBe(1)
+      expect(report.per_partner[0].review_needed).toContain("in")
+      expect(report.per_partner[0].covered).toContain("in")
     })
   })
 
