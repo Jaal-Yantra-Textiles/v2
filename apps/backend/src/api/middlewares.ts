@@ -175,7 +175,7 @@ import { sendDesignToPartnerSchema } from "./admin/designs/[id]/send-to-partner/
 import { ReviseDesignSchema } from "./admin/designs/[id]/revise/validators";
 import { AdminCreateDesignProductionRunSchema } from "./admin/designs/[id]/production-runs/validators";
 import { AdminRecreateProductionRunSchema } from "./admin/designs/recreate-production-run/validators";
-import { listDesignsQuerySchema } from "./partners/designs/validators";
+import { listDesignsQuerySchema, PartnerCreateDesignReq, PartnerUpdateDesignReq } from "./partners/designs/validators";
 import { listProductionRunsQuerySchema } from "./partners/production-runs/validators";
 import { PartnerDesignInventorySchema } from "./partners/designs/[designId]/inventory/validators";
 import { PartnerPostConsumptionLogReq } from "./partners/designs/[designId]/consumption-logs/validators";
@@ -3781,8 +3781,31 @@ export default defineMiddlewares({
       ],
     },
     {
+      matcher: "/partners/designs",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerCreateDesignReq)),
+      ],
+    },
+    {
       matcher: "/partners/designs/:designId",
       method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/designs/:designId",
+      method: "PUT",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerUpdateDesignReq)),
+      ],
+    },
+    {
+      matcher: "/partners/designs/:designId",
+      method: "DELETE",
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
       ],

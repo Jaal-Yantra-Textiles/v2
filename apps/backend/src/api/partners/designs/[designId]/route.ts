@@ -119,10 +119,56 @@
  * }
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../../helpers"
 import listSingleDesignsWorkflow from "../../../../workflows/designs/list-single-design"
 import designPartnersLink from "../../../../links/design-partners-link"
+import { updateDesignWorkflow } from "../../../../workflows/designs/update-design"
+import { deleteDesignWorkflow } from "../../../../workflows/designs/delete-design"
+import { PartnerUpdateDesign } from "../validators"
+
+/**
+ * Resolve the design + assert the authenticated partner OWNS it
+ * (created it via the self-serve flow). Ownership is stricter than
+ * assignment — an admin-assigned design is readable but not editable
+ * by the partner. Throws 401/403/404 as appropriate.
+ */
+async function assertPartnerOwnsDesign(
+  req: AuthenticatedMedusaRequest,
+  designId: string
+): Promise<{ partner: any; design: any }> {
+  if (!req.auth_context?.actor_id) {
+    throw new MedusaError(
+      MedusaError.Types.UNAUTHORIZED,
+      "Partner authentication required"
+    )
+  }
+  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
+  if (!partner) {
+    throw new MedusaError(
+      MedusaError.Types.UNAUTHORIZED,
+      "Partner authentication required"
+    )
+  }
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "design",
+    filters: { id: designId },
+    fields: ["id", "owner_partner_id", "name", "status"],
+  })
+  const design = (data || [])[0] as any
+  if (!design) {
+    throw new MedusaError(MedusaError.Types.NOT_FOUND, "Design not found")
+  }
+  if (design.owner_partner_id !== partner.id) {
+    // Partner can read assigned designs but only mutate ones they own.
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      "You can only modify designs you created"
+    )
+  }
+  return { partner, design }
+}
 
 
 export const GET = async (
@@ -287,4 +333,75 @@ export const GET = async (
   }
 
   return res.status(200).json({ design })
+}
+
+/**
+ * Update a partner-owned design.
+ * @route PUT /partners/designs/{designId}
+ *
+ * Roadmap #6. Mirrors `PUT /admin/designs/:id`, guarded to the
+ * owning partner (admin-assigned designs are read-only for partners).
+ */
+export const PUT = async (
+  req: AuthenticatedMedusaRequest<PartnerUpdateDesign> & {
+    params: { designId: string }
+  },
+  res: MedusaResponse
+) => {
+  const { designId } = req.params
+  await assertPartnerOwnsDesign(req, designId)
+
+  const body = req.validatedBody
+
+  await updateDesignWorkflow(req.scope).run({
+    input: { id: designId, ...(body as any) },
+  })
+
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph(
+    {
+      entity: "design",
+      filters: { id: designId },
+      fields: ["*", "colors.*", "size_sets.*"],
+    },
+    { locale: req.locale }
+  )
+
+  return res.status(200).json({ design: data?.[0] })
+}
+
+/**
+ * Delete a partner-owned design.
+ * @route DELETE /partners/designs/{designId}
+ *
+ * Roadmap #6. Mirrors the admin delete guard — blocked if the design
+ * has active (non-cancelled, non-completed) production runs.
+ */
+export const DELETE = async (
+  req: AuthenticatedMedusaRequest & { params: { designId: string } },
+  res: MedusaResponse
+) => {
+  const { designId } = req.params
+  await assertPartnerOwnsDesign(req, designId)
+
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: activeRuns } = await query.graph({
+    entity: "production_runs",
+    filters: {
+      design_id: designId,
+      status: { $nin: ["cancelled", "completed"] },
+    },
+    fields: ["id", "status"],
+    pagination: { skip: 0, take: 1 },
+  })
+  if ((activeRuns || []).length > 0) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      "Cannot delete a design with active production runs. Cancel them first."
+    )
+  }
+
+  await deleteDesignWorkflow(req.scope).run({ input: { id: designId } })
+
+  return res.status(200).json({ id: designId, object: "design", deleted: true })
 }

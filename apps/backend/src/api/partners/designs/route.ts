@@ -104,10 +104,12 @@
  * }
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../helpers"
-import { ListDesignsQuery } from "./validators"
+import { ListDesignsQuery, PartnerCreateDesign } from "./validators"
 import designPartnersLink from "../../../links/design-partners-link"
+import { createDesignWorkflow } from "../../../workflows/designs/create-design"
+import { linkDesignPartnerWorkflow } from "../../../workflows/designs/partner/link-design-to-partner"
 
 export async function GET(
   req: AuthenticatedMedusaRequest<ListDesignsQuery>,
@@ -143,7 +145,11 @@ export async function GET(
 
   // Include all linked designs for this partner.
   // We'll compute assignment status based on presence of partner workflow tasks (by known titles).
-  const allLinked = (results || [])
+  // Guard against orphaned link rows: a soft-deleted design resolves to
+  // a null `design` on the link join (e.g. after DELETE /partners/designs/:id),
+  // and the mapping below dereferences `design.*` — drop those so the
+  // listing doesn't 500.
+  const allLinked = (results || []).filter((linkData: any) => !!linkData?.design)
 
   // post-filter by design.status if requested
   let filtered = allLinked
@@ -279,4 +285,70 @@ export async function GET(
     limit,
     offset,
   })
+}
+
+/**
+ * Create a design owned by the authenticated partner.
+ * @route POST /partners/designs
+ *
+ * Roadmap #6 (partner design self-serve). Mirrors `POST /admin/designs`
+ * but stamps `owner_partner_id` from the authenticated partner (so the
+ * design is excluded from the global admin list by default) and links
+ * the design to the partner via `design_partners_link` (so it surfaces
+ * in this same partner's `GET /partners/designs`). The partner cannot
+ * forge ownership — `owner_partner_id` is taken from auth, never the
+ * body.
+ */
+export async function POST(
+  req: AuthenticatedMedusaRequest<PartnerCreateDesign>,
+  res: MedusaResponse
+) {
+  if (!req.auth_context?.actor_id) {
+    throw new MedusaError(
+      MedusaError.Types.UNAUTHORIZED,
+      "Partner authentication required - no actor ID"
+    )
+  }
+  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
+  if (!partner) {
+    throw new MedusaError(
+      MedusaError.Types.UNAUTHORIZED,
+      "Partner authentication required - no partner found"
+    )
+  }
+
+  const body = req.validatedBody
+
+  const { result } = await createDesignWorkflow(req.scope).run({
+    input: {
+      ...body,
+      // `Design.description` is a non-nullable text column — default to
+      // empty string when the partner omits it so the create doesn't
+      // 500 on a ValidationError.
+      description: body.description ?? "",
+      origin_source: "manual",
+      owner_partner_id: partner.id,
+    } as any,
+  })
+
+  // Link the new design to the creating partner so it appears in their
+  // own listing + detail. Idempotent on the (design, partner) pair.
+  await linkDesignPartnerWorkflow(req.scope).run({
+    input: {
+      design_id: result.id,
+      partner_ids: [partner.id],
+    },
+  })
+
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: refetched } = await query.graph(
+    {
+      entity: "design",
+      filters: { id: result.id },
+      fields: ["*", "colors.*", "size_sets.*"],
+    },
+    { locale: req.locale }
+  )
+
+  res.status(201).json({ design: refetched?.[0] ?? result })
 }

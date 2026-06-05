@@ -281,6 +281,11 @@ export const GET = async (
           partner_id: req.query.partner_id,
           created_at: req.query.created_at,
           target_completion_date: req.query.target_completion_date,
+          // Roadmap #6: partner-owned (self-serve) designs are hidden
+          // from the global admin list unless ?include_partner_owned=true.
+          include_partner_owned:
+            req.query.include_partner_owned === "true" ||
+            req.query.include_partner_owned === "1",
         },
       },
     });
