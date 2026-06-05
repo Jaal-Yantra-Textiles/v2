@@ -1,3 +1,19 @@
+# [13.24.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.23.1...v13.24.0) (2026-06-05)
+
+
+### Bug Fixes
+
+* **build:** annotate container.resolve() results as any to fix CI build ([042100b](https://github.com/Jaal-Yantra-Textiles/v2/commit/042100b34e8b5a671beb3f36c791ee8e4c4eaa15))
+* **tax:** backfill classify dry-run is actually dry + correct partner scope ([c9ca141](https://github.com/Jaal-Yantra-Textiles/v2/commit/c9ca141d9ef37aa105fb5a21cb54faba7e345f26)), closes [#5](https://github.com/Jaal-Yantra-Textiles/v2/issues/5)
+
+
+### Features
+
+* **designs:** partner cost estimation (roadmap [#6](https://github.com/Jaal-Yantra-Textiles/v2/issues/6) Phase 3) ([a01bd92](https://github.com/Jaal-Yantra-Textiles/v2/commit/a01bd92900a524b236e6b20a9acfb7be291ee428))
+* **designs:** partner design ↔ inventory BOM (roadmap [#6](https://github.com/Jaal-Yantra-Textiles/v2/issues/6) Phase 2) ([ac462da](https://github.com/Jaal-Yantra-Textiles/v2/commit/ac462da9c0b54700bad100d7195bb8fe5b031dde))
+* **production-runs:** partner run cost-summary, admin parity (roadmap [#6](https://github.com/Jaal-Yantra-Textiles/v2/issues/6) P5) ([9f8e3a3](https://github.com/Jaal-Yantra-Textiles/v2/commit/9f8e3a3885e899bd7d0044cfb7eba699ff17ae7e))
+* **production-runs:** partner-originated self-approved runs (roadmap [#6](https://github.com/Jaal-Yantra-Textiles/v2/issues/6) P4) ([18ddc12](https://github.com/Jaal-Yantra-Textiles/v2/commit/18ddc1260e316bd71e0dceb0b34cca0469b84177))
+
 ## [13.23.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.23.0...v13.23.1) (2026-06-05)
 
 
