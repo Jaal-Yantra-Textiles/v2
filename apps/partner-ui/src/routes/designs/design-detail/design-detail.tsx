@@ -14,6 +14,7 @@ import { DesignMediaSection } from "./components/design-media-section"
 import { DesignMoodboardSection } from "./components/design-moodboard-section"
 import { DesignConsumptionLogsSection } from "./components/design-consumption-logs-section"
 import { DesignProductionSection } from "./components/design-production-section"
+import { DesignOwnerActionsSection } from "./components/design-owner-actions-section"
 
 type MarkLinkAttrs = { href?: string; target?: string }
 type Mark = {
@@ -278,6 +279,7 @@ export const DesignDetail = () => {
   return (
     <TwoColumnPage widgets={{ before: [], after: [], sideBefore: [], sideAfter: [] }} hasOutlet>
       <TwoColumnPage.Main>
+        {design && <DesignOwnerActionsSection design={design} />}
         <Container className="divide-y p-0">
           <div className="px-6 py-4">
             <Heading level="h2">General</Heading>

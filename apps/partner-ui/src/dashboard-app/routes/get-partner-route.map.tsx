@@ -62,12 +62,22 @@ export function getPartnerRouteMap(): RouteObject[] {
                   lazy: () => import("../../routes/designs/design-list"),
                 },
                 {
+                  // Roadmap #6 Phase 1 — partner creates a design
+                  path: "create",
+                  lazy: () => import("../../routes/designs/design-create"),
+                },
+                {
                   path: ":id",
                   handle: {
                     breadcrumb: (match?: UIMatch) => match?.params?.id || "Design",
                   },
                   lazy: () => import("../../routes/designs/design-detail"),
                   children: [
+                    {
+                      // Phase 1 — edit own design
+                      path: "edit",
+                      lazy: () => import("../../routes/designs/design-edit"),
+                    },
                     {
                       path: "start",
                       lazy: () => import("../../routes/designs/design-start"),
