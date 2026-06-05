@@ -213,8 +213,8 @@ const linkDesignToPartnersStep = createStep(
       return new StepResponse({ created: 0, already_linked: 0 }, [])
     }
 
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
-    const remoteLink = container.resolve(
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const remoteLink: any = container.resolve(
       ContainerRegistrationKeys.LINK
     ) as any
 
@@ -258,7 +258,7 @@ const linkDesignToPartnersStep = createStep(
   },
   async (links: LinkDefinition[] | undefined, { container }) => {
     if (!links?.length) return
-    const remoteLink = container.resolve(
+    const remoteLink: any = container.resolve(
       ContainerRegistrationKeys.LINK
     ) as any
     await remoteLink.dismiss(links)

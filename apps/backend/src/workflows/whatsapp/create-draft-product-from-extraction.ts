@@ -79,7 +79,7 @@ type ResolvedStore = {
 const resolvePartnerStoreStep = createStep(
   "wa-product-create-resolve-store",
   async (input: { partner_id: string }, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const { data } = await query.graph({
       entity: "partners",
       fields: [

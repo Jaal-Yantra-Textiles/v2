@@ -72,7 +72,7 @@ async function getMaxInrPrice(
   container: any,
   productId: string
 ): Promise<number | null> {
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
   const { data: products } = await query.graph({
     entity: "product",
     filters: { id: productId },
@@ -107,7 +107,7 @@ async function getMaxInrPrice(
 async function resolveManagedTypeIds(
   container: any
 ): Promise<{ overId: string | null }> {
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
   const { data: types } = await query.graph({
     entity: "product_type",
     filters: { value: TAX_CLASS_OVER_2500_VALUE },
@@ -120,7 +120,7 @@ async function resolveManagedTypeIds(
 const classifyProductStep = createStep(
   "classify-product-tax-class",
   async (input: ClassifyProductInput, { container }): Promise<StepResponse<ClassifyProductResult>> => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const productService: any = container.resolve(Modules.PRODUCT)
 
     const { overId } = await resolveManagedTypeIds(container)

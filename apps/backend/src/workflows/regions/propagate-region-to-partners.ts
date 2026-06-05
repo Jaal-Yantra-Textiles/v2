@@ -72,9 +72,9 @@ export type PropagateRegionOutput = {
 const propagateStep = createStep(
   "propagate-region-to-partners-step",
   async (input: PropagateRegionInput, { container }) => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
-    const remoteLink = container.resolve(
+    const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const remoteLink: any = container.resolve(
       ContainerRegistrationKeys.LINK
     ) as any
 
