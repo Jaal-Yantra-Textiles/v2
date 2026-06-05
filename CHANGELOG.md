@@ -1,3 +1,10 @@
+# [13.23.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.22.0...v13.23.0) (2026-06-05)
+
+
+### Features
+
+* **designs:** partner-owned design CRUD, isolated (roadmap [#6](https://github.com/Jaal-Yantra-Textiles/v2/issues/6) P1) ([93faf25](https://github.com/Jaal-Yantra-Textiles/v2/commit/93faf25707607b969b3e5dc3fb223a6454833115))
+
 # [13.22.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.21.0...v13.22.0) (2026-06-05)
 
 
