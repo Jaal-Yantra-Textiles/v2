@@ -3870,6 +3870,17 @@ export default defineMiddlewares({
       ],
     },
     {
+      // Roadmap #6 Phase 3 — partner cost estimation
+      matcher: "/partners/designs/:designId/recalculate-cost",
+      method: "POST",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      matcher: "/partners/designs/:designId/cost",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
       matcher: "/partners/designs/:designId/consumption-logs",
       method: "POST",
       middlewares: [
