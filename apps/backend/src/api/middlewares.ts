@@ -177,7 +177,7 @@ import { AdminCreateDesignProductionRunSchema } from "./admin/designs/[id]/produ
 import { AdminRecreateProductionRunSchema } from "./admin/designs/recreate-production-run/validators";
 import { listDesignsQuerySchema, PartnerCreateDesignReq, PartnerUpdateDesignReq } from "./partners/designs/validators";
 import { listProductionRunsQuerySchema } from "./partners/production-runs/validators";
-import { PartnerDesignInventorySchema } from "./partners/designs/[designId]/inventory/validators";
+import { PartnerPostDesignInventoryReq, PartnerPatchDesignInventoryLinkReq, PartnerDeleteDesignInventoryReq } from "./partners/designs/[designId]/inventory/validators";
 import { PartnerPostConsumptionLogReq } from "./partners/designs/[designId]/consumption-logs/validators";
 import { PartnerPostProductionRunConsumptionLogReq } from "./partners/production-runs/[id]/consumption-logs/validators";
 import { listPartnersQuerySchema, PostPartnerSchema } from "./admin/partners/validators";
@@ -3840,11 +3840,33 @@ export default defineMiddlewares({
       ],
     },
     {
+      // Roadmap #6 Phase 2 — design ↔ inventory BOM (partner)
       matcher: "/partners/designs/:designId/inventory",
       method: "POST",
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
-        validateAndTransformBody(wrapSchema(PartnerDesignInventorySchema)),
+        validateAndTransformBody(wrapSchema(PartnerPostDesignInventoryReq)),
+      ],
+    },
+    {
+      matcher: "/partners/designs/:designId/inventory",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      matcher: "/partners/designs/:designId/inventory/:inventoryLinkId",
+      method: "PATCH",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerPatchDesignInventoryLinkReq)),
+      ],
+    },
+    {
+      matcher: "/partners/designs/:designId/inventory/delink",
+      method: "DELETE",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerDeleteDesignInventoryReq)),
       ],
     },
     {
