@@ -177,7 +177,8 @@ import { AdminCreateDesignProductionRunSchema } from "./admin/designs/[id]/produ
 import { AdminRecreateProductionRunSchema } from "./admin/designs/recreate-production-run/validators";
 import { listDesignsQuerySchema, PartnerCreateDesignReq, PartnerUpdateDesignReq } from "./partners/designs/validators";
 import { listProductionRunsQuerySchema } from "./partners/production-runs/validators";
-import { PartnerDesignInventorySchema } from "./partners/designs/[designId]/inventory/validators";
+import { PartnerPostDesignInventoryReq, PartnerPatchDesignInventoryLinkReq, PartnerDeleteDesignInventoryReq } from "./partners/designs/[designId]/inventory/validators";
+import { PartnerCreateProductionRunReq } from "./partners/designs/[designId]/production-runs/validators";
 import { PartnerPostConsumptionLogReq } from "./partners/designs/[designId]/consumption-logs/validators";
 import { PartnerPostProductionRunConsumptionLogReq } from "./partners/production-runs/[id]/consumption-logs/validators";
 import { listPartnersQuerySchema, PostPartnerSchema } from "./admin/partners/validators";
@@ -2164,6 +2165,15 @@ export default defineMiddlewares({
       ],
     },
     {
+      // Roadmap #6 Phase 5 — partner run cost-summary (admin parity)
+      matcher: "/partners/production-runs/:id/cost-summary",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       matcher: "/partners/production-runs/:id/accept",
       method: "POST",
       middlewares: [
@@ -3840,11 +3850,53 @@ export default defineMiddlewares({
       ],
     },
     {
+      // Roadmap #6 Phase 2 — design ↔ inventory BOM (partner)
       matcher: "/partners/designs/:designId/inventory",
       method: "POST",
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
-        validateAndTransformBody(wrapSchema(PartnerDesignInventorySchema)),
+        validateAndTransformBody(wrapSchema(PartnerPostDesignInventoryReq)),
+      ],
+    },
+    {
+      matcher: "/partners/designs/:designId/inventory",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      matcher: "/partners/designs/:designId/inventory/:inventoryLinkId",
+      method: "PATCH",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerPatchDesignInventoryLinkReq)),
+      ],
+    },
+    {
+      matcher: "/partners/designs/:designId/inventory/delink",
+      method: "DELETE",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerDeleteDesignInventoryReq)),
+      ],
+    },
+    {
+      // Roadmap #6 Phase 3 — partner cost estimation
+      matcher: "/partners/designs/:designId/recalculate-cost",
+      method: "POST",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      matcher: "/partners/designs/:designId/cost",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // Roadmap #6 Phase 4 — partner-originated (self-approved) runs
+      matcher: "/partners/designs/:designId/production-runs",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerCreateProductionRunReq)),
       ],
     },
     {

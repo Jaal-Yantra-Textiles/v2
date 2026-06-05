@@ -22,6 +22,14 @@ const ProductionRun = model.define("production_runs", {
   design_id: model.text(),
   partner_id: model.text().nullable(),
 
+  // Roadmap #6 Phase 4 — how the run is executed:
+  //   in_house   = the owning partner manufactures it themselves
+  //   outsourced = handed to another partner/vendor (sub_partner_id)
+  // Lets partner cost tracking isolate self-made vs farmed-out work.
+  execution_mode: model.enum(["in_house", "outsourced"]).default("in_house"),
+  // The downstream partner a run is outsourced to (null for in_house).
+  sub_partner_id: model.text().nullable(),
+
   product_id: model.text().nullable(),
   variant_id: model.text().nullable(),
   order_id: model.text().nullable(),

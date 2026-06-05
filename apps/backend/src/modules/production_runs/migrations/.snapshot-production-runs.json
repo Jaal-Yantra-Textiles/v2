@@ -461,6 +461,41 @@
           "enumItems": [],
           "mappedType": "text"
         },
+        "execution_mode": {
+          "name": "execution_mode",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": "'in_house'",
+          "comment": null,
+          "enumItems": [
+            "in_house",
+            "outsourced"
+          ],
+          "mappedType": "enum"
+        },
+        "sub_partner_id": {
+          "name": "sub_partner_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
         "product_id": {
           "name": "product_id",
           "type": "text",

@@ -126,49 +126,7 @@ import designPartnersLink from "../../../../links/design-partners-link"
 import { updateDesignWorkflow } from "../../../../workflows/designs/update-design"
 import { deleteDesignWorkflow } from "../../../../workflows/designs/delete-design"
 import { PartnerUpdateDesign } from "../validators"
-
-/**
- * Resolve the design + assert the authenticated partner OWNS it
- * (created it via the self-serve flow). Ownership is stricter than
- * assignment — an admin-assigned design is readable but not editable
- * by the partner. Throws 401/403/404 as appropriate.
- */
-async function assertPartnerOwnsDesign(
-  req: AuthenticatedMedusaRequest,
-  designId: string
-): Promise<{ partner: any; design: any }> {
-  if (!req.auth_context?.actor_id) {
-    throw new MedusaError(
-      MedusaError.Types.UNAUTHORIZED,
-      "Partner authentication required"
-    )
-  }
-  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
-  if (!partner) {
-    throw new MedusaError(
-      MedusaError.Types.UNAUTHORIZED,
-      "Partner authentication required"
-    )
-  }
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({
-    entity: "design",
-    filters: { id: designId },
-    fields: ["id", "owner_partner_id", "name", "status"],
-  })
-  const design = (data || [])[0] as any
-  if (!design) {
-    throw new MedusaError(MedusaError.Types.NOT_FOUND, "Design not found")
-  }
-  if (design.owner_partner_id !== partner.id) {
-    // Partner can read assigned designs but only mutate ones they own.
-    throw new MedusaError(
-      MedusaError.Types.NOT_ALLOWED,
-      "You can only modify designs you created"
-    )
-  }
-  return { partner, design }
-}
+import { assertPartnerOwnsDesign } from "../helpers"
 
 
 export const GET = async (
