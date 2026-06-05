@@ -79,6 +79,11 @@ export function getPartnerRouteMap(): RouteObject[] {
                       lazy: () => import("../../routes/designs/design-edit"),
                     },
                     {
+                      // Phase 2 — add inventory (BOM) to own design
+                      path: "add-inventory",
+                      lazy: () => import("../../routes/designs/design-add-inventory"),
+                    },
+                    {
                       path: "start",
                       lazy: () => import("../../routes/designs/design-start"),
                     },
