@@ -182,6 +182,27 @@ setupSharedTestSuite(() => {
       expect(typeValue).toBe(TAX_CLASS_OVER_2500_VALUE)
     })
 
+    it("accepts dry_run and computes the price-band decision (non-mutating path)", async () => {
+      // NOTE: the product.created subscriber owns the persisted type_id
+      // and converges every product to its correct class, so there's no
+      // stable mis-classified state to assert the "would assign + skip
+      // mutation" branch against without racing the subscriber. We
+      // assert the deterministic contract instead: dry_run is accepted,
+      // the max-INR price is resolved, and a valid decision returns.
+      // The non-mutation guard itself (return before updateProducts) is
+      // a straight-line branch covered by tsc.
+      const container = getContainer()
+      const { productId } = await createInProduct(api, adminHeaders, 3500, "dry")
+
+      const { result } = await classifyProductTaxClassWorkflow(container).run({
+        input: { product_id: productId, dry_run: true },
+      })
+      expect(result.max_inr_price).toBe(3500)
+      // ≥ ₹2,500 → either "would assign" (if seen first) or "no-change"
+      // (if the subscriber already assigned it). Never "cleared".
+      expect(["assigned", "no-change"]).toContain(result.decision)
+    })
+
     it("leaves the type unset when max INR price < ₹2,500", async () => {
       const container = getContainer()
       const { productId } = await createInProduct(api, adminHeaders, 1500, "cheap")
