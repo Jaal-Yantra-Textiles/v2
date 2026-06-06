@@ -1,5 +1,13 @@
 # Platform Roadmap — Open Backlog (captured 2026-05-26)
 
+> **GitHub task list (added 2026-06-06):** the open items below are now
+> mirrored as GitHub issues for day-to-day tracking. Umbrella tracker:
+> [#352 — Platform Backlog](https://github.com/Jaal-Yantra-Textiles/v2/issues/352).
+> Pull the whole set down with `gh issue list --label roadmap --limit 50`.
+> Issue titles carry the `[#N]` roadmap number so the two stay in sync;
+> this doc remains the narrative source-of-truth (the *why* + the
+> closed-out history), GitHub holds the actionable checklist.
+
 > Working order for the next stretch of platform work. Top section is
 > the region-sharing gap discovered while debugging GOF's storefront
 > serving AU customers. Lower section is the open backlog to walk
@@ -99,6 +107,20 @@ captured list; ordering inside this doc is just for readability.
 
 #### 1. Category dropdown in "Add Raw Material" UI
 
+**Status: FIXED 2026-06-06.** Root cause confirmed: the category field
+is the custom `CategorySearch` component
+(`apps/backend/src/admin/components/common/category-search.tsx`), not a
+Medusa `Select`/`Combobox`. Its results dropdown was an
+`absolute`-positioned `<div>` (`z-50`) rendered inside the
+`RouteFocusModal` body, which scrolls (`overflow-y-auto`) — so the
+dropdown was clipped by the overflow ancestor. Fix: render the dropdown
+through `createPortal(... , document.body)` with `position: fixed`
+coordinates measured from the input's `getBoundingClientRect`, tracked
+on scroll/resize while open, `z-[100]` + `shadow-elevation-flyout`.
+Selection switched from `onClick` to `onMouseDown`+`preventDefault` so
+it beats the input's blur-close timeout. The edit form
+(`edit-raw-material.tsx`) reuses the same component, so it's fixed too.
+
 The dropdown doesn't render cleanly — likely a portal / overflow /
 z-index issue (same family as the FX badge bug from this morning).
 **First step:** reproduce in admin, screenshot the broken state, grep
@@ -116,6 +138,19 @@ first, port to drawer.
 **Effort:** ~half day per route once the pattern's in place.
 
 #### 3. Analytics submenu missing for some partners in partner-ui
+
+**Status: FIXED 2026-06-06.** Not a data/backfill issue — the nav was
+gated on `workspace_type` in `useCoreRoutes`
+(`apps/partner-ui/src/components/layout/main-layout/main-layout.tsx`).
+The `seller` branch's Web Store menu listed content + theme +
+**analytics**; the `manufacturer` (default) branch's Web Store menu
+listed only content + theme — analytics was omitted even though both
+partner types get a Web Store and `/webstore/analytics` is registered
+unconditionally in the route map (`get-partner-route.map.tsx:871`).
+Decision (user, 2026-06-06): Analytics is a standard Web Store feature
+→ show it for any Web Store partner. Fix: added the analytics nav item
+to the manufacturer branch's Web Store `items`. Route was already
+reachable, so no 404 risk.
 
 The Analytics submenu appears for some partner accounts and not
 others. Suspect: gated on `partner.workspace_type` or on a feature
@@ -227,6 +262,16 @@ import), restore or re-link.
 **Effort:** 1-2 hours.
 
 #### 25. Partner assignment on design production runs — diagnosed 2026-06-03
+
+**Status: 25a + 25b + 25c SHIPPED & MERGED to main (verified 2026-06-06).**
+Commits: `66c4eea78` (25a, `.nullish()` on both validators), the
+`hasPerAssignmentTemplates` guard in the design production-run drawer
+(25b), and `68d0a8902` → `93ab12772` → `06786c30a` (25c header
+forwarding + a hardened reachable IMAGE-header fallback to dodge Meta
+error 132012). **Re-seed of the prod flow still required** — delete
+`vflow_01KQ9RSZ1TFMB7MQ0Y64P4E98Y` and re-run
+`seed-partner-run-whatsapp-flow.ts` (see 25c below). 25d remains a
+deferred follow-up.
 
 Reported against prod run `01KPET5HBGNH9QXGC0MC8RHR39`. Investigation
 reproduced the validator error on design `01JQ4H4JKX4TMXJZ3GH9TA02MT`
