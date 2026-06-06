@@ -84,6 +84,12 @@ export function getPartnerRouteMap(): RouteObject[] {
                       lazy: () => import("../../routes/designs/design-add-inventory"),
                     },
                     {
+                      // Phase 4 — partner starts a production run
+                      path: "production-run-create",
+                      lazy: () =>
+                        import("../../routes/designs/design-production-run-create"),
+                    },
+                    {
                       path: "start",
                       lazy: () => import("../../routes/designs/design-start"),
                     },

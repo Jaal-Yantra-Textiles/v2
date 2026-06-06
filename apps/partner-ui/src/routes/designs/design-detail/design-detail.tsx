@@ -17,6 +17,7 @@ import { DesignProductionSection } from "./components/design-production-section"
 import { DesignOwnerActionsSection } from "./components/design-owner-actions-section"
 import { DesignInventoryBomSection } from "./components/design-inventory-bom-section"
 import { DesignCostSection } from "./components/design-cost-section"
+import { DesignStartProductionSection } from "./components/design-start-production-section"
 
 type MarkLinkAttrs = { href?: string; target?: string }
 type Mark = {
@@ -449,6 +450,7 @@ export const DesignDetail = () => {
 
         {design && <DesignCostSection design={design} />}
 
+        {design && <DesignStartProductionSection design={design} />}
         {design && <DesignProductionSection design={design} />}
 
         {design && <DesignConsumptionLogsSection design={design} />}
