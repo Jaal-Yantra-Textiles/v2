@@ -322,14 +322,26 @@ change is needed. **Re-seed required in prod** after merge —
 delete the existing flow `vflow_01KQ9RSZ1TFMB7MQ0Y64P4E98Y` and
 re-run `npx medusa exec ./src/scripts/seed-partner-run-whatsapp-flow.ts`.
 
-**25d — Partner profile missing whatsapp_phone_number** (DEFERRED,
-SEPARATE TRACK). Saransh's partner profile has no `phone` /
+**25d — Partner profile missing whatsapp_phone_number** (FIXED
+2026-06-06, GitHub #335). Saransh's partner profile has no `phone` /
 `whatsapp_phone` / `whatsapp_phone_number` on any field — but the
 seed's resolve_template falls back to the first active admin's
 `phone` (which prod payload showed populated), so partner-side
-WhatsApp does have a phone target. Just worth surfacing a clear
-admin warning when assigning a partner without a primary WA contact.
-Out of scope for the bug 25 PR.
+WhatsApp does have a phone target. We now surface a clear admin
+warning when assigning a partner without a reachable WA contact:
+- `GET /admin/persons/partner` computes a `has_whatsapp_contact`
+  boolean per partner, mirroring the seed's resolution priority
+  exactly (verified `whatsapp_number`, else any active admin with a
+  `phone`). The list endpoint now fetches `whatsapp_number`,
+  `whatsapp_verified`, `admins.phone`, `admins.is_active` for the
+  computation (response shape was already fixed, so additive).
+- `AdminPartner` hook type gains the optional `has_whatsapp_contact`.
+- The design production-run assignment modal
+  (`designs/[id]/@production-run/page.tsx`) shows an orange
+  `ExclamationCircle` warning under the partner select when the chosen
+  partner's `has_whatsapp_contact === false`. Non-blocking.
+- Test: `integration-tests/http/partner-has-whatsapp-contact.spec.ts`
+  (2 tests — admin-with-phone → true, no-phone → false), green.
 
 **Effort:** 25a + 25b + 25c shipping in this PR. 25d is a small
 follow-up admin affordance.

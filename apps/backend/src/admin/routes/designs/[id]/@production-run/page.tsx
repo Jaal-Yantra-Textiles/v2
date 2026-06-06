@@ -10,6 +10,7 @@ import {
   Text,
   toast,
 } from "@medusajs/ui"
+import { ExclamationCircle } from "@medusajs/icons"
 import { useCallback, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useParams } from "react-router-dom"
@@ -168,6 +169,19 @@ const AssignmentsModal = ({
                         ))}
                       </Select.Content>
                     </Select>
+                    {assignment.partner_id &&
+                      partners.find(
+                        (p: any) => String(p.id) === assignment.partner_id
+                      )?.has_whatsapp_contact === false && (
+                        <div className="mt-1 flex items-start gap-x-1 text-ui-tag-orange-text">
+                          <ExclamationCircle className="mt-0.5 shrink-0" />
+                          <Text size="xsmall">
+                            No WhatsApp contact — production updates won't reach
+                            this partner directly. Add a verified WhatsApp number
+                            or an active admin phone on the partner.
+                          </Text>
+                        </div>
+                      )}
                   </div>
 
                   <div>
