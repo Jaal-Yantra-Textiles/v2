@@ -151,10 +151,50 @@ export async function GET(
   // listing doesn't 500.
   const allLinked = (results || []).filter((linkData: any) => !!linkData?.design)
 
+  // Surface designs this partner OWNS (created via self-serve), newest
+  // first. They ARE in the link table (POST creates the link), but the
+  // link query above is unordered + paginated, so a just-created design
+  // can fall past the `take` window and never reach page 1. Fetching the
+  // owned set directly (ordering on the design entity is reliable) and
+  // merging it in guarantees a partner always sees what they created.
+  // Only on the first page, so it isn't re-injected on every page.
+  let ownedRows: any[] = []
+  if (offset === 0) {
+    try {
+      const { data: owned } = await query.graph(
+        {
+          entity: "design",
+          filters: { owner_partner_id: partner.id } as any,
+          fields: ["*", "tasks.*"],
+          pagination: { skip: 0, take: 50, order: { updated_at: "DESC" } },
+        },
+        { locale: req.locale }
+      )
+      // Normalize to the {design, partner} shape the mapping below expects.
+      ownedRows = (owned || [])
+        .filter((d: any) => !!d?.id)
+        .map((d: any) => ({ design: d, partner }))
+    } catch {
+      // Non-fatal — owned designs still appear via the linked set.
+    }
+  }
+
+  // Merge owned (first) + linked, deduped by design id.
+  const seenDesignIds = new Set<string>()
+  const merged: any[] = []
+  for (const item of [...ownedRows, ...allLinked]) {
+    const did = item?.design?.id
+    if (!did || seenDesignIds.has(did)) {
+      continue
+    }
+    seenDesignIds.add(did)
+    merged.push(item)
+  }
+
   // post-filter by design.status if requested
-  let filtered = allLinked
+  let filtered = merged
   if (status) {
-    filtered = allLinked.filter((linkData: any) => linkData.design?.status === status)
+    filtered = merged.filter((linkData: any) => linkData.design?.status === status)
   }
 
   // Pre-fetch all production runs for this partner (one query, not per-design)

@@ -9,6 +9,7 @@ import {
 } from "@medusajs/ui"
 
 import { SectionRow } from "../../../../components/common/section"
+import { Skeleton } from "../../../../components/common/skeleton"
 import { PartnerDesign } from "../../../../hooks/api/partner-designs"
 import {
   usePartnerDesignCost,
@@ -70,10 +71,16 @@ export const DesignCostSection = ({ design }: Props) => {
       </div>
 
       {isLoading ? (
-        <div className="px-6 py-4">
-          <Text size="small" className="text-ui-fg-subtle">
-            Loading…
-          </Text>
+        <div className="flex flex-col divide-y">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between px-6 py-4"
+            >
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+          ))}
         </div>
       ) : (
         <>
