@@ -1,0 +1,182 @@
+import { Plus, Trash } from "@medusajs/icons"
+import {
+  Badge,
+  Button,
+  Container,
+  Heading,
+  Text,
+  toast,
+  usePrompt,
+} from "@medusajs/ui"
+import { Link } from "react-router-dom"
+
+import { ActionMenu } from "../../../../components/common/action-menu"
+import { PartnerDesign } from "../../../../hooks/api/partner-designs"
+import {
+  PartnerDesignInventoryItem,
+  useDelinkPartnerDesignInventory,
+  usePartnerDesignInventory,
+} from "../../../../hooks/api/partner-design-inventory"
+
+type Props = { design: PartnerDesign }
+
+/** Pull image URLs out of a raw_material.media / inventory media json blob. */
+function extractMedia(line: PartnerDesignInventoryItem): string[] {
+  const urls: string[] = []
+  const push = (m: any) => {
+    if (!m) return
+    if (typeof m === "string") urls.push(m)
+    else if (typeof m?.url === "string") urls.push(m.url)
+  }
+  for (const rm of line.inventory_item?.raw_materials ?? []) {
+    const media = (rm as any)?.media
+    if (Array.isArray(media)) media.forEach(push)
+    else push(media)
+  }
+  // Fall back to the inventory item's own media if the raw material has none.
+  if (!urls.length) {
+    const im = (line.inventory_item as any)?.metadata?.media
+    if (Array.isArray(im)) im.forEach(push)
+  }
+  return urls.slice(0, 4)
+}
+
+export const DesignInventoryBomSection = ({ design }: Props) => {
+  const prompt = usePrompt()
+  const isOwner = !!(design as any).owner_partner_id
+  const { inventory_items, isLoading } = usePartnerDesignInventory(design.id)
+  const { mutateAsync: delink } = useDelinkPartnerDesignInventory(design.id)
+
+  const handleRemove = async (line: PartnerDesignInventoryItem) => {
+    const ok = await prompt({
+      title: "Remove material",
+      description: `Remove "${line.inventory_item?.title ?? line.inventory_item_id}" from this design's bill of materials?`,
+      confirmText: "Remove",
+      cancelText: "Cancel",
+    })
+    if (!ok) return
+    await delink(
+      { inventoryIds: [line.inventory_item_id] },
+      {
+        onSuccess: () => toast.success("Material removed"),
+        onError: (e) => toast.error(e.message),
+      }
+    )
+  }
+
+  return (
+    <Container className="divide-y p-0">
+      <div className="flex items-center justify-between px-6 py-4">
+        <div>
+          <Heading level="h2">Materials (BOM)</Heading>
+          <Text size="small" className="text-ui-fg-subtle">
+            Inventory + raw materials used to make this design.
+          </Text>
+        </div>
+        {isOwner && (
+          <Link to="add-inventory">
+            <Button size="small" variant="secondary">
+              <Plus />
+              Add material
+            </Button>
+          </Link>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="px-6 py-4">
+          <Text size="small" className="text-ui-fg-subtle">
+            Loading…
+          </Text>
+        </div>
+      ) : inventory_items.length === 0 ? (
+        <div className="px-6 py-6">
+          <Text size="small" className="text-ui-fg-subtle">
+            No materials linked yet.
+            {isOwner ? " Add the inventory items this design consumes." : ""}
+          </Text>
+        </div>
+      ) : (
+        inventory_items.map((line) => {
+          const item = line.inventory_item
+          const rawMaterials = item?.raw_materials ?? []
+          const media = extractMedia(line)
+          return (
+            <div
+              key={line.inventory_item_id}
+              className="flex items-start gap-x-4 px-6 py-4"
+            >
+              {/* Media thumbnails — what the material looks like */}
+              <div className="flex shrink-0 gap-x-1">
+                {media.length > 0 ? (
+                  media.map((url, i) => (
+                    <img
+                      key={i}
+                      src={url}
+                      alt={item?.title ?? "material"}
+                      className="bg-ui-bg-subtle size-12 rounded-md object-cover"
+                    />
+                  ))
+                ) : (
+                  <div className="bg-ui-bg-subtle text-ui-fg-muted flex size-12 items-center justify-center rounded-md">
+                    <Text size="xsmall">No img</Text>
+                  </div>
+                )}
+              </div>
+
+              {/* Details — title, SKU, raw material, qty */}
+              <div className="flex min-w-0 flex-1 flex-col gap-y-1">
+                <div className="flex items-center gap-x-2">
+                  <Text size="small" weight="plus" className="truncate">
+                    {item?.title ?? line.inventory_item_id}
+                  </Text>
+                  {item?.sku && (
+                    <Badge size="2xsmall" color="grey">
+                      SKU: {item.sku}
+                    </Badge>
+                  )}
+                </div>
+
+                {rawMaterials.length > 0 && (
+                  <Text size="small" className="text-ui-fg-subtle truncate">
+                    {rawMaterials
+                      .map((rm) =>
+                        [rm.name, rm.composition, rm.color]
+                          .filter(Boolean)
+                          .join(" · ")
+                      )
+                      .filter(Boolean)
+                      .join("  |  ")}
+                  </Text>
+                )}
+
+                <Text size="xsmall" className="text-ui-fg-muted">
+                  Planned: {line.planned_quantity ?? "—"}
+                  {line.consumed_quantity != null
+                    ? `  ·  Consumed: ${line.consumed_quantity}`
+                    : ""}
+                </Text>
+              </div>
+
+              {isOwner && (
+                <ActionMenu
+                  groups={[
+                    {
+                      actions: [
+                        {
+                          label: "Remove",
+                          icon: <Trash />,
+                          onClick: () => handleRemove(line),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+              )}
+            </div>
+          )
+        })
+      )}
+    </Container>
+  )
+}

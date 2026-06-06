@@ -1,7 +1,8 @@
-import { Badge, Container, Heading, StatusBadge, Text, Tooltip, createDataTableColumnHelper } from "@medusajs/ui"
+import { Badge, Button, Container, Heading, StatusBadge, Text, Tooltip, createDataTableColumnHelper } from "@medusajs/ui"
 import { keepPreviousData } from "@tanstack/react-query"
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
+import { Link } from "react-router-dom"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
 import { Filter } from "../../../components/table/data-table"
@@ -343,6 +344,11 @@ export const DesignList = () => {
               }
             </span>
           </div>
+          <Link to="/designs/create">
+            <Button size="small" variant="secondary">
+              Create
+            </Button>
+          </Link>
         </div>
         <_DataTable
           columns={columns}

@@ -62,12 +62,33 @@ export function getPartnerRouteMap(): RouteObject[] {
                   lazy: () => import("../../routes/designs/design-list"),
                 },
                 {
+                  // Roadmap #6 Phase 1 — partner creates a design
+                  path: "create",
+                  lazy: () => import("../../routes/designs/design-create"),
+                },
+                {
                   path: ":id",
                   handle: {
                     breadcrumb: (match?: UIMatch) => match?.params?.id || "Design",
                   },
                   lazy: () => import("../../routes/designs/design-detail"),
                   children: [
+                    {
+                      // Phase 1 — edit own design
+                      path: "edit",
+                      lazy: () => import("../../routes/designs/design-edit"),
+                    },
+                    {
+                      // Phase 2 — add inventory (BOM) to own design
+                      path: "add-inventory",
+                      lazy: () => import("../../routes/designs/design-add-inventory"),
+                    },
+                    {
+                      // Phase 4 — partner starts a production run
+                      path: "production-run-create",
+                      lazy: () =>
+                        import("../../routes/designs/design-production-run-create"),
+                    },
                     {
                       path: "start",
                       lazy: () => import("../../routes/designs/design-start"),

@@ -227,3 +227,77 @@ export const useCompletePartnerProductionRun = (
     ...restOptions,
   })
 }
+
+// Roadmap #6 Phase 4 — partner creates a self-approved run on their own design.
+export type CreatePartnerProductionRunPayload = {
+  quantity?: number
+  run_type?: "production" | "sample"
+  execution_mode: "in_house" | "outsourced"
+  sub_partner_id?: string
+}
+
+export const useCreatePartnerProductionRun = (
+  designId: string,
+  options?: UseMutationOptions<
+    { production_run: PartnerProductionRun },
+    FetchError,
+    CreatePartnerProductionRunPayload
+  >
+) => {
+  return useMutation({
+    mutationFn: async (payload) =>
+      sdk.client.fetch<{ production_run: PartnerProductionRun }>(
+        `/partners/designs/${designId}/production-runs`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: async (data, variables, context) => {
+      await queryClient.invalidateQueries({
+        queryKey: partnerProductionRunsQueryKeys.lists(),
+      })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+// Roadmap #6 Phase 5 — partner reads a run's cost-summary (admin parity).
+export type PartnerRunCostSummary = {
+  cost_summary: {
+    production_run_id: string
+    design_id: string
+    status: string
+    quantity: number
+    produced_quantity: number | null
+    material: { total: number; items: any[] }
+    energy: { total: number; breakdown: any[] }
+    labor: { total: number; total_hours: number; rate_per_hour: number | null }
+    partner: { estimate: number | null; cost_type: string; total: number | null }
+    grand_total: number | null
+    cost_per_unit: number | null
+    total_consumption_logs: number
+  }
+}
+
+export const usePartnerRunCostSummary = (
+  runId: string,
+  options?: Omit<
+    UseQueryOptions<
+      PartnerRunCostSummary,
+      FetchError,
+      PartnerRunCostSummary,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: ["partner-run-cost-summary", runId],
+    queryFn: async () =>
+      sdk.client.fetch<PartnerRunCostSummary>(
+        `/partners/production-runs/${runId}/cost-summary`,
+        { method: "GET" }
+      ),
+    ...options,
+  })
+  return { cost_summary: data?.cost_summary, ...rest }
+}

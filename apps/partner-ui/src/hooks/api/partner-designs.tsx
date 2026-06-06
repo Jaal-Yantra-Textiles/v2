@@ -122,6 +122,87 @@ export const usePartnerDesign = (
   }
 }
 
+// Roadmap #6 Phase 1 — partner-owned design CRUD.
+export type CreatePartnerDesignPayload = {
+  name: string
+  description?: string
+  design_type?: "Original" | "Derivative" | "Custom" | "Collaboration"
+  status?: string
+  priority?: "Low" | "Medium" | "High" | "Urgent"
+  tags?: string[]
+  estimated_cost?: number
+  designer_notes?: string
+}
+
+export const useCreatePartnerDesign = (
+  options?: UseMutationOptions<
+    { design: PartnerDesign },
+    FetchError,
+    CreatePartnerDesignPayload
+  >
+) => {
+  return useMutation({
+    mutationFn: async (payload) => {
+      return await sdk.client.fetch<{ design: PartnerDesign }>(
+        `/partners/designs`,
+        { method: "POST", body: payload }
+      )
+    },
+    onSuccess: async (data, variables, context) => {
+      await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+export const useUpdatePartnerDesign = (
+  id: string,
+  options?: UseMutationOptions<
+    { design: PartnerDesign },
+    FetchError,
+    Partial<CreatePartnerDesignPayload>
+  >
+) => {
+  return useMutation({
+    mutationFn: async (payload) => {
+      return await sdk.client.fetch<{ design: PartnerDesign }>(
+        `/partners/designs/${id}`,
+        { method: "PUT", body: payload }
+      )
+    },
+    onSuccess: async (data, variables, context) => {
+      await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.lists() })
+      await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+export const useDeletePartnerDesign = (
+  id: string,
+  options?: UseMutationOptions<
+    { id: string; deleted: boolean },
+    FetchError,
+    void
+  >
+) => {
+  return useMutation({
+    mutationFn: async () => {
+      return await sdk.client.fetch<{ id: string; deleted: boolean }>(
+        `/partners/designs/${id}`,
+        { method: "DELETE" }
+      )
+    },
+    onSuccess: async (data, variables, context) => {
+      await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
 export const useStartPartnerDesign = (
   id: string,
   options?: UseMutationOptions<{ message: string; design: PartnerDesign }, FetchError, void>

@@ -7,6 +7,7 @@ import {
   ActivityItem,
 } from "../../../components/common/activities-section"
 import { JsonViewSection } from "../../../components/common/json-view-section"
+import { RunCostSummarySection } from "./components/run-cost-summary-section"
 import { SectionRow } from "../../../components/common/section"
 import { TwoColumnPage, SingleColumnPage } from "../../../components/layout/pages"
 import { TwoColumnPageSkeleton } from "../../../components/common/skeleton"
@@ -276,6 +277,8 @@ export const ProductionRunDetail = () => {
             )}
           </div>
         </Container>
+
+        {production_run && <RunCostSummarySection runId={runId} />}
 
         {production_run && (
           <div className="xl:hidden">

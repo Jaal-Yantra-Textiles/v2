@@ -14,6 +14,10 @@ import { DesignMediaSection } from "./components/design-media-section"
 import { DesignMoodboardSection } from "./components/design-moodboard-section"
 import { DesignConsumptionLogsSection } from "./components/design-consumption-logs-section"
 import { DesignProductionSection } from "./components/design-production-section"
+import { DesignOwnerActionsSection } from "./components/design-owner-actions-section"
+import { DesignInventoryBomSection } from "./components/design-inventory-bom-section"
+import { DesignCostSection } from "./components/design-cost-section"
+import { DesignStartProductionSection } from "./components/design-start-production-section"
 
 type MarkLinkAttrs = { href?: string; target?: string }
 type Mark = {
@@ -278,6 +282,7 @@ export const DesignDetail = () => {
   return (
     <TwoColumnPage widgets={{ before: [], after: [], sideBefore: [], sideAfter: [] }} hasOutlet>
       <TwoColumnPage.Main>
+        {design && <DesignOwnerActionsSection design={design} />}
         <Container className="divide-y p-0">
           <div className="px-6 py-4">
             <Heading level="h2">General</Heading>
@@ -441,6 +446,11 @@ export const DesignDetail = () => {
         ) : null}
 
         {/* Production & Material Usage — highest priority for partners */}
+        {design && <DesignInventoryBomSection design={design} />}
+
+        {design && <DesignCostSection design={design} />}
+
+        {design && <DesignStartProductionSection design={design} />}
         {design && <DesignProductionSection design={design} />}
 
         {design && <DesignConsumptionLogsSection design={design} />}
