@@ -233,6 +233,80 @@ const updateDesignOnCompleteStep = createStep(
 // Workflow
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Step: Cascade parent completion (inline, lifecycle-independent)
+// ---------------------------------------------------------------------------
+//
+// The lifecycle workflow's `cascadeCompletionStep` only fires if the
+// child run was dispatched and carries a `lifecycle_transaction_id` —
+// `signalLifecycleStepStep` silently no-ops on a null id. Child runs
+// completed by the partner without ever being dispatched (null
+// transaction id) therefore left the PARENT stuck in `in_progress`
+// forever. This step does the same cascade INLINE so it always runs
+// when a child completes, regardless of lifecycle transaction state.
+// Idempotent + locked; a parent already completed/cancelled is left
+// untouched (the repair script handles intentionally-cancelled parents
+// separately).
+const cascadeParentCompletionStep = createStep(
+  "cascade-parent-completion-inline",
+  async (input: { production_run_id: string }, { container }) => {
+    const service: ProductionRunService = container.resolve(PRODUCTION_RUNS_MODULE)
+    const lockingService = container.resolve(Modules.LOCKING) as any
+
+    const run = (await service
+      .retrieveProductionRun(input.production_run_id)
+      .catch(() => null)) as any
+    const parentRunId = run?.parent_run_id
+    if (!parentRunId) {
+      return new StepResponse(null)
+    }
+
+    const lockKey = `production-run-complete:${String(parentRunId)}`
+    await lockingService.execute(lockKey, async () => {
+      const children = (await service.listProductionRuns({
+        parent_run_id: parentRunId,
+      } as any)) as any[]
+      if (!children?.length) return
+
+      const allCompleted = children.every(
+        (c) => String(c?.status || "") === "completed"
+      )
+      if (!allCompleted) return
+
+      const parent = (await service
+        .retrieveProductionRun(parentRunId)
+        .catch(() => null)) as any
+      if (!parent) return
+      if (["completed", "cancelled"].includes(String(parent.status))) return
+
+      // Reconcile parent totals from the children so the rollup matches
+      // what was actually produced (fixes the parent/child qty mismatch).
+      const sum = (key: string, fallback?: string) =>
+        children.reduce((acc, c) => {
+          const v = c?.[key] ?? (fallback ? c?.[fallback] : undefined)
+          return acc + (Number.isFinite(Number(v)) ? Number(v) : 0)
+        }, 0)
+      const producedTotal = sum("produced_quantity", "quantity")
+      const quantityTotal = sum("quantity")
+      const latestCompletedAt = children
+        .map((c) => c?.completed_at)
+        .filter(Boolean)
+        .map((d) => new Date(d).getTime())
+        .reduce((a, b) => Math.max(a, b), 0)
+
+      await service.updateProductionRuns({
+        id: parentRunId,
+        status: "completed" as any,
+        completed_at: latestCompletedAt ? new Date(latestCompletedAt) : new Date(),
+        ...(quantityTotal > 0 ? { quantity: quantityTotal } : {}),
+        ...(producedTotal > 0 ? { produced_quantity: producedTotal } : {}),
+      })
+    })
+
+    return new StepResponse(null)
+  }
+)
+
 export const completeProductionRunWorkflow = createWorkflow(
   "complete-production-run",
   function (input: CompleteProductionRunInput) {
@@ -329,6 +403,11 @@ export const completeProductionRunWorkflow = createWorkflow(
     }))
 
     signalLifecycleStepStep(lifecycleInput)
+
+    // Inline parent cascade — guarantees the parent completes even when
+    // the child had no lifecycle transaction to signal (root cause of
+    // stuck-parent runs). Idempotent with the lifecycle/subscriber paths.
+    cascadeParentCompletionStep({ production_run_id: input.production_run_id })
 
     // Emit event
     const eventInput = transform({ run, input }, (data) => {
