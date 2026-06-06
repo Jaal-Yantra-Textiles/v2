@@ -1,5 +1,6 @@
 import { Input } from "@medusajs/ui";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useDebouncedSearch } from "../../hooks/use-debounce";
 import { Form } from "./form";
 import { useTranslation } from "react-i18next";
@@ -35,6 +36,19 @@ export const CategorySearch = (props: CategorySearchProps & Record<string, any>)
   const [inputValue, setInputValue] = useState(
     typeof defaultValue === "string" ? defaultValue : defaultValue?.name || ""
   );
+
+  // The dropdown is rendered in a portal so it escapes the scrollable /
+  // overflow-hidden ancestors of the modal it usually lives in (otherwise
+  // it gets clipped). We track the anchor input's viewport rect and
+  // position the portal with `fixed` coordinates.
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+
+  const updateAnchorRect = useCallback(() => {
+    if (anchorRef.current) {
+      setAnchorRect(anchorRef.current.getBoundingClientRect());
+    }
+  }, []);
 
   const {
     onSearchValueChange: setCategorySearch,
@@ -113,12 +127,30 @@ export const CategorySearch = (props: CategorySearchProps & Record<string, any>)
     }
   }, [debouncedQuery, matchingCategories.length]);
 
+  // Keep the portal aligned with the input while it's open — measure on
+  // open and follow scroll/resize so the dropdown tracks the anchor even
+  // when the modal body scrolls.
+  const isOpen = showCategoryDropdown && matchingCategories.length > 0;
+
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    updateAnchorRect();
+    window.addEventListener("scroll", updateAnchorRect, true);
+    window.addEventListener("resize", updateAnchorRect);
+    return () => {
+      window.removeEventListener("scroll", updateAnchorRect, true);
+      window.removeEventListener("resize", updateAnchorRect);
+    };
+  }, [isOpen, updateAnchorRect]);
+
   return (
     <Form.Item>
-      <div className="relative">
+      <div ref={anchorRef} className="relative">
         <Form.Control>
-          <Input 
-            autoComplete="off" 
+          <Input
+            autoComplete="off"
             value={inputValue}
             onChange={handleInputChange}
             placeholder={t("common.searchOrCreateCategory")}
@@ -132,22 +164,35 @@ export const CategorySearch = (props: CategorySearchProps & Record<string, any>)
             }}
           />
         </Form.Control>
-        {showCategoryDropdown && matchingCategories.length > 0 && (
-          <div 
-            className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border border-ui-border-base bg-ui-bg-base shadow-lg"
-          >
-            {matchingCategories.map((category) => (
-              <button
-                key={category.id}
-                type="button"
-                className="w-full px-4 py-2 text-left hover:bg-ui-bg-base-hover"
-                onClick={() => handleCategorySelect(category)}
-              >
-                {category.name}
-              </button>
-            ))}
-          </div>
-        )}
+        {isOpen && anchorRect &&
+          createPortal(
+            <div
+              className="z-[100] max-h-48 overflow-y-auto rounded-lg border border-ui-border-base bg-ui-bg-base shadow-elevation-flyout"
+              style={{
+                position: "fixed",
+                top: anchorRect.bottom + 4,
+                left: anchorRect.left,
+                width: anchorRect.width,
+              }}
+            >
+              {matchingCategories.map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  className="w-full px-4 py-2 text-left hover:bg-ui-bg-base-hover"
+                  // onMouseDown fires before the input's onBlur, so the
+                  // selection isn't lost to the blur-close timeout.
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleCategorySelect(category);
+                  }}
+                >
+                  {category.name}
+                </button>
+              ))}
+            </div>,
+            document.body
+          )}
         {showNewCategoryHint && (
           <div className="text-ui-fg-subtle mt-2 text-sm">
             {t("common.pressEnterToCreateCategory")}

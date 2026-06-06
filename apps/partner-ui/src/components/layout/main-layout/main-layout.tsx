@@ -260,6 +260,7 @@ const useCoreRoutes = (
       items: [
         { label: t("app.nav.main.content"), to: "/content" },
         { label: t("app.nav.main.theme"), to: "/webstore/theme" },
+        { label: t("app.nav.main.analytics"), to: "/webstore/analytics" },
       ],
     },
   ]
