@@ -132,16 +132,32 @@ export async function GET(
   // Filters: cannot filter on linked design properties; filter post-query if needed
   const filters: any = { partner_id: partner.id }
 
-  const { data: results } = await query.graph({
-    entity: designPartnersLink.entryPoint,
-    fields: [
-      "design.*",
-      "design.tasks.*",
-      "partner.*",
-    ],
-    filters,
-    pagination: { skip: offset, take: limit },
-  }, { locale: req.locale })
+  // Order newest-assigned first: the link row's `created_at` is when the
+  // design was assigned to (or created by) this partner. Without an
+  // explicit order the link query returns rows in an arbitrary order, so
+  // a freshly assigned/created design could fall past the `take` window
+  // and never reach page 1. Wrapped in a fallback so that if a runtime
+  // ever rejects `order` on a link entry point, the listing degrades to
+  // unordered instead of 500-ing.
+  const linkFields = ["created_at", "design.*", "design.tasks.*", "partner.*"]
+  let results: any[] = []
+  try {
+    const { data } = await query.graph({
+      entity: designPartnersLink.entryPoint,
+      fields: linkFields,
+      filters,
+      pagination: { skip: offset, take: limit, order: { created_at: "DESC" } },
+    }, { locale: req.locale })
+    results = data
+  } catch {
+    const { data } = await query.graph({
+      entity: designPartnersLink.entryPoint,
+      fields: linkFields,
+      filters,
+      pagination: { skip: offset, take: limit },
+    }, { locale: req.locale })
+    results = data
+  }
 
   // Include all linked designs for this partner.
   // We'll compute assignment status based on presence of partner workflow tasks (by known titles).
@@ -149,15 +165,18 @@ export async function GET(
   // a null `design` on the link join (e.g. after DELETE /partners/designs/:id),
   // and the mapping below dereferences `design.*` — drop those so the
   // listing doesn't 500.
-  const allLinked = (results || []).filter((linkData: any) => !!linkData?.design)
+  const allLinked = (results || [])
+    .filter((linkData: any) => !!linkData?.design)
+    .map((l: any) => ({
+      ...l,
+      _recency: l.created_at || l.design?.created_at || null,
+    }))
 
-  // Surface designs this partner OWNS (created via self-serve), newest
-  // first. They ARE in the link table (POST creates the link), but the
-  // link query above is unordered + paginated, so a just-created design
-  // can fall past the `take` window and never reach page 1. Fetching the
-  // owned set directly (ordering on the design entity is reliable) and
-  // merging it in guarantees a partner always sees what they created.
-  // Only on the first page, so it isn't re-injected on every page.
+  // Safety net: also pull designs this partner OWNS (created via
+  // self-serve). They ARE in the link table (POST creates the link), so
+  // the ordered query above already surfaces them — but if link ordering
+  // ever misses one, this guarantees a partner still sees what they
+  // created. Merged + re-sorted by recency below, never force-pinned.
   let ownedRows: any[] = []
   if (offset === 0) {
     try {
@@ -166,23 +185,28 @@ export async function GET(
           entity: "design",
           filters: { owner_partner_id: partner.id } as any,
           fields: ["*", "tasks.*"],
-          pagination: { skip: 0, take: 50, order: { updated_at: "DESC" } },
+          pagination: { skip: 0, take: 50, order: { created_at: "DESC" } },
         },
         { locale: req.locale }
       )
       // Normalize to the {design, partner} shape the mapping below expects.
       ownedRows = (owned || [])
         .filter((d: any) => !!d?.id)
-        .map((d: any) => ({ design: d, partner }))
+        .map((d: any) => ({
+          design: d,
+          partner,
+          _recency: d.created_at || null,
+        }))
     } catch {
       // Non-fatal — owned designs still appear via the linked set.
     }
   }
 
-  // Merge owned (first) + linked, deduped by design id.
+  // Merge linked + owned, deduped by design id, then sort newest-first by
+  // recency so the most recently assigned/created design is always on top.
   const seenDesignIds = new Set<string>()
   const merged: any[] = []
-  for (const item of [...ownedRows, ...allLinked]) {
+  for (const item of [...allLinked, ...ownedRows]) {
     const did = item?.design?.id
     if (!did || seenDesignIds.has(did)) {
       continue
@@ -190,6 +214,11 @@ export async function GET(
     seenDesignIds.add(did)
     merged.push(item)
   }
+  merged.sort((a: any, b: any) => {
+    const at = a._recency ? new Date(a._recency).getTime() : 0
+    const bt = b._recency ? new Date(b._recency).getTime() : 0
+    return bt - at
+  })
 
   // post-filter by design.status if requested
   let filtered = merged

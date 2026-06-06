@@ -104,8 +104,9 @@ export const DesignList = () => {
   const q = raw.q?.trim() || ""
   const statusFilter = raw.status?.trim() || ""
   const partnerStatusFilter = raw.partner_status?.trim() || ""
-  // Default sort: most recently updated first
-  const order = raw.order?.trim() || "-updated_at"
+  // No client-side default sort — preserve the server order (designs come
+  // back newest-assigned/created first). Only sort when the user picks one.
+  const order = raw.order?.trim() || ""
 
   const { designs, count = 0, isPending, isError, error } = usePartnerDesigns(
     {
@@ -159,23 +160,29 @@ export const DesignList = () => {
       )
     })
 
-    // Sort
-    const sortKey = order.startsWith("-") ? order.slice(1) : order
-    const desc = order.startsWith("-")
+    // Sort. Only when the user explicitly picks an order — otherwise
+    // preserve the server order, which already returns designs
+    // newest-assigned/created first (a re-sort by updated_at here would
+    // push a freshly assigned design down, since assignment doesn't bump
+    // the design's updated_at).
+    if (order) {
+      const sortKey = order.startsWith("-") ? order.slice(1) : order
+      const desc = order.startsWith("-")
 
-    data = [...data].sort((a, b) => {
-      const av = (a as any)?.[sortKey]
-      const bv = (b as any)?.[sortKey]
+      data = [...data].sort((a, b) => {
+        const av = (a as any)?.[sortKey]
+        const bv = (b as any)?.[sortKey]
 
-      if (av == null && bv == null) return 0
-      if (av == null) return desc ? 1 : -1
-      if (bv == null) return desc ? -1 : 1
+        if (av == null && bv == null) return 0
+        if (av == null) return desc ? 1 : -1
+        if (bv == null) return desc ? -1 : 1
 
-      const aStr = String(av)
-      const bStr = String(bv)
-      const cmp = aStr.localeCompare(bStr)
-      return desc ? -cmp : cmp
-    })
+        const aStr = String(av)
+        const bStr = String(bv)
+        const cmp = aStr.localeCompare(bStr)
+        return desc ? -cmp : cmp
+      })
+    }
 
     return data
   }, [designs, order, partnerStatusFilter, q, statusFilter])
