@@ -22,6 +22,16 @@ import {
 
 type Props = { design: PartnerDesign }
 
+/**
+ * `raw_materials` comes back as a single object (1:1 link), an array, or
+ * null depending on the endpoint. Always normalize to an array — iterating
+ * the raw object throws "{} is not iterable".
+ */
+function toArray<T = any>(val: any): T[] {
+  if (!val) return []
+  return Array.isArray(val) ? val : [val]
+}
+
 /** Pull image URLs out of a raw_material.media / inventory media json blob. */
 function extractMedia(line: PartnerDesignInventoryItem): string[] {
   const urls: string[] = []
@@ -30,7 +40,7 @@ function extractMedia(line: PartnerDesignInventoryItem): string[] {
     if (typeof m === "string") urls.push(m)
     else if (typeof m?.url === "string") urls.push(m.url)
   }
-  for (const rm of line.inventory_item?.raw_materials ?? []) {
+  for (const rm of toArray(line.inventory_item?.raw_materials)) {
     const media = (rm as any)?.media
     if (Array.isArray(media)) media.forEach(push)
     else push(media)
@@ -107,7 +117,7 @@ export const DesignInventoryBomSection = ({ design }: Props) => {
       ) : (
         inventory_items.map((line) => {
           const item = line.inventory_item
-          const rawMaterials = item?.raw_materials ?? []
+          const rawMaterials = toArray(item?.raw_materials)
           const media = extractMedia(line)
           return (
             <div

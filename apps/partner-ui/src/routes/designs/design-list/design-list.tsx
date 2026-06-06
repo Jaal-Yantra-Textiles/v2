@@ -99,11 +99,13 @@ function formatTargetDate(dateStr: string | undefined | null): {
 
 export const DesignList = () => {
   const { t } = useTranslation()
-  const raw = useQueryParams(["offset", "q", "status", "partner_status", "order"])
+  const raw = useQueryParams(["offset", "q", "status", "partner_status", "order", "source"])
   const offset = raw.offset ? Number(raw.offset) : 0
   const q = raw.q?.trim() || ""
   const statusFilter = raw.status?.trim() || ""
   const partnerStatusFilter = raw.partner_status?.trim() || ""
+  // "owned" = created by this partner (owner_partner_id set); "assigned" = admin-assigned.
+  const sourceFilter = raw.source?.trim() || ""
   // No client-side default sort — preserve the server order (designs come
   // back newest-assigned/created first). Only sort when the user picks one.
   const order = raw.order?.trim() || ""
@@ -126,6 +128,15 @@ export const DesignList = () => {
       const name = String(row.name || "").toLowerCase()
       const status = String(row.status || "").toLowerCase()
       const partnerStatus = String(row?.partner_info?.partner_status || "").toLowerCase()
+      const isOwned = !!(row as any)?.owner_partner_id
+
+      // Source filter (owned vs assigned)
+      if (sourceFilter === "owned" && !isOwned) {
+        return false
+      }
+      if (sourceFilter === "assigned" && isOwned) {
+        return false
+      }
 
       // Partner status filter
       if (partnerStatusFilter) {
@@ -185,10 +196,19 @@ export const DesignList = () => {
     }
 
     return data
-  }, [designs, order, partnerStatusFilter, q, statusFilter])
+  }, [designs, order, partnerStatusFilter, q, statusFilter, sourceFilter])
 
   const filters = useMemo<Filter[]>(
     () => [
+      {
+        type: "select",
+        key: "source",
+        label: "Source",
+        options: [
+          { label: "Created by you", value: "owned" },
+          { label: "Assigned by admin", value: "assigned" },
+        ],
+      },
       {
         type: "select",
         key: "partner_status",
@@ -211,6 +231,15 @@ export const DesignList = () => {
         header: () => "Name",
         cell: ({ getValue }) => (
           <span className="font-medium">{getValue() || "-"}</span>
+        ),
+      }),
+      columnHelper.accessor((row) => (row as any)?.owner_partner_id, {
+        id: "source",
+        header: () => "Source",
+        cell: ({ getValue }) => (
+          <Badge size="2xsmall" color={getValue() ? "green" : "grey"}>
+            {getValue() ? "Yours" : "Assigned"}
+          </Badge>
         ),
       }),
       columnHelper.accessor((row) => row?.partner_info?.partner_status, {
