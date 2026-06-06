@@ -1,4 +1,4 @@
-import { Play } from "@medusajs/icons"
+import { PlaySolid } from "@medusajs/icons"
 import { Button, Container, Heading, Text } from "@medusajs/ui"
 import { Link } from "react-router-dom"
 
@@ -27,7 +27,7 @@ export const DesignStartProductionSection = ({ design }: Props) => {
       </div>
       <Link to="production-run-create">
         <Button size="small" variant="secondary">
-          <Play />
+          <PlaySolid />
           Start production
         </Button>
       </Link>
