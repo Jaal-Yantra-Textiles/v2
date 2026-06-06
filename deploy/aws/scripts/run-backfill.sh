@@ -164,6 +164,9 @@ add_env() {
 }
 add_env BATCH                    "${BATCH:-}"
 add_env DRY_RUN                  "${DRY_RUN:-}"
+# repair-stuck-parent-production-runs: force-complete specific (incl.
+# already-cancelled) parents the default stuck-status scan skips.
+add_env FORCE_RUN_IDS            "${FORCE_RUN_IDS:-}"
 # 0A region/fanout backfill knobs — see apps/docs/notes/PLATFORM_0A_RUNBOOK.md.
 add_env REGION_IDS               "${REGION_IDS:-}"
 add_env PARTNER_IDS              "${PARTNER_IDS:-}"
