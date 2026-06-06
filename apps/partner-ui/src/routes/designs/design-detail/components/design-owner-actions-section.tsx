@@ -1,4 +1,4 @@
-import { PencilSquare, PlaySolid, Trash } from "@medusajs/icons"
+import { PencilSquare, PlaySolid, Plus, Trash } from "@medusajs/icons"
 import { Button, Container, Heading, Text, toast, usePrompt } from "@medusajs/ui"
 import { Link, useNavigate } from "react-router-dom"
 
@@ -7,6 +7,9 @@ import {
   PartnerDesign,
   useDeletePartnerDesign,
 } from "../../../../hooks/api/partner-designs"
+import { usePartnerProductionRuns } from "../../../../hooks/api/partner-production-runs"
+
+const TERMINAL_RUN_STATUSES = ["completed", "cancelled"]
 
 type Props = { design: PartnerDesign }
 
@@ -22,9 +25,19 @@ export const DesignOwnerActionsSection = ({ design }: Props) => {
   const prompt = usePrompt()
   const { mutateAsync } = useDeletePartnerDesign(design.id)
 
+  const isOwner = !!(design as any).owner_partner_id
+  const { production_runs = [] } = usePartnerProductionRuns(
+    { design_id: design.id, limit: 50 },
+    { enabled: isOwner }
+  )
+  const activeRuns = production_runs.filter(
+    (r: any) => !TERMINAL_RUN_STATUSES.includes(String(r.status))
+  )
+  const hasActiveRun = activeRuns.length > 0
+
   // Only the owner can manage. Admin-assigned designs have no
   // owner_partner_id and are read-only here.
-  if (!(design as any).owner_partner_id) {
+  if (!isOwner) {
     return null
   }
 
@@ -51,15 +64,19 @@ export const DesignOwnerActionsSection = ({ design }: Props) => {
       <div>
         <Heading level="h2">{design.name || "Your design"}</Heading>
         <Text size="small" className="text-ui-fg-subtle">
-          You created this design. Start production yourself or hand it to a
-          sub-partner.
+          {hasActiveRun
+            ? `${activeRuns.length} run${activeRuns.length > 1 ? "s" : ""} in progress. Start another or hand one to a sub-partner.`
+            : "You created this design. Start production yourself or hand it to a sub-partner."}
         </Text>
       </div>
       <div className="flex items-center gap-x-2">
         <Link to="production-run-create">
-          <Button size="small" variant="primary">
-            <PlaySolid />
-            Start production
+          <Button
+            size="small"
+            variant={hasActiveRun ? "secondary" : "primary"}
+          >
+            {hasActiveRun ? <Plus /> : <PlaySolid />}
+            {hasActiveRun ? "New run" : "Start production"}
           </Button>
         </Link>
         <ActionMenu
