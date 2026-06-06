@@ -80,6 +80,83 @@ export const usePartnerDesignInventory = (
   }
 }
 
+/**
+ * Raw-material catalog (admin-maintained, shared) for the BOM picker.
+ * GET /partners/inventory-items/raw-materials returns link rows
+ * { inventory_item, raw_materials }; we flatten to one row per item.
+ */
+export type PartnerRawMaterialRow = {
+  id: string // inventory_item.id — what gets linked into the BOM
+  sku?: string | null
+  title?: string | null
+  raw_material_name?: string | null
+  composition?: string | null
+  color?: string | null
+  unit_of_measure?: string | null
+  media_url?: string | null
+}
+
+const firstMediaUrl = (media: any): string | null => {
+  if (!media) return null
+  const arr = Array.isArray(media) ? media : [media]
+  for (const m of arr) {
+    if (typeof m === "string") return m
+    if (m && typeof m.url === "string") return m.url
+  }
+  return null
+}
+
+const normalizeRawMaterialRow = (row: any): PartnerRawMaterialRow => {
+  const inv = row?.inventory_item || {}
+  const rm = Array.isArray(row?.raw_materials)
+    ? row.raw_materials[0]
+    : row?.raw_materials || {}
+  return {
+    id: inv.id ?? row?.inventory_item_id,
+    sku: inv.sku ?? null,
+    title: inv.title ?? null,
+    raw_material_name: rm?.name ?? null,
+    composition: rm?.composition ?? null,
+    color: rm?.color ?? null,
+    unit_of_measure: rm?.unit_of_measure ?? null,
+    media_url: firstMediaUrl(rm?.media) ?? firstMediaUrl(inv?.metadata?.media),
+  }
+}
+
+export const usePartnerRawMaterials = (
+  params?: { q?: string; limit?: number; offset?: number },
+  options?: Omit<
+    UseQueryOptions<
+      { inventory_items: any[]; count: number },
+      FetchError,
+      { inventory_items: any[]; count: number },
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: ["partner-raw-materials", params],
+    queryFn: async () => {
+      const search = new URLSearchParams()
+      if (params?.q) search.set("q", params.q)
+      if (params?.limit != null) search.set("limit", String(params.limit))
+      if (params?.offset != null) search.set("offset", String(params.offset))
+      const qs = search.toString()
+      return sdk.client.fetch<{ inventory_items: any[]; count: number }>(
+        `/partners/inventory-items/raw-materials${qs ? `?${qs}` : ""}`,
+        { method: "GET" }
+      )
+    },
+    ...options,
+  })
+  return {
+    raw_materials: (data?.inventory_items ?? []).map(normalizeRawMaterialRow),
+    count: data?.count ?? 0,
+    ...rest,
+  }
+}
+
 export type LinkInventoryItemPayload = {
   inventoryItems: Array<{
     inventoryId: string

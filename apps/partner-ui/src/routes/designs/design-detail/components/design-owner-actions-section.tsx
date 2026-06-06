@@ -1,6 +1,6 @@
-import { PencilSquare, Trash } from "@medusajs/icons"
-import { Container, Heading, Text, toast, usePrompt } from "@medusajs/ui"
-import { useNavigate } from "react-router-dom"
+import { PencilSquare, PlaySolid, Trash } from "@medusajs/icons"
+import { Button, Container, Heading, Text, toast, usePrompt } from "@medusajs/ui"
+import { Link, useNavigate } from "react-router-dom"
 
 import { ActionMenu } from "../../../../components/common/action-menu"
 import {
@@ -11,10 +11,11 @@ import {
 type Props = { design: PartnerDesign }
 
 /**
- * Roadmap #6 Phase 1 — edit/delete actions for a PARTNER-OWNED design.
- * Only rendered when the design carries `owner_partner_id` (i.e. the
- * partner created it via self-serve); admin-assigned designs stay
- * read-only on the partner side.
+ * Roadmap #6 Phase 1/4 — command header for a PARTNER-OWNED design.
+ * Surfaces the primary action (Start production) front-and-center plus
+ * an Edit/Delete menu. Only rendered when the design carries
+ * `owner_partner_id` (the partner created it via self-serve);
+ * admin-assigned designs stay read-only on the partner side.
  */
 export const DesignOwnerActionsSection = ({ design }: Props) => {
   const navigate = useNavigate()
@@ -46,27 +47,34 @@ export const DesignOwnerActionsSection = ({ design }: Props) => {
   }
 
   return (
-    <Container className="flex items-center justify-between px-6 py-4">
+    <Container className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <Heading level="h2">Your design</Heading>
+        <Heading level="h2">{design.name || "Your design"}</Heading>
         <Text size="small" className="text-ui-fg-subtle">
-          You created this design — edit or delete it here.
+          You created this design. Start production yourself or hand it to a
+          sub-partner.
         </Text>
       </div>
-      <ActionMenu
-        groups={[
-          {
-            actions: [
-              { label: "Edit", icon: <PencilSquare />, to: "edit" },
-            ],
-          },
-          {
-            actions: [
-              { label: "Delete", icon: <Trash />, onClick: handleDelete },
-            ],
-          },
-        ]}
-      />
+      <div className="flex items-center gap-x-2">
+        <Link to="production-run-create">
+          <Button size="small" variant="primary">
+            <PlaySolid />
+            Start production
+          </Button>
+        </Link>
+        <ActionMenu
+          groups={[
+            {
+              actions: [{ label: "Edit", icon: <PencilSquare />, to: "edit" }],
+            },
+            {
+              actions: [
+                { label: "Delete", icon: <Trash />, onClick: handleDelete },
+              ],
+            },
+          ]}
+        />
+      </div>
     </Container>
   )
 }

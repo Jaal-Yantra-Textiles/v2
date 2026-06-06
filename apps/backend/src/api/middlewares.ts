@@ -1360,6 +1360,15 @@ export default defineMiddlewares({
       ],
     },
     {
+      // Raw-material catalog picker for the design BOM (roadmap #6).
+      matcher: "/partners/inventory-items/raw-materials",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       matcher: "/partners/inventory-items",
       method: "POST",
       middlewares: [

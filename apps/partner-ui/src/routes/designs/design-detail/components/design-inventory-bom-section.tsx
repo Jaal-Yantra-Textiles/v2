@@ -10,6 +10,8 @@ import {
 } from "@medusajs/ui"
 import { Link } from "react-router-dom"
 
+import { Skeleton } from "../../../../components/common/skeleton"
+
 import { ActionMenu } from "../../../../components/common/action-menu"
 import { PartnerDesign } from "../../../../hooks/api/partner-designs"
 import {
@@ -84,10 +86,16 @@ export const DesignInventoryBomSection = ({ design }: Props) => {
       </div>
 
       {isLoading ? (
-        <div className="px-6 py-4">
-          <Text size="small" className="text-ui-fg-subtle">
-            Loading…
-          </Text>
+        <div className="flex flex-col divide-y">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-x-4 px-6 py-4">
+              <Skeleton className="size-12 rounded-md" />
+              <div className="flex flex-1 flex-col gap-y-2">
+                <Skeleton className="h-4 w-1/3" />
+                <Skeleton className="h-3 w-1/2" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : inventory_items.length === 0 ? (
         <div className="px-6 py-6">

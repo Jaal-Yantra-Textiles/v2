@@ -1,6 +1,7 @@
 import { Container, Heading, Text } from "@medusajs/ui"
 
 import { SectionRow } from "../../../../components/common/section"
+import { Skeleton } from "../../../../components/common/skeleton"
 import { usePartnerRunCostSummary } from "../../../../hooks/api/partner-production-runs"
 
 type Props = { runId: string }
@@ -32,10 +33,16 @@ export const RunCostSummarySection = ({ runId }: Props) => {
       </div>
 
       {isLoading ? (
-        <div className="px-6 py-4">
-          <Text size="small" className="text-ui-fg-subtle">
-            Loading…
-          </Text>
+        <div className="flex flex-col divide-y">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between px-6 py-4"
+            >
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-16" />
+            </div>
+          ))}
         </div>
       ) : !cost_summary ? (
         <div className="px-6 py-4">
