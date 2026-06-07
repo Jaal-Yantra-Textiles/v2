@@ -119,10 +119,10 @@ export const EditRawMaterialForm = ({ rawMaterial }: EditRawMaterialFormProps) =
   const { id: inventoryId } = useParams();
   const [searchQuery, setSearchQuery] = useState("");
   
-  // Fetch material type categories when search query is at least 3 characters
-  const { categories = [] } = useRawMaterialCategories(
-    searchQuery.length >= 3 ? { name: searchQuery } : { name: "" }
-  );
+  // Fetch all material-type categories once; the CategorySearch combobox
+  // filters them client-side (the endpoint's `name` filter is unreliable
+  // and the query key is static — see roadmap bug #1).
+  const { categories = [] } = useRawMaterialCategories({ limit: 100 });
 
   const { mutateAsync, isPending } = useUpdateRawMaterial(inventoryId!, rawMaterial.id, {});
 

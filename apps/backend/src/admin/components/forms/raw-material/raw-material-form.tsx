@@ -49,10 +49,13 @@ export const RawMaterialForm = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   
-  // Fetch material type categories when search query is at least 3 characters
-  const { categories: materialCategories = [] } = useRawMaterialCategories(
-    searchQuery.length >= 3 ? { name: searchQuery } : { name: "" }
-  );
+  // Fetch all material-type categories once; the CategorySearch combobox
+  // filters them client-side. (The endpoint's `name` filter returns
+  // nothing for empty/partial values, and the query key is static, so a
+  // server-side search never populated results — see roadmap bug #1.)
+  const { categories: materialCategories = [] } = useRawMaterialCategories({
+    limit: 100,
+  });
   
   const form = useForm<RawMaterialFormType>({
     resolver: zodResolver(rawMaterialFormSchema),

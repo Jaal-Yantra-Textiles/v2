@@ -300,7 +300,10 @@ export const useRawMaterialCategories = (
   >,
 ) => {
   const { data, ...rest } = useQuery({
-    queryKey: inventoryItemsRawMaterialQueryKeys.lists(),
+    // Include params in the key — a static key meant changing the search
+    // term never refetched, so server-side category search silently
+    // returned stale results (part of roadmap bug #1).
+    queryKey: [...inventoryItemsRawMaterialQueryKeys.lists(), params],
     queryFn: async () =>
       sdk.client.fetch<RawMaterialCategoriesResponse>(
         `/admin/categories/rawmaterials`,

@@ -16,6 +16,10 @@ export interface AdminPartner {
   status: 'active' | 'inactive' | 'pending';
   is_verified: boolean;
   metadata?: any;
+  // True when the partner has a reachable WhatsApp recipient — a verified
+  // whatsapp_number or at least one active admin with a phone. When false,
+  // production-run notifications can't reach the partner directly.
+  has_whatsapp_contact?: boolean;
   created_at: string;
   updated_at: string;
 }

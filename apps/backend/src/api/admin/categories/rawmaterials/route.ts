@@ -119,16 +119,27 @@ export const GET = async (
   res: MedusaResponse
 ) => {
   try {
-    // Extract validated query parameters 
-    const { filters = {}, config = {}, page = 1, limit = 10 } = req.validatedQuery;
+    // Extract validated query parameters
+    const { filters = {}, config = {}, page = 1, limit = 10, q, name, offset } =
+      req.validatedQuery;
 
-    // Transform pagination params to match the workflow input format
-    const skip = (page - 1) * limit;
-    
+    // Merge the convenience top-level search params into the filters the
+    // workflow understands (it normalizes name/q into an ilike match).
+    const mergedFilters: Record<string, any> = { ...filters };
+    if (q) {
+      mergedFilters.q = q;
+    }
+    if (name) {
+      mergedFilters.name = name;
+    }
+
+    // Offset-based pagination wins when supplied; otherwise derive from page.
+    const skip = typeof offset === "number" ? offset : (page - 1) * limit;
+
     // Call the workflow with properly formatted input
     const { result, errors } = await listRawMaterialCategoriesWorkflow(req.scope).run({
       input: {
-        filters,
+        filters: mergedFilters,
         config: {
           ...config,
           skip,

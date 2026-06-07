@@ -134,27 +134,64 @@ export const GET = async (
     filters.is_verified = validatedQuery.is_verified === 'true'
   }
 
+  // We always need the WhatsApp-resolution fields so we can surface a
+  // `has_whatsapp_contact` flag (the response shape below is fixed
+  // regardless of caller `fields`, so augmenting the fetch is safe).
+  const baseFields = [
+    "id",
+    "name",
+    "handle",
+    "logo",
+    "status",
+    "is_verified",
+    "metadata",
+    "created_at",
+    "updated_at",
+  ]
+  const whatsappFields = [
+    "whatsapp_number",
+    "whatsapp_verified",
+    "admins.phone",
+    "admins.is_active",
+  ]
+  const fields = Array.from(
+    new Set([...(validatedQuery.fields ?? baseFields), ...whatsappFields])
+  )
+
   const { result } = await listPartnersWorkflow(req.scope).run({
     input: {
       filters,
-      fields: validatedQuery.fields,
+      fields,
       offset: validatedQuery.offset,
       limit: validatedQuery.limit,
     },
   })
 
-  const partners = result.data.map((item: any) => ({
-    id: item.id,
-    partner_id: item.id,
-    name: item.name,
-    handle: item.handle,
-    logo: item.logo,
-    status: item.status,
-    is_verified: item.is_verified,
-    metadata: item.metadata,
-    created_at: item.created_at,
-    updated_at: item.updated_at,
-  }))
+  const partners = result.data.map((item: any) => {
+    // Mirror the WhatsApp recipient resolution in
+    // seed-partner-run-whatsapp-flow.ts: a verified whatsapp_number
+    // wins, otherwise the first active admin with a phone. If neither
+    // resolves, production-run notifications can't reach the partner
+    // directly — the admin UI warns when assigning such a partner.
+    const hasVerifiedNumber = !!(item.whatsapp_number && item.whatsapp_verified)
+    const hasActiveAdminPhone =
+      Array.isArray(item.admins) &&
+      item.admins.some((a: any) => a && a.is_active && a.phone)
+
+    return {
+      id: item.id,
+      partner_id: item.id,
+      name: item.name,
+      handle: item.handle,
+      logo: item.logo,
+      status: item.status,
+      is_verified: item.is_verified,
+      metadata: item.metadata,
+      has_whatsapp_contact: hasVerifiedNumber || hasActiveAdminPhone,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
+    }
+  })
 
   return res.json({
     partners,

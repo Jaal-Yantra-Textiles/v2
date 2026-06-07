@@ -1,5 +1,13 @@
 # Platform Roadmap — Open Backlog (captured 2026-05-26)
 
+> **GitHub task list (added 2026-06-06):** the open items below are now
+> mirrored as GitHub issues for day-to-day tracking. Umbrella tracker:
+> [#352 — Platform Backlog](https://github.com/Jaal-Yantra-Textiles/v2/issues/352).
+> Pull the whole set down with `gh issue list --label roadmap --limit 50`.
+> Issue titles carry the `[#N]` roadmap number so the two stay in sync;
+> this doc remains the narrative source-of-truth (the *why* + the
+> closed-out history), GitHub holds the actionable checklist.
+
 > Working order for the next stretch of platform work. Top section is
 > the region-sharing gap discovered while debugging GOF's storefront
 > serving AU customers. Lower section is the open backlog to walk
@@ -99,6 +107,44 @@ captured list; ordering inside this doc is just for readability.
 
 #### 1. Category dropdown in "Add Raw Material" UI
 
+**Status: FIXED 2026-06-07 (Playwright-verified).** Root cause: the
+category field is the custom `CategorySearch` component, not a Medusa
+combobox. Its results dropdown was an `absolute`-positioned `<div>`
+inside the scrollable `RouteFocusModal` body, so it was clipped by the
+overflow ancestor. **A deeper bug surfaced while fixing it:** existing
+categories never loaded at all — the form fetched
+`/admin/categories/rawmaterials` with `{name:""}` (and `{name:q}` while
+typing), but that endpoint's `name` filter returns nothing for
+empty/partial values, and the hook's query key is static so it never
+refetched. The picker only ever worked for *creating* new categories.
+
+Final fix (chose the proper component over a portal band-aid, per
+"mirror Medusa, don't invent"): ported Medusa's ariakit `Combobox`
+(`components/inputs/combobox/combobox.tsx` + a `generic-forward-ref`
+util) from partner-ui into the admin, and rewrote `CategorySearch` to
+use it. The ariakit popover is portaled and flips/repositions on
+overflow (no clipping), and its `onCreateOption` preserves the
+type-to-create-new-category behaviour. Both call sites
+(`raw-material-form.tsx`, `edit-raw-material.tsx`) now fetch **all**
+categories once (`{limit:100}`, no broken `name` filter) and let the
+combobox filter client-side via `matchSorter`. Placeholder also got a
+default so the raw `common.searchOrCreateCategory` i18n key stops
+showing. Verified in the running admin via Playwright: existing
+categories load + filter (`cotton`/`Cotton`), dropdown renders
+unclipped over the modal, select-existing and create-new both work.
+
+**Server-side follow-up (2026-06-07):** also fixed the underlying
+endpoint so partial search works for any consumer, not just the
+client-side workaround. `GET /admin/categories/rawmaterials` now accepts
+`q` (canonical) and `name` search params and an `offset`; the list
+workflow normalizes the term to an ilike `$or` across name + description
+(mirroring the designs list workflow) instead of the broken exact-match
+`name` filter. The admin hook's React Query key now includes the params
+(it was static, so search terms never refetched). Test:
+`integration-tests/http/raw-material-categories-search.spec.ts` (partial
++ case-insensitive match, non-match → empty), green; live-verified
+`?q=cot`/`?name=cot` → 2, `?q=goog` → 1, no-param → all.
+
 The dropdown doesn't render cleanly — likely a portal / overflow /
 z-index issue (same family as the FX badge bug from this morning).
 **First step:** reproduce in admin, screenshot the broken state, grep
@@ -116,6 +162,19 @@ first, port to drawer.
 **Effort:** ~half day per route once the pattern's in place.
 
 #### 3. Analytics submenu missing for some partners in partner-ui
+
+**Status: FIXED 2026-06-06.** Not a data/backfill issue — the nav was
+gated on `workspace_type` in `useCoreRoutes`
+(`apps/partner-ui/src/components/layout/main-layout/main-layout.tsx`).
+The `seller` branch's Web Store menu listed content + theme +
+**analytics**; the `manufacturer` (default) branch's Web Store menu
+listed only content + theme — analytics was omitted even though both
+partner types get a Web Store and `/webstore/analytics` is registered
+unconditionally in the route map (`get-partner-route.map.tsx:871`).
+Decision (user, 2026-06-06): Analytics is a standard Web Store feature
+→ show it for any Web Store partner. Fix: added the analytics nav item
+to the manufacturer branch's Web Store `items`. Route was already
+reachable, so no 404 risk.
 
 The Analytics submenu appears for some partner accounts and not
 others. Suspect: gated on `partner.workspace_type` or on a feature
@@ -228,6 +287,16 @@ import), restore or re-link.
 
 #### 25. Partner assignment on design production runs — diagnosed 2026-06-03
 
+**Status: 25a + 25b + 25c SHIPPED & MERGED to main (verified 2026-06-06).**
+Commits: `66c4eea78` (25a, `.nullish()` on both validators), the
+`hasPerAssignmentTemplates` guard in the design production-run drawer
+(25b), and `68d0a8902` → `93ab12772` → `06786c30a` (25c header
+forwarding + a hardened reachable IMAGE-header fallback to dodge Meta
+error 132012). **Re-seed of the prod flow still required** — delete
+`vflow_01KQ9RSZ1TFMB7MQ0Y64P4E98Y` and re-run
+`seed-partner-run-whatsapp-flow.ts` (see 25c below). 25d remains a
+deferred follow-up.
+
 Reported against prod run `01KPET5HBGNH9QXGC0MC8RHR39`. Investigation
 reproduced the validator error on design `01JQ4H4JKX4TMXJZ3GH9TA02MT`
 (test partner Saransh Sharma) and surfaced **three** related bugs, not
@@ -277,14 +346,26 @@ change is needed. **Re-seed required in prod** after merge —
 delete the existing flow `vflow_01KQ9RSZ1TFMB7MQ0Y64P4E98Y` and
 re-run `npx medusa exec ./src/scripts/seed-partner-run-whatsapp-flow.ts`.
 
-**25d — Partner profile missing whatsapp_phone_number** (DEFERRED,
-SEPARATE TRACK). Saransh's partner profile has no `phone` /
+**25d — Partner profile missing whatsapp_phone_number** (FIXED
+2026-06-06, GitHub #335). Saransh's partner profile has no `phone` /
 `whatsapp_phone` / `whatsapp_phone_number` on any field — but the
 seed's resolve_template falls back to the first active admin's
 `phone` (which prod payload showed populated), so partner-side
-WhatsApp does have a phone target. Just worth surfacing a clear
-admin warning when assigning a partner without a primary WA contact.
-Out of scope for the bug 25 PR.
+WhatsApp does have a phone target. We now surface a clear admin
+warning when assigning a partner without a reachable WA contact:
+- `GET /admin/persons/partner` computes a `has_whatsapp_contact`
+  boolean per partner, mirroring the seed's resolution priority
+  exactly (verified `whatsapp_number`, else any active admin with a
+  `phone`). The list endpoint now fetches `whatsapp_number`,
+  `whatsapp_verified`, `admins.phone`, `admins.is_active` for the
+  computation (response shape was already fixed, so additive).
+- `AdminPartner` hook type gains the optional `has_whatsapp_contact`.
+- The design production-run assignment modal
+  (`designs/[id]/@production-run/page.tsx`) shows an orange
+  `ExclamationCircle` warning under the partner select when the chosen
+  partner's `has_whatsapp_contact === false`. Non-blocking.
+- Test: `integration-tests/http/partner-has-whatsapp-contact.spec.ts`
+  (2 tests — admin-with-phone → true, no-phone → false), green.
 
 **Effort:** 25a + 25b + 25c shipping in this PR. 25d is a small
 follow-up admin affordance.
