@@ -1,14 +1,14 @@
 import { LoaderFunctionArgs, UIMatch, useLoaderData, useParams } from "react-router-dom";
 import { AdminDesignResponse, useDesign } from "../../../hooks/api/designs";
 import { DesignGeneralSection } from "../../../components/designs/design-general-section";
-import { DesignPartnerSection } from "../../../components/designs/design-partner-section";
-import { DesignTasksSection } from "../../../components/designs/design-tasks-section";
+import { DesignPartnerSummary } from "../../../components/designs/design-partner-summary";
+import { DesignTasksSummary } from "../../../components/designs/design-tasks-summary";
 import { DesignMediaSection } from "../../../components/designs/design-media-section";
 import { DesignMediaFolderSection } from "../../../components/designs/design-media-folder-section";
 import { DesignInventorySection } from "../../../components/designs/design-inventory-section";
 import { DesignConsumptionLogsSection } from "../../../components/designs/design-consumption-logs-section";
 import { DesignAttributesSection } from "../../../components/designs/design-attributes-section";
-import { DesignProductionRunsSection } from "../../../components/designs/design-production-runs-section";
+import { DesignProductionRunsSummary } from "../../../components/designs/design-production-runs-summary";
 import { DesignComponentsSection } from "../../../components/designs/design-components-section";
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton";
 import { TwoColumnPage } from "../../../components/pages/two-column-pages";
@@ -69,9 +69,9 @@ const DesignDetailPage = () => {
       >
         <TwoColumnPage.Main>
           <DesignGeneralSection design={design} />
-          <DesignProductionRunsSection design={design} />
-          <DesignTasksSection design={design} />
-          <DesignPartnerSection design={design} />
+          <DesignProductionRunsSummary design={design} />
+          <DesignTasksSummary design={design} />
+          <DesignPartnerSummary design={design} />
           <DesignInventorySection design={design} />
           <DesignConsumptionLogsSection design={design} />
         </TwoColumnPage.Main>
