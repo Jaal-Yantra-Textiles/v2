@@ -1,8 +1,8 @@
 import { LoaderFunctionArgs, UIMatch, useLoaderData, useParams } from "react-router-dom";
 import { AdminDesignResponse, useDesign } from "../../../hooks/api/designs";
 import { DesignGeneralSection } from "../../../components/designs/design-general-section";
-import { DesignPartnerSection } from "../../../components/designs/design-partner-section";
-import { DesignTasksSection } from "../../../components/designs/design-tasks-section";
+import { DesignPartnerSummary } from "../../../components/designs/design-partner-summary";
+import { DesignTasksSummary } from "../../../components/designs/design-tasks-summary";
 import { DesignMediaSection } from "../../../components/designs/design-media-section";
 import { DesignMediaFolderSection } from "../../../components/designs/design-media-folder-section";
 import { DesignInventorySection } from "../../../components/designs/design-inventory-section";
@@ -70,8 +70,8 @@ const DesignDetailPage = () => {
         <TwoColumnPage.Main>
           <DesignGeneralSection design={design} />
           <DesignProductionRunsSummary design={design} />
-          <DesignTasksSection design={design} />
-          <DesignPartnerSection design={design} />
+          <DesignTasksSummary design={design} />
+          <DesignPartnerSummary design={design} />
           <DesignInventorySection design={design} />
           <DesignConsumptionLogsSection design={design} />
         </TwoColumnPage.Main>
