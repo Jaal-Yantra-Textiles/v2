@@ -155,14 +155,23 @@ Combobox vs a custom select.
 #### 2. Replace inline editing with Medusa standards across admin
 
 **Status: IN PROGRESS (GitHub #330).** Inventory of 8 inline-edit
-offenders captured on the issue, ranked worst-first. First route ported
-as the pattern-setter (2026-06-07): the admin **Material Usage**
-section's "Log" form (`design-consumption-logs-section.tsx`) moved from
-an in-card inline panel to a Medusa side `Drawer` (mirrors the existing
-bulk-* drawers). Same logic, now a proper right-side drawer; when the
-design has no linked inventory it shows a "No inventory linked yet"
-empty state with just a Close button (no dead form). Playwright-verified
-both states in the running admin. Remaining offenders (partner-ui
+offenders captured on the issue, ranked worst-first. Routes ported so
+far (2026-06-07, all Playwright-verified in the running admin):
+
+1. Admin **Material Usage** "Log" form
+   (`design-consumption-logs-section.tsx`) — moved from an in-card
+   inline panel to a Medusa side `Drawer`; when the design has no linked
+   inventory it shows a "No inventory linked yet" empty state with just a
+   Close button (no dead form).
+2. Admin **Partner → General** section
+   (`partner-general-section.tsx`) — was an always-editable inline form
+   with a dirty-gated Save. Now a read-only key/value display
+   (Name/Handle/Workspace Type/Logo URL + status & Verified badges) with
+   an **Edit** action in the section menu that opens a `Drawer` with the
+   form. Header badges read the persisted `partner` values so the read
+   view only reflects saved state.
+
+Both mirror the existing bulk-* drawers. Remaining offenders (partner-ui
 consumption-logs twin, design-production-section's 4 inline forms,
 energy-rate detail, reconciliation, order pickup, whatsapp templates)
 follow the same recipe.

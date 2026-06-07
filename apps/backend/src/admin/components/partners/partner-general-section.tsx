@@ -1,5 +1,5 @@
-import { Badge, Button, Container, Heading, Input, Label, Select, Switch, Text, toast, usePrompt } from "@medusajs/ui"
-import { ChatBubbleLeftRight, Trash } from "@medusajs/icons"
+import { Badge, Button, Container, Drawer, Heading, Input, Label, Select, Switch, Text, toast, usePrompt } from "@medusajs/ui"
+import { ChatBubbleLeftRight, PencilSquare, Trash } from "@medusajs/icons"
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useUpdatePartner, useDeletePartner } from "../../hooks/api/partners-admin"
@@ -33,6 +33,7 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
   const [workspaceType, setWorkspaceType] = useState<"seller" | "manufacturer" | "individual">(
     partner.workspace_type || "manufacturer"
   )
+  const [showEdit, setShowEdit] = useState(false)
 
   const { mutateAsync: updatePartner, isPending } = useUpdatePartner()
   const { mutateAsync: deletePartner } = useDeletePartner(partner.id)
@@ -100,6 +101,22 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
     )
   }, [name, handle, logo, status, isVerified, workspaceType, partner.name, partner.handle, partner.logo, partner.status, partner.is_verified, partner.workspace_type])
 
+  const resetFields = () => {
+    setName(partner.name)
+    setHandle(partner.handle)
+    setLogo(partner.logo || "")
+    setStatus(partner.status)
+    setIsVerified(!!partner.is_verified)
+    setWorkspaceType(partner.workspace_type || "manufacturer")
+  }
+
+  const handleEditOpenChange = (open: boolean) => {
+    if (!open) {
+      resetFields()
+    }
+    setShowEdit(open)
+  }
+
   const onSave = async () => {
     try {
       await updatePartner({
@@ -107,9 +124,16 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
         data: { name, handle, logo: logo || null, status, is_verified: isVerified, workspace_type: workspaceType },
       })
       toast.success("Partner updated", { description: "Your changes have been saved." })
+      setShowEdit(false)
     } catch (e: any) {
       toast.error("Update failed", { description: e?.message || "Could not update partner" })
     }
+  }
+
+  const workspaceLabel: Record<string, string> = {
+    seller: "Seller",
+    manufacturer: "Manufacturer",
+    individual: "Individual",
   }
 
   const onSavePersonTypes = async () => {
@@ -141,12 +165,17 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
           <Text size="small" className="text-ui-fg-subtle">Basic information for this partner</Text>
         </div>
         <div className="flex items-center gap-2">
-          <Badge color={status === "active" ? "green" : status === "pending" ? "orange" : "grey"}>{status}</Badge>
-          {isVerified ? <Badge color="green">Verified</Badge> : <Badge>Verified</Badge>}
+          <Badge color={partner.status === "active" ? "green" : partner.status === "pending" ? "orange" : "grey"}>{partner.status}</Badge>
+          {partner.is_verified ? <Badge color="green">Verified</Badge> : <Badge>Verified</Badge>}
           <ActionMenu
             groups={[
               {
                 actions: [
+                  {
+                    label: "Edit",
+                    icon: <PencilSquare />,
+                    onClick: () => setShowEdit(true),
+                  },
                   {
                     label: "Add Feedback",
                     icon: <ChatBubbleLeftRight />,
@@ -168,58 +197,93 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
         </div>
       </div>
 
-      <div className="px-6 py-4 space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
-            <Label size="small">Name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div>
-            <Label size="small">Handle</Label>
-            <Input value={handle} onChange={(e) => setHandle(e.target.value)} />
-          </div>
-          <div>
-            <Label size="small">Logo URL</Label>
-            <Input value={logo} onChange={(e) => setLogo(e.target.value)} placeholder="https://..." />
-          </div>
-          <div>
-            <Label size="small">Status</Label>
-            <Select value={status} onValueChange={(v: string) => setStatus(v as any)}>
-              <Select.Trigger>
-                <Select.Value placeholder="Select status" />
-              </Select.Trigger>
-              <Select.Content>
-                <Select.Item value="active">Active</Select.Item>
-                <Select.Item value="inactive">Inactive</Select.Item>
-                <Select.Item value="pending">Pending</Select.Item>
-              </Select.Content>
-            </Select>
-          </div>
-          <div className="flex items-end gap-2">
-            <Switch checked={isVerified} onCheckedChange={setIsVerified} />
-            <Label size="small">Verified</Label>
-          </div>
-          <div>
-            <Label size="small">Workspace Type</Label>
-            <Select value={workspaceType} onValueChange={(v: string) => setWorkspaceType(v as any)}>
-              <Select.Trigger>
-                <Select.Value placeholder="Select workspace type" />
-              </Select.Trigger>
-              <Select.Content>
-                <Select.Item value="seller">Seller</Select.Item>
-                <Select.Item value="manufacturer">Manufacturer</Select.Item>
-                <Select.Item value="individual">Individual</Select.Item>
-              </Select.Content>
-            </Select>
-          </div>
+      {/* Read-only display — edit happens in the drawer (roadmap #2) */}
+      <div className="text-ui-fg-subtle grid grid-cols-2 gap-x-4">
+        <div className="flex items-center justify-between gap-x-2 px-6 py-3 border-b col-span-2">
+          <Text size="small" leading="compact" weight="plus">Name</Text>
+          <Text size="small" leading="compact" className="text-ui-fg-base">{partner.name}</Text>
         </div>
-
-        <div className="flex justify-end">
-          <Button size="small" onClick={onSave} disabled={!isDirty || isPending} variant={isDirty ? "primary" : "secondary"}>
-            Save
-          </Button>
+        <div className="flex items-center justify-between gap-x-2 px-6 py-3 border-b">
+          <Text size="small" leading="compact" weight="plus">Handle</Text>
+          <Text size="small" leading="compact" className="text-ui-fg-base">{partner.handle}</Text>
+        </div>
+        <div className="flex items-center justify-between gap-x-2 px-6 py-3 border-b">
+          <Text size="small" leading="compact" weight="plus">Workspace Type</Text>
+          <Text size="small" leading="compact" className="text-ui-fg-base">
+            {workspaceLabel[partner.workspace_type || "manufacturer"]}
+          </Text>
+        </div>
+        <div className="flex items-center justify-between gap-x-2 px-6 py-3 col-span-2">
+          <Text size="small" leading="compact" weight="plus">Logo URL</Text>
+          <Text size="small" leading="compact" className="text-ui-fg-base truncate max-w-[60%] text-right">
+            {partner.logo || "—"}
+          </Text>
         </div>
       </div>
+
+      {/* Edit drawer */}
+      <Drawer open={showEdit} onOpenChange={handleEditOpenChange}>
+        <Drawer.Content>
+          <Drawer.Header>
+            <Drawer.Title>Edit Partner</Drawer.Title>
+            <Drawer.Description>Update this partner's basic information.</Drawer.Description>
+          </Drawer.Header>
+          <Drawer.Body className="flex flex-col gap-y-4 overflow-y-auto">
+            <div>
+              <Label size="small">Name</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label size="small">Handle</Label>
+                <Input value={handle} onChange={(e) => setHandle(e.target.value)} />
+              </div>
+              <div>
+                <Label size="small">Status</Label>
+                <Select value={status} onValueChange={(v: string) => setStatus(v as any)}>
+                  <Select.Trigger>
+                    <Select.Value placeholder="Select status" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    <Select.Item value="active">Active</Select.Item>
+                    <Select.Item value="inactive">Inactive</Select.Item>
+                    <Select.Item value="pending">Pending</Select.Item>
+                  </Select.Content>
+                </Select>
+              </div>
+              <div>
+                <Label size="small">Workspace Type</Label>
+                <Select value={workspaceType} onValueChange={(v: string) => setWorkspaceType(v as any)}>
+                  <Select.Trigger>
+                    <Select.Value placeholder="Select workspace type" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    <Select.Item value="seller">Seller</Select.Item>
+                    <Select.Item value="manufacturer">Manufacturer</Select.Item>
+                    <Select.Item value="individual">Individual</Select.Item>
+                  </Select.Content>
+                </Select>
+              </div>
+              <div className="flex items-end gap-2">
+                <Switch checked={isVerified} onCheckedChange={setIsVerified} />
+                <Label size="small">Verified</Label>
+              </div>
+            </div>
+            <div>
+              <Label size="small">Logo URL</Label>
+              <Input value={logo} onChange={(e) => setLogo(e.target.value)} placeholder="https://..." />
+            </div>
+          </Drawer.Body>
+          <Drawer.Footer>
+            <Button size="small" variant="secondary" onClick={() => handleEditOpenChange(false)} disabled={isPending}>
+              Cancel
+            </Button>
+            <Button size="small" onClick={onSave} disabled={!isDirty || isPending} isLoading={isPending}>
+              Save
+            </Button>
+          </Drawer.Footer>
+        </Drawer.Content>
+      </Drawer>
 
       {workspaceType === "individual" && (
         <div className="px-6 py-4 space-y-3">
