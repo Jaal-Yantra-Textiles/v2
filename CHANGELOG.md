@@ -1,3 +1,24 @@
+# [13.26.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.25.0...v13.26.0) (2026-06-07)
+
+
+### Bug Fixes
+
+* **partner:** cancelled assignment no longer pins a re-assigned design to 'cancelled' ([a8912e7](https://github.com/Jaal-Yantra-Textiles/v2/commit/a8912e71b92e15feb2b13817900684f472f9d93a))
+* cancelling a partner assignment also cancels the partner's active runs ([700615c](https://github.com/Jaal-Yantra-Textiles/v2/commit/700615c6d2bb8c4c5840623c542be9345c34e3e6))
+* **partner-ui:** convert 3 inline-edit forms to side drawers ([#330](https://github.com/Jaal-Yantra-Textiles/v2/issues/330)) ([6b59e06](https://github.com/Jaal-Yantra-Textiles/v2/commit/6b59e06acb940187c32ef5f47cb8b0aa8b23540e)), closes [#2](https://github.com/Jaal-Yantra-Textiles/v2/issues/2)
+* **admin:** convert 3 more inline-edit forms to drawers ([#330](https://github.com/Jaal-Yantra-Textiles/v2/issues/330)) ([524e22b](https://github.com/Jaal-Yantra-Textiles/v2/commit/524e22b4db8dfd8e41d573cde63e4145418f95e6)), closes [#2](https://github.com/Jaal-Yantra-Textiles/v2/issues/2)
+* **partner-ui:** design-production-section finish/complete → drawer + focus modal ([#330](https://github.com/Jaal-Yantra-Textiles/v2/issues/330)) ([459f9a3](https://github.com/Jaal-Yantra-Textiles/v2/commit/459f9a380029eaf9c001df3faaecd4030f39cd25)), closes [#2](https://github.com/Jaal-Yantra-Textiles/v2/issues/2)
+* **admin:** drop duplicate header in external-platform edit drawer ([731ffd8](https://github.com/Jaal-Yantra-Textiles/v2/commit/731ffd8e34012d16774b7ea9f4d42f37a196fc3a)), closes [#2](https://github.com/Jaal-Yantra-Textiles/v2/issues/2)
+* **admin:** partner General section → read view + edit drawer ([#330](https://github.com/Jaal-Yantra-Textiles/v2/issues/330)) ([bf43445](https://github.com/Jaal-Yantra-Textiles/v2/commit/bf43445cbc3fc521908cf78a579e0b43f067dabb)), closes [#2](https://github.com/Jaal-Yantra-Textiles/v2/issues/2)
+* **admin:** port Material Usage log form to a side drawer ([#330](https://github.com/Jaal-Yantra-Textiles/v2/issues/330)) ([35182d8](https://github.com/Jaal-Yantra-Textiles/v2/commit/35182d84fed44ed7f6304d64c5fe3ee4a188d5b4)), closes [#2](https://github.com/Jaal-Yantra-Textiles/v2/issues/2)
+* **partner-ui:** remove Design ID row from design General section ([84225c7](https://github.com/Jaal-Yantra-Textiles/v2/commit/84225c781133fbfa4e389a79720d3438651d7c71))
+
+
+### Features
+
+* **admin:** design-detail production-runs summary card + nested page ([#8](https://github.com/Jaal-Yantra-Textiles/v2/issues/8)) ([3e52886](https://github.com/Jaal-Yantra-Textiles/v2/commit/3e5288646d5c9b9ba39e3c34759eb3cfc5c0879e))
+* **admin:** design-detail Tasks + Partners summary cards + nested pages ([#8](https://github.com/Jaal-Yantra-Textiles/v2/issues/8)) ([1d632ee](https://github.com/Jaal-Yantra-Textiles/v2/commit/1d632eedf5eeefe1b4765362eb6a13f0bb3f23f3))
+
 # [13.25.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.24.0...v13.25.0) (2026-06-07)
 
 
