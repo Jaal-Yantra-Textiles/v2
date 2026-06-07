@@ -235,7 +235,7 @@ export async function GET(
         partner_id: partner.id,
         status: { $nin: ["cancelled"] },
       },
-      fields: ["id", "design_id", "status", "accepted_at", "started_at", "finished_at", "completed_at"],
+      fields: ["id", "design_id", "status", "accepted_at", "started_at", "finished_at", "completed_at", "created_at"],
       pagination: { skip: 0, take: 200 },
     }, { locale: req.locale })
     partnerRuns = runs || []
@@ -310,7 +310,16 @@ export async function GET(
       .filter((r: any) => r.design_id === design.id)
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     const activeRun = runsForDesign.find((r: any) => !["completed", "cancelled"].includes(r.status)) || runsForDesign[0]
-    if (activeRun) {
+    // A run only supersedes a cancellation marker if it was created after
+    // the cancellation (a genuine re-assignment) — mirrors the detail
+    // endpoint. Runs predating the cancel must not resurrect the design.
+    const cancelledAt = design?.metadata?.partner_assignment_cancelled_at as string | undefined
+    const runSupersedesCancel =
+      !wasCancelled ||
+      (!!activeRun?.created_at &&
+        !!cancelledAt &&
+        new Date(activeRun.created_at).getTime() > new Date(cancelledAt).getTime())
+    if (activeRun && runSupersedesCancel) {
       const runStatus = String(activeRun.status)
       if (runStatus === "sent_to_partner") {
         partnerStatus = "assigned"

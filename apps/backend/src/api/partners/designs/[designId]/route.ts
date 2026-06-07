@@ -169,11 +169,8 @@ export const GET = async (
   })
 
   const designMeta = (workflowDesign as any)?.metadata || (linkData.design as any)?.metadata || {}
-  const wasCancelled = !!designMeta.partner_assignment_cancelled_at
+  const cancelledAt = designMeta.partner_assignment_cancelled_at as string | undefined
 
-  // Primary source: production runs (the single system post-v1 migration)
-  let partner_status: "incoming" | "assigned" | "in_progress" | "awaiting_review" | "finished" | "completed" | "cancelled" =
-    wasCancelled ? "cancelled" : "incoming"
   let partner_phase: "redo" | null = null
   let partner_started_at: string | null = null
   let partner_finished_at: string | null = null
@@ -190,10 +187,28 @@ export const GET = async (
       partner_id: partner.id,
       status: { $nin: ["cancelled"] },
     },
-    fields: ["id", "status", "accepted_at", "started_at", "finished_at", "completed_at"],
+    fields: ["id", "status", "accepted_at", "started_at", "finished_at", "completed_at", "created_at"],
     pagination: { skip: 0, take: 10 },
   })
   const allRuns = (runs || []) as any[]
+
+  // A stale cancellation marker should not pin the status to "cancelled"
+  // once the partner has been re-assigned. If any non-cancelled run was
+  // created after the cancellation timestamp, treat the cancellation as
+  // superseded (the new run is the source of truth). Newly-approved runs
+  // also clear the marker outright in approveProductionRunWorkflow; this
+  // read-time guard self-heals designs cancelled before that fix landed.
+  const supersededByNewerRun =
+    !!cancelledAt &&
+    allRuns.some(
+      (r) => r?.created_at && new Date(r.created_at).getTime() > new Date(cancelledAt).getTime()
+    )
+  const wasCancelled = !!cancelledAt && !supersededByNewerRun
+
+  // Primary source: production runs (the single system post-v1 migration)
+  let partner_status: "incoming" | "assigned" | "in_progress" | "awaiting_review" | "finished" | "completed" | "cancelled" =
+    wasCancelled ? "cancelled" : "incoming"
+
   // Prefer an active run over a completed one
   const activeRun =
     allRuns.find((r) => ["in_progress", "sent_to_partner", "approved", "pending_review"].includes(String(r.status))) ||
