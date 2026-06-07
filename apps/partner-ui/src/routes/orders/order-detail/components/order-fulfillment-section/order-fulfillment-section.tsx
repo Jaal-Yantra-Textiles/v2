@@ -10,6 +10,7 @@ import {
   Button,
   Container,
   Copy,
+  Drawer,
   Heading,
   Input,
   Label,
@@ -572,30 +573,45 @@ const Fulfillment = ({
         </div>
       )}
 
-      {/* Pickup scheduling form */}
-      {showPickupForm && (
-        <div className="px-6 py-4 space-y-3">
-          <div className="grid grid-cols-2 gap-x-4">
-            <div>
-              <Label size="xsmall">Pickup Date</Label>
-              <Input
-                type="date"
-                value={pickupDate}
-                onChange={(e) => setPickupDate(e.target.value)}
-                size="small"
-              />
+      {/* Pickup scheduling — Medusa side drawer */}
+      <Drawer open={showPickupForm} onOpenChange={setShowPickupForm}>
+        <Drawer.Content>
+          <Drawer.Header>
+            <Drawer.Title>Schedule Pickup</Drawer.Title>
+            <Drawer.Description>
+              Choose when the carrier should collect this fulfillment.
+            </Drawer.Description>
+          </Drawer.Header>
+          <Drawer.Body className="flex flex-col gap-y-4 overflow-y-auto">
+            <div className="grid grid-cols-2 gap-x-4">
+              <div>
+                <Label size="xsmall">Pickup Date</Label>
+                <Input
+                  type="date"
+                  value={pickupDate}
+                  onChange={(e) => setPickupDate(e.target.value)}
+                  size="small"
+                />
+              </div>
+              <div>
+                <Label size="xsmall">Pickup Time</Label>
+                <Input
+                  type="time"
+                  value={pickupTime}
+                  onChange={(e) => setPickupTime(e.target.value)}
+                  size="small"
+                />
+              </div>
             </div>
-            <div>
-              <Label size="xsmall">Pickup Time</Label>
-              <Input
-                type="time"
-                value={pickupTime}
-                onChange={(e) => setPickupTime(e.target.value)}
-                size="small"
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-x-2">
+          </Drawer.Body>
+          <Drawer.Footer>
+            <Button
+              onClick={() => setShowPickupForm(false)}
+              variant="secondary"
+              size="small"
+            >
+              Cancel
+            </Button>
             <Button
               onClick={handleSchedulePickup}
               variant="primary"
@@ -604,16 +620,9 @@ const Fulfillment = ({
             >
               Confirm Pickup
             </Button>
-            <Button
-              onClick={() => setShowPickupForm(false)}
-              variant="secondary"
-              size="small"
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      )}
+          </Drawer.Footer>
+        </Drawer.Content>
+      </Drawer>
 
       {(showShippingButton || showDeliveryButton || hasWaybill || showPickupButton) && (
         <div className="bg-ui-bg-subtle flex items-center justify-end gap-x-2 rounded-b-xl px-4 py-4">
@@ -629,7 +638,7 @@ const Fulfillment = ({
 
           {showPickupButton && (
             <Button
-              onClick={() => setShowPickupForm(!showPickupForm)}
+              onClick={() => setShowPickupForm(true)}
               variant="secondary"
             >
               Schedule Pickup

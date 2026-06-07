@@ -154,6 +154,45 @@ Combobox vs a custom select.
 
 #### 2. Replace inline editing with Medusa standards across admin
 
+**Status: IN PROGRESS (GitHub #330).** Inventory of 8 inline-edit
+offenders captured on the issue, ranked worst-first. Routes ported so
+far (2026-06-07, all Playwright-verified in the running admin):
+
+1. Admin **Material Usage** "Log" form
+   (`design-consumption-logs-section.tsx`) — moved from an in-card
+   inline panel to a Medusa side `Drawer`; when the design has no linked
+   inventory it shows a "No inventory linked yet" empty state with just a
+   Close button (no dead form).
+2. Admin **Partner → General** section
+   (`partner-general-section.tsx`) — was an always-editable inline form
+   with a dirty-gated Save. Now a read-only key/value display
+   (Name/Handle/Workspace Type/Logo URL + status & Verified badges) with
+   an **Edit** action in the section menu that opens a `Drawer` with the
+   form. Header badges read the persisted `partner` values so the read
+   view only reflects saved state.
+3. partner-ui **design consumption-logs** twin → Drawer (same empty
+   state as the admin one).
+4. partner-ui **production-run-detail** `CompleteRunInlineForm` → Drawer.
+5. partner-ui **order fulfillment** pickup-scheduling form → Drawer.
+6. admin **energy-rate detail** (`settings/energy-rates/[id]`) — was an
+   `isEditing` swap of the whole read view; now read view stays put and
+   **Edit** opens a Drawer (Playwright-verified).
+7. admin **payment reconciliation** (`reconciliation/[id]`) edit panel →
+   Drawer.
+8. admin **whatsapp-templates** create form → Drawer.
+
+9. partner-ui **design-production-section** (the 1576-line worst
+   offender) — Finish form → `Drawer`, the multi-step Complete form
+   (output / cost / materials / notes) → full-screen `FocusModal`.
+   Playwright-verified against a seeded completable run (Finish drawer
+   560px right-side; Complete focus-modal full-screen with the multi-step
+   body). The `showMaterialForm`/`showCostInput` toggles stay nested
+   inside the Complete modal.
+
+All mirror the existing bulk-* drawers. partner-ui tsc clean. The
+always-on tag input in `design-attributes-section` is left as-is (a
+legitimate inline pattern, not an edit-form anti-pattern).
+
 Several admin tables use ad-hoc inline-edit components. Medusa's
 admin pattern is: row click → side drawer / dedicated edit page.
 **First step:** inventory which routes use inline edit (designs,

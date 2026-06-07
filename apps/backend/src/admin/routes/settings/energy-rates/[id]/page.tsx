@@ -2,6 +2,7 @@ import {
   Badge,
   Button,
   Container,
+  Drawer,
   Heading,
   Input,
   Label,
@@ -145,126 +146,132 @@ const EnergyRateDetailPage = () => {
             </Text>
           </div>
           <div className="flex items-center gap-x-2">
-            {!isEditing && (
-              <>
-                <Button size="small" variant="secondary" onClick={startEditing}>
-                  Edit
-                </Button>
-                <Button size="small" variant="danger" onClick={handleDelete} isLoading={deleteRate.isPending}>
-                  Delete
-                </Button>
-              </>
-            )}
+            <Button size="small" variant="secondary" onClick={startEditing}>
+              Edit
+            </Button>
+            <Button size="small" variant="danger" onClick={handleDelete} isLoading={deleteRate.isPending}>
+              Delete
+            </Button>
           </div>
         </div>
 
+        {/* Edit form — Medusa side drawer (replaces the inline isEditing swap) */}
+        <Drawer open={isEditing} onOpenChange={setIsEditing}>
+          <Drawer.Content>
+            <Drawer.Header>
+              <Drawer.Title>Edit Energy Rate</Drawer.Title>
+              <Drawer.Description>Update this energy rate's details.</Drawer.Description>
+            </Drawer.Header>
+            <Drawer.Body className="overflow-y-auto">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="col-span-2">
+                  <Label>Name</Label>
+                  <Input
+                    value={editValues.name}
+                    onChange={(e) => updateField("name", e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <Label>Type</Label>
+                  <Select value={editValues.energyType} onValueChange={(v) => updateField("energyType", v)}>
+                    <Select.Trigger><Select.Value /></Select.Trigger>
+                    <Select.Content>
+                      {ENERGY_TYPE_OPTIONS.map((o) => (
+                        <Select.Item key={o.value} value={o.value}>{o.label}</Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Unit of Measure</Label>
+                  <Select value={editValues.unitOfMeasure} onValueChange={(v) => updateField("unitOfMeasure", v)}>
+                    <Select.Trigger><Select.Value /></Select.Trigger>
+                    <Select.Content>
+                      {UOM_OPTIONS.map((o) => (
+                        <Select.Item key={o.value} value={o.value}>{o.label}</Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Rate per Unit</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editValues.ratePerUnit}
+                    onChange={(e) => updateField("ratePerUnit", e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <Label>Currency</Label>
+                  <Input
+                    value={editValues.currency}
+                    onChange={(e) => updateField("currency", e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <Label>Effective From</Label>
+                  <Input
+                    type="date"
+                    value={editValues.effectiveFrom}
+                    onChange={(e) => updateField("effectiveFrom", e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <Label>Effective To</Label>
+                  <Input
+                    type="date"
+                    value={editValues.effectiveTo}
+                    onChange={(e) => updateField("effectiveTo", e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <Label>Region</Label>
+                  <Input
+                    placeholder="e.g. Maharashtra, India"
+                    value={editValues.region}
+                    onChange={(e) => updateField("region", e.target.value)}
+                  />
+                </div>
+
+                <div className="flex items-center gap-x-3 pt-6">
+                  <Switch
+                    checked={editValues.isActive}
+                    onCheckedChange={(checked) => updateField("isActive", checked)}
+                  />
+                  <Label>Active</Label>
+                </div>
+
+                <div className="col-span-2">
+                  <Label>Notes</Label>
+                  <Textarea
+                    value={editValues.notes}
+                    onChange={(e) => updateField("notes", e.target.value)}
+                  />
+                </div>
+              </div>
+            </Drawer.Body>
+            <Drawer.Footer>
+              <Button size="small" variant="secondary" onClick={() => setIsEditing(false)}>
+                Cancel
+              </Button>
+              <Button size="small" onClick={handleSave} isLoading={updateRate.isPending}>
+                Save Changes
+              </Button>
+            </Drawer.Footer>
+          </Drawer.Content>
+        </Drawer>
+
         <div className="px-6 py-4">
-          {isEditing ? (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="col-span-2">
-                <Label>Name</Label>
-                <Input
-                  value={editValues.name}
-                  onChange={(e) => updateField("name", e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label>Type</Label>
-                <Select value={editValues.energyType} onValueChange={(v) => updateField("energyType", v)}>
-                  <Select.Trigger><Select.Value /></Select.Trigger>
-                  <Select.Content>
-                    {ENERGY_TYPE_OPTIONS.map((o) => (
-                      <Select.Item key={o.value} value={o.value}>{o.label}</Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select>
-              </div>
-
-              <div>
-                <Label>Unit of Measure</Label>
-                <Select value={editValues.unitOfMeasure} onValueChange={(v) => updateField("unitOfMeasure", v)}>
-                  <Select.Trigger><Select.Value /></Select.Trigger>
-                  <Select.Content>
-                    {UOM_OPTIONS.map((o) => (
-                      <Select.Item key={o.value} value={o.value}>{o.label}</Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select>
-              </div>
-
-              <div>
-                <Label>Rate per Unit</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editValues.ratePerUnit}
-                  onChange={(e) => updateField("ratePerUnit", e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label>Currency</Label>
-                <Input
-                  value={editValues.currency}
-                  onChange={(e) => updateField("currency", e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label>Effective From</Label>
-                <Input
-                  type="date"
-                  value={editValues.effectiveFrom}
-                  onChange={(e) => updateField("effectiveFrom", e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label>Effective To</Label>
-                <Input
-                  type="date"
-                  value={editValues.effectiveTo}
-                  onChange={(e) => updateField("effectiveTo", e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label>Region</Label>
-                <Input
-                  placeholder="e.g. Maharashtra, India"
-                  value={editValues.region}
-                  onChange={(e) => updateField("region", e.target.value)}
-                />
-              </div>
-
-              <div className="flex items-center gap-x-3 pt-6">
-                <Switch
-                  checked={editValues.isActive}
-                  onCheckedChange={(checked) => updateField("isActive", checked)}
-                />
-                <Label>Active</Label>
-              </div>
-
-              <div className="col-span-2">
-                <Label>Notes</Label>
-                <Textarea
-                  value={editValues.notes}
-                  onChange={(e) => updateField("notes", e.target.value)}
-                />
-              </div>
-
-              <div className="col-span-2 flex gap-x-2">
-                <Button size="small" variant="secondary" onClick={() => setIsEditing(false)}>
-                  Cancel
-                </Button>
-                <Button size="small" onClick={handleSave} isLoading={updateRate.isPending}>
-                  Save Changes
-                </Button>
-              </div>
-            </div>
-          ) : (
+          {(
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Text size="small" className="text-ui-fg-subtle">Type</Text>

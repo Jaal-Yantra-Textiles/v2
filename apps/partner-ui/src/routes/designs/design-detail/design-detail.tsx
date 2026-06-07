@@ -287,7 +287,6 @@ export const DesignDetail = () => {
             <Heading level="h2">General</Heading>
           </div>
           <SectionRow title="Name" value={design?.name || "-"} />
-          <SectionRow title="Design ID" value={design?.id || "-"} />
           <SectionRow
             title="Type"
             value={
