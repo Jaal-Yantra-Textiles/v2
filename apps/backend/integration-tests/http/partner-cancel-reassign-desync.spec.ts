@@ -77,6 +77,7 @@ setupSharedTestSuite(() => {
         adminHeaders
       )
       expect(run1.status).toBe(201)
+      const run1ChildId = run1.data.children?.[0]?.id
 
       // Cancel the partner assignment → sets partner_assignment_cancelled_at
       const cancelRes = await api.post(
@@ -85,6 +86,13 @@ setupSharedTestSuite(() => {
         adminHeaders
       )
       expect(cancelRes.status).toBeLessThan(300)
+
+      // Cancelling the assignment must also cancel the partner's active run
+      // (so no non-terminal run lingers for the partner to keep working).
+      if (run1ChildId) {
+        const runDoc = await api.get(`/admin/production-runs/${run1ChildId}`, adminHeaders)
+        expect(runDoc.data.production_run?.status).toBe("cancelled")
+      }
 
       // Run #1 predates the cancel, so it must NOT supersede it — design
       // reports cancelled for the partner.

@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { DESIGN_MODULE } from "../../../../../modules/designs"
 import { PARTNER_MODULE } from "../../../../../modules/partner"
 import { TASKS_MODULE } from "../../../../../modules/tasks"
+import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import { cancelWorkflowTransactionWorkflow } from "../../../../../workflows/designs/design-steps"
 
 const V1_TASK_TITLES = [
@@ -117,6 +118,61 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
+  // Step 2.5: Cancel the partner's active production runs for this design.
+  // Cancelling the assignment must also cancel the work — otherwise a
+  // non-terminal run lingers that the partner can still drive to
+  // completion via the v2 /partners/production-runs endpoints (which only
+  // guard on the run's own status). Terminal runs (completed/cancelled)
+  // are left as-is.
+  const cancelledRunIds: string[] = []
+  try {
+    const productionRunService = req.scope.resolve(
+      PRODUCTION_RUNS_MODULE
+    ) as any
+    const taskService = req.scope.resolve(TASKS_MODULE) as any
+    const { data: runs } = await query.graph({
+      entity: "production_runs",
+      filters: {
+        design_id: designId,
+        partner_id,
+        status: { $nin: ["completed", "cancelled"] },
+      },
+      fields: ["id", "status"],
+    })
+    for (const run of runs || []) {
+      await productionRunService.updateProductionRuns({
+        id: run.id,
+        status: "cancelled",
+        cancelled_at: new Date(),
+        cancelled_reason: "partner_assignment_cancelled",
+      })
+      cancelledRunIds.push(run.id)
+      // Cancel the run's non-terminal tasks too
+      try {
+        const { data: runData } = await query.graph({
+          entity: "production_runs",
+          fields: ["tasks.id", "tasks.status"],
+          filters: { id: run.id },
+        })
+        for (const task of runData?.[0]?.tasks || []) {
+          if (task.status !== "completed" && task.status !== "cancelled") {
+            await taskService.updateTasks({ id: task.id, status: "cancelled" })
+          }
+        }
+      } catch (e: any) {
+        console.error(
+          `[cancel-partner-assignment] Failed to cancel tasks for run ${run.id}:`,
+          e.message
+        )
+      }
+    }
+  } catch (e: any) {
+    console.error(
+      "[cancel-partner-assignment] Failed to cancel production runs:",
+      e.message
+    )
+  }
+
   // Step 3: Reset design metadata via service directly (workflow merge preserves old keys)
   try {
     const designService = req.scope.resolve(DESIGN_MODULE) as any
@@ -154,7 +210,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     partner_id,
     transaction_id: transactionId,
     cancelled_tasks: cancelledTaskIds.length,
+    cancelled_runs: cancelledRunIds.length,
     unlinked: unlink,
-    message: `Partner assignment cancelled.${transactionId ? ` Workflow transaction ${transactionId} cancelled.` : ""} ${cancelledTaskIds.length} task(s) cancelled.${unlink ? " Partner unlinked." : " Partner still linked — ready for production run."}`,
+    message: `Partner assignment cancelled.${transactionId ? ` Workflow transaction ${transactionId} cancelled.` : ""} ${cancelledTaskIds.length} task(s) cancelled.${cancelledRunIds.length ? ` ${cancelledRunIds.length} run(s) cancelled.` : ""}${unlink ? " Partner unlinked." : " Partner still linked — ready for production run."}`,
   })
 }
