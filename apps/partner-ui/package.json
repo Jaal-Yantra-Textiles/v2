@@ -99,6 +99,6 @@
     "tsup": "^8.3.5",
     "vite": "^5.4.11",
     "vite-plugin-inspect": "0.8.7",
-    "vitest": "^2.1.4"
+    "vitest": "^4.1.0"
   }
 }
