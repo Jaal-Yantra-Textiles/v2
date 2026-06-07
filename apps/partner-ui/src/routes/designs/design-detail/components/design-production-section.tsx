@@ -425,10 +425,17 @@ const ProductionRunCard = ({
 
   const isCancelled = status === "cancelled"
   const isCompleted = status === "completed"
-  const canAccept = !isCancelled && status === "sent_to_partner"
-  const canStart = !isCancelled && status === "in_progress" && !run.started_at
-  const canFinish = !isCancelled && status === "in_progress" && !!run.started_at && !run.finished_at
-  const canComplete = !isCancelled && status === "in_progress" && !!run.finished_at
+  // Defence-in-depth: if the partner's assignment for this design is
+  // cancelled, no run actions are permitted even if a non-cancelled run
+  // lingers (cancelling the assignment now also cancels the run, but this
+  // guards runs that predate that fix). The run's own status still gates
+  // the individual transitions below.
+  const assignmentCancelled = design?.partner_info?.partner_status === "cancelled"
+  const actionable = !isCancelled && !assignmentCancelled
+  const canAccept = actionable && status === "sent_to_partner"
+  const canStart = actionable && status === "in_progress" && !run.started_at
+  const canFinish = actionable && status === "in_progress" && !!run.started_at && !run.finished_at
+  const canComplete = actionable && status === "in_progress" && !!run.finished_at
 
   const completedTasks = tasks.filter((t: any) => String(t.status) === "completed").length
   const totalTasks = tasks.length

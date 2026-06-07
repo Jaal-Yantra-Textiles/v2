@@ -265,6 +265,83 @@ const linkDesignToPartnersStep = createStep(
   }
 )
 
+// Re-assigning a partner via a production run supersedes any prior
+// cancellation of that design's partner assignment. The legacy cancel
+// marker (`design.metadata.partner_assignment_cancelled_at`) otherwise
+// pins `partner_status` to "cancelled" forever — even after a new run is
+// created and completed — because the partner_status derivation
+// short-circuits on the flag (see /partners/designs/[designId]/route.ts).
+// Clear it here so the design reflects the new assignment.
+type ClearCancelMarkerComp = {
+  design_id: string
+  prev: {
+    partner_assignment_cancelled_at: string | null
+    partner_assignment_cancelled_partner_id: string | null
+  }
+}
+
+const clearDesignCancelMarkerStep = createStep(
+  "clear-design-cancel-marker",
+  async (
+    input: { design_id: string | null; partner_ids: string[] },
+    { container }
+  ) => {
+    if (!input.design_id || !input.partner_ids.length) {
+      return new StepResponse<{ cleared: boolean }, ClearCancelMarkerComp>({ cleared: false })
+    }
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const designService: any = container.resolve(DESIGN_MODULE)
+
+    const { data } = await query.graph({
+      entity: "design",
+      filters: { id: input.design_id },
+      fields: ["id", "metadata"],
+    })
+    const meta = (data?.[0]?.metadata as Record<string, any>) || {}
+    if (
+      meta.partner_assignment_cancelled_at == null &&
+      meta.partner_assignment_cancelled_partner_id == null
+    ) {
+      // Nothing to clear — skip the write (and the compensation no-ops).
+      return new StepResponse<{ cleared: boolean }, ClearCancelMarkerComp>({ cleared: false })
+    }
+
+    const prev = {
+      partner_assignment_cancelled_at: meta.partner_assignment_cancelled_at ?? null,
+      partner_assignment_cancelled_partner_id:
+        meta.partner_assignment_cancelled_partner_id ?? null,
+    }
+    // Medusa merges metadata on update, so omitting keys won't remove
+    // them — set to null (Medusa's metadata-deletion convention).
+    await designService.updateDesigns({
+      id: input.design_id,
+      metadata: {
+        partner_assignment_cancelled_at: null,
+        partner_assignment_cancelled_partner_id: null,
+      },
+    })
+    return new StepResponse<{ cleared: boolean }, ClearCancelMarkerComp>(
+      { cleared: true },
+      { design_id: input.design_id, prev }
+    )
+  },
+  async (compensation: ClearCancelMarkerComp | undefined, { container }) => {
+    if (!compensation?.design_id) return
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const designService: any = container.resolve(DESIGN_MODULE)
+    const { data } = await query.graph({
+      entity: "design",
+      filters: { id: compensation.design_id },
+      fields: ["id", "metadata"],
+    })
+    const meta = (data?.[0]?.metadata as Record<string, any>) || {}
+    await designService.updateDesigns({
+      id: compensation.design_id,
+      metadata: { ...meta, ...compensation.prev },
+    })
+  }
+)
+
 export const approveProductionRunWorkflow = createWorkflow(
   "approve-production-run",
   (input: ApproveProductionRunInput) => {
@@ -302,6 +379,10 @@ export const approveProductionRunWorkflow = createWorkflow(
         .filter((id): id is string => !!id),
     }))
     linkDesignToPartnersStep(designPartnerLinkInput)
+
+    // Clear any stale partner-assignment cancellation marker — this run
+    // is a fresh (re)assignment for the design's partner(s).
+    clearDesignCancelMarkerStep(designPartnerLinkInput)
 
     return new WorkflowResponse(approved)
   }
