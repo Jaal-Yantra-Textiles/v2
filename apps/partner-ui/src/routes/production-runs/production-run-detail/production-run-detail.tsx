@@ -1,4 +1,4 @@
-import { Badge, Button, Checkbox, Container, Heading, Input, Select, Text, toast, usePrompt } from "@medusajs/ui"
+import { Badge, Button, Checkbox, Container, Drawer, Heading, Input, Select, Text, toast, usePrompt } from "@medusajs/ui"
 import { useMemo, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 
@@ -187,7 +187,7 @@ export const ProductionRunDetail = () => {
                 </Button>
               )}
               {canComplete && (
-                <Button size="small" isLoading={complete.isPending} onClick={() => setShowCompleteForm(!showCompleteForm)}>
+                <Button size="small" isLoading={complete.isPending} onClick={() => setShowCompleteForm(true)}>
                   Complete Run
                 </Button>
               )}
@@ -195,16 +195,18 @@ export const ProductionRunDetail = () => {
           </div>
         </Container>
 
-        {/* Complete form */}
-        {showCompleteForm && canComplete && (
+        {/* Complete form — Medusa side drawer */}
+        {canComplete && (
           <CompleteRunInlineForm
             run={production_run}
             pendingTasks={pendingTasks}
             isPending={complete.isPending}
-            onCancel={() => setShowCompleteForm(false)}
+            open={showCompleteForm}
+            onOpenChange={setShowCompleteForm}
             onConfirm={async (body) => {
               try {
                 await complete.mutateAsync(body)
+                setShowCompleteForm(false)
               } catch (e) {
                 toast.error(extractErrorMessage(e))
               }
@@ -383,38 +385,53 @@ const CompleteRunInlineForm = ({
   run,
   pendingTasks,
   isPending,
-  onCancel,
+  open,
+  onOpenChange,
   onConfirm,
 }: {
   run: any
   pendingTasks: any[]
   isPending: boolean
-  onCancel: () => void
+  open: boolean
+  onOpenChange: (open: boolean) => void
   onConfirm: (body: Record<string, any>) => void
 }) => {
   const runQuantity = Number(run?.quantity) || 1
   const [producedQty, setProducedQty] = useState(String(runQuantity))
   const [notes, setNotes] = useState("")
 
+  const handleOpenChange = (next: boolean) => {
+    if (!next) {
+      // reset on close, matching the old unmount-on-cancel behaviour
+      setProducedQty(String(runQuantity))
+      setNotes("")
+    }
+    onOpenChange(next)
+  }
+
   return (
-    <Container className="p-0">
-      <div className="px-6 py-4 bg-ui-bg-subtle">
-        <Heading level="h3" className="mb-3">Complete Production Run</Heading>
-
-        {pendingTasks.length > 0 && (
-          <div className="mb-3 rounded-md border p-3 bg-ui-bg-base">
-            <Text size="small" weight="plus" className="text-ui-fg-on-color-disabled mb-1">
-              {pendingTasks.length} pending task(s) will be marked as done
-            </Text>
-            {pendingTasks.map((t: any) => (
-              <Text key={t.id} size="xsmall" className="text-ui-fg-subtle">
-                • {t.title || t.id}
+    <Drawer open={open} onOpenChange={handleOpenChange}>
+      <Drawer.Content>
+        <Drawer.Header>
+          <Drawer.Title>Complete Production Run</Drawer.Title>
+          <Drawer.Description>
+            Record the output for this run before completing it.
+          </Drawer.Description>
+        </Drawer.Header>
+        <Drawer.Body className="flex flex-col gap-y-4 overflow-y-auto">
+          {pendingTasks.length > 0 && (
+            <div className="rounded-md border p-3 bg-ui-bg-subtle">
+              <Text size="small" weight="plus" className="mb-1">
+                {pendingTasks.length} pending task(s) will be marked as done
               </Text>
-            ))}
-          </div>
-        )}
+              {pendingTasks.map((t: any) => (
+                <Text key={t.id} size="xsmall" className="text-ui-fg-subtle">
+                  • {t.title || t.id}
+                </Text>
+              ))}
+            </div>
+          )}
 
-        <div className="flex flex-col gap-y-3 mb-3">
           <div>
             <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
               Produced Quantity
@@ -438,10 +455,9 @@ const CompleteRunInlineForm = ({
               placeholder="Any completion notes..."
             />
           </div>
-        </div>
-
-        <div className="flex justify-end gap-x-2">
-          <Button variant="secondary" size="small" onClick={onCancel}>
+        </Drawer.Body>
+        <Drawer.Footer>
+          <Button variant="secondary" size="small" onClick={() => handleOpenChange(false)} disabled={isPending}>
             Cancel
           </Button>
           <Button
@@ -457,9 +473,9 @@ const CompleteRunInlineForm = ({
           >
             Confirm & Complete
           </Button>
-        </div>
-      </div>
-    </Container>
+        </Drawer.Footer>
+      </Drawer.Content>
+    </Drawer>
   )
 }
 
