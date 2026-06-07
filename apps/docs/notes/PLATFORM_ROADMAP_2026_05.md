@@ -181,11 +181,15 @@ far (2026-06-07, all Playwright-verified in the running admin):
    Drawer.
 8. admin **whatsapp-templates** create form → Drawer.
 
-All mirror the existing bulk-* drawers. partner-ui tsc clean.
-**Deferred:** `design-production-section` (1576 lines; 4 inline forms
-incl. the critical production-completion + inventory-consumption flow —
-needs its own focused PR with the finish/complete sub-components
-refactored for body/footer and verified against a seeded run). The
+9. partner-ui **design-production-section** (the 1576-line worst
+   offender) — Finish form → `Drawer`, the multi-step Complete form
+   (output / cost / materials / notes) → full-screen `FocusModal`.
+   Playwright-verified against a seeded completable run (Finish drawer
+   560px right-side; Complete focus-modal full-screen with the multi-step
+   body). The `showMaterialForm`/`showCostInput` toggles stay nested
+   inside the Complete modal.
+
+All mirror the existing bulk-* drawers. partner-ui tsc clean. The
 always-on tag input in `design-attributes-section` is left as-is (a
 legitimate inline pattern, not an edit-form anti-pattern).
 

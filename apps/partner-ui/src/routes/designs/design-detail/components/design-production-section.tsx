@@ -4,6 +4,8 @@ import {
   Button,
   Checkbox,
   Container,
+  Drawer,
+  FocusModal,
   Heading,
   Input,
   Select,
@@ -628,22 +630,23 @@ const ProductionRunCard = ({
         </div>
       )}
 
-      {/* Finish confirmation form */}
-      {showFinishForm && canFinish && (
+      {/* Finish confirmation — Medusa side drawer */}
+      {canFinish && (
         <FinishRunForm
+          open={showFinishForm}
+          onOpenChange={(o) => { setShowFinishForm(o); if (!o) setFinishNotes("") }}
           pendingTasks={pendingTasks}
           finishNotes={finishNotes}
           setFinishNotes={setFinishNotes}
           onConfirm={handleFinishConfirm}
-          onCancel={() => { setShowFinishForm(false); setFinishNotes("") }}
           isLoading={finish.isPending}
           isSample={isSample}
           consumptionCount={consumptionCount}
         />
       )}
 
-      {/* Complete confirmation form */}
-      {showCompleteForm && canComplete && (
+      {/* Complete confirmation — Medusa focus modal (multi-step input) */}
+      {canComplete && (
         <CompleteRunForm
           run={run}
           design={design}
@@ -658,11 +661,13 @@ const ProductionRunCard = ({
                   `${logged} of ${submitted} consumption entries were recorded. ${submitted - logged} failed — check inventory items.`
                 )
               }
+              setShowCompleteForm(false)
             } catch (e) {
               toast.error(extractErrorMessage(e))
             }
           }}
-          onCancel={() => setShowCompleteForm(false)}
+          open={showCompleteForm}
+          onOpenChange={setShowCompleteForm}
           isLoading={complete.isPending}
           isSample={isSample}
           existingConsumptionCount={consumptionCount}
@@ -815,20 +820,22 @@ const ProductionRunCard = ({
 // ── Finish Run Form ─────────────────────────────────────────────────
 
 const FinishRunForm = ({
+  open,
+  onOpenChange,
   pendingTasks,
   finishNotes,
   setFinishNotes,
   onConfirm,
-  onCancel,
   isLoading,
   isSample,
   consumptionCount,
 }: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
   pendingTasks: any[]
   finishNotes: string
   setFinishNotes: (v: string) => void
   onConfirm: () => void
-  onCancel: () => void
   isLoading: boolean
   isSample: boolean
   consumptionCount: number
@@ -838,75 +845,79 @@ const FinishRunForm = ({
   const canConfirm = !hasPending || acknowledgedPending
 
   return (
-    <div className="px-6 py-4 bg-ui-bg-subtle">
-      <Heading level="h3" className="mb-2">Mark as Finished</Heading>
-      <Text size="small" className="text-ui-fg-subtle mb-3">
-        The design will move to Technical Review for admin to inspect.
-      </Text>
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <Drawer.Content>
+        <Drawer.Header>
+          <Drawer.Title>Mark as Finished</Drawer.Title>
+          <Drawer.Description>
+            The design will move to Technical Review for admin to inspect.
+          </Drawer.Description>
+        </Drawer.Header>
+        <Drawer.Body className="flex flex-col gap-y-4 overflow-y-auto">
+          {/* Sample run warning if no materials logged */}
+          {isSample && consumptionCount === 0 && (
+            <div className="flex items-start gap-x-3 rounded-xl border border-ui-border-base bg-ui-bg-subtle px-4 py-3">
+              <ExclamationCircle className="mt-0.5 shrink-0 text-ui-tag-orange-icon" />
+              <div className="flex flex-col gap-y-0.5">
+                <Text size="small" weight="plus">No materials logged yet</Text>
+                <Text size="xsmall" className="text-ui-fg-subtle">
+                  For sample runs, material usage data is needed for cost estimation. Consider logging materials before finishing.
+                </Text>
+              </div>
+            </div>
+          )}
 
-      {/* Sample run warning if no materials logged */}
-      {isSample && consumptionCount === 0 && (
-        <div className="flex items-start gap-x-3 rounded-xl border border-ui-border-base bg-ui-bg-base px-4 py-3 mb-3">
-          <ExclamationCircle className="mt-0.5 shrink-0 text-ui-tag-orange-icon" />
-          <div className="flex flex-col gap-y-0.5">
-            <Text size="small" weight="plus">No materials logged yet</Text>
-            <Text size="xsmall" className="text-ui-fg-subtle">
-              For sample runs, material usage data is needed for cost estimation. Consider logging materials before finishing.
-            </Text>
-          </div>
-        </div>
-      )}
-
-      {hasPending && (
-        <div className="rounded-xl border border-ui-border-base bg-ui-bg-base px-4 py-3 mb-3">
-          <Text size="small" weight="plus" className="text-ui-fg-subtle mb-1">
-            {pendingTasks.length} task(s) still pending
-          </Text>
-          <div className="flex flex-col gap-y-0.5 mb-3">
-            {pendingTasks.map((t: any) => (
-              <Text key={t.id} size="xsmall" className="text-ui-fg-muted">
-                &bull; {t.title || t.id}
+          {hasPending && (
+            <div className="rounded-xl border border-ui-border-base bg-ui-bg-subtle px-4 py-3">
+              <Text size="small" weight="plus" className="text-ui-fg-subtle mb-1">
+                {pendingTasks.length} task(s) still pending
               </Text>
-            ))}
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <Checkbox
-              checked={acknowledgedPending}
-              onCheckedChange={(checked) => setAcknowledgedPending(!!checked)}
-            />
-            <Text size="xsmall">
-              I confirm these tasks are completed or not needed
+              <div className="flex flex-col gap-y-0.5 mb-3">
+                {pendingTasks.map((t: any) => (
+                  <Text key={t.id} size="xsmall" className="text-ui-fg-muted">
+                    &bull; {t.title || t.id}
+                  </Text>
+                ))}
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={acknowledgedPending}
+                  onCheckedChange={(checked) => setAcknowledgedPending(!!checked)}
+                />
+                <Text size="xsmall">
+                  I confirm these tasks are completed or not needed
+                </Text>
+              </label>
+            </div>
+          )}
+
+          <div>
+            <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
+              Notes for reviewer (optional)
             </Text>
-          </label>
-        </div>
-      )}
-
-      <div className="mb-3">
-        <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
-          Notes for reviewer (optional)
-        </Text>
-        <Textarea
-          placeholder="Any notes about the finished work, issues encountered, etc."
-          value={finishNotes}
-          onChange={(e) => setFinishNotes(e.target.value)}
-          rows={3}
-        />
-      </div>
-
-      <div className="bg-ui-bg-subtle flex items-center justify-end gap-x-2 rounded-b-xl pt-2">
-        <Button variant="secondary" size="small" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button
-          size="small"
-          isLoading={isLoading}
-          onClick={onConfirm}
-          disabled={!canConfirm}
-        >
-          Confirm & Mark Finished
-        </Button>
-      </div>
-    </div>
+            <Textarea
+              placeholder="Any notes about the finished work, issues encountered, etc."
+              value={finishNotes}
+              onChange={(e) => setFinishNotes(e.target.value)}
+              rows={3}
+            />
+          </div>
+        </Drawer.Body>
+        <Drawer.Footer>
+          <Button variant="secondary" size="small" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            size="small"
+            isLoading={isLoading}
+            onClick={onConfirm}
+            disabled={!canConfirm}
+          >
+            Confirm & Mark Finished
+          </Button>
+        </Drawer.Footer>
+      </Drawer.Content>
+    </Drawer>
   )
 }
 
@@ -945,7 +956,8 @@ const CompleteRunForm = ({
   run,
   design,
   onComplete,
-  onCancel,
+  open,
+  onOpenChange,
   isLoading,
   isSample,
   existingConsumptionCount,
@@ -953,7 +965,8 @@ const CompleteRunForm = ({
   run: any
   design: PartnerDesign
   onComplete: (body: any) => Promise<void>
-  onCancel: () => void
+  open: boolean
+  onOpenChange: (open: boolean) => void
   isLoading: boolean
   isSample: boolean
   existingConsumptionCount: number
@@ -1074,13 +1087,17 @@ const CompleteRunForm = ({
   }
 
   return (
-    <div className="px-6 py-4 bg-ui-bg-subtle">
-      <Heading level="h3" className="mb-1">Complete Production Run</Heading>
-      <Text size="xsmall" className="text-ui-fg-subtle mb-4">
-        {runQuantity} piece{runQuantity !== 1 ? "s" : ""} ordered
-        {isSample ? " · Sample run" : ""}
-      </Text>
-
+    <FocusModal open={open} onOpenChange={onOpenChange}>
+      <FocusModal.Content>
+        <FocusModal.Header>
+          <FocusModal.Title>Complete Production Run</FocusModal.Title>
+          <FocusModal.Description>
+            {runQuantity} piece{runQuantity !== 1 ? "s" : ""} ordered
+            {isSample ? " · Sample run" : ""}
+          </FocusModal.Description>
+        </FocusModal.Header>
+        <FocusModal.Body className="flex flex-col items-center overflow-y-auto py-6">
+          <div className="flex w-full max-w-2xl flex-col gap-y-4 px-4">
       {pendingTasks.length > 0 && (
         <div className="rounded-xl border border-ui-border-base bg-ui-bg-base px-4 py-3 mb-4">
           <Text size="small" weight="plus" className="text-ui-fg-subtle mb-1">
@@ -1368,15 +1385,18 @@ const CompleteRunForm = ({
         />
       </div>
 
-      <div className="flex items-center justify-end gap-x-2 pt-2">
-        <Button variant="secondary" size="small" onClick={onCancel} disabled={isLoading}>
-          Cancel
-        </Button>
-        <Button size="small" onClick={handleSubmit} isLoading={isLoading}>
-          Confirm & Complete
-        </Button>
-      </div>
-    </div>
+          </div>
+        </FocusModal.Body>
+        <FocusModal.Footer>
+          <Button variant="secondary" size="small" onClick={() => onOpenChange(false)} disabled={isLoading}>
+            Cancel
+          </Button>
+          <Button size="small" onClick={handleSubmit} isLoading={isLoading}>
+            Confirm & Complete
+          </Button>
+        </FocusModal.Footer>
+      </FocusModal.Content>
+    </FocusModal>
   )
 }
 
