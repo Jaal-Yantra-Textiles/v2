@@ -1,3 +1,27 @@
+# [13.25.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.24.0...v13.25.0) (2026-06-07)
+
+
+### Bug Fixes
+
+* **partner-ui:** BOM crash on object raw_materials + design UX touches ([8bbb307](https://github.com/Jaal-Yantra-Textiles/v2/commit/8bbb307d194739a0ab07ea4133395e7d48bbed4b))
+* **production-runs:** complete parent run even without lifecycle txn ([20dd1c4](https://github.com/Jaal-Yantra-Textiles/v2/commit/20dd1c4d0dcf9d940133598bc9b8de5ba0d97d40))
+* **partner-designs:** order list by assignment date, newest first ([6bac079](https://github.com/Jaal-Yantra-Textiles/v2/commit/6bac079550011e3eea2c5bbc0626bc44b9ad49d0))
+* **admin:** partial server-side search on raw-material categories ([#1](https://github.com/Jaal-Yantra-Textiles/v2/issues/1)) ([3933688](https://github.com/Jaal-Yantra-Textiles/v2/commit/3933688ace52a0013c564467085439c61a1f2582))
+* **admin,partner-ui:** raw-material category dropdown clip + analytics nav ([a85d84d](https://github.com/Jaal-Yantra-Textiles/v2/commit/a85d84d722d7f96f07d254e3d973720ab207aa55)), closes [#1](https://github.com/Jaal-Yantra-Textiles/v2/issues/1) [#3](https://github.com/Jaal-Yantra-Textiles/v2/issues/3)
+* **admin:** rebuild raw-material category picker on ariakit Combobox ([#1](https://github.com/Jaal-Yantra-Textiles/v2/issues/1)) ([30f29ba](https://github.com/Jaal-Yantra-Textiles/v2/commit/30f29bac76d80a5590e8d92b9583223e537cf106))
+* **partner-ui:** use PlaySolid icon (Play not exported by @medusajs/icons) ([3d0fe06](https://github.com/Jaal-Yantra-Textiles/v2/commit/3d0fe060130e0e9707bd4d5e1898bd7815d61cf8)), closes [#323](https://github.com/Jaal-Yantra-Textiles/v2/issues/323)
+
+
+### Features
+
+* **partner-ui:** design cost panel (roadmap [#6](https://github.com/Jaal-Yantra-Textiles/v2/issues/6) Phase 3 UI) ([cac2cb2](https://github.com/Jaal-Yantra-Textiles/v2/commit/cac2cb29ab46d9c4a6edb65c08b11b63cca3d898))
+* **partner-ui:** design create/edit/delete (roadmap [#6](https://github.com/Jaal-Yantra-Textiles/v2/issues/6) Phase 1 UI) ([6272dea](https://github.com/Jaal-Yantra-Textiles/v2/commit/6272dea4deda52588d9506d158802d3524a531f2))
+* **partner-ui:** design inventory BOM with SKU + material media (P2 UI) ([a01aa87](https://github.com/Jaal-Yantra-Textiles/v2/commit/a01aa872f98f0b6eae81358778d7d09fb7361f6a))
+* **partner-ui:** design self-serve UX fixes — owned designs, raw-material picker, skeletons, command header ([9452143](https://github.com/Jaal-Yantra-Textiles/v2/commit/94521439f60f705e4351beac59938e3ad155080a))
+* **partner-ui:** run cost-summary panel (roadmap [#6](https://github.com/Jaal-Yantra-Textiles/v2/issues/6) Phase 5 UI) ([d783cc6](https://github.com/Jaal-Yantra-Textiles/v2/commit/d783cc66b8afc98aa8afa14bf5dc9c0fd83d1959))
+* **partner-ui:** start-production run create (roadmap [#6](https://github.com/Jaal-Yantra-Textiles/v2/issues/6) Phase 4 UI) ([88afbe3](https://github.com/Jaal-Yantra-Textiles/v2/commit/88afbe329d7c190f4b5095c7bec554501b14ce99))
+* **admin:** warn when assigning a partner with no WhatsApp contact ([#335](https://github.com/Jaal-Yantra-Textiles/v2/issues/335)) ([3119738](https://github.com/Jaal-Yantra-Textiles/v2/commit/311973847b617bb6554cca8aea9a832c3c10c49f)), closes [#25](https://github.com/Jaal-Yantra-Textiles/v2/issues/25)
+
 # [13.24.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.23.1...v13.24.0) (2026-06-05)
 
 
