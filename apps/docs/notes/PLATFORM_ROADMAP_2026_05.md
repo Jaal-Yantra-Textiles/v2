@@ -107,19 +107,31 @@ captured list; ordering inside this doc is just for readability.
 
 #### 1. Category dropdown in "Add Raw Material" UI
 
-**Status: FIXED 2026-06-06.** Root cause confirmed: the category field
-is the custom `CategorySearch` component
-(`apps/backend/src/admin/components/common/category-search.tsx`), not a
-Medusa `Select`/`Combobox`. Its results dropdown was an
-`absolute`-positioned `<div>` (`z-50`) rendered inside the
-`RouteFocusModal` body, which scrolls (`overflow-y-auto`) — so the
-dropdown was clipped by the overflow ancestor. Fix: render the dropdown
-through `createPortal(... , document.body)` with `position: fixed`
-coordinates measured from the input's `getBoundingClientRect`, tracked
-on scroll/resize while open, `z-[100]` + `shadow-elevation-flyout`.
-Selection switched from `onClick` to `onMouseDown`+`preventDefault` so
-it beats the input's blur-close timeout. The edit form
-(`edit-raw-material.tsx`) reuses the same component, so it's fixed too.
+**Status: FIXED 2026-06-07 (Playwright-verified).** Root cause: the
+category field is the custom `CategorySearch` component, not a Medusa
+combobox. Its results dropdown was an `absolute`-positioned `<div>`
+inside the scrollable `RouteFocusModal` body, so it was clipped by the
+overflow ancestor. **A deeper bug surfaced while fixing it:** existing
+categories never loaded at all — the form fetched
+`/admin/categories/rawmaterials` with `{name:""}` (and `{name:q}` while
+typing), but that endpoint's `name` filter returns nothing for
+empty/partial values, and the hook's query key is static so it never
+refetched. The picker only ever worked for *creating* new categories.
+
+Final fix (chose the proper component over a portal band-aid, per
+"mirror Medusa, don't invent"): ported Medusa's ariakit `Combobox`
+(`components/inputs/combobox/combobox.tsx` + a `generic-forward-ref`
+util) from partner-ui into the admin, and rewrote `CategorySearch` to
+use it. The ariakit popover is portaled and flips/repositions on
+overflow (no clipping), and its `onCreateOption` preserves the
+type-to-create-new-category behaviour. Both call sites
+(`raw-material-form.tsx`, `edit-raw-material.tsx`) now fetch **all**
+categories once (`{limit:100}`, no broken `name` filter) and let the
+combobox filter client-side via `matchSorter`. Placeholder also got a
+default so the raw `common.searchOrCreateCategory` i18n key stops
+showing. Verified in the running admin via Playwright: existing
+categories load + filter (`cotton`/`Cotton`), dropdown renders
+unclipped over the modal, select-existing and create-new both work.
 
 The dropdown doesn't render cleanly — likely a portal / overflow /
 z-index issue (same family as the FX badge bug from this morning).

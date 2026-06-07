@@ -1,9 +1,7 @@
-import { Input } from "@medusajs/ui";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { useDebouncedSearch } from "../../hooks/use-debounce";
-import { Form } from "./form";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Form } from "./form";
+import { Combobox } from "../inputs/combobox/combobox";
 
 export type Category = {
   id: string;
@@ -13,192 +11,114 @@ export type Category = {
 
 type CategorySearchProps = {
   defaultValue?: Category | string;
-  onSelect: (category: Category | null) => void;
-  onValueChange: (value: string) => void;
+  onSelect: (category: Category | null) => any;
+  onValueChange: (value: string) => any;
   categories: Category[];
   error?: string;
 };
 
-export const CategorySearch = (props: CategorySearchProps & Record<string, any>) => {
+/**
+ * Category picker for raw materials. Backed by the ariakit Combobox
+ * (ported from partner-ui / Medusa's dashboard) so the dropdown is a
+ * portaled popover that flips and repositions on overflow instead of
+ * being clipped by the scrollable create/edit modal it lives in
+ * (roadmap bug #1). It keeps the original "type to create a new
+ * category" behaviour via the Combobox's onCreateOption affordance.
+ *
+ * Two call sites with different wiring, both supported:
+ *  - the create form passes onSelect/onValueChange that call
+ *    field.onChange themselves and return the value;
+ *  - the edit form (DynamicForm) injects value/onChange and expects
+ *    onSelect/onValueChange to just return the value.
+ * We call the callback AND forward its result to the injected onChange,
+ * which is a no-op in the create case (onChange is undefined there).
+ */
+export const CategorySearch = (
+  props: CategorySearchProps & Record<string, any>
+) => {
   const {
     defaultValue = "",
     onSelect,
     onValueChange,
     categories,
     error,
-    // Extract react-hook-form properties
+    // react-hook-form / DynamicForm injected props
     value: formValue,
     onChange: formOnChange,
-    ...otherProps
   } = props;
   const { t } = useTranslation();
-  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
-  const [inputValue, setInputValue] = useState(
-    typeof defaultValue === "string" ? defaultValue : defaultValue?.name || ""
-  );
 
-  // The dropdown is rendered in a portal so it escapes the scrollable /
-  // overflow-hidden ancestors of the modal it usually lives in (otherwise
-  // it gets clipped). We track the anchor input's viewport rect and
-  // position the portal with `fixed` coordinates.
-  const anchorRef = useRef<HTMLDivElement>(null);
-  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
-
-  const updateAnchorRect = useCallback(() => {
-    if (anchorRef.current) {
-      setAnchorRect(anchorRef.current.getBoundingClientRect());
+  // Resolve the initial selected category name from whatever the caller
+  // seeded (an existing-category object, a plain name string, or RHF's
+  // current value).
+  const initialName = useMemo(() => {
+    if (formValue && typeof formValue === "object" && formValue.name) {
+      return String(formValue.name);
     }
+    if (typeof formValue === "string" && formValue) {
+      return formValue;
+    }
+    if (defaultValue && typeof defaultValue === "object") {
+      return defaultValue.name || "";
+    }
+    if (typeof defaultValue === "string") {
+      return defaultValue;
+    }
+    return "";
+    // initial only — subsequent selection is tracked in `selected`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const {
-    onSearchValueChange: setCategorySearch,
-    query: debouncedQuery,
-  } = useDebouncedSearch();
-
-  const matchingCategories = categories.filter(
-    (category) => category.name.toLowerCase().includes(inputValue.toLowerCase())
+  const [selected, setSelected] = useState<string>(initialName);
+  // Newly typed (not-yet-persisted) names so they still render as the
+  // selected label and show up as an option.
+  const [createdNames, setCreatedNames] = useState<string[]>(
+    initialName && !categories.some((c) => c.name === initialName)
+      ? [initialName]
+      : []
   );
 
-  const hasExactMatch = categories.some(
-    (category) => category.name.toLowerCase() === inputValue.toLowerCase()
-  );
+  const options = useMemo(() => {
+    const base = categories.map((c) => ({ value: c.name, label: c.name }));
+    const extra = createdNames
+      .filter((n) => !categories.some((c) => c.name === n))
+      .map((n) => ({ value: n, label: n }));
+    return [...base, ...extra];
+  }, [categories, createdNames]);
 
-  const showNewCategoryHint = inputValue && 
-    inputValue.length >= 3 && 
-    !hasExactMatch;
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setInputValue(value);
-    
-    // When user types, clear any previously selected category
-    // and use the typed value instead
-    const processedValue = onValueChange(value);
-    
-    // Update the form field value directly
-    if (formOnChange) {
-      formOnChange(processedValue);
-    }
-    
-    if (value.length >= 3) {
-      setCategorySearch(value);
-    } else {
-      setCategorySearch("");
-      setShowCategoryDropdown(false);
-    }
-  };
-
-  const handleCategorySelect = (category: Category) => {
-    setInputValue(category.name);
-    const result = onSelect(category);
-    
-    // Update the form field value directly
-    if (formOnChange) {
-      formOnChange(result);
-    }
-    
-    setCategorySearch("");
-    setShowCategoryDropdown(false);
-  };
-
-  // Set initial category if defaultValue is a Category object
-  useEffect(() => {
-    if (typeof defaultValue === "object" && defaultValue !== null) {
-      const result = onSelect(defaultValue);
-      
-      // Update the form field value directly
-      if (formOnChange) {
-        formOnChange(result);
-      }
-    } else if (formValue === undefined && defaultValue) {
-      // If no form value but defaultValue is provided, use it
-      if (formOnChange) {
-        formOnChange(defaultValue);
-      }
-    }
-  }, [defaultValue, onSelect, formOnChange, formValue]);
-
-  // Update dropdown visibility based on matching categories
-  useEffect(() => {
-    if (!debouncedQuery || matchingCategories.length === 0) {
-      setShowCategoryDropdown(false);
-    } else {
-      setShowCategoryDropdown(true);
-    }
-  }, [debouncedQuery, matchingCategories.length]);
-
-  // Keep the portal aligned with the input while it's open — measure on
-  // open and follow scroll/resize so the dropdown tracks the anchor even
-  // when the modal body scrolls.
-  const isOpen = showCategoryDropdown && matchingCategories.length > 0;
-
-  useLayoutEffect(() => {
-    if (!isOpen) {
+  const handleChange = (val?: string) => {
+    if (!val) {
+      setSelected("");
+      formOnChange?.(onValueChange(""));
       return;
     }
-    updateAnchorRect();
-    window.addEventListener("scroll", updateAnchorRect, true);
-    window.addEventListener("resize", updateAnchorRect);
-    return () => {
-      window.removeEventListener("scroll", updateAnchorRect, true);
-      window.removeEventListener("resize", updateAnchorRect);
-    };
-  }, [isOpen, updateAnchorRect]);
+    setSelected(val);
+    const existing = categories.find((c) => c.name === val);
+    if (existing) {
+      formOnChange?.(onSelect(existing));
+    }
+    // A brand-new value is handled by handleCreate, which the Combobox
+    // fires alongside onChange for non-existent options.
+  };
+
+  const handleCreate = (name: string) => {
+    setCreatedNames((prev) => (prev.includes(name) ? prev : [...prev, name]));
+    setSelected(name);
+    formOnChange?.(onValueChange(name));
+  };
 
   return (
     <Form.Item>
-      <div ref={anchorRef} className="relative">
-        <Form.Control>
-          <Input
-            autoComplete="off"
-            value={inputValue}
-            onChange={handleInputChange}
-            placeholder={t("common.searchOrCreateCategory")}
-            onFocus={() => {
-              if (inputValue.length >= 3 && matchingCategories.length > 0) {
-                setShowCategoryDropdown(true);
-              }
-            }}
-            onBlur={() => {
-              setTimeout(() => setShowCategoryDropdown(false), 200);
-            }}
-          />
-        </Form.Control>
-        {isOpen && anchorRect &&
-          createPortal(
-            <div
-              className="z-[100] max-h-48 overflow-y-auto rounded-lg border border-ui-border-base bg-ui-bg-base shadow-elevation-flyout"
-              style={{
-                position: "fixed",
-                top: anchorRect.bottom + 4,
-                left: anchorRect.left,
-                width: anchorRect.width,
-              }}
-            >
-              {matchingCategories.map((category) => (
-                <button
-                  key={category.id}
-                  type="button"
-                  className="w-full px-4 py-2 text-left hover:bg-ui-bg-base-hover"
-                  // onMouseDown fires before the input's onBlur, so the
-                  // selection isn't lost to the blur-close timeout.
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    handleCategorySelect(category);
-                  }}
-                >
-                  {category.name}
-                </button>
-              ))}
-            </div>,
-            document.body
-          )}
-        {showNewCategoryHint && (
-          <div className="text-ui-fg-subtle mt-2 text-sm">
-            {t("common.pressEnterToCreateCategory")}
-          </div>
-        )}
-      </div>
+      <Form.Control>
+        <Combobox
+          options={options}
+          value={selected}
+          onChange={handleChange}
+          onCreateOption={handleCreate}
+          allowClear
+          placeholder={t("common.searchOrCreateCategory", "Search or create a category")}
+        />
+      </Form.Control>
       {error && <Form.ErrorMessage>{error}</Form.ErrorMessage>}
     </Form.Item>
   );
