@@ -133,6 +133,18 @@ showing. Verified in the running admin via Playwright: existing
 categories load + filter (`cotton`/`Cotton`), dropdown renders
 unclipped over the modal, select-existing and create-new both work.
 
+**Server-side follow-up (2026-06-07):** also fixed the underlying
+endpoint so partial search works for any consumer, not just the
+client-side workaround. `GET /admin/categories/rawmaterials` now accepts
+`q` (canonical) and `name` search params and an `offset`; the list
+workflow normalizes the term to an ilike `$or` across name + description
+(mirroring the designs list workflow) instead of the broken exact-match
+`name` filter. The admin hook's React Query key now includes the params
+(it was static, so search terms never refetched). Test:
+`integration-tests/http/raw-material-categories-search.spec.ts` (partial
++ case-insensitive match, non-match → empty), green; live-verified
+`?q=cot`/`?name=cot` → 2, `?q=goog` → 1, no-param → all.
+
 The dropdown doesn't render cleanly — likely a portal / overflow /
 z-index issue (same family as the FX badge bug from this morning).
 **First step:** reproduce in admin, screenshot the broken state, grep

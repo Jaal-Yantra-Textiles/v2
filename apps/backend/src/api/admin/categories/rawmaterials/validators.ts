@@ -27,6 +27,11 @@ export const ReadRawMaterialCategoriesSchema = z.object({
     },
     z.record(z.string(), z.unknown()).optional()
   ),
+  // Free-text search across name + description (case-insensitive, partial).
+  q: z.string().optional(),
+  // Convenience partial-match on name (case-insensitive). Both `q` and
+  // `name` map to an ilike filter in the workflow.
+  name: z.string().optional(),
   page: z.preprocess(
     (val) => {
       if (val && typeof val === "string") {
@@ -35,6 +40,17 @@ export const ReadRawMaterialCategoriesSchema = z.object({
       return val;
     },
     z.number().min(1).optional().default(1)
+  ),
+  // Offset-based pagination (admin combobox / SDK send `offset`). When
+  // provided it takes precedence over `page`.
+  offset: z.preprocess(
+    (val) => {
+      if (val && typeof val === "string") {
+        return parseInt(val);
+      }
+      return val;
+    },
+    z.number().min(0).optional()
   ),
   limit: z.preprocess(
     (val) => {
