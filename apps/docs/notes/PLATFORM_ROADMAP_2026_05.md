@@ -154,6 +154,19 @@ Combobox vs a custom select.
 
 #### 2. Replace inline editing with Medusa standards across admin
 
+**Status: IN PROGRESS (GitHub #330).** Inventory of 8 inline-edit
+offenders captured on the issue, ranked worst-first. First route ported
+as the pattern-setter (2026-06-07): the admin **Material Usage**
+section's "Log" form (`design-consumption-logs-section.tsx`) moved from
+an in-card inline panel to a Medusa side `Drawer` (mirrors the existing
+bulk-* drawers). Same logic, now a proper right-side drawer; when the
+design has no linked inventory it shows a "No inventory linked yet"
+empty state with just a Close button (no dead form). Playwright-verified
+both states in the running admin. Remaining offenders (partner-ui
+consumption-logs twin, design-production-section's 4 inline forms,
+energy-rate detail, reconciliation, order pickup, whatsapp templates)
+follow the same recipe.
+
 Several admin tables use ad-hoc inline-edit components. Medusa's
 admin pattern is: row click → side drawer / dedicated edit page.
 **First step:** inventory which routes use inline edit (designs,

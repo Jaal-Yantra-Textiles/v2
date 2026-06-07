@@ -3,6 +3,7 @@ import {
   Badge,
   Button,
   Container,
+  Drawer,
   Heading,
   Input,
   Select,
@@ -174,7 +175,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
             <Button
               variant="secondary"
               size="small"
-              onClick={() => setShowForm(!showForm)}
+              onClick={() => setShowForm(true)}
             >
               <Plus className="mr-1.5" />
               Log
@@ -183,10 +184,28 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
         </div>
       </div>
 
-      {/* Log Form */}
-      {showForm && (
-        <div className="px-6 py-4 bg-ui-bg-subtle">
-          <div className="grid grid-cols-2 gap-3">
+      {/* Log Form — Medusa side drawer (replaces the old inline panel) */}
+      <Drawer open={showForm} onOpenChange={(open) => (open ? setShowForm(true) : resetForm())}>
+        <Drawer.Content>
+          <Drawer.Header>
+            <Drawer.Title>Log Material Usage</Drawer.Title>
+            <Drawer.Description>
+              Record raw material consumed for this design.
+            </Drawer.Description>
+          </Drawer.Header>
+          <Drawer.Body className="flex flex-col gap-y-4 overflow-y-auto">
+            {inventoryItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-y-2 py-10 text-center">
+                <Text size="small" weight="plus">
+                  No inventory linked yet
+                </Text>
+                <Text size="small" className="text-ui-fg-subtle">
+                  Link raw materials to this design first, then you can log
+                  material usage here.
+                </Text>
+              </div>
+            ) : (
+              <>
             <div>
               <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
                 Inventory Item
@@ -208,67 +227,69 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
                 </Select.Content>
               </Select>
             </div>
-            <div>
-              <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
-                Quantity
-              </Text>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0.00"
-                value={formQuantity}
-                onChange={(e) => setFormQuantity(e.target.value)}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
+                  Quantity
+                </Text>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={formQuantity}
+                  onChange={(e) => setFormQuantity(e.target.value)}
+                />
+              </div>
+              <div>
+                <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
+                  Cost per unit
+                </Text>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="Optional"
+                  value={formUnitCost}
+                  onChange={(e) => setFormUnitCost(e.target.value)}
+                />
+              </div>
+              <div>
+                <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
+                  Unit
+                </Text>
+                <Select value={formUnit} onValueChange={setFormUnit}>
+                  <Select.Trigger>
+                    <Select.Value />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {UNIT_OPTIONS.map((o) => (
+                      <Select.Item key={o.value} value={o.value}>
+                        {o.label}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
+              </div>
+              <div>
+                <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
+                  Type
+                </Text>
+                <Select value={formType} onValueChange={setFormType}>
+                  <Select.Trigger>
+                    <Select.Value />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {TYPE_OPTIONS.map((o) => (
+                      <Select.Item key={o.value} value={o.value}>
+                        {o.label}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
+              </div>
             </div>
             <div>
-              <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
-                Cost per unit
-              </Text>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="Optional"
-                value={formUnitCost}
-                onChange={(e) => setFormUnitCost(e.target.value)}
-              />
-            </div>
-            <div>
-              <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
-                Unit
-              </Text>
-              <Select value={formUnit} onValueChange={setFormUnit}>
-                <Select.Trigger>
-                  <Select.Value />
-                </Select.Trigger>
-                <Select.Content>
-                  {UNIT_OPTIONS.map((o) => (
-                    <Select.Item key={o.value} value={o.value}>
-                      {o.label}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select>
-            </div>
-            <div>
-              <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
-                Type
-              </Text>
-              <Select value={formType} onValueChange={setFormType}>
-                <Select.Trigger>
-                  <Select.Value />
-                </Select.Trigger>
-                <Select.Content>
-                  {TYPE_OPTIONS.map((o) => (
-                    <Select.Item key={o.value} value={o.value}>
-                      {o.label}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select>
-            </div>
-            <div className="col-span-2">
               <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
                 Notes
               </Text>
@@ -279,17 +300,21 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
                 rows={2}
               />
             </div>
-          </div>
-          <div className="flex justify-end gap-x-2 mt-3">
-            <Button variant="secondary" size="small" onClick={resetForm}>
-              Cancel
+              </>
+            )}
+          </Drawer.Body>
+          <Drawer.Footer>
+            <Button variant="secondary" onClick={resetForm} disabled={isLogging}>
+              {inventoryItems.length === 0 ? "Close" : "Cancel"}
             </Button>
-            <Button size="small" onClick={handleLogConsumption} disabled={isLogging}>
-              {isLogging ? "Logging..." : "Log Consumption"}
-            </Button>
-          </div>
-        </div>
-      )}
+            {inventoryItems.length > 0 && (
+              <Button onClick={handleLogConsumption} disabled={isLogging}>
+                {isLogging ? "Logging..." : "Log Consumption"}
+              </Button>
+            )}
+          </Drawer.Footer>
+        </Drawer.Content>
+      </Drawer>
 
       {/* Filter */}
       <div className="flex items-center gap-x-2 px-6 py-2">
