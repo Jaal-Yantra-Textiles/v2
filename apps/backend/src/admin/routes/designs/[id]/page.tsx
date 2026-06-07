@@ -8,7 +8,7 @@ import { DesignMediaFolderSection } from "../../../components/designs/design-med
 import { DesignInventorySection } from "../../../components/designs/design-inventory-section";
 import { DesignConsumptionLogsSection } from "../../../components/designs/design-consumption-logs-section";
 import { DesignAttributesSection } from "../../../components/designs/design-attributes-section";
-import { DesignProductionRunsSection } from "../../../components/designs/design-production-runs-section";
+import { DesignProductionRunsSummary } from "../../../components/designs/design-production-runs-summary";
 import { DesignComponentsSection } from "../../../components/designs/design-components-section";
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton";
 import { TwoColumnPage } from "../../../components/pages/two-column-pages";
@@ -69,7 +69,7 @@ const DesignDetailPage = () => {
       >
         <TwoColumnPage.Main>
           <DesignGeneralSection design={design} />
-          <DesignProductionRunsSection design={design} />
+          <DesignProductionRunsSummary design={design} />
           <DesignTasksSection design={design} />
           <DesignPartnerSection design={design} />
           <DesignInventorySection design={design} />
