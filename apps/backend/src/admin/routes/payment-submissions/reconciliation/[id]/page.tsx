@@ -1,6 +1,7 @@
 import { UIMatch, useNavigate, useParams } from "react-router-dom"
 import {
   Container,
+  Drawer,
   Heading,
   Text,
   Badge,
@@ -140,7 +141,7 @@ const ReconciliationDetailPage = () => {
                 <Button
                   variant="secondary"
                   size="small"
-                  onClick={() => setShowEdit(!showEdit)}
+                  onClick={() => setShowEdit(true)}
                 >
                   Edit
                 </Button>
@@ -284,13 +285,16 @@ const ReconciliationDetailPage = () => {
         </Container>
       </div>
 
-      {/* Edit Panel */}
-      {showEdit && (
-        <Container className="p-4">
-          <Heading level="h3" className="mb-3">
-            Update Reconciliation
-          </Heading>
-          <div className="flex flex-col gap-y-3">
+      {/* Edit — Medusa side drawer (replaces the inline edit panel) */}
+      <Drawer open={showEdit} onOpenChange={setShowEdit}>
+        <Drawer.Content>
+          <Drawer.Header>
+            <Drawer.Title>Update Reconciliation</Drawer.Title>
+            <Drawer.Description>
+              Record the actual settled amount and any notes.
+            </Drawer.Description>
+          </Drawer.Header>
+          <Drawer.Body className="flex flex-col gap-y-4 overflow-y-auto">
             <div className="flex flex-col gap-y-1">
               <Label>Actual Amount</Label>
               <Input
@@ -308,25 +312,25 @@ const ReconciliationDetailPage = () => {
                 onChange={(e) => setEditNotes(e.target.value)}
               />
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="small"
-                onClick={() => setShowEdit(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="small"
-                onClick={handleUpdate}
-                isLoading={isUpdating}
-              >
-                Save
-              </Button>
-            </div>
-          </div>
-        </Container>
-      )}
+          </Drawer.Body>
+          <Drawer.Footer>
+            <Button
+              variant="secondary"
+              size="small"
+              onClick={() => setShowEdit(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="small"
+              onClick={handleUpdate}
+              isLoading={isUpdating}
+            >
+              Save
+            </Button>
+          </Drawer.Footer>
+        </Drawer.Content>
+      </Drawer>
     </div>
   )
 }

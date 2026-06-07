@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react"
-import { Button, Heading, Text, Badge, toast, Input, Select } from "@medusajs/ui"
+import { Button, Drawer, Heading, Text, Badge, toast, Input, Select } from "@medusajs/ui"
 import { ArrowPath, Plus, Trash } from "@medusajs/icons"
 import { sdk } from "../../lib/config"
 
@@ -260,7 +260,7 @@ export const WhatsAppTemplatesSection = ({ platformId }: WhatsAppTemplatesSectio
               <ArrowPath className="mr-1" />
               Sync
             </Button>
-            <Button size="small" variant="secondary" onClick={() => setShowCreate(!showCreate)}>
+            <Button size="small" variant="secondary" onClick={() => setShowCreate(true)}>
               <Plus className="mr-1" />
               Create
             </Button>
@@ -268,70 +268,78 @@ export const WhatsAppTemplatesSection = ({ platformId }: WhatsAppTemplatesSectio
         </div>
 
         {/* Create form */}
-        {showCreate && (
-          <div className="px-4 py-3 border-b border-ui-border-base bg-ui-bg-subtle space-y-3">
-            <div className="grid grid-cols-3 gap-3">
+        <Drawer open={showCreate} onOpenChange={setShowCreate}>
+          <Drawer.Content>
+            <Drawer.Header>
+              <Drawer.Title>Create WhatsApp Template</Drawer.Title>
+              <Drawer.Description>
+                Define a new message template to submit to Meta for approval.
+              </Drawer.Description>
+            </Drawer.Header>
+            <Drawer.Body className="flex flex-col gap-y-4 overflow-y-auto">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Text size="xsmall" className="mb-1 text-ui-fg-muted font-medium">Name</Text>
+                  <Input
+                    size="small"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="e.g. order_update"
+                  />
+                </div>
+                <div>
+                  <Text size="xsmall" className="mb-1 text-ui-fg-muted font-medium">Category</Text>
+                  <Select value={newCategory} onValueChange={setNewCategory}>
+                    <Select.Trigger><Select.Value /></Select.Trigger>
+                    <Select.Content>
+                      <Select.Item value="UTILITY">Utility</Select.Item>
+                      <Select.Item value="MARKETING">Marketing</Select.Item>
+                      <Select.Item value="AUTHENTICATION">Authentication</Select.Item>
+                    </Select.Content>
+                  </Select>
+                </div>
+                <div>
+                  <Text size="xsmall" className="mb-1 text-ui-fg-muted font-medium">Language</Text>
+                  <Select value={newLanguage} onValueChange={setNewLanguage}>
+                    <Select.Trigger><Select.Value /></Select.Trigger>
+                    <Select.Content>
+                      <Select.Item value="en">English</Select.Item>
+                      <Select.Item value="en_US">English (US)</Select.Item>
+                      <Select.Item value="hi">Hindi</Select.Item>
+                      <Select.Item value="es">Spanish</Select.Item>
+                      <Select.Item value="fr">French</Select.Item>
+                    </Select.Content>
+                  </Select>
+                </div>
+              </div>
               <div>
-                <Text size="xsmall" className="mb-1 text-ui-fg-muted font-medium">Name</Text>
-                <Input
-                  size="small"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="e.g. order_update"
+                <Text size="xsmall" className="mb-1 text-ui-fg-muted font-medium">
+                  Body <span className="text-ui-fg-disabled">(use {"{{1}}"}, {"{{2}}"} for variables)</span>
+                </Text>
+                <textarea
+                  value={newBody}
+                  onChange={(e) => setNewBody(e.target.value)}
+                  placeholder="Hello {{1}}! Your order {{2}} is ready for pickup."
+                  rows={3}
+                  className="w-full rounded-lg border border-ui-border-base bg-ui-bg-field px-3 py-2 text-sm"
                 />
               </div>
               <div>
-                <Text size="xsmall" className="mb-1 text-ui-fg-muted font-medium">Category</Text>
-                <Select value={newCategory} onValueChange={setNewCategory}>
-                  <Select.Trigger><Select.Value /></Select.Trigger>
-                  <Select.Content>
-                    <Select.Item value="UTILITY">Utility</Select.Item>
-                    <Select.Item value="MARKETING">Marketing</Select.Item>
-                    <Select.Item value="AUTHENTICATION">Authentication</Select.Item>
-                  </Select.Content>
-                </Select>
+                <Text size="xsmall" className="mb-1 text-ui-fg-muted font-medium">Footer (optional)</Text>
+                <Input
+                  size="small"
+                  value={newFooter}
+                  onChange={(e) => setNewFooter(e.target.value)}
+                  placeholder="e.g. JYT Commerce"
+                />
               </div>
-              <div>
-                <Text size="xsmall" className="mb-1 text-ui-fg-muted font-medium">Language</Text>
-                <Select value={newLanguage} onValueChange={setNewLanguage}>
-                  <Select.Trigger><Select.Value /></Select.Trigger>
-                  <Select.Content>
-                    <Select.Item value="en">English</Select.Item>
-                    <Select.Item value="en_US">English (US)</Select.Item>
-                    <Select.Item value="hi">Hindi</Select.Item>
-                    <Select.Item value="es">Spanish</Select.Item>
-                    <Select.Item value="fr">French</Select.Item>
-                  </Select.Content>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <Text size="xsmall" className="mb-1 text-ui-fg-muted font-medium">
-                Body <span className="text-ui-fg-disabled">(use {"{{1}}"}, {"{{2}}"} for variables)</span>
-              </Text>
-              <textarea
-                value={newBody}
-                onChange={(e) => setNewBody(e.target.value)}
-                placeholder="Hello {{1}}! Your order {{2}} is ready for pickup."
-                rows={3}
-                className="w-full rounded-lg border border-ui-border-base bg-ui-bg-field px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <Text size="xsmall" className="mb-1 text-ui-fg-muted font-medium">Footer (optional)</Text>
-              <Input
-                size="small"
-                value={newFooter}
-                onChange={(e) => setNewFooter(e.target.value)}
-                placeholder="e.g. JYT Commerce"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
+            </Drawer.Body>
+            <Drawer.Footer>
               <Button size="small" variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
               <Button size="small" variant="primary" onClick={handleCreate} isLoading={creating}>Create Template</Button>
-            </div>
-          </div>
-        )}
+            </Drawer.Footer>
+          </Drawer.Content>
+        </Drawer>
 
         {/* Template list */}
         {loading ? (

@@ -170,11 +170,24 @@ far (2026-06-07, all Playwright-verified in the running admin):
    an **Edit** action in the section menu that opens a `Drawer` with the
    form. Header badges read the persisted `partner` values so the read
    view only reflects saved state.
+3. partner-ui **design consumption-logs** twin → Drawer (same empty
+   state as the admin one).
+4. partner-ui **production-run-detail** `CompleteRunInlineForm` → Drawer.
+5. partner-ui **order fulfillment** pickup-scheduling form → Drawer.
+6. admin **energy-rate detail** (`settings/energy-rates/[id]`) — was an
+   `isEditing` swap of the whole read view; now read view stays put and
+   **Edit** opens a Drawer (Playwright-verified).
+7. admin **payment reconciliation** (`reconciliation/[id]`) edit panel →
+   Drawer.
+8. admin **whatsapp-templates** create form → Drawer.
 
-Both mirror the existing bulk-* drawers. Remaining offenders (partner-ui
-consumption-logs twin, design-production-section's 4 inline forms,
-energy-rate detail, reconciliation, order pickup, whatsapp templates)
-follow the same recipe.
+All mirror the existing bulk-* drawers. partner-ui tsc clean.
+**Deferred:** `design-production-section` (1576 lines; 4 inline forms
+incl. the critical production-completion + inventory-consumption flow —
+needs its own focused PR with the finish/complete sub-components
+refactored for body/footer and verified against a seeded run). The
+always-on tag input in `design-attributes-section` is left as-is (a
+legitimate inline pattern, not an edit-form anti-pattern).
 
 Several admin tables use ad-hoc inline-edit components. Medusa's
 admin pattern is: row click → side drawer / dedicated edit page.
