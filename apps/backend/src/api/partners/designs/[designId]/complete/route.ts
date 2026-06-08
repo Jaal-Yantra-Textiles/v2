@@ -1,4 +1,5 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 import { completePartnerDesignWorkflow } from "../../../../../workflows/designs/complete-partner-design"
 import { getPartnerFromAuthContext } from "../../../helpers"
@@ -27,6 +28,19 @@ export async function POST(
   const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
   if (!partner) {
     return res.status(401).json({ error: "Partner authentication required" })
+  }
+
+  // Block completion on a cancelled assignment — mirror the upfront guard
+  // in /start and /finish (the workflow throws on cancel, but in 2.15.5
+  // that surfaces via the framework error envelope, not the errors array).
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: designCheck } = await query.graph({
+    entity: "designs",
+    fields: ["metadata"],
+    filters: { id: req.params.designId },
+  })
+  if (designCheck?.[0]?.metadata?.partner_assignment_cancelled_at) {
+    return res.status(400).json({ error: "This design assignment has been cancelled" })
   }
 
   const parsed = BodySchema.safeParse((req as any).validatedBody || (req.body as any))
