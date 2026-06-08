@@ -155,5 +155,37 @@ setupSharedTestSuite(() => {
       const designDoc = await api.get(`/admin/designs/${designId}?fields=id,metadata`, adminHeaders)
       expect((designDoc.data.design?.metadata || {}).partner_assignment_cancelled_at == null).toBe(true)
     })
+
+    it("rejects partner start/finish/complete on a cancelled run (#3 guard)", async () => {
+      const unique = Date.now() + 2
+      const { partnerId, partnerHeaders } = await createPartner(unique)
+
+      const designRes = await api.post(
+        "/admin/designs",
+        { name: `Run Guard ${unique}`, description: "x", design_type: "Original", status: "Conceptual", priority: "Medium" },
+        adminHeaders
+      )
+      const designId = designRes.data.design.id
+
+      const run = await api.post(
+        `/admin/designs/${designId}/production-runs`,
+        { run_type: "production", quantity: 1, assignments: [{ partner_id: partnerId, quantity: 1 }] },
+        adminHeaders
+      )
+      const childId = run.data.children?.[0]?.id
+      expect(childId).toBeTruthy()
+
+      // Cancel the run, then the partner must not be able to act on it.
+      await api.post(`/admin/production-runs/${childId}/cancel`, { reason: "test" }, adminHeaders)
+
+      for (const action of ["start", "finish", "complete"]) {
+        const res = await api.post(
+          `/partners/production-runs/${childId}/${action}`,
+          {},
+          { headers: partnerHeaders, validateStatus: () => true }
+        )
+        expect(res.status).toBeGreaterThanOrEqual(400)
+      }
+    })
   })
 })
