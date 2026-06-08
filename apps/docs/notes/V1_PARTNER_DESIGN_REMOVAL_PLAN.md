@@ -131,9 +131,17 @@ Stops the immediate bleakage; no v1 removal yet.
 - Delete v1-only specs; keep/expand v2 specs.
 
 **Phase 5 — data cleanup (one-off).**
-- Backfill: strip `metadata.partner_*` from designs; optionally archive
-  the historical `partner-design-*` tasks. Mirror the `run-backfill.sh`
-  recipe (dry-run aware, scoped).
+- ✅ **Cancelled designs migrated:** `src/scripts/backfill-cancelled-design-runs.ts`
+  — for every design carrying `partner_assignment_cancelled_at`, creates a
+  terminal `cancelled` production run for the cancelled partner when none
+  exists, then clears the marker. After this, status derives purely from
+  runs for all designs (5 marked designs in prod as of 2026-06-08: 4
+  marker-only + 1 run-backed). Run via
+  `DRY_RUN=1 ./deploy/aws/scripts/run-backfill.sh backfill-cancelled-design-runs`
+  then without DRY_RUN. Idempotent. Once run in prod, the marker +
+  v1-task fallback in the `/partners/designs` derivations can be removed.
+- Remaining: optionally strip the other `metadata.partner_*` keys and
+  archive historical `partner-design-*` tasks.
 
 ## Suggested improvements (independent of removal)
 
