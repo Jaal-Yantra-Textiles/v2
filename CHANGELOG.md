@@ -1,3 +1,10 @@
+## [13.26.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.26.0...v13.26.1) (2026-06-08)
+
+
+### Bug Fixes
+
+* **partner:** guard v1 /complete on cancelled assignment; drop dead v1 UI; cover v2 run guard ([4f86ff3](https://github.com/Jaal-Yantra-Textiles/v2/commit/4f86ff35d1aa7eff49f0678e23abd8b22886252c)), closes [#1](https://github.com/Jaal-Yantra-Textiles/v2/issues/1) [#7](https://github.com/Jaal-Yantra-Textiles/v2/issues/7) [#3](https://github.com/Jaal-Yantra-Textiles/v2/issues/3)
+
 # [13.26.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.25.0...v13.26.0) (2026-06-07)
 
 
