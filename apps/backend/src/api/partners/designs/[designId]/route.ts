@@ -169,7 +169,6 @@ export const GET = async (
   })
 
   const designMeta = (workflowDesign as any)?.metadata || (linkData.design as any)?.metadata || {}
-  const cancelledAt = designMeta.partner_assignment_cancelled_at as string | undefined
 
   let partner_phase: "redo" | null = null
   let partner_started_at: string | null = null
@@ -177,66 +176,69 @@ export const GET = async (
   let partner_completed_at: string | null = null
   let resolvedFromRun = false
 
-  // Fetch all non-cancelled runs for this design+partner, then pick the most
-  // relevant one. Priority: active runs (in_progress, sent_to_partner) over completed.
-  // This handles the case where a second run is created after the first completes.
+  let partner_status: "incoming" | "assigned" | "in_progress" | "awaiting_review" | "finished" | "completed" | "cancelled" =
+    "incoming"
+
+  // ── Single source of truth: production runs ──────────────────────────
+  // For any design that has production runs, status derives PURELY from
+  // those runs — including "cancelled" from a cancelled run. The legacy
+  // `partner_assignment_cancelled_at` marker and v1 task fallback are NOT
+  // consulted here (they only apply to legacy designs that have no runs,
+  // below). Cancelling the assignment cancels the run, so a cancelled
+  // assignment is represented by a cancelled run — no separate flag.
   const { data: runs } = await query.graph({
     entity: "production_runs",
-    filters: {
-      design_id: designId,
-      partner_id: partner.id,
-      status: { $nin: ["cancelled"] },
-    },
+    filters: { design_id: designId, partner_id: partner.id },
     fields: ["id", "status", "accepted_at", "started_at", "finished_at", "completed_at", "created_at"],
-    pagination: { skip: 0, take: 10 },
+    pagination: { skip: 0, take: 50 },
   })
-  const allRuns = (runs || []) as any[]
+  const allRuns = ((runs || []) as any[])
+    .slice()
+    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
 
-  // A stale cancellation marker should not pin the status to "cancelled"
-  // once the partner has been re-assigned. If any non-cancelled run was
-  // created after the cancellation timestamp, treat the cancellation as
-  // superseded (the new run is the source of truth). Newly-approved runs
-  // also clear the marker outright in approveProductionRunWorkflow; this
-  // read-time guard self-heals designs cancelled before that fix landed.
-  const supersededByNewerRun =
-    !!cancelledAt &&
-    allRuns.some(
-      (r) => r?.created_at && new Date(r.created_at).getTime() > new Date(cancelledAt).getTime()
-    )
-  const wasCancelled = !!cancelledAt && !supersededByNewerRun
-
-  // Primary source: production runs (the single system post-v1 migration)
-  let partner_status: "incoming" | "assigned" | "in_progress" | "awaiting_review" | "finished" | "completed" | "cancelled" =
-    wasCancelled ? "cancelled" : "incoming"
-
-  // Prefer an active run over a completed one
-  const activeRun =
-    allRuns.find((r) => ["in_progress", "sent_to_partner", "approved", "pending_review"].includes(String(r.status))) ||
-    allRuns.find((r) => String(r.status) === "completed") ||
-    allRuns[0] || null
-  if (activeRun && !wasCancelled) {
+  if (allRuns.length) {
     resolvedFromRun = true
-    const runStatus = String(activeRun.status)
-    if (runStatus === "completed") {
-      partner_status = "completed"
-      partner_completed_at = activeRun.completed_at ? String(activeRun.completed_at) : null
-    } else if (runStatus === "in_progress") {
-      if (activeRun.finished_at) {
-        partner_status = "awaiting_review"
-      } else if (activeRun.started_at) {
-        partner_status = "in_progress"
+    // An active (non-terminal) run wins over terminal ones; otherwise the
+    // newest run decides (completed vs cancelled).
+    const activeRun = allRuns.find((r) =>
+      ["in_progress", "sent_to_partner", "approved", "pending_review"].includes(String(r.status))
+    )
+    if (activeRun) {
+      const runStatus = String(activeRun.status)
+      if (runStatus === "in_progress") {
+        partner_status = activeRun.finished_at
+          ? "awaiting_review"
+          : activeRun.started_at
+            ? "in_progress"
+            : "assigned"
       } else {
+        // sent_to_partner / approved / pending_review
         partner_status = "assigned"
       }
-    } else if (runStatus === "sent_to_partner") {
-      partner_status = "assigned"
+      if (activeRun.accepted_at) partner_started_at = String(activeRun.accepted_at)
+      if (activeRun.started_at) partner_started_at = String(activeRun.started_at)
+      if (activeRun.finished_at) partner_finished_at = String(activeRun.finished_at)
+    } else {
+      const newest = allRuns[0]
+      const runStatus = String(newest.status)
+      if (runStatus === "completed") {
+        partner_status = "completed"
+        partner_completed_at = newest.completed_at ? String(newest.completed_at) : null
+        if (newest.finished_at) partner_finished_at = String(newest.finished_at)
+      } else if (runStatus === "cancelled") {
+        partner_status = "cancelled"
+      }
     }
-    if (activeRun.accepted_at) partner_started_at = String(activeRun.accepted_at)
-    if (activeRun.started_at) partner_started_at = String(activeRun.started_at)
-    if (activeRun.finished_at) partner_finished_at = String(activeRun.finished_at)
   }
 
-  // Legacy fallback: v1 workflow tasks (only for in-flight v1 designs without a production run)
+  // ── Legacy fallback (designs with NO production runs only) ────────────
+  // Pure-v1 designs predate the production-runs system. Until they're
+  // migrated (see V1_PARTNER_DESIGN_REMOVAL_PLAN.md), honour the cancel
+  // marker, then derive from v1 tasks.
+  const wasCancelled = !resolvedFromRun && !!designMeta.partner_assignment_cancelled_at
+  if (wasCancelled) {
+    partner_status = "cancelled"
+  }
   if (!resolvedFromRun && !wasCancelled) {
     const tasks = (linkData.design?.tasks || []) as Array<{
       title?: string

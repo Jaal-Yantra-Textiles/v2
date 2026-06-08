@@ -231,10 +231,10 @@ export async function GET(
   try {
     const { data: runs } = await query.graph({
       entity: "production_runs",
-      filters: {
-        partner_id: partner.id,
-        status: { $nin: ["cancelled"] },
-      },
+      // Include cancelled runs: production runs are the single source of
+      // truth for partner_status, so a cancelled run is how a cancelled
+      // assignment is represented (no separate metadata marker).
+      filters: { partner_id: partner.id },
       fields: ["id", "design_id", "status", "accepted_at", "started_at", "finished_at", "completed_at", "created_at"],
       pagination: { skip: 0, take: 200 },
     }, { locale: req.locale })
@@ -256,89 +256,92 @@ export async function GET(
       ].includes(t.title)
     const workflowTasks = tasks.filter(isPartnerWorkflowTask)
 
-    // Check if assignment was cancelled
-    const wasCancelled = !!design?.metadata?.partner_assignment_cancelled_at
+    let partnerStatus: "incoming" | "assigned" | "in_progress" | "awaiting_review" | "finished" | "completed" | "cancelled" =
+      "incoming"
+    let partnerPhase: "redo" | null = null
+    let partnerStartedAt: string | null = null
+    let partnerFinishedAt: string | null = null
+    let partnerCompletedAt: string | null = null
 
-    // Derive from metadata first (authoritative), then fall back to task-based inference
-    let partnerStatus: "incoming" | "assigned" | "in_progress" | "finished" | "completed" | "cancelled" =
-      wasCancelled ? "cancelled" : ((design?.metadata?.partner_status as any) || "incoming")
-    let partnerPhase: "redo" | null = (design?.metadata?.partner_phase as any) || null
-    let partnerStartedAt: string | null = (design?.metadata?.partner_started_at as any) || null
-    let partnerFinishedAt: string | null = (design?.metadata?.partner_finished_at as any) || null
-    let partnerCompletedAt: string | null = (design?.metadata?.partner_completed_at as any) || null
-
-    // If redo phase is flagged in metadata, reflect in-progress immediately (deterministic)
-    if (partnerPhase === "redo" && !wasCancelled) {
-      partnerStatus = "in_progress"
-    }
-
-    if (workflowTasks.length > 0) {
-      // start -> redo (optional) -> finish -> completed
-      const startTask = workflowTasks.find((t: any) => t.title === "partner-design-start" && t.status === "completed")
-      const redoTask = workflowTasks.find((t: any) => t.title === "partner-design-redo" && t.status === "completed")
-      const finishTask = workflowTasks.find((t: any) => t.title === "partner-design-finish" && t.status === "completed")
-      const completedTask = workflowTasks.find((t: any) => t.title === "partner-design-completed" && t.status === "completed")
-
-      // If metadata didn't set a terminal state, infer from tasks
-      if (!partnerStatus || partnerStatus === "incoming" || partnerStatus === "assigned") {
-        partnerStatus = "assigned"
-        if (completedTask) {
-          partnerStatus = "completed"
-          partnerCompletedAt = partnerCompletedAt || (completedTask.updated_at ? String(completedTask.updated_at) : null)
-        } else if (redoTask) {
-          // Prefer redo state whenever redo task is completed, regardless of timestamp ordering vs finish
-          partnerStatus = "in_progress"
-          partnerPhase = "redo"
-        } else if (finishTask) {
-          partnerStatus = "finished"
-          partnerFinishedAt = partnerFinishedAt || (finishTask.updated_at ? String(finishTask.updated_at) : null)
-        } else if (startTask) {
-          partnerStatus = "in_progress"
-          partnerStartedAt = partnerStartedAt || (startTask.updated_at ? String(startTask.updated_at) : null)
-        }
-      }
-    }
-
-    // Final safeguard: if phase is redo, ensure status reflects in-progress
-    if (partnerPhase === "redo") {
-      partnerStatus = "in_progress"
-    }
-
-    // Override with production run status if a run exists for this partner + design
-    // Prefer the most recent non-terminal (not completed) run; fall back to most recent overall
+    // ── Single source of truth: production runs (incl. cancelled) ──────
     const runsForDesign = partnerRuns
       .filter((r: any) => r.design_id === design.id)
-      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    const activeRun = runsForDesign.find((r: any) => !["completed", "cancelled"].includes(r.status)) || runsForDesign[0]
-    // A run only supersedes a cancellation marker if it was created after
-    // the cancellation (a genuine re-assignment) — mirrors the detail
-    // endpoint. Runs predating the cancel must not resurrect the design.
-    const cancelledAt = design?.metadata?.partner_assignment_cancelled_at as string | undefined
-    const runSupersedesCancel =
-      !wasCancelled ||
-      (!!activeRun?.created_at &&
-        !!cancelledAt &&
-        new Date(activeRun.created_at).getTime() > new Date(cancelledAt).getTime())
-    if (activeRun && runSupersedesCancel) {
-      const runStatus = String(activeRun.status)
-      if (runStatus === "sent_to_partner") {
-        partnerStatus = "assigned"
-      } else if (runStatus === "in_progress") {
-        if (activeRun.finished_at) {
-          // Partner marked finished, waiting for admin to review and complete
-          partnerStatus = "awaiting_review" as any
-          partnerFinishedAt = partnerFinishedAt || String(activeRun.finished_at)
-        } else if (activeRun.started_at) {
-          partnerStatus = "in_progress"
-          partnerStartedAt = partnerStartedAt || String(activeRun.started_at)
+      .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+    const resolvedFromRun = runsForDesign.length > 0
+    if (resolvedFromRun) {
+      const activeRun = runsForDesign.find(
+        (r: any) => !["completed", "cancelled"].includes(String(r.status))
+      )
+      if (activeRun) {
+        const runStatus = String(activeRun.status)
+        if (runStatus === "in_progress") {
+          partnerStatus = activeRun.finished_at
+            ? "awaiting_review"
+            : activeRun.started_at
+              ? "in_progress"
+              : "assigned"
         } else {
           partnerStatus = "assigned"
         }
-      } else if (runStatus === "completed") {
-        partnerStatus = "completed"
-        partnerCompletedAt = partnerCompletedAt || String(activeRun.completed_at)
+        if (activeRun.started_at) partnerStartedAt = String(activeRun.started_at)
+        if (activeRun.finished_at) partnerFinishedAt = String(activeRun.finished_at)
+      } else {
+        const newest = runsForDesign[0]
+        const runStatus = String(newest.status)
+        if (runStatus === "completed") {
+          partnerStatus = "completed"
+          partnerCompletedAt = newest.completed_at ? String(newest.completed_at) : null
+          if (newest.finished_at) partnerFinishedAt = String(newest.finished_at)
+        } else if (runStatus === "cancelled") {
+          partnerStatus = "cancelled"
+        }
       }
-      if (activeRun.finished_at) partnerFinishedAt = partnerFinishedAt || String(activeRun.finished_at)
+    }
+
+    // ── Legacy fallback (designs with NO production runs only) ─────────
+    if (!resolvedFromRun) {
+      const wasCancelled = !!design?.metadata?.partner_assignment_cancelled_at
+      if (wasCancelled) {
+        partnerStatus = "cancelled"
+      } else {
+        // metadata first, then v1 task inference
+        partnerStatus = (design?.metadata?.partner_status as any) || "incoming"
+        partnerPhase = (design?.metadata?.partner_phase as any) || null
+        partnerStartedAt = (design?.metadata?.partner_started_at as any) || null
+        partnerFinishedAt = (design?.metadata?.partner_finished_at as any) || null
+        partnerCompletedAt = (design?.metadata?.partner_completed_at as any) || null
+
+        if (partnerPhase === "redo") {
+          partnerStatus = "in_progress"
+        }
+
+        if (workflowTasks.length > 0) {
+          const completedTask = workflowTasks.find((t: any) => t.title === "partner-design-completed" && t.status === "completed")
+          const redoTask = workflowTasks.find((t: any) => t.title === "partner-design-redo" && t.status === "completed")
+          const finishTask = workflowTasks.find((t: any) => t.title === "partner-design-finish" && t.status === "completed")
+          const startTask = workflowTasks.find((t: any) => t.title === "partner-design-start" && t.status === "completed")
+
+          if (!partnerStatus || partnerStatus === "incoming" || partnerStatus === "assigned") {
+            partnerStatus = "assigned"
+            if (completedTask) {
+              partnerStatus = "completed"
+              partnerCompletedAt = partnerCompletedAt || (completedTask.updated_at ? String(completedTask.updated_at) : null)
+            } else if (redoTask) {
+              partnerStatus = "in_progress"
+              partnerPhase = "redo"
+            } else if (finishTask) {
+              partnerStatus = "finished"
+              partnerFinishedAt = partnerFinishedAt || (finishTask.updated_at ? String(finishTask.updated_at) : null)
+            } else if (startTask) {
+              partnerStatus = "in_progress"
+              partnerStartedAt = partnerStartedAt || (startTask.updated_at ? String(startTask.updated_at) : null)
+            }
+          }
+        }
+        if (partnerPhase === "redo") {
+          partnerStatus = "in_progress"
+        }
+      }
     }
 
     const partner_info = {
