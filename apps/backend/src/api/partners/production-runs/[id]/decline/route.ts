@@ -1,8 +1,8 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import { MedusaError } from "@medusajs/framework/utils"
 import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import type ProductionRunService from "../../../../../modules/production_runs/service"
-import { TASKS_MODULE } from "../../../../../modules/tasks"
+import { declineProductionRunWorkflow } from "../../../../../workflows/production-runs/decline-production-run"
 
 /**
  * POST /partners/production-runs/:id/decline
@@ -61,10 +61,9 @@ export async function POST(
   const notes = typeof body.notes === "string" ? body.notes.trim().slice(0, 500) : undefined
 
   const productionRunService: ProductionRunService = req.scope.resolve(PRODUCTION_RUNS_MODULE)
-  const taskService = req.scope.resolve(TASKS_MODULE) as any
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
 
-  // Fetch + ownership / state guards
+  // Fetch + ownership / state guards (kept in the route so they surface as
+  // clean HTTP errors; the mutations live in declineProductionRunWorkflow).
   let run: any
   try {
     run = await productionRunService.retrieveProductionRun(id)
@@ -102,61 +101,15 @@ export async function POST(
     ? `Declined by partner (${reasonLabel}): ${notes}`
     : `Declined by partner (${reasonLabel})`
 
-  await productionRunService.updateProductionRuns({
-    id,
-    status: "cancelled",
-    cancelled_at: new Date(),
-    cancelled_reason: composedReason,
+  await declineProductionRunWorkflow(req.scope).run({
+    input: {
+      production_run_id: id,
+      partner_id: partnerId,
+      composed_reason: composedReason,
+      reason,
+      notes,
+    },
   })
-
-  // Cancel linked tasks (mirrors admin cancel flow)
-  try {
-    const { data: runData } = await query.graph({
-      entity: "production_runs",
-      fields: ["tasks.id", "tasks.status"],
-      filters: { id },
-    })
-    const tasks = runData?.[0]?.tasks || []
-    for (const task of tasks) {
-      if (task.status !== "completed" && task.status !== "cancelled") {
-        await taskService.updateTasks({ id: task.id, status: "cancelled" })
-      }
-    }
-  } catch (e: any) {
-    console.error(`[decline-production-run] Failed to cancel tasks for ${id}:`, e.message)
-  }
-
-  // Emit both events:
-  //   - production_run.declined → specific, for future partner-initiated handlers
-  //   - production_run.cancelled → reuses existing subscribers (admin feed +
-  //     WhatsApp "cancelled" template) so the partner gets a receipt today
-  //     without requiring a new subscriber.
-  try {
-    const eventService = req.scope.resolve(Modules.EVENT_BUS) as any
-    await eventService.emit([
-      {
-        name: "production_run.declined",
-        data: {
-          id,
-          production_run_id: id,
-          partner_id: partnerId,
-          action: "declined",
-          reason,
-          notes,
-        },
-      },
-      {
-        name: "production_run.cancelled",
-        data: {
-          id,
-          production_run_id: id,
-          partner_id: partnerId,
-          action: "cancelled",
-          notes: composedReason,
-        },
-      },
-    ])
-  } catch { /* non-fatal */ }
 
   const final = await productionRunService.retrieveProductionRun(id)
   return res.json({
