@@ -116,11 +116,19 @@ Stops the immediate bleakage; no v1 removal yet.
   otherwise migrate the UI to read run tasks.
 
 **Phase 3 — collapse the status derivation to v2-only.**
-- Delete the v1-task fallback blocks in both `/partners/designs` routes
-  (keep the production-run logic). `partner_status` derives purely from
-  runs. Drop `metadata.partner_*` reads.
-- Replace the `cancel-partner-assignment` flow with **production-run
-  cancellation** (cancel the run(s)); retire `partner_assignment_cancelled_at`.
+- ✅ **DONE 2026-06-10** (after the Phase 5 backfill ran in prod). Removed
+  the v1-task fallback + cancel-marker reads from both `/partners/designs`
+  routes (`route.ts` list + `[designId]/route.ts` detail). `partner_status`
+  now derives **purely from production runs**; a run-less design is
+  "incoming". Also dropped the now-unused `design.tasks.*` fetch from the
+  detail route's link query. Verified: partner-status specs green
+  (production-run-partner-status, -design-status, -sample-status,
+  partner-cancel-reassign-desync).
+- ✅ `cancel-partner-assignment` already cancels the partner's active
+  run(s) (the cancel = a cancelled run). `partner_assignment_cancelled_at`
+  is no longer read anywhere in the partner derivations; the
+  cancel-partner-assignment workflow still *writes* it (harmless legacy
+  breadcrumb) — can be dropped in Phase 4.
 
 **Phase 4 — retire v1 endpoints + workflows.**
 - Delete `partners/designs/[id]/{start,finish,redo,refinish,complete}` once

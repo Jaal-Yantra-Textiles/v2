@@ -298,51 +298,10 @@ export async function GET(
       }
     }
 
-    // ── Legacy fallback (designs with NO production runs only) ─────────
-    if (!resolvedFromRun) {
-      const wasCancelled = !!design?.metadata?.partner_assignment_cancelled_at
-      if (wasCancelled) {
-        partnerStatus = "cancelled"
-      } else {
-        // metadata first, then v1 task inference
-        partnerStatus = (design?.metadata?.partner_status as any) || "incoming"
-        partnerPhase = (design?.metadata?.partner_phase as any) || null
-        partnerStartedAt = (design?.metadata?.partner_started_at as any) || null
-        partnerFinishedAt = (design?.metadata?.partner_finished_at as any) || null
-        partnerCompletedAt = (design?.metadata?.partner_completed_at as any) || null
-
-        if (partnerPhase === "redo") {
-          partnerStatus = "in_progress"
-        }
-
-        if (workflowTasks.length > 0) {
-          const completedTask = workflowTasks.find((t: any) => t.title === "partner-design-completed" && t.status === "completed")
-          const redoTask = workflowTasks.find((t: any) => t.title === "partner-design-redo" && t.status === "completed")
-          const finishTask = workflowTasks.find((t: any) => t.title === "partner-design-finish" && t.status === "completed")
-          const startTask = workflowTasks.find((t: any) => t.title === "partner-design-start" && t.status === "completed")
-
-          if (!partnerStatus || partnerStatus === "incoming" || partnerStatus === "assigned") {
-            partnerStatus = "assigned"
-            if (completedTask) {
-              partnerStatus = "completed"
-              partnerCompletedAt = partnerCompletedAt || (completedTask.updated_at ? String(completedTask.updated_at) : null)
-            } else if (redoTask) {
-              partnerStatus = "in_progress"
-              partnerPhase = "redo"
-            } else if (finishTask) {
-              partnerStatus = "finished"
-              partnerFinishedAt = partnerFinishedAt || (finishTask.updated_at ? String(finishTask.updated_at) : null)
-            } else if (startTask) {
-              partnerStatus = "in_progress"
-              partnerStartedAt = partnerStartedAt || (startTask.updated_at ? String(startTask.updated_at) : null)
-            }
-          }
-        }
-        if (partnerPhase === "redo") {
-          partnerStatus = "in_progress"
-        }
-      }
-    }
+    // The legacy v1 fallback (cancel marker + partner-design-* task status
+    // inference for run-less designs) was removed 2026-06-09 after the
+    // backfill migrated all marked designs onto production runs. A design
+    // with no runs is "incoming". See V1_PARTNER_DESIGN_REMOVAL_PLAN.md.
 
     const partner_info = {
       assigned_partner_id: linkData.partner?.id || partner.id,

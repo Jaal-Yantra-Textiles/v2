@@ -147,12 +147,11 @@ export const GET = async (
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  // Verify this design is linked to this partner and fetch tasks via link
+  // Verify this design is linked to this partner.
   const linkResult = await query.graph({
     entity: designPartnersLink.entryPoint,
     fields: [
       "design.*",
-      "design.tasks.*",
       "partner.*",
     ],
     filters: { design_id: designId, partner_id: partner.id },
@@ -168,24 +167,22 @@ export const GET = async (
     input: { id: designId, fields: ["*"] },
   })
 
-  const designMeta = (workflowDesign as any)?.metadata || (linkData.design as any)?.metadata || {}
-
-  let partner_phase: "redo" | null = null
+  const partner_phase: "redo" | null = null
   let partner_started_at: string | null = null
   let partner_finished_at: string | null = null
   let partner_completed_at: string | null = null
-  let resolvedFromRun = false
 
   let partner_status: "incoming" | "assigned" | "in_progress" | "awaiting_review" | "finished" | "completed" | "cancelled" =
     "incoming"
 
   // ── Single source of truth: production runs ──────────────────────────
-  // For any design that has production runs, status derives PURELY from
-  // those runs — including "cancelled" from a cancelled run. The legacy
-  // `partner_assignment_cancelled_at` marker and v1 task fallback are NOT
-  // consulted here (they only apply to legacy designs that have no runs,
-  // below). Cancelling the assignment cancels the run, so a cancelled
-  // assignment is represented by a cancelled run — no separate flag.
+  // partner_status derives entirely from production runs — including
+  // "cancelled" from a cancelled run. Cancelling an assignment cancels the
+  // run, so a cancelled assignment is a cancelled run (no separate flag).
+  // The legacy `partner_assignment_cancelled_at` marker + v1 task fallback
+  // were removed 2026-06-09 after the backfill migrated all marked designs
+  // onto runs (see V1_PARTNER_DESIGN_REMOVAL_PLAN.md). A design with no
+  // runs is simply "incoming".
   const { data: runs } = await query.graph({
     entity: "production_runs",
     filters: { design_id: designId, partner_id: partner.id },
@@ -197,7 +194,6 @@ export const GET = async (
     .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
 
   if (allRuns.length) {
-    resolvedFromRun = true
     // An active (non-terminal) run wins over terminal ones; otherwise the
     // newest run decides (completed vs cancelled).
     const activeRun = allRuns.find((r) =>
@@ -227,51 +223,6 @@ export const GET = async (
         if (newest.finished_at) partner_finished_at = String(newest.finished_at)
       } else if (runStatus === "cancelled") {
         partner_status = "cancelled"
-      }
-    }
-  }
-
-  // ── Legacy fallback (designs with NO production runs only) ────────────
-  // Pure-v1 designs predate the production-runs system. Until they're
-  // migrated (see V1_PARTNER_DESIGN_REMOVAL_PLAN.md), honour the cancel
-  // marker, then derive from v1 tasks.
-  const wasCancelled = !resolvedFromRun && !!designMeta.partner_assignment_cancelled_at
-  if (wasCancelled) {
-    partner_status = "cancelled"
-  }
-  if (!resolvedFromRun && !wasCancelled) {
-    const tasks = (linkData.design?.tasks || []) as Array<{
-      title?: string
-      status?: string
-      updated_at?: string | Date | null
-    }>
-    const v1TaskTitles = [
-      "partner-design-start",
-      "partner-design-redo",
-      "partner-design-finish",
-      "partner-design-completed",
-    ]
-    const wfTasks = tasks.filter((t) => !!t && v1TaskTitles.includes(t.title!))
-    if (wfTasks.length > 0) {
-      const findCompleted = (title: string) => wfTasks.find((t) => t.title === title && t.status === "completed")
-      const startTask = findCompleted("partner-design-start")
-      const redoTask = findCompleted("partner-design-redo")
-      const finishTask = findCompleted("partner-design-finish")
-      const completedTask = findCompleted("partner-design-completed")
-
-      partner_status = "assigned"
-      if (completedTask) {
-        partner_status = "completed"
-        partner_completed_at = completedTask.updated_at ? String(completedTask.updated_at) : null
-      } else if (redoTask) {
-        partner_status = "in_progress"
-        partner_phase = "redo"
-      } else if (finishTask) {
-        partner_status = "finished"
-        partner_finished_at = finishTask.updated_at ? String(finishTask.updated_at) : null
-      } else if (startTask) {
-        partner_status = "in_progress"
-        partner_started_at = startTask.updated_at ? String(startTask.updated_at) : null
       }
     }
   }
