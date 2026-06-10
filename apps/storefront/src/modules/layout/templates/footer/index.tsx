@@ -166,6 +166,11 @@ export default async function Footer() {
                   </LocalizedClientLink>
                 </li>
                 <li>
+                  <LocalizedClientLink className="hover:text-ui-fg-base" href="/gallery">
+                    Gallery
+                  </LocalizedClientLink>
+                </li>
+                <li>
                   <LocalizedClientLink className="hover:text-ui-fg-base" href="/pages/privacy-policy">
                     Privacy Policy
                   </LocalizedClientLink>
