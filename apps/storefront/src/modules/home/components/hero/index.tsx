@@ -1,4 +1,5 @@
 import { buildPublicMediaUrl, listPublicMedia } from "@lib/data/media"
+import { GALLERY_ALBUM_ID } from "@lib/util/gallery"
 import HeroVisual from "./hero-visual"
 
 /**
@@ -16,8 +17,7 @@ import HeroVisual from "./hero-visual"
  * front. Editors can rotate the curated set by adding / removing media
  * from the album in admin.
  */
-const HERO_ALBUM_ID =
-  process.env.NEXT_PUBLIC_HERO_ALBUM_ID ?? "01KS74M4JABCFKHB4WTF90KQYS"
+const HERO_ALBUM_ID = GALLERY_ALBUM_ID
 
 const Hero = async () => {
   const isDev = process.env.NODE_ENV === "development"
