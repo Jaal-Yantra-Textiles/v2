@@ -90,14 +90,6 @@ export function getPartnerRouteMap(): RouteObject[] {
                         import("../../routes/designs/design-production-run-create"),
                     },
                     {
-                      path: "start",
-                      lazy: () => import("../../routes/designs/design-start"),
-                    },
-                    {
-                      path: "complete",
-                      lazy: () => import("../../routes/designs/design-complete"),
-                    },
-                    {
                       path: "media-preview",
                       lazy: () => import("../../routes/designs/design-media-preview"),
                     },

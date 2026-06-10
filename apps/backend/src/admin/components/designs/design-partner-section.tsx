@@ -15,13 +15,6 @@ interface DesignPartnerSectionProps {
   design: AdminDesign & { partners?: AdminPartner[] };
 }
 
-const V1_TASK_TITLES = [
-  "partner-design-start",
-  "partner-design-redo",
-  "partner-design-finish",
-  "partner-design-completed",
-]
-
 export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
   const navigate = useNavigate();
   const partners = design.partners || [];
@@ -32,15 +25,6 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
     limit: 50,
     offset: 0,
   })
-
-  const metadata = (design as any)?.metadata || {}
-  const tasks = (design as any)?.tasks || []
-
-  // Detect active v1 tasks
-  const v1Tasks = tasks.filter(
-    (t: any) => V1_TASK_TITLES.includes(t.title) && t.status !== "cancelled"
-  )
-  const hasActiveV1Tasks = v1Tasks.length > 0
 
   // Check production run status per partner — prefer active over terminal
   const partnerRunStatus = (partnerId: string) => {
@@ -64,22 +48,6 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
         r.status !== "cancelled"
     )
   }
-
-  // Detect v1 assignment: active v1 tasks or metadata signal, and no active production run
-  const hasV1Assignment = (partnerId: string) => {
-    const ps = metadata.partner_status
-    const hasMetaSignal = ps && ps !== "completed" && ps !== "cancelled"
-    if (!hasActiveV1Tasks && !hasMetaSignal) return false
-    const hasActivePartnerRun = production_runs.some(
-      (r: any) =>
-        r.partner_id === partnerId &&
-        r.status !== "cancelled" &&
-        r.status !== "completed"
-    )
-    return !hasActivePartnerRun
-  }
-
-  const wasV1Cancelled = !!metadata.partner_assignment_cancelled_at
 
   const handleUnlinkPartner = async (e: React.MouseEvent, partnerId: string) => {
     e.preventDefault()
@@ -139,8 +107,8 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
           partners.map((partner) => {
             const link = `/partners/${partner.id}`;
             const runStatus = partnerRunStatus(partner.id)
-            const isV1Active = hasV1Assignment(partner.id)
-            const canUnlink = !hasActiveRun(partner.id) && !isV1Active
+            const isRunActive = hasActiveRun(partner.id)
+            const canUnlink = !isRunActive
 
             const Inner = (
               <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-2 transition-colors">
@@ -153,16 +121,6 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
                     <span className="text-ui-fg-subtle truncate max-w-[150px] sm:max-w-[200px] md:max-w-full block">
                       {partner.handle || "-"}
                     </span>
-                    {isV1Active && (
-                      <span className="text-ui-fg-muted text-xs">
-                        Assigned via direct send · {String(metadata.partner_status || "assigned").replace(/_/g, " ")}
-                      </span>
-                    )}
-                    {wasV1Cancelled && !isV1Active && !runStatus && (
-                      <span className="text-ui-fg-error text-xs">
-                        Assignment was cancelled
-                      </span>
-                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {/* Production run status */}
@@ -175,23 +133,18 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
                       </Badge>
                     )}
 
-                    {/* v1 active: show cancel button */}
-                    {isV1Active && (
-                      <>
-                        <Badge color="orange">
-                          {String(metadata.partner_status || "assigned").replace(/_/g, " ")}
-                        </Badge>
-                        <Button
-                          size="small"
-                          variant="danger"
-                          isLoading={isCancelling}
-                          disabled={isAnyLoading}
-                          onClick={(e) => handleCancelAssignment(e, partner.id)}
-                        >
-                          <XCircle className="mr-1" />
-                          Cancel
-                        </Button>
-                      </>
+                    {/* Active run: allow cancelling the assignment (cancels the run) */}
+                    {isRunActive && (
+                      <Button
+                        size="small"
+                        variant="danger"
+                        isLoading={isCancelling}
+                        disabled={isAnyLoading}
+                        onClick={(e) => handleCancelAssignment(e, partner.id)}
+                      >
+                        <XCircle className="mr-1" />
+                        Cancel
+                      </Button>
                     )}
 
                     {/* Unlink */}

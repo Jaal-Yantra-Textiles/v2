@@ -5,7 +5,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 jest.setTimeout(60000)
 
 setupSharedTestSuite(() => {
-  describe("Cancel Workflows — v1 Send-to-Partner and Production Runs", () => {
+  describe("Cancel Workflows — partner assignment and Production Runs", () => {
 
     async function setup() {
       const { api, getContainer } = getSharedTestEnv()
@@ -61,53 +61,12 @@ setupSharedTestSuite(() => {
       return res.data.design.id
     }
 
-    /**
-     * Simulate v1 send-to-partner by creating links + tasks directly.
-     * Avoids calling the actual workflow which suspends at async gates.
-     */
-    async function simulateV1Send(container: any, designId: string, partnerId: string) {
+    async function linkPartnerToDesign(container: any, designId: string, partnerId: string) {
       const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as any
-      const taskService = container.resolve("tasks") as any
-      const designService = container.resolve("design") as any
-
-      // Link partner to design
       await remoteLink.create({
         design: { design_id: designId },
         partner: { partner_id: partnerId },
       })
-
-      // Create v1 tasks
-      const titles = [
-        "partner-design-start",
-        "partner-design-redo",
-        "partner-design-finish",
-        "partner-design-completed",
-      ]
-      const txId = `sim-tx-${Date.now()}`
-      const taskIds: string[] = []
-
-      for (const title of titles) {
-        const task = await taskService.createTasks({
-          title,
-          description: `v1: ${title}`,
-          status: "pending",
-          transaction_id: txId,
-          start_date: new Date(),
-          end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        })
-        taskIds.push(task.id)
-        await remoteLink.create({
-          design: { design_id: designId },
-          tasks: { task_id: task.id },
-        })
-      }
-
-      await designService.updateDesigns({
-        id: designId,
-        metadata: { partner_status: "assigned", partner_phase: null },
-      })
-
-      return { txId, taskIds }
     }
 
     /**
@@ -140,16 +99,18 @@ setupSharedTestSuite(() => {
       return runId
     }
 
-    // ─── V1 Cancel Tests ────────────────────────────────────────────
+    // ─── cancel-partner-assignment ──────────────────────────────────
 
-    describe("v1 cancel-partner-assignment", () => {
-      it("should cancel v1 tasks and reset metadata", async () => {
+    describe("cancel-partner-assignment", () => {
+      it("should cancel the partner's active runs", async () => {
         const { api, container, adminHeaders, unique } = await setup()
         const { partnerId } = await createPartner(api, unique)
         const designId = await createDesign(api, adminHeaders, unique)
 
-        const { taskIds } = await simulateV1Send(container, designId, partnerId)
-        expect(taskIds.length).toBe(4)
+        await linkPartnerToDesign(container, designId, partnerId)
+        const runId = await createRunWithoutDispatch(
+          api, adminHeaders, container, designId, partnerId
+        )
 
         const cancelRes = await api.post(
           `/admin/designs/${designId}/cancel-partner-assignment`,
@@ -157,14 +118,11 @@ setupSharedTestSuite(() => {
           adminHeaders
         )
         expect(cancelRes.status).toBe(200)
-        expect(cancelRes.data.cancelled_tasks).toBeGreaterThanOrEqual(0)
+        expect(cancelRes.data.cancelled_runs).toBeGreaterThanOrEqual(1)
         expect(cancelRes.data.unlinked).toBe(false)
 
-        // Cancellation recorded in metadata
-        const after = await api.get(`/admin/designs/${designId}`, adminHeaders)
-        const meta = after.data.design.metadata || {}
-        expect(meta.partner_assignment_cancelled_at).toBeDefined()
-        expect(meta.partner_assignment_cancelled_partner_id).toBe(partnerId)
+        const runDoc = await api.get(`/admin/production-runs/${runId}`, adminHeaders)
+        expect(runDoc.data.production_run.status).toBe("cancelled")
       })
 
       it("should cancel and unlink when unlink=true", async () => {
@@ -172,7 +130,7 @@ setupSharedTestSuite(() => {
         const { partnerId } = await createPartner(api, unique)
         const designId = await createDesign(api, adminHeaders, unique)
 
-        await simulateV1Send(container, designId, partnerId)
+        await linkPartnerToDesign(container, designId, partnerId)
 
         const cancelRes = await api.post(
           `/admin/designs/${designId}/cancel-partner-assignment`,
@@ -301,18 +259,18 @@ setupSharedTestSuite(() => {
       })
     })
 
-    // ─── Transition: v1 cancel → production run ─────────────────────
+    // ─── Transition: cancel → new production run ────────────────────
 
-    describe("v1 → cancel → production run transition", () => {
-      it("should cancel v1 then create a production run for same partner", async () => {
+    describe("cancel → re-assign via new production run", () => {
+      it("should cancel the assignment then create a new run for the same partner", async () => {
         const { api, container, adminHeaders, unique } = await setup()
         const { partnerId } = await createPartner(api, unique)
         const designId = await createDesign(api, adminHeaders, unique)
 
-        // v1 send
-        await simulateV1Send(container, designId, partnerId)
+        await linkPartnerToDesign(container, designId, partnerId)
+        await createRunWithoutDispatch(api, adminHeaders, container, designId, partnerId)
 
-        // Cancel v1 (keep linked)
+        // Cancel the assignment (keep linked)
         const cancelRes = await api.post(
           `/admin/designs/${designId}/cancel-partner-assignment`,
           { partner_id: partnerId, unlink: false },
@@ -320,7 +278,7 @@ setupSharedTestSuite(() => {
         )
         expect(cancelRes.status).toBe(200)
 
-        // Create production run (no dispatch to avoid async hang)
+        // Create a fresh production run (no dispatch to avoid async hang)
         const runRes = await api.post("/admin/production-runs", {
           design_id: designId,
           partner_id: partnerId,
@@ -332,99 +290,16 @@ setupSharedTestSuite(() => {
       })
     })
 
-    // ─── Partner action guards after v1 cancel ──────────────────────
+    // ─── Partner visibility after cancel ────────────────────────────
 
-    describe("Partner actions blocked after v1 cancel", () => {
-      it("should block partner /start after v1 cancel", async () => {
-        const { api, container, adminHeaders, unique } = await setup()
-        const { partnerId, partnerHeaders } = await createPartner(api, unique)
-        const designId = await createDesign(api, adminHeaders, unique)
-
-        // Simulate v1 send
-        await simulateV1Send(container, designId, partnerId)
-
-        // Partner sees the design
-        const designsBefore = await api.get("/partners/designs", {
-          headers: partnerHeaders,
-        })
-        const found = designsBefore.data.designs?.find((d: any) => d.id === designId)
-        expect(found).toBeDefined()
-
-        // Admin cancels v1
-        const cancelRes = await api.post(
-          `/admin/designs/${designId}/cancel-partner-assignment`,
-          { partner_id: partnerId },
-          adminHeaders
-        )
-        expect(cancelRes.status).toBe(200)
-
-        // Partner tries to start — should be blocked
-        const startRes = await api
-          .post(
-            `/partners/designs/${designId}/start`,
-            {},
-            { headers: partnerHeaders, validateStatus: () => true }
-          )
-        expect(startRes.status).toBe(400)
-        expect(startRes.data.error).toContain("cancelled")
-      })
-
-      it("should block partner /finish after v1 cancel", async () => {
-        const { api, container, adminHeaders, unique } = await setup()
-        const { partnerId, partnerHeaders } = await createPartner(api, unique)
-        const designId = await createDesign(api, adminHeaders, unique)
-
-        await simulateV1Send(container, designId, partnerId)
-
-        // Admin cancels
-        await api.post(
-          `/admin/designs/${designId}/cancel-partner-assignment`,
-          { partner_id: partnerId },
-          adminHeaders
-        )
-
-        // Partner tries to finish — blocked
-        const finishRes = await api
-          .post(
-            `/partners/designs/${designId}/finish`,
-            {},
-            { headers: partnerHeaders, validateStatus: () => true }
-          )
-        expect(finishRes.status).toBe(400)
-        expect(finishRes.data.error).toContain("cancelled")
-      })
-
-      it("should block partner /complete after v1 cancel", async () => {
-        const { api, container, adminHeaders, unique } = await setup()
-        const { partnerId, partnerHeaders } = await createPartner(api, unique)
-        const designId = await createDesign(api, adminHeaders, unique)
-
-        await simulateV1Send(container, designId, partnerId)
-
-        // Admin cancels
-        await api.post(
-          `/admin/designs/${designId}/cancel-partner-assignment`,
-          { partner_id: partnerId },
-          adminHeaders
-        )
-
-        // Partner tries to complete — blocked
-        const completeRes = await api
-          .post(
-            `/partners/designs/${designId}/complete`,
-            {},
-            { headers: partnerHeaders, validateStatus: () => true }
-          )
-        expect(completeRes.status).toBe(400)
-        expect(completeRes.data.error).toContain("cancelled")
-      })
-
+    describe("Partner visibility after cancel", () => {
       it("should show cancelled status in partner design list", async () => {
         const { api, container, adminHeaders, unique } = await setup()
         const { partnerId, partnerHeaders } = await createPartner(api, unique)
         const designId = await createDesign(api, adminHeaders, unique)
 
-        await simulateV1Send(container, designId, partnerId)
+        await linkPartnerToDesign(container, designId, partnerId)
+        await createRunWithoutDispatch(api, adminHeaders, container, designId, partnerId)
 
         // Admin cancels
         await api.post(
@@ -448,7 +323,8 @@ setupSharedTestSuite(() => {
         const { partnerId, partnerHeaders } = await createPartner(api, unique)
         const designId = await createDesign(api, adminHeaders, unique)
 
-        await simulateV1Send(container, designId, partnerId)
+        await linkPartnerToDesign(container, designId, partnerId)
+        await createRunWithoutDispatch(api, adminHeaders, container, designId, partnerId)
 
         // Admin cancels
         await api.post(
@@ -464,29 +340,6 @@ setupSharedTestSuite(() => {
         )
         expect(detailRes.status).toBe(200)
         expect(detailRes.data.design.partner_info.partner_status).toBe("cancelled")
-      })
-
-      it("should allow partner actions on non-cancelled v1 design (normal flow)", async () => {
-        const { api, container, adminHeaders, unique } = await setup()
-        const { partnerId, partnerHeaders } = await createPartner(api, unique)
-        const designId = await createDesign(api, adminHeaders, unique)
-
-        // Simulate v1 send (NOT cancelled)
-        await simulateV1Send(container, designId, partnerId)
-
-        // Partner should be able to start — NOT blocked
-        // This will fail at the workflow signal step (fake txId) but should NOT return 400 "cancelled"
-        const startRes = await api
-          .post(
-            `/partners/designs/${designId}/start`,
-            {},
-            { headers: partnerHeaders, validateStatus: () => true }
-          )
-        // Should NOT be 400 with "cancelled" error — the design is active
-        // It may be 500 (workflow signal fails on fake txId) or 200, but not "cancelled"
-        if (startRes.status === 400) {
-          expect(startRes.data.error).not.toContain("cancelled")
-        }
       })
     })
   })
