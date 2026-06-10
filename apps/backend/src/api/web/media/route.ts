@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { MedusaError } from "@medusajs/framework/utils";
 import { listAllMediasWorkflow } from "../../../workflows/media/list-all-medias";
 import { listAlbumMediaWorkflow } from "../../../workflows/media/list-album-media";
+import { listMediaFileWorkflow } from "../../../workflows/media/list-media-file";
 
 /**
  * Public endpoint to list media files
@@ -11,8 +12,14 @@ import { listAlbumMediaWorkflow } from "../../../workflows/media/list-album-medi
  * - limit: number (default: 20, max: 100)
  * - random: boolean (default: true) - randomize the order
  * - type: string - filter by media type (image, video, etc.)
- * - album_id: string - return only public media that belong to this album
- *   (walks AlbumMedia → MediaFile and filters by is_public on the file).
+ * - album_id: string - return only public media that belong to this
+ *   collection. The id is tried as an Album first (AlbumMedia →
+ *   MediaFile); when no album rows match, it's tried as a media FOLDER
+ *   id (public files whose folder_id matches). The folder fallback
+ *   exists because curated hero sets are usually folders in the media
+ *   library (e.g. `media_art_hero`), and prod may have no Album rows at
+ *   all — without it, callers silently fell through to the random
+ *   public pool (roadmap bug #22: the hero paintings disappeared).
  */
 export const GET = async (
   req: MedusaRequest,
@@ -90,6 +97,26 @@ export const GET = async (
         .map((r: any) => r?.media)
         .filter((m: any) => m && (m.is_public !== false))
         .filter((m: any) => !type || m.file_type === type);
+
+      if (!mediaFiles.length) {
+        // No album rows — try the id as a public media FOLDER instead.
+        const { result: folderResult } = await listMediaFileWorkflow(
+          req.scope
+        ).run({
+          input: {
+            filters: {
+              folder_id: albumId,
+              is_public: true,
+              ...(type ? { file_type: type } : {}),
+            },
+            config: {
+              take: random ? Math.min((offset + limit) * 3, 500) : limit,
+              skip: random ? 0 : offset,
+            },
+          },
+        });
+        mediaFiles = ((folderResult as any)?.[0] ?? []) as any[];
+      }
     } else {
       const { result } = await listAllMediasWorkflow(req.scope).run({
         input: {
