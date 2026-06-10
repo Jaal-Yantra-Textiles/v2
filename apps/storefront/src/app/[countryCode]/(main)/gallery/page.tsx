@@ -44,8 +44,8 @@ export default async function GalleryPage() {
         </Heading>
         <Text className="text-ui-fg-subtle">
           The paintings behind our homepage — a small, rotating collection
-          drawn from open archives. One greets you at random on every
-          visit; this is all of them.
+          drawn from the New York Gallery&apos;s open archive. One greets
+          you at random on every visit; this is all of them.
         </Text>
       </div>
 
@@ -54,7 +54,14 @@ export default async function GalleryPage() {
           The archive is being rehung — check back soon.
         </Text>
       ) : (
-        <GalleryGrid paintings={paintings} />
+        <>
+          <GalleryGrid paintings={paintings} />
+          <Text className="text-ui-fg-muted txt-small mt-10 block">
+            All works are reproduced from the New York Gallery open
+            archive. We share them in the same spirit they were opened —
+            art that belongs to everyone.
+          </Text>
+        </>
       )}
     </div>
   )
