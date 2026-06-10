@@ -9,6 +9,8 @@ import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
+import { PRODUCTION_POLICY_MODULE } from "../../modules/production_policy"
+import type ProductionPolicyService from "../../modules/production_policy/service"
 import { TASKS_MODULE } from "../../modules/tasks"
 import { lifecycleWorkflowId } from "./run-production-run-lifecycle"
 
@@ -30,14 +32,8 @@ export type ResolvedPartnerLocation = {
 // ---------------------------------------------------------------------------
 
 export type ValidateRunOpts = {
-  /** Which statuses the run must be in */
-  allowedStatuses: string[]
-  /** If true, run.started_at must be set */
-  requireStarted?: boolean
-  /** If true, run.finished_at must be set */
-  requireFinished?: boolean
-  /** Human-readable action name for error messages */
-  action: string
+  /** Which lifecycle action is being attempted — picks the policy guard. */
+  action: "start" | "finish" | "complete"
 }
 
 export const retrieveAndValidatePartnerRunStep = createStep(
@@ -48,6 +44,8 @@ export const retrieveAndValidatePartnerRunStep = createStep(
   ) => {
     const productionRunService: ProductionRunService =
       container.resolve(PRODUCTION_RUNS_MODULE)
+    const productionPolicyService: ProductionPolicyService =
+      container.resolve(PRODUCTION_POLICY_MODULE)
 
     const run = await productionRunService
       .retrieveProductionRun(input.production_run_id)
@@ -60,34 +58,18 @@ export const retrieveAndValidatePartnerRunStep = createStep(
       )
     }
 
-    const status = String((run as any).status)
-    if (!input.opts.allowedStatuses.includes(status)) {
-      throw new MedusaError(
-        MedusaError.Types.NOT_ALLOWED,
-        `Production run must be ${input.opts.allowedStatuses.join(" or ")} to ${input.opts.action}. Current status: ${status}`
-      )
-    }
-
-    if (input.opts.requireStarted && !(run as any).started_at) {
-      throw new MedusaError(
-        MedusaError.Types.NOT_ALLOWED,
-        `Production run must be started before it can be ${input.opts.action}ed`
-      )
-    }
-
-    if (input.opts.requireFinished && !(run as any).finished_at) {
-      throw new MedusaError(
-        MedusaError.Types.NOT_ALLOWED,
-        `Production run must be finished before it can be ${input.opts.action}d`
-      )
-    }
-
-    // Guard against double-start
-    if (input.opts.action === "start" && (run as any).started_at) {
-      throw new MedusaError(
-        MedusaError.Types.NOT_ALLOWED,
-        "Production run has already been started"
-      )
+    // Allowed transitions live in ONE place: ProductionPolicyService
+    // (same authority the admin approve/dispatch/accept path uses).
+    switch (input.opts.action) {
+      case "start":
+        await productionPolicyService.assertCanStartWork(run as any)
+        break
+      case "finish":
+        await productionPolicyService.assertCanFinishWork(run as any)
+        break
+      case "complete":
+        await productionPolicyService.assertCanCompleteWork(run as any)
+        break
     }
 
     return new StepResponse(run)

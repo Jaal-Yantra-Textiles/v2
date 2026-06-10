@@ -2,6 +2,8 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { MedusaError } from "@medusajs/framework/utils"
 import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import type ProductionRunService from "../../../../../modules/production_runs/service"
+import { PRODUCTION_POLICY_MODULE } from "../../../../../modules/production_policy"
+import type ProductionPolicyService from "../../../../../modules/production_policy/service"
 import { declineProductionRunWorkflow } from "../../../../../workflows/production-runs/decline-production-run"
 
 /**
@@ -79,20 +81,13 @@ export async function POST(
   if (run.status === "cancelled") {
     return res.json({ production_run: run, message: "Already cancelled" })
   }
-  if (run.status === "completed") {
-    throw new MedusaError(
-      MedusaError.Types.NOT_ALLOWED,
-      "Cannot decline a completed production run"
-    )
-  }
-  if (run.started_at) {
-    // Work has begun — partner can't unilaterally back out. Admin cancel
-    // is the right path, and an admin may need to handle partial costs.
-    throw new MedusaError(
-      MedusaError.Types.NOT_ALLOWED,
-      "Work has already started on this run. Contact admin to cancel mid-production."
-    )
-  }
+  // Transition rules live in ProductionPolicyService: completed runs and
+  // runs with started work can't be partner-declined (admin cancel is the
+  // mid-flight path).
+  const productionPolicyService: ProductionPolicyService = req.scope.resolve(
+    PRODUCTION_POLICY_MODULE
+  )
+  await productionPolicyService.assertCanDecline(run)
 
   // Compose a clear attribution string so admin feed / inspection tells
   // the partner vs admin story at a glance.

@@ -314,8 +314,6 @@ export const completeProductionRunWorkflow = createWorkflow(
       production_run_id: input.production_run_id,
       partner_id: input.partner_id,
       opts: {
-        allowedStatuses: ["in_progress"],
-        requireFinished: true,
         action: "complete",
       },
     })
