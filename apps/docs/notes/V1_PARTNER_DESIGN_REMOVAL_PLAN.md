@@ -184,11 +184,20 @@ Stops the immediate bleakage; no v1 removal yet.
 2. **Run cancellation is the cancel** — there should be no separate
    "assignment cancelled" marker divorced from run state. Cancelling work =
    cancelling the run.
-3. **Guard the v2 partner endpoints on run state** — `/partners/production-runs/[id]/{accept,start,finish,complete}` should reject transitions on a
-   cancelled/terminal run with a clear error (defence-in-depth; today they
-   rely on the workflow's status check only).
-4. **One partner-work UI** — finish consolidating onto `DesignProductionSection`;
-   delete the dead v1 action UI.
-5. **Typed run-status state machine** — encode allowed transitions in one
-   place (module/service) instead of re-deriving `can*` flags in each route
-   + UI.
+3. **Guard the v2 partner endpoints on run state** — ✅ DONE 2026-06-10.
+   `/partners/production-runs/[id]/{accept,start,finish,complete,decline}`
+   all validate through `ProductionPolicyService`, including an explicit
+   terminal-status rejection with a clear error.
+4. **One partner-work UI** — ✅ DONE (Phase 1 deleted the dead v1 action
+   UI; Phase 4 removed the orphaned start/complete routes + hooks).
+5. **Typed run-status state machine** — ✅ DONE 2026-06-10. Rather than a
+   new module, the existing `production_policy` module (which already
+   owned approve/dispatch/send/accept transitions via DB-stored config)
+   was extended with the partner work lifecycle:
+   `assertCanStartWork/FinishWork/CompleteWork/Decline` +
+   `isTerminal`/`TERMINAL_RUN_STATUSES`. The partner workflows'
+   `retrieveAndValidatePartnerRunStep` and the decline route now delegate
+   to it instead of carrying inline `allowedStatuses` lists. Config keys:
+   `start_work_from`, `finish_work_from`, `complete_work_from`,
+   `decline_from`. Pinned by
+   `integration-tests/http/production-run-transition-guards.spec.ts`.
