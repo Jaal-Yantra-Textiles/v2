@@ -1,3 +1,10 @@
+# [13.27.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.26.3...v13.27.0) (2026-06-10)
+
+
+### Features
+
+* **production-runs:** centralize run transitions in ProductionPolicyService ([75120d2](https://github.com/Jaal-Yantra-Textiles/v2/commit/75120d2921369fec4bb43883e5d7443190ecc112))
+
 ## [13.26.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.26.2...v13.26.3) (2026-06-09)
 
 ## [13.26.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.26.1...v13.26.2) (2026-06-08)
