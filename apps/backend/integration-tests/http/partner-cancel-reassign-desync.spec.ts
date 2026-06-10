@@ -5,11 +5,9 @@ jest.setTimeout(60 * 1000)
 
 // Regression: a cancelled partner assignment followed by a NEW production
 // run for the same partner must not leave the design stuck at
-// partner_status="cancelled". Two safeguards are exercised:
-//  1. approveProductionRunWorkflow clears the stale
-//     design.metadata.partner_assignment_cancelled_at marker on re-assign.
-//  2. the /partners/designs[/:id] derivation treats the cancel marker as
-//     superseded by a run created after the cancellation (read-time heal).
+// partner_status="cancelled". Since the v1 retirement, partner_status
+// derives purely from production runs: cancelling an assignment cancels
+// the run, and a newer run supersedes it. No metadata marker is written.
 setupSharedTestSuite(() => {
   describe("Partner cancel → re-assign desync", () => {
     const { api, getContainer } = getSharedTestEnv()

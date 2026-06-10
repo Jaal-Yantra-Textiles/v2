@@ -131,12 +131,37 @@ Stops the immediate bleakage; no v1 removal yet.
   breadcrumb) — can be dropped in Phase 4.
 
 **Phase 4 — retire v1 endpoints + workflows.**
-- Delete `partners/designs/[id]/{start,finish,redo,refinish,complete}` once
-  the partner-ui no longer calls them.
-- Delete `send-to-partner.ts`, `complete-partner-design.ts`'s v1 bits,
-  `design-steps.ts` gate infra, and the v1 admin `send-to-partner` route.
-- Simplify `design-partner-section.tsx` (drop `hasV1Assignment`).
-- Delete v1-only specs; keep/expand v2 specs.
+- ✅ **DONE 2026-06-10.** Preconditions verified first: partner-ui had no
+  remaining navigation to the v1 routes (`design-start`/`design-complete`
+  were mounted but orphaned since the action section was deleted), the
+  admin batch send drawer + `useSendDesignToPartner` hook had no mounts,
+  and nothing in the v2 path creates or completes v1-titled tasks.
+- Deleted: `partners/designs/[id]/{start,finish,redo,refinish,complete}`
+  routes + their middleware entries; admin `send-to-partner` route +
+  validator; workflows `send-to-partner.ts`, `complete-partner-design.ts`,
+  `design-steps.ts` (gate infra). `create-tasks-from-templates.ts` stays —
+  it serves admin design/inventory-order task creation.
+- `cancel-partner-assignment` workflow stripped to v2-only: cancel the
+  partner's active runs (+ open tasks) and optionally unlink. The marker
+  write + v1 task/transaction cancellation are gone; the response no
+  longer carries `transaction_id`.
+- `approve-production-run` dropped `clearDesignCancelMarkerStep` — nothing
+  writes the marker anymore (prod was backfilled clean in Phase 5).
+- Admin UI: deleted `batch-send-to-partner-drawer.tsx` (unmounted) +
+  `useSendDesignToPartner`; `design-partner-section.tsx` lost
+  `hasV1Assignment`/marker reads — the Cancel affordance now shows for a
+  partner with an **active run** and cancels via the same endpoint.
+- partner-ui: deleted `design-start`/`design-complete` routes + route-map
+  entries + the 5 v1 mutation hooks.
+- Specs: deleted `designs-partner-workflow.spec.ts` (v1-only); reworked
+  `cancel-workflows.spec.ts` onto the v2 surface (assignment-cancel
+  cancels runs; visibility checks via runs); `design-consumption-logs.spec.ts`
+  now links partner↔design directly instead of the v1 send ceremony.
+  `send-to-partner-complete-workflow.spec.ts` + `send-to-partner-error-cases.spec.ts`
+  are the **inventory-orders** feature — untouched.
+- Note: Phase 2 turned out to be moot — the v2 send path never created
+  the v1 checklist in current code; only the (now deleted) v1 admin
+  route did.
 
 **Phase 5 — data cleanup (one-off).**
 - ✅ **Cancelled designs migrated:** `src/scripts/backfill-cancelled-design-runs.ts`

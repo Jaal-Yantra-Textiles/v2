@@ -114,18 +114,6 @@ export interface LinkDesignPartner {
   partnerIds: string[];
 }
 
-export interface SendDesignToPartnerPayload {
-  partnerId: string
-  notes?: string
-}
-
-export interface SendDesignToPartnerResponse {
-  message: string
-  designId: string
-  partnerId: string
-  transactionId: string
-}
-
 const DESIGN_QUERY_KEY = "designs" as const;
 export const designQueryKeys = queryKeysFactory(DESIGN_QUERY_KEY);
 
@@ -494,29 +482,6 @@ export const useCancelPartnerAssignment = (
   });
 }
 
-export const useSendDesignToPartner = (
-  id: string,
-  options?: UseMutationOptions<
-    SendDesignToPartnerResponse,
-    FetchError,
-    SendDesignToPartnerPayload
-  >
-) => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (data: SendDesignToPartnerPayload) =>
-      sdk.client.fetch<SendDesignToPartnerResponse>(`/admin/designs/${id}/send-to-partner`, {
-        method: "POST",
-        body: data,
-      }),
-    onSuccess: (data, variables, _mutateResult, context) => {
-      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
-      options?.onSuccess?.(data, variables, _mutateResult, context);
-    },
-    ...options,
-  });
-}
 
 export interface CreateDesignLLMPayload {
   designPrompt: string;

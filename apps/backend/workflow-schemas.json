@@ -1566,6 +1566,30 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/delete-person.ts"
   },
+  "cancel-partner-assignment": {
+    "fields": [
+      {
+        "name": "design_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.design_id }}"
+      },
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "unlink",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/designs/cancel-partner-assignment.ts"
+  },
   "create-design-from-llm": {
     "fields": [
       {
@@ -1717,6 +1741,12 @@
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.customer_id_for_link }}"
+      },
+      {
+        "name": "owner_partner_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.owner_partner_id }}"
       }
     ],
     "source": "custom_ts",
@@ -2570,6 +2600,30 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/forms/delete-form.ts"
   },
+  "import-tour-bookings": {
+    "fields": [
+      {
+        "name": "form_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.form_id }}"
+      },
+      {
+        "name": "bookings",
+        "type": "array",
+        "required": true,
+        "placeholder": "{{ $last.bookings }}"
+      },
+      {
+        "name": "token_ttl_days",
+        "type": "number",
+        "required": false,
+        "placeholder": "0"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/forms/import-tour-bookings.ts"
+  },
   "list-form-responses": {
     "fields": [
       {
@@ -2761,6 +2815,62 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/forms/verify-form-response.ts"
+  },
+  "fanout-prices-from-source": {
+    "fields": [
+      {
+        "name": "source_price_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.source_price_id }}",
+        "description": "Workflow: fanout-prices-from-source When a partner sets a manual price on a variant, this workflow creates auto-converted price rows in the partner's other supported currencies using FX rates from the fx_rates module. Algorithm: 1. Resolve the source price. 2. Recursion guard: query for the link `price ↔ fx_price_meta`. If the source already has an `fx_price_meta` row, fanout was the thing that created it — skip, otherwise the price.created event would trigger an infinite re-emit loop. 3. Resolve price_set → variant → product → first sales_channel → store. Skip if the chain breaks. 4. Read store.supported_currencies — these are the currencies the partner is willing to display prices in. 5. For each currency in supported_currencies that the price_set doesn't already have a row for, compute the converted amount via FX and call `addPrices` to attach a new price row to the price_set. 6. For each newly created price, create an `fx_price_meta` row (base_currency, base_amount, fx_rate, source_price_id) and a Medusa link between `price.id` and `fx_price_meta.id`. The link is the discriminator the recursion guard, UI badge, strip-on-edit, and daily re-rate all read. Why a separate fx_price_meta table: Medusa's `Price` model has no `metadata` column (verified). An earlier draft tried to stash the FX audit fields in `metadata` and it silently dropped — discovered when the recursion guard never fired. See apps/docs/notes/FX_AUTO_CONVERSION.md. Failure semantics: Per-currency errors during rate lookup are logged + counted but never abort the whole fanout. If `addPrices` itself fails the step throws so the workflow reports failure to the subscriber. / export type FanoutPricesInput = { /** Source price id (the one the partner just set)."
+      },
+      {
+        "name": "store_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.store_id }}",
+        "description": "Workflow: fanout-prices-from-source When a partner sets a manual price on a variant, this workflow creates auto-converted price rows in the partner's other supported currencies using FX rates from the fx_rates module. Algorithm: 1. Resolve the source price. 2. Recursion guard: query for the link `price ↔ fx_price_meta`. If the source already has an `fx_price_meta` row, fanout was the thing that created it — skip, otherwise the price.created event would trigger an infinite re-emit loop. 3. Resolve price_set → variant → product → first sales_channel → store. Skip if the chain breaks. 4. Read store.supported_currencies — these are the currencies the partner is willing to display prices in. 5. For each currency in supported_currencies that the price_set doesn't already have a row for, compute the converted amount via FX and call `addPrices` to attach a new price row to the price_set. 6. For each newly created price, create an `fx_price_meta` row (base_currency, base_amount, fx_rate, source_price_id) and a Medusa link between `price.id` and `fx_price_meta.id`. The link is the discriminator the recursion guard, UI badge, strip-on-edit, and daily re-rate all read. Why a separate fx_price_meta table: Medusa's `Price` model has no `metadata` column (verified). An earlier draft tried to stash the FX audit fields in `metadata` and it silently dropped — discovered when the recursion guard never fired. See apps/docs/notes/FX_AUTO_CONVERSION.md. Failure semantics: Per-currency errors during rate lookup are logged + counted but never abort the whole fanout. If `addPrices` itself fails the step throws so the workflow reports failure to the subscriber. / export type FanoutPricesInput = { /** Source price id (the one the partner just set). */ source_price_id: string /** Optional: the store whose supported_currencies drive the fanout. Pass this from contexts where you already know the store (partner routes, scripts). When omitted, the workflow derives it by walking price_set → variant → product → sales_channel and looking up the store where `default_sales_channel_id` matches — useful as a fallback but slower and dependent on the product being linked to a sales_channel that's the default for exactly one store."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/fx/fanout-prices.ts"
+  },
+  "refresh-fx-rates": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "inferred",
+    "sourceFile": "src/workflows/fx/refresh-fx-rates.ts"
+  },
+  "rerate-auto-converted-prices": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "inferred",
+    "sourceFile": "src/workflows/fx/rerate-auto-converted-prices.ts"
   },
   "bulk-sync-products-to-google": {
     "fields": [
@@ -3988,6 +4098,25 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/partner/associate-partner-person-types.ts"
   },
+  "connect-partner-whatsapp": {
+    "fields": [
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "phone",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.phone }}",
+        "description": "Already-normalized digits-only phone with country code."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partner/connect-partner-whatsapp.ts"
+  },
   "create-partner-admin": {
     "fields": [
       {
@@ -4877,10 +5006,60 @@
         "type": "array",
         "required": false,
         "placeholder": "{{ $last.task_ids }}"
+      },
+      {
+        "name": "execution_mode",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.execution_mode }}"
+      },
+      {
+        "name": "sub_partner_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.sub_partner_id }}"
       }
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/production-runs/create-production-run.ts"
+  },
+  "decline-production-run": {
+    "fields": [
+      {
+        "name": "production_run_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.production_run_id }}"
+      },
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "composed_reason",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.composed_reason }}",
+        "description": "Pre-composed, attribution-prefixed cancellation reason."
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.reason }}",
+        "description": "Pre-composed, attribution-prefixed cancellation reason. */ composed_reason: string /** Raw reason code + notes for the emitted events."
+      },
+      {
+        "name": "notes",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.notes }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/production-runs/decline-production-run.ts"
   },
   "emit-production-run-reminder": {
     "fields": [
@@ -5157,6 +5336,33 @@
     ],
     "source": "inferred",
     "sourceFile": "src/workflows/raw-materials/list-raw-material-category.ts"
+  },
+  "propagate-region-to-partners": {
+    "fields": [
+      {
+        "name": "region_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.region_id }}",
+        "description": "Workflow: propagate-region-to-partners When admin creates (or updates) a region, every active partner needs the same plumbing the 0A backfill did manually: 1. `partner_region` link from the partner to the region. 2. `store.supported_currencies` extended with the region's currency_code if missing. 3. (Optional) FX fanout against every existing variant price on the partner's store so converted price rows materialize in the new currency. Called by: - `src/subscribers/region-propagate.ts` on `region.created`. - `POST /admin/regions/:id/share-to-all` for manual re-runs. Companion of `src/scripts/backfill-all-admin-regions-to-partners.ts` and friends — those are the one-off batch path for retrofitting the existing platform; this workflow is the structural fix so new regions self-propagate. Idempotent: skips link pairs that already exist, skips currencies already in supported_currencies, and the FX workflow has its own recursion guard on auto-derived prices. Safe to re-run. / export type PropagateRegionInput = { /** Region whose state should propagate to partners."
+      },
+      {
+        "name": "partner_ids",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.partner_ids }}",
+        "description": "Workflow: propagate-region-to-partners When admin creates (or updates) a region, every active partner needs the same plumbing the 0A backfill did manually: 1. `partner_region` link from the partner to the region. 2. `store.supported_currencies` extended with the region's currency_code if missing. 3. (Optional) FX fanout against every existing variant price on the partner's store so converted price rows materialize in the new currency. Called by: - `src/subscribers/region-propagate.ts` on `region.created`. - `POST /admin/regions/:id/share-to-all` for manual re-runs. Companion of `src/scripts/backfill-all-admin-regions-to-partners.ts` and friends — those are the one-off batch path for retrofitting the existing platform; this workflow is the structural fix so new regions self-propagate. Idempotent: skips link pairs that already exist, skips currencies already in supported_currencies, and the FX workflow has its own recursion guard on auto-derived prices. Safe to re-run. / export type PropagateRegionInput = { /** Region whose state should propagate to partners. */ region_id: string /** Optional: scope to a subset of partners. Default = every partner with at least one store."
+      },
+      {
+        "name": "trigger_fanout",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false",
+        "description": "Workflow: propagate-region-to-partners When admin creates (or updates) a region, every active partner needs the same plumbing the 0A backfill did manually: 1. `partner_region` link from the partner to the region. 2. `store.supported_currencies` extended with the region's currency_code if missing. 3. (Optional) FX fanout against every existing variant price on the partner's store so converted price rows materialize in the new currency. Called by: - `src/subscribers/region-propagate.ts` on `region.created`. - `POST /admin/regions/:id/share-to-all` for manual re-runs. Companion of `src/scripts/backfill-all-admin-regions-to-partners.ts` and friends — those are the one-off batch path for retrofitting the existing platform; this workflow is the structural fix so new regions self-propagate. Idempotent: skips link pairs that already exist, skips currencies already in supported_currencies, and the FX workflow has its own recursion guard on auto-derived prices. Safe to re-run. / export type PropagateRegionInput = { /** Region whose state should propagate to partners. */ region_id: string /** Optional: scope to a subset of partners. Default = every partner with at least one store. / partner_ids?: string[] /** When true, also kick off FX fanout against every existing variant price on the affected stores so converted rows materialize for the new currency immediately. Default false (cheap path: partners' next variant save will fan out automatically)."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/regions/propagate-region-to-partners.ts"
   },
   "create--social-platform": {
     "fields": [
@@ -5903,6 +6109,48 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/stores/provision-storefront.ts"
   },
+  "redeploy-storefront": {
+    "fields": [
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "vercel_project_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.vercel_project_id }}"
+      },
+      {
+        "name": "vercel_project_name",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.vercel_project_name }}"
+      },
+      {
+        "name": "storefront_repo",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.storefront_repo }}"
+      },
+      {
+        "name": "ref",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.ref }}"
+      },
+      {
+        "name": "update_env",
+        "type": "date",
+        "required": false,
+        "placeholder": "{{ $trigger.update_env }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/stores/redeploy-storefront.ts"
+  },
   "delete-task-template": {
     "fields": [
       {
@@ -6010,6 +6258,25 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/tasks/update-task.ts"
+  },
+  "classify-product-tax-class": {
+    "fields": [
+      {
+        "name": "product_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.product_id }}"
+      },
+      {
+        "name": "dry_run",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false",
+        "description": "Roadmap item 5 follow-up — classify a product into the JYT-managed \"textile_over_2500\" product_type based on its maximum INR variant price, so the IN tax_region's 18% rule fires correctly at cart time (vs. the 5% default that's correct for sub-₹2,500 items). Why a product-level type and not per-variant: Medusa's `tax_rate_rule.reference` only accepts `product`, `product_type`, or `shipping_option`. A single product carries one `type_id`, so when variants straddle the ₹2,500 threshold we go conservative — use the MAX variant price. That over-collects on cheap variants but never under-collects, which is the right side of statutory tax liability. Documented in `apps/docs/notes/TAX_NOTES.md`. Safe to call repeatedly. Only mutates the product when the resolved tax class differs from the current `type_id` AND the current `type_id` is either NULL or one of the JYT-managed values — never overwrites a partner-assigned type. / // ₹2,500 — INR stored as whole rupees in Medusa 2.x (currency has // decimal_digits=0), confirmed by the prod /store/products probe // returning `calculated_amount: 4999` for a ₹4,999 variant. export const IN_TEXTILE_THRESHOLD_INR = 2500 // The JYT-managed product_type value (stored on // product_type.value). The seed script `seed-in-textile-tax-class.ts` // is the only writer that creates rows with these values. export const TAX_CLASS_OVER_2500_VALUE = \"jyt_tax_in_textile_over_2500\" // Set of all type values the classifier owns. Used to decide whether // it's safe to clear/replace a product's current type_id. Anything // not in this set is partner-managed and must not be touched. export const JYT_MANAGED_TAX_CLASS_VALUES = new Set<string>([ TAX_CLASS_OVER_2500_VALUE, ]) export type ClassifyProductInput = { product_id: string /** When true, compute the decision (`assigned` / `cleared` / `no-change` / `skipped`) but DO NOT mutate the product's type_id. Used by the backfill's `--dry-run` so a preview is actually a preview. The returned `decision` still reflects what WOULD happen."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/tax/classify-product-tax-class.ts"
   },
   "list-user-auth-identities": {
     "fields": [

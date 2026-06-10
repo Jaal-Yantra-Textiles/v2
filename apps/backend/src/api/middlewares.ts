@@ -171,7 +171,6 @@ import {
   ListPaymentMethodsByPartnerQuerySchema as PartnerListPaymentMethodsByPartnerQuerySchema,
   CreatePaymentMethodForPartnerSchema as PartnerCreatePaymentMethodForPartnerSchema,
 } from "./partners/[id]/payments/validators";
-import { sendDesignToPartnerSchema } from "./admin/designs/[id]/send-to-partner/validators";
 import { ReviseDesignSchema } from "./admin/designs/[id]/revise/validators";
 import { AdminCreateDesignProductionRunSchema } from "./admin/designs/[id]/production-runs/validators";
 import { AdminRecreateProductionRunSchema } from "./admin/designs/recreate-production-run/validators";
@@ -3733,12 +3732,6 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [authenticate("user", ["session", "bearer"])],
     },
-    // Admin Designs -> send to partner
-    {
-      matcher: "/admin/designs/:id/send-to-partner",
-      method: 'POST',
-      middlewares: [validateAndTransformBody(wrapSchema(sendDesignToPartnerSchema))],
-    },
     {
       matcher: "/admin/designs/:id/production-runs",
       method: "POST",
@@ -3830,35 +3823,6 @@ export default defineMiddlewares({
       ],
     },
     {
-      matcher: "/partners/designs/:designId/start",
-      method: "POST",
-      middlewares: [
-        authenticate("partner", ["session", "bearer"]),
-      ],
-    },
-    {
-      matcher: "/partners/designs/:designId/redo",
-      method: "POST",
-      middlewares: [
-        authenticate("partner", ["session", "bearer"]),
-      ],
-    },
-
-    {
-      matcher: "/partners/designs/:designId/refinish",
-      method: "POST",
-      middlewares: [
-        authenticate("partner", ["session", "bearer"]),
-      ],
-    },
-    {
-      matcher: "/partners/designs/:designId/finish",
-      method: "POST",
-      middlewares: [
-        authenticate("partner", ["session", "bearer"]),
-      ],
-    },
-    {
       // Roadmap #6 Phase 2 — design ↔ inventory BOM (partner)
       matcher: "/partners/designs/:designId/inventory",
       method: "POST",
@@ -3919,13 +3883,6 @@ export default defineMiddlewares({
     {
       matcher: "/partners/designs/:designId/consumption-logs",
       method: "GET",
-      middlewares: [
-        authenticate("partner", ["session", "bearer"]),
-      ],
-    },
-    {
-      matcher: "/partners/designs/:designId/complete",
-      method: "POST",
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
       ],

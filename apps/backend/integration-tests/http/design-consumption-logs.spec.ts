@@ -428,99 +428,15 @@ setupSharedTestSuite(() => {
     // ─── Partner Consumption Logging ─────────────────────────────────
 
     describe("Partner consumption log routes", () => {
-      // Task template setup + send-to-partner + start in beforeEach
-      // (matches the pattern in designs-partner-workflow.spec.ts)
+      // The partner works the design via the v2 production-run surface;
+      // for consumption logging the route only needs the partner linked
+      // to the design, so link directly.
       beforeEach(async () => {
-        const templateNames = [
-          "partner-design-start",
-          "partner-design-redo",
-          "partner-design-finish",
-          "partner-design-completed",
-          "partner-design-redo-log",
-          "partner-design-redo-apply",
-          "partner-design-redo-verify",
-        ]
-
-        const firstRes: any = await api.post(
-          "/admin/task-templates",
-          {
-            name: templateNames[0],
-            description: `Template for ${templateNames[0]}`,
-            priority: "medium",
-            estimated_duration: 30,
-            required_fields: {
-              design_id: { type: "string", required: true },
-              partner_id: { type: "string", required: true },
-            },
-            eventable: true,
-            notifiable: true,
-            message_template: `Task ${templateNames[0]}`,
-            metadata: { workflow_type: "partner_design_assignment" },
-            category: "Partner Designs",
-          },
-          adminHeaders
-        )
-        expect(firstRes.status).toBe(201)
-        const categoryId = firstRes.data.task_template.category_id
-
-        for (const name of templateNames.slice(1)) {
-          const res = await api.post(
-            "/admin/task-templates",
-            {
-              name,
-              description: `Template for ${name}`,
-              priority: "medium",
-              estimated_duration: 30,
-              required_fields: {
-                design_id: { type: "string", required: true },
-                partner_id: { type: "string", required: true },
-              },
-              eventable: false,
-              notifiable: false,
-              message_template: `Task ${name}`,
-              metadata: { workflow_type: "partner_design_assignment" },
-              category_id: categoryId,
-            },
-            adminHeaders
-          )
-          expect(res.status).toBe(201)
-        }
-
-        // Send design to partner (workflow pauses at await-design-start)
-        const sendRes: any = await api.post(
-          `/admin/designs/${designId}/send-to-partner`,
-          { partnerId, notes: "Start sampling work" },
-          adminHeaders
-        )
-        expect(sendRes.status).toBe(200)
-
-        // Verify tasks are linked (implicit wait for workflow to settle)
-        const taskSummary: any = await api.get(`/admin/designs/${designId}/tasks`, adminHeaders)
-        dbg("partner.beforeEach.tasks", (taskSummary.data?.tasks || []).map((t: any) => ({ id: t?.id, title: t?.title, status: t?.status })))
-
-        // Partner starts the design (signals await-design-start)
-        const startRes = await api.post(
-          `/partners/designs/${designId}/start`,
-          {},
-          { headers: partnerHeaders }
-        )
-        expect(startRes.status).toBe(200)
-      })
-
-      afterEach(async () => {
-        // Complete the partner workflow lifecycle so the long-running workflow resolves
-        // finish → signals await-design-finish
-        try {
-          await api.post(`/partners/designs/${designId}/finish`, {}, { headers: partnerHeaders })
-        } catch (e: any) {
-          dbg("afterEach.finish.error", e?.message)
-        }
-        // complete → signals await-design-inventory, fails redo/refinish, signals await-design-completed
-        try {
-          await api.post(`/partners/designs/${designId}/complete`, { consumptions: [] }, { headers: partnerHeaders })
-        } catch (e: any) {
-          dbg("afterEach.complete.error", e?.message)
-        }
+        const remoteLink = getContainer().resolve(ContainerRegistrationKeys.LINK) as any
+        await remoteLink.create({
+          design: { design_id: designId },
+          partner: { partner_id: partnerId },
+        })
       })
 
       it("should allow partner to log sample consumption during Sample_Production", async () => {
@@ -613,93 +529,14 @@ setupSharedTestSuite(() => {
     // ─── End-to-End Sampling Scenario ────────────────────────────────
 
     describe("E2E: Sample development → incremental logging → review → commit", () => {
+      // The v1 send-to-partner task ceremony is retired; the consumption
+      // routes only need the partner linked to the design.
       beforeEach(async () => {
-        const templateNames = [
-          "partner-design-start",
-          "partner-design-redo",
-          "partner-design-finish",
-          "partner-design-completed",
-          "partner-design-redo-log",
-          "partner-design-redo-apply",
-          "partner-design-redo-verify",
-        ]
-
-        const firstRes: any = await api.post(
-          "/admin/task-templates",
-          {
-            name: templateNames[0],
-            description: `Template for ${templateNames[0]}`,
-            priority: "medium",
-            estimated_duration: 30,
-            required_fields: {
-              design_id: { type: "string", required: true },
-              partner_id: { type: "string", required: true },
-            },
-            eventable: true,
-            notifiable: true,
-            message_template: `Task ${templateNames[0]}`,
-            metadata: { workflow_type: "partner_design_assignment" },
-            category: "Partner Designs",
-          },
-          adminHeaders
-        )
-        const categoryId = firstRes.data.task_template.category_id
-
-        for (const name of templateNames.slice(1)) {
-          await api.post(
-            "/admin/task-templates",
-            {
-              name,
-              description: `Template for ${name}`,
-              priority: "medium",
-              estimated_duration: 30,
-              required_fields: {
-                design_id: { type: "string", required: true },
-                partner_id: { type: "string", required: true },
-              },
-              eventable: false,
-              notifiable: false,
-              message_template: `Task ${name}`,
-              metadata: { workflow_type: "partner_design_assignment" },
-              category_id: categoryId,
-            },
-            adminHeaders
-          )
-        }
-
-        // Send to partner (workflow pauses at await-design-start)
-        const sendRes: any = await api.post(
-          `/admin/designs/${designId}/send-to-partner`,
-          { partnerId, notes: "E2E sampling test" },
-          adminHeaders
-        )
-        expect(sendRes.status).toBe(200)
-
-        // Verify tasks are linked (implicit wait for workflow to settle)
-        const taskSummary: any = await api.get(`/admin/designs/${designId}/tasks`, adminHeaders)
-        dbg("e2e.beforeEach.tasks", (taskSummary.data?.tasks || []).map((t: any) => ({ title: t?.title, status: t?.status })))
-
-        // Partner starts (signals await-design-start)
-        const startRes = await api.post(
-          `/partners/designs/${designId}/start`,
-          {},
-          { headers: partnerHeaders }
-        )
-        expect(startRes.status).toBe(200)
-      })
-
-      afterEach(async () => {
-        // Complete partner workflow lifecycle to release long-running workflow
-        try {
-          await api.post(`/partners/designs/${designId}/finish`, {}, { headers: partnerHeaders })
-        } catch (e: any) {
-          dbg("e2e.afterEach.finish.error", e?.message)
-        }
-        try {
-          await api.post(`/partners/designs/${designId}/complete`, { consumptions: [] }, { headers: partnerHeaders })
-        } catch (e: any) {
-          dbg("e2e.afterEach.complete.error", e?.message)
-        }
+        const remoteLink = getContainer().resolve(ContainerRegistrationKeys.LINK) as any
+        await remoteLink.create({
+          design: { design_id: designId },
+          partner: { partner_id: partnerId },
+        })
       })
 
       it("should track sample consumption incrementally and commit without adjusting inventory", async () => {
