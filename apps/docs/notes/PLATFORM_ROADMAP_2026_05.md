@@ -154,7 +154,12 @@ Combobox vs a custom select.
 
 #### 2. Replace inline editing with Medusa standards across admin
 
-**Status: IN PROGRESS (GitHub #330).** Inventory of 8 inline-edit
+**Status: CLOSED 2026-06-10 (GitHub #330).** Full inventory ported —
+all 8 audited offenders use Drawers/FocusModals; the tag input kept as
+a deliberate inline pattern. Verified by sweep: every former inline
+state flag now drives a `<Drawer open={...}>`.
+
+**Original status (for the record): IN PROGRESS (GitHub #330).** Inventory of 8 inline-edit
 offenders captured on the issue, ranked worst-first. Routes ported so
 far (2026-06-07, all Playwright-verified in the running admin):
 
@@ -305,6 +310,15 @@ through every email touchpoint, log which fire and which don't.
 
 #### 21. Fix layout issues in pagination-based panels on web-jyt
 
+**Status: CLOSED 2026-06-11 (GitHub #333).** Root cause: the blog
+article grid's `1fr` track kept its min-content floor, so an embedded
+stats-panel table (~623px intrinsic) blew every paragraph past a 390px
+viewport. Fixed with `minmax(0,1fr)` + `min-w-0` (web-jyt PR #12,
+verified live). Also fixed en route: the home Testimonial block's
+broken `/testimonials/basak-handlooms.jpg` reference (cleared via
+admin API); the "broken" Live-storefronts tiles were a false positive
+(investor-audience section, hidden by design).
+
 The marketing site (web-jyt) has layout regressions inside the
 panels that paginate content — cards/tiles overflow or wrap
 awkwardly, controls misalign on certain breakpoints. Add this once
@@ -315,6 +329,14 @@ storefront-starter (or web-jyt directly if the panel lives there).
 **Effort:** half a day depending on how many breakpoints regress.
 
 #### 22. Restore the painting from the New York Gallery open archive
+
+**Status: CLOSED 2026-06-10 (GitHub #334).** The storefront hero's
+collection id is the `media_art_hero` *folder* while prod has no Album
+rows, so the album-scoped `/web/media` lookup returned empty and the
+hero silently fell back to random public uploads. `/web/media` now
+resolves the id as an album OR a public folder (v2 #369); the paintings
+also got a browsable home at `/gallery` with NY-archive attribution
+(#370/#371/#372). All verified live on cicilabel.com.
 
 A painting tile from the NY Gallery (open archive section on
 jaalyantra.com) is broken — likely a missing image asset or a
@@ -699,6 +721,16 @@ Netlify adapter.
 
 #### 17. Multiple-domain support for partner storefronts (`www.` + apex)
 
+**Status: CLOSED 2026-06-11 (GitHub #346, v2 PR #374).**
+`POST /partners/storefront/domain` now runs
+`attachStorefrontDomainWorkflow`: submitted host + its www/apex twin
+attach to the Vercel project (twin 308-redirects to the canonical),
+`NEXT_PUBLIC_BASE_URL` is pinned so canonicals/sitemap resolve to the
+partner domain, and BOTH hosts get `website_domain` alias rows (the
+missing data that left sharlho.com on the generic template — fixed by
+hand 2026-06-10, now automated). DELETE/GET handle the pair. Follow-up
+deferred: migrating GOF's gof.asia onto its own Vercel project.
+
 Right now we provision a single domain. Partner sets `ielocraft.in`
 but a visitor going to `www.ielocraft.in` hits SSL errors. Need both
 hosts on the cert + a redirect rule.
@@ -729,6 +761,15 @@ per-partner setting?), then update invoice generation to substitute.
 ### Growth + content
 
 #### 12. Google search indexing for partner storefronts
+
+**Status: PARTIAL 2026-06-11 (GitHub #349 stays open).** The worst bug
+is fixed: every partner storefront served `https://localhost:8000`
+canonicals + sitemap/robots URLs (`getBaseURL()` fallback;
+`NEXT_PUBLIC_BASE_URL` never set). `getBaseURL` now falls back to
+`VERCEL_PROJECT_PRODUCTION_URL`/`VERCEL_URL` (starter `4ff61ae` +
+v2 #373); all 6 provisioned storefronts redeployed and verified.
+Remaining: JSON-LD structured data, Search Console verification,
+Lighthouse SEO pass.
 
 Make sure each partner storefront serves valid `sitemap.xml`,
 `robots.txt`, structured product data (JSON-LD), and is verified in
