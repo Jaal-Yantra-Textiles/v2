@@ -788,6 +788,31 @@ contact, load into the persons module so they show on the
 CSV first to validate the schema, then write the importer.
 **Effort:** 1 day for the importer, ongoing for sourcing.
 
+#### 28. Google Merchant: sync partner products with their storefront URL
+
+Captured 2026-06-11. The Google Merchant sync builds every product's
+landing link from a single global base —
+`sync-product-to-google.ts` uses `landing_url_base` from the merchant
+account config or the `STORE_URL` env
+(`link: ${landingBase}/products/${handle}`). Partner products therefore
+either can't be synced under their own store or get the wrong landing
+URL entirely.
+
+Fix: when the product belongs to a partner store, derive the landing
+base from that partner's storefront — custom domain when one is
+attached (`partner.metadata.custom_domain` / `website_domain` primary),
+else the `*.cicilabel.com` subdomain (`partner.storefront_domain`) —
+i.e. whatever is available, in that order. Likely needs the
+product→partner resolution via sales-channel/store linkage (same pivot
+as the FX fanout work) and possibly per-partner Merchant accounts vs
+one umbrella account with per-product links.
+
+**First step:** map how a synced product resolves to a partner store
+today; decide umbrella-account-with-partner-links vs per-partner
+accounts; thread the resolved base through `sync-product-to-google`.
+**Effort:** ~1 day for URL resolution on the umbrella account; more if
+per-partner Merchant accounts are wanted.
+
 #### 23. Browser extension — design moodboard clipper
 
 A Chrome / Firefox extension that logs into the JYT API (admin or
