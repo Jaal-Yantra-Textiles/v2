@@ -281,14 +281,23 @@ class DeploymentService extends MedusaService({}) {
     }
   }
 
-  async addDomain(projectId: string, domain: string): Promise<VercelDomain> {
+  async addDomain(
+    projectId: string,
+    domain: string,
+    opts?: { redirect?: string; redirectStatusCode?: 301 | 302 | 307 | 308 }
+  ): Promise<VercelDomain> {
+    const body: Record<string, any> = { name: domain }
+    if (opts?.redirect) {
+      body.redirect = opts.redirect
+      body.redirectStatusCode = opts.redirectStatusCode ?? 308
+    }
     const res = await fetch(
       `${VERCEL_API_BASE}/v10/projects/${projectId}/domains${this.vercelTeamQuery()}`,
-      { method: "POST", headers: this.vercelHeaders(), body: JSON.stringify({ name: domain }) }
+      { method: "POST", headers: this.vercelHeaders(), body: JSON.stringify(body) }
     )
     if (!res.ok) {
-      const body = await res.text()
-      throw new Error(`Vercel addDomain failed (${res.status}): ${body}`)
+      const text = await res.text()
+      throw new Error(`Vercel addDomain failed (${res.status}): ${text}`)
     }
     return res.json()
   }

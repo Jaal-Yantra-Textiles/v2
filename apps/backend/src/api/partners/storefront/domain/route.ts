@@ -10,6 +10,10 @@ import type { VercelDomainConfig } from "../../../../modules/deployment/service"
 import { WEBSITE_MODULE } from "../../../../modules/website"
 import type WebsiteService from "../../../../modules/website/service"
 import updatePartnerWorkflow from "../../../../workflows/partners/update-partner"
+import {
+  attachStorefrontDomainWorkflow,
+  deriveDomainPair,
+} from "../../../../workflows/partners/attach-storefront-domain"
 import { getStorefrontRefs } from "../helpers"
 
 /**
@@ -80,24 +84,35 @@ export const GET = async (
 
   const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
 
+  const pair = deriveDomainPair(customDomain)
+  const buildPairRecords = (config: VercelDomainConfig | null) => {
+    const records = [...buildDnsRecords(pair.primary, config)]
+    if (pair.counterpart) {
+      records.push(...buildDnsRecords(pair.counterpart, config))
+    }
+    return records
+  }
+
   try {
     const config = await deployment.getDomainConfig(customDomain)
     return res.json({
       configured: true,
       domain: customDomain,
+      redirect_from: pair.counterpart,
       verified: partner.metadata?.custom_domain_verified === true,
       misconfigured: config.misconfigured,
       configured_by: config.configuredBy,
-      dns_records: buildDnsRecords(customDomain, config),
+      dns_records: buildPairRecords(config),
     })
   } catch {
     return res.json({
       configured: true,
       domain: customDomain,
+      redirect_from: pair.counterpart,
       verified: partner.metadata?.custom_domain_verified === true,
       misconfigured: true,
       configured_by: null,
-      dns_records: buildDnsRecords(customDomain, null),
+      dns_records: buildPairRecords(null),
     })
   }
 }
@@ -142,63 +157,45 @@ export const POST = async (
     )
   }
 
-  const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
+  // Roadmap #17 — the whole attach (Vercel www+apex pair with redirect,
+  // NEXT_PUBLIC_BASE_URL env, partner metadata, website_domain aliases)
+  // lives in the workflow with compensation.
+  const websiteId =
+    ((partner as any).website_id || partner.metadata?.website_id || null) as
+      | string
+      | null
 
-  // Add domain to Vercel project
-  const result = await deployment.addDomain(vercelProjectId, cleaned)
-
-  // Get DNS config so we can show instructions
-  let config: VercelDomainConfig | null = null
-  try {
-    config = await deployment.getDomainConfig(cleaned)
-  } catch {
-    // non-critical
-  }
-
-  // Save to partner metadata
-  await updatePartnerWorkflow(req.scope).run({
+  const { result } = await attachStorefrontDomainWorkflow(req.scope).run({
     input: {
-      id: partner.id,
-      data: {
-        metadata: {
-          ...(partner.metadata || {}),
-          custom_domain: cleaned,
-          custom_domain_verified: result.verified,
-        },
-      },
+      partner_id: partner.id,
+      vercel_project_id: vercelProjectId,
+      website_id: websiteId,
+      domain: cleaned,
+      prev_metadata: (partner.metadata || {}) as Record<string, any>,
     },
   })
 
-  // Register the custom domain as a website alias so backend lookups resolve
-  // this partner's content. Best-effort: don't fail the request if it errors.
-  const websiteId =
-    (partner as any).website_id || partner.metadata?.website_id
-  if (websiteId) {
-    try {
-      const websiteService: WebsiteService = req.scope.resolve(WEBSITE_MODULE)
-      const [existing] = await (websiteService as any).listAndCountWebsiteDomains(
-        { domain: cleaned },
-        { take: 1 }
-      )
-      if (!existing?.length) {
-        await (websiteService as any).createWebsiteDomains({
-          domain: cleaned,
-          is_primary: false,
-          website_id: websiteId,
-        })
-      }
-    } catch (e) {
-      // non-fatal — storefront lookups can fall back through partner.storefront_domain
-    }
+  // DNS instructions for both hosts (best-effort).
+  const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
+  let config: VercelDomainConfig | null = null
+  try {
+    config = await deployment.getDomainConfig(result.primary)
+  } catch {
+    // non-critical
+  }
+  const dnsRecords = [...buildDnsRecords(result.primary, config)]
+  if (result.counterpart) {
+    dnsRecords.push(...buildDnsRecords(result.counterpart, config))
   }
 
   res.status(201).json({
-    domain: cleaned,
+    domain: result.primary,
+    redirect_from: result.counterpart,
     verified: result.verified,
     verification: result.verification || null,
     misconfigured: config?.misconfigured ?? true,
     configured_by: config?.configuredBy ?? null,
-    dns_records: buildDnsRecords(cleaned, config),
+    dns_records: dnsRecords,
   })
 }
 
@@ -230,10 +227,17 @@ export const DELETE = async (
 
   const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
 
-  try {
-    await deployment.removeDomain(vercelProjectId, customDomain)
-  } catch {
-    // best-effort removal
+  // Remove BOTH hosts (primary + its www/apex twin — see deriveDomainPair)
+  const pair = deriveDomainPair(customDomain)
+  const hosts = [pair.primary, pair.counterpart].filter(
+    (h): h is string => !!h
+  )
+  for (const host of hosts) {
+    try {
+      await deployment.removeDomain(vercelProjectId, host)
+    } catch {
+      // best-effort removal
+    }
   }
 
   // Clear from metadata
@@ -248,16 +252,18 @@ export const DELETE = async (
     },
   })
 
-  // Soft-delete the alias row so lookups stop resolving the custom domain
+  // Soft-delete the alias rows so lookups stop resolving the custom domain
   try {
     const websiteService: WebsiteService = req.scope.resolve(WEBSITE_MODULE)
-    const [rows] = await (websiteService as any).listAndCountWebsiteDomains(
-      { domain: customDomain },
-      { take: 1 }
-    )
-    const row = rows?.[0]
-    if (row && !row.is_primary) {
-      await (websiteService as any).softDeleteWebsiteDomains(row.id)
+    for (const host of hosts) {
+      const [rows] = await (websiteService as any).listAndCountWebsiteDomains(
+        { domain: host },
+        { take: 1 }
+      )
+      const row = rows?.[0]
+      if (row && !row.is_primary) {
+        await (websiteService as any).softDeleteWebsiteDomains(row.id)
+      }
     }
   } catch {
     // best-effort
