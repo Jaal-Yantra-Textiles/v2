@@ -807,11 +807,41 @@ product→partner resolution via sales-channel/store linkage (same pivot
 as the FX fanout work) and possibly per-partner Merchant accounts vs
 one umbrella account with per-product links.
 
+The same "resolve the partner's storefront base URL" helper should be
+reused everywhere partner products are referenced with a link today:
+- **Abandoned-cart emails/nudges** — recovery links must land on the
+  partner's storefront, not a global base.
+- **Design-order checkout links** — when sending a checkout link for a
+  design order, build it from the owning partner's domain.
+Build it once (custom domain → subdomain fallback) and consume it from
+Google Merchant sync, abandoned-cart links and design-order checkout
+links alike.
+
 **First step:** map how a synced product resolves to a partner store
 today; decide umbrella-account-with-partner-links vs per-partner
-accounts; thread the resolved base through `sync-product-to-google`.
+accounts; extract the shared `resolvePartnerStorefrontBase(partner)`
+helper; thread it through `sync-product-to-google`, the abandoned-cart
+link builder and the design-order checkout-link sender.
 **Effort:** ~1 day for URL resolution on the umbrella account; more if
 per-partner Merchant accounts are wanted.
+
+#### 29. Design orders don't reflect customer purchases (stuck pending)
+
+Captured 2026-06-11. When a customer buys a product on a storefront,
+the linked **design order** is not updated — finished/bought design
+orders still show *pending* in the partner/admin views. The purchase →
+design-order linkage exists at the data level (order line items carry
+design provenance; `order.placed` already creates production runs via
+the same resolution), but nothing closes the loop back onto the design
+order's status.
+
+**First step:** trace where design orders get their status today and
+what `order.placed`/fulfilment events should transition them
+(pending → confirmed/fulfilled); likely a subscriber mirroring the
+order-placed → production-runs one. Overlaps #24 (orders unification) —
+if #24 lands first this may collapse into it; otherwise ship as a
+small subscriber now.
+**Effort:** half a day for the subscriber + status mapping + test.
 
 #### 23. Browser extension — design moodboard clipper
 
