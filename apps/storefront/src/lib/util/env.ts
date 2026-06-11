@@ -1,3 +1,28 @@
+/**
+ * Resolve the storefront's public base URL.
+ *
+ * Priority:
+ * 1. NEXT_PUBLIC_BASE_URL — explicit override (rarely set per partner)
+ * 2. VERCEL_PROJECT_PRODUCTION_URL — injected by Vercel into every
+ *    deployment; resolves to the project's production domain (the
+ *    partner's custom domain when one is attached). This is what makes
+ *    canonicals / sitemap / robots correct on partner storefronts with
+ *    zero per-project configuration.
+ * 3. VERCEL_URL — the deployment's own *.vercel.app host (previews)
+ * 4. localhost — local dev only
+ *
+ * Without 2–4 every partner store shipped `https://localhost:8000`
+ * canonicals and sitemap entries to Google (roadmap #12).
+ */
 export const getBaseURL = () => {
-  return process.env.NEXT_PUBLIC_BASE_URL || "https://localhost:8000"
+  if (process.env.NEXT_PUBLIC_BASE_URL) {
+    return process.env.NEXT_PUBLIC_BASE_URL
+  }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`
+  }
+  return "https://localhost:8000"
 }
