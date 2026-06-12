@@ -159,11 +159,33 @@ T2 the shim only mirrors state, it never drives it.
 
 ---
 
-## Handoff → next task (T3: unified panels + status mirror)
+## Handoff → next task (T3 continues: design-side dual-write)
 
-*Updated 2026-06-12 after T2 (PR: feat/342-t2-unified-order-dual-write). Next
-session: read THIS file; do not rely on chat history.*
+*Updated 2026-06-12 after T3.1 status mirror (PR:
+feat/342-t3-status-mirror-on-update). Next session: read THIS file; do not
+rely on chat history.*
 
+- **State after T3.1:** status mirror LIVE for inventory orders — every legacy
+  status change now PATCHes the unified order per §5.
+  - `mirrorUnifiedOrderStatusStep` (in `dual-write-unified-order.ts`) is
+    appended to BOTH update workflows: `update-inventory-order.ts` (singular —
+    partner start route, partner-complete's `updateOrderOnCompletionStep`,
+    and its rollback compensation) and `update-inventory-orders.ts` (plural —
+    admin PUT + order-lines routes). It re-reads the legacy row from DB (not
+    workflow input), so compensations mirror correctly too. Same best-effort
+    contract (`[orders-unification]` warn, never fails the legacy path).
+  - §5 mapping note: Pending and Cancelled deliberately leave
+    `metadata.partner_status` untouched ("assigned" is stamped by
+    send-to-partner; the §5 table defines no value for either). **Review
+    flag:** §5 maps legacy `Partial` → partner_status `completed` — the
+    unified vocabulary has no "partial" value. Implemented as written; if T3
+    panels need to distinguish partially-delivered, revisit the vocabulary
+    before building them.
+  - Tests: `orders-unification-dual-write.spec.ts` now 5 tests — adds admin
+    status mirror (Processing → in_progress, Cancelled → canceled),
+    non-fatality of updates without a unified order, and the full partner
+    lifecycle (start → in_progress, complete → Shipped/finished) folded into
+    the send-to-partner test.
 - **State after T2:** dual-write shim LIVE for inventory orders.
   - `apps/backend/src/links/partner-order.ts` — D3 link (partner ↔ core
     order, isList both sides). Query rows via the link's `entryPoint`.
@@ -181,16 +203,18 @@ session: read THIS file; do not rely on chat history.*
   - Test: `integration-tests/http/orders-unification-dual-write.spec.ts`
     (3 tests: full projection incl. GAP-1/GAP-3, non-fatality without region,
     partner link on send).
-- **T2 scope notes:** status mirror on UPDATE workflows not done (per §6
-  fallback — creates only). No compensation on the dual-write step: if a later
+- **T2 scope notes:** No compensation on the dual-write step: if a later
   legacy step rolls the create back, an orphan kind'd order may remain
   (harmless, invisible to retail; T4 backfill dedups on `metadata.legacy_id`).
-- **T3 deliverable(s):**
-  1. status mirror: extend `updateInventoryOrderWorkflow` + partner
-     start/complete paths to PATCH unified order status +
-     `metadata.partner_status` per §5,
+  Legacy DELETE (`delete-inventory-order.ts`) does not mirror — a deleted
+  legacy row leaves its unified order behind (decide cancel-vs-orphan when
+  touching that path).
+- **Remaining T3 deliverable(s)** (suggested order):
+  1. ~~status mirror per §5~~ — DONE (T3.1, see above),
   2. same dual-write for production runs (kind=design, §4) on the run-create
-     path,
+     path — mirror T2's recipe: project on create, link partner on
+     send/assign, mirror status on the run lifecycle transitions
+     (ProductionPolicyService vocabulary already matches §5),
   3. admin retail list filter (§7.3 — still open),
   4. partner-ui panels keyed on `order.metadata.kind` + `partner_status`
      (hooks: `apps/partner-ui/src/hooks/api/orders.tsx`),
@@ -199,4 +223,7 @@ session: read THIS file; do not rely on chat history.*
   task-template create 404s if `category` names a non-existent category;
   shared test suite truncates per test (create fixtures per-test); CI may need
   `:any` on `container.resolve(...)`; `createOrderWorkflow` requires a region
-  to exist (step skips with warn if none).
+  to exist (step skips with warn if none); partner routes need a FRESH login
+  token after `POST /partners` (stale token → auth context misses the
+  partner); both update workflow files export a step named
+  `update-inventory-order-step` — disambiguate by file when grepping.

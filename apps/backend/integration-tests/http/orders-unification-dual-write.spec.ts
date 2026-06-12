@@ -201,6 +201,56 @@ setupSharedTestSuite(() => {
       expect(legacyRow.metadata?.unified_order_id ?? null).toBeNull()
     })
 
+    it("mirrors admin status updates onto the unified order (§5)", async () => {
+      await createRegion()
+      const legacy = await createLegacyOrder()
+      const unifiedOrderId = (await fetchLegacyOrder(legacy.id)).metadata
+        ?.unified_order_id
+      expect(unifiedOrderId).toBeTruthy()
+
+      // Pending → Processing: core stays pending, work dimension advances
+      const res1 = await api.put(
+        `/admin/inventory-orders/${legacy.id}`,
+        { status: "Processing" },
+        adminHeaders
+      )
+      expect(res1.status).toBe(200)
+      let unified = await fetchUnifiedOrder(unifiedOrderId)
+      expect(unified.status).toBe("pending")
+      expect(unified.metadata.partner_status).toBe("in_progress")
+      // projection metadata survives the patch
+      expect(unified.metadata.kind).toBe("inventory")
+      expect(unified.metadata.legacy_id).toBe(legacy.id)
+
+      // Processing → Cancelled: core cancels; §5 defines no partner_status
+      // for Cancelled, so the last value is left untouched
+      const res2 = await api.put(
+        `/admin/inventory-orders/${legacy.id}`,
+        { status: "Cancelled" },
+        adminHeaders
+      )
+      expect(res2.status).toBe(200)
+      unified = await fetchUnifiedOrder(unifiedOrderId)
+      expect(unified.status).toBe("canceled")
+      expect(unified.metadata.partner_status).toBe("in_progress")
+    })
+
+    it("keeps legacy updates non-fatal when no unified order exists", async () => {
+      // No region → create skipped the dual-write; updates must still work
+      const legacy = await createLegacyOrder()
+      expect(
+        (await fetchLegacyOrder(legacy.id)).metadata?.unified_order_id ?? null
+      ).toBeNull()
+
+      const res = await api.put(
+        `/admin/inventory-orders/${legacy.id}`,
+        { status: "Processing" },
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect((await fetchLegacyOrder(legacy.id)).status).toBe("Processing")
+    })
+
     it("links the partner to the unified order on send-to-partner", async () => {
       // Surface which call fails instead of a bare AxiosError
       const post = async (url: string, body: any, cfg?: any) => {
@@ -287,10 +337,51 @@ setupSharedTestSuite(() => {
       expect(linkRows[0].partner_id).toBe(partnerId)
 
       // §5: assignment mirrors metadata.partner_status = "assigned"
-      const unified = await fetchUnifiedOrder(unifiedOrderId)
+      let unified = await fetchUnifiedOrder(unifiedOrderId)
       expect(unified.metadata.partner_status).toBe("assigned")
       // kind survives the metadata update
       expect(unified.metadata.kind).toBe("inventory")
+
+      // ——— partner lifecycle: start → in_progress, complete → finished ———
+      // Fresh token after partner creation (critical for auth context)
+      const freshLogin = await post("/auth/partner/emailpass", {
+        email: TEST_PARTNER_EMAIL,
+        password: TEST_PARTNER_PASSWORD,
+      })
+      const partnerHeaders = {
+        headers: { Authorization: `Bearer ${freshLogin.data.token}` },
+      }
+
+      const startRes = await post(
+        `/partners/inventory-orders/${legacy.id}/start`,
+        {},
+        partnerHeaders
+      )
+      expect(startRes.status).toBe(200)
+      expect((await fetchLegacyOrder(legacy.id)).status).toBe("Processing")
+      unified = await fetchUnifiedOrder(unifiedOrderId)
+      expect(unified.status).toBe("pending")
+      expect(unified.metadata.partner_status).toBe("in_progress")
+
+      const legacyLines = (await fetchLegacyOrder(legacy.id)).orderlines
+      const completeRes = await post(
+        `/partners/inventory-orders/${legacy.id}/complete`,
+        {
+          notes: "unification status mirror test",
+          lines: legacyLines.map((l: any) => ({
+            order_line_id: l.id,
+            quantity: Number(l.quantity),
+          })),
+        },
+        partnerHeaders
+      )
+      expect(completeRes.status).toBe(200)
+
+      // Fully fulfilled: legacy goes Shipped → unified work dimension finished
+      expect((await fetchLegacyOrder(legacy.id)).status).toBe("Shipped")
+      unified = await fetchUnifiedOrder(unifiedOrderId)
+      expect(unified.status).toBe("pending")
+      expect(unified.metadata.partner_status).toBe("finished")
     })
   })
 })
