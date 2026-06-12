@@ -1,3 +1,15 @@
+# [13.29.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.28.0...v13.29.0) (2026-06-12)
+
+
+### Bug Fixes
+
+* **342:** rescue post-merge commits — "partial" vocabulary + quantity_delta decimal fix ([#390](https://github.com/Jaal-Yantra-Textiles/v2/issues/390)) ([22ba25f](https://github.com/Jaal-Yantra-Textiles/v2/commit/22ba25ffc408283034c37520f44d0deed47cbac5)), closes [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342)
+
+
+### Features
+
+* **orders:** [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342) T3.1 — mirror legacy status onto unified order ([#389](https://github.com/Jaal-Yantra-Textiles/v2/issues/389)) ([285003a](https://github.com/Jaal-Yantra-Textiles/v2/commit/285003a5978b0acb15b0f81e2e52a14e49752eff))
+
 # [13.28.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.27.0...v13.28.0) (2026-06-12)
 
 
