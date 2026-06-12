@@ -160,7 +160,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
 export const POST = async (
   req: AuthenticatedMedusaRequest<UpdatePersonTypeSchema> & {
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: PersonTypeAllowedFields[];
     };
   },
@@ -186,7 +186,7 @@ export const POST = async (
   });
 
   const fieldsToFetch: PersonTypeAllowedFields[] =
-    req.remoteQueryConfig?.fields || [];
+    req.queryConfig?.fields || [];
     
   const personType = await refetchPersonType(
     result.id,

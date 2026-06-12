@@ -21,7 +21,7 @@
  *
  * - Refetch:
  *   - After creating a design, POST calls refetchDesign(result.id, req.scope, fields) to reload the created resource before returning it.
- *   - The optional remoteQueryConfig.fields on the request can be used to control which fields are fetched back (defaults to ["*"]).
+ *   - The optional queryConfig.fields on the request can be used to control which fields are fetched back (defaults to ["*"]).
  *
  * POST (Create new design)
  * @remarks
@@ -34,7 +34,7 @@
  *
  * @param req - AuthenticatedMedusaRequest<Design> with:
  *   - req.validatedBody: validated Design input
- *   - optional req.remoteQueryConfig?: { fields?: DesignAllowedFields[] }
+ *   - optional req.queryConfig?: { fields?: DesignAllowedFields[] }
  *   - req.auth_context?.actor_id: admin id (required)
  * @param res - MedusaResponse
  *
@@ -73,7 +73,7 @@
  *     "origin_source": "manual",
  *     "target_completion_date": "2026-04-01",
  *     "created_at": "2026-01-10T12:00:00.000Z",
- *     "...": "other fields as requested via remoteQueryConfig.fields"
+ *     "...": "other fields as requested via queryConfig.fields"
  *   }
  * }
  *
@@ -157,7 +157,7 @@ import designCustomerLink from "../../../links/design-customer-link";
 // Create new design
 export const POST = async (
   req: AuthenticatedMedusaRequest<Design> & {
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: DesignAllowedFields[];
     };
   },
@@ -180,7 +180,7 @@ export const POST = async (
   const design = await refetchDesign(
     result.id,
     req.scope,
-    req.remoteQueryConfig?.fields || ["*"],
+    req.queryConfig?.fields || ["*"],
   );
 
   res.status(201).json({ design });

@@ -67,8 +67,8 @@
  * @group Person - Operations related to persons
  * @param {string} id.path.required - The ID of the person to update
  * @param {AdminUpdatePerson} request.body.required - Person data to update
- * @param {Object} [remoteQueryConfig] - Configuration for remote queries
- * @param {string[]} [remoteQueryConfig.fields] - Fields to include in the response
+ * @param {Object} [queryConfig] - Configuration for remote queries
+ * @param {string[]} [queryConfig.fields] - Fields to include in the response
  * @returns {Object} 201 - The updated person object
  * @returns {PersonResponse} 201.person - The updated person data
  * @throws {MedusaError} 400 - Invalid input data
@@ -147,7 +147,7 @@ export const GET = async (req: MedusaRequest , res: MedusaResponse) => {
 
 export const POST = async (
   req: MedusaRequest<AdminUpdatePerson> & {
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: PersonAllowedFields[];
     };
   },
@@ -185,7 +185,7 @@ export const POST = async (
   const person = await refetchPerson(
     result.id, 
     req.scope,
-    req.remoteQueryConfig?.fields || ["*"],
+    req.queryConfig?.fields || ["*"],
   );
   res.status(201).json({ person });
 };

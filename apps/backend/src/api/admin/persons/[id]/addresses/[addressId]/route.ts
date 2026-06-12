@@ -45,7 +45,7 @@
  * @param {string} id.path.required - The ID of the person
  * @param {string} addressId.path.required - The ID of the address to update
  * @param {AddressInput} request.body.required - Address data to update
- * @param {string[]} [remoteQueryConfig.fields] - Fields to include in the response (e.g., ["id", "first_name"])
+ * @param {string[]} [queryConfig.fields] - Fields to include in the response (e.g., ["id", "first_name"])
  * @returns {Object} 200 - Updated address object
  * @throws {MedusaError} 400 - Invalid input data
  * @throws {MedusaError} 404 - Address not found for the specified person
@@ -109,7 +109,7 @@ import deleteAddressWorkflow from "../../../../../../workflows/persons/delete-ad
 
 export const POST = async (
   req: MedusaRequest & {
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: AddressAllowedFields[];
     };
   },
@@ -155,7 +155,7 @@ export const POST = async (
       personId,
       addressId,
       req.scope,
-      req.remoteQueryConfig?.fields || ["*"],
+      req.queryConfig?.fields || ["*"],
     );
 
     res.status(200).json({ address: updatedAddress });

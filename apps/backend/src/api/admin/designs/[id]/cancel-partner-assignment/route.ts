@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { cancelPartnerAssignmentWorkflow } from "../../../../../workflows/designs/cancel-partner-assignment"
+import type { CancelPartnerAssignmentReq } from "./validators"
 
 /**
  * POST /admin/designs/:id/cancel-partner-assignment
@@ -15,16 +16,13 @@ import { cancelPartnerAssignmentWorkflow } from "../../../../../workflows/design
  * Cancellation is the run's own state — partner_status derives from the
  * cancelled run. Re-assigning via a new production run supersedes it.
  */
-export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+export const POST = async (
+  req: MedusaRequest<CancelPartnerAssignmentReq>,
+  res: MedusaResponse
+) => {
   const designId = req.params.id
-  const { partner_id, unlink = false } = (req.body || {}) as {
-    partner_id?: string
-    unlink?: boolean
-  }
-
-  if (!partner_id) {
-    throw new MedusaError(MedusaError.Types.INVALID_DATA, "partner_id is required")
-  }
+  // Body shape is enforced by validateAndTransformBody in middlewares.ts
+  const { partner_id, unlink } = req.validatedBody
 
   // Validate the design exists and the partner is actually linked.
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any

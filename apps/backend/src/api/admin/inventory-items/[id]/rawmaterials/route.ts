@@ -12,11 +12,11 @@
  * @remarks
  * - Endpoint path: /admin/inventory-items/:id/rawmaterials
  * - Request scope (req.scope) is passed to the workflow and refetch helper.
- * - The refetch operation uses req.remoteQueryConfig?.fields if provided, otherwise selects all fields ["*"].
+ * - The refetch operation uses req.queryConfig?.fields if provided, otherwise selects all fields ["*"].
  * - The handler expects req.validatedBody.rawMaterialData to contain the raw material payload.
  *
- * @param req - MedusaRequest with generic body RawMaterial and optional remoteQueryConfig:
- *                { remoteQueryConfig?: { fields?: RawMaterialAllowedFields[] } }
+ * @param req - MedusaRequest with generic body RawMaterial and optional queryConfig:
+ *                { queryConfig?: { fields?: RawMaterialAllowedFields[] } }
  *               - req.params.id: inventory item id to which the raw material will be attached
  *               - req.validatedBody.rawMaterialData: payload for the new raw material
  * @param res - MedusaResponse used to send the created raw material with status 201
@@ -63,8 +63,8 @@
  * }
  *
  * @example TypeScript (server-side invocation)
- * // req.remoteQueryConfig can limit returned fields:
- * req.remoteQueryConfig = { fields: ["id", "sku", "name"] };
+ * // req.queryConfig can limit returned fields:
+ * req.queryConfig = { fields: ["id", "sku", "name"] };
  * // call handler as shown in the file's routing layer; final response JSON will include only requested fields.
  *
  * @statuscodes
@@ -81,7 +81,7 @@ import { RawMaterialAllowedFields, refetchRawMaterial } from "./helpers";
 
 export const POST = async (
   req: MedusaRequest<RawMaterial> & {
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: RawMaterialAllowedFields[];
     };
   },
@@ -102,7 +102,7 @@ export const POST = async (
   const rawMaterial = await refetchRawMaterial(
     req.params.id,
     req.scope,
-    req.remoteQueryConfig?.fields || ["*"],
+    req.queryConfig?.fields || ["*"],
   );
 
   res.status(201).json( rawMaterial );

@@ -149,7 +149,7 @@ export const GET = async (
 export const PUT = async (
   req: MedusaRequest<UpdateDesign> & {
     params: { id: string };
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: DesignAllowedFields[];
     };
   },
@@ -170,7 +170,7 @@ export const PUT = async (
   const design = await refetchDesign(
     req.params.id,
     req.scope,
-    req.remoteQueryConfig?.fields || ["*"],
+    req.queryConfig?.fields || ["*"],
   );
 
   res.status(200).json({ design });
