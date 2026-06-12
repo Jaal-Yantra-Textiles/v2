@@ -588,6 +588,15 @@ PARTNER_API_PARITY.md recipe.
 
 #### 24. Standardise partner-ui orders onto the Medusa `order` entity
 
+**Status: IN PROGRESS 2026-06-12 (GitHub #342).** Phase 1 mapping doc
+landed: `ORDERS_UNIFICATION_342.md` — field maps for both concepts,
+status mapping, decisions (order = commercial artifact, production_run
+stays as execution artifact linked via order_id; kind in metadata;
+partner↔order link for scoping). Note: partner-ui `/orders` is already
+core Medusa orders; the two non-core concepts are `inventory_orders` +
+`production_runs` (the design work-order, post v1 retirement). Next:
+T2 dual-write shim on `createInventoryOrderWorkflow`.
+
 Today partner-ui surfaces two parallel order concepts — `design_orders`
 and `inventory_orders` — each with its own modules, APIs, partner
 routes, lifecycle workflows, and UI screens. The underlying intent
