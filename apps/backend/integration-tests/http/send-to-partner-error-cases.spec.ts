@@ -247,19 +247,19 @@ setupSharedTestSuite(() =>{
       describe("Partner Complete Order - Error Cases", () => {
         it("should fail to complete non-existent order", async () => {
           const response = await api.post(`/partners/inventory-orders/non-existent-id/complete`, {
-            notes: "Test completion"
+            notes: "Test completion",
+            lines: [{ order_line_id: "fake-line", quantity: 1 }]
           }, {
             headers: partnerHeaders
           }).catch((err) => err.response)
 
           expect(response.status).toBe(404)
-          expect(response.data.message).toBe("InventoryOrders with id: non-existent-id was not found")
+          expect(response.data.message).toBe("Inventory order non-existent-id not found")
         })
 
         it("should fail to complete unassigned order", async () => {
           // Create separate order that's not assigned to partner
           const separateOrderPayload = {
-            inventory_item_id: inventoryItemId,
             quantity: 40,
             status: "Pending",
             expected_delivery_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
@@ -282,13 +282,14 @@ setupSharedTestSuite(() =>{
           const separateOrderId = separateOrderResponse.data.inventoryOrder.id
 
           const response = await api.post(`/partners/inventory-orders/${separateOrderId}/complete`, {
-            notes: "Test completion"
+            notes: "Test completion",
+            lines: [{ order_line_id: "fake-line", quantity: 1 }]
           }, {
             headers: partnerHeaders
           }).catch((err) => err.response)
 
           expect(response.status).toBe(400)
-          expect(response.data.message).toBe(`Inventory order ${separateOrderId} is not in Processing state`)
+          expect(response.data.message).toBe(`Inventory order ${separateOrderId} not in an updatable state (status: Pending)`)
         })
       })
 
