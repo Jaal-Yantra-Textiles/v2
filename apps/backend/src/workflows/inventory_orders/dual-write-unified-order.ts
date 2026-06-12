@@ -26,6 +26,18 @@ const LEGACY_TO_CORE_STATUS: Record<string, string> = {
   Cancelled: "canceled",
 }
 
+// §5 — legacy status → unified metadata.partner_status (the shared
+// assigned→…→completed vocabulary T3 panels key on). Pending and Cancelled
+// are absent on purpose: "assigned" is stamped by send-to-partner, and the
+// §5 table defines no partner_status for either, so the mirror leaves the
+// existing value untouched rather than inventing one.
+const LEGACY_TO_PARTNER_STATUS: Record<string, string> = {
+  Processing: "in_progress",
+  Shipped: "finished",
+  Partial: "completed",
+  Delivered: "completed",
+}
+
 // Core address columns; anything else in the legacy json blob is preserved
 // under order.metadata.shipping_address_extra.
 const CORE_ADDRESS_KEYS = [
@@ -284,6 +296,67 @@ export const mirrorPartnerLinkOnUnifiedOrderStep = createStep(
     } catch (e: any) {
       logger.warn(
         `[orders-unification] partner link mirror failed for ${input.inventoryOrderId}: ${e?.message}`
+      )
+      return new StepResponse<MirrorResult>({ linked: false, error: e?.message })
+    }
+  }
+)
+
+// Status mirror (early T3, §6): after any legacy update, re-read the legacy
+// row and PATCH the unified order's status + metadata.partner_status per the
+// §5 map. Appended to both update workflows so admin PUTs, partner start,
+// partner complete, and their compensations all converge through one path.
+// Reads current DB state rather than trusting workflow input, so it also
+// mirrors rollbacks correctly. Same best-effort contract as the other steps.
+export const mirrorUnifiedOrderStatusStep = createStep(
+  "mirror-unified-order-status",
+  async (input: { inventoryOrderId: string }, { container }) => {
+    const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+    try {
+      const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+      const { data: invOrders } = await query.graph({
+        entity: "inventory_orders",
+        fields: ["id", "status", "metadata"],
+        filters: { id: input.inventoryOrderId },
+      })
+      const legacy = invOrders?.[0]
+      const unifiedOrderId = legacy?.metadata?.unified_order_id
+      if (!unifiedOrderId) {
+        return new StepResponse<MirrorResult>({
+          linked: false,
+          skipped: "no_unified_order",
+        })
+      }
+
+      const coreStatus = LEGACY_TO_CORE_STATUS[legacy.status]
+      const partnerStatus = LEGACY_TO_PARTNER_STATUS[legacy.status]
+
+      const orderService: any = container.resolve(Modules.ORDER)
+      const unifiedOrder = await orderService.retrieveOrder(unifiedOrderId, {
+        select: ["id", "metadata"],
+      })
+      await orderService.updateOrders([
+        {
+          id: unifiedOrderId,
+          ...(coreStatus ? { status: coreStatus } : {}),
+          ...(partnerStatus
+            ? {
+                metadata: {
+                  ...(unifiedOrder?.metadata ?? {}),
+                  partner_status: partnerStatus,
+                },
+              }
+            : {}),
+        },
+      ])
+
+      return new StepResponse<MirrorResult>({
+        linked: true,
+        unified_order_id: unifiedOrderId,
+      })
+    } catch (e: any) {
+      logger.warn(
+        `[orders-unification] status mirror failed for ${input.inventoryOrderId}: ${e?.message}`
       )
       return new StepResponse<MirrorResult>({ linked: false, error: e?.message })
     }

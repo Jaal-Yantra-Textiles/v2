@@ -6,6 +6,7 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import InventoryOrderService from "../../modules/inventory_orders/service";
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
+import { mirrorUnifiedOrderStatusStep } from "./dual-write-unified-order";
 
 type UpdateInventoryOrderStepInput = {
   id: string;
@@ -39,6 +40,8 @@ export const updateInventoryOrderWorkflow = createWorkflow(
   "update-inventory-order",
   (input: UpdateInventoryOrderWorkflowInput) => {
     const order = updateInventoryOrderStep(input);
+    // #342 — best-effort §5 status mirror onto the unified core order
+    mirrorUnifiedOrderStatusStep({ inventoryOrderId: input.id });
     return new WorkflowResponse(order);
   }
 );

@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/frame
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
 import InventoryOrderService from "../../modules/inventory_orders/service";
 import type { Link } from "@medusajs/modules-sdk";
+import { mirrorUnifiedOrderStatusStep } from "./dual-write-unified-order";
 
 
 // Types
@@ -186,6 +187,8 @@ export const updateInventoryOrderWorkflow = createWorkflow(
     const original = fetchOriginalOrderStep({ id: input.id });
     const updatedOrder = updateInventoryOrderStep({ id: input.id, data: input.data });
     const updatedOrderlines = updateOrderLinesStep({ order_id: input.id, order_lines: input.order_lines });
+    // #342 — best-effort §5 status mirror onto the unified core order
+    mirrorUnifiedOrderStatusStep({ inventoryOrderId: input.id });
     return new WorkflowResponse({ order: updatedOrder, orderlines: updatedOrderlines });
   },
 );
