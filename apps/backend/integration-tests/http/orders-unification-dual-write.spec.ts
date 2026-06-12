@@ -292,10 +292,12 @@ setupSharedTestSuite(() => {
       expect(partnerRes.status).toBe(200)
       const partnerId = partnerRes.data.partner.id
 
-      for (const name of [
-        "partner-order-sent",
-        "partner-order-received",
-        "partner-order-shipped",
+      for (const [name, workflowType] of [
+        ["partner-order-sent", "partner_assignment"],
+        ["partner-order-received", "partner_assignment"],
+        ["partner-order-shipped", "partner_assignment"],
+        // required by the partial-delivery branch of partner-complete
+        ["partner-line-partial", "partner_completion"],
       ]) {
         const templateRes = await post(
           "/admin/task-templates",
@@ -306,7 +308,7 @@ setupSharedTestSuite(() => {
             estimated_duration: 30,
             eventable: true,
             notifiable: true,
-            metadata: { workflow_type: "partner_assignment" },
+            metadata: { workflow_type: workflowType },
           },
           adminHeaders
         )
@@ -364,20 +366,43 @@ setupSharedTestSuite(() => {
       expect(unified.metadata.partner_status).toBe("in_progress")
 
       const legacyLines = (await fetchLegacyOrder(legacy.id)).orderlines
+
+      // Decimal partial delivery (1.5 of 2.5 kg): legacy goes Partial →
+      // unified work dimension "partial" (decided 2026-06-12 — panels must
+      // distinguish partially-delivered from finished). Decimal quantities
+      // also regression-test the quantity_delta integer→real migration:
+      // before it, 1.5 rounded to 2 and the remainder tripped the
+      // over-delivery guard.
+      const partialRes = await post(
+        `/partners/inventory-orders/${legacy.id}/complete`,
+        {
+          notes: "unification status mirror test — partial",
+          lines: legacyLines.map((l: any) => ({
+            order_line_id: l.id,
+            quantity: 1.5,
+          })),
+        },
+        partnerHeaders
+      )
+      expect(partialRes.status).toBe(200)
+      expect((await fetchLegacyOrder(legacy.id)).status).toBe("Partial")
+      unified = await fetchUnifiedOrder(unifiedOrderId)
+      expect(unified.status).toBe("pending")
+      expect(unified.metadata.partner_status).toBe("partial")
+
+      // Remainder (1.0): fully fulfilled — legacy Shipped → unified finished
       const completeRes = await post(
         `/partners/inventory-orders/${legacy.id}/complete`,
         {
-          notes: "unification status mirror test",
+          notes: "unification status mirror test — remainder",
           lines: legacyLines.map((l: any) => ({
             order_line_id: l.id,
-            quantity: Number(l.quantity),
+            quantity: 1.0,
           })),
         },
         partnerHeaders
       )
       expect(completeRes.status).toBe(200)
-
-      // Fully fulfilled: legacy goes Shipped → unified work dimension finished
       expect((await fetchLegacyOrder(legacy.id)).status).toBe("Shipped")
       unified = await fetchUnifiedOrder(unifiedOrderId)
       expect(unified.status).toBe("pending")
