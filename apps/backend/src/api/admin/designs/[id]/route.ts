@@ -114,11 +114,11 @@ import {
   MedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http";
+import { MedusaError } from "@medusajs/framework/utils";
 import { UpdateDesign } from "../validators";
 import updateDesignWorkflow from "../../../../workflows/designs/update-design";
 import deleteDesignWorkflow from "../../../../workflows/designs/delete-design";
 import { DesignAllowedFields, refetchDesign } from "../helpers";
-import listSingleDesignsWorkflow from "../../../../workflows/designs/list-single-design";
 
 
 export const GET = async (
@@ -129,20 +129,24 @@ export const GET = async (
   },
   res: MedusaResponse
 ) => {
-  // Extract fields from validated query and convert to array for the workflow
+  // Extract fields from validated query and convert to array
   const fieldsStr = req.validatedQuery?.fields;
-  const fields = fieldsStr
+  const fields = (fieldsStr
     ? fieldsStr.split(",").map((f) => f.trim()).filter(Boolean)
-    : ["*"];
+    : ["*"]) as DesignAllowedFields[];
 
-  const { result } = await listSingleDesignsWorkflow(req.scope).run({
-    input: {
-      id: req.params.id,
-      fields,
-    },
-  });
+  // refetchDesign (same shaper PUT uses) derives the legacy
+  // color_palette/custom_sizes from the structured colors/size_sets
+  // relations — keeps GET and PUT responses consistent.
+  const design = await refetchDesign(req.params.id, req.scope, fields);
+  if (!design) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_FOUND,
+      `Design with id: ${req.params.id} was not found`
+    );
+  }
 
-  res.status(200).json({ design: result });
+  res.status(200).json({ design });
 };
 
 // Update design
@@ -155,11 +159,13 @@ export const PUT = async (
   },
   res: MedusaResponse,
 ) => {
-  const { result, errors } = await updateDesignWorkflow.run({
+  // Scoped run — an unscoped workflow.run() uses a bare container that
+  // can't resolve request-scoped registrations like "query".
+  const { result, errors } = await updateDesignWorkflow(req.scope).run({
     input: {
       id: req.params.id,
       ...req.validatedBody,
-    },
+    } as any,
   });
 
   if (errors.length > 0) {
@@ -183,7 +189,17 @@ export const DELETE = async (
   },
   res: MedusaResponse,
 ) => {
-  const { errors } = await deleteDesignWorkflow.run({
+  // 404 on unknown ids (soft-deleting a missing design 500s deep in the
+  // workflow otherwise).
+  const existing = await refetchDesign(req.params.id, req.scope, ["id"] as any);
+  if (!existing) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_FOUND,
+      `Design with id: ${req.params.id} was not found`
+    );
+  }
+
+  const { errors } = await deleteDesignWorkflow(req.scope).run({
     input: {
       id: req.params.id,
     },

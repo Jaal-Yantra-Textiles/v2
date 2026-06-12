@@ -282,6 +282,9 @@ setupSharedTestSuite(() => {
             name: "Updated Summer Collection",
             status: "In_Development",
             priority: "Medium",
+            // Structured `colors` are the source of truth: when both are
+            // sent, colors win and color_palette is DERIVED from them in
+            // the response (legacy palette input is only a fallback).
             color_palette: [
               { name: "Sunset Orange", code: "#FD5E53" }
             ],
@@ -307,10 +310,18 @@ setupSharedTestSuite(() => {
           
 
           expect(response.status).toBe(200);
+          const { color_palette: _legacyPaletteInput, ...expectedFields } =
+            updateData;
           expect(response.data.design).toMatchObject({
-            ...updateData,
+            ...expectedFields,
             id: summerDesignId,
           });
+          // color_palette in the response derives from the structured
+          // colors (source of truth), not the legacy palette input.
+          expect(response.data.design.color_palette).toEqual([
+            { name: "Updated Coral", code: "#FF7F50" },
+            { name: "Updated Sand", code: "#D2B48C" },
+          ]);
           expect(response.data.design.colors).toEqual(
             expect.arrayContaining([
               expect.objectContaining({ name: "Updated Coral", hex_code: "#FF7F50" }),

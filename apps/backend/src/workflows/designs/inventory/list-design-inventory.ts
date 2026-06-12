@@ -65,8 +65,15 @@ export const listDesignInventoryStep = createStep(
       return {
         id: sanitizedRow.inventory_item?.id ?? sanitizedRow.inventory_item_id,
         inventory_item_id: sanitizedRow.inventory_item_id,
-        planned_quantity: sanitizedRow.planned_quantity,
-        consumed_quantity: sanitizedRow.consumed_quantity,
+        // sanitizeBigInt stringifies numerics — keep quantities numbers on the wire
+        planned_quantity:
+          sanitizedRow.planned_quantity != null
+            ? Number(sanitizedRow.planned_quantity)
+            : null,
+        consumed_quantity:
+          sanitizedRow.consumed_quantity != null
+            ? Number(sanitizedRow.consumed_quantity)
+            : null,
         consumed_at: sanitizedRow.consumed_at,
         location_id: sanitizedRow.location_id,
         metadata: sanitizedRow.metadata || {},
