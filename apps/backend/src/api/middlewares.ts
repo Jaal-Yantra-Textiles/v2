@@ -2950,16 +2950,10 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(designSchema))],
     },
-    {
-      matcher: "/admin/designs/orders",
-      method: "GET",
-      middlewares: [authenticate("user", ["session", "bearer"])],
-    },
-    {
-      matcher: "/admin/designs/orders/:lineItemId",
-      method: "GET",
-      middlewares: [authenticate("user", ["session", "bearer"])],
-    },
+    // NOTE: /admin/* routes already get Medusa's default admin auth
+    // (session + bearer + api-key). Re-registering authenticate() with only
+    // ["session","bearer"] NARROWS that and silently breaks API-key access —
+    // don't add it back. (Removed from 11 admin matchers, 2026-06-12.)
     {
       matcher: "/admin/designs/:id",
       method: "PUT",
@@ -3092,18 +3086,11 @@ export default defineMiddlewares({
     },
 
     // Link designs to customer + convert to draft order
-    {
-      matcher: "/admin/customers/:id/designs/ordered",
-      method: "GET",
-      middlewares: [
-        authenticate("user", ["session", "bearer"]),
-      ],
-    },
+    // (default admin auth applies — see note at /admin/designs/:id)
     {
       matcher: "/admin/customers/:id/designs",
       method: "POST",
       middlewares: [
-        authenticate("user", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(LinkDesignsToCustomerSchema)),
       ],
     },
@@ -3111,7 +3098,6 @@ export default defineMiddlewares({
       matcher: "/admin/customers/:id/design-order",
       method: "POST",
       middlewares: [
-        authenticate("user", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(CreateDesignOrderSchema)),
       ],
     },
@@ -3119,7 +3105,6 @@ export default defineMiddlewares({
       matcher: "/admin/customers/:id/design-order/preview",
       method: "POST",
       middlewares: [
-        authenticate("user", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(CreateDesignOrderSchema)),
       ],
     },
@@ -3244,11 +3229,6 @@ export default defineMiddlewares({
       matcher: "/admin/production-runs",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminCreateProductionRunReq))],
-    },
-    {
-      matcher: "/admin/production-runs/:id",
-      method: "POST",
-      middlewares: [authenticate("user", ["session", "bearer"])],
     },
     {
       matcher: "/admin/production-runs/:id/approve",
@@ -3713,24 +3693,9 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(AdminSendPersonAgreementReq))],
     },
     {
-      matcher: "/admin/designs/:id/approve",
-      method: "POST",
-      middlewares: [authenticate("user", ["session", "bearer"])],
-    },
-    {
       matcher: "/admin/designs/:id/partner",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(LinkDesignPartnerSchema))],
-    },
-    {
-      matcher: "/admin/designs/:id/partner",
-      method: "DELETE",
-      middlewares: [authenticate("user", ["session", "bearer"])],
-    },
-    {
-      matcher: "/admin/designs/:id/cancel-partner-assignment",
-      method: "POST",
-      middlewares: [authenticate("user", ["session", "bearer"])],
     },
     {
       matcher: "/admin/designs/:id/production-runs",
@@ -4807,11 +4772,6 @@ export default defineMiddlewares({
       matcher: "/admin/meta-ads/remote/ads",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(CreateRemoteAdSchema))],
-    },
-    {
-      matcher: "/admin/orders/:id/design",
-      method: "GET",
-      middlewares: [authenticate("user", ["session", "bearer"])],
     },
     // Admin Messaging routes
     {
