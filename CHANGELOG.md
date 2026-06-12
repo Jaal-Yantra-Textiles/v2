@@ -1,3 +1,24 @@
+# [13.28.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.27.0...v13.28.0) (2026-06-12)
+
+
+### Bug Fixes
+
+* **storefront:** derive base URL from Vercel env instead of localhost ([b99cc90](https://github.com/Jaal-Yantra-Textiles/v2/commit/b99cc9003b8626ad8826de974199fe330e6c9e20))
+* **designs:** link designs to orders on purchase (roadmap [#29](https://github.com/Jaal-Yantra-Textiles/v2/issues/29)) ([5026753](https://github.com/Jaal-Yantra-Textiles/v2/commit/5026753f932e715cb018c8d5cdfba73583c47dc4)), closes [#381](https://github.com/Jaal-Yantra-Textiles/v2/issues/381)
+* **storefront:** render gallery images in a client component ([3a02358](https://github.com/Jaal-Yantra-Textiles/v2/commit/3a0235802572427d664f7ce82b6d7b667122739d))
+* **designs:** repair the 6 long-failing designs-api tests ([874f302](https://github.com/Jaal-Yantra-Textiles/v2/commit/874f302be622d8ed97e56ecebc42be5a7e4fbf1a))
+* **web-media:** resolve album_id as a public folder when no album matches ([0ba935a](https://github.com/Jaal-Yantra-Textiles/v2/commit/0ba935a3fa48c2d5f4d1e11cf912eb9087bdfe50)), closes [#22](https://github.com/Jaal-Yantra-Textiles/v2/issues/22) [#334](https://github.com/Jaal-Yantra-Textiles/v2/issues/334)
+* **api:** stop narrowing admin auth — restore API-key access on 11 routes ([892baba](https://github.com/Jaal-Yantra-Textiles/v2/commit/892baba4e1132c4d0cf1ba4061543b8a5ccc52ab))
+
+
+### Features
+
+* **orders:** [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342) T2 — dual-write unified core order for inventory orders ([#387](https://github.com/Jaal-Yantra-Textiles/v2/issues/387)) ([9ac7810](https://github.com/Jaal-Yantra-Textiles/v2/commit/9ac7810f10e8da2da22fd65bd166f264666fff42))
+* **storefront:** /gallery page rendering the open-archive paintings ([6c24d46](https://github.com/Jaal-Yantra-Textiles/v2/commit/6c24d4645454c9a5c83ac72e6b29b744dd86d36d)), closes [#369](https://github.com/Jaal-Yantra-Textiles/v2/issues/369)
+* **partner:** attach custom domains as www+apex pairs (roadmap [#17](https://github.com/Jaal-Yantra-Textiles/v2/issues/17)) ([e808709](https://github.com/Jaal-Yantra-Textiles/v2/commit/e808709c610a80d6fba34995dc5e8c8a886a0960))
+* **storefront:** credit the New York Gallery open archive on /gallery ([db81e38](https://github.com/Jaal-Yantra-Textiles/v2/commit/db81e38fe729d2c3c5fb704895d81b3e35c737ef))
+* **scripts:** one-off to pin NEXT_PUBLIC_BASE_URL on provisioned storefronts ([c628f69](https://github.com/Jaal-Yantra-Textiles/v2/commit/c628f699f872a20fe5228330f41b00392b817fc9)), closes [#374](https://github.com/Jaal-Yantra-Textiles/v2/issues/374)
+
 # [13.27.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.26.3...v13.27.0) (2026-06-10)
 
 
