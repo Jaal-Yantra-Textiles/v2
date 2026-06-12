@@ -347,16 +347,28 @@ setupSharedTestSuite(() => {
         expect(res.data.total_price).toBe(500);
       });
 
-      it("should not update an order if status is not Pending", async () => {
+      it("should update an order while Processing", async () => {
         // First, update status to Processing
         const updateStatus = { status: "Processing" };
         const res1 = await api.put(`/admin/inventory-orders/${createdOrderId}`, updateStatus, headers);
         expect(res1.status).toBe(200);
-        // Now, try to update again (should fail)
+        // Updating again is allowed: the guard permits Pending and Processing
         const updatePayload = { quantity: 10 };
-        const res2 = await api.put(`/admin/inventory-orders/${createdOrderId}`, updatePayload, headers).catch((err) => err.response);
-        expect(res2.status).toBe(400);
-        expect(res2.data.message).toBe("Order can only be updated if status is 'Pending'.");
+        const res2 = await api.put(`/admin/inventory-orders/${createdOrderId}`, updatePayload, headers);
+        expect(res2.status).toBe(200);
+        expect(res2.data.quantity).toBe(10);
+      });
+
+      it("should not update an order if status is not Pending or Processing", async () => {
+        // Drive the order to a non-updatable status: Pending -> Processing -> Shipped
+        const res1 = await api.put(`/admin/inventory-orders/${createdOrderId}`, { status: "Processing" }, headers);
+        expect(res1.status).toBe(200);
+        const res2 = await api.put(`/admin/inventory-orders/${createdOrderId}`, { status: "Shipped" }, headers);
+        expect(res2.status).toBe(200);
+        // Now any further update must fail
+        const res3 = await api.put(`/admin/inventory-orders/${createdOrderId}`, { quantity: 10 }, headers).catch((err) => err.response);
+        expect(res3.status).toBe(400);
+        expect(res3.data.message).toBe("Order can only be updated if status is 'Pending' or 'Processing'.");
       });
 
       it("should return 400 for invalid update payload", async () => {
