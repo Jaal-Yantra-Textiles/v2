@@ -113,7 +113,7 @@ import retrieveContactsWorkflow from "../../../../../workflows/persons/retrieve-
 
 export const POST = async (
   req: MedusaRequest & {
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: ContactAllowedFields[];
     };
   },
@@ -149,7 +149,7 @@ export const POST = async (
 
 export const GET = async (
   req: MedusaRequest & {
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: ContactAllowedFields[];
     };
   },

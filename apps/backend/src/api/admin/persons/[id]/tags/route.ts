@@ -146,7 +146,7 @@ import updatePersonTagsWorkflow from "../../../../../workflows/persons/update-pe
 
 export const POST = async (
   req: MedusaRequest & {
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: TagAllowedFields[];
     };
   },
@@ -172,7 +172,7 @@ export const POST = async (
 
 export const GET = async (
   req: MedusaRequest & {
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: TagAllowedFields[];
     };
   },
@@ -200,7 +200,7 @@ export const GET = async (
 
 export const PUT = async (
   req: MedusaRequest<UpdateTagsForPerson> & {
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: TagAllowedFields[];
     };
   },

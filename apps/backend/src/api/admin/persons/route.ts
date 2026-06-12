@@ -53,8 +53,8 @@
  * @route POST /admin/persons
  * @group Person - Operations related to persons
  * @param {PersonInput} request.body.required - Person data to create
- * @param {Object} [request.remoteQueryConfig] - Configuration for remote queries
- * @param {string[]} [request.remoteQueryConfig.fields] - Fields to include in the response
+ * @param {Object} [request.queryConfig] - Configuration for remote queries
+ * @param {string[]} [request.queryConfig.fields] - Fields to include in the response
  * @returns {Object} 201 - Created person object
  * @returns {PersonResponse} 201.person - The created person
  * @throws {MedusaError} 400 - Invalid input data
@@ -147,7 +147,7 @@ import { listAndCountPersonsWithFilterWorkflow } from "../../../workflows/person
 
 export const POST = async (
   req: MedusaRequest<Person> & {
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: PersonAllowedFields[];
     };
   },
@@ -163,7 +163,7 @@ export const POST = async (
   const person = await refetchPerson(
     result.id,
     req.scope,
-    req.remoteQueryConfig?.fields || ["*"],
+    req.queryConfig?.fields || ["*"],
   );
   res.status(201).json({ person });
 };

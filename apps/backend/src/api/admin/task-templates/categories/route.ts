@@ -83,7 +83,7 @@ export const GET = async (
         fields?: string[];
         expand?: string[];
       };
-      remoteQueryConfig?: {
+      queryConfig?: {
         fields?: TaskTemplateCategoriesAllowedFields[];
       };
     },

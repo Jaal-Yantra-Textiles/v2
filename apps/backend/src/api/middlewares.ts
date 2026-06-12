@@ -172,6 +172,7 @@ import {
   CreatePaymentMethodForPartnerSchema as PartnerCreatePaymentMethodForPartnerSchema,
 } from "./partners/[id]/payments/validators";
 import { ReviseDesignSchema } from "./admin/designs/[id]/revise/validators";
+import { CancelPartnerAssignmentSchema } from "./admin/designs/[id]/cancel-partner-assignment/validators";
 import { AdminCreateDesignProductionRunSchema } from "./admin/designs/[id]/production-runs/validators";
 import { AdminRecreateProductionRunSchema } from "./admin/designs/recreate-production-run/validators";
 import { listDesignsQuerySchema, PartnerCreateDesignReq, PartnerUpdateDesignReq } from "./partners/designs/validators";
@@ -2954,6 +2955,13 @@ export default defineMiddlewares({
     // (session + bearer + api-key). Re-registering authenticate() with only
     // ["session","bearer"] NARROWS that and silently breaks API-key access —
     // don't add it back. (Removed from 11 admin matchers, 2026-06-12.)
+    {
+      matcher: "/admin/designs/:id/cancel-partner-assignment",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(CancelPartnerAssignmentSchema)),
+      ],
+    },
     {
       matcher: "/admin/designs/:id",
       method: "PUT",

@@ -115,7 +115,7 @@ import deleteContactWorkflow from "../../../../../../workflows/persons/delete-co
 
 export const POST = async (
   req: MedusaRequest & {
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: ContactAllowedFields[];
     };
   },

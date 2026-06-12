@@ -41,7 +41,7 @@
  * @route POST /admin/task-templates
  * @group TaskTemplate - Operations related to task templates
  * @param {TaskTemplateInput} request.body.required - Task template data to create
- * @param {string[]} [request.remoteQueryConfig.fields] - Fields to select in the response
+ * @param {string[]} [request.queryConfig.fields] - Fields to select in the response
  * @returns {Object} 201 - Created task template object
  * @returns {TaskTemplateResponse} 201.task_template - The created task template
  * @throws {MedusaError} 400 - Invalid input data
@@ -161,7 +161,7 @@ import { TaskTemplateAllowedFields, refetchTaskTemplate } from "./helpers";
 // Create new task template
 export const POST = async (
   req: MedusaRequest<TaskTemplate> & {
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: string[] | TaskTemplateAllowedFields[];
     };
   },
@@ -198,7 +198,7 @@ export const GET = async (
       fields?: string[];
       expand?: string[];
     };
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: string[] | TaskTemplateAllowedFields[];
     };
   },

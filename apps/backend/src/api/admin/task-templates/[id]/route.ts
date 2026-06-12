@@ -121,7 +121,7 @@ import { listSingleTaskTemplateWorkflow } from "../../../../workflows/task-templ
 export const GET = async (
   req: MedusaRequest & {
     params: { id: string };
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: string[] | TaskTemplateAllowedFields[];
     };
   },
@@ -147,7 +147,7 @@ export const GET = async (
 export const PUT = async (
   req: MedusaRequest<UpdateTaskTemplate> & {
     params: { id: string };
-    remoteQueryConfig?: {
+    queryConfig?: {
       fields?: string[] | TaskTemplateAllowedFields[];
     };
   },

@@ -65,7 +65,7 @@ import { DeleteTagForPerson } from "../validators";
 
 export const DELETE = async (
     req: MedusaRequest<DeleteTagForPerson> & {
-      remoteQueryConfig?: {
+      queryConfig?: {
         fields?: TagAllowedFields[];
       };
     },
