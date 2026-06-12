@@ -827,6 +827,18 @@ per-partner Merchant accounts are wanted.
 
 #### 29. Design orders don't reflect customer purchases (stuck pending)
 
+**Status: CLOSED 2026-06-12 (GitHub #379, v2 PR #382).** Root cause:
+the order.placed subscriber's design→order linking read `cart_id` off
+the order model — but order↔cart is the `order_cart` LINK, not a
+column — so it silently no-oped on every purchase. Fixed via the shared
+`linkDesignsToOrder` traversal (subscriber + backfill script);
+`/admin/designs/orders` now also returns payment/fulfillment status and
+the list UI is guarded. Backfill ran on prod: 1 historical order
+re-linked to its 5 designs, verified via API. Related hardening the
+same day: #381 (11 admin routes had narrowed auth that blocked sk_
+keys) and #383 (remoteQueryConfig→queryConfig rename + zod validation
+on cancel-partner-assignment).
+
 Captured 2026-06-11. When a customer buys a product on a storefront,
 the linked **design order** is not updated — finished/bought design
 orders still show *pending* in the partner/admin views. The purchase →
