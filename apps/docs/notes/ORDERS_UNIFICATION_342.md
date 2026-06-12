@@ -187,13 +187,16 @@ rely on chat history.*
     non-fatality of updates without a unified order, and the full partner
     lifecycle (start → in_progress, partial delivery → Partial/partial,
     remainder → Shipped/finished) folded into the send-to-partner test.
-  - **BUG discovered (pre-existing, NOT fixed):** GAP-1's cousin —
-    `line_fulfillment.quantity_delta` is an INTEGER column
-    (`src/modules/fullfilled_orders/`), so decimal partial deliveries round
-    silently in Postgres (deliver 1.5 kg → recorded 2) and the remainder then
-    trips the over-delivery guard. Decimal ORDER quantities work (GAP-1
-    resolved); decimal DELIVERIES don't. Fix = hand-written ALTER to numeric
-    (see migration hazard memory) + audit `quantity_delta` consumers. Own PR.
+  - **BUG discovered + FIXED (same PR):** GAP-1's cousin —
+    `line_fulfillment.quantity_delta` was an INTEGER column
+    (`src/modules/fullfilled_orders/`), silently rounding decimal partial
+    deliveries (1.5 kg → 2) so the remainder tripped the over-delivery guard.
+    Now `model.float()` + `Migration20260612202252` (ALTER to `real`,
+    matching `inventory_order_line.quantity`). NOTE: `medusa db:generate`
+    emitted the useless `create table if not exists` form again — the ALTER
+    was hand-written into the generated file, per the standing migration
+    hazard. The lifecycle test's decimal partial (1.5 of 2.5) is the
+    regression guard.
 - **State after T2:** dual-write shim LIVE for inventory orders.
   - `apps/backend/src/links/partner-order.ts` — D3 link (partner ↔ core
     order, isList both sides). Query rows via the link's `entryPoint`.
