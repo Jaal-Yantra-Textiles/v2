@@ -19,6 +19,7 @@ import { PARTNER_MODULE } from "../../modules/partner"
 import InventoryOrderService from "../../modules/inventory_orders/service"
 import { LinkDefinition } from "@medusajs/framework/types"
 import { createTasksFromTemplatesWorkflow } from "./create-tasks-from-templates"
+import { mirrorPartnerLinkOnUnifiedOrderStep } from "./dual-write-unified-order"
 import { TASKS_MODULE } from "../../modules/tasks"
 import TaskService from "../../modules/tasks/service"
 
@@ -390,6 +391,14 @@ export const sendInventoryOrderToPartnerWorkflow = createWorkflow(
             partnerId: input.partnerId
         })
         
+        // #342 T2: mirror the assignment onto the unified core order
+        // (partner_order link + metadata.partner_status). Best-effort —
+        // the step swallows its own errors.
+        mirrorPartnerLinkOnUnifiedOrderStep({
+            inventoryOrderId: input.inventoryOrderId,
+            partnerId: input.partnerId
+        })
+
         // Step 4: Update inventory order with admin notes
         const orderWithNotes = updateInventoryOrderStep({
             inventoryOrderId: input.inventoryOrderId,

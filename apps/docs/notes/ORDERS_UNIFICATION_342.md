@@ -138,47 +138,65 @@ T2 the shim only mirrors state, it never drives it.
   order's status/metadata.partner_status per §5. If that bloats the PR, defer
   mirror-on-update to early T3 and dual-write creates only.
 
-## 7. Open questions for T2 (answer empirically in the shim)
+## 7. Open questions for T2 — ANSWERED (T2 shim, 2026-06-12)
 
-1. **GAP-1:** does `order_line_item.quantity` accept decimals end-to-end
-   (create → totals → admin UI render)? Test with 2.5.
-2. **GAP-3:** minimal viable input for creating a core order with no customer —
-   draft-order workflow vs `createOrdersWorkflow` directly; which keeps totals
-   math + currency handling correct?
-3. Does the admin orders list need a filter to HIDE kind!=null orders (so work
-   orders don't pollute retail views)? Likely yes — small middleware/query
-   tweak, do it in the same PR as the shim to avoid confusing ops.
-4. Confirm `/partners/orders` channel-scoping does not accidentally expose
-   kind'd orders to the wrong partner before the partner_order link ships.
+1. **GAP-1 RESOLVED:** `order_line_item.quantity` accepts decimals end-to-end
+   through `createOrderWorkflow` → totals math (2.5 × 40 = 100 verified by
+   integration test). No `quantity_float` fallback needed. Admin UI render
+   still unverified — check in T3.
+2. **GAP-3 RESOLVED:** `createOrderWorkflow` (core-flows) directly, omitting
+   BOTH `customer_id` and `email`. `findOrCreateCustomerStep` then resolves no
+   customer and the order is created customer-less. Do NOT pass an email — it
+   find-or-creates a guest customer row. Totals/currency handling correct
+   (items are custom lines with explicit `unit_price`; no variant_id means
+   inventory confirmation is skipped).
+3. **DEFERRED to T3:** admin retail list still shows kind'd orders. Mitigated
+   meanwhile by the "Partner Work Orders" sales channel (filterable in admin
+   UI). Needs a middleware/query tweak on GET /admin/orders.
+4. **OK:** unified work-orders live on the internal "Partner Work Orders"
+   channel, which no partner store includes — channel-scoped `/partners/orders`
+   cannot leak them.
 
 ---
 
-## Handoff → next task (T2: thin shim PR)
+## Handoff → next task (T3: unified panels + status mirror)
 
-*Updated 2026-06-12 after T1. Next session: read THIS file + `TaskList`; do not
-rely on chat history.*
+*Updated 2026-06-12 after T2 (PR: feat/342-t2-unified-order-dual-write). Next
+session: read THIS file; do not rely on chat history.*
 
-- **State:** mapping + decisions D1–D3 locked above; nothing implemented yet.
-- **T2 deliverable:** one PR —
-  1. `src/links/partner-order.ts` (D3),
-  2. seed for "Partner Work Orders" sales channel,
-  3. dual-write step appended to `createInventoryOrderWorkflow`
-     (`src/workflows/inventory_orders/create-inventory-orders.ts`) creating the
-     kind=inventory core order per §3 + §5, non-fatal on failure,
-  4. integration test (shared suite): create inventory order → assert core
-     order exists, kind, partner link, line items, totals parity, legacy row
-     untouched; plus GAP-1 decimal-quantity probe and GAP-3 resolution,
-  5. admin retail list filter from §7.3 if cheap, else note it here.
-- **Key files discovered in T1** (saves re-exploration):
-  - inventory module: `src/modules/inventory_orders/{models/order.ts, models/orderline.ts, service.ts, constants.ts}`
-  - its workflows: `src/workflows/inventory_orders/*` (create, send-to-partner with await-steps, partner-complete, update)
-  - production runs: `src/modules/production_runs/models/production-run.ts`, workflows under `src/workflows/production-runs/`, policy in `src/modules/production_policy/service.ts`
-  - partner scoping today: `src/links/partner-inventory-order.ts`; partner routes `src/api/partners/inventory-orders/**`, `src/api/partners/production-runs/**`
-  - design↔order link infra from #29: `src/workflows/designs/link-designs-to-order.ts`, `src/links/design-order-link.ts`
-  - partner-ui app: `apps/partner-ui` — orders hooks `src/hooks/api/orders.tsx`, inventory-order hooks `src/hooks/api/partner-inventory-orders.tsx` (T3 material)
-- **Gotchas to carry:** unscoped `workflow.run()` can't resolve "query" (always
-  `(container)` scope); shared test suite truncates per test (create fixtures
-  per-test); migrations adding columns must be hand-written ALTERs; CI may need
-  `:any` on `container.resolve(...)`.
-- **After T2:** update this Handoff section for T3, mark task #26 completed,
-  user can `/clear`.
+- **State after T2:** dual-write shim LIVE for inventory orders.
+  - `apps/backend/src/links/partner-order.ts` — D3 link (partner ↔ core
+    order, isList both sides). Query rows via the link's `entryPoint`.
+  - `apps/backend/src/workflows/inventory_orders/dual-write-unified-order.ts`
+    — `dualWriteUnifiedOrderStep` (appended to `createInventoryOrderWorkflow`)
+    + `mirrorPartnerLinkOnUnifiedOrderStep` (appended to
+    `sendInventoryOrderToPartnerWorkflow`, sets link + `partner_status:
+    "assigned"`). Both best-effort: swallow errors, `logger.warn` with
+    `[orders-unification]` prefix. Legacy row gets
+    `metadata.unified_order_id` backref.
+  - "Partner Work Orders" sales channel is lazily ensured by the step (NOT a
+    seed script — fresh envs need no coordination).
+  - Currency = store default currency (NOT hardcoded inr) +
+    `metadata.currency_assumed: true`.
+  - Test: `integration-tests/http/orders-unification-dual-write.spec.ts`
+    (3 tests: full projection incl. GAP-1/GAP-3, non-fatality without region,
+    partner link on send).
+- **T2 scope notes:** status mirror on UPDATE workflows not done (per §6
+  fallback — creates only). No compensation on the dual-write step: if a later
+  legacy step rolls the create back, an orphan kind'd order may remain
+  (harmless, invisible to retail; T4 backfill dedups on `metadata.legacy_id`).
+- **T3 deliverable(s):**
+  1. status mirror: extend `updateInventoryOrderWorkflow` + partner
+     start/complete paths to PATCH unified order status +
+     `metadata.partner_status` per §5,
+  2. same dual-write for production runs (kind=design, §4) on the run-create
+     path,
+  3. admin retail list filter (§7.3 — still open),
+  4. partner-ui panels keyed on `order.metadata.kind` + `partner_status`
+     (hooks: `apps/partner-ui/src/hooks/api/orders.tsx`),
+  5. legacy routes become shims.
+- **Gotchas to carry:** test store default currency is eur (don't assert inr);
+  task-template create 404s if `category` names a non-existent category;
+  shared test suite truncates per test (create fixtures per-test); CI may need
+  `:any` on `container.resolve(...)`; `createOrderWorkflow` requires a region
+  to exist (step skips with warn if none).
