@@ -4,8 +4,7 @@ import type { IOrderModuleService, Logger } from "@medusajs/types"
 import { sendOrderConfirmationWorkflow } from "../workflows/email/send-notification-email"
 import { sendPartnerOrderPlacedWorkflow } from "../workflows/email/workflows/send-partner-order-email"
 import { createProductionRunWorkflow } from "../workflows/production-runs/create-production-run"
-import designLineItemLink from "../links/design-line-item-link"
-import { DESIGN_MODULE } from "../modules/designs"
+import { linkDesignsToOrder } from "../workflows/designs/link-designs-to-order"
 
 export default async function orderPlacedHandler({
   event: { data },
@@ -131,41 +130,15 @@ export default async function orderPlacedHandler({
     )
   }
 
-  // Create design → order link by traversing: cart_id → cart_line_items → designLineItemLink
+  // Create design → order links (order → order_cart → cart line items →
+  // design_line_item). Lives in linkDesignsToOrder so the backfill script
+  // shares the exact same traversal.
   try {
-    const orderService = container.resolve(Modules.ORDER) as IOrderModuleService
-    const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
-    const orderId = data.id
-    const orders = await orderService.listOrders(
-      { id: [orderId] } as any,
-      { select: ["id", "cart_id"] as any }
-    )
-    const cartId: string | undefined = (orders as any[])?.[0]?.cart_id
-
-    if (cartId) {
-      const cartService = container.resolve(Modules.CART) as any
-      const cartLineItems = await cartService.listLineItems({ cart_id: [cartId] }, { select: ["id"] })
-      const lineItemIds = (cartLineItems || []).map((li: any) => li.id)
-
-      if (lineItemIds.length > 0) {
-        const { data: designLinks } = await query.graph({
-          entity: designLineItemLink.entryPoint,
-          filters: { line_item_id: lineItemIds },
-          fields: ["design_id"],
-        })
-
-        const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as any
-        for (const dl of designLinks) {
-          if (dl.design_id) {
-            await remoteLink.create({
-              [DESIGN_MODULE]: { design_id: dl.design_id },
-              [Modules.ORDER]: { order_id: orderId },
-            }).catch((err: any) =>
-              logger.warn(`[order-placed] design-order link failed: ${err.message}`)
-            )
-          }
-        }
-      }
+    const { linked } = await linkDesignsToOrder(container, data.id)
+    if (linked > 0) {
+      logger.info(
+        `[order.placed] Linked ${linked} design(s) to order ${data.id}`
+      )
     }
   } catch (e: any) {
     logger.warn(

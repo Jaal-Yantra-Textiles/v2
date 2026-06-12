@@ -255,7 +255,11 @@ const useColumns = () =>
         header: "Payment",
         cell: ({ getValue }) => {
           const order = getValue();
-          if (!order) return <span className="text-ui-fg-muted">—</span>;
+          // payment_status only ships once the design↔order link exists
+          // (roadmap #29) — guard so a linked order without the computed
+          // field can't crash the whole table.
+          if (!order?.payment_status)
+            return <span className="text-ui-fg-muted">—</span>;
           return (
             <Badge
               color={getPaymentStatusColor(order.payment_status)}

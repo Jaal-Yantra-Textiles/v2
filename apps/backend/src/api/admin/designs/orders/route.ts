@@ -55,7 +55,7 @@ export async function GET(
       query.graph({
         entity: designOrderLink.entryPoint,
         filters: { design_id: designIds },
-        fields: ["design_id", "order_id", "order.id", "order.display_id", "order.status", "order.total", "order.currency_code", "order.created_at"],
+        fields: ["design_id", "order_id", "order.id", "order.display_id", "order.status", "order.payment_status", "order.fulfillment_status", "order.total", "order.currency_code", "order.created_at"],
       }),
     ]);
 
