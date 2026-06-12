@@ -102,9 +102,11 @@ Core `order.status`: `draft | pending | completed | canceled | archived` (+
 separate `fulfillment_status`, `payment_status`). The legacy enums conflate all
 three; the work-progress dimension that doesn't fit goes to
 `order.metadata.partner_status` — ONE shared vocabulary for both kinds:
-`assigned → accepted → in_progress → finished → completed` (+ `declined`).
-This is the field T3's unified panels key on, and it deliberately matches the
-ProductionPolicyService transition vocabulary.
+`assigned → accepted → in_progress → finished → completed` (+ `declined`,
++ `partial` — partially-delivered work that is still open, between
+`in_progress` and `finished`; decided 2026-06-12, needed for order-line
+delivery). This is the field T3's unified panels key on, and it deliberately
+matches the ProductionPolicyService transition vocabulary.
 
 | Legacy | order.status | metadata.partner_status | fulfillment (if used) |
 |---|---|---|---|
@@ -112,7 +114,7 @@ ProductionPolicyService transition vocabulary.
 | inv `Pending` (sent to partner) | `pending` | `assigned` | not_fulfilled |
 | inv `Processing` | `pending` | `in_progress` | not_fulfilled |
 | inv `Shipped` | `pending` | `finished` | shipped |
-| inv `Partial` | `pending` | `completed` | partially_delivered |
+| inv `Partial` | `pending` | `partial` | partially_delivered |
 | inv `Delivered` | `completed` | `completed` | delivered |
 | inv `Cancelled` | `canceled` | — | — |
 | run `draft`/`pending_review` | `draft` | — | |
@@ -176,16 +178,22 @@ rely on chat history.*
     contract (`[orders-unification]` warn, never fails the legacy path).
   - §5 mapping note: Pending and Cancelled deliberately leave
     `metadata.partner_status` untouched ("assigned" is stamped by
-    send-to-partner; the §5 table defines no value for either). **Review
-    flag:** §5 maps legacy `Partial` → partner_status `completed` — the
-    unified vocabulary has no "partial" value. Implemented as written; if T3
-    panels need to distinguish partially-delivered, revisit the vocabulary
-    before building them.
+    send-to-partner; the §5 table defines no value for either). DECIDED
+    2026-06-12: the vocabulary gained `partial` (legacy `Partial` →
+    `partner_status: "partial"`, not `completed`) — order-line delivery
+    needs the distinction; T3 panels must render it.
   - Tests: `orders-unification-dual-write.spec.ts` now 5 tests — adds admin
     status mirror (Processing → in_progress, Cancelled → canceled),
     non-fatality of updates without a unified order, and the full partner
-    lifecycle (start → in_progress, complete → Shipped/finished) folded into
-    the send-to-partner test.
+    lifecycle (start → in_progress, partial delivery → Partial/partial,
+    remainder → Shipped/finished) folded into the send-to-partner test.
+  - **BUG discovered (pre-existing, NOT fixed):** GAP-1's cousin —
+    `line_fulfillment.quantity_delta` is an INTEGER column
+    (`src/modules/fullfilled_orders/`), so decimal partial deliveries round
+    silently in Postgres (deliver 1.5 kg → recorded 2) and the remainder then
+    trips the over-delivery guard. Decimal ORDER quantities work (GAP-1
+    resolved); decimal DELIVERIES don't. Fix = hand-written ALTER to numeric
+    (see migration hazard memory) + audit `quantity_delta` consumers. Own PR.
 - **State after T2:** dual-write shim LIVE for inventory orders.
   - `apps/backend/src/links/partner-order.ts` — D3 link (partner ↔ core
     order, isList both sides). Query rows via the link's `entryPoint`.

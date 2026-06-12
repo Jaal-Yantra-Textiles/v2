@@ -27,14 +27,15 @@ const LEGACY_TO_CORE_STATUS: Record<string, string> = {
 }
 
 // §5 — legacy status → unified metadata.partner_status (the shared
-// assigned→…→completed vocabulary T3 panels key on). Pending and Cancelled
-// are absent on purpose: "assigned" is stamped by send-to-partner, and the
-// §5 table defines no partner_status for either, so the mirror leaves the
+// assigned→…→completed vocabulary T3 panels key on; "partial" marks
+// partially-delivered work that is still open). Pending and Cancelled are
+// absent on purpose: "assigned" is stamped by send-to-partner, and the §5
+// table defines no partner_status for either, so the mirror leaves the
 // existing value untouched rather than inventing one.
 const LEGACY_TO_PARTNER_STATUS: Record<string, string> = {
   Processing: "in_progress",
   Shipped: "finished",
-  Partial: "completed",
+  Partial: "partial",
   Delivered: "completed",
 }
 
