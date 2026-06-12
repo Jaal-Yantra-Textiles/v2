@@ -14,6 +14,7 @@ import InventoryOrder from "../../modules/inventory_orders/models/order";
 import InventoryOrderService from "../../modules/inventory_orders/service";
 import type { Link } from "@medusajs/modules-sdk";
 import type { IInventoryService } from "@medusajs/types";
+import { dualWriteUnifiedOrderStep } from "./dual-write-unified-order";
 export type InventoryOrder = InferTypeOf<typeof InventoryOrder>;
 
 // --- Interfaces for API Input ---
@@ -241,6 +242,15 @@ export const createInventoryOrderWorkflow = createWorkflow(
         order_id: linkInput.order_id,
         from_stock_location_id: input.from_stock_location_id as string,
       });
+    });
+
+    // #342 T2: best-effort projection onto a core order (metadata.kind =
+    // "inventory"). The step swallows its own errors — a dual-write failure
+    // must never fail the legacy create.
+    dualWriteUnifiedOrderStep({
+      order: linkInput.order,
+      orderLines: linkInput.orderLines,
+      input,
     });
 
     // Step 3: Use transform to shape the final response
