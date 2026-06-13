@@ -301,6 +301,25 @@ export function getRouteMap({
                   path: "",
                   lazy: () => import("../../routes/orders/order-list"),
                 },
+                // #342 Chunk 5 (T3.4): unified-panel kind sub-routes. Static
+                // segments rank above `:id`, so an order id never collides.
+                // Each renders the SAME kind-parameterized order-list (it reads
+                // the kind off the path).
+                {
+                  path: "design",
+                  lazy: () => import("../../routes/orders/order-list"),
+                  handle: { breadcrumb: () => "Design" },
+                },
+                {
+                  path: "inventory",
+                  lazy: () => import("../../routes/orders/order-list"),
+                  handle: { breadcrumb: () => "Inventory" },
+                },
+                {
+                  path: "all",
+                  lazy: () => import("../../routes/orders/order-list"),
+                  handle: { breadcrumb: () => "All" },
+                },
                 {
                   path: ":id",
                   lazy: async () => {
