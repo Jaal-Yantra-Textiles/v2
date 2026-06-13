@@ -49,11 +49,25 @@ as the discriminator/pointer. Instead:
 7 (H1 locking) ─> 8 (H2 redis provider) ────────────────────────────┴────────────────┴─> 9 (T4)
 ```
 
-- [ ] **Chunk 1 (D5-1)** — Define `filterable` links + ingest. New
+**PR grouping (ship relevant chunks together — each chunk = one commit in the PR):**
+| PR | Chunks | Theme | Status |
+|---|---|---|---|
+| **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | Chunk 1 committed; 2+3 pending |
+| **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | not started |
+| **PR-C** | 6 | Metadata-write cleanup (after A + B prove links are the sole path) | not started |
+| **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | not started |
+| **PR-E** | 9 | T4 backfill + retirement (own planning pass) | not started |
+
+- [x] **Chunk 1 (D5-1)** — Define `filterable` links + ingest. New
   `src/links/order-production-run.ts` + `order-inventory-order.ts`, execution
-  side `filterable: ["id"]`, order side `isList:false`. Migration + restart,
-  verify `query.index` filters orders by `production_run.id $ne null`. No
-  behavior change. *(blocked by: none)*
+  side `filterable: ["id"]`, order side `isList:false`. **DONE** — committed on
+  branch `feat/342-d5-1-filterable-order-execution-links` (commit 1051daf95),
+  part of PR-A. Verified: `db:migrate --execute-safe-links` created both link
+  tables; a `query.index` probe accepted all three filter shapes
+  (`production_run.id $ne null`, `inventory_order.id $ne null`, both-null retail
+  anti-join), 0 rows as expected. Relation keys pinned via `field` to
+  `production_run` / `inventory_order`. NOT yet pushed/opened as a PR.
+  *(blocked by: none)*
 - [ ] **Chunk 2 (D5-2)** — Dual-write creates the links *in addition to* current
   metadata (transitional, nothing removed). Idempotency guard = link existence.
   Update both unification specs to assert the link. *(blocked by: 1)*
