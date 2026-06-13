@@ -1,3 +1,11 @@
+# [13.30.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.29.0...v13.30.0) (2026-06-13)
+
+
+### Features
+
+* **orders:** [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342) PR-A — D5 link adoption (define → write → read) ([#392](https://github.com/Jaal-Yantra-Textiles/v2/issues/392)) ([c4d0346](https://github.com/Jaal-Yantra-Textiles/v2/commit/c4d03469a26f7cbacebf3ed911df374ebaa0884b))
+* **orders:** [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342) T3.2 — dual-write unified core order for production runs ([#391](https://github.com/Jaal-Yantra-Textiles/v2/issues/391)) ([79fa85c](https://github.com/Jaal-Yantra-Textiles/v2/commit/79fa85c1eaea823ea44c1084c1072583a8df1790))
+
 # [13.29.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.28.0...v13.29.0) (2026-06-12)
 
 
