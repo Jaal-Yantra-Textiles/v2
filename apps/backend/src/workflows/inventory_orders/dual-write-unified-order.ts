@@ -2,7 +2,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { createOrderWorkflow } from "@medusajs/medusa/core-flows"
 import type { Link } from "@medusajs/modules-sdk"
-import type { LinkDefinition } from "@medusajs/framework/types"
+import type { LinkDefinition, MedusaContainer } from "@medusajs/framework/types"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import { PARTNER_MODULE } from "../../modules/partner"
 import InventoryOrderService from "../../modules/inventory_orders/service"
@@ -102,6 +102,30 @@ type MirrorResult = {
   unified_order_id?: string
   skipped?: string
   error?: string
+}
+
+// D5-3 — resolve a legacy row's unified order id by the order↔<execution>
+// link, forward (`<entity>.order`), which the Chunk 2 directionality finding
+// established as the authoritative join. This replaces reading the
+// `metadata.unified_order_id` backref as the primary path in every
+// transactional mirror/partner-link reader (inventory + production-run steps,
+// the admin cancel route, the task-updated subscriber). The backref survives
+// only as a transitional fallback for rows projected before D5-2 (link-less);
+// it goes away once T4 (Chunk 9) backfills links onto historicals, after which
+// Chunk 6 stops writing it entirely.
+export const resolveUnifiedOrderIdByLink = async (
+  container: MedusaContainer,
+  entity: "inventory_orders" | "production_runs",
+  legacyId: string
+): Promise<string | undefined> => {
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity,
+    fields: ["id", "order.id", "metadata"],
+    filters: { id: legacyId },
+  })
+  const row = data?.[0]
+  return row?.order?.id ?? row?.metadata?.unified_order_id ?? undefined
 }
 
 type DualWriteInput = {
@@ -232,6 +256,28 @@ export const dualWriteUnifiedOrderStep = createStep(
         },
       })
 
+      // D5-2 — the load-bearing order↔inventory_order link + kind=inventory
+      // discriminator (replaces metadata.unified_order_id as the authoritative
+      // pointer; the metadata backref below is still written during the D5
+      // transition). filterable:["id"] → the Index Module ingests it so the
+      // admin retail-list anti-join can exclude work-orders (Chunk 4). This
+      // create path runs once per legacy create, so no link-existence guard is
+      // needed (a fresh unified order per call). Best-effort: a link failure
+      // must not lose the metadata backref legacy reads still depend on.
+      const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+      await remoteLink
+        .create([
+          {
+            [Modules.ORDER]: { order_id: unified.id },
+            [ORDER_INVENTORY_MODULE]: { inventory_orders_id: order.id },
+          },
+        ])
+        .catch((e: any) =>
+          logger.warn(
+            `[orders-unification] order↔inventory_order link failed for ${order.id}: ${e?.message}`
+          )
+        )
+
       const inventoryOrderService: InventoryOrderService =
         container.resolve(ORDER_INVENTORY_MODULE)
       await inventoryOrderService.updateInventoryOrders({
@@ -266,13 +312,11 @@ export const mirrorPartnerLinkOnUnifiedOrderStep = createStep(
   ) => {
     const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
     try {
-      const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
-      const { data: invOrders } = await query.graph({
-        entity: "inventory_orders",
-        fields: ["id", "metadata"],
-        filters: { id: input.inventoryOrderId },
-      })
-      const unifiedOrderId = invOrders?.[0]?.metadata?.unified_order_id
+      const unifiedOrderId = await resolveUnifiedOrderIdByLink(
+        container,
+        "inventory_orders",
+        input.inventoryOrderId
+      )
       if (!unifiedOrderId) {
         return new StepResponse<MirrorResult>({
           linked: false,
@@ -335,11 +379,15 @@ export const mirrorUnifiedOrderStatusStep = createStep(
       const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
       const { data: invOrders } = await query.graph({
         entity: "inventory_orders",
-        fields: ["id", "status", "metadata"],
+        fields: ["id", "status", "order.id", "metadata"],
         filters: { id: input.inventoryOrderId },
       })
       const legacy = invOrders?.[0]
-      const unifiedOrderId = legacy?.metadata?.unified_order_id
+      // D5-3 — resolve the unified order via the order↔inventory_order link
+      // (forward, authoritative); the legacy backref is a transitional fallback
+      // for pre-D5-2 link-less rows. Fetched in the same query as `status`.
+      const unifiedOrderId =
+        legacy?.order?.id ?? legacy?.metadata?.unified_order_id
       if (!unifiedOrderId) {
         return new StepResponse<MirrorResult>({
           linked: false,

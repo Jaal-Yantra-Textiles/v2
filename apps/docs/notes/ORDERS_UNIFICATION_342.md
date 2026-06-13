@@ -8,9 +8,165 @@
 
 **Phases (task chain):**
 - **T1 (this doc):** field mapping + gap decisions — DONE
-- **T2:** thin shim PR — dual-write a unified `order` alongside one legacy create
-- **T3:** partner-ui panels driven off `order.status` + `metadata.kind`; legacy routes become shims
+- **T2:** thin shim PR — dual-write a unified `order` alongside one legacy create — DONE (#387)
+- **T3:** partner-ui panels driven off `order.status` + kind; legacy routes become shims — IN PROGRESS (T3.1 #389, T3.2 #391 done)
 - **T4:** backfill + quiet retirement
+
+---
+
+## ⚡ Active work breakdown — D5 link refactor + remaining T3/T4 (chunks)
+
+> **HOW TO RECALL AFTER A CONTEXT CLEAR:** read this section. It is the durable
+> copy of the chunk plan (the in-session task tracker does NOT survive `/clear`).
+> Each chunk = one PR with its own test. Update the checkboxes as PRs merge.
+> Last updated 2026-06-13.
+
+**D5 (decided 2026-06-13) — link-based discrimination supersedes `metadata.kind`.**
+Per [[feedback_no_critical_data_in_metadata]], stop using `order.metadata.kind`
+and the `metadata.unified_order_id` backref (load-bearing, blob-replace-prone)
+as the discriminator/pointer. Instead:
+- Two new module links carry the relationship AND discriminate kind:
+  `order ↔ production_run` (kind=design), `order ↔ inventory_order` (kind=inventory).
+  Neither link → retail. (NOT the `design ↔ order` link — that one is shared with
+  retail: `order-placed.ts` runs `linkDesignsToOrder` on every purchase.)
+- The links are declared `filterable: ["id"]` so the **Index Module** (already
+  enabled, `index_engine: true` in medusa-config) ingests them and `query.index`
+  can filter on link existence — including the retail anti-join
+  (`{ production_run: { id: null }, inventory_order: { id: null } }`). This is
+  why **no denormalized `kind` column is needed.**
+- **Split read paths:** `query.index` for list filtering (eventually consistent,
+  fine for UI lists); `query.graph` link-resolution for transactional reads
+  inside workflows (authoritative). Never use `query.index` for mirror-step
+  correctness.
+- **NOT solved by links:** `partner_status` stays in metadata (read-modify-write
+  on every transition) → still needs the locking front (Chunks 7–8). `legacy_id`
+  also survives until T4 decides idempotency-on-link.
+
+**Dependency graph:**
+```
+1 (D5-1 links) ──┬─> 2 (D5-2 write links) ─> 3 (D5-3 read via link) ─┐
+                 └─> 4 (T3.3 admin filter) ─> 5 (T3.4 panels)        ├─> 6 (cleanup) ─┐
+7 (H1 locking) ─> 8 (H2 redis provider) ────────────────────────────┴────────────────┴─> 9 (T4)
+```
+
+**PR grouping (ship relevant chunks together — each chunk = one commit in the PR):**
+| PR | Chunks | Theme | Status |
+|---|---|---|---|
+| **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | **OPEN — PR #392** (Chunks 1+2+3 all committed) |
+| **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | not started |
+| **PR-C** | 6 | Metadata-write cleanup (after A + B prove links are the sole path) | not started |
+| **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | not started |
+| **PR-E** | 9 | T4 backfill + retirement (own planning pass) | not started |
+
+- [x] **Chunk 1 (D5-1)** — Define `filterable` links + ingest. New
+  `src/links/order-production-run.ts` + `order-inventory-order.ts`, execution
+  side `filterable: ["id"]`, order side `isList:false`. **DONE** — committed on
+  branch `feat/342-d5-1-filterable-order-execution-links` (commit 1051daf95),
+  part of PR-A. Verified: `db:migrate --execute-safe-links` created both link
+  tables; a `query.index` probe accepted all three filter shapes
+  (`production_run.id $ne null`, `inventory_order.id $ne null`, both-null retail
+  anti-join), 0 rows as expected. Relation keys pinned via `field` to
+  `production_run` / `inventory_order`. Shipped in PR #392 (PR-A).
+  *(blocked by: none)*
+- [x] **Chunk 2 (D5-2)** — Dual-write creates the links *in addition to* current
+  metadata (transitional, nothing removed). Idempotency guard = link existence.
+  Update both unification specs to assert the link. **DONE** (uncommitted on
+  branch `feat/342-d5-1-filterable-order-execution-links`, part of PR-A).
+  - Both projections now `remoteLink.create` the execution link right after the
+    unified order is created, best-effort (`.catch` → `[orders-unification]`
+    warn) so a link failure never loses the metadata backref legacy reads still
+    need. Link keys: `{ [Modules.ORDER]: { order_id }, [<MODULE>]: {
+    production_runs_id | inventory_orders_id } }`.
+    - design: `dual-write-unified-run-order.ts` `projectRunToUnifiedOrder`
+      (one `remoteLink` now shared by the execution + design↔order links).
+    - inventory: `dual-write-unified-order.ts` `dualWriteUnifiedOrderStep`.
+  - **Idempotency guard switched to link existence** in `projectRunToUnifiedOrder`
+    (the only re-entrant path — create + per-child approve). Resolves the link
+    FORWARD via `query.graph` (`entity:"production_runs", fields:["id","order.id"]`)
+    and falls back to `metadata.unified_order_id` so pre-D5-2 (link-less) runs
+    aren't re-projected into a duplicate. Inventory create path is single-shot
+    (fresh order per legacy create) → no guard needed.
+  - Specs assert the forward link resolves: inventory create test, design create
+    test, and the approve/child-run test (each child links distinctly, parent
+    still points at its superseded order — proves the guard didn't reuse the
+    parent's order). Both specs green (5 + 5).
+  - **⚠️ LINK NAMING FINDING (empirically nailed down 2026-06-13 — supersedes an
+    earlier wrong "forward only" note):** these are **managed** links (pivot
+    table), so they are **fully bidirectional** in `query.graph`. Verified with a
+    real linked row reading BOTH directions:
+    - **forward** (legacy row → order): `production_runs.order` /
+      `inventory_orders.order` → the unified order. Authoritative.
+    - **reverse** (order → legacy row): `order.production_runs` /
+      `order.inventory_orders` → the run/inventory row. **Note the auto-derived
+      PLURAL accessor** (`production_runs`, not `production_run`).
+    - The `field: "production_run"` pin on the run side ONLY adds the singular
+      alias to the **Index Module** — it does NOT rename `query.graph`'s reverse
+      accessor. So: `query.index` (order side) accepts BOTH `production_run` and
+      `production_runs` for the retail anti-join; `query.graph` reverse needs the
+      PLURAL. (An earlier probe guessed `order.production_run` for query.graph,
+      got "Entity 'Order' does not have property 'production_run'", and wrongly
+      concluded the link was one-way. It is not.)
+    - This is NOT a read-only-link situation: read-only links
+      (`defineLink(..., { readOnly: true })`, e.g. the built-in OrderLineItem→
+      Product) ARE uni-directional and need a separate inverse definition. Ours
+      are stored/managed — bidirectional, no inverse needed.
+    - **Implications:** Chunk 3 reads resolve `.order` **forward** from the legacy
+      row (id already in hand — cleanest). Chunk 4's admin retail LIST filter
+      stays on `query.index` (eventual-consistency-tolerant, and the null
+      anti-join is its job); reverse `query.graph` selection also works if a
+      transactional reverse read is ever needed. `production_runs.order_id` is a
+      plain column (not a relation), so `.order` unambiguously resolves the new
+      link. *(blocked by: none now)*
+- [x] **Chunk 3 (D5-3)** — Switch transactional reads from
+  `metadata.unified_order_id` → `query.graph` link resolution in the mirror
+  steps, partner-link steps, admin cancel route, task-updated subscriber. After
+  this, the backref is no longer the PRIMARY read. **DONE** (uncommitted on
+  branch `feat/342-d5-1-filterable-order-execution-links`, part of PR-A).
+  - New shared helper `resolveUnifiedOrderIdByLink(container, entity, legacyId)`
+    in `inventory_orders/dual-write-unified-order.ts`: resolves forward
+    (`<entity>.order` via `query.graph`) → unified order id, falling back to the
+    legacy `metadata.unified_order_id` backref ONLY for pre-D5-2 link-less rows
+    (that fallback retires with T4/Chunk 9 link backfill; Chunk 6 then stops
+    writing the backref). Used by entity `"inventory_orders"` and
+    `"production_runs"` — managed links are bidirectional so forward `.order`
+    works for both (Chunk 2 finding).
+  - **5 read sites switched** (all best-effort, inside the swallow-and-warn
+    boundary): inventory `mirrorPartnerLinkOnUnifiedOrderStep` +
+    `mirrorUnifiedOrderStatusStep` (the latter fetches `status` and `order.id`
+    in one `query.graph`); run `mirrorRunStatusToUnifiedOrder`,
+    `dualWriteChildRunOrdersStep` (parent order id), and
+    `mirrorRunPartnerLinkOnUnifiedOrderStep`. The admin cancel route + the
+    `production-run-task-updated` subscriber inherit the switch via the shared
+    `mirrorRunStatusToUnifiedOrder` helper — no separate edit needed.
+  - The Chunk 2 idempotency guard in `projectRunToUnifiedOrder` was ALREADY
+    link-first (line ~193) — left as-is.
+  - **Still WRITTEN, not yet removed:** both projections still write the
+    `metadata.unified_order_id` backref (Chunk 6 removes the writes once A+B
+    prove links are the sole path).
+  - Tests: each spec gains a "resolves via the link, not the metadata backref"
+    case that POISONS `metadata.unified_order_id` with a bogus order id, leaves
+    the link intact, triggers a mirror (inventory: admin status PUT; run: admin
+    cancel route), and asserts the REAL unified order still mirrors — provable
+    only via the link. Both specs green (6 + 6). *(blocked by: none)*
+- [ ] **Chunk 4 (T3.3)** — Admin retail list filter: `GET /admin/orders` excludes
+  work-orders via `query.index` null-link filter; opt-in `?kind=` to surface
+  them. *(blocked by: 1)*
+- [ ] **Chunk 5 (T3.4)** — Partner-ui unified panels keyed on kind (which link is
+  present) + `partner_status`. Hook: `apps/partner-ui/src/hooks/api/orders.tsx`.
+  Skeletons, `--ui-*` tokens, partner API mirrors admin. *(blocked by: 4)*
+- [ ] **Chunk 6 (D5-cleanup)** — Stop WRITING `metadata.kind` + `unified_order_id`;
+  trim them from `PROTECTED_UNIFICATION_METADATA_KEYS` + the partner PATCH route.
+  `partner_status` stays. *(blocked by: 3, 4)*
+- [ ] **Chunk 7 (H1)** — Locking on the dual-write/mirror read-modify-write
+  (`partner_status` race), key = unified order id, ALL writers share it, inside
+  the swallow-and-warn boundary. Pattern: `complete-production-run.ts`.
+  *(blocked by: none — parallel to the link work)*
+- [ ] **Chunk 8 (H2)** — Register `@medusajs/locking-redis` in medusa-config
+  (prod env-gated, in-memory fallback for dev). Must precede scaling >1 backend
+  instance. *(blocked by: 7)*
+- [ ] **Chunk 9 (T4)** — Backfill historicals (idempotent on link), repoint §4
+  deviation + ancillary links, legacy routes → shims, quiet retirement. Needs
+  its own planning pass. *(blocked by: 3, 6, 7)*
 
 ---
 

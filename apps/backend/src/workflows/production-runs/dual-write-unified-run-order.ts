@@ -8,7 +8,10 @@ import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { DESIGN_MODULE } from "../../modules/designs"
 import type ProductionRunService from "../../modules/production_runs/service"
-import { PARTNER_WORK_ORDERS_CHANNEL } from "../inventory_orders/dual-write-unified-order"
+import {
+  PARTNER_WORK_ORDERS_CHANNEL,
+  resolveUnifiedOrderIdByLink,
+} from "../inventory_orders/dual-write-unified-order"
 
 // #342 T3.2 — best-effort projection of production runs onto the core `order`
 // entity (metadata.kind = "design"). Mirrors the T2 inventory-order recipe;
@@ -177,9 +180,23 @@ export const projectRunToUnifiedOrder = async (
       productionRunId
     )
 
-    if (run?.metadata?.unified_order_id) {
+    // D5-2 idempotency: the order↔production_run link is the authoritative
+    // "already projected" signal. Resolve it forward (run → order) via
+    // query.graph — that join is synchronous/authoritative; never query.index
+    // here (eventually consistent). Fall back to the legacy
+    // metadata.unified_order_id backref so runs projected before D5-2
+    // (link-less) are not re-projected into a duplicate order.
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data: linkedRuns } = await query.graph({
+      entity: "production_runs",
+      fields: ["id", "order.id"],
+      filters: { id: productionRunId },
+    })
+    const alreadyProjectedId =
+      linkedRuns?.[0]?.order?.id ?? run?.metadata?.unified_order_id
+    if (alreadyProjectedId) {
       return {
-        unified_order_id: run.metadata.unified_order_id,
+        unified_order_id: alreadyProjectedId,
         skipped: "already_projected",
       }
     }
@@ -248,10 +265,29 @@ export const projectRunToUnifiedOrder = async (
       },
     })
 
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+
+    // D5-2 — the load-bearing order↔production_run link + kind=design
+    // discriminator (replaces metadata.unified_order_id as the authoritative
+    // pointer; the metadata backref is still written below during the D5
+    // transition). filterable:["id"] means the Index Module ingests it so the
+    // admin retail-list anti-join can exclude work-orders (Chunk 4).
+    await remoteLink
+      .create([
+        {
+          [Modules.ORDER]: { order_id: unified.id },
+          [PRODUCTION_RUNS_MODULE]: { production_runs_id: run.id },
+        },
+      ])
+      .catch((e: any) =>
+        logger.warn(
+          `[orders-unification] order↔production_run link failed for ${run.id}: ${e?.message}`
+        )
+      )
+
     // §4 — reuse the existing design↔order link infra (#29) so design panels
     // and linkDesignsToOrder consumers see the work-order too.
     if (run.design_id) {
-      const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
       await remoteLink
         .create([
           {
@@ -318,8 +354,19 @@ export const mirrorRunStatusToUnifiedOrder = async (
     const run: any = await productionRunService
       .retrieveProductionRun(productionRunId)
       .catch(() => null)
+    if (!run) {
+      return { linked: false, skipped: "no_unified_order" }
+    }
 
-    const unifiedOrderId = run?.metadata?.unified_order_id
+    // D5-3 — resolve the unified order via the order↔production_run link
+    // (forward, authoritative); the metadata backref is a transitional fallback
+    // for pre-D5-2 link-less runs. The run itself is still read above for the
+    // §5 status/lifecycle-timestamp mapping.
+    const unifiedOrderId = await resolveUnifiedOrderIdByLink(
+      container,
+      "production_runs",
+      productionRunId
+    )
     if (!unifiedOrderId) {
       return { linked: false, skipped: "no_unified_order" }
     }
@@ -393,12 +440,13 @@ export const dualWriteChildRunOrdersStep = createStep(
       }
 
       if (input.child_run_ids.length) {
-        const productionRunService: ProductionRunService =
-          container.resolve(PRODUCTION_RUNS_MODULE)
-        const parent: any = await productionRunService
-          .retrieveProductionRun(input.parent_run_id)
-          .catch(() => null)
-        const parentOrderId = parent?.metadata?.unified_order_id
+        // D5-3 — the parent's unified order via the link (forward,
+        // authoritative); metadata backref is the pre-D5-2 fallback.
+        const parentOrderId = await resolveUnifiedOrderIdByLink(
+          container,
+          "production_runs",
+          input.parent_run_id
+        )
         if (parentOrderId) {
           await patchUnifiedOrder(container, parentOrderId, {
             status: "canceled",
@@ -435,7 +483,14 @@ export const mirrorRunPartnerLinkOnUnifiedOrderStep = createStep(
         .retrieveProductionRun(input.production_run_id)
         .catch(() => null)
 
-      const unifiedOrderId = run?.metadata?.unified_order_id
+      // D5-3 — resolve the unified order via the link (forward, authoritative);
+      // the run is still read above for partner_id / execution_mode /
+      // sub_partner_id. Metadata backref is the pre-D5-2 fallback.
+      const unifiedOrderId = await resolveUnifiedOrderIdByLink(
+        container,
+        "production_runs",
+        input.production_run_id
+      )
       if (!unifiedOrderId || !run?.partner_id) {
         return new StepResponse<MirrorResult>({
           linked: false,

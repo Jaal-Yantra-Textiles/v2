@@ -197,6 +197,16 @@ setupSharedTestSuite(() => {
       expect(designLinks).toHaveLength(1)
       expect(designLinks[0].design_id).toBe(designId)
 
+      // D5-2: the order↔production_run link is the authoritative pointer +
+      // kind=design discriminator. Resolve it forward (run → unified order)
+      // via query.graph — the same join D5-3 reads switch to.
+      const { data: linkedRuns } = await query.graph({
+        entity: "production_runs",
+        filters: { id: runId },
+        fields: ["id", "order.id"],
+      })
+      expect(linkedRuns?.[0]?.order?.id).toBe(unifiedOrderId)
+
       // Legacy run untouched apart from the metadata backref; order_id still
       // means "source retail order" (deviation note in the doc)
       const run: any = await fetchRun(runId)
@@ -257,6 +267,23 @@ setupSharedTestSuite(() => {
       })
       expect(linkRows).toHaveLength(1)
       expect(linkRows[0].partner_id).toBe(partnerId)
+
+      // D5-2: each child run owns its own order↔production_run link, and the
+      // parent run still points at its (now superseded) order. Confirms the
+      // re-entrant projection links every child distinctly rather than reusing
+      // the parent's order.
+      const { data: childLink } = await query.graph({
+        entity: "production_runs",
+        filters: { id: childId },
+        fields: ["id", "order.id"],
+      })
+      expect(childLink?.[0]?.order?.id).toBe(childOrderId)
+      const { data: parentLink } = await query.graph({
+        entity: "production_runs",
+        filters: { id: parentId },
+        fields: ["id", "order.id"],
+      })
+      expect(parentLink?.[0]?.order?.id).toBe(parentOrderId)
 
       // ——— partner lifecycle: accept → start → finish → complete ———
       const accept = await post(
@@ -364,6 +391,46 @@ setupSharedTestSuite(() => {
       expect(unified.status).toBe("canceled")
       // §5 defines no partner_status for an admin cancel
       expect(unified.metadata.partner_status ?? null).toBeNull()
+    })
+
+    it("resolves the unified order via the link, not the metadata backref (D5-3)", async () => {
+      // Chunk 3 — the run status mirror (incl. the admin cancel route) now
+      // resolves the unified order through the order↔production_run link
+      // (query.graph forward `.order`), not run.metadata.unified_order_id.
+      // POISON the backref with a bogus id, leave the link intact: the mirror
+      // must still cancel the REAL order, which is only possible via the link.
+      await createRegion()
+      const designId = await createDesign()
+
+      const createRes = await post(
+        `/admin/designs/${designId}/production-runs`,
+        { quantity: 4 },
+        adminHeaders
+      )
+      expect(createRes.status).toBe(201)
+      const runId = createRes.data.production_run.id
+      const unifiedOrderId = await unifiedOrderIdOf(runId)
+      expect(unifiedOrderId).toBeTruthy()
+
+      const container = getContainer()
+      const productionRunService: any = container.resolve("production_runs")
+      await productionRunService.updateProductionRuns({
+        id: runId,
+        metadata: { unified_order_id: "order_bogus_does_not_exist" },
+      })
+      expect((await fetchRun(runId)).metadata?.unified_order_id).toBe(
+        "order_bogus_does_not_exist"
+      )
+
+      const cancel = await post(
+        `/admin/production-runs/${runId}/cancel`,
+        { reason: "link-resolution test" },
+        adminHeaders
+      )
+      expect(cancel.status).toBe(200)
+
+      const unified = await fetchUnifiedOrder(unifiedOrderId)
+      expect(unified.status).toBe("canceled")
     })
 
     it("does not fail the legacy run path when the dual-write cannot run (no region)", async () => {
