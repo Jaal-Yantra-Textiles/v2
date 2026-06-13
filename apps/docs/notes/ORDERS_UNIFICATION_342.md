@@ -52,7 +52,7 @@ as the discriminator/pointer. Instead:
 **PR grouping (ship relevant chunks together — each chunk = one commit in the PR):**
 | PR | Chunks | Theme | Status |
 |---|---|---|---|
-| **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | Chunk 1 committed; Chunk 2 done (uncommitted); Chunk 3 pending |
+| **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | Chunk 1 committed; Chunk 2 committed (ad32afdd1); Chunk 3 done (uncommitted) |
 | **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | not started |
 | **PR-C** | 6 | Metadata-write cleanup (after A + B prove links are the sole path) | not started |
 | **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | not started |
@@ -117,11 +117,37 @@ as the discriminator/pointer. Instead:
       transactional reverse read is ever needed. `production_runs.order_id` is a
       plain column (not a relation), so `.order` unambiguously resolves the new
       link. *(blocked by: none now)*
-- [ ] **Chunk 3 (D5-3)** — Switch transactional reads from
+- [x] **Chunk 3 (D5-3)** — Switch transactional reads from
   `metadata.unified_order_id` → `query.graph` link resolution in the mirror
   steps, partner-link steps, admin cancel route, task-updated subscriber. After
-  this, the backref is no longer READ. **Use the forward `.order` resolution per
-  the Chunk 2 directionality finding above.** *(blocked by: 2 — now unblocked)*
+  this, the backref is no longer the PRIMARY read. **DONE** (uncommitted on
+  branch `feat/342-d5-1-filterable-order-execution-links`, part of PR-A).
+  - New shared helper `resolveUnifiedOrderIdByLink(container, entity, legacyId)`
+    in `inventory_orders/dual-write-unified-order.ts`: resolves forward
+    (`<entity>.order` via `query.graph`) → unified order id, falling back to the
+    legacy `metadata.unified_order_id` backref ONLY for pre-D5-2 link-less rows
+    (that fallback retires with T4/Chunk 9 link backfill; Chunk 6 then stops
+    writing the backref). Used by entity `"inventory_orders"` and
+    `"production_runs"` — managed links are bidirectional so forward `.order`
+    works for both (Chunk 2 finding).
+  - **5 read sites switched** (all best-effort, inside the swallow-and-warn
+    boundary): inventory `mirrorPartnerLinkOnUnifiedOrderStep` +
+    `mirrorUnifiedOrderStatusStep` (the latter fetches `status` and `order.id`
+    in one `query.graph`); run `mirrorRunStatusToUnifiedOrder`,
+    `dualWriteChildRunOrdersStep` (parent order id), and
+    `mirrorRunPartnerLinkOnUnifiedOrderStep`. The admin cancel route + the
+    `production-run-task-updated` subscriber inherit the switch via the shared
+    `mirrorRunStatusToUnifiedOrder` helper — no separate edit needed.
+  - The Chunk 2 idempotency guard in `projectRunToUnifiedOrder` was ALREADY
+    link-first (line ~193) — left as-is.
+  - **Still WRITTEN, not yet removed:** both projections still write the
+    `metadata.unified_order_id` backref (Chunk 6 removes the writes once A+B
+    prove links are the sole path).
+  - Tests: each spec gains a "resolves via the link, not the metadata backref"
+    case that POISONS `metadata.unified_order_id` with a bogus order id, leaves
+    the link intact, triggers a mirror (inventory: admin status PUT; run: admin
+    cancel route), and asserts the REAL unified order still mirrors — provable
+    only via the link. Both specs green (6 + 6). *(blocked by: none)*
 - [ ] **Chunk 4 (T3.3)** — Admin retail list filter: `GET /admin/orders` excludes
   work-orders via `query.index` null-link filter; opt-in `?kind=` to surface
   them. *(blocked by: 1)*

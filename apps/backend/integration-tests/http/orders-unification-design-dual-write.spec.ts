@@ -393,6 +393,46 @@ setupSharedTestSuite(() => {
       expect(unified.metadata.partner_status ?? null).toBeNull()
     })
 
+    it("resolves the unified order via the link, not the metadata backref (D5-3)", async () => {
+      // Chunk 3 — the run status mirror (incl. the admin cancel route) now
+      // resolves the unified order through the order↔production_run link
+      // (query.graph forward `.order`), not run.metadata.unified_order_id.
+      // POISON the backref with a bogus id, leave the link intact: the mirror
+      // must still cancel the REAL order, which is only possible via the link.
+      await createRegion()
+      const designId = await createDesign()
+
+      const createRes = await post(
+        `/admin/designs/${designId}/production-runs`,
+        { quantity: 4 },
+        adminHeaders
+      )
+      expect(createRes.status).toBe(201)
+      const runId = createRes.data.production_run.id
+      const unifiedOrderId = await unifiedOrderIdOf(runId)
+      expect(unifiedOrderId).toBeTruthy()
+
+      const container = getContainer()
+      const productionRunService: any = container.resolve("production_runs")
+      await productionRunService.updateProductionRuns({
+        id: runId,
+        metadata: { unified_order_id: "order_bogus_does_not_exist" },
+      })
+      expect((await fetchRun(runId)).metadata?.unified_order_id).toBe(
+        "order_bogus_does_not_exist"
+      )
+
+      const cancel = await post(
+        `/admin/production-runs/${runId}/cancel`,
+        { reason: "link-resolution test" },
+        adminHeaders
+      )
+      expect(cancel.status).toBe(200)
+
+      const unified = await fetchUnifiedOrder(unifiedOrderId)
+      expect(unified.status).toBe("canceled")
+    })
+
     it("does not fail the legacy run path when the dual-write cannot run (no region)", async () => {
       // No region created — the projection must skip, not throw
       const designId = await createDesign()

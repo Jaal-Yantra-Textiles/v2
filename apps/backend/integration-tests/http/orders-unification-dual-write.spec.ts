@@ -12,6 +12,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import partnerOrderLink from "../../src/links/partner-order"
+import { ORDER_INVENTORY_MODULE } from "../../src/modules/inventory_orders"
 
 jest.setTimeout(60000)
 
@@ -242,6 +243,42 @@ setupSharedTestSuite(() => {
       expect(res2.status).toBe(200)
       unified = await fetchUnifiedOrder(unifiedOrderId)
       expect(unified.status).toBe("canceled")
+      expect(unified.metadata.partner_status).toBe("in_progress")
+    })
+
+    it("resolves the unified order via the link, not the metadata backref (D5-3)", async () => {
+      // Chunk 3 — the status mirror now reads the order↔inventory_order link
+      // (query.graph forward `.order`), no longer the metadata.unified_order_id
+      // backref. Prove it by POISONING the backref with a bogus order id while
+      // leaving the link intact: if the mirror still lands on the REAL unified
+      // order, it can ONLY have resolved via the link (a backref read would
+      // target the bogus id and leave the real order untouched).
+      await createRegion()
+      const legacy = await createLegacyOrder()
+      const legacyRow = await fetchLegacyOrder(legacy.id)
+      const unifiedOrderId = legacyRow.metadata?.unified_order_id
+      expect(unifiedOrderId).toBeTruthy()
+
+      const container = getContainer()
+      const inventoryOrderService: any =
+        container.resolve(ORDER_INVENTORY_MODULE)
+      await inventoryOrderService.updateInventoryOrders({
+        id: legacy.id,
+        metadata: { unified_order_id: "order_bogus_does_not_exist" },
+      })
+      expect((await fetchLegacyOrder(legacy.id)).metadata?.unified_order_id).toBe(
+        "order_bogus_does_not_exist"
+      )
+
+      const res = await api.put(
+        `/admin/inventory-orders/${legacy.id}`,
+        { status: "Processing" },
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+
+      const unified = await fetchUnifiedOrder(unifiedOrderId)
+      expect(unified.status).toBe("pending")
       expect(unified.metadata.partner_status).toBe("in_progress")
     })
 
