@@ -55,7 +55,7 @@ as the discriminator/pointer. Instead:
 | **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | **MERGED — PR #392** (2026-06-13, merge `c4d03469a`; auto-deploys to prod) |
 | **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | **OPEN — PR #393 (draft)** (2026-06-13), `feat/342-pr-b-unified-surfacing`. Chunk 4 + 5 both done, pushed. Both specs green. |
 | **PR-C** | 6 | Metadata-write cleanup (after A + B prove links are the sole path) | **OPEN — PR #394 (draft)** on `feat/342-pr-c-metadata-cleanup`. Stopped writing `metadata.kind` + `unified_order_id`; execution link-create made authoritative w/ order rollback. All 4 unification specs green (20 tests). |
-| **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | not started |
+| **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | **DONE (uncommitted→committing)** on `feat/342-pr-d-locking`. Chunk 7 + 8 both done. New spec `orders-unification-locking.spec.ts` 3/3 green; inventory+design dual-write specs 12/12 green (regression). |
 | **PR-E** | 9 | T4 backfill + retirement (own planning pass) | not started |
 
 - [x] **Chunk 1 (D5-1)** — Define `filterable` links + ingest. New
@@ -248,13 +248,51 @@ as the discriminator/pointer. Instead:
   absent from metadata + no backref on the legacy row). All 4 unification specs
   green (12 + 8 = 20). *(blocked by: 3, 4 — both done)* *(NEXT: PR-D locking is
   independent; Chunk 9/T4 still pending.)*
-- [ ] **Chunk 7 (H1)** — Locking on the dual-write/mirror read-modify-write
+- [x] **Chunk 7 (H1)** — Locking on the dual-write/mirror read-modify-write
   (`partner_status` race), key = unified order id, ALL writers share it, inside
-  the swallow-and-warn boundary. Pattern: `complete-production-run.ts`.
+  the swallow-and-warn boundary. **DONE** (PR-D, branch `feat/342-pr-d-locking`).
+  Implemented as one shared helper `withUnifiedOrderMetadataLock(container,
+  unifiedOrderId, job)` in `inventory_orders/dual-write-unified-order.ts` that
+  wraps `Modules.LOCKING.execute("unified-order-metadata:<id>", job, { timeout:
+  5 })`. **Chose the lowest-RMW-layer seam over the doc's "preferred" workflow-
+  level acquireLockStep** because (a) an acquire-as-a-step throws on timeout and
+  would FAIL the legacy workflow — wrapped inside each mirror's existing
+  swallow-and-warn try/catch instead, a timeout just skips the mirror; and (b) a
+  workflow step can't cover the non-workflow writers (the `production-run-task-
+  updated` subscriber + the admin cancel route), which call the mirror helpers
+  directly and so inherit the lock for free. Wrapped sites: inventory
+  `mirrorPartnerLinkOnUnifiedOrderStep` + `mirrorUnifiedOrderStatusStep`;
+  production-run `patchUnifiedOrder` (metadata branch only — pure-status patches
+  skip the lock) + `mirrorRunStatusToUnifiedOrder` (retrieve→superseded-check→
+  update is one locked RMW). Create paths are single-shot (fresh order) → not
+  locked. Spec `orders-unification-locking.spec.ts` proves serialization with a
+  load-bearing control (same N concurrent RMW jobs WITHOUT the lock lose updates).
   *(blocked by: none — parallel to the link work)*
-- [ ] **Chunk 8 (H2)** — Register `@medusajs/locking-redis` in medusa-config
-  (prod env-gated, in-memory fallback for dev). Must precede scaling >1 backend
-  instance. *(blocked by: 7)*
+- [x] **Chunk 8 (H2)** — Register the Redis locking provider in medusa-config
+  (prod env-gated, in-memory fallback for dev). **DONE** (PR-D). **Correction to
+  the original direction:** the provider is NOT a separate `@medusajs/locking-
+  redis` top-level dep — it ships inside `@medusajs/medusa@2.15.5`, resolvable as
+  `@medusajs/medusa/locking-redis` (the locking module is `@medusajs/medusa/
+  locking`). No package.json change needed. **GOTCHA — there are TWO config
+  files: prod runs `medusa-config.prod.ts` (the Dockerfile does `RUN cp
+  medusa-config.prod.ts medusa-config.ts` at build), NOT the base
+  `medusa-config.ts` that dev/test load.** So the ACTIVE locking registration
+  lives in `medusa-config.prod.ts` (added unconditionally next to the existing
+  active `caching-redis`/`event-bus-redis`/`workflow-engine-redis` modules,
+  `redisUrl: LOCKING_REDIS_URL || REDIS_URL`); the base config keeps it as a
+  COMMENTED block (dev/test are single-process → built-in in-memory provider, no
+  config). Prod already wires Redis fully (ElastiCache Serverless Valkey cluster
+  `jyt-spaces-1ufoes`, TLS/`rediss://`, SSM secret `/jyt/prod/REDIS_URL` injected
+  into BOTH the `medusa-server` + `medusa-worker` Fargate tasks). **Why Redis
+  matters here specifically:** prod runs SPLIT server+worker (`MEDUSA_WORKER_MODE`
+  read from env even though the config line was historically commented — Medusa
+  framework reads it: `@medusajs/framework/.../config.js`), so the partner
+  `/complete` (server) vs `production-run-task-updated` subscriber (worker) race
+  spans TWO processes — in-memory locking would be a silent no-op for it. No new
+  SSM secret needed (reuses REDIS_URL; if ops add LOCKING_REDIS_URL it must carry
+  the copilot-application/environment tags per reference_copilot_ssm_tag_requirement).
+  Provider options: `{ redisUrl }` (loader also accepts `redisOptions`,
+  `namespace`; default key prefix `medusa_lock:`). *(blocked by: 7)*
 - [ ] **Chunk 9 (T4)** — Backfill historicals (idempotent on link), repoint §4
   deviation + ancillary links, legacy routes → shims, quiet retirement. Needs
   its own planning pass. *(blocked by: 3, 6, 7)*
@@ -558,7 +596,10 @@ chat history.*
          subscriber) must take the SAME lock — a lock only one writer respects
          is useless.
     3a. **INFRA TASK — enable the Redis locking provider in prod (added
-       2026-06-13).** The default in-memory locking provider is single-process
+       2026-06-13; DONE in PR-D/Chunk 8 — env-gated on
+       `LOCKING_REDIS_URL || REDIS_URL`; package-name correction below: it's
+       `@medusajs/medusa/locking-redis`, bundled in `@medusajs/medusa`, NOT a
+       separate `@medusajs/locking-redis` dep).** The default in-memory locking provider is single-process
        only, so item 3's lock is a no-op across instances. Prod already has a
        working Redis instance, so before (or alongside) shipping the locks:
        register the Redis locking provider in `medusa-config` for prod.
