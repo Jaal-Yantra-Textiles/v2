@@ -7,6 +7,7 @@ import type ProductionRunService from "../modules/production_runs/service"
 import {
   sendProductionRunToProductionWorkflow,
 } from "../workflows/production-runs/send-production-run-to-production"
+import { mirrorRunStatusToUnifiedOrder } from "../workflows/production-runs/dual-write-unified-run-order"
 
 export default async function productionRunTaskUpdatedHandler({
   event: { data },
@@ -110,6 +111,9 @@ export default async function productionRunTaskUpdatedHandler({
         completed_at: new Date(),
       })
     })
+
+    // #342 — best-effort mirror onto the unified order
+    await mirrorRunStatusToUnifiedOrder(container, String(productionRunId))
 
     // Emit production_run.completed so downstream subscribers fire
     // (e.g. sample-run-completed for cost calculation)

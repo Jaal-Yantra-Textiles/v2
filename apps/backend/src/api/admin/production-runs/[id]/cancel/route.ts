@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import type ProductionRunService from "../../../../../modules/production_runs/service"
 import { TASKS_MODULE } from "../../../../../modules/tasks"
+import { mirrorRunStatusToUnifiedOrder } from "../../../../../workflows/production-runs/dual-write-unified-run-order"
 
 /**
  * Cancel a single run: update status, cancel tasks.
@@ -138,6 +139,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     } catch (e: any) {
       console.error("[cancel-production-run] Failed to check/cancel parent:", e.message)
     }
+  }
+
+  // #342 — best-effort mirror onto the unified orders (admin cancel carries
+  // no partner_status per §5; superseded parent orders are skipped inside)
+  for (const runId of [id, ...cancelledChildren, run.parent_run_id].filter(Boolean)) {
+    await mirrorRunStatusToUnifiedOrder(req.scope, runId)
   }
 
   // Emit event for notifications

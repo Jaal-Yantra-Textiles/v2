@@ -17,6 +17,7 @@ import type ProductionPolicyService from "../../modules/production_policy/servic
 import { DESIGN_MODULE } from "../../modules/designs"
 import { PARTNER_MODULE } from "../../modules/partner"
 import designPartnersLink from "../../links/design-partners-link"
+import { dualWriteChildRunOrdersStep } from "./dual-write-unified-run-order"
 
 export type ProductionRunAssignment = {
   partner_id: string
@@ -82,6 +83,14 @@ const approveProductionRunStep = createStep(
       )
     }
 
+    // Children must NOT inherit the parent's #342 unified-order backref —
+    // each child is its own commercial unit (§4) and gets its own projected
+    // order. Leaving `unified_order_id` in the copied metadata would make the
+    // projection's idempotency guard reuse the parent's (soon-superseded)
+    // order for every child.
+    const { unified_order_id: _omitParentOrderRef, ...inheritedMetadata } =
+      ((original as any).metadata ?? {}) as Record<string, any>
+
     const childPayloads = assignments.map((a) => {
       const quantity = a.quantity ?? (original as any).quantity ?? 1
 
@@ -112,7 +121,7 @@ const approveProductionRunStep = createStep(
         status: "approved" as any,
         run_type: (original as any).run_type ?? "production",
         dispatch_template_names: a.template_names?.length ? a.template_names : null,
-        metadata: (original as any).metadata ?? null,
+        metadata: Object.keys(inheritedMetadata).length ? inheritedMetadata : null,
       }
     })
 
@@ -302,6 +311,16 @@ export const approveProductionRunWorkflow = createWorkflow(
         .filter((id): id is string => !!id),
     }))
     linkDesignToPartnersStep(designPartnerLinkInput)
+
+    // #342 — child runs are the partner-facing unit (§4): each gets its own
+    // kind=design order; a split parent's order is canceled as superseded.
+    const childOrderInput = transform({ input, approved }, (data) => ({
+      parent_run_id: data.input.production_run_id,
+      child_run_ids: ((data.approved as any)?.children ?? [])
+        .map((c: any) => c?.id)
+        .filter(Boolean),
+    }))
+    dualWriteChildRunOrdersStep(childOrderInput)
 
     return new WorkflowResponse(approved)
   }

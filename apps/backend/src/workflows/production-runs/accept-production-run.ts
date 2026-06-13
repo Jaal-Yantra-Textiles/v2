@@ -11,6 +11,7 @@ import type ProductionRunService from "../../modules/production_runs/service"
 
 import { PRODUCTION_POLICY_MODULE } from "../../modules/production_policy"
 import type ProductionPolicyService from "../../modules/production_policy/service"
+import { mirrorUnifiedRunOrderStatusStep } from "./dual-write-unified-run-order"
 
 export type AcceptProductionRunInput = {
   production_run_id: string
@@ -159,6 +160,11 @@ export const acceptProductionRunWorkflow = createWorkflow(
     const accepted = acceptProductionRunStep({
       run,
       partner_id: input.partner_id,
+    })
+
+    // #342 — mirror in_progress/accepted onto the unified order (§5)
+    mirrorUnifiedRunOrderStatusStep({
+      production_run_id: input.production_run_id,
     })
 
     return new WorkflowResponse(accepted)

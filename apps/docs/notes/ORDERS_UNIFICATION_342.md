@@ -161,11 +161,84 @@ T2 the shim only mirrors state, it never drives it.
 
 ---
 
-## Handoff → next task (T3 continues: design-side dual-write)
+## Handoff → next task (T3 continues: admin retail list filter + partner panels)
 
-*Updated 2026-06-12 after T3.1 status mirror (PR:
-feat/342-t3-status-mirror-on-update). Next session: read THIS file; do not
-rely on chat history.*
+*Updated 2026-06-13 after T3.2 design-side dual-write (PR:
+feat/342-t3-design-dual-write). Next session: read THIS file; do not rely on
+chat history.*
+
+- **State after T3.2:** dual-write + status mirror LIVE for production runs
+  (kind=design), mirroring the T2 inventory recipe (§4 + §5). Both legacy
+  surfaces (inventory orders, production runs) now project + maintain a unified
+  core order.
+  - `apps/backend/src/workflows/production-runs/dual-write-unified-run-order.ts`
+    — the design-side counterpart to `inventory_orders/dual-write-unified-order.ts`.
+    Exports two plain async helpers (`projectRunToUnifiedOrder`,
+    `mirrorRunStatusToUnifiedOrder`) so routes + subscribers can reuse them
+    without composing workflows, plus four workflow steps wrapping them. It
+    reuses T2's `PARTNER_WORK_ORDERS_CHANNEL` constant + region/currency
+    fallback recipe. Same best-effort contract (`[orders-unification]` warn,
+    never fails the legacy path).
+  - **Wiring** (one projection on create, mirror on every transition):
+    - `create-production-run.ts` → `dualWriteUnifiedRunOrderStep` (admin
+      top-level runs + partner self-serve runs, born `in_progress`).
+    - `approve-production-run.ts` → `dualWriteChildRunOrdersStep`: §4 says the
+      CHILD run is the partner-facing unit, so on a split each child gets its
+      own order and the parent's create-time order is **canceled + stamped
+      `metadata.superseded_by_run_ids`**. `mirrorRunStatusToUnifiedOrder` then
+      permanently skips superseded orders. **Gotcha fixed in this PR:**
+      `approveProductionRunStep` copied the parent run's `metadata` onto each
+      child verbatim, including the create-step's `unified_order_id` backref —
+      so the projection's idempotency guard reused the parent's order for every
+      child. Now strips `unified_order_id` from inherited child metadata.
+    - `send-production-run-to-production.ts` →
+      `mirrorRunPartnerLinkOnUnifiedOrderStep` (D3 partner↔order link +
+      `partner_status: "assigned"`; outsourced runs also link `sub_partner_id`
+      with `role: "sub_partner"`).
+    - accept / start / finish / complete / decline workflows →
+      `mirrorUnifiedRunOrderStatusStep`. Decline passes `declined: true` (the
+      ONLY cancel that carries `partner_status: "declined"`; admin cancel
+      leaves it untouched per §5).
+    - Non-workflow mutators also mirror: admin cancel route
+      (`production-runs/[id]/cancel/route.ts`, covers run + children + parent)
+      and the `production-run-task-updated` subscriber's auto-complete.
+  - **§5 run mapping** lives in `RUN_TO_CORE_STATUS` + `deriveRunPartnerStatus`.
+    The legacy enum collapses accepted/started/finished into one `in_progress`
+    value, so `deriveRunPartnerStatus` disambiguates via lifecycle timestamps
+    (`finished_at` → finished, `started_at` → in_progress, `accepted_at` →
+    accepted). `draft`/`pending_review`/`approved` carry no `partner_status`.
+  - **DEVIATION from §4:** the unified order id is stored on
+    `run.metadata.unified_order_id`, NOT `run.order_id`. That column still
+    means "the customer retail order that spawned the run" and is read by
+    `stockFinishedGoodsStep` (reservations) + run provenance — repointing it is
+    a T4 concern. The `order.metadata.source_order_id` carries the retail
+    pointer on the unified side.
+  - Test: `integration-tests/http/orders-unification-design-dual-write.spec.ts`
+    (5 tests: create projection + design link, approve→child-orders +
+    supersede + full partner lifecycle accept→complete, partner decline,
+    admin cancel, non-fatality without region). Regression-checked the
+    lifecycle / multi-partner / cross-ordering / design-status specs.
+- **T3.2 scope notes / still open:**
+  - WhatsApp run handlers (`workflows/whatsapp/*`) mutate run status directly
+    and are NOT mirrored yet (out of scope; low traffic). Same for
+    `recreate-production-run`.
+  - No cost re-sync: the unified order's line `unit_price` is set at create
+    time from `partner_cost_estimate` (0 until an admin sets it). When the
+    partner reports cost at `/complete`, the run's cost updates but the order
+    line is not re-priced — billing (#336) should read cost from the run or we
+    add a price-sync in T4.
+  - No compensation on `dualWriteUnifiedRunOrderStep` (mirrors T2): a rolled-back
+    run-create can leave an orphan kind=design order (harmless, invisible to
+    retail; T4 backfill dedups on `metadata.legacy_id`).
+- **Remaining T3 deliverable(s)** (suggested order):
+  1. ~~status mirror per §5~~ — DONE (T3.1),
+  2. ~~design-side dual-write for production runs~~ — DONE (T3.2, see above),
+  3. admin retail list filter (§7.3 — still open): GET /admin/orders shows
+     kind'd work-orders; needs a middleware/query tweak to exclude
+     `metadata.kind` unless asked,
+  4. partner-ui panels keyed on `order.metadata.kind` + `partner_status`
+     (hooks: `apps/partner-ui/src/hooks/api/orders.tsx`),
+  5. legacy routes become shims.
 
 - **State after T3.1:** status mirror LIVE for inventory orders — every legacy
   status change now PATCHes the unified order per §5.

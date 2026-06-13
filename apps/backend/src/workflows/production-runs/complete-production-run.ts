@@ -29,6 +29,7 @@ import {
   stockFinishedGoodsStep,
   type PartnerRunInput,
 } from "./partner-run-steps"
+import { mirrorUnifiedRunOrderStatusStep } from "./dual-write-unified-run-order"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -425,6 +426,11 @@ export const completeProductionRunWorkflow = createWorkflow(
     })
 
     emitProductionRunEventStep(eventInput)
+
+    // #342 — mirror completed onto the unified order (§5)
+    mirrorUnifiedRunOrderStatusStep({
+      production_run_id: input.production_run_id,
+    })
 
     return new WorkflowResponse({ run, consumptions: consumptionResult })
   }
