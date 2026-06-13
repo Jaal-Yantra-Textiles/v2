@@ -1,6 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { getOrdersListWorkflow } from "@medusajs/medusa/core-flows"
-import { getPartnerSalesChannelId, tryGetPartnerSalesChannelId } from "../helpers"
+import { tryGetPartnerSalesChannelId } from "../helpers"
+import { PartnerGetOrdersKindParam } from "./validators"
+import { listPartnerOrdersWorkflow } from "../../../workflows/orders/list-partner-orders"
 
 // IMPORTANT: use the `relation.*` suffix syntax, not `*relation` prefix.
 //
@@ -28,43 +29,46 @@ const DEFAULT_FIELDS = [
   "sales_channel.*",
   "payment_collections.*",
   "shipping_address.*",
+  // Chunk 5 (T3.4): the unified panels key on `metadata.kind` +
+  // `metadata.partner_status`, so surface the whole metadata blob.
+  "metadata",
 ]
 
+// Chunk 5 (T3.4, #342): the partner orders list is `?kind=`-aware (retail |
+// design | inventory | all), mirroring admin's Chunk 4 contract. The route is
+// thin — it resolves the partner + their sales channel from auth and delegates
+// all kind discrimination / scoping / listing to listPartnerOrdersWorkflow.
 export const GET = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  const { salesChannelId } = await tryGetPartnerSalesChannelId(req.auth_context, req.scope)
-  if (!salesChannelId) {
-    return res.json({ orders: [], count: 0, offset: 0, limit: 20 })
-  }
+  const { kind } = PartnerGetOrdersKindParam.parse({
+    kind: (req.query as Record<string, unknown>)?.kind,
+  })
+
+  const { partner, salesChannelId } = await tryGetPartnerSalesChannelId(
+    req.auth_context,
+    req.scope
+  )
 
   const query = req.query || {}
   const limit = Number(query.limit) || 20
   const offset = Number(query.offset) || 0
 
-  const { result } = await getOrdersListWorkflow(req.scope).run({
+  const { result } = await listPartnerOrdersWorkflow(req.scope).run({
     input: {
+      partnerId: partner?.id ?? null,
+      salesChannelId,
+      kind: kind ?? "retail",
       fields: DEFAULT_FIELDS,
-      variables: {
-        filters: {
-          sales_channel_id: [salesChannelId],
-          ...(query.status ? { status: query.status } : {}),
-          ...(query.q ? { q: query.q } : {}),
-        },
-        skip: offset,
-        take: limit,
+      baseFilters: {
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.q ? { q: query.q } : {}),
       },
+      skip: offset,
+      take: limit,
     },
   })
 
-  const orders = Array.isArray(result) ? result : (result as any)?.rows || []
-  const count = Array.isArray(result) ? result.length : (result as any)?.metadata?.count || orders.length
-
-  res.json({
-    orders,
-    count,
-    offset,
-    limit,
-  })
+  res.json(result)
 }

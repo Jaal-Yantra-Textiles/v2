@@ -52,8 +52,8 @@ as the discriminator/pointer. Instead:
 **PR grouping (ship relevant chunks together — each chunk = one commit in the PR):**
 | PR | Chunks | Theme | Status |
 |---|---|---|---|
-| **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | **OPEN — PR #392** (Chunks 1+2+3 all committed) |
-| **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | not started |
+| **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | **MERGED — PR #392** (2026-06-13, merge `c4d03469a`; auto-deploys to prod) |
+| **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | **OPEN — PR #393 (draft)** (2026-06-13), `feat/342-pr-b-unified-surfacing`. Chunk 4 + 5 both done, pushed. Both specs green. |
 | **PR-C** | 6 | Metadata-write cleanup (after A + B prove links are the sole path) | not started |
 | **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | not started |
 | **PR-E** | 9 | T4 backfill + retirement (own planning pass) | not started |
@@ -148,12 +148,81 @@ as the discriminator/pointer. Instead:
     the link intact, triggers a mirror (inventory: admin status PUT; run: admin
     cancel route), and asserts the REAL unified order still mirrors — provable
     only via the link. Both specs green (6 + 6). *(blocked by: none)*
-- [ ] **Chunk 4 (T3.3)** — Admin retail list filter: `GET /admin/orders` excludes
-  work-orders via `query.index` null-link filter; opt-in `?kind=` to surface
-  them. *(blocked by: 1)*
-- [ ] **Chunk 5 (T3.4)** — Partner-ui unified panels keyed on kind (which link is
-  present) + `partner_status`. Hook: `apps/partner-ui/src/hooks/api/orders.tsx`.
-  Skeletons, `--ui-*` tokens, partner API mirrors admin. *(blocked by: 4)*
+- [x] **Chunk 4 (T3.3)** — Admin retail list filter: `GET /admin/orders` defaults
+  to retail and hides work-orders; opt-in `?kind=` surfaces them. **DONE**
+  (committed on `feat/342-pr-b-unified-surfacing`, part of PR-B).
+  - **Mechanism — route override, not middleware.** New
+    `src/api/admin/orders/route.ts` GET overrides the core list handler
+    (verified: `routes-loader.js` keeps a `[matcher][method]` map, last-registered
+    wins, and project `src/api` is scanned after core — so ours takes precedence).
+    Core's `validateAndTransformQuery` middleware still runs, so `req.queryConfig`
+    + `req.filterableFields` are populated; the handler runs last (ordering-proof).
+    It translates `?kind=` into an `id` constraint and hands otherwise-untouched
+    variables to the SAME `getOrdersListWorkflow` — totals, pagination, q-search,
+    every existing filter intact, zero handler-body drift.
+  - **`?kind=` validator** (`src/api/admin/orders/validators.ts`): zod enum
+    `retail|design|inventory|all`, parsed IN the handler (not a second
+    validate-middleware — core already validates the route, and `kind` is not a
+    filterable order field so it must be stripped before the workflow).
+    Unset → `retail`. `all` → no link filter (pre-D5 behaviour).
+  - **Work-order id set via `query.graph`, NOT the index `$ne: null`.** Only the
+    `id: null` retail anti-join was verified in D5-1; `$ne: null` on a link join
+    is unverified. So we resolve the "has-link" ids by the authoritative forward
+    join (`production_runs.order.id` / `inventory_orders.order.id`, paged 1000s),
+    same shape as `resolveUnifiedOrderIdByLink`, incl. the transitional
+    `metadata.unified_order_id` fallback for pre-D5-2 link-less rows. Then inject
+    `id:{$nin}` (retail) / `id:{$in}` (design|inventory), `$and`-merged with any
+    caller-supplied `id`. query.graph is authoritative (vs the eventually-
+    consistent index), which a list tolerates.
+  - **Known scale limit (accepted, revisit later):** the injected id array is
+    unbounded (all work-orders for retail; all of a kind otherwise) → a large
+    `IN`/`NOT IN` at scale. Fine for an early-stage admin-only list.
+  - Tests: `integration-tests/http/orders-unification-admin-list-filter.spec.ts`
+    — stands up a retail order (`createOrderWorkflow`) + an inventory work-order +
+    a design work-order, asserts by SPECIFIC id (shared-DB-robust) that default
+    hides work-orders, each `?kind=` surfaces its own, `?kind=all` shows all.
+    4/4 green. *(blocked by: none — PR-A merged)*
+- [x] **Chunk 5 (T3.4)** — Partner-ui unified panels keyed on kind (which link is
+  present) + `partner_status`. **DONE** (on `feat/342-pr-b-unified-surfacing`,
+  part of PR-B). Decision: **sub-routes, not a local-state tab strip** —
+  `/orders` (retail) · `/orders/design` · `/orders/inventory` · `/orders/all`,
+  registered in BOTH route maps (`get-partner-route.map.tsx` +
+  `get-route.map.tsx`) as static children alongside `:id` (static ranks above
+  `:id`, so an order id never collides). All four back the SAME
+  kind-parameterized `OrderListTable` (kind derived off the path); a `NavLink`
+  strip (`order-kind-tabs.tsx`) is the visual tabs.
+  - **Backend:** `GET /partners/orders?kind=` mirrors admin's Chunk 4 contract,
+    but the route is THIN — logic lives in a workflow
+    `listPartnerOrdersWorkflow` (`src/workflows/orders/list-partner-orders.ts`).
+    The route only resolves the partner + sales channel from auth and delegates.
+    `validators.ts` = partner copy of the kind enum (unset → retail). Scoping
+    diverges from admin: retail stays sales-channel-scoped (work-orders live in
+    the internal `PARTNER_WORK_ORDERS_CHANNEL`, so already excluded — no
+    anti-join); design/inventory scope via the **D3 `partner↔order` link** ∩ the
+    kind's execution link; all = `$or`. `metadata` added to the route's
+    `DEFAULT_FIELDS` (route ignores the client `fields`, always returns metadata)
+    so the UI gets `partner_status`.
+  - **Two link gotchas nailed in this chunk** (both cost a debug cycle): (1) the
+    D3 partner→order set must be read from the link table directly via
+    `partnerOrderLink.entryPoint` filtered by `partner_id` — a `partner.orders`
+    graph accessor was unreliable. (2) The order→execution links are **1:1**, so
+    `query.graph`'s reverse accessor (`order.production_runs` /
+    `order.inventory_orders`) resolves to a **single OBJECT `{id}`, NOT an
+    array** — bucket on `rel?.id`, not `rel?.length`.
+  - **Frontend:** `partner_status` badge column (`getStatusBadgeColor` + §5 label
+    map) shown on every non-retail tab; skeletons via existing `_DataTable`
+    `isLoading`; `--ui-*` tokens throughout. **Caveat:** the experimental
+    `view_configurations` flag path (`ConfigurableOrderListTable`) is NOT
+    kind-wired — when that flag is on, all kinds fall back to the unfiltered
+    configurable table. Wire it if/when that flag ships.
+  - Test: `integration-tests/http/orders-unification-partner-list-filter.spec.ts`
+    — stands up a logged-in partner with a store + sales channel, a retail order
+    in their channel, an inventory PO sent to them, and a design work-order
+    assigned to them; asserts by SPECIFIC id that default hides work-orders, each
+    `?kind=` surfaces the partner's own, `?kind=all` shows the union. 4/4 green.
+    (Design link needs a `notifiable:false` task template + `template_names` so
+    the dispatch that writes the D3 link doesn't error in the notification path
+    and get swallowed.) *(blocked by: 4 — done)*
 - [ ] **Chunk 6 (D5-cleanup)** — Stop WRITING `metadata.kind` + `unified_order_id`;
   trim them from `PROTECTED_UNIFICATION_METADATA_KEYS` + the partner PATCH route.
   `partner_status` stays. *(blocked by: 3, 4)*
@@ -167,6 +236,32 @@ as the discriminator/pointer. Instead:
 - [ ] **Chunk 9 (T4)** — Backfill historicals (idempotent on link), repoint §4
   deviation + ancillary links, legacy routes → shims, quiet retirement. Needs
   its own planning pass. *(blocked by: 3, 6, 7)*
+
+**Cross-cutting (not a unification chunk — QA + marketing):**
+- [ ] **Playwright stage-by-stage walkthrough + screenshots.** Drive the partner
+  + admin UIs through the full unified-orders lifecycle with Playwright and
+  capture a screenshot at each stage — for BOTH automated regression testing AND
+  marketing/demo assets. Stages to cover (the §5 lifecycle the panels surface):
+  retail order in the partner channel; a design work-order assigned (`assigned`)
+  → accepted → in_progress → finished → completed; an inventory PO sent
+  (`assigned`) → Processing (`in_progress`) → Shipped (`finished`) → partial →
+  Delivered (`completed`); plus the four partner kind tabs
+  (`/orders`, `/orders/design`, `/orders/inventory`, `/orders/all`) and the admin
+  `?kind=` retail filter. Each screenshot doubles as a visual-diff baseline and a
+  marketing still. Use the `playwright-skill` / `webapp-testing` toolkit; park
+  artifacts somewhere stable (not `/tmp`). *(blocked by: 5 — the panels exist now)*
+- [ ] **Wire the kind panels into saveable view configurations.** Chunk 5 left
+  the experimental `view_configurations` flag path (`ConfigurableOrderListTable`)
+  NOT kind-aware — when that flag is on, all kind sub-routes fall back to the
+  unfiltered configurable table. The partner-ui already has a save/load view-
+  config system (`useFeatureFlag("view_configurations")`, the
+  `order-table-adapter` + `ConfigurableOrderListTable`). Make `kind` (and the
+  `partner_status` column the work-order tabs add) a **persisted, loadable view
+  configuration** rather than just a route-derived value: a partner should be
+  able to save "Design — in progress" (kind=design + partner_status filter +
+  column layout) as a named view and reload it. Decide whether the sub-route
+  still sets a default kind that the saved view can then refine, or whether saved
+  views supersede the tabs entirely. *(blocked by: 5)*
 
 ---
 
