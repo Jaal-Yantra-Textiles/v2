@@ -1,3 +1,10 @@
+# [13.31.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.30.0...v13.31.0) (2026-06-13)
+
+
+### Features
+
+* **orders:** [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342) PR-B — unified surfacing (admin retail filter + partner panels) ([#393](https://github.com/Jaal-Yantra-Textiles/v2/issues/393)) ([c040598](https://github.com/Jaal-Yantra-Textiles/v2/commit/c04059815a15b029cfe823039703f89d05c58cf9))
+
 # [13.30.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.29.0...v13.30.0) (2026-06-13)
 
 
