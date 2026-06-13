@@ -53,7 +53,7 @@ as the discriminator/pointer. Instead:
 | PR | Chunks | Theme | Status |
 |---|---|---|---|
 | **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | **MERGED — PR #392** (2026-06-13, merge `c4d03469a`; auto-deploys to prod) |
-| **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | **READY** on `feat/342-pr-b-unified-surfacing` — Chunk 4 + Chunk 5 both done (Chunk 5 uncommitted as of 2026-06-13); push + open PR-B draft. Both specs green. |
+| **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | **OPEN — PR #393 (draft)** (2026-06-13), `feat/342-pr-b-unified-surfacing`. Chunk 4 + 5 both done, pushed. Both specs green. |
 | **PR-C** | 6 | Metadata-write cleanup (after A + B prove links are the sole path) | not started |
 | **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | not started |
 | **PR-E** | 9 | T4 backfill + retirement (own planning pass) | not started |
