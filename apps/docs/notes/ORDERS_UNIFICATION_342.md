@@ -8,9 +8,78 @@
 
 **Phases (task chain):**
 - **T1 (this doc):** field mapping + gap decisions — DONE
-- **T2:** thin shim PR — dual-write a unified `order` alongside one legacy create
-- **T3:** partner-ui panels driven off `order.status` + `metadata.kind`; legacy routes become shims
+- **T2:** thin shim PR — dual-write a unified `order` alongside one legacy create — DONE (#387)
+- **T3:** partner-ui panels driven off `order.status` + kind; legacy routes become shims — IN PROGRESS (T3.1 #389, T3.2 #391 done)
 - **T4:** backfill + quiet retirement
+
+---
+
+## ⚡ Active work breakdown — D5 link refactor + remaining T3/T4 (chunks)
+
+> **HOW TO RECALL AFTER A CONTEXT CLEAR:** read this section. It is the durable
+> copy of the chunk plan (the in-session task tracker does NOT survive `/clear`).
+> Each chunk = one PR with its own test. Update the checkboxes as PRs merge.
+> Last updated 2026-06-13.
+
+**D5 (decided 2026-06-13) — link-based discrimination supersedes `metadata.kind`.**
+Per [[feedback_no_critical_data_in_metadata]], stop using `order.metadata.kind`
+and the `metadata.unified_order_id` backref (load-bearing, blob-replace-prone)
+as the discriminator/pointer. Instead:
+- Two new module links carry the relationship AND discriminate kind:
+  `order ↔ production_run` (kind=design), `order ↔ inventory_order` (kind=inventory).
+  Neither link → retail. (NOT the `design ↔ order` link — that one is shared with
+  retail: `order-placed.ts` runs `linkDesignsToOrder` on every purchase.)
+- The links are declared `filterable: ["id"]` so the **Index Module** (already
+  enabled, `index_engine: true` in medusa-config) ingests them and `query.index`
+  can filter on link existence — including the retail anti-join
+  (`{ production_run: { id: null }, inventory_order: { id: null } }`). This is
+  why **no denormalized `kind` column is needed.**
+- **Split read paths:** `query.index` for list filtering (eventually consistent,
+  fine for UI lists); `query.graph` link-resolution for transactional reads
+  inside workflows (authoritative). Never use `query.index` for mirror-step
+  correctness.
+- **NOT solved by links:** `partner_status` stays in metadata (read-modify-write
+  on every transition) → still needs the locking front (Chunks 7–8). `legacy_id`
+  also survives until T4 decides idempotency-on-link.
+
+**Dependency graph:**
+```
+1 (D5-1 links) ──┬─> 2 (D5-2 write links) ─> 3 (D5-3 read via link) ─┐
+                 └─> 4 (T3.3 admin filter) ─> 5 (T3.4 panels)        ├─> 6 (cleanup) ─┐
+7 (H1 locking) ─> 8 (H2 redis provider) ────────────────────────────┴────────────────┴─> 9 (T4)
+```
+
+- [ ] **Chunk 1 (D5-1)** — Define `filterable` links + ingest. New
+  `src/links/order-production-run.ts` + `order-inventory-order.ts`, execution
+  side `filterable: ["id"]`, order side `isList:false`. Migration + restart,
+  verify `query.index` filters orders by `production_run.id $ne null`. No
+  behavior change. *(blocked by: none)*
+- [ ] **Chunk 2 (D5-2)** — Dual-write creates the links *in addition to* current
+  metadata (transitional, nothing removed). Idempotency guard = link existence.
+  Update both unification specs to assert the link. *(blocked by: 1)*
+- [ ] **Chunk 3 (D5-3)** — Switch transactional reads from
+  `metadata.unified_order_id` → `query.graph` link resolution in the mirror
+  steps, partner-link steps, admin cancel route, task-updated subscriber. After
+  this, the backref is no longer READ. *(blocked by: 2)*
+- [ ] **Chunk 4 (T3.3)** — Admin retail list filter: `GET /admin/orders` excludes
+  work-orders via `query.index` null-link filter; opt-in `?kind=` to surface
+  them. *(blocked by: 1)*
+- [ ] **Chunk 5 (T3.4)** — Partner-ui unified panels keyed on kind (which link is
+  present) + `partner_status`. Hook: `apps/partner-ui/src/hooks/api/orders.tsx`.
+  Skeletons, `--ui-*` tokens, partner API mirrors admin. *(blocked by: 4)*
+- [ ] **Chunk 6 (D5-cleanup)** — Stop WRITING `metadata.kind` + `unified_order_id`;
+  trim them from `PROTECTED_UNIFICATION_METADATA_KEYS` + the partner PATCH route.
+  `partner_status` stays. *(blocked by: 3, 4)*
+- [ ] **Chunk 7 (H1)** — Locking on the dual-write/mirror read-modify-write
+  (`partner_status` race), key = unified order id, ALL writers share it, inside
+  the swallow-and-warn boundary. Pattern: `complete-production-run.ts`.
+  *(blocked by: none — parallel to the link work)*
+- [ ] **Chunk 8 (H2)** — Register `@medusajs/locking-redis` in medusa-config
+  (prod env-gated, in-memory fallback for dev). Must precede scaling >1 backend
+  instance. *(blocked by: 7)*
+- [ ] **Chunk 9 (T4)** — Backfill historicals (idempotent on link), repoint §4
+  deviation + ancillary links, legacy routes → shims, quiet retirement. Needs
+  its own planning pass. *(blocked by: 3, 6, 7)*
 
 ---
 
