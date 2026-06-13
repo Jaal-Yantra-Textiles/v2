@@ -149,6 +149,30 @@ module.exports = defineConfig({
     //   },
     // },
 
+    // #342 PR-D (Chunk 8 / H2) — Locking Module with the Redis provider.
+    // ACTIVE in prod via medusa-config.prod.ts (prod runs split server+worker,
+    // so the #342 per-unified-order locks must hold across processes). Here in
+    // the dev/test base config it stays commented — single-process dev/test use
+    // the built-in in-memory locking provider, which needs no config. Kept as a
+    // commented block to mirror the cache/event-bus/workflow-engine-redis blocks
+    // above. The provider ships inside @medusajs/medusa as
+    // `@medusajs/medusa/locking-redis` (NOT a separate top-level package).
+    // {
+    //   resolve: "@medusajs/medusa/locking",
+    //   options: {
+    //     providers: [
+    //       {
+    //         resolve: "@medusajs/medusa/locking-redis",
+    //         id: "locking-redis",
+    //         is_default: true,
+    //         options: {
+    //           redisUrl: process.env.LOCKING_REDIS_URL || process.env.REDIS_URL,
+    //         },
+    //       },
+    //     ],
+    //   },
+    // },
+
     {
       resolve: "@medusajs/medusa/notification",
       options: {
