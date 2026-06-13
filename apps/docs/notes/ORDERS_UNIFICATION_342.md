@@ -52,8 +52,8 @@ as the discriminator/pointer. Instead:
 **PR grouping (ship relevant chunks together — each chunk = one commit in the PR):**
 | PR | Chunks | Theme | Status |
 |---|---|---|---|
-| **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | **OPEN — PR #392** (Chunks 1+2+3 all committed) |
-| **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | not started |
+| **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | **MERGED — PR #392** (2026-06-13, merge `c4d03469a`; auto-deploys to prod) |
+| **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | **IN PROGRESS** on `feat/342-pr-b-unified-surfacing` — Chunk 4 done (committed), Chunk 5 next |
 | **PR-C** | 6 | Metadata-write cleanup (after A + B prove links are the sole path) | not started |
 | **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | not started |
 | **PR-E** | 9 | T4 backfill + retirement (own planning pass) | not started |
@@ -148,9 +148,40 @@ as the discriminator/pointer. Instead:
     the link intact, triggers a mirror (inventory: admin status PUT; run: admin
     cancel route), and asserts the REAL unified order still mirrors — provable
     only via the link. Both specs green (6 + 6). *(blocked by: none)*
-- [ ] **Chunk 4 (T3.3)** — Admin retail list filter: `GET /admin/orders` excludes
-  work-orders via `query.index` null-link filter; opt-in `?kind=` to surface
-  them. *(blocked by: 1)*
+- [x] **Chunk 4 (T3.3)** — Admin retail list filter: `GET /admin/orders` defaults
+  to retail and hides work-orders; opt-in `?kind=` surfaces them. **DONE**
+  (committed on `feat/342-pr-b-unified-surfacing`, part of PR-B).
+  - **Mechanism — route override, not middleware.** New
+    `src/api/admin/orders/route.ts` GET overrides the core list handler
+    (verified: `routes-loader.js` keeps a `[matcher][method]` map, last-registered
+    wins, and project `src/api` is scanned after core — so ours takes precedence).
+    Core's `validateAndTransformQuery` middleware still runs, so `req.queryConfig`
+    + `req.filterableFields` are populated; the handler runs last (ordering-proof).
+    It translates `?kind=` into an `id` constraint and hands otherwise-untouched
+    variables to the SAME `getOrdersListWorkflow` — totals, pagination, q-search,
+    every existing filter intact, zero handler-body drift.
+  - **`?kind=` validator** (`src/api/admin/orders/validators.ts`): zod enum
+    `retail|design|inventory|all`, parsed IN the handler (not a second
+    validate-middleware — core already validates the route, and `kind` is not a
+    filterable order field so it must be stripped before the workflow).
+    Unset → `retail`. `all` → no link filter (pre-D5 behaviour).
+  - **Work-order id set via `query.graph`, NOT the index `$ne: null`.** Only the
+    `id: null` retail anti-join was verified in D5-1; `$ne: null` on a link join
+    is unverified. So we resolve the "has-link" ids by the authoritative forward
+    join (`production_runs.order.id` / `inventory_orders.order.id`, paged 1000s),
+    same shape as `resolveUnifiedOrderIdByLink`, incl. the transitional
+    `metadata.unified_order_id` fallback for pre-D5-2 link-less rows. Then inject
+    `id:{$nin}` (retail) / `id:{$in}` (design|inventory), `$and`-merged with any
+    caller-supplied `id`. query.graph is authoritative (vs the eventually-
+    consistent index), which a list tolerates.
+  - **Known scale limit (accepted, revisit later):** the injected id array is
+    unbounded (all work-orders for retail; all of a kind otherwise) → a large
+    `IN`/`NOT IN` at scale. Fine for an early-stage admin-only list.
+  - Tests: `integration-tests/http/orders-unification-admin-list-filter.spec.ts`
+    — stands up a retail order (`createOrderWorkflow`) + an inventory work-order +
+    a design work-order, asserts by SPECIFIC id (shared-DB-robust) that default
+    hides work-orders, each `?kind=` surfaces its own, `?kind=all` shows all.
+    4/4 green. *(blocked by: none — PR-A merged)*
 - [ ] **Chunk 5 (T3.4)** — Partner-ui unified panels keyed on kind (which link is
   present) + `partner_status`. Hook: `apps/partner-ui/src/hooks/api/orders.tsx`.
   Skeletons, `--ui-*` tokens, partner API mirrors admin. *(blocked by: 4)*
