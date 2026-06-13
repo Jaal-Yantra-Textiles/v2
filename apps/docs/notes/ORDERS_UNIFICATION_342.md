@@ -52,7 +52,7 @@ as the discriminator/pointer. Instead:
 **PR grouping (ship relevant chunks together — each chunk = one commit in the PR):**
 | PR | Chunks | Theme | Status |
 |---|---|---|---|
-| **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | Chunk 1 committed; Chunk 2 committed (ad32afdd1); Chunk 3 done (uncommitted) |
+| **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | **OPEN — PR #392** (Chunks 1+2+3 all committed) |
 | **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | not started |
 | **PR-C** | 6 | Metadata-write cleanup (after A + B prove links are the sole path) | not started |
 | **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | not started |
@@ -66,7 +66,7 @@ as the discriminator/pointer. Instead:
   tables; a `query.index` probe accepted all three filter shapes
   (`production_run.id $ne null`, `inventory_order.id $ne null`, both-null retail
   anti-join), 0 rows as expected. Relation keys pinned via `field` to
-  `production_run` / `inventory_order`. NOT yet pushed/opened as a PR.
+  `production_run` / `inventory_order`. Shipped in PR #392 (PR-A).
   *(blocked by: none)*
 - [x] **Chunk 2 (D5-2)** — Dual-write creates the links *in addition to* current
   metadata (transitional, nothing removed). Idempotency guard = link existence.
