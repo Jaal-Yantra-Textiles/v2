@@ -244,9 +244,10 @@ export const createInventoryOrderWorkflow = createWorkflow(
       });
     });
 
-    // #342 T2: best-effort projection onto a core order (metadata.kind =
-    // "inventory"). The step swallows its own errors — a dual-write failure
-    // must never fail the legacy create.
+    // #342 T2: best-effort projection onto a core order (kind=inventory,
+    // discriminated by the order↔inventory_order link since Chunk 6). The step
+    // swallows its own errors — a dual-write failure must never fail the legacy
+    // create.
     dualWriteUnifiedOrderStep({
       order: linkInput.order,
       orderLines: linkInput.orderLines,

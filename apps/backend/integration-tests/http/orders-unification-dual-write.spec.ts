@@ -2,8 +2,9 @@
  * #342 T2 — orders unification dual-write shim.
  *
  * Creating a legacy inventory order must additionally project a core `order`
- * (metadata.kind = "inventory") per apps/docs/notes/ORDERS_UNIFICATION_342.md
- * §3 + §5, without ever failing the legacy create. Also probes the two gaps
+ * (kind=inventory, discriminated by the order↔inventory_order link since
+ * Chunk 6) per apps/docs/notes/ORDERS_UNIFICATION_342.md §3 + §5, without ever
+ * failing the legacy create. Also probes the two gaps
  * the doc left to empirical verification:
  *   GAP-1 — core order_line_item.quantity accepts decimals (raw-material kg)
  *   GAP-3 — core order create works customer-less (no customer_id, no email)
@@ -100,6 +101,21 @@ setupSharedTestSuite(() => {
       return data?.[0]
     }
 
+    // Chunk 6: the unified order id is resolved via the order↔inventory_order
+    // link (forward `.order`), not the retired metadata.unified_order_id backref.
+    const resolveUnifiedViaLink = async (
+      legacyId: string
+    ): Promise<string | undefined> => {
+      const container = getContainer()
+      const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+      const { data } = await query.graph({
+        entity: "inventory_orders",
+        filters: { id: legacyId },
+        fields: ["id", "order.id"],
+      })
+      return data?.[0]?.order?.id ?? undefined
+    }
+
     beforeEach(async () => {
       const container = getContainer()
       await createAdminUser(container)
@@ -132,15 +148,18 @@ setupSharedTestSuite(() => {
       const legacy = await createLegacyOrder()
 
       const legacyRow = await fetchLegacyOrder(legacy.id)
-      const unifiedOrderId = legacyRow.metadata?.unified_order_id
+      const unifiedOrderId = await resolveUnifiedViaLink(legacy.id)
       expect(unifiedOrderId).toBeTruthy()
 
-      const unified = await fetchUnifiedOrder(unifiedOrderId)
+      const unified = await fetchUnifiedOrder(unifiedOrderId!)
       expect(unified).toBeTruthy()
 
-      // §2/§3 discriminator + projection metadata
-      expect(unified.metadata.kind).toBe("inventory")
+      // §2/§3 projection metadata (the kind=inventory discriminator is the
+      // order↔inventory_order link, asserted forward below).
       expect(unified.metadata.legacy_id).toBe(legacy.id)
+      // Chunk 6 regression: `kind` is no longer written onto the order (the
+      // link IS the discriminator now).
+      expect(unified.metadata.kind).toBeUndefined()
       expect(unified.metadata.is_sample).toBe(false)
       expect(unified.metadata.currency_assumed).toBe(true)
       expect(unified.metadata.total_quantity).toBe(2.5)
@@ -186,15 +205,16 @@ setupSharedTestSuite(() => {
       expect(unified.shipping_address?.city).toBe("Jaipur")
       expect(unified.shipping_address?.country_code).toBe("in")
 
-      // Legacy row untouched apart from the metadata backref
+      // Legacy row untouched — Chunk 6 stopped writing any projection backref
+      // onto it; the link is the sole pointer.
       expect(legacyRow.status).toBe("Pending")
       expect(Number(legacyRow.quantity)).toBe(2.5)
       expect(Number(legacyRow.total_price)).toBe(100)
       expect(legacyRow.orderlines).toHaveLength(1)
+      expect(legacyRow.metadata?.unified_order_id ?? null).toBeNull()
 
-      // D5-2: the order↔inventory_order link is the authoritative pointer.
-      // Resolve it forward (legacy row → unified order) via query.graph — the
-      // same join the mirror/read paths will use in D5-3.
+      // kind=inventory discriminator: exactly one order↔inventory_order link,
+      // resolving forward (legacy row → unified order) to the projected order.
       const { data: linked } = await query.graph({
         entity: "inventory_orders",
         filters: { id: legacy.id },
@@ -209,14 +229,14 @@ setupSharedTestSuite(() => {
 
       const legacyRow = await fetchLegacyOrder(legacy.id)
       expect(legacyRow.status).toBe("Pending")
-      expect(legacyRow.metadata?.unified_order_id ?? null).toBeNull()
+      // No projection → no order↔inventory_order link.
+      expect(await resolveUnifiedViaLink(legacy.id)).toBeFalsy()
     })
 
     it("mirrors admin status updates onto the unified order (§5)", async () => {
       await createRegion()
       const legacy = await createLegacyOrder()
-      const unifiedOrderId = (await fetchLegacyOrder(legacy.id)).metadata
-        ?.unified_order_id
+      const unifiedOrderId = await resolveUnifiedViaLink(legacy.id)
       expect(unifiedOrderId).toBeTruthy()
 
       // Pending → Processing: core stays pending, work dimension advances
@@ -229,8 +249,7 @@ setupSharedTestSuite(() => {
       let unified = await fetchUnifiedOrder(unifiedOrderId)
       expect(unified.status).toBe("pending")
       expect(unified.metadata.partner_status).toBe("in_progress")
-      // projection metadata survives the patch
-      expect(unified.metadata.kind).toBe("inventory")
+      // projection metadata survives the read-then-merge patch
       expect(unified.metadata.legacy_id).toBe(legacy.id)
 
       // Processing → Cancelled: core cancels; §5 defines no partner_status
@@ -247,16 +266,16 @@ setupSharedTestSuite(() => {
     })
 
     it("resolves the unified order via the link, not the metadata backref (D5-3)", async () => {
-      // Chunk 3 — the status mirror now reads the order↔inventory_order link
-      // (query.graph forward `.order`), no longer the metadata.unified_order_id
-      // backref. Prove it by POISONING the backref with a bogus order id while
-      // leaving the link intact: if the mirror still lands on the REAL unified
-      // order, it can ONLY have resolved via the link (a backref read would
-      // target the bogus id and leave the real order untouched).
+      // Chunk 3/6 — the status mirror reads the order↔inventory_order link
+      // (query.graph forward `.order`) with PRIORITY over the transitional
+      // metadata.unified_order_id fallback (kept only for pre-D5-2 historicals;
+      // Chunk 6 no longer writes it). Prove the priority by POISONING the backref
+      // with a bogus order id while leaving the link intact: if the mirror still
+      // lands on the REAL unified order, it resolved via the link (a backref read
+      // would target the bogus id and leave the real order untouched).
       await createRegion()
       const legacy = await createLegacyOrder()
-      const legacyRow = await fetchLegacyOrder(legacy.id)
-      const unifiedOrderId = legacyRow.metadata?.unified_order_id
+      const unifiedOrderId = await resolveUnifiedViaLink(legacy.id)
       expect(unifiedOrderId).toBeTruthy()
 
       const container = getContainer()
@@ -285,9 +304,7 @@ setupSharedTestSuite(() => {
     it("keeps legacy updates non-fatal when no unified order exists", async () => {
       // No region → create skipped the dual-write; updates must still work
       const legacy = await createLegacyOrder()
-      expect(
-        (await fetchLegacyOrder(legacy.id)).metadata?.unified_order_id ?? null
-      ).toBeNull()
+      expect(await resolveUnifiedViaLink(legacy.id)).toBeFalsy()
 
       const res = await api.put(
         `/admin/inventory-orders/${legacy.id}`,
@@ -363,8 +380,7 @@ setupSharedTestSuite(() => {
       }
 
       const legacy = await createLegacyOrder()
-      const legacyRow = await fetchLegacyOrder(legacy.id)
-      const unifiedOrderId = legacyRow.metadata?.unified_order_id
+      const unifiedOrderId = await resolveUnifiedViaLink(legacy.id)
       expect(unifiedOrderId).toBeTruthy()
 
       const sendRes = await post(
@@ -388,8 +404,6 @@ setupSharedTestSuite(() => {
       // §5: assignment mirrors metadata.partner_status = "assigned"
       let unified = await fetchUnifiedOrder(unifiedOrderId)
       expect(unified.metadata.partner_status).toBe("assigned")
-      // kind survives the metadata update
-      expect(unified.metadata.kind).toBe("inventory")
 
       // ——— partner lifecycle: start → in_progress, complete → finished ———
       // Fresh token after partner creation (critical for auth context)

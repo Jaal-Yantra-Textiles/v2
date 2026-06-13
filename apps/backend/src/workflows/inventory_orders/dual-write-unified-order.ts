@@ -5,10 +5,10 @@ import type { Link } from "@medusajs/modules-sdk"
 import type { LinkDefinition, MedusaContainer } from "@medusajs/framework/types"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import { PARTNER_MODULE } from "../../modules/partner"
-import InventoryOrderService from "../../modules/inventory_orders/service"
 
 // #342 T2 — best-effort projection of legacy inventory orders onto the core
-// `order` entity (metadata.kind = "inventory"). See
+// `order` entity (kind=inventory = "the order↔inventory_order link exists";
+// Chunk 6 retired the metadata.kind discriminator). See
 // apps/docs/notes/ORDERS_UNIFICATION_342.md §3 + §5. Failure must never fail
 // the legacy create, so each step swallows errors and reports via logger.
 
@@ -17,11 +17,11 @@ export const PARTNER_WORK_ORDERS_CHANNEL = "Partner Work Orders"
 // #342 metadata-as-critical-data audit — the load-bearing unification keys on a
 // unified order's `metadata`. Medusa's `update*` REPLACES the whole metadata
 // blob, so any external writer (e.g. a partner PATCH) must read-then-merge AND
-// must never let caller input overwrite these — they discriminate the order
-// (`kind`), anchor backfill/idempotency (`legacy_id`), and drive T3 panels
-// (`partner_status`). See ORDERS_UNIFICATION_342.md "metadata-as-critical-data".
+// must never let caller input overwrite these — they anchor backfill/idempotency
+// (`legacy_id`) and drive T3 panels (`partner_status`). NOTE: `kind` is no longer
+// here — Chunk 6 retired it; the order↔execution link IS the discriminator now.
+// See ORDERS_UNIFICATION_342.md "metadata-as-critical-data".
 export const PROTECTED_UNIFICATION_METADATA_KEYS = [
-  "kind",
   "legacy_id",
   "partner_status",
   "source_order_id",
@@ -128,6 +128,37 @@ export const resolveUnifiedOrderIdByLink = async (
   return row?.order?.id ?? row?.metadata?.unified_order_id ?? undefined
 }
 
+// D5-cleanup (Chunk 6) — create the load-bearing order↔<execution> link
+// AUTHORITATIVELY. Until Chunk 6 the link was best-effort (swallow + warn)
+// because `metadata.unified_order_id` was a backref safety net. Chunk 6 stops
+// writing that backref, so the link is now the SOLE pointer from a freshly
+// projected order back to its legacy entity — a silent link failure would
+// orphan the order (no pointer, and — being link-less — it would leak into the
+// admin retail anti-join). Make the dual-write atomic instead: if the link
+// fails, delete the just-created unified order and rethrow, so the projection
+// reports failure via the caller's swallow-and-warn boundary and leaves no
+// half-state. The work-order has no payment/fulfillment/reservation (its items
+// carry no variant_id), so `deleteOrders` is a clean cascade.
+export const linkUnifiedOrderOrRollback = async (
+  container: MedusaContainer,
+  unifiedOrderId: string,
+  link: LinkDefinition
+): Promise<void> => {
+  const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+  try {
+    await remoteLink.create([link])
+  } catch (linkErr: any) {
+    const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const orderService: any = container.resolve(Modules.ORDER)
+    await orderService.deleteOrders([unifiedOrderId]).catch((delErr: any) =>
+      logger.error(
+        `[orders-unification] ORPHANED unified order ${unifiedOrderId}: execution link failed (${linkErr?.message}) AND rollback delete failed (${delErr?.message}) — manual cleanup needed`
+      )
+    )
+    throw linkErr
+  }
+}
+
 type DualWriteInput = {
   order: any
   orderLines: any[]
@@ -227,7 +258,6 @@ export const dualWriteUnifiedOrderStep = createStep(
       // Legacy metadata wins on collision except the unification keys (§3).
       const metadata: Record<string, unknown> = {
         ...(order.metadata ?? {}),
-        kind: "inventory",
         legacy_id: order.id,
         total_quantity: Number(order.quantity),
         expected_delivery_date: order.expected_delivery_date ?? null,
@@ -256,36 +286,17 @@ export const dualWriteUnifiedOrderStep = createStep(
         },
       })
 
-      // D5-2 — the load-bearing order↔inventory_order link + kind=inventory
-      // discriminator (replaces metadata.unified_order_id as the authoritative
-      // pointer; the metadata backref below is still written during the D5
-      // transition). filterable:["id"] → the Index Module ingests it so the
-      // admin retail-list anti-join can exclude work-orders (Chunk 4). This
-      // create path runs once per legacy create, so no link-existence guard is
-      // needed (a fresh unified order per call). Best-effort: a link failure
-      // must not lose the metadata backref legacy reads still depend on.
-      const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
-      await remoteLink
-        .create([
-          {
-            [Modules.ORDER]: { order_id: unified.id },
-            [ORDER_INVENTORY_MODULE]: { inventory_orders_id: order.id },
-          },
-        ])
-        .catch((e: any) =>
-          logger.warn(
-            `[orders-unification] order↔inventory_order link failed for ${order.id}: ${e?.message}`
-          )
-        )
-
-      const inventoryOrderService: InventoryOrderService =
-        container.resolve(ORDER_INVENTORY_MODULE)
-      await inventoryOrderService.updateInventoryOrders({
-        id: order.id,
-        metadata: {
-          ...(order.metadata ?? {}),
-          unified_order_id: unified.id,
-        },
+      // D5-2 / Chunk 6 — the load-bearing order↔inventory_order link is the
+      // SOLE discriminator + pointer (kind=inventory is "this link exists").
+      // filterable:["id"] → the Index Module ingests it so the admin retail-list
+      // anti-join can exclude work-orders (Chunk 4). This create path runs once
+      // per legacy create, so no link-existence guard is needed (a fresh unified
+      // order per call). Authoritative: a link failure rolls back the order
+      // rather than leaving a pointer-less orphan (the metadata.unified_order_id
+      // backref that used to be the safety net is no longer written, Chunk 6).
+      await linkUnifiedOrderOrRollback(container, unified.id, {
+        [Modules.ORDER]: { order_id: unified.id },
+        [ORDER_INVENTORY_MODULE]: { inventory_orders_id: order.id },
       })
 
       return new StepResponse<DualWriteResult>({ unified_order_id: unified.id })

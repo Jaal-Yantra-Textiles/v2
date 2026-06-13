@@ -29,8 +29,9 @@ const DEFAULT_FIELDS = [
   "sales_channel.*",
   "payment_collections.*",
   "shipping_address.*",
-  // Chunk 5 (T3.4): the unified panels key on `metadata.kind` +
-  // `metadata.partner_status`, so surface the whole metadata blob.
+  // Chunk 5 (T3.4): kind is the route `?kind=` param (link-derived, Chunk 6),
+  // but the panels still read `metadata.partner_status` for the badge column,
+  // so surface the whole metadata blob.
   "metadata",
 ]
 

@@ -54,7 +54,7 @@ as the discriminator/pointer. Instead:
 |---|---|---|---|
 | **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | **MERGED — PR #392** (2026-06-13, merge `c4d03469a`; auto-deploys to prod) |
 | **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | **OPEN — PR #393 (draft)** (2026-06-13), `feat/342-pr-b-unified-surfacing`. Chunk 4 + 5 both done, pushed. Both specs green. |
-| **PR-C** | 6 | Metadata-write cleanup (after A + B prove links are the sole path) | not started |
+| **PR-C** | 6 | Metadata-write cleanup (after A + B prove links are the sole path) | **OPEN — PR #394 (draft)** on `feat/342-pr-c-metadata-cleanup`. Stopped writing `metadata.kind` + `unified_order_id`; execution link-create made authoritative w/ order rollback. All 4 unification specs green (20 tests). |
 | **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | not started |
 | **PR-E** | 9 | T4 backfill + retirement (own planning pass) | not started |
 
@@ -223,9 +223,31 @@ as the discriminator/pointer. Instead:
     (Design link needs a `notifiable:false` task template + `template_names` so
     the dispatch that writes the D3 link doesn't error in the notification path
     and get swallowed.) *(blocked by: 4 — done)*
-- [ ] **Chunk 6 (D5-cleanup)** — Stop WRITING `metadata.kind` + `unified_order_id`;
-  trim them from `PROTECTED_UNIFICATION_METADATA_KEYS` + the partner PATCH route.
-  `partner_status` stays. *(blocked by: 3, 4)*
+- [x] **Chunk 6 (D5-cleanup)** — **DONE** (commit `6bcd6034d` on
+  `feat/342-pr-c-metadata-cleanup`, **PR #394 draft**). Stopped WRITING `metadata.kind`
+  (zero reads — pure dead weight) and the `metadata.unified_order_id` backref in
+  both projections; removed `"kind"` from `PROTECTED_UNIFICATION_METADATA_KEYS`
+  (→ partner PATCH no longer force-protects it). `partner_status` + `legacy_id`
+  stay. **Link-hardening (decided 2026-06-13, beyond the original chunk text):**
+  the backref was the safety net that let the execution link-create be
+  best-effort; with it gone, the order↔execution link is the SOLE pointer, so a
+  silent link failure would orphan the order AND leak it into the admin retail
+  anti-join (link-less ⇒ retail). New shared helper `linkUnifiedOrderOrRollback`
+  (in `inventory_orders/dual-write-unified-order.ts`) makes the dual-write
+  ATOMIC: on link-create failure it deletes the just-created unified order and
+  rethrows (caught by each projection's swallow-and-warn boundary → returns
+  null), so it's "order + link both, or neither" and the next mirror re-projects
+  cleanly. Work-orders have no payment/fulfillment/reservation (items carry no
+  `variant_id`) → `orderService.deleteOrders` is a clean cascade. The
+  design↔order + partner↔order links stay as they were (ancillary / already
+  authoritative). The 4 transitional fallback reads (`?? metadata.unified_order_id`
+  in `resolveUnifiedOrderIdByLink` + the two idempotency guards) **stay** — they
+  serve pre-D5-2 historicals until Chunk 9 backfill retires them. Specs: both
+  dual-write specs now resolve the unified id via the link (not the backref),
+  drop the `metadata.kind` asserts, and gain a Chunk-6 regression assert (kind
+  absent from metadata + no backref on the legacy row). All 4 unification specs
+  green (12 + 8 = 20). *(blocked by: 3, 4 — both done)* *(NEXT: PR-D locking is
+  independent; Chunk 9/T4 still pending.)*
 - [ ] **Chunk 7 (H1)** — Locking on the dual-write/mirror read-modify-write
   (`partner_status` race), key = unified order id, ALL writers share it, inside
   the swallow-and-warn boundary. Pattern: `complete-production-run.ts`.

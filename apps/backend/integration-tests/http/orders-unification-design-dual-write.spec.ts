@@ -2,7 +2,8 @@
  * #342 T3.2 — design-side dual-write shim.
  *
  * Creating/approving/transitioning a production run must additionally project
- * and maintain a core `order` (metadata.kind = "design") per
+ * and maintain a core `order` (kind=design, discriminated by the
+ * order↔production_run link since Chunk 6) per
  * apps/docs/notes/ORDERS_UNIFICATION_342.md §4 + §5, without ever failing the
  * legacy run path. Child runs (the partner-facing unit) get their own orders;
  * a split parent's order is canceled as superseded.
@@ -134,9 +135,17 @@ setupSharedTestSuite(() => {
       return data?.[0]
     }
 
+    // Chunk 6: resolve a run's unified order via the order↔production_run link
+    // (forward `.order`), not the retired run.metadata.unified_order_id backref.
     const unifiedOrderIdOf = async (runId: string) => {
-      const run: any = await fetchRun(runId)
-      return run?.metadata?.unified_order_id ?? null
+      const container = getContainer()
+      const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+      const { data } = await query.graph({
+        entity: "production_runs",
+        filters: { id: runId },
+        fields: ["id", "order.id"],
+      })
+      return data?.[0]?.order?.id ?? null
     }
 
     beforeEach(async () => {
@@ -162,9 +171,12 @@ setupSharedTestSuite(() => {
       expect(unifiedOrderId).toBeTruthy()
       const unified = await fetchUnifiedOrder(unifiedOrderId)
 
-      // §2/§4 discriminator + projection metadata
-      expect(unified.metadata.kind).toBe("design")
+      // §2/§4 projection metadata (the kind=design discriminator is the
+      // order↔production_run link, asserted forward below).
       expect(unified.metadata.legacy_id).toBe(runId)
+      // Chunk 6 regression: `kind` is no longer written onto the order (the
+      // link IS the discriminator now).
+      expect(unified.metadata.kind).toBeUndefined()
       expect(unified.metadata.production_run_id).toBe(runId)
       expect(unified.metadata.run_type).toBe("production")
       expect(unified.metadata.currency_assumed).toBe(true)
@@ -207,11 +219,12 @@ setupSharedTestSuite(() => {
       })
       expect(linkedRuns?.[0]?.order?.id).toBe(unifiedOrderId)
 
-      // Legacy run untouched apart from the metadata backref; order_id still
-      // means "source retail order" (deviation note in the doc)
+      // Legacy run untouched — Chunk 6 stopped writing the projection backref;
+      // order_id still means "source retail order" (deviation note in the doc)
       const run: any = await fetchRun(runId)
       expect(run.status).toBe("pending_review")
       expect(run.order_id ?? null).toBeNull()
+      expect(run.metadata?.unified_order_id ?? null).toBeNull()
     })
 
     it("projects child runs on approve, supersedes the parent order, links partner on send, and mirrors the partner lifecycle", async () => {
@@ -251,7 +264,6 @@ setupSharedTestSuite(() => {
       expect(childOrderId).toBeTruthy()
       expect(childOrderId).not.toBe(parentOrderId)
       let childOrder = await fetchUnifiedOrder(childOrderId)
-      expect(childOrder.metadata.kind).toBe("design")
       expect(Number(childOrder.items[0].quantity)).toBe(4)
       // sent_to_partner → core pending + partner_status assigned
       expect(childOrder.status).toBe("pending")
@@ -394,9 +406,10 @@ setupSharedTestSuite(() => {
     })
 
     it("resolves the unified order via the link, not the metadata backref (D5-3)", async () => {
-      // Chunk 3 — the run status mirror (incl. the admin cancel route) now
+      // Chunk 3/6 — the run status mirror (incl. the admin cancel route)
       // resolves the unified order through the order↔production_run link
-      // (query.graph forward `.order`), not run.metadata.unified_order_id.
+      // (query.graph forward `.order`) with PRIORITY over the transitional
+      // run.metadata.unified_order_id fallback (Chunk 6 no longer writes it).
       // POISON the backref with a bogus id, leave the link intact: the mirror
       // must still cancel the REAL order, which is only possible via the link.
       await createRegion()
@@ -447,7 +460,8 @@ setupSharedTestSuite(() => {
 
       const run: any = await fetchRun(runId)
       expect(run.status).toBe("pending_review")
-      expect(run.metadata?.unified_order_id ?? null).toBeNull()
+      // No projection → no order↔production_run link.
+      expect(await unifiedOrderIdOf(runId)).toBeFalsy()
 
       // Later transitions stay non-fatal without a unified order
       const cancel = await post(

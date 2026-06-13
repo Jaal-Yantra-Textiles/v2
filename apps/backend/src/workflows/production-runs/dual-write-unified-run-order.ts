@@ -11,19 +11,22 @@ import type ProductionRunService from "../../modules/production_runs/service"
 import {
   PARTNER_WORK_ORDERS_CHANNEL,
   resolveUnifiedOrderIdByLink,
+  linkUnifiedOrderOrRollback,
 } from "../inventory_orders/dual-write-unified-order"
 
 // #342 T3.2 — best-effort projection of production runs onto the core `order`
-// entity (metadata.kind = "design"). Mirrors the T2 inventory-order recipe;
-// see apps/docs/notes/ORDERS_UNIFICATION_342.md §4 + §5. Failure must never
-// fail the legacy path, so every entry point swallows errors and reports via
-// logger.warn with the [orders-unification] prefix.
+// entity (kind=design = "the order↔production_run link exists"; Chunk 6 retired
+// the metadata.kind discriminator). Mirrors the T2 inventory-order recipe; see
+// apps/docs/notes/ORDERS_UNIFICATION_342.md §4 + §5. Failure must never fail the
+// legacy path, so every entry point swallows errors and reports via logger.warn
+// with the [orders-unification] prefix.
 //
-// Deviation from §4's "run gains order_id → unified order": during the shim
-// phase the unified order id lives in run.metadata.unified_order_id, NOT in
-// run.order_id — that column still means "the customer retail order that
-// spawned the run" and is read by stockFinishedGoodsStep (reservations) and
-// run provenance. Repointing it is a T4 concern.
+// Deviation from §4's "run gains order_id → unified order": the pointer from a
+// run to its unified order is the order↔production_run link (Chunk 6 stopped
+// writing the transitional run.metadata.unified_order_id backref). run.order_id
+// is NOT repointed — that column still means "the customer retail order that
+// spawned the run" and is read by stockFinishedGoodsStep (reservations) and run
+// provenance. Repointing it is a T4 concern.
 
 // §5 — run status → core order.status. The work-progress dimension lives in
 // metadata.partner_status (below).
@@ -225,7 +228,6 @@ export const projectRunToUnifiedOrder = async (
     // Legacy metadata wins on collision except the unification keys (§3/§4).
     const metadata: Record<string, unknown> = {
       ...(run.metadata ?? {}),
-      kind: "design",
       legacy_id: run.id,
       production_run_id: run.id,
       run_type: run.run_type ?? "production",
@@ -267,23 +269,17 @@ export const projectRunToUnifiedOrder = async (
 
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
 
-    // D5-2 — the load-bearing order↔production_run link + kind=design
-    // discriminator (replaces metadata.unified_order_id as the authoritative
-    // pointer; the metadata backref is still written below during the D5
-    // transition). filterable:["id"] means the Index Module ingests it so the
-    // admin retail-list anti-join can exclude work-orders (Chunk 4).
-    await remoteLink
-      .create([
-        {
-          [Modules.ORDER]: { order_id: unified.id },
-          [PRODUCTION_RUNS_MODULE]: { production_runs_id: run.id },
-        },
-      ])
-      .catch((e: any) =>
-        logger.warn(
-          `[orders-unification] order↔production_run link failed for ${run.id}: ${e?.message}`
-        )
-      )
+    // D5-2 / Chunk 6 — the load-bearing order↔production_run link is the SOLE
+    // discriminator + pointer (kind=design is "this link exists").
+    // filterable:["id"] means the Index Module ingests it so the admin retail-
+    // list anti-join can exclude work-orders (Chunk 4). Authoritative: a link
+    // failure rolls back the just-created order rather than orphaning it — the
+    // metadata.unified_order_id backref that used to be the safety net is no
+    // longer written (Chunk 6).
+    await linkUnifiedOrderOrRollback(container, unified.id, {
+      [Modules.ORDER]: { order_id: unified.id },
+      [PRODUCTION_RUNS_MODULE]: { production_runs_id: run.id },
+    })
 
     // §4 — reuse the existing design↔order link infra (#29) so design panels
     // and linkDesignsToOrder consumers see the work-order too.
@@ -319,14 +315,6 @@ export const projectRunToUnifiedOrder = async (
         )
       }
     }
-
-    await productionRunService.updateProductionRuns({
-      id: run.id,
-      metadata: {
-        ...(run.metadata ?? {}),
-        unified_order_id: unified.id,
-      },
-    })
 
     return { unified_order_id: unified.id }
   } catch (e: any) {
