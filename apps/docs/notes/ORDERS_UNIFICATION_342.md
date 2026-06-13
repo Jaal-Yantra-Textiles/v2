@@ -265,7 +265,29 @@ chat history.*
     3. **Concurrency hazard:** the mirror steps are read-modify-write; two
        near-simultaneous transitions (e.g. partner `/complete` + the
        `production-run-task-updated` auto-complete) can lose a `partner_status`
-       write. Decide lock vs typed column.
+       write. **DIRECTION (2026-06-13): use Medusa's Locking Module** to
+       serialize the read-modify-write on a per-order key, rather than promoting
+       to a typed column just for atomicity (item 4 still stands for indexing).
+       Docs: https://docs.medusajs.com/learn/fundamentals/workflows/locks
+       - **Workflow-level (preferred):** wrap each mirror step between
+         `acquireLockStep({ key: <unified_order_id>, timeout: 2, ttl: 10 })` and
+         `releaseLockStep({ key })`. Compensation auto-releases on error. The
+         lock key must be the unified order id so every writer of that order's
+         metadata contends on the same key. Note our mirrors run as
+         best-effort steps appended to legacy workflows — acquire must NOT fail
+         the legacy path, so keep the lock inside the swallow-and-warn boundary
+         (acquire with a short timeout, on timeout log `[orders-unification]`
+         and skip the mirror, never throw up into the legacy run).
+       - **Step-level alt:** `container.resolve("locking").acquire(orderId,
+         { expire: 10 })` / `.release(orderId)` inside the helper. Do NOT mix
+         the two styles in one workflow execution (deadlock risk per docs).
+       - **PROVIDER CAVEAT:** the default in-memory locking provider is
+         single-process only. Prod is currently one Fargate task (can't
+         autoscale yet — see reference_aws_ecs_medusa_gotchas), so it's safe for
+         now, but the moment we run >1 backend instance we MUST configure the
+         Redis locking provider or the lock is a no-op across instances. The
+         non-workflow writers (admin cancel route, the task-updated subscriber)
+         must take the SAME lock — a lock only one writer respects is useless.
     4. **Promote the highest-risk keys to typed columns** (the D2 "revisit if
        needed" trigger): `kind` (filtered by the admin-list work, item 3 below)
        and `partner_status` (written on every transition, read by panels) are
