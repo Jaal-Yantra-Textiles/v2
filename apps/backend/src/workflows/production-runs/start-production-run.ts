@@ -21,6 +21,7 @@ import {
   emitProductionRunEventStep,
   type PartnerRunInput,
 } from "./partner-run-steps"
+import { mirrorUnifiedRunOrderStatusStep } from "./dual-write-unified-run-order"
 
 // ---------------------------------------------------------------------------
 // Step: Mark run as started
@@ -105,6 +106,11 @@ export const startProductionRunWorkflow = createWorkflow(
     }))
 
     emitProductionRunEventStep(eventInput)
+
+    // #342 — mirror in_progress (started) onto the unified order (§5)
+    mirrorUnifiedRunOrderStatusStep({
+      production_run_id: input.production_run_id,
+    })
 
     return new WorkflowResponse({ run })
   }

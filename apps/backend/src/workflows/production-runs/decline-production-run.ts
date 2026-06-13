@@ -9,6 +9,7 @@ import {
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
 import { TASKS_MODULE } from "../../modules/tasks"
+import { mirrorUnifiedRunOrderStatusStep } from "./dual-write-unified-run-order"
 
 export type DeclineProductionRunInput = {
   production_run_id: string
@@ -136,6 +137,14 @@ export const declineProductionRunWorkflow = createWorkflow(
       notes: input.notes,
       composed_reason: input.composed_reason,
     })
+
+    // #342 — partner decline mirrors as canceled + partner_status "declined"
+    // (§5: the only cancel that carries a partner_status)
+    mirrorUnifiedRunOrderStatusStep({
+      production_run_id: input.production_run_id,
+      declined: true,
+    })
+
     return new WorkflowResponse({ ok: true })
   }
 )

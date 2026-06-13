@@ -14,6 +14,24 @@ import InventoryOrderService from "../../modules/inventory_orders/service"
 
 export const PARTNER_WORK_ORDERS_CHANNEL = "Partner Work Orders"
 
+// #342 metadata-as-critical-data audit — the load-bearing unification keys on a
+// unified order's `metadata`. Medusa's `update*` REPLACES the whole metadata
+// blob, so any external writer (e.g. a partner PATCH) must read-then-merge AND
+// must never let caller input overwrite these — they discriminate the order
+// (`kind`), anchor backfill/idempotency (`legacy_id`), and drive T3 panels
+// (`partner_status`). See ORDERS_UNIFICATION_342.md "metadata-as-critical-data".
+export const PROTECTED_UNIFICATION_METADATA_KEYS = [
+  "kind",
+  "legacy_id",
+  "partner_status",
+  "source_order_id",
+  "source_line_item_id",
+  "superseded_by_run_ids",
+  "currency_assumed",
+  "to_stock_location_id",
+  "from_stock_location_id",
+] as const
+
 // §5 — legacy 6-value enum → core order.status. The work-progress dimension
 // (metadata.partner_status) only exists once a partner is assigned, which
 // never holds at create time.

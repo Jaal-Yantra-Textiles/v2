@@ -15,6 +15,7 @@ import type ProductionRunService from "../../modules/production_runs/service"
 
 import { TASKS_MODULE } from "../../modules/tasks"
 import DesignInventoryLink from "../../links/design-inventory-link"
+import { dualWriteUnifiedRunOrderStep } from "./dual-write-unified-run-order"
 
 const sanitizeBigInt = (value: any): any => {
   if (typeof value === "bigint") {
@@ -274,6 +275,9 @@ export const createProductionRunWorkflow = createWorkflow(
         task_ids: input.task_ids || [],
       })
     })
+
+    // #342 — best-effort projection onto a kind=design core order
+    dualWriteUnifiedRunOrderStep({ production_run_id: productionRunId })
 
     return new WorkflowResponse(run)
   }
