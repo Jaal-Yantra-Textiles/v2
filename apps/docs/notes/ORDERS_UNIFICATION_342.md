@@ -230,6 +230,39 @@ chat history.*
   - No compensation on `dualWriteUnifiedRunOrderStep` (mirrors T2): a rolled-back
     run-create can leave an orphan kind=design order (harmless, invisible to
     retail; T4 backfill dedups on `metadata.legacy_id`).
+- **TRACKED TASK — metadata-as-critical-data audit (added 2026-06-13):**
+  The unification leans on JSON `metadata` for load-bearing, frequently-mutated
+  fields. Medusa's `update*` **replaces the whole metadata blob** — any writer
+  that doesn't read-then-spread silently drops keys, and concurrent transitions
+  race on the blob with no atomic merge. This is a footgun for critical state;
+  audit and harden before T4 retirement.
+  - **Keys a wrong update would corrupt:**
+    - unified `order.metadata`: `kind`, `legacy_id`, `partner_status`,
+      `source_order_id`/`source_line_item_id`, `superseded_by_run_ids`,
+      `currency_assumed`, `to_/from_stock_location_id`.
+    - legacy backrefs: `inventory_orders.metadata.unified_order_id`,
+      `production_runs.metadata.unified_order_id` (the run↔order pointer this
+      whole shim depends on — see the §4 deviation note above).
+  - **Audit steps:**
+    1. Grep every writer of those entities' metadata across `src/` and verify
+       each does read-then-spread, not blind replace. The dual-write steps
+       already re-read first (`patchUnifiedOrder` + the mirror steps); the
+       legacy-row backref writers also spread `...(row.metadata ?? {})`.
+    2. **KNOWN HIT to fix:** `src/api/partners/orders/[id]/route.ts:52` does
+       `updateOrders(req.params.id, req.body)` — a partner PATCH carrying a
+       `metadata` field REPLACES the whole blob, wiping `kind`/`legacy_id`/
+       `partner_status` off a unified work-order. Whitelist fields / merge
+       metadata there before partner panels start writing.
+    3. **Concurrency hazard:** the mirror steps are read-modify-write; two
+       near-simultaneous transitions (e.g. partner `/complete` + the
+       `production-run-task-updated` auto-complete) can lose a `partner_status`
+       write. Decide lock vs typed column.
+    4. **Promote the highest-risk keys to typed columns** (the D2 "revisit if
+       needed" trigger): `kind` (filtered by the admin-list work, item 3 below)
+       and `partner_status` (written on every transition, read by panels) are
+       the strongest candidates. `legacy_id` + the `unified_order_id` backrefs
+       are write-once (lower mutation risk) but are the backfill/idempotency
+       anchor — a real indexed column is safer than a JSON key for T4 dedup.
 - **Remaining T3 deliverable(s)** (suggested order):
   1. ~~status mirror per §5~~ — DONE (T3.1),
   2. ~~design-side dual-write for production runs~~ — DONE (T3.2, see above),
