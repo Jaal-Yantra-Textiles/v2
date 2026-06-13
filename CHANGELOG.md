@@ -1,3 +1,10 @@
+# [13.32.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.31.0...v13.32.0) (2026-06-13)
+
+
+### Features
+
+* **orders:** [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342) PR-C Chunk 6 — retire metadata.kind + unified_order_id (links authoritative) ([#394](https://github.com/Jaal-Yantra-Textiles/v2/issues/394)) ([1516f29](https://github.com/Jaal-Yantra-Textiles/v2/commit/1516f29142be82a5d5e91d1d9361427d7ca353c7))
+
 # [13.31.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.30.0...v13.31.0) (2026-06-13)
 
 
