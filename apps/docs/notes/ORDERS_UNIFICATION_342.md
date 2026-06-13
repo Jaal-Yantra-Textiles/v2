@@ -248,11 +248,20 @@ chat history.*
        each does read-then-spread, not blind replace. The dual-write steps
        already re-read first (`patchUnifiedOrder` + the mirror steps); the
        legacy-row backref writers also spread `...(row.metadata ?? {})`.
-    2. **KNOWN HIT to fix:** `src/api/partners/orders/[id]/route.ts:52` does
+    2. ~~**KNOWN HIT to fix:** `src/api/partners/orders/[id]/route.ts:52` does
        `updateOrders(req.params.id, req.body)` — a partner PATCH carrying a
        `metadata` field REPLACES the whole blob, wiping `kind`/`legacy_id`/
-       `partner_status` off a unified work-order. Whitelist fields / merge
-       metadata there before partner panels start writing.
+       `partner_status` off a unified work-order.~~ **FIXED (2026-06-13, on PR
+       #391).** The POST handler now (a) whitelists the body to admin's
+       `AdminUpdateOrder` fields (`email`, `shipping_address`, `billing_address`,
+       `locale`, `metadata`) so a partner can't move `status`/`customer_id`/
+       `sales_channel_id`, and (b) read-then-merges `metadata`, then force-restores
+       the new exported `PROTECTED_UNIFICATION_METADATA_KEYS` (in
+       `workflows/inventory_orders/dual-write-unified-order.ts`) from the existing
+       order so partner input can never overwrite or drop them. Those keys are
+       system-owned: they're set once at projection and `partner_status` only
+       moves via the lifecycle mirror steps — never a direct PATCH. Test:
+       `partner-orders-api.spec.ts` "merges metadata and protects unification keys".
     3. **Concurrency hazard:** the mirror steps are read-modify-write; two
        near-simultaneous transitions (e.g. partner `/complete` + the
        `production-run-task-updated` auto-complete) can lose a `partner_status`

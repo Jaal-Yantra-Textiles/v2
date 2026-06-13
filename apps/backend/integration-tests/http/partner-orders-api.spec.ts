@@ -336,6 +336,57 @@ setupSharedTestSuite(() => {
         expect(res.data.order.shipping_address.city).toBe("Los Angeles")
       })
 
+      // #342 metadata-as-critical-data audit — POST /partners/orders/:id must
+      // read-then-merge metadata and never let a partner overwrite the
+      // load-bearing unification keys or mutate non-whitelisted order fields.
+      it("merges metadata and protects unification keys on partner PATCH", async () => {
+        // Admin stamps the order as a unified work-order with a partner-owned
+        // key alongside the protected unification keys.
+        await api.post(
+          `/admin/orders/${orderId}`,
+          {
+            metadata: {
+              kind: "design",
+              legacy_id: "leg_test_342",
+              partner_status: "assigned",
+              partner_note: "keep-me",
+            },
+          },
+          adminHeaders
+        )
+
+        // Partner tries to overwrite protected keys, drop a key by omission,
+        // and sneak in a non-whitelisted field (status).
+        const res = await api.post(
+          `/partners/orders/${orderId}`,
+          {
+            status: "completed",
+            metadata: {
+              kind: "hacked",
+              partner_status: "in_progress",
+              partner_note: "updated",
+              extra: "added",
+            },
+          },
+          { headers: partner.headers }
+        )
+        expect(res.status).toBe(200)
+
+        const after = await api.get(`/partners/orders/${orderId}`, {
+          headers: partner.headers,
+        })
+        const md = after.data.order.metadata
+        // Protected keys survive the partner's attempt to change them.
+        expect(md.kind).toBe("design")
+        expect(md.legacy_id).toBe("leg_test_342")
+        expect(md.partner_status).toBe("assigned")
+        // Partner-owned keys merge (incoming wins, new key added).
+        expect(md.partner_note).toBe("updated")
+        expect(md.extra).toBe("added")
+        // Non-whitelisted field was dropped, not applied.
+        expect(after.data.order.status).not.toBe("completed")
+      })
+
       it("lists shipping options for the order", async () => {
         const res = await api.get(
           `/partners/orders/${orderId}/shipping-options`,
