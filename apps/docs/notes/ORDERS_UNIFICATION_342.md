@@ -52,7 +52,7 @@ as the discriminator/pointer. Instead:
 **PR grouping (ship relevant chunks together — each chunk = one commit in the PR):**
 | PR | Chunks | Theme | Status |
 |---|---|---|---|
-| **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | Chunk 1 committed; 2+3 pending |
+| **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | Chunk 1 committed; Chunk 2 done (uncommitted); Chunk 3 pending |
 | **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | not started |
 | **PR-C** | 6 | Metadata-write cleanup (after A + B prove links are the sole path) | not started |
 | **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | not started |
@@ -68,13 +68,60 @@ as the discriminator/pointer. Instead:
   anti-join), 0 rows as expected. Relation keys pinned via `field` to
   `production_run` / `inventory_order`. NOT yet pushed/opened as a PR.
   *(blocked by: none)*
-- [ ] **Chunk 2 (D5-2)** — Dual-write creates the links *in addition to* current
+- [x] **Chunk 2 (D5-2)** — Dual-write creates the links *in addition to* current
   metadata (transitional, nothing removed). Idempotency guard = link existence.
-  Update both unification specs to assert the link. *(blocked by: 1)*
+  Update both unification specs to assert the link. **DONE** (uncommitted on
+  branch `feat/342-d5-1-filterable-order-execution-links`, part of PR-A).
+  - Both projections now `remoteLink.create` the execution link right after the
+    unified order is created, best-effort (`.catch` → `[orders-unification]`
+    warn) so a link failure never loses the metadata backref legacy reads still
+    need. Link keys: `{ [Modules.ORDER]: { order_id }, [<MODULE>]: {
+    production_runs_id | inventory_orders_id } }`.
+    - design: `dual-write-unified-run-order.ts` `projectRunToUnifiedOrder`
+      (one `remoteLink` now shared by the execution + design↔order links).
+    - inventory: `dual-write-unified-order.ts` `dualWriteUnifiedOrderStep`.
+  - **Idempotency guard switched to link existence** in `projectRunToUnifiedOrder`
+    (the only re-entrant path — create + per-child approve). Resolves the link
+    FORWARD via `query.graph` (`entity:"production_runs", fields:["id","order.id"]`)
+    and falls back to `metadata.unified_order_id` so pre-D5-2 (link-less) runs
+    aren't re-projected into a duplicate. Inventory create path is single-shot
+    (fresh order per legacy create) → no guard needed.
+  - Specs assert the forward link resolves: inventory create test, design create
+    test, and the approve/child-run test (each child links distinctly, parent
+    still points at its superseded order — proves the guard didn't reuse the
+    parent's order). Both specs green (5 + 5).
+  - **⚠️ LINK NAMING FINDING (empirically nailed down 2026-06-13 — supersedes an
+    earlier wrong "forward only" note):** these are **managed** links (pivot
+    table), so they are **fully bidirectional** in `query.graph`. Verified with a
+    real linked row reading BOTH directions:
+    - **forward** (legacy row → order): `production_runs.order` /
+      `inventory_orders.order` → the unified order. Authoritative.
+    - **reverse** (order → legacy row): `order.production_runs` /
+      `order.inventory_orders` → the run/inventory row. **Note the auto-derived
+      PLURAL accessor** (`production_runs`, not `production_run`).
+    - The `field: "production_run"` pin on the run side ONLY adds the singular
+      alias to the **Index Module** — it does NOT rename `query.graph`'s reverse
+      accessor. So: `query.index` (order side) accepts BOTH `production_run` and
+      `production_runs` for the retail anti-join; `query.graph` reverse needs the
+      PLURAL. (An earlier probe guessed `order.production_run` for query.graph,
+      got "Entity 'Order' does not have property 'production_run'", and wrongly
+      concluded the link was one-way. It is not.)
+    - This is NOT a read-only-link situation: read-only links
+      (`defineLink(..., { readOnly: true })`, e.g. the built-in OrderLineItem→
+      Product) ARE uni-directional and need a separate inverse definition. Ours
+      are stored/managed — bidirectional, no inverse needed.
+    - **Implications:** Chunk 3 reads resolve `.order` **forward** from the legacy
+      row (id already in hand — cleanest). Chunk 4's admin retail LIST filter
+      stays on `query.index` (eventual-consistency-tolerant, and the null
+      anti-join is its job); reverse `query.graph` selection also works if a
+      transactional reverse read is ever needed. `production_runs.order_id` is a
+      plain column (not a relation), so `.order` unambiguously resolves the new
+      link. *(blocked by: none now)*
 - [ ] **Chunk 3 (D5-3)** — Switch transactional reads from
   `metadata.unified_order_id` → `query.graph` link resolution in the mirror
   steps, partner-link steps, admin cancel route, task-updated subscriber. After
-  this, the backref is no longer READ. *(blocked by: 2)*
+  this, the backref is no longer READ. **Use the forward `.order` resolution per
+  the Chunk 2 directionality finding above.** *(blocked by: 2 — now unblocked)*
 - [ ] **Chunk 4 (T3.3)** — Admin retail list filter: `GET /admin/orders` excludes
   work-orders via `query.index` null-link filter; opt-in `?kind=` to surface
   them. *(blocked by: 1)*

@@ -190,6 +190,16 @@ setupSharedTestSuite(() => {
       expect(Number(legacyRow.quantity)).toBe(2.5)
       expect(Number(legacyRow.total_price)).toBe(100)
       expect(legacyRow.orderlines).toHaveLength(1)
+
+      // D5-2: the order↔inventory_order link is the authoritative pointer.
+      // Resolve it forward (legacy row → unified order) via query.graph — the
+      // same join the mirror/read paths will use in D5-3.
+      const { data: linked } = await query.graph({
+        entity: "inventory_orders",
+        filters: { id: legacy.id },
+        fields: ["id", "order.id"],
+      })
+      expect(linked?.[0]?.order?.id).toBe(unifiedOrderId)
     })
 
     it("does not fail the legacy create when the dual-write cannot run (no region)", async () => {

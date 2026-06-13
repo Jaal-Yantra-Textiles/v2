@@ -14,12 +14,19 @@ import InventoryOrderModule from "../modules/inventory_orders"
 // `query.index({ entity: "order", filters: { inventory_order: { id: ... } } })`
 // can filter by link existence. Index for list filtering; query.graph for
 // authoritative transactional reads (see order-production-run.ts).
+//
+// Managed link → fully BIDIRECTIONAL in query.graph: forward
+// `inventory_orders.order`, reverse `order.inventory_orders` (auto-derived
+// PLURAL). The `field` below only adds the singular `inventory_order` alias to
+// the Index Module; it does NOT rename query.graph's reverse accessor.
 export default defineLink(
   OrderModule.linkable.order,
   {
     linkable: InventoryOrderModule.linkable.inventoryOrders,
     filterable: ["id"],
-    // pin the relation name so the filter key is `inventory_order` (singular).
+    // adds the singular `inventory_order` alias to the INDEX (query.index) for
+    // the retail anti-join. Does NOT change query.graph's reverse accessor
+    // (that's `order.inventory_orders`).
     field: "inventory_order",
   }
 )

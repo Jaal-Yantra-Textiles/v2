@@ -232,6 +232,28 @@ export const dualWriteUnifiedOrderStep = createStep(
         },
       })
 
+      // D5-2 — the load-bearing order↔inventory_order link + kind=inventory
+      // discriminator (replaces metadata.unified_order_id as the authoritative
+      // pointer; the metadata backref below is still written during the D5
+      // transition). filterable:["id"] → the Index Module ingests it so the
+      // admin retail-list anti-join can exclude work-orders (Chunk 4). This
+      // create path runs once per legacy create, so no link-existence guard is
+      // needed (a fresh unified order per call). Best-effort: a link failure
+      // must not lose the metadata backref legacy reads still depend on.
+      const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+      await remoteLink
+        .create([
+          {
+            [Modules.ORDER]: { order_id: unified.id },
+            [ORDER_INVENTORY_MODULE]: { inventory_orders_id: order.id },
+          },
+        ])
+        .catch((e: any) =>
+          logger.warn(
+            `[orders-unification] order↔inventory_order link failed for ${order.id}: ${e?.message}`
+          )
+        )
+
       const inventoryOrderService: InventoryOrderService =
         container.resolve(ORDER_INVENTORY_MODULE)
       await inventoryOrderService.updateInventoryOrders({

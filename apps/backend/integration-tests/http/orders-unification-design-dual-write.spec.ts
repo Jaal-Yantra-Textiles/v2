@@ -197,6 +197,16 @@ setupSharedTestSuite(() => {
       expect(designLinks).toHaveLength(1)
       expect(designLinks[0].design_id).toBe(designId)
 
+      // D5-2: the order↔production_run link is the authoritative pointer +
+      // kind=design discriminator. Resolve it forward (run → unified order)
+      // via query.graph — the same join D5-3 reads switch to.
+      const { data: linkedRuns } = await query.graph({
+        entity: "production_runs",
+        filters: { id: runId },
+        fields: ["id", "order.id"],
+      })
+      expect(linkedRuns?.[0]?.order?.id).toBe(unifiedOrderId)
+
       // Legacy run untouched apart from the metadata backref; order_id still
       // means "source retail order" (deviation note in the doc)
       const run: any = await fetchRun(runId)
@@ -257,6 +267,23 @@ setupSharedTestSuite(() => {
       })
       expect(linkRows).toHaveLength(1)
       expect(linkRows[0].partner_id).toBe(partnerId)
+
+      // D5-2: each child run owns its own order↔production_run link, and the
+      // parent run still points at its (now superseded) order. Confirms the
+      // re-entrant projection links every child distinctly rather than reusing
+      // the parent's order.
+      const { data: childLink } = await query.graph({
+        entity: "production_runs",
+        filters: { id: childId },
+        fields: ["id", "order.id"],
+      })
+      expect(childLink?.[0]?.order?.id).toBe(childOrderId)
+      const { data: parentLink } = await query.graph({
+        entity: "production_runs",
+        filters: { id: parentId },
+        fields: ["id", "order.id"],
+      })
+      expect(parentLink?.[0]?.order?.id).toBe(parentOrderId)
 
       // ——— partner lifecycle: accept → start → finish → complete ———
       const accept = await post(

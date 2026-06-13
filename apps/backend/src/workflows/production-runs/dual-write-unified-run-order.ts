@@ -177,9 +177,23 @@ export const projectRunToUnifiedOrder = async (
       productionRunId
     )
 
-    if (run?.metadata?.unified_order_id) {
+    // D5-2 idempotency: the order↔production_run link is the authoritative
+    // "already projected" signal. Resolve it forward (run → order) via
+    // query.graph — that join is synchronous/authoritative; never query.index
+    // here (eventually consistent). Fall back to the legacy
+    // metadata.unified_order_id backref so runs projected before D5-2
+    // (link-less) are not re-projected into a duplicate order.
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data: linkedRuns } = await query.graph({
+      entity: "production_runs",
+      fields: ["id", "order.id"],
+      filters: { id: productionRunId },
+    })
+    const alreadyProjectedId =
+      linkedRuns?.[0]?.order?.id ?? run?.metadata?.unified_order_id
+    if (alreadyProjectedId) {
       return {
-        unified_order_id: run.metadata.unified_order_id,
+        unified_order_id: alreadyProjectedId,
         skipped: "already_projected",
       }
     }
@@ -248,10 +262,29 @@ export const projectRunToUnifiedOrder = async (
       },
     })
 
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+
+    // D5-2 — the load-bearing order↔production_run link + kind=design
+    // discriminator (replaces metadata.unified_order_id as the authoritative
+    // pointer; the metadata backref is still written below during the D5
+    // transition). filterable:["id"] means the Index Module ingests it so the
+    // admin retail-list anti-join can exclude work-orders (Chunk 4).
+    await remoteLink
+      .create([
+        {
+          [Modules.ORDER]: { order_id: unified.id },
+          [PRODUCTION_RUNS_MODULE]: { production_runs_id: run.id },
+        },
+      ])
+      .catch((e: any) =>
+        logger.warn(
+          `[orders-unification] order↔production_run link failed for ${run.id}: ${e?.message}`
+        )
+      )
+
     // §4 — reuse the existing design↔order link infra (#29) so design panels
     // and linkDesignsToOrder consumers see the work-order too.
     if (run.design_id) {
-      const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
       await remoteLink
         .create([
           {

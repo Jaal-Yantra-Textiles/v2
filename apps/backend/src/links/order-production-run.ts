@@ -20,13 +20,22 @@ import ProductionRunsModule from "../modules/production_runs"
 // (id: null). Use query.index for list filtering only; resolve the link via
 // query.graph for transactional reads inside workflows (it is authoritative;
 // the index is eventually consistent).
+//
+// This is a MANAGED (pivot-table) link, so it is fully BIDIRECTIONAL in
+// query.graph — verified reading a real linked row both ways:
+//   forward: `production_runs.order`        → the unified order
+//   reverse: `order.production_runs`        → the run (auto-derived PLURAL)
+// The `field` below ONLY affects the Index Module accessor (adds the singular
+// `production_run` alias for query.index); it does NOT rename query.graph's
+// reverse accessor, which stays the plural model name `production_runs`.
 export default defineLink(
   OrderModule.linkable.order,
   {
     linkable: ProductionRunsModule.linkable.productionRuns,
     filterable: ["id"],
-    // pin the relation name so `query.index`/`query.graph` filter key is
-    // `production_run` (not the plural model name `production_runs`).
+    // adds the singular `production_run` alias to the INDEX (query.index) so the
+    // admin retail anti-join can filter `production_run: { id: null }`. Does NOT
+    // change query.graph's reverse accessor (that's `order.production_runs`).
     field: "production_run",
   }
 )
