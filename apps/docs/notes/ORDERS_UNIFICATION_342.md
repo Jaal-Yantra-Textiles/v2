@@ -316,14 +316,20 @@ those links remain valid; only revisit if we ever delete the legacy execution ro
   `routes/orders/order-list/.../order-list-table.tsx`. The inventory-detail and
   designs routes already derive partner status from tasks/runs — untouched.
 
-- [ ] **Chunk 9 → PR-E (T4 backfill + fallback retirement).** *(blocked by: PR-D)*
+- [x] **Chunk 9 → PR-E (T4 backfill SCRIPT only).** *(blocked by: PR-D — done; PR-D merged `1ef954378`)*
   - New `medusa exec` script `src/scripts/backfill-unified-order-links.ts`:
-    `--dry-run`, paginated, per-row try/catch. For `inventory_orders` and
+    `--dry-run`, paginated (PAGE=200), idempotent. For `inventory_orders` and
     `production_runs` where `metadata.unified_order_id` is set but the D5
-    `order.id` link is absent → `remoteLink.create` the link (model Pattern C —
-    `backfill-store-customers.ts`). Idempotent (skip if `order.id` already present).
-  - Run dry-run then live in prod; verify `count(unified_order_id set AND no link) == 0`.
-  - Then DELETE the 4 fallback reads (`?? …unified_order_id`): `dual-write-unified-order.ts:162`,
+    `order.id` link is absent → validates the backref'd order still exists, then
+    `remoteLink.create` the link (model Pattern C — `backfill-store-customers.ts`).
+    Skips already-linked rows, dangling backrefs (missing order, warns), and
+    never-projected rows (no backref). Reports counts.
+  - **Ships script-only** so the deploy can run `medusa exec` in prod & verify
+    BEFORE any read changes. Run dry-run then live; verify the second run reports
+    `linked=0` (everything already linked) and `danglingBackref=0`.
+- [ ] **Chunk 9 → PR-E2 (retire the 4 fallback reads).** *(blocked by: PR-E backfill VERIFIED in prod)*
+  - Separate PR/deploy so the reads only drop once every historical has a link.
+    DELETE the 4 fallback reads (`?? …unified_order_id`): `dual-write-unified-order.ts:162`,
     `:440`; `dual-write-unified-run-order.ts:213`; `api/admin/orders/route.ts:45`.
     Each becomes link-only. Update the dual-write specs (drop fallback assertions).
 - [ ] **Chunk 9b → PR-F (expand: column + dual-write + backfill).** *(blocked by: 7, 8, PR-E)*
