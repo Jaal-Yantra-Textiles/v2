@@ -53,13 +53,14 @@ as the discriminator/pointer. Instead:
 | PR | Chunks | Theme | Status |
 |---|---|---|---|
 | **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | **MERGED — PR #392** (2026-06-13, merge `c4d03469a`; auto-deploys to prod) |
-| **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | **OPEN — PR #393 (draft)** (2026-06-13), `feat/342-pr-b-unified-surfacing`. Chunk 4 + 5 both done, pushed. Both specs green. |
-| **PR-C** | 6 | Metadata-write cleanup (after A + B prove links are the sole path) | **OPEN — PR #394 (draft)** on `feat/342-pr-c-metadata-cleanup`. Stopped writing `metadata.kind` + `unified_order_id`; execution link-create made authoritative w/ order rollback. All 4 unification specs green (20 tests). |
-| **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | **OPEN — PR #395 (draft)** on `feat/342-pr-d-locking` (2026-06-13). Chunk 7 + 8 done, pushed. New spec `orders-unification-locking.spec.ts` 3/3 green; inventory+design dual-write specs 12/12 green (regression). **Prereq for PR-E…H (9/9b sequence after it).** |
-| **PR-E** | 9 | T4 backfill (link-only) + retire the 4 `unified_order_id` fallback reads | planned (2026-06-14) — see "T4 plan" below |
-| **PR-F** | 9b-expand | New `unified_order_status` 1:1 sidecar column + dual-write both column & metadata + backfill | planned (2026-06-14) |
-| **PR-G** | 9b-migrate | Repoint the 2 `metadata.partner_status` read sites to the column | planned (2026-06-14) |
-| **PR-H** | 9b-contract | Stop writing `metadata.partner_status`; remove the Chunk-7 lock wrapping (KEEP Redis provider) | planned (2026-06-14) |
+| **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | **MERGED — PR #393** (`c04059815`). |
+| **PR-C** | 6 | Metadata-write cleanup (after A + B prove links are the sole path) | **MERGED — PR #394** (`1516f2914`). Stopped writing `metadata.kind` + `unified_order_id`; execution link-create authoritative w/ order rollback. |
+| **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | **MERGED — PR #395** (`1ef954378`, 2026-06-14). `orders-unification-locking.spec.ts` 3/3; dual-write 12/12. |
+| **PR-E** | 9 | T4 backfill SCRIPT (link-only) | **MERGED — PR #396** (`e9c5be099`, 2026-06-14). Script `src/scripts/backfill-unified-order-links.ts` shipped. ⚠️ **OPERATIONAL: still must be RUN in prod** (see "T4 plan"). |
+| **PR-E2** | 9 | Retire the 4 `unified_order_id` fallback reads | **NEXT after the prod backfill is RUN + verified** (`linked=0, danglingBackref=0`). Not started. |
+| **PR-F** | 9b-expand | New `unified_order_status` 1:1 sidecar column + dual-write both column & metadata + backfill | **▶ START HERE next session — UNBLOCKED** (PR-D + PR-E merged). Not started. |
+| **PR-G** | 9b-migrate | Repoint the 2 `metadata.partner_status` read sites to the column | planned. *(blocked by PR-F)* |
+| **PR-H** | 9b-contract | Stop writing `metadata.partner_status`; remove the Chunk-7 lock wrapping (KEEP Redis provider) | planned. *(blocked by PR-G verified)* |
 
 - [x] **Chunk 1 (D5-1)** — Define `filterable` links + ingest. New
   `src/links/order-production-run.ts` + `order-inventory-order.ts`, execution
@@ -298,6 +299,20 @@ as the discriminator/pointer. Instead:
   `namespace`; default key prefix `medusa_lock:`). *(blocked by: 7)*
 ### T4 plan — Chunks 9 + 9b (planned 2026-06-14, scope confirmed with user)
 
+> **▶ HANDOFF / NEXT SESSION (updated 2026-06-14):** PR-A…E are all MERGED to main
+> (auto-deployed). **Start PR-F next** — it is UNBLOCKED (see the PR-F checkbox below
+> for the full build list). Two threads are still open and independent of PR-F:
+> 1. **Run the PR-E backfill in prod** (the deploy shipped the script but does NOT
+>    run it): `npx medusa exec ./src/scripts/backfill-unified-order-links.ts dry-run`
+>    then without `dry-run`; verify a second run reports `linked=0 danglingBackref=0`.
+>    Needs a shell with prod DB access / the prod container. THEN do **PR-E2** (delete
+>    the 4 fallback reads).
+> 2. PR-F → PR-G → PR-H is the expand→migrate→contract column swap; PR-F does not
+>    depend on the PR-E backfill having run, so it can proceed in parallel.
+>
+> *(Tangent fixed this session, NOT #342: admin design-detail 500 — `customer.*`→
+> `customers.*` in `DESIGN_DETAIL_FIELDS`, PR #397 merged `5bdeb372a`.)*
+
 **Scope decisions (2026-06-14):** (1) backfill is **link-only** — covers rows already
 projected (have `metadata.unified_order_id`); pre-T2 legacy rows never projected stay
 legacy-only (not surfaced as unified). (2) **"legacy routes → shims" + ancillary-link
@@ -316,7 +331,9 @@ those links remain valid; only revisit if we ever delete the legacy execution ro
   `routes/orders/order-list/.../order-list-table.tsx`. The inventory-detail and
   designs routes already derive partner status from tasks/runs — untouched.
 
-- [x] **Chunk 9 → PR-E (T4 backfill SCRIPT only).** *(blocked by: PR-D — done; PR-D merged `1ef954378`)*
+- [x] **Chunk 9 → PR-E (T4 backfill SCRIPT only) — MERGED PR #396 (`e9c5be099`).**
+  ⚠️ Script shipped but **NOT YET RUN in prod** — that's the operational step gating PR-E2.
+  *(blocked by: PR-D — done; PR-D merged `1ef954378`)*
   - New `medusa exec` script `src/scripts/backfill-unified-order-links.ts`:
     `--dry-run`, paginated (PAGE=200), idempotent. For `inventory_orders` and
     `production_runs` where `metadata.unified_order_id` is set but the D5
@@ -332,7 +349,7 @@ those links remain valid; only revisit if we ever delete the legacy execution ro
     DELETE the 4 fallback reads (`?? …unified_order_id`): `dual-write-unified-order.ts:162`,
     `:440`; `dual-write-unified-run-order.ts:213`; `api/admin/orders/route.ts:45`.
     Each becomes link-only. Update the dual-write specs (drop fallback assertions).
-- [ ] **Chunk 9b → PR-F (expand: column + dual-write + backfill).** *(blocked by: 7, 8, PR-E)*
+- [ ] **▶ Chunk 9b → PR-F (expand: column + dual-write + backfill) — START HERE, UNBLOCKED.** *(blocked by: 7, 8, PR-E — all merged)*
   - New 1:1 sidecar module `src/modules/unified_order_status` (model/service/index),
     model `unified_order_status { id (prefix "uos"), partner_status: enum(assigned,
     accepted, in_progress, finished, partial, completed, declined), updated_at }`.
