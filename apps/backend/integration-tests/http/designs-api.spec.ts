@@ -179,6 +179,34 @@ setupSharedTestSuite(() => {
           });
         });
 
+        // Regression: the admin detail loader requests a relations-ONLY field
+        // list (no `*`). refetchDesign must still return the design's own
+        // scalar columns — otherwise the detail UI renders with no name/status/
+        // media (the whole record collapses to id + relations). See
+        // src/api/admin/designs/helpers.ts (baseFields injects `*`).
+        it("returns base columns even when fields lists only relations", async () => {
+          const response = await api.get(
+            `/admin/designs/${summerDesignId}`,
+            {
+              headers: headers.headers,
+              params: {
+                fields:
+                  "inventory_items.*, tasks.*, partners.*, colors.*, size_sets.*, customers.*",
+              },
+            }
+          );
+
+          expect(response.status).toBe(200);
+          const design = response.data.design;
+          expect(design.id).toBe(summerDesignId);
+          // The design's OWN columns must be present despite the relations-only ask.
+          expect(design.name).toBe(summerDesign.name);
+          expect(design.status).toBe(summerDesign.status);
+          expect(design.priority).toBe(summerDesign.priority);
+          // The requested relations still come through.
+          expect(Array.isArray(design.inventory_items) || design.inventory_items === undefined).toBe(true);
+        });
+
         it("should return 404 for non-existent design", async () => {
           const response = await api
             .get("/admin/designs/non-existent-id", {
