@@ -58,8 +58,8 @@ as the discriminator/pointer. Instead:
 | **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | **MERGED — PR #395** (`1ef954378`, 2026-06-14). `orders-unification-locking.spec.ts` 3/3; dual-write 12/12. |
 | **PR-E** | 9 | T4 backfill SCRIPT (link-only) | **MERGED — PR #396** (`e9c5be099`, 2026-06-14). Script `src/scripts/backfill-unified-order-links.ts` shipped. ⚠️ **OPERATIONAL: still must be RUN in prod** (see "T4 plan"). |
 | **PR-E2** | 9 | Retire the 4 `unified_order_id` fallback reads | **NEXT after the prod backfill is RUN + verified** (`linked=0, danglingBackref=0`). Not started. |
-| **PR-F** | 9b-expand | New `unified_order_status` 1:1 sidecar column + dual-write both column & metadata + backfill | **DONE on branch `feat/342-pr-f-status-column`** (2026-06-14). Module `src/modules/unified_order_status` + link `order-unified-status.ts` + helper `setUnifiedOrderPartnerStatus` (find-or-create upsert); 5 write sites mirror BOTH column & metadata; backfill `src/scripts/backfill-unified-order-status.ts`. New spec `orders-unification-status-column.spec.ts` 1/1; full unification suite 24/24 regression-green. ⚠️ **OPERATIONAL: run the backfill in prod after deploy** (dry-run then live). |
-| **PR-G** | 9b-migrate | Repoint the 2 `metadata.partner_status` read sites to the column | planned. *(blocked by PR-F)* |
+| **PR-F** | 9b-expand | New `unified_order_status` 1:1 sidecar column + dual-write both column & metadata + backfill | **MERGED — PR #398** (`9561a1104`, 2026-06-14; auto-deploys to prod). Module `src/modules/unified_order_status` + link `order-unified-status.ts` + helper `setUnifiedOrderPartnerStatus` (find-or-create upsert); 5 write sites mirror BOTH column & metadata; backfill `src/scripts/backfill-unified-order-status.ts`. Spec `orders-unification-status-column.spec.ts` 1/1; full unification suite 24/24 regression-green. ⚠️ **OPERATIONAL: still must RUN the status backfill in prod** (dry-run then live). |
+| **PR-G** | 9b-migrate | Repoint the 2 `metadata.partner_status` read sites to the column | **▶ NEXT — UNBLOCKED** (PR-F merged). Not started. |
 | **PR-H** | 9b-contract | Stop writing `metadata.partner_status`; remove the Chunk-7 lock wrapping (KEEP Redis provider) | planned. *(blocked by PR-G verified)* |
 
 - [x] **Chunk 1 (D5-1)** — Define `filterable` links + ingest. New
@@ -299,21 +299,33 @@ as the discriminator/pointer. Instead:
   `namespace`; default key prefix `medusa_lock:`). *(blocked by: 7)*
 ### T4 plan — Chunks 9 + 9b (planned 2026-06-14, scope confirmed with user)
 
-> **▶ HANDOFF / NEXT SESSION (updated 2026-06-14):** PR-A…E are all MERGED to main
-> (auto-deployed). **PR-F is DONE on branch `feat/342-pr-f-status-column`** (open the
-> PR + merge → deploy → run the status backfill). **Start PR-G next** (migrate the 2
-> `metadata.partner_status` read sites onto `unified_order_statuses.partner_status`) —
-> UNBLOCKED once PR-F merges. Two threads are still open and independent of PR-F/G:
-> 1. **Run the PR-E backfill in prod** (the deploy shipped the script but does NOT
->    run it): `npx medusa exec ./src/scripts/backfill-unified-order-links.ts dry-run`
->    then without `dry-run`; verify a second run reports `linked=0 danglingBackref=0`.
->    Needs a shell with prod DB access / the prod container. THEN do **PR-E2** (delete
->    the 4 fallback reads).
-> 2. PR-F → PR-G → PR-H is the expand→migrate→contract column swap; PR-F does not
->    depend on the PR-E backfill having run, so it can proceed in parallel.
+> **▶ HANDOFF / NEXT SESSION (updated 2026-06-14, PR-F merged):** PR-A…F are all
+> MERGED to main (auto-deployed). **Start PR-G next** — repoint the **2**
+> `metadata.partner_status` READ sites onto `unified_order_statuses.partner_status`
+> (the typed column PR-F just shipped), keeping a metadata fallback transitionally:
+>   1. backend `src/api/partners/orders/route.ts` (the badge field — `route.ts:33`
+>      comment marks where it still reads `metadata.partner_status`),
+>   2. partner-ui `routes/orders/order-list/.../order-list-table.tsx`.
+> Read via `query.graph` `["...", "unified_order_status.partner_status"]` (the link
+> accessor). Verify the panels render off the column in prod, THEN PR-H (contract:
+> stop writing `metadata.partner_status` in the 5 sites + drop the Chunk-7 lock
+> wrapping; KEEP the Chunk-8 Redis provider — other LOCKING consumers).
 >
-> *(Tangent fixed this session, NOT #342: admin design-detail 500 — `customer.*`→
-> `customers.*` in `DESIGN_DETAIL_FIELDS`, PR #397 merged `5bdeb372a`.)*
+> **Two OPERATIONAL backfills must be RUN in prod** (the deploys shipped the scripts
+> but do NOT run them — needs a shell with prod DB access / the prod container).
+> Independent of PR-G/H; both are idempotent, run `dry-run` then live:
+> 1. **PR-E link backfill** — `npx medusa exec ./src/scripts/backfill-unified-order-links.ts dry-run`
+>    then live; verify a 2nd run reports `linked=0 danglingBackref=0`. Gates **PR-E2**
+>    (delete the 4 `?? metadata.unified_order_id` fallback reads).
+> 2. **PR-F status backfill** — `npx medusa exec ./src/scripts/backfill-unified-order-status.ts dry-run`
+>    then live; verify a 2nd run reports `upserted=0`. Promotes historical
+>    `metadata.partner_status` onto the column so PR-G's repointed reads cover them.
+>
+> *(Tangents fixed this session, NOT #342 mechanics: (a) admin design-detail 500 —
+> `customer.*`→`customers.*` in `DESIGN_DETAIL_FIELDS`, PR #397 `5bdeb372a`; (b)
+> admin design-detail returned only id+relations — `refetchDesign` `baseFields`
+> lacked `*` so the design's own columns/name/status vanished, PR #399 `754a43f46`,
+> verified on prod v3.)*
 
 **Scope decisions (2026-06-14):** (1) backfill is **link-only** — covers rows already
 projected (have `metadata.unified_order_id`); pre-T2 legacy rows never projected stay
