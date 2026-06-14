@@ -137,6 +137,34 @@ module.exports = defineConfig({
       },
     },
 
+    // #342 PR-D (Chunk 8 / H2) — Locking Module with the Redis provider.
+    // The Locking Module's default provider is in-memory + single-process. Prod
+    // runs SPLIT server + worker tasks (MEDUSA_WORKER_MODE), so the #342
+    // per-unified-order locks (withUnifiedOrderMetadataLock, Chunk 7) must hold
+    // ACROSS processes — e.g. a partner /complete on the server racing the
+    // production-run-task-updated subscriber on the worker. In-memory would be a
+    // silent no-op for that cross-process race; Redis serializes it. Same
+    // ElastiCache Serverless Valkey cluster as the cache/event-bus/workflow-
+    // engine above. Provider ships inside @medusajs/medusa as
+    // `@medusajs/medusa/locking-redis` (NOT a separate top-level package).
+    // LOCKING_REDIS_URL lets ops isolate locks on their own Redis/db index;
+    // else reuse the existing REDIS_URL.
+    {
+      resolve: "@medusajs/medusa/locking",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/medusa/locking-redis",
+            id: "locking-redis",
+            is_default: true,
+            options: {
+              redisUrl: process.env.LOCKING_REDIS_URL || process.env.REDIS_URL,
+            },
+          },
+        ],
+      },
+    },
+
     {
       resolve: "@medusajs/medusa/notification",
       options: {

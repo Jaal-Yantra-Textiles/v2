@@ -104,6 +104,40 @@ type MirrorResult = {
   error?: string
 }
 
+// #342 PR-D (Chunk 7 / H1) — serialize the read-modify-write of a unified
+// order's `metadata` (chiefly `partner_status`). Every mirror does
+// retrieveOrder → spread metadata → updateOrders; two near-simultaneous
+// transitions (e.g. a partner `/complete` and the
+// `production-run-task-updated` auto-complete) otherwise both read the same
+// snapshot and the later write clobbers the earlier one (lost update). The lock
+// key is the unified order id so EVERY writer of that order's metadata contends
+// on the same key — including the non-workflow writers (the task-updated
+// subscriber + the admin cancel route), which call the mirror helpers directly
+// and so inherit the lock for free.
+//
+// Why here and not a workflow-level acquireLockStep (the doc's "preferred"):
+//   1. acquire-as-a-step throws on timeout → it would FAIL the legacy workflow,
+//      violating the best-effort "never fail the legacy path" contract. Wrapped
+//      inside each mirror's existing swallow-and-warn try/catch, a timeout is
+//      caught → the mirror is skipped, the legacy path is untouched.
+//   2. A workflow step can't cover the subscriber / admin route writers; this
+//      shared seam does.
+// `LockingService.execute` acquires, runs the job, and releases (even on throw).
+// In-memory provider today (prod runs one Fargate task); Chunk 8 (H2) wires the
+// Redis provider so the lock holds across instances before we scale out.
+const UNIFIED_ORDER_LOCK_TIMEOUT_SECONDS = 5
+
+export const withUnifiedOrderMetadataLock = <T>(
+  container: MedusaContainer,
+  unifiedOrderId: string,
+  job: () => Promise<T>
+): Promise<T> => {
+  const locking: any = container.resolve(Modules.LOCKING)
+  return locking.execute(`unified-order-metadata:${unifiedOrderId}`, job, {
+    timeout: UNIFIED_ORDER_LOCK_TIMEOUT_SECONDS,
+  })
+}
+
 // D5-3 — resolve a legacy row's unified order id by the order↔<execution>
 // link, forward (`<entity>.order`), which the Chunk 2 directionality finding
 // established as the authoritative join. This replaces reading the
@@ -349,19 +383,24 @@ export const mirrorPartnerLinkOnUnifiedOrderStep = createStep(
       ]
       await remoteLink.create(links)
 
+      // Chunk 7 — serialize the metadata RMW on the unified order id (see
+      // withUnifiedOrderMetadataLock). The remoteLink.create above is not a
+      // metadata RMW, so it stays outside the lock.
       const orderService: any = container.resolve(Modules.ORDER)
-      const unifiedOrder = await orderService.retrieveOrder(unifiedOrderId, {
-        select: ["id", "metadata"],
-      })
-      await orderService.updateOrders([
-        {
-          id: unifiedOrderId,
-          metadata: {
-            ...(unifiedOrder?.metadata ?? {}),
-            partner_status: "assigned",
+      await withUnifiedOrderMetadataLock(container, unifiedOrderId, async () => {
+        const unifiedOrder = await orderService.retrieveOrder(unifiedOrderId, {
+          select: ["id", "metadata"],
+        })
+        await orderService.updateOrders([
+          {
+            id: unifiedOrderId,
+            metadata: {
+              ...(unifiedOrder?.metadata ?? {}),
+              partner_status: "assigned",
+            },
           },
-        },
-      ])
+        ])
+      })
 
       return new StepResponse<MirrorResult>({
         linked: true,
@@ -409,24 +448,29 @@ export const mirrorUnifiedOrderStatusStep = createStep(
       const coreStatus = LEGACY_TO_CORE_STATUS[legacy.status]
       const partnerStatus = LEGACY_TO_PARTNER_STATUS[legacy.status]
 
+      // Chunk 7 — serialize the metadata RMW on the unified order id so a
+      // concurrent transition can't clobber partner_status (see
+      // withUnifiedOrderMetadataLock).
       const orderService: any = container.resolve(Modules.ORDER)
-      const unifiedOrder = await orderService.retrieveOrder(unifiedOrderId, {
-        select: ["id", "metadata"],
+      await withUnifiedOrderMetadataLock(container, unifiedOrderId, async () => {
+        const unifiedOrder = await orderService.retrieveOrder(unifiedOrderId, {
+          select: ["id", "metadata"],
+        })
+        await orderService.updateOrders([
+          {
+            id: unifiedOrderId,
+            ...(coreStatus ? { status: coreStatus } : {}),
+            ...(partnerStatus
+              ? {
+                  metadata: {
+                    ...(unifiedOrder?.metadata ?? {}),
+                    partner_status: partnerStatus,
+                  },
+                }
+              : {}),
+          },
+        ])
       })
-      await orderService.updateOrders([
-        {
-          id: unifiedOrderId,
-          ...(coreStatus ? { status: coreStatus } : {}),
-          ...(partnerStatus
-            ? {
-                metadata: {
-                  ...(unifiedOrder?.metadata ?? {}),
-                  partner_status: partnerStatus,
-                },
-              }
-            : {}),
-        },
-      ])
 
       return new StepResponse<MirrorResult>({
         linked: true,

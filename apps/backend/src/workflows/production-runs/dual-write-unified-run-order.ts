@@ -12,6 +12,7 @@ import {
   PARTNER_WORK_ORDERS_CHANNEL,
   resolveUnifiedOrderIdByLink,
   linkUnifiedOrderOrRollback,
+  withUnifiedOrderMetadataLock,
 } from "../inventory_orders/dual-write-unified-order"
 
 // #342 T3.2 — best-effort projection of production runs onto the core `order`
@@ -148,17 +149,30 @@ const patchUnifiedOrder = async (
   patch: { status?: string; metadata?: Record<string, unknown> }
 ) => {
   const orderService: any = container.resolve(Modules.ORDER)
+  // Chunk 7 — when the patch touches metadata, the read-then-merge must run
+  // under the per-order lock so a concurrent mirror can't clobber it (see
+  // withUnifiedOrderMetadataLock). A pure status patch (no metadata) is a
+  // single blind write with nothing to lose, so it skips the lock.
   if (patch.metadata) {
-    const current = await orderService.retrieveOrder(unifiedOrderId, {
-      select: ["id", "metadata"],
+    await withUnifiedOrderMetadataLock(container, unifiedOrderId, async () => {
+      const current = await orderService.retrieveOrder(unifiedOrderId, {
+        select: ["id", "metadata"],
+      })
+      const mergedMetadata = { ...(current?.metadata ?? {}), ...patch.metadata }
+      await orderService.updateOrders([
+        {
+          id: unifiedOrderId,
+          ...(patch.status ? { status: patch.status } : {}),
+          metadata: mergedMetadata,
+        },
+      ])
     })
-    patch.metadata = { ...(current?.metadata ?? {}), ...patch.metadata }
+    return
   }
   await orderService.updateOrders([
     {
       id: unifiedOrderId,
       ...(patch.status ? { status: patch.status } : {}),
-      ...(patch.metadata ? { metadata: patch.metadata } : {}),
     },
   ])
 }
@@ -359,34 +373,48 @@ export const mirrorRunStatusToUnifiedOrder = async (
       return { linked: false, skipped: "no_unified_order" }
     }
 
-    const orderService: any = container.resolve(Modules.ORDER)
-    const unifiedOrder = await orderService.retrieveOrder(unifiedOrderId, {
-      select: ["id", "metadata"],
-    })
-
-    // A parent order superseded by a run split stays canceled forever —
-    // the child orders carry the commercial reality.
-    if (unifiedOrder?.metadata?.superseded_by_run_ids) {
-      return { linked: false, skipped: "superseded" }
-    }
-
+    // coreStatus/partnerStatus derive from `run` (read above, a different
+    // entity), so they're computed outside the unified-order lock.
     const coreStatus = RUN_TO_CORE_STATUS[run.status]
     const partnerStatus = deriveRunPartnerStatus(run, opts)
 
-    await orderService.updateOrders([
-      {
-        id: unifiedOrderId,
-        ...(coreStatus ? { status: coreStatus } : {}),
-        ...(partnerStatus
-          ? {
-              metadata: {
-                ...(unifiedOrder?.metadata ?? {}),
-                partner_status: partnerStatus,
-              },
-            }
-          : {}),
-      },
-    ])
+    // Chunk 7 — the retrieve → superseded-check → update is one read-modify-
+    // write on the unified order's metadata; run it under the per-order lock so
+    // a concurrent transition (e.g. partner /complete racing the task-updated
+    // auto-complete, which calls this same fn) can't clobber partner_status.
+    const orderService: any = container.resolve(Modules.ORDER)
+    let superseded = false
+    await withUnifiedOrderMetadataLock(container, unifiedOrderId, async () => {
+      const unifiedOrder = await orderService.retrieveOrder(unifiedOrderId, {
+        select: ["id", "metadata"],
+      })
+
+      // A parent order superseded by a run split stays canceled forever —
+      // the child orders carry the commercial reality.
+      if (unifiedOrder?.metadata?.superseded_by_run_ids) {
+        superseded = true
+        return
+      }
+
+      await orderService.updateOrders([
+        {
+          id: unifiedOrderId,
+          ...(coreStatus ? { status: coreStatus } : {}),
+          ...(partnerStatus
+            ? {
+                metadata: {
+                  ...(unifiedOrder?.metadata ?? {}),
+                  partner_status: partnerStatus,
+                },
+              }
+            : {}),
+        },
+      ])
+    })
+
+    if (superseded) {
+      return { linked: false, skipped: "superseded" }
+    }
 
     return { linked: true, unified_order_id: unifiedOrderId }
   } catch (e: any) {

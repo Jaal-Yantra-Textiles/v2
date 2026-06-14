@@ -55,8 +55,11 @@ as the discriminator/pointer. Instead:
 | **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | **MERGED — PR #392** (2026-06-13, merge `c4d03469a`; auto-deploys to prod) |
 | **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | **OPEN — PR #393 (draft)** (2026-06-13), `feat/342-pr-b-unified-surfacing`. Chunk 4 + 5 both done, pushed. Both specs green. |
 | **PR-C** | 6 | Metadata-write cleanup (after A + B prove links are the sole path) | **OPEN — PR #394 (draft)** on `feat/342-pr-c-metadata-cleanup`. Stopped writing `metadata.kind` + `unified_order_id`; execution link-create made authoritative w/ order rollback. All 4 unification specs green (20 tests). |
-| **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | not started |
-| **PR-E** | 9 | T4 backfill + retirement (own planning pass) | not started |
+| **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | **OPEN — PR #395 (draft)** on `feat/342-pr-d-locking` (2026-06-13). Chunk 7 + 8 done, pushed. New spec `orders-unification-locking.spec.ts` 3/3 green; inventory+design dual-write specs 12/12 green (regression). **Prereq for PR-E…H (9/9b sequence after it).** |
+| **PR-E** | 9 | T4 backfill (link-only) + retire the 4 `unified_order_id` fallback reads | planned (2026-06-14) — see "T4 plan" below |
+| **PR-F** | 9b-expand | New `unified_order_status` 1:1 sidecar column + dual-write both column & metadata + backfill | planned (2026-06-14) |
+| **PR-G** | 9b-migrate | Repoint the 2 `metadata.partner_status` read sites to the column | planned (2026-06-14) |
+| **PR-H** | 9b-contract | Stop writing `metadata.partner_status`; remove the Chunk-7 lock wrapping (KEEP Redis provider) | planned (2026-06-14) |
 
 - [x] **Chunk 1 (D5-1)** — Define `filterable` links + ingest. New
   `src/links/order-production-run.ts` + `order-inventory-order.ts`, execution
@@ -248,16 +251,107 @@ as the discriminator/pointer. Instead:
   absent from metadata + no backref on the legacy row). All 4 unification specs
   green (12 + 8 = 20). *(blocked by: 3, 4 — both done)* *(NEXT: PR-D locking is
   independent; Chunk 9/T4 still pending.)*
-- [ ] **Chunk 7 (H1)** — Locking on the dual-write/mirror read-modify-write
+- [x] **Chunk 7 (H1)** — Locking on the dual-write/mirror read-modify-write
   (`partner_status` race), key = unified order id, ALL writers share it, inside
-  the swallow-and-warn boundary. Pattern: `complete-production-run.ts`.
+  the swallow-and-warn boundary. **DONE** (PR-D, branch `feat/342-pr-d-locking`).
+  Implemented as one shared helper `withUnifiedOrderMetadataLock(container,
+  unifiedOrderId, job)` in `inventory_orders/dual-write-unified-order.ts` that
+  wraps `Modules.LOCKING.execute("unified-order-metadata:<id>", job, { timeout:
+  5 })`. **Chose the lowest-RMW-layer seam over the doc's "preferred" workflow-
+  level acquireLockStep** because (a) an acquire-as-a-step throws on timeout and
+  would FAIL the legacy workflow — wrapped inside each mirror's existing
+  swallow-and-warn try/catch instead, a timeout just skips the mirror; and (b) a
+  workflow step can't cover the non-workflow writers (the `production-run-task-
+  updated` subscriber + the admin cancel route), which call the mirror helpers
+  directly and so inherit the lock for free. Wrapped sites: inventory
+  `mirrorPartnerLinkOnUnifiedOrderStep` + `mirrorUnifiedOrderStatusStep`;
+  production-run `patchUnifiedOrder` (metadata branch only — pure-status patches
+  skip the lock) + `mirrorRunStatusToUnifiedOrder` (retrieve→superseded-check→
+  update is one locked RMW). Create paths are single-shot (fresh order) → not
+  locked. Spec `orders-unification-locking.spec.ts` proves serialization with a
+  load-bearing control (same N concurrent RMW jobs WITHOUT the lock lose updates).
   *(blocked by: none — parallel to the link work)*
-- [ ] **Chunk 8 (H2)** — Register `@medusajs/locking-redis` in medusa-config
-  (prod env-gated, in-memory fallback for dev). Must precede scaling >1 backend
-  instance. *(blocked by: 7)*
-- [ ] **Chunk 9 (T4)** — Backfill historicals (idempotent on link), repoint §4
-  deviation + ancillary links, legacy routes → shims, quiet retirement. Needs
-  its own planning pass. *(blocked by: 3, 6, 7)*
+- [x] **Chunk 8 (H2)** — Register the Redis locking provider in medusa-config
+  (prod env-gated, in-memory fallback for dev). **DONE** (PR-D). **Correction to
+  the original direction:** the provider is NOT a separate `@medusajs/locking-
+  redis` top-level dep — it ships inside `@medusajs/medusa@2.15.5`, resolvable as
+  `@medusajs/medusa/locking-redis` (the locking module is `@medusajs/medusa/
+  locking`). No package.json change needed. **GOTCHA — there are TWO config
+  files: prod runs `medusa-config.prod.ts` (the Dockerfile does `RUN cp
+  medusa-config.prod.ts medusa-config.ts` at build), NOT the base
+  `medusa-config.ts` that dev/test load.** So the ACTIVE locking registration
+  lives in `medusa-config.prod.ts` (added unconditionally next to the existing
+  active `caching-redis`/`event-bus-redis`/`workflow-engine-redis` modules,
+  `redisUrl: LOCKING_REDIS_URL || REDIS_URL`); the base config keeps it as a
+  COMMENTED block (dev/test are single-process → built-in in-memory provider, no
+  config). Prod already wires Redis fully (ElastiCache Serverless Valkey cluster
+  `jyt-spaces-1ufoes`, TLS/`rediss://`, SSM secret `/jyt/prod/REDIS_URL` injected
+  into BOTH the `medusa-server` + `medusa-worker` Fargate tasks). **Why Redis
+  matters here specifically:** prod runs SPLIT server+worker (`MEDUSA_WORKER_MODE`
+  read from env even though the config line was historically commented — Medusa
+  framework reads it: `@medusajs/framework/.../config.js`), so the partner
+  `/complete` (server) vs `production-run-task-updated` subscriber (worker) race
+  spans TWO processes — in-memory locking would be a silent no-op for it. No new
+  SSM secret needed (reuses REDIS_URL; if ops add LOCKING_REDIS_URL it must carry
+  the copilot-application/environment tags per reference_copilot_ssm_tag_requirement).
+  Provider options: `{ redisUrl }` (loader also accepts `redisOptions`,
+  `namespace`; default key prefix `medusa_lock:`). *(blocked by: 7)*
+### T4 plan — Chunks 9 + 9b (planned 2026-06-14, scope confirmed with user)
+
+**Scope decisions (2026-06-14):** (1) backfill is **link-only** — covers rows already
+projected (have `metadata.unified_order_id`); pre-T2 legacy rows never projected stay
+legacy-only (not surfaced as unified). (2) **"legacy routes → shims" + ancillary-link
+repoint (tasks/internal-payments/feedback/inbound-email) are DESCOPED** from #342 —
+the execution rows (`production_run`/`inventory_order`) stay authoritative per D1, so
+those links remain valid; only revisit if we ever delete the legacy execution rows.
+(3) Ships as **4 PRs E/F/G/H** (each merge = a prod deploy → strict expand→migrate→contract).
+
+**Two corrections to the earlier notes (verified in code 2026-06-14):**
+- ❗ The **Chunk-8 Redis locking provider must STAY.** `complete-production-run.ts`
+  (`:134`, `:255`) and the `production-run-task-updated` subscriber (`:95`) resolve
+  `Modules.LOCKING` independently of unification. Only the **Chunk-7
+  `withUnifiedOrderMetadataLock` wrapping** is removed in PR-H, NOT the provider.
+- The `metadata.partner_status` **READ** surface is only **2 sites**, not 5:
+  `api/partners/orders/route.ts` (badge field) + partner-ui
+  `routes/orders/order-list/.../order-list-table.tsx`. The inventory-detail and
+  designs routes already derive partner status from tasks/runs — untouched.
+
+- [ ] **Chunk 9 → PR-E (T4 backfill + fallback retirement).** *(blocked by: PR-D)*
+  - New `medusa exec` script `src/scripts/backfill-unified-order-links.ts`:
+    `--dry-run`, paginated, per-row try/catch. For `inventory_orders` and
+    `production_runs` where `metadata.unified_order_id` is set but the D5
+    `order.id` link is absent → `remoteLink.create` the link (model Pattern C —
+    `backfill-store-customers.ts`). Idempotent (skip if `order.id` already present).
+  - Run dry-run then live in prod; verify `count(unified_order_id set AND no link) == 0`.
+  - Then DELETE the 4 fallback reads (`?? …unified_order_id`): `dual-write-unified-order.ts:162`,
+    `:440`; `dual-write-unified-run-order.ts:213`; `api/admin/orders/route.ts:45`.
+    Each becomes link-only. Update the dual-write specs (drop fallback assertions).
+- [ ] **Chunk 9b → PR-F (expand: column + dual-write + backfill).** *(blocked by: 7, 8, PR-E)*
+  - New 1:1 sidecar module `src/modules/unified_order_status` (model/service/index),
+    model `unified_order_status { id (prefix "uos"), partner_status: enum(assigned,
+    accepted, in_progress, finished, partial, completed, declined), updated_at }`.
+    Link `src/links/order-unified-status.ts` (`isList:false`, `filterable:["id"]`).
+    Create-table migration (generated); future column adds hand-written
+    `add column if not exists` per [[reference_medusa_migration_create_if_not_exists_hazard]].
+  - Atomic upsert helper `setUnifiedOrderPartnerStatus(container, orderId, status)` —
+    find-or-create sidecar row, single-column write (no RMW → no lock needed).
+  - Wire the 4 mirror WRITE sites + the create-path projection to write **BOTH** the
+    column (via helper) AND keep `metadata.partner_status` (still under the existing
+    lock) — belt-and-suspenders during expand.
+  - Backfill script (or extend PR-E's): every order with `metadata.partner_status`
+    → upsert the sidecar row. Idempotent.
+- [ ] **Chunk 9b → PR-G (migrate reads).** *(blocked by: PR-F)*
+  - Repoint the 2 read sites to `unified_order_statuses.partner_status`
+    (keep metadata fallback transitionally): backend `api/partners/orders/route.ts`,
+    partner-ui `order-list-table.tsx`. Verify panels render off the column in prod.
+- [ ] **Chunk 9b → PR-H (contract: retire metadata + lock).** *(blocked by: PR-G verified)*
+  - Stop writing `metadata.partner_status` in the 4 sites + create path (column-only).
+  - Remove the `withUnifiedOrderMetadataLock` wrapping from the 4 sites + delete the
+    helper — remaining metadata writes are write-once-at-create (no RMW), safe unlocked.
+    **KEEP the Chunk-8 Redis provider** (other LOCKING consumers, see correction above).
+  - Remove the metadata fallback reads from PR-G; drop `partner_status` from
+    `PROTECTED_UNIFICATION_METADATA_KEYS` if still present. Optional metadata-cleanup
+    backfill to strip stale `metadata.partner_status`.
 
 **Cross-cutting (not a unification chunk — QA + marketing):**
 - [ ] **Playwright stage-by-stage walkthrough + screenshots.** Drive the partner
@@ -558,7 +652,10 @@ chat history.*
          subscriber) must take the SAME lock — a lock only one writer respects
          is useless.
     3a. **INFRA TASK — enable the Redis locking provider in prod (added
-       2026-06-13).** The default in-memory locking provider is single-process
+       2026-06-13; DONE in PR-D/Chunk 8 — env-gated on
+       `LOCKING_REDIS_URL || REDIS_URL`; package-name correction below: it's
+       `@medusajs/medusa/locking-redis`, bundled in `@medusajs/medusa`, NOT a
+       separate `@medusajs/locking-redis` dep).** The default in-memory locking provider is single-process
        only, so item 3's lock is a no-op across instances. Prod already has a
        working Redis instance, so before (or alongside) shipping the locks:
        register the Redis locking provider in `medusa-config` for prod.
@@ -574,11 +671,16 @@ chat history.*
          *now*, but wiring Redis is the correct fix and unblocks scaling out.
          This must land before we run >1 backend instance.
     4. **Promote the highest-risk keys to typed columns** (the D2 "revisit if
-       needed" trigger): `kind` (filtered by the admin-list work, item 3 below)
-       and `partner_status` (written on every transition, read by panels) are
+       needed" trigger): `kind` (now retired — link-discriminated since Chunk 6)
+       and `partner_status` (written on every transition, read by panels) were
        the strongest candidates. `legacy_id` + the `unified_order_id` backrefs
        are write-once (lower mutation risk) but are the backfill/idempotency
        anchor — a real indexed column is safer than a JSON key for T4 dedup.
+       **→ `partner_status` promotion is now tracked as Chunk 9b (T4): move it to
+       a 1:1 order-linked sidecar model, repoint reads/writes + backfill, then
+       retire the PR-D Chunk-7 lock. We will likely get rid of
+       `metadata.partner_status` entirely in the end** — PR-D's lock is the
+       interim hardening, the column is the structural fix.
 - **Remaining T3 deliverable(s)** (suggested order):
   1. ~~status mirror per §5~~ — DONE (T3.1),
   2. ~~design-side dual-write for production runs~~ — DONE (T3.2, see above),
