@@ -296,6 +296,29 @@ as the discriminator/pointer. Instead:
 - [ ] **Chunk 9 (T4)** — Backfill historicals (idempotent on link), repoint §4
   deviation + ancillary links, legacy routes → shims, quiet retirement. Needs
   its own planning pass. *(blocked by: 3, 6, 7)*
+- [ ] **Chunk 9b (T4) — promote `metadata.partner_status` to a typed column;
+  then RETIRE the Chunk-7 lock.** This is the structural follow-through on PR-D
+  and the direct application of [[feedback_no_critical_data_in_metadata]]:
+  `partner_status` is the ONLY high-frequency-mutated unification key (written on
+  every lifecycle transition); the other metadata keys (`legacy_id`,
+  `source_*`, `superseded_by_run_ids`) are all write-once at projection.
+  - **We will likely have to get rid of `metadata.partner_status` in the end.**
+    PR-D's `withUnifiedOrderMetadataLock` is the correct *interim* hardening — it
+    serializes the read-modify-write so no transition is lost — but the
+    lower-risk, lower-overhead end-state is a typed column where a single-column
+    UPDATE is atomic at the DB level (no RMW, no lost-update, no lock) AND panels
+    can filter/sort natively instead of querying JSON.
+  - **Can't add a column to `order` directly** (Medusa-owned table). Path: a
+    small 1:1 order-linked sidecar model (e.g. `unified_order_status {
+    partner_status, ... }`). Work = model + migration (hand-written
+    `add column if not exists` per [[reference_medusa_migration_create_if_not_exists_hazard]])
+    + repoint the mirror WRITES (the 4 sites PR-D wrapped) + repoint the panel/
+    list READS + backfill historicals (fold into the Chunk-9 backfill pass).
+  - **Once `partner_status` is a column, the remaining metadata writes are all
+    write-once-at-create (no concurrency) → the Chunk-7 lock + the Chunk-8 Redis
+    provider registration can be removed.** Sequence the lock removal AFTER the
+    column read/write repoint + backfill land and are verified, not before.
+  *(blocked by: 7, 8, and the Chunk-9 backfill)*
 
 **Cross-cutting (not a unification chunk — QA + marketing):**
 - [ ] **Playwright stage-by-stage walkthrough + screenshots.** Drive the partner
@@ -615,11 +638,16 @@ chat history.*
          *now*, but wiring Redis is the correct fix and unblocks scaling out.
          This must land before we run >1 backend instance.
     4. **Promote the highest-risk keys to typed columns** (the D2 "revisit if
-       needed" trigger): `kind` (filtered by the admin-list work, item 3 below)
-       and `partner_status` (written on every transition, read by panels) are
+       needed" trigger): `kind` (now retired — link-discriminated since Chunk 6)
+       and `partner_status` (written on every transition, read by panels) were
        the strongest candidates. `legacy_id` + the `unified_order_id` backrefs
        are write-once (lower mutation risk) but are the backfill/idempotency
        anchor — a real indexed column is safer than a JSON key for T4 dedup.
+       **→ `partner_status` promotion is now tracked as Chunk 9b (T4): move it to
+       a 1:1 order-linked sidecar model, repoint reads/writes + backfill, then
+       retire the PR-D Chunk-7 lock. We will likely get rid of
+       `metadata.partner_status` entirely in the end** — PR-D's lock is the
+       interim hardening, the column is the structural fix.
 - **Remaining T3 deliverable(s)** (suggested order):
   1. ~~status mirror per §5~~ — DONE (T3.1),
   2. ~~design-side dual-write for production runs~~ — DONE (T3.2, see above),
