@@ -56,10 +56,10 @@ as the discriminator/pointer. Instead:
 | **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | **MERGED — PR #393** (`c04059815`). |
 | **PR-C** | 6 | Metadata-write cleanup (after A + B prove links are the sole path) | **MERGED — PR #394** (`1516f2914`). Stopped writing `metadata.kind` + `unified_order_id`; execution link-create authoritative w/ order rollback. |
 | **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | **MERGED — PR #395** (`1ef954378`, 2026-06-14). `orders-unification-locking.spec.ts` 3/3; dual-write 12/12. |
-| **PR-E** | 9 | T4 backfill SCRIPT (link-only) | **MERGED — PR #396** (`e9c5be099`, 2026-06-14). Script `src/scripts/backfill-unified-order-links.ts` shipped. ⚠️ **OPERATIONAL: still must be RUN in prod** (see "T4 plan"). |
-| **PR-E2** | 9 | Retire the 4 `unified_order_id` fallback reads | **NEXT after the prod backfill is RUN + verified** (`linked=0, danglingBackref=0`). Not started. |
-| **PR-F** | 9b-expand | New `unified_order_status` 1:1 sidecar column + dual-write both column & metadata + backfill | **MERGED — PR #398** (`9561a1104`, 2026-06-14; auto-deploys to prod). Module `src/modules/unified_order_status` + link `order-unified-status.ts` + helper `setUnifiedOrderPartnerStatus` (find-or-create upsert); 5 write sites mirror BOTH column & metadata; backfill `src/scripts/backfill-unified-order-status.ts`. Spec `orders-unification-status-column.spec.ts` 1/1; full unification suite 24/24 regression-green. ⚠️ **OPERATIONAL: still must RUN the status backfill in prod** (dry-run then live). |
-| **PR-G** | 9b-migrate | Repoint the 2 `metadata.partner_status` read sites to the column | **▶ NEXT — UNBLOCKED** (PR-F merged). Not started. |
+| **PR-E** | 9 | T4 backfill SCRIPT (link-only) | **MERGED — PR #396** (`e9c5be099`). ✅ **BACKFILL RUN in prod 2026-06-14** via ECS run-task — `linked=0 alreadyLinked=2 danglingBackref=0 noBackref=90`. No rows needed linking (already-projected rows all linked; 90 are pre-T2 never-projected legacy, left legacy-only). |
+| **PR-E2** | 9 | Retire the 4 `unified_order_id` fallback reads | **▶ UNBLOCKED** — the prod backfill verified `linked=0, danglingBackref=0`, so no historical depends on the fallback. Not started. |
+| **PR-F** | 9b-expand | New `unified_order_status` 1:1 sidecar column + dual-write both column & metadata + backfill | **MERGED — PR #398** (`9561a1104`, 2026-06-14; deployed). Module `src/modules/unified_order_status` + link `order-unified-status.ts` + helper `setUnifiedOrderPartnerStatus`; 5 write sites mirror BOTH column & metadata; spec 1/1, suite 24/24. ✅ **STATUS BACKFILL RUN in prod 2026-06-14** via ECS run-task — `upserted=1 noStatus=4 errors=0`; idempotency re-run `upserted=0 alreadySet=1`. |
+| **PR-G** | 9b-migrate | Repoint the 2 `metadata.partner_status` read sites to the column | **▶ NEXT — UNBLOCKED** (PR-F merged + status backfill run). Not started. |
 | **PR-H** | 9b-contract | Stop writing `metadata.partner_status`; remove the Chunk-7 lock wrapping (KEEP Redis provider) | planned. *(blocked by PR-G verified)* |
 
 - [x] **Chunk 1 (D5-1)** — Define `filterable` links + ingest. New
@@ -311,17 +311,16 @@ as the discriminator/pointer. Instead:
 > stop writing `metadata.partner_status` in the 5 sites + drop the Chunk-7 lock
 > wrapping; KEEP the Chunk-8 Redis provider — other LOCKING consumers).
 >
-> **Two OPERATIONAL backfills must be RUN in prod** (the deploys shipped the scripts
-> but do NOT run them). **Run them via a one-off ECS task from the locally-connected
-> AWS CLI** (see "Running prod `medusa exec` scripts via ECS run-task" below — ECS Exec
-> is NOT enabled on the service, so `run-task` with a command override is the path).
-> Independent of PR-G/H; both are idempotent, run `dry-run` then live:
-> 1. **PR-E link backfill** — `npx medusa exec ./src/scripts/backfill-unified-order-links.js dry-run`
->    then live; verify a 2nd run reports `linked=0 danglingBackref=0`. Gates **PR-E2**
->    (delete the 4 `?? metadata.unified_order_id` fallback reads).
-> 2. **PR-F status backfill** — `npx medusa exec ./src/scripts/backfill-unified-order-status.js dry-run`
->    then live; verify a 2nd run reports `upserted=0`. Promotes historical
->    `metadata.partner_status` onto the column so PR-G's repointed reads cover them.
+> **Both OPERATIONAL backfills are now RUN + verified in prod (2026-06-14)** via a
+> one-off ECS task from the locally-connected AWS CLI (recipe below — ECS Exec is NOT
+> enabled, so `run-task` with a command override is the path; ⚠️ the built server holds
+> `.js`, not `.ts`). Results:
+> 1. **PR-E link backfill** — `linked=0 danglingBackref=0` (no-op; already-projected
+>    rows all linked, 90 pre-T2 rows left legacy-only). → **PR-E2 unblocked** (no
+>    historical depends on the fallback reads).
+> 2. **PR-F status backfill** — `upserted=1 noStatus=4`; idempotent re-run `upserted=0
+>    alreadySet=1`. The lone historical `partner_status` is now on the column. → PR-G's
+>    repointed reads will cover it.
 >
 > *(Tangents fixed this session, NOT #342 mechanics: (a) admin design-detail 500 —
 > `customer.*`→`customers.*` in `DESIGN_DETAIL_FIELDS`, PR #397 `5bdeb372a`; (b)
