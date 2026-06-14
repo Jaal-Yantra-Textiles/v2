@@ -55,8 +55,11 @@ as the discriminator/pointer. Instead:
 | **PR-A** | 1 + 2 + 3 | D5 link adoption: define → write → read (avoid a half-state on main where links exist but are unused) | **MERGED — PR #392** (2026-06-13, merge `c4d03469a`; auto-deploys to prod) |
 | **PR-B** | 4 + 5 | Unified surfacing: admin retail filter + partner panels | **OPEN — PR #393 (draft)** (2026-06-13), `feat/342-pr-b-unified-surfacing`. Chunk 4 + 5 both done, pushed. Both specs green. |
 | **PR-C** | 6 | Metadata-write cleanup (after A + B prove links are the sole path) | **OPEN — PR #394 (draft)** on `feat/342-pr-c-metadata-cleanup`. Stopped writing `metadata.kind` + `unified_order_id`; execution link-create made authoritative w/ order rollback. All 4 unification specs green (20 tests). |
-| **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | **DONE (uncommitted→committing)** on `feat/342-pr-d-locking`. Chunk 7 + 8 both done. New spec `orders-unification-locking.spec.ts` 3/3 green; inventory+design dual-write specs 12/12 green (regression). |
-| **PR-E** | 9 | T4 backfill + retirement (own planning pass) | not started |
+| **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | **OPEN — PR #395 (draft)** on `feat/342-pr-d-locking` (2026-06-13). Chunk 7 + 8 done, pushed. New spec `orders-unification-locking.spec.ts` 3/3 green; inventory+design dual-write specs 12/12 green (regression). **Prereq for PR-E…H (9/9b sequence after it).** |
+| **PR-E** | 9 | T4 backfill (link-only) + retire the 4 `unified_order_id` fallback reads | planned (2026-06-14) — see "T4 plan" below |
+| **PR-F** | 9b-expand | New `unified_order_status` 1:1 sidecar column + dual-write both column & metadata + backfill | planned (2026-06-14) |
+| **PR-G** | 9b-migrate | Repoint the 2 `metadata.partner_status` read sites to the column | planned (2026-06-14) |
+| **PR-H** | 9b-contract | Stop writing `metadata.partner_status`; remove the Chunk-7 lock wrapping (KEEP Redis provider) | planned (2026-06-14) |
 
 - [x] **Chunk 1 (D5-1)** — Define `filterable` links + ingest. New
   `src/links/order-production-run.ts` + `order-inventory-order.ts`, execution
@@ -293,32 +296,62 @@ as the discriminator/pointer. Instead:
   the copilot-application/environment tags per reference_copilot_ssm_tag_requirement).
   Provider options: `{ redisUrl }` (loader also accepts `redisOptions`,
   `namespace`; default key prefix `medusa_lock:`). *(blocked by: 7)*
-- [ ] **Chunk 9 (T4)** — Backfill historicals (idempotent on link), repoint §4
-  deviation + ancillary links, legacy routes → shims, quiet retirement. Needs
-  its own planning pass. *(blocked by: 3, 6, 7)*
-- [ ] **Chunk 9b (T4) — promote `metadata.partner_status` to a typed column;
-  then RETIRE the Chunk-7 lock.** This is the structural follow-through on PR-D
-  and the direct application of [[feedback_no_critical_data_in_metadata]]:
-  `partner_status` is the ONLY high-frequency-mutated unification key (written on
-  every lifecycle transition); the other metadata keys (`legacy_id`,
-  `source_*`, `superseded_by_run_ids`) are all write-once at projection.
-  - **We will likely have to get rid of `metadata.partner_status` in the end.**
-    PR-D's `withUnifiedOrderMetadataLock` is the correct *interim* hardening — it
-    serializes the read-modify-write so no transition is lost — but the
-    lower-risk, lower-overhead end-state is a typed column where a single-column
-    UPDATE is atomic at the DB level (no RMW, no lost-update, no lock) AND panels
-    can filter/sort natively instead of querying JSON.
-  - **Can't add a column to `order` directly** (Medusa-owned table). Path: a
-    small 1:1 order-linked sidecar model (e.g. `unified_order_status {
-    partner_status, ... }`). Work = model + migration (hand-written
-    `add column if not exists` per [[reference_medusa_migration_create_if_not_exists_hazard]])
-    + repoint the mirror WRITES (the 4 sites PR-D wrapped) + repoint the panel/
-    list READS + backfill historicals (fold into the Chunk-9 backfill pass).
-  - **Once `partner_status` is a column, the remaining metadata writes are all
-    write-once-at-create (no concurrency) → the Chunk-7 lock + the Chunk-8 Redis
-    provider registration can be removed.** Sequence the lock removal AFTER the
-    column read/write repoint + backfill land and are verified, not before.
-  *(blocked by: 7, 8, and the Chunk-9 backfill)*
+### T4 plan — Chunks 9 + 9b (planned 2026-06-14, scope confirmed with user)
+
+**Scope decisions (2026-06-14):** (1) backfill is **link-only** — covers rows already
+projected (have `metadata.unified_order_id`); pre-T2 legacy rows never projected stay
+legacy-only (not surfaced as unified). (2) **"legacy routes → shims" + ancillary-link
+repoint (tasks/internal-payments/feedback/inbound-email) are DESCOPED** from #342 —
+the execution rows (`production_run`/`inventory_order`) stay authoritative per D1, so
+those links remain valid; only revisit if we ever delete the legacy execution rows.
+(3) Ships as **4 PRs E/F/G/H** (each merge = a prod deploy → strict expand→migrate→contract).
+
+**Two corrections to the earlier notes (verified in code 2026-06-14):**
+- ❗ The **Chunk-8 Redis locking provider must STAY.** `complete-production-run.ts`
+  (`:134`, `:255`) and the `production-run-task-updated` subscriber (`:95`) resolve
+  `Modules.LOCKING` independently of unification. Only the **Chunk-7
+  `withUnifiedOrderMetadataLock` wrapping** is removed in PR-H, NOT the provider.
+- The `metadata.partner_status` **READ** surface is only **2 sites**, not 5:
+  `api/partners/orders/route.ts` (badge field) + partner-ui
+  `routes/orders/order-list/.../order-list-table.tsx`. The inventory-detail and
+  designs routes already derive partner status from tasks/runs — untouched.
+
+- [ ] **Chunk 9 → PR-E (T4 backfill + fallback retirement).** *(blocked by: PR-D)*
+  - New `medusa exec` script `src/scripts/backfill-unified-order-links.ts`:
+    `--dry-run`, paginated, per-row try/catch. For `inventory_orders` and
+    `production_runs` where `metadata.unified_order_id` is set but the D5
+    `order.id` link is absent → `remoteLink.create` the link (model Pattern C —
+    `backfill-store-customers.ts`). Idempotent (skip if `order.id` already present).
+  - Run dry-run then live in prod; verify `count(unified_order_id set AND no link) == 0`.
+  - Then DELETE the 4 fallback reads (`?? …unified_order_id`): `dual-write-unified-order.ts:162`,
+    `:440`; `dual-write-unified-run-order.ts:213`; `api/admin/orders/route.ts:45`.
+    Each becomes link-only. Update the dual-write specs (drop fallback assertions).
+- [ ] **Chunk 9b → PR-F (expand: column + dual-write + backfill).** *(blocked by: 7, 8, PR-E)*
+  - New 1:1 sidecar module `src/modules/unified_order_status` (model/service/index),
+    model `unified_order_status { id (prefix "uos"), partner_status: enum(assigned,
+    accepted, in_progress, finished, partial, completed, declined), updated_at }`.
+    Link `src/links/order-unified-status.ts` (`isList:false`, `filterable:["id"]`).
+    Create-table migration (generated); future column adds hand-written
+    `add column if not exists` per [[reference_medusa_migration_create_if_not_exists_hazard]].
+  - Atomic upsert helper `setUnifiedOrderPartnerStatus(container, orderId, status)` —
+    find-or-create sidecar row, single-column write (no RMW → no lock needed).
+  - Wire the 4 mirror WRITE sites + the create-path projection to write **BOTH** the
+    column (via helper) AND keep `metadata.partner_status` (still under the existing
+    lock) — belt-and-suspenders during expand.
+  - Backfill script (or extend PR-E's): every order with `metadata.partner_status`
+    → upsert the sidecar row. Idempotent.
+- [ ] **Chunk 9b → PR-G (migrate reads).** *(blocked by: PR-F)*
+  - Repoint the 2 read sites to `unified_order_statuses.partner_status`
+    (keep metadata fallback transitionally): backend `api/partners/orders/route.ts`,
+    partner-ui `order-list-table.tsx`. Verify panels render off the column in prod.
+- [ ] **Chunk 9b → PR-H (contract: retire metadata + lock).** *(blocked by: PR-G verified)*
+  - Stop writing `metadata.partner_status` in the 4 sites + create path (column-only).
+  - Remove the `withUnifiedOrderMetadataLock` wrapping from the 4 sites + delete the
+    helper — remaining metadata writes are write-once-at-create (no RMW), safe unlocked.
+    **KEEP the Chunk-8 Redis provider** (other LOCKING consumers, see correction above).
+  - Remove the metadata fallback reads from PR-G; drop `partner_status` from
+    `PROTECTED_UNIFICATION_METADATA_KEYS` if still present. Optional metadata-cleanup
+    backfill to strip stale `metadata.partner_status`.
 
 **Cross-cutting (not a unification chunk — QA + marketing):**
 - [ ] **Playwright stage-by-stage walkthrough + screenshots.** Drive the partner
