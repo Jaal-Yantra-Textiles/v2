@@ -58,7 +58,7 @@ as the discriminator/pointer. Instead:
 | **PR-D** | 7 + 8 | Concurrency hardening: locking + Redis provider (parallel track, independent of A–C) | **MERGED — PR #395** (`1ef954378`, 2026-06-14). `orders-unification-locking.spec.ts` 3/3; dual-write 12/12. |
 | **PR-E** | 9 | T4 backfill SCRIPT (link-only) | **MERGED — PR #396** (`e9c5be099`, 2026-06-14). Script `src/scripts/backfill-unified-order-links.ts` shipped. ⚠️ **OPERATIONAL: still must be RUN in prod** (see "T4 plan"). |
 | **PR-E2** | 9 | Retire the 4 `unified_order_id` fallback reads | **NEXT after the prod backfill is RUN + verified** (`linked=0, danglingBackref=0`). Not started. |
-| **PR-F** | 9b-expand | New `unified_order_status` 1:1 sidecar column + dual-write both column & metadata + backfill | **▶ START HERE next session — UNBLOCKED** (PR-D + PR-E merged). Not started. |
+| **PR-F** | 9b-expand | New `unified_order_status` 1:1 sidecar column + dual-write both column & metadata + backfill | **DONE on branch `feat/342-pr-f-status-column`** (2026-06-14). Module `src/modules/unified_order_status` + link `order-unified-status.ts` + helper `setUnifiedOrderPartnerStatus` (find-or-create upsert); 5 write sites mirror BOTH column & metadata; backfill `src/scripts/backfill-unified-order-status.ts`. New spec `orders-unification-status-column.spec.ts` 1/1; full unification suite 24/24 regression-green. ⚠️ **OPERATIONAL: run the backfill in prod after deploy** (dry-run then live). |
 | **PR-G** | 9b-migrate | Repoint the 2 `metadata.partner_status` read sites to the column | planned. *(blocked by PR-F)* |
 | **PR-H** | 9b-contract | Stop writing `metadata.partner_status`; remove the Chunk-7 lock wrapping (KEEP Redis provider) | planned. *(blocked by PR-G verified)* |
 
@@ -300,8 +300,10 @@ as the discriminator/pointer. Instead:
 ### T4 plan — Chunks 9 + 9b (planned 2026-06-14, scope confirmed with user)
 
 > **▶ HANDOFF / NEXT SESSION (updated 2026-06-14):** PR-A…E are all MERGED to main
-> (auto-deployed). **Start PR-F next** — it is UNBLOCKED (see the PR-F checkbox below
-> for the full build list). Two threads are still open and independent of PR-F:
+> (auto-deployed). **PR-F is DONE on branch `feat/342-pr-f-status-column`** (open the
+> PR + merge → deploy → run the status backfill). **Start PR-G next** (migrate the 2
+> `metadata.partner_status` read sites onto `unified_order_statuses.partner_status`) —
+> UNBLOCKED once PR-F merges. Two threads are still open and independent of PR-F/G:
 > 1. **Run the PR-E backfill in prod** (the deploy shipped the script but does NOT
 >    run it): `npx medusa exec ./src/scripts/backfill-unified-order-links.ts dry-run`
 >    then without `dry-run`; verify a second run reports `linked=0 danglingBackref=0`.
@@ -349,8 +351,29 @@ those links remain valid; only revisit if we ever delete the legacy execution ro
     DELETE the 4 fallback reads (`?? …unified_order_id`): `dual-write-unified-order.ts:162`,
     `:440`; `dual-write-unified-run-order.ts:213`; `api/admin/orders/route.ts:45`.
     Each becomes link-only. Update the dual-write specs (drop fallback assertions).
-- [ ] **▶ Chunk 9b → PR-F (expand: column + dual-write + backfill) — START HERE, UNBLOCKED.** *(blocked by: 7, 8, PR-E — all merged)*
-  - New 1:1 sidecar module `src/modules/unified_order_status` (model/service/index),
+- [x] **Chunk 9b → PR-F (expand: column + dual-write + backfill) — DONE on branch `feat/342-pr-f-status-column`.** *(blocked by: 7, 8, PR-E — all merged)*
+  - **Built:** module `src/modules/unified_order_status` (model `partner_status` enum,
+    prefix `uos`, generated create-table migration `Migration20260614184932.ts`),
+    registered in BOTH `medusa-config.ts` + `medusa-config.prod.ts`. Link
+    `src/links/order-unified-status.ts` (`field:"unified_order_status"`,
+    `filterable:["id"]`). Helper `setUnifiedOrderPartnerStatus(container, orderId,
+    status)` (find-or-create via the link, single-column write) lives in
+    `inventory_orders/dual-write-unified-order.ts` next to the other shared seams.
+  - **5 write sites** mirror BOTH surfaces (column best-effort `.catch(warn)` so it
+    never regresses the still-authoritative metadata write): inventory
+    `mirrorPartnerLinkOnUnifiedOrderStep` ("assigned") + `mirrorUnifiedOrderStatusStep`;
+    production-run `projectRunToUnifiedOrder` (create path) + `patchUnifiedOrder`
+    (centralizes the "assigned" path; skips metadata-only `superseded_by_run_ids`) +
+    `mirrorRunStatusToUnifiedOrder`. Inventory create path writes NO status (none at
+    create — correct). The create race is a non-issue: the single-shot create
+    projection / single send-to-partner establishes the row before any concurrent mirror.
+  - **Backfill** `src/scripts/backfill-unified-order-status.ts` (positional `dry-run`,
+    PAGE=200, idempotent — skips no-status + already-matching rows; reuses the helper).
+  - **Tests:** `orders-unification-status-column.spec.ts` (BOTH-surface + same-row-on-
+    re-transition) 1/1; dual-write/design/locking/admin-filter/partner-filter 24/24 green.
+  - ⚠️ **OPERATIONAL after merge+deploy:** run the backfill in prod
+    (`npx medusa exec ./src/scripts/backfill-unified-order-status.ts dry-run` then live).
+  - *Original plan notes (kept for reference):*
     model `unified_order_status { id (prefix "uos"), partner_status: enum(assigned,
     accepted, in_progress, finished, partial, completed, declined), updated_at }`.
     Link `src/links/order-unified-status.ts` (`isList:false`, `filterable:["id"]`).
