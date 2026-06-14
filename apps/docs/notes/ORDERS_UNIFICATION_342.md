@@ -316,10 +316,10 @@ as the discriminator/pointer. Instead:
 > AWS CLI** (see "Running prod `medusa exec` scripts via ECS run-task" below — ECS Exec
 > is NOT enabled on the service, so `run-task` with a command override is the path).
 > Independent of PR-G/H; both are idempotent, run `dry-run` then live:
-> 1. **PR-E link backfill** — `npx medusa exec ./src/scripts/backfill-unified-order-links.ts dry-run`
+> 1. **PR-E link backfill** — `npx medusa exec ./src/scripts/backfill-unified-order-links.js dry-run`
 >    then live; verify a 2nd run reports `linked=0 danglingBackref=0`. Gates **PR-E2**
 >    (delete the 4 `?? metadata.unified_order_id` fallback reads).
-> 2. **PR-F status backfill** — `npx medusa exec ./src/scripts/backfill-unified-order-status.ts dry-run`
+> 2. **PR-F status backfill** — `npx medusa exec ./src/scripts/backfill-unified-order-status.js dry-run`
 >    then live; verify a 2nd run reports `upserted=0`. Promotes historical
 >    `metadata.partner_status` onto the column so PR-G's repointed reads cover them.
 >
@@ -335,9 +335,10 @@ Prod is **Copilot-managed ECS Fargate** in `us-east-1` (account `369351873445`).
 Exec is **disabled** on the service (`enableExecuteCommand:false`), so to run a one-off
 script we launch an **ephemeral task** off the SAME server task definition (it already
 wires every SSM secret — `DATABASE_URL`, `REDIS_URL`, etc.) with a `command` override.
-The runtime workdir is `/app/.medusa/server` (built server), so `npx medusa exec
-./src/scripts/<file>.ts` resolves exactly as it does locally. Discovered facts (re-verify
-if infra changed — `aws ecs list-clusters/describe-services`):
+The runtime workdir is `/app/.medusa/server` (built server). ⚠️ **The built server holds
+COMPILED `.js`, not `.ts`** — use `npx medusa exec ./src/scripts/<file>.js` (a `.ts` path
+errors `File …/src/scripts/<file>.ts doesn't exist`). Discovered facts (re-verify if infra
+changed — `aws ecs list-clusters/describe-services`):
 
 | thing | value |
 |---|---|
@@ -355,7 +356,7 @@ TASK_ARN=$(aws ecs run-task --region us-east-1 \
   --task-definition jyt-prod-medusa-server \
   --launch-type FARGATE \
   --network-configuration 'awsvpcConfiguration={subnets=[subnet-0fbeafa1ebdf9026a,subnet-05ebe6f3b9fb25673],securityGroups=[sg-0c3685e1a91b5d60e],assignPublicIp=ENABLED}' \
-  --overrides '{"containerOverrides":[{"name":"medusa-server","command":["sh","-c","npx medusa exec ./src/scripts/backfill-unified-order-status.ts dry-run"]}]}' \
+  --overrides '{"containerOverrides":[{"name":"medusa-server","command":["sh","-c","npx medusa exec ./src/scripts/backfill-unified-order-status.js dry-run"]}]}' \
   --query 'tasks[0].taskArn' --output text)
 
 # wait for it to finish, then read the script output from CloudWatch:
@@ -368,7 +369,7 @@ aws logs tail /copilot/jyt-prod-medusa-server --region us-east-1 \
 Notes: the override bypasses the image CMD's worker/predeploy branch, so it runs ONLY
 the script (no migrations, no server boot). `assignPublicIp=ENABLED` + the public
 subnets are needed for the ECR image pull. Same recipe runs the **PR-E link backfill**
-(`backfill-unified-order-links.ts`) — do that one + PR-E2 too.
+(`backfill-unified-order-links.js`) — do that one + PR-E2 too.
 
 **Scope decisions (2026-06-14):** (1) backfill is **link-only** — covers rows already
 projected (have `metadata.unified_order_id`); pre-T2 legacy rows never projected stay
@@ -427,7 +428,7 @@ those links remain valid; only revisit if we ever delete the legacy execution ro
   - **Tests:** `orders-unification-status-column.spec.ts` (BOTH-surface + same-row-on-
     re-transition) 1/1; dual-write/design/locking/admin-filter/partner-filter 24/24 green.
   - ⚠️ **OPERATIONAL after merge+deploy:** run the backfill in prod
-    (`npx medusa exec ./src/scripts/backfill-unified-order-status.ts dry-run` then live).
+    (`npx medusa exec ./src/scripts/backfill-unified-order-status.js dry-run` then live).
   - *Original plan notes (kept for reference):*
     model `unified_order_status { id (prefix "uos"), partner_status: enum(assigned,
     accepted, in_progress, finished, partial, completed, declined), updated_at }`.
