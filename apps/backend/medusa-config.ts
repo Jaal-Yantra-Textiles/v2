@@ -126,6 +126,9 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/ai_usage",
     },
+    {
+      resolve: "./src/modules/unified_order_status",
+    },
 
     // Production-ready modules
     // {

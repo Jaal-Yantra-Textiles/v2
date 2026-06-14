@@ -13,6 +13,7 @@ import {
   resolveUnifiedOrderIdByLink,
   linkUnifiedOrderOrRollback,
   withUnifiedOrderMetadataLock,
+  setUnifiedOrderPartnerStatus,
 } from "../inventory_orders/dual-write-unified-order"
 
 // #342 T3.2 — best-effort projection of production runs onto the core `order`
@@ -167,6 +168,22 @@ const patchUnifiedOrder = async (
         },
       ])
     })
+    // Chunk 9b (PR-F) — when the patch carries partner_status, mirror it onto
+    // the typed sidecar column too (expand: BOTH surfaces). Best-effort; skips
+    // metadata-only patches like superseded_by_run_ids that carry no status.
+    const patchedStatus = (patch.metadata as any)?.partner_status
+    if (patchedStatus) {
+      await setUnifiedOrderPartnerStatus(
+        container,
+        unifiedOrderId,
+        patchedStatus
+      ).catch((e: any) => {
+        const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+        logger.warn(
+          `[orders-unification] sidecar status write failed for ${unifiedOrderId}: ${e?.message}`
+        )
+      })
+    }
     return
   }
   await orderService.updateOrders([
@@ -330,6 +347,23 @@ export const projectRunToUnifiedOrder = async (
       }
     }
 
+    // Chunk 9b (PR-F) — when the projection derived a partner_status (the run is
+    // born at/past sent_to_partner), also write the typed sidecar column. This
+    // single-shot create path establishes the sidecar row before any concurrent
+    // mirror can run, so the column find-or-create never races. BOTH surfaces
+    // during expand; best-effort so it never regresses the metadata projection.
+    if (partnerStatus) {
+      await setUnifiedOrderPartnerStatus(
+        container,
+        unified.id,
+        partnerStatus
+      ).catch((e: any) =>
+        logger.warn(
+          `[orders-unification] sidecar status write failed for ${unified.id}: ${e?.message}`
+        )
+      )
+    }
+
     return { unified_order_id: unified.id }
   } catch (e: any) {
     logger.warn(
@@ -414,6 +448,21 @@ export const mirrorRunStatusToUnifiedOrder = async (
 
     if (superseded) {
       return { linked: false, skipped: "superseded" }
+    }
+
+    // Chunk 9b (PR-F) — mirror partner_status onto the typed sidecar column too
+    // (expand: BOTH surfaces). Outside the lock — a single-column write has no
+    // RMW to protect. Best-effort, same contract as the metadata write above.
+    if (partnerStatus) {
+      await setUnifiedOrderPartnerStatus(
+        container,
+        unifiedOrderId,
+        partnerStatus
+      ).catch((e: any) =>
+        logger.warn(
+          `[orders-unification] sidecar status write failed for ${unifiedOrderId}: ${e?.message}`
+        )
+      )
     }
 
     return { linked: true, unified_order_id: unifiedOrderId }

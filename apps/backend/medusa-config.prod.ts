@@ -447,5 +447,8 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/fx_rates",
   },
+  {
+    resolve: "./src/modules/unified_order_status",
+  },
 ],
 });

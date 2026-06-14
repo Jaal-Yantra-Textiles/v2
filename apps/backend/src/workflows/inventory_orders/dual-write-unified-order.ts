@@ -5,6 +5,7 @@ import type { Link } from "@medusajs/modules-sdk"
 import type { LinkDefinition, MedusaContainer } from "@medusajs/framework/types"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import { PARTNER_MODULE } from "../../modules/partner"
+import { UNIFIED_ORDER_STATUS_MODULE } from "../../modules/unified_order_status"
 
 // #342 T2 — best-effort projection of legacy inventory orders onto the core
 // `order` entity (kind=inventory = "the order↔inventory_order link exists";
@@ -160,6 +161,50 @@ export const resolveUnifiedOrderIdByLink = async (
   })
   const row = data?.[0]
   return row?.order?.id ?? row?.metadata?.unified_order_id ?? undefined
+}
+
+// #342 Chunk 9b (PR-F) — promote `partner_status` off the order's metadata blob
+// onto the typed 1:1 `unified_order_status` sidecar column. Atomic upsert:
+// find-or-create the sidecar row (via the order↔unified_order_status link) and
+// write the single `partner_status` column. A single-column write has no
+// read-modify-write, so it needs no lock — unlike the metadata RMW it shadows
+// (which stays under withUnifiedOrderMetadataLock through the expand phase).
+//
+// During expand every caller writes BOTH this column AND metadata.partner_status
+// (belt-and-suspenders); PR-G repoints the 2 read sites onto this column and
+// PR-H stops writing the metadata copy + drops the lock. The create race on a
+// brand-new order's first status is a non-issue in practice: the create-path
+// projection (production runs) and the single send-to-partner mirror (inventory)
+// establish the row before any concurrent transition can run.
+export const setUnifiedOrderPartnerStatus = async (
+  container: MedusaContainer,
+  unifiedOrderId: string,
+  status: string
+): Promise<void> => {
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "order",
+    fields: ["id", "unified_order_status.id"],
+    filters: { id: unifiedOrderId },
+  })
+  const existingId = data?.[0]?.unified_order_status?.id
+  const service: any = container.resolve(UNIFIED_ORDER_STATUS_MODULE)
+  if (existingId) {
+    await service.updateUnifiedOrderStatuses([
+      { id: existingId, partner_status: status },
+    ])
+    return
+  }
+  const created = await service.createUnifiedOrderStatuses({
+    partner_status: status,
+  })
+  const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+  await remoteLink.create([
+    {
+      [Modules.ORDER]: { order_id: unifiedOrderId },
+      [UNIFIED_ORDER_STATUS_MODULE]: { unified_order_status_id: created.id },
+    },
+  ])
 }
 
 // D5-cleanup (Chunk 6) — create the load-bearing order↔<execution> link
@@ -402,6 +447,16 @@ export const mirrorPartnerLinkOnUnifiedOrderStep = createStep(
         ])
       })
 
+      // Chunk 9b (PR-F) — also write the typed sidecar column (expand: BOTH
+      // surfaces). Best-effort so a sidecar failure never regresses the
+      // still-authoritative metadata write above.
+      await setUnifiedOrderPartnerStatus(container, unifiedOrderId, "assigned").catch(
+        (e: any) =>
+          logger.warn(
+            `[orders-unification] sidecar status write failed for ${unifiedOrderId}: ${e?.message}`
+          )
+      )
+
       return new StepResponse<MirrorResult>({
         linked: true,
         unified_order_id: unifiedOrderId,
@@ -471,6 +526,20 @@ export const mirrorUnifiedOrderStatusStep = createStep(
           },
         ])
       })
+
+      // Chunk 9b (PR-F) — mirror partner_status onto the typed sidecar column
+      // too (expand: BOTH surfaces). Best-effort, same contract as above.
+      if (partnerStatus) {
+        await setUnifiedOrderPartnerStatus(
+          container,
+          unifiedOrderId,
+          partnerStatus
+        ).catch((e: any) =>
+          logger.warn(
+            `[orders-unification] sidecar status write failed for ${unifiedOrderId}: ${e?.message}`
+          )
+        )
+      }
 
       return new StepResponse<MirrorResult>({
         linked: true,
