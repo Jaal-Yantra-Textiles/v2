@@ -23,7 +23,16 @@ export const refetchDesign = async (
 ) => {
   const query = container.resolve("query")
 
+  // Always include the design's OWN columns (`*`) alongside the relations.
+  // Callers (e.g. the admin detail loader's DESIGN_DETAIL_FIELDS) enumerate only
+  // relations, so without `*` query.graph returns just `id` + relations — the
+  // design's name/status/media and the legacy `color_palette`/`custom_sizes`
+  // JSON columns all go missing, leaving the detail UI with nothing to render
+  // and the derivation below falling back to the (often empty) relations. `*`
+  // selects only base scalar columns, so the explicit relation wildcards still
+  // drive what gets populated.
   const baseFields: DesignAllowedFields[] = [
+    "*",
     "colors.*",
     "size_sets.*",
     "inventory_items.*",
