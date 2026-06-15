@@ -1,3 +1,26 @@
+# [13.34.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.33.0...v13.34.0) (2026-06-15)
+
+
+### Bug Fixes
+
+* **socials:** [#32](https://github.com/Jaal-Yantra-Textiles/v2/issues/32)A — re-encrypt fresh token over stale ciphertext (vflow 401) ([1672320](https://github.com/Jaal-Yantra-Textiles/v2/commit/16723202e214e0c42376a24e27268e4323584943))
+* **visual-flows:** [#32](https://github.com/Jaal-Yantra-Textiles/v2/issues/32)B — robust failure alerting (cancelled + engine + no-silent-bail) ([1ae30d3](https://github.com/Jaal-Yantra-Textiles/v2/commit/1ae30d363b9627a7888c1f8d875e12c7713f8f5b)), closes [#26](https://github.com/Jaal-Yantra-Textiles/v2/issues/26)
+* **socials:** [#32](https://github.com/Jaal-Yantra-Textiles/v2/issues/32)C — remove backticks from comment inside template literal (build break) ([7fd9e6f](https://github.com/Jaal-Yantra-Textiles/v2/commit/7fd9e6f7c19cab78074c96b4948990340acb09ef)), closes [#408](https://github.com/Jaal-Yantra-Textiles/v2/issues/408)
+* **email:** seed visual-flow templates with verified from (no-reply@jaalyantra.com) ([dad0984](https://github.com/Jaal-Yantra-Textiles/v2/commit/dad09840a455b6481dc3db553daaaa70426e4dff))
+
+
+### Features
+
+* **partner-ui:** "What's new" dashboard changelog carousel ([a553359](https://github.com/Jaal-Yantra-Textiles/v2/commit/a55335982cf2fe67d187f3d05e2d091178ec4f87)), closes [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342)
+* **shipping:** [#31](https://github.com/Jaal-Yantra-Textiles/v2/issues/31) — migrate partner fulfilment routes onto resolveShippingProvider ([deedaa2](https://github.com/Jaal-Yantra-Textiles/v2/commit/deedaa21dcbd5e41bf644cf6478fc17e0954cd75))
+* **shipping:** [#31](https://github.com/Jaal-Yantra-Textiles/v2/issues/31) — pluggable shipping-provider interface + Shiprocket (spike) ([1eaa1f3](https://github.com/Jaal-Yantra-Textiles/v2/commit/1eaa1f38792f4c224932700681d544b4b76f8b78))
+* **shipping:** [#31](https://github.com/Jaal-Yantra-Textiles/v2/issues/31) — register Shiprocket fulfillment provider + auto-register pickup on store create ([001872a](https://github.com/Jaal-Yantra-Textiles/v2/commit/001872aae207ede77ea21693b57a13ad8f002547)), closes [#416](https://github.com/Jaal-Yantra-Textiles/v2/issues/416)
+* **admin:** [#31](https://github.com/Jaal-Yantra-Textiles/v2/issues/31) — Shiprocket pickup opt-in widget on stock-location detail ([9ba8fa3](https://github.com/Jaal-Yantra-Textiles/v2/commit/9ba8fa319cfe98f4b43946771130e6edab5e007c))
+* **shipping:** [#31](https://github.com/Jaal-Yantra-Textiles/v2/issues/31) — Shiprocket pickup-location registration + backfill ([6bff743](https://github.com/Jaal-Yantra-Textiles/v2/commit/6bff743abf613c25fd92b8a00e5e7a02436d95cb))
+* **socials:** [#32](https://github.com/Jaal-Yantra-Textiles/v2/issues/32)A — redact secrets from social-platforms API, MFA-gated reveal ([d0f89f6](https://github.com/Jaal-Yantra-Textiles/v2/commit/d0f89f60878ef59d62681bf93279104b5328ed48))
+* **visual-flows:** [#418](https://github.com/Jaal-Yantra-Textiles/v2/issues/418) — gate flow-start email behind per-flow toggle ([#419](https://github.com/Jaal-Yantra-Textiles/v2/issues/419)) ([ebb9e4b](https://github.com/Jaal-Yantra-Textiles/v2/commit/ebb9e4bf5c25d2fddf20c4a8b2de6a6198d30a1c))
+* **partner-ui:** record real action GIFs for the What's-new carousel ([8599fad](https://github.com/Jaal-Yantra-Textiles/v2/commit/8599fad168a6e0a8f7304ffad6fbce8b7e4f73c1))
+
 # [13.33.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.32.0...v13.33.0) (2026-06-15)
 
 
