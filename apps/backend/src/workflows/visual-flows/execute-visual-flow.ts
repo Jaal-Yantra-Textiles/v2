@@ -157,6 +157,10 @@ const initializeExecutionStep = createStep(
       flow_id: input.flowId,
       flow_name: (input.flow as any)?.name,
       flow_metadata: (input.flow as any)?.metadata ?? null,
+      // trigger_type lets the lifecycle-email subscriber default the
+      // start-email OFF for schedule-triggered flows (#418): short-interval
+      // schedules were spamming the inbox with kick-off notices.
+      flow_trigger_type: (input.flow as any)?.trigger_type ?? null,
       execution_id: execution.id,
       triggered_by: input.triggeredBy,
       triggered_by_event: incomingEventName,
