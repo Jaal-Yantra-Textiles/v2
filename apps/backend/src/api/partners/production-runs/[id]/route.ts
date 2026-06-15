@@ -149,15 +149,23 @@ export async function GET(
   // in application code.
   const { data } = await query.graph({
     entity: "production_runs",
-    fields: ["*", "tasks.*"],
+    // `order.id` resolves the order↔production_run link forward (#342 D5) so the
+    // partner-ui can redirect the retired `/production-runs/:id` to the unified
+    // order detail. Managed link → bidirectional; forward `.order` works here.
+    fields: ["*", "tasks.*", "order.id"],
     filters: { id, partner_id: partnerId },
     pagination: { skip: 0, take: 1 },
   })
 
   const node = (data || [])[0] || run
 
+  const unifiedOrderId = Array.isArray((node as any)?.order)
+    ? (node as any).order[0]?.id
+    : (node as any)?.order?.id
+
   return res.status(200).json({
     production_run: node,
     tasks: node?.tasks || [],
+    unified_order_id: unifiedOrderId,
   })
 }

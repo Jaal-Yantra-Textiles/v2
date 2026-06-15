@@ -133,12 +133,22 @@ export async function GET(
       "depends_on_run_ids", "metadata",
       "created_at", "updated_at",
       "tasks.*",
+      // `order.id` resolves the order↔production_run link (#342 D5) so the design
+      // page can deep-link each run to its unified order detail (`/orders/:id`).
+      // NB: this is the LINK accessor, distinct from the plain legacy `order_id`
+      // column above (the original retail order line the run was created from).
+      "order.id",
     ],
     filters,
     pagination: { skip: offset, take: limit },
   }, { locale: req.locale })
 
-  const list = runs || []
+  const list = (runs || []).map((run: any) => ({
+    ...run,
+    unified_order_id: Array.isArray(run?.order)
+      ? run.order[0]?.id
+      : run?.order?.id,
+  }))
 
   return res.status(200).json({
     production_runs: list,

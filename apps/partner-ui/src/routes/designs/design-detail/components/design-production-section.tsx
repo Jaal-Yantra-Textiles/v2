@@ -1,11 +1,12 @@
 import { Badge, Container, Heading, Text, clx } from "@medusajs/ui"
-import { ChevronDownMini } from "@medusajs/icons"
+import { ChevronDownMini, ArrowUpRightOnBox } from "@medusajs/icons"
 import { useState } from "react"
+import { Link } from "react-router-dom"
 
 import { PartnerDesign } from "../../../../hooks/api/partner-designs"
 import { usePartnerProductionRuns } from "../../../../hooks/api/partner-production-runs"
-import { usePartnerConsumptionLogs } from "../../../../hooks/api/partner-consumption-logs"
-import { ProductionRunCard } from "../../../../components/work-orders/production-run-card"
+import { GeneralSectionSkeleton } from "../../../../components/common/skeleton"
+import { getStatusBadgeColor } from "../../../../lib/status-badge"
 
 type DesignProductionSectionProps = {
   design: PartnerDesign
@@ -13,6 +14,14 @@ type DesignProductionSectionProps = {
 
 const TERMINAL_STATUSES = ["completed", "cancelled"]
 
+/**
+ * #342 — the design page is the authoring library; execution (tasks, cost,
+ * lifecycle actions) lives on the unified order detail. This section is now a
+ * compact list of the design's design orders (production runs → unified
+ * `order` kind=design) that deep-links to `/orders/:id`. Runs that predate the
+ * D5 link fall back to the legacy `/production-runs/:id` route, which itself
+ * redirects to the unified order.
+ */
 export const DesignProductionSection = ({ design }: DesignProductionSectionProps) => {
   const { production_runs = [], isPending } = usePartnerProductionRuns({
     design_id: design.id,
@@ -20,39 +29,26 @@ export const DesignProductionSection = ({ design }: DesignProductionSectionProps
   })
   const [showPrevious, setShowPrevious] = useState(false)
 
-  // Fetch consumption logs once at section level, pass count down to cards
-  const { logs: allConsumptionLogs = [], count: totalConsumptionCount = 0 } =
-    usePartnerConsumptionLogs(design.id)
-
   if (isPending) {
-    return (
-      <Container className="divide-y p-0">
-        <div className="px-6 py-4">
-          <Heading level="h2">Production</Heading>
-        </div>
-        <div className="px-6 py-4">
-          <Text size="small" className="text-ui-fg-subtle">Loading...</Text>
-        </div>
-      </Container>
-    )
+    return <GeneralSectionSkeleton rowCount={2} />
   }
 
   if (!production_runs.length) {
     return (
       <Container className="divide-y p-0">
         <div className="px-6 py-4">
-          <Heading level="h2">Production</Heading>
+          <Heading level="h2">Design orders</Heading>
         </div>
         <div className="px-6 py-4">
           <Text size="small" className="text-ui-fg-subtle">
-            No production runs assigned yet. You'll see them here once the admin sends work your way.
+            No design orders yet. Create a design order to start production, or
+            you'll see them here once the admin sends work your way.
           </Text>
         </div>
       </Container>
     )
   }
 
-  // Split into active (current) and previous (completed/cancelled) runs
   const activeRuns = production_runs.filter(
     (r: any) => !TERMINAL_STATUSES.includes(String(r.status))
   )
@@ -61,47 +57,76 @@ export const DesignProductionSection = ({ design }: DesignProductionSectionProps
   )
 
   return (
-    <>
-      {/* Active runs — always shown prominently */}
+    <Container className="divide-y p-0">
+      <div className="px-6 py-4">
+        <Heading level="h2">Design orders</Heading>
+        <Text size="small" className="text-ui-fg-subtle">
+          Open a design order to accept work, log materials, and update its
+          status.
+        </Text>
+      </div>
+
       {activeRuns.map((run: any) => (
-        <ProductionRunCard key={String(run.id)} run={run} design={design} consumptionLogs={allConsumptionLogs} consumptionCount={totalConsumptionCount} />
+        <DesignOrderRow key={String(run.id)} run={run} />
       ))}
 
-      {/* Previous runs — collapsed behind a disclosure */}
       {previousRuns.length > 0 && (
-        <Container className="divide-y p-0">
+        <>
           <button
             type="button"
             onClick={() => setShowPrevious((v) => !v)}
             className="flex w-full items-center justify-between px-6 py-3 hover:bg-ui-bg-base-hover transition-colors"
           >
-            <div className="flex items-center gap-2">
-              <Text size="small" weight="plus" className="text-ui-fg-subtle">
-                Previous Runs ({previousRuns.length})
-              </Text>
-              {previousRuns.map((r: any) => (
-                <Badge key={String(r.id)} size="2xsmall" color={String(r.status) === "completed" ? "green" : "red"}>
-                  {r.run_type === "sample" ? "Sample" : "Production"} — {String(r.status).replace(/_/g, " ")}
-                </Badge>
-              ))}
-            </div>
+            <Text size="small" weight="plus" className="text-ui-fg-subtle">
+              Previous design orders ({previousRuns.length})
+            </Text>
             <ChevronDownMini
               className={clx("text-ui-fg-muted transition-transform", {
                 "rotate-180": showPrevious,
               })}
             />
           </button>
-          {showPrevious && (
-            <div className="flex flex-col gap-y-4 py-4">
-              {previousRuns.map((run: any) => (
-                <div key={String(run.id)} className="opacity-75">
-                  <ProductionRunCard run={run} design={design} consumptionLogs={allConsumptionLogs} consumptionCount={totalConsumptionCount} />
-                </div>
-              ))}
-            </div>
-          )}
-        </Container>
+          {showPrevious &&
+            previousRuns.map((run: any) => (
+              <DesignOrderRow key={String(run.id)} run={run} muted />
+            ))}
+        </>
       )}
-    </>
+    </Container>
+  )
+}
+
+const DesignOrderRow = ({ run, muted }: { run: any; muted?: boolean }) => {
+  const status = String(run.status || "")
+  const to = run.unified_order_id
+    ? `/orders/${run.unified_order_id}`
+    : `/production-runs/${run.id}`
+
+  return (
+    <Link
+      to={to}
+      className={clx(
+        "flex items-center justify-between px-6 py-4 transition-colors hover:bg-ui-bg-base-hover",
+        { "opacity-75": muted }
+      )}
+    >
+      <div className="flex min-w-0 flex-col gap-y-1">
+        <div className="flex items-center gap-x-2">
+          <Text size="small" weight="plus" className="truncate">
+            {run.run_type === "sample" ? "Sample" : "Production"} order
+          </Text>
+          <Badge size="2xsmall" color={getStatusBadgeColor(status)}>
+            {status.replace(/_/g, " ") || "—"}
+          </Badge>
+        </div>
+        <Text size="xsmall" className="text-ui-fg-subtle">
+          {run.quantity != null ? `Qty ${run.quantity}` : "—"}
+        </Text>
+      </div>
+      <div className="flex shrink-0 items-center gap-x-1 text-ui-fg-interactive">
+        <Text size="small">View order</Text>
+        <ArrowUpRightOnBox />
+      </div>
+    </Link>
   )
 }

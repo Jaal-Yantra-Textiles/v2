@@ -65,8 +65,8 @@ export const DesignOwnerActionsSection = ({ design }: Props) => {
         <Heading level="h2">{design.name || "Your design"}</Heading>
         <Text size="small" className="text-ui-fg-subtle">
           {hasActiveRun
-            ? `${activeRuns.length} run${activeRuns.length > 1 ? "s" : ""} in progress. Start another or hand one to a sub-partner.`
-            : "You created this design. Start production yourself or hand it to a sub-partner."}
+            ? `${activeRuns.length} design order${activeRuns.length > 1 ? "s" : ""} in progress. Create another or hand one to a sub-partner.`
+            : "You created this design. Create a design order to start production, or hand it to a sub-partner."}
         </Text>
       </div>
       <div className="flex items-center gap-x-2">
@@ -74,9 +74,10 @@ export const DesignOwnerActionsSection = ({ design }: Props) => {
           <Button
             size="small"
             variant={hasActiveRun ? "secondary" : "primary"}
+            className="whitespace-nowrap"
           >
             {hasActiveRun ? <Plus /> : <PlaySolid />}
-            {hasActiveRun ? "New run" : "Start production"}
+            {hasActiveRun ? "New order" : "Create order"}
           </Button>
         </Link>
         <ActionMenu

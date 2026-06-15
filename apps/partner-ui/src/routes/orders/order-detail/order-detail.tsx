@@ -168,6 +168,7 @@ export const OrderDetail = () => {
                 consumptionCount={consumptionCount}
                 onActionSuccess={invalidateOrder}
                 showTimeline={false}
+                taskLinkBase="tasks"
               />
             )}
             {kind === "inventory" && inventoryOrder && (

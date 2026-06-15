@@ -1,6 +1,6 @@
 import { HttpTypes } from "@medusajs/types"
 import type { UIMatch } from "react-router-dom"
-import { Outlet, RouteObject } from "react-router-dom"
+import { Navigate, Outlet, RouteObject } from "react-router-dom"
 
 import { ProtectedRoute } from "../../components/authentication/protected-route"
 import { MainLayout } from "../../components/layout/main-layout"
@@ -179,9 +179,11 @@ export function getPartnerRouteMap(): RouteObject[] {
               },
               children: [
                 {
+                  // #342 — retired: the inventory work-order LIST is gone; the
+                  // unified `/orders/inventory` panel is the surface. Redirect
+                  // the legacy list path so bookmarks/links keep resolving.
                   path: "",
-                  lazy: () =>
-                    import("../../routes/inventory-orders/inventory-orders-list"),
+                  element: <Navigate to="/orders/inventory" replace />,
                 },
                 {
                   // #342 — retired: inventory work-orders now live on the
@@ -238,25 +240,20 @@ export function getPartnerRouteMap(): RouteObject[] {
               },
               children: [
                 {
+                  // #342 — retired: the design work-order LIST is the unified
+                  // `/orders/design` panel now. Redirect the legacy list path.
                   path: "",
-                  lazy: () => import("../../routes/production-runs/production-run-list"),
+                  element: <Navigate to="/orders/design" replace />,
                 },
                 {
+                  // #342 — retired: design work-orders open on the unified order
+                  // detail (`/orders/:id`). Resolve the legacy run to its unified
+                  // order and redirect; bookmarks/links keep working.
                   path: ":id",
-                  handle: {
-                    breadcrumb: (match?: UIMatch) =>
-                      match?.params?.id || "Production Run",
-                  },
-                  lazy: () => import("../../routes/production-runs/production-run-detail"),
-                  children: [
-                    {
-                      path: "tasks/:task_id",
-                      lazy: () =>
-                        import(
-                          "../../routes/production-runs/production-run-task-drawer"
-                        ),
-                    },
-                  ],
+                  lazy: () =>
+                    import(
+                      "../../routes/production-runs/production-run-redirect"
+                    ),
                 },
               ],
             },
@@ -685,6 +682,17 @@ export function getPartnerRouteMap(): RouteObject[] {
                       lazy: () =>
                         import(
                           "../../routes/inventory-orders/inventory-order-submit-payment"
+                        ),
+                    },
+                    // #342 — design work-order task detail, folded onto the
+                    // unified order detail (was `/production-runs/:id/tasks/:task_id`).
+                    // Standalone partner tasks (not tied to a run) keep their own
+                    // top-level `/tasks` surface — only run-tied tasks live here.
+                    {
+                      path: "tasks/:task_id",
+                      lazy: () =>
+                        import(
+                          "../../components/work-orders/production-run-task-drawer"
                         ),
                     },
                   ],

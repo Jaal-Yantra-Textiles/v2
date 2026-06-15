@@ -72,10 +72,10 @@ export const RunCreateForm = ({ designId }: Props) => {
         <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto">
           <div className="flex w-full max-w-[640px] flex-col gap-y-8 px-2 py-16">
             <div className="flex flex-col gap-y-1">
-              <Heading>Start production</Heading>
+              <Heading>Create design order</Heading>
               <Text size="small" className="text-ui-fg-subtle">
-                Create a production run for this design. It's approved and
-                ready to work immediately.
+                Start production for this design. The design order is approved
+                and ready to work immediately.
               </Text>
             </div>
 
@@ -178,7 +178,7 @@ export const RunCreateForm = ({ designId }: Props) => {
               </Button>
             </RouteFocusModal.Close>
             <Button size="small" type="submit" isLoading={isPending}>
-              Start production
+              Create design order
             </Button>
           </div>
         </RouteFocusModal.Footer>
