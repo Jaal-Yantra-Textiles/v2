@@ -94,7 +94,17 @@ export const OrderListTable = () => {
   )
 
   const filters = useOrderTableFilters()
-  const baseColumns = useOrderTableColumns({})
+  // Design/inventory work-orders carry no customer, sales channel, or
+  // payment/fulfillment status — those retail columns render empty, so hide them
+  // for the pure work-order kinds and surface the real ones (order #, total,
+  // date) plus the Work-status column. `all` keeps every column since it mixes
+  // retail + work orders.
+  const isPureWorkOrder = kind === "design" || kind === "inventory"
+  const baseColumns = useOrderTableColumns({
+    exclude: isPureWorkOrder
+      ? ["customer", "sales_channel", "payment_status", "fulfillment_status", "country"]
+      : [],
+  })
   const columns = useMemo(
     () =>
       kind === "retail" ? baseColumns : [...baseColumns, partnerStatusColumn],
@@ -113,10 +123,11 @@ export const OrderListTable = () => {
     throw error
   }
 
-  // view_configurations is an experimental flag; the kind sub-routes/tabs are
-  // wired through the standard table only. (When the flag is on, all kinds fall
-  // back to the configurable table unfiltered.)
-  if (isViewConfigEnabled) {
+  // view_configurations is an experimental flag whose configurable table is
+  // retail-oriented (no kind filter, retail columns). The work-order kinds need
+  // the kind-aware standard table below — so only retail falls through to the
+  // configurable table; design/inventory/all always use the kind-aware one.
+  if (isViewConfigEnabled && kind === "retail") {
     return <ConfigurableOrderListTable />
   }
 

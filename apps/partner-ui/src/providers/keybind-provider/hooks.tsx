@@ -141,7 +141,7 @@ export const useGlobalShortcuts = () => {
       },
       label: "Inventory Orders",
       type: "pageShortcut",
-      to: "/inventory-orders",
+      to: "/orders/inventory",
     },
     {
       keys: {

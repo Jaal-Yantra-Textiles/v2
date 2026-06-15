@@ -19,6 +19,7 @@ import {
 } from "@medusajs/ui"
 import { InformationCircleSolid, ExclamationCircle } from "@medusajs/icons"
 import { useState } from "react"
+import { Link } from "react-router-dom"
 
 import { PartnerDesign } from "../../hooks/api/partner-designs"
 import {
@@ -297,6 +298,7 @@ export const ProductionRunCard = ({
   consumptionCount = 0,
   onActionSuccess,
   showTimeline = true,
+  taskLinkBase,
 }: {
   run: any
   design: PartnerDesign
@@ -306,6 +308,10 @@ export const ProductionRunCard = ({
   /** When false, the lifecycle timeline is omitted (the order detail renders it
    * in the sidebar Activity section instead). Defaults to true (design page). */
   showTimeline?: boolean
+  /** When set (#342, order context), each task title links to the run-task
+   * drawer at `${taskLinkBase}/${task.id}` (relative to the order detail, i.e.
+   * `/orders/:id/tasks/:task_id`). Omitted on the design page — no drawer there. */
+  taskLinkBase?: string
 }) => {
   const runId = String(run.id)
   const status = String(run.status || "")
@@ -734,7 +740,7 @@ export const ProductionRunCard = ({
           </Text>
           <div className="flex flex-col gap-y-3">
             {tasks.map((t: any) => (
-              <InlineTaskCard key={String(t.id)} task={t} />
+              <InlineTaskCard key={String(t.id)} task={t} linkBase={taskLinkBase} />
             ))}
           </div>
         </div>
@@ -1328,7 +1334,7 @@ const CompleteRunForm = ({
 
 // ── Inline Task Card ────────────────────────────────────────────────
 
-const InlineTaskCard = ({ task }: { task: any }) => {
+const InlineTaskCard = ({ task, linkBase }: { task: any; linkBase?: string }) => {
   const taskId = String(task.id)
   const status = String(task.status || "pending")
   const canAccept = status === "pending" || status === "assigned"
@@ -1393,9 +1399,20 @@ const InlineTaskCard = ({ task }: { task: any }) => {
       <div className="flex items-start justify-between gap-x-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-x-2">
-            <Text size="small" weight="plus" className="truncate">
-              {String(task.title || task.id)}
-            </Text>
+            {linkBase ? (
+              <Link
+                to={`${linkBase}/${taskId}`}
+                className="truncate text-ui-fg-interactive hover:text-ui-fg-interactive-hover"
+              >
+                <Text size="small" weight="plus" className="truncate">
+                  {String(task.title || task.id)}
+                </Text>
+              </Link>
+            ) : (
+              <Text size="small" weight="plus" className="truncate">
+                {String(task.title || task.id)}
+              </Text>
+            )}
             <Badge size="2xsmall" color={getStatusBadgeColor(status)}>
               {status.replace(/_/g, " ")}
             </Badge>

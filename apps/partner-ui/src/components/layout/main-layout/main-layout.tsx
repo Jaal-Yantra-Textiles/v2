@@ -241,29 +241,6 @@ const useCoreRoutes = (
   return [
     { icon: <House />, label: t("app.nav.main.home"), to: "/" },
     {
-      icon: <PencilSquare />,
-      label: t("app.nav.main.designs"),
-      to: "/designs",
-      items: [
-        { label: t("app.nav.main.productionRuns"), to: "/production-runs" },
-        { label: t("app.nav.main.tasks"), to: "/tasks" },
-      ],
-    },
-    { icon: <CurrencyDollar />, label: t("app.nav.main.paymentSubmissions"), to: "/payment-submissions" },
-    { icon: <BuildingStorefront />, label: t("app.nav.main.inventoryOrders"), to: "/inventory-orders" },
-    { icon: <FolderOpen />, label: t("app.nav.main.sharedFolders"), to: "/shared-folders" },
-    {
-      icon: <Tag />,
-      label: t("app.nav.main.products"),
-      to: "/products",
-      items: [
-        { label: t("app.nav.main.categories"), to: "/categories" },
-        { label: t("app.nav.main.collections"), to: "/collections" },
-        { label: t("app.nav.main.productTypes"), to: "/product-types" },
-        { label: t("app.nav.main.stock"), to: "/products/inventory" },
-      ],
-    },
-    {
       icon: <ShoppingCart />,
       label: t("app.nav.main.orders"),
       to: "/orders",
@@ -274,6 +251,29 @@ const useCoreRoutes = (
         { label: "All", to: "/orders/all" },
         { label: "Design", to: "/orders/design" },
         { label: "Inventory", to: "/orders/inventory" },
+      ],
+    },
+    {
+      icon: <PencilSquare />,
+      label: t("app.nav.main.designs"),
+      to: "/designs",
+      // #342 — production runs (design work-orders) now live under the unified
+      // "Orders › Design" view; the design library keeps only authoring nav.
+      items: [
+        { label: t("app.nav.main.tasks"), to: "/tasks" },
+      ],
+    },
+    { icon: <CurrencyDollar />, label: t("app.nav.main.paymentSubmissions"), to: "/payment-submissions" },
+    { icon: <FolderOpen />, label: t("app.nav.main.sharedFolders"), to: "/shared-folders" },
+    {
+      icon: <Tag />,
+      label: t("app.nav.main.products"),
+      to: "/products",
+      items: [
+        { label: t("app.nav.main.categories"), to: "/categories" },
+        { label: t("app.nav.main.collections"), to: "/collections" },
+        { label: t("app.nav.main.productTypes"), to: "/product-types" },
+        { label: t("app.nav.main.stock"), to: "/products/inventory" },
       ],
     },
     { icon: <Users />, label: t("app.nav.main.customers"), to: "/customers" },
