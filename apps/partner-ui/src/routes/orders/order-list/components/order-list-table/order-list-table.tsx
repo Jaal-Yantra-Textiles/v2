@@ -15,7 +15,6 @@ import { useOrderTableQuery } from "../../../../../hooks/table/query/use-order-t
 import { useDataTable } from "../../../../../hooks/use-data-table"
 import { useFeatureFlag } from "../../../../../providers/feature-flag-provider"
 import { ConfigurableOrderListTable } from "./configurable-order-list-table"
-import { OrderKindTabs } from "./order-kind-tabs"
 
 import { DEFAULT_FIELDS } from "../../const"
 
@@ -33,7 +32,9 @@ const deriveKind = (pathname: string): OrderKind => {
     : "retail"
 }
 
-// The §5 work-progress vocabulary stamped on work-order metadata.partner_status.
+// The §5 work-progress vocabulary. Promoted to the typed
+// `unified_order_status.partner_status` column (PR-F); read off the column
+// first, with `metadata.partner_status` as a transitional fallback (PR-G).
 const PARTNER_STATUS_LABELS: Record<string, string> = {
   assigned: "Assigned",
   accepted: "Accepted",
@@ -42,6 +43,15 @@ const PARTNER_STATUS_LABELS: Record<string, string> = {
   finished: "Finished",
   completed: "Completed",
   declined: "Declined",
+}
+
+// The order-kind views are reached from the nested "Orders" sidebar submenu
+// (#342 Chunk 5). The heading reflects which kind is active.
+const KIND_HEADINGS: Record<OrderKind, string> = {
+  retail: "Orders",
+  design: "Design Orders",
+  inventory: "Inventory Orders",
+  all: "All Orders",
 }
 
 // Work-order-only column: the partner-facing lifecycle status. Shown on the
@@ -55,7 +65,8 @@ const partnerStatusColumn = workColumnHelper.display({
     </div>
   ),
   cell: ({ row }) => {
-    const status = row.original?.metadata?.partner_status as string | undefined
+    const status = (row.original?.unified_order_status?.partner_status ??
+      row.original?.metadata?.partner_status) as string | undefined
     if (!status) {
       return <span className="text-ui-fg-muted px-4">—</span>
     }
@@ -122,9 +133,8 @@ export const OrderListTable = () => {
   return (
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
-        <Heading>{t("orders.domain")}</Heading>
+        <Heading>{kind === "retail" ? t("orders.domain") : KIND_HEADINGS[kind]}</Heading>
       </div>
-      <OrderKindTabs />
       <_DataTable
         columns={columns}
         table={table}

@@ -29,9 +29,12 @@ const DEFAULT_FIELDS = [
   "sales_channel.*",
   "payment_collections.*",
   "shipping_address.*",
-  // Chunk 5 (T3.4): kind is the route `?kind=` param (link-derived, Chunk 6),
-  // but the panels still read `metadata.partner_status` for the badge column,
-  // so surface the whole metadata blob.
+  // Chunk 5 (T3.4): kind is the route `?kind=` param (link-derived, Chunk 6).
+  // Chunk 9b / PR-G: the work-status badge now reads the typed
+  // `unified_order_status.partner_status` column (PR-F sidecar) via the link
+  // accessor — the authoritative source. `metadata` stays surfaced only as a
+  // transitional fallback for rows not yet backfilled; PR-H drops it.
+  "unified_order_status.partner_status",
   "metadata",
 ]
 

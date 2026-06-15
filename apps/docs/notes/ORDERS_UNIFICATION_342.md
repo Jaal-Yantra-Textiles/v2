@@ -59,8 +59,25 @@ as the discriminator/pointer. Instead:
 | **PR-E** | 9 | T4 backfill SCRIPT (link-only) | **MERGED — PR #396** (`e9c5be099`). ✅ **BACKFILL RUN in prod 2026-06-14** via ECS run-task — `linked=0 alreadyLinked=2 danglingBackref=0 noBackref=90`. No rows needed linking (already-projected rows all linked; 90 are pre-T2 never-projected legacy, left legacy-only). |
 | **PR-E2** | 9 | Retire the 4 `unified_order_id` fallback reads | **▶ UNBLOCKED** — the prod backfill verified `linked=0, danglingBackref=0`, so no historical depends on the fallback. Not started. |
 | **PR-F** | 9b-expand | New `unified_order_status` 1:1 sidecar column + dual-write both column & metadata + backfill | **MERGED — PR #398** (`9561a1104`, 2026-06-14; deployed). Module `src/modules/unified_order_status` + link `order-unified-status.ts` + helper `setUnifiedOrderPartnerStatus`; 5 write sites mirror BOTH column & metadata; spec 1/1, suite 24/24. ✅ **STATUS BACKFILL RUN in prod 2026-06-14** via ECS run-task — `upserted=1 noStatus=4 errors=0`; idempotency re-run `upserted=0 alreadySet=1`. |
-| **PR-G** | 9b-migrate | Repoint the 2 `metadata.partner_status` read sites to the column | **▶ NEXT — UNBLOCKED** (PR-F merged + status backfill run). Not started. |
+| **PR-G** | 9b-migrate | Repoint the 2 `metadata.partner_status` read sites to the column | **DONE — branch `feat/342-pr-g-workorder-detail`** (2026-06-15). Backend `partners/orders/route.ts` now requests `unified_order_status.partner_status`; partner-ui `order-list-table.tsx` reads the column first, metadata fallback. **Verified locally**: set order #3's column to `finished` while leaving metadata `assigned` → the Work-status badge rendered "Finished", proving the read is off the column. |
+| **PR-G+** | — | **Bonus fix (same branch):** partner work-order DETAIL 404. Clicking a design/inventory row in `/orders/*` → `/orders/:id` 404'd because `validatePartnerOrderOwnership` (the chokepoint for **28** partner-order routes) scoped only by sales channel — but work-orders live in the shared internal `PARTNER_WORK_ORDERS_CHANNEL`, not the store channel. Fixed to authorize via the D3 `partner↔order` link too (mirrors `resolvePartnerWorkOrderIdsStep`). Work-orders now open in the **standard order-detail UI**. Verified 200 + screenshots for both kinds. |
+| **PR-G UI** | — | **Nested order-kind submenu (same branch):** moved the in-page All/Retail/Design/Inventory tab strip into a nested submenu under the "Orders" sidebar item (both workspace variants); removed dead `order-kind-tabs.tsx`; per-kind headings. |
 | **PR-H** | 9b-contract | Stop writing `metadata.partner_status`; remove the Chunk-7 lock wrapping (KEEP Redis provider) | planned. *(blocked by PR-G verified)* |
+
+> ### ▶ HANDOFF (next session) — merge the bespoke design/inventory detail UI + actions into the unified order detail
+>
+> **Context.** PR-G+ made design/inventory work-orders open in the *standard retail* order-detail (`apps/partner-ui/src/routes/orders/order-detail/`). That's "like standard orders" but it's the **retail** detail — it shows retail-only actions and hides the work context. The bespoke pages still exist and carry the work-specific UI/actions:
+> - `routes/inventory-orders/inventory-order-detail/` — Lines table (requested/fulfilled/remaining) + **Actions**: Start / Complete / Submit Payment (`inventory-order-actions-section.tsx`) + Activities timeline. Backend: `/partners/inventory-orders/[orderId]/{start,complete,submit-payment}`.
+> - `routes/designs/design-detail/` — General, Materials (BOM), Cost estimate, **Production** (Accept/Start/Finish/Complete run, Mark Finished), Consumption logs, Media/Moodboard. Backend: `/partners/production-runs/[id]/{accept,start,finish,complete,decline}`, `/consumption-logs`, `/recalculate-cost`.
+>
+> **Tasks** (do in another session):
+> 1. **Surface work-status on the order detail.** Add `unified_order_status.partner_status` to the partner order-detail fields, render a "Work status" `StatusBadge` in the header (`order-detail/components/.../general-section`) when `metadata.kind !== "retail"`. (#3 should read "Finished".) Reuse `getStatusBadgeColor` + the `PARTNER_STATUS_LABELS` map from `order-list-table.tsx`.
+> 2. **Gate retail-only actions.** Hide edit / returns / exchanges / claims / refunds / payment-capture on the order detail when `kind !== "retail"` (customer-less work-orders). Find the action menus in `order-detail/components/*` and the `…` `ActionMenu`s.
+> 3. **Map the work actions onto the order detail.** Decide: either (a) deep-link the order detail to the legacy run/inventory-order for actions, or (b) re-expose Start/Complete/Accept/Finish/Submit-Payment as a work-actions section on the order detail, calling the existing `/partners/production-runs/*` and `/partners/inventory-orders/*` endpoints (resolve the legacy id from `metadata.legacy_id`).
+> 4. **Decide the fate of the bespoke routes.** Either keep `/designs/:id` + `/inventory-orders/:id` as the canonical work surfaces and make `/orders/*` rows deep-link there, OR fold their sections into the unified order detail and retire them. (User's stated goal leans toward unifying on the order detail.)
+> 5. **Tests.** Add an integration spec asserting a partner CAN GET its own work-order detail and CANNOT GET another partner's (the ownership fix); extend `orders-unification-partner-list-filter.spec.ts` pattern.
+>
+> **Local seed recipe** (for screenshots/dev): drive the admin API exactly as `integration-tests/http/orders-unification-partner-list-filter.spec.ts` does — `POST /admin/inventory-orders` → `/send-to-partner`; `POST /admin/designs` → `/designs/:id/production-runs` with a non-notifiable `workflow_type:"production_run"` task template — using the EXISTING partner id (no need to create one). Drive partner transition endpoints for varied `partner_status`.
 
 - [x] **Chunk 1 (D5-1)** — Define `filterable` links + ingest. New
   `src/links/order-production-run.ts` + `order-inventory-order.ts`, execution
@@ -299,17 +316,15 @@ as the discriminator/pointer. Instead:
   `namespace`; default key prefix `medusa_lock:`). *(blocked by: 7)*
 ### T4 plan — Chunks 9 + 9b (planned 2026-06-14, scope confirmed with user)
 
-> **▶ HANDOFF / NEXT SESSION (updated 2026-06-14, PR-F merged):** PR-A…F are all
-> MERGED to main (auto-deployed). **Start PR-G next** — repoint the **2**
-> `metadata.partner_status` READ sites onto `unified_order_statuses.partner_status`
-> (the typed column PR-F just shipped), keeping a metadata fallback transitionally:
->   1. backend `src/api/partners/orders/route.ts` (the badge field — `route.ts:33`
->      comment marks where it still reads `metadata.partner_status`),
->   2. partner-ui `routes/orders/order-list/.../order-list-table.tsx`.
-> Read via `query.graph` `["...", "unified_order_status.partner_status"]` (the link
-> accessor). Verify the panels render off the column in prod, THEN PR-H (contract:
-> stop writing `metadata.partner_status` in the 5 sites + drop the Chunk-7 lock
-> wrapping; KEEP the Chunk-8 Redis provider — other LOCKING consumers).
+> **▶ HANDOFF / NEXT SESSION (updated 2026-06-15, PR-G done):** PR-A…F merged;
+> **PR-G is DONE on branch `feat/342-pr-g-workorder-detail`** (repoint both read
+> sites to the column — verified locally via a divergent-column proof). That branch
+> ALSO carries two bonuses: the **work-order-detail 404 fix** (`validatePartnerOrderOwnership`
+> now authorizes via the D3 partner↔order link) and the **nested order-kind submenu**.
+> **Next:** (a) the UI merge handoff in the PR table above (surface work-status +
+> gate retail actions + map work actions onto the unified order detail), and (b)
+> **PR-H** (contract: stop writing `metadata.partner_status` in the 5 sites + drop
+> the Chunk-7 lock wrapping; KEEP the Chunk-8 Redis provider — other LOCKING consumers).
 >
 > **Both OPERATIONAL backfills are now RUN + verified in prod (2026-06-14)** via a
 > one-off ECS task from the locally-connected AWS CLI (recipe below — ECS Exec is NOT
@@ -441,10 +456,13 @@ those links remain valid; only revisit if we ever delete the legacy execution ro
     lock) — belt-and-suspenders during expand.
   - Backfill script (or extend PR-E's): every order with `metadata.partner_status`
     → upsert the sidecar row. Idempotent.
-- [ ] **Chunk 9b → PR-G (migrate reads).** *(blocked by: PR-F)*
-  - Repoint the 2 read sites to `unified_order_statuses.partner_status`
-    (keep metadata fallback transitionally): backend `api/partners/orders/route.ts`,
-    partner-ui `order-list-table.tsx`. Verify panels render off the column in prod.
+- [x] **Chunk 9b → PR-G (migrate reads). DONE** on `feat/342-pr-g-workorder-detail` (2026-06-15).
+  - Repointed both read sites to `unified_order_status.partner_status`
+    (metadata fallback kept transitionally): backend `api/partners/orders/route.ts`,
+    partner-ui `order-list-table.tsx`. Verified locally via divergent-column proof
+    (column `finished` vs metadata `assigned` → badge rendered "Finished").
+  - **+ bonus:** work-order-detail 404 fix (`validatePartnerOrderOwnership` → D3 link)
+    and nested order-kind submenu. UI-merge follow-ups in the PR-table handoff above.
 - [ ] **Chunk 9b → PR-H (contract: retire metadata + lock).** *(blocked by: PR-G verified)*
   - Stop writing `metadata.partner_status` in the 4 sites + create path (column-only).
   - Remove the `withUnifiedOrderMetadataLock` wrapping from the 4 sites + delete the
