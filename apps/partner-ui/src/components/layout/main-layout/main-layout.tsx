@@ -241,6 +241,19 @@ const useCoreRoutes = (
   return [
     { icon: <House />, label: t("app.nav.main.home"), to: "/" },
     {
+      icon: <ShoppingCart />,
+      label: t("app.nav.main.orders"),
+      to: "/orders",
+      // #342 Chunk 5: the unified order-kind views (formerly an in-page tab
+      // strip) now live as nested routes under Orders. The parent `/orders`
+      // is Retail; these are the work-order kinds.
+      items: [
+        { label: "All", to: "/orders/all" },
+        { label: "Design", to: "/orders/design" },
+        { label: "Inventory", to: "/orders/inventory" },
+      ],
+    },
+    {
       icon: <PencilSquare />,
       label: t("app.nav.main.designs"),
       to: "/designs",
@@ -261,19 +274,6 @@ const useCoreRoutes = (
         { label: t("app.nav.main.collections"), to: "/collections" },
         { label: t("app.nav.main.productTypes"), to: "/product-types" },
         { label: t("app.nav.main.stock"), to: "/products/inventory" },
-      ],
-    },
-    {
-      icon: <ShoppingCart />,
-      label: t("app.nav.main.orders"),
-      to: "/orders",
-      // #342 Chunk 5: the unified order-kind views (formerly an in-page tab
-      // strip) now live as nested routes under Orders. The parent `/orders`
-      // is Retail; these are the work-order kinds.
-      items: [
-        { label: "All", to: "/orders/all" },
-        { label: "Design", to: "/orders/design" },
-        { label: "Inventory", to: "/orders/inventory" },
       ],
     },
     { icon: <Users />, label: t("app.nav.main.customers"), to: "/customers" },

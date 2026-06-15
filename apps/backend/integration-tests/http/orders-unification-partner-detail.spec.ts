@@ -349,5 +349,35 @@ setupSharedTestSuite(() => {
         expect(res.status).toBe(404)
       }
     })
+
+    // #342 (session 2) — the retired `/production-runs/:id` partner-ui route
+    // redirects to the unified order detail by reading `unified_order_id` off
+    // the production-run responses (resolved via the order↔production_run link).
+    it("partner production-run DETAIL exposes unified_order_id (powers the /production-runs/:id → /orders/:id redirect)", async () => {
+      const { unifiedId, legacyId } = await createDesignWorkOrder(partnerA)
+
+      const res = await api
+        .get(`/partners/production-runs/${legacyId}`, partnerA.headers)
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(200)
+      expect(res.data.production_run?.id).toBe(legacyId)
+      expect(res.data.unified_order_id).toBe(unifiedId)
+    })
+
+    it("partner production-run LIST exposes unified_order_id per run", async () => {
+      const { unifiedId, legacyId } = await createDesignWorkOrder(partnerA)
+
+      const res = await api
+        .get(`/partners/production-runs?limit=50`, partnerA.headers)
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(200)
+      const run = (res.data.production_runs || []).find(
+        (r: any) => r.id === legacyId
+      )
+      expect(run).toBeTruthy()
+      expect(run.unified_order_id).toBe(unifiedId)
+    })
   })
 })
