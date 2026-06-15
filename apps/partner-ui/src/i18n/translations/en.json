@@ -3438,7 +3438,18 @@
       "no": "No",
       "orderDate": "Order date",
       "expectedDelivery": "Expected delivery",
-      "stockLocation": "Stock location"
+      "stockLocation": "Stock location",
+      "designDetails": "Design details",
+      "openDesignManager": "Open design manager",
+      "noDesign": "No design linked to this order.",
+      "activity": {
+        "title": "Activity",
+        "placed": "Order placed",
+        "accepted": "Run accepted",
+        "started": "Production started",
+        "finished": "Marked finished",
+        "completed": "Run completed"
+      }
     },
     "inventoryOrders": {
       "heading": "Inventory Orders",

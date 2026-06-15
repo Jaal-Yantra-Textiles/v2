@@ -82,9 +82,9 @@ export const WorkOrderStatusSection = ({
             {
               actions: [
                 {
-                  label: t("partner.workOrders.manageDesign"),
+                  label: t("partner.workOrders.designDetails"),
                   icon: <ArrowUpRightOnBox />,
-                  to: `/designs/${designId}`,
+                  to: "design-details",
                 },
               ],
             },

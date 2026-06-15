@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query"
-import { useLoaderData, useParams } from "react-router-dom"
+import { Outlet, useLoaderData, useLocation, useParams } from "react-router-dom"
 
 import { TwoColumnPageSkeleton } from "../../../components/common/skeleton"
 import { TwoColumnPage } from "../../../components/layout/pages"
@@ -9,6 +9,7 @@ import {
   InventoryPaymentsSection,
 } from "../../../components/work-orders/inventory-order-sections"
 import { ProductionRunCard } from "../../../components/work-orders/production-run-card"
+import { WorkOrderActivitySection } from "../../../components/work-orders/work-order-activity-section"
 import { WorkOrderSummarySection } from "../../../components/work-orders/work-order-summary-section"
 import { ordersQueryKeys, useOrder, useOrderPreview } from "../../../hooks/api/orders"
 import { usePartnerConsumptionLogs } from "../../../hooks/api/partner-consumption-logs"
@@ -36,6 +37,7 @@ export const OrderDetail = () => {
   const initialData = useLoaderData() as Awaited<ReturnType<typeof orderLoader>>
 
   const { id } = useParams()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const { getWidgets } = useExtension()
   const { plugins = [] } = usePlugins()
@@ -104,6 +106,12 @@ export const OrderDetail = () => {
     throw error
   }
 
+  // Design-details is a full sub-page (breadcrumb Orders › id › Design details):
+  // render only the nested route, not the order detail beneath it.
+  if (location.pathname.endsWith("/design-details")) {
+    return <Outlet />
+  }
+
   // Retail order preview drives the active claim/exchange/return sections; work
   // orders don't use it, so don't block their render on the preview fetch.
   if (!isWorkOrder && isPreviewLoading) {
@@ -157,6 +165,7 @@ export const OrderDetail = () => {
                 consumptionLogs={consumptionLogs}
                 consumptionCount={consumptionCount}
                 onActionSuccess={invalidateOrder}
+                showTimeline={false}
               />
             )}
             {kind === "inventory" && inventoryOrder && (
@@ -181,7 +190,11 @@ export const OrderDetail = () => {
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
         {!isWorkOrder && <OrderCustomerSection order={order} />}
-        <OrderActivitySection order={order} />
+        {kind === "design" ? (
+          <WorkOrderActivitySection order={order} productionRun={production_run} />
+        ) : (
+          <OrderActivitySection order={order} />
+        )}
       </TwoColumnPage.Sidebar>
     </TwoColumnPage>
   )

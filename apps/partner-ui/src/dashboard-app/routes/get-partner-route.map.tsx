@@ -633,6 +633,15 @@ export function getPartnerRouteMap(): RouteObject[] {
                       lazy: () =>
                         import("../../routes/orders/order-metadata"),
                     },
+                    // #342 — design details as a sub-route of the order (breadcrumb
+                    // Orders › <id> › Design details), keeping the partner in the
+                    // Orders context instead of jumping to /designs/:id.
+                    {
+                      path: "design-details",
+                      lazy: () =>
+                        import("../../routes/orders/order-design-details"),
+                      handle: { breadcrumb: () => "Design details" },
+                    },
                     // #342 — inventory work-order actions folded onto the
                     // unified order detail. Nested under `inventory/` to avoid
                     // colliding with retail order sub-routes. The action

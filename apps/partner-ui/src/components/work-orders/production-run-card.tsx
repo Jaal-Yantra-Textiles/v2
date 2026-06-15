@@ -296,12 +296,16 @@ export const ProductionRunCard = ({
   consumptionLogs = [],
   consumptionCount = 0,
   onActionSuccess,
+  showTimeline = true,
 }: {
   run: any
   design: PartnerDesign
   consumptionLogs?: any[]
   consumptionCount?: number
   onActionSuccess?: () => void
+  /** When false, the lifecycle timeline is omitted (the order detail renders it
+   * in the sidebar Activity section instead). Defaults to true (design page). */
+  showTimeline?: boolean
 }) => {
   const runId = String(run.id)
   const status = String(run.status || "")
@@ -702,7 +706,7 @@ export const ProductionRunCard = ({
       )}
 
       {/* Timeline (dot + line pattern) */}
-      {timelineEntries.length > 0 && (
+      {showTimeline && timelineEntries.length > 0 && (
         <div className="px-6 py-4">
           <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-3">
             Timeline

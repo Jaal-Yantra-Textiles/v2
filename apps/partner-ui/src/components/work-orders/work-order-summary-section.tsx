@@ -1,4 +1,4 @@
-import { ArrowUpRightOnBox, Photo, Swatch, Component } from "@medusajs/icons"
+import { Component } from "@medusajs/icons"
 import { Badge, Button, Container, Heading, Text } from "@medusajs/ui"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
@@ -99,26 +99,15 @@ export const WorkOrderSummarySection = ({
         )}
         <SectionRow title={t("partner.workOrders.materials")} value={String(materials)} />
 
-        {/* Quick links to the design-management surface + sub-routes */}
+        {/* Design details live as a sub-route of the order (breadcrumb
+            Orders › id › Design details), keeping the partner in context. The
+            full design-management surface stays reachable from the Designs nav. */}
         {designId && (
           <div className="flex flex-wrap gap-2 px-6 py-4">
             <Button size="small" variant="secondary" asChild>
-              <Link to={`/designs/${designId}`}>
+              <Link to="design-details">
                 <Component />
-                {t("partner.workOrders.manageDesign")}
-                <ArrowUpRightOnBox />
-              </Link>
-            </Button>
-            <Button size="small" variant="transparent" asChild>
-              <Link to={`/designs/${designId}/moodboard`}>
-                <Swatch />
-                {t("partner.workOrders.moodboard")}
-              </Link>
-            </Button>
-            <Button size="small" variant="transparent" asChild>
-              <Link to={`/designs/${designId}/media`}>
-                <Photo />
-                {t("partner.workOrders.media")}
+                {t("partner.workOrders.designDetails")}
               </Link>
             </Button>
           </div>
