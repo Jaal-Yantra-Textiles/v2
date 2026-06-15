@@ -890,6 +890,78 @@ combo box backed by `/admin/designs?q=…`.
 **Effort:** 2-3 days for a usable v1; ongoing polish for the
 selection UX, dedup, and HEIC/AVIF support.
 
+#### 30. Extend orders unification to the admin routes
+
+**Captured 2026-06-15.** Follow-on to #24/#342. The partner-ui side of
+orders unification has landed — partner `/orders` now surfaces retail +
+the unified design/inventory work-orders off the core `order` entity
+(kind = which execution link is present), with the work-status sidecar
+column, the unified order detail, and the partner list filter all built.
+The **admin** side still drives the two legacy surfaces directly:
+`/admin/inventory-orders` and the design `production_runs` admin routes
+remain the authoring/authority path, and the admin order list only has
+the `?kind=` retail anti-join (Chunk 4) — it doesn't yet present design /
+inventory work-orders as first-class unified orders the way partner-ui
+does.
+
+Now that the link model, the `unified_order_status` column, the locking
+posture, and the partner panels are proven, we can mirror the same
+unification onto admin: a kind-aware admin order list + detail that reads
+the unified order (not the legacy row) as the primary surface, fold the
+admin work-order actions onto it, and decide which legacy admin routes
+become thin shims vs. stay as the execution-authoring surface (D1 keeps
+`production_run` / `inventory_order` as the execution artifact). This is
+the precondition for admin-side billing (#4), partner statements, and a
+single audit surface.
+
+**First step:** audit the admin order/inventory/production-run routes +
+admin UI against the partner-ui unification (reuse `PARTNER_API_PARITY.md`
+recipe in reverse), then a kind-aware `/admin/orders` list+detail that
+reads the unified order, mirroring partner-ui's Chunk 4/5 shape.
+**Effort:** ~3-5 days (smaller than the partner-ui pass — the backend
+link/column/mirror machinery already exists; this is mostly admin
+surfacing + deciding the shim boundary).
+
+#### 31. Manual-fulfillment design orders → COD payment capture via Shiprocket
+
+**Captured 2026-06-15.** When a **design order is manually fulfilled**
+(partner/admin marks the work shipped/delivered rather than it flowing
+through a storefront checkout), create the unified core `order` with a
+**manual fulfillment** and capture payment through a **shipping COD
+(cash-on-delivery) service** — i.e. the money is collected on delivery by
+the courier and reconciled back, not pre-captured at checkout. This needs
+a COD-capable shipping integration — **both Shiprocket and Delhivery are
+in scope** (decided 2026-06-15: keep both; Delhivery is already integrated
+elsewhere, Shiprocket is the broader aggregator — the COD aggregator is a
+pluggable provider, not an either/or): create the shipment/AWB, push the
+manual fulfillment to it, track status, and capture/settle the COD payment
++ remittance back onto the order on delivery — plus the subsequent
+reconciliation steps (COD remittance ledger, payment_status transitions,
+partner statement hook).
+
+Sits on top of #24/#342 (the unified order is the surface this captures
+onto) and the manual-fulfillment + payment-capture flows Medusa already
+exposes; the new build is the COD shipping provider(s) + the COD capture/
+remittance loop, behind a provider interface so Shiprocket and Delhivery
+both plug in.
+
+**First step:** define a COD-shipping provider interface, then spike the
+Shiprocket API (auth, create-order/AWB, COD flag, tracking webhook,
+remittance report) and reconcile it against the existing Delhivery
+integration so both implement the same interface; map the lifecycle onto
+Medusa fulfillment + payment-capture states; decide provider shape
+(fulfillment provider vs. standalone module + subscriber). Then a thin
+"manual fulfill a design order → COD shipment created" path end-to-end on
+one order (one provider) before wiring remittance reconciliation.
+**Effort:** unscoped — spike first (~1-2 days) to size the provider
+interface + COD remittance loop before committing.
+
+> **Open questions (flag for the user before building #31):** ~~which
+> aggregator is canonical~~ — RESOLVED: both Shiprocket + Delhivery behind a
+> pluggable provider. Still open: whether "capture" means
+> capture-on-delivery (COD remittance) or a pre-auth; and whether this is
+> design-orders-only or all work-orders.
+
 ---
 
 ## Suggested working order for the week
