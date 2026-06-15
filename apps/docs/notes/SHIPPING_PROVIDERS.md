@@ -1,6 +1,6 @@
 # Shipping providers — pluggable carrier interface (#31)
 
-**Status:** interface spike landed 2026-06-15 (branch `feat/31-shipping-provider-interface`).
+**Status:** interface spike landed 2026-06-15 (branch `feat/31-shipping-provider-interface`); partner fulfilment routes migrated onto the resolver and merged (**PR #414**, 2026-06-15).
 **Roadmap:** §31 in `PLATFORM_ROADMAP_2026_05.md` · **Issue:** #404 (`[#31]`).
 
 This is the design note for the pluggable shipping-provider interface that lets
@@ -111,10 +111,12 @@ API — see next steps.
 
 ## 7. Next steps (not in the spike)
 
-1. **Migrate the 3 partner routes** (`label`, `tracking`, `pickup`) off the
-   hardcoded `DelhiveryClient` onto `resolveShippingProvider(req.scope, carrier)`.
-   This is the first real consumer and proves the interface end-to-end against
-   existing Delhivery flows. Keep the wire response shape identical.
+1. ~~**Migrate the 3 partner routes** (`label`, `tracking`, `pickup`) off the
+   hardcoded `DelhiveryClient` onto `resolveShippingProvider(req.scope, carrier)`.~~
+   **DONE — PR #414.** First real consumer; wire shape preserved (the Delhivery
+   tracking normaliser was folded into `delhivery/adapter.ts`, and the route-local
+   `normalize-delhivery.ts` deleted). New resolver helpers `isSupportedCarrier()`
+   + `shipmentRefFromFulfillment()`.
 2. **Edit form** — apply the same Shiprocket-conditional fields to
    `edit-social-platform.tsx` (create path is wired; edit reuses different field
    rendering).
@@ -137,3 +139,71 @@ API — see next steps.
   internal transfers modelled as shipments.
 - **P4 — COD capture + remittance loop.** Both providers implement it behind the
   interface.
+
+## 9. Pickup-location (warehouse) registration — planned feature
+
+> Investigated 2026-06-15. Shiprocket **does** support pickup-location
+> registration over API (standard for business accounts). This section captures
+> the mechanics + the product design before it's built.
+
+### 9.1 How Shiprocket models pickup locations
+
+A pickup point is referenced by a **unique nickname string** (`pickup_location`),
+*not* by address. You register an address once under a nickname, then every
+order-create call passes that nickname. New accounts ship with a default
+`"Primary"` location.
+
+| Operation | Endpoint | Notes |
+|-----------|----------|-------|
+| Add | `POST /v1/external/settings/company/addpickup` | `pickup_location` (nickname, **unique**), `name`, `email`, `phone`, `address`, `address_2`, `city`, `state`, `country`, `pin_code`, `gstin?` |
+| List | `GET /v1/external/settings/company/pickup` | `data.shipping_address[]` — nickname, id, **phone-verification status** |
+
+Delhivery's equivalent is `registerWarehouse` (a named warehouse), wired today in
+`create-store-with-defaults.ts` and recorded as `stock_location.metadata.delhivery_warehouse_name`.
+
+### 9.2 What exists vs the gap
+
+- `ShiprocketClient.registerPickupLocation()` already calls `/settings/company/addpickup` (`shiprocket/client.ts`).
+- `ShiprocketFulfillmentService.createFulfillment` already **reads** the nickname
+  from `fromLocation.metadata.shiprocket_pickup_location` (→ `fromLocation.name`
+  → `"Primary"`) — the deliberate parallel to `delhivery_warehouse_name`.
+- **Gap:** `shiprocket_pickup_location` is only ever read, never written. Nothing
+  registers the location or records the nickname. Also missing: a `list` method
+  (for idempotency) and surfacing of phone-verification status.
+- **Watch-out:** Shiprocket requires the pickup address's **phone to be
+  OTP-verified** before it's usable for live pickups. `addpickup` *creates* the
+  location; verification is a separate (often manual, dashboard/OTP) step. So
+  "registered" ≠ "shippable" — the UI must reflect verification state.
+
+### 9.3 Product design — register on location-add, opt-in for partner stores
+
+When a partner adds a location it should register as a pickup point in **our**
+Shiprocket account (our shipping address). But whether that's automatic vs
+opt-in depends on *why* the location exists:
+
+- **Inbound (partner → us).** When we onboard a partner we add a location they
+  ship *to us* from. Registering this pickup point is useful to **us** and can be
+  done automatically — the partner doesn't need to think about it.
+- **Outbound (partner runs a storefront → ships to their own consumers).** Here
+  the partner is the shipper. Registration must be **opt-in** — they decide
+  whether they want their location wired into our Shiprocket pickup set.
+
+**Default-hidden status.** A partner should **not** see whether their location is
+registered unless they explicitly ask for it. Registration status / the
+"register this pickup location" action is surfaced on demand, not shown by
+default. (Keeps the inbound case invisible plumbing, and makes the outbound case
+a deliberate choice.)
+
+### 9.4 Recommended implementation (resolver-driven, mirrors Delhivery)
+
+1. Add `listPickupLocations()` to `ShiprocketClient` (`GET /settings/company/pickup`) for idempotency + verification status.
+2. A registration step that `resolveShippingProvider(container, "shiprocket").registerPickupLocation({…stock_location.address})`, uses a deterministic nickname (`warehouse-<locationSuffix>`, same scheme as Delhivery), treats "already exists" as success, and writes `shiprocket_pickup_location` into `stock_location.metadata`.
+   - **Inbound:** invoke automatically when we add a partner's ship-to-us location.
+   - **Outbound:** invoke only on an explicit partner action (opt-in).
+3. Surface phone-verification status from the list call so operators/partners
+   know whether the location is live — but only when registration is requested
+   (per §9.3 default-hidden rule).
+
+Stays consistent with the spike decision (carriers as external-platform
+providers, resolver-sourced creds) rather than Delhivery's env-var +
+fulfillment-module-registry path.
