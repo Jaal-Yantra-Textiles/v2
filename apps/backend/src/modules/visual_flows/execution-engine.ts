@@ -1,4 +1,5 @@
 import { MedusaContainer } from "@medusajs/framework/types"
+import { Modules } from "@medusajs/framework/utils"
 import { 
   DataChain, 
   OperationContext, 
@@ -144,12 +145,67 @@ export class FlowExecutionEngine {
         completed_at: new Date(),
       })
 
+      // Lifecycle: emit a failure event so engine/manual-run failures alert
+      // too (#32B). Until this hook existed, only the workflow path emitted
+      // `visual_flow_execution.failed` (from its rollback compensation) — a
+      // direct engine run (manual execute / test run) marked the row failed
+      // and emitted nothing, so the failure-email subscriber never fired.
+      await this.emitFailureLifecycleEvent(execution.id, flowId, flow, incomingEventName, options, error)
+
       return {
         executionId: execution.id,
         status: "failed",
         dataChain,
         error: error.message,
       }
+    }
+  }
+
+  /**
+   * Best-effort failure lifecycle emit. Observability is strictly additive —
+   * a missing/misconfigured event bus must never turn a logged failure into a
+   * thrown one, so everything here is wrapped and swallowed. The execution row
+   * + log table still hold the truth even if the email never goes out.
+   */
+  private async emitFailureLifecycleEvent(
+    executionId: string,
+    flowId: string,
+    flow: any,
+    incomingEventName: string | undefined,
+    options: ExecutionOptions,
+    error: any
+  ): Promise<void> {
+    try {
+      // Pull the failing operation key from the most recent failure log row,
+      // mirroring the workflow compensation path so the email is specific.
+      let failingOperationKey: string | null = null
+      try {
+        const logs = await (this.flowService as any).listVisualFlowExecutionLogs(
+          { execution_id: executionId, status: "failure" },
+          { take: 1, order: { created_at: "DESC" } }
+        )
+        failingOperationKey = logs?.[0]?.operation_key ?? null
+      } catch {
+        // Best-effort — fall through to a generic event.
+      }
+
+      const eventBus: any = this.container.resolve(Modules.EVENT_BUS)
+      await eventBus.emit({
+        name: "visual_flow_execution.failed",
+        data: {
+          flow_id: flowId,
+          flow_name: flow?.name,
+          flow_metadata: flow?.metadata ?? null,
+          execution_id: executionId,
+          triggered_by: options.triggeredBy,
+          triggered_by_event: incomingEventName,
+          failing_operation_key: failingOperationKey,
+          error_message: error?.message ?? "Unknown error",
+          failed_at: new Date().toISOString(),
+        },
+      })
+    } catch {
+      // Intentional: see method comment.
     }
   }
 

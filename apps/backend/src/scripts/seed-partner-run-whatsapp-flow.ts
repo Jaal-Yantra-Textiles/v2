@@ -242,6 +242,15 @@ const map = {
     has_header: true,
   },
   // Add more mappings here as templates get approved in Meta.
+  //
+  // #32C decision: production_run.accepted / .started are INTENTIONALLY
+  // unmapped. They're the partner's own acknowledgement actions (they accepted
+  // / started the run), so there's no partner to notify — the wildcard trigger
+  // catches them but `no_template_for_event` skip is the correct, expected
+  // outcome (NOT a failure; the flow reports success on purpose). To start
+  // notifying on one of these, (1) create + get the template APPROVED in all
+  // target WABAs, (2) add it to src/scripts/whatsapp-templates/partner-run-templates.ts,
+  // (3) uncomment the matching line below.
   // "production_run.accepted":  { template: "…", vars: [...], has_header: false },
   // "production_run.started":   { template: "…", vars: [...], has_header: false },
   // "production_run.finished":  { template: "…", vars: [...], has_header: false },
@@ -249,6 +258,9 @@ const map = {
 
 const config = map[eventName]
 if (!config) {
+  // Expected skip for any production_run.* event without an approved template
+  // (e.g. .accepted / .started — see #32C note above). The downstream
+  // `has_template` condition routes this to log_skip and the flow succeeds.
   return { skipped: true, reason: "no_template_for_event", event: eventName }
 }
 

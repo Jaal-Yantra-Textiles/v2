@@ -962,6 +962,109 @@ interface + COD remittance loop before committing.
 > capture-on-delivery (COD remittance) or a pre-auth; and whether this is
 > design-orders-only or all work-orders.
 
+#### 32. Visual-flow + WhatsApp token reliability (post-incident, vflow 401)
+
+**Status: FIXED 2026-06-15 (A + B landed; C decided as intended).** Issues
+#405 (A), #406 (B), #407 (C). Code-only fixes; A also needs the one-time data
+unblock below in prod.
+Incident: the production WhatsApp flow `vflow_01KQ9RSZ1TFMB7MQ0Y64P4E98Y`
+("Partner WhatsApp — Production Run (all events)") started failing in prod.
+Worker log (2026-06-14 19:46):
+`WhatsApp API error: 401 - {"error":{"message":"Authentication Error","code":190,"type":"OAuthException"}}`
+→ `[visual-flow-event-trigger] Failed to execute flow`. Meta **code 190 =
+expired/invalid access token**. (Later runs "succeed" by logging
+`Skipping WhatsApp … reason: no_template_for_event` — a separate, secondary
+gap, see (C).)
+
+**Root cause (A) — stale encrypted token shadows the freshly-set plain one.**
+A WhatsApp `SocialPlatform.api_config` carries BOTH `access_token` (plain,
+"backward compat") AND `access_token_encrypted`. The resolver
+`buildConfigFromPlatform` (`api/admin/social-platforms/whatsapp/helpers.ts`)
+reads `access_token_encrypted` FIRST (decrypt), and only falls back to the
+plain `access_token` if decrypt *throws*. There are two write paths:
+- the WhatsApp **connect** route (`whatsapp/connect/route.ts:40`) correctly
+  re-encrypts on update;
+- the **generic External-Platforms edit** writes only `access_token` (plain)
+  and leaves the OLD `access_token_encrypted` in place (`enc_updated: null`,
+  no `access_token_updated_at`).
+The admin rotated the token via the generic edit → plain updated, encrypted
+**stale** → resolver keeps using the **old expired** token → 190/401 on every
+send + on template sync + on the config WABA/phone validation (verified live:
+`whatsapp/config` returns `waba_info_ok: false`, `phone_info_ok: false` for
+BOTH the IN and AU platforms, which both have the same shadow shape).
+**Proof the new token is fine:** the `.env WHATSAPP_ACCESS_TOKEN` (the same
+rotated token) tested directly against Meta is `is_valid: true`,
+`type: SYSTEM_USER`, `expires_at: 0` (never expires), scopes
+`whatsapp_business_management` + `whatsapp_business_messaging`, and the exact
+`{WABA}/message_templates` call returns `ok: true`. So the token is good; the
+platform record just isn't using it.
+
+**Fix (A) — LANDED 2026-06-15.**
+- `encryptBearer` (in `subscribers/social-platform-credentials-encryption.ts`)
+  now treats a freshly-submitted plaintext as the source of truth: it ALWAYS
+  (re)encrypts it over any stale/mismatched ciphertext and strips the plaintext.
+  The old guard skipped re-encryption whenever any `*_encrypted` already
+  existed — the root cause. The WhatsApp **connect** route now routes through
+  the same helper so it no longer leaves a backward-compat plaintext behind.
+  Unit-tested (stale-ciphertext re-encrypt, first-encrypt, undecryptable key,
+  connect cleanup, idempotency).
+- **API hardening (added this session):** the admin social-platforms API no
+  longer echoes raw credentials — `redactApiConfig` strips plaintext AND
+  ciphertext from list/detail/create/update responses (presence booleans
+  only); a raw secret returns only for an MFA-enabled caller asking explicitly
+  (`?reveal_secrets=true`, fails closed); `preserveExistingSecrets` restores
+  omitted secrets server-side so blank-field saves don't wipe credentials.
+- **Still TODO in prod — immediate data unblock (data-only, no deploy):** the
+  fix corrects the NEXT write; the live IN/AU rows still hold the stale
+  ciphertext until re-saved. Re-save the IN (`01KP9N46ZGGM3N32E1N16Z5W4C`) and
+  AU (`01KPJJ4ACPRVW5QA27PVPX304V`) token through the WhatsApp **connect**
+  route (re-encrypts), OR null out the stale `access_token_encrypted`. Then
+  re-run template sync. (See `reference_prod_ecs_run_task_scripts` for running
+  one-off prod scripts via ECS run-task.)
+
+**Gap (B) — failure alerting didn't page anyone.** Roadmap #26 wired
+`visual_flow_execution.failed` → admin email
+(`subscribers/visual-flow-lifecycle-email.ts`), but it **bails silently** when
+no recipient is configured (`flow.metadata.failure_email` AND
+`VISUAL_FLOW_FAILURE_EMAIL` both empty) — which is why this 401 generated no
+email. Also: the workflow path emits `failed` from its rollback compensation
+(status ends `cancelled`), but the **module engine path**
+(`modules/visual_flows/execution-engine.ts:140`) marks `failed` and emits **no
+event at all** → manual/test-run failures never email.
+**Fix (B) — LANDED 2026-06-15.**
+- Subscriber now listens for `visual_flow_execution.cancelled` and handles it
+  identically to `failed` (fingerprint keyed by status so a flow emitting both
+  doesn't suppress the second).
+- No-recipient bail escalated debug→**WARN**, and a third recipient fallback
+  (`MAILJET_FROM_EMAIL`) was added so an alert never silently no-ops. Resolution
+  order: `flow.metadata.failure_email` → `VISUAL_FLOW_FAILURE_EMAIL` →
+  `MAILJET_FROM_EMAIL`. **Still recommended:** set `VISUAL_FLOW_FAILURE_EMAIL`
+  in prod SSM so alerts go to a real ops inbox rather than the from-address.
+- Engine path (`modules/visual_flows/execution-engine.ts`) now emits
+  `visual_flow_execution.failed` from its catch. **Caveat discovered:** the
+  engine path is dormant and currently can't run a canvas-built flow at all —
+  it resolves the graph by `operation.id` while canvas flows wire connections
+  by node id (`operation_key`), so it finds zero starting ops. The emit is
+  correct for when an op fails; the engine graph-resolution gap is a separate
+  pre-existing bug (not fixed here).
+
+**Gap (C) — `no_template_for_event` skips — DECIDED 2026-06-15: intended.**
+The "all events" flow (`seed-partner-run-whatsapp-flow.ts`) lists to
+`production_run.*` and maps each event to a Meta-approved template;
+`production_run.accepted` / `.started` are deliberately unmapped. They're the
+partner's OWN acknowledgement actions (they accepted/started the run), so there
+is no partner to notify — the `no_template_for_event` skip is the correct,
+expected outcome and the flow reports success on purpose. This was never a
+token side-effect; it's a product decision. Documented inline in the seed's
+template map. To start notifying on one of these: create + APPROVE the template
+in all target WABAs, add it to `whatsapp-templates/partner-run-templates.ts`,
+and uncomment the matching map line.
+
+**Done this session:** A (token re-encryption + API secret redaction) and B
+(cancelled + engine-emit + no-silent-bail) landed with tests; C decided as
+intended. **Remaining:** the one-time prod data unblock for the stale IN/AU
+ciphertext (see Fix A above) + set `VISUAL_FLOW_FAILURE_EMAIL` in prod SSM.
+
 ---
 
 ## Suggested working order for the week

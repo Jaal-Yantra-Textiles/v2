@@ -3,6 +3,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import { ENCRYPTION_MODULE } from "../../../../../modules/encryption"
 import type EncryptionService from "../../../../../modules/encryption/service"
+import { encryptSocialPlatformCredentials } from "../../../../../subscribers/social-platform-credentials-encryption"
 
 interface ConnectWhatsAppBody {
   access_token: string
@@ -88,6 +89,12 @@ export const POST = async (
   }
 
   const result = Array.isArray(platform) ? platform[0] : platform
+
+  // Strip the plaintext `access_token` backward-compat field at rest so the
+  // encrypted ciphertext is the single source of truth (the resolver decrypts
+  // it first). This mirrors what the generic edit route does and keeps a
+  // freshly-rotated token from ever being shadowed by a stale value (#32A).
+  await encryptSocialPlatformCredentials(result.id, req.scope)
 
   res.status(200).json({
     socialPlatform: {

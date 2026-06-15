@@ -54,14 +54,26 @@ function shouldThrottle(key: string, now: number): boolean {
   return false
 }
 
-function resolveRecipient(data: any): string | null {
+// Recipient resolution (first non-empty wins):
+//   1. flow.metadata.failure_email  — per-flow override, set in admin UI
+//   2. VISUAL_FLOW_FAILURE_EMAIL     — platform default (set in prod SSM)
+//   3. MAILJET_FROM_EMAIL            — last-resort floor so a failure alert
+//      never silently no-ops. The 401 incident (#32B) paged nobody precisely
+//      because (1) and (2) were both unset and the subscriber bailed at debug
+//      level. The from-address is an inbox the team controls, so it's a
+//      sane catch-all until VISUAL_FLOW_FAILURE_EMAIL is configured.
+function resolveRecipient(data: any): { email: string; source: string } | null {
   const fromMetadata = data?.flow_metadata?.failure_email
   if (typeof fromMetadata === "string" && fromMetadata.includes("@")) {
-    return fromMetadata
+    return { email: fromMetadata, source: "flow.metadata.failure_email" }
   }
   const fromEnv = process.env.VISUAL_FLOW_FAILURE_EMAIL
   if (fromEnv && fromEnv.includes("@")) {
-    return fromEnv
+    return { email: fromEnv, source: "VISUAL_FLOW_FAILURE_EMAIL" }
+  }
+  const fallback = process.env.MAILJET_FROM_EMAIL
+  if (fallback && fallback.includes("@")) {
+    return { email: fallback, source: "MAILJET_FROM_EMAIL (fallback)" }
   }
   return null
 }
@@ -97,14 +109,18 @@ export default async function visualFlowLifecycleEmailHandler({
   const data = event.data || {}
   const eventName = event.name
 
-  const recipient = resolveRecipient(data)
-  if (!recipient) {
-    logger.debug(
-      `[visual-flow-lifecycle-email] ${eventName}: no recipient configured ` +
-        `(flow.metadata.failure_email + VISUAL_FLOW_FAILURE_EMAIL both empty); skipping`
+  const resolved = resolveRecipient(data)
+  if (!resolved) {
+    // WARN, not debug: a no-recipient bail is exactly how the 401 incident
+    // (#32B) paged nobody. Make the silent skip visible in logs/alerting.
+    logger.warn(
+      `[visual-flow-lifecycle-email] ${eventName}: NO RECIPIENT configured ` +
+        `(flow.metadata.failure_email + VISUAL_FLOW_FAILURE_EMAIL + MAILJET_FROM_EMAIL ` +
+        `all empty) — failure alert dropped. Set VISUAL_FLOW_FAILURE_EMAIL in prod.`
     )
     return
   }
+  const recipient = resolved.email
 
   const flowId = data.flow_id || "unknown"
   const flowName = data.flow_name || flowId
@@ -146,12 +162,22 @@ export default async function visualFlowLifecycleEmailHandler({
     return
   }
 
-  if (eventName === "visual_flow_execution.failed") {
+  // Both terminal-failure shapes alert identically (#32B, user-requested
+  // "email on fail AND cancelled"): the workflow rollback ends a run as
+  // `cancelled` while the engine path marks `failed`, and either means the
+  // flow didn't complete. Treat them the same so neither slips through.
+  if (
+    eventName === "visual_flow_execution.failed" ||
+    eventName === "visual_flow_execution.cancelled"
+  ) {
+    const status = eventName === "visual_flow_execution.cancelled" ? "cancelled" : "failed"
     const errMsg = data.error_message || "Unknown error"
-    const fp = `failed:${flowId}:${fingerprint(errMsg)}`
+    // Fingerprint is keyed by status too so a flow that emits both shapes
+    // doesn't suppress the second behind the first.
+    const fp = `${status}:${flowId}:${fingerprint(errMsg)}`
     if (shouldThrottle(fp, now)) {
       logger.debug(
-        `[visual-flow-lifecycle-email] throttled failure email for ${flowId} (fingerprint=${fp})`
+        `[visual-flow-lifecycle-email] throttled ${status} email for ${flowId} (fingerprint=${fp})`
       )
       return
     }
@@ -163,6 +189,7 @@ export default async function visualFlowLifecycleEmailHandler({
           data: {
             flow_name: flowName,
             execution_id: executionId,
+            status,
             failing_operation_key: data.failing_operation_key ?? null,
             error_message: errMsg,
             triggered_by: data.triggered_by ?? null,
@@ -173,19 +200,24 @@ export default async function visualFlowLifecycleEmailHandler({
         },
       })
       logger.info(
-        `[visual-flow-lifecycle-email] sent failure email for flow=${flowId} execution=${executionId}`
+        `[visual-flow-lifecycle-email] sent ${status} email to ${recipient} ` +
+          `(via ${resolved.source}) for flow=${flowId} execution=${executionId}`
       )
     } catch (err) {
       const message = err instanceof Error ? err.message : JSON.stringify(err)
       logger.error(
-        `[visual-flow-lifecycle-email] failed to send failure email: ${message}`
+        `[visual-flow-lifecycle-email] failed to send ${status} email: ${message}`
       )
     }
   }
 }
 
 export const config: SubscriberConfig = {
-  event: ["visual_flow_execution.started", "visual_flow_execution.failed"],
+  event: [
+    "visual_flow_execution.started",
+    "visual_flow_execution.failed",
+    "visual_flow_execution.cancelled",
+  ],
 }
 
 // Exposed for the integration test so it can reset throttle state
@@ -193,4 +225,5 @@ export const config: SubscriberConfig = {
 export const __testing = {
   clearThrottle: () => lastSentAt.clear(),
   fingerprint,
+  resolveRecipient,
 }
