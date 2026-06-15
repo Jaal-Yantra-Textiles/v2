@@ -127,6 +127,7 @@ setupSharedTestSuite(() => {
           "email",
           "customer_id",
           "metadata",
+          "unified_order_status.partner_status",
           "total",
           "sales_channel.name",
           "items.*",
@@ -185,7 +186,7 @@ setupSharedTestSuite(() => {
 
       // §5: pending_review → core draft, no partner_status yet
       expect(unified.status).toBe("draft")
-      expect(unified.metadata.partner_status ?? null).toBeNull()
+      expect(unified.unified_order_status?.partner_status ?? null).toBeNull()
 
       // GAP-3 recipe: customer-less
       expect(unified.customer_id ?? null).toBeNull()
@@ -267,7 +268,7 @@ setupSharedTestSuite(() => {
       expect(Number(childOrder.items[0].quantity)).toBe(4)
       // sent_to_partner → core pending + partner_status assigned
       expect(childOrder.status).toBe("pending")
-      expect(childOrder.metadata.partner_status).toBe("assigned")
+      expect(childOrder.unified_order_status?.partner_status).toBe("assigned")
 
       // D3: partner ↔ order link row exists on the child order
       const container = getContainer()
@@ -306,7 +307,7 @@ setupSharedTestSuite(() => {
       expect(accept.status).toBe(200)
       childOrder = await fetchUnifiedOrder(childOrderId)
       expect(childOrder.status).toBe("pending")
-      expect(childOrder.metadata.partner_status).toBe("accepted")
+      expect(childOrder.unified_order_status?.partner_status).toBe("accepted")
 
       const start = await post(
         `/partners/production-runs/${childId}/start`,
@@ -315,7 +316,7 @@ setupSharedTestSuite(() => {
       )
       expect(start.status).toBe(200)
       childOrder = await fetchUnifiedOrder(childOrderId)
-      expect(childOrder.metadata.partner_status).toBe("in_progress")
+      expect(childOrder.unified_order_status?.partner_status).toBe("in_progress")
 
       const finish = await post(
         `/partners/production-runs/${childId}/finish`,
@@ -325,7 +326,7 @@ setupSharedTestSuite(() => {
       expect(finish.status).toBe(200)
       childOrder = await fetchUnifiedOrder(childOrderId)
       expect(childOrder.status).toBe("pending")
-      expect(childOrder.metadata.partner_status).toBe("finished")
+      expect(childOrder.unified_order_status?.partner_status).toBe("finished")
 
       const complete = await post(
         `/partners/production-runs/${childId}/complete`,
@@ -335,7 +336,7 @@ setupSharedTestSuite(() => {
       expect(complete.status).toBe(200)
       childOrder = await fetchUnifiedOrder(childOrderId)
       expect(childOrder.status).toBe("completed")
-      expect(childOrder.metadata.partner_status).toBe("completed")
+      expect(childOrder.unified_order_status?.partner_status).toBe("completed")
 
       // Parent order stays superseded even after the completion cascade
       const parentAfter = await fetchUnifiedOrder(parentOrderId)
@@ -375,7 +376,7 @@ setupSharedTestSuite(() => {
 
       const childOrder = await fetchUnifiedOrder(childOrderId)
       expect(childOrder.status).toBe("canceled")
-      expect(childOrder.metadata.partner_status).toBe("declined")
+      expect(childOrder.unified_order_status?.partner_status).toBe("declined")
     })
 
     it("mirrors an admin cancel as canceled without touching partner_status", async () => {
@@ -402,7 +403,7 @@ setupSharedTestSuite(() => {
       const unified = await fetchUnifiedOrder(unifiedOrderId)
       expect(unified.status).toBe("canceled")
       // §5 defines no partner_status for an admin cancel
-      expect(unified.metadata.partner_status ?? null).toBeNull()
+      expect(unified.unified_order_status?.partner_status ?? null).toBeNull()
     })
 
     it("resolves the unified order via the link, not the metadata backref (D5-3)", async () => {

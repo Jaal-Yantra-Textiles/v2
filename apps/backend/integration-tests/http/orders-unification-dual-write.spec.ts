@@ -81,6 +81,7 @@ setupSharedTestSuite(() => {
           "customer_id",
           "region_id",
           "metadata",
+          "unified_order_status.partner_status",
           "total",
           "sales_channel.name",
           "items.*",
@@ -248,8 +249,10 @@ setupSharedTestSuite(() => {
       expect(res1.status).toBe(200)
       let unified = await fetchUnifiedOrder(unifiedOrderId)
       expect(unified.status).toBe("pending")
-      expect(unified.metadata.partner_status).toBe("in_progress")
-      // projection metadata survives the read-then-merge patch
+      // PR-H: partner_status lives only on the typed sidecar column, never metadata.
+      expect(unified.unified_order_status?.partner_status).toBe("in_progress")
+      expect(unified.metadata.partner_status).toBeUndefined()
+      // projection metadata survives the status mirror
       expect(unified.metadata.legacy_id).toBe(legacy.id)
 
       // Processing → Cancelled: core cancels; §5 defines no partner_status
@@ -262,7 +265,7 @@ setupSharedTestSuite(() => {
       expect(res2.status).toBe(200)
       unified = await fetchUnifiedOrder(unifiedOrderId)
       expect(unified.status).toBe("canceled")
-      expect(unified.metadata.partner_status).toBe("in_progress")
+      expect(unified.unified_order_status?.partner_status).toBe("in_progress")
     })
 
     it("resolves the unified order via the link, not the metadata backref (D5-3)", async () => {
@@ -298,7 +301,7 @@ setupSharedTestSuite(() => {
 
       const unified = await fetchUnifiedOrder(unifiedOrderId)
       expect(unified.status).toBe("pending")
-      expect(unified.metadata.partner_status).toBe("in_progress")
+      expect(unified.unified_order_status?.partner_status).toBe("in_progress")
     })
 
     it("keeps legacy updates non-fatal when no unified order exists", async () => {
@@ -401,9 +404,9 @@ setupSharedTestSuite(() => {
       expect(linkRows).toHaveLength(1)
       expect(linkRows[0].partner_id).toBe(partnerId)
 
-      // §5: assignment mirrors metadata.partner_status = "assigned"
+      // §5: assignment mirrors partner_status = "assigned" onto the sidecar column
       let unified = await fetchUnifiedOrder(unifiedOrderId)
-      expect(unified.metadata.partner_status).toBe("assigned")
+      expect(unified.unified_order_status?.partner_status).toBe("assigned")
 
       // ——— partner lifecycle: start → in_progress, complete → finished ———
       // Fresh token after partner creation (critical for auth context)
@@ -424,7 +427,7 @@ setupSharedTestSuite(() => {
       expect((await fetchLegacyOrder(legacy.id)).status).toBe("Processing")
       unified = await fetchUnifiedOrder(unifiedOrderId)
       expect(unified.status).toBe("pending")
-      expect(unified.metadata.partner_status).toBe("in_progress")
+      expect(unified.unified_order_status?.partner_status).toBe("in_progress")
 
       const legacyLines = (await fetchLegacyOrder(legacy.id)).orderlines
 
@@ -449,7 +452,7 @@ setupSharedTestSuite(() => {
       expect((await fetchLegacyOrder(legacy.id)).status).toBe("Partial")
       unified = await fetchUnifiedOrder(unifiedOrderId)
       expect(unified.status).toBe("pending")
-      expect(unified.metadata.partner_status).toBe("partial")
+      expect(unified.unified_order_status?.partner_status).toBe("partial")
 
       // Remainder (1.0): fully fulfilled — legacy Shipped → unified finished
       const completeRes = await post(
@@ -467,7 +470,7 @@ setupSharedTestSuite(() => {
       expect((await fetchLegacyOrder(legacy.id)).status).toBe("Shipped")
       unified = await fetchUnifiedOrder(unifiedOrderId)
       expect(unified.status).toBe("pending")
-      expect(unified.metadata.partner_status).toBe("finished")
+      expect(unified.unified_order_status?.partner_status).toBe("finished")
     })
   })
 })

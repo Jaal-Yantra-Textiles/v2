@@ -19,12 +19,13 @@ export const PARTNER_WORK_ORDERS_CHANNEL = "Partner Work Orders"
 // unified order's `metadata`. Medusa's `update*` REPLACES the whole metadata
 // blob, so any external writer (e.g. a partner PATCH) must read-then-merge AND
 // must never let caller input overwrite these — they anchor backfill/idempotency
-// (`legacy_id`) and drive T3 panels (`partner_status`). NOTE: `kind` is no longer
+// (`legacy_id`) and the order's commercial provenance. NOTE: `kind` is no longer
 // here — Chunk 6 retired it; the order↔execution link IS the discriminator now.
-// See ORDERS_UNIFICATION_342.md "metadata-as-critical-data".
+// `partner_status` is also gone — PR-H (Chunk 9b-contract) promoted it entirely
+// onto the typed `unified_order_status` sidecar column, so the metadata copy is
+// no longer written or read. See ORDERS_UNIFICATION_342.md "metadata-as-critical-data".
 export const PROTECTED_UNIFICATION_METADATA_KEYS = [
   "legacy_id",
-  "partner_status",
   "source_order_id",
   "source_line_item_id",
   "superseded_by_run_ids",
@@ -105,39 +106,16 @@ type MirrorResult = {
   error?: string
 }
 
-// #342 PR-D (Chunk 7 / H1) — serialize the read-modify-write of a unified
-// order's `metadata` (chiefly `partner_status`). Every mirror does
-// retrieveOrder → spread metadata → updateOrders; two near-simultaneous
-// transitions (e.g. a partner `/complete` and the
-// `production-run-task-updated` auto-complete) otherwise both read the same
-// snapshot and the later write clobbers the earlier one (lost update). The lock
-// key is the unified order id so EVERY writer of that order's metadata contends
-// on the same key — including the non-workflow writers (the task-updated
-// subscriber + the admin cancel route), which call the mirror helpers directly
-// and so inherit the lock for free.
-//
-// Why here and not a workflow-level acquireLockStep (the doc's "preferred"):
-//   1. acquire-as-a-step throws on timeout → it would FAIL the legacy workflow,
-//      violating the best-effort "never fail the legacy path" contract. Wrapped
-//      inside each mirror's existing swallow-and-warn try/catch, a timeout is
-//      caught → the mirror is skipped, the legacy path is untouched.
-//   2. A workflow step can't cover the subscriber / admin route writers; this
-//      shared seam does.
-// `LockingService.execute` acquires, runs the job, and releases (even on throw).
-// In-memory provider today (prod runs one Fargate task); Chunk 8 (H2) wires the
-// Redis provider so the lock holds across instances before we scale out.
-const UNIFIED_ORDER_LOCK_TIMEOUT_SECONDS = 5
-
-export const withUnifiedOrderMetadataLock = <T>(
-  container: MedusaContainer,
-  unifiedOrderId: string,
-  job: () => Promise<T>
-): Promise<T> => {
-  const locking: any = container.resolve(Modules.LOCKING)
-  return locking.execute(`unified-order-metadata:${unifiedOrderId}`, job, {
-    timeout: UNIFIED_ORDER_LOCK_TIMEOUT_SECONDS,
-  })
-}
+// #342 PR-H (Chunk 9b-contract) retired `withUnifiedOrderMetadataLock`. It
+// existed to serialize the read-modify-write of `metadata.partner_status` across
+// concurrent transitions (the lost-update race). Now that `partner_status` lives
+// only on the typed `unified_order_status` sidecar column — written via a
+// single-column upsert (`setUnifiedOrderPartnerStatus`) with no read-modify-write
+// to lose — the lock has nothing left to protect: every remaining metadata write
+// is either write-once-at-create or the single-writer `superseded_by_run_ids`
+// patch at approve time. The Chunk-8 Redis locking PROVIDER stays in
+// medusa-config (other LOCKING consumers — `complete-production-run`, the
+// `production-run-task-updated` subscriber — resolve it independently).
 
 // D5-3 — resolve a legacy row's unified order id by the order↔<execution>
 // link, forward (`<entity>.order`), which the Chunk 2 directionality finding
@@ -163,19 +141,15 @@ export const resolveUnifiedOrderIdByLink = async (
   return row?.order?.id ?? row?.metadata?.unified_order_id ?? undefined
 }
 
-// #342 Chunk 9b (PR-F) — promote `partner_status` off the order's metadata blob
-// onto the typed 1:1 `unified_order_status` sidecar column. Atomic upsert:
-// find-or-create the sidecar row (via the order↔unified_order_status link) and
-// write the single `partner_status` column. A single-column write has no
-// read-modify-write, so it needs no lock — unlike the metadata RMW it shadows
-// (which stays under withUnifiedOrderMetadataLock through the expand phase).
-//
-// During expand every caller writes BOTH this column AND metadata.partner_status
-// (belt-and-suspenders); PR-G repoints the 2 read sites onto this column and
-// PR-H stops writing the metadata copy + drops the lock. The create race on a
-// brand-new order's first status is a non-issue in practice: the create-path
-// projection (production runs) and the single send-to-partner mirror (inventory)
-// establish the row before any concurrent transition can run.
+// #342 Chunk 9b (PR-F→PR-H) — `partner_status` lives ONLY on the typed 1:1
+// `unified_order_status` sidecar column (PR-H retired the metadata copy). Atomic
+// upsert: find-or-create the sidecar row (via the order↔unified_order_status
+// link) and write the single `partner_status` column. A single-column write has
+// no read-modify-write, so it needs no lock — which is why PR-H could drop the
+// metadata RMW and its per-order lock entirely. The create race on a brand-new
+// order's first status is a non-issue in practice: the create-path projection
+// (production runs) and the single send-to-partner mirror (inventory) establish
+// the row before any concurrent transition can run.
 export const setUnifiedOrderPartnerStatus = async (
   container: MedusaContainer,
   unifiedOrderId: string,
@@ -428,34 +402,11 @@ export const mirrorPartnerLinkOnUnifiedOrderStep = createStep(
       ]
       await remoteLink.create(links)
 
-      // Chunk 7 — serialize the metadata RMW on the unified order id (see
-      // withUnifiedOrderMetadataLock). The remoteLink.create above is not a
-      // metadata RMW, so it stays outside the lock.
-      const orderService: any = container.resolve(Modules.ORDER)
-      await withUnifiedOrderMetadataLock(container, unifiedOrderId, async () => {
-        const unifiedOrder = await orderService.retrieveOrder(unifiedOrderId, {
-          select: ["id", "metadata"],
-        })
-        await orderService.updateOrders([
-          {
-            id: unifiedOrderId,
-            metadata: {
-              ...(unifiedOrder?.metadata ?? {}),
-              partner_status: "assigned",
-            },
-          },
-        ])
-      })
-
-      // Chunk 9b (PR-F) — also write the typed sidecar column (expand: BOTH
-      // surfaces). Best-effort so a sidecar failure never regresses the
-      // still-authoritative metadata write above.
-      await setUnifiedOrderPartnerStatus(container, unifiedOrderId, "assigned").catch(
-        (e: any) =>
-          logger.warn(
-            `[orders-unification] sidecar status write failed for ${unifiedOrderId}: ${e?.message}`
-          )
-      )
+      // PR-H (Chunk 9b-contract) — `partner_status` is now column-only. Write
+      // the typed `unified_order_status` sidecar (single-column upsert, no RMW,
+      // no lock). A failure throws to the step's swallow-and-warn boundary so the
+      // legacy path is never failed.
+      await setUnifiedOrderPartnerStatus(container, unifiedOrderId, "assigned")
 
       return new StepResponse<MirrorResult>({
         linked: true,
@@ -503,42 +454,20 @@ export const mirrorUnifiedOrderStatusStep = createStep(
       const coreStatus = LEGACY_TO_CORE_STATUS[legacy.status]
       const partnerStatus = LEGACY_TO_PARTNER_STATUS[legacy.status]
 
-      // Chunk 7 — serialize the metadata RMW on the unified order id so a
-      // concurrent transition can't clobber partner_status (see
-      // withUnifiedOrderMetadataLock).
-      const orderService: any = container.resolve(Modules.ORDER)
-      await withUnifiedOrderMetadataLock(container, unifiedOrderId, async () => {
-        const unifiedOrder = await orderService.retrieveOrder(unifiedOrderId, {
-          select: ["id", "metadata"],
-        })
+      // core order.status is a single column — a blind write, last-writer-wins,
+      // nothing to lose, so no lock (PR-H retired withUnifiedOrderMetadataLock).
+      if (coreStatus) {
+        const orderService: any = container.resolve(Modules.ORDER)
         await orderService.updateOrders([
-          {
-            id: unifiedOrderId,
-            ...(coreStatus ? { status: coreStatus } : {}),
-            ...(partnerStatus
-              ? {
-                  metadata: {
-                    ...(unifiedOrder?.metadata ?? {}),
-                    partner_status: partnerStatus,
-                  },
-                }
-              : {}),
-          },
+          { id: unifiedOrderId, status: coreStatus },
         ])
-      })
+      }
 
-      // Chunk 9b (PR-F) — mirror partner_status onto the typed sidecar column
-      // too (expand: BOTH surfaces). Best-effort, same contract as above.
+      // PR-H — partner_status is column-only now: single-column upsert on the
+      // typed `unified_order_status` sidecar. Throws to the step's swallow-and-
+      // warn boundary on failure (best-effort: never fails the legacy path).
       if (partnerStatus) {
-        await setUnifiedOrderPartnerStatus(
-          container,
-          unifiedOrderId,
-          partnerStatus
-        ).catch((e: any) =>
-          logger.warn(
-            `[orders-unification] sidecar status write failed for ${unifiedOrderId}: ${e?.message}`
-          )
-        )
+        await setUnifiedOrderPartnerStatus(container, unifiedOrderId, partnerStatus)
       }
 
       return new StepResponse<MirrorResult>({

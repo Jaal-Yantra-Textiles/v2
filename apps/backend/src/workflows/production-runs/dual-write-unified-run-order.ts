@@ -12,7 +12,6 @@ import {
   PARTNER_WORK_ORDERS_CHANNEL,
   resolveUnifiedOrderIdByLink,
   linkUnifiedOrderOrRollback,
-  withUnifiedOrderMetadataLock,
   setUnifiedOrderPartnerStatus,
 } from "../inventory_orders/dual-write-unified-order"
 
@@ -150,40 +149,24 @@ const patchUnifiedOrder = async (
   patch: { status?: string; metadata?: Record<string, unknown> }
 ) => {
   const orderService: any = container.resolve(Modules.ORDER)
-  // Chunk 7 — when the patch touches metadata, the read-then-merge must run
-  // under the per-order lock so a concurrent mirror can't clobber it (see
-  // withUnifiedOrderMetadataLock). A pure status patch (no metadata) is a
-  // single blind write with nothing to lose, so it skips the lock.
+  // PR-H retired the per-order metadata lock. The only metadata this patches now
+  // is `superseded_by_run_ids` — written once, by the single approve-time writer
+  // (dualWriteChildRunOrdersStep), with no concurrent metadata writer (partner_
+  // status moved to the sidecar column). The read-then-merge still runs to
+  // preserve the create-time keys updateOrders would otherwise replace, but it
+  // needs no lock.
   if (patch.metadata) {
-    await withUnifiedOrderMetadataLock(container, unifiedOrderId, async () => {
-      const current = await orderService.retrieveOrder(unifiedOrderId, {
-        select: ["id", "metadata"],
-      })
-      const mergedMetadata = { ...(current?.metadata ?? {}), ...patch.metadata }
-      await orderService.updateOrders([
-        {
-          id: unifiedOrderId,
-          ...(patch.status ? { status: patch.status } : {}),
-          metadata: mergedMetadata,
-        },
-      ])
+    const current = await orderService.retrieveOrder(unifiedOrderId, {
+      select: ["id", "metadata"],
     })
-    // Chunk 9b (PR-F) — when the patch carries partner_status, mirror it onto
-    // the typed sidecar column too (expand: BOTH surfaces). Best-effort; skips
-    // metadata-only patches like superseded_by_run_ids that carry no status.
-    const patchedStatus = (patch.metadata as any)?.partner_status
-    if (patchedStatus) {
-      await setUnifiedOrderPartnerStatus(
-        container,
-        unifiedOrderId,
-        patchedStatus
-      ).catch((e: any) => {
-        const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
-        logger.warn(
-          `[orders-unification] sidecar status write failed for ${unifiedOrderId}: ${e?.message}`
-        )
-      })
-    }
+    const mergedMetadata = { ...(current?.metadata ?? {}), ...patch.metadata }
+    await orderService.updateOrders([
+      {
+        id: unifiedOrderId,
+        ...(patch.status ? { status: patch.status } : {}),
+        metadata: mergedMetadata,
+      },
+    ])
     return
   }
   await orderService.updateOrders([
@@ -268,10 +251,10 @@ export const projectRunToUnifiedOrder = async (
       currency_assumed: true,
     }
 
+    // PR-H — partner_status is no longer written to metadata; it goes only onto
+    // the typed `unified_order_status` sidecar column (set below, after the order
+    // + link exist).
     const partnerStatus = deriveRunPartnerStatus(run)
-    if (partnerStatus) {
-      metadata.partner_status = partnerStatus
-    }
 
     // GAP-3 recipe: omit customer_id AND email so the order is created
     // customer-less (the "customer" of a work-order is JYT itself).
@@ -412,57 +395,30 @@ export const mirrorRunStatusToUnifiedOrder = async (
     const coreStatus = RUN_TO_CORE_STATUS[run.status]
     const partnerStatus = deriveRunPartnerStatus(run, opts)
 
-    // Chunk 7 — the retrieve → superseded-check → update is one read-modify-
-    // write on the unified order's metadata; run it under the per-order lock so
-    // a concurrent transition (e.g. partner /complete racing the task-updated
-    // auto-complete, which calls this same fn) can't clobber partner_status.
+    // A parent order superseded by a run split stays canceled forever — the
+    // child orders carry the commercial reality. `superseded_by_run_ids` is the
+    // one metadata key still read here; it's write-once at approve, so this is a
+    // plain read (PR-H retired the per-order metadata lock — partner_status now
+    // lives on the sidecar column, which has no RMW to serialize).
     const orderService: any = container.resolve(Modules.ORDER)
-    let superseded = false
-    await withUnifiedOrderMetadataLock(container, unifiedOrderId, async () => {
-      const unifiedOrder = await orderService.retrieveOrder(unifiedOrderId, {
-        select: ["id", "metadata"],
-      })
-
-      // A parent order superseded by a run split stays canceled forever —
-      // the child orders carry the commercial reality.
-      if (unifiedOrder?.metadata?.superseded_by_run_ids) {
-        superseded = true
-        return
-      }
-
-      await orderService.updateOrders([
-        {
-          id: unifiedOrderId,
-          ...(coreStatus ? { status: coreStatus } : {}),
-          ...(partnerStatus
-            ? {
-                metadata: {
-                  ...(unifiedOrder?.metadata ?? {}),
-                  partner_status: partnerStatus,
-                },
-              }
-            : {}),
-        },
-      ])
+    const unifiedOrder = await orderService.retrieveOrder(unifiedOrderId, {
+      select: ["id", "metadata"],
     })
-
-    if (superseded) {
+    if (unifiedOrder?.metadata?.superseded_by_run_ids) {
       return { linked: false, skipped: "superseded" }
     }
 
-    // Chunk 9b (PR-F) — mirror partner_status onto the typed sidecar column too
-    // (expand: BOTH surfaces). Outside the lock — a single-column write has no
-    // RMW to protect. Best-effort, same contract as the metadata write above.
+    // core order.status — single-column blind write, no lock.
+    if (coreStatus) {
+      await orderService.updateOrders([
+        { id: unifiedOrderId, status: coreStatus },
+      ])
+    }
+
+    // PR-H — partner_status is column-only: single-column upsert on the typed
+    // sidecar. Throws to the swallow-and-warn boundary on failure.
     if (partnerStatus) {
-      await setUnifiedOrderPartnerStatus(
-        container,
-        unifiedOrderId,
-        partnerStatus
-      ).catch((e: any) =>
-        logger.warn(
-          `[orders-unification] sidecar status write failed for ${unifiedOrderId}: ${e?.message}`
-        )
-      )
+      await setUnifiedOrderPartnerStatus(container, unifiedOrderId, partnerStatus)
     }
 
     return { linked: true, unified_order_id: unifiedOrderId }
@@ -573,9 +529,9 @@ export const mirrorRunPartnerLinkOnUnifiedOrderStep = createStep(
         )
       }
 
-      await patchUnifiedOrder(container, unifiedOrderId, {
-        metadata: { partner_status: "assigned" },
-      })
+      // PR-H — partner_status is column-only (single-column sidecar upsert), no
+      // longer a metadata patch.
+      await setUnifiedOrderPartnerStatus(container, unifiedOrderId, "assigned")
 
       return new StepResponse<MirrorResult>({
         linked: true,

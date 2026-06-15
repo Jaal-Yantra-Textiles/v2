@@ -30,12 +30,11 @@ const DEFAULT_FIELDS = [
   "payment_collections.*",
   "shipping_address.*",
   // Chunk 5 (T3.4): kind is the route `?kind=` param (link-derived, Chunk 6).
-  // Chunk 9b / PR-G: the work-status badge now reads the typed
+  // Chunk 9b / PR-G + PR-H: the work-status badge reads the typed
   // `unified_order_status.partner_status` column (PR-F sidecar) via the link
-  // accessor — the authoritative source. `metadata` stays surfaced only as a
-  // transitional fallback for rows not yet backfilled; PR-H drops it.
+  // accessor — now the SOLE source (PR-H retired the `metadata.partner_status`
+  // copy and its transitional fallback).
   "unified_order_status.partner_status",
-  "metadata",
 ]
 
 // Chunk 5 (T3.4, #342): the partner orders list is `?kind=`-aware (retail |

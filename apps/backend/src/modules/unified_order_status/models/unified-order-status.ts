@@ -7,10 +7,11 @@ import { model } from "@medusajs/framework/utils"
  * Why a separate table (not the order's metadata)
  *   `partner_status` is load-bearing, mutated state that the partner panels read.
  *   Medusa's `updateOrders` REPLACES the whole metadata blob, so two concurrent
- *   mirrors racing a read-then-merge can lose an update (the very hazard PR-D's
- *   `withUnifiedOrderMetadataLock` guards). A typed 1:1 column is a single-column
- *   write — no read-modify-write, so no lock is needed once reads move off
- *   metadata (PR-G/PR-H). See feedback_no_critical_data_in_metadata.
+ *   mirrors racing a read-then-merge could lose an update — a hazard the now-
+ *   retired PR-D `withUnifiedOrderMetadataLock` used to guard. A typed 1:1 column
+ *   is a single-column write — no read-modify-write — so once reads + writes
+ *   moved entirely onto it (PR-G/PR-H) the lock was deleted. See
+ *   feedback_no_critical_data_in_metadata.
  *
  * Row presence = "this order has reached a partner-tracked state". The order↔
  * unified_order_status link (src/links/order-unified-status.ts) is the 1:1
