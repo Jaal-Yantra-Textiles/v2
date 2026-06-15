@@ -962,6 +962,85 @@ interface + COD remittance loop before committing.
 > capture-on-delivery (COD remittance) or a pre-auth; and whether this is
 > design-orders-only or all work-orders.
 
+#### 32. Visual-flow + WhatsApp token reliability (post-incident, vflow 401)
+
+**Status: ANALYSED 2026-06-15 — fix deferred to a dedicated session.**
+Incident: the production WhatsApp flow `vflow_01KQ9RSZ1TFMB7MQ0Y64P4E98Y`
+("Partner WhatsApp — Production Run (all events)") started failing in prod.
+Worker log (2026-06-14 19:46):
+`WhatsApp API error: 401 - {"error":{"message":"Authentication Error","code":190,"type":"OAuthException"}}`
+→ `[visual-flow-event-trigger] Failed to execute flow`. Meta **code 190 =
+expired/invalid access token**. (Later runs "succeed" by logging
+`Skipping WhatsApp … reason: no_template_for_event` — a separate, secondary
+gap, see (C).)
+
+**Root cause (A) — stale encrypted token shadows the freshly-set plain one.**
+A WhatsApp `SocialPlatform.api_config` carries BOTH `access_token` (plain,
+"backward compat") AND `access_token_encrypted`. The resolver
+`buildConfigFromPlatform` (`api/admin/social-platforms/whatsapp/helpers.ts`)
+reads `access_token_encrypted` FIRST (decrypt), and only falls back to the
+plain `access_token` if decrypt *throws*. There are two write paths:
+- the WhatsApp **connect** route (`whatsapp/connect/route.ts:40`) correctly
+  re-encrypts on update;
+- the **generic External-Platforms edit** writes only `access_token` (plain)
+  and leaves the OLD `access_token_encrypted` in place (`enc_updated: null`,
+  no `access_token_updated_at`).
+The admin rotated the token via the generic edit → plain updated, encrypted
+**stale** → resolver keeps using the **old expired** token → 190/401 on every
+send + on template sync + on the config WABA/phone validation (verified live:
+`whatsapp/config` returns `waba_info_ok: false`, `phone_info_ok: false` for
+BOTH the IN and AU platforms, which both have the same shadow shape).
+**Proof the new token is fine:** the `.env WHATSAPP_ACCESS_TOKEN` (the same
+rotated token) tested directly against Meta is `is_valid: true`,
+`type: SYSTEM_USER`, `expires_at: 0` (never expires), scopes
+`whatsapp_business_management` + `whatsapp_business_messaging`, and the exact
+`{WABA}/message_templates` call returns `ok: true`. So the token is good; the
+platform record just isn't using it.
+
+**Fix (A) — next session:**
+- Unify the token-update path so ANY token write re-encrypts
+  `access_token_encrypted` (or have the generic edit route through the same
+  encrypt step), and/or drop the plain `access_token` backward-compat field
+  entirely so there's one source of truth.
+- Consider making the resolver prefer the more-recently-written field, or
+  clear `access_token_encrypted` whenever a plain `access_token` is set.
+- **Immediate unblock (data-only, no deploy):** re-save the IN (and AU) token
+  through the WhatsApp **connect** route (which re-encrypts), OR null out the
+  stale `access_token_encrypted` so the resolver falls back to the good plain
+  token. Then re-run template sync.
+
+**Gap (B) — failure alerting didn't page anyone.** Roadmap #26 wired
+`visual_flow_execution.failed` → admin email
+(`subscribers/visual-flow-lifecycle-email.ts`), but it **bails silently** when
+no recipient is configured (`flow.metadata.failure_email` AND
+`VISUAL_FLOW_FAILURE_EMAIL` both empty) — which is why this 401 generated no
+email. Also: the workflow path emits `failed` from its rollback compensation
+(status ends `cancelled`), but the **module engine path**
+(`modules/visual_flows/execution-engine.ts:140`) marks `failed` and emits **no
+event at all** → manual/test-run failures never email.
+**Fix (B) — next session (user-requested "email on fail AND cancelled"):**
+- Subscriber: handle `visual_flow_execution.cancelled` in addition to
+  `failed` (treat identically); escalate the no-recipient log debug→warn so a
+  silent skip is visible.
+- Engine path: emit a failure lifecycle event from the catch so engine/manual
+  runs also alert.
+- Recipient: set `VISUAL_FLOW_FAILURE_EMAIL` in prod (SSM) and/or a default
+  fallback so it never silently no-ops; document `flow.metadata.failure_email`
+  per-flow override.
+
+**Gap (C) — `no_template_for_event` skips (secondary).** After the (still
+stale) token, recent runs log `Skipping WhatsApp for event
+production_run.accepted|started — reason: no_template_for_event` and the flow
+reports success. Decide whether those events SHOULD have templates (then the
+mapping/sync is the gap, dependent on (A)) or the skip is intended — confirm
+once (A) is fixed and templates re-sync.
+
+**First step (next session):** fix (A) — the token shadow — verify IN sends +
+template sync recover, then (B) the alerting so the next token expiry pages us
+instead of failing silently.
+**Effort:** ~half a day (A: token-write unification + data unblock; B:
+subscriber + engine-emit + recipient config; C: confirm).
+
 ---
 
 ## Suggested working order for the week
