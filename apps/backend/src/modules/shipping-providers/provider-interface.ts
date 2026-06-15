@@ -170,6 +170,25 @@ export type RegisterPickupLocationInput = {
   gstin?: string
 }
 
+/**
+ * A registered pickup location as the carrier reports it. The nickname is what
+ * `createShipment`/`registerPickupLocation` reference; `phone_verified` matters
+ * because "registered" ≠ "shippable" for Shiprocket (phone must be OTP-verified
+ * before live pickups). See SHIPPING_PROVIDERS.md §9.
+ */
+export type PickupLocation = {
+  /** The unique nickname callers reference (Shiprocket `pickup_location`). */
+  name: string
+  /** Carrier-side id, when exposed. */
+  id?: string | number
+  /** True when the pickup address phone is OTP-verified (usable for live pickups). */
+  phone_verified?: boolean
+  city?: string
+  state?: string
+  pincode?: string
+  raw?: any
+}
+
 export type LabelResult = {
   label_url?: string
   /** Base64-encoded label payload when the provider returns bytes, not a URL. */
@@ -205,6 +224,13 @@ export interface ShippingProviderClient {
   registerPickupLocation?(
     input: RegisterPickupLocationInput
   ): Promise<{ name: string; raw?: any }>
+
+  /**
+   * List the carrier's registered pickup locations. Used for idempotent
+   * registration (skip if the nickname already exists) and to surface
+   * phone-verification status. Optional — not every carrier exposes a list API.
+   */
+  listPickupLocations?(): Promise<PickupLocation[]>
 
   /** Normalize an inbound tracking webhook payload (P2). */
   normalizeWebhook?(payload: any): TrackingResult

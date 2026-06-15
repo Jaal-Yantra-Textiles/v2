@@ -12,6 +12,7 @@
 import {
   CreateShipmentInput,
   LabelResult,
+  PickupLocation,
   RateOption,
   RateQuery,
   RegisterPickupLocationInput,
@@ -334,6 +335,32 @@ export class ShiprocketClient implements ShippingProviderClient {
       }),
     })
     return { name: input.name, raw: json }
+  }
+
+  /**
+   * List registered pickup locations (`data.shipping_address[]`). Used for
+   * idempotent registration and to surface phone-verification status — a
+   * Shiprocket pickup point isn't usable for live pickups until its phone is
+   * OTP-verified, so "registered" ≠ "shippable".
+   */
+  async listPickupLocations(): Promise<PickupLocation[]> {
+    const json = await this.request<any>(`/settings/company/pickup`, {
+      method: "GET",
+    })
+    const rows = json?.data?.shipping_address || []
+    return rows.map((r: any) => ({
+      name: r.pickup_location || r.name || "",
+      id: r.id,
+      // Shiprocket returns 0/1; treat truthy non-zero as verified.
+      phone_verified:
+        r.phone_verified !== undefined
+          ? Boolean(Number(r.phone_verified))
+          : undefined,
+      city: r.city,
+      state: r.state,
+      pincode: r.pin_code,
+      raw: r,
+    }))
   }
 
   /** Normalize the Shiprocket webhook push payload (P2). */
