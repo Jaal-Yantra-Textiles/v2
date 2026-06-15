@@ -20,6 +20,17 @@ import {
   TrackingResult,
 } from "../provider-interface"
 
+/** Delhivery status-code → human label (mirrors the old route normalizer). */
+const STATUS_LABELS: Record<string, string> = {
+  UD: "In Transit",
+  DL: "Delivered",
+  RT: "Returned",
+  PP: "Pickup Pending",
+  PU: "Picked Up",
+  OT: "Out for Delivery",
+  NFI: "Not Found",
+}
+
 export class DelhiveryProviderAdapter implements ShippingProviderClient {
   readonly carrier = "delhivery"
   private client: DelhiveryClient
@@ -107,21 +118,31 @@ export class DelhiveryProviderAdapter implements ShippingProviderClient {
     if (!waybill) throw new Error("Delhivery track requires a waybill")
     const raw = await this.client.trackShipment(waybill)
     const shipment = raw?.ShipmentData?.[0]?.Shipment || {}
+    const status = shipment?.Status || {}
     const scans = shipment?.Scans || []
+
     const events: TrackingEvent[] = scans.map((s: any) => {
       const detail = s?.ScanDetail || s
       return {
-        timestamp: detail?.ScanDateTime || detail?.StatusDateTime || "",
-        status: detail?.Scan || detail?.Instructions || "",
+        timestamp: detail?.ScanDateTime || "",
+        status: detail?.Instructions || detail?.Scan || "",
         location: detail?.ScannedLocation || "",
-        scan_type: String(detail?.ScanType || "").toLowerCase(),
+        // Carrier status code (e.g. "UD"/"DL") — the partner UI's scanTypeColor
+        // keys on these directly, so keep them rather than lowercasing.
+        scan_type: detail?.StatusCode || detail?.ScanType || "",
       }
     })
+    // Newest first.
+    events.sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    )
+
+    const statusType = status.StatusCode || status.StatusType || ""
     return {
       carrier: this.carrier,
-      awb: waybill,
-      current_status: shipment?.Status?.Status || "",
-      current_status_code: shipment?.Status?.StatusCode,
+      awb: shipment?.AWB || waybill,
+      current_status: STATUS_LABELS[statusType] || status.Status || "Unknown",
+      current_status_code: statusType,
       estimated_delivery: shipment?.ExpectedDeliveryDate || null,
       origin: shipment?.Origin || undefined,
       destination: shipment?.Destination || undefined,

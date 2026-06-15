@@ -21,9 +21,45 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { ENCRYPTION_MODULE } from "../encryption"
 import type EncryptionService from "../encryption/service"
 import { SOCIALS_MODULE } from "../socials"
-import { CarrierId, ShippingProviderClient } from "./provider-interface"
+import { CarrierId, ShipmentRef, ShippingProviderClient } from "./provider-interface"
 import { DelhiveryProviderAdapter } from "./delhivery/adapter"
 import { ShiprocketClient } from "./shiprocket/client"
+
+/** Carriers `resolveShippingProvider` can return a live client for. */
+export const SUPPORTED_CARRIERS: CarrierId[] = ["delhivery", "shiprocket"]
+
+/**
+ * True when a carrier has a registered ShippingProviderClient. Consumer routes
+ * use this to decide whether to drive the carrier API or fall back to stored
+ * data (e.g. manual fulfillments with no carrier).
+ */
+export function isSupportedCarrier(
+  carrier?: string | null
+): carrier is CarrierId {
+  return SUPPORTED_CARRIERS.includes(String(carrier || "").toLowerCase() as CarrierId)
+}
+
+/**
+ * Reconstruct a ShipmentRef from a fulfillment's persisted `data`. The provider
+ * service writes `{ carrier, waybill, ...provider_refs }` flat onto
+ * `fulfillment.data`, so Delhivery needs only the waybill while Shiprocket's
+ * label/track/cancel need `shipment_id` / `sr_order_id`. This collects both.
+ */
+export function shipmentRefFromFulfillment(
+  data?: Record<string, any> | null
+): ShipmentRef {
+  const d = data || {}
+  const awb = d.waybill || d.tracking_number || d.awb || undefined
+  return {
+    awb,
+    provider_refs: {
+      waybill: awb,
+      shipment_id: d.shipment_id,
+      sr_order_id: d.sr_order_id,
+      ...(d.provider_refs || {}),
+    },
+  }
+}
 
 /** Decrypt a `<field>` from an api_config, preferring the encrypted blob. */
 function readSecret(

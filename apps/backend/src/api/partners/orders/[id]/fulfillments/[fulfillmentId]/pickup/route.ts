@@ -1,7 +1,11 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { validatePartnerOrderOwnership } from "../../../../../helpers"
-import { DelhiveryClient } from "../../../../../../../modules/shipping-providers/delhivery/client"
+import {
+  isSupportedCarrier,
+  resolveShippingProvider,
+  shipmentRefFromFulfillment,
+} from "../../../../../../../modules/shipping-providers/resolver"
 
 export const POST = async (
   req: AuthenticatedMedusaRequest,
@@ -29,10 +33,11 @@ export const POST = async (
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Fulfillment not found")
   }
 
-  if (fulfillment.data?.carrier !== "delhivery") {
+  const carrier = fulfillment.data?.carrier
+  if (!isSupportedCarrier(carrier)) {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
-      "Pickup scheduling is only available for Delhivery shipments"
+      "Pickup scheduling is not available for this shipment's carrier"
     )
   }
 
@@ -56,18 +61,12 @@ export const POST = async (
     location?.metadata?.delhivery_warehouse_name ||
     fulfillment.data?.pickup_location_name
 
-  if (!warehouseName) {
+  // Delhivery schedules per registered warehouse; aggregators (Shiprocket)
+  // schedule per shipment via the ref, so only Delhivery hard-requires a name.
+  if (carrier === "delhivery" && !warehouseName) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
       "No Delhivery warehouse registered for this location"
-    )
-  }
-
-  const delhiveryToken = process.env.DELHIVERY_API_TOKEN
-  if (!delhiveryToken) {
-    throw new MedusaError(
-      MedusaError.Types.UNEXPECTED_STATE,
-      "Delhivery API token not configured"
     )
   }
 
@@ -82,23 +81,28 @@ export const POST = async (
     )
   }
 
-  const client = new DelhiveryClient({
-    api_token: delhiveryToken,
-    sandbox: process.env.DELHIVERY_SANDBOX === "true",
-  })
+  const provider = await resolveShippingProvider(req.scope, carrier)
+  if (!provider.schedulePickup) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `Pickup scheduling is not supported by ${carrier}`
+    )
+  }
 
-  const result = await client.schedulePickup({
+  const result = await provider.schedulePickup({
+    pickup_location_name: warehouseName,
     pickup_date: pickupDate,
     pickup_time: pickupTime,
-    pickup_location: warehouseName,
     expected_package_count: body.expected_package_count || 1,
+    ref: shipmentRefFromFulfillment(fulfillment.data),
   })
 
+  const raw = (result.raw as Record<string, any>) || {}
   res.json({
-    pickup_id: result.pickup_id,
+    pickup_id: raw.pickup_id,
     pickup_date: pickupDate,
     pickup_time: pickupTime,
-    incoming_center_name: result.incoming_center_name,
-    ...result,
+    incoming_center_name: raw.incoming_center_name,
+    ...raw,
   })
 }

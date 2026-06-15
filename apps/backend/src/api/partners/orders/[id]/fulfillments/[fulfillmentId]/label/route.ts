@@ -1,7 +1,11 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { validatePartnerOrderOwnership } from "../../../../../helpers"
-import { DelhiveryClient } from "../../../../../../../modules/shipping-providers/delhivery/client"
+import {
+  isSupportedCarrier,
+  resolveShippingProvider,
+  shipmentRefFromFulfillment,
+} from "../../../../../../../modules/shipping-providers/resolver"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -34,8 +38,8 @@ export const GET = async (
   }
 
   const carrier = fulfillment.data?.carrier
-  if (carrier !== "delhivery") {
-    // For non-Delhivery providers, return existing label data
+  if (!isSupportedCarrier(carrier)) {
+    // No carrier client (e.g. manual fulfillment) — return stored label data.
     const label = fulfillment.labels?.[0]
     res.json({
       label_url: label?.label_url || "",
@@ -45,24 +49,12 @@ export const GET = async (
     return
   }
 
-  const delhiveryToken = process.env.DELHIVERY_API_TOKEN
-  if (!delhiveryToken) {
-    throw new MedusaError(
-      MedusaError.Types.UNEXPECTED_STATE,
-      "Delhivery API token not configured"
-    )
-  }
-
-  const client = new DelhiveryClient({
-    api_token: delhiveryToken,
-    sandbox: process.env.DELHIVERY_SANDBOX === "true",
-  })
-
-  const packingSlip = await client.getLabel(waybill)
+  const provider = await resolveShippingProvider(req.scope, carrier)
+  const label = await provider.getLabel(shipmentRefFromFulfillment(fulfillment.data))
 
   res.json({
-    label_url: `https://www.delhivery.com/track/package/${waybill}`,
+    label_url: label.label_url || "",
     tracking_number: waybill,
-    packing_slip: packingSlip,
+    packing_slip: label.raw ?? label.data ?? null,
   })
 }
