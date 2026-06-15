@@ -27,3 +27,6 @@ dist-ssr
 .yarn/
 
 .env
+
+# What's-new GIF source recordings + harness (raw webm + playwright scripts)
+whats-new-src/
