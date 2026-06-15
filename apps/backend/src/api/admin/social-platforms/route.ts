@@ -110,6 +110,7 @@ import { createSocialPlatformWorkflow } from "../../../workflows/socials/create-
 import { listSocialPlatformWorkflow } from "../../../workflows/socials/list-social-platform";
 import { SOCIALS_MODULE } from "../../../modules/socials";
 import type SocialsService from "../../../modules/socials/service";
+import { redactSocialPlatform } from "./secrets";
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const filters: Record<string, any> = {}
@@ -157,7 +158,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       },
     },
   });
-  res.status(200).json({ socialPlatforms: result[0], count: result[1] });
+  // List never reveals secrets — strip every credential from each row.
+  const socialPlatforms = (result[0] as any[]).map((p) => redactSocialPlatform(p));
+  res.status(200).json({ socialPlatforms, count: result[1] });
 };
 
 export const POST = async (req: MedusaRequest<SocialPlatform>, res: MedusaResponse) => {
@@ -175,5 +178,5 @@ export const POST = async (req: MedusaRequest<SocialPlatform>, res: MedusaRespon
     await socials.clearOtherWhatsAppDefaults((socialPlatform as any).id);
   }
 
-  res.status(201).json({ socialPlatform });
+  res.status(201).json({ socialPlatform: redactSocialPlatform(socialPlatform) });
 };

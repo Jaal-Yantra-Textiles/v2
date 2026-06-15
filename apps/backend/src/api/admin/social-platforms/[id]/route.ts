@@ -116,20 +116,49 @@ import { updateSocialPlatformWorkflow } from "../../../../workflows/socials/upda
 import { deleteSocialPlatformWorkflow } from "../../../../workflows/socials/delete-social-platform";
 import { SOCIALS_MODULE } from "../../../../modules/socials";
 import type SocialsService from "../../../../modules/socials/service";
+import { ENCRYPTION_MODULE } from "../../../../modules/encryption";
+import type EncryptionService from "../../../../modules/encryption/service";
 import { encryptSocialPlatformCredentials } from "../../../../subscribers/social-platform-credentials-encryption";
+import {
+  redactSocialPlatform,
+  isSecretRevealAllowed,
+  preserveExistingSecrets,
+} from "../secrets";
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { result } = await listSocialPlatformWorkflow(req.scope).run({
     input: { filters: { id: [req.params.id] } },
   });
-  res.status(200).json({ socialPlatform: result[0][0] });
+  // Secrets are stripped by default; a raw token comes back only for an
+  // MFA-protected caller who explicitly asks (`?reveal_secrets=true`).
+  const reveal = await isSecretRevealAllowed(req);
+  const encryptionService = reveal
+    ? (req.scope.resolve(ENCRYPTION_MODULE) as EncryptionService)
+    : undefined;
+  res.status(200).json({
+    socialPlatform: redactSocialPlatform(result[0][0], { reveal, encryptionService }),
+  });
 };
 
 export const POST = async (req: MedusaRequest<UpdateSocialPlatform>, res: MedusaResponse) => {
+  const body: any = { ...req.validatedBody };
+
+  // Redacted responses no longer carry secrets, so an edit that touches an
+  // unrelated field arrives with credentials missing from `api_config`.
+  // Restore any omitted/blank secret from the existing row server-side so the
+  // save never wipes live credentials (see secrets.ts).
+  if (body.api_config && typeof body.api_config === "object") {
+    const existing = await refetchSocialPlatform(req.params.id, req.scope);
+    body.api_config = preserveExistingSecrets(
+      body.api_config,
+      (existing as any)?.api_config
+    );
+  }
+
   await updateSocialPlatformWorkflow(req.scope).run({
     input: {
       id: req.params.id,
-      ...req.validatedBody,
+      ...body,
     },
   });
 
@@ -152,7 +181,7 @@ export const POST = async (req: MedusaRequest<UpdateSocialPlatform>, res: Medusa
     await socials.clearOtherWhatsAppDefaults((socialPlatform as any).id);
   }
 
-  res.status(200).json({ socialPlatform });
+  res.status(200).json({ socialPlatform: redactSocialPlatform(socialPlatform) });
 };
 
 export const PUT = POST;
