@@ -9,8 +9,14 @@ import {
   usePartnerInventoryOrder,
 } from "../../../hooks/api/partner-inventory-orders"
 import { useInventoryActionTarget } from "../../../hooks/use-inventory-action-target"
+import { WorkOrderLineCard } from "../../../components/work-orders/work-order-line-card"
 
 type LineDraft = { order_line_id: string; quantity: number }
+
+const fmt = (n: number) => {
+  if (!Number.isFinite(n)) return "0"
+  return String(Math.round(n * 1000) / 1000)
+}
 
 export const InventoryOrderComplete = () => {
   const { inventoryOrderId: id, unifiedOrderId } = useInventoryActionTarget()
@@ -268,35 +274,26 @@ const InventoryOrderCompleteWithId = ({
                     line?.inventory_items?.[0]?.name ||
                     line?.inventory_item_id ||
                     line?.id
-
+                  const sku = line?.inventory_items?.[0]?.sku
+                  const thumbnail = line?.inventory_items?.[0]?.thumbnail
                   const remaining = remainingByLineId.get(String(line.id)) ?? 0
 
                   return (
-                    <div
+                    // Mirrors the retail fulfillment item primitive: card chrome
+                    // + thumbnail + a right-aligned quantity input "/ N remaining".
+                    <WorkOrderLineCard
                       key={String(line.id)}
-                      className="grid grid-cols-1 gap-3 rounded-lg border p-4 md:grid-cols-[1fr_220px]"
+                      title={String(title)}
+                      subtitle={sku ? `SKU ${sku}` : `Line: ${line.id}`}
+                      thumbnail={thumbnail}
                     >
-                      <div className="min-w-0">
-                        <Text size="small" weight="plus" className="truncate">
-                          {String(title)}
-                        </Text>
-                        <Text size="xsmall" className="text-ui-fg-subtle">
-                          Line: {String(line.id)}
-                        </Text>
-                      </div>
-                      <div>
-                        <Text size="xsmall" className="text-ui-fg-subtle">
-                          Quantity
-                        </Text>
-                        <Text size="xsmall" className="text-ui-fg-subtle">
-                          Remaining: {String(remaining)}
-                        </Text>
+                      <div className="flex items-center gap-x-1">
                         <Input
                           type="number"
                           min={0}
                           step="any"
                           max={remaining}
-                          placeholder={`Max: ${remaining}`}
+                          className="bg-ui-bg-base txt-small w-[64px] rounded-lg text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           value={current?.quantity ?? 0}
                           onChange={(e) => {
                             const raw = Number(e.target.value || 0)
@@ -311,8 +308,11 @@ const InventoryOrderCompleteWithId = ({
                             })
                           }}
                         />
+                        <span className="text-ui-fg-subtle whitespace-nowrap">
+                          / {fmt(remaining)} remaining
+                        </span>
                       </div>
-                    </div>
+                    </WorkOrderLineCard>
                   )
                 })
               )}

@@ -3409,7 +3409,20 @@
     "workOrders": {
       "designOrder": "Design order",
       "inventoryOrder": "Inventory order",
-      "manageDesign": "Manage design"
+      "manageDesign": "Manage design",
+      "amount": "Amount",
+      "totalQuantity": "Total quantity",
+      "total": "Total",
+      "producing": "Producing",
+      "start": "Start",
+      "complete": "Complete",
+      "submitPayment": "Submit payment",
+      "fulfillments": "Fulfillments",
+      "noFulfillments": "No deliveries recorded yet.",
+      "payments": "Payments",
+      "noPayments": "No payments submitted yet.",
+      "delivered": "Delivered",
+      "paymentSubmitted": "Payment submitted"
     },
     "inventoryOrders": {
       "heading": "Inventory Orders",

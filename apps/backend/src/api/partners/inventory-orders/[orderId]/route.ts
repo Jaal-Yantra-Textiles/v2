@@ -178,7 +178,10 @@ export async function GET(
             // #342 — the unified order this inventory order projects into, via
             // the order↔inventory_order link (forward accessor). Lets the
             // partner UI redirect the retired /inventory-orders/:id to /orders/:id.
-            "order.id"
+            "order.id",
+            // #342 — submitted payments (payment↔inventory_order link), for the
+            // Payments section on the unified order detail.
+            "internal_payments.*"
         ],
         filters: {
             id: orderId
@@ -272,6 +275,22 @@ export async function GET(
             })()
         })),
         stock_locations: order.stock_locations,
+        // #342 — submitted payments for the Payments section (newest first).
+        payments: (() => {
+            const raw = (order as any).internal_payments
+            const arr = !raw ? [] : Array.isArray(raw) ? raw : [raw]
+            return arr
+                .map((p: any) => ({
+                    id: p.id,
+                    amount: p.amount,
+                    status: p.status,
+                    payment_type: p.payment_type,
+                    payment_date: p.payment_date,
+                }))
+                .sort((a: any, b: any) =>
+                    String(b.payment_date || "").localeCompare(String(a.payment_date || ""))
+                )
+        })(),
         partner_info: {
             assigned_partner_id: assignedPartner.id,
             partner_name: assignedPartner.name,

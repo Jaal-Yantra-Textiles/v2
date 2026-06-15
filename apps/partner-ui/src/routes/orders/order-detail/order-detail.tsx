@@ -3,8 +3,11 @@ import { useLoaderData, useParams } from "react-router-dom"
 
 import { TwoColumnPageSkeleton } from "../../../components/common/skeleton"
 import { TwoColumnPage } from "../../../components/layout/pages"
-import { InventoryOrderActionsSection } from "../../../components/work-orders/inventory-order-actions-section"
 import { InventoryOrderLines } from "../../../components/work-orders/inventory-order-lines"
+import {
+  InventoryFulfillmentsSection,
+  InventoryPaymentsSection,
+} from "../../../components/work-orders/inventory-order-sections"
 import { ProductionRunCard } from "../../../components/work-orders/production-run-card"
 import { ordersQueryKeys, useOrder, useOrderPreview } from "../../../hooks/api/orders"
 import { usePartnerConsumptionLogs } from "../../../hooks/api/partner-consumption-logs"
@@ -136,7 +139,13 @@ export const OrderDetail = () => {
         )}
         {isWorkOrder && (
           <>
-            <WorkOrderStatusSection order={order} kind={kind} designId={designId} />
+            <WorkOrderStatusSection
+              order={order}
+              kind={kind}
+              designId={designId}
+              productionRun={production_run}
+              inventoryOrder={inventoryOrder}
+            />
             {kind === "design" && production_run && design && (
               <ProductionRunCard
                 run={production_run}
@@ -147,20 +156,25 @@ export const OrderDetail = () => {
               />
             )}
             {kind === "inventory" && inventoryOrder && (
-              <InventoryOrderLines
-                orderLines={(inventoryOrder.order_lines ?? []) as Array<Record<string, any>>}
-              />
+              <>
+                <InventoryOrderLines
+                  orderLines={(inventoryOrder.order_lines ?? []) as Array<Record<string, any>>}
+                  currencyCode={(order as any).currency_code}
+                  totalPrice={(inventoryOrder as any).total_price}
+                />
+                <InventoryPaymentsSection
+                  payments={((inventoryOrder as any).payments ?? []) as Array<Record<string, any>>}
+                  currencyCode={(order as any).currency_code}
+                />
+                <InventoryFulfillmentsSection
+                  orderLines={(inventoryOrder.order_lines ?? []) as Array<Record<string, any>>}
+                />
+              </>
             )}
           </>
         )}
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
-        {kind === "inventory" && inventoryOrder && (
-          <InventoryOrderActionsSection
-            inventoryOrder={inventoryOrder}
-            linkPrefix="inventory/"
-          />
-        )}
         {!isWorkOrder && <OrderCustomerSection order={order} />}
         <OrderActivitySection order={order} />
       </TwoColumnPage.Sidebar>

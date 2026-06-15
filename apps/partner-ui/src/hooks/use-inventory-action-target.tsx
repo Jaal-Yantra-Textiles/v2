@@ -7,9 +7,9 @@ import { useOrder } from "./api/orders"
  * the route param is the UNIFIED order id, while the inventory action hooks /
  * endpoints key off the LEGACY inventory_order id (`metadata.legacy_id`).
  *
- * The `InventoryOrderActionsSection` passes the legacy id via router `state`
- * for an instant resolve; direct navigation / bookmarks fall back to fetching
- * the unified order and reading `metadata.legacy_id`.
+ * Callers may pass the legacy id via router `state` for an instant resolve;
+ * the header action menu (and direct navigation / bookmarks) fall back to
+ * fetching the unified order and reading `metadata.legacy_id`.
  */
 export const useInventoryActionTarget = () => {
   const { id: unifiedOrderId } = useParams()
