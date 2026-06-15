@@ -930,32 +930,37 @@ through a storefront checkout), create the unified core `order` with a
 **manual fulfillment** and capture payment through a **shipping COD
 (cash-on-delivery) service** — i.e. the money is collected on delivery by
 the courier and reconciled back, not pre-captured at checkout. This needs
-a Shiprocket API integration (Shiprocket is the India shipping aggregator
-that does COD): create the shipment/AWB, push the manual fulfillment to
-it, track status, and capture/settle the COD payment + remittance back
-onto the order on delivery — plus the subsequent reconciliation steps
-(COD remittance ledger, payment_status transitions, partner statement
-hook).
+a COD-capable shipping integration — **both Shiprocket and Delhivery are
+in scope** (decided 2026-06-15: keep both; Delhivery is already integrated
+elsewhere, Shiprocket is the broader aggregator — the COD aggregator is a
+pluggable provider, not an either/or): create the shipment/AWB, push the
+manual fulfillment to it, track status, and capture/settle the COD payment
++ remittance back onto the order on delivery — plus the subsequent
+reconciliation steps (COD remittance ledger, payment_status transitions,
+partner statement hook).
 
 Sits on top of #24/#342 (the unified order is the surface this captures
 onto) and the manual-fulfillment + payment-capture flows Medusa already
-exposes; the new build is the Shiprocket provider + the COD capture/
-remittance loop.
+exposes; the new build is the COD shipping provider(s) + the COD capture/
+remittance loop, behind a provider interface so Shiprocket and Delhivery
+both plug in.
 
-**First step:** spike the Shiprocket API (auth, create-order/AWB, COD
-flag, tracking webhook, remittance report) and map its lifecycle onto
+**First step:** define a COD-shipping provider interface, then spike the
+Shiprocket API (auth, create-order/AWB, COD flag, tracking webhook,
+remittance report) and reconcile it against the existing Delhivery
+integration so both implement the same interface; map the lifecycle onto
 Medusa fulfillment + payment-capture states; decide provider shape
 (fulfillment provider vs. standalone module + subscriber). Then a thin
 "manual fulfill a design order → COD shipment created" path end-to-end on
-one order before wiring remittance reconciliation.
-**Effort:** unscoped — spike first (~1-2 days) to size the Shiprocket
-integration + COD remittance loop before committing.
+one order (one provider) before wiring remittance reconciliation.
+**Effort:** unscoped — spike first (~1-2 days) to size the provider
+interface + COD remittance loop before committing.
 
-> **Open questions (flag for the user before building #31):** which
-> courier/COD aggregator is canonical (Shiprocket vs. Delhivery, already
-> integrated elsewhere); whether "capture" means capture-on-delivery
-> (COD remittance) or pre-auth; and whether this is design-orders-only or
-> all work-orders.
+> **Open questions (flag for the user before building #31):** ~~which
+> aggregator is canonical~~ — RESOLVED: both Shiprocket + Delhivery behind a
+> pluggable provider. Still open: whether "capture" means
+> capture-on-delivery (COD remittance) or a pre-auth; and whether this is
+> design-orders-only or all work-orders.
 
 ---
 
