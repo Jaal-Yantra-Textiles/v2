@@ -98,9 +98,14 @@ export function ConfigurableDataTable<TData>({
 
   const columnAdapter = adapter.columnAdapter || getEntityAdapter(entity)
   const generatedColumns = useConfigurableTableColumns(entity, apiColumns || [], columnAdapter)
-  const columns = (adapter.getColumns && apiColumns)
+  const baseColumns = (adapter.getColumns && apiColumns)
     ? adapter.getColumns(apiColumns)
     : generatedColumns
+  // Adapter-provided derived columns (e.g. #342 Work status) are appended after
+  // the configurable ones and are always visible (not part of the toggleable set).
+  const columns = adapter.extraColumns?.length
+    ? [...baseColumns, ...adapter.extraColumns]
+    : baseColumns
 
   if (fetchResult.isError) {
     throw fetchResult.error

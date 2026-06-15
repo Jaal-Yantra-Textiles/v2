@@ -19,31 +19,11 @@ import { useOrderTableQuery } from "../../../../../hooks/table/query/use-order-t
 import { useDataTable } from "../../../../../hooks/use-data-table"
 import { useFeatureFlag } from "../../../../../providers/feature-flag-provider"
 import { ConfigurableOrderListTable } from "./configurable-order-list-table"
+import { deriveOrderKind, KIND_HEADINGS, isPureWorkOrderKind } from "./order-kind"
 
 import { DEFAULT_FIELDS } from "../../const"
 
 const PAGE_SIZE = 20
-
-type OrderKind = "retail" | "design" | "inventory" | "all"
-
-// `/orders` (index) == retail; `/orders/{design,inventory,all}` opt into the
-// other unified panels (#342 Chunk 5). The detail route `/orders/:id` renders a
-// different component, so the segment after "orders" here is always a kind.
-const deriveKind = (pathname: string): OrderKind => {
-  const seg = pathname.split("/").filter(Boolean)[1]
-  return seg === "design" || seg === "inventory" || seg === "all"
-    ? (seg as OrderKind)
-    : "retail"
-}
-
-// The order-kind views are reached from the nested "Orders" sidebar submenu
-// (#342 Chunk 5). The heading reflects which kind is active.
-const KIND_HEADINGS: Record<OrderKind, string> = {
-  retail: "Orders",
-  design: "Design Orders",
-  inventory: "Inventory Orders",
-  all: "All Orders",
-}
 
 // Work-order-only column: the partner-facing lifecycle status. Shown on the
 // design/inventory/all tabs; retail rows have no partner_status and render "—".
@@ -76,7 +56,7 @@ export const OrderListTable = () => {
   const hasStore = stores?.length > 0
   const isViewConfigEnabled = useFeatureFlag("view_configurations")
   const { pathname } = useLocation()
-  const kind = deriveKind(pathname)
+  const kind = deriveOrderKind(pathname)
 
   const { searchParams, raw } = useOrderTableQuery({
     pageSize: PAGE_SIZE,
@@ -99,7 +79,7 @@ export const OrderListTable = () => {
   // for the pure work-order kinds and surface the real ones (order #, total,
   // date) plus the Work-status column. `all` keeps every column since it mixes
   // retail + work orders.
-  const isPureWorkOrder = kind === "design" || kind === "inventory"
+  const isPureWorkOrder = isPureWorkOrderKind(kind)
   const baseColumns = useOrderTableColumns({
     exclude: isPureWorkOrder
       ? ["customer", "sales_channel", "payment_status", "fulfillment_status", "country"]
@@ -123,11 +103,11 @@ export const OrderListTable = () => {
     throw error
   }
 
-  // view_configurations is an experimental flag whose configurable table is
-  // retail-oriented (no kind filter, retail columns). The work-order kinds need
-  // the kind-aware standard table below — so only retail falls through to the
-  // configurable table; design/inventory/all always use the kind-aware one.
-  if (isViewConfigEnabled && kind === "retail") {
+  // view_configurations is an experimental flag. The configurable table is now
+  // kind-aware itself (filters server-side by kind + appends the Work-status
+  // column for work-orders), so ALL kinds route to it under the flag rather than
+  // design/inventory/all deferring to this standard table.
+  if (isViewConfigEnabled) {
     return <ConfigurableOrderListTable />
   }
 
