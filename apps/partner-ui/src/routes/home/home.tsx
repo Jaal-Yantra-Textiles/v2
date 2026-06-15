@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next"
 import { usePartnerAssignedTasks } from "../../hooks/api/partner-assigned-tasks"
 import { usePartnerStores } from "../../hooks/api/partner-stores"
 import { useMe } from "../../hooks/api/users"
+import { WhatsNewCarousel } from "./whats-new/whats-new-carousel"
 import { useDiscoverProducts, useCopyProduct, DiscoverProduct } from "../../hooks/api/discover"
 import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
@@ -98,6 +99,9 @@ export const Home = () => {
           </Text>
         </div>
       </div>
+
+      {/* What's new — dashboard changelog carousel (#342) */}
+      <WhatsNewCarousel />
 
       {/* Top row: Getting Started + Quick Settings */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
