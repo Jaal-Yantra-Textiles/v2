@@ -1,3 +1,18 @@
+# [13.33.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.32.0...v13.33.0) (2026-06-15)
+
+
+### Bug Fixes
+
+* **admin:** design detail 500 — customer.* → customers.* in DESIGN_DETAIL_FIELDS ([#397](https://github.com/Jaal-Yantra-Textiles/v2/issues/397)) ([5bdeb37](https://github.com/Jaal-Yantra-Textiles/v2/commit/5bdeb372adc9e1693e20e1d3e443abb16c1e9773))
+* **admin:** design detail returns only id + relations — refetchDesign drops base columns ([#399](https://github.com/Jaal-Yantra-Textiles/v2/issues/399)) ([754a43f](https://github.com/Jaal-Yantra-Textiles/v2/commit/754a43f46dec5e845d7188602f103013d1a8c706)), closes [#397](https://github.com/Jaal-Yantra-Textiles/v2/issues/397)
+
+
+### Features
+
+* **orders:** [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342) PR-D — concurrency hardening (locking + Redis provider) ([#395](https://github.com/Jaal-Yantra-Textiles/v2/issues/395)) ([1ef9543](https://github.com/Jaal-Yantra-Textiles/v2/commit/1ef954378e2682aad12baea015c752c388a61bb1))
+* **orders:** [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342) PR-E Chunk 9 — backfill order↔execution links (script) ([#396](https://github.com/Jaal-Yantra-Textiles/v2/issues/396)) ([e9c5be0](https://github.com/Jaal-Yantra-Textiles/v2/commit/e9c5be099167344b9e4583ac3c13fa3635942ff7))
+* **orders:** [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342) PR-F Chunk 9b-expand — unified_order_status sidecar column ([#398](https://github.com/Jaal-Yantra-Textiles/v2/issues/398)) ([9561a11](https://github.com/Jaal-Yantra-Textiles/v2/commit/9561a1104f4183f11d2a07544d26b276f99c4e7d))
+
 # [13.32.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.31.0...v13.32.0) (2026-06-13)
 
 
