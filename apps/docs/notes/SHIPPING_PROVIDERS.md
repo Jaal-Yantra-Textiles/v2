@@ -167,9 +167,12 @@ Delhivery's equivalent is `registerWarehouse` (a named warehouse), wired today i
 - `ShiprocketFulfillmentService.createFulfillment` already **reads** the nickname
   from `fromLocation.metadata.shiprocket_pickup_location` (→ `fromLocation.name`
   → `"Primary"`) — the deliberate parallel to `delhivery_warehouse_name`.
-- **Gap:** `shiprocket_pickup_location` is only ever read, never written. Nothing
-  registers the location or records the nickname. Also missing: a `list` method
-  (for idempotency) and surfacing of phone-verification status.
+- **Gap (CLOSED 2026-06-15):** `shiprocket_pickup_location` was only ever read,
+  never written. Now wired (branch `feat/31-shiprocket-pickup-registration`):
+  `ShiprocketClient.listPickupLocations()` (idempotency + phone-verification
+  status), a resolver-driven `registerShiprocketPickup()` helper that writes the
+  nickname onto `stock_location.metadata`, an on-demand admin route, and a
+  backfill script for pre-registered warehouses. See §9.5.
 - **Watch-out:** Shiprocket requires the pickup address's **phone to be
   OTP-verified** before it's usable for live pickups. `addpickup` *creates* the
   location; verification is a separate (often manual, dashboard/OTP) step. So
@@ -207,3 +210,28 @@ a deliberate choice.)
 Stays consistent with the spike decision (carriers as external-platform
 providers, resolver-sourced creds) rather than Delhivery's env-var +
 fulfillment-module-registry path.
+
+### 9.5 What was built (2026-06-15, branch `feat/31-shiprocket-pickup-registration`)
+
+| Piece | Location | Notes |
+|-------|----------|-------|
+| `PickupLocation` type + `listPickupLocations?()` | `shipping-providers/provider-interface.ts` | normalized list result incl. `phone_verified` |
+| `ShiprocketClient.listPickupLocations()` | `shiprocket/client.ts` | `GET /settings/company/pickup` → `data.shipping_address[]`; maps `phone_verified` 0/1 → boolean |
+| `registerShiprocketPickup()` / `getShiprocketPickupStatus()` | `shipping-providers/pickup-locations.ts` | resolver-driven, idempotent (lists first, treats duplicate-nickname errors as success), writes `stock_location.metadata.shiprocket_pickup_location`. `SHIPROCKET_PICKUP_METADATA_KEY` + `pickupNicknameForLocation()` exported |
+| Admin route | `admin/stock-locations/[id]/shiprocket-pickup/route.ts` | `GET` status (null if unregistered), `POST` register — on-demand per §9.3 |
+| Backfill | `scripts/backfill-shiprocket-pickup-locations.ts` | maps **pre-registered** Shiprocket pickups onto stock locations by nickname → unique pincode → pincode+city; dry-run (`--dry-run` / `DRY_RUN=1`); reports ambiguous/unmatched, never guesses |
+
+**Nickname scheme:** `warehouse-<last 8 of locationId>` — identical to the
+Delhivery warehouse name, so a location maps to the same nickname on both
+carriers.
+
+**Still open:**
+- **Inbound auto-register** (call `registerShiprocketPickup` from
+  `create-store-with-defaults.ts` alongside the Delhivery branch for `country ===
+  "in"`) — not yet wired; the helper + route exist, the auto-trigger doesn't.
+- **Outbound opt-in UI** — admin/partner surface that calls `POST` (the route is
+  ready; no UI control yet).
+- **Live verification** — untested against the real Shiprocket API; needs test
+  creds + a `category: shipping` Shiprocket platform record. The
+  `data.shipping_address[]` field names (esp. `phone_verified`) should be
+  confirmed against a live response.
