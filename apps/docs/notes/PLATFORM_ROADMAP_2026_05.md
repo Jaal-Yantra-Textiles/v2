@@ -922,45 +922,62 @@ reads the unified order, mirroring partner-ui's Chunk 4/5 shape.
 link/column/mirror machinery already exists; this is mostly admin
 surfacing + deciding the shim boundary).
 
-#### 31. Manual-fulfillment design orders → COD payment capture via Shiprocket
+#### 31. Admin-driven Shiprocket/Delhivery shipping — Design Order → Order, labels, COD
 
-**Captured 2026-06-15.** When a **design order is manually fulfilled**
-(partner/admin marks the work shipped/delivered rather than it flowing
-through a storefront checkout), create the unified core `order` with a
-**manual fulfillment** and capture payment through a **shipping COD
-(cash-on-delivery) service** — i.e. the money is collected on delivery by
-the courier and reconciled back, not pre-captured at checkout. This needs
-a COD-capable shipping integration — **both Shiprocket and Delhivery are
-in scope** (decided 2026-06-15: keep both; Delhivery is already integrated
-elsewhere, Shiprocket is the broader aggregator — the COD aggregator is a
-pluggable provider, not an either/or): create the shipment/AWB, push the
-manual fulfillment to it, track status, and capture/settle the COD payment
-+ remittance back onto the order on delivery — plus the subsequent
-reconciliation steps (COD remittance ledger, payment_status transitions,
-partner statement hook).
+**Captured 2026-06-15; scope expanded 2026-06-15.** Make shipping a
+first-class **admin action** across the order surfaces (design orders,
+inventory orders, core orders), backed by a **pluggable shipping-provider
+interface** — add **Shiprocket** as the aggregator alongside the existing
+**Delhivery** integration (`src/modules/shipping-providers/delhivery`). Beyond
+customer fulfilment this also covers **internal logistics**: moving
+designs/goods between registered stock locations (e.g. partner/location X →
+Warehouse) as shipments. Each registered **stock location** can be registered
+as a provider pickup location; basic actions (create order/AWB, label, track)
+run from admin and plug the result (AWB, label URL, tracking status) back onto
+the entity.
 
-Sits on top of #24/#342 (the unified order is the surface this captures
-onto) and the manual-fulfillment + payment-capture flows Medusa already
-exposes; the new build is the COD shipping provider(s) + the COD capture/
-remittance loop, behind a provider interface so Shiprocket and Delhivery
-both plug in.
+**MVP path the user wants first (P1):**
+Design Orders → **Convert to Order** → a real unified `order` marked **paid**
+(prepaid) → the regular fulfilment flow → **generate a Shiprocket shipping
+label** from that order. For **COD** orders, bypass up-front capture: the
+converted order is created as **COD / payment pending**, the label is still
+generated, and money settles on delivery (remittance loop deferred to P4). So
+"Convert to Order" needs a **paid-vs-COD branch**. This bypasses the cart
+entirely — the order is created server-side, not via storefront checkout (the
+existing `/admin/customers/[id]/design-order` flow today returns a *cart* +
+checkout_url; this is the cart-bypassing successor).
 
-**First step:** define a COD-shipping provider interface, then spike the
-Shiprocket API (auth, create-order/AWB, COD flag, tracking webhook,
-remittance report) and reconcile it against the existing Delhivery
-integration so both implement the same interface; map the lifecycle onto
-Medusa fulfillment + payment-capture states; decide provider shape
-(fulfillment provider vs. standalone module + subscriber). Then a thin
-"manual fulfill a design order → COD shipment created" path end-to-end on
-one order (one provider) before wiring remittance reconciliation.
-**Effort:** unscoped — spike first (~1-2 days) to size the provider
-interface + COD remittance loop before committing.
+**Phasing:**
+- **P1 — label-first MVP.** Design Order → Convert to Order (paid OR COD);
+  generate a Shiprocket label/AWB from the order; persist AWB + label URL +
+  tracking ref on the fulfilment. Single provider (Shiprocket). No remittance.
+- **P2 — per-entity "Create shipment" action.** Same action on design /
+  inventory-order / order; track status via webhook and plug it back; surface
+  label + tracking in admin.
+- **P3 — locations as pickup points.** Register each stock location to the
+  provider; model internal transfers (location X → Warehouse) as shipments.
+- **P4 — COD capture + remittance loop.** Capture-on-delivery → payment_status
+  transitions, COD remittance ledger, partner statement hook. Behind the
+  provider interface so Shiprocket + Delhivery both implement it.
 
-> **Open questions (flag for the user before building #31):** ~~which
-> aggregator is canonical~~ — RESOLVED: both Shiprocket + Delhivery behind a
-> pluggable provider. Still open: whether "capture" means
-> capture-on-delivery (COD remittance) or a pre-auth; and whether this is
-> design-orders-only or all work-orders.
+**Provider interface first.** Before P1 wiring, extract a COD-capable
+shipping-provider interface from the existing Delhivery module so Shiprocket
+slots in as a sibling (auth, create-order/AWB, COD flag, label, tracking
+webhook, remittance report). Sits on top of #24/#342 (the unified order is the
+surface this captures onto) and Medusa's manual-fulfilment + payment-capture
+flows.
+
+**First step:** spike the Shiprocket API (auth, create-order/AWB, COD flag,
+label, tracking webhook, remittance) and reconcile against Delhivery so both
+implement one interface; then build the P1 "Design Order → Convert to
+(paid/COD) order → Shiprocket label" path end-to-end on one order before P2+.
+**Effort:** interface spike ~1-2 days; P1 ~2-3 days after; P2-P4 unscoped.
+
+> **Open questions (flag before building):**
+> - "Convert to Order" default — always **paid**, with COD as an explicit toggle?
+> - COD "capture" = capture-on-delivery remittance (P4), not pre-auth — confirm.
+> - Per-entity action scope — design + inventory-order + core order (P2), or
+>   start order-only?
 
 #### 32. Visual-flow + WhatsApp token reliability (post-incident, vflow 401)
 
