@@ -1,17 +1,25 @@
 import { Button, DatePicker, Heading, Input, Text, toast } from "@medusajs/ui"
+import { useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
-import { useParams } from "react-router-dom"
 
 import { RouteFocusModal, useRouteModal } from "../../../components/modals"
+import { ordersQueryKeys } from "../../../hooks/api/orders"
 import {
   useCompletePartnerInventoryOrder,
   usePartnerInventoryOrder,
 } from "../../../hooks/api/partner-inventory-orders"
+import { useInventoryActionTarget } from "../../../hooks/use-inventory-action-target"
+import { WorkOrderLineCard } from "../../../components/work-orders/work-order-line-card"
 
 type LineDraft = { order_line_id: string; quantity: number }
 
+const fmt = (n: number) => {
+  if (!Number.isFinite(n)) return "0"
+  return String(Math.round(n * 1000) / 1000)
+}
+
 export const InventoryOrderComplete = () => {
-  const { id } = useParams()
+  const { inventoryOrderId: id, unifiedOrderId } = useInventoryActionTarget()
 
   return (
     <RouteFocusModal>
@@ -23,7 +31,11 @@ export const InventoryOrderComplete = () => {
           Complete the inventory order
         </RouteFocusModal.Description>
       </RouteFocusModal.Header>
-      {id ? <InventoryOrderCompleteWithId id={id} /> : <MissingId />}
+      {id ? (
+        <InventoryOrderCompleteWithId id={id} unifiedOrderId={unifiedOrderId} />
+      ) : (
+        <MissingId />
+      )}
     </RouteFocusModal>
   )
 }
@@ -51,8 +63,15 @@ const MissingId = () => {
   )
 }
 
-const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
+const InventoryOrderCompleteWithId = ({
+  id,
+  unifiedOrderId,
+}: {
+  id: string
+  unifiedOrderId?: string
+}) => {
   const { handleSuccess } = useRouteModal()
+  const queryClient = useQueryClient()
 
   const { inventoryOrder, isPending, isError, error } = usePartnerInventoryOrder(id)
   const { mutateAsync: completeOrder, isPending: isCompleting } =
@@ -176,6 +195,11 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
       {
         onSuccess: () => {
           toast.success("Order completed")
+          if (unifiedOrderId) {
+            queryClient.invalidateQueries({
+              queryKey: ordersQueryKeys.detail(unifiedOrderId),
+            })
+          }
           handleSuccess()
         },
         onError: (e) => {
@@ -250,35 +274,26 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
                     line?.inventory_items?.[0]?.name ||
                     line?.inventory_item_id ||
                     line?.id
-
+                  const sku = line?.inventory_items?.[0]?.sku
+                  const thumbnail = line?.inventory_items?.[0]?.thumbnail
                   const remaining = remainingByLineId.get(String(line.id)) ?? 0
 
                   return (
-                    <div
+                    // Mirrors the retail fulfillment item primitive: card chrome
+                    // + thumbnail + a right-aligned quantity input "/ N remaining".
+                    <WorkOrderLineCard
                       key={String(line.id)}
-                      className="grid grid-cols-1 gap-3 rounded-lg border p-4 md:grid-cols-[1fr_220px]"
+                      title={String(title)}
+                      subtitle={sku ? `SKU ${sku}` : `Line: ${line.id}`}
+                      thumbnail={thumbnail}
                     >
-                      <div className="min-w-0">
-                        <Text size="small" weight="plus" className="truncate">
-                          {String(title)}
-                        </Text>
-                        <Text size="xsmall" className="text-ui-fg-subtle">
-                          Line: {String(line.id)}
-                        </Text>
-                      </div>
-                      <div>
-                        <Text size="xsmall" className="text-ui-fg-subtle">
-                          Quantity
-                        </Text>
-                        <Text size="xsmall" className="text-ui-fg-subtle">
-                          Remaining: {String(remaining)}
-                        </Text>
+                      <div className="flex items-center gap-x-1">
                         <Input
                           type="number"
                           min={0}
                           step="any"
                           max={remaining}
-                          placeholder={`Max: ${remaining}`}
+                          className="bg-ui-bg-base txt-small w-[64px] rounded-lg text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           value={current?.quantity ?? 0}
                           onChange={(e) => {
                             const raw = Number(e.target.value || 0)
@@ -293,8 +308,11 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
                             })
                           }}
                         />
+                        <span className="text-ui-fg-subtle whitespace-nowrap">
+                          / {fmt(remaining)} remaining
+                        </span>
                       </div>
-                    </div>
+                    </WorkOrderLineCard>
                   )
                 })
               )}

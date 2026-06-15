@@ -1,8 +1,21 @@
-import { useLoaderData, useParams } from "react-router-dom"
+import { useQueryClient } from "@tanstack/react-query"
+import { Outlet, useLoaderData, useLocation, useParams } from "react-router-dom"
 
 import { TwoColumnPageSkeleton } from "../../../components/common/skeleton"
 import { TwoColumnPage } from "../../../components/layout/pages"
-import { useOrder, useOrderPreview } from "../../../hooks/api/orders"
+import { InventoryOrderLines } from "../../../components/work-orders/inventory-order-lines"
+import {
+  InventoryFulfillmentsSection,
+  InventoryPaymentsSection,
+} from "../../../components/work-orders/inventory-order-sections"
+import { ProductionRunCard } from "../../../components/work-orders/production-run-card"
+import { WorkOrderActivitySection } from "../../../components/work-orders/work-order-activity-section"
+import { WorkOrderSummarySection } from "../../../components/work-orders/work-order-summary-section"
+import { ordersQueryKeys, useOrder, useOrderPreview } from "../../../hooks/api/orders"
+import { usePartnerConsumptionLogs } from "../../../hooks/api/partner-consumption-logs"
+import { usePartnerDesign } from "../../../hooks/api/partner-designs"
+import { usePartnerInventoryOrder } from "../../../hooks/api/partner-inventory-orders"
+import { usePartnerProductionRun } from "../../../hooks/api/partner-production-runs"
 import { usePlugins } from "../../../hooks/api/plugins"
 import { useExtension } from "../../../providers/extension-provider"
 import { ActiveOrderClaimSection } from "./components/active-order-claim-section"
@@ -15,13 +28,17 @@ import { OrderFulfillmentSection } from "./components/order-fulfillment-section"
 import { OrderGeneralSection } from "./components/order-general-section"
 import { OrderPaymentSection } from "./components/order-payment-section"
 import { OrderSummarySection } from "./components/order-summary-section"
+import { WorkOrderStatusSection } from "./components/work-order-status-section"
 import { DEFAULT_FIELDS } from "./constants"
 import { orderLoader } from "./loader"
+import { useOrderKind } from "./use-order-kind"
 
 export const OrderDetail = () => {
   const initialData = useLoaderData() as Awaited<ReturnType<typeof orderLoader>>
 
   const { id } = useParams()
+  const location = useLocation()
+  const queryClient = useQueryClient()
   const { getWidgets } = useExtension()
   const { plugins = [] } = usePlugins()
 
@@ -54,7 +71,32 @@ export const OrderDetail = () => {
     id!
   )
 
-  if (isLoading || !order || isPreviewLoading) {
+  // #342 — a unified order can be a design/inventory work-order. Derive the
+  // kind from the reverse execution links the detail route attaches, then fold
+  // in the work-specific surfaces (run card / inventory lines + actions) and
+  // hide the retail-only sections (edit/returns/exchanges/claims/payment/
+  // fulfillment/customer) — work-orders are customer-less.
+  const { kind, legacyId, isWorkOrder } = useOrderKind(order)
+
+  // Design work-order: legacy_id is the production_run id → resolve the run,
+  // then the design (for the Complete materials form, name, cost currency).
+  const { production_run } = usePartnerProductionRun(legacyId ?? "", {
+    enabled: kind === "design" && !!legacyId,
+  })
+  const designId = (production_run as any)?.design_id as string | undefined
+  const { design } = usePartnerDesign(designId ?? "", { enabled: !!designId })
+  const { logs: consumptionLogs = [], count: consumptionCount = 0 } =
+    usePartnerConsumptionLogs(designId ?? "", undefined, { enabled: !!designId })
+
+  // Inventory work-order: legacy_id is the inventory_order id.
+  const { inventoryOrder } = usePartnerInventoryOrder(legacyId ?? "", {
+    enabled: kind === "inventory" && !!legacyId,
+  })
+
+  const invalidateOrder = () =>
+    queryClient.invalidateQueries({ queryKey: ordersQueryKeys.detail(id!) })
+
+  if (isLoading || !order) {
     return (
       <TwoColumnPageSkeleton mainSections={4} sidebarSections={2} showJSON />
     )
@@ -62,6 +104,22 @@ export const OrderDetail = () => {
 
   if (isError) {
     throw error
+  }
+
+  // Design-details is a full sub-page (breadcrumb Orders › id › Design details):
+  // render only the nested route, not the order detail beneath it. `.includes`
+  // (not endsWith) so its own children — media / moodboard upload modals — also
+  // render against the design-details page, not the order detail.
+  if (location.pathname.includes("/design-details")) {
+    return <Outlet />
+  }
+
+  // Retail order preview drives the active claim/exchange/return sections; work
+  // orders don't use it, so don't block their render on the preview fetch.
+  if (!isWorkOrder && isPreviewLoading) {
+    return (
+      <TwoColumnPageSkeleton mainSections={4} sidebarSections={2} showJSON />
+    )
   }
 
   return (
@@ -78,18 +136,67 @@ export const OrderDetail = () => {
       hasOutlet
     >
       <TwoColumnPage.Main>
-        <OrderActiveEditSection order={order} />
-        <ActiveOrderClaimSection orderPreview={orderPreview!} />
-        <ActiveOrderExchangeSection orderPreview={orderPreview!} />
-        <ActiveOrderReturnSection orderPreview={orderPreview!} />
-        <OrderGeneralSection order={order} />
-        <OrderSummarySection order={order} plugins={plugins} />
-        <OrderPaymentSection order={order} plugins={plugins} />
-        <OrderFulfillmentSection order={order} />
+        {!isWorkOrder && (
+          <>
+            <OrderActiveEditSection order={order} />
+            <ActiveOrderClaimSection orderPreview={orderPreview!} />
+            <ActiveOrderExchangeSection orderPreview={orderPreview!} />
+            <ActiveOrderReturnSection orderPreview={orderPreview!} />
+            <OrderGeneralSection order={order} />
+            <OrderSummarySection order={order} plugins={plugins} />
+            <OrderPaymentSection order={order} plugins={plugins} />
+            <OrderFulfillmentSection order={order} />
+          </>
+        )}
+        {isWorkOrder && (
+          <>
+            <WorkOrderStatusSection
+              order={order}
+              kind={kind}
+              designId={designId}
+              productionRun={production_run}
+              inventoryOrder={inventoryOrder}
+            />
+            {kind === "design" && design && (
+              <WorkOrderSummarySection kind="design" design={design} designId={designId} />
+            )}
+            {kind === "design" && production_run && design && (
+              <ProductionRunCard
+                run={production_run}
+                design={design}
+                consumptionLogs={consumptionLogs}
+                consumptionCount={consumptionCount}
+                onActionSuccess={invalidateOrder}
+                showTimeline={false}
+              />
+            )}
+            {kind === "inventory" && inventoryOrder && (
+              <>
+                <WorkOrderSummarySection kind="inventory" inventoryOrder={inventoryOrder} />
+                <InventoryOrderLines
+                  orderLines={(inventoryOrder.order_lines ?? []) as Array<Record<string, any>>}
+                  currencyCode={(order as any).currency_code}
+                  totalPrice={(inventoryOrder as any).total_price}
+                />
+                <InventoryPaymentsSection
+                  payments={((inventoryOrder as any).payments ?? []) as Array<Record<string, any>>}
+                  currencyCode={(order as any).currency_code}
+                />
+                <InventoryFulfillmentsSection
+                  orderLines={(inventoryOrder.order_lines ?? []) as Array<Record<string, any>>}
+                />
+              </>
+            )}
+          </>
+        )}
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
-        <OrderCustomerSection order={order} />
-        <OrderActivitySection order={order} />
+        {!isWorkOrder && <OrderCustomerSection order={order} />}
+        {kind === "design" ? (
+          <WorkOrderActivitySection order={order} productionRun={production_run} />
+        ) : (
+          <OrderActivitySection order={order} />
+        )}
       </TwoColumnPage.Sidebar>
     </TwoColumnPage>
   )

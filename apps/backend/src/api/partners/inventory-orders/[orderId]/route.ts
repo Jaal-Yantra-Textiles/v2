@@ -174,7 +174,14 @@ export async function GET(
             "tasks.*",
             "orderlines.inventory_items.*",
             "orderlines.inventory_items.raw_materials.*",
-            "orderlines.line_fulfillments.*"
+            "orderlines.line_fulfillments.*",
+            // #342 — the unified order this inventory order projects into, via
+            // the order↔inventory_order link (forward accessor). Lets the
+            // partner UI redirect the retired /inventory-orders/:id to /orders/:id.
+            "order.id",
+            // #342 — submitted payments (payment↔inventory_order link), for the
+            // Payments section on the unified order detail.
+            "internal_payments.*"
         ],
         filters: {
             id: orderId
@@ -234,6 +241,10 @@ export async function GET(
     // Format the response for partner view - now using task-based status
     const partnerOrderView = {
         id: order.id,
+        // The unified order id (#342). Single object on a 1:1 link; tolerate array.
+        unified_order_id: Array.isArray((order as any).order)
+            ? (order as any).order[0]?.id
+            : (order as any).order?.id,
         status: order.status,
         quantity: order.quantity,
         total_price: order.total_price,
@@ -264,6 +275,22 @@ export async function GET(
             })()
         })),
         stock_locations: order.stock_locations,
+        // #342 — submitted payments for the Payments section (newest first).
+        payments: (() => {
+            const raw = (order as any).internal_payments
+            const arr = !raw ? [] : Array.isArray(raw) ? raw : [raw]
+            return arr
+                .map((p: any) => ({
+                    id: p.id,
+                    amount: p.amount,
+                    status: p.status,
+                    payment_type: p.payment_type,
+                    payment_date: p.payment_date,
+                }))
+                .sort((a: any, b: any) =>
+                    String(b.payment_date || "").localeCompare(String(a.payment_date || ""))
+                )
+        })(),
         partner_info: {
             assigned_partner_id: assignedPartner.id,
             partner_name: assignedPartner.name,

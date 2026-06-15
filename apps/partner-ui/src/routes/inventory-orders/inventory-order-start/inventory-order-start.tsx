@@ -1,8 +1,10 @@
 import { Button, Heading, Text, toast } from "@medusajs/ui"
-import { useParams } from "react-router-dom"
+import { useQueryClient } from "@tanstack/react-query"
 
 import { RouteDrawer, useRouteModal } from "../../../components/modals"
+import { ordersQueryKeys } from "../../../hooks/api/orders"
 import { useStartPartnerInventoryOrder } from "../../../hooks/api/partner-inventory-orders"
+import { useInventoryActionTarget } from "../../../hooks/use-inventory-action-target"
 
 export const InventoryOrderStart = () => {
   return (
@@ -21,8 +23,9 @@ export const InventoryOrderStart = () => {
 }
 
 const InventoryOrderStartContent = () => {
-  const { id } = useParams()
+  const { inventoryOrderId: id, unifiedOrderId } = useInventoryActionTarget()
   const { handleSuccess } = useRouteModal()
+  const queryClient = useQueryClient()
 
   const { mutateAsync, isPending } = useStartPartnerInventoryOrder(id || "")
 
@@ -34,6 +37,12 @@ const InventoryOrderStartContent = () => {
     await mutateAsync(undefined, {
       onSuccess: () => {
         toast.success("Order started")
+        // Refresh the unified order so its work-status badge follows.
+        if (unifiedOrderId) {
+          queryClient.invalidateQueries({
+            queryKey: ordersQueryKeys.detail(unifiedOrderId),
+          })
+        }
         handleSuccess()
       },
       onError: (e) => {

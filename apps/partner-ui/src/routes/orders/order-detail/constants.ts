@@ -58,6 +58,12 @@ const DEFAULT_RELATIONS = [
   "*payment_collections.payments.refunds.refund_reason",
   "region.automatic_taxes",
 ]
+// NOTE (#342): the order↔execution links (`production_runs`/`inventory_orders`)
+// that discriminate the unified order's kind are NOT requested here — they are
+// custom links the admin order query-config doesn't know, so passing them
+// through `validateAndTransformQuery` could reject the whole fetch. Instead the
+// detail route (`api/partners/orders/[id]/route.ts`) attaches them server-side
+// via `query.graph`. See order-detail/use-order-kind.ts.
 
 export const DEFAULT_FIELDS = `${DEFAULT_PROPERTIES.join(
   ","

@@ -52,6 +52,29 @@ export const GET = async (
     },
   })
 
+  // #342 — make the order self-describe its kind for the partner UI. The
+  // `getOrderDetailWorkflow` field set is the admin order query config, which
+  // does not expand our custom order↔execution links, so attach them directly
+  // here (mirrors `list-partner-orders.ts` discrimination). The order↔execution
+  // links are 1:1, so each reverse accessor resolves to a single `{ id }`
+  // object; the UI tolerates object-or-array. Best-effort: a graph hiccup must
+  // not break the detail route.
+  try {
+    const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+      entity: "orders",
+      fields: ["id", "production_runs.id", "inventory_orders.id"],
+      filters: { id: req.params.id },
+    })
+    const links = data?.[0]
+    if (links) {
+      ;(result as any).production_runs = links.production_runs
+      ;(result as any).inventory_orders = links.inventory_orders
+    }
+  } catch {
+    // leave the order as-is; the UI falls back to retail rendering
+  }
+
   res.json({ order: result })
 }
 
