@@ -58,6 +58,14 @@ export interface TableAdapter<TData> {
   columnAdapter?: ColumnAdapter<TData>
 
   /**
+   * Extra non-configurable columns appended AFTER the generated/configured
+   * columns. Use for derived columns that aren't part of the backend column
+   * registry (e.g. the #342 work-order "Work status" badge). Built with
+   * `createDataTableColumnHelper` so they match the configurable DataTable.
+   */
+  extraColumns?: DataTableColumnDef<TData, any>[]
+
+  /**
    * Empty state configuration
    */
   emptyState?: DataTableEmptyStateProps
