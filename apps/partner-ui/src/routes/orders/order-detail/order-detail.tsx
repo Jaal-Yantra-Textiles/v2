@@ -9,6 +9,7 @@ import {
   InventoryPaymentsSection,
 } from "../../../components/work-orders/inventory-order-sections"
 import { ProductionRunCard } from "../../../components/work-orders/production-run-card"
+import { WorkOrderSummarySection } from "../../../components/work-orders/work-order-summary-section"
 import { ordersQueryKeys, useOrder, useOrderPreview } from "../../../hooks/api/orders"
 import { usePartnerConsumptionLogs } from "../../../hooks/api/partner-consumption-logs"
 import { usePartnerDesign } from "../../../hooks/api/partner-designs"
@@ -146,6 +147,9 @@ export const OrderDetail = () => {
               productionRun={production_run}
               inventoryOrder={inventoryOrder}
             />
+            {kind === "design" && design && (
+              <WorkOrderSummarySection kind="design" design={design} designId={designId} />
+            )}
             {kind === "design" && production_run && design && (
               <ProductionRunCard
                 run={production_run}
@@ -157,6 +161,7 @@ export const OrderDetail = () => {
             )}
             {kind === "inventory" && inventoryOrder && (
               <>
+                <WorkOrderSummarySection kind="inventory" inventoryOrder={inventoryOrder} />
                 <InventoryOrderLines
                   orderLines={(inventoryOrder.order_lines ?? []) as Array<Record<string, any>>}
                   currencyCode={(order as any).currency_code}
