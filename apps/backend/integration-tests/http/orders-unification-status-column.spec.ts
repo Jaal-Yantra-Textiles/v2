@@ -1,12 +1,13 @@
 /**
- * #342 Chunk 9b (PR-F) — promote `partner_status` onto a typed sidecar column.
+ * #342 Chunk 9b (PR-F → PR-H) — `partner_status` on a typed sidecar column.
  *
- * PR-F is the EXPAND step of an expand→migrate→contract column swap: every
- * status transition now writes BOTH `order.metadata.partner_status` (still the
- * authoritative read surface until PR-G) AND the new 1:1 `unified_order_status`
- * sidecar row, linked via order↔unified_order_status. This proves the column
- * tracks the metadata: after each transition the sidecar's partner_status equals
- * metadata.partner_status, and repeated transitions UPDATE the one row (the
+ * PR-F was the EXPAND step of an expand→migrate→contract column swap; PR-H is the
+ * CONTRACT step. After PR-H every status transition writes `partner_status` ONLY
+ * onto the 1:1 `unified_order_status` sidecar row (linked via
+ * order↔unified_order_status) — the `order.metadata.partner_status` copy is no
+ * longer written at all. This proves the column is the sole surface: after each
+ * transition the sidecar carries the §5 status while `metadata.partner_status`
+ * stays undefined, and repeated transitions UPDATE the one row (the
  * find-or-create upsert never forks a second sidecar).
  */
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
@@ -120,7 +121,7 @@ setupSharedTestSuite(() => {
       fromStockLocationId = fromLocation.data.stock_location.id
     })
 
-    it("writes partner_status to BOTH metadata and the sidecar column, updating one row across transitions", async () => {
+    it("writes partner_status ONLY to the sidecar column (never metadata), updating one row across transitions", async () => {
       await createRegion()
       const legacy = await createLegacyOrder()
       const unifiedOrderId = await resolveUnifiedViaLink(legacy.id)
@@ -132,7 +133,8 @@ setupSharedTestSuite(() => {
       expect(snap.metaStatus).toBeUndefined()
       expect(snap.sidecar).toBeFalsy()
 
-      // Pending → Processing → §5 partner_status "in_progress" on BOTH surfaces.
+      // Pending → Processing → §5 partner_status "in_progress" on the sidecar
+      // column. PR-H: metadata is NEVER written.
       const res1 = await api.put(
         `/admin/inventory-orders/${legacy.id}`,
         { status: "Processing" },
@@ -140,8 +142,8 @@ setupSharedTestSuite(() => {
       )
       expect(res1.status).toBe(200)
       snap = await readStatuses(unifiedOrderId!)
-      expect(snap.metaStatus).toBe("in_progress")
       expect(snap.sidecar?.partner_status).toBe("in_progress")
+      expect(snap.metaStatus).toBeUndefined()
       const sidecarId = snap.sidecar?.id
       expect(sidecarId).toBeTruthy()
 
@@ -154,8 +156,8 @@ setupSharedTestSuite(() => {
       )
       expect(res2.status).toBe(200)
       snap = await readStatuses(unifiedOrderId!)
-      expect(snap.metaStatus).toBe("finished")
       expect(snap.sidecar?.partner_status).toBe("finished")
+      expect(snap.metaStatus).toBeUndefined()
       expect(snap.sidecar?.id).toBe(sidecarId)
     })
   })

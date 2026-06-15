@@ -52,24 +52,32 @@ export const GET = async (
     },
   })
 
-  // #342 — make the order self-describe its kind for the partner UI. The
-  // `getOrderDetailWorkflow` field set is the admin order query config, which
-  // does not expand our custom order↔execution links, so attach them directly
-  // here (mirrors `list-partner-orders.ts` discrimination). The order↔execution
-  // links are 1:1, so each reverse accessor resolves to a single `{ id }`
-  // object; the UI tolerates object-or-array. Best-effort: a graph hiccup must
-  // not break the detail route.
+  // #342 — make the order self-describe its kind + work-status for the partner
+  // UI. The `getOrderDetailWorkflow` field set is the admin order query config,
+  // which does not expand our custom order links, so attach them directly here
+  // (mirrors `list-partner-orders.ts` discrimination). The order↔execution links
+  // are 1:1, so each reverse accessor resolves to a single `{ id }` object; the
+  // UI tolerates object-or-array. `unified_order_status.partner_status` is the
+  // PR-F sidecar column the work-status badge reads (PR-H made it the SOLE
+  // surface — the metadata copy is gone). Best-effort: a graph hiccup must not
+  // break the detail route.
   try {
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
     const { data } = await query.graph({
       entity: "orders",
-      fields: ["id", "production_runs.id", "inventory_orders.id"],
+      fields: [
+        "id",
+        "production_runs.id",
+        "inventory_orders.id",
+        "unified_order_status.partner_status",
+      ],
       filters: { id: req.params.id },
     })
     const links = data?.[0]
     if (links) {
       ;(result as any).production_runs = links.production_runs
       ;(result as any).inventory_orders = links.inventory_orders
+      ;(result as any).unified_order_status = links.unified_order_status
     }
   } catch {
     // leave the order as-is; the UI falls back to retail rendering
