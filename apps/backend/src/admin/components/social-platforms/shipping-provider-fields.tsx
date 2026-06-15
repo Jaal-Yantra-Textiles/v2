@@ -3,12 +3,16 @@ import { type Control, type UseFormWatch } from "react-hook-form"
 import { Form } from "../common/form"
 
 export type ShippingProviderFieldValues = {
-  provider_type: "delhivery" | "dhl" | "fedex" | "ups" | "australia_post"
+  provider_type: "delhivery" | "shiprocket" | "dhl" | "fedex" | "ups" | "australia_post"
   api_key?: string
   account_number?: string
   api_secret?: string
   base_url?: string
   mode?: "live" | "test"
+  // Shiprocket (email/password JWT auth + registered pickup-location name)
+  email?: string
+  password?: string
+  pickup_location?: string
 }
 
 type ShippingProviderFieldsProps = {
@@ -26,6 +30,7 @@ export const ShippingProviderFields = ({
 
   const placeholders: Record<string, { apiKey: string; account: string }> = {
     delhivery: { apiKey: "Delhivery API token", account: "Client warehouse name" },
+    shiprocket: { apiKey: "n/a", account: "Pickup location name" },
     dhl: { apiKey: "DHL API key", account: "DHL Account Number" },
     fedex: { apiKey: "FedEx API key", account: "FedEx Account Number" },
     ups: { apiKey: "UPS Client ID", account: "UPS Account Number" },
@@ -53,6 +58,7 @@ export const ShippingProviderFields = ({
                 </Select.Trigger>
                 <Select.Content>
                   <Select.Item value="delhivery">Delhivery</Select.Item>
+                  <Select.Item value="shiprocket">Shiprocket</Select.Item>
                   <Select.Item value="dhl">DHL</Select.Item>
                   <Select.Item value="fedex">FedEx</Select.Item>
                   <Select.Item value="ups">UPS</Select.Item>
@@ -87,7 +93,60 @@ export const ShippingProviderFields = ({
         )}
       />
 
-      {providerType && (
+      {providerType === "shiprocket" && (
+        <>
+          <Form.Field
+            control={control}
+            name="email"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label>Account Email</Form.Label>
+                <Form.Control>
+                  <Input {...field} type="email" placeholder="Shiprocket account email" />
+                </Form.Control>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+
+          <Form.Field
+            control={control}
+            name="password"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label>
+                  Password
+                  {isEditing && (
+                    <span className="text-ui-fg-subtle ml-1">
+                      (leave blank to keep existing)
+                    </span>
+                  )}
+                </Form.Label>
+                <Form.Control>
+                  <Input {...field} type="password" placeholder="Shiprocket password" />
+                </Form.Control>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+
+          <Form.Field
+            control={control}
+            name="pickup_location"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label optional>Default Pickup Location</Form.Label>
+                <Form.Control>
+                  <Input {...field} placeholder={current.account} />
+                </Form.Control>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+        </>
+      )}
+
+      {providerType && providerType !== "shiprocket" && (
         <>
           <Form.Field
             control={control}
