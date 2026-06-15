@@ -62,7 +62,8 @@ as the discriminator/pointer. Instead:
 | **PR-G** | 9b-migrate | Repoint the 2 `metadata.partner_status` read sites to the column | **DONE — branch `feat/342-pr-g-workorder-detail`** (2026-06-15). Backend `partners/orders/route.ts` now requests `unified_order_status.partner_status`; partner-ui `order-list-table.tsx` reads the column first, metadata fallback. **Verified locally**: set order #3's column to `finished` while leaving metadata `assigned` → the Work-status badge rendered "Finished", proving the read is off the column. |
 | **PR-G+** | — | **Bonus fix (same branch):** partner work-order DETAIL 404. Clicking a design/inventory row in `/orders/*` → `/orders/:id` 404'd because `validatePartnerOrderOwnership` (the chokepoint for **28** partner-order routes) scoped only by sales channel — but work-orders live in the shared internal `PARTNER_WORK_ORDERS_CHANNEL`, not the store channel. Fixed to authorize via the D3 `partner↔order` link too (mirrors `resolvePartnerWorkOrderIdsStep`). Work-orders now open in the **standard order-detail UI**. Verified 200 + screenshots for both kinds. |
 | **PR-G UI** | — | **Nested order-kind submenu (same branch):** moved the in-page All/Retail/Design/Inventory tab strip into a nested submenu under the "Orders" sidebar item (both workspace variants); removed dead `order-kind-tabs.tsx`; per-kind headings. |
-| **PR-H** | 9b-contract | Stop writing `metadata.partner_status`; remove the Chunk-7 lock wrapping (KEEP Redis provider) | planned. *(blocked by PR-G verified)* |
+| **PR-H** | 9b-contract | Stop writing `metadata.partner_status`; remove the Chunk-7 lock wrapping (KEEP Redis provider) | **DONE — branch `feat/342-pr-h-status-contract`** (2026-06-15). partner_status is column-only (5 write sites via `setUnifiedOrderPartnerStatus`); `withUnifiedOrderMetadataLock` + all 4 wrap sites deleted (Redis provider kept); metadata fallback reads removed (`work-status.ts`, partner LIST `DEFAULT_FIELDS`); DETAIL route now attaches `unified_order_status.partner_status` (was relying on the dropped fallback); `partner_status` dropped from `PROTECTED_UNIFICATION_METADATA_KEYS`. Specs repointed to the column (dual-write 7/7, design 6/6, status-column contract-step); obsolete locking spec deleted. |
+| **PR — configurable kind filter** | — | `ConfigurableOrderListTable` native kind filter (was deferring work-orders to the standard table) | **DONE — branch `feat/342-configurable-table-kind`** (2026-06-15). Configurable table is kind-aware: filters server-side by kind, appends a derived Work-status column (new `adapter.extraColumns`), requests `unified_order_status.partner_status`; ALL kinds route to it under the flag. Shared kind helpers extracted to `order-kind.ts`. **Still deferred:** Work status as a toggleable/persisted *view* column needs the backend views column registry (the larger view-config item below). |
 | **PR-UI** | — | **Fold bespoke design/inventory work-order detail + actions INTO the unified `/orders/:id`** | **PR #401 OPEN** — branch `feat/342-partner-ui-unified-workorder-detail` (2026-06-15, pushed). 5 commits: fold-in → retail Orders UI philosophy (line cards, totals, header `…` menu, Payments/Fulfillments) → consolidated Summary → activity-in-sidebar + design-details sub-route → media/moodboard upload inside design-details. Spec `orders-unification-partner-detail.spec.ts` 4/4 + list-filter 4/4; `vite build`+`tsc` clean; visually verified (Playwright). |
 
 > ### ✅ DONE (2026-06-15, session 2) — retired legacy design/inventory order surfaces + folded work-order tasks into `/orders`
@@ -74,7 +75,7 @@ as the discriminator/pointer. Instead:
 > - **Thin design library + terminology.** `DesignProductionSection` on `/designs/:id` rewritten from full `ProductionRunCard`s (with inline task actions) → a compact **"Design orders"** list deep-linking each run to `/orders/:id` (via the new `unified_order_id`, fallback `/production-runs/:id` which itself redirects). Relabels: "Start production" → "Create design order" (run-create form heading + submit); owner-actions button shortened to **"Create order" / "New order"** with `whitespace-nowrap` (user: original label overflowed).
 > - **Verify:** `pnpm build` (tsup ESM+CJS) green; `tsc --noEmit` clean for all changed files (4 remaining errors are pre-existing TS1005 in `order-create-claim`/`order-create-exchange`, untouched). Visual: live Vite HMR (user is the front-end verifier this session).
 >
-> **Still open / deferred:** (1) `ConfigurableOrderListTable` (experimental `view_configurations` flag) is still NOT kind-aware — work-order rows open fine in the unified detail post-#401, so it's filter/heading parity, not a 404; deferred. (2) Integration spec for the production-run `unified_order_id` field + the new redirects not yet written. (3) PR-H (stop writing `metadata.partner_status`; drop Chunk-7 lock wrapping) still planned.
+> **Still open / deferred:** (1) ~~`ConfigurableOrderListTable` is NOT kind-aware~~ **DONE 2026-06-15** (branch `feat/342-configurable-table-kind`) — it now filters server-side by kind + appends a Work-status column; remaining: Work status as a toggleable/persisted *view* column (needs the backend views column registry — the larger view-config item). (2) Integration spec for the production-run `unified_order_id` field + the new redirects not yet written. (3) ~~PR-H still planned~~ **DONE 2026-06-15** (branch `feat/342-pr-h-status-contract`).
 
 > ### ✅ DONE (2026-06-15) — bespoke design/inventory detail UI + actions merged into the unified order detail
 >
@@ -474,14 +475,25 @@ those links remain valid; only revisit if we ever delete the legacy execution ro
     (column `finished` vs metadata `assigned` → badge rendered "Finished").
   - **+ bonus:** work-order-detail 404 fix (`validatePartnerOrderOwnership` → D3 link)
     and nested order-kind submenu. UI-merge follow-ups in the PR-table handoff above.
-- [ ] **Chunk 9b → PR-H (contract: retire metadata + lock).** *(blocked by: PR-G verified)*
-  - Stop writing `metadata.partner_status` in the 4 sites + create path (column-only).
-  - Remove the `withUnifiedOrderMetadataLock` wrapping from the 4 sites + delete the
-    helper — remaining metadata writes are write-once-at-create (no RMW), safe unlocked.
-    **KEEP the Chunk-8 Redis provider** (other LOCKING consumers, see correction above).
-  - Remove the metadata fallback reads from PR-G; drop `partner_status` from
-    `PROTECTED_UNIFICATION_METADATA_KEYS` if still present. Optional metadata-cleanup
-    backfill to strip stale `metadata.partner_status`.
+- [x] **Chunk 9b → PR-H (contract: retire metadata + lock). DONE** on branch
+  `feat/342-pr-h-status-contract` (2026-06-15).
+  - Stopped writing `metadata.partner_status` — column-only at all 5 write sites via
+    `setUnifiedOrderPartnerStatus` (inventory `mirrorPartnerLinkOnUnifiedOrderStep` +
+    `mirrorUnifiedOrderStatusStep`; run `projectRunToUnifiedOrder` create path +
+    `mirrorRunStatusToUnifiedOrder`; the two `patchUnifiedOrder({metadata:{partner_status}})`
+    callers now go through the column writer). `order.status` stays a blind single-column
+    write; the `superseded_by_run_ids` patch is single-writer-at-approve, so its read-merge
+    no longer needs a lock.
+  - Deleted `withUnifiedOrderMetadataLock` + all 4 wrap sites. **KEPT the Chunk-8 Redis
+    provider** (other LOCKING consumers).
+  - Removed the metadata fallback reads: `work-status.ts` column-only; partner LIST
+    `DEFAULT_FIELDS` dropped `metadata`; the order DETAIL route now attaches
+    `unified_order_status.partner_status` (it had been relying on the dropped fallback).
+    Dropped `partner_status` from `PROTECTED_UNIFICATION_METADATA_KEYS`. (Stale-metadata
+    cleanup backfill skipped — only 1 historical row ever had it, and nothing reads it.)
+  - Specs: repointed metadata.partner_status asserts → `unified_order_status` column
+    (dual-write 7/7, design 6/6, status-column now contract-step column-only); deleted the
+    obsolete `orders-unification-locking.spec.ts`.
 
 **Cross-cutting (not a unification chunk — QA + marketing):**
 - [ ] **Playwright stage-by-stage walkthrough + screenshots.** Drive the partner
@@ -496,18 +508,20 @@ those links remain valid; only revisit if we ever delete the legacy execution ro
   `?kind=` retail filter. Each screenshot doubles as a visual-diff baseline and a
   marketing still. Use the `playwright-skill` / `webapp-testing` toolkit; park
   artifacts somewhere stable (not `/tmp`). *(blocked by: 5 — the panels exist now)*
-- [ ] **Wire the kind panels into saveable view configurations.** Chunk 5 left
-  the experimental `view_configurations` flag path (`ConfigurableOrderListTable`)
-  NOT kind-aware — when that flag is on, all kind sub-routes fall back to the
-  unfiltered configurable table. The partner-ui already has a save/load view-
-  config system (`useFeatureFlag("view_configurations")`, the
-  `order-table-adapter` + `ConfigurableOrderListTable`). Make `kind` (and the
-  `partner_status` column the work-order tabs add) a **persisted, loadable view
-  configuration** rather than just a route-derived value: a partner should be
-  able to save "Design — in progress" (kind=design + partner_status filter +
-  column layout) as a named view and reload it. Decide whether the sub-route
-  still sets a default kind that the saved view can then refine, or whether saved
-  views supersede the tabs entirely. *(blocked by: 5)*
+- [ ] **Wire the kind panels into saveable view configurations.** **PARTIAL —
+  the kind FILTER is done** (branch `feat/342-configurable-table-kind`,
+  2026-06-15): `ConfigurableOrderListTable` is now kind-aware (derives kind from
+  the path, filters server-side via `useOrders({kind})`, appends a derived
+  Work-status column through the new `adapter.extraColumns`, requests
+  `unified_order_status.partner_status`), and ALL kind sub-routes route to it
+  under the flag instead of falling back to the standard table. **Still open:**
+  make `kind` + the Work-status column a **persisted, loadable view
+  configuration** (named views like "Design — in progress" = kind + status filter
+  + column layout). That needs the backend **views column registry** to know
+  about the work-status column (today it's an always-on derived `extraColumns`
+  entry, not a toggleable/saveable one) and a decision on whether the sub-route
+  still sets a default kind a saved view refines, or saved views supersede the
+  tabs. *(blocked by: backend views column registry)*
 
 ---
 
