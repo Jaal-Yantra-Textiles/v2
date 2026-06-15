@@ -20,6 +20,13 @@ import { EMAIL_TEMPLATES_MODULE } from "../modules/email_templates"
 type TemplateSpec = {
   template_key: string
   name: string
+  /**
+   * Sender address. MUST be on a domain verified with the email provider —
+   * the email_template model defaults `from` to no-reply@jyt.com, but jyt.com
+   * is NOT authorized, so sends 403'd ("not authorized to send emails from
+   * jyt.com") and no alert went out. jaalyantra.com is verified.
+   */
+  from: string
   description: string
   subject: string
   html_content: string
@@ -29,6 +36,7 @@ type TemplateSpec = {
 const STARTED: TemplateSpec = {
   template_key: "visual-flow-started",
   name: "Visual flow — execution started",
+  from: "no-reply@jaalyantra.com",
   description:
     "Sent to the configured admin recipient when a visual flow begins executing. Lets admins notice flows that started but never landed as completed.",
   subject: "[Flow started] {{flow_name}}",
@@ -80,6 +88,7 @@ const STARTED: TemplateSpec = {
 const FAILURE: TemplateSpec = {
   template_key: "visual-flow-failure",
   name: "Visual flow — execution failed",
+  from: "no-reply@jaalyantra.com",
   description:
     "Sent to the configured admin recipient when a visual flow execution lands as failed. Includes failing operation key + error message so admins can diagnose without trawling logs.",
   subject: "[Flow failed] {{flow_name}} — {{failing_operation_key}}",
@@ -157,6 +166,7 @@ async function upsert(templates: any, spec: TemplateSpec, logger: any) {
     name: spec.name,
     description: spec.description,
     template_key: spec.template_key,
+    from: spec.from,
     subject: spec.subject,
     html_content: spec.html_content,
     is_active: true,
