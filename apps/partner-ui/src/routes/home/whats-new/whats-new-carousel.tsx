@@ -127,19 +127,21 @@ export const WhatsNewCarousel = () => {
           visible ? "opacity-100" : "opacity-0"
         )}
       >
-        <div className="border-ui-border-base bg-ui-bg-subtle relative h-20 w-28 shrink-0 overflow-hidden rounded-lg border">
+        <div className="border-ui-border-base bg-ui-bg-subtle relative hidden h-[164px] w-[262px] shrink-0 overflow-hidden rounded-lg border sm:block">
           {showMedia ? (
             <img
               src={active.media}
               alt=""
-              className="h-full w-full object-cover"
+              loading="lazy"
+              decoding="async"
+              className="h-full w-full object-cover object-top"
               onError={() =>
                 setMediaFailed((m) => ({ ...m, [active.id]: true }))
               }
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center">
-              <Icon className="text-ui-fg-muted h-7 w-7" />
+              <Icon className="text-ui-fg-muted h-8 w-8" />
             </div>
           )}
         </div>

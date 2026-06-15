@@ -1,4 +1,4 @@
-import { ShoppingBag, Sparkles, Swatch } from "@medusajs/icons"
+import { CurrencyDollar, ShoppingBag, Swatch, TruckFast } from "@medusajs/icons"
 import type { ComponentType } from "react"
 
 // #342 — partner-facing "What's new" changelog surfaced on the dashboard
@@ -8,9 +8,9 @@ import type { ComponentType } from "react"
 // entry resets "seen"). Copy is kept inline here (changelog announcements aren't
 // localized); the carousel chrome uses `partner.home.whatsNew.*` i18n keys.
 //
-// `media` points at a GIF (or still) under `public/whats-new/`. If the file is
-// absent or fails to load, the carousel falls back to `icon` — so entries can
-// ship before their recording lands.
+// `media` points at a GIF (or still) under `public/whats-new/` — short Playwright
+// screen-recordings of the real flows. If the file is absent or fails to load,
+// the carousel falls back to `icon`.
 
 export type WhatsNewEntry = {
   /** Stable id — drives the dismissed-state signature. Never reuse across changes. */
@@ -34,31 +34,41 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     id: "orders-unified-2026-06",
     date: "2026-06-15",
     title: "Orders, unified",
-    body: "Your design and inventory work-orders now live alongside customer orders under Orders. Switch between Retail, Design, Inventory and All from the Orders submenu.",
+    body: "Your design and inventory work-orders now live alongside customer orders under Orders. Switch between Retail, Design, Inventory and All — each row shows its live work status.",
     media: "/whats-new/orders-unified.gif",
     icon: ShoppingBag,
     to: "/orders/all",
     cta: "View orders",
   },
   {
-    id: "work-order-detail-2026-06",
+    id: "design-complete-2026-06",
     date: "2026-06-15",
-    title: "Manage a work-order in one place",
-    body: "Open any design or inventory work-order to see its line items, totals, activity and tasks right inside the order — no more separate screens.",
-    media: "/whats-new/work-order-detail.gif",
+    title: "Complete a design run",
+    body: "Mark a run finished, then log your output, production cost and materials consumed to complete it — the activity timeline updates as you go.",
+    media: "/whats-new/design-complete.gif",
     icon: Swatch,
     to: "/orders/design",
     cta: "Open design orders",
   },
   {
-    id: "work-status-badge-2026-06",
+    id: "inventory-fulfillment-2026-06",
     date: "2026-06-15",
-    title: "Work status at a glance",
-    body: "Every work-order now carries a live status badge — assigned, accepted, in progress, finished, completed — on the list and the detail.",
-    media: "/whats-new/work-status.gif",
-    icon: Sparkles,
+    title: "Confirm delivery & fulfill",
+    body: "Complete an inventory order in one place — Fill All Remaining quantities, add a delivery date and tracking number, and mark it delivered.",
+    media: "/whats-new/fulfillment.gif",
+    icon: TruckFast,
     to: "/orders/inventory",
-    cta: "See statuses",
+    cta: "Open inventory orders",
+  },
+  {
+    id: "submit-payment-2026-06",
+    date: "2026-06-15",
+    title: "Submit a payment",
+    body: "Record a payment against an inventory order straight from the order — the amount pre-fills from the total, add a method and note, done.",
+    media: "/whats-new/submit-payment.gif",
+    icon: CurrencyDollar,
+    to: "/orders/inventory",
+    cta: "Open inventory orders",
   },
 ]
 
