@@ -1,11 +1,13 @@
 import { Button, DatePicker, Heading, Input, Label, Select, Text, Textarea, toast } from "@medusajs/ui"
+import { useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
-import { useParams } from "react-router-dom"
 
 import { RouteDrawer, useRouteModal } from "../../../components/modals"
+import { ordersQueryKeys } from "../../../hooks/api/orders"
 import { usePartnerInventoryOrder, useSubmitPartnerInventoryOrderPayment } from "../../../hooks/api/partner-inventory-orders"
 import { usePartnerPaymentMethods } from "../../../hooks/api/partner-payment-methods"
 import { useMe } from "../../../hooks/api/users"
+import { useInventoryActionTarget } from "../../../hooks/use-inventory-action-target"
 
 export const InventoryOrderSubmitPayment = () => {
   return (
@@ -24,8 +26,9 @@ export const InventoryOrderSubmitPayment = () => {
 }
 
 const InventoryOrderSubmitPaymentContent = () => {
-  const { id } = useParams()
+  const { inventoryOrderId: id, unifiedOrderId } = useInventoryActionTarget()
   const { handleSuccess } = useRouteModal()
+  const queryClient = useQueryClient()
   const { user } = useMe()
   const partnerId = user?.partner_id
 
@@ -68,6 +71,11 @@ const InventoryOrderSubmitPaymentContent = () => {
       {
         onSuccess: () => {
           toast.success("Payment submitted")
+          if (unifiedOrderId) {
+            queryClient.invalidateQueries({
+              queryKey: ordersQueryKeys.detail(unifiedOrderId),
+            })
+          }
           handleSuccess()
         },
         onError: (e) => {

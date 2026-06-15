@@ -10,6 +10,10 @@ import { useOrders } from "../../../../../hooks/api/orders"
 import { usePartnerStores } from "../../../../../hooks/api/partner-stores"
 import { useOrderTableColumns } from "../../../../../hooks/table/columns/use-order-table-columns"
 import { getStatusBadgeColor } from "../../../../../lib/status-badge"
+import {
+  PARTNER_STATUS_LABELS,
+  getPartnerWorkStatus,
+} from "../../../../../lib/work-status"
 import { useOrderTableFilters } from "./use-order-table-filters"
 import { useOrderTableQuery } from "../../../../../hooks/table/query/use-order-table-query"
 import { useDataTable } from "../../../../../hooks/use-data-table"
@@ -32,19 +36,6 @@ const deriveKind = (pathname: string): OrderKind => {
     : "retail"
 }
 
-// The §5 work-progress vocabulary. Promoted to the typed
-// `unified_order_status.partner_status` column (PR-F); read off the column
-// first, with `metadata.partner_status` as a transitional fallback (PR-G).
-const PARTNER_STATUS_LABELS: Record<string, string> = {
-  assigned: "Assigned",
-  accepted: "Accepted",
-  in_progress: "In Progress",
-  partial: "Partial",
-  finished: "Finished",
-  completed: "Completed",
-  declined: "Declined",
-}
-
 // The order-kind views are reached from the nested "Orders" sidebar submenu
 // (#342 Chunk 5). The heading reflects which kind is active.
 const KIND_HEADINGS: Record<OrderKind, string> = {
@@ -65,8 +56,7 @@ const partnerStatusColumn = workColumnHelper.display({
     </div>
   ),
   cell: ({ row }) => {
-    const status = (row.original?.unified_order_status?.partner_status ??
-      row.original?.metadata?.partner_status) as string | undefined
+    const status = getPartnerWorkStatus(row.original)
     if (!status) {
       return <span className="text-ui-fg-muted px-4">—</span>
     }

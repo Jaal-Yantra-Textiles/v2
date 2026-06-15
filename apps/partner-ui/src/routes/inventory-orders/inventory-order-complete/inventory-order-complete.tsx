@@ -1,17 +1,19 @@
 import { Button, DatePicker, Heading, Input, Text, toast } from "@medusajs/ui"
+import { useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
-import { useParams } from "react-router-dom"
 
 import { RouteFocusModal, useRouteModal } from "../../../components/modals"
+import { ordersQueryKeys } from "../../../hooks/api/orders"
 import {
   useCompletePartnerInventoryOrder,
   usePartnerInventoryOrder,
 } from "../../../hooks/api/partner-inventory-orders"
+import { useInventoryActionTarget } from "../../../hooks/use-inventory-action-target"
 
 type LineDraft = { order_line_id: string; quantity: number }
 
 export const InventoryOrderComplete = () => {
-  const { id } = useParams()
+  const { inventoryOrderId: id, unifiedOrderId } = useInventoryActionTarget()
 
   return (
     <RouteFocusModal>
@@ -23,7 +25,11 @@ export const InventoryOrderComplete = () => {
           Complete the inventory order
         </RouteFocusModal.Description>
       </RouteFocusModal.Header>
-      {id ? <InventoryOrderCompleteWithId id={id} /> : <MissingId />}
+      {id ? (
+        <InventoryOrderCompleteWithId id={id} unifiedOrderId={unifiedOrderId} />
+      ) : (
+        <MissingId />
+      )}
     </RouteFocusModal>
   )
 }
@@ -51,8 +57,15 @@ const MissingId = () => {
   )
 }
 
-const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
+const InventoryOrderCompleteWithId = ({
+  id,
+  unifiedOrderId,
+}: {
+  id: string
+  unifiedOrderId?: string
+}) => {
   const { handleSuccess } = useRouteModal()
+  const queryClient = useQueryClient()
 
   const { inventoryOrder, isPending, isError, error } = usePartnerInventoryOrder(id)
   const { mutateAsync: completeOrder, isPending: isCompleting } =
@@ -176,6 +189,11 @@ const InventoryOrderCompleteWithId = ({ id }: { id: string }) => {
       {
         onSuccess: () => {
           toast.success("Order completed")
+          if (unifiedOrderId) {
+            queryClient.invalidateQueries({
+              queryKey: ordersQueryKeys.detail(unifiedOrderId),
+            })
+          }
           handleSuccess()
         },
         onError: (e) => {

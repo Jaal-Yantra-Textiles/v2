@@ -184,36 +184,14 @@ export function getPartnerRouteMap(): RouteObject[] {
                     import("../../routes/inventory-orders/inventory-orders-list"),
                 },
                 {
+                  // #342 — retired: inventory work-orders now live on the
+                  // unified order detail. Redirect legacy detail links to
+                  // /orders/:id (resolves the unified order id from the link).
                   path: ":id",
-                  handle: {
-                    breadcrumb: (match?: UIMatch) =>
-                      match?.params?.id || "Inventory Order",
-                  },
                   lazy: () =>
-                    import("../../routes/inventory-orders/inventory-order-detail"),
-                  children: [
-                    {
-                      path: "start",
-                      lazy: () =>
-                        import(
-                          "../../routes/inventory-orders/inventory-order-start"
-                        ),
-                    },
-                    {
-                      path: "complete",
-                      lazy: () =>
-                        import(
-                          "../../routes/inventory-orders/inventory-order-complete"
-                        ),
-                    },
-                    {
-                      path: "submit-payment",
-                      lazy: () =>
-                        import(
-                          "../../routes/inventory-orders/inventory-order-submit-payment"
-                        ),
-                    },
-                  ],
+                    import(
+                      "../../routes/inventory-orders/inventory-order-redirect"
+                    ),
                 },
               ],
             },
@@ -654,6 +632,32 @@ export function getPartnerRouteMap(): RouteObject[] {
                       path: "metadata/edit",
                       lazy: () =>
                         import("../../routes/orders/order-metadata"),
+                    },
+                    // #342 — inventory work-order actions folded onto the
+                    // unified order detail. Nested under `inventory/` to avoid
+                    // colliding with retail order sub-routes. The action
+                    // components resolve the legacy inventory_order id from the
+                    // unified order's metadata.legacy_id.
+                    {
+                      path: "inventory/start",
+                      lazy: () =>
+                        import(
+                          "../../routes/inventory-orders/inventory-order-start"
+                        ),
+                    },
+                    {
+                      path: "inventory/complete",
+                      lazy: () =>
+                        import(
+                          "../../routes/inventory-orders/inventory-order-complete"
+                        ),
+                    },
+                    {
+                      path: "inventory/submit-payment",
+                      lazy: () =>
+                        import(
+                          "../../routes/inventory-orders/inventory-order-submit-payment"
+                        ),
                     },
                   ],
                 },

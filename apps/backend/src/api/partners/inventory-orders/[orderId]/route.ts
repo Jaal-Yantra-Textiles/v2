@@ -174,7 +174,11 @@ export async function GET(
             "tasks.*",
             "orderlines.inventory_items.*",
             "orderlines.inventory_items.raw_materials.*",
-            "orderlines.line_fulfillments.*"
+            "orderlines.line_fulfillments.*",
+            // #342 — the unified order this inventory order projects into, via
+            // the order↔inventory_order link (forward accessor). Lets the
+            // partner UI redirect the retired /inventory-orders/:id to /orders/:id.
+            "order.id"
         ],
         filters: {
             id: orderId
@@ -234,6 +238,10 @@ export async function GET(
     // Format the response for partner view - now using task-based status
     const partnerOrderView = {
         id: order.id,
+        // The unified order id (#342). Single object on a 1:1 link; tolerate array.
+        unified_order_id: Array.isArray((order as any).order)
+            ? (order as any).order[0]?.id
+            : (order as any).order?.id,
         status: order.status,
         quantity: order.quantity,
         total_price: order.total_price,

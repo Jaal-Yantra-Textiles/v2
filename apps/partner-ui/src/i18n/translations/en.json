@@ -3406,6 +3406,11 @@
         "message": "Submit your completed designs for payment by clicking New Submission."
       }
     },
+    "workOrders": {
+      "designOrder": "Design order",
+      "inventoryOrder": "Inventory order",
+      "manageDesign": "Manage design"
+    },
     "inventoryOrders": {
       "heading": "Inventory Orders",
       "empty": "No inventory orders",
