@@ -52,6 +52,8 @@ const CreateSocialPlatformSchema = z.object({
   mode: z.string().optional(),
   // Shipping fields
   account_number: z.string().optional(),
+  email: z.string().optional(),
+  pickup_location: z.string().optional(),
   // Analytics fields
   tracking_id: z.string().optional(),
   project_token: z.string().optional(),
@@ -87,6 +89,10 @@ const CreateSocialPlatformSchema = z.object({
       if (!data.api_key) ctx.addIssue({ code: "custom", path: ["api_key"], message: "API key is required" })
       if (!data.webhook_signing_secret) ctx.addIssue({ code: "custom", path: ["webhook_signing_secret"], message: "Webhook signing secret is required" })
     }
+  }
+  if (data.category === "shipping" && data.provider_type === "shiprocket") {
+    if (!data.email) ctx.addIssue({ code: "custom", path: ["email"], message: "Shiprocket account email is required" })
+    if (!data.password) ctx.addIssue({ code: "custom", path: ["password"], message: "Shiprocket password is required" })
   }
   if (data.category === "communication" && data.provider_type === "whatsapp") {
     if (!data.phone_number_id) ctx.addIssue({ code: "custom", path: ["phone_number_id"], message: "Phone Number ID is required" })
@@ -177,12 +183,23 @@ function buildApiConfig(category: string, data: Record<string, any>): Record<str
       break
 
     case "shipping":
-      Object.assign(config, {
-        mode: data.mode || "test",
-        api_key: data.api_key,
-        api_secret: data.api_secret,
-        account_number: data.account_number,
-      })
+      if (data.provider_type === "shiprocket") {
+        // Shiprocket authenticates with email/password (JWT) and references a
+        // registered pickup-location name; no api_key/account_number.
+        Object.assign(config, {
+          mode: data.mode || "test",
+          email: data.email,
+          password: data.password,
+          pickup_location: data.pickup_location,
+        })
+      } else {
+        Object.assign(config, {
+          mode: data.mode || "test",
+          api_key: data.api_key,
+          api_secret: data.api_secret,
+          account_number: data.account_number,
+        })
+      }
       break
 
     case "analytics":
@@ -257,7 +274,7 @@ function inferAuthType(category: string, providerType?: string): string {
     case "payment":
       return "api_key"
     case "shipping":
-      return "api_key"
+      return providerType === "shiprocket" ? "basic" : "api_key"
     case "analytics":
       return "api_key"
     case "storage":
