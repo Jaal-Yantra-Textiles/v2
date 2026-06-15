@@ -287,6 +287,19 @@ module.exports = defineConfig({
     //             },
     //           ]
     //         : []),
+    //       ...(process.env.SHIPROCKET_EMAIL
+    //         ? [
+    //             {
+    //               resolve: "./src/modules/shipping-providers/shiprocket",
+    //               id: "shiprocket",
+    //               options: {
+    //                 email: process.env.SHIPROCKET_EMAIL,
+    //                 password: process.env.SHIPROCKET_PASSWORD,
+    //                 pickup_location: process.env.SHIPROCKET_PICKUP_LOCATION,
+    //               },
+    //             },
+    //           ]
+    //         : []),
     //       ...(process.env.DHL_API_KEY
     //         ? [
     //             {

@@ -19,6 +19,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { RemoteQueryFunction } from "@medusajs/types"
 import type { Link } from "@medusajs/modules-sdk"
 import { PARTNER_MODULE } from "../../modules/partner"
+import { registerShiprocketPickup } from "../../modules/shipping-providers/pickup-locations"
 
 // Orchestrates creation of a store with its default region, sales channel, and stock location
 // Then updates the store to reference those as defaults
@@ -356,6 +357,29 @@ const autoLinkFulfillmentProvidersStep = createStep(
         }
       } catch (e: any) {
         console.error(`[create-store] Failed to register Delhivery warehouse: ${e.message}`)
+      }
+    }
+
+    // India → Shiprocket (sibling carrier to Delhivery).
+    if (country === "in" && enabledIds.includes("shiprocket_shiprocket")) {
+      toLink.push("shiprocket_shiprocket")
+    }
+
+    // India → Shiprocket inbound pickup auto-register (#31 §9.3). Resolver-driven:
+    // creds come from the external-platform store, so this runs whether or not
+    // Shiprocket is in the fulfillment registry. Best-effort — a missing platform
+    // record / creds (or an unverified phone) must never fail store provisioning.
+    if (country === "in") {
+      try {
+        const result = await registerShiprocketPickup(container, input.locationId)
+        console.log(
+          `[create-store] Registered Shiprocket pickup: ${result.name}` +
+            (result.already_existed ? " (already existed)" : "")
+        )
+      } catch (e: any) {
+        console.warn(
+          `[create-store] Skipped Shiprocket pickup auto-register: ${e.message}`
+        )
       }
     }
 
