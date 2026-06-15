@@ -172,9 +172,58 @@ setupSharedTestSuite(() => {
     })
   })
 
+  // NOTE (roadmap 32B): the engine path (FlowExecutionEngine.execute) now
+  // emits `visual_flow_execution.failed` from its catch — but it can't be
+  // exercised end-to-end here. The engine resolves a flow's graph by matching
+  // connection.target_id against operation.id (a generated `vfop_…`), while
+  // canvas-built flows store the canvas node id as `operation_key` and wire
+  // connections by node id. So the engine finds zero starting operations for a
+  // canvas flow and completes empty — a PRE-EXISTING engine graph-resolution
+  // gap (the engine path is currently unused), unrelated to the emit fix.
+  // The emit mirrors the workflow compensation emit covered above; fixing the
+  // engine graph resolver is tracked separately.
+
   describe("visual-flow-lifecycle-email subscriber helpers", () => {
+    const ENV_KEYS = ["VISUAL_FLOW_FAILURE_EMAIL", "MAILJET_FROM_EMAIL"]
+    let savedEnv: Record<string, string | undefined>
+
     beforeEach(() => {
       lifecycleTesting.clearThrottle()
+      savedEnv = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]))
+      for (const k of ENV_KEYS) delete process.env[k]
+    })
+
+    afterEach(() => {
+      for (const k of ENV_KEYS) {
+        if (savedEnv[k] === undefined) delete process.env[k]
+        else process.env[k] = savedEnv[k]
+      }
+    })
+
+    it("resolveRecipient prefers per-flow metadata, then env, then Mailjet fallback (32B)", () => {
+      // 1. per-flow override wins
+      process.env.VISUAL_FLOW_FAILURE_EMAIL = "env@jyt.test"
+      process.env.MAILJET_FROM_EMAIL = "from@jyt.test"
+      expect(
+        lifecycleTesting.resolveRecipient({ flow_metadata: { failure_email: "flow@jyt.test" } })
+      ).toEqual({ email: "flow@jyt.test", source: "flow.metadata.failure_email" })
+
+      // 2. platform env when no per-flow override
+      expect(lifecycleTesting.resolveRecipient({})).toEqual({
+        email: "env@jyt.test",
+        source: "VISUAL_FLOW_FAILURE_EMAIL",
+      })
+
+      // 3. Mailjet from-address as the never-silent floor
+      delete process.env.VISUAL_FLOW_FAILURE_EMAIL
+      expect(lifecycleTesting.resolveRecipient({})).toEqual({
+        email: "from@jyt.test",
+        source: "MAILJET_FROM_EMAIL (fallback)",
+      })
+
+      // 4. truly nothing configured → null (subscriber then WARN-logs)
+      delete process.env.MAILJET_FROM_EMAIL
+      expect(lifecycleTesting.resolveRecipient({})).toBeNull()
     })
 
     it("fingerprint normalises ULID-like ids and truncates", () => {
