@@ -225,12 +225,22 @@ fulfillment-module-registry path.
 Delhivery warehouse name, so a location maps to the same nickname on both
 carriers.
 
+**Done (2026-06-15, branch `feat/31-shiprocket-pickup-registration`):**
+- **Fulfillment provider registration** — Shiprocket added to the
+  `@medusajs/medusa/fulfillment` `providers` list (env-gated on `SHIPROCKET_EMAIL`,
+  mirroring Delhivery; no sandbox). Active in `medusa-config.prod.ts`, kept in
+  parity in the commented base-config block.
+- **Inbound auto-register** — wired into `create-store-with-defaults.ts`: India
+  stores link `shiprocket_shiprocket` (when enabled) and best-effort call
+  `registerShiprocketPickup` (never fails provisioning).
+- **Outbound opt-in UI** — admin widget on the stock-location detail page
+  (`src/admin/widgets/stock-location-shiprocket-pickup.tsx`, zone
+  `location.details.after`). Default-hidden per §9.3: shows a "Check status"
+  action until the operator asks, then GET status / POST register on demand.
+- **Integration test** — `integration-tests/http/shiprocket-pickup-registration.spec.ts`
+  (5 cases) covers the GET/POST route end to end with the Shiprocket HTTP calls stubbed.
+
 **Still open:**
-- **Inbound auto-register** (call `registerShiprocketPickup` from
-  `create-store-with-defaults.ts` alongside the Delhivery branch for `country ===
-  "in"`) — not yet wired; the helper + route exist, the auto-trigger doesn't.
-- **Outbound opt-in UI** — admin/partner surface that calls `POST` (the route is
-  ready; no UI control yet).
 - **Live verification** — untested against the real Shiprocket API; needs test
   creds + a `category: shipping` Shiprocket platform record. The
   `data.shipping_address[]` field names (esp. `phone_verified`) should be

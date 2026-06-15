@@ -289,6 +289,23 @@ module.exports = defineConfig({
                 },
               ]
             : []),
+          // Shiprocket (#31). Registers the Medusa fulfillment provider for the
+          // checkout/createFulfillment flow. The resolver-driven label/tracking/
+          // pickup routes source creds from the external-platform store instead;
+          // these env options are the boot-time fallback (no sandbox endpoint).
+          ...(process.env.SHIPROCKET_EMAIL
+            ? [
+                {
+                  resolve: "./src/modules/shipping-providers/shiprocket",
+                  id: "shiprocket",
+                  options: {
+                    email: process.env.SHIPROCKET_EMAIL,
+                    password: process.env.SHIPROCKET_PASSWORD,
+                    pickup_location: process.env.SHIPROCKET_PICKUP_LOCATION,
+                  },
+                },
+              ]
+            : []),
           ...(process.env.DHL_API_KEY
             ? [
                 {
