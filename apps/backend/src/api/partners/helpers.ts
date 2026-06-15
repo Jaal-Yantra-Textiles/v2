@@ -1,5 +1,6 @@
 import { MedusaContainer } from "@medusajs/framework"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import partnerOrderLink from "../../links/partner-order"
 
 export const refetchPartner = async (
     partnerId: string,
@@ -195,7 +196,18 @@ export const validatePartnerEntityOwnership = async (
 }
 
 /**
- * Validates that an order belongs to the partner's store via sales channel.
+ * Validates that an order belongs to the partner — by the SAME two scoping rules
+ * the partner orders LIST uses (`list-partner-orders` workflow), so the detail +
+ * its 27 sibling action routes accept exactly the orders the list shows:
+ *
+ *   - retail → the order lives in the partner's store sales channel.
+ *   - work (#342 design | inventory) → a D3 `partner ↔ order` link exists.
+ *
+ * Work-orders live in the shared internal PARTNER_WORK_ORDERS_CHANNEL (NOT the
+ * store channel), so sales-channel scoping alone can never see them — and that
+ * channel is one row shared by every partner, so it can't tell partners apart.
+ * The explicit link is the ownership primitive for work; the channel is for
+ * retail. (Before this, the channel-only check 404'd every work-order detail.)
  */
 export const validatePartnerOrderOwnership = async (
     authContext: { actor_id?: string | null } | undefined,
@@ -203,13 +215,6 @@ export const validatePartnerOrderOwnership = async (
     container: MedusaContainer,
 ): Promise<{ partner: any; store: any }> => {
     const { partner, store } = await getPartnerStore(authContext, container)
-
-    if (!store.default_sales_channel_id) {
-        throw new MedusaError(
-            MedusaError.Types.NOT_FOUND,
-            "Store has no sales channel configured"
-        )
-    }
 
     const query = container.resolve(ContainerRegistrationKeys.QUERY)
     const { data: orders } = await query.graph({
@@ -219,7 +224,29 @@ export const validatePartnerOrderOwnership = async (
     })
 
     const order = orders?.[0] as any
-    if (!order || order.sales_channel_id !== store.default_sales_channel_id) {
+    if (!order) {
+        throw new MedusaError(MedusaError.Types.NOT_FOUND, "Order not found")
+    }
+
+    // Retail ownership: order is in the partner's store sales channel.
+    const ownsRetail =
+        !!store.default_sales_channel_id &&
+        order.sales_channel_id === store.default_sales_channel_id
+
+    // Work ownership: the D3 partner↔order link (read by entryPoint, the source
+    // of truth — same as resolvePartnerWorkOrderIdsStep). Only checked when the
+    // retail rule didn't already grant, to save a query on the common path.
+    let ownsWork = false
+    if (!ownsRetail) {
+        const { data: links } = await query.graph({
+            entity: partnerOrderLink.entryPoint,
+            fields: ["order_id"],
+            filters: { partner_id: partner.id, order_id: orderId },
+        })
+        ownsWork = (links?.length ?? 0) > 0
+    }
+
+    if (!ownsRetail && !ownsWork) {
         throw new MedusaError(MedusaError.Types.NOT_FOUND, "Order not found")
     }
 
