@@ -641,6 +641,25 @@ export function getPartnerRouteMap(): RouteObject[] {
                       lazy: () =>
                         import("../../routes/orders/order-design-details"),
                       handle: { breadcrumb: () => "Design details" },
+                      children: [
+                        // Media / moodboard UPLOAD for the assigned design, in
+                        // the order context. The components resolve the design
+                        // id from the order via useResolvedDesignId.
+                        {
+                          path: "media",
+                          lazy: () => import("../../routes/designs/design-media"),
+                        },
+                        {
+                          path: "media-preview",
+                          lazy: () =>
+                            import("../../routes/designs/design-media-preview"),
+                        },
+                        {
+                          path: "moodboard",
+                          lazy: () =>
+                            import("../../routes/designs/design-moodboard"),
+                        },
+                      ],
                     },
                     // #342 — inventory work-order actions folded onto the
                     // unified order detail. Nested under `inventory/` to avoid

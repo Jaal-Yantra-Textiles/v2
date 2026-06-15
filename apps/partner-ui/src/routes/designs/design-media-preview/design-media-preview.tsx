@@ -1,10 +1,11 @@
 import { ArrowDownTray, TriangleLeftMini, TriangleRightMini } from "@medusajs/icons"
 import { Heading, IconButton, Text, clx } from "@medusajs/ui"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useLocation, useParams } from "react-router-dom"
+import { useLocation } from "react-router-dom"
 
 import { RouteFocusModal } from "../../../components/modals"
 import { usePartnerDesign } from "../../../hooks/api/partner-designs"
+import { useResolvedDesignId } from "../../../hooks/use-resolved-design-id"
 
 type Media = {
   id: string
@@ -13,7 +14,7 @@ type Media = {
 }
 
 export const DesignMediaPreview = () => {
-  const { id } = useParams()
+  const id = useResolvedDesignId()
 
   return (
     <RouteFocusModal>

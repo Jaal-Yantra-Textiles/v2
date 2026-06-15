@@ -12,6 +12,8 @@ import { usePartnerDesign } from "../../../hooks/api/partner-designs"
 import { usePartnerProductionRun } from "../../../hooks/api/partner-production-runs"
 import { DesignCostSection } from "../../designs/design-detail/components/design-cost-section"
 import { DesignConsumptionLogsSection } from "../../designs/design-detail/components/design-consumption-logs-section"
+import { DesignMediaSection } from "../../designs/design-detail/components/design-media-section"
+import { DesignMoodboardSection } from "../../designs/design-detail/components/design-moodboard-section"
 
 /**
  * #342 — design details as a sub-route of the unified order
@@ -55,9 +57,10 @@ export const OrderDesignDetails = () => {
   const materials = (design.inventory_items || []) as Array<Record<string, any>>
 
   return (
+    // hasOutlet renders the nested media / moodboard upload modals.
     <TwoColumnPage
       widgets={{ before: [], after: [], sideBefore: [], sideAfter: [] }}
-      hasOutlet={false}
+      hasOutlet
     >
       <TwoColumnPage.Main>
         {/* General + link to the full design-management surface */}
@@ -101,6 +104,11 @@ export const OrderDesignDetails = () => {
       </TwoColumnPage.Main>
 
       <TwoColumnPage.Sidebar>
+        {/* Media + moodboard upload — links resolve to the nested
+            /orders/:id/design-details/{media,moodboard} routes. */}
+        <DesignMediaSection design={design} />
+        <DesignMoodboardSection design={design} />
+
         {/* Read-only materials list (link-free; full BOM editing is on the design manager). */}
         <Container className="divide-y p-0">
           <div className="px-6 py-4">

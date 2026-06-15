@@ -1,14 +1,13 @@
 import { Button, Heading, Text } from "@medusajs/ui"
 import "@excalidraw/excalidraw/index.css"
 import { useEffect, useMemo, useRef } from "react"
-import { useParams } from "react-router-dom"
-
 import { Excalidraw } from "@excalidraw/excalidraw"
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
 import type { BinaryFileData, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 
 import { RouteFocusModal } from "../../../components/modals"
 import { usePartnerDesign } from "../../../hooks/api/partner-designs"
+import { useResolvedDesignId } from "../../../hooks/use-resolved-design-id"
 
 type MoodboardData = {
   type?: string
@@ -85,7 +84,7 @@ const normalizeMoodboard = (raw: unknown): MoodboardData | null => {
 }
 
 export const DesignMoodboard = () => {
-  const { id } = useParams()
+  const id = useResolvedDesignId()
 
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null)
 

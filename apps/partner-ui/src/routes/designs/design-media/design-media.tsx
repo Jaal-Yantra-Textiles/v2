@@ -1,7 +1,6 @@
 import { Button, Heading, Text, toast } from "@medusajs/ui"
 import { useMemo, useState } from "react"
-import { useParams } from "react-router-dom"
-
+import { useResolvedDesignId } from "../../../hooks/use-resolved-design-id"
 import { FileType, FileUpload } from "../../../components/common/file-upload"
 import { RouteDrawer, useRouteModal } from "../../../components/modals"
 import {
@@ -20,7 +19,7 @@ const SUPPORTED_FORMATS = [
 ]
 
 export const DesignMedia = () => {
-  const { id } = useParams()
+  const id = useResolvedDesignId()
 
   return (
     <RouteDrawer>

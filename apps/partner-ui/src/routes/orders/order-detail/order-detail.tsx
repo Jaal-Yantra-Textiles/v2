@@ -107,8 +107,10 @@ export const OrderDetail = () => {
   }
 
   // Design-details is a full sub-page (breadcrumb Orders › id › Design details):
-  // render only the nested route, not the order detail beneath it.
-  if (location.pathname.endsWith("/design-details")) {
+  // render only the nested route, not the order detail beneath it. `.includes`
+  // (not endsWith) so its own children — media / moodboard upload modals — also
+  // render against the design-details page, not the order detail.
+  if (location.pathname.includes("/design-details")) {
     return <Outlet />
   }
 
