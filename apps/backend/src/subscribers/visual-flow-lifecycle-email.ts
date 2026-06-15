@@ -78,6 +78,24 @@ function resolveRecipient(data: any): { email: string; source: string } | null {
   return null
 }
 
+// Whether to send the "flow started" email for this execution (#418).
+// The start email (roadmap 26) gives long-running flows a kick-off signal,
+// but short-interval *scheduled* flows turned it into inbox spam. Decision:
+//   1. flow.metadata.send_start_email — explicit per-flow toggle (admin UI).
+//      Accepts a real boolean or the "true"/"false" strings the key-value
+//      metadata editor produces.
+//   2. default — OFF for schedule-triggered flows, ON for every other
+//      trigger type (event/manual/webhook/another_flow keep the paper trail).
+// Failure/cancelled emails are intentionally NOT gated by this — a flow that
+// silences its start notice still alerts on failure.
+function shouldSendStartEmail(data: any): boolean {
+  const explicit = data?.flow_metadata?.send_start_email
+  if (typeof explicit === "boolean") return explicit
+  if (explicit === "true") return true
+  if (explicit === "false") return false
+  return data?.flow_trigger_type !== "schedule"
+}
+
 function buildExecutionUrl(executionId: string): string | undefined {
   const adminBase =
     process.env.ADMIN_BASE_URL ||
@@ -129,6 +147,14 @@ export default async function visualFlowLifecycleEmailHandler({
   const now = Date.now()
 
   if (eventName === "visual_flow_execution.started") {
+    if (!shouldSendStartEmail(data)) {
+      logger.debug(
+        `[visual-flow-lifecycle-email] start email disabled for flow=${flowId} ` +
+          `(send_start_email=${data?.flow_metadata?.send_start_email ?? "unset"}, ` +
+          `trigger_type=${data?.flow_trigger_type ?? "unknown"})`
+      )
+      return
+    }
     if (shouldThrottle(`started:${flowId}`, now)) {
       logger.debug(
         `[visual-flow-lifecycle-email] throttled start email for ${flowId}`
@@ -226,4 +252,5 @@ export const __testing = {
   clearThrottle: () => lastSentAt.clear(),
   fingerprint,
   resolveRecipient,
+  shouldSendStartEmail,
 }

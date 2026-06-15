@@ -1,7 +1,7 @@
 import { useParams } from "react-router-dom"
 import { RouteDrawer } from "../../../../components/modal/route-drawer/route-drawer"
 import { useVisualFlow, useUpdateVisualFlow } from "../../../../hooks/api/visual-flows"
-import { Button, Heading, Text, Input, Textarea, toast, Select } from "@medusajs/ui"
+import { Button, Heading, Text, Input, Textarea, toast, Select, Switch } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "@medusajs/framework/zod"
@@ -14,6 +14,7 @@ const editFlowSchema = z.object({
   description: z.string().optional(),
   trigger_type: z.enum(["manual", "webhook", "event", "schedule", "another_flow"]),
   status: z.enum(["active", "inactive", "draft"]),
+  send_start_email: z.boolean(),
 })
 
 type EditFlowFormValues = z.infer<typeof editFlowSchema>
@@ -22,12 +23,14 @@ type EditVisualFlowDrawerContentProps = {
   form: ReturnType<typeof useForm<EditFlowFormValues>>
   mutateAsync: ReturnType<typeof useUpdateVisualFlow>["mutateAsync"]
   isPending: boolean
+  existingMetadata: Record<string, any>
 }
 
 const EditVisualFlowDrawerContent = ({
   form,
   mutateAsync,
   isPending,
+  existingMetadata,
 }: EditVisualFlowDrawerContentProps) => {
   const { handleSuccess } = useRouteModal()
 
@@ -39,6 +42,9 @@ const EditVisualFlowDrawerContent = ({
           description: data.description || undefined,
           trigger_type: data.trigger_type,
           status: data.status,
+          // Merge so we don't clobber other metadata keys (e.g. failure_email,
+          // schedule bookkeeping) when toggling the start-email setting (#418).
+          metadata: { ...existingMetadata, send_start_email: data.send_start_email },
         },
         {
           onSuccess: () => {
@@ -152,6 +158,31 @@ const EditVisualFlowDrawerContent = ({
                   </Form.Item>
                 )}
               />
+
+              <Form.Field
+                control={form.control}
+                name="send_start_email"
+                render={({ field }) => (
+                  <Form.Item>
+                    <div className="flex items-start justify-between gap-x-4">
+                      <div className="flex flex-col">
+                        <Form.Label>Send email when flow starts</Form.Label>
+                        <Text size="small" className="text-ui-fg-subtle">
+                          Notify the failure-alert recipient each time this flow
+                          starts. Off by default for scheduled flows to avoid
+                          inbox spam. Failure alerts are always sent regardless.
+                        </Text>
+                      </div>
+                      <Form.Control>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </Form.Control>
+                    </div>
+                  </Form.Item>
+                )}
+              />
             </div>
           </div>
         </RouteDrawer.Body>
@@ -177,6 +208,16 @@ const EditVisualFlowPage = () => {
   const { data: flow, isLoading } = useVisualFlow(id!)
   const { mutateAsync, isPending } = useUpdateVisualFlow(id!)
 
+  // Mirror the subscriber's default (#418): explicit metadata wins; otherwise
+  // start emails are off for schedule-triggered flows, on for everything else.
+  const resolveSendStartEmail = (f: NonNullable<typeof flow>): boolean => {
+    const explicit = (f.metadata as Record<string, any> | undefined)?.send_start_email
+    if (typeof explicit === "boolean") return explicit
+    if (explicit === "true") return true
+    if (explicit === "false") return false
+    return f.trigger_type !== "schedule"
+  }
+
   const form = useForm<EditFlowFormValues>({
     resolver: zodResolver(editFlowSchema),
     values: flow ? {
@@ -184,6 +225,7 @@ const EditVisualFlowPage = () => {
       description: flow.description || "",
       trigger_type: flow.trigger_type,
       status: flow.status,
+      send_start_email: resolveSendStartEmail(flow),
     } : undefined,
   })
 
@@ -204,6 +246,7 @@ const EditVisualFlowPage = () => {
         form={form}
         mutateAsync={mutateAsync}
         isPending={isPending}
+        existingMetadata={(flow.metadata as Record<string, any>) || {}}
       />
     </RouteDrawer>
   )

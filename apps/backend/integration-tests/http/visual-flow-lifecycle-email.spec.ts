@@ -144,6 +144,9 @@ setupSharedTestSuite(() => {
         expect(started).toBeDefined()
         expect(started!.data.flow_id).toBe(flowId)
         expect(started!.data.execution_id).toBeDefined()
+        // trigger_type rides the started event so the subscriber can apply
+        // the scheduled-default-off rule (#418); this flow is manual.
+        expect(started!.data.flow_trigger_type).toBe("manual")
 
         expect(failed).toBeDefined()
         expect(failed!.data.flow_id).toBe(flowId)
@@ -224,6 +227,58 @@ setupSharedTestSuite(() => {
       // 4. truly nothing configured → null (subscriber then WARN-logs)
       delete process.env.MAILJET_FROM_EMAIL
       expect(lifecycleTesting.resolveRecipient({})).toBeNull()
+    })
+
+    it("shouldSendStartEmail: explicit metadata toggle wins over the trigger default (#418)", () => {
+      // Explicit boolean — both directions, regardless of trigger type.
+      expect(
+        lifecycleTesting.shouldSendStartEmail({
+          flow_trigger_type: "schedule",
+          flow_metadata: { send_start_email: true },
+        })
+      ).toBe(true)
+      expect(
+        lifecycleTesting.shouldSendStartEmail({
+          flow_trigger_type: "manual",
+          flow_metadata: { send_start_email: false },
+        })
+      ).toBe(false)
+
+      // The key-value metadata editor stores "true"/"false" strings.
+      expect(
+        lifecycleTesting.shouldSendStartEmail({
+          flow_trigger_type: "schedule",
+          flow_metadata: { send_start_email: "true" },
+        })
+      ).toBe(true)
+      expect(
+        lifecycleTesting.shouldSendStartEmail({
+          flow_trigger_type: "manual",
+          flow_metadata: { send_start_email: "false" },
+        })
+      ).toBe(false)
+    })
+
+    it("shouldSendStartEmail: defaults OFF for scheduled flows, ON for everything else (#418)", () => {
+      // The short-interval spammer: scheduled flows are silent by default.
+      expect(
+        lifecycleTesting.shouldSendStartEmail({ flow_trigger_type: "schedule" })
+      ).toBe(false)
+      expect(
+        lifecycleTesting.shouldSendStartEmail({
+          flow_trigger_type: "schedule",
+          flow_metadata: {},
+        })
+      ).toBe(false)
+
+      // Every other trigger type keeps the roadmap-26 kick-off paper trail.
+      for (const t of ["manual", "event", "webhook", "another_flow"]) {
+        expect(
+          lifecycleTesting.shouldSendStartEmail({ flow_trigger_type: t })
+        ).toBe(true)
+      }
+      // Unknown/missing trigger type is treated as non-schedule → ON.
+      expect(lifecycleTesting.shouldSendStartEmail({})).toBe(true)
     })
 
     it("fingerprint normalises ULID-like ids and truncates", () => {
