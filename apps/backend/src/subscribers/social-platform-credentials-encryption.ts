@@ -2,6 +2,7 @@ import { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { MedusaContainer } from "@medusajs/framework/types"
 import { SOCIALS_MODULE } from "../modules/socials"
 import { ENCRYPTION_MODULE } from "../modules/encryption"
+import type { EncryptedData } from "../modules/encryption"
 import SocialsService from "../modules/socials/service"
 import EncryptionService from "../modules/encryption/service"
 
@@ -35,16 +36,43 @@ export async function encryptSocialPlatformCredentials(
 
     const encryptBearer = (field: string) => {
       const value = apiConfig[field]
+      if (typeof value !== "string" || !value) return // nothing freshly submitted
       const encryptedKey = `${field}_encrypted`
-      if (typeof value === "string" && value && !apiConfig[encryptedKey]) {
-        encryptedConfig[encryptedKey] = encryptionService.encrypt(value)
-        // MikroORM merges JSON columns on update, so `delete` on the local
-        // object never reaches the DB. Null-out the key instead — the merge
-        // wipes the plaintext from storage.
-        encryptedConfig[field] = null
-        needsUpdate = true
-        logger.info(`[Encryption] ✓ Encrypted ${field} for platform ${platform.name}`)
+      const existing = apiConfig[encryptedKey]
+
+      // A plaintext value present in `api_config` always means a credential
+      // was just submitted — the only writers (the WhatsApp connect route and
+      // the generic External-Platforms edit) both set the plaintext field on a
+      // token change. Treat that plaintext as the source of truth and ALWAYS
+      // (re)encrypt it. The old guard (`!apiConfig[encryptedKey]`) skipped
+      // re-encryption whenever ANY `${field}_encrypted` already existed, so a
+      // STALE ciphertext left behind by a prior write kept shadowing the fresh
+      // token — and the resolver decrypts ciphertext first. That shadowing is
+      // the vflow-401 incident (#32A): a rotated WhatsApp token written as
+      // plaintext while the old ciphertext lingered → 190/401 on every send.
+      if (existing) {
+        let currentDecrypted: string | null = null
+        try {
+          currentDecrypted = encryptionService.decrypt(existing as EncryptedData)
+        } catch {
+          currentDecrypted = null // unreadable ciphertext → definitely re-encrypt
+        }
+        if (currentDecrypted === value) {
+          // Already in sync — just strip the redundant plaintext from storage
+          // (MikroORM merges JSON columns, so null-out rather than delete).
+          encryptedConfig[field] = null
+          needsUpdate = true
+          return
+        }
       }
+
+      encryptedConfig[encryptedKey] = encryptionService.encrypt(value)
+      // MikroORM merges JSON columns on update, so `delete` on the local
+      // object never reaches the DB. Null-out the key instead — the merge
+      // wipes the plaintext from storage.
+      encryptedConfig[field] = null
+      needsUpdate = true
+      logger.info(`[Encryption] ✓ (re)encrypted ${field} for platform ${platform.name}`)
     }
 
     // Single-token credentials: any non-OAuth platform (Qwen / OpenAI / Meta
