@@ -3321,6 +3321,14 @@
         "copySuccessDescription": "\"{{title}}\" copied as draft.",
         "copyFailed": "Failed to copy product",
         "somethingWrong": "Something went wrong"
+      },
+      "whatsNew": {
+        "heading": "What's new",
+        "dismiss": "Dismiss",
+        "defaultCta": "Take a look",
+        "previous": "Previous update",
+        "next": "Next update",
+        "goToUpdate": "Go to update {{index}}"
       }
     },
     "sharedFolders": {
