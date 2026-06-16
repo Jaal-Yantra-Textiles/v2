@@ -1,6 +1,6 @@
 import { z } from "@medusajs/framework/zod"
 import { OperationDefinition, OperationContext, OperationResult } from "./types"
-import { interpolateVariables } from "./utils"
+import { getValueByPath } from "./utils"
 import { loadPackage } from "./package-loader"
 
 // Import npm packages to expose in sandbox
@@ -99,19 +99,62 @@ function extractPotentialVariables(code: string): string[] {
 }
 
 /**
+ * Resolve `{{ ... }}` template tokens in user code by binding each token's RAW
+ * value into the sandbox under a generated identifier, instead of splicing a
+ * JSON-stringified copy into the source text.
+ *
+ * This preserves the upstream value's type verbatim: `JSON.parse({{$last}})`
+ * and `const x = {{$last}}` both receive the real object/string/number, with no
+ * stringify→parse round-trip (which previously produced invalid source like
+ * `JSON.parse({"a":1})` and threw `Expected property name or '}' at position 1`).
+ */
+function bindTemplateTokens(
+  code: string,
+  dataChain: Record<string, any>
+): { code: string; bindings: Record<string, any> } {
+  const bindings: Record<string, any> = {}
+  let i = 0
+  const boundCode = code.replace(/\{\{\s*([^}]+)\s*\}\}/g, (_match, path) => {
+    const name = `__tpl_${i++}`
+    bindings[name] = getValueByPath(dataChain, String(path).trim())
+    return name
+  })
+  return { code: boundCode, bindings }
+}
+
+/**
+ * Build `$`-prefixed aliases for every named operation output in the data chain,
+ * so user code can reference upstream steps directly — e.g.
+ * `$read_data_123.records` — in addition to `$input.read_data_123` or
+ * `{{ $read_data_123.records }}` tokens. Built-in `$`-keys ($last/$trigger) are
+ * skipped (they're already exposed explicitly).
+ */
+function dollarAliases(dataChain: Record<string, any>): Record<string, any> {
+  const aliases: Record<string, any> = {}
+  for (const [key, value] of Object.entries(dataChain)) {
+    if (!key.startsWith("$")) {
+      aliases[`$${key}`] = value
+    }
+  }
+  return aliases
+}
+
+/**
  * Validate code for potential issues before execution
  */
 function validateCode(
-  code: string, 
-  availablePackages: string[]
+  code: string,
+  availablePackages: string[],
+  extraVars: string[] = []
 ): { valid: boolean; errors: string[]; warnings: string[] } {
   const errors: string[] = []
   const warnings: string[] = []
-  
+
   // Build set of all available variables
   const availableVars = new Set([
     ...BUILTIN_SANDBOX_VARS,
     ...availablePackages.map(p => p.replace(/[^a-zA-Z0-9]/g, "_").replace(/^_+|_+$/g, "")),
+    ...extraVars,
   ])
   
   // Extract variables used in code
@@ -222,22 +265,34 @@ return {
     const logs: string[] = []
     
     try {
-      const code = options.code || ""
+      const rawCode = options.code || ""
       const timeout = options.timeout || 5000
       const requestedPackages = options.packages || []
-      
-      console.log("[execute_code] Starting execution with code length:", code.length)
+
+      console.log("[execute_code] Starting execution with code length:", rawCode.length)
       console.log("[execute_code] Requested packages:", requestedPackages)
-      
-      if (!code.trim()) {
+
+      if (!rawCode.trim()) {
         return {
           success: false,
           error: "No code provided",
         }
       }
-      
-      // Validate code before execution
-      const validation = validateCode(code, requestedPackages)
+
+      // Resolve {{...}} template tokens to RAW sandbox bindings (no JSON
+      // stringify→parse round-trip — preserves the upstream value's type).
+      const { code, bindings: templateBindings } = bindTemplateTokens(
+        rawCode,
+        context.dataChain
+      )
+
+      // Expose each named operation output as a $-prefixed sandbox variable so
+      // user code can reference upstream steps directly ($read_data_123.records).
+      const aliases = dollarAliases(context.dataChain)
+      const extraBindings = { ...aliases, ...templateBindings }
+
+      // Validate code before execution (bindings/aliases are known identifiers)
+      const validation = validateCode(code, requestedPackages, Object.keys(extraBindings))
       if (!validation.valid) {
         return {
           success: false,
@@ -290,8 +345,8 @@ return {
         }
       }
       
-      // Create a sandboxed execution environment
-      const sandbox = createSandbox(context.dataChain, logs, externalPackages)
+      // Create a sandboxed execution environment ($-aliases + token bindings)
+      const sandbox = createSandbox(context.dataChain, logs, externalPackages, extraBindings)
       
       console.log("[execute_code] Sandbox created with $last:", typeof context.dataChain.$last)
       
@@ -374,9 +429,10 @@ export const AVAILABLE_PACKAGES = {
  * Create a sandboxed environment for code execution
  */
 function createSandbox(
-  dataChain: Record<string, any>, 
+  dataChain: Record<string, any>,
   logs: string[],
-  externalPackages: Record<string, any> = {}
+  externalPackages: Record<string, any> = {},
+  extraBindings: Record<string, any> = {}
 ) {
   return {
     // Data chain access
@@ -504,6 +560,11 @@ function createSandbox(
     // ============ EXTERNAL PACKAGES ============
     // Dynamically loaded packages requested by user
     ...externalPackages,
+
+    // ============ DATA BINDINGS ============
+    // $-aliases for named outputs + raw {{...}} token values (type-preserved,
+    // no stringify round-trip).
+    ...extraBindings,
   }
 }
 

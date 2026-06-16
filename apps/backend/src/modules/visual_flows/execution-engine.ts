@@ -292,7 +292,15 @@ export class FlowExecutionEngine {
     }
 
     // Interpolate variables in options
-    const resolvedOptions = interpolateVariables(operation.options || {}, dataChain)
+    let resolvedOptions = interpolateVariables(operation.options || {}, dataChain)
+
+    // The execute_code `code` field must NOT be string-interpolated: splicing a
+    // JSON-stringified value into source text mangles objects/JSON (e.g.
+    // `JSON.parse({{$last}})` produced invalid source). The code operation owns
+    // `{{...}}` resolution and binds each token's RAW value into the sandbox.
+    if (operation.operation_type === "execute_code" && operation.options?.code != null) {
+      resolvedOptions = { ...resolvedOptions, code: operation.options.code }
+    }
 
     // Log operation start
     await this.flowService.addExecutionLog({
