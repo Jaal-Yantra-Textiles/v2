@@ -1,8 +1,13 @@
-import { Container, Heading, Text, toast, usePrompt } from "@medusajs/ui";
+import { Container, Heading, Text, StatusBadge, toast, usePrompt } from "@medusajs/ui";
 import { PencilSquare, Trash, ArrowUpRightOnBox } from "@medusajs/icons";
 import { useNavigate } from "react-router-dom";
 import { ActionMenu } from "../common/action-menu";
 import { AdminInventoryOrder, useDeleteInventoryOrder } from "../../hooks/api/inventory-orders";
+import {
+  PARTNER_STATUS_LABELS,
+  getPartnerWorkStatus,
+  getStatusBadgeColor,
+} from "../../lib/work-status";
 
 
 
@@ -54,6 +59,20 @@ export const InventoryOrderGeneralSection = ({ inventoryOrder }: { inventoryOrde
           ]}
         />
       </div>
+      {getPartnerWorkStatus(inventoryOrder) && (
+        <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
+          <Text size="small" weight="plus">Work status</Text>
+          <div>
+            <StatusBadge
+              color={getStatusBadgeColor(getPartnerWorkStatus(inventoryOrder))}
+              className="text-nowrap"
+            >
+              {PARTNER_STATUS_LABELS[getPartnerWorkStatus(inventoryOrder)!] ??
+                getPartnerWorkStatus(inventoryOrder)}
+            </StatusBadge>
+          </div>
+        </div>
+      )}
       <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
         <Text size="small" weight="plus">Quantity</Text>
         <Text size="small">{inventoryOrder.quantity}</Text>

@@ -49,7 +49,7 @@ export async function GET(
       query.graph({
         entity: designOrderLink.entryPoint,
         filters: { design_id: designId },
-        fields: ["design_id", "order_id", "order.id", "order.display_id", "order.status", "order.total", "order.currency_code", "order.created_at"],
+        fields: ["design_id", "order_id", "order.id", "order.display_id", "order.status", "order.total", "order.currency_code", "order.created_at", "order.unified_order_status.partner_status"],
       }).catch(() => ({ data: [] })),
     ])
 
@@ -203,7 +203,7 @@ export async function GET(
         sibling_items: siblingItems,
         total_price: (lineItem?.unit_price ?? 0) + siblingItems.reduce((s, i) => s + i.price, 0),
         order: order
-          ? { id: order.id, display_id: order.display_id, status: order.status, total: order.total, currency_code: order.currency_code, created_at: order.created_at }
+          ? { id: order.id, display_id: order.display_id, status: order.status, total: order.total, currency_code: order.currency_code, created_at: order.created_at, unified_order_status: order.unified_order_status ?? null }
           : null,
         checkout_url: checkoutUrl,
       },
