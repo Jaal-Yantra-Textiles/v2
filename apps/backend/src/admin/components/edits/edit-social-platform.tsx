@@ -1,12 +1,11 @@
 import { useTranslation } from "react-i18next";
 import { z } from "@medusajs/framework/zod";
-import { toast } from "sonner";
 import { DynamicForm, type FieldConfig } from "../common/dynamic-form";
 import { useRouteModal } from "../modal/use-route-modal";
 import { useUpdateSocialPlatform, AdminSocialPlatform } from "../../hooks/api/social-platforms";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Heading, Input, Select, Textarea, Text } from "@medusajs/ui";
+import { Button, Heading, Input, Select, Textarea, Text, toast } from "@medusajs/ui";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { Form } from "../common/form";
 import { RouteDrawer } from "../modal/route-drawer/route-drawer";
