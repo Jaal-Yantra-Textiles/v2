@@ -122,7 +122,7 @@ export const CreateInventoryOrderComponent = () => {
       console.log(response);
       toast.success("Inventory order created successfully");
       // Navigate to the created inventory order detail page
-      handleSuccess(`/inventory/orders/${response.inventoryOrder.id}`);
+      handleSuccess(`/orders/inventory/${response.inventoryOrder.id}`);
     },
     onError: (error) => {
       toast.error(error.message || "Failed to create inventory order");

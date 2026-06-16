@@ -25,6 +25,11 @@ import {
   useApproveDesign,
   useCancelDesignOrder,
 } from "../../../hooks/api/design-orders"
+import {
+  PARTNER_STATUS_LABELS,
+  getPartnerWorkStatus,
+  getStatusBadgeColor,
+} from "../../../lib/work-status"
 
 // ─── Status helpers ─────────────────────────────────────────────────────────
 
@@ -283,6 +288,14 @@ const OrderSection = ({ designOrder }: { designOrder: any }) => {
             {order.status}
           </StatusBadge>
         </div>
+        {getPartnerWorkStatus(order) && (
+          <div>
+            <Text size="xsmall" className="text-ui-fg-subtle mb-1">Work status</Text>
+            <StatusBadge color={getStatusBadgeColor(getPartnerWorkStatus(order))} className="text-nowrap">
+              {PARTNER_STATUS_LABELS[getPartnerWorkStatus(order)!] ?? getPartnerWorkStatus(order)}
+            </StatusBadge>
+          </div>
+        )}
         {order.payment_status && (
           <div>
             <Text size="xsmall" className="text-ui-fg-subtle mb-1">Payment</Text>

@@ -28,7 +28,7 @@ export const InventoryOrderIDSection = ({ inventoryOrder }: { inventoryOrder: Ad
                 {
                   label: "Add Feedback",
                   icon: <ChatBubbleLeftRight />,
-                  to: `/inventory/orders/${inventoryOrder.id}/add-feedback`,
+                  to: `/orders/inventory/${inventoryOrder.id}/add-feedback`,
                 },
               ],
             },

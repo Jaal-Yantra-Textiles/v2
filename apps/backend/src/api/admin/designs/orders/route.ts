@@ -55,7 +55,7 @@ export async function GET(
       query.graph({
         entity: designOrderLink.entryPoint,
         filters: { design_id: designIds },
-        fields: ["design_id", "order_id", "order.id", "order.display_id", "order.status", "order.payment_status", "order.fulfillment_status", "order.total", "order.currency_code", "order.created_at"],
+        fields: ["design_id", "order_id", "order.id", "order.display_id", "order.status", "order.payment_status", "order.fulfillment_status", "order.total", "order.currency_code", "order.created_at", "order.unified_order_status.partner_status"],
       }),
     ]);
 
@@ -72,10 +72,20 @@ export async function GET(
       }
     }
 
+    // A design can be linked to BOTH a retail purchase order and a production
+    // work-order; the partner work-status lives on the work-order, so track it
+    // separately from the displayed order. #403 (slice 4).
     const orderByDesignId: Record<string, any> = {};
+    const workStatusByDesignId: Record<string, any> = {};
     for (const ol of orderLinksResult.data as any[]) {
       if (ol.design_id && ol.order) {
-        orderByDesignId[ol.design_id] = ol.order;
+        if (!orderByDesignId[ol.design_id]) {
+          orderByDesignId[ol.design_id] = ol.order;
+        }
+        const ws = ol.order?.unified_order_status;
+        if (ws?.partner_status && !workStatusByDesignId[ol.design_id]) {
+          workStatusByDesignId[ol.design_id] = ws;
+        }
       }
     }
 
@@ -144,7 +154,12 @@ export async function GET(
     for (const linkRow of linkRows as any[]) {
       const design = designById[linkRow.design_id];
       const lineItem = lineItemById[linkRow.line_item_id];
-      const order = orderByDesignId[linkRow.design_id] || null;
+      const baseOrder = orderByDesignId[linkRow.design_id] || null;
+      // Surface the design's work-status (from any linked order) on the row's
+      // displayed order, so the list can render a Work-status column.
+      const order = baseOrder
+        ? { ...baseOrder, unified_order_status: workStatusByDesignId[linkRow.design_id] ?? null }
+        : null;
       const cartId = lineItem?.cart_id ?? "unknown";
 
       const customer = customerByDesignId[linkRow.design_id]

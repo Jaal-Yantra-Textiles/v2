@@ -78,6 +78,7 @@
  *  - Errors returned from workflows are forwarded as 400 with an `errors` array.
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { UpdateInventoryOrder } from "../validators";
 import { refetchInventoryOrder } from "../helpers";
 import updateInventoryOrderWorkflow from "../../../../workflows/inventory_orders/update-inventory-orders";
@@ -119,6 +120,27 @@ export const GET = async(
         ...req.queryConfig
       },
     });
+
+    // #403 (orders unification → admin): attach the linked order's unified
+    // work-status (best-effort), mirroring the design-order detail + admin order
+    // routes. `unified_order_status.partner_status` is a custom link sidecar the
+    // inventory-order workflow doesn't expand, so resolve it via query.graph and
+    // attach. A graph hiccup just leaves the field off (plain rendering).
+    try {
+      const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+      const { data } = await query.graph({
+        entity: "inventory_orders",
+        fields: ["id", "order.id", "order.unified_order_status.partner_status"],
+        filters: { id },
+      })
+      const link = data?.[0]
+      if (link && inventoryOrder) {
+        ;(inventoryOrder as any).unified_order_status = link.order?.unified_order_status ?? null
+      }
+    } catch {
+      // leave as-is; the UI falls back to plain rendering
+    }
+
     res.status(200).json({ inventoryOrder });
   }
 

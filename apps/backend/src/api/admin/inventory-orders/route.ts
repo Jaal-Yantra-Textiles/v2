@@ -87,6 +87,7 @@ import {
   MedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { createInventoryOrderWorkflow } from "../../../workflows/inventory_orders/create-inventory-orders";
 import { CreateInventoryOrder, ListInventoryOrdersQuery, listInventoryOrdersQuerySchema } from "./validators";
 import { parseOrderParam, refetchInventoryOrder } from "./helpers";
@@ -155,8 +156,35 @@ export const GET = async (
     throw errors;
   }
 
+  // #403 (slice 4): attach each row's unified work-status (best-effort) so the
+  // Inventory Orders list can render a Work-status column, mirroring the admin
+  // order LIST. The sidecar rides on the linked order, not the inventory order,
+  // so resolve it via a single query.graph over the returned ids and merge.
+  const rows = (result.inventoryOrders ?? []) as any[];
+  try {
+    const ids = rows.map((r) => r.id).filter(Boolean);
+    if (ids.length) {
+      const graph: any = req.scope.resolve(ContainerRegistrationKeys.QUERY);
+      const { data } = await graph.graph({
+        entity: "inventory_orders",
+        fields: ["id", "order.unified_order_status.partner_status"],
+        filters: { id: ids },
+      });
+      const statusById = new Map<string, any>(
+        (data ?? []).map((io: any) => [io.id, io.order?.unified_order_status])
+      );
+      for (const row of rows) {
+        if (statusById.get(row.id)) {
+          row.unified_order_status = statusById.get(row.id);
+        }
+      }
+    }
+  } catch {
+    // leave rows as-is; the column falls back to "—"
+  }
+
   res.status(200).json({
-    inventory_orders: result.inventoryOrders,
+    inventory_orders: rows,
     count: result.count,
     offset: pagination.offset,
     limit: pagination.limit,

@@ -33,7 +33,7 @@ const TaskTimeline = ({ tasks, inventoryOrderId }: TaskTimelineProps) => {
     <div className="flex flex-col gap-y-0.5">
       {tasks.map((task, idx, arr) => {
         const isLast = idx === arr.length - 1;
-        const link = `/inventory/orders/${inventoryOrderId}/tasks/${task.id}`;
+        const link = `/orders/inventory/${inventoryOrderId}/tasks/${task.id}`;
         return (
           <div key={task.id} className="grid grid-cols-[20px_1fr] items-start gap-2">
             <div className="flex size-full flex-col items-center gap-y-0.5">
@@ -90,7 +90,7 @@ export const InventoryOrderTasksSection = ({ inventoryOrder }: InventoryOrderTas
                   {
                     label: t("Add From Template"),
                     icon: <Plus />,
-                    onClick: () => navigate(`/inventory/orders/${inventoryOrder.id}/tasks/templates`),
+                    onClick: () => navigate(`/orders/inventory/${inventoryOrder.id}/tasks/templates`),
                   },
                   {
                     label: t("View Task Canvas"),
