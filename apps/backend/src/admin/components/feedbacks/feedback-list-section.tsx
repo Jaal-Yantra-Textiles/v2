@@ -31,7 +31,7 @@ export const FeedbackListSection = ({
       case "task":
         return `/tasks/${entityId}/add-feedback`;
       case "inventory-order":
-        return `/inventory/orders/${entityId}/add-feedback`;
+        return `/orders/inventory/${entityId}/add-feedback`;
       default:
         return "#";
     }

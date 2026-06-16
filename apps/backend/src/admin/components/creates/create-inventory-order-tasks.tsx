@@ -143,7 +143,7 @@ export const CreateInventoryOrderTasks = () => {
         {
           onSuccess: () => {
             toast.success(t("tasks.templates.create.success"));
-            handleSuccess(`/inventory/orders/${orderId}`);
+            handleSuccess(`/orders/inventory/${orderId}`);
           },
           onError: (err: any) => toast.error(err.message),
         },

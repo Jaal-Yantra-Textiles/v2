@@ -73,7 +73,7 @@ export const useColumns = () => {
       {
         icon: <PencilSquare />,
         label: "Edit",
-        to: (order: AdminInventoryOrder) => `/inventory/orders/${order.id}/edit`,
+        to: (order: AdminInventoryOrder) => `/orders/inventory/${order.id}/edit`,
       },
     ],
   };
@@ -409,7 +409,7 @@ const InventoryOrdersPage = () => {
     data: inventory_orders ?? [],
     getRowId: (row) => row.id as string,
     onRowClick: (_, row) => {
-      navigate(`/inventory/orders/${row.id}`);
+      navigate(`/orders/inventory/${row.id}`);
     },
     rowCount: count,
     isLoading,
@@ -528,9 +528,9 @@ const InventoryOrdersPage = () => {
 export default InventoryOrdersPage;
 
 export const config = defineRouteConfig({
-  // #403: re-home under the Orders nav hub (sibling of Design Orders) so all
-  // order kinds live together. The URL stays /inventory/orders — `nested` only
-  // controls sidebar placement, so no links break.
+  // #403: live under the Orders nav hub (sibling of Design Orders) so all order
+  // kinds group together. The route sits at /orders/inventory (moved out of
+  // /inventory/orders) so opening it highlights the Orders section, not Inventory.
   label: "Inventory Orders",
   nested: "/orders",
   icon: ToolsSolid,

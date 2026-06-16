@@ -31,7 +31,7 @@ export const InventoryOrderGeneralSection = ({ inventoryOrder }: { inventoryOrde
     await mutateAsync(undefined, {
       onSuccess: () => {
         toast.success("Inventory order deleted");
-        navigate("/inventory/orders", { replace: true });
+        navigate("/orders/inventory", { replace: true });
       },
       onError: (error: any) => {
         toast.error(error.message || "Failed to delete order");
