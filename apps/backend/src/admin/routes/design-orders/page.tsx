@@ -8,6 +8,7 @@ import {
   DataTablePaginationState,
   DataTableFilteringState,
   Badge,
+  StatusBadge,
   toast,
   usePrompt,
   TooltipProvider,
@@ -29,6 +30,11 @@ import {
   useApproveDesign,
   useCancelDesignOrder,
 } from "../../hooks/api/design-orders";
+import {
+  PARTNER_STATUS_LABELS,
+  getPartnerWorkStatus,
+  getStatusBadgeColor,
+} from "../../lib/work-status";
 
 // ─── Status helpers ─────────────────────────────────────────────────────────
 
@@ -247,6 +253,19 @@ const useColumns = () =>
             );
           return (
             <span className="font-medium">#{order.display_id}</span>
+          );
+        },
+      }),
+      columnHelper.accessor("order", {
+        id: "work_status",
+        header: "Work status",
+        cell: ({ getValue }) => {
+          const ws = getPartnerWorkStatus(getValue());
+          if (!ws) return <span className="text-ui-fg-muted">—</span>;
+          return (
+            <StatusBadge color={getStatusBadgeColor(ws)} className="text-nowrap">
+              {PARTNER_STATUS_LABELS[ws] ?? ws}
+            </StatusBadge>
           );
         },
       }),

@@ -9,6 +9,7 @@ import {
   DataTableFilteringState,
   Button,
   Badge,
+  StatusBadge,
 } from "@medusajs/ui";
 import { Outlet, useNavigate, useSearchParams } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -25,12 +26,30 @@ import { SaveViewDialog } from "../../../components/views/save-view-dialog";
 import { useViewConfigurationActions } from "../../../hooks/use-view-configurations";
 import type { ViewConfiguration } from "../../../hooks/api/views";
 import { usePartners } from "../../../hooks/api/partners";
+import {
+  PARTNER_STATUS_LABELS,
+  getPartnerWorkStatus,
+  getStatusBadgeColor,
+} from "../../../lib/work-status";
 
 const columnHelper = createColumnHelper<AdminInventoryOrder>();
 export const useColumns = () => {
   const columns = useMemo(() => [
     columnHelper.accessor("id", { header: "Order ID" }),
     columnHelper.accessor("status", { header: "Status" }),
+    columnHelper.display({
+      id: "work_status",
+      header: "Work status",
+      cell: ({ row }) => {
+        const ws = getPartnerWorkStatus(row.original);
+        if (!ws) return <span className="text-ui-fg-muted">—</span>;
+        return (
+          <StatusBadge color={getStatusBadgeColor(ws)} className="text-nowrap">
+            {PARTNER_STATUS_LABELS[ws] ?? ws}
+          </StatusBadge>
+        );
+      },
+    }),
     columnHelper.accessor("quantity", { header: "Quantity" }),
     columnHelper.accessor("total_price", { header: "Total Price" }),
     columnHelper.accessor("order_date", {
@@ -509,8 +528,11 @@ const InventoryOrdersPage = () => {
 export default InventoryOrdersPage;
 
 export const config = defineRouteConfig({
-  label: "Orders",
-  nested: "/inventory",
+  // #403: re-home under the Orders nav hub (sibling of Design Orders) so all
+  // order kinds live together. The URL stays /inventory/orders — `nested` only
+  // controls sidebar placement, so no links break.
+  label: "Inventory Orders",
+  nested: "/orders",
   icon: ToolsSolid,
 });
 
