@@ -11,6 +11,7 @@ import { KeyboundForm } from "../utilitites/key-bound-form";
 import { Form } from "../common/form";
 import { RouteDrawer } from "../modal/route-drawer/route-drawer";
 import { CategoryProviderFields, hasProviderFields } from "../social-platforms/category-provider-fields";
+import { buildApiConfig, inferAuthType, getFormDefaultsFromApiConfig } from "../social-platforms/api-config";
 
 const socialPlatformSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -104,252 +105,19 @@ const categoryPlatformSchema = z.object({
   api_key: z.string().optional(),
   api_secret: z.string().optional(),
   webhook_signing_secret: z.string().optional(),
-});
+  // Shipping (Shiprocket) fields
+  email: z.string().optional(),
+  pickup_location: z.string().optional(),
+// `.passthrough()` keeps any provider field not listed above (a new provider's
+// inputs flow straight through to api_config without a schema edit). buildApiConfig
+// still scopes which fields are persisted per category, so this can't leak stray keys.
+}).passthrough();
 
 type CategoryPlatformFormData = z.infer<typeof categoryPlatformSchema>;
 
 type EditSocialPlatformFormProps = {
   socialPlatform: AdminSocialPlatform;
 };
-
-/**
- * Parse comma-separated country codes into a normalized array of E.164
- * prefixes. Returns undefined for empty input so api_config doesn't carry
- * an empty array.
- */
-function parseCountryCodes(input: string | undefined | null): string[] | undefined {
-  if (!input) return undefined
-  const codes = input
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((s) => (s.startsWith("+") ? s : `+${s}`))
-  return codes.length ? codes : undefined
-}
-
-/** Build defaults from existing api_config */
-function getDefaultsFromApiConfig(apiConfig: Record<string, any> | null): Record<string, any> {
-  if (!apiConfig) return {}
-  return {
-    provider_type: apiConfig.provider || "",
-    host: apiConfig.host || "",
-    port: apiConfig.port || 993,
-    username: apiConfig.user || apiConfig.username || "",
-    tls: apiConfig.tls !== false,
-    mailbox: apiConfig.mailbox || "INBOX",
-    inbound_domain: apiConfig.inbound_domain || "",
-    phone_number_id: apiConfig.phone_number_id || "",
-    waba_id: apiConfig.waba_id || "",
-    label: apiConfig.label || "",
-    country_codes: Array.isArray(apiConfig.country_codes)
-      ? apiConfig.country_codes.join(", ")
-      : "",
-    is_default: apiConfig.is_default === true,
-    account_sid: apiConfig.account_sid || "",
-    from_number: apiConfig.from_number || "",
-    messaging_service_sid: apiConfig.messaging_service_sid || "",
-    originator: apiConfig.originator || "",
-    publishable_key: apiConfig.publishable_key || "",
-    client_id: apiConfig.client_id || "",
-    mode: apiConfig.mode || "test",
-    account_number: apiConfig.account_number || "",
-    tracking_id: apiConfig.tracking_id || "",
-    project_token: apiConfig.project_token || "",
-    access_key_id: apiConfig.access_key_id || "",
-    bucket: apiConfig.bucket || "",
-    region: apiConfig.region || "",
-    endpoint: apiConfig.endpoint || "",
-    cloud_name: apiConfig.cloud_name || "",
-    project_id: apiConfig.project_id || "",
-    instance_url: apiConfig.instance_url || "",
-    portal_id: apiConfig.portal_id || "",
-    domain: apiConfig.domain || "",
-    audience: apiConfig.audience || "",
-    api_key: apiConfig.api_key || "",
-  }
-}
-
-/** Merge form data with existing api_config, keeping existing secrets when fields are left blank */
-function mergeApiConfig(
-  category: string,
-  data: Record<string, any>,
-  existingConfig: Record<string, any> | null
-): Record<string, any> {
-  const config: Record<string, any> = { provider: data.provider_type }
-  const existing = existingConfig || {}
-
-  // Helper: use new value if provided, otherwise keep existing
-  const mergeSecret = (key: string) => data[key] || existing[key] || undefined
-
-  switch (category) {
-    case "email":
-      if (data.provider_type === "imap") {
-        Object.assign(config, {
-          host: data.host,
-          port: data.port || 993,
-          user: data.username,
-          password: mergeSecret("password"),
-          tls: data.tls !== false,
-          mailbox: data.mailbox || "INBOX",
-        })
-      } else {
-        Object.assign(config, {
-          api_key: mergeSecret("api_key"),
-          webhook_signing_secret: mergeSecret("webhook_signing_secret"),
-          inbound_domain: data.inbound_domain,
-        })
-      }
-      break
-
-    case "communication":
-      Object.assign(config, {
-        phone_number_id: data.phone_number_id,
-        waba_id: data.waba_id || existing.waba_id || undefined,
-        access_token: mergeSecret("access_token"),
-        // Preserve the encrypted variant across edits — the edit form only
-        // re-sends plaintext via `access_token`, so we'd otherwise lose the
-        // encrypted copy on every save.
-        access_token_encrypted: existing.access_token_encrypted,
-        app_secret: mergeSecret("app_secret"),
-        app_secret_encrypted: existing.app_secret_encrypted,
-        webhook_verify_token: mergeSecret("webhook_verify_token"),
-        webhook_verify_token_encrypted: existing.webhook_verify_token_encrypted,
-        label: data.label || undefined,
-        country_codes: parseCountryCodes(data.country_codes),
-        // Three-way merge for booleans — explicit user actions (dirty field)
-        // win; untouched saves preserve existing. handleSubmit above only
-        // populates `data.is_default` when form.formState.dirtyFields marked
-        // it dirty, so each branch below corresponds to a distinct intent:
-        //   true  → user toggled on  → store true
-        //   false → user toggled off → store false explicitly (not strip,
-        //           so the payload carries the user's intent unambiguously
-        //           and a future field-merge backend wouldn't keep a stale
-        //           existing value)
-        //   undefined → field never touched → preserve existing
-        is_default:
-          data.is_default === true
-            ? true
-            : data.is_default === false
-              ? false
-              : existing.is_default === true
-                ? true
-                : undefined,
-        // Preserve Meta-supplied display metadata and cached templates
-        // (synced separately from the WhatsApp templates section)
-        display_phone_number: existing.display_phone_number,
-        verified_name: existing.verified_name,
-        templates: existing.templates,
-        templates_synced_at: existing.templates_synced_at,
-        initiation_template: existing.initiation_template,
-        initiation_template_lang: existing.initiation_template_lang,
-      })
-      break
-
-    case "sms":
-      if (data.provider_type === "twilio") {
-        Object.assign(config, {
-          account_sid: data.account_sid,
-          auth_token: mergeSecret("auth_token"),
-          from_number: data.from_number,
-          messaging_service_sid: data.messaging_service_sid,
-        })
-      } else {
-        Object.assign(config, {
-          api_key: mergeSecret("api_key"),
-          originator: data.originator,
-        })
-      }
-      break
-
-    case "payment":
-      Object.assign(config, {
-        mode: data.mode || "test",
-        api_key: data.api_key || existing.api_key,
-        secret_key: mergeSecret("secret_key"),
-        publishable_key: data.publishable_key,
-        webhook_secret: mergeSecret("webhook_secret"),
-        client_id: data.client_id,
-        client_secret: mergeSecret("client_secret"),
-      })
-      break
-
-    case "shipping":
-      Object.assign(config, {
-        mode: data.mode || "test",
-        api_key: mergeSecret("api_key"),
-        api_secret: mergeSecret("api_secret"),
-        account_number: data.account_number,
-      })
-      break
-
-    case "analytics":
-      Object.assign(config, {
-        tracking_id: data.tracking_id,
-        api_key: mergeSecret("api_key"),
-        api_secret: mergeSecret("api_secret"),
-        project_token: data.project_token,
-        host: data.host,
-      })
-      break
-
-    case "storage":
-      Object.assign(config, {
-        access_key_id: data.access_key_id,
-        secret_access_key: mergeSecret("secret_access_key"),
-        bucket: data.bucket,
-        region: data.region,
-        endpoint: data.endpoint,
-        cloud_name: data.cloud_name,
-        api_key: mergeSecret("api_key"),
-        api_secret: mergeSecret("api_secret"),
-        project_id: data.project_id,
-      })
-      break
-
-    case "crm":
-      Object.assign(config, {
-        api_key: mergeSecret("api_key"),
-        client_id: data.client_id,
-        client_secret: mergeSecret("client_secret"),
-        instance_url: data.instance_url,
-        portal_id: data.portal_id,
-      })
-      break
-
-    case "authentication":
-      Object.assign(config, {
-        domain: data.domain,
-        client_id: data.client_id,
-        client_secret: mergeSecret("client_secret"),
-        audience: data.audience,
-        secret_key: mergeSecret("secret_key"),
-        publishable_key: data.publishable_key,
-        project_id: data.project_id,
-        api_key: mergeSecret("api_key"),
-      })
-      break
-  }
-
-  return Object.fromEntries(
-    Object.entries(config).filter(([_, v]) => v !== undefined && v !== "")
-  )
-}
-
-/** Infer auth_type from category and provider */
-function inferAuthType(category: string, providerType?: string): string {
-  switch (category) {
-    case "email": return providerType === "resend" ? "api_key" : "basic"
-    case "communication": return "bearer"
-    case "sms": return providerType === "twilio" ? "basic" : "api_key"
-    case "payment": return "api_key"
-    case "shipping": return "api_key"
-    case "analytics": return "api_key"
-    case "storage": return "api_key"
-    case "crm": return providerType === "hubspot" ? "api_key" : "oauth2"
-    case "authentication": return "oauth2"
-    default: return "api_key"
-  }
-}
 
 const CATEGORY_LABELS: Record<string, string> = {
   email: "Email",
@@ -390,13 +158,13 @@ const EditCategoryPlatformForm = ({ socialPlatform }: EditSocialPlatformFormProp
       api_secret: "",
       webhook_signing_secret: "",
       is_default: socialPlatform.api_config?.is_default === true,
-      ...getDefaultsFromApiConfig(apiConfig),
+      ...getFormDefaultsFromApiConfig(apiConfig),
     },
   });
 
   const handleSubmit = form.handleSubmit(async (data) => {
     // Only treat boolean fields as "user set this" if the form marked them
-    // dirty. Otherwise pass `undefined` so mergeApiConfig's three-way merge
+    // dirty. Otherwise pass `undefined` so buildApiConfig's three-way merge
     // preserves the existing DB value. Without this, a stale React Query
     // cache that loaded the form with is_default:false would silently strip
     // a DB value of true — the exact symptom of the "can't set default" bug.
@@ -404,8 +172,17 @@ const EditCategoryPlatformForm = ({ socialPlatform }: EditSocialPlatformFormProp
       ...data,
       is_default: form.formState.dirtyFields.is_default ? data.is_default : undefined,
     };
-    const newApiConfig = mergeApiConfig(socialPlatform.category, mergedData, apiConfig);
-    console.log("Merged API Config:", newApiConfig, mergedData); // Debug log to verify the merged config
+    // Overlay the form-derived config onto the EXISTING one so fields the form
+    // doesn't render (e.g. WhatsApp templates/verified_name, cached metadata)
+    // survive the wholesale api_config replace. buildApiConfig omits blank
+    // values, so untouched fields keep their existing value; blank secrets are
+    // restored server-side by preserveExistingSecrets. Drop UI-only `*_present`
+    // hints carried over from the redacted existing config.
+    const overlay = buildApiConfig(socialPlatform.category, mergedData);
+    const newApiConfig: Record<string, any> = { ...(apiConfig || {}), ...overlay };
+    for (const key of Object.keys(newApiConfig)) {
+      if (key.endsWith("_present")) delete newApiConfig[key];
+    }
     await mutateAsync(
       {
         name: data.name,
