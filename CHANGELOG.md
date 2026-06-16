@@ -1,3 +1,10 @@
+# [13.36.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.35.0...v13.36.0) (2026-06-16)
+
+
+### Features
+
+* **orders:** [#403](https://github.com/Jaal-Yantra-Textiles/v2/issues/403) — admin work-status surfaces (detail badges + list columns + Orders nav hub) ([#426](https://github.com/Jaal-Yantra-Textiles/v2/issues/426)) ([bfd9386](https://github.com/Jaal-Yantra-Textiles/v2/commit/bfd93868e2a5ee408f5f6765cd9394937d67fe3d)), closes [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342)
+
 # [13.35.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.34.0...v13.35.0) (2026-06-16)
 
 
