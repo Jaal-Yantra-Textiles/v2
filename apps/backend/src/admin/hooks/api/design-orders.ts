@@ -209,3 +209,51 @@ export const useCancelDesignOrder = (
     ...options,
   });
 };
+
+export type ConvertDesignOrderPayload = {
+  payment_mode?: "prepaid" | "cod";
+};
+
+export type ConvertDesignOrderResponse = {
+  design_order_conversion: {
+    order_id: string;
+    display_id?: number;
+    status?: string;
+    payment_status?: string;
+    payment_mode: "prepaid" | "cod";
+    linked_design_ids: string[];
+  };
+};
+
+/**
+ * Convert a design order (cart with design line items, no order yet) into a
+ * real order. #404 PR-A. Pass `{ payment_mode: "cod" }` to leave it unpaid;
+ * defaults to prepaid (marked paid via the system provider).
+ */
+export const useConvertDesignOrder = (
+  lineItemId: string,
+  options?: UseMutationOptions<
+    ConvertDesignOrderResponse,
+    FetchError,
+    ConvertDesignOrderPayload
+  >
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: ConvertDesignOrderPayload = {}) =>
+      sdk.client.fetch<ConvertDesignOrderResponse>(
+        `/admin/designs/orders/${lineItemId}/convert`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({
+        queryKey: designOrdersQueryKeys.lists(),
+      });
+      queryClient.invalidateQueries({
+        queryKey: designOrdersQueryKeys.detail(lineItemId),
+      });
+      options?.onSuccess?.(...args);
+    },
+    ...options,
+  });
+};
