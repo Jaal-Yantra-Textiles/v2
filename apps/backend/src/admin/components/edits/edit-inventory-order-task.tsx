@@ -1,10 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { z } from "@medusajs/framework/zod";
-import { toast } from "sonner";
 import { DynamicForm, type FieldConfig } from "../common/dynamic-form";
 import { useRouteModal } from "../modal/use-route-modal";
 import { AdminInventoryOrderTask, TaskPriority, TaskStatus, useUpdateInventoryOrderTask } from "../../hooks/api/inventory-order-tasks";
-import { DatePicker } from "@medusajs/ui";
+import { DatePicker, toast } from "@medusajs/ui";
 
 const taskSchema = z.object({
   title: z.string().min(1, "Title is required"),

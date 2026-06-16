@@ -1,10 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { z } from "@medusajs/framework/zod";
-import { toast } from "sonner";
 import { DynamicForm, type FieldConfig } from "../common/dynamic-form";
 import { useRouteModal } from "../modal/use-route-modal";
 import { useUpdateDesign, AdminDesign } from "../../hooks/api/designs";
-import { DatePicker } from "@medusajs/ui";
+import { DatePicker, toast } from "@medusajs/ui";
 
 const designSchema = z.object({
   name: z.string().min(1, "Name is required"),
