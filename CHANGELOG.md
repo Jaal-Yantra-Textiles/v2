@@ -1,3 +1,16 @@
+# [13.35.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.34.0...v13.35.0) (2026-06-16)
+
+
+### Bug Fixes
+
+* **visual-flows:** [#424](https://github.com/Jaal-Yantra-Textiles/v2/issues/424) — bind execute_code {{...}} tokens as raw values ([#425](https://github.com/Jaal-Yantra-Textiles/v2/issues/425)) ([88b3219](https://github.com/Jaal-Yantra-Textiles/v2/commit/88b3219c4c2448ed5cb01a97a2f002a6fb4b27b3))
+
+
+### Features
+
+* **orders:** [#403](https://github.com/Jaal-Yantra-Textiles/v2/issues/403) — kind-aware admin order detail (attach execution links + work-status) ([#422](https://github.com/Jaal-Yantra-Textiles/v2/issues/422)) ([bb339cd](https://github.com/Jaal-Yantra-Textiles/v2/commit/bb339cd1b6fa6e6ff4b05a73bf58e842122e8acb)), closes [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342)
+* **orders:** [#403](https://github.com/Jaal-Yantra-Textiles/v2/issues/403) — surface work-status on the admin order LIST ([#423](https://github.com/Jaal-Yantra-Textiles/v2/issues/423)) ([6c08026](https://github.com/Jaal-Yantra-Textiles/v2/commit/6c08026fc83fa6015ec54773c03b7700e8aa8247))
+
 # [13.34.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.33.0...v13.34.0) (2026-06-15)
 
 
