@@ -24,6 +24,7 @@ import {
   TrackingEvent,
   TrackingResult,
 } from "../provider-interface"
+import { MedusaError } from "@medusajs/framework/utils"
 
 const BASE_URL = "https://apiv2.shiprocket.in/v1/external"
 
@@ -37,10 +38,13 @@ export type ShiprocketOptions = {
 }
 
 /**
- * Error carrying the parsed Shiprocket response so callers can surface the
- * field-level validation messages instead of an opaque 500 (#427).
+ * A Shiprocket API failure as a first-class MedusaError, so it flows through
+ * the framework's error handler with the right status + a clean `{type,message}`
+ * body instead of an opaque 500 (#427). The upstream HTTP status maps onto a
+ * MedusaError type; the parsed per-field messages ride along on `fieldErrors`
+ * (and the readable summary is already in `message`).
  */
-export class ShiprocketApiError extends Error {
+export class ShiprocketApiError extends MedusaError {
   readonly status: number
   readonly fieldErrors?: Record<string, string[]>
   readonly raw?: unknown
@@ -49,11 +53,20 @@ export class ShiprocketApiError extends Error {
     message: string,
     opts: { status: number; fieldErrors?: Record<string, string[]>; raw?: unknown }
   ) {
-    super(message)
+    super(ShiprocketApiError.typeForStatus(opts.status), message)
     this.name = "ShiprocketApiError"
     this.status = opts.status
     this.fieldErrors = opts.fieldErrors
     this.raw = opts.raw
+  }
+
+  /** Map an upstream Shiprocket HTTP status onto a MedusaError type/HTTP code. */
+  static typeForStatus(status: number): string {
+    // rejected creds → NOT_ALLOWED (400); other client errors incl. 422
+    // validation → INVALID_DATA (400); upstream/unknown → UNEXPECTED_STATE (500).
+    if (status === 401 || status === 403) return MedusaError.Types.NOT_ALLOWED
+    if (status >= 400 && status < 500) return MedusaError.Types.INVALID_DATA
+    return MedusaError.Types.UNEXPECTED_STATE
   }
 }
 
