@@ -1,6 +1,6 @@
 import { useUpdateEmailTemplate } from "../../hooks/api/email-templates";
 import { DynamicForm, FieldConfig } from "../common/dynamic-form";
-import { toast } from "sonner";
+import { toast } from "@medusajs/ui";
 import { useTranslation } from "react-i18next";
 import { AdminEmailTemplate } from "../../hooks/api/email-templates";
 import { useRouteModal } from "../../components/modal/use-route-modal";

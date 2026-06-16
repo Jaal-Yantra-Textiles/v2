@@ -1,5 +1,5 @@
 import { DynamicForm, FieldConfig } from "../common/dynamic-form"
-import { toast } from "sonner"
+import { toast } from "@medusajs/ui"
 import { useRouteModal } from "../../components/modal/use-route-modal"
 import { AdminForm, useUpdateForm } from "../../hooks/api/forms"
 

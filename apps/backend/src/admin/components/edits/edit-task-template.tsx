@@ -4,7 +4,7 @@ import { AdminTaskTemplate, useUpdateTaskTemplate } from "../../hooks/api/task-t
 import { useTaskTemplateCategories } from "../../hooks/api/task-template-categories";
 import { CategorySearch } from "../common/category-search";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@medusajs/ui";
 import { DynamicForm, type FieldConfig } from "../common/dynamic-form";
 import { useRouteModal } from "../modal/use-route-modal";
 

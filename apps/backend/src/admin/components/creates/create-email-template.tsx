@@ -1,8 +1,7 @@
-import { Button, Heading, Input, Select, Switch, Text, Textarea } from "@medusajs/ui";
+import { Button, Heading, Input, Select, Switch, Text, Textarea, toast } from "@medusajs/ui";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "@medusajs/framework/zod";
-import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { KeyboundForm } from "../utilitites/key-bound-form";

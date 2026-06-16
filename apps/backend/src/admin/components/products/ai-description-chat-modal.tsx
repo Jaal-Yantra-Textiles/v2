@@ -1,7 +1,6 @@
-import { Button, FocusModal, Textarea, Text, Heading, Badge, Switch } from "@medusajs/ui"
+import { Button, FocusModal, Textarea, Text, Heading, Badge, Switch, toast } from "@medusajs/ui"
 import { useState } from "react"
 import { useGenerateProductDescription } from "../../hooks/api/products"
-import { toast } from "sonner"
 import { Spinner } from "../ui/spinner"
 import { Sparkles, ArrowPath, InformationCircle, InformationCircleSolid } from "@medusajs/icons"
 

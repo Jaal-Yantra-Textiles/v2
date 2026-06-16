@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from "react";
-import { toast } from "sonner";
 import {
   Button,
   Input,
   Text,
   Badge,
   Heading,
+  toast,
 } from "@medusajs/ui";
 import { XMarkMini, Plus } from "@medusajs/icons";
 import { RouteDrawer } from "../modal/route-drawer/route-drawer";

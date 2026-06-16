@@ -1,10 +1,9 @@
 import { PencilSquare, SquaresPlus, Trash } from "@medusajs/icons"
-import { Container, Heading, Text, usePrompt } from "@medusajs/ui"
+import { Container, Heading, Text, usePrompt, toast } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
 import { ActionMenu } from "../common/action-menu"
 import { AdminForm, useDeleteForm } from "../../hooks/api/forms"
 import { useNavigate } from "react-router-dom"
-import { toast } from "sonner"
 
 type FormGeneralSectionProps = {
   form: AdminForm

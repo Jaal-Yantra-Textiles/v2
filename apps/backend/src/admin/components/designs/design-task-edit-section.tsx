@@ -1,10 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { z } from "@medusajs/framework/zod";
-import { toast } from "sonner";
 import { DynamicForm, type FieldConfig } from "../common/dynamic-form";
 import { useRouteModal } from "../modal/use-route-modal";
 import { AdminDesignTask, TaskPriority, TaskStatus, useUpdateDesignTask } from "../../hooks/api/design-tasks";
-import { DatePicker } from "@medusajs/ui";
+import { DatePicker, toast } from "@medusajs/ui";
 
 const taskSchema = z.object({
   description: z.string().optional(),
