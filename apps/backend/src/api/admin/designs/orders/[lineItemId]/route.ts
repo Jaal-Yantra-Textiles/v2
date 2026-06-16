@@ -55,7 +55,16 @@ export async function GET(
 
     const design = designResult.data?.[0]
     let customer = customerLinkResult.data?.[0]?.customer || null
-    const order = orderLinkResult.data?.[0]?.order || null
+    const orderLinkRows = orderLinkResult.data ?? []
+    const order = orderLinkRows[0]?.order || null
+    // A design can be linked to BOTH a retail purchase order AND a production
+    // work-order; the partner work-status lives on the work-order, so surface it
+    // from whichever linked order carries it (independent of which order we
+    // display above). #403.
+    const workStatus =
+      orderLinkRows
+        .map((r: any) => r?.order?.unified_order_status)
+        .find((u: any) => u?.partner_status) || null
 
     // 3. Fetch line item details from cart module
     const cartService = req.scope.resolve(Modules.CART) as any
@@ -203,7 +212,7 @@ export async function GET(
         sibling_items: siblingItems,
         total_price: (lineItem?.unit_price ?? 0) + siblingItems.reduce((s, i) => s + i.price, 0),
         order: order
-          ? { id: order.id, display_id: order.display_id, status: order.status, total: order.total, currency_code: order.currency_code, created_at: order.created_at, unified_order_status: order.unified_order_status ?? null }
+          ? { id: order.id, display_id: order.display_id, status: order.status, total: order.total, currency_code: order.currency_code, created_at: order.created_at, unified_order_status: workStatus }
           : null,
         checkout_url: checkoutUrl,
       },
