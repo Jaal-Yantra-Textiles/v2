@@ -113,6 +113,35 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   })
 
   const { rows, metadata } = result as any
+
+  // #403 (slice 2): surface the work-status on the admin LIST the same way the
+  // detail route does. `unified_order_status.partner_status` is a custom link
+  // sidecar the core order query config does not expand, so attach it via a
+  // single best-effort query.graph over the returned ids and merge per row —
+  // never force a custom link field into core's list workflow (which validates
+  // fields against the order query-config schema). A graph hiccup just leaves
+  // the rows without work-status (retail rendering), never breaks the list.
+  try {
+    const ids = (rows ?? []).map((r: any) => r.id).filter(Boolean)
+    if (ids.length) {
+      const { data } = await query.graph({
+        entity: "orders",
+        fields: ["id", "unified_order_status.partner_status"],
+        filters: { id: ids },
+      })
+      const statusById = new Map<string, any>(
+        (data ?? []).map((o: any) => [o.id, o.unified_order_status])
+      )
+      for (const row of rows) {
+        if (statusById.has(row.id)) {
+          row.unified_order_status = statusById.get(row.id)
+        }
+      }
+    }
+  } catch {
+    // leave rows as-is; the list falls back to retail rendering
+  }
+
   res.json({
     orders: rows,
     count: metadata.count,
