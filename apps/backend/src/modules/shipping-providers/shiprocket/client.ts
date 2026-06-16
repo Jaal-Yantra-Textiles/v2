@@ -36,6 +36,75 @@ export type ShiprocketOptions = {
   token?: string
 }
 
+/**
+ * Error carrying the parsed Shiprocket response so callers can surface the
+ * field-level validation messages instead of an opaque 500 (#427).
+ */
+export class ShiprocketApiError extends Error {
+  readonly status: number
+  readonly fieldErrors?: Record<string, string[]>
+  readonly raw?: unknown
+
+  constructor(
+    message: string,
+    opts: { status: number; fieldErrors?: Record<string, string[]>; raw?: unknown }
+  ) {
+    super(message)
+    this.name = "ShiprocketApiError"
+    this.status = opts.status
+    this.fieldErrors = opts.fieldErrors
+    this.raw = opts.raw
+  }
+}
+
+/**
+ * Pull a readable message (and per-field errors) out of a Shiprocket error
+ * body. Shiprocket uses several shapes:
+ *   "Invalid email and password combination"        (plain string)
+ *   { message: "...", status_code }                  (flat)
+ *   { message: { field: ["msg", ...], ... } }        (422 validation — addpickup)
+ *   { errors: { field: ["msg", ...] } }
+ */
+export function parseShiprocketError(raw: string): {
+  message: string
+  fieldErrors?: Record<string, string[]>
+} {
+  let body: any
+  try {
+    body = raw ? JSON.parse(raw) : undefined
+  } catch {
+    return { message: raw || "" }
+  }
+  if (body === undefined || body === null) return { message: raw || "" }
+  if (typeof body === "string") return { message: body }
+
+  // Validation bag: { message: {field: [...]}} or { errors: {field: [...]} }.
+  const bag =
+    body.message && typeof body.message === "object"
+      ? body.message
+      : body.errors && typeof body.errors === "object"
+        ? body.errors
+        : undefined
+  if (bag) {
+    const fieldErrors: Record<string, string[]> = {}
+    const parts: string[] = []
+    for (const [field, val] of Object.entries(bag)) {
+      const msgs = Array.isArray(val) ? val.map(String) : [String(val)]
+      fieldErrors[field] = msgs
+      parts.push(`${field}: ${msgs.join("; ")}`)
+    }
+    return { message: parts.join(" | "), fieldErrors }
+  }
+
+  const msg =
+    typeof body.message === "string"
+      ? body.message
+      : typeof body.error === "string"
+        ? body.error
+        : raw || ""
+  return { message: msg }
+}
+
 /** Shiprocket numeric shipment_status_id → coarse scan_type. */
 function scanTypeForStatus(id?: number): string {
   switch (id) {
@@ -79,8 +148,12 @@ export class ShiprocketClient implements ShippingProviderClient {
       body: JSON.stringify({ email: this.email, password: this.password }),
     })
     if (!res.ok) {
-      const body = await res.text().catch(() => "")
-      throw new Error(`Shiprocket auth failed (${res.status}): ${body}`)
+      const raw = await res.text().catch(() => "")
+      const { message, fieldErrors } = parseShiprocketError(raw)
+      throw new ShiprocketApiError(
+        `Shiprocket auth failed (${res.status})${message ? ` — ${message}` : ""}`,
+        { status: res.status, fieldErrors, raw }
+      )
     }
     const json = await res.json()
     if (!json?.token) throw new Error("Shiprocket auth returned no token")
@@ -111,8 +184,12 @@ export class ShiprocketClient implements ShippingProviderClient {
       return this.request<T>(path, init, false)
     }
     if (!res.ok) {
-      const body = await res.text().catch(() => "")
-      throw new Error(`Shiprocket ${path} failed (${res.status}): ${body}`)
+      const raw = await res.text().catch(() => "")
+      const { message, fieldErrors } = parseShiprocketError(raw)
+      throw new ShiprocketApiError(
+        `Shiprocket ${path} failed (${res.status})${message ? ` — ${message}` : ""}`,
+        { status: res.status, fieldErrors, raw }
+      )
     }
     return res.json() as Promise<T>
   }
@@ -323,7 +400,9 @@ export class ShiprocketClient implements ShippingProviderClient {
       body: JSON.stringify({
         pickup_location: input.name,
         name: input.name,
-        email: input.email || "",
+        // Shiprocket rejects an empty email (422). Fall back to the account
+        // email so registration always has a valid contact (#427).
+        email: input.email || this.email,
         phone: input.phone,
         address: input.address_1,
         address_2: input.address_2 || "",

@@ -85,12 +85,15 @@ async function loadStockLocation(
  * the nickname on `stock_location.metadata`. Idempotent — safe to re-run.
  *
  * Used by the admin on-demand action (opt-in / inbound auto-register) and the
- * backfill script. `email` is optional; Shiprocket accepts an empty contact
- * email on the pickup address.
+ * backfill script. `opts.email` is the contact email recorded on the pickup
+ * (the admin route passes the acting user's email). Shiprocket REQUIRES a
+ * non-empty email on addpickup (it 422s otherwise, #427); when no email is
+ * given the client falls back to the Shiprocket account email.
  */
 export async function registerShiprocketPickup(
   container: MedusaContainer,
-  locationId: string
+  locationId: string,
+  opts?: { email?: string }
 ): Promise<PickupRegistrationResult> {
   const loc = await loadStockLocation(container, locationId)
   const existingNickname = (loc.metadata as any)?.[
@@ -129,9 +132,11 @@ export async function registerShiprocketPickup(
     }
     try {
       await provider.registerPickupLocation({
+        // Pass the acting user's email when known; the client falls back to the
+        // Shiprocket account email so the required `email` is never empty (#427).
         name: nickname,
         phone: addr.phone,
-        email: undefined,
+        email: opts?.email,
         address_1: addr.address_1 || "",
         address_2: addr.address_2 || "",
         city: addr.city || "",
