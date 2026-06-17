@@ -270,6 +270,23 @@ const useColumns = () =>
         },
       }),
       columnHelper.accessor("order", {
+        id: "fulfillment_status",
+        header: "Fulfillment",
+        cell: ({ getValue }) => {
+          const order = getValue();
+          if (!order?.fulfillment_status)
+            return <span className="text-ui-fg-muted">—</span>;
+          return (
+            <Badge
+              color={getFulfillmentStatusColor(order.fulfillment_status)}
+              size="2xsmall"
+            >
+              {order.fulfillment_status.replace(/_/g, " ")}
+            </Badge>
+          );
+        },
+      }),
+      columnHelper.accessor("order", {
         id: "payment_status",
         header: "Payment",
         cell: ({ getValue }) => {
