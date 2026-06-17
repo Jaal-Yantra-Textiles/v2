@@ -245,3 +245,28 @@ carriers.
   creds + a `category: shipping` Shiprocket platform record. The
   `data.shipping_address[]` field names (esp. `phone_verified`) should be
   confirmed against a live response.
+
+### 9.6 Pickup "shippable" semantics (2026-06-17, #435)
+
+Confirmed against a live `GET /settings/company/pickup` response (prod
+`warehouse-AYV7GRDR`): rows carry `phone_verified` (0/1), `status` (1 seen),
+and a full address (`address`, `city`, `pin_code`, `phone`). The field names in
+§9.5 are correct — `phone_verified` reads fine.
+
+The real issue was **semantic**: an API-registered pickup is usable for live
+pickups as soon as it has a complete address; the phone-OTP step is a separate,
+dashboard-only action that isn't required to ship. Showing "Phone not verified"
+/ "Verification unknown" for a usable pickup was misleading.
+
+- `normalizePickupLocation(r)` (exported from `shiprocket/client.ts`) now derives
+  `shippable = active && (phone_verified === true || address_complete)`, where
+  `address_complete` = `address && city && pin_code && phone` and `active` =
+  `status !== 0`. `PickupLocation` gained `shippable` + `address_complete`;
+  `PickupRegistrationResult` and the admin GET/POST thread `shippable` through.
+- The admin widget leads with **Ready to ship** (green) / **Address incomplete**
+  (orange) / **Registered** (grey, only when shippability is unknown), and notes
+  "Phone OTP not completed — not required for API-registered pickups" when a
+  shippable pickup hasn't done OTP.
+- Tests: `shiprocket/__tests__/list-pickup-locations.unit.spec.ts` (normalizer +
+  client) and an added integration case (API pickup with full address is
+  shippable before phone OTP).

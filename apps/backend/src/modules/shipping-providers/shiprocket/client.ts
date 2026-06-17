@@ -118,6 +118,46 @@ export function parseShiprocketError(raw: string): {
   return { message: msg }
 }
 
+/**
+ * Normalize a Shiprocket `data.shipping_address[]` row into our PickupLocation.
+ *
+ * Shiprocket exposes `phone_verified` (0/1) — its OTP signal — but per the
+ * carrier's behavior an **API-registered pickup is usable for live pickups as
+ * soon as it has a complete address**; the phone-OTP step is a separate,
+ * dashboard-only action that isn't required to ship (#435, confirmed against a
+ * live `/settings/company/pickup` response). So we derive `shippable` from a
+ * complete address OR an explicit `phone_verified`, gated by the carrier
+ * `status` (an explicit 0 = deactivated overrides). Callers lead with
+ * `shippable`; `phone_verified` stays available as a secondary, informational
+ * signal so we never show a usable pickup as "not verified" / "unknown".
+ */
+export function normalizePickupLocation(r: any): PickupLocation {
+  const phoneVerified =
+    r?.phone_verified !== undefined && r?.phone_verified !== null
+      ? Boolean(Number(r.phone_verified))
+      : undefined
+  const addressComplete = Boolean(
+    r?.address && r?.city && r?.pin_code && r?.phone
+  )
+  // We only have positive samples (status=1); stay conservative — treat an
+  // explicit 0 as deactivated and everything else (incl. absent) as active, so
+  // this never flips an otherwise-shippable pickup off on an unknown code.
+  const active =
+    r?.status === undefined || r?.status === null || Number(r.status) !== 0
+  const shippable = active && (phoneVerified === true || addressComplete)
+  return {
+    name: r?.pickup_location || r?.name || "",
+    id: r?.id,
+    phone_verified: phoneVerified,
+    address_complete: addressComplete,
+    shippable,
+    city: r?.city,
+    state: r?.state,
+    pincode: r?.pin_code,
+    raw: r,
+  }
+}
+
 /** Shiprocket numeric shipment_status_id → coarse scan_type. */
 function scanTypeForStatus(id?: number): string {
   switch (id) {
@@ -431,28 +471,15 @@ export class ShiprocketClient implements ShippingProviderClient {
 
   /**
    * List registered pickup locations (`data.shipping_address[]`). Used for
-   * idempotent registration and to surface phone-verification status — a
-   * Shiprocket pickup point isn't usable for live pickups until its phone is
-   * OTP-verified, so "registered" ≠ "shippable".
+   * idempotent registration and to surface whether a pickup is shippable — see
+   * `normalizePickupLocation` for how that's derived.
    */
   async listPickupLocations(): Promise<PickupLocation[]> {
     const json = await this.request<any>(`/settings/company/pickup`, {
       method: "GET",
     })
     const rows = json?.data?.shipping_address || []
-    return rows.map((r: any) => ({
-      name: r.pickup_location || r.name || "",
-      id: r.id,
-      // Shiprocket returns 0/1; treat truthy non-zero as verified.
-      phone_verified:
-        r.phone_verified !== undefined
-          ? Boolean(Number(r.phone_verified))
-          : undefined,
-      city: r.city,
-      state: r.state,
-      pincode: r.pin_code,
-      raw: r,
-    }))
+    return rows.map((r: any) => normalizePickupLocation(r))
   }
 
   /** Normalize the Shiprocket webhook push payload (P2). */

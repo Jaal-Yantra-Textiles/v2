@@ -19,6 +19,8 @@ jest.setTimeout(90 * 1000)
 type MockPickup = {
   pickup_location: string
   phone_verified: number
+  address?: string
+  phone?: string
   city?: string
   state?: string
   pin_code?: string
@@ -65,6 +67,8 @@ function installShiprocketMock(state: MockState) {
         state.pickups.push({
           pickup_location: body.pickup_location,
           phone_verified: 0,
+          address: body.address,
+          phone: body.phone,
           city: body.city,
           state: body.state,
           pin_code: body.pin_code,
@@ -208,6 +212,24 @@ setupSharedTestSuite(() => {
         adminHeaders
       )
       expect(res.data.pickup.phone_verified).toBe(true)
+      expect(res.data.pickup.shippable).toBe(true)
+    })
+
+    it("GET marks an API pickup with a complete address shippable before phone OTP (#435)", async () => {
+      const locationId = await createLocation()
+      await api.post(
+        `/admin/stock-locations/${locationId}/shiprocket-pickup`,
+        {},
+        adminHeaders
+      )
+      // Phone OTP is NOT done (mock leaves phone_verified=0), but the pickup
+      // carries a full address — it's usable for live pickups.
+      const res = await api.get(
+        `/admin/stock-locations/${locationId}/shiprocket-pickup`,
+        adminHeaders
+      )
+      expect(res.data.pickup.phone_verified).toBe(false)
+      expect(res.data.pickup.shippable).toBe(true)
     })
 
     it("POST 400s when the location is missing a phone or postal code", async () => {

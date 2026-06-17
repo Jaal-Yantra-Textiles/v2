@@ -172,17 +172,23 @@ export type RegisterPickupLocationInput = {
 
 /**
  * A registered pickup location as the carrier reports it. The nickname is what
- * `createShipment`/`registerPickupLocation` reference; `phone_verified` matters
- * because "registered" ≠ "shippable" for Shiprocket (phone must be OTP-verified
- * before live pickups). See SHIPPING_PROVIDERS.md §9.
+ * `createShipment`/`registerPickupLocation` reference. Callers lead with
+ * `shippable` (can this pickup be used for live pickups?) — for Shiprocket an
+ * API-registered pickup is shippable once its address is complete; phone-OTP is
+ * a separate dashboard step that isn't required (#435). `phone_verified` stays
+ * as a secondary, informational signal. See SHIPPING_PROVIDERS.md §9.
  */
 export type PickupLocation = {
   /** The unique nickname callers reference (Shiprocket `pickup_location`). */
   name: string
   /** Carrier-side id, when exposed. */
   id?: string | number
-  /** True when the pickup address phone is OTP-verified (usable for live pickups). */
+  /** True when the carrier reports the pickup phone as OTP-verified (informational). */
   phone_verified?: boolean
+  /** True when the carrier row has a complete address (address, city, pincode, phone). */
+  address_complete?: boolean
+  /** True when the pickup is usable for live pickups (the source of truth for UI). */
+  shippable?: boolean
   city?: string
   state?: string
   pincode?: string
