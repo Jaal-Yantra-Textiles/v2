@@ -7,6 +7,7 @@ import {
   Badge,
   StatusBadge,
   Button,
+  Input,
   toast,
   usePrompt,
   Skeleton,
@@ -19,6 +20,7 @@ import {
   ShoppingBag,
   CurrencyDollar,
   HandTruck,
+  Link as LinkIcon,
 } from "@medusajs/icons"
 import { ActionMenu } from "../../../components/common/action-menu"
 import { TwoColumnPage } from "../../../components/pages/two-column-pages"
@@ -29,6 +31,7 @@ import {
   useCancelDesignOrder,
   useConvertDesignOrder,
   useGenerateShiprocketLabel,
+  useAttachShiprocketAwb,
 } from "../../../hooks/api/design-orders"
 import {
   PARTNER_STATUS_LABELS,
@@ -87,7 +90,9 @@ const DesignOrderHeaderSection = ({ designOrder }: { designOrder: any }) => {
 
   const isApproved = designOrder.design.status === "Approved"
   const hasOrder = !!designOrder.order
-  const isCanceled = !!designOrder.order?.canceled_at
+  const isCanceled =
+    !!designOrder.order?.canceled_at ||
+    designOrder.order?.status === "canceled"
 
   const handleApprove = async () => {
     const confirmed = await prompt({
@@ -266,7 +271,11 @@ const OrderSection = ({
     useConvertDesignOrder(lineItemId)
   const { mutateAsync: genLabel, isPending: isLabeling } =
     useGenerateShiprocketLabel(order?.id ?? "")
+  const { mutateAsync: attachAwb, isPending: isAttaching } =
+    useAttachShiprocketAwb(order?.id ?? "")
   const [labelUrl, setLabelUrl] = useState<string | null>(null)
+  const [attachOpen, setAttachOpen] = useState(false)
+  const [awbValue, setAwbValue] = useState("")
 
   const handleConvert = async (paymentMode: "prepaid" | "cod") => {
     const confirmed = await prompt({
@@ -327,7 +336,7 @@ const OrderSection = ({
     )
   }
 
-  const isCanceled = !!order.canceled_at
+  const isCanceled = !!order.canceled_at || order.status === "canceled"
 
   const handleGenerateLabel = async () => {
     await genLabel(undefined, {
@@ -338,6 +347,24 @@ const OrderSection = ({
             ? `Label generated (AWB ${res.shiprocket_label.awb})`
             : "Shipment created"
         )
+      },
+      onError: (e) => toast.error(e.message),
+    })
+  }
+
+  const handleAttachAwb = async () => {
+    const awb = awbValue.trim()
+    if (!awb) return
+    await attachAwb(awb, {
+      onSuccess: (res) => {
+        const state = res.shiprocket_awb?.synced_state
+        toast.success(
+          `AWB ${res.shiprocket_awb?.awb} attached${
+            state && state !== "pending" ? ` (${state})` : ""
+          }`
+        )
+        setAttachOpen(false)
+        setAwbValue("")
       },
       onError: (e) => toast.error(e.message),
     })
@@ -356,17 +383,62 @@ const OrderSection = ({
                 to: `/orders/${order.id}`,
               },
               ...(!isCanceled
-                ? [{
-                    label: isLabeling ? "Generating…" : "Generate Shipping Label",
-                    icon: <HandTruck />,
-                    onClick: handleGenerateLabel,
-                    disabled: isLabeling,
-                  }]
+                ? [
+                    {
+                      label: isLabeling ? "Generating…" : "Generate Shipping Label",
+                      icon: <HandTruck />,
+                      onClick: handleGenerateLabel,
+                      disabled: isLabeling,
+                    },
+                    {
+                      label: "Attach existing AWB",
+                      icon: <LinkIcon />,
+                      onClick: () => setAttachOpen(true),
+                      disabled: isAttaching,
+                    },
+                  ]
                 : []),
             ],
           }]}
         />
       </div>
+      {attachOpen && (
+        <div className="px-6 py-4 bg-ui-bg-subtle">
+          <Text size="xsmall" className="text-ui-fg-subtle mb-2">
+            Link an AWB already shipped via Shiprocket. Its status is fetched and
+            the order is synced to match — no new shipment is created.
+          </Text>
+          <div className="flex items-center gap-x-2">
+            <Input
+              placeholder="Shiprocket AWB"
+              value={awbValue}
+              onChange={(e) => setAwbValue(e.target.value)}
+              disabled={isAttaching}
+              autoFocus
+            />
+            <Button
+              variant="primary"
+              size="small"
+              isLoading={isAttaching}
+              disabled={!awbValue.trim()}
+              onClick={handleAttachAwb}
+            >
+              Attach
+            </Button>
+            <Button
+              variant="secondary"
+              size="small"
+              disabled={isAttaching}
+              onClick={() => {
+                setAttachOpen(false)
+                setAwbValue("")
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
       {labelUrl && (
         <div className="px-6 py-3">
           <Button variant="secondary" size="small" asChild>
