@@ -10,6 +10,7 @@ import {
   useNavigate,
 } from "react-router-dom"
 import { clearTabState, setTabState } from "./active-tab-store"
+import { DeskRouteFallback } from "./DeskRouteFallback"
 
 /**
  * Resets React Router's location, navigation, and route contexts so a
@@ -107,14 +108,15 @@ export const EntityPanel = ({
 }) => {
   const initial =
     initialPath || config.initialPath || config.routes[0]?.path || "/"
-  // Outer wrapper takes the full FlexLayout panel height and provides the
-  // panel background, so any natural-height inner page (Medusa Containers
-  // sized to their content) renders against a solid colour all the way to
-  // the panel bottom rather than leaving an awkward empty band. The inner
-  // wrapper is min-h-full so a tall page still scrolls naturally.
+
+  // The panel takes the full FlexLayout tab height and scrolls its content.
+  // `bg-ui-bg-subtle` matches the admin's standard page surface so the page's
+  // own white cards stand out instead of floating on raw white. `pt-4 px-3`
+  // gives the content breathing room from the tab strip and pane edges rather
+  // than butting flush against them. `min-h-full` lets a tall page grow.
   return (
-    <div className="h-full overflow-auto bg-ui-bg-base">
-      <div className="min-h-full">
+    <div className="h-full overflow-auto bg-ui-bg-subtle">
+      <div className="min-h-full pt-4 px-3 pb-3">
         <RouterReset>
           <MemoryRouter initialEntries={[initial]}>
             <TabStatePublisher
@@ -122,7 +124,13 @@ export const EntityPanel = ({
               entityKey={entityKey}
               entityLabel={entityLabel}
             />
-            <Routes>{config.routes.map(renderRoute)}</Routes>
+            <Routes>
+              {config.routes.map(renderRoute)}
+              <Route
+                path="*"
+                element={<DeskRouteFallback entityLabel={entityLabel} />}
+              />
+            </Routes>
           </MemoryRouter>
         </RouterReset>
       </div>

@@ -1,5 +1,5 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { GridLayout } from "@medusajs/icons"
+import { GridLayout, XCircleSolid } from "@medusajs/icons"
 import { Container, Heading, Text } from "@medusajs/ui"
 import {
   Action,
@@ -254,37 +254,9 @@ const Desk = () => {
     return () => window.removeEventListener(DESK_ADD_PANEL_EVENT, handler)
   }, [addPanel])
 
-  /**
-   * Keyboard shortcut: Alt+W (Option+W on Mac) closes the active tab.
-   * Cmd+W is hijacked by every browser, so Alt+W is the next-best
-   * muscle memory borrowed from IDE-style tab UX. We ignore the event
-   * when an input/textarea/contenteditable is focused so typing "w"
-   * inside a form doesn't nuke the tab.
-   */
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "w" && e.key !== "W") return
-      if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
-      const target = e.target as HTMLElement | null
-      if (target) {
-        const tag = target.tagName
-        if (
-          tag === "INPUT" ||
-          tag === "TEXTAREA" ||
-          tag === "SELECT" ||
-          target.isContentEditable
-        ) {
-          return
-        }
-      }
-      const activeTabId = model.getActiveTabset()?.getSelectedNode()?.getId()
-      if (!activeTabId) return
-      e.preventDefault()
-      model.doAction(Actions.deleteTab(activeTabId))
-    }
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [model])
+  // No global close-tab keyboard shortcut: Alt+W (Option+W) collided with
+  // browser/OS tab handling on macOS Safari and could close the whole
+  // browser tab. The per-tab × close button is the close affordance.
 
   /**
    * On every model action: update hasTabs (derived state), mirror the
@@ -333,11 +305,11 @@ const Desk = () => {
     [addPanel, resetWorkspace]
   )
 
-  // Wrap in the Medusa-canonical Container pattern (see /admin/content +
-  // /admin/medias for prior art): `divide-y p-0` gives an auto-divider
-  // between the heading section and the workspace area below. The tab
-  // strip then naturally appears immediately under the divider, which is
-  // the "post-divider" position the user expected.
+  // Header ⇄ tab-strip swap: the "Desk" heading + description only show
+  // while the workspace is empty. As soon as a tab exists the heading is
+  // dropped and the FlexLayout tab strip rises into that top slot — the
+  // tabs *become* the header row, reclaiming the vertical space (the
+  // admin breadcrumb already says "Desk · {entity} · {path}").
   //
   // Layout must always be mounted so its onModelChange is wired and can
   // flip hasTabs to true when the first tab arrives. EmptyDesk is an
@@ -347,18 +319,21 @@ const Desk = () => {
       className="divide-y p-0 flex flex-col overflow-hidden"
       style={{ height: "calc(100vh - 56px)" }}
     >
-      <div className="px-6 py-4 shrink-0">
-        <Heading>Desk</Heading>
-        <Text size="small" className="text-ui-fg-subtle">
-          Multi-pane workspace. Drag tabs to split panes. Alt+W closes the active tab.
-        </Text>
-      </div>
+      {!hasTabs && (
+        <div className="px-6 py-4 shrink-0">
+          <Heading>Desk</Heading>
+          <Text size="small" className="text-ui-fg-subtle">
+            Multi-pane workspace. Open entities as tabs and drag them to split panes.
+          </Text>
+        </div>
+      )}
       <div className="flex-1 min-h-0 relative">
         <Layout
           model={model}
           factory={factory}
           onModelChange={onModelChange}
           onRenderTabSet={onRenderTabSet}
+          icons={{ close: <XCircleSolid /> }}
         />
         {!hasTabs && (
           <div className="absolute inset-0 z-10 bg-ui-bg-base">
