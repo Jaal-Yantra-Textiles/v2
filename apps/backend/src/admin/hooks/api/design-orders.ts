@@ -257,3 +257,39 @@ export const useConvertDesignOrder = (
     ...options,
   });
 };
+
+export type GenerateShiprocketLabelResponse = {
+  shiprocket_label: {
+    awb?: string;
+    tracking_number?: string;
+    label_url?: string;
+    tracking_url?: string;
+    fulfillment_id: string;
+  };
+};
+
+/**
+ * One-click Shiprocket label for a converted order: creates a fulfillment (or
+ * reuses an existing Shiprocket one) and generates the shipment + label. #404
+ * PR-C.
+ */
+export const useGenerateShiprocketLabel = (
+  orderId: string,
+  options?: UseMutationOptions<GenerateShiprocketLabelResponse, FetchError>
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      sdk.client.fetch<GenerateShiprocketLabelResponse>(
+        `/admin/orders/${orderId}/shiprocket-label`,
+        { method: "POST", body: {} }
+      ),
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({
+        queryKey: designOrdersQueryKeys.lists(),
+      });
+      options?.onSuccess?.(...args);
+    },
+    ...options,
+  });
+};

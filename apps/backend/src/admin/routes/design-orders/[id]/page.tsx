@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useParams, UIMatch } from "react-router-dom"
 import {
   Container,
@@ -16,6 +17,8 @@ import {
   PencilSquare,
   SquareTwoStack,
   ShoppingBag,
+  CurrencyDollar,
+  HandTruck,
 } from "@medusajs/icons"
 import { ActionMenu } from "../../../components/common/action-menu"
 import { TwoColumnPage } from "../../../components/pages/two-column-pages"
@@ -24,6 +27,8 @@ import {
   useDesignOrder,
   useApproveDesign,
   useCancelDesignOrder,
+  useConvertDesignOrder,
+  useGenerateShiprocketLabel,
 } from "../../../hooks/api/design-orders"
 import {
   PARTNER_STATUS_LABELS,
@@ -248,8 +253,43 @@ const LineItemSection = ({ designOrder }: { designOrder: any }) => {
 
 // ─── Order Section ──────────────────────────────────────────────────────────
 
-const OrderSection = ({ designOrder }: { designOrder: any }) => {
+const OrderSection = ({
+  designOrder,
+  lineItemId,
+}: {
+  designOrder: any
+  lineItemId: string
+}) => {
   const order = designOrder.order
+  const prompt = usePrompt()
+  const { mutateAsync: convert, isPending: isConverting } =
+    useConvertDesignOrder(lineItemId)
+  const { mutateAsync: genLabel, isPending: isLabeling } =
+    useGenerateShiprocketLabel(order?.id ?? "")
+  const [labelUrl, setLabelUrl] = useState<string | null>(null)
+
+  const handleConvert = async (paymentMode: "prepaid" | "cod") => {
+    const confirmed = await prompt({
+      title: paymentMode === "cod" ? "Convert as COD order?" : "Convert to paid order?",
+      description:
+        paymentMode === "cod"
+          ? "Creates a real order marked unpaid (cash on delivery). It can then be shipped."
+          : "Creates a real order and marks it paid. It can then be shipped.",
+      confirmText: "Convert",
+      cancelText: "Cancel",
+    })
+    if (!confirmed) return
+    await convert(
+      { payment_mode: paymentMode },
+      {
+        onSuccess: (res) =>
+          toast.success(
+            `Order #${res.design_order_conversion.display_id ?? ""} created (${paymentMode})`
+          ),
+        onError: (e) => toast.error(e.message),
+      }
+    )
+  }
 
   if (!order) {
     return (
@@ -259,12 +299,48 @@ const OrderSection = ({ designOrder }: { designOrder: any }) => {
         </div>
         <div className="px-6 py-4">
           <Badge size="2xsmall" color="orange">Pending Checkout</Badge>
-          <Text size="small" className="text-ui-fg-subtle mt-2">
-            The customer has not completed checkout yet.
+          <Text size="small" className="text-ui-fg-subtle mt-2 mb-4">
+            The customer hasn't checked out. Convert this design order into a
+            real order to fulfil and ship it.
           </Text>
+          <div className="flex items-center gap-x-2">
+            <Button
+              variant="primary"
+              size="small"
+              isLoading={isConverting}
+              onClick={() => handleConvert("prepaid")}
+            >
+              <CurrencyDollar className="w-4 h-4 mr-1" />
+              Convert to Paid Order
+            </Button>
+            <Button
+              variant="secondary"
+              size="small"
+              disabled={isConverting}
+              onClick={() => handleConvert("cod")}
+            >
+              Convert as COD
+            </Button>
+          </div>
         </div>
       </Container>
     )
+  }
+
+  const isCanceled = !!order.canceled_at
+
+  const handleGenerateLabel = async () => {
+    await genLabel(undefined, {
+      onSuccess: (res) => {
+        setLabelUrl(res.shiprocket_label?.label_url || null)
+        toast.success(
+          res.shiprocket_label?.awb
+            ? `Label generated (AWB ${res.shiprocket_label.awb})`
+            : "Shipment created"
+        )
+      },
+      onError: (e) => toast.error(e.message),
+    })
   }
 
   return (
@@ -273,14 +349,34 @@ const OrderSection = ({ designOrder }: { designOrder: any }) => {
         <Heading level="h2">Order #{order.display_id}</Heading>
         <ActionMenu
           groups={[{
-            actions: [{
-              label: "View Order",
-              icon: <ShoppingBag />,
-              to: `/orders/${order.id}`,
-            }],
+            actions: [
+              {
+                label: "View Order",
+                icon: <ShoppingBag />,
+                to: `/orders/${order.id}`,
+              },
+              ...(!isCanceled
+                ? [{
+                    label: isLabeling ? "Generating…" : "Generate Shipping Label",
+                    icon: <HandTruck />,
+                    onClick: handleGenerateLabel,
+                    disabled: isLabeling,
+                  }]
+                : []),
+            ],
           }]}
         />
       </div>
+      {labelUrl && (
+        <div className="px-6 py-3">
+          <Button variant="secondary" size="small" asChild>
+            <a href={labelUrl} target="_blank" rel="noreferrer">
+              <HandTruck className="w-4 h-4 mr-1" />
+              Open Shipping Label
+            </a>
+          </Button>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-4 px-6 py-4">
         <div>
           <Text size="xsmall" className="text-ui-fg-subtle mb-1">Status</Text>
@@ -415,7 +511,7 @@ const DesignOrderDetailPage = () => {
       <TwoColumnPage.Main>
         <DesignOrderHeaderSection designOrder={designOrder} />
         <LineItemSection designOrder={designOrder} />
-        <OrderSection designOrder={designOrder} />
+        <OrderSection designOrder={designOrder} lineItemId={id!} />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
         <CustomerSection designOrder={designOrder} />
