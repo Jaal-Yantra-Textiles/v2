@@ -103,6 +103,18 @@ describe("visual_flows/compiler", () => {
     expect(plan.ok).toBe(true) // template tokens never produce hard errors
   })
 
+  it("recognizes a wait_for_event node (durable wait) as a valid op", () => {
+    const flow = canvas(
+      [opNode("a", "log"), opNode("w", "wait_for_event", { wait_key: "order-shipped" }), opNode("b", "log")],
+      [edge("trigger", "a"), edge("a", "w"), edge("w", "b")]
+    )
+    const plan = compileFlow(flow)
+
+    expect(plan.ok).toBe(true)
+    expect(plan.levels).toEqual([["a"], ["w"], ["b"]])
+    expect(plan.nodes["w"].type).toBe("wait_for_event")
+  })
+
   it("produces a stable hash for the same graph and a different hash when it changes", () => {
     const a = compileFlow(canvas([opNode("a", "log")], [edge("trigger", "a")]))
     const b = compileFlow(canvas([opNode("a", "log")], [edge("trigger", "a")]))
