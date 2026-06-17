@@ -1,4 +1,4 @@
-import { ReactNode, useEffect } from "react"
+import { ReactNode, useEffect, useRef } from "react"
 import {
   MemoryRouter,
   Route,
@@ -9,7 +9,7 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom"
-import { clearTabState, setTabState } from "./active-tab-store"
+import { clearTabState, setTabState, setTabTitle } from "./active-tab-store"
 import { DeskRouteFallback } from "./DeskRouteFallback"
 
 /**
@@ -109,6 +109,37 @@ export const EntityPanel = ({
   const initial =
     initialPath || config.initialPath || config.routes[0]?.path || "/"
 
+  // Derive a content-aware tab title from the panel's primary heading (the
+  // record name on a detail page). A MutationObserver catches the heading
+  // appearing after async data loads; the desk page decides whether it's
+  // specific enough to rename the tab. Route modals portal to <body>, so
+  // their headings are outside this subtree and never picked up.
+  const contentRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const root = contentRef.current
+    if (!root) return
+    let raf = 0
+    const publish = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        const heading = root.querySelector("h1, h2, h3")
+        const text = heading?.textContent?.trim() ?? ""
+        setTabTitle(tabId, text ? text.slice(0, 60) : null)
+      })
+    }
+    publish()
+    const observer = new MutationObserver(publish)
+    observer.observe(root, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    })
+    return () => {
+      cancelAnimationFrame(raf)
+      observer.disconnect()
+    }
+  }, [tabId])
+
   // The panel takes the full FlexLayout tab height and scrolls its content.
   // `bg-ui-bg-subtle` matches the admin's standard page surface so the page's
   // own white cards stand out instead of floating on raw white. `pt-4 px-3`
@@ -116,7 +147,7 @@ export const EntityPanel = ({
   // than butting flush against them. `min-h-full` lets a tall page grow.
   return (
     <div className="h-full overflow-auto bg-ui-bg-subtle">
-      <div className="min-h-full pt-4 px-3 pb-3">
+      <div ref={contentRef} className="min-h-full pt-4 px-3 pb-3">
         <RouterReset>
           <MemoryRouter initialEntries={[initial]}>
             <TabStatePublisher
