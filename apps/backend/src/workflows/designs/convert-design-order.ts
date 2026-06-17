@@ -260,9 +260,14 @@ export async function convertDesignOrderToOrder(
   await convertDraftOrderWorkflow(container).run({ input: { id: order.id } })
 
   // 9. Stamp the idempotency marker on the cart (last, so a mid-failure retry
-  // isn't blocked).
+  // isn't blocked). Also set `completed_at`: this cart has become a real order,
+  // so it's "done". This is the canonical Medusa "cart was converted" signal —
+  // it removes the cart from the abandoned-cart recovery flow (which filters
+  // `completed_at: null`) and the admin abandoned-carts view, so we never email
+  // a customer who has already purchased. #443.
   await cartService
     .updateCarts(cart.id, {
+      completed_at: new Date(),
       metadata: { ...(cart.metadata || {}), converted_order_id: order.id },
     })
     .catch((e: any) =>

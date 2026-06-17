@@ -89,6 +89,14 @@ export type DesignOrderDetail = {
     currency_code: string;
     created_at: string;
     canceled_at: string | null;
+    tracking: {
+      carrier: string | null;
+      awb: string | null;
+      tracking_url: string | null;
+      current_status: string | null;
+      shipped_at: string | null;
+      delivered_at: string | null;
+    } | null;
   } | null;
   checkout_url: string | null;
 };

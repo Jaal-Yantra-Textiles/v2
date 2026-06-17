@@ -63,6 +63,16 @@ const getPaymentStatusColor = (status: string): "green" | "orange" | "red" | "gr
   }
 }
 
+const getFulfillmentStatusColor = (status: string): "green" | "blue" | "orange" | "red" | "grey" => {
+  switch (status) {
+    case "delivered": return "green"
+    case "shipped": case "fulfilled": return "blue"
+    case "partially_fulfilled": case "partially_shipped": case "partially_delivered": return "orange"
+    case "canceled": return "red"
+    case "not_fulfilled": default: return "grey"
+  }
+}
+
 const formatCurrency = (amount: number, currencyCode = "inr") => {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -449,6 +459,30 @@ const OrderSection = ({
           </Button>
         </div>
       )}
+      {order.tracking?.awb && (
+        <div className="px-6 py-3">
+          <div className="flex items-center gap-x-2 mb-2">
+            <Text size="xsmall" className="text-ui-fg-subtle">Tracking</Text>
+            {order.tracking.carrier && (
+              <Badge size="2xsmall" color="grey">{order.tracking.carrier}</Badge>
+            )}
+            {order.tracking.current_status && (
+              <Badge size="2xsmall" color="blue">{order.tracking.current_status}</Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-x-2">
+            <Text size="small" weight="plus" className="font-mono">{order.tracking.awb}</Text>
+            {order.tracking.tracking_url && (
+              <Button variant="transparent" size="small" asChild>
+                <a href={order.tracking.tracking_url} target="_blank" rel="noreferrer">
+                  <HandTruck className="w-4 h-4 mr-1" />
+                  Track shipment
+                </a>
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-4 px-6 py-4">
         <div>
           <Text size="xsmall" className="text-ui-fg-subtle mb-1">Status</Text>
@@ -456,6 +490,14 @@ const OrderSection = ({
             {order.status}
           </StatusBadge>
         </div>
+        {order.fulfillment_status && (
+          <div>
+            <Text size="xsmall" className="text-ui-fg-subtle mb-1">Fulfillment</Text>
+            <StatusBadge color={getFulfillmentStatusColor(order.fulfillment_status)} className="text-nowrap">
+              {order.fulfillment_status.replace(/_/g, " ")}
+            </StatusBadge>
+          </div>
+        )}
         {getPartnerWorkStatus(order) && (
           <div>
             <Text size="xsmall" className="text-ui-fg-subtle mb-1">Work status</Text>

@@ -47,6 +47,12 @@ const STORE_URL = process.env.STORE_URL || "https://cicilabel.com"
 const IDLE_FLOOR_HOURS = 1
 const IDLE_CEILING_HOURS = 24 * 7 // 7 days
 
+// Recovery-email cap: a single cart may receive at most MAX_RECOVERY_EMAILS
+// reminders, ever, each at least RESEND_GAP_HOURS apart. This is the anti-spam
+// guard — without the gap, "twice" would fire on consecutive hourly ticks. #443.
+const MAX_RECOVERY_EMAILS = 2
+const RESEND_GAP_HOURS = 24
+
 // ─── Canvas positions ────────────────────────────────────────────────────────
 const X_CENTER = 500
 const Y_READ = 140
@@ -62,7 +68,9 @@ const Y_LOG = 700
 //   - update_items selectors+data for bulk_update_data to flip the
 //                  metadata.recovery_email_sent_at flag
 // Drops carts that:
-//   - already have metadata.recovery_email_sent_at set
+//   - have already received MAX_RECOVERY_EMAILS reminders (hard cap)
+//   - were emailed less than RESEND_GAP_HOURS ago (space the reminders out)
+//   - have been converted to an order (metadata.converted_order_id)
 //   - lack email AND have no linked customer.email
 //   - are older than the ceiling (avoids waking dormant carts)
 const CLASSIFY_CODE = `\
@@ -70,6 +78,8 @@ const records = ($input.read_carts && $input.read_carts.records) || []
 const now = Date.now()
 const FLOOR_MS = ${IDLE_FLOOR_HOURS} * 60 * 60 * 1000
 const CEIL_MS  = ${IDLE_CEILING_HOURS} * 60 * 60 * 1000
+const MAX_SENDS = ${MAX_RECOVERY_EMAILS}
+const RESEND_GAP_MS = ${RESEND_GAP_HOURS} * 60 * 60 * 1000
 const STORE_URL = "${STORE_URL}"
 
 const send_items = []
@@ -81,6 +91,8 @@ const counts = {
   no_items: 0,
   too_old: 0,
   too_fresh: 0,
+  converted: 0,
+  gap_wait: 0,
   queued: 0,
 }
 
@@ -88,8 +100,30 @@ for (const cart of records) {
   if (!cart || !cart.id) continue
 
   const md = cart.metadata || {}
-  if (md.recovery_email_sent_at) {
+  // Cap total recovery emails per cart at MAX_SENDS, spaced >= RESEND_GAP_MS
+  // apart, so we never spam a customer. Back-compat: a cart with the legacy
+  // recovery_email_sent_at marker but no count is treated as one prior send.
+  const sentCount =
+    typeof md.recovery_email_count === "number"
+      ? md.recovery_email_count
+      : (md.recovery_email_sent_at ? 1 : 0)
+  if (sentCount >= MAX_SENDS) {
     counts.already_reminded++
+    continue
+  }
+  if (md.recovery_email_sent_at) {
+    const lastSentMs = new Date(md.recovery_email_sent_at).getTime()
+    if (Number.isFinite(lastSentMs) && now - lastSentMs < RESEND_GAP_MS) {
+      counts.gap_wait++
+      continue
+    }
+  }
+  // A cart converted to a real order (admin Design Order → Convert path stamps
+  // converted_order_id) must never get a recovery email — the customer already
+  // purchased. The convert flow now also sets completed_at, but guard on the
+  // marker too for carts converted before that fix / via other paths. #443.
+  if (md.converted_order_id) {
+    counts.converted = (counts.converted || 0) + 1
     continue
   }
 
@@ -143,6 +177,7 @@ for (const cart of records) {
       metadata: {
         ...md,
         recovery_email_sent_at: new Date(now).toISOString(),
+        recovery_email_count: sentCount + 1,
       },
     },
   })
@@ -163,9 +198,13 @@ const FLOW_DEF = {
     IDLE_FLOOR_HOURS +
     "h and " +
     IDLE_CEILING_HOURS / 24 +
-    "d idle, filters out already-reminded ones, and sends the `cart-abandoned` " +
-    "template via the send-notification-email workflow. Marks each cart with " +
-    "metadata.recovery_email_sent_at to prevent re-sends on the next tick.",
+    "d idle and sends the `cart-abandoned` template via the " +
+    "send-notification-email workflow. Each cart gets at most " +
+    MAX_RECOVERY_EMAILS +
+    " reminders, spaced >= " +
+    RESEND_GAP_HOURS +
+    "h apart (metadata.recovery_email_count + recovery_email_sent_at); " +
+    "converted carts (metadata.converted_order_id) are skipped.",
   status: "draft" as const,
   trigger_type: "schedule" as const,
   trigger_config: {
@@ -308,6 +347,8 @@ const FLOW_DEF = {
           "no_items={{ classify.counts.no_items }} " +
           "too_fresh={{ classify.counts.too_fresh }} " +
           "too_old={{ classify.counts.too_old }} " +
+          "converted={{ classify.counts.converted }} " +
+          "gap_wait={{ classify.counts.gap_wait }} " +
           "sent={{ dispatch.triggered }} failed={{ dispatch.failed }} " +
           "marked={{ mark_sent.updated }}",
         level: "info",

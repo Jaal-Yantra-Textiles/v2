@@ -49,7 +49,28 @@ export async function GET(
       query.graph({
         entity: designOrderLink.entryPoint,
         filters: { design_id: designId },
-        fields: ["design_id", "order_id", "order.id", "order.display_id", "order.status", "order.total", "order.currency_code", "order.created_at", "order.unified_order_status.partner_status"],
+        fields: [
+          "design_id",
+          "order_id",
+          "order.id",
+          "order.display_id",
+          "order.status",
+          "order.payment_status",
+          "order.fulfillment_status",
+          "order.total",
+          "order.currency_code",
+          "order.created_at",
+          "order.canceled_at",
+          "order.unified_order_status.partner_status",
+          // Latest fulfillment carries the AWB/tracking stamped out-of-band by
+          // the Shiprocket label/attach flows (#404/#437).
+          "order.fulfillments.id",
+          "order.fulfillments.data",
+          "order.fulfillments.created_at",
+          "order.fulfillments.canceled_at",
+          "order.fulfillments.shipped_at",
+          "order.fulfillments.delivered_at",
+        ],
       }).catch(() => ({ data: [] })),
     ])
 
@@ -65,6 +86,29 @@ export async function GET(
       orderLinkRows
         .map((r: any) => r?.order?.unified_order_status)
         .find((u: any) => u?.partner_status) || null
+
+    // Surface the carrier/AWB/tracking stamped onto the latest active
+    // fulfillment (the Shiprocket label/attach flows write it to
+    // `fulfillment.data` against the manual provider). #437.
+    const fulfillments = (order?.fulfillments || []) as any[]
+    const activeFulfillment = fulfillments
+      .filter((f: any) => !f.canceled_at)
+      .sort(
+        (a: any, b: any) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+    const tracked =
+      activeFulfillment.find((f: any) => f.data?.carrier) ?? activeFulfillment[0]
+    const tracking = tracked
+      ? {
+          carrier: tracked.data?.carrier ?? null,
+          awb: tracked.data?.waybill ?? tracked.data?.tracking_number ?? null,
+          tracking_url: tracked.data?.tracking_url ?? null,
+          current_status: tracked.data?.current_status ?? null,
+          shipped_at: tracked.shipped_at ?? null,
+          delivered_at: tracked.delivered_at ?? null,
+        }
+      : null
 
     // 3. Fetch line item details from cart module
     const cartService = req.scope.resolve(Modules.CART) as any
@@ -212,7 +256,19 @@ export async function GET(
         sibling_items: siblingItems,
         total_price: (lineItem?.unit_price ?? 0) + siblingItems.reduce((s, i) => s + i.price, 0),
         order: order
-          ? { id: order.id, display_id: order.display_id, status: order.status, total: order.total, currency_code: order.currency_code, created_at: order.created_at, unified_order_status: workStatus }
+          ? {
+              id: order.id,
+              display_id: order.display_id,
+              status: order.status,
+              payment_status: order.payment_status,
+              fulfillment_status: order.fulfillment_status,
+              total: order.total,
+              currency_code: order.currency_code,
+              created_at: order.created_at,
+              canceled_at: order.canceled_at ?? null,
+              unified_order_status: workStatus,
+              tracking,
+            }
           : null,
         checkout_url: checkoutUrl,
       },
