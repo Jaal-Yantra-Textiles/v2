@@ -104,8 +104,12 @@ const RegionPartnerCoverageWidget = ({ data }: DetailWidgetProps<Region>) => {
   )
 }
 
+// The region detail page is single-column — the core dashboard only renders
+// `region.details.before` / `region.details.after` (there is no `.side.*` zone
+// for regions, unlike products). `region.details.side.after` silently never
+// mounted; `.after` places this supplementary panel below the region details. (#421)
 export const config = defineWidgetConfig({
-  zone: "region.details.side.after",
+  zone: "region.details.after",
 })
 
 export default RegionPartnerCoverageWidget
