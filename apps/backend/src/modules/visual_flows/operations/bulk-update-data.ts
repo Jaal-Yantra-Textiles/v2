@@ -73,11 +73,24 @@ export const bulkUpdateDataOperation: OperationDefinition = {
         }
       }
 
-      const rawItems = Array.isArray(options.items) ? options.items : []
-      const items = interpolateVariables(rawItems, context.dataChain) as Array<{
+      // `items` is typically a template string (e.g. "{{ classify.update_items }}")
+      // that resolves to an array — so interpolate FIRST, then validate. Guarding
+      // on Array.isArray before interpolation silently dropped string templates to
+      // an empty array, making every bulk_update_data a no-op (e.g. the cart
+      // recovery flow's mark_sent never stamped recovery_email_sent_at, so the
+      // dedup gap + send cap never engaged → carts re-emailed hourly). Mirrors the
+      // resolution order in bulk-trigger-workflow.ts.
+      const items = interpolateVariables(options.items, context.dataChain) as Array<{
         selector?: Record<string, any>
         data: Record<string, any>
       }>
+
+      if (!Array.isArray(items)) {
+        return {
+          success: false,
+          error: `'items' did not resolve to an array. Got: ${typeof items}`,
+        }
+      }
 
       if (items.length > maxItems) {
         return {
