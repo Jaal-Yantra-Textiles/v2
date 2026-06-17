@@ -8,6 +8,34 @@ import * as fs from "fs"
 const packageCache: Map<string, any> = new Map()
 
 /**
+ * Env flag gating runtime `npm install` of arbitrary packages.
+ *
+ * Shell-installing an attacker-supplied package name at flow-execution time is
+ * a remote-code-execution vector (the #1 prod risk flagged in the visual-flows
+ * engine analysis). It is therefore DISABLED by default and force-disabled in
+ * production regardless of the flag. Set
+ * `VFLOW_ALLOW_RUNTIME_NPM_INSTALL=true` only in a trusted, non-production
+ * environment to opt back in.
+ *
+ * When disabled, {@link loadPackage} still loads packages already present in
+ * `node_modules` (or a previously-populated temp dir) — only the on-demand
+ * shell install is blocked.
+ */
+export function isRuntimeNpmInstallEnabled(): boolean {
+  const raw = (process.env.VFLOW_ALLOW_RUNTIME_NPM_INSTALL || "").trim().toLowerCase()
+  const enabled = raw === "true" || raw === "1" || raw === "yes" || raw === "on"
+
+  if (enabled && process.env.NODE_ENV === "production") {
+    console.warn(
+      "[package-loader] VFLOW_ALLOW_RUNTIME_NPM_INSTALL is set but runtime npm install is force-disabled in production for security."
+    )
+    return false
+  }
+
+  return enabled
+}
+
+/**
  * Track packages that are being installed to prevent duplicate installs
  */
 const installingPackages: Set<string> = new Set()
@@ -106,6 +134,15 @@ export async function loadPackage(packageName: string): Promise<any> {
   
   // Check if installed in temp directory
   if (!isPackageInstalled(packageName)) {
+    // Not present anywhere. Only shell-install when explicitly allowed —
+    // installing an arbitrary package name at execution time is an RCE vector.
+    if (!isRuntimeNpmInstallEnabled()) {
+      throw new Error(
+        `Package '${packageName}' is not available and runtime package installation is disabled. ` +
+          `Pre-bundled packages (lodash, dayjs, validator, uuid, crypto, fetch) work out of the box. ` +
+          `To install other packages on demand, set VFLOW_ALLOW_RUNTIME_NPM_INSTALL=true in a non-production environment.`
+      )
+    }
     // Install it
     await installPackage(packageName)
   }
