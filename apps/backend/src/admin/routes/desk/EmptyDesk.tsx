@@ -8,8 +8,10 @@ import { EntityPickerGrid, type EntityKey } from "./EntityPicker"
  */
 export const EmptyDesk = ({
   onSelect,
+  onOpenCore,
 }: {
   onSelect: (key: EntityKey) => void
+  onOpenCore?: (path: string) => void
 }) => (
   <div className="flex items-center justify-center h-full p-6">
     <Container className="max-w-2xl w-full p-0">
@@ -18,11 +20,11 @@ export const EmptyDesk = ({
         <Text size="small" className="text-ui-fg-subtle">
           Pick what you want to work on. Each tab is its own routing
           context — you can open several side by side and drag them to
-          split.
+          split. Press <kbd>⌘⇧K</kbd> anywhere in the Desk to search.
         </Text>
       </div>
       <div className="px-6 py-4">
-        <EntityPickerGrid onSelect={onSelect} />
+        <EntityPickerGrid onSelect={onSelect} onOpenCore={onOpenCore} />
       </div>
     </Container>
   </div>

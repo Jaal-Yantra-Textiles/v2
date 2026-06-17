@@ -16,12 +16,14 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   getTabPathnames,
+  getTabTitles,
   registerOpenTabHandler,
   setFocusedTab,
   subscribeTabStore,
   useActiveTab,
 } from "./active-tab-store"
 import { EmptyDesk } from "./EmptyDesk"
+import { DeskCommandPalette } from "./CommandPalette"
 import { EntityPanel } from "./EntityPanel"
 import {
   ENTITY_REGISTRY,
@@ -112,6 +114,9 @@ const Desk = () => {
     "production-runs": 0,
     partners: 0,
     medias: 0,
+    websites: 0,
+    persons: 0,
+    messaging: 0,
   })
   /**
    * Frozen at mount and consumed by the factory on each panel mount.
@@ -129,6 +134,17 @@ const Desk = () => {
     save: saveToServer,
     reset: resetServer,
   } = useDeskWorkspace()
+
+  // Deep-link a Medusa core entity into the full admin (a new browser tab,
+  // so the Desk workspace is preserved). Core pages can't be embedded in a
+  // panel — they need the core data-router + providers — so we link out.
+  const openCore = useCallback((path: string) => {
+    window.open(
+      `${window.location.origin}/app${path}`,
+      "_blank",
+      "noopener,noreferrer"
+    )
+  }, [])
 
   const resetWorkspace = useCallback(() => {
     // Drop everything: server, localStorage, in-memory model. Skip the
@@ -203,7 +219,11 @@ const Desk = () => {
       const entity = ENTITY_REGISTRY[entityKey]
       const tabId = `${entityKey}-${n}-${Date.now()}`
 
-      const targetTabsetId = firstTabsetId(model)
+      // Open into the pane the user is currently working in, not always the
+      // first one. Falls back to the first tabset (e.g. the active tabset is
+      // undefined on an empty desk before any pane is focused).
+      const targetTabsetId =
+        model.getActiveTabset()?.getId() ?? firstTabsetId(model)
       if (!targetTabsetId) return
 
       if (initialPath) {
@@ -286,6 +306,24 @@ const Desk = () => {
     return unsub
   }, [model, saveToServer])
 
+  // Rename tabs to their content-derived title (the panel's primary heading,
+  // e.g. a design's name) so tabs read as "Red Linen Dress" rather than
+  // "Designs 3". No-ops when the name already matches; the renameTab action
+  // re-enters via onModelChange but converges since the name then equals the
+  // title. Falls back to the generated "{Entity} N" name when no heading.
+  useEffect(() => {
+    const unsub = subscribeTabStore(() => {
+      const titles = getTabTitles()
+      for (const [id, title] of Object.entries(titles)) {
+        const node = model.getNodeById(id)
+        if (!node || node.getType() !== "tab") continue
+        if ((node as TabNode).getName() === title) continue
+        model.doAction(Actions.renameTab(id, title))
+      }
+    })
+    return unsub
+  }, [model])
+
   // After hydration, point the breadcrumb at whatever tab is selected.
   useEffect(() => {
     const tabset = model.getActiveTabset()
@@ -298,11 +336,12 @@ const Desk = () => {
         <EntityPickerDropdown
           key="add-tab"
           onSelect={addPanel}
+          onOpenCore={openCore}
           onReset={resetWorkspace}
         />
       )
     },
-    [addPanel, resetWorkspace]
+    [addPanel, openCore, resetWorkspace]
   )
 
   // Header ⇄ tab-strip swap: the "Desk" heading + description only show
@@ -333,14 +372,21 @@ const Desk = () => {
           factory={factory}
           onModelChange={onModelChange}
           onRenderTabSet={onRenderTabSet}
+          onRenderTab={(node, renderValues) => {
+            const Icon = ENTITY_REGISTRY[node.getComponent() as EntityKey]?.icon
+            if (Icon) {
+              renderValues.leading = <Icon className="text-ui-fg-subtle" />
+            }
+          }}
           icons={{ close: <XCircleSolid /> }}
         />
         {!hasTabs && (
           <div className="absolute inset-0 z-10 bg-ui-bg-base">
-            <EmptyDesk onSelect={addPanel} />
+            <EmptyDesk onSelect={addPanel} onOpenCore={openCore} />
           </div>
         )}
       </div>
+      <DeskCommandPalette onOpenEntity={addPanel} onOpenCore={openCore} />
     </Container>
   )
 }

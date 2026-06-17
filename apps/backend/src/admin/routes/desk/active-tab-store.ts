@@ -25,6 +25,12 @@ export type TabState = {
 }
 
 const tabRegistry = new Map<string, TabState>()
+/**
+ * Per-tab display title derived from the panel's primary heading (the
+ * record name on a detail page). The desk page renames the FlexLayout tab
+ * to this when it's more specific than the generic entity label.
+ */
+const tabTitles = new Map<string, string>()
 let focusedTabId: string | null = null
 
 type Listener = () => void
@@ -62,8 +68,34 @@ export const setTabState = (s: TabState): void => {
 
 export const clearTabState = (tabId: string): void => {
   tabRegistry.delete(tabId)
+  tabTitles.delete(tabId)
   if (focusedTabId === tabId) focusedTabId = null
   notify()
+}
+
+/**
+ * Publish (or clear) a tab's content-derived title. Pass null/empty to
+ * clear. No-ops when unchanged so the desk's rename effect doesn't churn.
+ */
+export const setTabTitle = (tabId: string, title: string | null): void => {
+  const current = tabTitles.get(tabId)
+  if (title) {
+    if (current === title) return
+    tabTitles.set(tabId, title)
+  } else {
+    if (!tabTitles.has(tabId)) return
+    tabTitles.delete(tabId)
+  }
+  notify()
+}
+
+/** Snapshot of every tab's derived title keyed by tabId. */
+export const getTabTitles = (): Record<string, string> => {
+  const out: Record<string, string> = {}
+  tabTitles.forEach((title, id) => {
+    out[id] = title
+  })
+  return out
 }
 
 export const setFocusedTab = (tabId: string | null): void => {
