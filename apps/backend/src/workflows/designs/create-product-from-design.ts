@@ -5,7 +5,10 @@ import {
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk";
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
-import { createProductsWorkflow } from "@medusajs/medusa/core-flows";
+import {
+  createProductsWorkflow,
+  createProductVariantsWorkflow,
+} from "@medusajs/medusa/core-flows";
 import { DESIGN_MODULE } from "../../modules/designs";
 import type { Link } from "@medusajs/modules-sdk";
 
@@ -139,26 +142,25 @@ const createProductAndVariantStep = createStep(
         },
       };
 
-      const variant = await productService.createProductVariants(variantData);
-      variant_id = variant.id;
-
-      // Create inventory item for this design variant (0 stock until production completes)
-      const inventoryService = container.resolve(Modules.INVENTORY) as any;
-      const inventoryItem = await inventoryService.createInventoryItems({
-        sku: variantData.sku,
-        title: `Custom - ${design.name}`,
-        requires_shipping: false,
-        metadata: {
-          is_custom_design: true,
-          design_id: design.id,
+      // Use createProductVariantsWorkflow rather than the bare product service.
+      // The workflow creates the variant's price_set and links variant ↔ price_set
+      // (via createVariantPricingLinkStep) AND auto-creates the inventory item +
+      // variant ↔ item link for manage_inventory variants. The bare service skips
+      // the price_set link, leaving `variant.prices` undefined so admin's
+      // `/products/:id/prices` page crashes on `variant.prices.reduce(...)` (#440).
+      // Mirrors the new-product branch below, which already relies on the
+      // workflow auto-creating inventory items.
+      const { result } = await createProductVariantsWorkflow(container).run({
+        input: {
+          product_variants: [variantData] as any,
         },
       });
 
-      // Link inventory item → variant
-      await remoteLink.create({
-        [Modules.PRODUCT]: { product_variant_id: variant_id },
-        [Modules.INVENTORY]: { inventory_item_id: inventoryItem.id },
-      });
+      const createdVariant = result?.[0];
+      if (!createdVariant?.id) {
+        throw new Error("Failed to create variant for custom design");
+      }
+      variant_id = createdVariant.id;
     } else {
       // Need to create a new product
       const storeService = container.resolve(Modules.STORE) as any;
