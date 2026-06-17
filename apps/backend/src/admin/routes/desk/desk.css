@@ -10,107 +10,115 @@
 
 /* ── Root + content surfaces ──────────────────────────────────────── */
 .flexlayout__layout {
-  --color-text: var(--ui-fg-base);
-  --color-background: var(--ui-bg-base);
-  --color-base: var(--ui-bg-base);
-  --color-1: var(--ui-bg-base);
-  --color-2: var(--ui-bg-subtle);
-  --color-3: var(--ui-bg-component);
-  --color-4: var(--ui-bg-component-hover);
-  --color-6: var(--ui-bg-base);
-  --color-drag1: var(--ui-fg-interactive);
-  --color-drag2: var(--ui-fg-interactive);
-  --color-drag1-background: var(--ui-bg-component-hover);
-  --color-drag2-background: var(--ui-bg-component-hover);
+  --color-text: var(--fg-base);
+  --color-background: var(--bg-base);
+  --color-base: var(--bg-base);
+  --color-1: var(--bg-base);
+  --color-2: var(--bg-subtle);
+  --color-3: var(--bg-component);
+  --color-4: var(--bg-component-hover);
+  --color-6: var(--bg-base);
+  --color-drag1: var(--fg-interactive);
+  --color-drag2: var(--fg-interactive);
+  --color-drag1-background: var(--bg-component-hover);
+  --color-drag2-background: var(--bg-component-hover);
 
   font-family: inherit;
-  color: var(--ui-fg-base);
-  background-color: var(--ui-bg-base);
+  color: var(--fg-base);
+  background-color: var(--bg-base);
 }
 
 .flexlayout__tab {
-  background-color: var(--ui-bg-base);
-  color: var(--ui-fg-base);
+  background-color: var(--bg-base);
+  color: var(--fg-base);
   overflow: auto;
-  /* Divider between the tab strip and the panel content. Matches the
-     Container's divide-y stroke color (--ui-border-base) so the two
-     seams above and below the tab strip read as the same kind of line. */
-  border-top: 1px solid var(--ui-border-base);
+  /* The strip↔content divider lives on the tab bar's border-bottom (see
+     .flexlayout__tabset_tabbar_outer) so the active macOS-style tab can sit
+     flush against it. No border here, or we'd draw a double line. */
 }
 
 /* Outline every docked pane so the split structure is obvious. */
 .flexlayout__tabset {
-  background-color: var(--ui-bg-base);
+  background-color: var(--bg-base);
 }
 
 /* ── Tab bar ──────────────────────────────────────────────────────── */
 .flexlayout__tabset_tabbar_outer {
-  background-color: var(--ui-bg-subtle);
-  /* No bottom border here — the divider lives on .flexlayout__tab below
-     so it uses the same token and weight as the Container's divide-y
-     above. Having the border on the strip risked it disappearing in
-     dark mode because --ui-border-strong has very low contrast against
-     --ui-bg-subtle there. */
-  min-height: 36px;
-  height: 36px;
+  background-color: var(--bg-subtle);
+  /* Fine dashed divider spanning the full width under the tab rail. The
+     active tab covers its slice of this line (see --selected below) so it
+     reads as "connected" to the pane — the macOS/Safari tab effect. */
+  border-bottom: 1px dashed var(--border-base);
+  min-height: 38px;
+  height: 38px;
 }
 
 .flexlayout__tabset_tabbar_inner {
-  padding-left: 8px;
+  align-items: stretch;
 }
 
-/* ── Tab buttons ──────────────────────────────────────────────────── */
+/* Hairline border framing the whole segmented run of tabs. */
+.flexlayout__tabset_tabbar_inner_tab_container {
+  align-items: stretch;
+}
+
+/* ── Tab buttons — mirror Medusa UI <ProgressTabs.Trigger> ────────── */
 /*
- * Visual hierarchy:
- *  - Inactive tabs blend into the bg-subtle strip (transparent border,
- *    matching background) so they read as "labels on the rail" — no
- *    competing edges
- *  - Hover lifts a tab onto bg-base with a strong border, giving a
- *    discrete, clearly-bounded affordance
- *  - The selected tab raises off the strip onto bg-base with the
- *    dark-mode-aware elevation token, so exactly one pill at any time
- *    reads as "this is what you're looking at"
- *
- * Tabs are separated by a 4px gap (instead of the prior negative-margin
- * connected-cells trick) — each pill is its own discrete object with
- * unambiguous start/end edges.
+ * Styled to match the segmented tab component Medusa UI ships
+ * (ProgressTabs.Trigger): full-height segments on a subtle rail, a single
+ * hairline (border-right) between each, muted text, and the active tab
+ * flipped to the base surface. No elevation shadow — exactly like the
+ * native component, so nothing floats "on top" of the rail.
  */
 .flexlayout__tab_button {
   font-size: 12px;
-  font-weight: 600;
-  height: 28px;
-  margin: 4px 2px 4px 2px;
-  padding: 0 10px;
+  font-weight: 500;
+  height: 38px;
+  margin: 0;
+  /* Slightly tighter on the left (where the × badge sits) + a wider gap so
+     the badge reads as a distinct element set a bit away from the label. */
+  padding: 0 16px 0 12px;
+  /* Cap tab width so a long title ("Production Runs 3") can't balloon and
+     crowd the strip; the label truncates with an ellipsis instead. */
+  max-width: 200px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background-color: transparent;
-  color: var(--ui-fg-subtle);
-  border: 1px solid transparent;
-  border-radius: 4px;
+  gap: 10px;
+  background-color: var(--bg-subtle);
+  color: var(--fg-muted);
+  border: 0;
+  border-right: 1px solid var(--border-base);
+  border-radius: 0;
   cursor: pointer;
   user-select: none;
   transition:
     color 120ms ease,
-    background-color 120ms ease,
-    border-color 120ms ease,
-    box-shadow 120ms ease;
+    background-color 120ms ease;
+}
+
+/* Leading hairline so the first segment is bounded on both sides. */
+.flexlayout__tab_button:first-child {
+  border-left: 1px solid var(--border-base);
 }
 
 .flexlayout__tab_button--unselected:hover {
-  color: var(--ui-fg-base);
-  background-color: var(--ui-bg-base);
-  border-color: var(--ui-border-strong);
+  color: var(--fg-base);
+  background-color: var(--bg-subtle-hover);
 }
 
 .flexlayout__tab_button--selected {
-  background-color: var(--ui-bg-base);
-  color: var(--ui-fg-base);
-  border-color: var(--ui-border-strong);
-  box-shadow: var(--elevation-card-rest);
+  background-color: var(--bg-base);
+  color: var(--fg-base);
+  font-weight: 600;
+  /* Cover the rail's dashed divider beneath so the active tab merges into
+     the pane below it (the Safari/Finder connected-tab effect). */
+  margin-bottom: -1px;
+  height: 39px;
 }
 
 .flexlayout__tab_button_content {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -125,31 +133,63 @@
   min-width: 80px;
   padding: 0 8px;
   border-radius: 6px;
-  border: 1px solid var(--ui-border-base);
-  background-color: var(--ui-bg-field);
-  color: var(--ui-fg-base);
+  border: 1px solid var(--border-base);
+  background-color: var(--bg-field);
+  color: var(--fg-base);
   outline: none;
 }
 
 .flexlayout__tab_button_textbox:focus {
-  border-color: var(--ui-border-interactive);
-  box-shadow: 0 0 0 2px rgb(from var(--ui-border-interactive) r g b / 0.2);
+  border-color: var(--border-interactive);
+  box-shadow: 0 0 0 2px rgb(from var(--border-interactive) r g b / 0.2);
 }
 
-/* close (×) button on each tab */
+/*
+ * close button — a solid Medusa XCircleSolid icon docked on the LEFT of
+ * the label (macOS/Safari placement). `order: -1` moves it ahead of the
+ * tab content; it's always rendered as a fixed slot so hovering never
+ * resizes the tab and shifts the strip. It's a muted badge by default and
+ * brightens on hover.
+ */
 .flexlayout__tab_button_trailing {
-  width: 14px;
-  height: 14px;
-  margin-left: 2px;
-  border-radius: 4px;
-  color: var(--ui-fg-muted);
-  opacity: 0.7;
+  order: -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border-radius: 9999px;
+  /* Explicit colour in every state so the solid icon (fill: currentColor)
+     never inherits the tab's hover text-colour and washes out on the
+     white active tab. */
+  color: var(--fg-muted);
+  opacity: 1;
+  /* Always visible — FlexLayout's default hides the close on inactive,
+     un-hovered tabs (so it appeared "only on hover"). We want it as a
+     persistent badge on every tab. */
+  visibility: visible;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.flexlayout__tab_button_trailing svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Active tab is white — keep the badge a clearly-visible subtle grey. */
+.flexlayout__tab_button--selected .flexlayout__tab_button_trailing {
+  color: var(--fg-subtle);
+}
+
+/* Hovering the badge itself: darkest + a faint halo, never lighter. */
+.flexlayout__tab_button:hover .flexlayout__tab_button_trailing {
+  color: var(--fg-subtle);
 }
 
 .flexlayout__tab_button_trailing:hover {
-  background-color: var(--ui-bg-base-pressed);
-  color: var(--ui-fg-base);
-  opacity: 1;
+  color: var(--fg-base);
+  background-color: var(--bg-base-pressed);
 }
 
 /* ── Toolbar / sticky buttons (the "+" picker lives here) ─────────── */
@@ -164,15 +204,15 @@
 .flexlayout__tab_toolbar_button {
   background: transparent;
   border: 0;
-  color: var(--ui-fg-muted);
+  color: var(--fg-muted);
   border-radius: 4px;
   padding: 2px;
   cursor: pointer;
 }
 
 .flexlayout__tab_toolbar_button:hover {
-  background-color: var(--ui-bg-base-hover);
-  color: var(--ui-fg-base);
+  background-color: var(--bg-base-hover);
+  color: var(--fg-base);
 }
 
 /* ── Splitters between panes ──────────────────────────────────────── */
@@ -184,59 +224,59 @@
  * handle reads at a glance.
  */
 .flexlayout__splitter {
-  background-color: var(--ui-border-strong);
+  background-color: var(--border-strong);
   background-clip: padding-box;
-  border-left: 1px solid var(--ui-border-base);
-  border-right: 1px solid var(--ui-border-base);
+  border-left: 1px solid var(--border-base);
+  border-right: 1px solid var(--border-base);
 }
 
 .flexlayout__splitter_horz {
   border-left: 0;
   border-right: 0;
-  border-top: 1px solid var(--ui-border-base);
-  border-bottom: 1px solid var(--ui-border-base);
+  border-top: 1px solid var(--border-base);
+  border-bottom: 1px solid var(--border-base);
 }
 
 .flexlayout__splitter:hover,
 .flexlayout__splitter_drag {
-  background-color: var(--ui-fg-interactive);
+  background-color: var(--fg-interactive);
 }
 
 /* ── Drag-and-drop overlay rectangles ─────────────────────────────── */
 .flexlayout__outline_rect {
-  border: 2px solid var(--ui-fg-interactive);
-  background-color: rgb(from var(--ui-fg-interactive) r g b / 0.08);
+  border: 2px solid var(--fg-interactive);
+  background-color: rgb(from var(--fg-interactive) r g b / 0.08);
   border-radius: 6px;
 }
 
 .flexlayout__outline_rect_edge {
-  border: 2px dashed var(--ui-fg-interactive);
+  border: 2px dashed var(--fg-interactive);
   border-radius: 6px;
 }
 
 /* ── Overflow menu (when tabs don't fit) ──────────────────────────── */
 .flexlayout__popup_menu_container {
-  background-color: var(--ui-bg-component);
-  border: 1px solid var(--ui-border-base);
+  background-color: var(--bg-component);
+  border: 1px solid var(--border-base);
   border-radius: 6px;
-  box-shadow: var(--shadow-elevation-flyout, 0 4px 12px rgba(0, 0, 0, 0.08));
+  box-shadow: var(--elevation-flyout, 0 4px 12px rgba(0, 0, 0, 0.08));
   font-size: 12px;
-  color: var(--ui-fg-base);
+  color: var(--fg-base);
 }
 
 .flexlayout__popup_menu_item:hover {
-  background-color: var(--ui-bg-base-hover);
+  background-color: var(--bg-base-hover);
 }
 
 /* ── Empty-tabset placeholder text ────────────────────────────────── */
 .flexlayout__tabset-empty {
-  background-color: var(--ui-bg-base);
+  background-color: var(--bg-base);
 }
 
 /* ── Border (sidebars docked to layout edges, if used later) ──────── */
 .flexlayout__border {
-  background-color: var(--ui-bg-subtle);
-  border-color: var(--ui-border-base);
-  color: var(--ui-fg-subtle);
+  background-color: var(--bg-subtle);
+  border-color: var(--border-base);
+  color: var(--fg-subtle);
   font-size: 12px;
 }
