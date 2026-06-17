@@ -39,7 +39,9 @@ export type PickupRegistrationResult = {
   name: string
   /** True when the nickname already existed in Shiprocket (no add performed). */
   already_existed: boolean
-  /** Phone-verification status from the carrier list, when known. */
+  /** Whether the pickup is usable for live pickups (source of truth for UI). */
+  shippable?: boolean
+  /** Phone-OTP status from the carrier list, when known (informational only). */
   phone_verified?: boolean
   /** The matched/created carrier-side pickup record, when available. */
   location?: PickupLocation
@@ -122,6 +124,10 @@ export async function registerShiprocketPickup(
   }
 
   let alreadyExisted = Boolean(existing)
+  // A freshly-added pickup isn't in the list we just fetched; derive whether it
+  // ships from the address we register it with (#435 — a complete address makes
+  // an API pickup shippable without the phone-OTP step).
+  let addedShippable: boolean | undefined
   if (!existing) {
     const addr = loc.address || {}
     if (!addr.phone || !addr.postal_code) {
@@ -130,6 +136,9 @@ export async function registerShiprocketPickup(
         `Stock location ${locationId} is missing a phone or postal code required to register a Shiprocket pickup`
       )
     }
+    addedShippable =
+      Boolean(addr.address_1 && addr.city && addr.postal_code && addr.phone) ||
+      undefined
     try {
       await provider.registerPickupLocation({
         // Pass the acting user's email when known; the client falls back to the
@@ -160,6 +169,7 @@ export async function registerShiprocketPickup(
   return {
     name: nickname,
     already_existed: alreadyExisted,
+    shippable: existing ? existing.shippable : addedShippable,
     phone_verified: existing?.phone_verified,
     location: existing,
   }
@@ -207,6 +217,7 @@ export async function getShiprocketPickupStatus(
   return {
     name: nickname,
     already_existed: Boolean(existing),
+    shippable: existing?.shippable,
     phone_verified: existing?.phone_verified,
     location: existing,
   }

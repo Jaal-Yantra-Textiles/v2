@@ -21,6 +21,7 @@ type StockLocation = { id: string; name?: string }
 type PickupStatus = {
   name: string
   already_existed: boolean
+  shippable?: boolean
   phone_verified?: boolean
 } | null
 
@@ -98,23 +99,44 @@ const ShiprocketPickupWidget = ({ data }: DetailWidgetProps<StockLocation>) => {
               {(error as any)?.message || "Couldn't load Shiprocket pickup status"}
             </Text>
           ) : status ? (
-            <div className="flex items-center gap-x-3">
-              <Text size="small" leading="compact" weight="plus">
-                {status.name}
-              </Text>
-              {status.phone_verified === true ? (
-                <Badge size="2xsmall" color="green">
-                  Phone verified
-                </Badge>
-              ) : status.phone_verified === false ? (
-                <Badge size="2xsmall" color="orange">
-                  Phone not verified
-                </Badge>
-              ) : (
-                <Badge size="2xsmall" color="grey">
-                  Verification unknown
-                </Badge>
-              )}
+            <div className="flex flex-col gap-y-1">
+              <div className="flex items-center gap-x-3">
+                <Text size="small" leading="compact" weight="plus">
+                  {status.name}
+                </Text>
+                {status.shippable === true ? (
+                  <Badge size="2xsmall" color="green">
+                    Ready to ship
+                  </Badge>
+                ) : status.shippable === false ? (
+                  <Badge size="2xsmall" color="orange">
+                    Address incomplete
+                  </Badge>
+                ) : (
+                  <Badge size="2xsmall" color="grey">
+                    Registered
+                  </Badge>
+                )}
+              </div>
+              {status.shippable === true && status.phone_verified === false ? (
+                <Text
+                  size="xsmall"
+                  leading="compact"
+                  className="text-ui-fg-subtle"
+                >
+                  Phone OTP not completed — not required for API-registered
+                  pickups.
+                </Text>
+              ) : status.shippable === false ? (
+                <Text
+                  size="xsmall"
+                  leading="compact"
+                  className="text-ui-fg-subtle"
+                >
+                  Add a full address (street, city, pincode, phone) in Shiprocket
+                  to enable live pickups.
+                </Text>
+              ) : null}
             </div>
           ) : (
             <Text size="small" leading="compact" className="text-ui-fg-subtle">
