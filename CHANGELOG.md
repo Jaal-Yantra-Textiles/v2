@@ -1,3 +1,18 @@
+# [13.37.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.36.0...v13.37.0) (2026-06-17)
+
+
+### Bug Fixes
+
+* **social-platforms:** [#427](https://github.com/Jaal-Yantra-Textiles/v2/issues/427) — edit form drops provider-specific api_config values (Shiprocket email) ([#428](https://github.com/Jaal-Yantra-Textiles/v2/issues/428)) ([46de720](https://github.com/Jaal-Yantra-Textiles/v2/commit/46de7207ad7f6d0eb81fd93a3d7273fd3c294290))
+* **shipping:** [#427](https://github.com/Jaal-Yantra-Textiles/v2/issues/427) — extract Shiprocket API errors + contact email on pickup register ([#432](https://github.com/Jaal-Yantra-Textiles/v2/issues/432)) ([5a69e69](https://github.com/Jaal-Yantra-Textiles/v2/commit/5a69e692081a71baab62d6b763328bfd97524782))
+* **social-platforms:** edit-platform toasts never rendered (wrong toast source) ([#429](https://github.com/Jaal-Yantra-Textiles/v2/issues/429)) ([bdd2542](https://github.com/Jaal-Yantra-Textiles/v2/commit/bdd25426c60979b867e9b54cfd83331c6b155423))
+
+
+### Features
+
+* **orders:** [#404](https://github.com/Jaal-Yantra-Textiles/v2/issues/404) PR-A — admin "Convert to Order" for design orders ([#431](https://github.com/Jaal-Yantra-Textiles/v2/issues/431)) ([8d55f6c](https://github.com/Jaal-Yantra-Textiles/v2/commit/8d55f6c92d0d9cf848407e434c90646bb73b78d8))
+* **orders:** [#404](https://github.com/Jaal-Yantra-Textiles/v2/issues/404) PR-B — Shiprocket fulfillment label off the order ([#433](https://github.com/Jaal-Yantra-Textiles/v2/issues/433)) ([a327db7](https://github.com/Jaal-Yantra-Textiles/v2/commit/a327db733e498a65324334cf9aa680a3a80c7759)), closes [#427](https://github.com/Jaal-Yantra-Textiles/v2/issues/427) [#427](https://github.com/Jaal-Yantra-Textiles/v2/issues/427)
+
 # [13.36.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.35.0...v13.36.0) (2026-06-16)
 
 
