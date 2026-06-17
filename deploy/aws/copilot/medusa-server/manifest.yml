@@ -112,6 +112,13 @@ secrets:
   S3_REGION: /jyt/prod/S3_REGION
   S3_SECRET_ACCESS_KEY: /jyt/prod/S3_SECRET_ACCESS_KEY
   SENTRY_DSN: /jyt/prod/SENTRY_DSN
+  # Shiprocket fulfillment provider (#436). The env-gated block in
+  # medusa-config.prod.ts registers the provider whenever SHIPROCKET_EMAIL is
+  # set — that alone surfaces it in Fulfillment Providers. The actual Shiprocket
+  # API calls (label/pickup/track) go through resolveShippingProvider, which
+  # reads creds from the `category:shipping` SocialPlatform record, so the
+  # password/pickup are intentionally NOT wired as env here.
+  SHIPROCKET_EMAIL: /jyt/prod/SHIPROCKET_EMAIL
   STOREFRONT_REVALIDATE_SECRET: /jyt/prod/STOREFRONT_REVALIDATE_SECRET
   STORE_CORS: /jyt/prod/STORE_CORS
   STRIPE_API_KEY: /jyt/prod/STRIPE_API_KEY

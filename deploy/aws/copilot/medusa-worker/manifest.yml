@@ -69,6 +69,10 @@ secrets:
   S3_REGION: /jyt/prod/S3_REGION
   S3_SECRET_ACCESS_KEY: /jyt/prod/S3_SECRET_ACCESS_KEY
   SENTRY_DSN: /jyt/prod/SENTRY_DSN
+  # Shiprocket fulfillment provider (#436) — parity with the server so the
+  # env-gated provider block in medusa-config.prod.ts loads in the worker too.
+  # Email-only: the API path reads creds from the SocialPlatform record.
+  SHIPROCKET_EMAIL: /jyt/prod/SHIPROCKET_EMAIL
   STRIPE_API_KEY: /jyt/prod/STRIPE_API_KEY
   STRIPE_WEBHOOK_SECRET: /jyt/prod/STRIPE_WEBHOOK_SECRET
   VERCEL_STOREFRONT_REPO: /jyt/prod/VERCEL_STOREFRONT_REPO
