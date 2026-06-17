@@ -81,6 +81,7 @@ const counts = {
   no_items: 0,
   too_old: 0,
   too_fresh: 0,
+  converted: 0,
   queued: 0,
 }
 
@@ -90,6 +91,14 @@ for (const cart of records) {
   const md = cart.metadata || {}
   if (md.recovery_email_sent_at) {
     counts.already_reminded++
+    continue
+  }
+  // A cart converted to a real order (admin Design Order → Convert path stamps
+  // converted_order_id) must never get a recovery email — the customer already
+  // purchased. The convert flow now also sets completed_at, but guard on the
+  // marker too for carts converted before that fix / via other paths. #443.
+  if (md.converted_order_id) {
+    counts.converted = (counts.converted || 0) + 1
     continue
   }
 
@@ -308,6 +317,7 @@ const FLOW_DEF = {
           "no_items={{ classify.counts.no_items }} " +
           "too_fresh={{ classify.counts.too_fresh }} " +
           "too_old={{ classify.counts.too_old }} " +
+          "converted={{ classify.counts.converted }} " +
           "sent={{ dispatch.triggered }} failed={{ dispatch.failed }} " +
           "marked={{ mark_sent.updated }}",
         level: "info",
