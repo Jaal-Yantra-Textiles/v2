@@ -7,6 +7,7 @@ import {
   createVisualFlowStep,
   createFlowOperationsStep,
   createFlowConnectionsStep,
+  compileFlowPlanStep,
   getFlowWithDetailsStep,
   CreateVisualFlowInput,
   OperationInput,
@@ -68,7 +69,15 @@ export const createVisualFlowWorkflow = createWorkflow(
     // Step 3: Create connections
     createFlowConnectionsStep(connectionsData)
 
-    // Step 4: Get complete flow with details
+    // Step 4: Compile the execution plan (#459 P1). Block only when saving as
+    // active — drafts may be saved with an incomplete/invalid graph.
+    const compileInput = transform(
+      { flowId: flow.id, status: input.status },
+      (data) => ({ flowId: data.flowId, block: data.status === "active" })
+    )
+    compileFlowPlanStep(compileInput)
+
+    // Step 5: Get complete flow with details
     const completeFlow = getFlowWithDetailsStep({ flowId: flow.id })
 
     return new WorkflowResponse(completeFlow)

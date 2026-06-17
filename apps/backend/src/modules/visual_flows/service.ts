@@ -1,11 +1,12 @@
-import { MedusaService } from "@medusajs/framework/utils"
-import { 
-  VisualFlow, 
-  VisualFlowOperation, 
+import { MedusaService, MedusaError } from "@medusajs/framework/utils"
+import {
+  VisualFlow,
+  VisualFlowOperation,
   VisualFlowConnection,
   VisualFlowExecution,
   VisualFlowExecutionLog,
 } from "./models"
+import { compileFlow, CompiledPlan } from "./compiler"
 
 class VisualFlowService extends MedusaService({
   VisualFlow,
@@ -22,6 +23,48 @@ class VisualFlowService extends MedusaService({
       relations: ["operations", "connections"],
     })
     return flow
+  }
+
+  /**
+   * #459 P1 — compile the flow's graph into a normalized execution plan and
+   * persist it on the flow row (`compiled_plan` + `compiled_hash`). Pure
+   * derivation; safe to recompute anytime.
+   *
+   * `block` makes an invalid graph (cycle / unknown op / dangling edge) throw
+   * instead of persisting silently — used when a flow is saved as `active`, so
+   * drafts may stay invalid while you build them but you can't ACTIVATE a flow
+   * that won't run.
+   */
+  async compileAndPersistPlan(
+    flowId: string,
+    opts: { block?: boolean } = {}
+  ): Promise<CompiledPlan> {
+    const flow = await this.getFlowWithDetails(flowId)
+    const plan = compileFlow(flow)
+
+    if (opts.block && !plan.ok) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `Cannot activate flow: invalid graph — ${plan.errors.join("; ")}`
+      )
+    }
+
+    await this.updateVisualFlows({
+      id: flowId,
+      compiled_plan: plan,
+      compiled_hash: plan.hash,
+    } as any)
+
+    return plan
+  }
+
+  /**
+   * Read the persisted compiled plan for a flow (column source of truth).
+   * Returns null if the flow has never been compiled.
+   */
+  async getCompiledPlan(flowId: string): Promise<CompiledPlan | null> {
+    const flow = await this.retrieveVisualFlow(flowId)
+    return ((flow as any)?.compiled_plan as CompiledPlan) ?? null
   }
 
   /**

@@ -4,6 +4,7 @@ import {
 } from "@medusajs/framework/workflows-sdk"
 import { VISUAL_FLOWS_MODULE } from "../../modules/visual_flows"
 import VisualFlowService from "../../modules/visual_flows/service"
+import { cacheCompiledPlan } from "../../modules/visual_flows/flow-plan-cache"
 
 // ============ Types ============
 
@@ -250,6 +251,23 @@ export const createFlowConnectionsStep = createStep(
     for (const id of createdIds) {
       await service.deleteVisualFlowConnections(id)
     }
+  }
+)
+
+/**
+ * #459 P1 — compile the flow graph into a persisted execution plan after a
+ * create/update. `block` (set when saving as `active`) makes an invalid graph
+ * fail the save; otherwise it's best-effort so drafts can stay invalid while
+ * being built. No compensation needed: the plan is a pure derivation that the
+ * next save recomputes.
+ */
+export const compileFlowPlanStep = createStep(
+  "compile-flow-plan-step",
+  async (input: { flowId: string; block?: boolean }, { container }) => {
+    const service: VisualFlowService = container.resolve(VISUAL_FLOWS_MODULE)
+    const plan = await service.compileAndPersistPlan(input.flowId, { block: input.block })
+    await cacheCompiledPlan(container, input.flowId, plan)
+    return new StepResponse({ ok: plan.ok, hash: plan.hash, errors: plan.errors })
   }
 )
 
