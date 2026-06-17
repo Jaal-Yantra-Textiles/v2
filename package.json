@@ -74,6 +74,7 @@
       "bufferutil",
       "core-js",
       "esbuild",
+      "isolated-vm",
       "msgpackr-extract",
       "protobufjs",
       "sharp",
