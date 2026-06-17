@@ -3,6 +3,7 @@ import {
   createStep,
   StepResponse,
   WorkflowResponse,
+  transform,
 } from "@medusajs/framework/workflows-sdk"
 import { VISUAL_FLOWS_MODULE } from "../../modules/visual_flows"
 import VisualFlowService from "../../modules/visual_flows/service"
@@ -10,6 +11,7 @@ import {
   UpdateVisualFlowInput,
   OperationInput,
   ConnectionInput,
+  compileFlowPlanStep,
   getFlowWithDetailsStep,
 } from "./visual-flow-steps"
 
@@ -170,7 +172,15 @@ export const updateVisualFlowWorkflow = createWorkflow(
     // Step 1: Update everything atomically
     updateFlowCompleteStep(input)
 
-    // Step 2: Get complete flow with details
+    // Step 2: Recompile the execution plan (#459 P1). Block only on explicit
+    // activation (status === "active"); other saves compile best-effort.
+    const compileInput = transform(
+      { flowId: input.id, status: input.status },
+      (data) => ({ flowId: data.flowId, block: data.status === "active" })
+    )
+    compileFlowPlanStep(compileInput)
+
+    // Step 3: Get complete flow with details
     const completeFlow = getFlowWithDetailsStep({ flowId: input.id })
 
     return new WorkflowResponse(completeFlow)
