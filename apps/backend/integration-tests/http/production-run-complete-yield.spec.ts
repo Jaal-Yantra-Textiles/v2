@@ -144,7 +144,7 @@ setupSharedTestSuite(() => {
 
     // ── Test: Per-unit cost type ────────────────────────────────────
 
-    it("should normalize per_unit cost to total on complete", async () => {
+    it("should store per_unit cost verbatim (raw), not normalized to total", async () => {
       const { adminHeaders, unique } = await setupTestData()
       const { partnerId, partnerHeaders } = await createPartner(unique)
       const { templateName } = await createTemplates(adminHeaders, unique)
@@ -163,7 +163,7 @@ setupSharedTestSuite(() => {
 
       await advanceToFinished(runId, partnerHeaders)
 
-      // Complete with per-unit cost: 500/piece × 7 produced = 3500 total
+      // Complete with per-unit cost: 500/piece (readers multiply by qty)
       const completeRes = await api.post(
         `/partners/production-runs/${runId}/complete`,
         {
@@ -176,8 +176,9 @@ setupSharedTestSuite(() => {
         { headers: partnerHeaders }
       )
       expect(completeRes.status).toBe(200)
-      // API normalizes per_unit to total: 500 × 7 = 3500
-      expect(completeRes.data.production_run.partner_cost_estimate).toBe(3500)
+      // Stored verbatim as the partner entered it (500/unit), paired with
+      // cost_type="per_unit"; readers multiply by quantity themselves. #456
+      expect(completeRes.data.production_run.partner_cost_estimate).toBe(500)
       expect(completeRes.data.production_run.cost_type).toBe("per_unit")
       expect(completeRes.data.production_run.produced_quantity).toBe(7)
     })
@@ -309,8 +310,8 @@ setupSharedTestSuite(() => {
       expect(completeRes.status).toBe(200)
       expect(completeRes.data.consumptions_logged).toBe(1)
       expect(completeRes.data.production_run.produced_quantity).toBe(7)
-      // 600 per unit × 7 produced = 4200 total
-      expect(completeRes.data.production_run.partner_cost_estimate).toBe(4200)
+      // Stored verbatim: 600/unit (cost_type records per_unit). #456
+      expect(completeRes.data.production_run.partner_cost_estimate).toBe(600)
       expect(completeRes.data.message).toContain("1 consumption(s) recorded")
     })
 
@@ -404,8 +405,8 @@ setupSharedTestSuite(() => {
       expect(adminDetail.data.production_run.rejected_quantity).toBe(1)
       expect(adminDetail.data.production_run.rejection_reason).toBe("sizing_error")
       expect(adminDetail.data.production_run.cost_type).toBe("per_unit")
-      // Normalized total: 450 × 9 = 4050
-      expect(adminDetail.data.production_run.partner_cost_estimate).toBe(4050)
+      // Stored verbatim: 450/unit (cost_type records per_unit). #456
+      expect(adminDetail.data.production_run.partner_cost_estimate).toBe(450)
     })
   })
 })

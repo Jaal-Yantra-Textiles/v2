@@ -52,6 +52,18 @@ describe("computeCostBreakdown", () => {
       expect(result.total_estimated).toBe(35)
     })
 
+    it("prefers an actual production cost over the admin-estimate residual (#456)", () => {
+      const result = computeCostBreakdown({
+        ...base,
+        adminEstimate: 35,                 // would derive production = 35 - 25 = 10
+        materials: orderHistoryMaterials,  // material = 25
+        actualProductionCost: 50,          // partner's actual per-unit cost wins
+      })
+      expect(result.material_cost).toBe(25)
+      expect(result.production_cost).toBe(50)        // actual, not the 10 residual
+      expect(result.total_estimated).toBe(75)        // material + actual production
+    })
+
     it("clamps production to 0 when material cost exceeds admin estimate", () => {
       const result = computeCostBreakdown({
         ...base,
@@ -186,12 +198,22 @@ describe("computeCostBreakdown", () => {
       expect(result.confidence).toBe("estimated")
     })
 
-    it("never returns exact since productionIsEstimated is always true", () => {
-      // Even with all order_history materials and hasExactMaterialCosts=true,
-      // production is always estimated so confidence tops out at "estimated"
+    it("returns exact when materials are all exact and a concrete admin estimate sets production", () => {
+      // hasExactMaterialCosts + a concrete admin estimate (which makes
+      // production non-estimated) → confidence is "exact".
       const result = computeCostBreakdown({
         ...base,
         adminEstimate: 35,
+        materials: orderHistoryMaterials,
+        hasExactMaterialCosts: true,
+      })
+      expect(result.confidence).toBe("exact")
+    })
+
+    it("stays estimated when production is derived (no concrete estimate) even with exact materials", () => {
+      const result = computeCostBreakdown({
+        ...base,
+        adminEstimate: null,            // production falls to the 30% default → estimated
         materials: orderHistoryMaterials,
         hasExactMaterialCosts: true,
       })

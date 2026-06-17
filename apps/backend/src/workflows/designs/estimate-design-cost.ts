@@ -94,6 +94,13 @@ export function computeCostBreakdown(input: {
   materials: MaterialCostItem[];
   hasExactMaterialCosts: boolean;
   similarDesigns: Array<{ id: string; name: string; estimated_cost: number }>;
+  /**
+   * Per-unit production cost taken from the latest completed production run
+   * (the partner's actual submitted cost). When present it wins over any
+   * derived figure — an actual cost is more authoritative than an estimate
+   * residual. #456
+   */
+  actualProductionCost?: number | null;
 }): EstimateCostOutput {
   const materialCost = input.materials.reduce((sum, m) => sum + m.cost * m.quantity, 0);
   const { adminEstimate, similarDesigns } = input;
@@ -102,7 +109,12 @@ export function computeCostBreakdown(input: {
   let productionPercent: number;
   let productionIsEstimated = true;
 
-  if (adminEstimate != null && adminEstimate > 0 && materialCost > 0) {
+  if (input.actualProductionCost != null && input.actualProductionCost > 0) {
+    // A real, partner-submitted production cost from a completed run wins.
+    productionCost = input.actualProductionCost;
+    productionPercent = materialCost > 0 ? (productionCost / materialCost) * 100 : 0;
+    productionIsEstimated = false;
+  } else if (adminEstimate != null && adminEstimate > 0 && materialCost > 0) {
     productionCost = Math.max(0, adminEstimate - materialCost);
     productionPercent = (productionCost / materialCost) * 100;
     productionIsEstimated = false; // admin set a concrete estimate
@@ -458,6 +470,39 @@ const findSimilarDesignsStep = createStep(
   }
 );
 
+// ─── Step 3b: Resolve actual production cost from the latest completed run ─────
+// The partner's submitted cost on a completed (non-sample) run is the most
+// authoritative production-cost signal — prefer it over any derived estimate.
+// partner_cost_estimate is stored raw + paired with cost_type, so a "total"
+// is divided back to a per-unit figure (the estimate works per finished unit).
+const getActualProductionCostStep = createStep(
+  "get-actual-production-cost-step",
+  async (input: { design_id: string }, { container }) => {
+    let perUnit: number | null = null;
+    try {
+      // Resolve by registration key (string) to avoid importing the module
+      // entrypoint into this file — its pure functions are unit-tested without
+      // a Medusa runtime, and the module import would pull in model.define().
+      const service = container.resolve("production_runs") as any;
+      const runs = await service.listProductionRuns(
+        { design_id: input.design_id, status: "completed" },
+        { order: { completed_at: "DESC" }, take: 50 }
+      );
+      for (const r of runs || []) {
+        if (r.run_type === "sample") continue;
+        const est = Number(r.partner_cost_estimate);
+        if (!est || est <= 0) continue;
+        const qty = Number(r.produced_quantity) || Number(r.quantity) || 1;
+        perUnit = r.cost_type === "per_unit" ? est : qty > 0 ? est / qty : est;
+        break;
+      }
+    } catch {
+      // Non-fatal — production runs module may be unavailable or none exist.
+    }
+    return new StepResponse({ actualProductionCostPerUnit: perUnit });
+  }
+);
+
 // ─── Step 4: Calculate total cost estimate ────────────────────────────────────
 
 const calculateTotalCostStep = createStep(
@@ -467,6 +512,7 @@ const calculateTotalCostStep = createStep(
     materials: MaterialCostItem[];
     hasExactMaterialCosts: boolean;
     similarDesigns: Array<{ id: string; name: string; estimated_cost: number }>;
+    actualProductionCostPerUnit?: number | null;
   }) => {
     const design = input.design;
 
@@ -508,6 +554,7 @@ const calculateTotalCostStep = createStep(
       materials: input.materials,
       hasExactMaterialCosts: input.hasExactMaterialCosts,
       similarDesigns: input.similarDesigns,
+      actualProductionCost: input.actualProductionCostPerUnit ?? null,
     });
     return new StepResponse(result);
   }
@@ -536,6 +583,10 @@ export const estimateDesignCostWorkflow = createWorkflow(
       design: designResult.design,
     });
 
+    const actualCostResult = getActualProductionCostStep({
+      design_id: input.design_id,
+    });
+
     const result = calculateTotalCostStep({
       design: designResult.design,
       materials: materialsResult.materials as unknown as MaterialCostItem[],
@@ -545,6 +596,8 @@ export const estimateDesignCostWorkflow = createWorkflow(
         name: string;
         estimated_cost: number;
       }>,
+      actualProductionCostPerUnit:
+        actualCostResult.actualProductionCostPerUnit as unknown as number | null,
     });
 
     return new WorkflowResponse(result);

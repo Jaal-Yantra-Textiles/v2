@@ -122,7 +122,7 @@ type CompleteRunData = {
   rejected_quantity?: number
   rejection_reason?: string
   rejection_notes?: string
-  normalized_cost_estimate?: number
+  cost_estimate?: number
   cost_type?: "per_unit" | "total"
   notes?: string
 }
@@ -154,7 +154,7 @@ const completeRunWithLockStep = createStep(
         ...(input.rejected_quantity != null ? { rejected_quantity: input.rejected_quantity } : {}),
         ...(input.rejection_reason ? { rejection_reason: input.rejection_reason } : {}),
         ...(input.rejection_notes ? { rejection_notes: input.rejection_notes } : {}),
-        ...(input.normalized_cost_estimate ? { partner_cost_estimate: input.normalized_cost_estimate } : {}),
+        ...(input.cost_estimate ? { partner_cost_estimate: input.cost_estimate } : {}),
         ...(input.cost_type ? { cost_type: input.cost_type } : {}),
         ...(input.notes ? { completion_notes: input.notes } : {}),
       })
@@ -338,26 +338,25 @@ export const completeProductionRunWorkflow = createWorkflow(
 
     const consumptionResult = logConsumptionsStep(consumptionInput)
 
-    // Normalize cost
-    const completeData = transform({ run, input }, (data) => {
-      const r = data.run as any
-      const runQuantity = r.quantity || 1
-      const effectiveProduced = data.input.produced_quantity ?? runQuantity
-      let normalizedCost = data.input.partner_cost_estimate
-      if (normalizedCost && data.input.cost_type === "per_unit") {
-        normalizedCost = Math.round(normalizedCost * effectiveProduced * 100) / 100
-      }
-      return {
-        production_run_id: data.input.production_run_id,
-        produced_quantity: data.input.produced_quantity,
-        rejected_quantity: data.input.rejected_quantity,
-        rejection_reason: data.input.rejection_reason,
-        rejection_notes: data.input.rejection_notes,
-        normalized_cost_estimate: normalizedCost,
-        cost_type: data.input.cost_type,
-        notes: data.input.notes,
-      }
-    })
+    // Cost is stored verbatim as the partner entered it, paired with
+    // cost_type. Every reader — the cost-summary route, the partner
+    // production-run-card, and the unified-order dual-write — treats
+    // partner_cost_estimate as a raw figure matching cost_type (a "per_unit"
+    // value is per-unit; a "total" value is a total) and multiplies by
+    // quantity itself when needed. Previously this step normalized per_unit
+    // → total while leaving cost_type="per_unit", so every reader re-
+    // multiplied by quantity (e.g. 850/unit → stored 7650 → shown 7650×9 =
+    // 68850 instead of 850×9 = 7650). #456
+    const completeData = transform({ run, input }, (data) => ({
+      production_run_id: data.input.production_run_id,
+      produced_quantity: data.input.produced_quantity,
+      rejected_quantity: data.input.rejected_quantity,
+      rejection_reason: data.input.rejection_reason,
+      rejection_notes: data.input.rejection_notes,
+      cost_estimate: data.input.partner_cost_estimate,
+      cost_type: data.input.cost_type,
+      notes: data.input.notes,
+    }))
 
     completeRunWithLockStep(completeData)
 
