@@ -701,6 +701,28 @@ helper restore, +0.5 day for the link/affordance UI.
 
 ### Infrastructure / SaaS posture
 
+#### 33. Admin "data-plumbing" tools — safe, API-driven data corrections (GitHub #457)
+
+Recurring pattern: a code fix prevents recurrence, but already-stored
+rows still need a targeted, safe correction — and today that's only
+doable via raw `curl` against prod (SSM admin token) or one-off
+`medusa exec` ECS run-task scripts. Motivated by #456 (design material
+cost not persisted; per-unit production cost displayed double as
+`7650 × 9 = 68850`), whose data tail needed a manual `PATCH` on the run
+plus a design recalculate.
+**What:** an admin Ops/Data-tools console exposing guarded maintenance
+actions — recalculate design cost, correct a run's
+`partner_cost_estimate`/`cost_type` (with a live "per-unit × qty = total"
+preview), trigger the existing backfills
+(`backfill-inventory-unit-cost`, `backfill-design-energy-costs`),
+re-project/repair legacy rows. Each action: dry-run preview → confirm →
+idempotent apply → audit log. API-driven (so it's scriptable too), not
+UI-only.
+**First step:** surface `POST /admin/designs/:id/recalculate-cost` +
+the run cost edit as the first two actions behind a small
+"maintenance jobs" registry, then fold in the ECS backfill scripts.
+**Effort:** 2-3 days for the framework + first 2-3 actions.
+
 #### 10. Dedicated instance per partner (Pro tier)
 
 Already scoped in `project_medusa_saas_vision.md` + `SAAS_TIERS.md`.
