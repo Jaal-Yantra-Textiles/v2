@@ -1,0 +1,13 @@
+{
+  "name": "jyt-agent-daemon",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Autonomous PR daemon for the JYT repo via the Claude Agent SDK (fresh context per chunk, resumes from the GitHub/SESSION_HANDOFF handoff).",
+  "scripts": {
+    "start": "node run.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "*"
+  }
+}
