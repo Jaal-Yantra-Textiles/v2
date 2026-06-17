@@ -293,3 +293,38 @@ export const useGenerateShiprocketLabel = (
     ...options,
   });
 };
+
+export type AttachShiprocketAwbResponse = {
+  shiprocket_awb: {
+    awb: string;
+    current_status?: string;
+    synced_state: "delivered" | "shipped" | "pending";
+    fulfillment_id: string;
+  };
+};
+
+/**
+ * Attach an EXISTING Shiprocket AWB (already shipped/delivered outside this
+ * system) to a converted order. Read-only against Shiprocket — looks the AWB up,
+ * stamps it onto the fulfillment, and auto-syncs the fulfillment status. #437.
+ */
+export const useAttachShiprocketAwb = (
+  orderId: string,
+  options?: UseMutationOptions<AttachShiprocketAwbResponse, FetchError, string>
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (awb: string) =>
+      sdk.client.fetch<AttachShiprocketAwbResponse>(
+        `/admin/orders/${orderId}/shiprocket-attach-awb`,
+        { method: "POST", body: { awb } }
+      ),
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({
+        queryKey: designOrdersQueryKeys.lists(),
+      });
+      options?.onSuccess?.(...args);
+    },
+    ...options,
+  });
+};
