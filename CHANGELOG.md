@@ -1,3 +1,25 @@
+# [13.38.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.37.0...v13.38.0) (2026-06-17)
+
+
+### Bug Fixes
+
+* **admin/desk:** [#420](https://github.com/Jaal-Yantra-Textiles/v2/issues/420) — recover dead routes, native segmented tabs, fix theme tokens ([#461](https://github.com/Jaal-Yantra-Textiles/v2/issues/461)) ([fdebbd4](https://github.com/Jaal-Yantra-Textiles/v2/commit/fdebbd479b9b1e452c450889073a7c4855bfa251))
+* **admin:** [#421](https://github.com/Jaal-Yantra-Textiles/v2/issues/421) — correct RegionPartnerCoverageWidget injection zone ([#448](https://github.com/Jaal-Yantra-Textiles/v2/issues/448)) ([3fabe1f](https://github.com/Jaal-Yantra-Textiles/v2/commit/3fabe1f8754c942d4f5c5c93ae063d265799970c))
+* **shipping:** [#435](https://github.com/Jaal-Yantra-Textiles/v2/issues/435) — derive Shiprocket pickup "shippable" from address, not phone OTP ([#438](https://github.com/Jaal-Yantra-Textiles/v2/issues/438)) ([cae54c9](https://github.com/Jaal-Yantra-Textiles/v2/commit/cae54c9503547be02d5730a6def363da2502548d)), closes [#404](https://github.com/Jaal-Yantra-Textiles/v2/issues/404) [#352](https://github.com/Jaal-Yantra-Textiles/v2/issues/352)
+* **designs:** [#440](https://github.com/Jaal-Yantra-Textiles/v2/issues/440) — route custom-design variant through createProductVariantsWorkflow ([#442](https://github.com/Jaal-Yantra-Textiles/v2/issues/442)) ([7b15fcd](https://github.com/Jaal-Yantra-Textiles/v2/commit/7b15fcd922d27a65675e6288f1a849a490131686))
+* **orders:** [#445](https://github.com/Jaal-Yantra-Textiles/v2/issues/445) — project legacy-only work-orders (inventory + design) onto the unified surface ([#447](https://github.com/Jaal-Yantra-Textiles/v2/issues/447)) ([505b226](https://github.com/Jaal-Yantra-Textiles/v2/commit/505b2262b3c1d60092a2a8d523d473aa356a1ddb))
+* **designs/production-runs:** [#456](https://github.com/Jaal-Yantra-Textiles/v2/issues/456) — persist material cost on admin recalc + stop per-unit cost double-multiply ([#458](https://github.com/Jaal-Yantra-Textiles/v2/issues/458)) ([fb40028](https://github.com/Jaal-Yantra-Textiles/v2/commit/fb4002875350a8854c541aab0dffcb292e856c01)), closes [#457](https://github.com/Jaal-Yantra-Textiles/v2/issues/457) [#33](https://github.com/Jaal-Yantra-Textiles/v2/issues/33)
+* design-order fulfillment status display + stop abandoned-cart email to converted customers ([#443](https://github.com/Jaal-Yantra-Textiles/v2/issues/443)) ([#444](https://github.com/Jaal-Yantra-Textiles/v2/issues/444)) ([06d9800](https://github.com/Jaal-Yantra-Textiles/v2/commit/06d980023edab47974c90bad90be6c5069d1b0f5)), closes [#437](https://github.com/Jaal-Yantra-Textiles/v2/issues/437) [#6](https://github.com/Jaal-Yantra-Textiles/v2/issues/6)
+* **visual-flows:** resolve template-string `items` in bulk_update_data ([#446](https://github.com/Jaal-Yantra-Textiles/v2/issues/446)) ([fa0cb34](https://github.com/Jaal-Yantra-Textiles/v2/commit/fa0cb34007879d475737fd619b8eb1da68102d0b))
+
+
+### Features
+
+* **orders:** [#404](https://github.com/Jaal-Yantra-Textiles/v2/issues/404) PR-C — admin Convert-to-Order + Generate-label UI ([#434](https://github.com/Jaal-Yantra-Textiles/v2/issues/434)) ([5f134d2](https://github.com/Jaal-Yantra-Textiles/v2/commit/5f134d21c5ddba19966ce29fe6fe4474431b5c2d)), closes [#427](https://github.com/Jaal-Yantra-Textiles/v2/issues/427) [#427](https://github.com/Jaal-Yantra-Textiles/v2/issues/427)
+* **admin/desk:** [#420](https://github.com/Jaal-Yantra-Textiles/v2/issues/420) follow-up — icons, content-derived names, command palette, more entities ([#462](https://github.com/Jaal-Yantra-Textiles/v2/issues/462)) ([c6c9f2a](https://github.com/Jaal-Yantra-Textiles/v2/commit/c6c9f2a8775cc2cfd87b32915e1a33829d2d9fe5))
+* **orders:** [#437](https://github.com/Jaal-Yantra-Textiles/v2/issues/437) — attach existing Shiprocket AWB + fix title-only fulfillment ([#441](https://github.com/Jaal-Yantra-Textiles/v2/issues/441)) ([43dce95](https://github.com/Jaal-Yantra-Textiles/v2/commit/43dce958261dbee5a2053221758b6f247938a8df))
+* **visual-flows:** [#459](https://github.com/Jaal-Yantra-Textiles/v2/issues/459) P1 — compile-on-save plan + durable long-running wait ([#463](https://github.com/Jaal-Yantra-Textiles/v2/issues/463)) ([a4904e9](https://github.com/Jaal-Yantra-Textiles/v2/commit/a4904e902586532dbc4d6ec8f9c532862f4e0c83))
+
 # [13.37.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.36.0...v13.37.0) (2026-06-17)
 
 
