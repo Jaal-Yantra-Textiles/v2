@@ -23,11 +23,24 @@ Authorized by the user (2026-06-15) to run **full-headless**: it may `git push`,
 
 ## Work queue (serial)
 
-1. **#403** — extend orders unification to **admin** routes (buildable now; ~3-5 days → multiple chunks/PRs).
-2. **#404 P1** — Design Order → Convert to Order → Shiprocket label. **BLOCKED on 3 product decisions:**
+1. **#485** — Partner UI inventory-orders + design refs show **EUR** instead of store-default currency. Root-cause
+   the currency source: money cells render `getStylizedAmount(amount, currency_code)`; trace where the
+   inventory-order/design-reference `currency_code` is set to `"eur"` (serializer vs persisted vs default). Likely an
+   analysis chunk if it's purely partner-ui (Playwright-gated). [#484 partner search/filters: DONE — PRs #487–#491 merged & verified live on prod 2026-06-18.]
+2. **#494** — `execute_code` **isolated-vm sandbox functional + enable-able in prod** (user-flagged: prod flows rely on
+   execute_code). Default in-process path works today; the secure isolated path can't be turned on because the runtime
+   Docker stage installs `--ignore-scripts` (native addon never built) and `VFLOW_USE_ISOLATED_VM` is unset. Build the
+   addon into the prod image + audit flows using external `packages` before flipping. Likely analysis/Docker chunk.
+3. **#495** — `POST /partners/customers/:id/customer-groups` **500** (pre-existing, unrelated to #484). Mirror admin pattern.
+4. **#403** — extend orders unification to **admin** routes (buildable now; ~3-5 days → multiple chunks/PRs).
+5. **#404 P1** — Design Order → Convert to Order → Shiprocket label. **BLOCKED on 3 product decisions:**
    Convert-to-Order paid-vs-COD default? · COD-capture = remittance/P4 confirm · per-entity scope (order-only vs +design+inventory).
    Live-verify also needs a `category: shipping` external-platform record (admin data, not env).
-3. Then auto-pick next buildable roadmap issue (#337, #336, #347/#348/#349/#377, …).
+6. Then auto-pick next buildable roadmap issue (#337, #336, #347/#348/#349/#377, …).
+
+> ⚠ **Prod-build watch-out:** the prod Docker `medusa build` is a *full* tsc — it catches errors PR CI (changed-specs
+> only) misses. A literal `import("<optionalDep>")` of an `optionalDependencies` native module fails it with TS2307.
+> Reference the specifier indirectly. This silently blocked ALL prod deploys from #465 until PR #493 (2026-06-18).
 
 ## Creds / prod notes
 
