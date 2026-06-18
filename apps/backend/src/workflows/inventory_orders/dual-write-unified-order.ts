@@ -6,6 +6,7 @@ import type { LinkDefinition, MedusaContainer } from "@medusajs/framework/types"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { UNIFIED_ORDER_STATUS_MODULE } from "../../modules/unified_order_status"
+import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
 
 // #342 T2 — best-effort projection of legacy inventory orders onto the core
 // `order` entity (kind=inventory = "the order↔inventory_order link exists";
@@ -255,9 +256,10 @@ export const dualWriteUnifiedOrderStep = createStep(
           skipped: "no_region",
         })
       }
-      const currencyCode =
-        store?.supported_currencies?.find((c: any) => c?.is_default)
-          ?.currency_code ?? "inr"
+      // #485: centralised default-currency selection. Partner is linked AFTER
+      // creation here, so the platform/base store currency is used at stamping
+      // time; the #457 backfill job re-stamps to the partner currency later.
+      const currencyCode = pickDefaultCurrency(store, "inr")
 
       // Internal sales channel keeps work-orders out of storefront analytics
       // and retail listings. Lazily ensured (idempotent) instead of a seed
