@@ -6,6 +6,7 @@ import {
 } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { DESIGN_MODULE } from "../../modules/designs"
+import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
 import {
   estimateDesignCostWorkflow,
   EstimateCostOutput,
@@ -163,11 +164,10 @@ const convertEstimateCurrencyStep = createStep(
       fields: ["supported_currencies.currency_code", "supported_currencies.is_default"],
     })
 
-    const store = stores?.[0]
-    const defaultCurrency = (
-      store?.supported_currencies?.find((sc: any) => sc.is_default)?.currency_code ||
-      "inr"
-    ).toLowerCase()
+    // #485: single source of truth for default-currency selection (was a
+    // hand-rolled is_default scan). Partner-less context here, so the platform
+    // /base store currency is the correct FX base.
+    const defaultCurrency = pickDefaultCurrency(stores?.[0], "inr")
 
     // Collect unique source currencies we need rates for
     const sourceCurrencies = new Set<string>()

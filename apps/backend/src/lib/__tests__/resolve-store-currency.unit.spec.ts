@@ -29,6 +29,38 @@ describe("resolve-store-currency (#485)", () => {
       expect(pickDefaultCurrency({})).toBe("inr")
       expect(pickDefaultCurrency(undefined, "usd")).toBe("usd")
     })
+
+    // #485 forward-fix: pickDefaultCurrency replaced 3 hand-rolled is_default
+    // scans (create-draft-order-from-designs, dual-write-unified-order,
+    // dual-write-unified-run-order). Prove it reproduces the old inline
+    // expression byte-for-byte across the representative store shapes so the
+    // centralisation is behaviour-preserving.
+    describe("parity with the replaced inline is_default scans", () => {
+      // The exact expression that lived at every call site (mod lower-casing,
+      // which the replaced design site already did and is a no-op for the
+      // canonical lower-case currency codes stored by Medusa).
+      const inline = (store: any, fallback = "inr") =>
+        (store?.supported_currencies?.find((c: any) => c?.is_default)
+          ?.currency_code ?? fallback)
+
+      const shapes = [
+        { supported_currencies: [{ currency_code: "eur", is_default: true }] },
+        { supported_currencies: [
+          { currency_code: "usd", is_default: false },
+          { currency_code: "inr", is_default: true },
+        ] },
+        { supported_currencies: [{ currency_code: "usd", is_default: false }] }, // no default → fallback
+        { supported_currencies: [] },
+        {},
+        null,
+      ]
+
+      it.each(shapes)("matches inline scan for %j", (store) => {
+        expect(pickDefaultCurrency(store, "inr")).toBe(
+          String(inline(store, "inr")).toLowerCase()
+        )
+      })
+    })
   })
 
   describe("resolveStoreCurrency", () => {

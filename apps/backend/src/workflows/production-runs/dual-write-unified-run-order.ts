@@ -14,6 +14,7 @@ import {
   linkUnifiedOrderOrRollback,
   setUnifiedOrderPartnerStatus,
 } from "../inventory_orders/dual-write-unified-order"
+import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
 
 // #342 T3.2 — best-effort projection of production runs onto the core `order`
 // entity (kind=design = "the order↔production_run link exists"; Chunk 6 retired
@@ -100,9 +101,10 @@ const resolveRegionAndCurrency = async (container: MedusaContainer) => {
     })
     regionId = regions?.[0]?.id
   }
-  const currencyCode =
-    store?.supported_currencies?.find((c: any) => c?.is_default)
-      ?.currency_code ?? "inr"
+  // #485: centralised default-currency selection (was a hand-rolled is_default
+  // scan). Partner is linked AFTER creation, so the platform/base store
+  // currency is stamped now; the #457 backfill re-stamps to partner currency.
+  const currencyCode = pickDefaultCurrency(store, "inr")
   return { regionId, currencyCode }
 }
 
