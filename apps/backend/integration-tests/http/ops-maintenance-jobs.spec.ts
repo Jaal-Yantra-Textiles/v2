@@ -452,5 +452,51 @@ setupSharedTestSuite(() => {
         )
       ).rejects.toMatchObject({ response: { status: 400 } })
     })
+
+    // #508 slice 4 — repair-partner-region-links (tenant correctness). The
+    // add-missing / remove-orphan decision is unit-tested via
+    // diffPartnerRegionLinks; here we assert the registry discovery + the
+    // safe-by-default dry_run contract without seeding partner/store/region.
+    it("GET lists the repair-partner-region-links job with optional partner_id + limit params", async () => {
+      const res = await api.get("/admin/ops/maintenance-jobs", adminHeaders)
+      expect(res.status).toBe(200)
+      const job = res.data.jobs.find(
+        (j: any) => j.id === "repair-partner-region-links"
+      )
+      expect(job).toBeDefined()
+      expect(job.label).toBeTruthy()
+      expect(job.description).toBeTruthy()
+      expect(job.params).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "partner_id", required: false }),
+          expect.objectContaining({ name: "limit", required: false }),
+        ])
+      )
+    })
+
+    it("POST repair-partner-region-links with no params is safe-by-default dry_run (no partners → no changes)", async () => {
+      const res = await api.post(
+        "/admin/ops/maintenance-jobs/repair-partner-region-links/run",
+        {},
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.result.job_id).toBe("repair-partner-region-links")
+      expect(res.data.result.dry_run).toBe(true)
+      expect(res.data.result.applied).toBe(false)
+      expect(res.data.result.changes).toEqual([])
+      expect(res.data.result.errors).toEqual([])
+      expect(res.data.result.summary).toMatch(/consistent/i)
+    })
+
+    it("POST repair-partner-region-links rejects an invalid limit → 400", async () => {
+      await expect(
+        api.post(
+          "/admin/ops/maintenance-jobs/repair-partner-region-links/run",
+          { dry_run: true, params: { limit: 0 } },
+          adminHeaders
+        )
+      ).rejects.toMatchObject({ response: { status: 400 } })
+    })
   })
 })
