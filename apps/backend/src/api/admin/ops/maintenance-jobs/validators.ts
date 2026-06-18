@@ -71,3 +71,21 @@ export const OpsMaintenanceBatchSchema = z.object({
 })
 
 export type OpsMaintenanceBatchBody = z.infer<typeof OpsMaintenanceBatchSchema>
+
+/**
+ * Query for GET /admin/ops/maintenance-jobs/batches — batch-run history index
+ * (Data Plumbing v2, #508). Paginated, newest first, filterable by
+ * dry_run / actor_id (the batch parent has no single `applied` boolean — a batch
+ * is an apply when `dry_run=false`). Mirrors the `/runs` reader envelope. Same
+ * coercion shapes as OpsMaintenanceRunsQuerySchema.
+ */
+export const OpsMaintenanceBatchesQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+  dry_run: booleanish.optional(),
+  actor_id: z.string().optional(),
+})
+
+export type OpsMaintenanceBatchesQuery = z.infer<
+  typeof OpsMaintenanceBatchesQuerySchema
+>
