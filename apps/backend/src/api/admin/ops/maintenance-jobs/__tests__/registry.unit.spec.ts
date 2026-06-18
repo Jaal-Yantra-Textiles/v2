@@ -1,6 +1,8 @@
 import {
   diffCostFields,
+  diffRunCostFields,
   getMaintenanceJob,
+  interpretRunCost,
   MAINTENANCE_JOBS,
   MAX_BULK_DESIGNS,
   parseDesignIds,
@@ -30,6 +32,97 @@ describe("ops/maintenance-jobs registry (#457)", () => {
       const job = getMaintenanceJob("recalculate-design-cost-bulk")
       expect(job).toBeDefined()
       expect(job?.params.some((p) => p.name === "design_ids" && p.required)).toBe(true)
+    })
+
+    it("registers the correct-production-run-cost job with a required run id param", () => {
+      const job = getMaintenanceJob("correct-production-run-cost")
+      expect(job).toBeDefined()
+      expect(job?.params.some((p) => p.name === "production_run_id" && p.required)).toBe(true)
+      // cost fields are optional (caller supplies at least one)
+      expect(job?.params.some((p) => p.name === "partner_cost_estimate" && !p.required)).toBe(true)
+      expect(job?.params.some((p) => p.name === "cost_type" && !p.required)).toBe(true)
+    })
+  })
+
+  describe("interpretRunCost (#456 per-unit × qty trap)", () => {
+    it("expands a per_unit estimate to its total over the run quantity", () => {
+      expect(interpretRunCost(7650, "per_unit", 9)).toEqual({ per_unit: 7650, total: 68850 })
+    })
+
+    it("divides a total estimate down to per-unit over the run quantity", () => {
+      expect(interpretRunCost(68850, "total", 9)).toEqual({ per_unit: 7650, total: 68850 })
+    })
+
+    it("defaults to 'total' interpretation when cost_type is null/undefined", () => {
+      expect(interpretRunCost(100, null, 4)).toEqual({ per_unit: 25, total: 100 })
+      expect(interpretRunCost(100, undefined, 4)).toEqual({ per_unit: 25, total: 100 })
+    })
+
+    it("treats a non-positive quantity as 1 (no divide-by-zero)", () => {
+      expect(interpretRunCost(100, "total", 0)).toEqual({ per_unit: 100, total: 100 })
+      expect(interpretRunCost(100, "per_unit", 0)).toEqual({ per_unit: 100, total: 100 })
+    })
+
+    it("returns nulls when no estimate is set", () => {
+      expect(interpretRunCost(null, "total", 9)).toEqual({ per_unit: null, total: null })
+      expect(interpretRunCost(undefined, "per_unit", 9)).toEqual({ per_unit: null, total: null })
+    })
+  })
+
+  describe("diffRunCostFields", () => {
+    it("only considers fields the caller supplied (omitted = untouched)", () => {
+      const changes = diffRunCostFields(
+        "prod_run_1",
+        { partner_cost_estimate: 100, cost_type: "total" },
+        { cost_type: "per_unit" }
+      )
+      expect(changes).toEqual([
+        { entity: "production_run", id: "prod_run_1", field: "cost_type", before: "total", after: "per_unit" },
+      ])
+    })
+
+    it("reports a change for both fields when corrected together", () => {
+      const changes = diffRunCostFields(
+        "prod_run_1",
+        { partner_cost_estimate: 68850, cost_type: "total" },
+        { partner_cost_estimate: 7650, cost_type: "per_unit" }
+      )
+      expect(changes).toEqual(
+        expect.arrayContaining([
+          { entity: "production_run", id: "prod_run_1", field: "partner_cost_estimate", before: 68850, after: 7650 },
+          { entity: "production_run", id: "prod_run_1", field: "cost_type", before: "total", after: "per_unit" },
+        ])
+      )
+      expect(changes).toHaveLength(2)
+    })
+
+    it("returns no changes when the requested values already match (idempotent)", () => {
+      const changes = diffRunCostFields(
+        "prod_run_1",
+        { partner_cost_estimate: 100, cost_type: "total" },
+        { partner_cost_estimate: 100, cost_type: "total" }
+      )
+      expect(changes).toEqual([])
+    })
+
+    it("treats null as a real 'clear the estimate' change, distinct from omitted", () => {
+      const cleared = diffRunCostFields(
+        "prod_run_1",
+        { partner_cost_estimate: 100, cost_type: "total" },
+        { partner_cost_estimate: null }
+      )
+      expect(cleared).toEqual([
+        { entity: "production_run", id: "prod_run_1", field: "partner_cost_estimate", before: 100, after: null },
+      ])
+    })
+
+    it("coerces string-typed persisted decimals before comparing", () => {
+      const changes = diffRunCostFields(
+        "prod_run_1",
+        { partner_cost_estimate: "100" as any, cost_type: "total" },
+        { partner_cost_estimate: 100 }
+      )
+      expect(changes).toEqual([])
     })
   })
 

@@ -3,6 +3,7 @@ import { z } from "@medusajs/framework/zod"
 
 import { estimateDesignCostWorkflow } from "../../../../workflows/designs/estimate-design-cost"
 import { DESIGN_MODULE } from "../../../../modules/designs"
+import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 
 /**
  * Admin "data-plumbing" maintenance jobs (#457 / roadmap #33).
@@ -345,9 +346,195 @@ export const recalculateDesignCostBulkJob: MaintenanceJob = {
   },
 }
 
+/**
+ * Pure interpretation of a production run's cost estimate as BOTH a per-unit and
+ * a total amount, given its `cost_type` and run quantity. This is the exact
+ * reader-side math that bit #456 (a per-unit estimate stored/read as a total →
+ * `7650 × 9 = 68850` double-multiply). Surfacing it in the dry-run preview makes
+ * a normalisation mistake obvious BEFORE it's applied.
+ *
+ * Exported for unit testing — no container/DB.
+ */
+export function interpretRunCost(
+  estimate: number | null | undefined,
+  costType: "per_unit" | "total" | null | undefined,
+  quantity: number
+): { per_unit: number | null; total: number | null } {
+  if (estimate == null || Number.isNaN(Number(estimate))) {
+    return { per_unit: null, total: null }
+  }
+  const value = Number(estimate)
+  const qty = quantity > 0 ? quantity : 1
+  if (costType === "per_unit") {
+    return { per_unit: value, total: value * qty }
+  }
+  // default / "total"
+  return { per_unit: value / qty, total: value }
+}
+
+export type ProductionRunCostFields = {
+  partner_cost_estimate?: number | null
+  cost_type?: "per_unit" | "total" | null
+}
+
+/**
+ * Pure diff between a production run's persisted cost fields and the operator's
+ * requested correction. Only fields present in `after` (i.e. supplied by the
+ * caller) are considered — an omitted field is left untouched. `null` is a
+ * deliberate "clear the estimate" instruction, distinct from omitted.
+ *
+ * Exported for unit testing — no container/DB.
+ */
+export function diffRunCostFields(
+  runId: string,
+  before: ProductionRunCostFields,
+  after: ProductionRunCostFields
+): MaintenanceChange[] {
+  const changes: MaintenanceChange[] = []
+
+  if (after.partner_cost_estimate !== undefined) {
+    const b = before.partner_cost_estimate == null ? null : Number(before.partner_cost_estimate)
+    const a = after.partner_cost_estimate == null ? null : Number(after.partner_cost_estimate)
+    if (b !== a) {
+      changes.push({ entity: "production_run", id: runId, field: "partner_cost_estimate", before: b, after: a })
+    }
+  }
+
+  if (after.cost_type !== undefined) {
+    const b = before.cost_type ?? null
+    const a = after.cost_type ?? null
+    if (b !== a) {
+      changes.push({ entity: "production_run", id: runId, field: "cost_type", before: b, after: a })
+    }
+  }
+
+  return changes
+}
+
+const correctRunCostParamsSchema = z
+  .object({
+    production_run_id: z.string().min(1, "production_run_id is required"),
+    partner_cost_estimate: z.union([z.number(), z.null()]).optional(),
+    cost_type: z.enum(["per_unit", "total"]).optional(),
+  })
+  .refine(
+    (v) => v.partner_cost_estimate !== undefined || v.cost_type !== undefined,
+    { message: "provide at least one of partner_cost_estimate or cost_type to correct" }
+  )
+
+/**
+ * Correct a production run's cost — surfaces the same edit as
+ * POST /admin/production-runs/:id (partner_cost_estimate / cost_type), but with
+ * a dry-run preview that shows how readers will interpret the corrected value
+ * (per-unit AND total, given run quantity) so a normalisation mistake is obvious
+ * before it's persisted. Mirrors the admin route's guard: a cancelled run is not
+ * editable. Apply writes via updateProductionRuns (idempotent).
+ */
+export const correctProductionRunCostJob: MaintenanceJob = {
+  id: "correct-production-run-cost",
+  label: "Correct a production run's cost",
+  description:
+    "Set a production run's partner_cost_estimate and/or cost_type (per_unit | total). Dry-run previews the before/after AND how the corrected value reads as per-unit × quantity = total (the #456 double-multiply trap) without persisting; apply writes it back. A cancelled run cannot be edited.",
+  params: [
+    {
+      name: "production_run_id",
+      type: "string",
+      required: true,
+      description: "ID of the production run to correct",
+    },
+    {
+      name: "partner_cost_estimate",
+      type: "number",
+      required: false,
+      description: "New cost estimate (null clears it). At least one of this / cost_type is required.",
+    },
+    {
+      name: "cost_type",
+      type: "string",
+      required: false,
+      description: "How the estimate is expressed: 'per_unit' or 'total'. At least one of this / partner_cost_estimate is required.",
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const parsed = correctRunCostParamsSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        parsed.error.issues.map((i) => i.message).join("; ")
+      )
+    }
+    const { production_run_id, partner_cost_estimate, cost_type } = parsed.data
+
+    const service: any = container.resolve(PRODUCTION_RUNS_MODULE)
+
+    let run: any
+    try {
+      run = await service.retrieveProductionRun(production_run_id)
+    } catch {
+      run = null
+    }
+    if (!run) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Production run not found: ${production_run_id}`
+      )
+    }
+    if (run.status === "cancelled") {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        "Cannot edit a cancelled production run"
+      )
+    }
+
+    const after: ProductionRunCostFields = {}
+    if (partner_cost_estimate !== undefined) after.partner_cost_estimate = partner_cost_estimate
+    if (cost_type !== undefined) after.cost_type = cost_type
+
+    const before: ProductionRunCostFields = {
+      partner_cost_estimate: run.partner_cost_estimate ?? null,
+      cost_type: run.cost_type ?? null,
+    }
+
+    const changes = diffRunCostFields(production_run_id, before, after)
+
+    if (!dry_run && changes.length > 0) {
+      const update: Record<string, unknown> = { id: production_run_id }
+      if (after.partner_cost_estimate !== undefined) update.partner_cost_estimate = after.partner_cost_estimate
+      if (after.cost_type !== undefined) update.cost_type = after.cost_type
+      await service.updateProductionRuns(update)
+    }
+
+    // Effective (post-correction) values for the reader-side interpretation.
+    const quantity = Number(run.quantity ?? 1)
+    const effEstimate =
+      after.partner_cost_estimate !== undefined ? after.partner_cost_estimate : before.partner_cost_estimate
+    const effCostType = after.cost_type !== undefined ? after.cost_type : before.cost_type
+    const interp = interpretRunCost(effEstimate, effCostType, quantity)
+
+    const reads =
+      interp.total == null
+        ? "no cost set"
+        : `reads as per-unit ${interp.per_unit} × qty ${quantity} = total ${interp.total} (cost_type ${effCostType ?? "total"})`
+
+    const summary =
+      changes.length === 0
+        ? `No changes — production run ${production_run_id} cost already as requested; ${reads}`
+        : `${dry_run ? "Would update" : "Updated"} ${changes.length} field(s) on production run ${production_run_id}; ${reads}`
+
+    return {
+      job_id: correctProductionRunCostJob.id,
+      dry_run,
+      applied: !dry_run && changes.length > 0,
+      summary,
+      changes,
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
+  correctProductionRunCostJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
