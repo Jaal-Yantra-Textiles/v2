@@ -5,6 +5,7 @@ import type { Link } from "@medusajs/modules-sdk"
 import { GOOGLE_MERCHANT_MODULE } from "../../../modules/google_merchant"
 import type GoogleMerchantService from "../../../modules/google_merchant/service"
 import { mapProductToGoogleMerchant, validateProductForGoogle } from "./map-product-to-google"
+import { resolvePartnerLandingBase } from "./resolve-partner-landing-base"
 import productGoogleMerchantLink from "../../../links/product-google-merchant-link"
 
 const LINK_ENTRY = productGoogleMerchantLink.entryPoint
@@ -126,9 +127,16 @@ export const bulkSyncProductsToGoogleStep = createStep(
         continue
       }
 
+      // #377 — per-product partner landing base (custom domain → subdomain).
+      // Explicit caller override wins; the batch base is the fallback.
+      const productBase =
+        input.landing_url_base ||
+        (await resolvePartnerLandingBase(query, product.id)) ||
+        landingBase
+
       const payload = mapProductToGoogleMerchant(product, {
         offerId: product.handle || product.id,
-        link: `${landingBase.replace(/\/$/, "")}/products/${product.handle}`,
+        link: `${productBase.replace(/\/$/, "")}/products/${product.handle}`,
         contentLanguage,
         feedLabel,
         currencyCode,
