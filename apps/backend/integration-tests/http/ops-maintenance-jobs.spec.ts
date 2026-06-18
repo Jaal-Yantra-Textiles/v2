@@ -119,6 +119,68 @@ setupSharedTestSuite(() => {
       )
     })
 
+    it("GET lists the correct-production-run-cost job", async () => {
+      const res = await api.get("/admin/ops/maintenance-jobs", adminHeaders)
+      expect(res.status).toBe(200)
+      const job = res.data.jobs.find(
+        (j: any) => j.id === "correct-production-run-cost"
+      )
+      expect(job).toBeDefined()
+      expect(job.params).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "production_run_id", required: true }),
+          expect.objectContaining({ name: "partner_cost_estimate", required: false }),
+          expect.objectContaining({ name: "cost_type", required: false }),
+        ])
+      )
+    })
+
+    it("POST correct-production-run-cost without production_run_id → 400", async () => {
+      await expect(
+        api.post(
+          "/admin/ops/maintenance-jobs/correct-production-run-cost/run",
+          { dry_run: true, params: { cost_type: "per_unit" } },
+          adminHeaders
+        )
+      ).rejects.toMatchObject({ response: { status: 400 } })
+    })
+
+    it("POST correct-production-run-cost with no cost field to change → 400", async () => {
+      await expect(
+        api.post(
+          "/admin/ops/maintenance-jobs/correct-production-run-cost/run",
+          { dry_run: true, params: { production_run_id: "prod_run_x" } },
+          adminHeaders
+        )
+      ).rejects.toMatchObject({ response: { status: 400 } })
+    })
+
+    it("POST correct-production-run-cost with an invalid cost_type → 400", async () => {
+      await expect(
+        api.post(
+          "/admin/ops/maintenance-jobs/correct-production-run-cost/run",
+          {
+            dry_run: true,
+            params: { production_run_id: "prod_run_x", cost_type: "bogus" },
+          },
+          adminHeaders
+        )
+      ).rejects.toMatchObject({ response: { status: 400 } })
+    })
+
+    it("POST correct-production-run-cost for a missing run → 404 (before any write)", async () => {
+      await expect(
+        api.post(
+          "/admin/ops/maintenance-jobs/correct-production-run-cost/run",
+          {
+            dry_run: true,
+            params: { production_run_id: "prod_run_missing", cost_type: "per_unit" },
+          },
+          adminHeaders
+        )
+      ).rejects.toMatchObject({ response: { status: 404 } })
+    })
+
     it("requires admin auth (401 without headers)", async () => {
       await expect(
         api.get("/admin/ops/maintenance-jobs")
