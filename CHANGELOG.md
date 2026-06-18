@@ -1,3 +1,54 @@
+# [13.39.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.38.0...v13.39.0) (2026-06-18)
+
+
+### Bug Fixes
+
+* **visual-flows:** [#459](https://github.com/Jaal-Yantra-Textiles/v2/issues/459) — guard live executor against diamond double-exec + cycles ([#468](https://github.com/Jaal-Yantra-Textiles/v2/issues/468)) ([0591c82](https://github.com/Jaal-Yantra-Textiles/v2/commit/0591c820b5d79af0a048919c75fec8acff7849b7))
+* **partners:** [#484](https://github.com/Jaal-Yantra-Textiles/v2/issues/484) honor q search + fix page-vs-set on inventory-orders list ([#489](https://github.com/Jaal-Yantra-Textiles/v2/issues/489)) ([6b3f659](https://github.com/Jaal-Yantra-Textiles/v2/commit/6b3f659431cace99a79890c5145f07dff1d7f05a)), closes [#487](https://github.com/Jaal-Yantra-Textiles/v2/issues/487) [#488](https://github.com/Jaal-Yantra-Textiles/v2/issues/488)
+* **partners:** honor q search + pagination on customers list ([#484](https://github.com/Jaal-Yantra-Textiles/v2/issues/484)) ([#488](https://github.com/Jaal-Yantra-Textiles/v2/issues/488)) ([dda6712](https://github.com/Jaal-Yantra-Textiles/v2/commit/dda6712451df16dcd72371ba357519c98294efe7)), closes [#487](https://github.com/Jaal-Yantra-Textiles/v2/issues/487)
+* **partners:** honor q search + pagination on inventory-items list ([#484](https://github.com/Jaal-Yantra-Textiles/v2/issues/484)) ([#487](https://github.com/Jaal-Yantra-Textiles/v2/issues/487)) ([427bd6d](https://github.com/Jaal-Yantra-Textiles/v2/commit/427bd6d7e653de5efa2e7a3d883fb880bd2db858))
+* **ai:** product-description uses DashScope platform first, OpenRouter free-vision fallback ([#503](https://github.com/Jaal-Yantra-Textiles/v2/issues/503)) ([1c62f97](https://github.com/Jaal-Yantra-Textiles/v2/commit/1c62f97cafc0616367361866fbe7ee9e754514a0))
+* **partners:** repair POST /partners/customers/:id/customer-groups 500 ([#495](https://github.com/Jaal-Yantra-Textiles/v2/issues/495)) ([#500](https://github.com/Jaal-Yantra-Textiles/v2/issues/500)) ([a6bfdf9](https://github.com/Jaal-Yantra-Textiles/v2/commit/a6bfdf9ea9120d5cc420c314b90b7d80bab08274))
+* **validators:** stop .partial() update schemas injecting field defaults ([#474](https://github.com/Jaal-Yantra-Textiles/v2/issues/474)) ([1aca2fd](https://github.com/Jaal-Yantra-Textiles/v2/commit/1aca2fd517b4939cd1abfdb783a51976e3f105b8)), closes [#473](https://github.com/Jaal-Yantra-Textiles/v2/issues/473) [#341](https://github.com/Jaal-Yantra-Textiles/v2/issues/341) [#473](https://github.com/Jaal-Yantra-Textiles/v2/issues/473)
+* **stats:** stop admin panel PUT from clobbering operation_options on partial updates ([#473](https://github.com/Jaal-Yantra-Textiles/v2/issues/473)) ([ac3c605](https://github.com/Jaal-Yantra-Textiles/v2/commit/ac3c6054d924f977204c2c2c82d01926fb737815)), closes [#341](https://github.com/Jaal-Yantra-Textiles/v2/issues/341)
+* **visual-flows:** unblock prod build — don't statically resolve optional isolated-vm ([#493](https://github.com/Jaal-Yantra-Textiles/v2/issues/493)) ([df7d0bc](https://github.com/Jaal-Yantra-Textiles/v2/commit/df7d0bc80a9a3a2ea021455ee833a48e2824a3e8)), closes [#465](https://github.com/Jaal-Yantra-Textiles/v2/issues/465)
+* **partners:** wire q search + fix page-vs-set bug on designs list ([#484](https://github.com/Jaal-Yantra-Textiles/v2/issues/484)) ([#490](https://github.com/Jaal-Yantra-Textiles/v2/issues/490)) ([652c99a](https://github.com/Jaal-Yantra-Textiles/v2/commit/652c99a1f2ba8dd39ec5eedc1f733b651ec36236)), closes [#487](https://github.com/Jaal-Yantra-Textiles/v2/issues/487) [#488](https://github.com/Jaal-Yantra-Textiles/v2/issues/488) [#489](https://github.com/Jaal-Yantra-Textiles/v2/issues/489)
+* **partners:** wire q search on GET /partners/reservations ([#484](https://github.com/Jaal-Yantra-Textiles/v2/issues/484)) ([#491](https://github.com/Jaal-Yantra-Textiles/v2/issues/491)) ([d639784](https://github.com/Jaal-Yantra-Textiles/v2/commit/d6397842392ae4b4e67c5dc73cf7111296d69b1b))
+
+
+### Features
+
+* **visual-flows:** [#459](https://github.com/Jaal-Yantra-Textiles/v2/issues/459) P1 slice 5 — event subscriber fire-and-forget dispatch ([#467](https://github.com/Jaal-Yantra-Textiles/v2/issues/467)) ([9493368](https://github.com/Jaal-Yantra-Textiles/v2/commit/94933680d64635f7bd6d740ca44dbd6b13e72269))
+* **currency:** [#485](https://github.com/Jaal-Yantra-Textiles/v2/issues/485) centralise default-currency selection onto pickDefaultCurrency ([#506](https://github.com/Jaal-Yantra-Textiles/v2/issues/506)) ([14c0176](https://github.com/Jaal-Yantra-Textiles/v2/commit/14c0176e189fc1ad19453fd4cb83aa2449a77f2e)), closes [#457](https://github.com/Jaal-Yantra-Textiles/v2/issues/457) [#505](https://github.com/Jaal-Yantra-Textiles/v2/issues/505)
+* **ops:** [#485](https://github.com/Jaal-Yantra-Textiles/v2/issues/485) resolveStoreCurrency helper + partner-order currency backfill job ([#505](https://github.com/Jaal-Yantra-Textiles/v2/issues/505)) ([9263da6](https://github.com/Jaal-Yantra-Textiles/v2/commit/9263da640c69ef9f049e1a03248954314d9df21a)), closes [#457](https://github.com/Jaal-Yantra-Textiles/v2/issues/457)
+* **admin:** [#485](https://github.com/Jaal-Yantra-Textiles/v2/issues/485) Settings → Data Plumbing ops console UI ([#507](https://github.com/Jaal-Yantra-Textiles/v2/issues/507)) ([3506202](https://github.com/Jaal-Yantra-Textiles/v2/commit/3506202c9d1516482ab3164676a5de4f9f9bd62b)), closes [#457](https://github.com/Jaal-Yantra-Textiles/v2/issues/457)
+* **ops:** add backfill-design-energy-costs maintenance job ([#457](https://github.com/Jaal-Yantra-Textiles/v2/issues/457)) ([#483](https://github.com/Jaal-Yantra-Textiles/v2/issues/483)) ([c5ab7ab](https://github.com/Jaal-Yantra-Textiles/v2/commit/c5ab7abc904b3d97f183e0419a3e02a2a4e51dd1)), closes [#480](https://github.com/Jaal-Yantra-Textiles/v2/issues/480) [#481](https://github.com/Jaal-Yantra-Textiles/v2/issues/481) [#482](https://github.com/Jaal-Yantra-Textiles/v2/issues/482)
+* **ops:** add bulk recalculate-design-cost maintenance job ([#457](https://github.com/Jaal-Yantra-Textiles/v2/issues/457)) ([#478](https://github.com/Jaal-Yantra-Textiles/v2/issues/478)) ([e662e4b](https://github.com/Jaal-Yantra-Textiles/v2/commit/e662e4b23a1d2235c244a876b31f0aa7beb29742))
+* **ops:** admin data-plumbing maintenance-jobs API ([#457](https://github.com/Jaal-Yantra-Textiles/v2/issues/457)) ([#470](https://github.com/Jaal-Yantra-Textiles/v2/issues/470)) ([05ca809](https://github.com/Jaal-Yantra-Textiles/v2/commit/05ca809a0b222af4ee626897600df2f749487f30))
+* **ops:** audit-log retention/pruning job + fix phantom energy-cost diff ([#457](https://github.com/Jaal-Yantra-Textiles/v2/issues/457)) ([#502](https://github.com/Jaal-Yantra-Textiles/v2/issues/502)) ([d413db7](https://github.com/Jaal-Yantra-Textiles/v2/commit/d413db75dd1217e26f927cd509d12f61a6942515)), closes [#483](https://github.com/Jaal-Yantra-Textiles/v2/issues/483)
+* **ops:** backfill-inventory-unit-cost maintenance job ([#457](https://github.com/Jaal-Yantra-Textiles/v2/issues/457)) ([#482](https://github.com/Jaal-Yantra-Textiles/v2/issues/482)) ([d927ef7](https://github.com/Jaal-Yantra-Textiles/v2/commit/d927ef7e32d1adf1a0652c1ee2119922c6f721d7)), closes [#480](https://github.com/Jaal-Yantra-Textiles/v2/issues/480) [#481](https://github.com/Jaal-Yantra-Textiles/v2/issues/481)
+* **ops:** correct-production-run-cost maintenance job ([#457](https://github.com/Jaal-Yantra-Textiles/v2/issues/457)) ([#481](https://github.com/Jaal-Yantra-Textiles/v2/issues/481)) ([d7db6a0](https://github.com/Jaal-Yantra-Textiles/v2/commit/d7db6a07c90de9d54a71574d4a7449ad38e774d1)), closes [#456](https://github.com/Jaal-Yantra-Textiles/v2/issues/456)
+* **google-merchant:** derive landing URL from partner storefront ([#377](https://github.com/Jaal-Yantra-Textiles/v2/issues/377)) ([#475](https://github.com/Jaal-Yantra-Textiles/v2/issues/475)) ([5cb7331](https://github.com/Jaal-Yantra-Textiles/v2/commit/5cb7331ad06216b6741a64f8640b2779bf20cb0a))
+* **ops:** durable audit log for maintenance jobs ([#457](https://github.com/Jaal-Yantra-Textiles/v2/issues/457)) ([#480](https://github.com/Jaal-Yantra-Textiles/v2/issues/480)) ([0d42aff](https://github.com/Jaal-Yantra-Textiles/v2/commit/0d42aff554d83ef82db6d06c834f915337ff2f7b))
+* **visual-flows:** gate runtime npm install behind env flag [[#459](https://github.com/Jaal-Yantra-Textiles/v2/issues/459)] ([#464](https://github.com/Jaal-Yantra-Textiles/v2/issues/464)) ([b01c15f](https://github.com/Jaal-Yantra-Textiles/v2/commit/b01c15f20a67bdb013d33f59585978c4f70543ad)), closes [#1](https://github.com/Jaal-Yantra-Textiles/v2/issues/1)
+* **visual-flows:** isolated-vm sandbox for execute_code [[#459](https://github.com/Jaal-Yantra-Textiles/v2/issues/459)] ([#465](https://github.com/Jaal-Yantra-Textiles/v2/issues/465)) ([14ca844](https://github.com/Jaal-Yantra-Textiles/v2/commit/14ca8444ac2b5e68d68a26b1be34428c78bcbec6)), closes [#1](https://github.com/Jaal-Yantra-Textiles/v2/issues/1)
+* **visual-flows:** non-blocking enqueue-and-ack schedule scanner [[#459](https://github.com/Jaal-Yantra-Textiles/v2/issues/459)] ([#466](https://github.com/Jaal-Yantra-Textiles/v2/issues/466)) ([f1ca366](https://github.com/Jaal-Yantra-Textiles/v2/commit/f1ca36638ec3097c9fada4abecb4d2948934591b))
+* **stats:** restore public panel REST endpoint + share-audit stamping ([#341](https://github.com/Jaal-Yantra-Textiles/v2/issues/341)) ([#472](https://github.com/Jaal-Yantra-Textiles/v2/issues/472)) ([e672c8f](https://github.com/Jaal-Yantra-Textiles/v2/commit/e672c8f86bfe4c3423eb77705f8e08d0ad2a0637)), closes [#20](https://github.com/Jaal-Yantra-Textiles/v2/issues/20) [#284](https://github.com/Jaal-Yantra-Textiles/v2/issues/284) [#283](https://github.com/Jaal-Yantra-Textiles/v2/issues/283)
+
+
+### BREAKING CHANGES
+
+* **visual-flows:** every deploy since #465 — so no merge to main (incl. the #484 partner
+search fixes) has reached prod. Reference the specifier indirectly (typed as
+string) so tsc skips resolution; runtime presence is still handled by the
+existing try/catch.
+
+Verified: with the module hidden, the literal form errors TS2307 and the
+indirect form compiles clean.
+
+Co-authored-by: Saransh Sharma <Saransh Sharma>
+Co-authored-by: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
 # [13.38.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.37.0...v13.38.0) (2026-06-17)
 
 
