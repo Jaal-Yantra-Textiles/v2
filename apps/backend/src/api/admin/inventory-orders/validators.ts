@@ -70,8 +70,15 @@ export const ReadSingleInventoryOrderQuerySchema = z.object({
   fields: z.string().optional(),
 })
 
-// Input schema for updating inventory orders
-export const updateInventoryOrdersSchema = inventoryOrdersBaseSchema.partial();
+// Input schema for updating inventory orders.
+// `is_sample` carries `.optional().default(false)` on the base schema. A
+// `.default()` survives `.partial()` in Zod v4, so an omitted `is_sample` on a
+// partial update would silently inject `false` and flip a sample order to a
+// non-sample one (the route spreads `...validatedBody` into the update input).
+// Re-declare as plain optional (no default) so omission stays omitted.
+export const updateInventoryOrdersSchema = inventoryOrdersBaseSchema
+  .partial()
+  .extend({ is_sample: z.boolean().optional() });
 
 // Type definitions for inventory orders
 export type UpdateInventoryOrder = z.infer<typeof updateInventoryOrdersSchema>;
