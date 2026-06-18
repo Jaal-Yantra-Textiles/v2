@@ -1,9 +1,10 @@
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 
 import { estimateDesignCostWorkflow } from "../../../../workflows/designs/estimate-design-cost"
 import { DESIGN_MODULE } from "../../../../modules/designs"
 import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
+import { RAW_MATERIAL_MODULE } from "../../../../modules/raw_material"
 
 /**
  * Admin "data-plumbing" maintenance jobs (#457 / roadmap #33).
@@ -531,10 +532,245 @@ export const correctProductionRunCostJob: MaintenanceJob = {
   },
 }
 
+/**
+ * Hard cap on the inventory-unit-cost backfill scan. Each item runs two
+ * `query.graph` lookups synchronously, so we bound the per-request blast radius
+ * and keep the endpoint responsive. Bigger sweeps raise the `limit` param
+ * across chunked calls.
+ */
+export const MAX_INVENTORY_SCAN = 5000
+
+const backfillUnitCostParamsSchema = z.object({
+  /** Recompute even when the raw material already has a positive unit_cost. */
+  force: z.boolean().optional().default(false),
+  /** Max inventory items to scan in one call (1..MAX_INVENTORY_SCAN). */
+  limit: z.number().int().positive().max(MAX_INVENTORY_SCAN).optional().default(1000),
+})
+
+/** Shape of one `inventory_order_line_inventory_item` link row, as queried. */
+export type InventoryOrderLineLink = {
+  inventory_order_line?: {
+    id?: string
+    price?: number | string | null
+    inventory_orders?: {
+      id?: string
+      order_date?: string | Date | null
+      status?: string | null
+    } | null
+  } | null
+}
+
+/**
+ * Pure: pick the most recent non-cancelled inventory order line with a positive
+ * price for one inventory item. Mirrors the heuristic of the
+ * `backfill-inventory-unit-cost` script (latest order_date wins) but is
+ * container-free so the dry-run/apply selection is unit-testable. Returns null
+ * when no usable price exists (no history / all cancelled / non-positive).
+ */
+export function pickLatestOrderLinePrice(
+  links: InventoryOrderLineLink[]
+): { price: number; order_id: string | null; order_date: string | null } | null {
+  let best: { price: number; order_id: string | null; date: Date } | null = null
+
+  for (const link of links || []) {
+    const line = link?.inventory_order_line
+    if (!line) continue
+    const order = line.inventory_orders
+    if (!order || order.status === "Cancelled") continue
+
+    const price = Number(line.price) || 0
+    if (price <= 0) continue
+
+    const orderDate = order.order_date ? new Date(order.order_date) : new Date(0)
+    if (!best || orderDate > best.date) {
+      best = { price, order_id: order.id ?? null, date: orderDate }
+    }
+  }
+
+  if (!best) return null
+  return {
+    price: best.price,
+    order_id: best.order_id,
+    order_date: best.date.getTime() === 0 ? null : best.date.toISOString(),
+  }
+}
+
+/**
+ * Pure: diff a raw material's currently-stored unit_cost against a derived
+ * price. Returns a single `unit_cost` change (or none when already equal).
+ * Exported for unit testing.
+ */
+export function diffUnitCost(
+  rawMaterialId: string,
+  before: number | string | null | undefined,
+  after: number
+): MaintenanceChange[] {
+  const beforeValue = before == null ? null : Number(before)
+  if (beforeValue === after) return []
+  return [{ entity: "raw_material", id: rawMaterialId, field: "unit_cost", before: beforeValue, after }]
+}
+
+/**
+ * Pure summary builder for the inventory-unit-cost backfill — keeps the
+ * human-facing string verifiable without booting the DB.
+ */
+export function summarizeUnitCostBackfill(
+  dryRun: boolean,
+  scanned: number,
+  changedCount: number,
+  noRawMaterialCount: number,
+  noHistoryCount: number,
+  errorCount: number
+): string {
+  const verb = dryRun ? "Would set" : "Set"
+  const head =
+    changedCount === 0
+      ? `No changes — scanned ${scanned} inventory item(s), none needed a unit_cost correction`
+      : `${verb} unit_cost on ${changedCount} raw material(s) (scanned ${scanned} inventory item(s))`
+  const skips: string[] = []
+  if (noRawMaterialCount > 0) skips.push(`${noRawMaterialCount} unlinked`)
+  if (noHistoryCount > 0) skips.push(`${noHistoryCount} no order history`)
+  const tail = skips.length ? `; ${skips.join(", ")}` : ""
+  return errorCount > 0 ? `${head}${tail}; ${errorCount} error(s)` : `${head}${tail}`
+}
+
+/**
+ * Backfill raw-material unit_cost from inventory order history — promotes the
+ * one-off `backfill-inventory-unit-cost` script into a guarded, API-driven job
+ * (#457). For each inventory item linked to a raw material with no (or zero)
+ * unit_cost, it derives the cost from the most recent non-cancelled inventory
+ * order line price. Dry-run (default) previews every before→after without
+ * persisting; apply writes `unit_cost` via the raw_materials module (idempotent
+ * — re-running is a no-op once costs match). Items with no raw-material link or
+ * no order history are counted in the summary, not treated as errors; a genuine
+ * per-item failure is reported in `errors` instead of aborting the sweep.
+ */
+export const backfillInventoryUnitCostJob: MaintenanceJob = {
+  id: "backfill-inventory-unit-cost",
+  label: "Backfill inventory unit cost",
+  description:
+    `Derive raw-material unit_cost from the latest non-cancelled inventory order line for each linked inventory item. Dry-run previews the before/after without persisting; apply writes unit_cost back (idempotent). By default only fills missing/zero costs — set force=true to recompute existing ones. Scans up to 'limit' items per call (default 1000, max ${MAX_INVENTORY_SCAN}).`,
+  params: [
+    {
+      name: "force",
+      type: "boolean",
+      required: false,
+      description: "Recompute unit_cost even when a positive value already exists (default false)",
+    },
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: `Max inventory items to scan in one call (default 1000, max ${MAX_INVENTORY_SCAN})`,
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const parsed = backfillUnitCostParamsSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        parsed.error.issues.map((i) => i.message).join("; ")
+      )
+    }
+    const { force, limit } = parsed.data
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const inventoryService: any = container.resolve(Modules.INVENTORY)
+    const rawMaterialService: any = container.resolve(RAW_MATERIAL_MODULE)
+
+    const items: any[] = await inventoryService.listInventoryItems({}, { take: limit })
+
+    const changes: MaintenanceChange[] = []
+    const errors: Array<{ id: string; message: string }> = []
+    const changedRawMaterials = new Set<string>()
+    let noRawMaterial = 0
+    let noHistory = 0
+
+    for (const item of items) {
+      try {
+        let rawMaterial: any = null
+        try {
+          const { data: rmLinks } = await query.graph({
+            entity: "inventory_item_raw_materials",
+            filters: { inventory_item_id: item.id },
+            fields: ["raw_materials.*"],
+          })
+          rawMaterial = rmLinks?.[0]?.raw_materials
+        } catch {
+          // No link table row / not linked — treated as "unlinked" below.
+        }
+
+        if (!rawMaterial) {
+          noRawMaterial++
+          continue
+        }
+
+        const hasExistingCost =
+          rawMaterial.unit_cost != null && Number(rawMaterial.unit_cost) > 0
+        if (hasExistingCost && !force) {
+          continue
+        }
+
+        const { data: orderLineLinks } = await query.graph({
+          entity: "inventory_order_line_inventory_item",
+          filters: { inventory_item_id: item.id },
+          fields: [
+            "inventory_order_line.id",
+            "inventory_order_line.price",
+            "inventory_order_line.inventory_orders.order_date",
+            "inventory_order_line.inventory_orders.status",
+            "inventory_order_line.inventory_orders.id",
+          ],
+        })
+
+        const latest = pickLatestOrderLinePrice(orderLineLinks || [])
+        if (!latest) {
+          noHistory++
+          continue
+        }
+
+        const rmChanges = diffUnitCost(rawMaterial.id, rawMaterial.unit_cost, latest.price)
+        if (rmChanges.length === 0) {
+          continue
+        }
+
+        changedRawMaterials.add(rawMaterial.id)
+        changes.push(...rmChanges)
+
+        if (!dry_run) {
+          await rawMaterialService.updateRawMaterials({
+            id: rawMaterial.id,
+            unit_cost: latest.price,
+          })
+        }
+      } catch (e: any) {
+        errors.push({ id: item.id, message: e?.message ?? String(e) })
+      }
+    }
+
+    return {
+      job_id: backfillInventoryUnitCostJob.id,
+      dry_run,
+      applied: !dry_run && changes.length > 0,
+      summary: summarizeUnitCostBackfill(
+        dry_run,
+        items.length,
+        changedRawMaterials.size,
+        noRawMaterial,
+        noHistory,
+        errors.length
+      ),
+      changes,
+      errors,
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
   correctProductionRunCostJob,
+  backfillInventoryUnitCostJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>

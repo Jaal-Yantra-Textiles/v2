@@ -1,12 +1,16 @@
 import {
   diffCostFields,
   diffRunCostFields,
+  diffUnitCost,
   getMaintenanceJob,
   interpretRunCost,
   MAINTENANCE_JOBS,
   MAX_BULK_DESIGNS,
+  MAX_INVENTORY_SCAN,
   parseDesignIds,
+  pickLatestOrderLinePrice,
   summarizeBulkRecalc,
+  summarizeUnitCostBackfill,
 } from "../registry"
 
 // Pure unit coverage for the maintenance-job registry (#457). No DB / workflow
@@ -231,6 +235,102 @@ describe("ops/maintenance-jobs registry (#457)", () => {
       expect(changes).toEqual([
         { entity: "design", id: "design_1", field: "production_cost", before: null, after: 30 },
       ])
+    })
+  })
+
+  // ---- backfill-inventory-unit-cost job (#457) ----
+
+  describe("backfill-inventory-unit-cost registration", () => {
+    it("registers the job with optional force + limit params", () => {
+      const job = getMaintenanceJob("backfill-inventory-unit-cost")
+      expect(job).toBeDefined()
+      expect(MAINTENANCE_JOBS.map((j) => j.id)).toContain("backfill-inventory-unit-cost")
+      expect(job?.params.some((p) => p.name === "force" && !p.required)).toBe(true)
+      expect(job?.params.some((p) => p.name === "limit" && !p.required)).toBe(true)
+    })
+  })
+
+  describe("pickLatestOrderLinePrice", () => {
+    const line = (price: any, status: string, order_date: string | null, id = "io_1") => ({
+      inventory_order_line: {
+        id: "iol",
+        price,
+        inventory_orders: { id, order_date, status },
+      },
+    })
+
+    it("returns null for no links / no usable price", () => {
+      expect(pickLatestOrderLinePrice([])).toBeNull()
+      expect(pickLatestOrderLinePrice([{ inventory_order_line: null }])).toBeNull()
+    })
+
+    it("ignores cancelled orders and non-positive prices", () => {
+      expect(
+        pickLatestOrderLinePrice([
+          line(50, "Cancelled", "2026-01-01"),
+          line(0, "Completed", "2026-01-02"),
+          line(-5, "Completed", "2026-01-03"),
+        ])
+      ).toBeNull()
+    })
+
+    it("picks the most recent non-cancelled order line by order_date", () => {
+      const picked = pickLatestOrderLinePrice([
+        line(10, "Completed", "2026-01-01", "io_old"),
+        line(25, "Completed", "2026-03-01", "io_new"),
+        line(99, "Cancelled", "2026-06-01", "io_cxl"),
+      ])
+      expect(picked).toMatchObject({ price: 25, order_id: "io_new" })
+      expect(picked?.order_date).toMatch(/^2026-03-01/)
+    })
+
+    it("coerces string prices and tolerates a missing order_date", () => {
+      const picked = pickLatestOrderLinePrice([line("42.5" as any, "Completed", null)])
+      expect(picked?.price).toBe(42.5)
+      expect(picked?.order_date).toBeNull()
+    })
+  })
+
+  describe("diffUnitCost", () => {
+    it("reports a change when unit_cost is unset (null → value)", () => {
+      expect(diffUnitCost("rm_1", null, 12)).toEqual([
+        { entity: "raw_material", id: "rm_1", field: "unit_cost", before: null, after: 12 },
+      ])
+    })
+
+    it("returns no change when the value already matches (idempotent)", () => {
+      expect(diffUnitCost("rm_1", 12, 12)).toEqual([])
+      expect(diffUnitCost("rm_1", "12" as any, 12)).toEqual([])
+    })
+
+    it("reports the before→after when the price differs", () => {
+      expect(diffUnitCost("rm_1", 8, 12)).toEqual([
+        { entity: "raw_material", id: "rm_1", field: "unit_cost", before: 8, after: 12 },
+      ])
+    })
+  })
+
+  describe("summarizeUnitCostBackfill", () => {
+    it("reports no changes and keeps the scan count", () => {
+      expect(summarizeUnitCostBackfill(true, 7, 0, 0, 0, 0)).toMatch(
+        /No changes — scanned 7 inventory item/
+      )
+    })
+
+    it("uses 'Would set' for dry-run and appends skip breakdown", () => {
+      expect(summarizeUnitCostBackfill(true, 10, 3, 2, 1, 0)).toBe(
+        "Would set unit_cost on 3 raw material(s) (scanned 10 inventory item(s)); 2 unlinked, 1 no order history"
+      )
+    })
+
+    it("uses 'Set' on apply and appends an error count when present", () => {
+      expect(summarizeUnitCostBackfill(false, 10, 3, 0, 0, 1)).toBe(
+        "Set unit_cost on 3 raw material(s) (scanned 10 inventory item(s)); 1 error(s)"
+      )
+    })
+
+    it("exposes a sane scan cap", () => {
+      expect(MAX_INVENTORY_SCAN).toBeGreaterThanOrEqual(1000)
     })
   })
 })

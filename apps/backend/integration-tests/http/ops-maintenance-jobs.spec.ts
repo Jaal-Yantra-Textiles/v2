@@ -181,6 +181,48 @@ setupSharedTestSuite(() => {
       ).rejects.toMatchObject({ response: { status: 404 } })
     })
 
+    it("GET lists the backfill-inventory-unit-cost job with optional params", async () => {
+      const res = await api.get("/admin/ops/maintenance-jobs", adminHeaders)
+      expect(res.status).toBe(200)
+      const job = res.data.jobs.find(
+        (j: any) => j.id === "backfill-inventory-unit-cost"
+      )
+      expect(job).toBeDefined()
+      expect(job.label).toBeTruthy()
+      expect(job.description).toBeTruthy()
+      expect(job.params).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "force", required: false }),
+          expect.objectContaining({ name: "limit", required: false }),
+        ])
+      )
+    })
+
+    it("POST backfill-inventory-unit-cost with no params is safe-by-default dry_run (empty DB → no changes)", async () => {
+      const res = await api.post(
+        "/admin/ops/maintenance-jobs/backfill-inventory-unit-cost/run",
+        {},
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.result.job_id).toBe("backfill-inventory-unit-cost")
+      expect(res.data.result.dry_run).toBe(true)
+      expect(res.data.result.applied).toBe(false)
+      expect(res.data.result.changes).toEqual([])
+      expect(res.data.result.summary).toMatch(/scanned/i)
+      expect(res.data.audit.job_id).toBe("backfill-inventory-unit-cost")
+    })
+
+    it("POST backfill-inventory-unit-cost rejects an invalid limit → 400", async () => {
+      await expect(
+        api.post(
+          "/admin/ops/maintenance-jobs/backfill-inventory-unit-cost/run",
+          { dry_run: true, params: { limit: -5 } },
+          adminHeaders
+        )
+      ).rejects.toMatchObject({ response: { status: 400 } })
+    })
+
     it("requires admin auth (401 without headers)", async () => {
       await expect(
         api.get("/admin/ops/maintenance-jobs")
