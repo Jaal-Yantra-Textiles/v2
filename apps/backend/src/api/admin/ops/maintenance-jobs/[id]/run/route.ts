@@ -3,14 +3,17 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 
 import { getMaintenanceJob } from "../../registry"
 import { OpsMaintenanceRunBody } from "../../validators"
+import { buildAuditRow } from "../../audit"
+import { OPS_AUDIT_MODULE } from "../../../../../../modules/ops_audit"
 
 /**
  * POST /admin/ops/maintenance-jobs/:id/run
  *
  * Runs a guarded maintenance job. Safe by default: dry_run defaults to true, so
  * a body of {} previews changes without writing. Pass { dry_run: false } to
- * apply. Every run is logged with the actor + outcome (lightweight audit;
- * a durable audit-log model is a follow-up slice). (#457)
+ * apply. Every run is logged with the actor + outcome AND persisted to the
+ * durable `ops_maintenance_run` audit log (best-effort — a correction never
+ * rolls back because logging failed). (#457)
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const job = getMaintenanceJob(req.params.id)
@@ -32,6 +35,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   logger.info(
     `[ops/maintenance] actor=${actorId} job=${job.id} dry_run=${result.dry_run} applied=${result.applied} changes=${result.changes.length}`
   )
+
+  // Durable audit row — best-effort: the correction already happened, so an
+  // audit-write failure must NOT fail the request. (#457)
+  const row = buildAuditRow(result, actorId, params)
+  try {
+    const audit: any = req.scope.resolve(OPS_AUDIT_MODULE)
+    await audit.createOpsMaintenanceRuns(row)
+  } catch (e: any) {
+    logger.error(`[ops/maintenance] audit persist failed: ${e?.message ?? e}`)
+  }
 
   res.json({
     result,
