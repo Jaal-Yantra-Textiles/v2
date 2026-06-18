@@ -111,6 +111,32 @@ function minuteKey(date: Date): string {
   return `${y}-${m}-${d}T${hh}:${mm}`
 }
 
+/**
+ * Merge a patch into `metadata.schedule` without clobbering the rest of the
+ * flow's metadata. Re-reads the flow fresh on every write because Medusa
+ * replaces the whole `metadata` blob on update — spreading a stale snapshot
+ * (captured at scan time, minutes/days before a long-running flow finishes)
+ * would drop concurrent writes. We only ever touch the `schedule` sub-object.
+ */
+async function patchScheduleMeta(
+  service: VisualFlowService,
+  flowId: string,
+  patch: Record<string, any>
+): Promise<void> {
+  const current: any = await service.retrieveVisualFlow(flowId)
+  const metadata = (current?.metadata || {}) as any
+  await service.updateVisualFlows({
+    id: flowId,
+    metadata: {
+      ...metadata,
+      schedule: {
+        ...(metadata.schedule || {}),
+        ...patch,
+      },
+    },
+  } as any)
+}
+
 export default async function runScheduledVisualFlows(container: MedusaContainer) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const service: VisualFlowService = container.resolve(VISUAL_FLOWS_MODULE)
@@ -138,8 +164,31 @@ export default async function runScheduledVisualFlows(container: MedusaContainer
       continue
     }
 
+    // Enqueue marker — written BEFORE the flow is fired so the every-minute
+    // scanner never double-enqueues a flow, even when the run is long-lived
+    // (durable waits) or a slow tick overlaps the next one. Dedup is keyed on
+    // this `last_run_minute_key`, so it must land synchronously.
     try {
-      const { result, errors } = await executeVisualFlowWorkflow(container).run({
+      await patchScheduleMeta(service, flow.id, {
+        last_run_minute_key: nowKey,
+        last_run_at: now.toISOString(),
+        last_enqueued_at: now.toISOString(),
+        last_status: "enqueued",
+        last_error: null,
+      })
+    } catch (e: any) {
+      logger.error(
+        `[run-scheduled-visual-flows] flow=${flow.id} failed to mark enqueue: ${e?.message}`
+      )
+      continue
+    }
+
+    // Fire-and-forget: the durable workflow runs in the worker. We deliberately
+    // do NOT await it — one slow or long-running flow must not block the
+    // scanner or the other due flows in this tick (mirrors the webhook async
+    // path). Final status is recorded from the resolved/rejected callbacks.
+    void executeVisualFlowWorkflow(container)
+      .run({
         input: {
           flowId: flow.id,
           triggerData: {
@@ -159,55 +208,27 @@ export default async function runScheduledVisualFlows(container: MedusaContainer
           },
         },
       })
-
-      if (errors?.length) {
-        await service.updateVisualFlows({
-          id: flow.id,
-          metadata: {
-            ...(flow.metadata || {}),
-            schedule: {
-              ...((flow.metadata || {}) as any).schedule,
-              last_run_minute_key: nowKey,
-              last_run_at: now.toISOString(),
-              last_status: "failed",
-              last_error: "Workflow execution returned errors",
-            },
-          },
-        } as any)
-
-        continue
-      }
-
-      await service.updateVisualFlows({
-        id: flow.id,
-        metadata: {
-          ...(flow.metadata || {}),
-          schedule: {
-            ...((flow.metadata || {}) as any).schedule,
-            last_run_minute_key: nowKey,
-            last_run_at: now.toISOString(),
-            last_execution_id: result?.executionId,
-            last_status: "completed",
-          },
-        },
-      } as any)
-    } catch (e: any) {
-      logger.error(`[run-scheduled-visual-flows] flow=${flow.id} error=${e?.message}`)
-
-      await service.updateVisualFlows({
-        id: flow.id,
-        metadata: {
-          ...(flow.metadata || {}),
-          schedule: {
-            ...((flow.metadata || {}) as any).schedule,
-            last_run_minute_key: nowKey,
-            last_run_at: now.toISOString(),
+      .then(({ result, errors }) => {
+        if (errors?.length) {
+          return patchScheduleMeta(service, flow.id, {
             last_status: "failed",
-            last_error: e?.message,
-          },
-        },
-      } as any)
-    }
+            last_error: "Workflow execution returned errors",
+          })
+        }
+        return patchScheduleMeta(service, flow.id, {
+          last_execution_id: result?.executionId,
+          last_status: "completed",
+        })
+      })
+      .catch((e: any) => {
+        logger.error(`[run-scheduled-visual-flows] flow=${flow.id} error=${e?.message}`)
+        return patchScheduleMeta(service, flow.id, {
+          last_status: "failed",
+          last_error: e?.message,
+        }).catch(() => {
+          /* best-effort status write */
+        })
+      })
   }
 }
 
