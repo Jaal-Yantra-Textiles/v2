@@ -6,6 +6,8 @@ import { DESIGN_MODULE } from "../../../../modules/designs"
 import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import { RAW_MATERIAL_MODULE } from "../../../../modules/raw_material"
 import { OPS_AUDIT_MODULE } from "../../../../modules/ops_audit"
+import partnerOrderLink from "../../../../links/partner-order"
+import { resolveStoreCurrency } from "../../../../lib/resolve-store-currency"
 
 /**
  * Admin "data-plumbing" maintenance jobs (#457 / roadmap #33).
@@ -1357,6 +1359,218 @@ export const pruneOpsAuditRunsJob: MaintenanceJob = {
   },
 }
 
+/**
+ * Hard cap on the order-currency backfill scan. Bounds the per-request blast
+ * radius (each call reads partner→order links + order rows and may write
+ * order currency_code). Bigger sweeps raise `limit` across chunked calls.
+ */
+export const MAX_ORDER_CURRENCY_SCAN = 5000
+
+const backfillOrderCurrencyParamsSchema = z.object({
+  /** Restrict the sweep to a single partner instead of all partners. */
+  partner_id: z.string().min(1).optional(),
+  /**
+   * Only re-stamp orders currently denominated in this currency. Defaults to
+   * "eur" — the wrong platform-store currency that #485 stamped onto partner
+   * work-orders. Lower-cased before matching.
+   */
+  from_currency: z.string().min(1).optional().default("eur"),
+  /** Max unified orders to change in one call (1..MAX_ORDER_CURRENCY_SCAN). */
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_ORDER_CURRENCY_SCAN)
+    .optional()
+    .default(1000),
+})
+
+/**
+ * Pure: diff one unified order's currently-stored currency_code against the
+ * target (the owning partner's store currency). Returns a single currency_code
+ * change (or none when already equal, case-insensitively). Exported for unit
+ * testing — keeps the dry-run/apply selection verifiable without the DB.
+ */
+export function diffOrderCurrency(
+  orderId: string,
+  before: string | null | undefined,
+  after: string
+): MaintenanceChange[] {
+  const beforeNorm = before == null ? null : String(before).toLowerCase()
+  const afterNorm = after.toLowerCase()
+  if (beforeNorm === afterNorm) return []
+  return [
+    {
+      entity: "order",
+      id: orderId,
+      field: "currency_code",
+      before: beforeNorm,
+      after: afterNorm,
+    },
+  ]
+}
+
+/**
+ * Pure summary builder for the partner-order currency backfill — keeps the
+ * human-facing string verifiable without booting the DB.
+ */
+export function summarizeOrderCurrencyBackfill(
+  dryRun: boolean,
+  partnersScanned: number,
+  ordersScanned: number,
+  changedCount: number,
+  fromCurrency: string,
+  errorCount: number
+): string {
+  const verb = dryRun ? "Would re-stamp" : "Re-stamped"
+  const head =
+    changedCount === 0
+      ? `No changes — scanned ${ordersScanned} order(s) across ${partnersScanned} partner(s), none denominated in '${fromCurrency}' needed correction`
+      : `${verb} currency on ${changedCount} order(s) (scanned ${ordersScanned} across ${partnersScanned} partner(s), from '${fromCurrency}')`
+  return errorCount > 0 ? `${head}; ${errorCount} error(s)` : head
+}
+
+/**
+ * Backfill partner work-order currency (#485). On a multi-store deployment the
+ * historical `stores[0]` pattern stamped the platform store currency (EUR) onto
+ * every partner work-order / design reference instead of the partner's own
+ * store currency (INR). This job, for each partner, resolves the correct store
+ * currency (`resolveStoreCurrency`), reads that partner's unified orders via the
+ * D3 partner↔order link, and re-stamps any order still denominated in
+ * `from_currency` (default "eur") to the partner's store currency.
+ *
+ * This is a RELABEL, not a conversion: the amounts were entered in the partner's
+ * native currency (INR) all along — only the persisted `currency_code` was
+ * wrong (see apps/docs/notes/485_PARTNER_CURRENCY_EUR_ROOT_CAUSE.md). Dry-run
+ * (default) previews every before→after without persisting; apply writes
+ * `currency_code` via the order module (idempotent — re-running is a no-op once
+ * currencies match). A partner whose own store currency equals `from_currency`
+ * is skipped (nothing to correct). Bounded by `limit` changes per call.
+ */
+export const backfillPartnerOrderCurrencyJob: MaintenanceJob = {
+  id: "backfill-partner-order-currency",
+  label: "Backfill partner order currency",
+  description:
+    `Re-stamp partner work-order currency_code from the wrong platform-store currency (#485) to the owning partner's store currency. For each partner, resolves the partner store currency and re-labels their unified orders still denominated in 'from_currency' (default "eur"). This is a relabel, not an FX conversion — amounts were entered in the partner's native currency all along. Dry-run previews before/after without persisting; apply writes currency_code (idempotent). Optionally scope to one partner_id. Changes up to 'limit' orders per call (default 1000, max ${MAX_ORDER_CURRENCY_SCAN}).`,
+  params: [
+    {
+      name: "partner_id",
+      type: "string",
+      required: false,
+      description: "Restrict the sweep to a single partner (default: all partners)",
+    },
+    {
+      name: "from_currency",
+      type: "string",
+      required: false,
+      description: 'Only re-stamp orders currently in this currency (default "eur")',
+    },
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: `Max orders to change in one call (default 1000, max ${MAX_ORDER_CURRENCY_SCAN})`,
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const parsed = backfillOrderCurrencyParamsSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        parsed.error.issues.map((i) => i.message).join("; ")
+      )
+    }
+    const { partner_id, from_currency, limit } = parsed.data
+    const fromCurrency = from_currency.toLowerCase()
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const orderService: any = container.resolve(Modules.ORDER)
+
+    // Target partners: a single id, or all partners (bounded — partners are few).
+    let partnerIds: string[]
+    if (partner_id) {
+      partnerIds = [partner_id]
+    } else {
+      const { data: partners } = await query.graph({
+        entity: "partners",
+        fields: ["id"],
+        pagination: { take: MAX_ORDER_CURRENCY_SCAN },
+      })
+      partnerIds = (partners ?? []).map((p: any) => p?.id).filter(Boolean)
+    }
+
+    const changes: MaintenanceChange[] = []
+    const errors: Array<{ id: string; message: string }> = []
+    let partnersScanned = 0
+    let ordersScanned = 0
+
+    for (const pid of partnerIds) {
+      if (changes.length >= limit) break
+      partnersScanned++
+      try {
+        const targetCurrency = await resolveStoreCurrency(container, { partnerId: pid })
+        // Partner's own currency equals the (wrong) source — nothing to fix.
+        if (targetCurrency.toLowerCase() === fromCurrency) continue
+
+        // Read the D3 partner↔order link table directly (source of truth) — the
+        // `partner.orders` graph accessor pluralisation isn't guaranteed.
+        const { data: linkRows } = await query.graph({
+          entity: partnerOrderLink.entryPoint,
+          fields: ["order_id"],
+          filters: { partner_id: pid },
+        })
+        const orderIds: string[] = Array.from(
+          new Set((linkRows ?? []).map((r: any) => r?.order_id).filter(Boolean))
+        )
+        if (!orderIds.length) continue
+
+        const { data: orders } = await query.graph({
+          entity: "order",
+          fields: ["id", "currency_code"],
+          filters: { id: orderIds, currency_code: fromCurrency },
+        })
+
+        for (const order of orders ?? []) {
+          if (changes.length >= limit) break
+          ordersScanned++
+          const orderChanges = diffOrderCurrency(
+            order.id,
+            order.currency_code,
+            targetCurrency
+          )
+          if (orderChanges.length === 0) continue
+
+          changes.push(...orderChanges)
+
+          if (!dry_run) {
+            await orderService.updateOrders([
+              { id: order.id, currency_code: targetCurrency },
+            ])
+          }
+        }
+      } catch (e: any) {
+        errors.push({ id: pid, message: e?.message ?? String(e) })
+      }
+    }
+
+    return {
+      job_id: backfillPartnerOrderCurrencyJob.id,
+      dry_run,
+      applied: !dry_run && changes.length > 0,
+      summary: summarizeOrderCurrencyBackfill(
+        dry_run,
+        partnersScanned,
+        ordersScanned,
+        changes.length,
+        fromCurrency,
+        errors.length
+      ),
+      changes,
+      errors,
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -1364,6 +1578,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillInventoryUnitCostJob,
   backfillDesignEnergyCostJob,
   pruneOpsAuditRunsJob,
+  backfillPartnerOrderCurrencyJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>

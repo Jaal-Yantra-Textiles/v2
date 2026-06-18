@@ -1,7 +1,12 @@
 # #485 — Partner UI shows EUR instead of store-default currency — Root Cause + Proposed Fix
 
-**Status:** ROOT-CAUSED (analysis). Blocked on a product decision before a fix can land.
-**Date:** 2026-06-18 (daemon chunk 1/6)
+**Status:** ROOT-CAUSED → **durable fix PARTIALLY SHIPPED** (daemon chunk 2/6).
+Decision approved (Option B, durable). Shipped: `resolveStoreCurrency` helper +
+`backfill-partner-order-currency` maintenance job (#457 pattern) + how-to doc
+(`OPS_DATA_PLUMBING_HOWTO.md`). **Still TODO:** rewire the 8 `stores[0]` call
+sites to `resolveStoreCurrency` (forward-fix; needs per-workflow integration
+tests) + the Settings-route Ops console UI (Playwright-gated).
+**Date:** 2026-06-18 (daemon chunk 1/6 analysis; chunk 2/6 partial build)
 **Surfaces:** partner-ui inventory-orders money cells; design references / design→order money.
 
 ---
