@@ -30,6 +30,12 @@ export type CreateEmailTemplate = z.infer<typeof CreateEmailTemplateSchema>;
 export const UpdateEmailTemplateSchema = EmailTemplateSchema.omit({
 }).partial().extend({
   id: z.string().optional(),
+  // `is_active` carries `.default(true)` on the base schema. A `.default()`
+  // survives `.partial()` in Zod v4, so an omitted `is_active` on a partial
+  // update would silently inject `true` and re-activate a deactivated template
+  // (the route spreads `...req.validatedBody` straight into the update workflow).
+  // Re-declare as plain optional (no default) so omission stays omitted.
+  is_active: z.boolean().optional(),
 }).strict();
 
 export type UpdateEmailTemplate = z.infer<typeof UpdateEmailTemplateSchema>;
