@@ -2,6 +2,7 @@ import {
   buildEnergyRateMap,
   computeEnergyCost,
   computeLaborCost,
+  computePruneCutoff,
   diffCostFields,
   diffEnergyCostFields,
   diffRunCostFields,
@@ -9,12 +10,14 @@ import {
   getMaintenanceJob,
   interpretRunCost,
   MAINTENANCE_JOBS,
+  MAX_AUDIT_PRUNE,
   MAX_BULK_DESIGNS,
   MAX_DESIGN_SCAN,
   MAX_INVENTORY_SCAN,
   parseDesignIds,
   pickLatestOrderLinePrice,
   round2,
+  summarizeAuditPrune,
   summarizeBulkRecalc,
   summarizeEnergyBackfill,
   summarizeUnitCostBackfill,
@@ -512,6 +515,108 @@ describe("ops/maintenance-jobs registry (#457)", () => {
       expect(summarizeEnergyBackfill(false, 10, 3, 0, 0, 1)).toBe(
         "Updated cost on 3 design(s) (scanned 10); 1 error(s)"
       )
+    })
+  })
+
+  // #483 follow-up: a labor-only design has no energy logs (energyCost → 0), but
+  // the apply payload persists energy_cost_total as `undefined` when it's 0, so
+  // it reads back as null. Without the 0≡null coercion the diff would report
+  // null→0 forever, re-writing the design on every sweep.
+  describe("diffEnergyCostFields — energy_cost_total 0≡null idempotency (#483)", () => {
+    const base = { estimated_cost: 100, material_cost: 60, production_cost: 40 }
+
+    it("does not report a phantom change when before is null and after is 0", () => {
+      expect(
+        diffEnergyCostFields(
+          "d_1",
+          { ...base, energy_cost_total: null },
+          { ...base, energy_cost_total: 0 }
+        )
+      ).toEqual([])
+    })
+
+    it("does not report a phantom change when before is 0 and after is 0", () => {
+      expect(
+        diffEnergyCostFields(
+          "d_1",
+          { ...base, energy_cost_total: 0 },
+          { ...base, energy_cost_total: 0 }
+        )
+      ).toEqual([])
+    })
+
+    it("still reports a real energy_cost_total change (e.g. 5 → 0)", () => {
+      expect(
+        diffEnergyCostFields(
+          "d_1",
+          { ...base, energy_cost_total: 5 },
+          { ...base, energy_cost_total: 0 }
+        )
+      ).toEqual([
+        { entity: "design", id: "d_1", field: "energy_cost_total", before: 5, after: 0 },
+      ])
+    })
+
+    it("still reports a real energy_cost_total change (null → 12)", () => {
+      expect(
+        diffEnergyCostFields(
+          "d_1",
+          { ...base, energy_cost_total: null },
+          { ...base, energy_cost_total: 12 }
+        )
+      ).toEqual([
+        { entity: "design", id: "d_1", field: "energy_cost_total", before: null, after: 12 },
+      ])
+    })
+  })
+
+  describe("prune-ops-audit-runs registry (#457 retention)", () => {
+    it("registers the prune job with a required older_than_days param", () => {
+      const job = getMaintenanceJob("prune-ops-audit-runs")
+      expect(job).toBeDefined()
+      expect(job?.params.some((p) => p.name === "older_than_days" && p.required)).toBe(true)
+      expect(job?.params.some((p) => p.name === "include_applied" && !p.required)).toBe(true)
+      expect(job?.params.some((p) => p.name === "limit" && !p.required)).toBe(true)
+    })
+
+    it("is included in the registry list", () => {
+      expect(MAINTENANCE_JOBS.map((j) => j.id)).toContain("prune-ops-audit-runs")
+    })
+  })
+
+  describe("computePruneCutoff", () => {
+    it("subtracts whole days from now", () => {
+      const now = new Date("2026-06-18T00:00:00.000Z")
+      expect(computePruneCutoff(now, 30).toISOString()).toBe("2026-05-19T00:00:00.000Z")
+    })
+
+    it("subtracts a single day", () => {
+      const now = new Date("2026-06-18T12:00:00.000Z")
+      expect(computePruneCutoff(now, 1).toISOString()).toBe("2026-06-17T12:00:00.000Z")
+    })
+  })
+
+  describe("summarizeAuditPrune", () => {
+    it("reports no matches with the scope and day window", () => {
+      expect(summarizeAuditPrune(true, 0, 30, false)).toBe(
+        "No changes — no dry-run-only audit rows older than 30 day(s)"
+      )
+    })
+
+    it("uses 'Would prune' for dry-run", () => {
+      expect(summarizeAuditPrune(true, 4, 30, false)).toBe(
+        "Would prune 4 dry-run-only audit row(s) older than 30 day(s)"
+      )
+    })
+
+    it("uses 'Pruned' on apply and widens the scope when include_applied", () => {
+      expect(summarizeAuditPrune(false, 7, 90, true)).toBe(
+        "Pruned 7 dry-run + applied audit row(s) older than 90 day(s)"
+      )
+    })
+
+    it("exposes a sane prune cap", () => {
+      expect(MAX_AUDIT_PRUNE).toBeGreaterThanOrEqual(1000)
     })
   })
 })

@@ -5,6 +5,7 @@ import { estimateDesignCostWorkflow } from "../../../../workflows/designs/estima
 import { DESIGN_MODULE } from "../../../../modules/designs"
 import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import { RAW_MATERIAL_MODULE } from "../../../../modules/raw_material"
+import { OPS_AUDIT_MODULE } from "../../../../modules/ops_audit"
 
 /**
  * Admin "data-plumbing" maintenance jobs (#457 / roadmap #33).
@@ -922,8 +923,19 @@ export function diffEnergyCostFields(
   ]
   const changes: MaintenanceChange[] = []
   for (const [field, rawBefore, afterValue] of pairs) {
-    const beforeValue = rawBefore == null ? null : Number(rawBefore)
-    if (beforeValue !== afterValue) {
+    let beforeValue = rawBefore == null ? null : Number(rawBefore)
+    let afterCompare: number | null = afterValue
+    // #483 follow-up: energy_cost_total is persisted as `undefined` (i.e. absent)
+    // when it computes to 0 — see the apply payload's `energy_cost_total > 0 ?`
+    // guard. So a labor-only design (no energy logs → energyCost 0) read back as
+    // `null` would otherwise diff null→0 on EVERY sweep, re-writing forever.
+    // Treat 0 and null/absent as equivalent for this field on both sides so the
+    // job is genuinely idempotent for energy-free designs.
+    if (field === "energy_cost_total") {
+      if (beforeValue === 0) beforeValue = null
+      if (afterCompare === 0) afterCompare = null
+    }
+    if (beforeValue !== afterCompare) {
       changes.push({ entity: "design", id: designId, field, before: beforeValue, after: afterValue })
     }
   }
@@ -1215,12 +1227,143 @@ export const backfillDesignEnergyCostJob: MaintenanceJob = {
   },
 }
 
+/**
+ * Hard cap on how many audit rows a single prune call may delete. Each pruned
+ * row is enumerated in `changes` (and therefore stored in THIS prune run's own
+ * audit row), so we bound the per-call blast radius and avoid bloating the very
+ * table we're pruning. Larger backlogs are drained across repeated calls.
+ */
+export const MAX_AUDIT_PRUNE = 5000
+
+const pruneAuditParamsSchema = z.object({
+  /** Only prune audit rows created strictly before now − this many days. */
+  older_than_days: z
+    .number()
+    .int()
+    .positive("older_than_days must be a positive integer"),
+  /**
+   * By default only the noisy dry-run *preview* rows are pruned; applied rows
+   * (the durable record of an actual write) are retained. Set true to prune
+   * applied rows too.
+   */
+  include_applied: z.boolean().optional().default(false),
+  /** Max audit rows to prune in one call (1..MAX_AUDIT_PRUNE). */
+  limit: z.number().int().positive().max(MAX_AUDIT_PRUNE).optional().default(1000),
+})
+
+/**
+ * Pure: the cutoff instant for a retention prune — rows created strictly before
+ * this are eligible. Exported so the date math is unit-testable without a clock
+ * dependency (caller passes "now").
+ */
+export function computePruneCutoff(now: Date, olderThanDays: number): Date {
+  return new Date(now.getTime() - olderThanDays * 24 * 60 * 60 * 1000)
+}
+
+/**
+ * Pure summary builder for the audit-log prune — keeps the human-facing string
+ * verifiable without booting the DB.
+ */
+export function summarizeAuditPrune(
+  dryRun: boolean,
+  matched: number,
+  olderThanDays: number,
+  includeApplied: boolean
+): string {
+  const scope = includeApplied ? "dry-run + applied" : "dry-run-only"
+  if (matched === 0) {
+    return `No changes — no ${scope} audit rows older than ${olderThanDays} day(s)`
+  }
+  const verb = dryRun ? "Would prune" : "Pruned"
+  return `${verb} ${matched} ${scope} audit row(s) older than ${olderThanDays} day(s)`
+}
+
+/**
+ * Prune the ops-maintenance audit log (#457 retention tail). Deletes
+ * `ops_maintenance_run` rows older than `older_than_days`. Safe by default in
+ * two ways: dry-run (default) only previews the matched rows, and only the noisy
+ * dry-run *preview* rows are eligible unless `include_applied=true` (so the
+ * durable record of actual writes is retained by default). Bounded by `limit`
+ * (oldest-first) so a single call can't delete an unbounded set. Idempotent:
+ * once the backlog is drained, re-running matches nothing.
+ */
+export const pruneOpsAuditRunsJob: MaintenanceJob = {
+  id: "prune-ops-audit-runs",
+  label: "Prune ops audit log",
+  description:
+    `Delete old ops-maintenance audit rows (ops_maintenance_run) older than 'older_than_days'. Dry-run (default) previews exactly which rows would be pruned without deleting; apply deletes them. By default only dry-run preview rows are eligible — set include_applied=true to also prune applied rows (the durable record of real writes). Prunes up to 'limit' oldest rows per call (default 1000, max ${MAX_AUDIT_PRUNE}).`,
+  params: [
+    {
+      name: "older_than_days",
+      type: "number",
+      required: true,
+      description: "Prune audit rows created more than this many days ago",
+    },
+    {
+      name: "include_applied",
+      type: "boolean",
+      required: false,
+      description:
+        "Also prune rows from applied (non-dry-run) runs (default false — applied rows are retained)",
+    },
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: `Max audit rows to prune in one call, oldest first (default 1000, max ${MAX_AUDIT_PRUNE})`,
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const parsed = pruneAuditParamsSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        parsed.error.issues.map((i) => i.message).join("; ")
+      )
+    }
+    const { older_than_days, include_applied, limit } = parsed.data
+
+    const audit: any = container.resolve(OPS_AUDIT_MODULE)
+
+    const cutoff = computePruneCutoff(new Date(), older_than_days)
+    const filters: Record<string, unknown> = { created_at: { $lt: cutoff } }
+    if (!include_applied) filters.applied = false
+
+    const [rows] = await audit.listAndCountOpsMaintenanceRuns(filters, {
+      take: limit,
+      order: { created_at: "ASC" },
+    })
+
+    const matched: any[] = rows || []
+    const changes: MaintenanceChange[] = matched.map((r) => ({
+      entity: "ops_maintenance_run",
+      id: r.id,
+      field: "deleted",
+      before: r.job_id,
+      after: null,
+    }))
+
+    if (!dry_run && matched.length > 0) {
+      await audit.deleteOpsMaintenanceRuns(matched.map((r) => r.id))
+    }
+
+    return {
+      job_id: pruneOpsAuditRunsJob.id,
+      dry_run,
+      applied: !dry_run && matched.length > 0,
+      summary: summarizeAuditPrune(dry_run, matched.length, older_than_days, include_applied),
+      changes,
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
   correctProductionRunCostJob,
   backfillInventoryUnitCostJob,
   backfillDesignEnergyCostJob,
+  pruneOpsAuditRunsJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
