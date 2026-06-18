@@ -4,6 +4,10 @@ export const listDesignsQuerySchema = z.object({
   limit: z.string().transform(Number).optional(),
   offset: z.string().transform(Number).optional(),
   status: z.string().optional(),
+  // Free-text search forwarded by the partner UI (SDK `query` → `q`). The
+  // partner designs list has no DB index for it, so it's matched in-app
+  // over the full partner-scoped set (see ./list-filters). #484.
+  q: z.string().optional(),
 })
 
 export type ListDesignsQuery = z.infer<typeof listDesignsQuerySchema>

@@ -107,6 +107,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../helpers"
 import { ListDesignsQuery, PartnerCreateDesign } from "./validators"
+import { applyDesignListFilters } from "./list-filters"
 import designPartnersLink from "../../../links/design-partners-link"
 import { createDesignWorkflow } from "../../../workflows/designs/create-design"
 import { linkDesignPartnerWorkflow } from "../../../workflows/designs/partner/link-design-to-partner"
@@ -115,7 +116,7 @@ export async function GET(
   req: AuthenticatedMedusaRequest<ListDesignsQuery>,
   res: MedusaResponse
 ) {
-  const { limit = 20, offset = 0, status } = req.validatedQuery
+  const { limit = 20, offset = 0, status, q } = req.validatedQuery as ListDesignsQuery
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
@@ -139,6 +140,14 @@ export async function GET(
   // and never reach page 1. Wrapped in a fallback so that if a runtime
   // ever rejects `order` on a link entry point, the listing degrades to
   // unordered instead of 500-ing.
+  //
+  // NOTE: pagination is intentionally NOT applied here. `query.graph` cannot
+  // filter on the linked design's columns (design.status) and the partner
+  // route has no free-text index, so status/`q` are matched in-app below.
+  // Paginating here would slice BEFORE the linked+owned merge and those
+  // filters run, returning the wrong page and a per-page (not total) count —
+  // the #484 page-vs-set bug. We fetch the full partner-scoped set (capped)
+  // and paginate in `applyDesignListFilters`.
   const linkFields = ["created_at", "design.*", "design.tasks.*", "partner.*"]
   let results: any[] = []
   try {
@@ -146,7 +155,7 @@ export async function GET(
       entity: designPartnersLink.entryPoint,
       fields: linkFields,
       filters,
-      pagination: { skip: offset, take: limit, order: { created_at: "DESC" } },
+      pagination: { skip: 0, take: 1000, order: { created_at: "DESC" } },
     }, { locale: req.locale })
     results = data
   } catch {
@@ -154,7 +163,7 @@ export async function GET(
       entity: designPartnersLink.entryPoint,
       fields: linkFields,
       filters,
-      pagination: { skip: offset, take: limit },
+      pagination: { skip: 0, take: 1000 },
     }, { locale: req.locale })
     results = data
   }
@@ -177,8 +186,11 @@ export async function GET(
   // the ordered query above already surfaces them — but if link ordering
   // ever misses one, this guarantees a partner still sees what they
   // created. Merged + re-sorted by recency below, never force-pinned.
+  // Always fetched now (no offset gate): pagination happens in-app AFTER
+  // the merge, so gating owned-fetch on offset===0 would drop owned
+  // designs from every page but the first. #484.
   let ownedRows: any[] = []
-  if (offset === 0) {
+  {
     try {
       const { data: owned } = await query.graph(
         {
@@ -220,11 +232,10 @@ export async function GET(
     return bt - at
   })
 
-  // post-filter by design.status if requested
-  let filtered = merged
-  if (status) {
-    filtered = merged.filter((linkData: any) => linkData.design?.status === status)
-  }
+  // status + free-text (`q`) filtering and pagination are applied AFTER the
+  // designs are mapped (so `q` can match the resolved design fields), via
+  // applyDesignListFilters below. Map over the full merged set here.
+  const filtered = merged
 
   // Pre-fetch all production runs for this partner (one query, not per-design)
   let partnerRuns: any[] = []
@@ -243,7 +254,7 @@ export async function GET(
     // Non-fatal
   }
 
-  const designs = filtered.map((linkData: any) => {
+  const mappedDesigns = filtered.map((linkData: any) => {
     const design = linkData.design
 
     const tasks = design.tasks || []
@@ -319,9 +330,19 @@ export async function GET(
     }
   })
 
+  // Apply status + free-text (`q`) filtering, THEN paginate, over the full
+  // partner-scoped set. count = total matched (pre-pagination) so the UI
+  // pager is correct. Pure + unit-tested in ./list-filters.
+  const { items: designs, count } = applyDesignListFilters(mappedDesigns, {
+    q,
+    status,
+    offset,
+    limit,
+  })
+
   res.status(200).json({
     designs,
-    count: designs.length,
+    count,
     limit,
     offset,
   })
