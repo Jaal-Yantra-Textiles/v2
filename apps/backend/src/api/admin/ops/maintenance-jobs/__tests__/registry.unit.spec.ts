@@ -1,15 +1,22 @@
 import {
+  buildEnergyRateMap,
+  computeEnergyCost,
+  computeLaborCost,
   diffCostFields,
+  diffEnergyCostFields,
   diffRunCostFields,
   diffUnitCost,
   getMaintenanceJob,
   interpretRunCost,
   MAINTENANCE_JOBS,
   MAX_BULK_DESIGNS,
+  MAX_DESIGN_SCAN,
   MAX_INVENTORY_SCAN,
   parseDesignIds,
   pickLatestOrderLinePrice,
+  round2,
   summarizeBulkRecalc,
+  summarizeEnergyBackfill,
   summarizeUnitCostBackfill,
 } from "../registry"
 
@@ -331,6 +338,180 @@ describe("ops/maintenance-jobs registry (#457)", () => {
 
     it("exposes a sane scan cap", () => {
       expect(MAX_INVENTORY_SCAN).toBeGreaterThanOrEqual(1000)
+    })
+  })
+
+  // ---- backfill-design-energy-costs job (#457) ----
+
+  describe("backfill-design-energy-costs registration", () => {
+    it("registers the job with optional design_id + force + limit params", () => {
+      const job = getMaintenanceJob("backfill-design-energy-costs")
+      expect(job).toBeDefined()
+      expect(MAINTENANCE_JOBS.map((j) => j.id)).toContain("backfill-design-energy-costs")
+      expect(job?.params.some((p) => p.name === "design_id" && !p.required)).toBe(true)
+      expect(job?.params.some((p) => p.name === "force" && !p.required)).toBe(true)
+      expect(job?.params.some((p) => p.name === "limit" && !p.required)).toBe(true)
+    })
+
+    it("exposes a sane design-scan cap", () => {
+      expect(MAX_DESIGN_SCAN).toBeGreaterThanOrEqual(1000)
+    })
+  })
+
+  describe("round2", () => {
+    it("rounds to two decimal places", () => {
+      expect(round2(1.005)).toBeCloseTo(1.0) // float quirk: rounds toward 1.00
+      expect(round2(2.345)).toBe(2.35)
+      expect(round2(10)).toBe(10)
+    })
+  })
+
+  describe("buildEnergyRateMap", () => {
+    it("keeps the most-recently effective rate per energy_type", () => {
+      const map = buildEnergyRateMap([
+        { energy_type: "energy_electricity", rate_per_unit: 5, effective_from: "2026-01-01" },
+        { energy_type: "energy_electricity", rate_per_unit: 8, effective_from: "2026-03-01" },
+        { energy_type: "labor", rate_per_unit: 20, effective_from: "2026-01-01" },
+      ])
+      expect(map.get("energy_electricity")?.rate_per_unit).toBe(8)
+      expect(map.get("labor")?.rate_per_unit).toBe(20)
+    })
+
+    it("coerces string rates and ignores rows with no energy_type", () => {
+      const map = buildEnergyRateMap([
+        { energy_type: "energy_water", rate_per_unit: "3.5" as any, effective_from: "2026-01-01" },
+        { rate_per_unit: 99 } as any,
+      ])
+      expect(map.get("energy_water")?.rate_per_unit).toBe(3.5)
+      expect(map.size).toBe(1)
+    })
+  })
+
+  describe("computeEnergyCost", () => {
+    const rates = buildEnergyRateMap([
+      { energy_type: "energy_electricity", rate_per_unit: 10, effective_from: "2026-01-01" },
+    ])
+
+    it("uses the log unit_cost when present (partner_input)", () => {
+      const { total, items } = computeEnergyCost(
+        [{ consumption_type: "energy_electricity", quantity: 2, unit_cost: 7 }],
+        rates
+      )
+      expect(total).toBe(14)
+      expect(items[0].cost_source).toBe("partner_input")
+    })
+
+    it("falls back to the active rate when no unit_cost (energy_rate)", () => {
+      const { total, items } = computeEnergyCost(
+        [{ consumption_type: "energy_electricity", quantity: 3 }],
+        rates
+      )
+      expect(total).toBe(30)
+      expect(items[0].cost_source).toBe("energy_rate")
+    })
+
+    it("marks cost_source none when no rate is available", () => {
+      const { total, items } = computeEnergyCost(
+        [{ consumption_type: "energy_gas", quantity: 5 }],
+        rates
+      )
+      expect(total).toBe(0)
+      expect(items[0].cost_source).toBe("none")
+    })
+  })
+
+  describe("computeLaborCost", () => {
+    const rates = buildEnergyRateMap([
+      { energy_type: "labor", rate_per_unit: 15, effective_from: "2026-01-01" },
+    ])
+
+    it("totals labor hours and prices from the labor rate fallback", () => {
+      const { total, hours } = computeLaborCost(
+        [{ consumption_type: "labor", quantity: 2 }, { consumption_type: "labor", quantity: 3, unit_cost: 20 }],
+        rates
+      )
+      expect(hours).toBe(5)
+      expect(total).toBe(2 * 15 + 3 * 20)
+    })
+
+    it("returns zeroes for no logs", () => {
+      expect(computeLaborCost([], rates)).toEqual({ total: 0, hours: 0 })
+    })
+  })
+
+  describe("diffEnergyCostFields", () => {
+    const after = {
+      estimated_cost: 100,
+      material_cost: 60,
+      production_cost: 20,
+      energy_cost_total: 20,
+    }
+
+    it("reports a change for every field when nothing is persisted (null → value)", () => {
+      const changes = diffEnergyCostFields("d_1", {}, after)
+      expect(changes).toHaveLength(4)
+      expect(changes).toEqual(
+        expect.arrayContaining([
+          { entity: "design", id: "d_1", field: "energy_cost_total", before: null, after: 20 },
+        ])
+      )
+    })
+
+    it("is idempotent when persisted values already match", () => {
+      expect(
+        diffEnergyCostFields(
+          "d_1",
+          { estimated_cost: 100, material_cost: 60, production_cost: 20, energy_cost_total: 20 },
+          after
+        )
+      ).toEqual([])
+    })
+
+    it("coerces string-typed decimals before comparing", () => {
+      expect(
+        diffEnergyCostFields(
+          "d_1",
+          {
+            estimated_cost: "100" as any,
+            material_cost: "60" as any,
+            production_cost: "20" as any,
+            energy_cost_total: "20" as any,
+          },
+          after
+        )
+      ).toEqual([])
+    })
+
+    it("only reports the energy_cost_total when that's the sole drift", () => {
+      expect(
+        diffEnergyCostFields(
+          "d_1",
+          { estimated_cost: 100, material_cost: 60, production_cost: 20, energy_cost_total: 5 },
+          after
+        )
+      ).toEqual([
+        { entity: "design", id: "d_1", field: "energy_cost_total", before: 5, after: 20 },
+      ])
+    })
+  })
+
+  describe("summarizeEnergyBackfill", () => {
+    it("reports no changes and keeps the scan count", () => {
+      expect(summarizeEnergyBackfill(true, 7, 0, 0, 0, 0)).toMatch(
+        /No changes — scanned 7 design/
+      )
+    })
+
+    it("uses 'Would update' for dry-run and appends skip breakdown", () => {
+      expect(summarizeEnergyBackfill(true, 10, 3, 2, 1, 0)).toBe(
+        "Would update cost on 3 design(s) (scanned 10); 2 already had energy costs, 1 no energy/labor logs"
+      )
+    })
+
+    it("uses 'Updated' on apply and appends an error count when present", () => {
+      expect(summarizeEnergyBackfill(false, 10, 3, 0, 0, 1)).toBe(
+        "Updated cost on 3 design(s) (scanned 10); 1 error(s)"
+      )
     })
   })
 })

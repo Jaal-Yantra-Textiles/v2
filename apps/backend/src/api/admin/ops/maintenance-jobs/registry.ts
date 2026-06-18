@@ -766,11 +766,461 @@ export const backfillInventoryUnitCostJob: MaintenanceJob = {
   },
 }
 
+/**
+ * Hard cap on the energy-cost backfill scan. Without an explicit design_id the
+ * job sweeps every design that has a completed production run, running several
+ * synchronous lookups each, so we bound the per-request blast radius. Bigger
+ * sweeps raise the `limit` param across chunked calls.
+ */
+export const MAX_DESIGN_SCAN = 2000
+
+/** Consumption-log types that contribute to the three cost buckets. */
+export const MATERIAL_CONSUMPTION_TYPES = ["sample", "production", "wastage"]
+export const ENERGY_CONSUMPTION_TYPES = ["energy_electricity", "energy_water", "energy_gas"]
+
+const backfillEnergyParamsSchema = z.object({
+  /** Process a single design instead of sweeping all completed-run designs. */
+  design_id: z.string().min(1).optional(),
+  /** Recompute even when cost_breakdown already has energy_cost_total. */
+  force: z.boolean().optional().default(false),
+  /** Max designs to scan in one sweep when no design_id is given. */
+  limit: z.number().int().positive().max(MAX_DESIGN_SCAN).optional().default(1000),
+})
+
+export const round2 = (n: number): number => Math.round(n * 100) / 100
+
+/** Shape of one energy_rates row, as consumed by the rate map. */
+export type EnergyRateRow = {
+  energy_type?: string | null
+  rate_per_unit?: number | string | null
+  name?: string | null
+  effective_from?: string | Date | null
+}
+
+/**
+ * Pure: collapse the active energy_rates rows into the single most-recently
+ * effective rate per energy_type (latest effective_from wins). Mirrors the
+ * `backfill-design-energy-costs` script's rate selection but is container-free
+ * so the cost math is unit-testable. Exported for testing.
+ */
+export function buildEnergyRateMap(
+  rates: EnergyRateRow[]
+): Map<string, { rate_per_unit: number; name: string }> {
+  const map = new Map<string, { rate_per_unit: number; name: string; effective_from: number }>()
+  for (const rate of rates || []) {
+    const key = rate?.energy_type
+    if (!key) continue
+    const effectiveFrom = rate.effective_from ? new Date(rate.effective_from).getTime() : 0
+    const existing = map.get(key)
+    if (!existing || effectiveFrom > existing.effective_from) {
+      map.set(key, {
+        rate_per_unit: Number(rate.rate_per_unit) || 0,
+        name: rate.name ?? "",
+        effective_from: effectiveFrom,
+      })
+    }
+  }
+  // Strip the internal sort key from the returned shape.
+  const out = new Map<string, { rate_per_unit: number; name: string }>()
+  for (const [k, v] of map) out.set(k, { rate_per_unit: v.rate_per_unit, name: v.name })
+  return out
+}
+
+/** Shape of one consumption_log row used by the energy/labor cost math. */
+export type ConsumptionLogRow = {
+  consumption_type?: string | null
+  quantity?: number | string | null
+  unit_cost?: number | string | null
+  unit_of_measure?: string | null
+}
+
+/**
+ * Pure: total the energy consumption logs, falling back to the active
+ * per-type rate when a log carries no unit_cost. Returns the rounded total plus
+ * a per-line breakdown (with the cost source) for the persisted cost_breakdown.
+ */
+export function computeEnergyCost(
+  energyLogs: ConsumptionLogRow[],
+  rateMap: Map<string, { rate_per_unit: number; name: string }>
+): { total: number; items: Array<Record<string, unknown>> } {
+  let total = 0
+  const items: Array<Record<string, unknown>> = []
+  for (const log of energyLogs || []) {
+    const qty = Number(log.quantity) || 0
+    let unitCost = Number(log.unit_cost) || 0
+    let costSource = "partner_input"
+    if (!unitCost) {
+      const rateInfo = log.consumption_type ? rateMap.get(log.consumption_type) : undefined
+      if (rateInfo && rateInfo.rate_per_unit > 0) {
+        unitCost = rateInfo.rate_per_unit
+        costSource = "energy_rate"
+      } else {
+        costSource = "none"
+      }
+    }
+    const lineTotal = qty * unitCost
+    total += lineTotal
+    items.push({
+      consumption_type: log.consumption_type,
+      quantity: qty,
+      unit_cost: unitCost,
+      unit_of_measure: log.unit_of_measure,
+      line_total: lineTotal,
+      cost_source: costSource,
+    })
+  }
+  return { total: round2(total), items }
+}
+
+/**
+ * Pure: total the labor consumption logs, falling back to the active "labor"
+ * rate when a log carries no unit_cost. Returns the rounded cost plus the total
+ * labor hours.
+ */
+export function computeLaborCost(
+  laborLogs: ConsumptionLogRow[],
+  rateMap: Map<string, { rate_per_unit: number; name: string }>
+): { total: number; hours: number } {
+  let total = 0
+  let hours = 0
+  for (const log of laborLogs || []) {
+    const qty = Number(log.quantity) || 0
+    hours += qty
+    let unitCost = Number(log.unit_cost) || 0
+    if (!unitCost) unitCost = rateMap.get("labor")?.rate_per_unit || 0
+    total += qty * unitCost
+  }
+  return { total: round2(total), hours: round2(hours) }
+}
+
+/**
+ * Pure: diff a design's currently-persisted cost fields against the freshly
+ * computed values. Compares the three top-level cost columns plus the
+ * cost_breakdown's energy_cost_total. Rounded inputs make re-running idempotent.
+ * Exported for unit testing.
+ */
+export function diffEnergyCostFields(
+  designId: string,
+  before: {
+    estimated_cost?: number | null
+    material_cost?: number | null
+    production_cost?: number | null
+    energy_cost_total?: number | null
+  },
+  after: {
+    estimated_cost: number
+    material_cost: number
+    production_cost: number
+    energy_cost_total: number
+  }
+): MaintenanceChange[] {
+  const pairs: Array<[string, number | null | undefined, number]> = [
+    ["estimated_cost", before.estimated_cost, after.estimated_cost],
+    ["material_cost", before.material_cost, after.material_cost],
+    ["production_cost", before.production_cost, after.production_cost],
+    ["energy_cost_total", before.energy_cost_total, after.energy_cost_total],
+  ]
+  const changes: MaintenanceChange[] = []
+  for (const [field, rawBefore, afterValue] of pairs) {
+    const beforeValue = rawBefore == null ? null : Number(rawBefore)
+    if (beforeValue !== afterValue) {
+      changes.push({ entity: "design", id: designId, field, before: beforeValue, after: afterValue })
+    }
+  }
+  return changes
+}
+
+/**
+ * Pure summary builder for the energy-cost backfill — keeps the human-facing
+ * string verifiable without booting the DB.
+ */
+export function summarizeEnergyBackfill(
+  dryRun: boolean,
+  scanned: number,
+  changedCount: number,
+  alreadyHadCount: number,
+  noLogsCount: number,
+  errorCount: number
+): string {
+  const verb = dryRun ? "Would update" : "Updated"
+  const head =
+    changedCount === 0
+      ? `No changes — scanned ${scanned} design(s), none needed an energy/labor cost backfill`
+      : `${verb} cost on ${changedCount} design(s) (scanned ${scanned})`
+  const skips: string[] = []
+  if (alreadyHadCount > 0) skips.push(`${alreadyHadCount} already had energy costs`)
+  if (noLogsCount > 0) skips.push(`${noLogsCount} no energy/labor logs`)
+  const tail = skips.length ? `; ${skips.join(", ")}` : ""
+  return errorCount > 0 ? `${head}${tail}; ${errorCount} error(s)` : `${head}${tail}`
+}
+
+/**
+ * Backfill energy & labor costs into design cost breakdowns — promotes the
+ * one-off `backfill-design-energy-costs` script into a guarded, API-driven job
+ * (#457). For each design with committed energy/labor consumption logs it
+ * recomputes material + energy + labor + production cost (energy/labor priced
+ * from the log's unit_cost, else the latest active energy_rate) and diffs the
+ * result against what's persisted. Dry-run (default) previews every before→after
+ * without writing; apply persists the recomputed cost_breakdown (idempotent —
+ * re-running is a no-op once costs match). By default a design that already has
+ * energy_cost_total is skipped — set force=true to recompute it. Pass a single
+ * design_id to target one design, or sweep up to `limit` designs that have a
+ * completed production run.
+ */
+export const backfillDesignEnergyCostJob: MaintenanceJob = {
+  id: "backfill-design-energy-costs",
+  label: "Backfill design energy & labor costs",
+  description:
+    `Recompute and persist energy + labor costs into a design's cost_breakdown from its committed consumption logs (priced from the log unit_cost, else the latest active energy_rate). Dry-run previews the before/after without persisting; apply writes the recomputed breakdown (idempotent). By default skips designs that already have energy_cost_total — set force=true to recompute. Pass design_id to target one design, or sweep up to 'limit' completed-run designs (default 1000, max ${MAX_DESIGN_SCAN}).`,
+  params: [
+    {
+      name: "design_id",
+      type: "string",
+      required: false,
+      description: "Process a single design instead of sweeping all completed-run designs",
+    },
+    {
+      name: "force",
+      type: "boolean",
+      required: false,
+      description: "Recompute even when cost_breakdown already has energy_cost_total (default false)",
+    },
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: `Max designs to scan in one sweep when no design_id is given (default 1000, max ${MAX_DESIGN_SCAN})`,
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const parsed = backfillEnergyParamsSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        parsed.error.issues.map((i) => i.message).join("; ")
+      )
+    }
+    const { design_id, force, limit } = parsed.data
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const inventoryService: any = container.resolve(Modules.INVENTORY)
+    const designService: any = container.resolve(DESIGN_MODULE)
+    const consumptionLogService: any = container.resolve("consumption_log")
+    const productionRunService: any = container.resolve("production_runs")
+    const energyRateService: any = container.resolve("energy_rates")
+
+    // Active energy rates → latest-effective rate per type (pure).
+    const [activeRates] = await energyRateService.listAndCountEnergyRates(
+      { is_active: true },
+      { take: null }
+    )
+    const rateMap = buildEnergyRateMap(activeRates || [])
+
+    // Resolve the design id set: one explicit id, or the completed-run designs.
+    let designIds: string[]
+    if (design_id) {
+      designIds = [design_id]
+    } else {
+      const [completedRuns] = await productionRunService.listAndCountProductionRuns(
+        { status: "completed" },
+        { take: null }
+      )
+      designIds = [...new Set((completedRuns || []).map((r: any) => r.design_id).filter(Boolean))]
+        .slice(0, limit) as string[]
+    }
+
+    const changes: MaintenanceChange[] = []
+    const errors: Array<{ id: string; message: string }> = []
+    const changedDesigns = new Set<string>()
+    let alreadyHad = 0
+    let noLogs = 0
+
+    for (const designId of designIds) {
+      try {
+        const design: any = await designService.retrieveDesign(designId).catch(() => null)
+        if (!design) {
+          errors.push({ id: designId, message: "Design not found" })
+          continue
+        }
+
+        const existingBreakdown = (design.cost_breakdown as any) || {}
+        if (existingBreakdown.energy_cost_total && !force) {
+          alreadyHad++
+          continue
+        }
+
+        const [allLogs] = await consumptionLogService.listAndCountConsumptionLogs(
+          { design_id: designId, is_committed: true },
+          { take: null }
+        )
+        if (!allLogs || !allLogs.length) {
+          noLogs++
+          continue
+        }
+
+        const materialLogs = allLogs.filter((l: any) =>
+          MATERIAL_CONSUMPTION_TYPES.includes(l.consumption_type)
+        )
+        const energyLogs = allLogs.filter((l: any) =>
+          ENERGY_CONSUMPTION_TYPES.includes(l.consumption_type)
+        )
+        const laborLogs = allLogs.filter((l: any) => l.consumption_type === "labor")
+
+        // Nothing to backfill if there are no energy or labor logs.
+        if (!energyLogs.length && !laborLogs.length) {
+          noLogs++
+          continue
+        }
+
+        // Material cost (impure: per-log inventory + raw-material lookups).
+        let materialCost = 0
+        const materialItems: any[] = []
+        for (const log of materialLogs) {
+          let unitCost = Number(log.unit_cost) || 0
+          let costSource = "partner_input"
+          let title = log.inventory_item_id || "unknown"
+          if (log.inventory_item_id) {
+            try {
+              const item = await inventoryService.retrieveInventoryItem(log.inventory_item_id)
+              title = item.title || item.sku || log.inventory_item_id
+            } catch {
+              /* keep fallback title */
+            }
+            if (!unitCost) {
+              try {
+                const { data: rmLinks } = await query.graph({
+                  entity: "inventory_item_raw_materials",
+                  filters: { inventory_item_id: log.inventory_item_id },
+                  fields: ["raw_materials.unit_cost"],
+                })
+                const rmCost = Number(rmLinks?.[0]?.raw_materials?.unit_cost) || 0
+                if (rmCost > 0) {
+                  unitCost = rmCost
+                  costSource = "raw_material"
+                } else {
+                  costSource = "none"
+                }
+              } catch {
+                costSource = "none"
+              }
+            }
+          }
+          const lineTotal = Number(log.quantity) * unitCost
+          materialCost += lineTotal
+          materialItems.push({
+            inventory_item_id: log.inventory_item_id,
+            title,
+            quantity: Number(log.quantity),
+            unit_cost: unitCost,
+            line_total: lineTotal,
+            cost_source: costSource,
+          })
+        }
+
+        const { total: energyCost, items: energyItems } = computeEnergyCost(energyLogs, rateMap)
+        const { total: laborCost, hours: laborHours } = computeLaborCost(laborLogs, rateMap)
+
+        // Production cost: preserve existing, else partner estimate, else 30%.
+        let productionCost = Number(design.production_cost) || 0
+        let productionSource = existingBreakdown.production_cost_source || "existing"
+        if (!productionCost) {
+          try {
+            const [runs] = await productionRunService.listAndCountProductionRuns(
+              { design_id: designId, status: "completed" },
+              { take: 1, order: { completed_at: "DESC" } }
+            )
+            const partnerEst = Number(runs?.[0]?.partner_cost_estimate) || 0
+            if (partnerEst > 0) {
+              productionCost = partnerEst
+              productionSource = "partner_estimate"
+            }
+          } catch {
+            /* fall through to overhead */
+          }
+          if (!productionCost) {
+            productionCost = materialCost * 0.3
+            productionSource = "overhead_percent"
+          }
+        }
+
+        const roundedMaterial = round2(materialCost)
+        const roundedProduction = round2(productionCost)
+        const totalEstimate = round2(roundedMaterial + roundedProduction + energyCost + laborCost)
+
+        const designChanges = diffEnergyCostFields(
+          designId,
+          {
+            estimated_cost: design.estimated_cost,
+            material_cost: design.material_cost,
+            production_cost: design.production_cost,
+            energy_cost_total: existingBreakdown.energy_cost_total,
+          },
+          {
+            estimated_cost: totalEstimate,
+            material_cost: roundedMaterial,
+            production_cost: roundedProduction,
+            energy_cost_total: energyCost,
+          }
+        )
+
+        if (designChanges.length === 0) continue
+
+        changedDesigns.add(designId)
+        changes.push(...designChanges)
+
+        if (!dry_run) {
+          await designService.updateDesigns({
+            id: designId,
+            estimated_cost: totalEstimate,
+            material_cost: roundedMaterial,
+            production_cost: roundedProduction,
+            cost_breakdown: {
+              items: materialItems.length > 0 ? materialItems : existingBreakdown.items,
+              energy_costs: energyItems.length > 0 ? energyItems : undefined,
+              energy_cost_total: energyCost > 0 ? energyCost : undefined,
+              labor_cost_total: laborCost > 0 ? laborCost : undefined,
+              labor_hours: laborHours > 0 ? laborHours : undefined,
+              service_costs: existingBreakdown.service_costs,
+              service_cost_total: existingBreakdown.service_cost_total,
+              production_cost_source: productionSource,
+              production_overhead_percent:
+                productionSource === "overhead_percent" ? 30 : undefined,
+              partner_cost_estimate: existingBreakdown.partner_cost_estimate,
+              calculated_at: new Date().toISOString(),
+              source: "ops_maintenance_backfill_energy_costs",
+              previous_estimated_cost: design.estimated_cost || undefined,
+            },
+          })
+        }
+      } catch (e: any) {
+        errors.push({ id: designId, message: e?.message ?? String(e) })
+      }
+    }
+
+    return {
+      job_id: backfillDesignEnergyCostJob.id,
+      dry_run,
+      applied: !dry_run && changes.length > 0,
+      summary: summarizeEnergyBackfill(
+        dry_run,
+        designIds.length,
+        changedDesigns.size,
+        alreadyHad,
+        noLogs,
+        errors.length
+      ),
+      changes,
+      errors,
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
   correctProductionRunCostJob,
   backfillInventoryUnitCostJob,
+  backfillDesignEnergyCostJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>

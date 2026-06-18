@@ -223,6 +223,64 @@ setupSharedTestSuite(() => {
       ).rejects.toMatchObject({ response: { status: 400 } })
     })
 
+    it("GET lists the backfill-design-energy-costs job with optional params", async () => {
+      const res = await api.get("/admin/ops/maintenance-jobs", adminHeaders)
+      expect(res.status).toBe(200)
+      const job = res.data.jobs.find(
+        (j: any) => j.id === "backfill-design-energy-costs"
+      )
+      expect(job).toBeDefined()
+      expect(job.label).toBeTruthy()
+      expect(job.description).toBeTruthy()
+      expect(job.params).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "design_id", required: false }),
+          expect.objectContaining({ name: "force", required: false }),
+          expect.objectContaining({ name: "limit", required: false }),
+        ])
+      )
+    })
+
+    it("POST backfill-design-energy-costs with no params is safe-by-default dry_run (empty DB → no changes)", async () => {
+      const res = await api.post(
+        "/admin/ops/maintenance-jobs/backfill-design-energy-costs/run",
+        {},
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.result.job_id).toBe("backfill-design-energy-costs")
+      expect(res.data.result.dry_run).toBe(true)
+      expect(res.data.result.applied).toBe(false)
+      expect(res.data.result.changes).toEqual([])
+      expect(res.data.result.summary).toMatch(/scanned/i)
+    })
+
+    it("POST backfill-design-energy-costs reports a missing design_id per-design instead of failing", async () => {
+      const res = await api.post(
+        "/admin/ops/maintenance-jobs/backfill-design-energy-costs/run",
+        { dry_run: true, params: { design_id: "design_does_not_exist" } },
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.result.dry_run).toBe(true)
+      expect(res.data.result.changes).toEqual([])
+      expect(res.data.result.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: "design_does_not_exist" }),
+        ])
+      )
+    })
+
+    it("POST backfill-design-energy-costs rejects an invalid limit → 400", async () => {
+      await expect(
+        api.post(
+          "/admin/ops/maintenance-jobs/backfill-design-energy-costs/run",
+          { dry_run: true, params: { limit: -5 } },
+          adminHeaders
+        )
+      ).rejects.toMatchObject({ response: { status: 400 } })
+    })
+
     it("requires admin auth (401 without headers)", async () => {
       await expect(
         api.get("/admin/ops/maintenance-jobs")
