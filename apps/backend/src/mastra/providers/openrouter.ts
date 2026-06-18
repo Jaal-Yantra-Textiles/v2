@@ -100,6 +100,21 @@ export function filterByOutputModality(
   })
 }
 
+/**
+ * True if a model returns text output. Several free "image-input" models are
+ * actually audio/image GENERATORS (e.g. `google/lyria-3-*`) that accept an
+ * image but emit audio/music — never chat text. They produce un-parseable
+ * responses and waste 10-30s each in the vision fallback chain (the cause of
+ * the product-description 504s). We keep models that explicitly output text,
+ * or that omit `output_modalities` entirely (some free chat models don't
+ * declare it but are text models).
+ */
+export function outputsText(m: OpenRouterModel): boolean {
+  const out = m.architecture?.output_modalities
+  if (!out || out.length === 0) return true
+  return out.includes("text")
+}
+
 // Separate cache for vision models
 let cachedFreeVisionModels: OpenRouterModel[] = []
 let visionCacheTimestamp = 0
@@ -117,7 +132,9 @@ export async function getFreeVisionModels(): Promise<OpenRouterModel[]> {
   try {
     const allModels = await fetchAllModels()
     const freeModels = filterFreeModels(allModels)
-    cachedFreeVisionModels = filterByInputModality(freeModels, ["image"])
+    // Must accept image INPUT and return text OUTPUT (see outputsText).
+    const withImageInput = filterByInputModality(freeModels, ["image"])
+    cachedFreeVisionModels = withImageInput.filter(outputsText)
     visionCacheTimestamp = now
 
     // Sort by context length descending

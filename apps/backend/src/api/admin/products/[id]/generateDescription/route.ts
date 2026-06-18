@@ -65,9 +65,23 @@
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { GenerateDescriptionValidator } from "./validators"
+import { describeProductImageWorkflow } from "../../../../../workflows/ai/describe-product-image"
 import { generateProductDescriptionWorkflow } from "../../../../../workflows/products/gen-ai-desc"
 import { MedusaError } from "@medusajs/utils"
 
+/**
+ * Generate a product title + description from an image, trying providers in
+ * priority order and falling through on failure:
+ *
+ *   1. Configured AI platform for role `ai_product_description` (e.g. DashScope
+ *      / Qwen-VL set in Settings → External Platforms). The admin's chosen
+ *      default; ~15s and the cheapest reliable path.
+ *   2. OpenRouter FREE vision models (filtered to real vision→text models, so
+ *      the chain no longer wastes time on audio/image-generator models).
+ *
+ * First success wins. If every provider fails, surface one aggregated error
+ * naming what was tried, so the cause is visible instead of a bare 504/500.
+ */
 export const POST = async (
   req: MedusaRequest<GenerateDescriptionValidator>,
   res: MedusaResponse
@@ -83,27 +97,61 @@ export const POST = async (
   }
 
   const hint = body.hint ?? body.notes
+  const attempts: string[] = []
 
-  const { result, errors } = await generateProductDescriptionWorkflow(req.scope).run({
-    input: {
-      imageUrl: body.imageUrl,
-      hint,
-      productData: body.productData || {},
-    },
-  })
-
-  if (errors.length) {
-    // Surface first error for simplicity
-    throw errors[0]
+  // 1) Configured AI platform (DashScope / role=ai_product_description).
+  try {
+    const { result } = await describeProductImageWorkflow(req.scope).run({
+      input: { imageUrl: body.imageUrl, hint },
+    })
+    const r = result as {
+      title: string
+      description: string
+      provider_platform_id: string
+    }
+    res.status(200).json({
+      product_id: id,
+      title: r.title,
+      description: r.description,
+      provider: `platform:${r.provider_platform_id}`,
+    })
+    return
+  } catch (e: any) {
+    attempts.push(`configured-platform: ${e?.message || e}`)
   }
 
-  // result is the workflow response from Mastra validation step
-  // Ensure shape contains title and description
-  const { title, description } = result as { title: string; description: string }
+  // 2) OpenRouter free vision models (skips audio/image-gen models now).
+  if (process.env.OPENROUTER_API_KEY) {
+    try {
+      const { result, errors } = await generateProductDescriptionWorkflow(
+        req.scope
+      ).run({
+        input: {
+          imageUrl: body.imageUrl,
+          hint,
+          productData: body.productData || {},
+        },
+      })
+      if (errors?.length) {
+        throw errors[0]
+      }
+      const r = result as { title: string; description: string }
+      res.status(200).json({
+        product_id: id,
+        title: r.title,
+        description: r.description,
+        provider: "openrouter-free-vision",
+      })
+      return
+    } catch (e: any) {
+      attempts.push(`openrouter-free-vision: ${e?.message || e}`)
+    }
+  } else {
+    attempts.push("openrouter-free-vision: skipped (OPENROUTER_API_KEY not set)")
+  }
 
-  res.status(200).json({
-    product_id: id,
-    title,
-    description,
-  })
+  throw new MedusaError(
+    MedusaError.Types.UNEXPECTED_STATE,
+    `All AI description providers failed. Tried — ${attempts.join(" | ")}`
+  )
 }
