@@ -72,6 +72,53 @@ setupSharedTestSuite(() => {
       ).rejects.toMatchObject({ response: { status: 404 } })
     })
 
+    it("GET lists the bulk recalculate job alongside the single one", async () => {
+      const res = await api.get("/admin/ops/maintenance-jobs", adminHeaders)
+      expect(res.status).toBe(200)
+      const ids = res.data.jobs.map((j: any) => j.id)
+      expect(ids).toEqual(
+        expect.arrayContaining([
+          "recalculate-design-cost",
+          "recalculate-design-cost-bulk",
+        ])
+      )
+      const bulk = res.data.jobs.find(
+        (j: any) => j.id === "recalculate-design-cost-bulk"
+      )
+      expect(bulk.params).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "design_ids", required: true }),
+        ])
+      )
+    })
+
+    it("POST recalculate-design-cost-bulk without design_ids → 400", async () => {
+      await expect(
+        api.post(
+          "/admin/ops/maintenance-jobs/recalculate-design-cost-bulk/run",
+          { dry_run: true, params: {} },
+          adminHeaders
+        )
+      ).rejects.toMatchObject({ response: { status: 400 } })
+    })
+
+    it("POST recalculate-design-cost-bulk reports a missing id per-design instead of failing the batch", async () => {
+      const res = await api.post(
+        "/admin/ops/maintenance-jobs/recalculate-design-cost-bulk/run",
+        { dry_run: true, params: { design_ids: ["design_does_not_exist"] } },
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.result.dry_run).toBe(true)
+      expect(res.data.result.applied).toBe(false)
+      expect(res.data.result.changes).toEqual([])
+      expect(res.data.result.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: "design_does_not_exist" }),
+        ])
+      )
+    })
+
     it("requires admin auth (401 without headers)", async () => {
       await expect(
         api.get("/admin/ops/maintenance-jobs")
