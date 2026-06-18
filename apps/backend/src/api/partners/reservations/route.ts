@@ -1,11 +1,13 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules, MedusaError } from "@medusajs/framework/utils"
 
+import { applyReservationListFilters } from "./list-filters"
+
 /**
  * GET /partners/reservations
  *
  * List reservation items scoped to the partner's stock locations.
- * Accepts: limit, offset, inventory_item_id[], location_id[]
+ * Accepts: q, limit, offset, inventory_item_id[], location_id[]
  */
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -50,6 +52,7 @@ export const GET = async (
   // Parse query params
   const limit = Number(req.query.limit) || 20
   const offset = Number(req.query.offset) || 0
+  const q = typeof req.query.q === "string" ? req.query.q : undefined
 
   // Build filters — scope to partner's locations
   const filters: Record<string, any> = {
@@ -64,10 +67,16 @@ export const GET = async (
       : [inventoryItemId]
   }
 
+  // Fetch the FULL partner-scoped set, then apply `q` + pagination in-app.
+  // The inventory service exposes no free-text index for `q`; paginating in
+  // the service would slice BEFORE the q filter (wrong page + per-page count).
+  // See #484.
   const inventoryService = req.scope.resolve(Modules.INVENTORY) as any
-  const [reservations, count] = await inventoryService.listAndCountReservationItems(
-    filters,
-    { take: limit, skip: offset }
+  const allReservations = await inventoryService.listReservationItems(filters)
+
+  const { items: reservations, count } = applyReservationListFilters(
+    allReservations || [],
+    { q, offset, limit }
   )
 
   res.json({
