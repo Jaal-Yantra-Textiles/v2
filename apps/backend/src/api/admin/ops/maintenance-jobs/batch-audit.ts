@@ -1,4 +1,6 @@
 import type { MaintenanceJobResult } from "./registry"
+import { buildAuditRow } from "./audit"
+import type { OpsMaintenanceRunRow } from "./audit"
 
 /**
  * Normalized outcome of one child job within a batch run (Data Plumbing v2,
@@ -83,5 +85,59 @@ export function buildBatchRollup(
     change_count,
     error_count,
     summary,
+  }
+}
+
+/**
+ * A persistable child run row tied to its parent batch (#508). Reuses the v1
+ * `ops_maintenance_run` shape (so the run-history reader is unchanged) plus the
+ * `batch_id`/`job_index` denormalized references added in slice 1.
+ */
+export type OpsMaintenanceBatchChildRow = OpsMaintenanceRunRow & {
+  batch_id: string
+  job_index: number
+}
+
+/**
+ * Pure mapper: one child outcome → a persistable `ops_maintenance_run` row
+ * stamped with its parent `batch_id` + `job_index`. A successful child reuses
+ * the v1 `buildAuditRow` (identical shape to a single-job run). A child that
+ * THREW has no result, so it's recorded as a not-applied, zero-change row whose
+ * `errors` carries the caught message — mirroring how per-entity batch jobs
+ * record a bad id, but at the job level. `dry_run` comes from the batch (a
+ * thrown child never reports its own). Exported for unit testing — no DB.
+ */
+export function buildBatchChildRow(
+  outcome: BatchChildOutcome,
+  meta: {
+    actorId: string
+    params: Record<string, unknown>
+    dryRun: boolean
+    batchId: string
+    jobIndex: number
+  }
+): OpsMaintenanceBatchChildRow {
+  if (outcome.ok && outcome.result) {
+    return {
+      ...buildAuditRow(outcome.result, meta.actorId, meta.params),
+      batch_id: meta.batchId,
+      job_index: meta.jobIndex,
+    }
+  }
+
+  const message = outcome.error ?? "Unknown error"
+  return {
+    job_id: outcome.job_id,
+    actor_id: meta.actorId,
+    dry_run: meta.dryRun,
+    applied: false,
+    change_count: 0,
+    error_count: 1,
+    summary: `Job failed: ${message}`,
+    params: meta.params,
+    changes: [],
+    errors: [{ id: outcome.job_id, message }],
+    batch_id: meta.batchId,
+    job_index: meta.jobIndex,
   }
 }
