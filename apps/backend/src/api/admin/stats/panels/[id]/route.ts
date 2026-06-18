@@ -4,6 +4,7 @@ import { STATS_MODULE } from "../../../../../modules/stats"
 import StatsService from "../../../../../modules/stats/service"
 import { operationRegistry } from "../../../../../modules/visual_flows/operations/types"
 import { invalidatePanelCache } from "../../../../../modules/stats/resolver"
+import { applyPublicAuditStamp } from "../../../../../modules/stats/public-utils"
 import { updatePanelSchema } from "../../validators"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -42,6 +43,21 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
       // optionsResult.data narrows to `unknown` under Zod v4 generics; the
       // operation registry validates it as a record-shaped schema, so cast.
       data.operation_options = optionsResult.data as Record<string, any>
+    }
+
+    // Share-publicly audit (#341): when this update toggles
+    // `metadata.public`, stamp who/when server-side (never trust the
+    // client). Only loads the existing panel when metadata is in the
+    // payload so unrelated updates stay single-write.
+    if (data.metadata !== undefined) {
+      const existing = await service.retrieveStatsPanel(id)
+      const actorId = (req as any).auth_context?.actor_id as string | undefined
+      data.metadata = applyPublicAuditStamp(
+        existing.metadata as Record<string, any> | undefined,
+        data.metadata,
+        actorId,
+        new Date().toISOString()
+      )
     }
 
     const panel = await service.updateStatsPanels({ id, ...data })
