@@ -167,7 +167,13 @@ function hostCall(kind: string, payload: string): string {
  */
 async function loadIsolatedVm(): Promise<any> {
   try {
-    const mod: any = await import("isolated-vm")
+    // `isolated-vm` is an optional native addon. Reference the specifier
+    // indirectly (typed as `string`, not the literal) so tsc does NOT statically
+    // resolve it at build time — in the prod Docker image the optional dep is
+    // absent, and a literal `import("isolated-vm")` fails compilation (TS2307).
+    // Runtime presence is handled by the catch below.
+    const specifier: string = "isolated-vm"
+    const mod: any = await import(specifier)
     return mod.default || mod
   } catch (err: any) {
     throw new Error(
