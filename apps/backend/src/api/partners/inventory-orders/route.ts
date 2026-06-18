@@ -128,6 +128,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { getPartnerFromAuthContext } from "../helpers";
 import { ListInventoryOrdersQuery } from "./validators";
+import { applyInventoryOrderListFilters } from "./list-filters";
 import InventoryOrderPartnerLink from "../../../links/partner-inventory-order"
 
 
@@ -136,7 +137,8 @@ export async function GET(
     res: MedusaResponse
 ) {
     try {
-        const { limit = 20, offset = 0, status } = req.validatedQuery;
+        const { limit = 20, offset = 0, status, q } =
+            req.validatedQuery as ListInventoryOrdersQuery;
 
         const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
         
@@ -168,8 +170,13 @@ export async function GET(
         
         // Status filtering will be done after query, not in filters
         
-        // Use query.graph to get orders linked to this partner with associated tasks
-        const { data: orders, metadata } = await query.graph({
+        // Use query.graph to get orders linked to this partner with associated tasks.
+        // NOTE: pagination is intentionally NOT applied here. `query.graph` cannot
+        // filter on linked-module columns (inventory_orders.status) and the partner
+        // route has no free-text index, so status/`q` are matched in-app below.
+        // Paginating here would slice BEFORE those filters run, returning the wrong
+        // page and a per-page (not total) count — the #484 page-vs-set bug.
+        const { data: orders } = await query.graph({
             entity: InventoryOrderPartnerLink.entryPoint,
             fields: [
                 "inventory_orders.*",
@@ -179,24 +186,10 @@ export async function GET(
                 "partner.*",
               ],
             filters,
-            pagination: {
-                skip: offset,
-                take: limit
-            }
         }, { locale: req.locale });
-        
-        // Apply status filtering at application level (cannot be done in query due to MedusaJS limitation)
-        // This is a workaround for now, we shall look into a better solution in the future
-        // @todo fix this
-        let filteredOrders = orders;
-        if (status) {
-            filteredOrders = orders.filter((linkData: any) => 
-                linkData.inventory_orders?.status === status
-            );
-        }
-        
+
         // Format the response for partner view - now using task-based status
-        const partnerOrders = filteredOrders.map((linkData: any) => {
+        const formattedOrders = orders.map((linkData: any) => {
             const order = linkData.inventory_orders;
             
             // Extract partner workflow status from tasks instead of metadata
@@ -254,9 +247,17 @@ export async function GET(
             };
         });
         
+        // Apply status + free-text (`q`) filtering, THEN paginate, over the full
+        // partner-scoped set. count = total matched (pre-pagination) so the UI
+        // pager is correct. Pure + unit-tested in ./list-filters.
+        const { items: partnerOrders, count } = applyInventoryOrderListFilters(
+            formattedOrders,
+            { q, status, offset, limit }
+        );
+
         res.status(200).json({
             inventory_orders: partnerOrders,
-            count: filteredOrders.length,
+            count,
             limit,
             offset
         });
