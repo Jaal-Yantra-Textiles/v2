@@ -5,6 +5,7 @@ import type { Link } from "@medusajs/modules-sdk"
 import { GOOGLE_MERCHANT_MODULE } from "../../../modules/google_merchant"
 import type GoogleMerchantService from "../../../modules/google_merchant/service"
 import { mapProductToGoogleMerchant, validateProductForGoogle } from "./map-product-to-google"
+import { resolvePartnerLandingBase } from "./resolve-partner-landing-base"
 import productGoogleMerchantLink from "../../../links/product-google-merchant-link"
 
 const LINK_ENTRY = productGoogleMerchantLink.entryPoint
@@ -78,7 +79,16 @@ export const syncProductToGoogleStep = createStep(
     const contentLanguage = input.content_language || (account.api_config as any)?.content_language || "en"
     const feedLabel = input.feed_label || (account.api_config as any)?.feed_label || "US"
     const currencyCode = input.currency_code || (account.api_config as any)?.currency_code || "USD"
-    const landingBase = input.landing_url_base || (account.api_config as any)?.landing_url_base || process.env.STORE_URL || ""
+    // #377 — for partner-owned products, derive the landing base from the
+    // partner storefront (custom domain → subdomain). An explicit caller
+    // override still wins; the account/env base is the final fallback.
+    const partnerLandingBase = await resolvePartnerLandingBase(query, input.product_id)
+    const landingBase =
+      input.landing_url_base ||
+      partnerLandingBase ||
+      (account.api_config as any)?.landing_url_base ||
+      process.env.STORE_URL ||
+      ""
 
     if (!landingBase) {
       throw new MedusaError(
