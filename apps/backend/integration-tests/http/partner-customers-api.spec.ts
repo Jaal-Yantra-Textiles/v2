@@ -116,6 +116,67 @@ setupSharedTestSuite(() => {
       })
     })
 
+    // #484 — partner UI search was silently dropped: the list route never
+    // read `q`, so searching returned the full list. These assert the
+    // backend now honors q (by name/email) + offset/limit pagination.
+    describe("GET /partners/customers?q= (search + pagination)", () => {
+      beforeEach(async () => {
+        const unique = Date.now()
+        await api.post(
+          "/partners/customers",
+          { first_name: "Aurora", last_name: "Borealis", email: `aurora-${unique}@example.com` },
+          { headers: partner.headers }
+        )
+        await api.post(
+          "/partners/customers",
+          { first_name: "Zephyr", last_name: "Quill", email: `zephyr-${unique}@example.com` },
+          { headers: partner.headers }
+        )
+      })
+
+      it("filters by name (q)", async () => {
+        const res = await api.get("/partners/customers?q=Aurora", { headers: partner.headers })
+        expect(res.status).toBe(200)
+        expect(res.data.customers.length).toBeGreaterThanOrEqual(1)
+        expect(
+          res.data.customers.every((c: any) =>
+            `${c.first_name} ${c.last_name} ${c.email}`.toLowerCase().includes("aurora")
+          )
+        ).toBe(true)
+        expect(res.data.count).toBe(res.data.customers.length)
+      })
+
+      it("filters by email fragment (q)", async () => {
+        const res = await api.get("/partners/customers?q=zephyr-", { headers: partner.headers })
+        expect(res.status).toBe(200)
+        expect(res.data.customers.length).toBeGreaterThanOrEqual(1)
+        expect(
+          res.data.customers.every((c: any) => c.email.toLowerCase().includes("zephyr-"))
+        ).toBe(true)
+      })
+
+      it("returns empty for a non-matching q (search no longer ignored)", async () => {
+        const res = await api.get("/partners/customers?q=nonexistent-zzz-needle", {
+          headers: partner.headers,
+        })
+        expect(res.status).toBe(200)
+        expect(res.data.customers.length).toBe(0)
+        expect(res.data.count).toBe(0)
+      })
+
+      it("honors limit/offset pagination", async () => {
+        const page = await api.get("/partners/customers?limit=1&offset=0", {
+          headers: partner.headers,
+        })
+        expect(page.status).toBe(200)
+        expect(page.data.customers.length).toBe(1)
+        expect(page.data.limit).toBe(1)
+        expect(page.data.offset).toBe(0)
+        // count reflects the full matched set, not the page size
+        expect(page.data.count).toBeGreaterThanOrEqual(2)
+      })
+    })
+
     describe("Customer Addresses", () => {
       let customerId: string
 
