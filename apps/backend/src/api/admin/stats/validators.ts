@@ -42,7 +42,18 @@ export const panelBaseSchema = z.object({
 
 export const createPanelSchema = panelBaseSchema
 
-export const updatePanelSchema = panelBaseSchema.partial()
+// `panelBaseSchema.partial()` makes every field optional, but a field declared
+// with `.default({})` keeps that default even when wrapped in optional — so a
+// partial parse of a payload that omits `operation_options` still injects `{}`.
+// On the panel PUT route that meant a metadata-only update (e.g. toggling
+// `metadata.public`) would re-validate `{}` against the operation's required
+// options (400 for operations with required params) and clobber the stored
+// options with an empty object. Override the field back to a plain optional so
+// an omitted `operation_options` stays `undefined` and the route falls back to
+// the existing stored value.
+export const updatePanelSchema = panelBaseSchema.partial().extend({
+  operation_options: z.record(z.string(), z.any()).optional(),
+})
 
 export const previewPanelSchema = z.object({
   operation_type: z.string().min(1),
