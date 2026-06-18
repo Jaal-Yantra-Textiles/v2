@@ -175,16 +175,14 @@ setupSharedTestSuite(() => {
     })
   })
 
-  // NOTE (roadmap 32B): the engine path (FlowExecutionEngine.execute) now
-  // emits `visual_flow_execution.failed` from its catch — but it can't be
-  // exercised end-to-end here. The engine resolves a flow's graph by matching
-  // connection.target_id against operation.id (a generated `vfop_…`), while
-  // canvas-built flows store the canvas node id as `operation_key` and wire
-  // connections by node id. So the engine finds zero starting operations for a
-  // canvas flow and completes empty — a PRE-EXISTING engine graph-resolution
-  // gap (the engine path is currently unused), unrelated to the emit fix.
-  // The emit mirrors the workflow compensation emit covered above; fixing the
-  // engine graph resolver is tracked separately.
+  // NOTE (#459): the legacy `FlowExecutionEngine` (modules/visual_flows/
+  // execution-engine.ts) was removed as dead code — it was never wired into any
+  // route, subscriber, or workflow (0 refs) and its graph resolver was broken
+  // for canvas-built flows (it matched connection.target_id against the
+  // generated operation.id `vfop_…`, while canvas flows wire connections by
+  // canvas node id, so it found zero starting operations and completed empty).
+  // The live execution path is `workflows/visual-flows/execute-visual-flow.ts`,
+  // whose compensation emit of `visual_flow_execution.failed` is covered above.
 
   describe("visual-flow-lifecycle-email subscriber helpers", () => {
     const ENV_KEYS = ["VISUAL_FLOW_FAILURE_EMAIL", "MAILJET_FROM_EMAIL"]
