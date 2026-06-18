@@ -85,7 +85,59 @@ jobs:
         ENCRYPTION_KEY=bPH59JuZDRQULLeDD62+NiwqwcChpOLN/j7aqu3A+Hw=
         EOF
 
-    - name: Run integration tests
+    # ---- PR: run only the spec files changed in this PR (fast feedback) ----
+    - name: Detect changed spec files
+      if: github.event_name == 'pull_request'
+      id: changed-specs
+      uses: tj-actions/changed-files@v45
+      with:
+        files: |
+          apps/backend/**/*.spec.ts
+
+    - name: Run changed specs (PR)
+      if: github.event_name == 'pull_request'
+      working-directory: apps/backend
+      env:
+        NODE_ENV: test
+        DATABASE_URL: postgresql://runner@localhost:5432/postgres
+        POSTGRES_USER: runner
+        POSTGRES_PASSWORD: runner
+      run: |
+        ALL="${{ steps.changed-specs.outputs.all_changed_files }}"
+        if [ -z "$ALL" ]; then
+          echo "::notice::No *.spec.ts files changed in this PR — nothing to run."
+          echo "If this PR changes backend source, add/update its spec so CI exercises it."
+          exit 0
+        fi
+
+        UNIT=""
+        HTTP=""
+        for f in $ALL; do
+          rel="${f#apps/backend/}"          # paths come in repo-root-relative
+          case "$rel" in
+            *.unit.spec.ts)            UNIT="$UNIT $rel" ;;
+            integration-tests/modules/*) echo "::warning::skipping module spec $rel (not wired into targeted PR run)";;
+            *.spec.ts)                 HTTP="$HTTP $rel" ;;
+          esac
+        done
+
+        echo "Changed unit specs:        ${UNIT:-(none)}"
+        echo "Changed integration specs: ${HTTP:-(none)}"
+
+        if [ -n "$UNIT" ]; then
+          echo "::group::unit specs"
+          pnpm test:unit -- --runTestsByPath $UNIT
+          echo "::endgroup::"
+        fi
+        if [ -n "$HTTP" ]; then
+          echo "::group::integration (shared DB) specs"
+          pnpm test:integration:http:shared -- --runTestsByPath $HTTP
+          echo "::endgroup::"
+        fi
+
+    # ---- main push: full suite stays the release gate ----
+    - name: Run full integration suite (main)
+      if: github.event_name == 'push'
       run: pnpm --filter @jyt/backend test:integration:http:batched
       env:
         NODE_ENV: test
