@@ -348,6 +348,9 @@ importers:
       imapflow:
         specifier: ^1.2.10
         version: 1.2.10
+      isolated-vm:
+        specifier: ^6.1.2
+        version: 6.1.2
       js-yaml:
         specifier: ^4.1.1
         version: 4.1.1
@@ -562,10 +565,6 @@ importers:
       yalc:
         specifier: ^1.0.0-pre.53
         version: 1.0.0-pre.53
-    optionalDependencies:
-      isolated-vm:
-        specifier: ^6.1.2
-        version: 6.1.2
 
   apps/docs:
     dependencies:
