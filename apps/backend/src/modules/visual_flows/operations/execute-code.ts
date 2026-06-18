@@ -2,6 +2,7 @@ import { z } from "@medusajs/framework/zod"
 import { OperationDefinition, OperationContext, OperationResult } from "./types"
 import { getValueByPath } from "./utils"
 import { loadPackage } from "./package-loader"
+import { isIsolatedVmEnabled, runInIsolate } from "./isolated-runner"
 
 // Import npm packages to expose in sandbox
 import lodash from "lodash"
@@ -309,52 +310,95 @@ return {
         validation.warnings.forEach(w => logs.push(`[WARN] ${w}`))
       }
       
-      // Load requested external packages (from node_modules or auto-install)
-      const externalPackages: Record<string, any> = {}
-      const packageErrors: string[] = []
-      
-      for (const pkgName of requestedPackages) {
-        // Security check - block dangerous packages
-        const baseName = pkgName.split("/")[0].replace("@", "")
-        if (BLOCKED_PACKAGES.has(baseName) || BLOCKED_PACKAGES.has(pkgName)) {
-          return {
-            success: false,
-            error: `Package '${pkgName}' is blocked for security reasons.`,
+      // Pick the execution backend. When VFLOW_USE_ISOLATED_VM is enabled, user
+      // code runs inside a real isolated-vm sandbox (no host realm, no process/
+      // require, hard memory + CPU limits) instead of the in-process
+      // `new Function(...)` body — closing the code-injection half of the #1
+      // prod RCE risk. Default is OFF, so production behaviour is unchanged.
+      const isolated = isIsolatedVmEnabled()
+
+      let result: any
+
+      if (isolated) {
+        // Block dangerous packages even in isolated mode (defence in depth)
+        for (const pkgName of requestedPackages) {
+          const baseName = pkgName.split("/")[0].replace("@", "")
+          if (BLOCKED_PACKAGES.has(baseName) || BLOCKED_PACKAGES.has(pkgName)) {
+            return {
+              success: false,
+              error: `Package '${pkgName}' is blocked for security reasons.`,
+            }
           }
         }
-        
-        try {
-          // Load package (auto-installs if not present)
-          const pkg = await loadPackage(pkgName)
-          // Convert package name to valid JS identifier (e.g., "date-fns" -> "date_fns")
-          const varName = pkgName.replace(/[^a-zA-Z0-9]/g, "_").replace(/^_+|_+$/g, "")
-          externalPackages[varName] = pkg
-          logs.push(`[INFO] Loaded package: ${pkgName}`)
-        } catch (err: any) {
-          console.warn(`[execute_code] Failed to load package '${pkgName}': ${err.message}`)
-          packageErrors.push(`${pkgName}: ${err.message}`)
+        // External npm packages can't be bridged as live objects across the
+        // isolate boundary yet. Built-ins (lodash/dayjs/validator/uuid/crypto)
+        // are evaluated inside the isolate and remain available.
+        if (requestedPackages.length > 0) {
+          return {
+            success: false,
+            error:
+              `External npm packages are not supported while VFLOW_USE_ISOLATED_VM is enabled ` +
+              `(requested: ${requestedPackages.join(", ")}). Built-in packages ` +
+              `(lodash, dayjs, validator, uuid, crypto) are available — remove the "packages" ` +
+              `field, or disable isolated mode to load external packages.`,
+          }
         }
-      }
-      
-      // If any packages failed to load, return error
-      if (packageErrors.length > 0) {
-        return {
-          success: false,
-          error: `Failed to load package(s):\n${packageErrors.join("\n")}`,
-          data: { packageErrors },
+
+        console.log("[execute_code] Running in isolated-vm sandbox")
+        result = await runInIsolate(code, {
+          dataChain: context.dataChain,
+          extraBindings,
+          logs,
+          timeout,
+        })
+      } else {
+        // Load requested external packages (from node_modules or auto-install)
+        const externalPackages: Record<string, any> = {}
+        const packageErrors: string[] = []
+
+        for (const pkgName of requestedPackages) {
+          // Security check - block dangerous packages
+          const baseName = pkgName.split("/")[0].replace("@", "")
+          if (BLOCKED_PACKAGES.has(baseName) || BLOCKED_PACKAGES.has(pkgName)) {
+            return {
+              success: false,
+              error: `Package '${pkgName}' is blocked for security reasons.`,
+            }
+          }
+
+          try {
+            // Load package (auto-installs if not present)
+            const pkg = await loadPackage(pkgName)
+            // Convert package name to valid JS identifier (e.g., "date-fns" -> "date_fns")
+            const varName = pkgName.replace(/[^a-zA-Z0-9]/g, "_").replace(/^_+|_+$/g, "")
+            externalPackages[varName] = pkg
+            logs.push(`[INFO] Loaded package: ${pkgName}`)
+          } catch (err: any) {
+            console.warn(`[execute_code] Failed to load package '${pkgName}': ${err.message}`)
+            packageErrors.push(`${pkgName}: ${err.message}`)
+          }
         }
+
+        // If any packages failed to load, return error
+        if (packageErrors.length > 0) {
+          return {
+            success: false,
+            error: `Failed to load package(s):\n${packageErrors.join("\n")}`,
+            data: { packageErrors },
+          }
+        }
+
+        // Create a sandboxed execution environment ($-aliases + token bindings)
+        const sandbox = createSandbox(context.dataChain, logs, externalPackages, extraBindings)
+
+        console.log("[execute_code] Sandbox created with $last:", typeof context.dataChain.$last)
+
+        // Execute with timeout (code is wrapped in async function inside runInSandbox)
+        result = await executeWithTimeout(
+          () => runInSandbox(code, sandbox),
+          timeout
+        )
       }
-      
-      // Create a sandboxed execution environment ($-aliases + token bindings)
-      const sandbox = createSandbox(context.dataChain, logs, externalPackages, extraBindings)
-      
-      console.log("[execute_code] Sandbox created with $last:", typeof context.dataChain.$last)
-      
-      // Execute with timeout (code is wrapped in async function inside runInSandbox)
-      const result = await executeWithTimeout(
-        () => runInSandbox(code, sandbox),
-        timeout
-      )
       
       const duration = Date.now() - startTime
       

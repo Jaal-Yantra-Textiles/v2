@@ -176,6 +176,9 @@
     "validator": "^13.15.23",
     "zod": "^4.2.0"
   },
+  "optionalDependencies": {
+    "isolated-vm": "^6.1.2"
+  },
   "devDependencies": {
     "@medusajs/test-utils": "2.15.5",
     "@swc/core": "1.7.28",
