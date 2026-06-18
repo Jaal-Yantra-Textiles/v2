@@ -115,6 +115,56 @@ setupSharedTestSuite(() => {
         const found = listRes.data.inventory_items.some((i: any) => i.id === itemId)
         expect(found).toBe(true)
       })
+
+      it("should filter the list by q (search) on sku/title (#484)", async () => {
+        const unique = Date.now()
+        // Two distinct items at the partner's location.
+        const alphaRes = await api.post(
+          "/partners/inventory-items",
+          { sku: `ALPHA-${unique}`, title: `Cotton Yarn ${unique}` },
+          { headers: partner.headers }
+        )
+        await api.post(
+          "/partners/inventory-items",
+          { sku: `BETA-${unique}`, title: `Silk Thread ${unique}` },
+          { headers: partner.headers }
+        )
+        const alphaId = alphaRes.data.inventory_item.id
+
+        // Search by title fragment unique to the alpha item.
+        const byTitle = await api.get(
+          `/partners/inventory-items?q=Cotton Yarn ${unique}`,
+          { headers: partner.headers }
+        )
+        expect(byTitle.status).toBe(200)
+        expect(byTitle.data.inventory_items.length).toBe(1)
+        expect(byTitle.data.inventory_items[0].id).toBe(alphaId)
+        expect(byTitle.data.count).toBe(1)
+
+        // Search by sku fragment also works.
+        const bySku = await api.get(
+          `/partners/inventory-items?q=ALPHA-${unique}`,
+          { headers: partner.headers }
+        )
+        expect(bySku.status).toBe(200)
+        expect(bySku.data.inventory_items.some((i: any) => i.id === alphaId)).toBe(
+          true
+        )
+        expect(
+          bySku.data.inventory_items.every((i: any) =>
+            String(i.sku).includes(`ALPHA-${unique}`)
+          )
+        ).toBe(true)
+
+        // A non-matching term returns nothing (not the whole list).
+        const none = await api.get(
+          `/partners/inventory-items?q=zzz-no-such-item-${unique}`,
+          { headers: partner.headers }
+        )
+        expect(none.status).toBe(200)
+        expect(none.data.inventory_items.length).toBe(0)
+        expect(none.data.count).toBe(0)
+      })
     })
 
     describe("Inventory Item Details", () => {
