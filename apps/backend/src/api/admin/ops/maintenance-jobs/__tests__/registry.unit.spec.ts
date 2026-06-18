@@ -5,6 +5,7 @@ import {
   computePruneCutoff,
   diffCostFields,
   diffEnergyCostFields,
+  diffOrderCurrency,
   diffRunCostFields,
   diffUnitCost,
   getMaintenanceJob,
@@ -14,12 +15,14 @@ import {
   MAX_BULK_DESIGNS,
   MAX_DESIGN_SCAN,
   MAX_INVENTORY_SCAN,
+  MAX_ORDER_CURRENCY_SCAN,
   parseDesignIds,
   pickLatestOrderLinePrice,
   round2,
   summarizeAuditPrune,
   summarizeBulkRecalc,
   summarizeEnergyBackfill,
+  summarizeOrderCurrencyBackfill,
   summarizeUnitCostBackfill,
 } from "../registry"
 
@@ -617,6 +620,68 @@ describe("ops/maintenance-jobs registry (#457)", () => {
 
     it("exposes a sane prune cap", () => {
       expect(MAX_AUDIT_PRUNE).toBeGreaterThanOrEqual(1000)
+    })
+  })
+
+  describe("backfill-partner-order-currency registry (#485)", () => {
+    it("registers the job with optional partner_id / from_currency / limit params", () => {
+      const job = getMaintenanceJob("backfill-partner-order-currency")
+      expect(job).toBeDefined()
+      expect(job?.params.some((p) => p.name === "partner_id" && !p.required)).toBe(true)
+      expect(job?.params.some((p) => p.name === "from_currency" && !p.required)).toBe(true)
+      expect(job?.params.some((p) => p.name === "limit" && !p.required)).toBe(true)
+    })
+
+    it("is included in the registry list", () => {
+      expect(MAINTENANCE_JOBS.map((j) => j.id)).toContain("backfill-partner-order-currency")
+    })
+
+    it("exposes a sane scan cap", () => {
+      expect(MAX_ORDER_CURRENCY_SCAN).toBeGreaterThanOrEqual(1000)
+    })
+  })
+
+  describe("diffOrderCurrency", () => {
+    it("returns a single currency_code change when the order is mis-denominated", () => {
+      expect(diffOrderCurrency("order_1", "eur", "inr")).toEqual([
+        { entity: "order", id: "order_1", field: "currency_code", before: "eur", after: "inr" },
+      ])
+    })
+
+    it("returns no change when already in the target currency (case-insensitive)", () => {
+      expect(diffOrderCurrency("order_1", "INR", "inr")).toEqual([])
+    })
+
+    it("normalizes a null before to a real change", () => {
+      expect(diffOrderCurrency("order_1", null, "inr")).toEqual([
+        { entity: "order", id: "order_1", field: "currency_code", before: null, after: "inr" },
+      ])
+    })
+
+    it("lower-cases both sides before comparing and emitting", () => {
+      expect(diffOrderCurrency("order_1", "EUR", "INR")).toEqual([
+        { entity: "order", id: "order_1", field: "currency_code", before: "eur", after: "inr" },
+      ])
+    })
+  })
+
+  describe("summarizeOrderCurrencyBackfill", () => {
+    it("reports no matches with partner + order counts", () => {
+      expect(summarizeOrderCurrencyBackfill(true, 3, 12, 0, "eur", 0)).toBe(
+        "No changes — scanned 12 order(s) across 3 partner(s), none denominated in 'eur' needed correction"
+      )
+    })
+
+    it("uses 'Would re-stamp' for dry-run", () => {
+      expect(summarizeOrderCurrencyBackfill(true, 2, 5, 4, "eur", 0)).toBe(
+        "Would re-stamp currency on 4 order(s) (scanned 5 across 2 partner(s), from 'eur')"
+      )
+    })
+
+    it("uses 'Re-stamped' on apply and appends error count", () => {
+      expect(summarizeOrderCurrencyBackfill(false, 2, 5, 4, "eur", 1)).toBe(
+        "Re-stamped currency on 4 order(s) (scanned 5 across 2 partner(s), from 'eur'); 1 error(s)"
+      )
     })
   })
 })

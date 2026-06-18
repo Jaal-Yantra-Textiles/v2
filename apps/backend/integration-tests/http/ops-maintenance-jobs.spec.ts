@@ -409,5 +409,48 @@ setupSharedTestSuite(() => {
       )
       expect(runs.data.count).toBeGreaterThanOrEqual(1)
     })
+
+    // #485 — partner order currency backfill
+    it("GET lists the backfill-partner-order-currency job with optional params", async () => {
+      const res = await api.get("/admin/ops/maintenance-jobs", adminHeaders)
+      expect(res.status).toBe(200)
+      const job = res.data.jobs.find(
+        (j: any) => j.id === "backfill-partner-order-currency"
+      )
+      expect(job).toBeDefined()
+      expect(job.label).toBeTruthy()
+      expect(job.description).toBeTruthy()
+      expect(job.params).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "partner_id", required: false }),
+          expect.objectContaining({ name: "from_currency", required: false }),
+          expect.objectContaining({ name: "limit", required: false }),
+        ])
+      )
+    })
+
+    it("POST backfill-partner-order-currency with no params is safe-by-default dry_run (no partners → no changes)", async () => {
+      const res = await api.post(
+        "/admin/ops/maintenance-jobs/backfill-partner-order-currency/run",
+        {},
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.result.job_id).toBe("backfill-partner-order-currency")
+      expect(res.data.result.dry_run).toBe(true)
+      expect(res.data.result.applied).toBe(false)
+      expect(res.data.result.changes).toEqual([])
+      expect(res.data.result.summary).toMatch(/scanned/i)
+    })
+
+    it("POST backfill-partner-order-currency rejects an invalid limit → 400", async () => {
+      await expect(
+        api.post(
+          "/admin/ops/maintenance-jobs/backfill-partner-order-currency/run",
+          { dry_run: true, params: { limit: -5 } },
+          adminHeaders
+        )
+      ).rejects.toMatchObject({ response: { status: 400 } })
+    })
   })
 })
