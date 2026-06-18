@@ -124,5 +124,62 @@ setupSharedTestSuite(() => {
         api.get("/admin/ops/maintenance-jobs")
       ).rejects.toMatchObject({ response: { status: 401 } })
     })
+
+    // #457 — durable audit log
+    it("persists an audit row per run and exposes it via GET /runs", async () => {
+      // A bulk dry-run against a missing id succeeds (200, per-design error) and
+      // is a clean audit seed that needs no real design data.
+      const runRes = await api.post(
+        "/admin/ops/maintenance-jobs/recalculate-design-cost-bulk/run",
+        { dry_run: true, params: { design_ids: ["design_does_not_exist"] } },
+        adminHeaders
+      )
+      expect(runRes.status).toBe(200)
+
+      const res = await api.get(
+        "/admin/ops/maintenance-jobs/runs",
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.count).toBeGreaterThanOrEqual(1)
+      expect(res.data.limit).toBe(20)
+      expect(res.data.offset).toBe(0)
+
+      const row = res.data.runs.find(
+        (r: any) => r.job_id === "recalculate-design-cost-bulk"
+      )
+      expect(row).toBeDefined()
+      expect(row.dry_run).toBe(true)
+      expect(row.applied).toBe(false)
+      expect(row.change_count).toBe(0)
+      expect(row.error_count).toBeGreaterThanOrEqual(1)
+      expect(Array.isArray(row.errors)).toBe(true)
+      expect(row.created_at).toBeTruthy()
+    })
+
+    it("GET /runs filters by job_id", async () => {
+      await api.post(
+        "/admin/ops/maintenance-jobs/recalculate-design-cost-bulk/run",
+        { dry_run: true, params: { design_ids: ["design_does_not_exist"] } },
+        adminHeaders
+      )
+
+      const res = await api.get(
+        "/admin/ops/maintenance-jobs/runs?job_id=recalculate-design-cost-bulk&dry_run=true",
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.runs.length).toBeGreaterThanOrEqual(1)
+      for (const r of res.data.runs) {
+        expect(r.job_id).toBe("recalculate-design-cost-bulk")
+        expect(r.dry_run).toBe(true)
+      }
+    })
+
+    it("GET /runs requires admin auth (401 without headers)", async () => {
+      await expect(
+        api.get("/admin/ops/maintenance-jobs/runs")
+      ).rejects.toMatchObject({ response: { status: 401 } })
+    })
   })
 })

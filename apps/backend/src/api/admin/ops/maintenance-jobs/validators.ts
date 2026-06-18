@@ -15,3 +15,22 @@ export const OpsMaintenanceRunSchema = z.object({
 })
 
 export type OpsMaintenanceRunBody = z.infer<typeof OpsMaintenanceRunSchema>
+
+/**
+ * Query for GET /admin/ops/maintenance-jobs/runs (audit-log history). #457.
+ * limit/offset are coerced from query strings; dry_run/applied accept the usual
+ * "true"/"false" string forms.
+ */
+const booleanish = z
+  .union([z.boolean(), z.enum(["true", "false"])])
+  .transform((v) => v === true || v === "true")
+
+export const OpsMaintenanceRunsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+  job_id: z.string().optional(),
+  dry_run: booleanish.optional(),
+  applied: booleanish.optional(),
+})
+
+export type OpsMaintenanceRunsQuery = z.infer<typeof OpsMaintenanceRunsQuerySchema>

@@ -459,6 +459,9 @@ module.exports = defineConfig({
     resolve: "./src/modules/google_merchant",
   },
   {
+    resolve: "./src/modules/ops_audit",
+  },
+  {
     resolve: "./src/modules/ai_usage",
   },
   {
