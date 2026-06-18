@@ -413,9 +413,24 @@ const completeExecutionStep = createStep(
 // ============ Helper Functions ============
 
 /**
- * Recursively execute operations following the connection graph
+ * Recursively execute operations following the connection graph.
+ *
+ * A `visited` set (keyed by canvas node id) guards every node so it runs **at
+ * most once per execution**. This fixes two correctness bugs in the prior
+ * un-guarded traversal:
+ *   1. Diamond graphs (A→B→D, A→C→D) double-executed the join node `D` — once
+ *      down each branch — re-sending emails / re-writing data.
+ *   2. An accidental cycle (A→B→A) infinite-looped the executor (and the worker).
+ * Linear and simple-branch flows are unaffected (each node is reached once
+ * anyway). True fan-in *join* semantics (waiting for every parent before running
+ * D) are a separate concern handled by the compiled-plan level driver (#459
+ * slice 3); this guard only removes the double-run / infinite-loop hazards.
+ *
+ * `execOp` is injectable so the traversal can be unit-tested without a container.
+ *
+ * @internal exported for unit testing only.
  */
-async function executeOperationsRecursive(
+export async function executeOperationsRecursive(
   currentOps: any[],
   allOperations: any[],
   connections: any[],
@@ -423,7 +438,9 @@ async function executeOperationsRecursive(
   executionId: string,
   flowId: string,
   container: any,
-  service: VisualFlowService
+  service: VisualFlowService,
+  visited: Set<string> = new Set<string>(),
+  execOp: typeof executeSingleOperation = executeSingleOperation
 ): Promise<void> {
   // Sort by position (top to bottom, left to right)
   const sortedOps = [...currentOps].sort((a, b) => {
@@ -434,10 +451,17 @@ async function executeOperationsRecursive(
   console.log("[execute-visual-flow] Executing operations:", sortedOps.map((o: any) => o.operation_key))
 
   for (const operation of sortedOps) {
+    // Skip nodes already executed in this run (diamond join / cycle guard).
+    if (visited.has(operation.id)) {
+      console.log(`[execute-visual-flow] Skipping already-executed: ${operation.operation_key}`)
+      continue
+    }
+    visited.add(operation.id)
+
     console.log(`[execute-visual-flow] Executing: ${operation.operation_key} (${operation.operation_type})`)
-    
+
     // Execute the operation
-    const result = await executeSingleOperation(
+    const result = await execOp(
       operation,
       dataChain,
       executionId,
@@ -468,7 +492,9 @@ async function executeOperationsRecursive(
         executionId,
         flowId,
         container,
-        service
+        service,
+        visited,
+        execOp
       )
     }
   }
@@ -572,9 +598,10 @@ async function executeSingleOperation(
 }
 
 /**
- * Find next operations based on connections and result
+ * Find next operations based on connections and result.
+ * @internal exported for unit testing only.
  */
-function findNextOperations(
+export function findNextOperations(
   currentOp: any,
   result: any,
   allOperations: any[],
