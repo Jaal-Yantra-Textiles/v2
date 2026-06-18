@@ -17,6 +17,7 @@ import { parseCorsOrigins, ContainerRegistrationKeys } from "@medusajs/framework
 import cors from "cors";
 import { z } from "@medusajs/framework/zod";
 import { personSchema, listPersonsQuerySchema, UpdatePersonSchema, ReadPersonQuerySchema } from "./admin/persons/validators";
+import { OpsMaintenanceRunSchema } from "./admin/ops/maintenance-jobs/validators";
 import { getPersonResourceDefinition } from "./admin/persons/resources/registry";
 import { AdminGetOrdersOrderParams } from "@medusajs/medusa/api/admin/orders/validators";
 import { retrieveTransformQueryConfig as retrieveOrderTransformQueryConfig } from "@medusajs/medusa/api/admin/orders/query-config";
@@ -2950,6 +2951,12 @@ export default defineMiddlewares({
       matcher: "/admin/designs",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(designSchema))],
+    },
+    {
+      // #457 admin data-plumbing / ops maintenance jobs
+      matcher: "/admin/ops/maintenance-jobs/:id/run",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(OpsMaintenanceRunSchema))],
     },
     // NOTE: /admin/* routes already get Medusa's default admin auth
     // (session + bearer + api-key). Re-registering authenticate() with only
