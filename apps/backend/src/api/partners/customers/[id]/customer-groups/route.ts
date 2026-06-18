@@ -1,7 +1,13 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { Modules } from "@medusajs/framework/utils"
+import { linkCustomerGroupsToCustomerWorkflow } from "@medusajs/medusa/core-flows"
 import { validatePartnerEntityOwnership } from "../../../helpers"
 
+// Mirror admin POST /admin/customers/:id/customer-groups: the
+// customer <-> customer_group relationship is internal to the CUSTOMER module
+// (addCustomerToGroup/removeCustomerFromGroup), NOT a registered module link.
+// The previous remoteLink.create/dismiss between "customer" and "customer_group"
+// 500'd because no such link is defined. Use the core workflow instead (#495).
 export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
@@ -13,26 +19,20 @@ export const POST = async (
     req.scope
   )
 
-  const body = req.body as any
-  const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
+  const body = req.body as { add?: string[]; remove?: string[] }
 
-  if (body.add?.length) {
-    for (const groupId of body.add) {
-      await remoteLink.create({
-        customer: { customer_id: req.params.id },
-        customer_group: { customer_group_id: groupId },
-      })
-    }
-  }
+  await linkCustomerGroupsToCustomerWorkflow(req.scope).run({
+    input: {
+      id: req.params.id,
+      add: body.add ?? [],
+      remove: body.remove ?? [],
+    },
+  })
 
-  if (body.remove?.length) {
-    for (const groupId of body.remove) {
-      await remoteLink.dismiss({
-        customer: { customer_id: req.params.id },
-        customer_group: { customer_group_id: groupId },
-      })
-    }
-  }
+  const customerService = req.scope.resolve(Modules.CUSTOMER) as any
+  const customer = await customerService.retrieveCustomer(req.params.id, {
+    relations: ["groups"],
+  })
 
-  res.json({ customer: { id: req.params.id } })
+  res.json({ customer })
 }
