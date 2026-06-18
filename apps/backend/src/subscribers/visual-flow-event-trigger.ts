@@ -56,28 +56,46 @@ export default async function visualFlowEventTriggerHandler({
     }
     
     logger.info(`[visual-flow-event-trigger] Event "${eventName}" matched ${matchingFlows.length} flow(s)`)
-    
-    // Execute each matching flow
-    for (const flow of matchingFlows) {
-      try {
-        logger.info(`[visual-flow-event-trigger] Executing flow "${flow.name}" (${flow.id})`)
 
-        await executeVisualFlowWorkflow(container).run({
+    // Fire each matching flow WITHOUT awaiting it. The event bus awaits this
+    // subscriber, so awaiting a flow run here would block event delivery — one
+    // slow or long-running flow (durable `wait_for_event` suspends can last
+    // minutes/days) would stall the bus and every other matching flow in this
+    // batch. Detaching mirrors the webhook async path and the schedule scanner
+    // (`run-scheduled-visual-flows.ts`). Each run's own engine persists a flow
+    // execution record, so completion is observable without blocking here.
+    const triggeredAt = new Date().toISOString()
+    for (const flow of matchingFlows) {
+      logger.info(`[visual-flow-event-trigger] Dispatching flow "${flow.name}" (${flow.id})`)
+
+      void executeVisualFlowWorkflow(container)
+        .run({
           input: {
             flowId: flow.id,
             triggerData: eventData,
             triggeredBy: `event:${eventName}`,
             metadata: {
               event_name: eventName,
-              triggered_at: new Date().toISOString(),
+              triggered_at: triggeredAt,
             },
           },
         })
-        
-        logger.info(`[visual-flow-event-trigger] Flow "${flow.name}" executed successfully`)
-      } catch (flowError: any) {
-        logger.error(`[visual-flow-event-trigger] Failed to execute flow "${flow.name}": ${flowError.message}`)
-      }
+        .then(({ errors }) => {
+          if (errors?.length) {
+            logger.error(
+              `[visual-flow-event-trigger] Flow "${flow.name}" (${flow.id}) returned errors`
+            )
+            return
+          }
+          logger.info(
+            `[visual-flow-event-trigger] Flow "${flow.name}" (${flow.id}) executed successfully`
+          )
+        })
+        .catch((flowError: any) => {
+          logger.error(
+            `[visual-flow-event-trigger] Failed to execute flow "${flow.name}" (${flow.id}): ${flowError?.message}`
+          )
+        })
     }
   } catch (error: any) {
     // Don't throw - we don't want to break other subscribers
