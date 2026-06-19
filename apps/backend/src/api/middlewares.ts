@@ -69,6 +69,7 @@ import { CreateMaterialTypeSchema, ReadRawMaterialCategoriesSchema } from "./adm
 import { CreateDesignLLMSchema, designSchema, LinkDesignPartnerSchema, ReadDesignsQuerySchema, UpdateDesignSchema } from "./admin/designs/validators";
 import { SegmentImageSchema } from "./admin/designs/[id]/segment/validators";
 import { DepthImageSchema } from "./partners/designs/[designId]/segment/depth/validators";
+import { ReviseDesignSchema as PartnerReviseDesignSchema } from "./partners/designs/[designId]/revise/validators";
 import { taskTemplateSchema, updateTaskTemplateSchema } from "./admin/task-templates/validators";
 import { AdminPostDesignTasksReq } from "./admin/designs/[id]/tasks/validators";
 import { AdminPutDesignTaskReq } from "./admin/designs/[id]/tasks/[taskId]/validators";
@@ -3908,6 +3909,18 @@ export default defineMiddlewares({
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(DepthImageSchema)),
+      ],
+    },
+    {
+      // Roadmap #6/#337 — partner revises their OWN design (mirrors POST
+      // /admin/designs/:id/revise). Ownership-guarded + revisable-status
+      // pre-check in the handler; reviseDesignWorkflow re-links the partner
+      // to the new revision so it stays partner-owned & isolated.
+      matcher: "/partners/designs/:designId/revise",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerReviseDesignSchema)),
       ],
     },
     {
