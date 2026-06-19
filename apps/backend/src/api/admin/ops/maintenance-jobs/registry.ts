@@ -2332,6 +2332,231 @@ export const backfillConsumptionLogProductionRunIdJob: MaintenanceJob = {
   },
 }
 
+/**
+ * Hard cap on the raw-material link-repair scan. Each call enumerates the
+ * `inventory_item_raw_materials` pivot rows and resolves which inventory items /
+ * raw materials still exist, so we bound the per-request blast radius. Bigger
+ * sweeps raise the `limit` param across chunked calls.
+ */
+export const MAX_RAW_MATERIAL_LINK_SCAN = 10000
+
+const repairRawMaterialLinkParamsSchema = z.object({
+  /** Max pivot rows to scan in one call (1..MAX_RAW_MATERIAL_LINK_SCAN). */
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_RAW_MATERIAL_LINK_SCAN)
+    .optional()
+    .default(2000),
+})
+
+/** Shape of one `inventory_item_raw_materials` pivot row, as queried. */
+export type RawMaterialLinkRow = {
+  inventory_item_id?: string | null
+  raw_materials_id?: string | null
+}
+
+/**
+ * Pure: compute the orphan `inventory_item_raw_materials` link removals.
+ *
+ * The inventory-item ↔ raw-material link is what the cost machinery walks
+ * (`backfill-inventory-unit-cost`, `estimate-design-cost`) to resolve a unit's
+ * raw material — `query.graph(... raw_materials.* )[0]`. When either side of a
+ * pivot row is hard-deleted, the row dangles: the join silently resolves to a
+ * null/missing entity, so `[0]` can land on a dead row and the cost lookup
+ * misbehaves (silently skipped, or worse, the wrong row wins). This is the
+ * inventory analogue of `repair-partner-region-links`.
+ *
+ * The ONLY safe, well-defined correction is removing a pivot row whose
+ * inventory item OR raw material no longer exists. There is no derivable
+ * "should-exist" rule to ADD a missing link (unlike the region job's
+ * store.default_region_id source), so this job is orphan-removal only. Exact
+ * duplicate (inventory_item, raw_material) rows can't exist — the link carries a
+ * composite PK — so duplicate-collapse is a non-case.
+ *
+ * A row is flagged when its inventory_item_id is absent from
+ * `existingInventoryItemIds` OR its raw_materials_id is absent from
+ * `existingRawMaterialIds`. The `before.missing` tag records which side
+ * (inventory_item | raw_material | both) is gone. Malformed rows missing either
+ * id are skipped (can't be safely dismissed). De-duplicated by pivot pair so a
+ * pair is reported once.
+ *
+ * Exported for unit testing — container-free.
+ */
+export function diffInventoryRawMaterialLinks(
+  linkRows: RawMaterialLinkRow[],
+  existingInventoryItemIds: Set<string>,
+  existingRawMaterialIds: Set<string>
+): MaintenanceChange[] {
+  const changes: MaintenanceChange[] = []
+  const seen = new Set<string>()
+
+  for (const row of linkRows) {
+    const invId = row?.inventory_item_id
+    const rmId = row?.raw_materials_id
+    if (!invId || !rmId) continue // malformed pivot row — can't safely dismiss
+
+    const pairKey = `${invId}:${rmId}`
+    if (seen.has(pairKey)) continue
+    seen.add(pairKey)
+
+    const invMissing = !existingInventoryItemIds.has(invId)
+    const rmMissing = !existingRawMaterialIds.has(rmId)
+    if (!invMissing && !rmMissing) continue // both sides live — keep the link
+
+    const missing = invMissing && rmMissing ? "both" : invMissing ? "inventory_item" : "raw_material"
+    changes.push({
+      entity: "inventory_item_raw_materials",
+      id: pairKey,
+      field: "remove_orphan_link",
+      before: { inventory_item_id: invId, raw_materials_id: rmId, missing },
+      after: null,
+    })
+  }
+
+  return changes
+}
+
+/**
+ * Pure summary builder for the raw-material link repair — keeps the human-facing
+ * string verifiable without booting the DB.
+ */
+export function summarizeRawMaterialLinkRepair(
+  dryRun: boolean,
+  rowsScanned: number,
+  removedCount: number,
+  errorCount: number
+): string {
+  const head =
+    removedCount === 0
+      ? `No changes — scanned ${rowsScanned} inventory↔raw-material link(s), none orphaned`
+      : `${dryRun ? "Would" : "Did"} remove ${removedCount} orphan link(s) whose inventory item or raw material no longer exists (scanned ${rowsScanned})`
+  return errorCount > 0 ? `${head}; ${errorCount} error(s)` : head
+}
+
+/**
+ * Repair inventory-item ↔ raw-material links (#508 Data Plumbing v2 — cost-path
+ * integrity). The `inventory_item_raw_materials` pivot is what the unit-cost
+ * backfill and design-cost estimator walk to resolve a unit's raw material; a
+ * pivot row whose inventory item or raw material was hard-deleted dangles and
+ * can corrupt that lookup. This job enumerates the pivot rows, resolves which
+ * inventory items / raw materials still exist, and removes the orphans. Dry-run
+ * (default) previews every link it would remove without writing; apply dismisses
+ * them via the remote link (idempotent — re-running is a no-op once clean). Pure
+ * link-table ops, no entity writes. A per-link dismiss failure is reported in
+ * `errors` instead of aborting the sweep.
+ *
+ * NOTE: existence is checked via the module list (soft-deleted rows are excluded
+ * by default), so a SOFT-deleted inventory item / raw material reads as "gone"
+ * and its links are flagged — mirrors `repair-partner-region-links`. Restore the
+ * entity before running if you intend to keep its links.
+ */
+export const repairInventoryRawMaterialLinksJob: MaintenanceJob = {
+  id: "repair-inventory-raw-material-links",
+  label: "Repair inventory ↔ raw-material links",
+  description:
+    `Remove orphan inventory_item_raw_materials pivot rows whose inventory item or raw material no longer exists — the cost machinery (unit-cost backfill, design-cost estimator) walks this link, and a dangling row corrupts the lookup. Dry-run (default) previews every link it would remove without persisting; apply dismisses them (idempotent). Pure link-table ops, no entity writes. Scans up to 'limit' pivot rows per call (default 2000, max ${MAX_RAW_MATERIAL_LINK_SCAN}).`,
+  params: [
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: `Max pivot rows to scan in one call (default 2000, max ${MAX_RAW_MATERIAL_LINK_SCAN})`,
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const parsed = repairRawMaterialLinkParamsSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        parsed.error.issues.map((i) => i.message).join("; ")
+      )
+    }
+    const { limit } = parsed.data
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+    const inventoryService: any = container.resolve(Modules.INVENTORY)
+    const rawMaterialService: any = container.resolve(RAW_MATERIAL_MODULE)
+
+    // Enumerate the pivot rows (just the two foreign keys).
+    const { data: rawRows } = await query.graph({
+      entity: "inventory_item_raw_materials",
+      fields: ["inventory_item_id", "raw_materials_id"],
+      pagination: { take: limit },
+    })
+    const linkRows: RawMaterialLinkRow[] = rawRows ?? []
+
+    const invIds = Array.from(
+      new Set(linkRows.map((r) => r.inventory_item_id).filter(Boolean) as string[])
+    )
+    const rmIds = Array.from(
+      new Set(linkRows.map((r) => r.raw_materials_id).filter(Boolean) as string[])
+    )
+
+    // Which referenced inventory items / raw materials still exist.
+    let existingInventoryItemIds = new Set<string>()
+    if (invIds.length) {
+      const items: any[] = await inventoryService.listInventoryItems(
+        { id: invIds },
+        { take: invIds.length, select: ["id"] }
+      )
+      existingInventoryItemIds = new Set(items.map((i) => i.id))
+    }
+    let existingRawMaterialIds = new Set<string>()
+    if (rmIds.length) {
+      const rms: any[] = await rawMaterialService.listRawMaterials(
+        { id: rmIds },
+        { take: rmIds.length, select: ["id"] }
+      )
+      existingRawMaterialIds = new Set(rms.map((r) => r.id))
+    }
+
+    const changes = diffInventoryRawMaterialLinks(
+      linkRows,
+      existingInventoryItemIds,
+      existingRawMaterialIds
+    )
+
+    let removed = 0
+    const errors: Array<{ id: string; message: string }> = []
+    for (const change of changes) {
+      const before = change.before as {
+        inventory_item_id: string
+        raw_materials_id: string
+      }
+      if (dry_run) {
+        removed++
+        continue
+      }
+      try {
+        await remoteLink.dismiss({
+          [Modules.INVENTORY]: { inventory_item_id: before.inventory_item_id },
+          [RAW_MATERIAL_MODULE]: { raw_materials_id: before.raw_materials_id },
+        })
+        removed++
+      } catch (e: any) {
+        errors.push({ id: change.id, message: e?.message ?? String(e) })
+      }
+    }
+
+    return {
+      job_id: repairInventoryRawMaterialLinksJob.id,
+      dry_run,
+      applied: !dry_run && removed > 0,
+      summary: summarizeRawMaterialLinkRepair(
+        dry_run,
+        linkRows.length,
+        removed,
+        errors.length
+      ),
+      changes,
+      errors,
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -2343,6 +2568,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   repairPartnerRegionLinksJob,
   resyncProductLandingUrlJob,
   backfillConsumptionLogProductionRunIdJob,
+  repairInventoryRawMaterialLinksJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
