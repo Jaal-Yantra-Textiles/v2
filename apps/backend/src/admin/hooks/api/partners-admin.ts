@@ -316,3 +316,63 @@ export const useAdminCancelSubscription = (partnerId: string) => {
     },
   })
 }
+
+// --- #336 / #541: partner transaction-fee (commission) ledger -----------------
+
+export type AdminPartnerFee = {
+  id: string
+  partner_id: string
+  order_id: string
+  order_total: number | string
+  currency_code: string
+  fee_basis: "percentage" | "flat"
+  fee_rate: number
+  fee_amount: number | string
+  status: "accrued" | "invoiced" | "waived" | "reversed"
+  accrued_at?: string | null
+}
+
+export type AdminPartnerFeeSummary = {
+  count: number
+  total_fee_amount: number
+  net_fee_amount: number
+  by_status: Record<string, { count: number; fee_amount: number }>
+  by_currency: Record<
+    string,
+    { count: number; total_amount: number; net_amount: number }
+  >
+}
+
+export interface AdminPartnerFeesResponse {
+  partner_id: string
+  fees: AdminPartnerFee[]
+  count: number
+  offset: number
+  limit: number
+  summary: AdminPartnerFeeSummary
+}
+
+/**
+ * Reads a partner's accrued transaction-fee (commission) ledger from the
+ * Slice-4 read API (`GET /admin/partners/:id/fees`). Read-only — fees are
+ * accrued/reversed by the order.placed / order.canceled subscribers.
+ */
+export const usePartnerFees = (
+  partnerId: string,
+  query?: { status?: string; offset?: number; limit?: number },
+  options?: Omit<
+    UseQueryOptions<AdminPartnerFeesResponse, FetchError, AdminPartnerFeesResponse, QueryKey>,
+    "queryFn" | "queryKey"
+  >,
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: () =>
+      sdk.client.fetch<AdminPartnerFeesResponse>(`/admin/partners/${partnerId}/fees`, {
+        method: "GET",
+        query,
+      }),
+    queryKey: ["admin_partner_fees", partnerId, query],
+    ...options,
+  })
+  return { ...data, ...rest }
+}
