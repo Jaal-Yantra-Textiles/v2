@@ -2,7 +2,12 @@ import { model } from "@medusajs/framework/utils";
 
 const AnalyticsEvent = model.define("analytics_event", {
   id: model.id().primaryKey(),
-  
+
+  // Client-supplied idempotency key (optional). Set by the batch-ingest path /
+  // edge worker so retried batches dedupe cross-request. Null for the direct
+  // /web/analytics/track path. See #344.
+  event_id: model.text().nullable(),
+
   // Website Reference (stored as text ID, linked via module link)
   website_id: model.text(),
   
@@ -62,6 +67,9 @@ const AnalyticsEvent = model.define("analytics_event", {
   },
   {
     on: ["website_id", "event_type", "timestamp"],
+  },
+  {
+    on: ["event_id"],
   },
 ]);
 

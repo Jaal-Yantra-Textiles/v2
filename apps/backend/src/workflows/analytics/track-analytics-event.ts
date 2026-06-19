@@ -101,6 +101,12 @@ type TrackAnalyticsEventInput = {
   user_agent: string;
   ip_address: string;
   timestamp: Date;
+  // Optional client-supplied idempotency key (set by the batch-ingest path / edge worker).
+  // Persisted to analytics_event.event_id so retried batches dedupe cross-request.
+  client_event_id?: string;
+  // Optional pre-resolved country (e.g. request.cf.country from the edge worker);
+  // when set, it takes precedence over per-event GeoIP lookup.
+  country?: string;
   query_string?: string;
   is_404?: boolean;
   utm_source?: string;
@@ -124,8 +130,8 @@ const createAnalyticsEventStep = createStep(
     // Extract referrer source
     const referrer_source = extractReferrerSource(input.referrer);
     
-    // Get country from IP address
-    const country = getCountryFromIP(input.ip_address);
+    // Prefer an edge-resolved country (request.cf.country); fall back to GeoIP.
+    const country = input.country || getCountryFromIP(input.ip_address);
 
     // Create the event
     const event = await analyticsService.createAnalyticsEvents({
@@ -142,6 +148,7 @@ const createAnalyticsEventStep = createStep(
       os,
       device_type,
       country,
+      event_id: input.client_event_id || null,
       query_string: input.query_string || null,
       is_404: input.is_404 || false,
       utm_source: input.utm_source || null,
