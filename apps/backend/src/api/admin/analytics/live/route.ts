@@ -68,6 +68,12 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { analyticsConnections } from "../../../../subscribers/analytics-realtime";
 import { ANALYTICS_MODULE } from "../../../../modules/analytics";
 import AnalyticsService from "../../../../modules/analytics/service";
+import {
+  computeLiveStats,
+  LIVE_WINDOW_MS,
+  resolveLiveRefreshMs,
+  type LiveAnalyticsEvent,
+} from "./lib";
 
 /**
  * GET /admin/analytics/live
@@ -207,9 +213,27 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }, 30000);
 
+  // Periodically re-derive the snapshot from the (shared) DB and re-push it.
+  // The in-memory push pool only relays events processed by THIS instance, so on
+  // a multi-instance deployment the count drifts; re-pushing an authoritative
+  // DB-derived snapshot lets every connected client self-heal (the UI already
+  // treats a `connected` message as the source of truth). No new infra needed —
+  // see ./lib.ts and apps/docs/notes/525_MODULE_AUDIT_AND_CF_VISITOR_OFFLOAD.md.
+  const refreshMs = resolveLiveRefreshMs();
+  const refresh = setInterval(async () => {
+    try {
+      const stats = await getCurrentStats(analyticsService, website_id as string);
+      res.write(`data: ${JSON.stringify({ type: 'connected', data: stats })}\n\n`);
+    } catch (error) {
+      // Keep the stream alive on a transient query/write error; the next tick retries.
+      console.error("[Analytics Live] Error refreshing stats:", error);
+    }
+  }, refreshMs);
+
   // Clean up on disconnect
   req.on("close", () => {
     clearInterval(heartbeat);
+    clearInterval(refresh);
     const connections = analyticsConnections.get(website_id as string);
     if (connections) {
       connections.delete(res);
@@ -227,13 +251,13 @@ async function getCurrentStats(
   analyticsService: AnalyticsService,
   websiteId: string
 ) {
-  // Get recent events (last 5 minutes) to determine active visitors
-  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+  // Get recent events (within the active-visitor window) to determine who's live
+  const windowStart = new Date(Date.now() - LIVE_WINDOW_MS);
 
   const [recentEvents] = await analyticsService.listAndCountAnalyticsEvents(
     {
       website_id: websiteId,
-      timestamp: { $gte: fiveMinutesAgo },
+      timestamp: { $gte: windowStart },
     },
     {
       select: [
@@ -251,41 +275,6 @@ async function getCurrentStats(
     }
   );
 
-  // Count unique visitors and sessions from recent events
-  const uniqueVisitorIds = new Set(recentEvents.map((e: any) => e.visitor_id));
-  const uniqueSessionIds = new Set(recentEvents.map((e: any) => e.session_id));
-
-  // Get the most recent event per visitor to determine their current page
-  const visitorCurrentPages = new Map<string, string>();
-  
-  // Sort events by timestamp descending
-  const sortedEvents = [...recentEvents].sort(
-    (a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  );
-
-  // Get the latest page for each visitor
-  for (const event of sortedEvents) {
-    if (!visitorCurrentPages.has(event.visitor_id)) {
-      visitorCurrentPages.set(event.visitor_id, event.pathname);
-    }
-  }
-
-  // Count visitors per page
-  const activePages: Record<string, number> = {};
-  for (const pathname of visitorCurrentPages.values()) {
-    activePages[pathname] = (activePages[pathname] || 0) + 1;
-  }
-
-  // Get last 10 events for activity feed
-  const latestEvents = sortedEvents.slice(0, 10);
-
-  return {
-    currentVisitors: uniqueSessionIds.size,
-    uniqueVisitors: uniqueVisitorIds.size,
-    recentEvents: latestEvents,
-    activePages: Object.entries(activePages)
-      .map(([page, count]) => ({ page, count }))
-      .sort((a: any, b: any) => b.count - a.count)
-      .slice(0, 5),
-  };
+  // Pure aggregation (extracted + unit-tested in ./lib.ts).
+  return computeLiveStats(recentEvents as LiveAnalyticsEvent[]);
 }
