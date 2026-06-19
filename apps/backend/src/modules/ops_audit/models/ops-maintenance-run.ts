@@ -7,6 +7,11 @@ import { model } from "@medusajs/framework/utils"
  * Low-volume, operator-driven rows (not request-path), so we store the FULL
  * before/after `changes` JSON — fidelity > size. `created_at` (auto) is the run
  * time; no separate `ran_at` column needed.
+ *
+ * `batch_id`/`job_index` (Data Plumbing v2, #508) tie a run to its parent
+ * `ops_maintenance_batch` when it was executed as part of a batch. Both are
+ * NULL for legacy/single-job (`:id/run`) runs — a denormalized text reference,
+ * not a hard DML relation, so the v1 endpoints keep working unchanged.
  */
 const OpsMaintenanceRun = model.define("ops_maintenance_run", {
   id: model.id().primaryKey(),
@@ -20,6 +25,8 @@ const OpsMaintenanceRun = model.define("ops_maintenance_run", {
   params: model.json(),
   changes: model.json(),
   errors: model.json(),
+  batch_id: model.text().nullable(),
+  job_index: model.number().nullable(),
 })
 
 export default OpsMaintenanceRun
