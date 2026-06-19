@@ -7,6 +7,10 @@ export const MONTHLY_QUOTA = {
   // removal). Same free-tier soft-paywall policy as image_describe; no
   // migration needed (operation is a generic string column).
   image_segment: 10,
+  // Roadmap #6/#337 — partner depth/normal-map estimation (fal.ai MiDaS).
+  // Same free-tier soft-paywall policy as image_segment; no migration needed
+  // (operation is a generic string column).
+  image_depth: 10,
 } as const
 
 export type AiOperation = keyof typeof MONTHLY_QUOTA

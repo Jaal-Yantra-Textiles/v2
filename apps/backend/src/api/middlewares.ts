@@ -68,6 +68,7 @@ import { splitInventorySchema } from "./admin/inventory-items/[id]/split/validat
 import { CreateMaterialTypeSchema, ReadRawMaterialCategoriesSchema } from "./admin/categories/rawmaterials/validators";
 import { CreateDesignLLMSchema, designSchema, LinkDesignPartnerSchema, ReadDesignsQuerySchema, UpdateDesignSchema } from "./admin/designs/validators";
 import { SegmentImageSchema } from "./admin/designs/[id]/segment/validators";
+import { DepthImageSchema } from "./partners/designs/[designId]/segment/depth/validators";
 import { taskTemplateSchema, updateTaskTemplateSchema } from "./admin/task-templates/validators";
 import { AdminPostDesignTasksReq } from "./admin/designs/[id]/tasks/validators";
 import { AdminPutDesignTaskReq } from "./admin/designs/[id]/tasks/[taskId]/validators";
@@ -3895,6 +3896,18 @@ export default defineMiddlewares({
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(SegmentImageSchema)),
+      ],
+    },
+    {
+      // Roadmap #6/#337 — partner depth/normal-map estimation (mirrors POST
+      // /admin/designs/:id/segment/depth, fal.ai MiDaS). Ownership-guarded +
+      // quota-metered (image_depth soft-paywall) in the handler.
+      matcher: "/partners/designs/:designId/segment/depth",
+      method: "POST",
+      bodyParser: { sizeLimit: "20mb" },
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(DepthImageSchema)),
       ],
     },
     {
