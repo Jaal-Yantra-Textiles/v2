@@ -545,5 +545,54 @@ setupSharedTestSuite(() => {
         )
       ).rejects.toMatchObject({ response: { status: 400 } })
     })
+
+    // #508 slice 6 — backfill-consumption-log-production-run-id (ALTER-added
+    // denormalized FK with historical nulls). The fill/skip/ambiguous decision
+    // is unit-tested via diffConsumptionLogProductionRunId; here we assert the
+    // registry discovery + the safe-by-default dry_run contract without seeding
+    // production runs / consumption logs (no links → no changes).
+    it("GET lists the backfill-consumption-log-production-run-id job with optional production_run_id + limit params", async () => {
+      const res = await api.get("/admin/ops/maintenance-jobs", adminHeaders)
+      expect(res.status).toBe(200)
+      const job = res.data.jobs.find(
+        (j: any) => j.id === "backfill-consumption-log-production-run-id"
+      )
+      expect(job).toBeDefined()
+      expect(job.label).toBeTruthy()
+      expect(job.description).toBeTruthy()
+      expect(job.params).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "production_run_id", required: false }),
+          expect.objectContaining({ name: "limit", required: false }),
+        ])
+      )
+    })
+
+    it("POST backfill-consumption-log-production-run-id with no params is safe-by-default dry_run (no links → no changes)", async () => {
+      const res = await api.post(
+        "/admin/ops/maintenance-jobs/backfill-consumption-log-production-run-id/run",
+        {},
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.result.job_id).toBe(
+        "backfill-consumption-log-production-run-id"
+      )
+      expect(res.data.result.dry_run).toBe(true)
+      expect(res.data.result.applied).toBe(false)
+      expect(res.data.result.changes).toEqual([])
+      expect(res.data.result.errors).toEqual([])
+      expect(res.data.result.summary).toMatch(/none need a production_run_id backfill/i)
+    })
+
+    it("POST backfill-consumption-log-production-run-id rejects an invalid limit → 400", async () => {
+      await expect(
+        api.post(
+          "/admin/ops/maintenance-jobs/backfill-consumption-log-production-run-id/run",
+          { dry_run: true, params: { limit: 0 } },
+          adminHeaders
+        )
+      ).rejects.toMatchObject({ response: { status: 400 } })
+    })
   })
 })

@@ -4,11 +4,13 @@ import { z } from "@medusajs/framework/zod"
 import { estimateDesignCostWorkflow } from "../../../../workflows/designs/estimate-design-cost"
 import { DESIGN_MODULE } from "../../../../modules/designs"
 import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
+import { CONSUMPTION_LOG_MODULE } from "../../../../modules/consumption_log"
 import { RAW_MATERIAL_MODULE } from "../../../../modules/raw_material"
 import { OPS_AUDIT_MODULE } from "../../../../modules/ops_audit"
 import partnerOrderLink from "../../../../links/partner-order"
 import partnerRegionLink from "../../../../links/partner-region"
 import productGoogleMerchantLink from "../../../../links/product-google-merchant-link"
+import productionRunConsumptionLogLink from "../../../../links/production-runs-consumption-logs"
 import { resolveStoreCurrency } from "../../../../lib/resolve-store-currency"
 import {
   normalizeLandingBase,
@@ -2093,6 +2095,243 @@ export const resyncProductLandingUrlJob: MaintenanceJob = {
   },
 }
 
+/**
+ * Hard cap on the consumption-log production_run_id backfill scan. Each scanned
+ * link row drives a consumption_log read (batched) + at most one column write, so
+ * we bound the per-request blast radius. Bigger sweeps raise `limit` across
+ * chunked calls.
+ */
+export const MAX_CONSUMPTION_BACKFILL_SCAN = 5000
+
+const backfillConsumptionRunIdParamsSchema = z.object({
+  /** Restrict the backfill to logs linked to one production run. */
+  production_run_id: z.string().min(1).optional(),
+  /** Max production_run↔consumption_log links to scan in one call. */
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_CONSUMPTION_BACKFILL_SCAN)
+    .optional()
+    .default(1000),
+})
+
+export type ConsumptionBackfillDecision =
+  | "already_set"
+  | "no_link"
+  | "filled"
+  | "ambiguous"
+
+/**
+ * Pure: decide the production_run_id backfill for ONE consumption log (#508
+ * slice 6 — `backfill-consumption-log-production-run-id`).
+ *
+ * `consumption_log.production_run_id` is a DENORMALIZED copy of the
+ * production_runs↔consumption_log module link — and it is the PRIMARY read path
+ * (the run cost-summary route filters logs by this column, not by the link). The
+ * link is created best-effort in `log-consumption.ts` (its `remoteLink.create`
+ * is wrapped in a swallow-all try/catch), and the column itself was added by an
+ * ALTER (see migration-hazard memory), so a log can end up LINKED to a run while
+ * its column is still null → cost-summary silently undercounts that log.
+ *
+ * A backfill is unambiguous ONLY when the link points at exactly one run:
+ *   • already set      → no change (never overwrite an existing value)
+ *   • no linked run    → skip (sample/energy/labor logs legitimately have no run
+ *                        forever — a null column is correct, not drift)
+ *   • exactly one run  → fill the column from the link
+ *   • multiple runs    → ambiguous; skip (can't pick one safely)
+ *
+ * Exported for unit testing — container-free.
+ */
+export function diffConsumptionLogProductionRunId(
+  logId: string,
+  currentProductionRunId: string | null | undefined,
+  linkedProductionRunIds: string[]
+): { decision: ConsumptionBackfillDecision; changes: MaintenanceChange[] } {
+  if (currentProductionRunId) {
+    return { decision: "already_set", changes: [] }
+  }
+  const unique = Array.from(
+    new Set((linkedProductionRunIds ?? []).filter(Boolean))
+  )
+  if (unique.length === 0) return { decision: "no_link", changes: [] }
+  if (unique.length > 1) return { decision: "ambiguous", changes: [] }
+  return {
+    decision: "filled",
+    changes: [
+      {
+        entity: "consumption_log",
+        id: logId,
+        field: "production_run_id",
+        before: null,
+        after: unique[0],
+      },
+    ],
+  }
+}
+
+/**
+ * Pure summary builder for the consumption-log backfill — keeps the human-facing
+ * string verifiable without booting the DB. Ambiguous (multi-run) logs are a skip
+ * surfaced separately, not a processing error (mirrors the landing-URL job's
+ * "not partner-owned" skip clause).
+ */
+export function summarizeConsumptionLogBackfill(
+  dryRun: boolean,
+  scanned: number,
+  filledCount: number,
+  ambiguousCount: number,
+  errorCount: number
+): string {
+  const verb = dryRun ? "Would backfill" : "Backfilled"
+  const head =
+    filledCount === 0
+      ? `No changes — scanned ${scanned} linked consumption log(s), none need a production_run_id backfill`
+      : `${verb} production_run_id on ${filledCount} consumption log(s) from their production-run link (scanned ${scanned})`
+  const amb =
+    ambiguousCount > 0
+      ? `; ${ambiguousCount} ambiguous (linked to multiple runs) skipped`
+      : ""
+  return errorCount > 0 ? `${head}${amb}; ${errorCount} error(s)` : `${head}${amb}`
+}
+
+/**
+ * Backfill consumption_log.production_run_id (#508 Data Plumbing v2 — ALTER-added
+ * denormalized FK with historical nulls). The production_run↔consumption_log link
+ * is the source of truth; this job fills the column for logs that are linked to
+ * exactly one run but whose column is still null (so the run cost-summary, which
+ * reads the column, stops undercounting them). Dry-run (default) previews every
+ * null→run-id it would set without writing; apply persists the column and NEVER
+ * overwrites an existing value (idempotent — re-running is a no-op once filled).
+ * Logs with no link (samples/energy/labor) are left alone; logs linked to
+ * multiple runs are skipped as ambiguous. A per-log failure is reported in
+ * `errors` instead of aborting the sweep. Optionally scope to one production_run_id.
+ */
+export const backfillConsumptionLogProductionRunIdJob: MaintenanceJob = {
+  id: "backfill-consumption-log-production-run-id",
+  label: "Backfill consumption log production run id",
+  description:
+    `Backfill the denormalized consumption_log.production_run_id column from the production-run↔consumption-log link (the run cost-summary reads this column, not the link, so a missing value silently undercounts run costs). Only logs LINKED to exactly one production run whose column is still null are filled; logs with no link (samples/energy/labor) are left alone and logs linked to multiple runs are skipped as ambiguous. Dry-run (default) previews every null→run-id it would set without writing; apply persists the column and never overwrites an existing value (idempotent). Optionally scope to one production_run_id. Scans up to 'limit' links per call (default 1000, max ${MAX_CONSUMPTION_BACKFILL_SCAN}).`,
+  params: [
+    {
+      name: "production_run_id",
+      type: "string",
+      required: false,
+      description:
+        "Restrict the backfill to logs linked to one production run (default: all)",
+    },
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: `Max production-run links to scan in one call (default 1000, max ${MAX_CONSUMPTION_BACKFILL_SCAN})`,
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const parsed = backfillConsumptionRunIdParamsSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        parsed.error.issues.map((i) => i.message).join("; ")
+      )
+    }
+    const { production_run_id, limit } = parsed.data
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const consumptionLogService: any = container.resolve(CONSUMPTION_LOG_MODULE)
+
+    // The production_run↔consumption_log link is the source of truth; the column
+    // is its denormalized copy. Only LINKED logs can ever need a backfill, so we
+    // scan from the link table (far smaller than all null-column logs, which are
+    // mostly samples that legitimately never carry a run).
+    const linkArgs: Record<string, unknown> = {
+      entity: productionRunConsumptionLogLink.entryPoint,
+      fields: ["production_runs_id", "consumption_log_id"],
+      pagination: { take: limit },
+    }
+    if (production_run_id) {
+      linkArgs.filters = { production_runs_id: production_run_id }
+    }
+    const { data: links } = await query.graph(linkArgs as any)
+    const linkRows = (links ?? []).filter(
+      (l: any) => l?.consumption_log_id && l?.production_runs_id
+    )
+
+    // Index runs by consumption log (a log may, abnormally, be linked to >1 run).
+    const runsByLog = new Map<string, string[]>()
+    for (const l of linkRows) {
+      const arr = runsByLog.get(l.consumption_log_id) ?? []
+      arr.push(l.production_runs_id)
+      runsByLog.set(l.consumption_log_id, arr)
+    }
+
+    // Batch-load the current column value for the linked logs.
+    const logIds = Array.from(runsByLog.keys())
+    const currentRunIdByLog = new Map<string, string | null>()
+    if (logIds.length) {
+      const { data: logs } = await query.graph({
+        entity: "consumption_log",
+        fields: ["id", "production_run_id"],
+        filters: { id: logIds },
+      })
+      for (const log of logs ?? []) {
+        currentRunIdByLog.set(log.id, log.production_run_id ?? null)
+      }
+    }
+
+    const changes: MaintenanceChange[] = []
+    const errors: Array<{ id: string; message: string }> = []
+    let filled = 0
+    let ambiguous = 0
+
+    for (const logId of logIds) {
+      try {
+        // A linked log that no longer exists is just skipped (stale link row).
+        if (!currentRunIdByLog.has(logId)) continue
+
+        const { decision, changes: logChanges } =
+          diffConsumptionLogProductionRunId(
+            logId,
+            currentRunIdByLog.get(logId),
+            runsByLog.get(logId) ?? []
+          )
+
+        if (decision === "ambiguous") {
+          ambiguous++
+          continue
+        }
+        if (!logChanges.length) continue
+
+        filled++
+        if (!dry_run) {
+          await consumptionLogService.updateConsumptionLogs({
+            id: logId,
+            production_run_id: logChanges[0].after as string,
+          })
+        }
+        changes.push(...logChanges)
+      } catch (e: any) {
+        errors.push({ id: logId, message: e?.message ?? String(e) })
+      }
+    }
+
+    return {
+      job_id: backfillConsumptionLogProductionRunIdJob.id,
+      dry_run,
+      applied: !dry_run && changes.length > 0,
+      summary: summarizeConsumptionLogBackfill(
+        dry_run,
+        logIds.length,
+        filled,
+        ambiguous,
+        errors.length
+      ),
+      changes,
+      errors,
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -2103,6 +2342,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillPartnerOrderCurrencyJob,
   repairPartnerRegionLinksJob,
   resyncProductLandingUrlJob,
+  backfillConsumptionLogProductionRunIdJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
