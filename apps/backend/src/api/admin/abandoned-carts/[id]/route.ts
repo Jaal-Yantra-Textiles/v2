@@ -13,6 +13,8 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 
+import { resolvePartnerStorefrontForSalesChannel } from "../../../../workflows/google_merchant/steps/resolve-partner-landing-base"
+
 const DETAIL_FIELDS = [
   "id",
   "email",
@@ -43,8 +45,8 @@ const DETAIL_FIELDS = [
   "sales_channel.name",
 ] as const
 
-const buildRecoveryUrl = (cartId: string) => {
-  const storeUrl = process.env.STORE_URL || "https://cicilabel.com"
+const buildRecoveryUrl = (cartId: string, base?: string | null) => {
+  const storeUrl = base || process.env.STORE_URL || "https://cicilabel.com"
   return `${storeUrl}/checkout/cart/${cartId}`
 }
 
@@ -74,6 +76,13 @@ export async function GET(
     0,
   )
 
+  // #521 — derive the owning partner storefront from the cart's sales channel so
+  // the recovery link points at THAT partner's storefront, not a global base.
+  const partner = await resolvePartnerStorefrontForSalesChannel(
+    query,
+    cart.sales_channel_id,
+  )
+
   res.status(200).json({
     abandoned_cart: {
       ...cart,
@@ -83,7 +92,15 @@ export async function GET(
         0,
         Math.round((Date.now() - new Date(cart.updated_at).getTime()) / 60000),
       ),
-      recovery_url: buildRecoveryUrl(cart.id),
+      recovery_url: buildRecoveryUrl(cart.id, partner?.storefront_base),
+      partner: partner
+        ? {
+            id: partner.id,
+            name: partner.name,
+            handle: partner.handle,
+            storefront_base: partner.storefront_base,
+          }
+        : null,
       is_completed: Boolean(cart.completed_at),
     },
   })
