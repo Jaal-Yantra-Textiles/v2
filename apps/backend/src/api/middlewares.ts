@@ -3886,6 +3886,18 @@ export default defineMiddlewares({
       middlewares: [authenticate("partner", ["session", "bearer"])],
     },
     {
+      // Roadmap #6/#337 — partner image segmentation (mirrors POST
+      // /admin/designs/:id/segment, fal.ai BiRefNet). Ownership-guarded +
+      // quota-metered (image_segment soft-paywall) in the handler.
+      matcher: "/partners/designs/:designId/segment",
+      method: "POST",
+      bodyParser: { sizeLimit: "20mb" },
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(SegmentImageSchema)),
+      ],
+    },
+    {
       // Roadmap #6 Phase 4 — partner-originated (self-approved) runs
       matcher: "/partners/designs/:designId/production-runs",
       method: "POST",
