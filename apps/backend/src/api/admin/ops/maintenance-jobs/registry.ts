@@ -8,7 +8,13 @@ import { RAW_MATERIAL_MODULE } from "../../../../modules/raw_material"
 import { OPS_AUDIT_MODULE } from "../../../../modules/ops_audit"
 import partnerOrderLink from "../../../../links/partner-order"
 import partnerRegionLink from "../../../../links/partner-region"
+import productGoogleMerchantLink from "../../../../links/product-google-merchant-link"
 import { resolveStoreCurrency } from "../../../../lib/resolve-store-currency"
+import {
+  normalizeLandingBase,
+  resolvePartnerLandingBase,
+} from "../../../../workflows/google_merchant/steps/resolve-partner-landing-base"
+import { syncProductToGoogleWorkflow } from "../../../../workflows/google_merchant/workflows/sync-product-to-google"
 
 /**
  * Admin "data-plumbing" maintenance jobs (#457 / roadmap #33).
@@ -1834,6 +1840,259 @@ export const repairPartnerRegionLinksJob: MaintenanceJob = {
   },
 }
 
+/**
+ * Hard cap on the landing-URL resync scan. Each synced product runs the partner
+ * pivot (several query.graph lookups) and, on apply, a live Google re-sync, so we
+ * bound the per-request blast radius. Bigger sweeps raise `limit` across chunked
+ * calls.
+ */
+export const MAX_RESYNC_SCAN = 5000
+
+const resyncLandingParamsSchema = z.object({
+  /** Restrict the resync to one Google Merchant account instead of all. */
+  account_id: z.string().min(1).optional(),
+  /** Max synced product links to scan in one call (1..MAX_RESYNC_SCAN). */
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_RESYNC_SCAN)
+    .optional()
+    .default(1000),
+})
+
+/**
+ * Pure: build the Google `link` (landing) URL for a product from a base + handle.
+ * Mirrors the sync step's `${base}/products/${handle}` exactly (trailing slashes
+ * stripped). Returns null when either input is missing. Exported for unit testing.
+ */
+export function buildProductLandingUrl(
+  base: string | null | undefined,
+  handle: string | null | undefined
+): string | null {
+  if (!base || !handle) return null
+  return `${String(base).replace(/\/+$/, "")}/products/${handle}`
+}
+
+/**
+ * Pure: detect a drifted Google landing URL for ONE synced product (#377 /
+ * #508 slice 5).
+ *
+ * #377 made the Google `link` derive from the OWNING PARTNER storefront base
+ * instead of a single global base (account `landing_url_base` → `STORE_URL`).
+ * Products synced BEFORE that fix carry a stale link built from the global base.
+ * Drift exists when the partner base resolves AND the URL it produces differs
+ * from the URL the product is currently synced under (reconstructed from the
+ * global base — the local link does NOT persist the URL, so for historical rows
+ * the "before" is the best-effort global reconstruction).
+ *
+ * A product with NO partner owner correctly falls back to the global base — no
+ * drift, nothing to fix. A missing handle can't produce a URL → no change.
+ *
+ * Exported for unit testing — container-free.
+ */
+export function diffProductLandingUrl(
+  productId: string,
+  handle: string | null | undefined,
+  partnerBase: string | null,
+  globalBase: string | null
+): MaintenanceChange[] {
+  // Not partner-owned → product is correctly on the global base; nothing to fix.
+  if (!partnerBase) return []
+  const after = buildProductLandingUrl(partnerBase, handle)
+  if (!after) return [] // no handle → can't build / push a URL
+  const before = buildProductLandingUrl(globalBase, handle)
+  if (before === after) return []
+  return [
+    {
+      entity: "product",
+      id: productId,
+      field: "google_landing_url",
+      before,
+      after,
+    },
+  ]
+}
+
+/**
+ * Pure summary builder for the landing-URL resync — keeps the human-facing string
+ * verifiable without booting the DB.
+ */
+export function summarizeLandingUrlResync(
+  dryRun: boolean,
+  scanned: number,
+  changedCount: number,
+  noPartnerCount: number,
+  errorCount: number
+): string {
+  const verb = dryRun ? "Would re-sync" : "Re-synced"
+  const head =
+    changedCount === 0
+      ? `No changes — scanned ${scanned} synced product(s), none have a partner landing URL that drifted from their Google link`
+      : `${verb} ${changedCount} product(s) whose Google landing URL drifted from the owning partner storefront base (scanned ${scanned})`
+  const skips = noPartnerCount > 0 ? `; ${noPartnerCount} not partner-owned` : ""
+  return errorCount > 0 ? `${head}${skips}; ${errorCount} error(s)` : `${head}${skips}`
+}
+
+/**
+ * Resolve the pre-#377 "global" landing base for a Google Merchant account — the
+ * base the product was previously synced under (account `api_config.landing_url_base`
+ * → `STORE_URL`). Normalized to `https://<host>` so it compares apples-to-apples
+ * with the partner base. Never throws (→ falls back to STORE_URL / null).
+ */
+async function resolveAccountGlobalBase(
+  query: any,
+  accountId: string
+): Promise<string | null> {
+  try {
+    const { data } = await query.graph({
+      entity: "google_merchant_account",
+      fields: ["id", "api_config"],
+      filters: { id: accountId },
+    })
+    const cfg = (data?.[0]?.api_config as any) || {}
+    return (
+      normalizeLandingBase(cfg?.landing_url_base) ||
+      normalizeLandingBase(process.env.STORE_URL)
+    )
+  } catch {
+    return normalizeLandingBase(process.env.STORE_URL)
+  }
+}
+
+/**
+ * Resync product partner landing URL (#508 Data Plumbing v2 — #377 denormalized
+ * link drift). #377 made a product's Google `link` derive from the owning
+ * partner storefront base; products synced before that carry a stale link built
+ * from the global base. This job scans already-synced product→Google links,
+ * resolves each product's partner storefront base (the never-throws #377
+ * resolver), and flags those whose URL now differs from the global base they were
+ * synced under.
+ *
+ * Dry-run (default) previews every old→new URL per product WITHOUT touching
+ * Google. Apply re-runs the existing `syncProductToGoogleWorkflow` per drifted
+ * product so Google receives the corrected partner link (the fix can only live on
+ * Google — the local link does not persist the URL). A per-product failure
+ * (e.g. externally-managed listing, auth error) is recorded in `errors` instead
+ * of aborting the sweep. Optionally scope to one account_id.
+ */
+export const resyncProductLandingUrlJob: MaintenanceJob = {
+  id: "resync-product-partner-landing-url",
+  label: "Resync product partner landing URL",
+  description:
+    `Re-derive a synced product's Google landing URL from the owning partner storefront base (#377) and re-sync the ones that drifted. Dry-run (default) previews old→new URL per product without touching Google; apply re-runs the product sync so Google gets the corrected partner link. Only already-synced, partner-owned products are considered (non-partner products correctly use the global base). The "before" URL is reconstructed from the account/global base since the local link does not persist it. A per-product failure is reported, not fatal. Optionally scope to one account_id. Scans up to 'limit' synced links per call (default 1000, max ${MAX_RESYNC_SCAN}).`,
+  params: [
+    {
+      name: "account_id",
+      type: "string",
+      required: false,
+      description: "Restrict the resync to one Google Merchant account (default: all)",
+    },
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: `Max synced product links to scan in one call (default 1000, max ${MAX_RESYNC_SCAN})`,
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const parsed = resyncLandingParamsSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        parsed.error.issues.map((i) => i.message).join("; ")
+      )
+    }
+    const { account_id, limit } = parsed.data
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+
+    // Synced product→Google links (a stale link only matters once it's live).
+    const linkArgs: Record<string, unknown> = {
+      entity: productGoogleMerchantLink.entryPoint,
+      fields: ["product_id", "google_merchant_account_id", "sync_status"],
+      pagination: { take: limit },
+    }
+    if (account_id) linkArgs.filters = { google_merchant_account_id: account_id }
+    const { data: links } = await query.graph(linkArgs as any)
+    const synced = (links ?? []).filter(
+      (l: any) => l?.product_id && l?.sync_status === "synced"
+    )
+
+    // Batch-load product handles (avoid relying on a dot-path through the link).
+    const productIds = Array.from(
+      new Set(synced.map((l: any) => l.product_id))
+    ) as string[]
+    const handleById = new Map<string, string | null>()
+    if (productIds.length) {
+      const { data: products } = await query.graph({
+        entity: "product",
+        fields: ["id", "handle"],
+        filters: { id: productIds },
+      })
+      for (const p of products ?? []) handleById.set(p.id, p.handle ?? null)
+    }
+
+    const accountBaseCache = new Map<string, string | null>()
+    const changes: MaintenanceChange[] = []
+    const errors: Array<{ id: string; message: string }> = []
+    let noPartner = 0
+
+    for (const link of synced) {
+      const productId = link.product_id as string
+      const accountId = link.google_merchant_account_id as string
+      try {
+        const partnerBase = await resolvePartnerLandingBase(query, productId)
+        if (!partnerBase) {
+          noPartner++
+          continue
+        }
+
+        if (!accountBaseCache.has(accountId)) {
+          accountBaseCache.set(
+            accountId,
+            await resolveAccountGlobalBase(query, accountId)
+          )
+        }
+        const globalBase = accountBaseCache.get(accountId) ?? null
+
+        const drift = diffProductLandingUrl(
+          productId,
+          handleById.get(productId),
+          partnerBase,
+          globalBase
+        )
+        if (!drift.length) continue
+
+        changes.push(...drift)
+
+        if (!dry_run) {
+          await syncProductToGoogleWorkflow(container).run({
+            input: { product_id: productId, account_id: accountId },
+          })
+        }
+      } catch (e: any) {
+        errors.push({ id: productId, message: e?.message ?? String(e) })
+      }
+    }
+
+    return {
+      job_id: resyncProductLandingUrlJob.id,
+      dry_run,
+      applied: !dry_run && changes.length > 0,
+      summary: summarizeLandingUrlResync(
+        dry_run,
+        synced.length,
+        changes.length,
+        noPartner,
+        errors.length
+      ),
+      changes,
+      errors,
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -1843,6 +2102,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   pruneOpsAuditRunsJob,
   backfillPartnerOrderCurrencyJob,
   repairPartnerRegionLinksJob,
+  resyncProductLandingUrlJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>

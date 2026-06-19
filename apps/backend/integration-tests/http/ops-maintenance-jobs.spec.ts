@@ -498,5 +498,52 @@ setupSharedTestSuite(() => {
         )
       ).rejects.toMatchObject({ response: { status: 400 } })
     })
+
+    // #508 slice 5 — resync-product-partner-landing-url (#377 link drift). The
+    // drift decision is unit-tested via diffProductLandingUrl; here we assert
+    // the registry discovery + the safe-by-default dry_run contract without
+    // seeding products / Google Merchant accounts (and so without any live
+    // Google call — apply re-runs the sync workflow, which dry_run never does).
+    it("GET lists the resync-product-partner-landing-url job with optional account_id + limit params", async () => {
+      const res = await api.get("/admin/ops/maintenance-jobs", adminHeaders)
+      expect(res.status).toBe(200)
+      const job = res.data.jobs.find(
+        (j: any) => j.id === "resync-product-partner-landing-url"
+      )
+      expect(job).toBeDefined()
+      expect(job.label).toBeTruthy()
+      expect(job.description).toBeTruthy()
+      expect(job.params).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "account_id", required: false }),
+          expect.objectContaining({ name: "limit", required: false }),
+        ])
+      )
+    })
+
+    it("POST resync-product-partner-landing-url with no params is safe-by-default dry_run (no synced links → no changes)", async () => {
+      const res = await api.post(
+        "/admin/ops/maintenance-jobs/resync-product-partner-landing-url/run",
+        {},
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.result.job_id).toBe("resync-product-partner-landing-url")
+      expect(res.data.result.dry_run).toBe(true)
+      expect(res.data.result.applied).toBe(false)
+      expect(res.data.result.changes).toEqual([])
+      expect(res.data.result.errors).toEqual([])
+      expect(res.data.result.summary).toMatch(/none have a partner landing URL/i)
+    })
+
+    it("POST resync-product-partner-landing-url rejects an invalid limit → 400", async () => {
+      await expect(
+        api.post(
+          "/admin/ops/maintenance-jobs/resync-product-partner-landing-url/run",
+          { dry_run: true, params: { limit: 0 } },
+          adminHeaders
+        )
+      ).rejects.toMatchObject({ response: { status: 400 } })
+    })
   })
 })
