@@ -128,6 +128,55 @@ setupSharedTestSuite(() => {
       expect(failed.error_count).toBe(1)
     })
 
+    it("GET /runs?batch_id scopes the flat run history to one batch's children", async () => {
+      // Seed a single-job run (batch_id = null) ...
+      const single = await api.post(
+        "/admin/ops/maintenance-jobs/backfill-inventory-unit-cost/run",
+        { dry_run: true },
+        adminHeaders
+      )
+      expect(single.status).toBe(200)
+      // ... and a 2-job batch (children carry the parent batch_id).
+      const batchId = await runBatch({
+        name: "runs filter batch",
+        jobs: [
+          { job_id: "backfill-inventory-unit-cost" },
+          { job_id: "backfill-design-energy-costs" },
+        ],
+      })
+
+      const res = await api.get(
+        `/admin/ops/maintenance-jobs/runs?batch_id=${batchId}&limit=50`,
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.runs.length).toBe(2)
+      expect(res.data.runs.every((r: any) => r.batch_id === batchId)).toBe(true)
+    })
+
+    it("GET /runs?batch_id=null returns single-job runs only (no batch children)", async () => {
+      const single = await api.post(
+        "/admin/ops/maintenance-jobs/backfill-inventory-unit-cost/run",
+        { dry_run: true },
+        adminHeaders
+      )
+      expect(single.status).toBe(200)
+      const batchId = await runBatch({
+        name: "excluded batch",
+        jobs: [{ job_id: "backfill-inventory-unit-cost" }],
+      })
+
+      const res = await api.get(
+        "/admin/ops/maintenance-jobs/runs?batch_id=null&limit=100",
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.runs.length).toBeGreaterThanOrEqual(1)
+      // Every returned run is a single-job run; no batch child leaks through.
+      expect(res.data.runs.every((r: any) => r.batch_id === null)).toBe(true)
+      expect(res.data.runs.some((r: any) => r.batch_id === batchId)).toBe(false)
+    })
+
     it("GET /batches/:id with an unknown id → 404", async () => {
       await expect(
         api.get(
