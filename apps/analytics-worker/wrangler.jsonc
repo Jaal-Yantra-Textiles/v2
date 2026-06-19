@@ -12,7 +12,7 @@
   //   npx wrangler kv namespace create ANALYTICS_BUFFER
   // then paste the printed id below.
   "kv_namespaces": [
-    { "binding": "ANALYTICS_BUFFER", "id": "<run: wrangler kv namespace create ANALYTICS_BUFFER>" }
+    { "binding": "ANALYTICS_BUFFER", "id": "d8adc4669b8b4f95ae0ab3597137d02f" }
   ],
 
   // Drain the buffer every minute (Cloudflare cron min granularity).
