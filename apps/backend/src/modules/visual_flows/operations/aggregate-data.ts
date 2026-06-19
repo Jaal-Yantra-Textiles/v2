@@ -5,6 +5,40 @@ import { interpolateVariables, interpolateString } from "./utils"
 
 type AggregateFn = "count" | "sum" | "avg" | "min" | "max" | "count_distinct"
 
+const rangeSchema = z.union([
+  z.object({
+    from: z.string().describe("ISO date (inclusive)"),
+    to: z.string().describe("ISO date (exclusive)"),
+  }),
+  z.object({
+    last_days: z.number().int().positive().max(3650),
+  }),
+])
+
+/**
+ * Resolve a relative/absolute window to an inclusive-from / exclusive-to pair,
+ * aligned to UTC day boundaries so a `last_days: 30` aggregate covers exactly
+ * the same 30 daily buckets a sibling `time_series` panel shows. Pure +
+ * deterministic given `now`, so it is unit-testable without booting Medusa.
+ */
+export function resolveRangeWindow(
+  range: { from: string; to: string } | { last_days: number },
+  now: Date
+): { from: string; to: string } {
+  if ("last_days" in range) {
+    const to = new Date(now)
+    to.setUTCHours(0, 0, 0, 0)
+    to.setUTCDate(to.getUTCDate() + 1) // exclusive end = start of tomorrow (UTC)
+    const from = new Date(to)
+    from.setUTCDate(from.getUTCDate() - range.last_days)
+    return { from: from.toISOString(), to: to.toISOString() }
+  }
+  return {
+    from: new Date(range.from).toISOString(),
+    to: new Date(range.to).toISOString(),
+  }
+}
+
 const aggregateOptionsSchema = z.object({
   entity: z.string().describe("Entity name to query via query.graph"),
   fields: z
@@ -12,6 +46,15 @@ const aggregateOptionsSchema = z.object({
     .optional()
     .describe("Fields to fetch from query.graph (required for non-count aggregates and groupBy)"),
   filters: z.record(z.string(), z.any()).optional().describe("Filter conditions"),
+  dateField: z
+    .string()
+    .optional()
+    .describe("Date field to bound by when `range` is set. Defaults to created_at."),
+  range: rangeSchema
+    .optional()
+    .describe(
+      "Optional date window. `{ last_days: 30 }` (rolling) or `{ from, to }` (absolute). Bounds the aggregation to rows whose dateField falls inside the window."
+    ),
   aggregate: z
     .object({
       fn: z
@@ -185,6 +228,16 @@ export const aggregateDataOperation: OperationDefinition = {
         }
       }
 
+      // Bound the aggregation to a date window when `range` is set. Without this
+      // a metric like "Unique visitors (30 days)" silently aggregates all-time
+      // rows. Mirrors the time_series window so sibling panels stay consistent.
+      let window: { from: string; to: string } | undefined
+      if (parsed.range) {
+        const dateField = parsed.dateField || "created_at"
+        window = resolveRangeWindow(parsed.range, new Date())
+        filters[dateField] = { $gte: window.from, $lt: window.to }
+      }
+
       const query = context.container.resolve(ContainerRegistrationKeys.QUERY)
 
       const requestedFields = new Set<string>()
@@ -220,6 +273,7 @@ export const aggregateDataOperation: OperationDefinition = {
             value,
             row_count: rows.length,
             truncated: rows.length === parsed.fetchLimit,
+            ...(window ? { from: window.from, to: window.to } : {}),
           },
         }
       }
@@ -265,6 +319,7 @@ export const aggregateDataOperation: OperationDefinition = {
           row_count: rows.length,
           group_count: groups.length,
           truncated: rows.length === parsed.fetchLimit,
+          ...(window ? { from: window.from, to: window.to } : {}),
         },
       }
     } catch (error: any) {
