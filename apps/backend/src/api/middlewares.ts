@@ -3880,6 +3880,12 @@ export default defineMiddlewares({
       middlewares: [authenticate("partner", ["session", "bearer"])],
     },
     {
+      // Roadmap #6 — partner design "tasks" read (mirrors GET /admin/designs/:id/tasks)
+      matcher: "/partners/designs/:designId/tasks",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
       // Roadmap #6 Phase 4 — partner-originated (self-approved) runs
       matcher: "/partners/designs/:designId/production-runs",
       method: "POST",
