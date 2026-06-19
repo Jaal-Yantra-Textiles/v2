@@ -20,6 +20,12 @@ export type OpsMaintenanceRunBody = z.infer<typeof OpsMaintenanceRunSchema>
  * Query for GET /admin/ops/maintenance-jobs/runs (audit-log history). #457.
  * limit/offset are coerced from query strings; dry_run/applied accept the usual
  * "true"/"false" string forms.
+ *
+ * `batch_id` (Data Plumbing v2, #508) scopes the flat run history to a single
+ * batch's children OR — via the `"null"`/`"none"` sentinel — to single-job runs
+ * only (the rows the run-history "All runs" tab shows, so batch children aren't
+ * double-counted alongside their parent batch). Any other value filters to that
+ * exact parent batch id.
  */
 const booleanish = z
   .union([z.boolean(), z.enum(["true", "false"])])
@@ -31,6 +37,7 @@ export const OpsMaintenanceRunsQuerySchema = z.object({
   job_id: z.string().optional(),
   dry_run: booleanish.optional(),
   applied: booleanish.optional(),
+  batch_id: z.string().optional(),
 })
 
 export type OpsMaintenanceRunsQuery = z.infer<typeof OpsMaintenanceRunsQuerySchema>
