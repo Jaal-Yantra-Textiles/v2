@@ -194,8 +194,10 @@ const DASHBOARDS: SeedDashboard[] = [
         operation_options: {
           entity: "analytics_daily_stats",
           aggregate: { fn: "sum", field: "unique_visitors" },
+          dateField: "date",
+          range: { last_days: 30 },
         },
-        display: { label: "Unique visitors (all-time rollups)" },
+        display: { label: "Unique visitors (30 days)" },
         width: 4,
       },
       {
