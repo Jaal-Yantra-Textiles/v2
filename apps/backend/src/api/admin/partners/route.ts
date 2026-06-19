@@ -157,6 +157,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { listPartnersWorkflow } from "../../../workflows/partners/list-partners"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { createPartnerAdminWithRegistrationWorkflow } from "../../../workflows/partner/create-partner-admin"
+import { buildQSearchFilter } from "../../../lib/list-search-filters"
 import { PostPartnerWithAdminSchema } from "./validators"
 
 export const GET = async (
@@ -164,6 +165,7 @@ export const GET = async (
     query?: {
       offset?: number
       limit?: number
+      q?: string
       name?: string
       handle?: string
       status?: "active" | "inactive" | "pending"
@@ -202,6 +204,9 @@ export const GET = async (
         handle: req.query?.handle,
         status: req.query?.status,
         is_verified: req.query?.is_verified,
+        // Global free-text search across name/handle (mirrors
+        // admin/persons/partner). DB-level `$or`/`$ilike` keeps count correct.
+        ...buildQSearchFilter(req.query?.q, ["name", "handle"]),
       },
       offset,
       limit,
