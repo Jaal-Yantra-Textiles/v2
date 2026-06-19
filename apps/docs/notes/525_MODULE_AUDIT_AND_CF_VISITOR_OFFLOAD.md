@@ -95,7 +95,35 @@ Live dashboard: SSE endpoint reads the DO live count (or DO pushes) instead of i
 2. **CF Worker `collect`** (lives outside apps/backend — new `apps/analytics-worker/` or under `deploy/`) — edge `track` handler, KV/Queue buffer, cron drain → calls slice 1. Wrangler config + `ANALYTICS_INGEST_SECRET`.
 3. **Durable Object live counter** + rework `GET /admin/analytics/live` to read the DO (multi-instance-safe active-visitor count) — replaces the in-memory SSE pool dependency.
 4. **Client switch**: point `analytics.js` `track` URL at the Worker with a **fallback to the direct Medusa route** (feature-flag `ANALYTICS_EDGE_INGEST`), so rollout is reversible and Worker downtime degrades gracefully.
-5. **Volume sizing (do before slice 2)**: per #344 "confirm volume first" — query current `analytics_event` write rate (`SELECT date, pageviews FROM analytics_daily_stats ORDER BY date DESC LIMIT 30` as a proxy, or count events/day) to pick KV vs Queue and the flush window. Capture in this doc.
+5. **Volume sizing (do before slice 2)**: per #344 "confirm volume first". ✅ **DONE — see "Volume sizing — RESULTS" below.**
+
+### Volume sizing — RESULTS (2026-06-19, real prod data)
+
+Measured against **prod** (`v3.jaalyantra.com`, admin token from SSM `/jyt/prod/ADMIN_OPENAPI_CATALOG_TOKEN`) via
+`GET /admin/websites` (9 sites) → `GET /admin/analytics-events/stats?website_id=<id>&days=30` per site.
+Note: `stats.overview.total_events` = **all** ingested events (pageviews **+** custom_events); the ingest-batch
+endpoint carries all of them, so size on `total_events`, not pageviews alone.
+
+| Window | Total events | Pageviews | Custom events |
+|---|---|---|---|
+| Last 30 days (all 9 sites) | **7,457** | 1,909 | 5,548 |
+
+- **Aggregate write rate:** ~7,457 / 30d ≈ **~249 events/day** ≈ ~10/hr ≈ **~0.003 events/sec** average.
+- **Busiest single site** (jaalyantra.com): 2,864 events/30d ≈ **~95/day**. Next: cici 1,302, ielo 1,181.
+- **Peak headroom:** even a 10× burst day ≈ ~2,500 events/day ≈ ~0.03/sec aggregate. Two sites had <150 events/30d
+  (raja-shawls 138, perennial 89) and one essentially zero (woven-futures 4) — long tail is negligible.
+
+**Tier decision → Cloudflare KV, NOT Queues.**
+- Cloudflare **Queues** only earn their complexity at sustained ~10–50+ msg/sec (~1M+/day). We're ~4 orders of
+  magnitude below that. **KV buffer + cron drain** is the right (and reversible) choice.
+- **Flush window:** a `*/1 * * * *` (60s) Worker cron is ample; most flushes carry a handful of events. To avoid
+  1,440 mostly-empty POSTs/day, **skip the POST when the buffer is empty** (or widen to every 5 min — `*/5`).
+- **Batch cap:** ~500 events/batch is safe and will essentially never be hit at current volume.
+- **Growth check:** design still holds at **100× growth** (~25k events/day ≈ 0.3/sec) — stay on KV. Revisit Queues
+  (or Workers Analytics Engine, Option B) only if sustained rate crosses ~10 events/sec.
+
+**Implication for the offload's value:** at this volume the win is **edge termination + GeoIP-for-free + not waking
+Fargate per request** (1 batched POST/window vs N per-visit), NOT raw scale relief. Keep slice 2 lightweight.
 
 ### Watch-outs
 - **Keep the response contract identical** (`200 {success:true}` always) so the client never changes behavior on edge errors.
@@ -110,7 +138,7 @@ Live dashboard: SSE endpoint reads the DO live count (or DO pushes) instead of i
 
 **P0 (the #344 vein, in slice order above)**
 1. `ingest-batch` endpoint (backend, unit-testable) — *start here next chunk.*
-2. Volume sizing query (cheap, unblocks Worker tier choice).
+2. ✅ Volume sizing query (DONE 2026-06-19 — ~249 events/day, 9 sites → **KV not Queues**; see "Volume sizing — RESULTS").
 3. CF Worker + buffer + cron drain.
 4. DO live counter → multi-instance-safe `/admin/analytics/live`.
 5. Client edge switch behind a flag.
