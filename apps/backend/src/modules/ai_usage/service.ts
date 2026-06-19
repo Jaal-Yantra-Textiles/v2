@@ -3,6 +3,10 @@ import AiUsageEvent from "./models/ai-usage-event"
 
 export const MONTHLY_QUOTA = {
   image_describe: 10,
+  // Roadmap #6/#337 — partner image segmentation (fal.ai BiRefNet background
+  // removal). Same free-tier soft-paywall policy as image_describe; no
+  // migration needed (operation is a generic string column).
+  image_segment: 10,
 } as const
 
 export type AiOperation = keyof typeof MONTHLY_QUOTA
