@@ -7,6 +7,7 @@ import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import { RAW_MATERIAL_MODULE } from "../../../../modules/raw_material"
 import { OPS_AUDIT_MODULE } from "../../../../modules/ops_audit"
 import partnerOrderLink from "../../../../links/partner-order"
+import partnerRegionLink from "../../../../links/partner-region"
 import { resolveStoreCurrency } from "../../../../lib/resolve-store-currency"
 
 /**
@@ -1571,6 +1572,268 @@ export const backfillPartnerOrderCurrencyJob: MaintenanceJob = {
   },
 }
 
+/**
+ * Hard cap on the partner-region link repair scan. Partners are few, but we
+ * still bound the per-request blast radius (each partner reads its stores + the
+ * `partner_region` link rows). Bigger fleets raise `limit` across chunked calls.
+ */
+export const MAX_PARTNER_REGION_SCAN = 5000
+
+const repairPartnerRegionParamsSchema = z.object({
+  /** Restrict the repair to a single partner instead of all partners. */
+  partner_id: z.string().min(1).optional(),
+  /** Max partners to scan in one call (1..MAX_PARTNER_REGION_SCAN). */
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_PARTNER_REGION_SCAN)
+    .optional()
+    .default(1000),
+})
+
+/**
+ * Pure: compute the `partner_region` link repairs for ONE partner.
+ *
+ * The partner↔region link is the tenant source-of-truth — the partner regions
+ * route has NO fallback to `store.default_region_id` ("if it isn't linked, the
+ * partner doesn't own it"), so a missing link silently hides a partner's own
+ * default region. Two safe, well-defined link-table corrections (no entity
+ * writes):
+ *   • ADD a missing link — the store points at an EXISTING `default_region_id`
+ *     R but there's no (partner, R) `partner_region` row.
+ *   • REMOVE an orphan link — a (partner, R) row whose region R no longer
+ *     exists (a deleted region leaves a dangling pivot row).
+ *
+ * Cross-tenant "bleed" (a region linked to a partner that arguably shouldn't own
+ * it) is deliberately NOT auto-repaired: there's no derivable ownership rule for
+ * an arbitrary linked region, and partners legitimately copy/share regions
+ * (feedback_partner_region_extend_not_lockdown), so removing it would risk
+ * dropping a valid link. Only the two unambiguous cases above are corrected.
+ *
+ * Exported for unit testing — container-free.
+ */
+export function diffPartnerRegionLinks(
+  partnerId: string,
+  defaultRegionIds: string[],
+  linkedRegionIds: string[],
+  existingRegionIds: Set<string>
+): MaintenanceChange[] {
+  const linked = new Set(linkedRegionIds)
+  const changes: MaintenanceChange[] = []
+
+  // ADD: a store's default region exists but isn't linked to the partner.
+  const addedSeen = new Set<string>()
+  for (const regionId of defaultRegionIds) {
+    if (!regionId || addedSeen.has(regionId)) continue
+    if (!existingRegionIds.has(regionId)) continue // can't link a deleted region
+    if (linked.has(regionId)) continue // already linked
+    addedSeen.add(regionId)
+    changes.push({
+      entity: "partner_region",
+      id: `${partnerId}:${regionId}`,
+      field: "add_link",
+      before: null,
+      after: regionId,
+    })
+  }
+
+  // REMOVE: a linked region no longer exists (orphan pivot row).
+  const removedSeen = new Set<string>()
+  for (const regionId of linkedRegionIds) {
+    if (!regionId || removedSeen.has(regionId)) continue
+    if (existingRegionIds.has(regionId)) continue // region exists — keep it
+    removedSeen.add(regionId)
+    changes.push({
+      entity: "partner_region",
+      id: `${partnerId}:${regionId}`,
+      field: "remove_orphan_link",
+      before: regionId,
+      after: null,
+    })
+  }
+
+  return changes
+}
+
+/**
+ * Pure summary builder for the partner-region link repair — keeps the
+ * human-facing string verifiable without booting the DB.
+ */
+export function summarizePartnerRegionRepair(
+  dryRun: boolean,
+  partnersScanned: number,
+  addedCount: number,
+  removedCount: number,
+  errorCount: number
+): string {
+  if (addedCount === 0 && removedCount === 0) {
+    return `No changes — scanned ${partnersScanned} partner(s), all partner_region links consistent`
+  }
+  const verb = dryRun ? "Would" : "Did"
+  const parts: string[] = []
+  if (addedCount > 0) parts.push(`add ${addedCount} missing link(s)`)
+  if (removedCount > 0) parts.push(`remove ${removedCount} orphan link(s)`)
+  const head = `${verb} ${parts.join(" and ")} across ${partnersScanned} partner(s)`
+  return errorCount > 0 ? `${head}; ${errorCount} error(s)` : head
+}
+
+/**
+ * Repair partner_region links (#508 Data Plumbing v2 — tenant correctness). The
+ * partner↔region link is the multi-tenant source-of-truth; this job adds the
+ * missing (partner, default-region) link when a store's `default_region_id`
+ * points at an existing region that isn't linked, and removes orphan links whose
+ * region was deleted. Dry-run (default) previews every link it would add/remove
+ * without writing; apply creates/dismisses via the remote link (idempotent —
+ * re-running is a no-op once links are consistent). Pure link-table ops, no
+ * entity writes. Optionally scope to one partner_id; a per-partner failure is
+ * reported in `errors` instead of aborting the sweep.
+ */
+export const repairPartnerRegionLinksJob: MaintenanceJob = {
+  id: "repair-partner-region-links",
+  label: "Repair partner region links",
+  description:
+    `Repair the partner_region link table (tenant source-of-truth). Adds the missing link when a partner's store default_region_id points at an existing region with no link (the partner otherwise can't see its own default region), and removes orphan links whose region was deleted. Dry-run (default) previews every link it would add/remove without persisting; apply creates/dismisses the links (idempotent). Pure link-table ops, no entity writes. Optionally scope to one partner_id. Scans up to 'limit' partners per call (default 1000, max ${MAX_PARTNER_REGION_SCAN}).`,
+  params: [
+    {
+      name: "partner_id",
+      type: "string",
+      required: false,
+      description: "Restrict the repair to a single partner (default: all partners)",
+    },
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: `Max partners to scan in one call (default 1000, max ${MAX_PARTNER_REGION_SCAN})`,
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const parsed = repairPartnerRegionParamsSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        parsed.error.issues.map((i) => i.message).join("; ")
+      )
+    }
+    const { partner_id, limit } = parsed.data
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+
+    // Target partners + their stores' default_region_id. Partners are few.
+    const partnerGraphArgs: Record<string, unknown> = {
+      entity: "partners",
+      fields: ["id", "stores.default_region_id"],
+      pagination: { take: limit },
+    }
+    if (partner_id) partnerGraphArgs.filters = { id: partner_id }
+    const { data: partners } = await query.graph(partnerGraphArgs as any)
+    const targetPartners = (partners ?? []).filter((p: any) => p?.id)
+
+    // Existing partner_region links for the target partners.
+    const partnerIds = targetPartners.map((p: any) => p.id)
+    let linkRows: any[] = []
+    if (partnerIds.length) {
+      const { data: links } = await query.graph({
+        entity: partnerRegionLink.entryPoint,
+        fields: ["partner_id", "region_id"],
+        filters: { partner_id: partnerIds },
+      })
+      linkRows = links ?? []
+    }
+
+    // Every region id referenced (default or linked) → which still exist.
+    const referencedRegionIds = new Set<string>()
+    for (const p of targetPartners) {
+      for (const s of p.stores ?? []) {
+        if (s?.default_region_id) referencedRegionIds.add(s.default_region_id)
+      }
+    }
+    for (const l of linkRows) {
+      if (l?.region_id) referencedRegionIds.add(l.region_id)
+    }
+    let existingRegionIds = new Set<string>()
+    if (referencedRegionIds.size) {
+      const { data: regions } = await query.graph({
+        entity: "region",
+        fields: ["id"],
+        filters: { id: Array.from(referencedRegionIds) },
+      })
+      existingRegionIds = new Set((regions ?? []).map((r: any) => r.id))
+    }
+
+    // Index linked region ids by partner.
+    const linkedByPartner = new Map<string, string[]>()
+    for (const l of linkRows) {
+      if (!l?.partner_id || !l?.region_id) continue
+      const arr = linkedByPartner.get(l.partner_id) ?? []
+      arr.push(l.region_id)
+      linkedByPartner.set(l.partner_id, arr)
+    }
+
+    const changes: MaintenanceChange[] = []
+    const errors: Array<{ id: string; message: string }> = []
+    let added = 0
+    let removed = 0
+
+    for (const partner of targetPartners) {
+      try {
+        const defaultRegionIds = ((partner.stores ?? []) as any[])
+          .map((s) => s?.default_region_id)
+          .filter(Boolean) as string[]
+        const linkedRegionIds = linkedByPartner.get(partner.id) ?? []
+
+        const partnerChanges = diffPartnerRegionLinks(
+          partner.id,
+          defaultRegionIds,
+          linkedRegionIds,
+          existingRegionIds
+        )
+        if (!partnerChanges.length) continue
+
+        for (const change of partnerChanges) {
+          if (change.field === "add_link") {
+            added++
+            if (!dry_run) {
+              await remoteLink.create({
+                partner: { partner_id: partner.id },
+                [Modules.REGION]: { region_id: change.after as string },
+              })
+            }
+          } else if (change.field === "remove_orphan_link") {
+            removed++
+            if (!dry_run) {
+              await remoteLink.dismiss({
+                partner: { partner_id: partner.id },
+                [Modules.REGION]: { region_id: change.before as string },
+              })
+            }
+          }
+        }
+        changes.push(...partnerChanges)
+      } catch (e: any) {
+        errors.push({ id: partner.id, message: e?.message ?? String(e) })
+      }
+    }
+
+    return {
+      job_id: repairPartnerRegionLinksJob.id,
+      dry_run,
+      applied: !dry_run && changes.length > 0,
+      summary: summarizePartnerRegionRepair(
+        dry_run,
+        targetPartners.length,
+        added,
+        removed,
+        errors.length
+      ),
+      changes,
+      errors,
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -1579,6 +1842,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillDesignEnergyCostJob,
   pruneOpsAuditRunsJob,
   backfillPartnerOrderCurrencyJob,
+  repairPartnerRegionLinksJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
