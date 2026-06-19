@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 
 import { getMaintenanceJob } from "../registry"
 import { OpsMaintenanceBatchBody } from "../validators"
+import type { OpsMaintenanceBatchesQuery } from "../validators"
 import { runBatch } from "../batch-executor"
 import type { BatchJobSpec } from "../batch-executor"
 import { buildBatchRollup, buildBatchChildRow } from "../batch-audit"
@@ -106,4 +107,35 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       error: o.error,
     })),
   })
+}
+
+/**
+ * GET /admin/ops/maintenance-jobs/batches
+ *
+ * Batch-run history index (Data Plumbing v2, #508). One row per batch
+ * (`ops_maintenance_batch`), paginated newest-first, filterable by
+ * dry_run / actor_id. The parent stores its own rollup, so this list never
+ * re-aggregates the child runs. Mirrors the `/runs` reader envelope:
+ * `{ batches, count, limit, offset }`. Drill into one batch (with its child
+ * jobs) via `GET /admin/ops/maintenance-jobs/batches/:id`.
+ */
+export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const { limit, offset, dry_run, actor_id } =
+    req.validatedQuery as unknown as OpsMaintenanceBatchesQuery
+
+  const filters: Record<string, unknown> = {}
+  if (dry_run !== undefined) filters.dry_run = dry_run
+  if (actor_id !== undefined) filters.actor_id = actor_id
+
+  const audit: any = req.scope.resolve(OPS_AUDIT_MODULE)
+  const [batches, count] = await audit.listAndCountOpsMaintenanceBatches(
+    filters,
+    {
+      skip: offset,
+      take: limit,
+      order: { created_at: "DESC" },
+    }
+  )
+
+  res.json({ batches, count, limit, offset })
 }
