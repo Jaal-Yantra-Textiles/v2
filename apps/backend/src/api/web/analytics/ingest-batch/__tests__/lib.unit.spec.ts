@@ -77,6 +77,39 @@ describe("verifyIngestAuth", () => {
   it("rejects when neither scheme is supplied", () => {
     expect(verifyIngestAuth({ secret: SECRET })).toBe(false);
   });
+
+  // Regression guard for the slice that added `preserveRawBody` middleware to
+  // the ingest route. The worker signs the EXACT bytes it sends; if the route
+  // re-serializes the parsed body (JSON.stringify) the bytes differ (spacing,
+  // key order) and the HMAC fails. This documents why the raw body must be
+  // preserved rather than reconstructed.
+  it("verifies against the exact raw body but NOT a re-serialized one", () => {
+    // Body as the worker would send it on the wire (spaces after ':' and ',').
+    const rawBody = '{"events": [{"website_id": "web_1", "pathname": "/"}]}';
+    const sig = createHmac("sha256", SECRET).update(rawBody).digest("hex");
+
+    // Verifies against the bytes that were actually signed.
+    expect(
+      verifyIngestAuth({
+        secret: SECRET,
+        signatureHeader: `sha256=${sig}`,
+        rawBody,
+      })
+    ).toBe(true);
+
+    // A parse → JSON.stringify round-trip drops the worker's formatting, so the
+    // same signature must NOT verify against the reconstructed body. This is the
+    // failure mode the middleware change eliminates.
+    const reserialized = JSON.stringify(JSON.parse(rawBody));
+    expect(reserialized).not.toBe(rawBody);
+    expect(
+      verifyIngestAuth({
+        secret: SECRET,
+        signatureHeader: `sha256=${sig}`,
+        rawBody: reserialized,
+      })
+    ).toBe(false);
+  });
 });
 
 describe("normalizeAndDedupeBatch", () => {

@@ -608,6 +608,17 @@ export default defineMiddlewares({
       matcher: "/web/*",
       middlewares: [createCorsMiddleware()],
     },
+    // Analytics batch-ingest (#344): preserve the raw request body so the HMAC
+    // signature can be verified against the EXACT bytes the edge worker signed.
+    // Without this, the route falls back to JSON.stringify(req.body), whose
+    // key-order/whitespace won't match the worker's serialization → 401s.
+    // CORS still applies via the /web/* entry above (matchers compose).
+    {
+      matcher: "/web/analytics/ingest-batch",
+      method: "POST",
+      middlewares: [],
+      bodyParser: { preserveRawBody: true }, // req.rawBody = Buffer for HMAC, req.body = parsed JSON
+    },
     // Webhooks (no authentication required)
     {
       matcher: "/webhooks/social/facebook",
