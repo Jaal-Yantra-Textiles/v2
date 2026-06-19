@@ -118,6 +118,7 @@ import {
   ListWebsiteWorkflowInput,
   listWebsiteWorkflow,
 } from "../../../workflows/website/list-website";
+import { buildQSearchFilter } from "../../../lib/list-search-filters";
 
 export const POST = async (
   req: MedusaRequest<WebsiteSchema>,
@@ -131,7 +132,7 @@ export const POST = async (
 };
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const { name, status, domain } = req.query;
+  const { name, status, domain, q } = req.query;
   const offset = parseInt(req.query.offset as string) || 0;
   const limit = parseInt(req.query.limit as string) || 10;
 
@@ -145,6 +146,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       name,
       status,
       domain,
+      // Global free-text search across name/domain. DB-level `$or`/`$ilike`
+      // keeps the returned `count` accurate for pagination.
+      ...buildQSearchFilter(q as string | undefined, ["name", "domain"]),
     }
   };
 
