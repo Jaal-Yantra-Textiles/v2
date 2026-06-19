@@ -63,6 +63,9 @@ secrets:
   ADMIN_OPENAPI_CATALOG_URL: /jyt/prod/ADMIN_OPENAPI_CATALOG_URL
   ADMIN_RAG_EMBED_PROVIDER: /jyt/prod/ADMIN_RAG_EMBED_PROVIDER
   ADMIN_RAG_INDEX_VERSION: /jyt/prod/ADMIN_RAG_INDEX_VERSION
+  # #344 — shared secret for the edge analytics worker's HMAC-signed batch ingest
+  # (POST /web/analytics/ingest-batch). MUST equal the worker's ANALYTICS_INGEST_SECRET.
+  ANALYTICS_INGEST_SECRET: /jyt/prod/ANALYTICS_INGEST_SECRET
   AUTH_CORS: /jyt/prod/AUTH_CORS
   AUTH_MFA_ENCRYPTION_KEY: /jyt/prod/AUTH_MFA_ENCRYPTION_KEY
   CLOUDFLARE_API_TOKEN: /jyt/prod/CLOUDFLARE_API_TOKEN
