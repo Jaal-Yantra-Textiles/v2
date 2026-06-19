@@ -2,6 +2,7 @@ import {
   normalizeLandingBase,
   partnerBaseFromRecord,
   resolvePartnerLandingBase,
+  resolvePartnerStorefrontForSalesChannel,
 } from "../resolve-partner-landing-base"
 
 /**
@@ -109,5 +110,84 @@ describe("resolvePartnerLandingBase pivot", () => {
       }),
     }
     await expect(resolvePartnerLandingBase(query as any, "prod_1")).resolves.toBeNull()
+  })
+})
+
+describe("resolvePartnerStorefrontForSalesChannel pivot (#521)", () => {
+  const makeQuery = (responses: Record<string, any[]>) => ({
+    graph: jest.fn(async ({ entity }: any) => ({ data: responses[entity] ?? [] })),
+  })
+
+  it("resolves sales_channel → store → partner identity + base", async () => {
+    const query = makeQuery({
+      stores: [{ id: "store_1", default_sales_channel_id: "sc_1" }],
+      partners: [
+        { id: "par_x", name: "X", handle: "x", storefront_domain: "x.cicilabel.com", metadata: {}, stores: [{ id: "store_z" }] },
+        {
+          id: "par_1",
+          name: "Acme",
+          handle: "acme",
+          storefront_domain: "acme.cicilabel.com",
+          metadata: { custom_domain: "shop.acme.com" },
+          stores: [{ id: "store_1" }],
+        },
+      ],
+    })
+    await expect(
+      resolvePartnerStorefrontForSalesChannel(query as any, "sc_1")
+    ).resolves.toEqual({
+      id: "par_1",
+      name: "Acme",
+      handle: "acme",
+      storefront_base: "https://shop.acme.com",
+    })
+  })
+
+  it("returns null storefront_base when partner has no domain but still returns identity", async () => {
+    const query = makeQuery({
+      stores: [{ id: "store_1", default_sales_channel_id: "sc_1" }],
+      partners: [
+        { id: "par_1", name: "Acme", handle: "acme", storefront_domain: null, metadata: {}, stores: [{ id: "store_1" }] },
+      ],
+    })
+    await expect(
+      resolvePartnerStorefrontForSalesChannel(query as any, "sc_1")
+    ).resolves.toEqual({ id: "par_1", name: "Acme", handle: "acme", storefront_base: null })
+  })
+
+  it("returns null when no sales_channel_id is given", async () => {
+    const query = makeQuery({})
+    await expect(
+      resolvePartnerStorefrontForSalesChannel(query as any, null)
+    ).resolves.toBeNull()
+    expect((query.graph as jest.Mock).mock.calls.length).toBe(0)
+  })
+
+  it("returns null when no store owns the channel", async () => {
+    const query = makeQuery({ stores: [] })
+    await expect(
+      resolvePartnerStorefrontForSalesChannel(query as any, "sc_1")
+    ).resolves.toBeNull()
+  })
+
+  it("returns null when no partner owns the store", async () => {
+    const query = makeQuery({
+      stores: [{ id: "store_1", default_sales_channel_id: "sc_1" }],
+      partners: [{ id: "par_x", name: "X", handle: "x", storefront_domain: "x.cicilabel.com", metadata: {}, stores: [{ id: "store_z" }] }],
+    })
+    await expect(
+      resolvePartnerStorefrontForSalesChannel(query as any, "sc_1")
+    ).resolves.toBeNull()
+  })
+
+  it("never throws — swallows query errors to null", async () => {
+    const query = {
+      graph: jest.fn(async () => {
+        throw new Error("boom")
+      }),
+    }
+    await expect(
+      resolvePartnerStorefrontForSalesChannel(query as any, "sc_1")
+    ).resolves.toBeNull()
   })
 })

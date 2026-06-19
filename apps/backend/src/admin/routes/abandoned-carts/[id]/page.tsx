@@ -272,6 +272,21 @@ const AbandonedCartDetailPage = () => {
           <code className="text-xs break-all text-ui-fg-base bg-ui-bg-subtle p-2 rounded block">
             {cart.recovery_url}
           </code>
+          {cart.partner ? (
+            <Text size="xsmall" className="text-ui-fg-subtle">
+              Owning partner:{" "}
+              <span className="text-ui-fg-base">
+                {cart.partner.name || cart.partner.handle || cart.partner.id}
+              </span>
+              {cart.partner.storefront_base
+                ? ` · ${cart.partner.storefront_base.replace(/^https?:\/\//, "")}`
+                : " · no storefront domain configured"}
+            </Text>
+          ) : (
+            <Text size="xsmall" className="text-ui-fg-muted">
+              Not tied to a partner storefront — using the platform base.
+            </Text>
+          )}
           {cart.metadata?.recovery_email_sent_at && (
             <Text size="xsmall" className="text-ui-fg-subtle">
               Recovery email last sent {formatDate(cart.metadata.recovery_email_sent_at)}

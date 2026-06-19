@@ -101,6 +101,12 @@ export type AbandonedCartDetail = {
   items_subtotal: number;
   idle_minutes: number;
   recovery_url: string;
+  partner: {
+    id: string;
+    name: string | null;
+    handle: string | null;
+    storefront_base: string | null;
+  } | null;
   is_completed: boolean;
 };
 
