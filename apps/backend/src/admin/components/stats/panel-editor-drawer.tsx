@@ -1,14 +1,17 @@
 import {
   Drawer,
   Button,
+  IconButton,
   Input,
   Label,
   Select,
+  Switch,
   Text,
   Textarea,
   toast,
   Heading,
 } from "@medusajs/ui"
+import { SquareTwoStack } from "@medusajs/icons"
 import { useState, useEffect, useMemo } from "react"
 import {
   StatsPanel,
@@ -18,6 +21,7 @@ import {
   useStatsOperations,
   usePreviewPanel,
 } from "../../hooks/api/stats"
+import { API_BASE_URL } from "../../lib/config"
 import { PanelRenderer } from "./panel-renderer"
 
 const PANEL_TYPES: StatsPanelType[] = [
@@ -62,6 +66,7 @@ export function PanelEditorDrawer({ dashboardId, panel, open, onOpenChange }: Pa
   const [cacheTtl, setCacheTtl] = useState<string>("")
   const [width, setWidth] = useState(4)
   const [height, setHeight] = useState(3)
+  const [isPublic, setIsPublic] = useState(false)
   const [previewResult, setPreviewResult] = useState<any>(undefined)
 
   useEffect(() => {
@@ -74,9 +79,23 @@ export function PanelEditorDrawer({ dashboardId, panel, open, onOpenChange }: Pa
       setCacheTtl(panel?.cache_ttl_seconds?.toString() ?? "")
       setWidth(panel?.width ?? 4)
       setHeight(panel?.height ?? 3)
+      setIsPublic((panel?.metadata as Record<string, any> | undefined)?.public === true)
       setPreviewResult(undefined)
     }
   }, [open, panel])
+
+  // Public read-only REST URL for this panel. Only meaningful for an
+  // existing panel (needs its id) that's been shared.
+  const publicUrl = panel ? `${API_BASE_URL}/web/stats/panels/${panel.id}/data` : ""
+
+  const handleCopyPublicUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(publicUrl)
+      toast.success("Public link copied")
+    } catch {
+      toast.error("Could not copy link")
+    }
+  }
 
   const options = useMemo(() => safeParseJSON(optionsText), [optionsText])
   const display = useMemo(() => safeParseJSON(displayText), [displayText])
@@ -128,6 +147,10 @@ export function PanelEditorDrawer({ dashboardId, panel, open, onOpenChange }: Pa
       cache_ttl_seconds: cacheTtl ? parseInt(cacheTtl, 10) : null,
       width,
       height,
+      // Carry forward any existing metadata (incl. server-managed audit
+      // stamps) and only flip the `public` opt-in. The PUT route
+      // re-stamps `public_set_by`/`public_set_at` server-side.
+      metadata: { ...(panel?.metadata ?? {}), public: isPublic },
     }
     try {
       if (isEdit) {
@@ -264,6 +287,46 @@ export function PanelEditorDrawer({ dashboardId, panel, open, onOpenChange }: Pa
             <Text size="xsmall" className="text-ui-fg-muted mt-1">
               Controls how the result renders. E.g. {`{ "label": "Active partners", "prefix": "$" }`}
             </Text>
+          </div>
+
+          <div className="rounded-lg border border-ui-border-base p-4 space-y-3">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <Label size="small">Share publicly</Label>
+                <Text size="xsmall" className="text-ui-fg-muted mt-1">
+                  Expose this panel at a read-only public URL for blog / marketing
+                  embeds. Off by default — only shared panels resolve; everything
+                  else 404s.
+                </Text>
+              </div>
+              <Switch
+                checked={isPublic}
+                onCheckedChange={(v) => setIsPublic(!!v)}
+              />
+            </div>
+            {isEdit && isPublic && (
+              <div className="flex items-center gap-2">
+                <Input
+                  readOnly
+                  value={publicUrl}
+                  className="font-mono text-xs"
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+                <IconButton
+                  type="button"
+                  variant="transparent"
+                  onClick={handleCopyPublicUrl}
+                  aria-label="Copy public link"
+                >
+                  <SquareTwoStack />
+                </IconButton>
+              </div>
+            )}
+            {!isEdit && isPublic && (
+              <Text size="xsmall" className="text-ui-fg-muted">
+                Save the panel to get its shareable link.
+              </Text>
+            )}
           </div>
 
           {previewResult && (
