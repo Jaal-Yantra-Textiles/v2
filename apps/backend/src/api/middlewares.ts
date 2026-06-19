@@ -183,6 +183,7 @@ import { listProductionRunsQuerySchema } from "./partners/production-runs/valida
 import { PartnerPostDesignInventoryReq, PartnerPatchDesignInventoryLinkReq, PartnerDeleteDesignInventoryReq } from "./partners/designs/[designId]/inventory/validators";
 import { PartnerCreateProductionRunReq } from "./partners/designs/[designId]/production-runs/validators";
 import { PartnerPostConsumptionLogReq } from "./partners/designs/[designId]/consumption-logs/validators";
+import { PartnerPostDesignTasksReq } from "./partners/designs/[designId]/tasks/validators";
 import { PartnerPostProductionRunConsumptionLogReq } from "./partners/production-runs/[id]/consumption-logs/validators";
 import { listPartnersQuerySchema, PostPartnerSchema } from "./admin/partners/validators";
 import { ListIdentitiesQuerySchema } from "./admin/users/identities/validators";
@@ -3886,6 +3887,17 @@ export default defineMiddlewares({
       matcher: "/partners/designs/:designId/tasks",
       method: "GET",
       middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // Roadmap #6/#337 — partner creates tasks on their OWN design (mirrors
+      // POST /admin/designs/:id/tasks, createTasksFromTemplatesWorkflow).
+      // Ownership-guarded; no assignee/external side-effects in the handler.
+      matcher: "/partners/designs/:designId/tasks",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerPostDesignTasksReq)),
+      ],
     },
     {
       // Roadmap #6/#337 — partner image segmentation (mirrors POST
