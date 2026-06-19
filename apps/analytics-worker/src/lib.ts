@@ -9,16 +9,20 @@ export type IngestEvent = {
   event_id: string
   website_id: string
   pathname: string
-  referrer: string | null
   visitor_id: string
   session_id: string
-  utm_source: string | null
-  utm_medium: string | null
-  utm_campaign: string | null
-  utm_term: string | null
-  utm_content: string | null
-  country: string | null
   timestamp: string
+  // Optional fields — OMITTED entirely when absent. The Medusa ingest schema
+  // types these as `z.string().optional()`, which accepts string|undefined but
+  // REJECTS null → sending `referrer: null` 400s the whole batch. So only set
+  // them when there's a real value.
+  referrer?: string
+  utm_source?: string
+  utm_medium?: string
+  utm_campaign?: string
+  utm_term?: string
+  utm_content?: string
+  country?: string
 }
 
 const str = (v: unknown): string | null =>
@@ -44,21 +48,30 @@ export function normalizeTrackEvent(
   // (mirrors the endpoint's own `invalid` drop rule).
   if (!website_id || !pathname || !visitor_id || !session_id) return null
 
-  return {
+  const event: IngestEvent = {
     event_id: str(raw.event_id) ?? ctx.id,
     website_id,
     pathname,
-    referrer: str(raw.referrer),
     visitor_id,
     session_id,
-    utm_source: str(raw.utm_source),
-    utm_medium: str(raw.utm_medium),
-    utm_campaign: str(raw.utm_campaign),
-    utm_term: str(raw.utm_term),
-    utm_content: str(raw.utm_content),
-    country: str(raw.country) ?? ctx.country,
     timestamp: str(raw.timestamp) ?? ctx.now,
   }
+  // Only attach optional fields when present — never as null (schema rejects null).
+  const referrer = str(raw.referrer)
+  if (referrer) event.referrer = referrer
+  const utm_source = str(raw.utm_source)
+  if (utm_source) event.utm_source = utm_source
+  const utm_medium = str(raw.utm_medium)
+  if (utm_medium) event.utm_medium = utm_medium
+  const utm_campaign = str(raw.utm_campaign)
+  if (utm_campaign) event.utm_campaign = utm_campaign
+  const utm_term = str(raw.utm_term)
+  if (utm_term) event.utm_term = utm_term
+  const utm_content = str(raw.utm_content)
+  if (utm_content) event.utm_content = utm_content
+  const country = str(raw.country) ?? ctx.country
+  if (country) event.country = country
+  return event
 }
 
 /** Split into fixed-size chunks (the ingest endpoint caps a batch at 500). */
