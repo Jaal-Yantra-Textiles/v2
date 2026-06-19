@@ -65,6 +65,10 @@ export type MaintenanceRun = {
   params: Record<string, unknown>
   changes: MaintenanceChange[]
   errors: Array<{ id: string; message: string }>
+  /** Parent batch id when this run executed as part of a batch (#508); null for single-job runs. */
+  batch_id?: string | null
+  /** Position of this run within its batch, in execution order (#508). */
+  job_index?: number
   created_at: string
   updated_at: string
 }
@@ -87,6 +91,12 @@ export type RunsQuery = {
   job_id?: string
   dry_run?: boolean
   applied?: boolean
+  /**
+   * Scope to a batch's child runs (#508). Pass a batch id for that batch's
+   * children, or `"null"`/`"none"` for single-job runs only (`batch_id IS NULL`)
+   * so the "All runs" tab doesn't double-list runs already shown under a batch.
+   */
+  batch_id?: string
 }
 
 /**
