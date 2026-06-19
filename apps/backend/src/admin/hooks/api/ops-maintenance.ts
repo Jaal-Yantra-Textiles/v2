@@ -228,6 +228,32 @@ export const useMaintenanceBatch = (id: string | undefined) => {
   }
 }
 
+export type RunDetailResponse = {
+  run: MaintenanceRun
+}
+
+/**
+ * Per-run detail (#508). Fetches one persisted run by id for the deep-linkable
+ * detail route. `enabled` is gated on `id`, so it's a no-op until a run is
+ * selected. The run carries its own `changes`/`errors`; if it ran in a batch,
+ * `batch_id` lets the detail surface the batch context.
+ */
+export const useMaintenanceRun = (id: string | undefined) => {
+  const { data, ...rest } = useQuery({
+    queryKey: opsMaintenanceQueryKeys.detail(`run_${id ?? "none"}`),
+    queryFn: async () =>
+      sdk.client.fetch<RunDetailResponse>(
+        `/admin/ops/maintenance-jobs/runs/${id}`,
+        {
+          method: "GET",
+        }
+      ),
+    enabled: !!id,
+  })
+
+  return { ...rest, run: data?.run }
+}
+
 export const useRunMaintenanceJob = () => {
   const queryClient = useQueryClient()
 

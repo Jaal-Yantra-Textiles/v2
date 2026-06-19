@@ -8,11 +8,10 @@ import {
   Label,
   Select,
   Switch,
-  Badge,
-  Table,
-  Tabs,
   DataTable,
   DataTablePaginationState,
+  DataTableFilteringState,
+  createDataTableFilterHelper,
   useDataTable,
   Drawer,
   Skeleton,
@@ -22,32 +21,32 @@ import {
 import { Tools } from "@medusajs/icons"
 import { createColumnHelper } from "@tanstack/react-table"
 import { useMemo, useState } from "react"
+import { useNavigate } from "react-router-dom"
 
 import {
   useMaintenanceJobs,
   useMaintenanceRuns,
-  useMaintenanceBatches,
-  useMaintenanceBatch,
   useRunMaintenanceJob,
   type MaintenanceJobSummary,
   type MaintenanceJobResult,
-  type MaintenanceBatch,
+  type MaintenanceRun,
 } from "../../../hooks/api/ops-maintenance"
-import { ChangesTable, RunBadge, BatchDetailView } from "./components"
+import { ChangesTable, RunBadge } from "./components"
 
 /**
  * Settings → Data Plumbing (#457 / #485 / #508).
  *
- * Operator console over the guarded maintenance-jobs registry: pick a job, fill
- * its params, PREVIEW (dry-run, no writes) then APPLY (confirmed). The history
- * surface (Data Plumbing v2, #508) is a batch-first DataTable — click a batch to
- * open its detail drawer with a card ↔ table view toggle — plus an "All runs"
- * tab for single-job runs. The job list and history are backend-driven, so new
- * registry jobs and new runs appear automatically.
+ * Operator console over the guarded maintenance-jobs registry, structured like
+ * every other admin list page: the root is a single DataTable of the durable run
+ * history (newest first) that you click into for a per-run detail route. A
+ * "Run a job" header action opens a drawer to pick a job, fill its params,
+ * PREVIEW (dry-run, no writes) then APPLY (confirmed). Job list and history are
+ * backend-driven, so new registry jobs and new runs appear automatically.
  */
 
 type ParamValues = Record<string, string>
 
+/** The job picker + param form + preview/apply, rendered inside the run drawer. */
 const JobRunner = ({ job }: { job: MaintenanceJobSummary }) => {
   const prompt = usePrompt()
   const runJob = useRunMaintenanceJob()
@@ -106,12 +105,10 @@ const JobRunner = ({ job }: { job: MaintenanceJobSummary }) => {
   }
 
   return (
-    <div className="flex flex-col gap-y-4 px-6 py-4">
-      <div>
-        <Text size="small" className="text-ui-fg-subtle">
-          {job.description}
-        </Text>
-      </div>
+    <div className="flex flex-col gap-y-4">
+      <Text size="small" className="text-ui-fg-subtle">
+        {job.description}
+      </Text>
 
       {job.params.length > 0 && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -186,276 +183,10 @@ const JobRunner = ({ job }: { job: MaintenanceJobSummary }) => {
   )
 }
 
-const PAGE_SIZE = 20
-
-const batchColumnHelper = createColumnHelper<MaintenanceBatch>()
-
-/** CSV export of the currently-loaded batch rows (no built-in export; client-side). */
-const exportBatchesCsv = (batches: MaintenanceBatch[]) => {
-  const header = [
-    "created_at",
-    "name",
-    "actor_id",
-    "dry_run",
-    "job_count",
-    "applied_count",
-    "failed_count",
-    "change_count",
-    "error_count",
-    "summary",
-  ]
-  const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`
-  const lines = [
-    header.join(","),
-    ...batches.map((b) =>
-      [
-        b.created_at,
-        b.name,
-        b.actor_id,
-        b.dry_run,
-        b.job_count,
-        b.applied_count,
-        b.failed_count,
-        b.change_count,
-        b.error_count,
-        b.summary,
-      ]
-        .map(escape)
-        .join(",")
-    ),
-  ]
-  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = "data-plumbing-batches.csv"
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-const BatchDetailDrawer = ({
-  batchId,
-  onClose,
-}: {
-  batchId: string | undefined
-  onClose: () => void
-}) => {
-  const { batch, jobs, isLoading } = useMaintenanceBatch(batchId)
-
-  return (
-    <Drawer open={!!batchId} onOpenChange={(o) => !o && onClose()}>
-      <Drawer.Content>
-        <Drawer.Header>
-          <Drawer.Title>{batch?.name ?? "Batch detail"}</Drawer.Title>
-        </Drawer.Header>
-        <Drawer.Body className="overflow-y-auto">
-          {isLoading ? (
-            <div className="flex flex-col gap-y-3">
-              <Skeleton className="h-6 w-1/2" />
-              <Skeleton className="h-24 w-full" />
-              <Skeleton className="h-24 w-full" />
-            </div>
-          ) : !batch ? (
-            <Text size="small" className="text-ui-fg-subtle">
-              Batch not found.
-            </Text>
-          ) : (
-            <div className="flex flex-col gap-y-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <RunBadge dry_run={batch.dry_run} applied={!batch.dry_run} />
-                {batch.stop_on_error && (
-                  <Badge color="orange" size="2xsmall">
-                    stop-on-error
-                  </Badge>
-                )}
-                <Text size="small" className="text-ui-fg-subtle">
-                  {batch.job_count} job(s) · {batch.applied_count} applied ·{" "}
-                  {batch.failed_count} failed · {batch.change_count} change(s)
-                </Text>
-              </div>
-              <Text size="small" weight="plus">
-                {batch.summary}
-              </Text>
-              <Text size="xsmall" className="text-ui-fg-muted">
-                {new Date(batch.created_at).toLocaleString()} · {batch.actor_id}
-              </Text>
-              <BatchDetailView jobs={jobs} />
-            </div>
-          )}
-        </Drawer.Body>
-      </Drawer.Content>
-    </Drawer>
-  )
-}
-
-const BatchesHistory = () => {
-  const [pagination, setPagination] = useState<DataTablePaginationState>({
-    pageSize: PAGE_SIZE,
-    pageIndex: 0,
-  })
-  const [selectedBatchId, setSelectedBatchId] = useState<string | undefined>(
-    undefined
-  )
-
-  const offset = pagination.pageIndex * pagination.pageSize
-
-  const { batches, count, isLoading } = useMaintenanceBatches({
-    limit: pagination.pageSize,
-    offset,
-  })
-
-  const columns = useMemo(
-    () => [
-      batchColumnHelper.accessor("created_at", {
-        header: "When",
-        cell: ({ getValue }) => (
-          <span className="whitespace-nowrap">
-            {new Date(getValue()).toLocaleString()}
-          </span>
-        ),
-      }),
-      batchColumnHelper.accessor("name", { header: "Name" }),
-      batchColumnHelper.accessor("job_count", { header: "Jobs" }),
-      batchColumnHelper.accessor("applied_count", { header: "Applied" }),
-      batchColumnHelper.accessor("failed_count", { header: "Failed" }),
-      batchColumnHelper.accessor("change_count", { header: "Changes" }),
-      batchColumnHelper.display({
-        id: "state",
-        header: "State",
-        cell: ({ row }) => (
-          <RunBadge
-            dry_run={row.original.dry_run}
-            applied={!row.original.dry_run}
-          />
-        ),
-      }),
-      batchColumnHelper.accessor("actor_id", {
-        header: "Actor",
-        cell: ({ getValue }) => (
-          <span className="font-mono text-xs">{getValue()}</span>
-        ),
-      }),
-    ],
-    []
-  )
-
-  const table = useDataTable({
-    columns,
-    data: batches,
-    getRowId: (row) => row.id,
-    rowCount: count,
-    isLoading,
-    pagination: { state: pagination, onPaginationChange: setPagination },
-    onRowClick: (_, row) => setSelectedBatchId(row.id),
-  })
-
-  if (!isLoading && !batches.length) {
-    return (
-      <div className="px-6 py-4">
-        <Text size="small" className="text-ui-fg-subtle">
-          No batches yet. Run several jobs as one batch to see them here.
-          (Dry-runs are not persisted.)
-        </Text>
-      </div>
-    )
-  }
-
-  return (
-    <div className="py-2">
-      <DataTable instance={table}>
-        <DataTable.Toolbar className="flex items-center justify-between px-6 py-2">
-          <Text size="small" weight="plus">
-            Batch history
-          </Text>
-          <Button
-            variant="secondary"
-            size="small"
-            disabled={!batches.length}
-            onClick={() => exportBatchesCsv(batches)}
-          >
-            Export CSV
-          </Button>
-        </DataTable.Toolbar>
-        <DataTable.Table />
-        <DataTable.Pagination />
-      </DataTable>
-      <BatchDetailDrawer
-        batchId={selectedBatchId}
-        onClose={() => setSelectedBatchId(undefined)}
-      />
-    </div>
-  )
-}
-
-const AllRunsHistory = () => {
-  // Flat list of every persisted run (single-job + batch children). Once PR
-  // #517's `GET /runs?batch_id=null` filter is merged this can pass
-  // `batch_id: "null"` to drop batch children (which already appear, grouped,
-  // under the Batches tab). Until then the route rejects the unknown param
-  // (400), so we intentionally don't send it — minor double-listing over a
-  // broken tab.
-  const { runs, isLoading } = useMaintenanceRuns({ limit: 20 })
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-col gap-y-2 px-6 py-4">
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-      </div>
-    )
-  }
-
-  if (!runs.length) {
-    return (
-      <div className="px-6 py-4">
-        <Text size="small" className="text-ui-fg-subtle">
-          No single-job runs yet. (Dry-runs are not persisted.)
-        </Text>
-      </div>
-    )
-  }
-
-  return (
-    <div className="px-6 py-4">
-      <Table>
-        <Table.Header>
-          <Table.Row>
-            <Table.HeaderCell>When</Table.HeaderCell>
-            <Table.HeaderCell>Job</Table.HeaderCell>
-            <Table.HeaderCell>State</Table.HeaderCell>
-            <Table.HeaderCell>Changes</Table.HeaderCell>
-            <Table.HeaderCell>Errors</Table.HeaderCell>
-            <Table.HeaderCell>Summary</Table.HeaderCell>
-            <Table.HeaderCell>Actor</Table.HeaderCell>
-          </Table.Row>
-        </Table.Header>
-        <Table.Body>
-          {runs.map((r) => (
-            <Table.Row key={r.id}>
-              <Table.Cell className="whitespace-nowrap">
-                {new Date(r.created_at).toLocaleString()}
-              </Table.Cell>
-              <Table.Cell className="font-mono text-xs">{r.job_id}</Table.Cell>
-              <Table.Cell>
-                <RunBadge dry_run={r.dry_run} applied={r.applied} />
-              </Table.Cell>
-              <Table.Cell>{r.change_count}</Table.Cell>
-              <Table.Cell>{r.error_count}</Table.Cell>
-              <Table.Cell className="max-w-[280px] truncate">
-                {r.summary}
-              </Table.Cell>
-              <Table.Cell className="font-mono text-xs">{r.actor_id}</Table.Cell>
-            </Table.Row>
-          ))}
-        </Table.Body>
-      </Table>
-    </div>
-  )
-}
-
-const OpsDataPlumbingPage = () => {
+/** "Run a job" drawer: select a registry job, then preview/apply it. */
+const RunJobDrawer = () => {
   const { jobs, isLoading, isError } = useMaintenanceJobs()
+  const [open, setOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined)
 
   const selectedJob = useMemo(
@@ -464,39 +195,36 @@ const OpsDataPlumbingPage = () => {
   )
 
   return (
-    <Container className="divide-y p-0">
-      <div className="px-6 py-4">
-        <Heading>Data Plumbing</Heading>
-        <Text className="text-ui-fg-subtle" size="small">
-          Run guarded data-correction jobs. Always Preview (dry-run) before you
-          Apply — dry-runs never write and are not logged; applied runs are
-          recorded in history below.
-        </Text>
-      </div>
-
-      <Tabs defaultValue="run">
-        <div className="px-6 pt-4">
-          <Tabs.List>
-            <Tabs.Trigger value="run">Run a job</Tabs.Trigger>
-            <Tabs.Trigger value="batches">Batches</Tabs.Trigger>
-            <Tabs.Trigger value="runs">All runs</Tabs.Trigger>
-          </Tabs.List>
-        </div>
-
-        <Tabs.Content value="run">
-          <div className="flex flex-col gap-y-2 px-6 py-4">
+    <Drawer
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o)
+        if (!o) setSelectedId(undefined)
+      }}
+    >
+      <Drawer.Trigger asChild>
+        <Button size="small" variant="primary">
+          Run
+        </Button>
+      </Drawer.Trigger>
+      <Drawer.Content>
+        <Drawer.Header>
+          <Drawer.Title>Run a maintenance job</Drawer.Title>
+        </Drawer.Header>
+        <Drawer.Body className="flex flex-col gap-y-4 overflow-y-auto">
+          <div className="flex flex-col gap-y-2">
             <Label size="small" weight="plus">
               Job
             </Label>
             {isLoading ? (
-              <Skeleton className="h-9 w-full max-w-md" />
+              <Skeleton className="h-9 w-full" />
             ) : isError ? (
               <Text size="small" className="text-ui-fg-error">
                 Failed to load jobs.
               </Text>
             ) : (
               <Select value={selectedId} onValueChange={setSelectedId}>
-                <Select.Trigger className="max-w-md">
+                <Select.Trigger>
                   <Select.Value placeholder="Select a maintenance job…" />
                 </Select.Trigger>
                 <Select.Content>
@@ -511,16 +239,215 @@ const OpsDataPlumbingPage = () => {
           </div>
 
           {selectedJob && <JobRunner key={selectedJob.id} job={selectedJob} />}
-        </Tabs.Content>
+        </Drawer.Body>
+      </Drawer.Content>
+    </Drawer>
+  )
+}
 
-        <Tabs.Content value="batches">
-          <BatchesHistory />
-        </Tabs.Content>
+const PAGE_SIZE = 20
 
-        <Tabs.Content value="runs">
-          <AllRunsHistory />
-        </Tabs.Content>
-      </Tabs>
+const runColumnHelper = createColumnHelper<MaintenanceRun>()
+
+// Filter ids map to real `/runs` query params: `job_id` directly, and a synthetic
+// `state` that translates to the `dry_run`/`applied` booleans the API supports.
+const runFilterHelper = createDataTableFilterHelper<{
+  job_id: string
+  state: string
+}>()
+
+/** CSV export of the currently-loaded run rows (no built-in export; client-side). */
+const exportRunsCsv = (runs: MaintenanceRun[]) => {
+  const header = [
+    "created_at",
+    "job_id",
+    "state",
+    "change_count",
+    "error_count",
+    "actor_id",
+    "batch_id",
+    "summary",
+  ]
+  const state = (r: MaintenanceRun) =>
+    r.dry_run ? "dry-run" : r.applied ? "applied" : "no-op"
+  const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`
+  const lines = [
+    header.join(","),
+    ...runs.map((r) =>
+      [
+        r.created_at,
+        r.job_id,
+        state(r),
+        r.change_count,
+        r.error_count,
+        r.actor_id,
+        r.batch_id ?? "",
+        r.summary,
+      ]
+        .map(escape)
+        .join(",")
+    ),
+  ]
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = "data-plumbing-runs.csv"
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+const OpsDataPlumbingPage = () => {
+  const navigate = useNavigate()
+  const { jobs } = useMaintenanceJobs()
+  const [pagination, setPagination] = useState<DataTablePaginationState>({
+    pageSize: PAGE_SIZE,
+    pageIndex: 0,
+  })
+  const [filtering, setFiltering] = useState<DataTableFilteringState>({})
+
+  const filters = useMemo(
+    () => [
+      runFilterHelper.accessor("job_id", {
+        type: "select",
+        label: "Job",
+        options: jobs.map((j) => ({ label: j.label, value: j.id })),
+      }),
+      runFilterHelper.accessor("state", {
+        type: "select",
+        label: "State",
+        options: [
+          { label: "Applied", value: "applied" },
+          { label: "Dry-run", value: "dry-run" },
+          { label: "No-op", value: "no-op" },
+        ],
+      }),
+    ],
+    [jobs]
+  )
+
+  // Translate the DataTable filter state into the `/runs` query params the API
+  // supports (job_id directly; state → dry_run/applied booleans).
+  const filterQuery = useMemo(() => {
+    const pick = (v: unknown) => (Array.isArray(v) ? v[0] : v)
+    const q: Record<string, unknown> = {}
+    const job = pick(filtering.job_id)
+    if (job) q.job_id = job as string
+    const state = pick(filtering.state)
+    if (state === "dry-run") q.dry_run = true
+    else if (state === "applied") q.applied = true
+    else if (state === "no-op") {
+      q.dry_run = false
+      q.applied = false
+    }
+    return q
+  }, [filtering])
+
+  const offset = pagination.pageIndex * pagination.pageSize
+  const { runs, count, isLoading } = useMaintenanceRuns({
+    limit: pagination.pageSize,
+    offset,
+    ...filterQuery,
+  })
+
+  const columns = useMemo(
+    () => [
+      runColumnHelper.accessor("created_at", {
+        header: "When",
+        cell: ({ getValue }) => (
+          <span className="whitespace-nowrap">
+            {new Date(getValue()).toLocaleString()}
+          </span>
+        ),
+      }),
+      runColumnHelper.accessor("job_id", {
+        header: "Job",
+        cell: ({ getValue }) => (
+          <span className="font-mono text-xs">{getValue()}</span>
+        ),
+      }),
+      runColumnHelper.display({
+        id: "state",
+        header: "State",
+        cell: ({ row }) => (
+          <RunBadge
+            dry_run={row.original.dry_run}
+            applied={row.original.applied}
+          />
+        ),
+      }),
+      runColumnHelper.accessor("change_count", { header: "Changes" }),
+      runColumnHelper.accessor("error_count", { header: "Errors" }),
+      runColumnHelper.accessor("summary", {
+        header: "Summary",
+        cell: ({ getValue }) => (
+          <span className="block max-w-[320px] truncate">{getValue()}</span>
+        ),
+      }),
+      runColumnHelper.accessor("actor_id", {
+        header: "Actor",
+        cell: ({ getValue }) => (
+          <span className="font-mono text-xs">{getValue()}</span>
+        ),
+      }),
+    ],
+    []
+  )
+
+  const table = useDataTable({
+    columns,
+    data: runs,
+    getRowId: (row) => row.id,
+    rowCount: count,
+    isLoading,
+    filters,
+    pagination: { state: pagination, onPaginationChange: setPagination },
+    filtering: {
+      state: filtering,
+      onFilteringChange: (next) => {
+        setFiltering(next)
+        setPagination((p) => ({ ...p, pageIndex: 0 })) // reset to first page
+      },
+    },
+    onRowClick: (_, row) =>
+      navigate(`/settings/ops-data-plumbing/${row.id}`),
+  })
+
+  return (
+    <Container className="divide-y p-0">
+      <DataTable instance={table}>
+        <DataTable.Toolbar className="flex flex-col gap-y-4 px-6 py-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <Heading>Data Plumbing</Heading>
+            <Text className="text-ui-fg-subtle" size="small">
+              Run guarded data-correction jobs. Always Preview (dry-run) before
+              you Apply — dry-runs never write and are not logged; applied runs
+              are recorded below. Click a run for its full change diff.
+            </Text>
+          </div>
+          <div className="flex items-center gap-x-2">
+            <Button
+              size="small"
+              variant="secondary"
+              disabled={!runs.length}
+              onClick={() => exportRunsCsv(runs)}
+            >
+              Export
+            </Button>
+            <RunJobDrawer />
+          </div>
+        </DataTable.Toolbar>
+        <DataTable.Table
+          emptyState={{
+            empty: {
+              heading: "No runs yet",
+              description:
+                "Applied jobs are recorded here. Use “Run a job” to preview and apply one. (Dry-runs are not persisted.)",
+            },
+          }}
+        />
+        <DataTable.Pagination />
+      </DataTable>
     </Container>
   )
 }
