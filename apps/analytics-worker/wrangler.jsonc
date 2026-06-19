@@ -1,0 +1,27 @@
+{
+  // #344 slice 2 — analytics edge worker (`collect`).
+  // Deploy: see README.md. Secrets (ANALYTICS_INGEST_SECRET) are NOT here — set
+  // via `wrangler secret put`. The KV id is filled after `wrangler kv namespace create`.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "jyt-analytics-collect",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "observability": { "enabled": true },
+
+  // Buffer namespace — create with:
+  //   npx wrangler kv namespace create ANALYTICS_BUFFER
+  // then paste the printed id below.
+  "kv_namespaces": [
+    { "binding": "ANALYTICS_BUFFER", "id": "<run: wrangler kv namespace create ANALYTICS_BUFFER>" }
+  ],
+
+  // Drain the buffer every minute (Cloudflare cron min granularity).
+  "triggers": { "crons": ["* * * * *"] },
+
+  // Non-secret config. Point at prod (or a preview) Medusa ingest endpoint.
+  "vars": {
+    "MEDUSA_INGEST_URL": "https://v3.jaalyantra.com/web/analytics/ingest-batch",
+    "ALLOWED_ORIGINS": "*",
+    "MAX_DRAIN": "500"
+  }
+}
