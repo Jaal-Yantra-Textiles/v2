@@ -34,3 +34,40 @@ export const OpsMaintenanceRunsQuerySchema = z.object({
 })
 
 export type OpsMaintenanceRunsQuery = z.infer<typeof OpsMaintenanceRunsQuerySchema>
+
+/**
+ * Hard cap on jobs per batch (Data Plumbing v2, #508). Each child job runs
+ * synchronously in sequence, so we bound the per-request blast radius and keep
+ * the endpoint responsive. Bigger corrections are split across batch calls.
+ */
+export const MAX_BATCH_JOBS = 20
+
+/**
+ * Body for POST /admin/ops/maintenance-jobs/batches (#508).
+ *
+ * Stateless "A2": one call runs + records the whole batch. Preview and Apply are
+ * two separate calls with `dry_run` flipped (defaults to true — safe by
+ * default). The batch is sequential with a single batch-level `dry_run`; a child
+ * job that throws is CAUGHT and recorded (continue-on-error) unless
+ * `stop_on_error=true`. Per-job `params` are validated inside each job's own
+ * schema — here we only accept an object (same record() shape as the run route).
+ */
+export const OpsMaintenanceBatchSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  dry_run: z.boolean().optional(),
+  stop_on_error: z.boolean().optional(),
+  jobs: z
+    .array(
+      z.object({
+        job_id: z.string().min(1, "job_id is required"),
+        params: z.record(z.string(), z.any()).optional(),
+      })
+    )
+    .min(1, "jobs must contain at least one job")
+    .max(
+      MAX_BATCH_JOBS,
+      `jobs exceeds the per-batch limit of ${MAX_BATCH_JOBS}`
+    ),
+})
+
+export type OpsMaintenanceBatchBody = z.infer<typeof OpsMaintenanceBatchSchema>
