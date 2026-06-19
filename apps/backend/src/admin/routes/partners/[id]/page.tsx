@@ -12,6 +12,7 @@ import { PartnerStorefrontSection } from "../../../components/partners/partner-s
 import { PartnerSubscriptionSection } from "../../../components/partners/partner-subscription-section"
 import { PartnerPeopleSection } from "../../../components/partners/partner-people-section"
 import { PartnerWhatsAppSection } from "../../../components/partners/partner-whatsapp-section"
+import { PartnerTransactionFeesSection } from "../../../components/partners/partner-transaction-fees-section"
 import type { AdminPartner } from "../../../hooks/api/partners-admin"
 import { partnerLoader } from "./loader"
 
@@ -54,6 +55,7 @@ const PartnerDetailPage = () => {
           <PartnerPeopleSection partnerId={partner.id} />
           <PartnerAdminsSection partnerId={partner.id} admins={partner.admins || []} />
           <PartnerPaymentsSection partner={partner} />
+          <PartnerTransactionFeesSection partnerId={partner.id} />
           <PartnerFeedbacksSection partnerId={partner.id} />
         </TwoColumnPage.Sidebar>
       </TwoColumnPage>
