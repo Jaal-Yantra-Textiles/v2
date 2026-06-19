@@ -7,6 +7,9 @@ import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import { CONSUMPTION_LOG_MODULE } from "../../../../modules/consumption_log"
 import { RAW_MATERIAL_MODULE } from "../../../../modules/raw_material"
 import { OPS_AUDIT_MODULE } from "../../../../modules/ops_audit"
+import { PARTNER_BILLING_MODULE } from "../../../../modules/partner_billing"
+import { computeFee } from "../../../../modules/partner_billing/lib/compute-fee"
+import { resolvePartnerFeeRate } from "../../../../modules/partner_billing/lib/resolve-fee-rate"
 import partnerOrderLink from "../../../../links/partner-order"
 import partnerRegionLink from "../../../../links/partner-region"
 import productGoogleMerchantLink from "../../../../links/product-google-merchant-link"
@@ -2557,6 +2560,220 @@ export const repairInventoryRawMaterialLinksJob: MaintenanceJob = {
   },
 }
 
+/**
+ * Hard cap on the historical partner-fee backfill scan. Partners are few; we
+ * still bound the per-request blast radius (each partner reads its order-link
+ * rows + each order's total). Bigger fleets raise `limit` across chunked calls.
+ */
+export const MAX_PARTNER_FEE_BACKFILL_SCAN = 5000
+
+const backfillPartnerOrderFeesParamsSchema = z.object({
+  /** Restrict the backfill to a single partner instead of all partners. */
+  partner_id: z.string().min(1).optional(),
+  /** Max fees to accrue in one call (1..MAX_PARTNER_FEE_BACKFILL_SCAN). */
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_PARTNER_FEE_BACKFILL_SCAN)
+    .optional()
+    .default(1000),
+})
+
+/**
+ * Pure: should a partner-linked order get a commission fee accrued by the
+ * historical backfill?
+ *
+ * The Slice 2 subscriber accrues at `order.placed` and Slice 3 reverses at
+ * `order.canceled`. For a historical order the net outcome must match:
+ *   - already has a `partner_fee` row → skip (idempotent; the subscriber or a
+ *     prior backfill run already handled it).
+ *   - order is `canceled` → skip: had the subscriber existed, the fee would
+ *     have been accrued then reversed (net zero), so accruing-and-leaving it
+ *     `accrued` would over-count the partner's net commission.
+ *   - otherwise → accrue.
+ *
+ * Exported for unit testing — keeps the dry-run/apply selection verifiable
+ * without booting the DB.
+ */
+export function shouldBackfillOrderFee(
+  existingFee: unknown,
+  orderStatus: string | null | undefined
+): boolean {
+  if (existingFee) return false
+  if (String(orderStatus || "").toLowerCase() === "canceled") return false
+  return true
+}
+
+/**
+ * Pure summary builder for the historical partner-fee backfill — keeps the
+ * human-facing string verifiable without booting the DB.
+ */
+export function summarizePartnerFeeBackfill(
+  dryRun: boolean,
+  partnersScanned: number,
+  ordersScanned: number,
+  accruedCount: number,
+  errorCount: number
+): string {
+  const verb = dryRun ? "Would accrue" : "Accrued"
+  const head =
+    accruedCount === 0
+      ? `No changes — scanned ${ordersScanned} partner order(s) across ${partnersScanned} partner(s), all already accrued or not eligible`
+      : `${verb} ${accruedCount} commission fee(s) (scanned ${ordersScanned} order(s) across ${partnersScanned} partner(s))`
+  return errorCount > 0 ? `${head}; ${errorCount} error(s)` : head
+}
+
+/**
+ * Backfill historical partner commission fees (#336 Slice 5). The Slice 2
+ * subscriber only accrues `partner_fee` rows for orders placed AFTER it shipped;
+ * partner-linked orders that predate it have no commission row. This job, for
+ * each partner (or one `partner_id`), reads that partner's unified orders via
+ * the D3 partner↔order link and accrues ONE `partner_fee` row per eligible order
+ * using the SAME math as the subscriber (`resolvePartnerFeeRate` → `computeFee`,
+ * default 2% — `PLATFORM_TX_FEE_BPS=200`), in the order's own `currency_code`.
+ *
+ * Idempotent + safe: orders that already have a fee are skipped
+ * (`findFeeForOrder`), and `canceled` orders are skipped (the subscriber would
+ * have accrued then reversed them → net zero). Dry-run (default) previews every
+ * fee it would accrue without writing; apply creates the rows. A per-partner
+ * failure is recorded in `errors` instead of aborting the sweep. Bounded by
+ * `limit` accruals per call.
+ */
+export const backfillPartnerOrderFeesJob: MaintenanceJob = {
+  id: "backfill-partner-order-fees",
+  label: "Backfill partner order fees",
+  description:
+    `Accrue platform commission fees for historical partner-linked orders that predate the order.placed fee subscriber (#336). For each partner, reads their unified orders via the D3 partner↔order link and accrues one partner_fee row per eligible order using the same math as the live subscriber (default 2% — PLATFORM_TX_FEE_BPS), in the order's own currency_code. Idempotent: orders that already have a fee are skipped; canceled orders are skipped (would have netted to zero). Dry-run (default) previews every fee it would accrue; apply creates the rows. Optionally scope to one partner_id. Accrues up to 'limit' fees per call (default 1000, max ${MAX_PARTNER_FEE_BACKFILL_SCAN}).`,
+  params: [
+    {
+      name: "partner_id",
+      type: "string",
+      required: false,
+      description: "Restrict the backfill to a single partner (default: all partners)",
+    },
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: `Max fees to accrue in one call (default 1000, max ${MAX_PARTNER_FEE_BACKFILL_SCAN})`,
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const parsed = backfillPartnerOrderFeesParamsSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        parsed.error.issues.map((i) => i.message).join("; ")
+      )
+    }
+    const { partner_id, limit } = parsed.data
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const orderService: any = container.resolve(Modules.ORDER)
+    const billingService: any = container.resolve(PARTNER_BILLING_MODULE)
+
+    // Target partners: a single id, or all partners (bounded — partners are few).
+    let partnerIds: string[]
+    if (partner_id) {
+      partnerIds = [partner_id]
+    } else {
+      const { data: partners } = await query.graph({
+        entity: "partners",
+        fields: ["id"],
+        pagination: { take: MAX_PARTNER_FEE_BACKFILL_SCAN },
+      })
+      partnerIds = (partners ?? []).map((p: any) => p?.id).filter(Boolean)
+    }
+
+    const changes: MaintenanceChange[] = []
+    const errors: Array<{ id: string; message: string }> = []
+    let partnersScanned = 0
+    let ordersScanned = 0
+
+    for (const pid of partnerIds) {
+      if (changes.length >= limit) break
+      partnersScanned++
+      try {
+        const { fee_basis, fee_rate } = await resolvePartnerFeeRate(container, {
+          partnerId: pid,
+        })
+
+        // Read the D3 partner↔order link table directly (source of truth).
+        const { data: linkRows } = await query.graph({
+          entity: partnerOrderLink.entryPoint,
+          fields: ["order_id"],
+          filters: { partner_id: pid },
+        })
+        const orderIds: string[] = Array.from(
+          new Set((linkRows ?? []).map((r: any) => r?.order_id).filter(Boolean))
+        )
+        if (!orderIds.length) continue
+
+        const { data: orders } = await query.graph({
+          entity: "order",
+          fields: ["id", "total", "currency_code", "status"],
+          filters: { id: orderIds },
+        })
+
+        for (const order of orders ?? []) {
+          if (changes.length >= limit) break
+          ordersScanned++
+
+          const existing = await billingService.findFeeForOrder(order.id)
+          if (!shouldBackfillOrderFee(existing, order.status)) continue
+
+          const orderTotal = Number(order?.total)
+          const currencyCode: string = order?.currency_code || ""
+          const feeAmount = computeFee(orderTotal, fee_basis, fee_rate)
+
+          changes.push({
+            entity: "partner_fee",
+            id: order.id,
+            field: "accrue_fee",
+            before: null,
+            after: { partner_id: pid, fee_amount: feeAmount, currency_code: currencyCode },
+          })
+
+          if (!dry_run) {
+            await billingService.createPartnerFees([
+              {
+                partner_id: pid,
+                order_id: order.id,
+                order_total: Number.isFinite(orderTotal) ? orderTotal : 0,
+                currency_code: currencyCode,
+                fee_basis,
+                fee_rate,
+                fee_amount: feeAmount,
+                status: "accrued",
+                accrued_at: new Date(),
+                metadata: { source: "backfill-partner-order-fees" },
+              },
+            ])
+          }
+        }
+      } catch (e: any) {
+        errors.push({ id: pid, message: e?.message ?? String(e) })
+      }
+    }
+
+    return {
+      job_id: backfillPartnerOrderFeesJob.id,
+      dry_run,
+      applied: !dry_run && changes.length > 0,
+      summary: summarizePartnerFeeBackfill(
+        dry_run,
+        partnersScanned,
+        ordersScanned,
+        changes.length,
+        errors.length
+      ),
+      changes,
+      errors,
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -2569,6 +2786,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   resyncProductLandingUrlJob,
   backfillConsumptionLogProductionRunIdJob,
   repairInventoryRawMaterialLinksJob,
+  backfillPartnerOrderFeesJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
