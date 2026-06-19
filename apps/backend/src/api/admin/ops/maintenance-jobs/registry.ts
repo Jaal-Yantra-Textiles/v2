@@ -7,6 +7,7 @@ import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import { CONSUMPTION_LOG_MODULE } from "../../../../modules/consumption_log"
 import { RAW_MATERIAL_MODULE } from "../../../../modules/raw_material"
 import { OPS_AUDIT_MODULE } from "../../../../modules/ops_audit"
+import { STATS_MODULE } from "../../../../modules/stats"
 import { PARTNER_BILLING_MODULE } from "../../../../modules/partner_billing"
 import { computeFee } from "../../../../modules/partner_billing/lib/compute-fee"
 import { resolvePartnerFeeRate } from "../../../../modules/partner_billing/lib/resolve-fee-rate"
@@ -2774,6 +2775,198 @@ export const backfillPartnerOrderFeesJob: MaintenanceJob = {
   },
 }
 
+/**
+ * Hard cap on how many stats panels a single window-backfill scan inspects.
+ * Bounds blast radius; there are only a handful of dashboards in practice.
+ */
+export const MAX_STATS_PANEL_SCAN = 2000
+
+const backfillStatsPanelWindowParamsSchema = z.object({
+  /** Restrict to a single panel id (targeted mode — skips the aggregate-field filter). */
+  panel_id: z.string().min(1).optional(),
+  /** Relative window to apply, in days (default 30 — matches the seed). */
+  last_days: z.number().int().positive().max(3650).optional().default(30),
+  /** Date column the window filters on (default "date" — analytics_daily_stats). */
+  date_field: z.string().min(1).optional().default("date"),
+  /**
+   * Scan-mode only: only patch aggregate_data panels whose aggregate.field
+   * matches this (default "unique_visitors" — the #522 panel). Ignored when
+   * panel_id is given (targeted mode patches that exact panel).
+   */
+  field: z.string().min(1).optional().default("unique_visitors"),
+})
+
+/**
+ * Pure: decide whether a single stats panel needs a relative date window added
+ * to its `operation_options`, and compute the patched options.
+ *
+ * Only `aggregate_data` panels qualify (time_series already carries its own
+ * `range`). A panel is patched ONLY when it is missing a `range` — we never
+ * clobber an intentional existing window, which makes the job idempotent
+ * (re-running after a fix matches nothing). In scan mode the panel's
+ * `aggregate.field` must equal `field`; targeted mode (an explicit panel_id)
+ * skips that filter. Exported for unit testing — no DB needed.
+ */
+export function diffStatsPanelWindow(
+  panel: {
+    id: string
+    operation_type?: string | null
+    operation_options?: Record<string, any> | null
+  },
+  opts: { dateField: string; lastDays: number; field?: string; targeted: boolean }
+): MaintenanceChange | null {
+  if (panel.operation_type !== "aggregate_data") return null
+
+  const options: Record<string, any> = { ...(panel.operation_options ?? {}) }
+
+  // Already windowed → idempotent no-op (don't overwrite intentional config).
+  if (options.range != null) return null
+
+  // Scan mode only patches panels aggregating the target field.
+  if (!opts.targeted && options?.aggregate?.field !== opts.field) return null
+
+  const after: Record<string, any> = {
+    ...options,
+    dateField: options.dateField ?? opts.dateField,
+    range: { last_days: opts.lastDays },
+  }
+
+  return {
+    entity: "stats_panel",
+    id: panel.id,
+    field: "operation_options",
+    before: options,
+    after,
+  }
+}
+
+/**
+ * Pure human-facing summary for the stats-panel window backfill. Verifiable
+ * without booting the DB.
+ */
+export function summarizeStatsPanelWindowBackfill(
+  dryRun: boolean,
+  scanned: number,
+  changed: number,
+  lastDays: number
+): string {
+  if (changed === 0) {
+    return `No changes — all ${scanned} scanned panel(s) already carry a date window`
+  }
+  const verb = dryRun ? "Would add" : "Added"
+  return `${verb} a ${lastDays}-day window to ${changed} of ${scanned} scanned stats panel(s)`
+}
+
+/**
+ * Patch existing stats panels whose `aggregate_data` metric is missing a
+ * relative date window (#522). The code fix (PR #543) taught `aggregate_data`
+ * to honour `range`/`dateField`, and the seed now ships the Unique-visitors
+ * panel with `dateField:"date"` + `range:{last_days:30}` — but the seed SKIPS
+ * existing dashboards, so live panel rows created before the fix still sum
+ * all-time. This job is the targeted, idempotent correction for those rows.
+ *
+ * Safe by default: dry-run (default) previews the exact operation_options diff
+ * per panel; apply writes `operation_options`. Idempotent — a panel that
+ * already has a `range` is never touched, so a re-run matches nothing.
+ */
+export const backfillStatsPanelWindowJob: MaintenanceJob = {
+  id: "backfill-stats-panel-window",
+  label: "Backfill stats panel date window",
+  description:
+    "Add a relative date window (dateField + range.last_days) to existing aggregate_data stats panels that are missing one — fixes metric panels (e.g. 'Unique visitors (30 days)', #522) that sum all-time because the seed skipped existing dashboards. Dry-run (default) previews the operation_options diff per panel; apply writes it. Idempotent: panels that already have a range are skipped. Scan mode targets panels aggregating 'field' (default unique_visitors); pass panel_id to patch one specific panel.",
+  params: [
+    {
+      name: "panel_id",
+      type: "string",
+      required: false,
+      description:
+        "Patch only this panel (targeted mode — skips the aggregate-field filter). Omit to scan all aggregate_data panels.",
+    },
+    {
+      name: "last_days",
+      type: "number",
+      required: false,
+      description: "Window size in days to apply (default 30)",
+    },
+    {
+      name: "date_field",
+      type: "string",
+      required: false,
+      description: "Date column the window filters on (default 'date')",
+    },
+    {
+      name: "field",
+      type: "string",
+      required: false,
+      description:
+        "Scan mode only: only patch panels whose aggregate.field matches this (default 'unique_visitors')",
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const parsed = backfillStatsPanelWindowParamsSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        parsed.error.issues.map((i) => i.message).join("; ")
+      )
+    }
+    const { panel_id, last_days, date_field, field } = parsed.data
+    const targeted = !!panel_id
+
+    const stats: any = container.resolve(STATS_MODULE)
+
+    const filters: Record<string, unknown> = targeted
+      ? { id: panel_id }
+      : { operation_type: "aggregate_data" }
+
+    const [panels] = await stats.listAndCountStatsPanels(filters, {
+      take: MAX_STATS_PANEL_SCAN,
+    })
+
+    const scanned: any[] = panels || []
+
+    if (targeted && scanned.length === 0) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Stats panel '${panel_id}' not found`
+      )
+    }
+
+    const changes: MaintenanceChange[] = []
+    for (const panel of scanned) {
+      const change = diffStatsPanelWindow(panel, {
+        dateField: date_field,
+        lastDays: last_days,
+        field,
+        targeted,
+      })
+      if (change) changes.push(change)
+    }
+
+    if (!dry_run && changes.length > 0) {
+      for (const change of changes) {
+        await stats.updateStatsPanels({
+          id: change.id,
+          operation_options: change.after,
+        })
+      }
+    }
+
+    return {
+      job_id: backfillStatsPanelWindowJob.id,
+      dry_run,
+      applied: !dry_run && changes.length > 0,
+      summary: summarizeStatsPanelWindowBackfill(
+        dry_run,
+        scanned.length,
+        changes.length,
+        last_days
+      ),
+      changes,
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -2787,6 +2980,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillConsumptionLogProductionRunIdJob,
   repairInventoryRawMaterialLinksJob,
   backfillPartnerOrderFeesJob,
+  backfillStatsPanelWindowJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
