@@ -23,6 +23,7 @@ import {
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { useWebsiteAnalytics, AnalyticsFilters } from "../../hooks/api/analytics";
 import { AnalyticsCountryMap } from "./analytics-country-map";
+import { AnalyticsBreakdownSection } from "./analytics-breakdown-section";
 
 function getSourceIcon(source: string) {
   const s = source.toLowerCase();
@@ -602,6 +603,11 @@ export const WebsiteAnalyticsModal = () => {
                     </div>
                   </div>
                 </Container>
+              )}
+
+              {/* #559 slice 4 — OpenPanel-style breakdown explorer */}
+              {id && (
+                <AnalyticsBreakdownSection websiteId={id} days={currentDays} />
               )}
             </div>
           </div>
