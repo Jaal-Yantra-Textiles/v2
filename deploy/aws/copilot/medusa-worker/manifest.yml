@@ -29,6 +29,10 @@ variables:
 # Worker needs DB + Redis + R2 (for export/report jobs that write files).
 # Does NOT need JWT/COOKIE/CORS (no HTTP surface).
 secrets:
+  # #559 — the drain-analytics-buffer scheduled job runs HERE (worker mode), not on
+  # medusa-server (server mode skips scheduled jobs). The flag MUST be set on the
+  # worker too or the drain early-returns and the Redis buffer never persists.
+  ANALYTICS_BATCH_INGEST: /jyt/prod/ANALYTICS_BATCH_INGEST
   CLOUDFLARE_API_TOKEN: /jyt/prod/CLOUDFLARE_API_TOKEN
   CLOUDFLARE_ZONE_ID: /jyt/prod/CLOUDFLARE_ZONE_ID
   DATABASE_URL: /jyt/prod/DATABASE_URL
