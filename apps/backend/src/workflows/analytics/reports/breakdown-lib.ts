@@ -13,6 +13,7 @@ export type BreakdownDimension =
   | "browser"
   | "os"
   | "referrer_source"
+  | "referrer"
   | "utm_source"
   | "utm_medium"
   | "utm_campaign"
@@ -30,6 +31,7 @@ export const BREAKDOWN_DIMENSIONS: BreakdownDimension[] = [
   "browser",
   "os",
   "referrer_source",
+  "referrer",
   "utm_source",
   "utm_medium",
   "utm_campaign",
@@ -56,6 +58,7 @@ export type AnalyticsEventRow = {
   browser?: string | null;
   os?: string | null;
   referrer_source?: string | null;
+  referrer?: string | null;
   utm_source?: string | null;
   utm_medium?: string | null;
   utm_campaign?: string | null;
@@ -93,6 +96,7 @@ export const MAX_BREAKDOWN_LIMIT = 100;
 /** Labels used when a dimension value is null/empty, per dimension. */
 const NULL_LABELS: Partial<Record<BreakdownDimension, string>> = {
   referrer_source: "direct",
+  referrer: "direct",
   country: "unknown",
   device_type: "unknown",
   event_type: "unknown",

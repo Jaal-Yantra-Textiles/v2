@@ -45,6 +45,17 @@ describe("normalizeFieldValue", () => {
     expect(normalizeFieldValue("referrer_source", null)).toBe("direct");
   });
 
+  it("maps null/empty referrer (full URL) to 'direct'", () => {
+    expect(normalizeFieldValue("referrer", null)).toBe("direct");
+    expect(normalizeFieldValue("referrer", "")).toBe("direct");
+  });
+
+  it("keeps the full referrer URL verbatim when present", () => {
+    expect(normalizeFieldValue("referrer", "https://t.co/abc?x=1")).toBe(
+      "https://t.co/abc?x=1"
+    );
+  });
+
   it("maps null/empty country to 'unknown'", () => {
     expect(normalizeFieldValue("country", null)).toBe("unknown");
     expect(normalizeFieldValue("country", "")).toBe("unknown");
@@ -139,6 +150,25 @@ describe("computeBreakdown", () => {
     const events = [ev({ referrer_source: null }), ev({ referrer_source: "google" })];
     const out = computeBreakdown(events, "referrer_source");
     expect(out.results.map((r) => r.value).sort()).toEqual(["direct", "google"]);
+  });
+
+  it("breaks down by full referrer URL, folding null into 'direct'", () => {
+    const events = [
+      ev({ referrer: "https://google.com/search?q=a", visitor_id: "a" }),
+      ev({ referrer: "https://google.com/search?q=a", visitor_id: "b" }),
+      ev({ referrer: "https://t.co/xyz", visitor_id: "c" }),
+      ev({ referrer: null, visitor_id: "d" }),
+    ];
+    const out = computeBreakdown(events, "referrer");
+    expect(out.dimension).toBe("referrer");
+    expect(out.total_events).toBe(4);
+
+    const g = out.results.find((r) => r.value === "https://google.com/search?q=a")!;
+    expect(g.count).toBe(2);
+    expect(g.unique_visitors).toBe(2);
+
+    const direct = out.results.find((r) => r.value === "direct")!;
+    expect(direct.count).toBe(1);
   });
 
   it("handles is_404 boolean buckets", () => {
