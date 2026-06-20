@@ -1,6 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
 import { sdk } from "../../lib/config";
 import { queryKeysFactory } from "../../lib/query-key-factory";
+import {
+  AnalyticsBreakdownResponse,
+  BreakdownQueryParams,
+  buildBreakdownQuery,
+} from "./analytics-breakdown-query";
+
+export type {
+  AnalyticsBreakdownResponse,
+  BreakdownBucket,
+  BreakdownDimension,
+  BreakdownQueryParams,
+  BreakdownResult,
+} from "./analytics-breakdown-query";
+export {
+  BREAKDOWN_DIMENSIONS,
+  FILTERABLE_FIELDS,
+  isBreakdownDimension,
+} from "./analytics-breakdown-query";
 
 const ANALYTICS_QUERY_KEY = "analytics" as const;
 export const analyticsQueryKeys = queryKeysFactory(ANALYTICS_QUERY_KEY);
@@ -101,6 +119,30 @@ export const useAnalyticsTimeseries = (
       return res.body;
     },
     enabled: !!websiteId,
+  });
+};
+
+// Hook to fetch a single-dimension analytics breakdown (#559 slice 4).
+// Consumes GET /admin/analytics-events/breakdown (slice 3 / PR #562):
+// pass a website + dimension, an optional rolling `days` or explicit
+// start/end window, an optional `limit`, and composable equality `filters`.
+export const useAnalyticsBreakdown = (
+  params: BreakdownQueryParams,
+  options?: { enabled?: boolean }
+) => {
+  const enabled =
+    (options?.enabled ?? true) && !!params.website_id && !!params.dimension;
+
+  return useQuery({
+    queryKey: ["analytics-breakdown", params],
+    queryFn: async () => {
+      const qs = buildBreakdownQuery(params);
+      const res = await sdk.client.fetch<AnalyticsBreakdownResponse>(
+        `/admin/analytics-events/breakdown?${qs}`
+      );
+      return res as AnalyticsBreakdownResponse;
+    },
+    enabled,
   });
 };
 
