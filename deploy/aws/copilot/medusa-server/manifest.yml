@@ -63,6 +63,11 @@ secrets:
   ADMIN_OPENAPI_CATALOG_URL: /jyt/prod/ADMIN_OPENAPI_CATALOG_URL
   ADMIN_RAG_EMBED_PROVIDER: /jyt/prod/ADMIN_RAG_EMBED_PROVIDER
   ADMIN_RAG_INDEX_VERSION: /jyt/prod/ADMIN_RAG_INDEX_VERSION
+  # #559 — feature flag: route the bulk pageview firehose through the in-house
+  # Redis ingest buffer (drain-analytics-buffer job persists). Heartbeats stay
+  # synchronous so the live-visitor count is real-time. "1" = on; flip the SSM
+  # value + redeploy to toggle (ECS resolves secrets at task start).
+  ANALYTICS_BATCH_INGEST: /jyt/prod/ANALYTICS_BATCH_INGEST
   # #344 — shared secret for the edge analytics worker's HMAC-signed batch ingest
   # (POST /web/analytics/ingest-batch). MUST equal the worker's ANALYTICS_INGEST_SECRET.
   ANALYTICS_INGEST_SECRET: /jyt/prod/ANALYTICS_INGEST_SECRET
