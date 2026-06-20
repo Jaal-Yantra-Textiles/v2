@@ -102,6 +102,12 @@ export const TrackEventSchema = z.object({
   utm_campaign: z.string().optional(),
   utm_term: z.string().optional(),
   utm_content: z.string().optional(),
+  // Browser-side country capture (#559 slice 6): the client sends its IANA time
+  // zone + locale so the backend can derive country without an edge GeoIP. An
+  // explicit `country` (rare; set by a proxy/edge) still wins when present.
+  timezone: z.string().optional(),
+  locale: z.string().optional(),
+  country: z.string().optional(),
   metadata: z.record(z.string(), z.any()).optional(),
 });
 
@@ -202,6 +208,9 @@ export const POST = async (
           utm_campaign: validatedData.utm_campaign,
           utm_term: validatedData.utm_term,
           utm_content: validatedData.utm_content,
+          timezone: validatedData.timezone,
+          locale: validatedData.locale,
+          country: validatedData.country,
           metadata: validatedData.metadata,
           user_agent: userAgent as string,
           ip_address: ip as string,
