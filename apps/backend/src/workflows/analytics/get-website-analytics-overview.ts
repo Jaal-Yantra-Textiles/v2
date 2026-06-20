@@ -1,5 +1,7 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
+import { ANALYTICS_MODULE } from "../../modules/analytics";
+import { computeSessionMetrics, SessionMetrics } from "./session-metrics-lib";
 
 /**
  * Get Website Analytics Overview
@@ -34,6 +36,12 @@ export type WebsiteAnalyticsOverview = {
     total_custom_events: number;
     unique_visitors: number;
     unique_sessions: number;
+    // Session-derived engagement metrics (#569 S1)
+    total_sessions: number;
+    bounce_rate: number;
+    avg_session_duration: number;
+    pages_per_session: number;
+    views_per_visitor: number;
   };
   recent_events: Array<{
     id: string;
@@ -104,6 +112,29 @@ export const getWebsiteAnalyticsOverviewStep = createStep(
     const uniqueVisitors = new Set(filteredEvents.map((e: any) => e.visitor_id)).size;
     const uniqueSessions = new Set(filteredEvents.map((e: any) => e.session_id)).size;
 
+    // Session-derived engagement metrics (#569 S1) — computed from
+    // analytics_session rows started within the window. Best-effort: a missing
+    // service/method or query error degrades to zeroed metrics, never throws.
+    let sessionMetrics: SessionMetrics = computeSessionMetrics([]);
+    try {
+      const analyticsService: any = container.resolve(ANALYTICS_MODULE);
+      if (analyticsService?.listAnalyticsSessions) {
+        const sessions = await analyticsService.listAnalyticsSessions(
+          {
+            website_id: input.website_id,
+            started_at: { $gte: startDate, $lte: endDate },
+          },
+          {
+            select: ["visitor_id", "pageviews", "duration_seconds", "is_bounce"],
+            take: 100000,
+          }
+        );
+        sessionMetrics = computeSessionMetrics(sessions);
+      }
+    } catch (e) {
+      // keep zeroed metrics
+    }
+
     // Get most recent events (last 100)
     const latestEvents = filteredEvents
       .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -137,6 +168,11 @@ export const getWebsiteAnalyticsOverviewStep = createStep(
         total_custom_events: customEvents.length,
         unique_visitors: uniqueVisitors,
         unique_sessions: uniqueSessions,
+        total_sessions: sessionMetrics.total_sessions,
+        bounce_rate: sessionMetrics.bounce_rate,
+        avg_session_duration: sessionMetrics.avg_session_duration,
+        pages_per_session: sessionMetrics.pages_per_session,
+        views_per_visitor: sessionMetrics.views_per_visitor,
       },
       recent_events: latestEvents,
     };
