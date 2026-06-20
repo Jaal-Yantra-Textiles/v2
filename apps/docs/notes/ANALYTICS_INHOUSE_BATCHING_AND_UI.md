@@ -127,10 +127,27 @@ the ALB / proxies / VPNs).
 - Backfill not needed — applies to new events; existing rows keep their GeoIP country.
 - Lands alongside slice 1 (same ingestion touch-point).
 
+## Storage scaling path (recorded — Postgres now, options later)
+Postgres stays the system of record. If event volume ever outgrows it (millions of
+rows, slow aggregations), the upgrade order is:
+1. **Now → Postgres.** Exact counts, our infra, full control. Fine at current volume.
+2. **Later (preferred) → self-hosted ClickHouse** for the *event* store (columnar OLAP),
+   Postgres keeps metadata/config. Same query power as OpenPanel, our infra, no sampling.
+3. **Optional edge alternative → Cloudflare Workers Analytics Engine** (ClickHouse-style,
+   SQL API). We'd **forward/mirror** events to it from our pipeline (a tee in the drain
+   step) for edge-served dashboards — NOT make it the system of record. Tradeoffs:
+   re-introduces a CF dependency, adaptive **sampling** (estimated counts), limited
+   retention, data leaves our infra. Roadmap-only; build only if edge analytics is wanted.
+
+The drain step (slice 2) is the natural tee point: once it persists a batch to Postgres
+it could optionally also `writeDataPoint(...)` to Analytics Engine behind a flag — keeping
+Postgres authoritative while feeding the edge store. Captured for future-us; not in scope.
+
 ## Non-goals / explicitly dropped
 - **No "backfill events to CF."** Postgres is the store; historical events already live
   there. No migration needed.
-- **No Cloudflare Analytics Engine / D1.** Considered, rejected — duplicates Postgres.
+- **No Cloudflare Analytics Engine now.** Recorded as a *future, additive, forward-to*
+  option only (see Storage scaling path) — never the system of record, never via KV.
 - **No swap to Medusa's Analytics module / PostHog.** It's write-only; would lose our
   dashboards. (Optional future additive feed only if external dashboards are ever wanted.)
 
