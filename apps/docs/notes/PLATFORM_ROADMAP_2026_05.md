@@ -732,14 +732,26 @@ first paying Pro customer asks (per `feedback_focused_regions_fx_conversion.md`)
 `deploy/aws/PLAN.md` current as we learn from Shared-tier ops.
 **Effort:** weeks once green-lit.
 
-#### 13. Cloudflare offload for analytics / visitor data
+#### 13. Cloudflare offload for analytics / visitor data — **SUPERSEDED 2026-06-20**
 
-Move visitor analytics ingestion to Cloudflare Workers (away from
-Medusa Fargate) so the main app isn't taking the analytics write load.
-**First step:** confirm volume — pull current analytics write rate to
-size the Workers tier needed. Decide between Workers Analytics Engine
-vs forwarding to existing pipeline.
-**Effort:** 1-2 days for the Worker + ingestion wiring.
+**Pivoted to in-house Redis batching — see #36 below (GitHub #559).** The CF
+edge worker (`jyt-analytics-collect`) was built (#344, GitHub #553) and deployed
+but carries 0 traffic. On review we chose to keep analytics fully self-hosted on
+Postgres and make ingestion non-blocking with Medusa's already-wired Redis
+primitives instead — no external dep, and (crucially) no 60s live-data lag that
+CF's 1-min cron drain forced on the live-visitor count. CF worker + KV to be torn
+down once the in-house path is live (slice 5 of #559). GitHub #344 parked.
+
+#### 36. Self-hosted analytics: in-house Redis batching + OpenPanel-style UI (GitHub #559)
+
+Make `/web/analytics/track` non-blocking by buffering the pageview firehose in
+Redis and batch-inserting via a drain job + `batchTrackAnalyticsEventsWorkflow`
+(heartbeats stay write-through so live data is instant), add granular breakdown
+stats endpoints (country/device/browser/os/referrer/utm/path), and redesign the
+admin visitor-analytics page OpenPanel-style with a filter bar + date range.
+Postgres stays the single source of truth. Design note + 5 slices:
+`apps/docs/notes/ANALYTICS_INHOUSE_BATCHING_AND_UI.md`. Supersedes #13/#344.
+**Effort:** ~4-6 days across slices (daemon-serial).
 
 #### 14. Netlify support for new partner storefront provisioning
 
