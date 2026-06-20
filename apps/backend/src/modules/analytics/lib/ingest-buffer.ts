@@ -37,6 +37,12 @@ export type BufferedAnalyticsEvent = {
   utm_campaign?: string
   utm_term?: string
   utm_content?: string
+  /** Browser IANA time zone (#559 slice 6) — used for country derivation. */
+  timezone?: string
+  /** Browser locale (#559 slice 6) — carried into event metadata. */
+  locale?: string
+  /** Explicit client/proxy country (#559 slice 6) — top of the precedence. */
+  country?: string
   metadata?: Record<string, any>
   user_agent: string
   ip_address: string

@@ -115,6 +115,30 @@
     return search ? search.substring(1) : undefined;
   }
 
+  // Browser IANA time zone — lets the backend derive country without an edge
+  // GeoIP service (#559 slice 6).
+  function getTimezone() {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+    } catch (e) {
+      return undefined;
+    }
+  }
+
+  // Browser locale (e.g. en-US) — carried into event metadata for future
+  // language/region analytics (#559 slice 6).
+  function getLocale() {
+    try {
+      return (
+        (navigator.languages && navigator.languages[0]) ||
+        navigator.language ||
+        undefined
+      );
+    } catch (e) {
+      return undefined;
+    }
+  }
+
   // Detect 404 errors
   function is404Page() {
     const title = document.title.toLowerCase();
@@ -160,6 +184,8 @@
       session_id: getSessionId(),
       query_string: getQueryString(),
       is_404: is404Page(),
+      timezone: getTimezone(),
+      locale: getLocale(),
     };
 
     // Add UTM parameters if present
@@ -189,6 +215,8 @@
       pathname: window.location.pathname,
       visitor_id: getVisitorId(),
       session_id: getSessionId(),
+      timezone: getTimezone(),
+      locale: getLocale(),
       metadata: metadata || undefined,
     };
 

@@ -8,6 +8,7 @@ import { ANALYTICS_MODULE } from "../../modules/analytics";
 import { Modules } from "@medusajs/framework/utils";
 import * as geoip from "geoip-lite";
 import { IEventBusService } from "@medusajs/types";
+import { resolveEventCountry } from "../../modules/analytics/lib/country-from-timezone";
 
 // Helper to parse user agent
 function parseUserAgent(userAgent: string) {
@@ -105,8 +106,11 @@ type TrackAnalyticsEventInput = {
   // Persisted to analytics_event.event_id so retried batches dedupe cross-request.
   client_event_id?: string;
   // Optional pre-resolved country (e.g. request.cf.country from the edge worker);
-  // when set, it takes precedence over per-event GeoIP lookup.
+  // when set, it takes precedence over timezone-derived + per-event GeoIP lookup.
   country?: string;
+  // Browser-captured signals (#559 slice 6): IANA time zone (→ country) + locale.
+  timezone?: string;
+  locale?: string;
   query_string?: string;
   is_404?: boolean;
   utm_source?: string;
@@ -130,8 +134,20 @@ const createAnalyticsEventStep = createStep(
     // Extract referrer source
     const referrer_source = extractReferrerSource(input.referrer);
     
-    // Prefer an edge-resolved country (request.cf.country); fall back to GeoIP.
-    const country = input.country || getCountryFromIP(input.ip_address);
+    // Country precedence (#559 slice 6): explicit client/edge country →
+    // browser-timezone-derived → GeoIP-of-IP fallback.
+    const country = resolveEventCountry({
+      clientCountry: input.country,
+      timezone: input.timezone,
+      ipCountry: getCountryFromIP(input.ip_address),
+    });
+
+    // Carry the browser locale into immutable event metadata (no schema column
+    // needed; analytics events are never updated, so the metadata-blob caveat
+    // doesn't apply here). Enables future language/region analytics.
+    const metadata = input.locale
+      ? { ...(input.metadata || {}), locale: input.locale }
+      : input.metadata || null;
 
     // Create the event
     const event = await analyticsService.createAnalyticsEvents({
@@ -156,7 +172,7 @@ const createAnalyticsEventStep = createStep(
       utm_campaign: input.utm_campaign || null,
       utm_term: input.utm_term || null,
       utm_content: input.utm_content || null,
-      metadata: input.metadata || null,
+      metadata,
       timestamp: input.timestamp,
     });
 
@@ -185,7 +201,12 @@ const updateSessionStep = createStep(
     // Parse user agent for session data
     const { browser, os, device_type } = parseUserAgent(input.user_agent);
     const referrer_source = extractReferrerSource(input.referrer);
-    const country = getCountryFromIP(input.ip_address);
+    // Same precedence as the event step so session geo matches its pageviews.
+    const country = resolveEventCountry({
+      clientCountry: input.country,
+      timezone: input.timezone,
+      ipCountry: getCountryFromIP(input.ip_address),
+    });
 
     try {
       // Try to find existing session
