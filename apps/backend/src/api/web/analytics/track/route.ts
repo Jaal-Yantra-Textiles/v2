@@ -75,9 +75,16 @@
  *   }
  * }
  */
+import { randomUUID } from "crypto";
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { z } from "@medusajs/framework/zod";
 import { trackAnalyticsEventWorkflow } from "../../../../workflows/analytics/track-analytics-event";
+import {
+  getIngestRedis,
+  isBatchIngestEnabled,
+  isHeartbeatEvent,
+  pushBufferedEvent,
+} from "../../../../modules/analytics/lib/ingest-buffer";
 
 // Validator for tracking request
 export const TrackEventSchema = z.object({
@@ -168,7 +175,50 @@ export const POST = async (
     const userAgent = req.headers["user-agent"] || "";
     const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
 
-    // Run tracking workflow
+    // Hybrid batching (#559): when ANALYTICS_BATCH_INGEST is on, the bulk firehose
+    // (pageviews / custom events) is LPUSHed to Redis and persisted by the
+    // drain-analytics-buffer job — the request returns without a synchronous DB
+    // write. Heartbeats ALWAYS write through so the live-visitor count stays
+    // real-time. We capture the visitor's real UA + IP here, so the async path
+    // keeps full device/geo fidelity.
+    if (
+      isBatchIngestEnabled() &&
+      !isHeartbeatEvent(validatedData.event_type, validatedData.event_name)
+    ) {
+      try {
+        await pushBufferedEvent(getIngestRedis(), {
+          event_id: randomUUID(),
+          website_id: validatedData.website_id,
+          event_type: validatedData.event_type,
+          event_name: validatedData.event_name,
+          pathname: validatedData.pathname,
+          referrer: validatedData.referrer,
+          visitor_id: validatedData.visitor_id,
+          session_id: validatedData.session_id,
+          query_string: validatedData.query_string,
+          is_404: validatedData.is_404,
+          utm_source: validatedData.utm_source,
+          utm_medium: validatedData.utm_medium,
+          utm_campaign: validatedData.utm_campaign,
+          utm_term: validatedData.utm_term,
+          utm_content: validatedData.utm_content,
+          metadata: validatedData.metadata,
+          user_agent: userAgent as string,
+          ip_address: ip as string,
+          timestamp: new Date().toISOString(),
+        });
+        return res.status(200).json({ success: true, message: "Event queued" });
+      } catch (bufferErr) {
+        // Buffer unavailable (e.g. Redis down) → fall through to the synchronous
+        // write so we never silently drop an event.
+        console.error(
+          "Analytics buffer push failed, writing through synchronously:",
+          bufferErr
+        );
+      }
+    }
+
+    // Run tracking workflow (synchronous path: flag off, heartbeat, or buffer fallback)
     await trackAnalyticsEventWorkflow(req.scope).run({
       input: {
         ...validatedData,
