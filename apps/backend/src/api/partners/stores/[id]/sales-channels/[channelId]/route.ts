@@ -80,5 +80,8 @@ export const DELETE = async (
 
   await deleteSalesChannelsWorkflow(req.scope).run({ input: { ids: [req.params.channelId] } })
 
-  res.json({ id: req.params.channelId, object: "sales_channel", deleted: true })
+  // PARITY-NOTE: admin's DELETE envelope uses the hyphenated object name
+  // ("sales-channel"), not "sales_channel". Mirror it exactly so the wire
+  // contract matches @medusajs/medusa/dist/api/admin/sales-channels/[id]/route.js.
+  res.json({ id: req.params.channelId, object: "sales-channel", deleted: true })
 }
