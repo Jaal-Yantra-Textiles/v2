@@ -112,6 +112,26 @@ const intRow = (key: string, label: string, m: DigestMetric): KpiRow => ({
 });
 
 /**
+ * Whether the digest window saw ANY real storefront activity.
+ *
+ * Used to switch the email between the full stats layout and a friendly
+ * "start sharing your storefront" nudge (#589 item 2). A partner with a live
+ * storefront but zero traffic is intentionally KEPT by the recipient filter
+ * (#589 slice 1) — the nudge is what such a partner should see instead of an
+ * all-zeros table. Activity is judged on the three headline traffic counts
+ * (visitors / pageviews / sessions); the derived KPIs (bounce, duration, etc.)
+ * are meaningless without them so they don't widen the test.
+ */
+export function digestHasData(digest: PartnerStorefrontDigest): boolean {
+  const k = digest.kpis;
+  return (
+    (k.unique_visitors?.current ?? 0) > 0 ||
+    (k.pageviews?.current ?? 0) > 0 ||
+    (k.sessions?.current ?? 0) > 0
+  );
+}
+
+/**
  * Build the six KPI rows the email surfaces, pre-formatted for display.
  * Bounce rate renders as a %, avg session duration as m/s, pages/session 1dp.
  */
@@ -187,6 +207,10 @@ export function buildPartnerDigestTemplateData(
     period_days: String(digest.period?.days ?? ""),
     period_start: formatDigestDate(digest.period?.current?.start),
     period_end: formatDigestDate(digest.period?.current?.end),
+
+    // Activity state — drives the full-stats vs "start sharing" nudge layout.
+    // {{#if has_data}} stats… {{/if}}{{#unless has_data}} nudge… {{/unless}}
+    has_data: digestHasData(digest),
 
     // KPIs (array for {{#each}} + a few headline scalars for the subject)
     kpi_rows: kpiRows,

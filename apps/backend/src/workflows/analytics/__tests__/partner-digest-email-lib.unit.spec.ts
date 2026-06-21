@@ -3,6 +3,7 @@ import {
   buildPartnerDigestTemplateData,
   deltaLabel,
   derivePartnerDigestFromEmail,
+  digestHasData,
   directionArrow,
   formatDigestDate,
   formatDuration,
@@ -11,6 +12,15 @@ import {
   buildDigestKpis,
   type PartnerStorefrontDigest,
 } from "../partner-digest-lib";
+
+const ZERO_STATS = {
+  unique_visitors: 0,
+  total_pageviews: 0,
+  total_sessions: 0,
+  bounce_rate: 0,
+  avg_session_duration: 0,
+  pages_per_session: 0,
+};
 
 const makeDigest = (
   over: Partial<PartnerStorefrontDigest> = {}
@@ -148,6 +158,29 @@ describe("buildKpiRows", () => {
   });
 });
 
+describe("digestHasData", () => {
+  it("is true when any headline traffic count is positive", () => {
+    expect(digestHasData(makeDigest())).toBe(true);
+  });
+
+  it("is false when visitors, pageviews and sessions are all zero", () => {
+    const empty = makeDigest({
+      kpis: buildDigestKpis(ZERO_STATS, ZERO_STATS),
+    });
+    expect(digestHasData(empty)).toBe(false);
+  });
+
+  it("is true when only one of the three headline counts is positive", () => {
+    const sessionsOnly = makeDigest({
+      kpis: buildDigestKpis(
+        { ...ZERO_STATS, total_sessions: 4 },
+        ZERO_STATS
+      ),
+    });
+    expect(digestHasData(sessionsOnly)).toBe(true);
+  });
+});
+
 describe("buildPartnerDigestTemplateData", () => {
   const data = buildPartnerDigestTemplateData({
     partner: { name: "Acme Co", handle: "acme" },
@@ -181,6 +214,21 @@ describe("buildPartnerDigestTemplateData", () => {
     expect(data.suggestions_count).toBe("1");
     expect(data.visitors_count).toBe("150");
     expect(data.not_found_count).toBe("3");
+    expect(data.has_data).toBe(true);
+  });
+
+  it("sets has_data=false for a live storefront with zero traffic (nudge state)", () => {
+    const zero = buildPartnerDigestTemplateData({
+      partner: { name: "Acme Co", handle: "acme" },
+      admin: { first_name: "Jo", last_name: "Doe", email: "jo@acme.com" },
+      digest: makeDigest({ kpis: buildDigestKpis(ZERO_STATS, ZERO_STATS) }),
+      storeUrl: "https://shop.example.com",
+      year: 2026,
+    });
+    expect(zero.has_data).toBe(false);
+    // KPI rows are still assembled — the template just hides them via {{#if has_data}}.
+    expect(zero.website_name).toBe("Example Shop");
+    expect(zero.store_url).toBe("https://shop.example.com");
   });
 
   it("falls back gracefully when partner/website fields are missing", () => {
