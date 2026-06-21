@@ -7,7 +7,7 @@ const config: Config = {
   tagline: "Documentation for the JYT textile commerce platform",
   favicon: "img/favicon.ico",
 
-  url: "https://docs.jaalyantra.in",
+  url: "https://docs.jaalyantra.com",
   baseUrl: "/",
 
   organizationName: "jaalyantra",
