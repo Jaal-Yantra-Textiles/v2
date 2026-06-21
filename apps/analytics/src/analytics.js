@@ -543,9 +543,12 @@
       try {
         const url = new URL(href, window.location.origin);
         if (url.hostname !== window.location.hostname) {
-          trackEvent('outbound_click', {
-            url: href,
-            text: link.textContent?.substring(0, 100),
+          // Track external link clicks as a `link_out` custom event. The full
+          // resolved destination URL is stored under metadata.href so the
+          // backend can aggregate top outbound links (#569 S5a).
+          trackEvent('link_out', {
+            href: url.href,
+            text: link.textContent ? link.textContent.substring(0, 100) : undefined,
             page: window.location.pathname,
           });
         }
