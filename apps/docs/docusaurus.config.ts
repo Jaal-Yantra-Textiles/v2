@@ -7,7 +7,7 @@ const config: Config = {
   tagline: "Documentation for the JYT textile commerce platform",
   favicon: "img/favicon.ico",
 
-  url: "https://docs.jaalyantra.in",
+  url: "https://docs.jaalyantra.com",
   baseUrl: "/",
 
   organizationName: "jaalyantra",
@@ -25,7 +25,31 @@ const config: Config = {
     format: "md",
   },
 
-  plugins: ["./src/plugins/tailwind-config.js"],
+  plugins: [
+    "./src/plugins/tailwind-config.js",
+    // Second docs instance: publish a CURATED set of notes/ at /notes.
+    // ALLOWLIST (default-deny): only the grounded module behaviour analyses are
+    // public — internal handoffs / daemon runbooks / infra & root-cause notes
+    // stay private. Add a filename here to publish another analysis/reference doc.
+    [
+      "@docusaurus/plugin-content-docs",
+      {
+        id: "notes",
+        path: "notes",
+        routeBasePath: "notes",
+        sidebarPath: "./sidebarsNotes.ts",
+        showLastUpdateTime: true,
+        include: [
+          "568_AD_PLANNING_MODULE_ANALYSIS.md",
+          "589_SOCIALS_AI_PROVIDER_ANALYSIS.md",
+          "559_ANALYTICS_MODULE_ANALYSIS.md",
+          "404_SHIPPING_PROVIDERS_ANALYSIS.md",
+          "342_ORDERS_UNIFICATION_ANALYSIS.md",
+          "457_OPS_MAINTENANCE_JOBS_ANALYSIS.md",
+        ],
+      },
+    ],
+  ],
 
   presets: [
     [
@@ -78,6 +102,13 @@ const config: Config = {
           sidebarId: "protocolSidebar",
           position: "left",
           label: "Protocol",
+        },
+        {
+          type: "docSidebar",
+          sidebarId: "notesSidebar",
+          docsPluginId: "notes",
+          position: "left",
+          label: "Analyses",
         },
       ],
     },
