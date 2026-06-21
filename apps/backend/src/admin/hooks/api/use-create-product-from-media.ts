@@ -63,14 +63,15 @@ export const useExchangeRates = (
     queryKey: ["exchange-rates", baseCurrency, targets.sort().join(",")],
     queryFn: async () => {
       const base = baseCurrency!.toUpperCase()
-      const url =
-        targets.length > 0
-          ? `https://api.frankfurter.app/latest?from=${base}&to=${targets.map((c) => c.toUpperCase()).join(",")}`
-          : `https://api.frankfurter.app/latest?from=${base}`
-
-      const res = await fetch(url)
-      if (!res.ok) throw new Error("Failed to fetch exchange rates")
-      const data = await res.json()
+      // Server-side proxy (#501) — the browser blocks a direct api.frankfurter.app
+      // call as a cross-origin request ("Rate Fetching Failed").
+      const qs = new URLSearchParams({ from: base })
+      if (targets.length > 0) {
+        qs.set("to", targets.map((c) => c.toUpperCase()).join(","))
+      }
+      const data = await sdk.client.fetch<{ base: string; rates: Record<string, number> }>(
+        `/admin/exchange-rates?${qs.toString()}`
+      )
       return { base: data.base, rates: data.rates ?? {} } as ExchangeRates
     },
     enabled: !!baseCurrency && targetCurrencies.length > 1,
@@ -174,13 +175,12 @@ export const useCreateProductFromMedia = () => {
           try {
             const base = defaultCurrency.toUpperCase()
             const targets = otherCurrencies.map((c) => c.toUpperCase()).join(",")
-            const res = await fetch(
-              `https://api.frankfurter.app/latest?from=${base}&to=${targets}`
+            // Server-side proxy (#501) — avoids the browser CORS block on
+            // api.frankfurter.app.
+            const data = await sdk.client.fetch<{ base: string; rates: Record<string, number> }>(
+              `/admin/exchange-rates?from=${base}&to=${targets}`
             )
-            if (res.ok) {
-              const data = await res.json()
-              rates = data.rates ?? {}
-            }
+            rates = data.rates ?? {}
           } catch {
             // Network failure — fall back to same amount for all currencies
           }
