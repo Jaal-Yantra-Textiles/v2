@@ -107,6 +107,14 @@ export type PartnerStorefrontDigest = {
   /** Number of 404 pageviews in the current window. */
   not_found_count: number;
   suggestions: DigestSuggestion[];
+  /**
+   * Optional natural-language summary of the week, authored by an `ai-extract`
+   * node in the digest flow (#589 item 3). Rides on the digest object so it
+   * survives the `bulk_trigger_workflow → send-partner-digest-email` hand-off
+   * (which passes `{ digest: "{{ item }}" }`). Absent until the flow is wired
+   * to enrich each digest — the email omits the block when it's empty.
+   */
+  ai_summary?: string | null;
 };
 
 /** Shape mirrors #559 `BreakdownResult` closely enough for mapping. */

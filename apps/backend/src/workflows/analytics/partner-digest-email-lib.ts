@@ -131,6 +131,33 @@ export function digestHasData(digest: PartnerStorefrontDigest): boolean {
   );
 }
 
+/** Hard cap on the AI summary length so a runaway model can't bloat the email. */
+export const AI_SUMMARY_MAX_LEN = 600;
+
+/**
+ * Normalise an AI-authored summary for the email (#589 item 3).
+ *
+ * The string originates from an `ai-extract` node (untrusted model output), so
+ * it's collapsed to a single tidy paragraph: control chars and whitespace runs
+ * (incl. newlines) become single spaces, the result is trimmed, and an
+ * over-long summary is hard-capped at `AI_SUMMARY_MAX_LEN` on a word boundary
+ * with an ellipsis. Non-strings / blanks return "" so the template branch is
+ * skipped. Handlebars HTML-escapes the value on render, so this only shapes
+ * length/whitespace — it is NOT an HTML sanitiser.
+ */
+export function sanitizeAiSummary(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  const collapsed = raw
+    .replace(/[\u0000-\u001F\u007F]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!collapsed) return "";
+  if (collapsed.length <= AI_SUMMARY_MAX_LEN) return collapsed;
+  const hard = collapsed.slice(0, AI_SUMMARY_MAX_LEN);
+  const onWord = hard.replace(/\s+\S*$/, "").trim();
+  return `${onWord || hard.trim()}…`;
+}
+
 /**
  * Build the six KPI rows the email surfaces, pre-formatted for display.
  * Bounce rate renders as a %, avg session duration as m/s, pages/session 1dp.
@@ -183,6 +210,7 @@ export function buildPartnerDigestTemplateData(
 
   const kpiRows = buildKpiRows(digest);
   const suggestions = digest.suggestions || [];
+  const aiSummary = sanitizeAiSummary(digest.ai_summary);
   const bd = digest.breakdowns || {
     top_pages: [],
     referrers: [],
@@ -223,6 +251,12 @@ export function buildPartnerDigestTemplateData(
     devices: bd.devices,
     countries: bd.countries,
     not_found_count: String(digest.not_found_count ?? 0),
+
+    // AI summary — optional natural-language recap authored by an ai-extract
+    // node (#589 item 3). `has_ai_summary` gates the {{#if ai_summary}} block;
+    // absent until the flow enriches the digest, so the email omits it.
+    ai_summary: aiSummary,
+    has_ai_summary: aiSummary.length > 0,
 
     // Suggestions
     suggestions,
