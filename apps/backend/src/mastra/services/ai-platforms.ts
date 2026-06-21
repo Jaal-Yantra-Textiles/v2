@@ -275,6 +275,30 @@ export const buildChatModel = (
 }
 
 /**
+ * Build the `generateText` arguments for a system + user prompt, in a shape the
+ * given provider accepts.
+ *
+ * OpenRouter handles the AI-SDK `system` param natively. But OpenAI-compatible
+ * endpoints (Cloudflare/DashScope/Vercel-AI-Gateway/custom) reject the role the
+ * SDK emits for the system message — verified live against a Cloudflare minimax
+ * platform: `Invalid value at messages[0].role: expected one of system|user|
+ * assistant|tool`. Folding the system text into the single user message is
+ * accepted everywhere, so we do that for the non-openrouter path. Pure.
+ */
+export const buildGenerateArgs = (
+  config: Pick<AiPlatformConfig, "providerType">,
+  system: string | undefined,
+  prompt: string
+): { system?: string; messages: Array<{ role: "user"; content: string }> } => {
+  const sys = (system || "").trim()
+  if (config.providerType === "openrouter") {
+    return { ...(sys ? { system: sys } : {}), messages: [{ role: "user", content: prompt }] }
+  }
+  const content = sys ? `${sys}\n\n${prompt}` : prompt
+  return { messages: [{ role: "user", content }] }
+}
+
+/**
  * Build an AI SDK embedding model from a resolved platform config. The
  * caller is responsible for the dimension lock-in (see productCatalog
  * docstring).

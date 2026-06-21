@@ -11,6 +11,7 @@ import {
 import {
   getAiPlatformForRole,
   buildChatModel,
+  buildGenerateArgs,
 } from "../../../mastra/services/ai-platforms"
 import {
   getPartnerStorefrontDigestWorkflow,
@@ -306,8 +307,7 @@ export const partnerAnalyticsDigestOperation: OperationDefinition = {
             const chatModel = buildChatModel(aiPlatform, modelOverride)
             const result = await generateText({
               model: chatModel as any,
-              system,
-              messages: [{ role: "user", content: prompt }],
+              ...buildGenerateArgs(aiPlatform, system, prompt),
             })
             return result.text ?? ""
           }
