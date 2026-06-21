@@ -22,6 +22,7 @@ export { aggregateProductAnalyticsOperation } from "./aggregate-product-analytic
 export { aggregateDataOperation } from "./aggregate-data"
 export { timeSeriesOperation } from "./time-series"
 export { cartRecoveryStatsOperation } from "./cart-recovery-stats"
+export { resolveCartRecoveryUrlsOperation } from "./resolve-cart-recovery-urls"
 export { bulkUpdateDataOperation } from "./bulk-update-data"
 export { bulkCreateDataOperation } from "./bulk-create-data"
 export { bulkHttpRequestOperation } from "./bulk-http-request"
@@ -53,6 +54,7 @@ import { aggregateProductAnalyticsOperation } from "./aggregate-product-analytic
 import { aggregateDataOperation } from "./aggregate-data"
 import { timeSeriesOperation } from "./time-series"
 import { cartRecoveryStatsOperation } from "./cart-recovery-stats"
+import { resolveCartRecoveryUrlsOperation } from "./resolve-cart-recovery-urls"
 import { bulkUpdateDataOperation } from "./bulk-update-data"
 import { bulkCreateDataOperation } from "./bulk-create-data"
 import { bulkHttpRequestOperation } from "./bulk-http-request"
@@ -103,6 +105,7 @@ export function registerBuiltInOperations(): void {
   operationRegistry.register(aggregateDataOperation)
   operationRegistry.register(timeSeriesOperation)
   operationRegistry.register(cartRecoveryStatsOperation)
+  operationRegistry.register(resolveCartRecoveryUrlsOperation)
   operationRegistry.register(partnerAnalyticsDigestOperation)
 }
 
