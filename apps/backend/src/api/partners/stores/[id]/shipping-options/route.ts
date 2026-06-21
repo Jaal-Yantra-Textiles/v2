@@ -96,5 +96,19 @@ export const POST = async (
     input: [body as any],
   })
 
-  res.status(201).json({ shipping_option: result[0] })
+  // Refetch the created option with its prices/relations so the create
+  // response mirrors admin (`refetchShippingOption`) AND the sibling
+  // update route ([optionId] POST). The bare workflow result omits the
+  // resolved `prices`/`rules`/`type` rows, so a client reading
+  // `shipping_option.prices` off the create response would get
+  // `undefined`. `prices.price_rules.*` is expanded for the same
+  // pricing-grid bucketing reason documented on the GET/update routes.
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: options } = await query.graph({
+    entity: "shipping_options",
+    fields: ["*", "prices.*", "prices.price_rules.*", "rules.*", "type.*", "shipping_profile.*"],
+    filters: { id: result[0].id },
+  })
+
+  res.status(201).json({ shipping_option: options?.[0] ?? result[0] })
 }
