@@ -38,6 +38,7 @@ const COMMON_EMAIL_TEMPLATES = [
     from: "designs@jaalyantra.com",
   },
   { name: "Order Placed", template_key: "order-placed", subject: "Your order is confirmed", html_content: "<div>Thanks for your order.</div>", from: "orders@jaalyantra.com" },
+  { name: "Order Canceled", template_key: "order-canceled", subject: "Your order has been canceled", html_content: "<div>Hi {{customer.first_name}}, order {{order.id}} was canceled.</div>", from: "orders@jaalyantra.com" },
   { name: "Order Shipment Created", template_key: "order-shipment-created", subject: "Your order has shipped", html_content: "<div>Shipped.</div>", from: "orders@jaalyantra.com" },
   { name: "Order Shipment Delivered", template_key: "order-shipment-delivered", subject: "Your order was delivered", html_content: "<div>Delivered.</div>", from: "orders@jaalyantra.com" },
   { name: "Customer Created", template_key: "customer-created", subject: "Welcome", html_content: "<div>Welcome.</div>", from: "orders@jaalyantra.com" },

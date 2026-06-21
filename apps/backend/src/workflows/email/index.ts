@@ -21,6 +21,7 @@ export * from "./workflows/send-design-assigned-email"
 export * from "./workflows/send-design-status-update-email"
 
 export * from "./workflows/send-partner-order-email"
+export * from "./workflows/send-order-canceled-customer-email"
 export * from "./steps/resolve-partner-from-order"
 
 // Export types
