@@ -122,7 +122,7 @@ function FiltersPopover({
           sideOffset={8}
           collisionPadding={16}
           className={clx(
-            "bg-ui-bg-base shadow-elevation-flyout rounded-lg outline-none z-50",
+            "bg-ui-bg-base shadow-elevation-flyout rounded-lg outline-none z-[1000]",
             "w-72 flex flex-col"
           )}
         >
