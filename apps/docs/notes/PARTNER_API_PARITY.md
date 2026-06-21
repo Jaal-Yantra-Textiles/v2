@@ -82,7 +82,31 @@ One section per partner module. Status: ✅ matches admin / ⚠️ drift identif
 
 ### Sales Channel
 
-- **Status:** 🆕 audit not yet run — scheduled for PR C.
+- **Status:** ⚠️ audited 2026-06-21 (daemon) — route already exists; drifts identified below. One safe wire fix applied (`audit/partner-sales-channel-parity`); behavior-changing drifts deferred (decision-bearing).
+- **Admin source:** `apps/backend/node_modules/@medusajs/medusa/dist/api/admin/sales-channels/` (`route.js`, `[id]/route.js`, `validators.js`, `query-config.js`)
+- **Partner source:** `apps/backend/src/api/partners/stores/[id]/sales-channels/` (`route.ts` = LIST/CREATE, `[channelId]/route.ts` = GET/UPDATE/DELETE, `[channelId]/products/batch/route.ts`). Validators in `apps/backend/src/api/partners/stores/[id]/validators.ts` (`PartnerCreateSalesChannelReq`/`PartnerUpdateSalesChannelReq`). Middlewares registered in `apps/backend/src/api/middlewares.ts` (~L1963–2005).
+- **Scoping path:** there is **no `partner_sales_channel` link**. Partner scope is derived: partner → `partner_stores` link → store → (`store.default_sales_channel_id` + `stock_locations.sales_channels` of `store.default_location_id`). The single-resource routes (`[channelId]`) scope **only to `store.default_sales_channel_id`** — narrower than LIST.
+
+| Aspect | Admin (authoritative) | Partner today | Action |
+|---|---|---|---|
+| List response envelope | `{ sales_channels, count, offset, limit }` | `{ sales_channels, count, offset, limit }` ✓ | none |
+| Single response envelope | `{ sales_channel }` | `{ sales_channel }` ✓ | none |
+| Delete response envelope | `{ id, object: "sales-channel", deleted: true }` | was `object: "sales_channel"` → **fixed to `"sales-channel"`** | ✅ applied |
+| Create body validator | `AdminCreateSalesChannel` (name, description?, is_disabled?, metadata?) | `PartnerCreateSalesChannelReq` — same fields ✓ | none |
+| Update body validator | `AdminUpdateSalesChannel` (all optional) | `PartnerUpdateSalesChannelReq` — same fields ✓ | none |
+| Update HTTP verb | POST | POST ✓ | none |
+| Workflow / service call | create=`createSalesChannelsWorkflow`, update=`updateSalesChannelsWorkflow`, delete=`deleteSalesChannelsWorkflow` | create=workflow ✓, **update=`scService.updateSalesChannels` direct ⚠️**, delete=workflow ✓ | switch update to `updateSalesChannelsWorkflow` (PR C) |
+| Default `fields` selection | `defaultAdminSalesChannelFields` + respects `?fields=` | hardcoded `["*"]`, **no `validateAndTransformQuery`** ⚠️ | wire query middleware (PR C) |
+| List filters accepted | `q, id, name, description, is_disabled, created_at/updated_at/deleted_at` ops, `$and/$or`, `location_id`, `publishable_key_id` | none — handler ignores all query params ⚠️ | add list validator passthrough (PR C) |
+| Pagination defaults | limit 20 / offset 0 via `listTransformQueryConfig` | **hardcoded** `offset:0, limit:20`, count = array length (no real paging) ⚠️ | pass through query config (PR C) |
+
+- **Behavior-changing drifts (deferred — decision-bearing, not in this audit PR):**
+  1. **CREATE returns `201`; admin returns `200`.** Also returns the raw workflow `result[0]`, not a refetched graph row → resource shape can differ. Changing the status may break partner-ui consumers → needs a check before flipping.
+  2. **CREATE does not link the new channel** to the store/location → a partner-created channel is **invisible in the partner's own LIST** afterward (LIST scopes by location's channels + default). Real functional gap; pairs with the missing `partner_sales_channel`/location link decision.
+  3. **Single GET/UPDATE/DELETE scope to `default_sales_channel_id` only**, while LIST can return *additional* location channels → a partner sees a non-default channel in the list but gets `404` fetching/updating it by id. Inconsistent scope; pick one (probably scope single routes to the same location-channel set as LIST).
+  4. **DELETE allows deleting the store's default sales channel** → would break that store's storefront. A partner-side guard ("cannot delete the default sales channel") is warranted; admin has no such guard because admin isn't partner-scoped.
+- **Partner-only additions:** none yet. A `partner_sales_channel` link (or reuse of the location→sales_channel link as the source of truth) is the open modeling decision before the CREATE-invisibility and single-route-scope drifts can be fixed cleanly.
+- **Intentional divergences:** none asserted yet — the LIST scope (partner sees only its store/location channels, not all platform channels) is correct partner behavior and the parity test must assert **shape-only**, not the row set.
 
 ### Shipping Option
 
