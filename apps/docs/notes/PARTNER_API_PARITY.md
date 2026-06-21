@@ -110,7 +110,41 @@ One section per partner module. Status: ✅ matches admin / ⚠️ drift identif
 
 ### Shipping Option
 
-- **Status:** 🆕 audit not yet run — scheduled for PR C.
+- **Status:** ✅ audited (chunk 3, 2026-06-21) — routes already exist at
+  `/partners/stores/:id/shipping-options[/:optionId]`. One consumer-safe
+  parity fix applied; remaining drifts deferred (decision-bearing).
+- **Routes audited:** `GET`/`POST` (list/create) on `route.ts`,
+  `GET`/`POST`/`DELETE` (read/update/delete) on `[optionId]/route.ts`.
+- **DELETE envelope:** ✅ matches admin exactly —
+  `{ id, object: "shipping_option", deleted: true }` (admin uses snake_case
+  `"shipping_option"` here, unlike sales-channel's kebab — no rename needed).
+- **Applied (consumer-safe):** **CREATE now refetches the created option via
+  `query.graph`** (`*, prices.*, prices.price_rules.*, rules.*, type.*,
+  shipping_profile.*`) before responding, instead of returning the bare
+  workflow `result[0]`. This mirrors admin (`refetchShippingOption`) **and**
+  the sibling update route, which already refetched. Purely additive: the
+  response gains `prices`/`rules`/`type`/`shipping_profile`; nothing is
+  removed. `useCreateShippingOptions` in partner-ui invalidates queries and
+  ignores the response body, so zero break risk.
+- **Behavior-changing drifts (deferred — decision-bearing):**
+  1. **CREATE returns `201`; admin returns `200`.** Status-only divergence;
+     partner-ui's `onSuccess` fires on any 2xx so it's harmless there, but an
+     external consumer could check the code → defer the flip (same call as the
+     sales-channel CREATE-201 drift).
+  2. **LIST ignores all query params** (`q`, filters, pagination) — it walks
+     `location → fulfillment_sets → service_zones → shipping_options` and
+     returns `count = array.length`, `offset: 0`, `limit: 20` hardcoded. No
+     real paging/filtering. Same shape as the sales-channel LIST drift; fix
+     needs a list-validator passthrough (PR C).
+  3. **No query middleware / `queryConfig`** on the partner routes (field set
+     is hardcoded per route), so the client can't shape `fields` like admin.
+     Intentional for now — the hardcoded field set is tuned for the
+     partner-ui pricing grid; revisit only if a consumer needs custom fields.
+- **Partner-only additions:** the GET routes inject
+  `service_zone.fulfillment_set.location` into each option so the partner-ui
+  order-create-fulfillment form can default its location selector — admin
+  doesn't need this (not partner-scoped). Correct divergence; the parity test
+  must assert **shape-superset**, not exact equality.
 
 ### Fulfillment Set / Location
 
