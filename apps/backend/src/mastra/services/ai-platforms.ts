@@ -265,7 +265,13 @@ export const buildChatModel = (
     baseURL: config.baseUrl,
     apiKey: config.apiKey,
   })
-  return client(id)
+  // Use the chat-completions API explicitly. In @ai-sdk/openai v2 the default
+  // callable `client(id)` targets the Responses API (sends an `input` field),
+  // which OpenAI-compatible endpoints (Cloudflare/DashScope/Vercel AI Gateway)
+  // reject with "Unsupported field passed: input. Valid fields: messages…".
+  // `.chat(id)` sends `messages`, matching those endpoints (and the openrouter
+  // path above). Verified live against a Cloudflare ai_digest_summary platform.
+  return client.chat(id)
 }
 
 /**
