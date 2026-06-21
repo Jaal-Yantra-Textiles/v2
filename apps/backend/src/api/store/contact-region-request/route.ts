@@ -5,6 +5,11 @@ import {
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import type { INotificationModuleService } from "@medusajs/types"
 import { getStoreFromPublishableKey } from "../helpers"
+import { sendRegionRequestAdminEmailWorkflow } from "../../../workflows/email/workflows/send-region-request-admin-email"
+import {
+  buildRegionRequestAdminEmailData,
+  resolveRegionRequestRecipient,
+} from "../../../workflows/email/lib/region-request-admin-email"
 
 /**
  * POST /store/contact-region-request
@@ -120,9 +125,59 @@ export const POST = async (
     },
   })
 
+  // Best-effort admin email alert (#576 slice C). The feed notification above
+  // is the source of truth; emailing an ops/admin inbox is a courtesy on top of
+  // it. Anything that can fail here (no recipient configured, missing
+  // `region-request-admin` template row, provider error) is swallowed so the
+  // storefront submission always succeeds.
+  let emailed = false
+  try {
+    const recipient = resolveRegionRequestRecipient(
+      process.env as Record<string, string | undefined>
+    )
+    if (!recipient) {
+      console.log(
+        "[contact-region-request] No admin recipient configured (REGION_REQUEST_NOTIFY_EMAIL) — skipping email"
+      )
+    } else {
+      const emailData = buildRegionRequestAdminEmailData({
+        name,
+        email,
+        message,
+        countryCode,
+        productHandle,
+        storeId,
+        storeName,
+        receivedAt: new Date().toISOString(),
+      })
+
+      const run = await sendRegionRequestAdminEmailWorkflow(req.scope).run({
+        input: { to: recipient.email, data: emailData },
+        throwOnError: false,
+      })
+
+      if (run?.errors?.length) {
+        console.warn(
+          `[contact-region-request] Admin email workflow reported errors: ${run.errors
+            .map((e: any) => e?.error?.message || e?.message)
+            .join("; ")}`
+        )
+      } else {
+        emailed = true
+      }
+    }
+  } catch (err) {
+    console.warn(
+      `[contact-region-request] Admin email send failed (non-fatal): ${
+        (err as Error)?.message
+      }`
+    )
+  }
+
   res.json({
     id: notification?.id,
     received: true,
     store_id: storeId ?? null,
+    emailed,
   })
 }
