@@ -109,6 +109,9 @@ secrets:
   PAYU_MERCHANT_SALT: /jyt/prod/PAYU_MERCHANT_SALT
   PAYU_MODE: /jyt/prod/PAYU_MODE
   REDIS_URL: /jyt/prod/REDIS_URL
+  # #576 slice C — recipient for storefront region-request admin emails. Read by
+  # api/store/contact-region-request; unset → the route logs + skips (no error).
+  REGION_REQUEST_NOTIFY_EMAIL: /jyt/prod/REGION_REQUEST_NOTIFY_EMAIL
   RESEND_API_KEY: /jyt/prod/RESEND_API_KEY
   RESEND_FROM_EMAIL: /jyt/prod/RESEND_FROM_EMAIL
   ROOT_DOMAIN: /jyt/prod/ROOT_DOMAIN
