@@ -5,6 +5,7 @@ import { interpolateString } from "./utils"
 import {
   getAiPlatformForRole,
   buildChatModel,
+  buildGenerateArgs,
 } from "../../../mastra/services/ai-platforms"
 
 interface SchemaField {
@@ -165,8 +166,7 @@ export const aiExtractPlatformOperation: OperationDefinition = {
 
       const result = await generateText({
         model: model as any,
-        messages: [{ role: "user", content: input }],
-        ...(systemPrompt ? { system: systemPrompt } : {}),
+        ...buildGenerateArgs(config, systemPrompt, input),
       })
 
       const object = extractJson(result.text)
