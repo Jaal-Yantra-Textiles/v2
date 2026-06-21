@@ -91,3 +91,21 @@ Before activating the flow:
 - S4: `… --testPathPattern=seed-partner-analytics-digest-flow` (7 structural —
   pin the op/workflow string refs + the linear graph since the seed is
   editor-gated and can't be live-verified).
+
+## #589 enhancements
+
+### 1. Recipient filter (live-storefront only) — DONE
+
+The first weekly fan-out mailed partners with **no store at all**. Fixed in
+`modules/visual_flows/operations/partner-analytics-digest.ts`: after computing
+each partner's digest, `partitionEligibleDigests` keeps only the
+storefront-eligible ones (`isPartnerDigestEligible` ⇒ truthy `website.id`) in
+the `digests[]` / `records` fan-out output, so `bulk_trigger_workflow` →
+`send-partner-digest-email` never mails a no-store partner. The op output gains
+`computed` (total digests computed) and `excluded` (no-store partners dropped)
+alongside the existing counts.
+
+A **has-store partner with zero traffic stays eligible** — they get the
+zero-data "start sharing" nudge (item 2, separate slice), not exclusion.
+Pure + unit-tested (`isPartnerDigestEligible`, `partitionEligibleDigests`;
+S3 spec now 22).

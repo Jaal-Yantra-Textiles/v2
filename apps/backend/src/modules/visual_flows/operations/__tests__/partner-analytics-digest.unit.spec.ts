@@ -8,6 +8,8 @@
 import {
   selectDigestPartnerIds,
   summarizeDigestRun,
+  isPartnerDigestEligible,
+  partitionEligibleDigests,
   partnerAnalyticsDigestOperation,
   partnerAnalyticsDigestOptionsSchema,
 } from "../partner-analytics-digest"
@@ -135,6 +137,62 @@ describe("summarizeDigestRun", () => {
     ] as any)
     expect(out.with_suggestions).toBe(0)
     expect(out.suggestion_count).toBe(0)
+  })
+})
+
+describe("isPartnerDigestEligible (#589 recipient filter)", () => {
+  it("is eligible when a live storefront (website.id) is present", () => {
+    expect(isPartnerDigestEligible({ website: { id: "web_1" } } as any)).toBe(
+      true
+    )
+  })
+
+  it("stays eligible for a has-store partner with zero traffic", () => {
+    // zero traffic is NOT exclusion — they get the zero-data nudge (item 2).
+    expect(
+      isPartnerDigestEligible({
+        website: { id: "web_1", domain: "shop.example" },
+      } as any)
+    ).toBe(true)
+  })
+
+  it("excludes no-store partners (website: null)", () => {
+    expect(isPartnerDigestEligible({ website: null } as any)).toBe(false)
+  })
+
+  it("excludes when website is missing, undefined, or id is empty/blank", () => {
+    expect(isPartnerDigestEligible(undefined)).toBe(false)
+    expect(isPartnerDigestEligible(null)).toBe(false)
+    expect(isPartnerDigestEligible({} as any)).toBe(false)
+    expect(isPartnerDigestEligible({ website: { id: "" } } as any)).toBe(false)
+    expect(isPartnerDigestEligible({ website: { id: "   " } } as any)).toBe(
+      false
+    )
+    expect(
+      isPartnerDigestEligible({ website: { id: 42 as any } } as any)
+    ).toBe(false)
+  })
+})
+
+describe("partitionEligibleDigests (#589 recipient filter)", () => {
+  it("keeps only storefront-eligible digests and counts the excluded", () => {
+    const digests = [
+      { partner_id: "p1", website: { id: "w1" } },
+      { partner_id: "p2", website: null },
+      { partner_id: "p3", website: { id: "w3" } },
+      { partner_id: "p4", website: { id: "" } },
+    ] as any
+    const { eligible, excluded } = partitionEligibleDigests(digests)
+    expect(eligible.map((d: any) => d.partner_id)).toEqual(["p1", "p3"])
+    expect(excluded).toBe(2)
+  })
+
+  it("handles an empty / nullish list", () => {
+    expect(partitionEligibleDigests([])).toEqual({ eligible: [], excluded: 0 })
+    expect(partitionEligibleDigests(undefined as any)).toEqual({
+      eligible: [],
+      excluded: 0,
+    })
   })
 })
 
