@@ -3,12 +3,23 @@ import { z } from "@medusajs/framework/zod";
 import { getPartnerFromAuthContext } from "../../../helpers";
 import { createPaymentAndLinkWorkflow } from "../../../../../workflows/internal_payments/create-payment-and-link";
 
+const attachmentSchema = z.object({
+    file_id: z.string().min(1),
+    url: z.string().min(1),
+    filename: z.string().optional().nullable(),
+    mime_type: z.string().optional().nullable(),
+    size: z.number().nonnegative().optional().nullable(),
+    metadata: z.record(z.string(), z.any()).nullish(),
+});
+
 const requestBodySchema = z.object({
     amount: z.number().gt(0),
     payment_type: z.enum(["Bank", "Cash", "Digital_Wallet"]).optional(),
     payment_date: z.coerce.date().optional(),
     note: z.string().optional(),
     paid_to_id: z.string().optional(),
+    // #496 — file attachments (receipts/invoices) persisted to the link table.
+    attachments: z.array(attachmentSchema).optional(),
 });
 
 export async function POST(
@@ -38,7 +49,7 @@ export async function POST(
         });
     }
 
-    const { amount, payment_type, payment_date, note, paid_to_id } = validation.data;
+    const { amount, payment_type, payment_date, note, paid_to_id, attachments } = validation.data;
 
     const { result, errors } = await createPaymentAndLinkWorkflow(req.scope).run({
         input: {
@@ -51,6 +62,7 @@ export async function POST(
                 paid_to_id: paid_to_id || undefined,
             },
             inventoryOrderIds: [orderId],
+            attachments: attachments && attachments.length ? attachments : undefined,
         }
     });
 
@@ -63,6 +75,7 @@ export async function POST(
 
     return res.status(200).json({
         message: "Payment submitted successfully",
-        payment: result?.payment
+        payment: result?.payment,
+        attachments: result?.attachments ?? []
     });
 }

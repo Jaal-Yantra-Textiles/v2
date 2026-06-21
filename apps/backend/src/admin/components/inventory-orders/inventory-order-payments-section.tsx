@@ -1,5 +1,5 @@
 import { Badge, Container, Heading, Text, toast } from "@medusajs/ui";
-import { Plus, Check } from "@medusajs/icons";
+import { Plus, Check, DocumentText } from "@medusajs/icons";
 import { ActionMenu } from "../common/action-menu";
 import { useUpdatePayment } from "../../hooks/api/payments";
 import { useState } from "react";
@@ -31,30 +31,52 @@ const PaymentRow = ({ p }: { p: any }) => {
     void onMarkCompleted();
   };
 
+  const attachments: any[] = Array.isArray(p?.attachments) ? p.attachments : [];
+
   return (
-    <div className="flex items-center justify-between py-3">
-      <div className="flex items-center gap-x-3">
-        <Badge size="2xsmall">{p.status}</Badge>
-        <Text size="small" className="text-ui-fg-base">{p.payment_type}</Text>
-        <Text size="small" className="text-ui-fg-subtle">{new Date(p.payment_date).toLocaleDateString()}</Text>
+    <div className="flex flex-col gap-y-2 py-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-x-3">
+          <Badge size="2xsmall">{p.status}</Badge>
+          <Text size="small" className="text-ui-fg-base">{p.payment_type}</Text>
+          <Text size="small" className="text-ui-fg-subtle">{new Date(p.payment_date).toLocaleDateString()}</Text>
+        </div>
+        <div className="flex items-center gap-x-3">
+          <Text size="small" className="text-ui-fg-base font-medium">₹ {p.amount ?? p?.raw_amount?.value}</Text>
+          <ActionMenu
+            groups={[
+              {
+                actions: [
+                  {
+                    label: isCompleted ? "Already Completed" : "Mark as Completed",
+                    icon: <Check />,
+                    onClick: handleClick,
+                    disabled: isCompleted || loading || isPending,
+                  },
+                ],
+              },
+            ]}
+          />
+        </div>
       </div>
-      <div className="flex items-center gap-x-3">
-        <Text size="small" className="text-ui-fg-base font-medium">₹ {p.amount ?? p?.raw_amount?.value}</Text>
-        <ActionMenu
-          groups={[
-            {
-              actions: [
-                {
-                  label: isCompleted ? "Already Completed" : "Mark as Completed",
-                  icon: <Check />,
-                  onClick: handleClick,
-                  disabled: isCompleted || loading || isPending,
-                },
-              ],
-            },
-          ]}
-        />
-      </div>
+      {attachments.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 pl-1">
+          {attachments.map((a: any) => (
+            <a
+              key={a.id || a.file_id}
+              href={a.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-x-1 rounded-md border border-ui-border-base bg-ui-bg-subtle px-2 py-1 text-ui-fg-subtle transition-colors hover:bg-ui-bg-base hover:text-ui-fg-base"
+            >
+              <DocumentText className="text-ui-fg-muted" />
+              <Text size="xsmall" className="max-w-[180px] truncate">
+                {a.filename || a.file_id || "attachment"}
+              </Text>
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

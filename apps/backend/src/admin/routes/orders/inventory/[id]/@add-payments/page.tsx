@@ -1,10 +1,21 @@
 import { RouteDrawer } from "../../../../../components/modal/route-drawer/route-drawer";
-import { Button, Input, Label, Select, Textarea, DatePicker, toast } from "@medusajs/ui";
+import { Button, Input, Label, Select, Textarea, DatePicker, Text, IconButton, toast } from "@medusajs/ui";
+import { Trash, DocumentText } from "@medusajs/icons";
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useListPartnerPaymentMethods } from "../../../../../hooks/api/payment-methods";
 import { useCreatePaymentAndLink } from "../../../../../hooks/api/payments";
+import { useFileUpload } from "../../../../../hooks/api/upload";
+import { FileUpload } from "../../../../../components/common/file-upload";
 import { useInventoryOrder } from "../../../../../hooks/api/inventory-orders";
+
+type PaymentAttachment = {
+  file_id: string;
+  url: string;
+  filename?: string;
+  mime_type?: string;
+  size?: number;
+};
 
 const AddPaymentForInventoryOrder = () => {
   const { id } = useParams();
@@ -17,11 +28,47 @@ const AddPaymentForInventoryOrder = () => {
     enabled: !!partnerId,
   });
   const { mutateAsync, isPending } = useCreatePaymentAndLink();
+  const { mutateAsync: uploadFile } = useFileUpload();
 
   const [amount, setAmount] = useState<string>("");
   const [note, setNote] = useState<string>("");
   const [paymentDate, setPaymentDate] = useState<Date | null>(() => new Date());
   const [paidToId, setPaidToId] = useState<string>("__none__");
+  const [attachments, setAttachments] = useState<PaymentAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  const onUploaded = async (files: { file: File; url: string }[]) => {
+    if (!files?.length) return;
+    setUploading(true);
+    try {
+      const uploaded: PaymentAttachment[] = [];
+      for (const { file } of files) {
+        const res = await uploadFile({ files: [file] });
+        const f = res.files?.[0];
+        if (f?.id && f?.url) {
+          uploaded.push({
+            file_id: f.id,
+            url: f.url,
+            filename: file.name,
+            mime_type: file.type || undefined,
+            size: typeof file.size === "number" ? file.size : undefined,
+          });
+        }
+      }
+      if (uploaded.length) {
+        setAttachments((prev) => [...prev, ...uploaded]);
+        toast.success(`${uploaded.length} file(s) attached`);
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to upload attachment");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeAttachment = (fileId: string) => {
+    setAttachments((prev) => prev.filter((a) => a.file_id !== fileId));
+  };
 
   const onCreate = async () => {
     // derive payment_type from selected payment method if any
@@ -45,6 +92,7 @@ const AddPaymentForInventoryOrder = () => {
           paid_to_id: paidToId === "__none__" ? undefined : paidToId,
         },
         inventoryOrderIds: [id!],
+        attachments: attachments.length ? attachments : undefined,
       });
       toast.success("Payment created successfully");
       navigate("..", { replace: true });
@@ -93,6 +141,41 @@ const AddPaymentForInventoryOrder = () => {
         <div className="grid gap-y-2">
           <Label htmlFor="note">Note</Label>
           <Textarea id="note" placeholder="Optional note" value={note} onChange={(e) => setNote(e.target.value)} />
+        </div>
+        <div className="grid gap-y-2">
+          <Label>Attachments (optional)</Label>
+          <FileUpload
+            label={uploading ? "Uploading..." : "Upload receipts / invoices"}
+            hint="PDF or image references for this payment"
+            multiple
+            isLoading={uploading}
+            onUploaded={onUploaded}
+          />
+          {attachments.length > 0 && (
+            <div className="flex flex-col gap-y-1 pt-1">
+              {attachments.map((a) => (
+                <div
+                  key={a.file_id}
+                  className="flex items-center justify-between rounded-md border border-ui-border-base bg-ui-bg-subtle px-2 py-1"
+                >
+                  <div className="flex items-center gap-x-2 overflow-hidden">
+                    <DocumentText className="text-ui-fg-muted" />
+                    <Text size="xsmall" className="truncate text-ui-fg-subtle">
+                      {a.filename || a.file_id}
+                    </Text>
+                  </div>
+                  <IconButton
+                    size="small"
+                    variant="transparent"
+                    onClick={() => removeAttachment(a.file_id)}
+                    aria-label="Remove attachment"
+                  >
+                    <Trash />
+                  </IconButton>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </RouteDrawer.Body>
       <RouteDrawer.Footer className="sticky bottom-0 bg-ui-bg-base border-t border-ui-border-base">

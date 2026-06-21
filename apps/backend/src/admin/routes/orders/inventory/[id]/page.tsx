@@ -15,7 +15,7 @@ const InventoryOrderDetailPage = () => {
   const intialData = useLoaderData() as Awaited<AdminInventoryOrderResponse>
   const { id } = useParams();
   const { inventoryOrder, isLoading, isError, error } = useInventoryOrder(id!, {
-    fields: ['orderlines.*', 'orderlines.inventory_items.*', 'stock_locations.*', 'stock_locations.address.*', '+tasks.*', '+partner.*', '+internal_payments.*']
+    fields: ['orderlines.*', 'orderlines.inventory_items.*', 'stock_locations.*', 'stock_locations.address.*', '+tasks.*', '+partner.*', '+internal_payments.*', '+internal_payments.attachments.*']
   }, {
     initialData: intialData
   });
