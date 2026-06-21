@@ -186,6 +186,7 @@ import { PartnerPostConsumptionLogReq } from "./partners/designs/[designId]/cons
 import { PartnerPostDesignTasksReq } from "./partners/designs/[designId]/tasks/validators";
 import { PartnerPostProductionRunConsumptionLogReq } from "./partners/production-runs/[id]/consumption-logs/validators";
 import { listPartnersQuerySchema, PostPartnerSchema } from "./admin/partners/validators";
+import { AdminBroadcastNotificationSchema } from "./admin/partners/notifications/broadcast/validators";
 import { ListIdentitiesQuerySchema } from "./admin/users/identities/validators";
 import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-items/raw-materials/validators";
 import { BulkImportSchema } from "./admin/inventory-items/bulk-import/validators";
@@ -2869,6 +2870,11 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(executeInboundEmailSchema))],
     },
     // Admin Partners routes
+    {
+      matcher: "/admin/partners/notifications/broadcast",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminBroadcastNotificationSchema))],
+    },
     {
       matcher: "/admin/partners",
       method: "GET",
