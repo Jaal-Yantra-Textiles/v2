@@ -1,13 +1,17 @@
 import { z } from "@medusajs/framework/zod"
-import { createOpenRouter } from "@openrouter/ai-sdk-provider"
 import { generateText } from "ai"
 import { OperationDefinition, OperationContext, OperationResult } from "./types"
 import { interpolateVariables } from "./utils"
 import { PARTNER_MODULE } from "../../partner"
 import {
   composeDigestAiSummary,
+  resolveDigestModelOverride,
   type DigestAiGenerate,
 } from "../../../workflows/analytics/partner-digest-ai-lib"
+import {
+  getAiPlatformForRole,
+  buildChatModel,
+} from "../../../mastra/services/ai-platforms"
 import {
   getPartnerStorefrontDigestWorkflow,
   type GetPartnerStorefrontDigestInput,
@@ -270,17 +274,38 @@ export const partnerAnalyticsDigestOperation: OperationDefinition = {
       const computedDigests: PartnerStorefrontDigest[] = []
       const errors: Array<{ partner_id: string; error: string }> = []
 
-      // Default-OFF AI summary enrichment (#589 item 3). Only build the
-      // OpenRouter-backed generator when the option is set; otherwise the
-      // weekly run never touches the model. The seam is the same pattern as
-      // the `ai_extract` operation.
-      const aiGenerate: DigestAiGenerate | null = parsed.generate_ai_summary
+      // Default-OFF AI summary enrichment (#589 items 3-4). Only build the
+      // generator when the option is set; otherwise the weekly run never
+      // touches the model. The provider/api-key/base-url/default-model are
+      // resolved from the admin-configured External Platform (category=ai,
+      // metadata.role="ai_digest_summary") via the same resolver the
+      // `ai_extract_platform` op uses — NOT the hardcoded OPENROUTER_API_KEY.
+      //
+      // When no platform is configured for the role, `getAiPlatformForRole`
+      // returns null → we leave `aiGenerate` null so the digest's existing
+      // best-effort path leaves `ai_summary` unset (mirrors continue_on_error).
+      // We never throw.
+      const aiPlatform = parsed.generate_ai_summary
+        ? await getAiPlatformForRole(
+            context.container as any,
+            "ai_digest_summary"
+          )
+        : null
+
+      const aiGenerate: DigestAiGenerate | null = aiPlatform
         ? async ({ system, prompt, model }) => {
-            const openrouter = createOpenRouter({
-              apiKey: process.env.OPENROUTER_API_KEY,
-            })
+            // modelOverride precedence (#589 item 4): explicit option →
+            // platform default_model → DIGEST_AI_DEFAULT_MODEL hint. The
+            // `model` arg from composeDigestAiSummary already carries the
+            // option-or-default, so it serves as the last-resort fallback.
+            const modelOverride = resolveDigestModelOverride(
+              parsed.ai_summary_model,
+              aiPlatform.defaultModel,
+              model
+            )
+            const chatModel = buildChatModel(aiPlatform, modelOverride)
             const result = await generateText({
-              model: openrouter(model) as any,
+              model: chatModel as any,
               system,
               messages: [{ role: "user", content: prompt }],
             })

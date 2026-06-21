@@ -2,6 +2,7 @@ import {
   DIGEST_AI_DEFAULT_MODEL,
   buildDigestAiPrompt,
   composeDigestAiSummary,
+  resolveDigestModelOverride,
   type DigestAiGenerate,
 } from "../partner-digest-ai-lib";
 import { AI_SUMMARY_MAX_LEN } from "../partner-digest-email-lib";
@@ -114,6 +115,47 @@ describe("buildDigestAiPrompt", () => {
     });
     const { prompt } = buildDigestAiPrompt(noBaseline);
     expect(prompt).toContain("Unique visitors: 10 (no prior baseline)");
+  });
+});
+
+describe("resolveDigestModelOverride", () => {
+  it("prefers the explicit per-flow option over everything else", () => {
+    expect(
+      resolveDigestModelOverride("anthropic/claude-3.5", "platform/default", "fallback/x")
+    ).toBe("anthropic/claude-3.5");
+  });
+
+  it("falls back to the platform default_model when no option is set", () => {
+    expect(resolveDigestModelOverride(undefined, "platform/default")).toBe(
+      "platform/default"
+    );
+    expect(resolveDigestModelOverride(null, "platform/default")).toBe(
+      "platform/default"
+    );
+  });
+
+  it("treats blank/whitespace option and platform default as unset", () => {
+    expect(resolveDigestModelOverride("   ", "  ", "fallback/x")).toBe("fallback/x");
+  });
+
+  it("trims a provided value", () => {
+    expect(resolveDigestModelOverride("  qwen-turbo  ")).toBe("qwen-turbo");
+  });
+
+  it("defaults the fallback to DIGEST_AI_DEFAULT_MODEL (last resort hint)", () => {
+    expect(resolveDigestModelOverride()).toBe(DIGEST_AI_DEFAULT_MODEL);
+    expect(resolveDigestModelOverride(undefined, null)).toBe(DIGEST_AI_DEFAULT_MODEL);
+  });
+
+  it("returns undefined only when option, platform default AND fallback are all empty", () => {
+    expect(resolveDigestModelOverride(undefined, undefined, "")).toBeUndefined();
+    expect(resolveDigestModelOverride("", "", "   ")).toBeUndefined();
+  });
+
+  it("uses platform default ahead of a non-empty fallback", () => {
+    expect(resolveDigestModelOverride(undefined, "platform/default", "fallback/x")).toBe(
+      "platform/default"
+    );
   });
 });
 

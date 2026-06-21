@@ -38,6 +38,30 @@ export type DigestAiGenerate = (args: {
   model: string;
 }) => Promise<string>;
 
+/**
+ * Resolve the model id handed to {@link buildChatModel} as its `modelOverride`,
+ * honouring #589 item 4 precedence:
+ *   1. the explicit per-flow option (`ai_summary_model`)
+ *   2. the admin-configured platform's `default_model`
+ *   3. {@link DIGEST_AI_DEFAULT_MODEL} (last-resort hint)
+ *
+ * Returns `undefined` only when ALL three are empty, letting `buildChatModel`
+ * fall through to its provider-specific hint. PURE — unit-testable without a
+ * container or network. Trims and treats blank strings as unset.
+ */
+export function resolveDigestModelOverride(
+  optionModel?: string | null,
+  platformDefaultModel?: string | null,
+  fallback: string = DIGEST_AI_DEFAULT_MODEL
+): string | undefined {
+  const opt = optionModel?.trim();
+  if (opt) return opt;
+  const plat = platformDefaultModel?.trim();
+  if (plat) return plat;
+  const fb = fallback?.trim();
+  return fb || undefined;
+}
+
 /** Compact, deterministic one-liner for a single KPI (no unicode arrows). */
 function fmtMetric(label: string, m: DigestMetric | null | undefined): string {
   if (!m) return `${label}: n/a`;
