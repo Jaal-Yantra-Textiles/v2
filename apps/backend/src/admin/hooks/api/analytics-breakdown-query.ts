@@ -19,6 +19,7 @@ export type BreakdownDimension =
   | "browser"
   | "os"
   | "referrer_source"
+  | "referrer"
   | "utm_source"
   | "utm_medium"
   | "utm_campaign"
@@ -36,6 +37,7 @@ export const BREAKDOWN_DIMENSIONS: BreakdownDimension[] = [
   "browser",
   "os",
   "referrer_source",
+  "referrer",
   "utm_source",
   "utm_medium",
   "utm_campaign",

@@ -81,6 +81,19 @@ describe("buildBreakdownQuery", () => {
     expect(q.days).toBeUndefined();
   });
 
+  it("supports the full-URL referrer dimension and filter", () => {
+    expect(BREAKDOWN_DIMENSIONS).toContain("referrer");
+    const q = parse(
+      buildBreakdownQuery({
+        website_id: "web_1",
+        dimension: "referrer",
+        filters: { referrer: "https://t.co/abc" },
+      })
+    );
+    expect(q.dimension).toBe("referrer");
+    expect(q.referrer).toBe("https://t.co/abc");
+  });
+
   it("appends recognized composable equality filters", () => {
     const q = parse(
       buildBreakdownQuery({

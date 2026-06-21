@@ -7,9 +7,9 @@
  * Query parameters
  * - website_id (string, required): website to report on. 400 if missing.
  * - dimension (string, required): one of BREAKDOWN_DIMENSIONS (country,
- *   device_type, browser, os, referrer_source, utm_source, utm_medium,
- *   utm_campaign, utm_term, utm_content, pathname, is_404, event_type,
- *   event_name). 400 if missing/unknown.
+ *   device_type, browser, os, referrer_source, referrer, utm_source,
+ *   utm_medium, utm_campaign, utm_term, utm_content, pathname, is_404,
+ *   event_type, event_name). 400 if missing/unknown.
  * - days (number, optional): rolling window; takes precedence over
  *   start_date/end_date when present.
  * - start_date / end_date (ISO string, optional): explicit window.

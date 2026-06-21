@@ -29,11 +29,11 @@ setupSharedTestSuite(({ api, getContainer }) => {
       const analyticsService = container.resolve("custom_analytics");
       const now = new Date();
       const rows = [
-        { country: "IN", device_type: "mobile", pathname: "/home", visitor_id: "v1" },
-        { country: "IN", device_type: "desktop", pathname: "/home", visitor_id: "v2" },
-        { country: "US", device_type: "desktop", pathname: "/about", visitor_id: "v3" },
-        { country: "US", device_type: "mobile", pathname: "/home", visitor_id: "v3" },
-        { country: null, device_type: "unknown", pathname: "/404", visitor_id: "v4" },
+        { country: "IN", device_type: "mobile", pathname: "/home", visitor_id: "v1", referrer: "https://google.com/search?q=a" },
+        { country: "IN", device_type: "desktop", pathname: "/home", visitor_id: "v2", referrer: "https://google.com/search?q=a" },
+        { country: "US", device_type: "desktop", pathname: "/about", visitor_id: "v3", referrer: "https://t.co/xyz" },
+        { country: "US", device_type: "mobile", pathname: "/home", visitor_id: "v3", referrer: null },
+        { country: null, device_type: "unknown", pathname: "/404", visitor_id: "v4", referrer: null },
       ];
       await analyticsService.createAnalyticsEvents(
         rows.map((r, i) => ({
@@ -44,6 +44,7 @@ setupSharedTestSuite(({ api, getContainer }) => {
           session_id: `s${i}`,
           country: r.country,
           device_type: r.device_type,
+          referrer: r.referrer,
           timestamp: now,
         }))
       );
@@ -110,6 +111,38 @@ setupSharedTestSuite(({ api, getContainer }) => {
       );
       expect(byValue["IN"]).toBe(1);
       expect(byValue["US"]).toBe(1);
+    });
+
+    it("breaks down by full referrer URL, folding null into 'direct' (#569 S6)", async () => {
+      const res = await api.get(
+        `/admin/analytics-events/breakdown?website_id=${websiteId}&dimension=referrer`,
+        adminHeaders
+      );
+      expect(res.status).toBe(200);
+      expect(res.data.dimension).toBe("referrer");
+      const byValue = Object.fromEntries(
+        res.data.breakdown.results.map((r: any) => [r.value, r])
+      );
+      expect(byValue["https://google.com/search?q=a"].count).toBe(2);
+      expect(byValue["https://google.com/search?q=a"].unique_visitors).toBe(2);
+      expect(byValue["https://t.co/xyz"].count).toBe(1);
+      // null referrer folds under "direct"
+      expect(byValue["direct"].count).toBe(2);
+    });
+
+    it("filters by full referrer URL (#569 S6)", async () => {
+      const res = await api.get(
+        `/admin/analytics-events/breakdown?website_id=${websiteId}&dimension=country&referrer=${encodeURIComponent(
+          "https://google.com/search?q=a"
+        )}`,
+        adminHeaders
+      );
+      expect(res.status).toBe(200);
+      expect(res.data.filters.referrer).toBe("https://google.com/search?q=a");
+      expect(res.data.breakdown.total_events).toBe(2);
+      expect(
+        res.data.breakdown.results.every((r: any) => r.value === "IN")
+      ).toBe(true);
     });
 
     it("respects the limit parameter", async () => {
