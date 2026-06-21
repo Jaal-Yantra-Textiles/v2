@@ -29,6 +29,7 @@ export { bulkTriggerWorkflowOperation } from "./bulk-trigger-workflow"
 export { aiExtractOperation } from "./ai-extract"
 export { aiExtractPlatformOperation } from "./ai-extract-platform"
 export { generatePartnerDeeplinkOperation } from "./generate-partner-deeplink"
+export { partnerAnalyticsDigestOperation } from "./partner-analytics-digest"
 export { waitForEventOperation } from "./wait-for-event"
 
 // Import all operations and register them
@@ -59,6 +60,7 @@ import { bulkTriggerWorkflowOperation } from "./bulk-trigger-workflow"
 import { aiExtractOperation } from "./ai-extract"
 import { aiExtractPlatformOperation } from "./ai-extract-platform"
 import { generatePartnerDeeplinkOperation } from "./generate-partner-deeplink"
+import { partnerAnalyticsDigestOperation } from "./partner-analytics-digest"
 import { waitForEventOperation } from "./wait-for-event"
 
 // Register all built-in operations
@@ -101,6 +103,7 @@ export function registerBuiltInOperations(): void {
   operationRegistry.register(aggregateDataOperation)
   operationRegistry.register(timeSeriesOperation)
   operationRegistry.register(cartRecoveryStatsOperation)
+  operationRegistry.register(partnerAnalyticsDigestOperation)
 }
 
 // Auto-register on import
