@@ -75,9 +75,9 @@ export const FLOW_DEF = {
     viewport: { x: 0, y: 0, zoom: 0.85 },
     nodes: [
       { id: "trigger",         type: "trigger",   position: { x: X_CENTER, y: -20 },        data: { label: "Schedule — 09:00 IST Monday", triggerType: "schedule", triggerConfig: { cron: DIGEST_CRON } } },
-      { id: "compute_digests", type: "operation", position: { x: X_CENTER, y: Y_DIGEST },   data: { label: "Compute Partner Digests", operationKey: "compute_digests", operationType: "partner_analytics_digest" } },
-      { id: "send_digests",    type: "operation", position: { x: X_CENTER, y: Y_DISPATCH }, data: { label: "Send Digest Emails",      operationKey: "send_digests",    operationType: "bulk_trigger_workflow" } },
-      { id: "log_summary",     type: "operation", position: { x: X_CENTER, y: Y_LOG },      data: { label: "Log Summary",            operationKey: "log_summary",     operationType: "log" } },
+      { id: "compute_digests", type: "operation", position: { x: X_CENTER, y: Y_DIGEST },   data: { label: "Compute Partner Digests", operationKey: "compute_digests", operationType: "partner_analytics_digest", options: { period: "last_7_days", max_partners: 200, continue_on_error: true } } },
+      { id: "send_digests",    type: "operation", position: { x: X_CENTER, y: Y_DISPATCH }, data: { label: "Send Digest Emails",      operationKey: "send_digests",    operationType: "bulk_trigger_workflow", options: { workflow_name: "send-partner-digest-email", items: "{{ compute_digests.digests }}", input_template: { digest: "{{ item }}" }, continue_on_error: true, max_items: 200 } } },
+      { id: "log_summary",     type: "operation", position: { x: X_CENTER, y: Y_LOG },      data: { label: "Log Summary",            operationKey: "log_summary",     operationType: "log", options: { message: "Partner digest run — partners={{ compute_digests.count }} with_storefront={{ compute_digests.with_storefront }} with_suggestions={{ compute_digests.with_suggestions }} suggestions={{ compute_digests.suggestion_count }} failed_compute={{ compute_digests.failed }} emails_triggered={{ send_digests.triggered }} emails_failed={{ send_digests.failed }}", level: "info" } } },
     ],
     edges: [
       { id: "e-0", source: "trigger",         sourceHandle: "default", target: "compute_digests", targetHandle: "default" },
