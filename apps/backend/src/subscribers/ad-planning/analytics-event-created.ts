@@ -8,6 +8,7 @@ import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework";
 import { AD_PLANNING_MODULE } from "../../modules/ad-planning";
 import { trackConversionWorkflow } from "../../workflows/ad-planning/conversions/track-conversion";
 import { resolveSessionAttributionWorkflow } from "../../workflows/ad-planning/attribution/resolve-session-attribution";
+import { findMatchingCustomGoal } from "./match-custom-goal";
 
 type AnalyticsEventCreatedEvent = {
   id: string;
@@ -57,15 +58,16 @@ export default async function analyticsEventCreatedHandler({
       // Check if there's a custom conversion goal for this event
       const adPlanningService = container.resolve(AD_PLANNING_MODULE);
 
+      // #568: the goal_type enum value is "custom_event" (not "custom"), and
+      // the matched event name is stored in conditions.event_name — the model
+      // has no trigger_event_name column. Both bugs made this branch dead, so a
+      // custom_event goal never matched an incoming analytics event.
       const customGoals = await adPlanningService.listConversionGoals({
-        goal_type: "custom",
+        goal_type: "custom_event",
         is_active: true,
       });
 
-      const matchingGoal = customGoals.find((goal: any) => {
-        const goalEventName = goal.trigger_event_name?.toLowerCase();
-        return goalEventName === eventName;
-      });
+      const matchingGoal = findMatchingCustomGoal(customGoals, eventName);
 
       if (!matchingGoal) {
         // No matching conversion type or goal

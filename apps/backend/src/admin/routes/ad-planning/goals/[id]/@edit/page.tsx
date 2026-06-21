@@ -11,7 +11,6 @@ import {
 
 export default function GoalEditDrawerPage() {
   const { id } = useParams<{ id: string }>()
-  const { handleSuccess } = useRouteModal()
 
   const { data, isLoading } = useQuery({
     queryKey: ["ad-planning", "goals", id, "edit"],
@@ -39,15 +38,39 @@ export default function GoalEditDrawerPage() {
   return (
     <RouteDrawer>
       <RouteDrawer.Header>
-        <Heading>Edit goal</Heading>
+        <RouteDrawer.Title asChild>
+          <Heading>Edit goal</Heading>
+        </RouteDrawer.Title>
+        <RouteDrawer.Description className="sr-only">
+          Edit conversion goal
+        </RouteDrawer.Description>
       </RouteDrawer.Header>
-      <GoalForm
-        initial={initial}
-        goalId={id}
-        mode="edit"
-        onCancel={() => handleSuccess()}
-        onSuccess={() => handleSuccess()}
-      />
+      <EditGoalBody initial={initial} goalId={id} />
     </RouteDrawer>
+  )
+}
+
+/**
+ * Rendered INSIDE <RouteDrawer> so it sits within the RouteModalProvider that
+ * RouteDrawer mounts. Calling useRouteModal() in the page component (a parent
+ * of RouteDrawer) threw "useRouteModal must be used within a RouteModalProvider"
+ * and crashed the whole edit drawer (#568).
+ */
+function EditGoalBody({
+  initial,
+  goalId,
+}: {
+  initial: Partial<GoalFormValues>
+  goalId?: string
+}) {
+  const { handleSuccess } = useRouteModal()
+  return (
+    <GoalForm
+      initial={initial}
+      goalId={goalId}
+      mode="edit"
+      onCancel={() => handleSuccess()}
+      onSuccess={() => handleSuccess()}
+    />
   )
 }
