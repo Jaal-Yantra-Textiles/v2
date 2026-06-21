@@ -1,7 +1,13 @@
 import { z } from "@medusajs/framework/zod"
+import { createOpenRouter } from "@openrouter/ai-sdk-provider"
+import { generateText } from "ai"
 import { OperationDefinition, OperationContext, OperationResult } from "./types"
 import { interpolateVariables } from "./utils"
 import { PARTNER_MODULE } from "../../partner"
+import {
+  composeDigestAiSummary,
+  type DigestAiGenerate,
+} from "../../../workflows/analytics/partner-digest-ai-lib"
 import {
   getPartnerStorefrontDigestWorkflow,
   type GetPartnerStorefrontDigestInput,
@@ -58,6 +64,15 @@ export const partnerAnalyticsDigestOptionsSchema = z.object({
   max_partners: z.number().int().min(1).max(1000).default(200),
   /** Keep going when a single partner's digest compute throws. */
   continue_on_error: z.boolean().default(true),
+  /**
+   * When true, enrich each eligible digest with a short AI-authored weekly
+   * summary (#589 item 3) before the email fan-out. Best-effort: an AI failure
+   * never aborts the run, it just leaves `ai_summary` unset. Default OFF so the
+   * live weekly flow's behaviour is unchanged until an admin opts in.
+   */
+  generate_ai_summary: z.boolean().default(false),
+  /** Override the model used for the AI summary (defaults to the ai_extract model). */
+  ai_summary_model: z.string().optional(),
 })
 
 export type PartnerAnalyticsDigestOptions = z.infer<
@@ -255,6 +270,24 @@ export const partnerAnalyticsDigestOperation: OperationDefinition = {
       const computedDigests: PartnerStorefrontDigest[] = []
       const errors: Array<{ partner_id: string; error: string }> = []
 
+      // Default-OFF AI summary enrichment (#589 item 3). Only build the
+      // OpenRouter-backed generator when the option is set; otherwise the
+      // weekly run never touches the model. The seam is the same pattern as
+      // the `ai_extract` operation.
+      const aiGenerate: DigestAiGenerate | null = parsed.generate_ai_summary
+        ? async ({ system, prompt, model }) => {
+            const openrouter = createOpenRouter({
+              apiKey: process.env.OPENROUTER_API_KEY,
+            })
+            const result = await generateText({
+              model: openrouter(model) as any,
+              system,
+              messages: [{ role: "user", content: prompt }],
+            })
+            return result.text ?? ""
+          }
+        : null
+
       for (const partnerId of partnerIds) {
         const input: GetPartnerStorefrontDigestInput = {
           partner_id: partnerId,
@@ -266,7 +299,16 @@ export const partnerAnalyticsDigestOperation: OperationDefinition = {
           const { result } = await getPartnerStorefrontDigestWorkflow(
             context.container
           ).run({ input })
-          if (result) computedDigests.push(result as PartnerStorefrontDigest)
+          if (result) {
+            const digest = result as PartnerStorefrontDigest
+            if (aiGenerate) {
+              // Best-effort: never let an AI hiccup abort the digest run.
+              digest.ai_summary = await composeDigestAiSummary(digest, aiGenerate, {
+                model: parsed.ai_summary_model,
+              })
+            }
+            computedDigests.push(digest)
+          }
         } catch (err: any) {
           errors.push({
             partner_id: partnerId,
