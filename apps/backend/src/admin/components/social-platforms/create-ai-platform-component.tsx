@@ -1,4 +1,4 @@
-import { Button, Heading, Input, Select, Switch, Text, toast } from "@medusajs/ui"
+import { Alert, Button, Heading, Input, Select, Switch, Text, toast } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "@medusajs/framework/zod"
@@ -7,6 +7,7 @@ import { KeyboundForm } from "../utilitites/key-bound-form"
 import { Form } from "../common/form"
 import { RouteFocusModal } from "../modal/route-focus-modal"
 import { useRouteModal } from "../modal/use-route-modal"
+import { getCloudflareModelWarning } from "./cloudflare-model-warning"
 
 /**
  * Tailored "Create AI provider" form.
@@ -125,6 +126,11 @@ export const CreateAiPlatformComponent = () => {
   })
 
   const providerType = form.watch("provider_type")
+  const defaultModel = form.watch("default_model")
+  const cloudflareModelWarning = getCloudflareModelWarning(
+    providerType,
+    defaultModel
+  )
 
   const onSubmit = form.handleSubmit(async (values) => {
     const apiConfig: Record<string, unknown> = {
@@ -346,6 +352,15 @@ export const CreateAiPlatformComponent = () => {
                   <Form.Hint>
                     Optional. If empty, a provider-specific default is used.
                   </Form.Hint>
+                  {cloudflareModelWarning && (
+                    <Alert
+                      variant="warning"
+                      className="mt-2"
+                      data-testid="cloudflare-model-warning"
+                    >
+                      {cloudflareModelWarning}
+                    </Alert>
+                  )}
                   <Form.ErrorMessage />
                 </Form.Item>
               )}

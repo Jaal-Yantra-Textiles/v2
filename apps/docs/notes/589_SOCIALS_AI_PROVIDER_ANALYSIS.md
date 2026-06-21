@@ -112,6 +112,15 @@ A `resolveDigestAiProvider(container)` helper that replaces the hardcoded `creat
 
 ---
 
+## Cloudflare: Workers AI (free) vs AI Gateway (paid / BYOK) — #613
+
+The `cloudflare` provider derives base URL `https://api.cloudflare.com/client/v4/accounts/<account_id>/ai/v1` (`apps/backend/src/mastra/services/ai-platforms.ts` ~L207), which is the **Workers AI** OpenAI-compatible endpoint. Whether a call is free depends entirely on the **model id**:
+
+- **Free — Workers AI native models** (`@cf/…`, e.g. `@cf/meta/llama-3.1-8b-instruct`, `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, `@cf/baai/bge-base-en-v1.5` for embeddings). These run on a **free daily Neuron allocation** — no gateway balance, no BYOK. `PROVIDER_DEFAULTS.cloudflare.defaultModelHint` is already `@cf/meta/llama-3.1-8b-instruct`.
+- **Paid — any non-`@cf/…` model id** (e.g. `minimax/m3`, `openai/gpt-4o`). These route through the **paid AI Gateway / BYOK** path and fail with `Insufficient balance; add money to your gateway or use BYOK` (code 2021) unless a balance / BYOK key is configured. This was the live failure that surfaced #613 (the `ai_digest_summary` CF platform's `default_model` was `minimax/m3`).
+
+**Admin guard (#613):** the External Platforms admin warns when a `cloudflare` AI platform's `default_model` is set to a non-`@cf/…` id — both live in the Create AI provider form (under the Default model field) and on the platform detail page. The check is the pure helper `getCloudflareModelWarning(providerType, defaultModel)` in `apps/backend/src/admin/components/social-platforms/cloudflare-model-warning.ts` (empty model → no warning, provider default `@cf/…` is used). **Setting the prod `ai_digest_summary` platform's `default_model` to a `@cf/…` model is an operator action** (admin-API authored, not seeded).
+
 ## Gotchas
 
 1. **No `case "ai"` in `buildApiConfig`**: The admin form's `api-config.ts:buildApiConfig()` has no `case "ai"` branch. AI platforms are created by the backfill script (`apps/backend/src/scripts/backfill-ai-platforms-from-env.ts`) or manually via the admin External Platforms UI, which stores `api_config` as a raw JSON blob. Adding a new role via the UI requires the admin to set `metadata.role` and `metadata.provider_type` manually. There is no admin UI dropdown for the digest-summary role yet.

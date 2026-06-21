@@ -7,8 +7,9 @@ import {
   useSetupResendWebhook,
 } from "../../hooks/api/social-platforms";
 import { CommonSection, CommonField } from "../common/section-views";
-import { usePrompt, toast } from "@medusajs/ui";
+import { usePrompt, toast, Alert } from "@medusajs/ui";
 import { useNavigate } from "react-router-dom";
+import { getCloudflareModelWarning } from "./cloudflare-model-warning";
 
 export const SocialPlatformGeneralSection = ({ platform }: { platform: AdminSocialPlatform }) => {
   const { t } = useTranslation();
@@ -25,6 +26,16 @@ export const SocialPlatformGeneralSection = ({ platform }: { platform: AdminSoci
   const isPayment = platform.category === "payment";
   const isShipping = platform.category === "shipping";
   const providerType = apiConfig?.provider as string | undefined;
+
+  // AI platforms keep their provider_type in metadata (not api_config.provider)
+  // and the chosen chat/embed model in api_config.default_model. Warn when a
+  // Cloudflare AI platform points at a non-native (non-`@cf/…`) model — it
+  // routes through the paid AI Gateway / BYOK path and fails on free credits.
+  const metadata = platform.metadata as Record<string, any> | null;
+  const cloudflareModelWarning = getCloudflareModelWarning(
+    metadata?.provider_type as string | undefined,
+    apiConfig?.default_model as string | undefined
+  );
 
   const handleDelete = async () => {
     const confirmation = await prompt({
@@ -253,11 +264,21 @@ export const SocialPlatformGeneralSection = ({ platform }: { platform: AdminSoci
   }
 
   return (
-    <CommonSection
-      title={t("socialPlatform.general.title", "General Information")}
-      description={t("socialPlatform.general.description", "Basic details of the social platform.")}
-      fields={generalFields}
-      actionGroups={actionGroups}
-    />
+    <div className="flex flex-col gap-y-3">
+      {cloudflareModelWarning && (
+        <Alert
+          variant="warning"
+          data-testid="cloudflare-model-warning"
+        >
+          {cloudflareModelWarning}
+        </Alert>
+      )}
+      <CommonSection
+        title={t("socialPlatform.general.title", "General Information")}
+        description={t("socialPlatform.general.description", "Basic details of the social platform.")}
+        fields={generalFields}
+        actionGroups={actionGroups}
+      />
+    </div>
   );
 };
