@@ -7,6 +7,7 @@ import { PencilSquare, Plus, Trash } from "@medusajs/icons"
 import { useProduct, useUnlinkProductDesign } from "../hooks/api/products"
 import { useDesignInventory } from "../hooks/api/designs"
 import { AdminProductionRun, useProductionRuns } from "../hooks/api/production-runs"
+import { summarizeProductionRunTotals } from "./production-run-totals"
 
 const designStatusColor = (status: string): "green" | "blue" | "orange" | "grey" | "red" | "purple" => {
   switch (status) {
@@ -128,13 +129,10 @@ function DesignAdminProductionRunsSection({ designId }: { designId: string }) {
     <Text size="xsmall" className="text-ui-fg-muted px-1">No production runs linked to this design.</Text>
   )
 
-  const totalProduced = runs
-    .filter((r: AdminProductionRun) => r.status === "completed")
-    .reduce((sum: number, r: AdminProductionRun) => sum + (r.quantity ?? 0), 0)
-
-  const inProgress = runs
-    .filter((r: AdminProductionRun) => ["in_progress", "sent_to_partner", "approved"].includes(r.status ?? ""))
-    .reduce((sum: number, r: AdminProductionRun) => sum + (r.quantity ?? 0), 0)
+  // #498: a design's runs come back as a parent + one child per partner
+  // assignment (all sharing design_id). The parent's quantity already equals
+  // the sum of its children, so sum LEAF runs only to avoid double-counting.
+  const { completed: totalProduced, inProgress } = summarizeProductionRunTotals(runs)
 
   return (
     <div className="flex flex-col gap-y-3">
