@@ -109,3 +109,47 @@ A **has-store partner with zero traffic stays eligible** — they get the
 zero-data "start sharing" nudge (item 2, separate slice), not exclusion.
 Pure + unit-tested (`isPartnerDigestEligible`, `partitionEligibleDigests`;
 S3 spec now 22).
+
+### 2. Zero-data "start sharing" nudge — DONE (PR #591)
+
+Pure `digestHasData(digest)` + `has_data` flag in `partner-digest-email-lib.ts`;
+the seed template wraps stats in `{{#if has_data}}` and adds a
+`{{#unless has_data}}` share-your-store nudge for has-store / zero-traffic
+partners.
+
+### 3. AI summary — data contract DONE (stacked on #591), live wiring deferred
+
+A natural-language recap of the week, authored by an `ai-extract` node, surfaced
+as an executive-summary callout above the KPI table.
+
+**This slice (verifiable, pure):**
+- `PartnerStorefrontDigest.ai_summary?: string | null` (rides on the digest so it
+  survives the `bulk_trigger_workflow → send-partner-digest-email` hand-off,
+  which passes `{ digest: "{{ item }}" }` — there is no per-item enrichment slot
+  between the op and the email otherwise).
+- Pure `sanitizeAiSummary(raw)` in `partner-digest-email-lib.ts` (collapses
+  control chars + whitespace to a single paragraph, hard-caps at
+  `AI_SUMMARY_MAX_LEN = 600` on a word boundary with an ellipsis; `""` for
+  non-strings/blanks). Handlebars HTML-escapes on render, so it's a length/shape
+  normaliser, NOT an HTML sanitiser.
+- `buildPartnerDigestTemplateData` exposes `ai_summary` + `has_ai_summary`.
+- Seed template gains a `{{#if ai_summary}}` callout (blue executive-summary box)
+  inside the `{{#if has_data}}` branch, above the KPI table.
+- +7 unit (email-lib spec 19 → 26). Optional + absent by default ⇒ the email is
+  unchanged until the flow populates `digest.ai_summary`.
+
+**Deferred (live wiring — daemon can't run the flow / model):** the slice does
+NOT yet populate `ai_summary`. Two placement options for a follow-up:
+1. **Inside the `partner_analytics_digest` op** — after computing each digest,
+   run an `ai-extract` over the digest's KPIs/breakdowns and set
+   `digest.ai_summary` before `partitionEligibleDigests`. Keeps the email
+   workflow untouched; one model call per eligible partner; must stay
+   best-effort (never abort the run).
+2. **An `ai-extract` node inside `send-partner-digest-email`** (per-partner in the
+   fan-out). Cleaner separation but adds a node to the email workflow.
+   Prefer option 1 — it keeps AI enrichment in the data layer the op already owns.
+
+**Ops tail (prod):** the live `partner-storefront-digest` email_template was
+authored via admin API and is NOT re-seeded on deploy — after merging, apply the
+same `{{#if ai_summary}}` html edit to the live template via the admin API (same
+manual pattern as the `has_data` branch).

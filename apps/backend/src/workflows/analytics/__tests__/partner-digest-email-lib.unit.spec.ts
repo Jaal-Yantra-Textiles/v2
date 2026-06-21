@@ -1,4 +1,5 @@
 import {
+  AI_SUMMARY_MAX_LEN,
   buildKpiRows,
   buildPartnerDigestTemplateData,
   deltaLabel,
@@ -7,6 +8,7 @@ import {
   directionArrow,
   formatDigestDate,
   formatDuration,
+  sanitizeAiSummary,
 } from "../partner-digest-email-lib";
 import {
   buildDigestKpis,
@@ -244,5 +246,53 @@ describe("buildPartnerDigestTemplateData", () => {
     expect(bare.has_website).toBe(false);
     expect(bare.has_suggestions).toBe(false);
     expect(bare.dashboard_url).toBe("");
+  });
+
+  it("omits the AI summary by default (no ai-extract enrichment yet)", () => {
+    expect(data.ai_summary).toBe("");
+    expect(data.has_ai_summary).toBe(false);
+  });
+
+  it("surfaces a sanitized AI summary + has_ai_summary flag when present", () => {
+    const withAi = buildPartnerDigestTemplateData({
+      partner: { name: "Acme Co", handle: "acme" },
+      admin: { first_name: "Jo", last_name: "Doe", email: "jo@acme.com" },
+      digest: makeDigest({ ai_summary: "  Traffic\n  jumped 25%   this week.  " }),
+      year: 2026,
+    });
+    expect(withAi.ai_summary).toBe("Traffic jumped 25% this week.");
+    expect(withAi.has_ai_summary).toBe(true);
+  });
+});
+
+describe("sanitizeAiSummary", () => {
+  it("collapses whitespace/newlines and trims", () => {
+    expect(sanitizeAiSummary("  Visitors\n\trose   sharply.  ")).toBe(
+      "Visitors rose sharply."
+    );
+  });
+
+  it("returns '' for non-strings and blank/whitespace input", () => {
+    expect(sanitizeAiSummary(undefined)).toBe("");
+    expect(sanitizeAiSummary(null)).toBe("");
+    expect(sanitizeAiSummary(42)).toBe("");
+    expect(sanitizeAiSummary("   \n  ")).toBe("");
+  });
+
+  it("strips control characters", () => {
+    expect(sanitizeAiSummary("a\u0001b\u0002c")).toBe("a b c");
+  });
+
+  it("hard-caps an over-long summary on a word boundary with an ellipsis", () => {
+    const long = `${"word ".repeat(200)}end`; // ~1003 chars
+    const out = sanitizeAiSummary(long);
+    expect(out.length).toBeLessThanOrEqual(AI_SUMMARY_MAX_LEN + 1);
+    expect(out.endsWith("…")).toBe(true);
+    expect(out).not.toMatch(/wor…$/); // no mid-word cut
+  });
+
+  it("leaves a summary at/under the cap untouched", () => {
+    const short = "Solid week — conversions up.";
+    expect(sanitizeAiSummary(short)).toBe(short);
   });
 });
