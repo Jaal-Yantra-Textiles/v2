@@ -117,6 +117,38 @@ export function selectDigestPartnerIds(input: {
 }
 
 /**
+ * A partner is digest-eligible only when they have a **live storefront** — i.e.
+ * the S1 digest resolved a linked website (truthy `website.id`). Partners with
+ * no storefront (`website: null`) have nothing to report and must be excluded
+ * from the email fan-out entirely (#589): the first fan-out mis-emailed
+ * no-store partners. A has-store partner with zero traffic is STILL eligible —
+ * they get the zero-data "start sharing" nudge, not exclusion. Pure.
+ */
+export function isPartnerDigestEligible(
+  digest: Pick<PartnerStorefrontDigest, "website"> | null | undefined
+): boolean {
+  const w = digest?.website
+  return !!(w && typeof w.id === "string" && w.id.trim().length > 0)
+}
+
+/**
+ * Split computed digests into the storefront-eligible set (the email fan-out
+ * source) and a count of partners excluded for having no live storefront.
+ * Pure so it's unit-testable without booting Medusa.
+ */
+export function partitionEligibleDigests(
+  digests: PartnerStorefrontDigest[]
+): { eligible: PartnerStorefrontDigest[]; excluded: number } {
+  const eligible: PartnerStorefrontDigest[] = []
+  let excluded = 0
+  for (const d of digests ?? []) {
+    if (isPartnerDigestEligible(d)) eligible.push(d)
+    else excluded++
+  }
+  return { eligible, excluded }
+}
+
+/**
  * Roll digests up into the flat scalars a downstream condition/log node or a
  * metric panel can read. Pure.
  */
@@ -211,6 +243,8 @@ export const partnerAnalyticsDigestOperation: OperationDefinition = {
             with_storefront: 0,
             with_suggestions: 0,
             suggestion_count: 0,
+            computed: 0,
+            excluded: 0,
             requested: 0,
             failed: 0,
             errors: [],
@@ -218,7 +252,7 @@ export const partnerAnalyticsDigestOperation: OperationDefinition = {
         }
       }
 
-      const digests: PartnerStorefrontDigest[] = []
+      const computedDigests: PartnerStorefrontDigest[] = []
       const errors: Array<{ partner_id: string; error: string }> = []
 
       for (const partnerId of partnerIds) {
@@ -232,7 +266,7 @@ export const partnerAnalyticsDigestOperation: OperationDefinition = {
           const { result } = await getPartnerStorefrontDigestWorkflow(
             context.container
           ).run({ input })
-          if (result) digests.push(result as PartnerStorefrontDigest)
+          if (result) computedDigests.push(result as PartnerStorefrontDigest)
         } catch (err: any) {
           errors.push({
             partner_id: partnerId,
@@ -248,14 +282,21 @@ export const partnerAnalyticsDigestOperation: OperationDefinition = {
         }
       }
 
-      const summary = summarizeDigestRun(digests)
+      // Recipient filter (#589): only partners with a live storefront receive a
+      // digest email. No-store partners (`website: null`) are excluded from the
+      // `digests[]` fan-out source entirely so bulk_trigger_workflow →
+      // send-partner-digest-email never mails them.
+      const { eligible, excluded } = partitionEligibleDigests(computedDigests)
+      const summary = summarizeDigestRun(eligible)
 
       return {
         success: true,
         data: {
-          digests,
-          records: digests,
+          digests: eligible,
+          records: eligible,
           ...summary,
+          computed: computedDigests.length,
+          excluded,
           requested: partnerIds.length,
           failed: errors.length,
           errors,
