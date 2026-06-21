@@ -51,6 +51,10 @@ export type AiRole =
   | "ai_search_embed"
   | "ai_product_description"
   | "ai_image_gen"
+  // Weekly partner-storefront digest AI summary (#589 item 4). Resolves the
+  // digest summary provider from the admin-configured External Platform
+  // instead of the hardcoded OPENROUTER_API_KEY env var.
+  | "ai_digest_summary"
   // String escape hatch so callers can use ad-hoc roles without
   // bumping this union every time.
   | (string & {})
