@@ -120,3 +120,36 @@ partner-task-assigned, partner-verified, password-reset, design-assigned,
 order-placed, order-canceled, order-fulfillment-procured/created, delivery-created,
 visual-flow-started, visual-flow-failure. (Full list via
 `GET /admin/email-templates?limit=100`.)
+
+---
+
+## #576 Slice B — production-run lifecycle → PARTNER email (built, PR pending)
+
+`production_run.completed` and `production_run.cancelled` now email the owning
+partner's active admins, mirroring `partner-task-assigned`:
+
+- **Subscriber:** `src/subscribers/production-run-partner-email.ts` (dedicated,
+  runs alongside the feed-only `production-run-notifications.ts`).
+- **Workflow:** `send-partner-production-run-email.ts` → channel `email_partner`
+  (Maileroo). Resolves the partner from `event.data.partner_id` **or**, when the
+  event omits it (the admin cancel route emits `production_run.cancelled` with no
+  `partner_id`), from `run.partner_id` after `retrieveProductionRun`.
+- **Pure lib:** `lib/partner-production-run-email.ts`
+  (`resolvePartnerProductionRunTemplateKey` + `buildPartnerProductionRunTemplateData`),
+  10 unit tests. Best-effort: missing partner/admins/template → log + skip, never throws.
+
+### OPS TAIL — required before this delivers in prod (daemon can't author content)
+1. **Author 2 prod template rows** in admin (`POST /admin/email-templates`,
+   `template_type` required, `is_active: true`):
+   - key `partner-production-run-completed`
+   - key `partner-production-run-cancelled`
+   Available Handlebars vars: `partner_name`, `partner_handle`, `admin_name`,
+   `admin_first_name`, `run_id`, `run_action`, `run_status`, `run_quantity`,
+   `produced_quantity`, `rejected_quantity`, `design_id`, `order_id`, `notes`,
+   `run_url`, `current_year`, `store_url`.
+2. No new env needed (reuses `MAILEROO_FROM_DOMAIN`, `PARTNER_DASHBOARD_URL`,
+   `FRONTEND_URL`). Until the rows exist the step skips silently (warn log only).
+
+### Human verification (add to checklist above)
+9. Complete a production run → partner admin inbox gets `partner-production-run-completed`.
+10. Cancel a production run (admin + partner-decline paths) → `partner-production-run-cancelled`.
