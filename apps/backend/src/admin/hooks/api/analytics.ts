@@ -97,6 +97,53 @@ export const useWebsiteAnalytics = (websiteId: string, filters: AnalyticsFilters
   });
 };
 
+// Session entry/exit page breakdown (#569 S2) — consumes
+// GET /admin/websites/:id/analytics/pages (PR #571). Returns ranked landing
+// (`entry_page`) and leaving (`exit_page`) pages for the website's sessions
+// in the selected window. The envelope mirrors the events breakdown but counts
+// sessions (`total_sessions`) rather than events.
+export interface SessionPageBucket {
+  value: string;
+  count: number;
+  unique_visitors: number;
+  percentage: number;
+}
+
+export interface SessionPageBreakdown {
+  dimension: "entry_page" | "exit_page";
+  total_sessions: number;
+  total_unique_visitors: number;
+  results: SessionPageBucket[];
+}
+
+export interface WebsiteAnalyticsPagesResponse {
+  website_id: string;
+  period: { start_date?: string; end_date?: string; days?: number };
+  pages: {
+    entry_page?: SessionPageBreakdown;
+    exit_page?: SessionPageBreakdown;
+  };
+}
+
+export const useWebsiteAnalyticsPages = (
+  websiteId: string,
+  options?: { days?: number; limit?: number }
+) => {
+  return useQuery({
+    queryKey: ["website-analytics-pages", websiteId, options],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (options?.days != null) params.set("days", String(options.days));
+      if (options?.limit != null) params.set("limit", String(options.limit));
+      const res = await sdk.client.fetch<WebsiteAnalyticsPagesResponse>(
+        `/admin/websites/${websiteId}/analytics/pages?${params.toString()}`
+      );
+      return res as WebsiteAnalyticsPagesResponse;
+    },
+    enabled: !!websiteId,
+  });
+};
+
 // Hook to fetch analytics stats
 export const useAnalyticsStats = (websiteId: string, days: number = 30) => {
   return useQuery({

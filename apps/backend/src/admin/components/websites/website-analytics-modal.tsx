@@ -25,6 +25,7 @@ import { useWebsiteAnalytics, AnalyticsFilters } from "../../hooks/api/analytics
 import { AnalyticsCountryMap } from "./analytics-country-map";
 import { AnalyticsBreakdownSection } from "./analytics-breakdown-section";
 import { AnalyticsTop404Card } from "./analytics-top-404-card";
+import { AnalyticsEntryExitPagesCard } from "./analytics-entry-exit-pages-card";
 
 function getSourceIcon(source: string) {
   const s = source.toLowerCase();
@@ -621,6 +622,11 @@ export const WebsiteAnalyticsModal = () => {
                     </div>
                   </div>
                 </Container>
+              )}
+
+              {/* #569 S2b — Entry & Exit pages */}
+              {id && (
+                <AnalyticsEntryExitPagesCard websiteId={id} days={currentDays} />
               )}
 
               {/* #569 S4 — Top 404s (broken links) */}
