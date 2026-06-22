@@ -78,6 +78,13 @@ export type CreateShipmentInput = {
    *  single-carrier providers. When omitted, the provider auto-selects. */
   preferred_courier_id?: string | number
   product_description?: string
+  /**
+   * Seller tax / GST / VAT registration ID to stamp on the label (#348). The
+   * partner's own ID when supplied, else the platform fallback resolved by the
+   * order / ship-from country (IN→JYT GSTIN, EU→KHT VAT). Maps to Delhivery
+   * `seller_gst_tin`. Resolve with `resolveTaxIdForCountry` (modules/partner/tax-id-lib).
+   */
+  tax_id?: string
 }
 
 /**

@@ -20,6 +20,7 @@ import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { PickupLocation } from "./provider-interface"
 import { resolveShippingProvider } from "./resolver"
+import { resolvePlatformTaxIdForCountry } from "./seller-tax-id"
 
 /** Metadata key recording the Shiprocket nickname for a stock location. */
 export const SHIPROCKET_PICKUP_METADATA_KEY = "shiprocket_pickup_location"
@@ -165,6 +166,8 @@ export async function registerShiprocketPickup(
         state: addr.province || "",
         pincode: addr.postal_code,
         country: "India",
+        // Seller GST on the pickup (#348): platform GSTIN for the pickup country.
+        gstin: resolvePlatformTaxIdForCountry(addr.country_code || "India"),
       })
     } catch (e: any) {
       // Shiprocket rejects a duplicate nickname — treat that as already-present.

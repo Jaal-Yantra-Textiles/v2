@@ -9,6 +9,7 @@ import {
   CreateShippingOptionDTO,
 } from "@medusajs/framework/types"
 import { DelhiveryClient, DelhiveryOptions } from "./client"
+import { resolvePlatformTaxIdForCountry } from "../seller-tax-id"
 import { Logger } from "@medusajs/framework/types"
 
 type InjectedDeps = { logger: Logger }
@@ -284,6 +285,11 @@ class DelhiveryFulfillmentService extends AbstractFulfillmentProviderService {
         seller_city: fromLocation.address?.city || "",
         seller_pin: fromLocation.address?.postal_code || "",
         seller_state: fromLocation.address?.province || "",
+        // Seller GST (#348): platform fallback by ship-to country (IN→JYT GSTIN).
+        // Partner-own GSTIN override flows via the generic adapter path.
+        seller_gst_tin: resolvePlatformTaxIdForCountry(
+          shippingAddress.country_code || "India"
+        ),
       })
 
       // Extract auto-assigned waybill from response

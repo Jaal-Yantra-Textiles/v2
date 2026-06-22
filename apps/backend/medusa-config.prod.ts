@@ -1,5 +1,6 @@
 import { loadEnv, defineConfig, Modules } from "@medusajs/framework/utils";
 import path from "path";
+import { getPlatformTaxIdConfig } from "./src/modules/partner/tax-id-lib";
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
@@ -475,3 +476,15 @@ module.exports = defineConfig({
   },
 ],
 });
+
+/**
+ * Platform tax-ID fallback (#348) — country→brand→{tax_id, tax_id_type}.
+ *
+ * When a partner has no own tax ID, carrier labels stamp the platform's brand
+ * tax ID, chosen by the order / ship-from country (IN→JYT GSTIN, EU→KHT VAT).
+ * The country→brand map is jurisdiction logic in src/modules/partner/tax-id-lib;
+ * the tax-ID NUMBERS come from env (placeholders until the real numbers are
+ * supplied): PLATFORM_TAX_ID_JYT / PLATFORM_TAX_ID_KHT (+ optional
+ * PLATFORM_TAX_ID_TYPE_JYT / PLATFORM_TAX_ID_TYPE_KHT overrides).
+ */
+module.exports.platformTaxIds = getPlatformTaxIdConfig(process.env);

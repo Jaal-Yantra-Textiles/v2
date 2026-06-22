@@ -15,6 +15,7 @@ import {
   SHIPROCKET_PICKUP_METADATA_KEY,
   chooseRegisteredPickup,
 } from "../../modules/shipping-providers/pickup-locations"
+import { resolveSellerTaxIdForOrder } from "../../modules/shipping-providers/seller-tax-id"
 
 /**
  * #404 (#31) PR-B — generate a Shiprocket shipment (forward order → AWB → label)
@@ -49,6 +50,8 @@ export type BuildShipmentOpts = {
   weightGrams?: number
   dimensionsCm?: Dimensions
   preferredCourierId?: string | number
+  /** Seller tax/GST ID to stamp on the label (#348); resolved by the caller. */
+  taxId?: string
 }
 
 /**
@@ -101,6 +104,7 @@ export function buildCreateShipmentInput(
     dimensions_cm: opts.dimensionsCm,
     sub_total: subTotal,
     preferred_courier_id: opts.preferredCourierId,
+    tax_id: opts.taxId,
   }
 }
 
@@ -196,11 +200,19 @@ export async function createShiprocketShipmentForFulfillment(
     )
   }
 
+  // Seller tax/GST ID (#348): partner-own → platform-by-country fallback.
+  const taxId = await resolveSellerTaxIdForOrder(
+    container,
+    order.id,
+    (order as any)?.shipping_address?.country_code
+  )
+
   const shipmentInput = buildCreateShipmentInput(order as OrderForShipment, {
     pickupLocationName,
     weightGrams: input.weightGrams,
     dimensionsCm: input.dimensionsCm,
     preferredCourierId: input.preferredCourierId,
+    taxId,
   })
   const result = await provider.createShipment(shipmentInput)
 
