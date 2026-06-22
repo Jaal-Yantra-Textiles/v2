@@ -26,6 +26,7 @@ import { OrderActivitySection } from "./components/order-activity-section"
 import { OrderCustomerSection } from "./components/order-customer-section"
 import { OrderFulfillmentSection } from "./components/order-fulfillment-section"
 import { OrderGeneralSection } from "./components/order-general-section"
+import { OrderPartnerFeeSection } from "./components/order-partner-fee-section"
 import { OrderPaymentSection } from "./components/order-payment-section"
 import { OrderSummarySection } from "./components/order-summary-section"
 import { WorkOrderStatusSection } from "./components/work-order-status-section"
@@ -193,6 +194,7 @@ export const OrderDetail = () => {
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
         {!isWorkOrder && <OrderCustomerSection order={order} />}
+        <OrderPartnerFeeSection orderId={id!} />
         {kind === "design" ? (
           <WorkOrderActivitySection order={order} productionRun={production_run} />
         ) : (

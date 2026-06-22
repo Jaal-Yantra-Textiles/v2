@@ -4132,6 +4132,17 @@ export default defineMiddlewares({
       ],
     },
     {
+      // #623 — per-order partner fee (commission). Read-only; no field
+      // selection, so no validateAndTransformQuery. Ownership is enforced in
+      // the route via validatePartnerOrderOwnership.
+      matcher: "/partners/orders/:id/partner-fee",
+      method: ["GET"],
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       matcher: "/partners/orders/:id/cancel",
       method: "POST",
       middlewares: [
