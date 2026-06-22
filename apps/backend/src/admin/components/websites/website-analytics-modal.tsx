@@ -27,6 +27,7 @@ import { AnalyticsBreakdownSection } from "./analytics-breakdown-section";
 import { AnalyticsTop404Card } from "./analytics-top-404-card";
 import { AnalyticsEntryExitPagesCard } from "./analytics-entry-exit-pages-card";
 import { AnalyticsOutboundLinksCard } from "./analytics-outbound-links-card";
+import { AnalyticsSessionsCard } from "./analytics-sessions-card";
 
 function getSourceIcon(source: string) {
   const s = source.toLowerCase();
@@ -638,6 +639,11 @@ export const WebsiteAnalyticsModal = () => {
               {/* #569 S4 — Top 404s (broken links) */}
               {id && (
                 <AnalyticsTop404Card websiteId={id} days={currentDays} />
+              )}
+
+              {/* #569 S7b — Sessions DataTable */}
+              {id && (
+                <AnalyticsSessionsCard websiteId={id} days={currentDays} />
               )}
 
               {/* #559 slice 4 — OpenPanel-style breakdown explorer */}

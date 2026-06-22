@@ -187,6 +187,81 @@ export const useWebsiteAnalyticsOutbound = (
   });
 };
 
+// Paginated session list (#569 S7b) — consumes
+// GET /admin/websites/:id/analytics/sessions (PR #569 S7a backend). Powers the
+// "Sessions" DataTable of the analytics dashboard v2. Server-side paginated via
+// limit/offset; orderable by a whitelisted column.
+export type SessionOrderField =
+  | "started_at"
+  | "last_activity_at"
+  | "ended_at"
+  | "duration_seconds"
+  | "pageviews";
+
+export interface AnalyticsSession {
+  id: string;
+  session_id: string;
+  visitor_id?: string | null;
+  entry_page?: string | null;
+  exit_page?: string | null;
+  pageviews?: number | null;
+  duration_seconds?: number | null;
+  is_bounce?: boolean | null;
+  referrer?: string | null;
+  referrer_source?: string | null;
+  country?: string | null;
+  device_type?: string | null;
+  browser?: string | null;
+  os?: string | null;
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
+  utm_term?: string | null;
+  utm_content?: string | null;
+  started_at?: string | Date | null;
+  ended_at?: string | Date | null;
+  last_activity_at?: string | Date | null;
+}
+
+export interface WebsiteAnalyticsSessionsResponse {
+  website_id: string;
+  period: { start_date?: string; end_date?: string; days?: number };
+  limit: number;
+  offset: number;
+  count: number;
+  sessions: AnalyticsSession[];
+}
+
+export const useWebsiteAnalyticsSessions = (
+  websiteId: string,
+  options?: {
+    days?: number;
+    limit?: number;
+    offset?: number;
+    order_by?: SessionOrderField;
+    order_dir?: "ASC" | "DESC";
+  },
+  queryOptions?: { placeholderData?: any }
+) => {
+  return useQuery({
+    queryKey: ["website-analytics-sessions", websiteId, options],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (options?.days != null) params.set("days", String(options.days));
+      if (options?.limit != null) params.set("limit", String(options.limit));
+      if (options?.offset != null) params.set("offset", String(options.offset));
+      if (options?.order_by) params.set("order_by", options.order_by);
+      if (options?.order_dir) params.set("order_dir", options.order_dir);
+      const res = await sdk.client.fetch<WebsiteAnalyticsSessionsResponse>(
+        `/admin/websites/${websiteId}/analytics/sessions?${params.toString()}`
+      );
+      return res as WebsiteAnalyticsSessionsResponse;
+    },
+    enabled: !!websiteId,
+    ...queryOptions,
+  });
+};
+
 // Hook to fetch analytics stats
 export const useAnalyticsStats = (websiteId: string, days: number = 30) => {
   return useQuery({
