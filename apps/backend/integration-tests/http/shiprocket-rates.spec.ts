@@ -220,11 +220,6 @@ setupSharedTestSuite(() => {
       else process.env.SHIPROCKET_PASSWORD = prevPassword
     })
 
-    beforeEach(() => {
-      state = { serviceabilityCalls: 0 }
-      mock = installShiprocketMock(state)
-    })
-
     afterEach(() => {
       mock?.mockRestore()
     })
@@ -232,8 +227,15 @@ setupSharedTestSuite(() => {
     it("returns the courier list (recommended flag) and honours a weight override", async () => {
       // Build the converted design order here (store calls need the customer
       // publishable key, which is only reliably valid once the runner's first
-      // `it` is in flight — see the note in beforeAll).
+      // `it` is in flight — see the note in beforeAll). Build it with NATIVE
+      // fetch: the Shiprocket fetch stub is installed only AFTER the fixture is
+      // ready, so it can't interfere with the publishable-key store calls /
+      // convert workflow (mirrors the mock-free convert-design-order spec).
       orderId = await buildDesignOrderId()
+
+      // Stub Shiprocket (auth/login, pickup, serviceability) for the rates call only.
+      state = { serviceabilityCalls: 0 }
+      mock = installShiprocketMock(state)
 
       // ── default weight ────────────────────────────────────────────────
       const res = await api.get(
