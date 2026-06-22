@@ -67,6 +67,7 @@ import { rawMaterialSchema, UpdateRawMaterialSchema } from "./admin/inventory-it
 import { splitInventorySchema } from "./admin/inventory-items/[id]/split/validators";
 import { CreateMaterialTypeSchema, ReadRawMaterialCategoriesSchema } from "./admin/categories/rawmaterials/validators";
 import { CreateDesignLLMSchema, designSchema, LinkDesignPartnerSchema, ReadDesignsQuerySchema, UpdateDesignSchema } from "./admin/designs/validators";
+import { DesignBriefSchema, UpdateDesignBriefSchema } from "./admin/designs/[id]/brief/validators";
 import { SegmentImageSchema } from "./admin/designs/[id]/segment/validators";
 import { DepthImageSchema } from "./partners/designs/[designId]/segment/depth/validators";
 import { ReviseDesignSchema as PartnerReviseDesignSchema } from "./partners/designs/[designId]/revise/validators";
@@ -3025,7 +3026,20 @@ export default defineMiddlewares({
       middlewares: [],
     },
 
-    // Inventory linkin on designs 
+    // #604 slice B — design brief sub-resource (concept/persona/competitors/
+    // price_point/design_budget). GET reads, POST replaces, PUT patches.
+    {
+      matcher: "/admin/designs/:id/brief",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(DesignBriefSchema))],
+    },
+    {
+      matcher: "/admin/designs/:id/brief",
+      method: "PUT",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateDesignBriefSchema))],
+    },
+
+    // Inventory linkin on designs
 
     {
       matcher: "/admin/designs/:id/inventory",
