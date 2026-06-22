@@ -8,6 +8,7 @@ import { Form } from "../common/form"
 import { RouteFocusModal } from "../modal/route-focus-modal"
 import { useRouteModal } from "../modal/use-route-modal"
 import { getCloudflareModelWarning } from "./cloudflare-model-warning"
+import { buildApiConfig } from "./api-config"
 
 /**
  * Tailored "Create AI provider" form.
@@ -133,12 +134,9 @@ export const CreateAiPlatformComponent = () => {
   )
 
   const onSubmit = form.handleSubmit(async (values) => {
-    const apiConfig: Record<string, unknown> = {
-      api_key: values.api_key,
-    }
-    if (values.default_model) apiConfig.default_model = values.default_model
-    if (values.account_id) apiConfig.account_id = values.account_id
-    if (values.base_url) apiConfig.base_url = values.base_url
+    // Single source of truth for the AI api_config shape (#427) — the edit
+    // form builds the same blob via buildApiConfig("ai", …).
+    const apiConfig = buildApiConfig("ai", values)
 
     try {
       await mutateAsync({
