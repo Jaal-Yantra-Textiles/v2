@@ -1,3 +1,21 @@
+# [13.41.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.40.0...v13.41.0) (2026-06-22)
+
+
+### Bug Fixes
+
+* **#501:** add server-side /admin/exchange-rates proxy to fix CORS ([#614](https://github.com/Jaal-Yantra-Textiles/v2/issues/614)) ([eb701d3](https://github.com/Jaal-Yantra-Textiles/v2/commit/eb701d37640b83da3b682a042a187e0efd1e7d26))
+* **ai:** fold system prompt into user message for OpenAI-compatible providers ([#611](https://github.com/Jaal-Yantra-Textiles/v2/issues/611)) ([9b0db3e](https://github.com/Jaal-Yantra-Textiles/v2/commit/9b0db3e0db1db99d8febe730e541bf3501d4399c)), closes [#589](https://github.com/Jaal-Yantra-Textiles/v2/issues/589)
+* **#558:** raise analytics Filters popover above RouteFocusModal ([#612](https://github.com/Jaal-Yantra-Textiles/v2/issues/612)) ([cb1f842](https://github.com/Jaal-Yantra-Textiles/v2/commit/cb1f8429835fc1bfada33778113778b8f452dcb7)), closes [#558](https://github.com/Jaal-Yantra-Textiles/v2/issues/558)
+
+
+### Features
+
+* **#450:** add partner-welcome, order-feedback, payment-receipt email templates ([#618](https://github.com/Jaal-Yantra-Textiles/v2/issues/618)) ([7ca4378](https://github.com/Jaal-Yantra-Textiles/v2/commit/7ca4378f91d6ee414ebf13b5cfc6c1a0f7342879)), closes [#450](https://github.com/Jaal-Yantra-Textiles/v2/issues/450) [#450](https://github.com/Jaal-Yantra-Textiles/v2/issues/450) [#452](https://github.com/Jaal-Yantra-Textiles/v2/issues/452) [#496](https://github.com/Jaal-Yantra-Textiles/v2/issues/496)
+* **#453:** admin broadcast notifications to all/filtered partners ([#617](https://github.com/Jaal-Yantra-Textiles/v2/issues/617)) ([9cc44c0](https://github.com/Jaal-Yantra-Textiles/v2/commit/9cc44c051bca502bbec4e04f5ace4d5406537600)), closes [#453](https://github.com/Jaal-Yantra-Textiles/v2/issues/453)
+* **#568:** goals create modal, fix edit drawer crash, fix custom-goal subscriber ([#615](https://github.com/Jaal-Yantra-Textiles/v2/issues/615)) ([2e15f69](https://github.com/Jaal-Yantra-Textiles/v2/commit/2e15f6931732cc1b52d227cd6a37e2bb1dd10df0))
+* **#449:** per-partner storefront recovery URLs for abandoned carts ([#616](https://github.com/Jaal-Yantra-Textiles/v2/issues/616)) ([fb03e76](https://github.com/Jaal-Yantra-Textiles/v2/commit/fb03e7640a1ecca85b52c0d16feaddcd4a6d98e6)), closes [#449](https://github.com/Jaal-Yantra-Textiles/v2/issues/449) [#521](https://github.com/Jaal-Yantra-Textiles/v2/issues/521)
+* **589:** resolve digest AI-summary provider from External Platforms (item 4) ([#610](https://github.com/Jaal-Yantra-Textiles/v2/issues/610)) ([3bf87ac](https://github.com/Jaal-Yantra-Textiles/v2/commit/3bf87ac3a384be1bec68bf13a89dfe967a2dcac9)), closes [#589](https://github.com/Jaal-Yantra-Textiles/v2/issues/589) [#589](https://github.com/Jaal-Yantra-Textiles/v2/issues/589)
+
 # [13.40.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.39.0...v13.40.0) (2026-06-21)
 
 
