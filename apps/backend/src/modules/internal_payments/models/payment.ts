@@ -1,5 +1,6 @@
 import { model } from "@medusajs/framework/utils";
 import PaymentDetails from "./payment_details";
+import PaymentAttachment from "./payment_attachment";
 
 const Payment = model.define("internal_payments", {
   id: model.id().primaryKey(),
@@ -21,6 +22,9 @@ const Payment = model.define("internal_payments", {
   
   // Relationship with PaymentDetails
   paid_to: model.belongsTo(() => PaymentDetails, { mappedBy: "payments" }).nullable(),
+
+  // File attachments (receipts, invoices, references) — see payment_attachment.ts (#496)
+  attachments: model.hasMany(() => PaymentAttachment, { mappedBy: "payment" }),
 });
 
 export default Payment;

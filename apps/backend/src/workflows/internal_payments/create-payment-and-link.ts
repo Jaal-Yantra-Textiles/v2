@@ -15,6 +15,10 @@ import { PERSON_MODULE } from "../../modules/person"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import InternalPaymentService from "../../modules/internal_payments/service"
+import {
+  normalizePaymentAttachments,
+  type PaymentAttachmentInput,
+} from "../../modules/internal_payments/lib/normalize-attachments"
 
 export type CreatePaymentAndLinkInput = {
   payment: {
@@ -28,6 +32,8 @@ export type CreatePaymentAndLinkInput = {
   personIds?: string[]
   partnerIds?: string[]
   inventoryOrderIds?: string[]
+  // #496 — file attachments (receipts/invoices) persisted to the link table.
+  attachments?: PaymentAttachmentInput[]
 }
 
 export const createPaymentStep = createStep(
@@ -148,6 +154,34 @@ export const linkPaymentToInventoryOrdersStep = createStep(
   }
 )
 
+export const createPaymentAttachmentsStep = createStep(
+  "create-payment-attachments-step",
+  async (
+    input: { payment_id: string; attachments: PaymentAttachmentInput[] },
+    { container }
+  ) => {
+    const rows = normalizePaymentAttachments(input.attachments)
+    if (!rows.length) {
+      return new StepResponse([], [])
+    }
+
+    const service: InternalPaymentService = container.resolve(INTERNAL_PAYMENTS_MODULE)
+    const created = await service.createPaymentAttachments(
+      rows.map((row) => ({ ...row, payment_id: input.payment_id }))
+    )
+    const createdList = Array.isArray(created) ? created : [created]
+    return new StepResponse(
+      createdList,
+      createdList.map((a: any) => a.id)
+    )
+  },
+  async (ids: string[], { container }) => {
+    if (!ids?.length) return
+    const service: InternalPaymentService = container.resolve(INTERNAL_PAYMENTS_MODULE)
+    await service.deletePaymentAttachments(ids)
+  }
+)
+
 export const createPaymentAndLinkWorkflow = createWorkflow(
   "create-payment-and-link",
   (input: CreatePaymentAndLinkInput) => {
@@ -174,6 +208,13 @@ export const createPaymentAndLinkWorkflow = createWorkflow(
       })
     )
 
-    return new WorkflowResponse({ payment, personLinks, partnerLinks, inventoryOrderLinks })
+    const attachments = when(input, (i) => Boolean(i.attachments && i.attachments.length)).then(() =>
+      createPaymentAttachmentsStep({
+        payment_id: payment.id,
+        attachments: input.attachments as PaymentAttachmentInput[],
+      })
+    )
+
+    return new WorkflowResponse({ payment, personLinks, partnerLinks, inventoryOrderLinks, attachments })
   }
 )
