@@ -185,6 +185,7 @@ import { PartnerPostDesignInventoryReq, PartnerPatchDesignInventoryLinkReq, Part
 import { PartnerCreateProductionRunReq } from "./partners/designs/[designId]/production-runs/validators";
 import { PartnerPostConsumptionLogReq } from "./partners/designs/[designId]/consumption-logs/validators";
 import { PartnerPostDesignTasksReq } from "./partners/designs/[designId]/tasks/validators";
+import { DesignBriefSchema as PartnerDesignBriefSchema, UpdateDesignBriefSchema as PartnerUpdateDesignBriefSchema } from "./partners/designs/[designId]/brief/validators";
 import { PartnerPostProductionRunConsumptionLogReq } from "./partners/production-runs/[id]/consumption-logs/validators";
 import { listPartnersQuerySchema, PostPartnerSchema } from "./admin/partners/validators";
 import { AdminBroadcastNotificationSchema } from "./admin/partners/notifications/broadcast/validators";
@@ -3964,6 +3965,33 @@ export default defineMiddlewares({
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerReviseDesignSchema)),
+      ],
+    },
+    {
+      // Roadmap #604 slice C — partner reads the brief of their OWN design
+      // (mirrors GET /admin/designs/:id/brief). Ownership-guarded in handler.
+      matcher: "/partners/designs/:designId/brief",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // Roadmap #604 slice C — partner full-replaces the brief of their OWN
+      // design (mirrors POST /admin/designs/:id/brief). Ownership-guarded.
+      matcher: "/partners/designs/:designId/brief",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerDesignBriefSchema)),
+      ],
+    },
+    {
+      // Roadmap #604 slice C — partner partial-updates the brief of their OWN
+      // design (mirrors PUT /admin/designs/:id/brief). Ownership-guarded.
+      matcher: "/partners/designs/:designId/brief",
+      method: "PUT",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerUpdateDesignBriefSchema)),
       ],
     },
     {
