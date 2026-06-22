@@ -292,7 +292,12 @@ export class ShiprocketClient implements ShippingProviderClient {
   async createShipment(input: CreateShipmentInput): Promise<ShipmentResult> {
     const pickup = input.pickup_location_name || this.defaultPickup
     if (!pickup) {
-      throw new Error("Shiprocket createShipment requires a pickup_location_name")
+      // MedusaError (not a raw Error) so callers surface a clean toast, mirroring
+      // the credentials/serviceability errors. (#638)
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "Shiprocket createShipment requires a pickup_location_name"
+      )
     }
 
     const [firstName, ...rest] = (input.to.name || "Customer").split(" ")
