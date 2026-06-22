@@ -1,7 +1,7 @@
 import {
   buildRegionRequestAdminEmailData,
   resolveRegionRequestRecipient,
-} from "../region-request-admin-email"
+} from "../region-request-admin-email-lib"
 
 describe("region-request-admin-email lib (#576 slice C)", () => {
   describe("resolveRegionRequestRecipient", () => {
