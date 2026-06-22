@@ -20,12 +20,20 @@ import { createShiprocketShipmentForFulfillment } from "../../../../../workflows
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const orderId = req.params.id
+  // #641 — the Design-Orders courier picker passes the chosen courier id; when
+  // omitted, Shiprocket auto-assigns on AWB generation (prior behaviour).
+  const body = (req.body || {}) as { preferred_courier_id?: string | number }
+  const preferredCourierId =
+    body.preferred_courier_id != null && body.preferred_courier_id !== ""
+      ? body.preferred_courier_id
+      : undefined
 
   const fulfillmentId = await ensureOrderFulfillment(req.scope, orderId)
 
   const shipment = await createShiprocketShipmentForFulfillment(req.scope, {
     orderId,
     fulfillmentId,
+    preferredCourierId,
   })
 
   res.status(200).json({ shiprocket_label: shipment })

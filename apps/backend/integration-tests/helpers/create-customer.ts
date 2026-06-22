@@ -32,13 +32,18 @@ export const getCustomerAuthHeaders = async () => {
     throw new Error("No test customer has been created yet. Call createTestCustomer first.");
   }
 
+  // Sign with the SAME secret the `authenticate("customer")` middleware verifies
+  // against (process.env.JWT_SECRET) — NOT a hardcoded one. CI sets
+  // JWT_SECRET=secret; a hardcoded "supersecret" produced a token the middleware
+  // rejected as Unauthorized (passed locally only because local JWT_SECRET
+  // happens to be "supersecret").
   const token = jwt.sign(
     {
       actor_id: testCustomerCredentials.customerId,
       actor_type: "customer",
       auth_identity_id: testCustomerCredentials.authIdentityId,
     },
-    "supersecret",
+    process.env.JWT_SECRET || "supersecret",
     {
       expiresIn: "1d",
     }

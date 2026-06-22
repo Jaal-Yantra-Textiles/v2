@@ -154,11 +154,20 @@ export async function resolveShippingProvider(
         "Shiprocket credentials not configured (no shipping platform record or SHIPROCKET_EMAIL + SHIPROCKET_API_PASSWORD/SHIPROCKET_PASSWORD)"
       )
     }
+    // Tests/CI inject a deterministic transport (SHIPROCKET_STUB=1) so the
+    // in-process server never calls the real API — patching global.fetch isn't
+    // reliable across the test↔server boundary (#647). Inert otherwise.
+    const fetchImpl =
+      process.env.SHIPROCKET_STUB === "1"
+        ? require("./shiprocket/stub-fetch").createShiprocketStubFetch()
+        : undefined
+
     return new ShiprocketClient({
       email,
       password,
       pickup_location:
         cfg.pickup_location || process.env.SHIPROCKET_PICKUP_LOCATION,
+      fetchImpl,
     })
   }
 
