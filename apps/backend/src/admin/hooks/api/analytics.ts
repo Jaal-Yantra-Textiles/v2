@@ -288,7 +288,10 @@ export const useAnalyticsTimeseries = (
       const res = await sdk.client.fetch<any>(
         `/admin/analytics-events/timeseries?website_id=${websiteId}&days=${days}&interval=${interval}`
       );
-      return res.body;
+      // `sdk.client.fetch` resolves to the parsed JSON body directly (there is
+      // no `.body` wrapper) — returning `res.body` yielded `undefined`, which
+      // react-query rejects. Mirror the other analytics hooks and return `res`.
+      return res;
     },
     enabled: !!websiteId,
   });
