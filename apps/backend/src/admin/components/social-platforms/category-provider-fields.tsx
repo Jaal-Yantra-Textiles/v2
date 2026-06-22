@@ -8,6 +8,7 @@ import { AnalyticsProviderFields } from "./analytics-provider-fields"
 import { StorageProviderFields } from "./storage-provider-fields"
 import { CrmProviderFields } from "./crm-provider-fields"
 import { AuthenticationProviderFields } from "./authentication-provider-fields"
+import { AiProviderFields } from "./ai-provider-fields"
 
 type CategoryProviderFieldsProps = {
   category: string
@@ -41,6 +42,8 @@ export const CategoryProviderFields = ({
       return <CrmProviderFields control={control} watch={watch} isEditing={isEditing} />
     case "authentication":
       return <AuthenticationProviderFields control={control} watch={watch} isEditing={isEditing} />
+    case "ai":
+      return <AiProviderFields control={control} watch={watch} isEditing={isEditing} />
     default:
       return null
   }
@@ -57,6 +60,7 @@ export const CATEGORIES_WITH_PROVIDER_FIELDS = [
   "storage",
   "crm",
   "authentication",
+  "ai",
 ]
 
 /** Check if a category has provider-specific fields */

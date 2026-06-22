@@ -11,7 +11,10 @@ import type {
   ShipmentItem,
   ShipmentResult,
 } from "../../modules/shipping-providers/provider-interface"
-import { SHIPROCKET_PICKUP_METADATA_KEY } from "../../modules/shipping-providers/pickup-locations"
+import {
+  SHIPROCKET_PICKUP_METADATA_KEY,
+  chooseRegisteredPickup,
+} from "../../modules/shipping-providers/pickup-locations"
 
 /**
  * #404 (#31) PR-B — generate a Shiprocket shipment (forward order → AWB → label)
@@ -168,6 +171,28 @@ export async function createShiprocketShipmentForFulfillment(
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
       "Shiprocket provider does not support shipment creation"
+    )
+  }
+
+  // Fallback: when neither an explicit name nor the fulfillment's stock-location
+  // nickname resolves a pickup, ship from a registered Shiprocket pickup (prefer
+  // a shippable one). This is what makes Generate-Label work for converted
+  // design orders whose fulfillment landed on a non-registered stock location.
+  // (#638)
+  if (!pickupLocationName && provider.listPickupLocations) {
+    try {
+      const registered = await provider.listPickupLocations()
+      pickupLocationName = chooseRegisteredPickup(registered)?.name
+    } catch {
+      // Listing is best-effort; the guard below produces the actionable error.
+    }
+  }
+
+  if (!pickupLocationName) {
+    // A clean MedusaError (not a raw 500) so the UI shows an actionable toast. (#638)
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "No Shiprocket pickup location is configured. Register a pickup location for the order's stock location (or any Shiprocket pickup) before generating a label."
     )
   }
 

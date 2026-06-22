@@ -34,6 +34,19 @@ export function pickupNicknameForLocation(locationId: string): string {
   return `warehouse-${locationId.slice(-8)}`
 }
 
+/**
+ * Choose which registered Shiprocket pickup to ship from when a fulfillment's
+ * stock location carries no nickname. Prefer a shippable pickup; otherwise fall
+ * back to the first registered one. Returns undefined when there are none.
+ * Pure — unit-tested. (#638)
+ */
+export function chooseRegisteredPickup(
+  pickups: PickupLocation[] | undefined | null
+): PickupLocation | undefined {
+  if (!pickups?.length) return undefined
+  return pickups.find((p) => p.shippable) ?? pickups[0]
+}
+
 export type PickupRegistrationResult = {
   /** The nickname now recorded on the stock location. */
   name: string

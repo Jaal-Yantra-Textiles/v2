@@ -32,6 +32,7 @@ import {
   useConvertDesignOrder,
   useGenerateShiprocketLabel,
   useAttachShiprocketAwb,
+  useShiprocketRates,
 } from "../../../hooks/api/design-orders"
 import {
   PARTNER_STATUS_LABELS,
@@ -286,6 +287,17 @@ const OrderSection = ({
   const [labelUrl, setLabelUrl] = useState<string | null>(null)
   const [attachOpen, setAttachOpen] = useState(false)
   const [awbValue, setAwbValue] = useState("")
+  const [courierOpen, setCourierOpen] = useState(false)
+  const [selectedCourierId, setSelectedCourierId] = useState<
+    string | number | null
+  >(null)
+  const {
+    data: ratesData,
+    isLoading: isLoadingRates,
+    error: ratesError,
+  } = useShiprocketRates(order?.id ?? "", {
+    enabled: courierOpen && !!order?.id,
+  })
 
   const handleConvert = async (paymentMode: "prepaid" | "cod") => {
     const confirmed = await prompt({
@@ -348,18 +360,24 @@ const OrderSection = ({
 
   const isCanceled = !!order.canceled_at || order.status === "canceled"
 
-  const handleGenerateLabel = async () => {
-    await genLabel(undefined, {
-      onSuccess: (res) => {
-        setLabelUrl(res.shiprocket_label?.label_url || null)
-        toast.success(
-          res.shiprocket_label?.awb
-            ? `Label generated (AWB ${res.shiprocket_label.awb})`
-            : "Shipment created"
-        )
-      },
-      onError: (e) => toast.error(e.message),
-    })
+  const handleGenerateLabel = async (preferredCourierId?: string | number) => {
+    await genLabel(
+      preferredCourierId != null
+        ? { preferred_courier_id: preferredCourierId }
+        : undefined,
+      {
+        onSuccess: (res) => {
+          setLabelUrl(res.shiprocket_label?.label_url || null)
+          toast.success(
+            res.shiprocket_label?.awb
+              ? `Label generated (AWB ${res.shiprocket_label.awb})`
+              : "Shipment created"
+          )
+          setCourierOpen(false)
+        },
+        onError: (e) => toast.error(e.message),
+      }
+    )
   }
 
   const handleAttachAwb = async () => {
@@ -395,9 +413,15 @@ const OrderSection = ({
               ...(!isCanceled
                 ? [
                     {
-                      label: isLabeling ? "Generating…" : "Generate Shipping Label",
+                      label: "Choose courier & generate label",
                       icon: <HandTruck />,
-                      onClick: handleGenerateLabel,
+                      onClick: () => setCourierOpen(true),
+                      disabled: isLabeling,
+                    },
+                    {
+                      label: isLabeling ? "Generating…" : "Generate Label (auto)",
+                      icon: <HandTruck />,
+                      onClick: () => handleGenerateLabel(),
                       disabled: isLabeling,
                     },
                     {
@@ -412,6 +436,98 @@ const OrderSection = ({
           }]}
         />
       </div>
+      {courierOpen && (
+        <div className="px-6 py-4 bg-ui-bg-subtle">
+          <div className="flex items-center justify-between mb-2">
+            <Text size="xsmall" className="text-ui-fg-subtle">
+              Pick a courier (rate / ETA) then generate the label. Leave it to
+              auto-assign with the menu's “Generate Label (auto)”.
+            </Text>
+            <Button
+              variant="transparent"
+              size="small"
+              onClick={() => setCourierOpen(false)}
+            >
+              Close
+            </Button>
+          </div>
+          {isLoadingRates && (
+            <div className="flex flex-col gap-y-2">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+          )}
+          {ratesError && (
+            <Text size="small" className="text-ui-fg-error">
+              {(ratesError as any)?.message || "Couldn't load courier rates."}
+            </Text>
+          )}
+          {!isLoadingRates && !ratesError && ratesData && (
+            <div className="flex flex-col gap-y-2">
+              {ratesData.rates.length === 0 && (
+                <Text size="small" className="text-ui-fg-subtle">
+                  No couriers available for this lane (
+                  {ratesData.origin_pincode} → {ratesData.destination_pincode}).
+                </Text>
+              )}
+              {ratesData.rates.map((rate) => {
+                const id = rate.courier_id
+                const isSelected = selectedCourierId === id
+                return (
+                  <button
+                    key={String(id)}
+                    type="button"
+                    onClick={() => setSelectedCourierId(id ?? null)}
+                    className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left transition-colors ${
+                      isSelected
+                        ? "border-ui-border-interactive bg-ui-bg-base"
+                        : "border-ui-border-base bg-ui-bg-subtle hover:bg-ui-bg-base"
+                    }`}
+                  >
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-x-2">
+                        <Text size="small" weight="plus">
+                          {rate.courier_name || `Courier ${id}`}
+                        </Text>
+                        {rate.is_recommended && (
+                          <Badge size="2xsmall" color="green">
+                            Recommended
+                          </Badge>
+                        )}
+                      </div>
+                      {rate.estimated_days != null && (
+                        <Text size="xsmall" className="text-ui-fg-subtle">
+                          ~{rate.estimated_days} day
+                          {rate.estimated_days === 1 ? "" : "s"}
+                          {rate.cod_charges
+                            ? ` · COD ₹${rate.cod_charges}`
+                            : ""}
+                        </Text>
+                      )}
+                    </div>
+                    <Text size="small" weight="plus">
+                      ₹{rate.amount}
+                    </Text>
+                  </button>
+                )
+              })}
+              <div className="flex items-center gap-x-2 pt-1">
+                <Button
+                  variant="primary"
+                  size="small"
+                  isLoading={isLabeling}
+                  disabled={selectedCourierId == null}
+                  onClick={() =>
+                    handleGenerateLabel(selectedCourierId ?? undefined)
+                  }
+                >
+                  Generate Label with selected courier
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       {attachOpen && (
         <div className="px-6 py-4 bg-ui-bg-subtle">
           <Text size="xsmall" className="text-ui-fg-subtle mb-2">

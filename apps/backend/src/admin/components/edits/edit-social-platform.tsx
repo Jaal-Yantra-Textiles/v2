@@ -128,6 +128,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   storage: "Storage",
   crm: "CRM",
   authentication: "Authentication",
+  ai: "AI",
 }
 
 const EditCategoryPlatformForm = ({ socialPlatform }: EditSocialPlatformFormProps) => {
@@ -136,7 +137,17 @@ const EditCategoryPlatformForm = ({ socialPlatform }: EditSocialPlatformFormProp
   const { mutateAsync, isPending } = useUpdateSocialPlatform(socialPlatform.id);
 
   const apiConfig = socialPlatform.api_config as Record<string, any> | null;
+  const metadata = socialPlatform.metadata as Record<string, any> | null;
   const categoryLabel = CATEGORY_LABELS[socialPlatform.category] || socialPlatform.category;
+
+  // AI platforms store provider_type/role/is_default in `metadata`, not
+  // api_config — so getFormDefaultsFromApiConfig can't recover the (locked)
+  // provider_type. Seed it from metadata so the disabled Select shows the
+  // current provider instead of an empty placeholder.
+  const aiDefaults =
+    socialPlatform.category === "ai" && metadata?.provider_type
+      ? { provider_type: metadata.provider_type as string }
+      : {};
 
   const form = useForm<CategoryPlatformFormData>({
     resolver: zodResolver(categoryPlatformSchema),
@@ -156,8 +167,10 @@ const EditCategoryPlatformForm = ({ socialPlatform }: EditSocialPlatformFormProp
       secret_access_key: "",
       api_secret: "",
       webhook_signing_secret: "",
+      api_key: "",
       is_default: socialPlatform.api_config?.is_default === true,
       ...getFormDefaultsFromApiConfig(apiConfig),
+      ...aiDefaults,
     },
   });
 

@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { Button, Heading, Text, Badge, Container, Input } from "@medusajs/ui";
 import * as Popover from "@radix-ui/react-popover";
 import { clx } from "@medusajs/ui";
-import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import {
   ChartBar,
   Users,

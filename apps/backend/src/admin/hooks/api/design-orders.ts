@@ -266,6 +266,52 @@ export const useConvertDesignOrder = (
   });
 };
 
+export type ShiprocketRateOption = {
+  courier_id?: string | number;
+  courier_name?: string;
+  amount: number;
+  currency_code: string;
+  estimated_days?: number;
+  cod_charges?: number;
+  is_recommended?: boolean;
+};
+
+export type ShiprocketRatesResponse = {
+  origin_pincode: string;
+  destination_pincode: string;
+  weight_grams: number;
+  cod: boolean;
+  rates: ShiprocketRateOption[];
+};
+
+/**
+ * List the Shiprocket courier options (rate / ETA / recommended) for an order
+ * so the operator can pick a courier before generating the label. #641.
+ * Disabled until explicitly enabled (the UI fetches on demand).
+ */
+export const useShiprocketRates = (
+  orderId: string,
+  options?: Omit<
+    UseQueryOptions<
+      ShiprocketRatesResponse,
+      FetchError,
+      ShiprocketRatesResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  return useQuery({
+    queryKey: designOrdersQueryKeys.detail(`${orderId}-shiprocket-rates`),
+    queryFn: async () =>
+      sdk.client.fetch<ShiprocketRatesResponse>(
+        `/admin/orders/${orderId}/shiprocket-rates`,
+        { method: "GET" }
+      ),
+    ...options,
+  });
+};
+
 export type GenerateShiprocketLabelResponse = {
   shiprocket_label: {
     awb?: string;
@@ -276,21 +322,34 @@ export type GenerateShiprocketLabelResponse = {
   };
 };
 
+export type GenerateShiprocketLabelVariables =
+  | { preferred_courier_id?: string | number }
+  | undefined;
+
 /**
  * One-click Shiprocket label for a converted order: creates a fulfillment (or
  * reuses an existing Shiprocket one) and generates the shipment + label. #404
- * PR-C.
+ * PR-C. Optionally passes the operator-chosen `preferred_courier_id` (#641).
  */
 export const useGenerateShiprocketLabel = (
   orderId: string,
-  options?: UseMutationOptions<GenerateShiprocketLabelResponse, FetchError>
+  options?: UseMutationOptions<
+    GenerateShiprocketLabelResponse,
+    FetchError,
+    GenerateShiprocketLabelVariables
+  >
 ) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async () =>
+    mutationFn: async (variables?: GenerateShiprocketLabelVariables) =>
       sdk.client.fetch<GenerateShiprocketLabelResponse>(
         `/admin/orders/${orderId}/shiprocket-label`,
-        { method: "POST", body: {} }
+        {
+          method: "POST",
+          body: variables?.preferred_courier_id
+            ? { preferred_courier_id: variables.preferred_courier_id }
+            : {},
+        }
       ),
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
