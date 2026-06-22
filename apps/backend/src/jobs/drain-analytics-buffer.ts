@@ -6,7 +6,7 @@ import {
   getIngestRedis,
   isBatchIngestEnabled,
   orderAndDedupeBuffer,
-} from "../modules/analytics/lib/ingest-buffer";
+} from "../modules/analytics/ingest-buffer";
 
 /**
  * Drain Analytics Buffer Job (#559 slice 2).

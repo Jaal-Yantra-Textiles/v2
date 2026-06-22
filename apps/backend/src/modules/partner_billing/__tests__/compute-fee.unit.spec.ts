@@ -6,7 +6,7 @@
  * Run:
  *   TEST_TYPE=unit npx jest --testPathPattern="compute-fee"
  */
-import { computeFee, parsePlatformFeeBps } from "../lib/compute-fee"
+import { computeFee, parsePlatformFeeBps } from "../compute-fee"
 
 describe("computeFee", () => {
   describe("percentage basis (rate = basis points)", () => {

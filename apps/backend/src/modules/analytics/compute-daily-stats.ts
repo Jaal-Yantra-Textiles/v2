@@ -1,4 +1,4 @@
-import AnalyticsService from "../service"
+import AnalyticsService from "./service"
 
 export type DailyStatsRow = {
   website_id: string

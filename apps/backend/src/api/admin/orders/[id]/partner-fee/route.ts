@@ -10,7 +10,7 @@
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { PARTNER_BILLING_MODULE } from "../../../../../modules/partner_billing"
-import { describeFee } from "../../../../../modules/partner_billing/lib/describe-fee"
+import { describeFee } from "../../../../../modules/partner_billing/describe-fee"
 
 /**
  * GET /admin/orders/:id/partner-fee

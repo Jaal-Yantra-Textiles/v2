@@ -8,7 +8,7 @@ import type { WhatsAppPlatformApiConfig } from "../socials/types/whatsapp-platfo
 import {
   recordWhatsappNotification,
   type RecordWhatsappNotificationInput,
-} from "../messaging/lib/record-whatsapp-notification"
+} from "../messaging/record-whatsapp-notification"
 
 /**
  * Optional audit context callers can attach to a send. When present, the

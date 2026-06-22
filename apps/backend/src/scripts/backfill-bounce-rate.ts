@@ -2,7 +2,7 @@ import type { ExecArgs } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { ANALYTICS_MODULE } from "../modules/analytics"
 import AnalyticsService from "../modules/analytics/service"
-import { computeDailyStatsForWebsite } from "../modules/analytics/lib/compute-daily-stats"
+import { computeDailyStatsForWebsite } from "../modules/analytics/compute-daily-stats"
 
 /**
  * Backfills analytics_daily_stats rows that were written with bounce_rate=0

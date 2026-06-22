@@ -11,7 +11,7 @@ import {
   pickFeeRate,
   resolvePartnerFeeRate,
   PLATFORM_DEFAULT_FEE_BPS,
-} from "../lib/resolve-fee-rate"
+} from "../resolve-fee-rate"
 
 describe("pickFeeRate", () => {
   it("prefers a valid per-partner override over the default", () => {

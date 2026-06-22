@@ -7,7 +7,7 @@
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { PARTNER_BILLING_MODULE } from "../../../../../modules/partner_billing"
-import { summarizePartnerFees } from "../../../../../modules/partner_billing/lib/summarize-fees"
+import { summarizePartnerFees } from "../../../../../modules/partner_billing/summarize-fees"
 
 /**
  * GET /admin/partners/[id]/fees

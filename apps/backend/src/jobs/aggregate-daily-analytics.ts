@@ -4,7 +4,7 @@ import AnalyticsService from "../modules/analytics/service";
 import {
   computeDailyStatsForWebsite,
   listWebsitesWithActivity,
-} from "../modules/analytics/lib/compute-daily-stats";
+} from "../modules/analytics/compute-daily-stats";
 
 /**
  * Daily Analytics Aggregation Job

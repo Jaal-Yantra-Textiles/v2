@@ -8,7 +8,7 @@ import { ANALYTICS_MODULE } from "../../modules/analytics";
 import { Modules } from "@medusajs/framework/utils";
 import * as geoip from "geoip-lite";
 import { IEventBusService } from "@medusajs/types";
-import { resolveEventCountry } from "../../modules/analytics/lib/country-from-timezone";
+import { resolveEventCountry } from "../../modules/analytics/country-from-timezone";
 
 // Helper to parse user agent
 function parseUserAgent(userAgent: string) {

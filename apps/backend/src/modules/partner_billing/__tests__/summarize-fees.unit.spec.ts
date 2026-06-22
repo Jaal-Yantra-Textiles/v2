@@ -6,7 +6,7 @@
  * Run:
  *   TEST_TYPE=unit npx jest --testPathPattern="summarize-fees"
  */
-import { summarizePartnerFees } from "../lib/summarize-fees"
+import { summarizePartnerFees } from "../summarize-fees"
 
 describe("summarizePartnerFees", () => {
   it("returns zeroed totals for an empty / nullish input", () => {
