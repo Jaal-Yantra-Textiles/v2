@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { Button, Heading, Text, Badge, Container, Input } from "@medusajs/ui";
 import * as Popover from "@radix-ui/react-popover";
 import { clx } from "@medusajs/ui";
-import { AreaChart, Area, PieChart, Pie, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import {
   ChartBar,
   Users,
@@ -484,17 +484,10 @@ export const WebsiteAnalyticsModal = () => {
                         <Heading level="h3" className="text-sm font-medium">Traffic Sources</Heading>
                         <Text size="xsmall" className="text-ui-fg-subtle">Top 5</Text>
                       </div>
-                      <div className="p-4 flex items-center justify-center">
-                        <ResponsiveContainer width="100%" height={220}>
-                          <PieChart>
-                            <Pie data={sourcesChartData} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`} outerRadius={80} fill="#8884d8" dataKey="value">
-                              {sourcesChartData.map((_: any, index: number) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '12px' }} />
-                          </PieChart>
-                        </ResponsiveContainer>
+                      <div className="p-4">
+                        <RankedBarList
+                          items={sourcesChartData.map((s: any) => ({ name: String(s.name), value: Number(s.value) || 0 }))}
+                        />
                       </div>
                     </Container>
                   )}
@@ -680,6 +673,38 @@ function SourceRow({ source, visitors, IconComponent }: { source: string; visito
         <Text size="small">{source}</Text>
       </div>
       <Text size="small" className="text-ui-fg-subtle font-medium">{visitors}</Text>
+    </div>
+  );
+}
+
+/**
+ * OpenPanel-style ranked horizontal bar list. Medusa-token styled (no hardcoded
+ * hex) so it follows dark mode. `value` is the raw count; the bar width is scaled
+ * to the largest item and the label shows count + share-of-total %.
+ */
+function RankedBarList({ items }: { items: { name: string; value: number }[] }) {
+  const total = items.reduce((sum, it) => sum + (it.value || 0), 0);
+  const max = items.reduce((m, it) => Math.max(m, it.value || 0), 0) || 1;
+  if (items.length === 0) {
+    return <Text size="small" className="text-ui-fg-muted">No data</Text>;
+  }
+  return (
+    <div className="flex flex-col gap-y-3 w-full">
+      {items.map((item, index) => {
+        const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
+        const width = `${Math.max((item.value / max) * 100, 2)}%`;
+        return (
+          <div key={`${item.name}-${index}`} className="flex flex-col gap-y-1">
+            <div className="flex items-center justify-between text-ui-fg-subtle">
+              <Text size="small" className="font-medium text-ui-fg-base truncate pr-2">{item.name}</Text>
+              <Text size="xsmall" className="tabular-nums whitespace-nowrap">{item.value} · {pct}%</Text>
+            </div>
+            <div className="h-2 w-full rounded-full bg-ui-bg-component overflow-hidden">
+              <div className="h-full rounded-full bg-ui-fg-muted transition-all" style={{ width }} />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
