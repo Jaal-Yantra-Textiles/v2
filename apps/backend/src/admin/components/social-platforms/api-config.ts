@@ -183,6 +183,22 @@ export function buildApiConfig(
       })
       break
 
+    case "ai": {
+      // AI providers store provider_type/role/is_default in `metadata` (not
+      // api_config) — see create-ai-platform-component.tsx. So the api_config
+      // blob carries only the connection fields, and we deliberately DROP the
+      // default `provider` key so create + edit produce an identical shape.
+      const aiConfig: Record<string, any> = {
+        api_key: data.api_key,
+        default_model: data.default_model,
+        account_id: data.account_id,
+        base_url: data.base_url,
+      }
+      return Object.fromEntries(
+        Object.entries(aiConfig).filter(([_, v]) => v !== undefined && v !== "")
+      )
+    }
+
     case "google":
       // Credentials are managed in the per-row Google Business Panel after
       // creation. No api_config built here — strip the default `provider` key.
@@ -217,6 +233,8 @@ export function inferAuthType(category: string, providerType?: string): string {
       return providerType === "hubspot" ? "api_key" : "oauth2"
     case "authentication":
       return "oauth2"
+    case "ai":
+      return "bearer"
     case "google":
       return "oauth2"
     default:
