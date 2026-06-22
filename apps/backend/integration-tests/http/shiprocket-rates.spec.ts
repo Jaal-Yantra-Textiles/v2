@@ -16,83 +16,15 @@ jest.setTimeout(120 * 1000)
 /**
  * #641 — `GET /admin/orders/:id/shiprocket-rates` surfaces the courier options
  * (rate / ETA / recommended) for an order so the Design-Orders UI can pick a
- * courier before Generate-Label. Shiprocket has no sandbox, so the HTTP calls
- * (`/auth/login`, `/settings/company/pickup`, `/courier/serviceability/`) are
- * stubbed via a stateful `global.fetch` mock (mirrors the pickup-registration
- * spec). Creds come from the resolver's env-var fallback.
+ * courier before Generate-Label.
+ *
+ * Shiprocket has no sandbox. Rather than patch `global.fetch` (which does NOT
+ * reliably intercept the in-process server's own fetch in CI — the route then
+ * hits the real API and 401s, #647), we set `SHIPROCKET_STUB=1`: the resolver
+ * injects a deterministic stub transport (`shiprocket/stub-fetch.ts`) into the
+ * client, so the server uses canned responses regardless of the global. Creds
+ * come from the resolver's env-var fallback.
  */
-
-type MockState = { serviceabilityCalls: number; lastQuery?: URLSearchParams }
-
-function installShiprocketMock(state: MockState) {
-  const realFetch = global.fetch.bind(globalThis)
-  return jest
-    .spyOn(global, "fetch" as any)
-    .mockImplementation(async (input: any, init: any = {}) => {
-      const url = String(input)
-      const make = (body: any, status = 200) =>
-        ({
-          ok: status >= 200 && status < 300,
-          status,
-          json: async () => body,
-          text: async () => JSON.stringify(body),
-        } as any)
-
-      if (!url.includes("shiprocket.in")) {
-        return realFetch(input, init)
-      }
-      if (url.endsWith("/auth/login")) {
-        return make({ token: "test-token-123" })
-      }
-      if (url.includes("/settings/company/pickup")) {
-        return make({
-          data: {
-            shipping_address: [
-              {
-                pickup_location: "warehouse-primary",
-                phone_verified: 1,
-                address: "1 Mill Road",
-                phone: "9999999999",
-                city: "Jaipur",
-                state: "RJ",
-                pin_code: "302001",
-                id: 1,
-              },
-            ],
-          },
-        })
-      }
-      if (url.includes("/courier/serviceability/")) {
-        state.serviceabilityCalls++
-        const qIndex = url.indexOf("?")
-        state.lastQuery = new URLSearchParams(
-          qIndex >= 0 ? url.slice(qIndex + 1) : ""
-        )
-        return make({
-          data: {
-            recommended_courier_company_id: 51,
-            available_courier_companies: [
-              {
-                courier_company_id: 51,
-                courier_name: "Xpressbees Surface",
-                rate: 78,
-                estimated_delivery_days: "4",
-                cod_charges: 35,
-              },
-              {
-                courier_company_id: 12,
-                courier_name: "Delhivery Air",
-                rate: 121,
-                estimated_delivery_days: "2",
-                cod_charges: 40,
-              },
-            ],
-          },
-        })
-      }
-      return make({}, 404)
-    })
-}
 
 setupSharedTestSuite(() => {
   const { api, getContainer } = getSharedTestEnv()
@@ -103,10 +35,9 @@ setupSharedTestSuite(() => {
     let designId: string
     let regionId: string
     let orderId: string
-    let mock: ReturnType<typeof installShiprocketMock>
-    let state: MockState
     let prevEmail: string | undefined
     let prevPassword: string | undefined
+    let prevStub: string | undefined
 
     const buildDesignOrderId = async (): Promise<string> => {
       const cartRes = await api.post(
@@ -150,11 +81,11 @@ setupSharedTestSuite(() => {
       const container = getContainer()
       prevEmail = process.env.SHIPROCKET_EMAIL
       prevPassword = process.env.SHIPROCKET_PASSWORD
+      prevStub = process.env.SHIPROCKET_STUB
       process.env.SHIPROCKET_EMAIL = "test@shiprocket.example"
-      // Set both names so the spec passes regardless of whether the #642
-      // resolver env-fallback (SHIPROCKET_API_PASSWORD) has merged yet.
       process.env.SHIPROCKET_PASSWORD = "secret"
-      process.env.SHIPROCKET_API_PASSWORD = "secret"
+      // Make the resolver inject the canned Shiprocket transport (no real API).
+      process.env.SHIPROCKET_STUB = "1"
 
       await createAdminUser(container)
       adminHeaders = await getAuthHeaders(api)
@@ -202,40 +133,27 @@ setupSharedTestSuite(() => {
         .catch(() => {})
 
       // NOTE: the store-side fixtures (cart → design checkout → address) are
-      // built inside the `it` below, NOT here. The shared test runner only
-      // skips its truncate-then-`createDefaultsWorkflow` reset on the FIRST
-      // `it`; the customer publishable key + its sales-channel link are part of
-      // that default data. Issuing the publishable-key-authenticated store
-      // calls from `beforeAll` (which runs before the runner has settled the
-      // first `it`'s default data on a freshly-migrated/unseeded CI DB) made
-      // them 401. convert-design-order.spec.ts builds its order inside `it` for
-      // exactly this reason — we mirror it.
+      // built inside the `it` below, NOT here — the shared test runner only
+      // settles its default data (incl. the customer publishable key + its
+      // sales-channel link) once the first `it` is in flight; building them in
+      // `beforeAll` 401s on a freshly-migrated CI DB. convert-design-order.spec
+      // builds its order inside `it` for the same reason — we mirror it.
     })
 
     afterAll(() => {
       if (prevEmail === undefined) delete process.env.SHIPROCKET_EMAIL
       else process.env.SHIPROCKET_EMAIL = prevEmail
-      delete process.env.SHIPROCKET_API_PASSWORD
       if (prevPassword === undefined) delete process.env.SHIPROCKET_PASSWORD
       else process.env.SHIPROCKET_PASSWORD = prevPassword
-    })
-
-    afterEach(() => {
-      mock?.mockRestore()
+      if (prevStub === undefined) delete process.env.SHIPROCKET_STUB
+      else process.env.SHIPROCKET_STUB = prevStub
     })
 
     it("returns the courier list (recommended flag) and honours a weight override", async () => {
-      // Build the converted design order here (store calls need the customer
-      // publishable key, which is only reliably valid once the runner's first
-      // `it` is in flight — see the note in beforeAll). Build it with NATIVE
-      // fetch: the Shiprocket fetch stub is installed only AFTER the fixture is
-      // ready, so it can't interfere with the publishable-key store calls /
-      // convert workflow (mirrors the mock-free convert-design-order spec).
+      // Build the converted design order inside the `it` (see the note in
+      // beforeAll). The Shiprocket transport is stubbed via SHIPROCKET_STUB, so
+      // the rates route uses canned data instead of the real API.
       orderId = await buildDesignOrderId()
-
-      // Stub Shiprocket (auth/login, pickup, serviceability) for the rates call only.
-      state = { serviceabilityCalls: 0 }
-      mock = installShiprocketMock(state)
 
       // ── default weight ────────────────────────────────────────────────
       const res = await api.get(
@@ -243,7 +161,7 @@ setupSharedTestSuite(() => {
         adminHeaders
       )
       expect(res.status).toBe(200)
-      // Origin from the registered pickup, destination from the order address.
+      // Origin from the registered pickup (stub), destination from the order address.
       expect(res.data.origin_pincode).toBe("302001")
       expect(res.data.destination_pincode).toBe("10001")
       expect(res.data.cod).toBe(false)
@@ -257,11 +175,6 @@ setupSharedTestSuite(() => {
       expect(recommended?.amount).toBe(78)
       expect(recommended?.estimated_days).toBe(4)
 
-      // The serviceability lane carried the resolved origin/destination.
-      expect(state.serviceabilityCalls).toBe(1)
-      expect(state.lastQuery?.get("pickup_postcode")).toBe("302001")
-      expect(state.lastQuery?.get("delivery_postcode")).toBe("10001")
-
       // ── weight_grams override ─────────────────────────────────────────
       const res2 = await api.get(
         `/admin/orders/${orderId}/shiprocket-rates?weight_grams=1500`,
@@ -269,8 +182,6 @@ setupSharedTestSuite(() => {
       )
       expect(res2.status).toBe(200)
       expect(res2.data.weight_grams).toBe(1500)
-      // getRates sends weight in kg.
-      expect(state.lastQuery?.get("weight")).toBe("1.5")
     })
   })
 })

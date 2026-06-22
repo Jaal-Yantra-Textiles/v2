@@ -28,6 +28,11 @@ import { MedusaError } from "@medusajs/framework/utils"
 
 const BASE_URL = "https://apiv2.shiprocket.in/v1/external"
 
+/** The subset of `fetch` the client uses — injectable so tests/CI can supply a
+ *  deterministic transport instead of patching the global (which doesn't reliably
+ *  cross the test ↔ in-process-server boundary). See `stub-fetch.ts`. (#647) */
+export type FetchLike = (input: any, init?: any) => Promise<any>
+
 export type ShiprocketOptions = {
   email: string
   password: string
@@ -35,6 +40,8 @@ export type ShiprocketOptions = {
   pickup_location?: string
   /** Inject a token to skip the login round-trip (e.g. cached). */
   token?: string
+  /** Injectable transport (defaults to the global fetch). Used to stub the API. */
+  fetchImpl?: FetchLike
 }
 
 /**
@@ -184,18 +191,23 @@ export class ShiprocketClient implements ShippingProviderClient {
   private password: string
   private defaultPickup?: string
   private token?: string
+  private fetchImpl: FetchLike
 
   constructor(options: ShiprocketOptions) {
     this.email = options.email
     this.password = options.password
     this.defaultPickup = options.pickup_location
     this.token = options.token
+    // Default to the global fetch (wrapped so it's never called with a bound
+    // `this`, which undici rejects). Tests inject a stub transport instead.
+    this.fetchImpl =
+      options.fetchImpl ?? ((input, init) => globalThis.fetch(input, init))
   }
 
   /** Authenticate (or reuse an injected token). Token TTL is ~10 days. */
   private async authenticate(force = false): Promise<string> {
     if (this.token && !force) return this.token
-    const res = await fetch(`${BASE_URL}/auth/login`, {
+    const res = await this.fetchImpl(`${BASE_URL}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: this.email, password: this.password }),
@@ -223,7 +235,7 @@ export class ShiprocketClient implements ShippingProviderClient {
     retryOn401 = true
   ): Promise<T> {
     const token = await this.authenticate()
-    const res = await fetch(`${BASE_URL}${path}`, {
+    const res = await this.fetchImpl(`${BASE_URL}${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
