@@ -86,6 +86,8 @@ export class DelhiveryProviderAdapter implements ShippingProviderClient {
       seller_city: input.from?.city,
       seller_pin: input.from?.pincode,
       seller_state: input.from?.state,
+      // Seller GST registration (#348): partner-own → platform-by-country fallback.
+      seller_gst_tin: input.tax_id || undefined,
     })
 
     const awb =

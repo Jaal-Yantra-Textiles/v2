@@ -473,5 +473,8 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/unified_order_status",
   },
+  {
+    resolve: "./src/modules/platform-tax-identity",
+  },
 ],
 });
