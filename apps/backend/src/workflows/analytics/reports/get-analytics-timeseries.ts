@@ -30,13 +30,20 @@ export const getAnalyticsTimeseriesStep = createStep(
     const analyticsService = container.resolve(ANALYTICS_MODULE) as any;
     const interval = input.interval || "day";
 
+    // Workflow input is serialized to JSON for durability, so `start_date` /
+    // `end_date` arrive as ISO strings — normalize back to Date objects.
+    // Without this, the fill-loop below compared `Date <= string` (→ NaN), so
+    // it never ran and the endpoint returned zero buckets (#569 S8).
+    const startDate = new Date(input.start_date);
+    const endDate = new Date(input.end_date);
+
     // Fetch all events for the period
     const [events] = await analyticsService.listAndCountAnalyticsEvents(
       {
         website_id: input.website_id,
         timestamp: {
-          $gte: input.start_date,
-          $lte: input.end_date,
+          $gte: startDate,
+          $lte: endDate,
         },
       },
       {
@@ -86,9 +93,9 @@ export const getAnalyticsTimeseriesStep = createStep(
 
     // Fill in missing intervals with zeros
     const timeseries: TimeseriesDataPoint[] = [];
-    const current = new Date(input.start_date);
-    
-    while (current <= input.end_date) {
+    const current = new Date(startDate);
+
+    while (current <= endDate) {
       let key: string;
       if (interval === "hour") {
         current.setMinutes(0, 0, 0);

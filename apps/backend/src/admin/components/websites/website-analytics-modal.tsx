@@ -25,6 +25,10 @@ import { useWebsiteAnalytics, AnalyticsFilters } from "../../hooks/api/analytics
 import { AnalyticsCountryMap } from "./analytics-country-map";
 import { AnalyticsBreakdownSection } from "./analytics-breakdown-section";
 import { AnalyticsTop404Card } from "./analytics-top-404-card";
+import { AnalyticsEntryExitPagesCard } from "./analytics-entry-exit-pages-card";
+import { AnalyticsOutboundLinksCard } from "./analytics-outbound-links-card";
+import { AnalyticsSessionsCard } from "./analytics-sessions-card";
+import { AnalyticsVisitorsTimeseriesCard } from "./analytics-visitors-timeseries-card";
 
 function getSourceIcon(source: string) {
   const s = source.toLowerCase();
@@ -285,22 +289,8 @@ export const WebsiteAnalyticsModal = () => {
     + (filters.from ? 1 : 0);
 
   // Process chart data
-  const { timeSeriesData, sourcesChartData, countriesData } = useMemo(() => {
-    if (!data?.recent_events?.length) return { timeSeriesData: [], sourcesChartData: [], countriesData: [] };
-
-    const eventsByDate = data.recent_events.reduce((acc: any, event: any) => {
-      const date = new Date(event.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      if (!acc[date]) acc[date] = { date, pageviews: 0, visitors: new Set() };
-      acc[date].pageviews++;
-      if (event.visitor_id) acc[date].visitors.add(event.visitor_id);
-      return acc;
-    }, {});
-
-    const timeSeriesData = Object.values(eventsByDate).map((day: any) => ({
-      date: day.date,
-      pageviews: day.pageviews,
-      visitors: day.visitors.size,
-    })).slice(-14);
+  const { sourcesChartData, countriesData } = useMemo(() => {
+    if (!data?.recent_events?.length) return { sourcesChartData: [], countriesData: [] };
 
     const sourceGroups = data.recent_events.reduce((acc: any, event: any) => {
       const source = event.referrer_source || "direct";
@@ -323,7 +313,7 @@ export const WebsiteAnalyticsModal = () => {
       .map(([country, visitors]) => ({ country, visitors: visitors as number }))
       .sort((a: any, b: any) => b.visitors - a.visitors);
 
-    return { timeSeriesData, sourcesChartData, countriesData };
+    return { sourcesChartData, countriesData };
   }, [data]);
 
   const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'];
@@ -447,37 +437,9 @@ export const WebsiteAnalyticsModal = () => {
             </div>
 
             <div className="px-6 pb-6 flex flex-col gap-y-6">
-              {timeSeriesData.length > 0 && (
+              {(
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-in fade-in duration-500">
-                  <Container className="p-0 overflow-hidden rounded-lg border border-ui-border-base bg-ui-bg-base">
-                    <div className="p-4 border-b border-ui-border-base flex items-center justify-between">
-                      <Heading level="h3" className="text-sm font-medium">Visitors</Heading>
-                      <Text size="xsmall" className="text-ui-fg-subtle">Last 14 days</Text>
-                    </div>
-                    <div className="p-4">
-                      <ResponsiveContainer width="100%" height={220}>
-                        <AreaChart data={timeSeriesData}>
-                          <defs>
-                            <linearGradient id="colorVisitors" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                            </linearGradient>
-                            <linearGradient id="colorPageviews" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                              <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="#9ca3af" />
-                          <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" />
-                          <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '12px' }} />
-                          <Legend wrapperStyle={{ fontSize: '12px' }} />
-                          <Area type="monotone" dataKey="visitors" stroke="#3b82f6" fillOpacity={1} fill="url(#colorVisitors)" name="Visitors" />
-                          <Area type="monotone" dataKey="pageviews" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorPageviews)" name="Pageviews" />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Container>
+                  <AnalyticsVisitorsTimeseriesCard websiteId={id!} days={currentDays} />
 
                   {sourcesChartData.length > 0 && (
                     <Container className="p-0 overflow-hidden rounded-lg border border-ui-border-base bg-ui-bg-base">
@@ -623,9 +585,24 @@ export const WebsiteAnalyticsModal = () => {
                 </Container>
               )}
 
+              {/* #569 S2b — Entry & Exit pages */}
+              {id && (
+                <AnalyticsEntryExitPagesCard websiteId={id} days={currentDays} />
+              )}
+
+              {/* #569 S5b — Outbound links */}
+              {id && (
+                <AnalyticsOutboundLinksCard websiteId={id} days={currentDays} />
+              )}
+
               {/* #569 S4 — Top 404s (broken links) */}
               {id && (
                 <AnalyticsTop404Card websiteId={id} days={currentDays} />
+              )}
+
+              {/* #569 S7b — Sessions DataTable */}
+              {id && (
+                <AnalyticsSessionsCard websiteId={id} days={currentDays} />
               )}
 
               {/* #559 slice 4 — OpenPanel-style breakdown explorer */}
