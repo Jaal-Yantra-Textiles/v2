@@ -201,8 +201,15 @@ setupSharedTestSuite(() => {
         })
         .catch(() => {})
 
-      // One converted design order, reused (read-only) across both tests.
-      orderId = await buildDesignOrderId()
+      // NOTE: the store-side fixtures (cart → design checkout → address) are
+      // built inside the `it` below, NOT here. The shared test runner only
+      // skips its truncate-then-`createDefaultsWorkflow` reset on the FIRST
+      // `it`; the customer publishable key + its sales-channel link are part of
+      // that default data. Issuing the publishable-key-authenticated store
+      // calls from `beforeAll` (which runs before the runner has settled the
+      // first `it`'s default data on a freshly-migrated/unseeded CI DB) made
+      // them 401. convert-design-order.spec.ts builds its order inside `it` for
+      // exactly this reason — we mirror it.
     })
 
     afterAll(() => {
@@ -223,6 +230,11 @@ setupSharedTestSuite(() => {
     })
 
     it("returns the courier list (recommended flag) and honours a weight override", async () => {
+      // Build the converted design order here (store calls need the customer
+      // publishable key, which is only reliably valid once the runner's first
+      // `it` is in flight — see the note in beforeAll).
+      orderId = await buildDesignOrderId()
+
       // ── default weight ────────────────────────────────────────────────
       const res = await api.get(
         `/admin/orders/${orderId}/shiprocket-rates`,
