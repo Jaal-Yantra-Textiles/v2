@@ -1,7 +1,7 @@
 import {
   shouldSendCustomerCancellationEmail,
   buildOrderCanceledCustomerEmailData,
-} from "../order-canceled-customer-email"
+} from "../order-canceled-customer-email-lib"
 
 /**
  * #576 slice A — pure helpers for the customer order-cancellation email.

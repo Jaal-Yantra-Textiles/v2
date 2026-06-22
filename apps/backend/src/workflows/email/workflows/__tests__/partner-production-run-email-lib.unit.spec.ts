@@ -2,7 +2,7 @@ import {
   buildPartnerProductionRunTemplateData,
   derivePartnerFromEmail,
   resolvePartnerProductionRunTemplateKey,
-} from "../partner-production-run-email"
+} from "../partner-production-run-email-lib"
 
 /**
  * #576 slice B — pure helpers for the partner production-run lifecycle email.

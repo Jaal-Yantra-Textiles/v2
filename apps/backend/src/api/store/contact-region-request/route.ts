@@ -9,7 +9,7 @@ import { sendRegionRequestAdminEmailWorkflow } from "../../../workflows/email/wo
 import {
   buildRegionRequestAdminEmailData,
   resolveRegionRequestRecipient,
-} from "../../../workflows/email/lib/region-request-admin-email"
+} from "../../../workflows/email/workflows/region-request-admin-email-lib"
 
 /**
  * POST /store/contact-region-request

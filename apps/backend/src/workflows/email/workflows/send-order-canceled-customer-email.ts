@@ -3,7 +3,7 @@ import { Modules } from "@medusajs/framework/utils"
 import type { IOrderModuleService } from "@medusajs/types"
 import { sendNotificationEmailStep } from "../steps/send-notification-email"
 import { fetchEmailTemplateStep } from "../steps/fetch-email-template"
-import { buildOrderCanceledCustomerEmailData } from "../lib/order-canceled-customer-email"
+import { buildOrderCanceledCustomerEmailData } from "./order-canceled-customer-email-lib"
 
 const retrieveOrderStep = createStep(
   { name: "retrieve-order-for-cancellation", store: true },

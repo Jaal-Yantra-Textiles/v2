@@ -3,7 +3,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { IOrderModuleService, Logger } from "@medusajs/types"
 import { sendPartnerOrderCanceledWorkflow } from "../workflows/email/workflows/send-partner-order-email"
 import { sendOrderCanceledCustomerEmailWorkflow } from "../workflows/email/workflows/send-order-canceled-customer-email"
-import { shouldSendCustomerCancellationEmail } from "../workflows/email/lib/order-canceled-customer-email"
+import { shouldSendCustomerCancellationEmail } from "../workflows/email/workflows/order-canceled-customer-email-lib"
 
 export default async function orderCanceledHandler({
   event: { data },

@@ -4,7 +4,7 @@ import { sendRegionRequestAdminEmailWorkflow } from "../../src/workflows/email/w
 import {
   buildRegionRequestAdminEmailData,
   resolveRegionRequestRecipient,
-} from "../../src/workflows/email/lib/region-request-admin-email"
+} from "../../src/workflows/email/workflows/region-request-admin-email-lib"
 
 jest.setTimeout(60 * 1000)
 

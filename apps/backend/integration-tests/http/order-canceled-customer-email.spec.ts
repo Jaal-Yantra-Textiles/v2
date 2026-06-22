@@ -5,7 +5,7 @@ import { setupSharedTestSuite, getSharedTestEnv } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { seedCommonEmailTemplates } from "../helpers/seed-email-templates"
 import { sendOrderCanceledCustomerEmailWorkflow } from "../../src/workflows/email/workflows/send-order-canceled-customer-email"
-import { shouldSendCustomerCancellationEmail } from "../../src/workflows/email/lib/order-canceled-customer-email"
+import { shouldSendCustomerCancellationEmail } from "../../src/workflows/email/workflows/order-canceled-customer-email-lib"
 
 jest.setTimeout(60 * 1000)
 

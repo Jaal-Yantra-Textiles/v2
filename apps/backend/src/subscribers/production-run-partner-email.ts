@@ -5,7 +5,7 @@ import { sendPartnerProductionRunEmailWorkflow } from "../workflows/email/workfl
 import {
   resolvePartnerProductionRunTemplateKey,
   type ProductionRunEmailAction,
-} from "../workflows/email/lib/partner-production-run-email"
+} from "../workflows/email/workflows/partner-production-run-email-lib"
 
 /**
  * #576 slice B — email the owning partner's active admins when a production run

@@ -18,7 +18,7 @@ import {
   derivePartnerFromEmail,
   resolvePartnerProductionRunTemplateKey,
   type ProductionRunEmailAction,
-} from "../lib/partner-production-run-email"
+} from "./partner-production-run-email-lib"
 
 // ---------------------------------------------------------------------------
 // Step: resolve partner (from the run when the event omits partner_id) + active

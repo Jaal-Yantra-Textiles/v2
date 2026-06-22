@@ -11,8 +11,8 @@
  *   - derives rule-based, thresholded "how to boost sales" suggestions.
  *
  * Co-located as `*-lib.ts` next to the workflow on purpose — these are NOT
- * email helpers (do not move into workflows/email/lib; that tree is being
- * dissolved per #578).
+ * email helpers (#578 dissolved the old `workflows/email/lib/` tree; email
+ * helpers now live as `*-lib.ts` next to their `send-*.ts` workflow).
  */
 
 // ---------------------------------------------------------------------------

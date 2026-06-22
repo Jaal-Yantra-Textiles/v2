@@ -4,11 +4,12 @@
  * Framework-free so the Handlebars template-data assembly + from-address
  * derivation are unit-testable without booting Medusa or a mail provider.
  *
- * Co-located as `*-lib.ts` next to the digest workflow on purpose — NOT placed
- * under `workflows/email/lib/` (that tree is being dissolved per #578). The
- * tiny `derivePartnerFromEmail` helper is re-implemented here (rather than
- * imported from `workflows/email/lib/partner-task-email.ts`) so this slice has
- * no dependency on a directory scheduled for removal.
+ * Co-located as `*-lib.ts` next to the digest workflow on purpose, matching the
+ * `*-lib.ts` co-location convention (#578 dissolved the old `workflows/email/lib/`
+ * tree; helpers now sit next to their `send-*.ts` workflow). The tiny
+ * `derivePartnerFromEmail` helper is re-implemented here (rather than imported
+ * from `workflows/email/workflows/partner-task-email-lib.ts`) so this slice
+ * stays self-contained.
  */
 
 import type {

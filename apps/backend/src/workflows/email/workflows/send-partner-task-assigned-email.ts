@@ -16,7 +16,7 @@ import EmailTemplatesService from "../../../modules/email_templates/service"
 import {
   buildPartnerTaskTemplateData,
   derivePartnerFromEmail,
-} from "../lib/partner-task-email"
+} from "./partner-task-email-lib"
 
 // ---------------------------------------------------------------------------
 // Step: resolve partner + active admins + task, compile the DB template and

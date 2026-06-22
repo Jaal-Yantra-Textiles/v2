@@ -1,7 +1,7 @@
 import {
   buildPartnerTaskTemplateData,
   derivePartnerFromEmail,
-} from "../partner-task-email"
+} from "../partner-task-email-lib"
 
 /**
  * #332 — pure helpers for the partner "task assigned" email.
