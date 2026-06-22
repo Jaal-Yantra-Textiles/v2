@@ -419,6 +419,30 @@ export const WebsiteAnalyticsModal = () => {
                   icon={ChartBar}
                 />
               </div>
+
+              {/* Session-derived engagement metrics (#569 S1b) */}
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mt-4">
+                <MetricCard
+                  label="BOUNCE RATE"
+                  value={`${Math.round((data.stats.bounce_rate ?? 0) * 100)}%`}
+                  icon={ArrowUpRightOnBox}
+                />
+                <MetricCard
+                  label="AVG. DURATION"
+                  value={formatDuration(data.stats.avg_session_duration ?? 0)}
+                  icon={ChartBar}
+                />
+                <MetricCard
+                  label="PAGES / SESSION"
+                  value={(data.stats.pages_per_session ?? 0).toFixed(2)}
+                  icon={Eye}
+                />
+                <MetricCard
+                  label="TOTAL SESSIONS"
+                  value={(data.stats.total_sessions ?? data.stats.unique_sessions).toLocaleString()}
+                  icon={ArrowPath}
+                />
+              </div>
             </div>
 
             <div className="px-6 pb-6 flex flex-col gap-y-6">
@@ -624,6 +648,15 @@ export const WebsiteAnalyticsModal = () => {
     </RouteFocusModal>
   );
 };
+
+/** Format a duration in seconds as "Xm Ys" (or "Ys" under a minute). */
+function formatDuration(seconds: number): string {
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  if (total < 60) return `${total}s`;
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+}
 
 function MetricCard({ label, value, icon: IconComponent }: { label: string; value: string; icon: React.ComponentType<any> }) {
   return (
