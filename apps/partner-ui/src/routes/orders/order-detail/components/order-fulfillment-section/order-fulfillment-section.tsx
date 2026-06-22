@@ -34,6 +34,10 @@ import {
   useMarkOrderFulfillmentAsDelivered,
   useSchedulePickup,
 } from "../../../../../hooks/api/orders"
+import {
+  useAttachShiprocketAwb,
+  useGenerateShiprocketLabel,
+} from "../../../../../hooks/api/shiprocket"
 import { useStockLocation } from "../../../../../hooks/api/stock-locations"
 import { formatProvider } from "../../../../../lib/format-provider"
 import { getLocaleAmount } from "../../../../../lib/money-amount-helpers"
@@ -320,6 +324,53 @@ const Fulfillment = ({
       }
     } catch {
       toast.error("Failed to fetch label")
+    }
+  }
+
+  // Shiprocket carrier actions (#639) — partner parity with admin Design-Orders.
+  // Available only while the fulfillment has no waybill yet and isn't canceled.
+  const [showAttachAwb, setShowAttachAwb] = useState(false)
+  const [awbInput, setAwbInput] = useState("")
+
+  const { mutateAsync: generateShiprocketLabel, isPending: isGeneratingLabel } =
+    useGenerateShiprocketLabel(order.id)
+  const { mutateAsync: attachShiprocketAwb, isPending: isAttachingAwb } =
+    useAttachShiprocketAwb(order.id)
+
+  const showShiprocketCarrierActions =
+    !hasWaybill &&
+    !fulfillment.canceled_at &&
+    !fulfillment.delivered_at &&
+    fulfillment.requires_shipping &&
+    !isPickUpFulfillment
+
+  const handleGenerateShiprocketLabel = async () => {
+    try {
+      const res = await generateShiprocketLabel(undefined)
+      const awb = res?.shiprocket_label?.awb || res?.shiprocket_label?.tracking_number
+      toast.success(
+        awb ? `Shiprocket label generated — AWB ${awb}` : "Shiprocket label generated"
+      )
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to generate Shiprocket label")
+    }
+  }
+
+  const handleAttachShiprocketAwb = async () => {
+    const awb = awbInput.trim()
+    if (!awb) {
+      toast.error("Please enter an AWB number")
+      return
+    }
+    try {
+      const res = await attachShiprocketAwb(awb)
+      toast.success(
+        `AWB ${res?.shiprocket_awb?.awb} attached (${res?.shiprocket_awb?.synced_state})`
+      )
+      setShowAttachAwb(false)
+      setAwbInput("")
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to attach AWB")
     }
   }
 
@@ -624,8 +675,71 @@ const Fulfillment = ({
         </Drawer.Content>
       </Drawer>
 
-      {(showShippingButton || showDeliveryButton || hasWaybill || showPickupButton) && (
+      {/* Attach existing Shiprocket AWB (#639) */}
+      <Drawer open={showAttachAwb} onOpenChange={setShowAttachAwb}>
+        <Drawer.Content>
+          <Drawer.Header>
+            <Drawer.Title>Attach existing AWB</Drawer.Title>
+            <Drawer.Description>
+              Link a Shiprocket AWB that was generated outside this system to this
+              fulfillment. We look it up, stamp it on, and sync the status.
+            </Drawer.Description>
+          </Drawer.Header>
+          <Drawer.Body className="flex flex-col gap-y-4 overflow-y-auto">
+            <div>
+              <Label size="xsmall">AWB number</Label>
+              <Input
+                value={awbInput}
+                onChange={(e) => setAwbInput(e.target.value)}
+                placeholder="e.g. 14112363690867"
+                size="small"
+              />
+            </div>
+          </Drawer.Body>
+          <Drawer.Footer>
+            <Button
+              onClick={() => setShowAttachAwb(false)}
+              variant="secondary"
+              size="small"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAttachShiprocketAwb}
+              variant="primary"
+              size="small"
+              isLoading={isAttachingAwb}
+            >
+              Attach AWB
+            </Button>
+          </Drawer.Footer>
+        </Drawer.Content>
+      </Drawer>
+
+      {(showShippingButton ||
+        showDeliveryButton ||
+        hasWaybill ||
+        showPickupButton ||
+        showShiprocketCarrierActions) && (
         <div className="bg-ui-bg-subtle flex items-center justify-end gap-x-2 rounded-b-xl px-4 py-4">
+          {showShiprocketCarrierActions && (
+            <>
+              <Button
+                onClick={() => setShowAttachAwb(true)}
+                variant="secondary"
+              >
+                Attach AWB
+              </Button>
+              <Button
+                onClick={handleGenerateShiprocketLabel}
+                variant="secondary"
+                isLoading={isGeneratingLabel}
+              >
+                Generate Shiprocket Label
+              </Button>
+            </>
+          )}
+
           {hasWaybill && !fulfillment.canceled_at && (
             <Button
               onClick={handleFetchLabel}
