@@ -26,6 +26,7 @@ import { AnalyticsCountryMap } from "./analytics-country-map";
 import { AnalyticsBreakdownSection } from "./analytics-breakdown-section";
 import { AnalyticsTop404Card } from "./analytics-top-404-card";
 import { AnalyticsEntryExitPagesCard } from "./analytics-entry-exit-pages-card";
+import { AnalyticsOutboundLinksCard } from "./analytics-outbound-links-card";
 
 function getSourceIcon(source: string) {
   const s = source.toLowerCase();
@@ -627,6 +628,11 @@ export const WebsiteAnalyticsModal = () => {
               {/* #569 S2b — Entry & Exit pages */}
               {id && (
                 <AnalyticsEntryExitPagesCard websiteId={id} days={currentDays} />
+              )}
+
+              {/* #569 S5b — Outbound links */}
+              {id && (
+                <AnalyticsOutboundLinksCard websiteId={id} days={currentDays} />
               )}
 
               {/* #569 S4 — Top 404s (broken links) */}

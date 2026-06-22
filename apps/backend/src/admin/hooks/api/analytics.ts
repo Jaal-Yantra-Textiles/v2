@@ -144,6 +144,49 @@ export const useWebsiteAnalyticsPages = (
   });
 };
 
+// Outbound link clicks breakdown (#569 S5b) — consumes
+// GET /admin/websites/:id/analytics/outbound (PR #569 S5a backend). Returns
+// the website's external-link (`link_out`) clicks ranked by destination href
+// in the selected window. Envelope mirrors the events breakdown but counts the
+// `link_out` custom events.
+export interface OutboundLinkBucket {
+  value: string;
+  count: number;
+  unique_visitors: number;
+  percentage: number;
+}
+
+export interface OutboundLinksBreakdown {
+  total_events: number;
+  total_unique_visitors: number;
+  results: OutboundLinkBucket[];
+}
+
+export interface WebsiteAnalyticsOutboundResponse {
+  website_id: string;
+  period: { start_date?: string; end_date?: string; days?: number };
+  outbound_links: OutboundLinksBreakdown;
+}
+
+export const useWebsiteAnalyticsOutbound = (
+  websiteId: string,
+  options?: { days?: number; limit?: number }
+) => {
+  return useQuery({
+    queryKey: ["website-analytics-outbound", websiteId, options],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (options?.days != null) params.set("days", String(options.days));
+      if (options?.limit != null) params.set("limit", String(options.limit));
+      const res = await sdk.client.fetch<WebsiteAnalyticsOutboundResponse>(
+        `/admin/websites/${websiteId}/analytics/outbound?${params.toString()}`
+      );
+      return res as WebsiteAnalyticsOutboundResponse;
+    },
+    enabled: !!websiteId,
+  });
+};
+
 // Hook to fetch analytics stats
 export const useAnalyticsStats = (websiteId: string, days: number = 30) => {
   return useQuery({
