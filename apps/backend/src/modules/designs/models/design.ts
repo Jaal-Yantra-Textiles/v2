@@ -50,6 +50,23 @@ const Design = model.define("design", {
   cost_breakdown: model.json().nullable(), // Structured: { items: [{ inventory_item_id, title, quantity, unit_cost, line_total, cost_source }], calculated_at, source }
   cost_currency: model.text().nullable(), // e.g. "inr"
   designer_notes: model.text().translatable().nullable(),
+  // Design brief / collection concept (roadmap #604).
+  // Section 1 (Core Identity): a short story/title distinct from the longer
+  // free-text `description` ("90s Tokyo Streetwear").
+  concept_theme: model.text().translatable().nullable(),
+  // Section 2 (Target Audience & Market Positioning) — JSON value objects,
+  // read+written as a whole through the design update route (NOT independently
+  // mutated rows, NOT metadata, so the metadata-replace hazard does not apply).
+  persona: model.json().nullable(),        // { age_range, lifestyle, values[], pain_points[] }
+  competitors: model.json().nullable(),    // [{ name, url?, differentiator }]
+  price_point: model.enum([
+    "luxury",
+    "mid_market",
+    "budget",
+  ]).nullable(),                           // positioning tier, distinct from the *_cost budget fields
+  // Section 3 (Timeline & Budget) — the design-phase budget, deliberately
+  // separate from material/production manufacturing cost. Reuses cost_currency.
+  design_budget: model.bigNumber().nullable(),
   feedback_history: model.json().nullable(), // Track feedback and changes
   revised_from_id: model.text().nullable(),
   revision_number: model.number().default(1),
