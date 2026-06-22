@@ -37,6 +37,13 @@ export interface WebsiteAnalyticsResponse {
     total_custom_events: number;
     unique_visitors: number;
     unique_sessions: number;
+    // Session-derived engagement metrics (#569 S1) — returned by the
+    // overview workflow; optional for backwards-compat with older payloads.
+    total_sessions?: number;
+    bounce_rate?: number;
+    avg_session_duration?: number;
+    pages_per_session?: number;
+    views_per_visitor?: number;
   };
   recent_events: Array<{
     id: string;
