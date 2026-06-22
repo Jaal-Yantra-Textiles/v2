@@ -4167,6 +4167,25 @@ export default defineMiddlewares({
       ],
     },
     {
+      // #639 — partner Shiprocket parity: generate a carrier label / attach an
+      // existing AWB for the partner's own order. Ownership is enforced inside
+      // the handler (validatePartnerOrderOwnership).
+      matcher: "/partners/orders/:id/shiprocket-label",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/orders/:id/shiprocket-attach-awb",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       matcher: "/partners/orders/:id/fulfillments/:fulfillmentId/cancel",
       method: "POST",
       middlewares: [
