@@ -8,7 +8,7 @@ import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework";
 import { AD_PLANNING_MODULE } from "../../modules/ad-planning";
 import { trackConversionWorkflow } from "../../workflows/ad-planning/conversions/track-conversion";
 import { resolveSessionAttributionWorkflow } from "../../workflows/ad-planning/attribution/resolve-session-attribution";
-import { findMatchingCustomGoal } from "./match-custom-goal";
+import { findMatchingCustomGoal } from "../../modules/ad-planning/utils/match-custom-goal";
 
 type AnalyticsEventCreatedEvent = {
   id: string;
