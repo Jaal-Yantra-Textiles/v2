@@ -1,4 +1,4 @@
-import { findMatchingCustomGoal } from "../match-custom-goal"
+import { findMatchingCustomGoal } from "../utils/match-custom-goal"
 
 describe("findMatchingCustomGoal (#568)", () => {
   const goals = [
