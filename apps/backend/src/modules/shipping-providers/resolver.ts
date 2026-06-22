@@ -145,11 +145,13 @@ export async function resolveShippingProvider(
     const email =
       cfg.email || cfg.username || process.env.SHIPROCKET_EMAIL
     const password =
-      readSecret(cfg, "password", encryption) || process.env.SHIPROCKET_PASSWORD
+      readSecret(cfg, "password", encryption) ||
+      process.env.SHIPROCKET_PASSWORD ||
+      process.env.SHIPROCKET_API_PASSWORD
     if (!email || !password) {
       throw new MedusaError(
         MedusaError.Types.UNEXPECTED_STATE,
-        "Shiprocket credentials not configured (no shipping platform record or SHIPROCKET_EMAIL/SHIPROCKET_PASSWORD)"
+        "Shiprocket credentials not configured (no shipping platform record or SHIPROCKET_EMAIL + SHIPROCKET_API_PASSWORD/SHIPROCKET_PASSWORD)"
       )
     }
     return new ShiprocketClient({
