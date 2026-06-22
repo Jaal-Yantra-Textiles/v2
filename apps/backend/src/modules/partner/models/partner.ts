@@ -21,6 +21,13 @@ const Partner = model.define("partner", {
     whatsapp_number: model.text().nullable(),
     whatsapp_verified: model.boolean().default(false),
 
+    // Legal / billing identity — partner's own tax / GST / registration ID.
+    // When null, invoice/label generation falls back to the platform (JYT/KHT)
+    // tax ID so documents stay legally valid (see tax-id-lib.ts, issue #348).
+    // Typed column (NOT metadata) because it is load-bearing for compliance.
+    tax_id: model.text().nullable(),
+    tax_id_type: model.text().nullable(), // e.g. "GSTIN", "VAT", "PAN"
+
     // Storefront
     storefront_domain: model.text().nullable(),
     website_id: model.text().nullable(),
