@@ -34,18 +34,30 @@ function clean(value?: string | null): string | null {
 /**
  * Load the active platform tax identities (best-effort → [] on any error).
  *
- * Resolved via the module service rather than `query.graph` — the custom module
- * is not registered in the remote-query index, so a graph read returns nothing.
+ * Read via `query.graph` — the idiomatic Medusa fetch, resolved from the Medusa
+ * container. The `platform_tax_identity` module is a standard `model.define`
+ * registration, so it IS exposed to the remote-query index (verified: a graph
+ * read returns the seeded rows). We list all rows and let the pure resolver skip
+ * inactive ones — boolean filters resolve unreliably across container scopes.
  */
 async function loadActiveIdentities(
   container: MedusaContainer
 ): Promise<PlatformTaxIdentityRow[]> {
   try {
-    const service: any = container.resolve(PLATFORM_TAX_IDENTITY_MODULE)
-    // List all rows; the pure resolver skips inactive ones. (A boolean
-    // `{ is_active: true }` filter resolved unreliably across container scopes.)
-    const rows = await service.listPlatformTaxIdentities()
-    return (rows ?? []) as PlatformTaxIdentityRow[]
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+      entity: PLATFORM_TAX_IDENTITY_MODULE,
+      fields: [
+        "id",
+        "brand_code",
+        "legal_name",
+        "tax_id",
+        "tax_id_type",
+        "country_codes",
+        "is_active",
+      ],
+    })
+    return (data ?? []) as PlatformTaxIdentityRow[]
   } catch {
     return []
   }
