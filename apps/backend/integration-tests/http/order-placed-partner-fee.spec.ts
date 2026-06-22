@@ -10,7 +10,7 @@ import { seedCommonEmailTemplates } from "../helpers/seed-email-templates"
 import orderPlacedAccrueFeeHandler from "../../src/subscribers/order-placed-accrue-fee"
 import { PARTNER_BILLING_MODULE } from "../../src/modules/partner_billing"
 import { PARTNER_MODULE } from "../../src/modules/partner"
-import { computeFee } from "../../src/modules/partner_billing/lib/compute-fee"
+import { computeFee } from "../../src/modules/partner_billing/compute-fee"
 
 jest.setTimeout(60 * 1000)
 

@@ -3,8 +3,8 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { IOrderModuleService, Logger } from "@medusajs/types"
 import partnerOrderLink from "../links/partner-order"
 import { PARTNER_BILLING_MODULE } from "../modules/partner_billing"
-import { computeFee } from "../modules/partner_billing/lib/compute-fee"
-import { resolvePartnerFeeRate } from "../modules/partner_billing/lib/resolve-fee-rate"
+import { computeFee } from "../modules/partner_billing/compute-fee"
+import { resolvePartnerFeeRate } from "../modules/partner_billing/resolve-fee-rate"
 
 /**
  * #336 Slice 2 — partner transaction-fee accrual.

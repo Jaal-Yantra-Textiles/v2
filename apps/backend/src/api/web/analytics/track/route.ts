@@ -84,7 +84,7 @@ import {
   isBatchIngestEnabled,
   isHeartbeatEvent,
   pushBufferedEvent,
-} from "../../../../modules/analytics/lib/ingest-buffer";
+} from "../../../../modules/analytics/ingest-buffer";
 
 // Validator for tracking request
 export const TrackEventSchema = z.object({
