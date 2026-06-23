@@ -226,6 +226,69 @@ export const useUpdateBlock = (
 };
 
 /**
+ * Update an arbitrary block by id — for the visual page editor, which manages
+ * many blocks and supplies the blockId at mutate time (not hook-bound, unlike
+ * useUpdateBlock). Used for inline content/settings edits and reorder.
+ */
+export const useUpdatePageBlock = (
+  websiteId: string,
+  pageId: string,
+  options?: UseMutationOptions<
+    AdminBlockResponse,
+    FetchError,
+    { blockId: string } & UpdateAdminBlockPayload
+  >
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      blockId,
+      ...payload
+    }: { blockId: string } & UpdateAdminBlockPayload) =>
+      sdk.client.fetch<AdminBlockResponse>(
+        `/admin/websites/${websiteId}/pages/${pageId}/blocks/${blockId}`,
+        {
+          method: "PUT",
+          body: payload,
+        }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: blockQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: pageQueryKeys.detail(pageId) });
+    },
+    ...options,
+  });
+};
+
+/**
+ * Delete an arbitrary block by id (blockId at mutate time — for the visual page
+ * editor, unlike the blockId-bound useDeleteBlock).
+ */
+export const useDeletePageBlock = (
+  websiteId: string,
+  pageId: string,
+  options?: UseMutationOptions<AdminBlock, FetchError, string>
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (blockId: string) =>
+      sdk.client.fetch<AdminBlock>(
+        `/admin/websites/${websiteId}/pages/${pageId}/blocks/${blockId}`,
+        {
+          method: "DELETE",
+        }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: blockQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: pageQueryKeys.detail(pageId) });
+    },
+    ...options,
+  });
+};
+
+/**
  * Delete a block
  */
 export const useDeleteBlock = (
