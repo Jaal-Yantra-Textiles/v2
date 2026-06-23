@@ -78,6 +78,7 @@ export function MainContentBlockEditor({ content, onContentChange }: BlockEditor
                   editorContent={richEditorContent}
                   setEditorContent={setRichEditorContent}
                   outputFormat="json"
+                  showAiWrite
                 />
               </div>
             </StackedFocusModal.Body>

@@ -45,6 +45,7 @@ import { HeadingDropdownMenu } from "@/components/tiptap-ui/heading-dropdown-men
 import { ImageUploadButton } from "@/components/tiptap-ui/image-upload-button"
 import { ListDropdownMenu } from "@/components/tiptap-ui/list-dropdown-menu"
 import { BlockquoteButton } from "@/components/tiptap-ui/blockquote-button"
+import { AiWriteButton } from "@/components/tiptap-ui/ai-write-button/ai-write-button"
 import { CodeBlockButton } from "@/components/tiptap-ui/code-block-button"
 import {
   ColorHighlightPopover,
@@ -88,14 +89,25 @@ const MainToolbarContent = ({
   onHighlighterClick,
   onLinkClick,
   isMobile,
+  showAiWrite = false,
 }: {
   onHighlighterClick: () => void
   onLinkClick: () => void
   isMobile: boolean
+  showAiWrite?: boolean
 }) => {
   return (
     <>
       <Spacer />
+
+      {showAiWrite && (
+        <>
+          <ToolbarGroup>
+            <AiWriteButton />
+          </ToolbarGroup>
+          <ToolbarSeparator />
+        </>
+      )}
 
       <ToolbarGroup>
         <UndoRedoButton action="undo" />
@@ -199,10 +211,13 @@ export function SimpleEditor({
   editorContent,
   setEditorContent,
   outputFormat = "html",
+  showAiWrite = false,
 }: {
   editorContent: string;
   setEditorContent: (content: any | string) => void;
   outputFormat?: "html" | "json";
+  /** Show the in-editor "Write with AI" toolbar action (#659). Default off. */
+  showAiWrite?: boolean;
 }) {
   const isMobile = useMobile()
   const windowSize = useWindowSize()
@@ -380,6 +395,7 @@ export function SimpleEditor({
             onHighlighterClick={() => setMobileView("highlighter")}
             onLinkClick={() => setMobileView("link")}
             isMobile={isMobile}
+            showAiWrite={showAiWrite}
           />
         ) : (
           <MobileToolbarContent

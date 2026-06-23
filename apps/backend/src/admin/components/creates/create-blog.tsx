@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { useCreatePagesWithBlocks, type CreatePagesPayload, type AdminPageResponse, type AdminPagesResponse } from "../../hooks/api/pages"; // Ensure AdminPage is imported if used standalone, otherwise it's part of AdminPageResponse
 import { useBlogCategories } from "../../hooks/api/blogs";
 import { useUsers } from "../../hooks/api/users";
+import { useNewsletterAiWrite } from "../../hooks/api/marketing";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -46,7 +47,7 @@ const blogSchema = z.object({
   title: z.string().min(1, "Title is required"),
   slug: z.string().min(1, "Slug is required"),
   content: z.string().min(1, "Content description is required"),
-  page_type: z.literal("Blog"),
+  page_type: z.enum(["Blog", "Newsletter"]),
   status: z.enum(["Draft", "Published", "Archived"]),
   meta_title: z.string().optional(),
   meta_description: z.string().optional(),
@@ -158,13 +159,27 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
     }
   };
 
+  // In-editor "Write with AI" for a Newsletter: generate copy via the
+  // ai_newsletter_drafter provider and drop it into the form fields.
+  const { mutateAsync: writeNewsletter, isPending: isWriting } = useNewsletterAiWrite();
+  const aiWriteNewsletter = async () => {
+    try {
+      const res = await writeNewsletter();
+      form.setValue("title", res.title || "");
+      form.setValue("content", res.content || "");
+      toast.success("Drafted with AI — edit as needed.");
+    } catch {
+      toast.error("AI draft failed — configure an AI provider (role ai_newsletter_drafter) or OPENROUTER_API_KEY.");
+    }
+  };
+
   const handleSubmit = form.handleSubmit(async (data) => {
     const authors = data.blocks?.[0]?.content?.authors || [];
     const pageData: CreatePagesPayload = {
       title: data.title,
       slug: data.slug,
       content: data.content,
-      page_type: "Blog" as const,
+      page_type: data.page_type,
       status: data.status || "Draft",
       meta_title: data.meta_title || "",
       meta_description: data.meta_description || "",
@@ -312,16 +327,36 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
                 <Form.Field
                   control={form.control}
                   name="page_type"
-                  render={() => (
+                  render={({ field: { value, onChange, ...rest } }) => (
                     <Form.Item>
                       <Form.Label>Page Type</Form.Label>
                       <Form.Control>
-                        <Input value="Blog" disabled />
+                        <Select value={value} onValueChange={onChange} {...rest}>
+                          <Select.Trigger>
+                            <Select.Value placeholder="Select a page type" />
+                          </Select.Trigger>
+                          <Select.Content>
+                            <Select.Item value="Blog">Blog</Select.Item>
+                            <Select.Item value="Newsletter">Newsletter</Select.Item>
+                          </Select.Content>
+                        </Select>
                       </Form.Control>
                       <Form.ErrorMessage />
                     </Form.Item>
                   )}
                 />
+
+                {form.watch("page_type") === "Newsletter" && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="small"
+                    isLoading={isWriting}
+                    onClick={aiWriteNewsletter}
+                  >
+                    Write with AI
+                  </Button>
+                )}
 
                 <Form.Field
                   control={form.control}
