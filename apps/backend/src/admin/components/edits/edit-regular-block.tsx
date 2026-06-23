@@ -329,6 +329,7 @@ export const EditRegularBlock = ({ websiteId, pageId, blockId, block, onSuccess 
                                       setRichBodyDraft(content)
                                     }}
                                     outputFormat="json"
+                                    showAiWrite
                                   />
                                 </div>
                                 <StackedFocusModal.Footer>
