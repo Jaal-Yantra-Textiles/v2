@@ -72,3 +72,28 @@ export const updateOutreachBodySchema = z
   .strict()
 
 export type UpdateOutreachBody = z.infer<typeof updateOutreachBodySchema>
+
+// ── Engagement sync body (PR-4d) ─────────────────────────────────────────────
+// A batch of normalized provider message-events (e.g. relayed from a Resend
+// webhook) reconciled against the persisted rows via the forward-only state
+// machine. Each event targets a row by `id` or by the provider `external_id`;
+// timestamps are accepted as ISO strings. `dry_run` defaults to true (preview).
+const outreachSyncEventSchema = z
+  .object({
+    id: z.string().optional().nullable(),
+    external_id: z.string().optional().nullable(),
+    sent_at: z.string().optional().nullable(),
+    opened_at: z.string().optional().nullable(),
+    replied_at: z.string().optional().nullable(),
+    bounced_at: z.string().optional().nullable(),
+  })
+  .refine((e) => !!(e.id || e.external_id), {
+    message: "each event needs an id or external_id",
+  })
+
+export const syncOutreachBodySchema = z.object({
+  dry_run: z.boolean().optional().default(true),
+  events: z.array(outreachSyncEventSchema).min(1, "events is required"),
+})
+
+export type SyncOutreachBody = z.infer<typeof syncOutreachBodySchema>
