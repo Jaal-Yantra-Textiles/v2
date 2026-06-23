@@ -125,6 +125,29 @@ setupSharedTestSuite(() => {
           pageId = response.data.page.id;
         });
 
+        it("should create a Newsletter page (page_type enum + DB check constraint allow it)", async () => {
+          const newsletter = {
+            title: "Spring Newsletter",
+            slug: "spring-newsletter",
+            content: "<p>Hello subscribers</p>",
+            page_type: "Newsletter",
+            status: "Draft",
+          };
+
+          const response = await api.post(
+            `/admin/websites/${websiteId}/pages`,
+            newsletter,
+            headers
+          );
+
+          expect(response.status).toBe(201);
+          expect(response.data.page).toMatchObject({
+            ...newsletter,
+            id: expect.any(String),
+            website_id: websiteId,
+          });
+        });
+
         it("should create multiple pages in batch", async () => {
           const pages = [
             {

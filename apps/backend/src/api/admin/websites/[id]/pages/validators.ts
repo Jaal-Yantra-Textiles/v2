@@ -13,7 +13,8 @@ const pageBaseSchema = z.object({
     "Service",
     "Portfolio",
     "Landing",
-    "Custom"
+    "Custom",
+    "Newsletter"
   ]).optional(),
   status: z.enum([
     "Draft",

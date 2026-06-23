@@ -13,6 +13,7 @@ import { RouteFocusModal } from "../modal/route-focus-modal";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { AdminWebsite } from "../../hooks/api/websites";
 import { useCreatePages } from "../../hooks/api/pages";
+import { sdk } from "../../lib/config";
 
 const pageSchema = z.object({
   pages: z.array(z.object({
@@ -28,7 +29,8 @@ const pageSchema = z.object({
       "Service",
       "Portfolio",
       "Landing",
-      "Custom"
+      "Custom",
+      "Newsletter"
     ]),
     status: z.enum(["Draft", "Published", "Archived"]).default("Draft"),
     meta_title: z.string().optional(),
@@ -64,6 +66,7 @@ const pageTypeOptions = [
   { value: "Portfolio", label: "Portfolio" },
   { value: "Landing", label: "Landing" },
   { value: "Custom", label: "Custom" },
+  { value: "Newsletter", label: "Newsletter" },
 ]
 
 type PageFormValues = z.infer<typeof pageSchema>;
@@ -102,6 +105,28 @@ export function CreatePageComponent({ websiteId, website }: CreatePageComponentP
     control: form.control,
     name: "pages",
   });
+
+  // Pre-fill a Newsletter page from the latest AI newsletter draft (#687 job →
+  // marketing_draft). Maps subject→title + intro/sections→content via the
+  // /admin/marketing/newsletter-prefill endpoint; the operator then edits + sends.
+  const prefillNewsletter = async (index: number) => {
+    try {
+      const res = await sdk.client.fetch<{
+        draft: { id: string } | null;
+        title: string;
+        content: string;
+      }>("/admin/marketing/newsletter-prefill");
+      if (!res?.draft) {
+        toast.info("No AI newsletter draft yet — generate one from Data Plumbing first.");
+        return;
+      }
+      form.setValue(`pages.${index}.title`, res.title || "");
+      form.setValue(`pages.${index}.content`, res.content || "");
+      toast.success("Pre-filled from the latest AI newsletter draft.");
+    } catch {
+      toast.error("Couldn't load the newsletter draft.");
+    }
+  };
 
   const addNewPage = () => {
     append({
@@ -307,6 +332,17 @@ export function CreatePageComponent({ websiteId, website }: CreatePageComponentP
                           )}
                         />
                         
+                        {form.watch(`pages.${index}.page_type`) === "Newsletter" && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="small"
+                            onClick={() => prefillNewsletter(index)}
+                          >
+                            Prefill from latest AI draft
+                          </Button>
+                        )}
+
                         <Form.Field
                           control={form.control}
                           name={`pages.${index}.status`}

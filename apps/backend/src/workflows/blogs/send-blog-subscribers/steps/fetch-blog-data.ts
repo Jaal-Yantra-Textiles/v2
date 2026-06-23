@@ -30,10 +30,10 @@ export const fetchBlogDataStep = createStep(
         )
       }
       
-      if (page.page_type !== "Blog") {
+      if (page.page_type !== "Blog" && page.page_type !== "Newsletter") {
         throw new MedusaError(
           MedusaError.Types.INVALID_DATA,
-          "Only blog pages can be sent to subscribers"
+          "Only blog or newsletter pages can be sent to subscribers"
         )
       }
       

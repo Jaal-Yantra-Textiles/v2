@@ -103,8 +103,8 @@ export const PageGeneralSection = ({ page, websiteId }: PageGeneralSectionProps)
                   },
                 ],
               },
-              /* Only show Send to Subscribers action for Blog pages */
-              ...(page.page_type === "Blog" ? [
+              /* Only show Send to Subscribers action for Blog and Newsletter pages */
+              ...(page.page_type === "Blog" || page.page_type === "Newsletter" ? [
                 {
                   actions: [
                     {
