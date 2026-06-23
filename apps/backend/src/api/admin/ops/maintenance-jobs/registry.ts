@@ -9,6 +9,12 @@ import { RAW_MATERIAL_MODULE } from "../../../../modules/raw_material"
 import { OPS_AUDIT_MODULE } from "../../../../modules/ops_audit"
 import { STATS_MODULE } from "../../../../modules/stats"
 import { PARTNER_BILLING_MODULE } from "../../../../modules/partner_billing"
+import { AD_PLANNING_MODULE } from "../../../../modules/ad-planning"
+import { PERSON_MODULE } from "../../../../modules/person"
+import {
+  derivePersonName,
+  isUsableEmail,
+} from "../../../../workflows/ad-planning/conversions/person-identity-lib"
 import { computeFee } from "../../../../modules/partner_billing/compute-fee"
 import { resolvePartnerFeeRate } from "../../../../modules/partner_billing/resolve-fee-rate"
 import partnerOrderLink from "../../../../links/partner-order"
@@ -2967,6 +2973,229 @@ export const backfillStatsPanelWindowJob: MaintenanceJob = {
   },
 }
 
+/** Hard cap on how many person-less purchase conversions one run repairs. */
+export const MAX_ORDER_PERSON_BACKFILL = 1000
+
+const backfillOrderPersonsParamsSchema = z.object({
+  /** Max conversions to repair this run (default 200, capped to MAX_ORDER_PERSON_BACKFILL). */
+  limit: z.number().int().positive().max(MAX_ORDER_PERSON_BACKFILL).optional().default(200),
+  /** Restrict to a single order's purchase conversion(s) (targeted repair). */
+  order_id: z.string().min(1).optional(),
+})
+
+export type OrderPersonBackfillDecision =
+  | { action: "skip"; reason: string }
+  | { action: "link"; person_id: string }
+  | { action: "create" }
+
+/**
+ * Pure: decide what to do with one person-less purchase conversion (#664).
+ *
+ *   - already has person_id        → skip (idempotent; a re-run matches nothing)
+ *   - no order_id / no usable email → skip (nothing to key a Person on)
+ *   - email matches a Person        → link to it
+ *   - otherwise                     → create a Person, then link
+ *
+ * `existingPersonId` is the id of a Person already matching the order email
+ * (looked up by the caller, OR resolved within this run for a repeat email),
+ * or null. Exported for unit testing — no DB needed.
+ */
+export function decideOrderPersonBackfill(input: {
+  conversion: { person_id?: string | null; order_id?: string | null }
+  email: string | null
+  existingPersonId: string | null
+}): OrderPersonBackfillDecision {
+  if (input.conversion.person_id) return { action: "skip", reason: "already linked" }
+  if (!input.conversion.order_id) return { action: "skip", reason: "no order_id" }
+  if (!isUsableEmail(input.email)) return { action: "skip", reason: "no usable email" }
+  if (input.existingPersonId) return { action: "link", person_id: input.existingPersonId }
+  return { action: "create" }
+}
+
+/** Pure human-facing summary for the order→person backfill. */
+export function summarizeOrderPersonBackfill(
+  dryRun: boolean,
+  scanned: number,
+  linked: number,
+  created: number,
+  errored: number
+): string {
+  const repaired = linked + created
+  if (repaired === 0) {
+    return `No changes — none of the ${scanned} scanned person-less conversion(s) could be matched to an order email${errored ? ` (${errored} errored)` : ""}`
+  }
+  const verb = dryRun ? "Would repair" : "Repaired"
+  return `${verb} ${repaired} of ${scanned} person-less conversion(s): ${dryRun ? "would link" : "linked"} ${linked} to existing Persons, ${dryRun ? "would create" : "created"} ${created} new Person(s)${errored ? `; ${errored} errored` : ""}`
+}
+
+/**
+ * Backfill the `person_id` on historical purchase conversions that were tracked
+ * before the order→Person upsert fix (#664). Manual orders had no matching
+ * Person, so ad-planning stored `person_id: null` and all scoring (CLV / churn /
+ * engagement) silently skipped — which also makes those buyers invisible to the
+ * AI-VP winback targeting (which joins on CustomerScore.person_id).
+ *
+ * This repairs IDENTITY only: it upserts a Person from each order's email + name
+ * and stamps `conversion.person_id`. Re-running the score recalculation over the
+ * repaired rows is a separate follow-up (the live workflow scores all NEW orders).
+ *
+ * Safe by default: dry-run (default) previews the exact person_id stamps without
+ * writing; apply upserts Persons + updates conversions. Idempotent — a conversion
+ * that already has a person_id is never re-touched, so a re-run matches nothing.
+ */
+export const backfillOrderPersonsJob: MaintenanceJob = {
+  id: "backfill-order-persons",
+  label: "Backfill order → Person on conversions",
+  description:
+    "Upsert a Person (by order email + name) and stamp person_id onto historical purchase conversions that have none (#664 — manual orders were never scored). Dry-run previews the stamps; apply writes them. Idempotent and capped; re-run to continue past the limit.",
+  params: [
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: `Max conversions to repair this run (default 200, max ${MAX_ORDER_PERSON_BACKFILL}).`,
+    },
+    {
+      name: "order_id",
+      type: "string",
+      required: false,
+      description: "Restrict to a single order's purchase conversion(s).",
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const { limit, order_id } = backfillOrderPersonsParamsSchema.parse(params ?? {})
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const adPlanning: any = container.resolve(AD_PLANNING_MODULE)
+    const personService: any = container.resolve(PERSON_MODULE)
+
+    const changes: MaintenanceChange[] = []
+    const errors: Array<{ id: string; message: string }> = []
+    let linked = 0
+    let created = 0
+
+    // Candidate conversions: purchases with no person_id (optionally one order).
+    const convFilter: Record<string, unknown> = {
+      conversion_type: "purchase",
+      person_id: null,
+    }
+    if (order_id) convFilter.order_id = order_id
+
+    const candidates: any[] = await adPlanning.listConversions(convFilter, {
+      take: limit,
+      order: { converted_at: "ASC" },
+    })
+
+    // Within one run a repeat email must resolve to a single Person (avoid dup
+    // creates). Maps lowercased email → resolved-or-pending person id.
+    const emailToPersonId = new Map<string, string>()
+
+    for (const conv of candidates) {
+      if (changes.length >= limit) break
+      try {
+        // Resolve the order's email + name.
+        const { data: [order] } = await query.graph({
+          entity: "order",
+          fields: [
+            "id",
+            "email",
+            "billing_address.first_name",
+            "billing_address.last_name",
+            "shipping_address.first_name",
+            "shipping_address.last_name",
+            "customer.first_name",
+            "customer.last_name",
+          ],
+          filters: { id: conv.order_id },
+        })
+
+        const email: string | null = order?.email ?? null
+        const emailKey = email ? email.trim().toLowerCase() : null
+
+        // Has this email already been matched/created earlier in the run?
+        let existingPersonId: string | null =
+          emailKey && emailToPersonId.has(emailKey)
+            ? emailToPersonId.get(emailKey)!
+            : null
+
+        // Otherwise look it up in the Person module.
+        if (!existingPersonId && isUsableEmail(email)) {
+          const persons = await personService.listPeople({ email })
+          if (persons?.length > 0) existingPersonId = persons[0].id
+        }
+
+        const decision = decideOrderPersonBackfill({
+          conversion: conv,
+          email,
+          existingPersonId,
+        })
+
+        if (decision.action === "skip") continue
+
+        let personId: string
+        let personCreated = false
+
+        if (decision.action === "link") {
+          personId = decision.person_id
+        } else {
+          // create
+          if (dry_run) {
+            personId = "(new)"
+          } else {
+            const name = derivePersonName({
+              email,
+              billing_address: order?.billing_address,
+              shipping_address: order?.shipping_address,
+              customer: order?.customer,
+            })
+            const person = await personService.createPeople({
+              first_name: name.first_name,
+              last_name: name.last_name,
+              email,
+              metadata: { source: "backfill-order-persons" },
+            })
+            personId = person.id
+          }
+          personCreated = true
+          created++
+        }
+
+        if (decision.action === "link") linked++
+        if (emailKey && personId !== "(new)") emailToPersonId.set(emailKey, personId)
+
+        changes.push({
+          entity: "conversion",
+          id: conv.id,
+          field: "person_id",
+          before: null,
+          after: { person_id: personId, person_created: personCreated, email },
+        })
+
+        if (!dry_run) {
+          await adPlanning.updateConversions({ id: conv.id, person_id: personId })
+        }
+      } catch (e: any) {
+        errors.push({ id: conv.id, message: e?.message ?? String(e) })
+      }
+    }
+
+    return {
+      job_id: backfillOrderPersonsJob.id,
+      dry_run,
+      applied: !dry_run && changes.length > 0,
+      summary: summarizeOrderPersonBackfill(
+        dry_run,
+        candidates.length,
+        linked,
+        created,
+        errors.length
+      ),
+      changes,
+      errors,
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -2981,6 +3210,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   repairInventoryRawMaterialLinksJob,
   backfillPartnerOrderFeesJob,
   backfillStatsPanelWindowJob,
+  backfillOrderPersonsJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>

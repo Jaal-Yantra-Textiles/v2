@@ -15,6 +15,7 @@ import { AD_PLANNING_MODULE } from "../../../modules/ad-planning";
 import type AdPlanningService from "../../../modules/ad-planning/service";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { PERSON_MODULE } from "../../../modules/person";
+import { derivePersonName, isUsableEmail } from "./person-identity-lib";
 
 type TrackPurchaseConversionInput = {
   order_id: string;
@@ -46,6 +47,13 @@ const fetchOrderStep = createStep(
         "currency_code",
         "customer_id",
         "email",
+        // Name sources for Person upsert (#664) — billing/shipping/customer.
+        "billing_address.first_name",
+        "billing_address.last_name",
+        "shipping_address.first_name",
+        "shipping_address.last_name",
+        "customer.first_name",
+        "customer.last_name",
         "items.*",
       ],
       filters: { id: input.order_id },
@@ -55,12 +63,23 @@ const fetchOrderStep = createStep(
       throw new Error(`Order ${input.order_id} not found`);
     }
 
+    // Derive the person name once here so resolve-person can upsert a Person
+    // for manual orders that have no pre-existing Person row.
+    const personName = derivePersonName({
+      email: order.email,
+      billing_address: order.billing_address,
+      shipping_address: order.shipping_address,
+      customer: order.customer,
+    });
+
     return new StepResponse({
       id: order.id,
       total: Number(order.total) || 0,
       currency: order.currency_code,
       customer_id: order.customer_id,
       email: order.email,
+      first_name: personName.first_name,
+      last_name: personName.last_name,
       items: (order.items as any[])?.map((item: any) => ({
         product_id: item.product_id,
         variant_id: item.variant_id,
@@ -72,33 +91,97 @@ const fetchOrderStep = createStep(
 );
 
 /**
- * Step 2: Resolve person_id from order email
+ * Step 2: Resolve person_id from order email — UPSERT (#664).
+ *
+ * Previously this returned null when no Person matched the order email, which
+ * silently disabled all downstream scoring (CLV / journey / engagement / churn)
+ * for manual orders — those customers rarely have a pre-existing Person row.
+ *
+ * Now: match by email, and if there's no match, CREATE a Person from the order's
+ * email + derived name so scoring always has a subject to attach to. The
+ * compensation deletes the Person ONLY when this step created it (never an
+ * existing one).
  */
 const resolvePersonStep = createStep(
   "resolve-person",
   async (
-    input: { email?: string; person_id?: string },
+    input: {
+      email?: string;
+      person_id?: string;
+      first_name?: string;
+      last_name?: string;
+    },
     { container }
   ) => {
-    // If person_id already provided, use it
+    // If person_id already provided, use it (no creation → nothing to compensate)
     if (input.person_id) {
-      return new StepResponse({ person_id: input.person_id });
+      return new StepResponse(
+        { person_id: input.person_id },
+        { person_id: input.person_id, created: false }
+      );
     }
 
-    // Try to resolve person from order email
-    if (input.email) {
+    if (!isUsableEmail(input.email)) {
+      // No email to key a Person on — preserve the prior null behaviour.
+      return new StepResponse(
+        { person_id: null as string | null },
+        { person_id: null, created: false }
+      );
+    }
+
+    const personService = container.resolve(PERSON_MODULE) as any;
+
+    try {
+      const persons = await personService.listPeople({ email: input.email });
+      if (persons?.length > 0) {
+        return new StepResponse(
+          { person_id: persons[0].id },
+          { person_id: persons[0].id, created: false }
+        );
+      }
+
+      // No existing Person → create one from the order identity.
+      const created = await personService.createPeople({
+        first_name: input.first_name || "",
+        last_name: input.last_name || "",
+        email: input.email,
+        metadata: { source: "ad_planning_order_placed" },
+      });
+
+      return new StepResponse(
+        { person_id: created.id },
+        { person_id: created.id, created: true }
+      );
+    } catch (e: any) {
+      // A concurrent placement may win the unique-email race — re-read and reuse.
       try {
-        const personService = container.resolve(PERSON_MODULE) as any;
         const persons = await personService.listPeople({ email: input.email });
         if (persons?.length > 0) {
-          return new StepResponse({ person_id: persons[0].id });
+          return new StepResponse(
+            { person_id: persons[0].id },
+            { person_id: persons[0].id, created: false }
+          );
         }
       } catch {
-        // Person module lookup failed — non-fatal
+        // fall through to null — non-fatal, scoring just skips this order
+      }
+      console.error("[AdPlanning] Person upsert failed:", e?.message ?? e);
+      return new StepResponse(
+        { person_id: null as string | null },
+        { person_id: null, created: false }
+      );
+    }
+  },
+  async (comp, { container }) => {
+    // Only roll back a Person this step actually created.
+    if (comp?.created && comp.person_id) {
+      try {
+        const personService = container.resolve(PERSON_MODULE) as any;
+        await personService.deletePeople(comp.person_id);
+      } catch {
+        // best-effort cleanup
       }
     }
-
-    return new StepResponse({ person_id: null as string | null });
   }
 );
 
@@ -704,10 +787,13 @@ export const trackPurchaseConversionWorkflow = createWorkflow(
   (input: TrackPurchaseConversionInput) => {
     const order = fetchOrderStep({ order_id: input.order_id });
 
-    // Resolve person_id from input or order email
+    // Resolve person_id from input or order email — upserts a Person for manual
+    // orders so downstream scoring always has a subject (#664).
     const personResolution = resolvePersonStep({
       email: order.email,
       person_id: input.person_id,
+      first_name: order.first_name,
+      last_name: order.last_name,
     });
 
     const attribution = findAttributionStep({
