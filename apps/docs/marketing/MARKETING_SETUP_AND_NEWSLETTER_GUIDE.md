@@ -55,7 +55,6 @@ that send anything), then **apply**. Every run is recorded in `ops_audit`.
 |---|---|
 | `run-marketing-ideas-email` | Generate the daily AI tactical-ideas email (+ hallucination guard) → dry-run persists a reviewable `marketing_ideas_log` draft and **emails no one**; **apply emails it** (the apply click overrides the send gate). Optional `log_id` (send a specific reviewed draft) / `recipients`. |
 | `install-marketing-ideas-email-flow` | **Load** the daily ideas-email **visual flow** into the system (dry-run previews; apply creates it as a DRAFT). No shell/seed needed. |
-| `generate-marketing-newsletter-draft` | Generate an AI **newsletter** draft (subject/intro/sections) → persists a `marketing_draft` (kind="newsletter") for operator review. |
 | `generate-winback-targets` | Read `ad_planning.CustomerScore` churn-risk → select winback targets → dry-run previews, apply creates `marketing_outreach` rows (campaign="winback"). |
 | `send-marketing-daily-summary` | Compose a daily marketing summary (GMV headline + KPIs) and send it over **WhatsApp** (the chosen operator-alert channel). |
 
@@ -105,17 +104,21 @@ Until you opt in, an active flow only **generates + logs** a reviewable draft in
 Newsletters reuse the **existing blog editor + subscriber-send** — a newsletter is
 just a `page` with `page_type = "Newsletter"`.
 
-1. **(Optional) Generate AI copy:** Settings → Data Plumbing →
-   `generate-marketing-newsletter-draft` → apply. This persists a
-   `marketing_draft` (kind="newsletter") with subject/intro/sections.
-2. **Create the page:** Admin → Websites → your site → **New page** (the Create
-   Pages modal).
+**AI authoring lives in the editor** (not Data Plumbing) — generation is resolved
+from the admin-configured social-platform AI provider tagged
+`metadata.role = ai_newsletter_drafter` (Settings → External Platforms), with an
+`OPENROUTER_API_KEY` env fallback. `POST /admin/marketing/newsletter/generate`
+returns `{ title, content }`; nothing is persisted (the page is the draft).
+
+1. **Create the page:** Admin → Websites → your site → **New page** (or the Blog
+   modal — both now offer the type).
    - Set **Page Type → Newsletter**.
-   - Click **"Prefill from latest AI draft"** → the title + content auto-fill from
-     the latest AI newsletter draft (via `GET /admin/marketing/newsletter-prefill`,
-     which maps `subject → title` and `intro + "## heading / body" sections →
-     content`). Edit freely.
+   - Click **"Write with AI"** → generates a draft and fills the **title + summary**.
+     Edit freely.
    - Fill the **slug**, then **Create Pages**.
+2. **Write the body with AI (inline):** in the page's **MainContent** block editor,
+   use the **"✨ AI" toolbar button** to generate copy and insert it at the cursor
+   (TipTap extension). Refine inline.
 3. **Send it:** open the newsletter page → **Send to Subscribers** (the same flow
    blog posts use; the Blog-only guards were widened to allow `Newsletter`). It
    enqueues into `process-email-queue` and stamps `sent_to_subscribers` /
