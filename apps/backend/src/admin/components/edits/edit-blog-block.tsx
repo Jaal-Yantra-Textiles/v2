@@ -272,10 +272,11 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
                 }
               }}
             /> */}
-            <SimpleEditor 
-              editorContent={editorContent} 
-              setEditorContent={handleEditorChange} 
+            <SimpleEditor
+              editorContent={editorContent}
+              setEditorContent={handleEditorChange}
               outputFormat="json"
+              showAiWrite
             />
           </div>
         </div>
