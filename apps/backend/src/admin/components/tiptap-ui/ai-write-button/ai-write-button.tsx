@@ -69,7 +69,15 @@ export const AiWriteButton = React.forwardRef<
         onClick?.(e)
         if (e.defaultPrevented || !editor || isPending) return
         try {
-          const res = await writeNewsletter()
+          // Context-aware: use the SELECTED text (if any), else the whole body,
+          // so the AI improves/expands what's there instead of starting fresh.
+          const sel = editor.state.selection
+          const selected = sel.empty
+            ? ""
+            : editor.state.doc.textBetween(sel.from, sel.to, "\n").trim()
+          const context = (selected || editor.getText().trim()) || undefined
+
+          const res = await writeNewsletter(context ? { context } : undefined)
           const html = newsletterPayloadToHtml(
             (res as { payload?: unknown }).payload,
             res.content || ""
@@ -78,8 +86,15 @@ export const AiWriteButton = React.forwardRef<
             toast.info("The AI returned nothing — try again.")
             return
           }
-          editor.chain().focus().insertContent(html).run()
-          toast.success("Drafted with AI — edit inline.")
+          if (selected) {
+            // replace just the selected text with the rewrite
+            editor.chain().focus().deleteSelection().insertContent(html).run()
+          } else {
+            editor.chain().focus().insertContent(html).run()
+          }
+          toast.success(
+            context ? "Rewrote with AI — edit inline." : "Drafted with AI — edit inline."
+          )
         } catch {
           toast.error(
             "AI draft failed — configure an AI provider (role ai_newsletter_drafter) or OPENROUTER_API_KEY."

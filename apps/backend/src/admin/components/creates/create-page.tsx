@@ -111,10 +111,14 @@ export function CreatePageComponent({ websiteId, website }: CreatePageComponentP
   const { mutateAsync: writeNewsletter, isPending: isWriting } = useNewsletterAiWrite();
   const aiWriteNewsletter = async (index: number) => {
     try {
-      const res = await writeNewsletter();
+      const cur = [
+        form.getValues(`pages.${index}.title`),
+        form.getValues(`pages.${index}.content`),
+      ].filter(Boolean).join("\n\n").trim();
+      const res = await writeNewsletter(cur ? { context: cur } : undefined);
       form.setValue(`pages.${index}.title`, res.title || "");
       form.setValue(`pages.${index}.content`, res.content || "");
-      toast.success("Drafted with AI — edit as needed.");
+      toast.success(cur ? "Rewrote with AI — edit as needed." : "Drafted with AI — edit as needed.");
     } catch {
       toast.error("AI draft failed — configure an AI provider (role ai_newsletter_drafter) or OPENROUTER_API_KEY.");
     }

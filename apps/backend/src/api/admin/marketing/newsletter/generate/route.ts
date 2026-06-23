@@ -36,11 +36,14 @@ function istDateString(d: Date): string {
 }
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  const body = (req.body ?? {}) as { topic?: string }
+  const body = (req.body ?? {}) as { topic?: string; context?: string }
   const topic = typeof body.topic === "string" ? body.topic.trim() : undefined
+  const context =
+    typeof body.context === "string" ? body.context.trim() : undefined
 
   const prompt = buildNewsletterPrompt({
     topic,
+    context,
     businessDescription: process.env.MARKETING_BUSINESS_DESCRIPTION,
     dateIst: istDateString(new Date()),
   })

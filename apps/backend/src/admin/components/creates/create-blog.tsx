@@ -164,10 +164,14 @@ export function CreateBlogComponent({ websiteId }: CreateBlogComponentProps) {
   const { mutateAsync: writeNewsletter, isPending: isWriting } = useNewsletterAiWrite();
   const aiWriteNewsletter = async () => {
     try {
-      const res = await writeNewsletter();
+      const cur = [form.getValues("title"), form.getValues("content")]
+        .filter(Boolean)
+        .join("\n\n")
+        .trim();
+      const res = await writeNewsletter(cur ? { context: cur } : undefined);
       form.setValue("title", res.title || "");
       form.setValue("content", res.content || "");
-      toast.success("Drafted with AI — edit as needed.");
+      toast.success(cur ? "Rewrote with AI — edit as needed." : "Drafted with AI — edit as needed.");
     } catch {
       toast.error("AI draft failed — configure an AI provider (role ai_newsletter_drafter) or OPENROUTER_API_KEY.");
     }
