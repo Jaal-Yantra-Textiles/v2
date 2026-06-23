@@ -50,6 +50,16 @@ import {
   type PersonContact,
   type WinbackSelection,
 } from "../../../../modules/marketing/winback-targets-lib"
+import { SOCIAL_PROVIDER_MODULE } from "../../../../modules/social-provider"
+import {
+  buildHeadlineResponse,
+  HEADLINE_METRIC_KEY,
+  HEADLINE_SCAN_TAKE,
+} from "../../marketing/marketing-read-lib"
+import {
+  buildDailyMarketingSummary,
+  type DailySummary,
+} from "../../marketing/marketing-summary-lib"
 import { VISUAL_FLOWS_MODULE } from "../../../../modules/visual_flows"
 import { FLOW_DEF as IDEAS_EMAIL_FLOW_DEF } from "../../../../scripts/seed-marketing-daily-ideas-email-flow"
 
@@ -3903,6 +3913,131 @@ export const generateWinbackTargetsJob: MaintenanceJob = {
   },
 }
 
+// ---------------------------------------------------------------------------
+// send-marketing-daily-summary (#659, report §12.6) — compose a daily marketing
+// summary (the One-Goal GMV headline + secondary KPI strip from
+// `marketing_metric_snapshot`, via the shipped headline read-lib) and send it
+// over the EXISTING WhatsApp channel. Email is intentionally NOT here — the
+// email digest already exists; this is ONLY the WhatsApp summary (operator
+// decision: alerts = WhatsApp, not Slack). Manually runnable from the Data
+// Plumbing console; it PAIRS with a visual-flow schedule like the ideas-email
+// (install-marketing-ideas-email-flow) — a future flow node can call this same
+// composer on a cron. dry_run = compose + preview the text + recipients (sends
+// nothing); apply = send to each recipient. Recipients come from the `to` param
+// or MARKETING_WHATSAPP_RECIPIENTS env (comma-separated phone numbers).
+// ---------------------------------------------------------------------------
+
+/**
+ * Pure: report the daily-summary outcome. Exported for unit testing so the
+ * dry-run/apply + no-recipients + no-data wording is verifiable without WhatsApp.
+ */
+export function buildDailySummaryResult(args: {
+  jobId: string
+  dry_run: boolean
+  summary: DailySummary
+  recipients: string[]
+  sent: number
+  errors: Array<{ id: string; message: string }>
+}): MaintenanceJobResult {
+  const { jobId, dry_run, summary, recipients, sent, errors } = args
+  const changes: MaintenanceChange[] = recipients.map((to) => ({
+    entity: "whatsapp_message",
+    id: to,
+    field: "sent",
+    after: dry_run ? "(would send)" : "sent",
+  }))
+
+  let text: string
+  let applied = false
+  if (!summary.hasData) {
+    text = `No marketing snapshots captured yet — nothing to send.`
+  } else if (recipients.length === 0) {
+    text = `Composed the daily summary, but no WhatsApp recipients are configured (pass 'to' or set MARKETING_WHATSAPP_RECIPIENTS) — nothing sent.`
+  } else if (dry_run) {
+    text = `Dry-run: composed the daily marketing summary for ${recipients.length} recipient(s) — nothing sent.\n\n--- preview ---\n${summary.text}`
+  } else {
+    applied = sent > 0
+    text = `Sent the daily marketing summary to ${sent}/${recipients.length} WhatsApp recipient(s)${
+      errors.length ? ` (${errors.length} failed)` : ""
+    }.`
+  }
+
+  const result: MaintenanceJobResult = {
+    job_id: jobId,
+    dry_run,
+    applied,
+    summary: text,
+    changes,
+  }
+  if (errors.length) result.errors = errors
+  return result
+}
+
+export const sendMarketingDailySummaryJob: MaintenanceJob = {
+  id: "send-marketing-daily-summary",
+  label: "Send marketing daily summary (WhatsApp)",
+  description:
+    "Compose the daily marketing summary — the One-Goal GMV headline + secondary KPIs from marketing_metric_snapshot — and send it over the existing WhatsApp channel (#659, §12.6). Email is not here (the email digest already exists); this is ONLY the WhatsApp summary. Dry-run (default) composes + previews the text and recipient count without sending; apply sends it. Recipients come from the 'to' param (comma-separated phone numbers) or the MARKETING_WHATSAPP_RECIPIENTS env var. Pairs with a visual-flow schedule (like the ideas-email flow) for hands-off daily delivery.",
+  params: [
+    {
+      name: "to",
+      type: "string",
+      required: false,
+      description:
+        "Comma-separated WhatsApp recipient phone numbers (E.164). Default: MARKETING_WHATSAPP_RECIPIENTS env.",
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const marketing: any = container.resolve(MARKETING_MODULE)
+
+    // 1) gather recent snapshots → headline blob (reuse the shipped read-lib).
+    const now = new Date()
+    const rows: any[] = await marketing.listMarketingMetricSnapshots(
+      {},
+      { order: { captured_for_date: "DESC" }, take: HEADLINE_SCAN_TAKE }
+    )
+    const headline = buildHeadlineResponse(rows ?? [], HEADLINE_METRIC_KEY, now)
+
+    // IST date label for the title.
+    const dateLabel = new Date(now.getTime() + 5.5 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10)
+    const summary = buildDailyMarketingSummary(headline, { dateLabel })
+
+    // 2) resolve recipients (param overrides env).
+    const recipients =
+      parseRecipientsCsv(params.to) ??
+      parseRecipientsCsv(process.env.MARKETING_WHATSAPP_RECIPIENTS) ??
+      []
+
+    // 3) send (apply only, and only when there's data + recipients).
+    let sent = 0
+    const errors: Array<{ id: string; message: string }> = []
+    if (!dry_run && summary.hasData && recipients.length > 0) {
+      const whatsapp: any = (
+        container.resolve(SOCIAL_PROVIDER_MODULE) as any
+      ).getWhatsApp(container)
+      for (const to of recipients) {
+        try {
+          await whatsapp.sendTextMessage(to, summary.text)
+          sent++
+        } catch (e: any) {
+          errors.push({ id: to, message: e?.message || "send failed" })
+        }
+      }
+    }
+
+    return buildDailySummaryResult({
+      jobId: sendMarketingDailySummaryJob.id,
+      dry_run,
+      summary,
+      recipients,
+      sent,
+      errors,
+    })
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -3923,6 +4058,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   installMarketingIdeasEmailFlowJob,
   generateMarketingNewsletterDraftJob,
   generateWinbackTargetsJob,
+  sendMarketingDailySummaryJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
