@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react"
-import { AdminBlock, useUpdateBlock, useCreateBlock, useDeleteBlock } from "../../hooks/api/blocks"
+import { AdminBlock, useCreateBlock, useUpdatePageBlock, useDeletePageBlock } from "../../hooks/api/blocks"
 import { AdminPage } from "../../hooks/api/pages"
 import { BlockListPanel } from "./panels/block-list-panel"
 import { PreviewPanel } from "./panels/preview-panel"
@@ -35,6 +35,11 @@ export function VisualPageEditor({
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
 
   const selectedBlock = blocks.find((b) => b.id === selectedBlockId)
+
+  // Block mutations (react-query hooks; replaces raw fetch calls).
+  const createBlockMutation = useCreateBlock(websiteId, pageId)
+  const updateBlockMutation = useUpdatePageBlock(websiteId, pageId)
+  const deleteBlockMutation = useDeletePageBlock(websiteId, pageId)
 
   // Get the preview URL for the page
   const previewUrl = getPreviewUrl(domain, page.slug)
@@ -91,14 +96,7 @@ export function VisualPageEditor({
         for (let i = 0; i < reorderedBlocks.length; i++) {
           const block = reorderedBlocks[i]
           if (block.order !== i) {
-            await fetch(
-              `/admin/websites/${websiteId}/pages/${pageId}/blocks/${block.id}`,
-              {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ order: i }),
-              }
-            )
+            await updateBlockMutation.mutateAsync({ blockId: block.id, order: i })
           }
         }
         setSaveStatus("saved")
@@ -108,7 +106,7 @@ export function VisualPageEditor({
         toast.error("Failed to update block order")
       }
     },
-    [websiteId, pageId]
+    [updateBlockMutation]
   )
 
   // Handle block update
@@ -129,43 +127,21 @@ export function VisualPageEditor({
       }
 
       try {
-        const response = await fetch(
-          `/admin/websites/${websiteId}/pages/${pageId}/blocks/${blockId}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(updates),
-          }
-        )
-
-        if (!response.ok) {
-          throw new Error("Failed to update block")
-        }
-
+        await updateBlockMutation.mutateAsync({ blockId, ...updates })
         setSaveStatus("saved")
       } catch (error) {
         setSaveStatus("unsaved")
         toast.error("Failed to save changes")
       }
     },
-    [websiteId, pageId, iframeReady, blocks, updateBlockPreview]
+    [iframeReady, blocks, updateBlockPreview, updateBlockMutation]
   )
 
   // Handle block delete
   const handleBlockDelete = useCallback(
     async (blockId: string) => {
       try {
-        const response = await fetch(
-          `/admin/websites/${websiteId}/pages/${pageId}/blocks/${blockId}`,
-          {
-            method: "DELETE",
-          }
-        )
-
-        if (!response.ok) {
-          throw new Error("Failed to delete block")
-        }
-
+        await deleteBlockMutation.mutateAsync(blockId)
         setBlocks((prev) => prev.filter((b) => b.id !== blockId))
         if (selectedBlockId === blockId) {
           setSelectedBlockId(null)
@@ -175,33 +151,16 @@ export function VisualPageEditor({
         toast.error("Failed to delete block")
       }
     },
-    [websiteId, pageId, selectedBlockId]
+    [selectedBlockId, deleteBlockMutation]
   )
 
   // Handle adding new block
   const handleAddBlock = useCallback(
     async (blockData: { name: string; type: AdminBlock["type"]; content?: Record<string, unknown>; settings?: Record<string, unknown> }) => {
       try {
-        const response = await fetch(
-          `/admin/websites/${websiteId}/pages/${pageId}/blocks`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              blocks: [{
-                ...blockData,
-                order: blocks.length,
-                status: "Active",
-              }],
-            }),
-          }
-        )
-
-        if (!response.ok) {
-          throw new Error("Failed to create block")
-        }
-
-        const data = await response.json()
+        const data = await createBlockMutation.mutateAsync({
+          blocks: [{ ...blockData, order: blocks.length, status: "Active" }],
+        } as any)
         if (data.blocks?.[0]) {
           setBlocks((prev) => [...prev, data.blocks[0]])
           setSelectedBlockId(data.blocks[0].id)
@@ -211,7 +170,7 @@ export function VisualPageEditor({
         toast.error("Failed to add block")
       }
     },
-    [websiteId, pageId, blocks.length]
+    [blocks.length, createBlockMutation]
   )
 
   // Handle deselect
@@ -339,7 +298,7 @@ export function VisualPageEditor({
 function getPreviewUrl(domain: string | undefined, slug: string): string {
   let baseUrl: string
   if (domain) {
-    baseUrl = domain.startsWith("http") ? domain : `https://${domain}`
+    baseUrl = domain.startsWith("http") ? domain : `https://${domain}/blog`
   } else {
 // @ts-ignore
     baseUrl = import.meta.env.VITE_PREVIEW_URL || "http://localhost:3000"
