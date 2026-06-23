@@ -119,6 +119,45 @@ setupSharedTestSuite(() => {
       )
     })
 
+    it("GET lists the backfill-finished-run-consumption job (#697)", async () => {
+      const res = await api.get("/admin/ops/maintenance-jobs", adminHeaders)
+      expect(res.status).toBe(200)
+      const job = res.data.jobs.find(
+        (j: any) => j.id === "backfill-finished-run-consumption"
+      )
+      expect(job).toBeDefined()
+      expect(job.params.map((p: any) => p.name)).toEqual([
+        "production_run_id",
+        "work_days",
+        "hours_per_day",
+        "kwh_per_day",
+        "limit",
+      ])
+    })
+
+    it("POST backfill-finished-run-consumption for a missing run → 404", async () => {
+      await expect(
+        api.post(
+          "/admin/ops/maintenance-jobs/backfill-finished-run-consumption/run",
+          { dry_run: true, params: { production_run_id: "prod_run_does_not_exist" } },
+          adminHeaders
+        )
+      ).rejects.toMatchObject({ response: { status: 404 } })
+    })
+
+    it("POST backfill-finished-run-consumption dry-run sweep → 200, no changes on an empty DB", async () => {
+      const res = await api.post(
+        "/admin/ops/maintenance-jobs/backfill-finished-run-consumption/run",
+        { dry_run: true, params: {} },
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.result.dry_run).toBe(true)
+      expect(res.data.result.applied).toBe(false)
+      expect(res.data.result.changes).toEqual([])
+      expect(res.data.result.summary).toContain("No changes")
+    })
+
     it("GET lists the correct-production-run-cost job", async () => {
       const res = await api.get("/admin/ops/maintenance-jobs", adminHeaders)
       expect(res.status).toBe(200)
