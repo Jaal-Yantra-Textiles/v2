@@ -44,6 +44,12 @@ import {
   generateNewsletterDraft,
   type GenerateNewsletterDraftResult,
 } from "../../../../workflows/marketing/generate-newsletter-draft"
+import {
+  selectWinbackTargets,
+  type ChurnScoreRow,
+  type PersonContact,
+  type WinbackSelection,
+} from "../../../../modules/marketing/winback-targets-lib"
 import { VISUAL_FLOWS_MODULE } from "../../../../modules/visual_flows"
 import { FLOW_DEF as IDEAS_EMAIL_FLOW_DEF } from "../../../../scripts/seed-marketing-daily-ideas-email-flow"
 
@@ -3718,6 +3724,185 @@ export const generateMarketingNewsletterDraftJob: MaintenanceJob = {
   },
 }
 
+// ---------------------------------------------------------------------------
+// generate-winback-targets (#659, report §12.5) — read ad_planning churn-risk
+// (+ optional CLV) scores, resolve each scored Person's email, and select
+// winback targets with a PURE, unit-tested selector (threshold + optional CLV
+// floor + dedup + idempotency + cap). dry_run = preview the target list; apply =
+// create `marketing_outreach` rows (campaign="winback", channel="email",
+// status="queued"). Idempotent: a Person already in campaign="winback" (matched
+// by email) is never re-created. Scores are read-only — never recomputed. A
+// scored buyer with no Person row / no email is reported as skipped, never a
+// crash (#664 upserts Persons; some historical buyers may still lack one).
+// ---------------------------------------------------------------------------
+
+/** Hard cap on how many churn-risk rows one run scans. */
+export const MAX_WINBACK_SCAN = 2000
+
+/**
+ * Pure: turn a winback selection into a MaintenanceJobResult. Exported for unit
+ * testing so the dry-run/apply wording + the per-target change set + the
+ * skipped-reason roll-up are verifiable without the DB.
+ */
+export function buildWinbackResult(
+  jobId: string,
+  dry_run: boolean,
+  selection: WinbackSelection,
+  createdCount: number
+): MaintenanceJobResult {
+  const { targets, skipped, stats } = selection
+  const changes: MaintenanceChange[] = targets.map((t) => ({
+    entity: "marketing_outreach",
+    id: t.email,
+    field: "created",
+    after: {
+      campaign: "winback",
+      recipient_email: t.email,
+      recipient_name: t.name,
+      churn_risk: t.churn_risk,
+      clv: t.clv,
+      status: dry_run ? "(would create)" : "queued",
+    },
+  }))
+
+  // skipped reasons roll-up for the summary.
+  const reasons: Record<string, number> = {}
+  for (const s of skipped) reasons[s.reason] = (reasons[s.reason] ?? 0) + 1
+  const reasonStr = Object.entries(reasons)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(", ")
+
+  const applied = !dry_run && createdCount > 0
+  const cappedNote = stats.capped > 0 ? ` (${stats.capped} over the cap not selected)` : ""
+  const skipNote = skipped.length ? ` Skipped ${skipped.length}${reasonStr ? ` (${reasonStr})` : ""}.` : ""
+  const summary = dry_run
+    ? `Dry-run: scanned ${stats.scanned} churn-risk score(s); ${stats.targeted} winback target(s) would be created${cappedNote}.${skipNote} Nothing written.`
+    : `Created ${createdCount} winback outreach row(s) from ${stats.targeted} selected target(s)${cappedNote}.${skipNote}`
+  return { job_id: jobId, dry_run, applied, summary, changes }
+}
+
+function toNumberParam(raw: unknown, fallback: number): number {
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : fallback
+}
+
+export const generateWinbackTargetsJob: MaintenanceJob = {
+  id: "generate-winback-targets",
+  label: "Generate winback targets",
+  description:
+    "Select winback outreach targets from ad_planning churn-risk scores (#659, §12.5). Reads CustomerScore (score_type=churn_risk, optionally clv) read-only, resolves each scored Person's email, and picks high-risk targets (threshold + optional CLV floor + dedup + cap). Dry-run (default) previews the target list without writing; apply creates marketing_outreach rows (campaign=winback, channel=email, status=queued). Idempotent — a Person already in the winback campaign is never re-created. Scored buyers with no Person row or no email are reported as skipped (never crash).",
+  params: [
+    {
+      name: "min_churn_risk",
+      type: "number",
+      required: false,
+      description: "Minimum churn_risk (0-100) to qualify. Default 70.",
+    },
+    {
+      name: "min_clv",
+      type: "number",
+      required: false,
+      description:
+        "Optional CLV floor — only target persons whose clv score >= this. Omit to ignore CLV.",
+    },
+    {
+      name: "max_targets",
+      type: "number",
+      required: false,
+      description: "Max winback rows to create per run (highest-risk first). Default 50.",
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const adPlanning: any = container.resolve(AD_PLANNING_MODULE)
+    const personService: any = container.resolve(PERSON_MODULE)
+    const marketing: any = container.resolve(MARKETING_MODULE)
+
+    const minChurnRisk = toNumberParam(params.min_churn_risk, 70)
+    const cap = toNumberParam(params.max_targets, 50)
+    const minClv =
+      params.min_clv != null && Number.isFinite(Number(params.min_clv))
+        ? Number(params.min_clv)
+        : null
+
+    // 1) churn-risk scores (read-only), highest risk first, scan-capped.
+    const churnRows: any[] = await adPlanning.listCustomerScores(
+      { score_type: "churn_risk" },
+      { order: { score_value: "DESC" }, take: MAX_WINBACK_SCAN }
+    )
+    const churnScores: ChurnScoreRow[] = (churnRows ?? []).map((r) => ({
+      person_id: r.person_id,
+      score_value: Number(r.score_value),
+    }))
+    const personIds = Array.from(
+      new Set(churnScores.map((s) => s.person_id).filter(Boolean))
+    )
+
+    // 2) resolve Person contacts (email/name) for the scored ids.
+    const contactById = new Map<string, PersonContact>()
+    if (personIds.length) {
+      const people: any[] = await personService.listPeople({ id: personIds })
+      for (const p of people ?? []) {
+        const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim()
+        contactById.set(p.id, { id: p.id, email: p.email, name: name || null })
+      }
+    }
+
+    // 3) optional CLV scores for the same persons.
+    let clvById: Map<string, number> | undefined
+    if (minClv != null && personIds.length) {
+      const clvRows: any[] = await adPlanning.listCustomerScores({
+        score_type: "clv",
+        person_id: personIds,
+      })
+      clvById = new Map(
+        (clvRows ?? []).map((r) => [r.person_id, Number(r.score_value)])
+      )
+    }
+
+    // 4) idempotency — emails already in the winback campaign.
+    const existing: any[] = await marketing.listMarketingOutreaches({
+      campaign: "winback",
+    })
+    const alreadyTargeted = new Set<string>(
+      (existing ?? [])
+        .map((o) => (o.recipient_email || "").trim().toLowerCase())
+        .filter(Boolean)
+    )
+
+    const selection = selectWinbackTargets(
+      churnScores,
+      contactById,
+      clvById,
+      alreadyTargeted,
+      { minChurnRisk, minClv, cap }
+    )
+
+    let createdCount = 0
+    if (!dry_run && selection.targets.length) {
+      const created = await marketing.createMarketingOutreaches(
+        selection.targets.map((t) => ({
+          recipient_email: t.email,
+          recipient_name: t.name,
+          campaign: "winback",
+          channel: "email",
+          status: "queued",
+          notes: `winback target — churn_risk=${t.churn_risk}${
+            t.clv != null ? `, clv=${t.clv}` : ""
+          }`,
+        }))
+      )
+      createdCount = Array.isArray(created) ? created.length : created ? 1 : 0
+    }
+
+    return buildWinbackResult(
+      generateWinbackTargetsJob.id,
+      dry_run,
+      selection,
+      createdCount
+    )
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -3737,6 +3922,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   runMarketingIdeasEmailJob,
   installMarketingIdeasEmailFlowJob,
   generateMarketingNewsletterDraftJob,
+  generateWinbackTargetsJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
