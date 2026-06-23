@@ -40,6 +40,10 @@ import {
   type DailyIdeasEmailSummary,
 } from "../../../../workflows/marketing/run-daily-ideas-email"
 import { sendIdeasEmailWorkflow } from "../../../../workflows/marketing/send-ideas-email"
+import {
+  generateNewsletterDraft,
+  type GenerateNewsletterDraftResult,
+} from "../../../../workflows/marketing/generate-newsletter-draft"
 import { VISUAL_FLOWS_MODULE } from "../../../../modules/visual_flows"
 import { FLOW_DEF as IDEAS_EMAIL_FLOW_DEF } from "../../../../scripts/seed-marketing-daily-ideas-email-flow"
 
@@ -3621,6 +3625,99 @@ export const installMarketingIdeasEmailFlowJob: MaintenanceJob = {
   },
 }
 
+// ---------------------------------------------------------------------------
+// generate-marketing-newsletter-draft (#659, report §12.4) — generate a
+// customer-facing newsletter draft with the injectable AI pattern and persist it
+// to the EXISTING `marketing_draft` model for operator review. NO sending here
+// (that reuses src/jobs/process-email-queue.ts later, via the Newsletter editor
+// UI). dry_run = generate + persist as status="draft" (review); apply = generate
+// + persist as status="approved" (marked ready). Mirrors how the ideas-email job
+// always persists its output before any send — the draft IS the deliverable the
+// operator edits, so we persist on both paths and distinguish by status.
+// ---------------------------------------------------------------------------
+
+/**
+ * Pure: turn a generate result into a MaintenanceJobResult. Exported for unit
+ * testing so the dry-run/apply + parse-error wording is verifiable without the
+ * DB or the LLM.
+ */
+export function buildNewsletterDraftResult(
+  jobId: string,
+  dry_run: boolean,
+  result: GenerateNewsletterDraftResult
+): MaintenanceJobResult {
+  const draftId = result.draft_id ?? "(none)"
+  const sectionCount = result.payload?.sections?.length ?? 0
+  const changes: MaintenanceChange[] = [
+    {
+      entity: "marketing_draft",
+      id: draftId,
+      field: "created",
+      after: {
+        name: result.name,
+        status: result.status,
+        subject: result.payload?.subject || "(none)",
+        sections: sectionCount,
+        parse_error: result.parse_error,
+      },
+    },
+  ]
+  // "applied" means a ready (approved) draft was actually written.
+  const applied = !dry_run && result.status === "approved" && !!result.draft_id
+  const guardNote = result.parse_error
+    ? " ⚠ model output was not valid JSON — saved as a raw fallback for manual cleanup."
+    : ""
+  const summary = dry_run
+    ? `Dry-run: generated newsletter draft "${result.name}" (${draftId}) as status=draft for review — nothing marked ready.${guardNote} Edit it in the Newsletter UI, then re-run with apply to mark it ready.`
+    : `Generated newsletter draft "${result.name}" (${draftId}); marked ready (status=approved).${guardNote} Review/edit + enqueue to send via the email queue.`
+  return { job_id: jobId, dry_run, applied, summary, changes }
+}
+
+export const generateMarketingNewsletterDraftJob: MaintenanceJob = {
+  id: "generate-marketing-newsletter-draft",
+  label: "Generate marketing newsletter draft",
+  description:
+    "Generate a customer-facing newsletter draft with the AI editor and persist it to the marketing_draft store for operator review (#659, §12.4). NO email is sent — drafts are reviewed/edited in the Newsletter UI and enqueued later through the existing email queue. Dry-run (default) generates + saves the draft as status=draft for review; apply generates + saves it as status=approved (marked ready). Optionally pass a topic/angle for the edition and a name label. The AI call is injectable so it never runs in CI; a non-JSON model reply is saved as a safe raw fallback (never crashes).",
+  params: [
+    {
+      name: "topic",
+      type: "string",
+      required: false,
+      description:
+        "Topic / angle for this newsletter edition (free text). Omit to let the editor pick an evergreen angle.",
+    },
+    {
+      name: "name",
+      type: "string",
+      required: false,
+      description:
+        "Human label for the draft row (default: newsletter-<IST date>).",
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const topic =
+      typeof params.topic === "string" && params.topic.trim()
+        ? params.topic.trim()
+        : undefined
+    const name =
+      typeof params.name === "string" && params.name.trim()
+        ? params.name.trim()
+        : undefined
+
+    const result = await generateNewsletterDraft(container, {
+      ...(topic ? { topic } : {}),
+      ...(name ? { name } : {}),
+      markReady: !dry_run,
+    })
+
+    return buildNewsletterDraftResult(
+      generateMarketingNewsletterDraftJob.id,
+      dry_run,
+      result
+    )
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -3639,6 +3736,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   syncMarketingOutreachEngagementJob,
   runMarketingIdeasEmailJob,
   installMarketingIdeasEmailFlowJob,
+  generateMarketingNewsletterDraftJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
