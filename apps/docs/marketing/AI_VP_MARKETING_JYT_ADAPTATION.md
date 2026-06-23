@@ -71,6 +71,45 @@ The spec's most underrated instruction. JYT's twist: much of the "history" alrea
 
 ---
 
+## 3a. Relationship to the existing `ad_planning` module (boundary decision)
+
+**Decision (operator, 2026-06-23): the new `marketing` module is INDEPENDENT —
+its own module + admin menu — but slices 3 and 5 READ from `ad_planning` rather
+than recomputing.** It is *not* a subset nested under `ad_planning`, and `ad_planning`
+is left unchanged.
+
+The two are different layers, not competitors:
+
+| | `ad_planning` (exists, the engine) | `marketing` (this work, the AI-VP) |
+|---|---|---|
+| Role | Marketing **analytics/attribution/scoring** | AI-VP **advisory + operator-action** layer |
+| Models | 10 — `Conversion`, `CustomerScore`, `CampaignAttribution`, `CustomerSegment`, `CustomerJourney`, `AbExperiment`, `BudgetForecast`, `SentimentAnalysis`, … | 5 — `marketing_metric_snapshot`, `marketing_outreach`, `marketing_draft`, `marketing_manual_override`, `marketing_ideas_log` |
+| Surface | `/admin/ad-planning/*` (scores, journeys, attribution, experiments) | `/admin/marketing` (headline + ideas email + winbacks) |
+
+**Wiring points (grounded to real columns, verified 2026-06-23) — cross-module
+reads go through `query.graph`, never a second module's service directly:**
+
+1. **GMV / headline snapshot (slice 3, `daily-refresh`)** — derive the GMV metric
+   from `ad_planning.Conversion` where `conversion_type = "purchase"`: sum
+   `conversion_value` (`bigNumber`) carrying `currency`, bucket by `converted_at`
+   into the IST business day. This is the truer GMV source than raw `analytics.*`
+   traffic. `analytics.*` still feeds traffic/conversion-rate metrics.
+2. **Winback targeting (slice 5, `marketing_outreach`)** — pick recipients by reading
+   `ad_planning.CustomerScore` where `score_type = "churn_risk"` (high `score_value`
+   = at-risk) or `"clv"`, joined by `person_id` — instead of selecting recipients
+   blind. Do not duplicate scoring logic into `marketing`.
+3. **No reverse dependency** — `ad_planning` must not import or read from `marketing`.
+   Data flows one way: `marketing` ← `ad_planning` / `analytics`.
+
+> **⚠️ Soft prerequisite for slice 5 — issue #664.** `Conversion.person_id` and
+> `CustomerScore.person_id` only exist for customers that have a `Person` row, and
+> **manual-order customers never get one** (`order.placed` doesn't upsert a Person, so
+> `resolvePersonStep` returns null and scoring silently skips them). Until #664 lands,
+> winback targeting via `CustomerScore` will silently miss manual-order buyers. Build
+> #664 (Person-upsert + backfill) before, or alongside, slice 5.
+
+---
+
 ## 4. The Autonomous Layer (build first) — JYT mapping
 
 ### 4.1 Headline strip + dashboard
