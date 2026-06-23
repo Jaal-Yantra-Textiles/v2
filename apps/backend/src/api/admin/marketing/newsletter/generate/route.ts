@@ -13,6 +13,7 @@
  * Body (optional): { topic?: string } — an angle for this edition.
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { generateText } from "ai"
 import { createOpenRouter } from "@openrouter/ai-sdk-provider"
 import {
@@ -25,6 +26,7 @@ import {
   parseNewsletterPayload,
 } from "../../../../../workflows/marketing/generate-newsletter-draft"
 import { buildNewsletterPrefill } from "../../newsletter-prefill-lib"
+import { buildNoOutputError } from "../newsletter-generate-error-lib"
 
 const NEWSLETTER_AI_ROLE = "ai_newsletter_drafter"
 const DEFAULT_MODEL = "anthropic/claude-3.5-sonnet"
@@ -48,8 +50,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     dateIst: istDateString(new Date()),
   })
 
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+
   let rawOutput = ""
   let source: "platform" | "env" | "none" = "none"
+  // Track WHY no output came back, so the 503 stops conflating
+  // "no provider configured" with "the resolved provider failed" (#701).
+  let providerResolved = false
+  let providerType: string | undefined
+  let providerModel: string | undefined
+  let caughtError: string | undefined
   try {
     // 1) admin-configured provider for the role (preferred)
     const aiPlatform = await getAiPlatformForRole(
@@ -57,6 +67,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       NEWSLETTER_AI_ROLE
     )
     if (aiPlatform) {
+      providerResolved = true
+      providerType = aiPlatform.providerType
+      providerModel = aiPlatform.defaultModel || undefined
       const chatModel = buildChatModel(
         aiPlatform,
         aiPlatform.defaultModel || undefined
@@ -82,15 +95,24 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       source = "env"
     }
   } catch (error: any) {
-    // eslint-disable-next-line no-console
-    console.error("[newsletter/generate] AI error:", error?.message)
+    caughtError = error?.message || String(error)
+    logger.error(`[newsletter/generate] AI error: ${caughtError}`)
   }
 
   if (!rawOutput) {
-    res.status(503).json({
-      error:
-        "No AI provider available. Configure a social-platform AI provider with role 'ai_newsletter_drafter', or set OPENROUTER_API_KEY.",
+    const message = buildNoOutputError({
+      providerResolved,
+      providerType,
+      model: providerModel,
+      error: caughtError,
+      hasEnvKey: !!process.env.OPENROUTER_API_KEY,
     })
+    // Log at error level only when a provider actually ran but produced
+    // nothing — the pure "not configured" case is operator-expected, not an error.
+    if (providerResolved || process.env.OPENROUTER_API_KEY) {
+      logger.error(`[newsletter/generate] ${message}`)
+    }
+    res.status(503).json({ error: message })
     return
   }
 
