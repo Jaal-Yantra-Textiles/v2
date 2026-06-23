@@ -1280,6 +1280,318 @@ export const backfillDesignEnergyCostJob: MaintenanceJob = {
 }
 
 /**
+ * Hard cap on how many finished production runs a single consumption-backfill
+ * sweep may scan. Each run runs a consumption-log lookup (and, on apply, creates
+ * a couple of rows), so we bound the per-request blast radius; bigger backfills
+ * raise the `limit` across chunked calls.
+ */
+export const MAX_RUN_CONSUMPTION_SCAN = 2000
+
+const backfillRunConsumptionParamsSchema = z.object({
+  /** Target a single completed production run instead of sweeping all of them. */
+  production_run_id: z.string().min(1).optional(),
+  /** Assumed working days per finished run (the #697 "most took 2-3 days" assumption). */
+  work_days: z.number().positive().max(60).optional().default(2.5),
+  /** Labor hours per working day → labor log quantity = work_days × hours_per_day. */
+  hours_per_day: z.number().positive().max(24).optional().default(8),
+  /** Electricity kWh per working day → energy log quantity = work_days × kwh_per_day. */
+  kwh_per_day: z.number().positive().max(1000).optional().default(12),
+  /** Max finished runs to scan in one sweep when no production_run_id is given. */
+  limit: z.number().int().positive().max(MAX_RUN_CONSUMPTION_SCAN).optional().default(1000),
+})
+
+/**
+ * Pure: turn the "days of work" assumption into the labor-hours and electricity
+ * kWh quantities a finished run should carry. Non-positive inputs collapse to 0
+ * (that bucket is then skipped by `buildRunConsumptionLogs`). Exported for unit
+ * testing the cost-quantity math without a DB.
+ */
+export function computeRunConsumptionQuantities(
+  workDays: number,
+  hoursPerDay: number,
+  kwhPerDay: number
+): { laborHours: number; energyKwh: number } {
+  const safeDays = workDays > 0 ? workDays : 0
+  return {
+    laborHours: round2(safeDays * (hoursPerDay > 0 ? hoursPerDay : 0)),
+    energyKwh: round2(safeDays * (kwhPerDay > 0 ? kwhPerDay : 0)),
+  }
+}
+
+export type RunConsumptionLogDraft = {
+  design_id: string
+  production_run_id: string
+  consumption_type: "labor" | "energy_electricity"
+  unit_of_measure: "Hour" | "kWh"
+  quantity: number
+  /** Priced from the latest active energy_rate; null when no rate exists (the
+   * cost-summary endpoint then falls back to the live rate at read time). */
+  unit_cost: number | null
+}
+
+/**
+ * Pure: build the labor + electricity consumption-log drafts for one finished
+ * run from the assumed quantities, priced from the active energy rate map. A
+ * zero-quantity bucket is omitted. Exported so the create payload is verifiable
+ * without booting the consumption-log service.
+ */
+export function buildRunConsumptionLogs(
+  run: { id: string; design_id?: string | null },
+  quantities: { laborHours: number; energyKwh: number },
+  rateMap: Map<string, { rate_per_unit: number; name: string }>
+): RunConsumptionLogDraft[] {
+  const designId = run.design_id || ""
+  const drafts: RunConsumptionLogDraft[] = []
+  if (quantities.laborHours > 0) {
+    const rate = rateMap.get("labor")?.rate_per_unit
+    drafts.push({
+      design_id: designId,
+      production_run_id: run.id,
+      consumption_type: "labor",
+      unit_of_measure: "Hour",
+      quantity: quantities.laborHours,
+      unit_cost: rate && rate > 0 ? rate : null,
+    })
+  }
+  if (quantities.energyKwh > 0) {
+    const rate = rateMap.get("energy_electricity")?.rate_per_unit
+    drafts.push({
+      design_id: designId,
+      production_run_id: run.id,
+      consumption_type: "energy_electricity",
+      unit_of_measure: "kWh",
+      quantity: quantities.energyKwh,
+      unit_cost: rate && rate > 0 ? rate : null,
+    })
+  }
+  return drafts
+}
+
+/**
+ * Pure summary builder for the finished-run consumption backfill — keeps the
+ * human-facing string verifiable without booting the DB.
+ */
+export function summarizeRunConsumptionBackfill(
+  dryRun: boolean,
+  scanned: number,
+  backfilledRuns: number,
+  logsCreated: number,
+  alreadyHad: number,
+  errorCount: number
+): string {
+  const verb = dryRun ? "Would create" : "Created"
+  const head =
+    backfilledRuns === 0
+      ? `No changes — scanned ${scanned} finished run(s), none needed energy/labor consumption logs`
+      : `${verb} ${logsCreated} consumption log(s) across ${backfilledRuns} finished run(s) (scanned ${scanned})`
+  const tail = alreadyHad > 0 ? `; ${alreadyHad} already had energy/labor logs` : ""
+  return errorCount > 0 ? `${head}${tail}; ${errorCount} error(s)` : `${head}${tail}`
+}
+
+/**
+ * Backfill energy & labor CONSUMPTION LOGS onto finished production runs (#697).
+ *
+ * Root cause: finished/completed runs that were never logged carry NO
+ * energy/labor consumption logs, so `GET /admin/production-runs/:id/cost-summary`
+ * reports `energy.total = 0` and `labor.total = 0` (only the partner estimate
+ * survives). This job synthesises the missing logs from the issue's stated
+ * assumption — "most took 2-3 days of work" — creating one `labor` log
+ * (work_days × hours_per_day, priced from the active labor rate) and one
+ * `energy_electricity` log (work_days × kwh_per_day, priced from the active
+ * electricity rate) per completed run that has none yet.
+ *
+ * It is the consumption-log INPUT side of the cost pipeline; the existing
+ * `backfill-design-energy-costs` job is the design cost_breakdown OUTPUT side —
+ * run this first, then that, to fully repair a finished design's costs.
+ *
+ * Safe-by-default: dry-run (default) previews the logs it WOULD create without
+ * writing; apply persists committed logs. Idempotent — a run that already has
+ * ANY energy/labor log is skipped (so re-running never duplicates). NOTE: this
+ * does NOT touch material consumption (`consumed_quantity` on the
+ * design↔inventory link) — that needs real bill-of-materials data and can't be
+ * honestly synthesised; it's a separate follow-up.
+ */
+export const backfillFinishedRunConsumptionJob: MaintenanceJob = {
+  id: "backfill-finished-run-consumption",
+  label: "Backfill finished-run energy & labor consumption logs",
+  description:
+    `Create the missing energy (electricity) + labor consumption logs on COMPLETED production runs so the cost-summary endpoint stops reporting energy/labor as 0 (#697). Quantities are derived from the "most took 2-3 days of work" assumption (work_days × hours_per_day labor hours, work_days × kwh_per_day electricity kWh), priced from the latest active energy_rate. Dry-run previews the logs it would create; apply persists committed logs. Idempotent — runs that already have an energy/labor log are skipped. Pass production_run_id to target one completed run, or sweep up to 'limit' completed runs (default 1000, max ${MAX_RUN_CONSUMPTION_SCAN}). Does NOT backfill material consumption.`,
+  params: [
+    {
+      name: "production_run_id",
+      type: "string",
+      required: false,
+      description: "Target a single completed run instead of sweeping all completed runs",
+    },
+    {
+      name: "work_days",
+      type: "number",
+      required: false,
+      description: "Assumed working days per finished run (default 2.5)",
+    },
+    {
+      name: "hours_per_day",
+      type: "number",
+      required: false,
+      description: "Labor hours per working day → labor log quantity = work_days × hours_per_day (default 8)",
+    },
+    {
+      name: "kwh_per_day",
+      type: "number",
+      required: false,
+      description: "Electricity kWh per working day → energy log quantity = work_days × kwh_per_day (default 12)",
+    },
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: `Max completed runs to scan in one sweep when no production_run_id is given (default 1000, max ${MAX_RUN_CONSUMPTION_SCAN})`,
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const parsed = backfillRunConsumptionParamsSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        parsed.error.issues.map((i) => i.message).join("; ")
+      )
+    }
+    const { production_run_id, work_days, hours_per_day, kwh_per_day, limit } = parsed.data
+
+    const productionRunService: any = container.resolve("production_runs")
+    const consumptionLogService: any = container.resolve("consumption_log")
+    const energyRateService: any = container.resolve("energy_rates")
+
+    // Latest active rate per energy_type (pure) — labor + electricity priced from it.
+    const [activeRates] = await energyRateService.listAndCountEnergyRates(
+      { is_active: true },
+      { take: null }
+    )
+    const rateMap = buildEnergyRateMap(activeRates || [])
+
+    const quantities = computeRunConsumptionQuantities(work_days, hours_per_day, kwh_per_day)
+
+    // Resolve the target run set: one explicit run, or all completed runs.
+    let runs: any[]
+    if (production_run_id) {
+      const run = await productionRunService
+        .retrieveProductionRun(production_run_id)
+        .catch(() => null)
+      if (!run) {
+        throw new MedusaError(
+          MedusaError.Types.NOT_FOUND,
+          `Production run not found: ${production_run_id}`
+        )
+      }
+      runs = [run]
+    } else {
+      const [completedRuns] = await productionRunService.listAndCountProductionRuns(
+        { status: "completed" },
+        { take: null }
+      )
+      runs = (completedRuns || []).slice(0, limit)
+    }
+
+    const changes: MaintenanceChange[] = []
+    const errors: Array<{ id: string; message: string }> = []
+    const backfilledRuns = new Set<string>()
+    let logsCreated = 0
+    let alreadyHad = 0
+
+    for (const run of runs) {
+      try {
+        // Only finished work gets synthetic costs. A single-run target that
+        // isn't completed is surfaced as a per-row error (never an abort).
+        if (run.status !== "completed") {
+          errors.push({ id: run.id, message: `Run status is ${run.status}, not completed` })
+          continue
+        }
+
+        // Idempotency: skip if the run already has ANY energy or labor log.
+        const [runLogs] = await consumptionLogService.listAndCountConsumptionLogs(
+          { production_run_id: run.id },
+          { take: null }
+        )
+        const hasEnergyOrLabor = (runLogs || []).some(
+          (l: any) =>
+            l.consumption_type === "labor" ||
+            ENERGY_CONSUMPTION_TYPES.includes(l.consumption_type)
+        )
+        if (hasEnergyOrLabor) {
+          alreadyHad++
+          continue
+        }
+
+        const drafts = buildRunConsumptionLogs(run, quantities, rateMap)
+        if (!drafts.length) continue
+
+        for (const d of drafts) {
+          changes.push({
+            entity: "production_run",
+            id: run.id,
+            field: d.consumption_type,
+            before: null,
+            after: {
+              quantity: d.quantity,
+              unit_cost: d.unit_cost,
+              unit_of_measure: d.unit_of_measure,
+            },
+          })
+        }
+        backfilledRuns.add(run.id)
+        logsCreated += drafts.length
+
+        if (!dry_run) {
+          const consumedAt =
+            run.completed_at || run.finished_at || run.started_at || new Date()
+          for (const d of drafts) {
+            await consumptionLogService.createConsumptionLogs({
+              design_id: d.design_id,
+              production_run_id: d.production_run_id,
+              inventory_item_id: null,
+              raw_material_id: null,
+              quantity: d.quantity,
+              unit_cost: d.unit_cost,
+              unit_of_measure: d.unit_of_measure,
+              consumption_type: d.consumption_type,
+              is_committed: true,
+              consumed_by: "admin",
+              consumed_at: consumedAt,
+              notes: `Backfilled (≈${work_days} day(s) of work) by ops_maintenance_backfill_finished_run_consumption`,
+              location_id: null,
+              metadata: {
+                source: "ops_maintenance_backfill_finished_run_consumption",
+                work_days,
+                hours_per_day,
+                kwh_per_day,
+              },
+            })
+          }
+        }
+      } catch (e: any) {
+        errors.push({ id: run.id, message: e?.message ?? String(e) })
+      }
+    }
+
+    return {
+      job_id: backfillFinishedRunConsumptionJob.id,
+      dry_run,
+      applied: !dry_run && changes.length > 0,
+      summary: summarizeRunConsumptionBackfill(
+        dry_run,
+        runs.length,
+        backfilledRuns.size,
+        logsCreated,
+        alreadyHad,
+        errors.length
+      ),
+      changes,
+      errors,
+    }
+  },
+}
+
+/**
  * Hard cap on how many audit rows a single prune call may delete. Each pruned
  * row is enumerated in `changes` (and therefore stored in THIS prune run's own
  * audit row), so we bound the per-call blast radius and avoid bloating the very
@@ -3947,6 +4259,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   correctProductionRunCostJob,
   backfillInventoryUnitCostJob,
   backfillDesignEnergyCostJob,
+  backfillFinishedRunConsumptionJob,
   pruneOpsAuditRunsJob,
   backfillPartnerOrderCurrencyJob,
   repairPartnerRegionLinksJob,
