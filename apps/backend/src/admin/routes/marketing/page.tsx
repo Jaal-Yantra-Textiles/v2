@@ -21,10 +21,11 @@ const formatValue = (value: number, unit: string | null): string => {
   return unit ? `${base} ${unit}` : base
 }
 
+// delta_dod is a day-over-day PERCENTAGE (matches how the ideas-email renders it).
 const formatDelta = (delta: number | null): string => {
   if (delta === null) return "-"
   const sign = delta >= 0 ? "+" : ""
-  return `${sign}${delta.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+  return `${sign}${delta.toLocaleString(undefined, { maximumFractionDigits: 2 })}%`
 }
 
 const MarketingPage = () => {
