@@ -403,6 +403,9 @@ module.exports = defineConfig({
     resolve: "./src/modules/ops_audit",
   },
   {
+    resolve: "./src/modules/marketing",
+  },
+  {
     resolve: "./src/modules/encryption",
     definition: { isQueryable: false },
   },
