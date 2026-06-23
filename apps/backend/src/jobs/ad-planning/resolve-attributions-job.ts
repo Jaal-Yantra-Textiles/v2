@@ -6,10 +6,12 @@
  */
 
 import { MedusaContainer } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { bulkResolveAttributionsWorkflow } from "../../workflows/ad-planning/attribution/bulk-resolve-attributions";
 
 export default async function resolveAttributionsJob(container: MedusaContainer) {
-  console.log("[AdPlanning] Starting daily attribution resolution job...");
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER);
+  logger.info("[AdPlanning] Starting daily attribution resolution job...");
 
   try {
     const result = await bulkResolveAttributionsWorkflow(container).run({
@@ -19,13 +21,11 @@ export default async function resolveAttributionsJob(container: MedusaContainer)
       },
     });
 
-    console.log(`[AdPlanning] Attribution resolution complete:`, {
-      processed: result.result.processed,
-      resolved: result.result.resolved,
-      failed: result.result.failed,
-    });
+    logger.info(
+      `[AdPlanning] Attribution resolution complete: processed=${result.result.processed}, resolved=${result.result.resolved}, failed=${result.result.failed}`
+    );
   } catch (error) {
-    console.error("[AdPlanning] Attribution resolution job failed:", error);
+    logger.error("[AdPlanning] Attribution resolution job failed:", error as Error);
   }
 }
 

@@ -17,6 +17,7 @@ export default async function sampleRunCompletedHandler({
   const runId = event.data?.id
   if (!runId) return
 
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const productionRunService = container.resolve("production_runs") as any
 
   let run: any
@@ -47,7 +48,7 @@ export default async function sampleRunCompletedHandler({
   )
 
   if (!logs.length) {
-    console.log(`[sample-run-completed] Design ${designId} / Run ${runId}: no committed logs for this run — skipping`)
+    logger.info(`[sample-run-completed] Design ${designId} / Run ${runId}: no committed logs for this run — skipping`)
     return
   }
 
@@ -243,11 +244,11 @@ export default async function sampleRunCompletedHandler({
         production_run_id: runId,
       },
     })
-    console.log(
+    logger.info(
       `[sample-run-completed] Design ${designId}: material=${materialCost}, energy=${energyCost}, labor=${laborCost}, production=${productionCost}, total=${totalEstimate}`
     )
   } catch (e: any) {
-    console.error(`[sample-run-completed] Failed to update design ${designId}:`, e.message)
+    logger.error(`[sample-run-completed] Failed to update design ${designId}: ${e.message}`)
   }
 }
 

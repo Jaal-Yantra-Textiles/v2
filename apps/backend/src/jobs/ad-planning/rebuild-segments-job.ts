@@ -6,11 +6,13 @@
  */
 
 import { MedusaContainer } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { AD_PLANNING_MODULE } from "../../modules/ad-planning";
 import { buildSegmentWorkflow } from "../../workflows/ad-planning/segments/build-segment";
 
 export default async function rebuildSegmentsJob(container: MedusaContainer) {
-  console.log("[AdPlanning] Starting daily segment rebuild job...");
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER);
+  logger.info("[AdPlanning] Starting daily segment rebuild job...");
 
   const adPlanningService = container.resolve(AD_PLANNING_MODULE);
 
@@ -25,7 +27,7 @@ export default async function rebuildSegmentsJob(container: MedusaContainer) {
       (s: any) => s.auto_update !== false
     );
 
-    console.log(`[AdPlanning] Rebuilding ${dynamicSegments.length} dynamic segments...`);
+    logger.info(`[AdPlanning] Rebuilding ${dynamicSegments.length} dynamic segments...`);
 
     let processed = 0;
     let errors = 0;
@@ -36,27 +38,22 @@ export default async function rebuildSegmentsJob(container: MedusaContainer) {
           input: { segment_id: segment.id },
         });
 
-        console.log(`[AdPlanning] Rebuilt segment "${segment.name}":`, {
-          total_evaluated: result.result.total_evaluated,
-          matching_count: result.result.matching_count,
-          members_added: result.result.members_added,
-          members_removed: result.result.members_removed,
-        });
+        logger.info(
+          `[AdPlanning] Rebuilt segment "${segment.name}": total_evaluated=${result.result.total_evaluated}, matching_count=${result.result.matching_count}, members_added=${result.result.members_added}, members_removed=${result.result.members_removed}`
+        );
 
         processed++;
       } catch (error) {
         errors++;
-        console.error(`[AdPlanning] Failed to rebuild segment "${segment.name}":`, error);
+        logger.error(`[AdPlanning] Failed to rebuild segment "${segment.name}":`, error as Error);
       }
     }
 
-    console.log(`[AdPlanning] Segment rebuild complete:`, {
-      total_segments: dynamicSegments.length,
-      processed,
-      errors,
-    });
+    logger.info(
+      `[AdPlanning] Segment rebuild complete: total_segments=${dynamicSegments.length}, processed=${processed}, errors=${errors}`
+    );
   } catch (error) {
-    console.error("[AdPlanning] Segment rebuild job failed:", error);
+    logger.error("[AdPlanning] Segment rebuild job failed:", error as Error);
   }
 }
 

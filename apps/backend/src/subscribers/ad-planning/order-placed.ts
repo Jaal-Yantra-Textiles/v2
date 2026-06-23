@@ -5,17 +5,19 @@
  */
 
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { trackPurchaseConversionWorkflow } from "../../workflows/ad-planning/conversions/track-purchase-conversion";
 
 export default async function adPlanningOrderPlacedHandler({
   event: { data },
   container,
 }: SubscriberArgs<{ id: string }>) {
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER);
   try {
     const orderId = data.id;
 
     if (!orderId) {
-      console.warn("[AdPlanning] Order placed event missing order ID");
+      logger.warn("[AdPlanning] Order placed event missing order ID");
       return;
     }
 
@@ -26,9 +28,9 @@ export default async function adPlanningOrderPlacedHandler({
       },
     });
 
-    console.log(`[AdPlanning] Purchase conversion tracked for order: ${orderId}`);
+    logger.info(`[AdPlanning] Purchase conversion tracked for order: ${orderId}`);
   } catch (error) {
-    console.error("[AdPlanning] Failed to track purchase conversion:", error);
+    logger.error("[AdPlanning] Failed to track purchase conversion:", error as Error);
   }
 }
 

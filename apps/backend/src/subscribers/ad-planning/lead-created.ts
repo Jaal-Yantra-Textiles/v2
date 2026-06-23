@@ -5,6 +5,7 @@
  */
 
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { trackLeadConversionWorkflow } from "../../workflows/ad-planning/conversions/track-lead-conversion";
 
 type LeadCreatedEvent = {
@@ -26,11 +27,12 @@ export default async function leadCreatedHandler({
   event: { data },
   container,
 }: SubscriberArgs<LeadCreatedEvent>) {
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER);
   try {
     const lead = data;
 
     if (!lead.id) {
-      console.warn("[AdPlanning] Lead created event missing lead ID");
+      logger.warn("[AdPlanning] Lead created event missing lead ID");
       return;
     }
 
@@ -52,9 +54,9 @@ export default async function leadCreatedHandler({
       },
     });
 
-    console.log(`[AdPlanning] Lead conversion tracked for lead: ${lead.id}`);
+    logger.info(`[AdPlanning] Lead conversion tracked for lead: ${lead.id}`);
   } catch (error) {
-    console.error("[AdPlanning] Failed to track lead conversion:", error);
+    logger.error("[AdPlanning] Failed to track lead conversion:", error as Error);
   }
 }
 

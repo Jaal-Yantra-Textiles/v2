@@ -1,4 +1,5 @@
 import { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { sendDesignAssignedEmailWorkflow } from "../workflows/email"
 
 export default async function designAssignedHandler({
@@ -11,6 +12,7 @@ export default async function designAssignedHandler({
   design_url?: string
   design_status?: string
 }>) {
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     await sendDesignAssignedEmailWorkflow(container).run({
       input: {
@@ -21,7 +23,7 @@ export default async function designAssignedHandler({
       },
     })
   } catch (error) {
-    console.error("[design-assigned] Failed to send notification email:", error)
+    logger.error("[design-assigned] Failed to send notification email:", error as Error)
   }
 }
 

@@ -1,4 +1,4 @@
-import { Modules } from "@medusajs/framework/utils"
+import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 
 /**
@@ -54,6 +54,8 @@ export default async function productionRunNotificationHandler({
       description = `Production run ${runId} — ${action}`
   }
 
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+
   try {
     const notificationService = container.resolve(Modules.NOTIFICATION) as any
     await notificationService.createNotifications({
@@ -63,7 +65,7 @@ export default async function productionRunNotificationHandler({
       data: { title, description },
     })
   } catch (e: any) {
-    console.error("[production-run-notifications] Failed to send notification:", e.message)
+    logger.error(`[production-run-notifications] Failed to send notification: ${e.message}`)
   }
 }
 

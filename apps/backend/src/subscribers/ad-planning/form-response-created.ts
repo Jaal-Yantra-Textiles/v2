@@ -5,6 +5,7 @@
  */
 
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { trackLeadConversionWorkflow } from "../../workflows/ad-planning/conversions/track-lead-conversion";
 
 type FormResponseCreatedEvent = {
@@ -26,11 +27,12 @@ export default async function formResponseCreatedHandler({
   event: { data },
   container,
 }: SubscriberArgs<FormResponseCreatedEvent>) {
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER);
   try {
     const response = data;
 
     if (!response.id || !response.form_id) {
-      console.warn("[AdPlanning] Form response event missing required fields");
+      logger.warn("[AdPlanning] Form response event missing required fields");
       return;
     }
 
@@ -52,9 +54,9 @@ export default async function formResponseCreatedHandler({
       },
     });
 
-    console.log(`[AdPlanning] Form response conversion tracked: ${response.id}`);
+    logger.info(`[AdPlanning] Form response conversion tracked: ${response.id}`);
   } catch (error) {
-    console.error("[AdPlanning] Failed to track form response conversion:", error);
+    logger.error("[AdPlanning] Failed to track form response conversion:", error as Error);
   }
 }
 
