@@ -17,7 +17,8 @@ const Page = model.define("page", {
     "Service",
     "Portfolio",
     "Landing",
-    "Custom"
+    "Custom",
+    "Newsletter"
   ]).default("Custom"),
   status: model.enum([
     "Draft",

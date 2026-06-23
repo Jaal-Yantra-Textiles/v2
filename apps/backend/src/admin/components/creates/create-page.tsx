@@ -28,7 +28,8 @@ const pageSchema = z.object({
       "Service",
       "Portfolio",
       "Landing",
-      "Custom"
+      "Custom",
+      "Newsletter"
     ]),
     status: z.enum(["Draft", "Published", "Archived"]).default("Draft"),
     meta_title: z.string().optional(),
@@ -64,6 +65,7 @@ const pageTypeOptions = [
   { value: "Portfolio", label: "Portfolio" },
   { value: "Landing", label: "Landing" },
   { value: "Custom", label: "Custom" },
+  { value: "Newsletter", label: "Newsletter" },
 ]
 
 type PageFormValues = z.infer<typeof pageSchema>;

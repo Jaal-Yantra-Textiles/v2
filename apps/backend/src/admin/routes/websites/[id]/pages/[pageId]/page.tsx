@@ -40,7 +40,7 @@ const PageDetailPage = () => {
           <WebsiteBlocksSection websiteId={id!} pageId={page.id}/>
         </TwoColumnPage.Main>
         <TwoColumnPage.Sidebar>
-          {page.page_type === "Blog" && (
+          {(page.page_type === "Blog" || page.page_type === "Newsletter") && (
             <div className="flex flex-col gap-y-2">
               <PageAuthorSection page={page} websiteId={id!} />
               <BlogSubscriptionInfo page={page} websiteId={id!} />

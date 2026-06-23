@@ -21,7 +21,7 @@ type Pages= [ {
   title: string,
   slug: string, 
   content: string,
-  page_type: "Home" | "About" | "Contact" | "Blog" | "Product" | "Service" | "Portfolio" | "Landing" | "Custom";
+  page_type: "Home" | "About" | "Contact" | "Blog" | "Product" | "Service" | "Portfolio" | "Landing" | "Custom" | "Newsletter";
   status: "Draft" | "Published" | "Archived";
   meta_title?: string;
   meta_description?: string;

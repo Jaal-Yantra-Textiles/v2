@@ -104,11 +104,11 @@ export const POST = async (
       });
     }
     
-    // Verify it's a blog page
-    if (page.page_type !== "Blog") {
+    // Verify it's a blog or newsletter page
+    if (page.page_type !== "Blog" && page.page_type !== "Newsletter") {
       return res.status(400).json({
         message: "Invalid page type",
-        error: "Only blog pages can be sent to subscribers"
+        error: "Only blog or newsletter pages can be sent to subscribers"
       });
     }
     
