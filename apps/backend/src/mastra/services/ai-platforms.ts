@@ -55,6 +55,10 @@ export type AiRole =
   // digest summary provider from the admin-configured External Platform
   // instead of the hardcoded OPENROUTER_API_KEY env var.
   | "ai_digest_summary"
+  // In-editor "Write with AI" for newsletters (#659). Resolves the drafting
+  // provider from the admin-configured External Platform; falls back to the
+  // OPENROUTER_API_KEY env var when no provider is tagged for this role.
+  | "ai_newsletter_drafter"
   // String escape hatch so callers can use ad-hoc roles without
   // bumping this union every time.
   | (string & {})
@@ -338,4 +342,5 @@ export const AI_ROLES: AiRole[] = [
   "ai_search_chat",
   "ai_search_embed",
   "ai_product_description",
+  "ai_newsletter_drafter",
 ]

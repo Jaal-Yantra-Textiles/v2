@@ -1,4 +1,4 @@
-import { useQuery, keepPreviousData } from "@tanstack/react-query"
+import { useQuery, useMutation, keepPreviousData } from "@tanstack/react-query"
 import { sdk } from "../../lib/config"
 
 // Response shape of GET /admin/marketing/headline — mirrors the
@@ -32,5 +32,35 @@ export const useMarketingHeadline = () => {
     },
     staleTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,
+  })
+}
+
+// Shape of POST /admin/marketing/newsletter/generate — AI-generated newsletter
+// copy mapped to editor fields. Generated on demand via the admin-configured
+// `ai_newsletter_drafter` provider (env OpenRouter fallback); not persisted.
+export interface NewsletterAiWriteResponse {
+  title: string
+  content: string
+  payload?: unknown
+  source?: "platform" | "env" | "none"
+}
+
+/**
+ * In-editor "Write with AI" for newsletters. Calls the generate endpoint and
+ * returns { title, content } for the form to drop in. Exposes mutateAsync +
+ * isPending for the button's loading state. Optional `{ topic }` angle.
+ */
+export const useNewsletterAiWrite = () => {
+  return useMutation<NewsletterAiWriteResponse, Error, { topic?: string } | void>({
+    mutationFn: async (vars) =>
+      sdk.client.fetch<NewsletterAiWriteResponse>(
+        "/admin/marketing/newsletter/generate",
+        {
+          method: "POST",
+          body: vars && (vars as { topic?: string }).topic
+            ? { topic: (vars as { topic?: string }).topic }
+            : {},
+        }
+      ),
   })
 }

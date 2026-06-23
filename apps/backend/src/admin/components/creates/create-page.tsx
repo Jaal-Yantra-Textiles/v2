@@ -13,7 +13,7 @@ import { RouteFocusModal } from "../modal/route-focus-modal";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { AdminWebsite } from "../../hooks/api/websites";
 import { useCreatePages } from "../../hooks/api/pages";
-import { sdk } from "../../lib/config";
+import { useNewsletterAiWrite } from "../../hooks/api/marketing";
 
 const pageSchema = z.object({
   pages: z.array(z.object({
@@ -106,25 +106,17 @@ export function CreatePageComponent({ websiteId, website }: CreatePageComponentP
     name: "pages",
   });
 
-  // Pre-fill a Newsletter page from the latest AI newsletter draft (#687 job →
-  // marketing_draft). Maps subject→title + intro/sections→content via the
-  // /admin/marketing/newsletter-prefill endpoint; the operator then edits + sends.
-  const prefillNewsletter = async (index: number) => {
+  // In-editor "Write with AI" for a Newsletter page: generate copy via the
+  // ai_newsletter_drafter provider and drop it straight into the form fields.
+  const { mutateAsync: writeNewsletter, isPending: isWriting } = useNewsletterAiWrite();
+  const aiWriteNewsletter = async (index: number) => {
     try {
-      const res = await sdk.client.fetch<{
-        draft: { id: string } | null;
-        title: string;
-        content: string;
-      }>("/admin/marketing/newsletter-prefill");
-      if (!res?.draft) {
-        toast.info("No AI newsletter draft yet — generate one from Data Plumbing first.");
-        return;
-      }
+      const res = await writeNewsletter();
       form.setValue(`pages.${index}.title`, res.title || "");
       form.setValue(`pages.${index}.content`, res.content || "");
-      toast.success("Pre-filled from the latest AI newsletter draft.");
+      toast.success("Drafted with AI — edit as needed.");
     } catch {
-      toast.error("Couldn't load the newsletter draft.");
+      toast.error("AI draft failed — configure an AI provider (role ai_newsletter_drafter) or OPENROUTER_API_KEY.");
     }
   };
 
@@ -337,9 +329,10 @@ export function CreatePageComponent({ websiteId, website }: CreatePageComponentP
                             type="button"
                             variant="secondary"
                             size="small"
-                            onClick={() => prefillNewsletter(index)}
+                            isLoading={isWriting}
+                            onClick={() => aiWriteNewsletter(index)}
                           >
-                            Prefill from latest AI draft
+                            Write with AI
                           </Button>
                         )}
 
