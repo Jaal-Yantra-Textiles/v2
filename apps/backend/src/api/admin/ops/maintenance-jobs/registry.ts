@@ -40,6 +40,8 @@ import {
   type DailyIdeasEmailSummary,
 } from "../../../../workflows/marketing/run-daily-ideas-email"
 import { sendIdeasEmailWorkflow } from "../../../../workflows/marketing/send-ideas-email"
+import { VISUAL_FLOWS_MODULE } from "../../../../modules/visual_flows"
+import { FLOW_DEF as IDEAS_EMAIL_FLOW_DEF } from "../../../../scripts/seed-marketing-daily-ideas-email-flow"
 
 /**
  * Admin "data-plumbing" maintenance jobs (#457 / roadmap #33).
@@ -3516,6 +3518,109 @@ export const runMarketingIdeasEmailJob: MaintenanceJob = {
   },
 }
 
+// ---------------------------------------------------------------------------
+// install-marketing-ideas-email-flow (#659) — LOAD the daily ideas-email visual
+// flow into the system from the Data Plumbing console, instead of shelling in to
+// run `medusa exec ./src/scripts/seed-marketing-daily-ideas-email-flow.ts`. The
+// flow (schedule 30 1 * * * ≈ 07:00 IST → marketing_daily_ideas_email op → log)
+// runs hands-off daily and is retimable from the canvas. Same FLOW_DEF as the
+// CLI seed (single source of truth). Idempotent — refuses to overwrite an
+// existing flow; created as a DRAFT (send stays OFF until the operator opts in).
+// ---------------------------------------------------------------------------
+
+/**
+ * Pure: report the install-flow dry-run/apply outcome. Exported for unit testing
+ * so the preview/created/already-exists wording is verifiable without the DB.
+ */
+export function summarizeFlowInstall(args: {
+  jobId: string
+  dry_run: boolean
+  flowName: string
+  cron: string
+  nodeCount: number
+  existingId: string | null
+  createdId: string | null
+}): MaintenanceJobResult {
+  const { jobId, dry_run, flowName, cron, nodeCount, existingId, createdId } =
+    args
+  if (existingId) {
+    return {
+      job_id: jobId,
+      dry_run,
+      applied: false,
+      summary: `Visual flow "${flowName}" already installed (${existingId}) — nothing to do. Retime the schedule (${cron}) from the canvas.`,
+      changes: [],
+    }
+  }
+  const changes: MaintenanceChange[] = [
+    {
+      entity: "visual_flow",
+      id: createdId ?? "(new)",
+      field: "created",
+      after: { name: flowName, trigger: `schedule ${cron}`, nodes: nodeCount },
+    },
+  ]
+  const applied = !dry_run && !!createdId
+  const summary = dry_run
+    ? `Would create visual flow "${flowName}" (schedule ${cron}, ${nodeCount} nodes) — nothing written. Apply to install.`
+    : `Created visual flow "${flowName}" (${createdId}); schedule ${cron}. Flip draft→active + opt into send (MARKETING_IDEAS_EMAIL_ENABLED or the node's send_enabled) to go live.`
+  return { job_id: jobId, dry_run, applied, summary, changes }
+}
+
+export const installMarketingIdeasEmailFlowJob: MaintenanceJob = {
+  id: "install-marketing-ideas-email-flow",
+  label: "Install marketing ideas-email visual flow",
+  description:
+    "Load/create the 'Marketing Daily Ideas Email' visual flow into the system from the console — no shell or seed script needed (#659). The flow schedules the daily AI tactical-ideas email (generate + hallucination guard + gated send) and is retimable from the canvas. Dry-run previews the flow it would create (or reports it already exists); apply creates it idempotently as a DRAFT. Send stays OFF until you set MARKETING_IDEAS_EMAIL_ENABLED or the node's send_enabled and flip the flow draft→active. Re-running never overwrites an existing flow.",
+  params: [],
+  run: async (container, { dry_run }) => {
+    const service: any = container.resolve(VISUAL_FLOWS_MODULE)
+    const flowName = IDEAS_EMAIL_FLOW_DEF.name
+    const cron = IDEAS_EMAIL_FLOW_DEF.trigger_config?.cron ?? ""
+    const nodeCount = IDEAS_EMAIL_FLOW_DEF.canvas_state?.nodes?.length ?? 0
+
+    const [existing] = await service.listVisualFlows({ name: flowName })
+    if (existing) {
+      return summarizeFlowInstall({
+        jobId: installMarketingIdeasEmailFlowJob.id,
+        dry_run,
+        flowName,
+        cron,
+        nodeCount,
+        existingId: existing.id,
+        createdId: null,
+      })
+    }
+
+    let createdId: string | null = null
+    if (!dry_run) {
+      const flow = await service.createCompleteFlow({
+        flow: {
+          name: IDEAS_EMAIL_FLOW_DEF.name,
+          description: IDEAS_EMAIL_FLOW_DEF.description,
+          status: IDEAS_EMAIL_FLOW_DEF.status,
+          trigger_type: IDEAS_EMAIL_FLOW_DEF.trigger_type,
+          trigger_config: IDEAS_EMAIL_FLOW_DEF.trigger_config,
+          canvas_state: IDEAS_EMAIL_FLOW_DEF.canvas_state,
+        },
+        operations: IDEAS_EMAIL_FLOW_DEF.operations,
+        connections: IDEAS_EMAIL_FLOW_DEF.connections,
+      })
+      createdId = flow?.id ?? null
+    }
+
+    return summarizeFlowInstall({
+      jobId: installMarketingIdeasEmailFlowJob.id,
+      dry_run,
+      flowName,
+      cron,
+      nodeCount,
+      existingId: null,
+      createdId,
+    })
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -3533,6 +3638,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillOrderPersonsJob,
   syncMarketingOutreachEngagementJob,
   runMarketingIdeasEmailJob,
+  installMarketingIdeasEmailFlowJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>

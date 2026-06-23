@@ -31,6 +31,7 @@ export { aiExtractOperation } from "./ai-extract"
 export { aiExtractPlatformOperation } from "./ai-extract-platform"
 export { generatePartnerDeeplinkOperation } from "./generate-partner-deeplink"
 export { partnerAnalyticsDigestOperation } from "./partner-analytics-digest"
+export { marketingDailyIdeasEmailOperation } from "./marketing-daily-ideas-email"
 export { waitForEventOperation } from "./wait-for-event"
 
 // Import all operations and register them
@@ -63,6 +64,7 @@ import { aiExtractOperation } from "./ai-extract"
 import { aiExtractPlatformOperation } from "./ai-extract-platform"
 import { generatePartnerDeeplinkOperation } from "./generate-partner-deeplink"
 import { partnerAnalyticsDigestOperation } from "./partner-analytics-digest"
+import { marketingDailyIdeasEmailOperation } from "./marketing-daily-ideas-email"
 import { waitForEventOperation } from "./wait-for-event"
 
 // Register all built-in operations
@@ -85,6 +87,7 @@ export function registerBuiltInOperations(): void {
   operationRegistry.register(sendEmailOperation)
   operationRegistry.register(sendWhatsAppOperation)
   operationRegistry.register(notificationOperation)
+  operationRegistry.register(marketingDailyIdeasEmailOperation)
   
   // Integration operations
   operationRegistry.register(httpRequestOperation)
