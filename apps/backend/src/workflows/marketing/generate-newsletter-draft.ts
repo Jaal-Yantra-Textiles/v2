@@ -104,12 +104,26 @@ export function buildNewsletterPrompt(opts: {
   businessDescription?: string
   voiceRules?: string
   dateIst: string
+  /** Existing operator draft/notes to IMPROVE + EXPAND (context-aware mode). */
+  context?: string
 }): string {
   const business = opts.businessDescription || DEFAULT_BUSINESS_DESCRIPTION
   const voice = opts.voiceRules || NEWSLETTER_VOICE_RULES
   const topicLine = opts.topic?.trim()
     ? `TOPIC / ANGLE for this edition: ${opts.topic.trim()}`
     : `TOPIC / ANGLE: pick a useful, evergreen angle relevant to the business.`
+  const context = opts.context?.trim()
+  const contextLines = context
+    ? [
+        ``,
+        `The operator already has this DRAFT / NOTES — IMPROVE and EXPAND it into a`,
+        `polished edition, keeping their intent, facts and any specifics. Do NOT`,
+        `start over or contradict it:`,
+        `"""`,
+        context.slice(0, 4000),
+        `"""`,
+      ]
+    : []
 
   return [
     `You are the marketing editor writing a customer newsletter for this business.`,
@@ -119,6 +133,7 @@ export function buildNewsletterPrompt(opts: {
     business,
     ``,
     topicLine,
+    ...contextLines,
     ``,
     `Write ONE newsletter edition. Respond with ONLY a single JSON object — no`,
     `prose, no markdown fences — with EXACTLY this shape:`,

@@ -48,19 +48,27 @@ export interface NewsletterAiWriteResponse {
 /**
  * In-editor "Write with AI" for newsletters. Calls the generate endpoint and
  * returns { title, content } for the form to drop in. Exposes mutateAsync +
- * isPending for the button's loading state. Optional `{ topic }` angle.
+ * isPending for the button's loading state. Optional `{ topic }` angle and
+ * `{ context }` (existing draft/notes to IMPROVE + EXPAND instead of starting fresh).
  */
 export const useNewsletterAiWrite = () => {
-  return useMutation<NewsletterAiWriteResponse, Error, { topic?: string } | void>({
-    mutationFn: async (vars) =>
-      sdk.client.fetch<NewsletterAiWriteResponse>(
+  return useMutation<
+    NewsletterAiWriteResponse,
+    Error,
+    { topic?: string; context?: string } | void
+  >({
+    mutationFn: async (vars) => {
+      const v = (vars || {}) as { topic?: string; context?: string }
+      const body: Record<string, string> = {}
+      if (v.topic) body.topic = v.topic
+      if (v.context) body.context = v.context
+      return sdk.client.fetch<NewsletterAiWriteResponse>(
         "/admin/marketing/newsletter/generate",
         {
           method: "POST",
-          body: vars && (vars as { topic?: string }).topic
-            ? { topic: (vars as { topic?: string }).topic }
-            : {},
+          body,
         }
-      ),
+      )
+    },
   })
 }
