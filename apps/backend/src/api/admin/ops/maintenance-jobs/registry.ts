@@ -35,6 +35,11 @@ import {
   type OutreachSyncEvent,
   type OutreachSyncRow,
 } from "../../../../modules/marketing/outreach-sync-lib"
+import {
+  runDailyIdeasEmail,
+  type DailyIdeasEmailSummary,
+} from "../../../../workflows/marketing/run-daily-ideas-email"
+import { sendIdeasEmailWorkflow } from "../../../../workflows/marketing/send-ideas-email"
 
 /**
  * Admin "data-plumbing" maintenance jobs (#457 / roadmap #33).
@@ -3340,6 +3345,177 @@ export const syncMarketingOutreachEngagementJob: MaintenanceJob = {
   },
 }
 
+// ---------------------------------------------------------------------------
+// run-marketing-ideas-email (#659) — operate the daily AI tactical-ideas email
+// from the Data-Plumbing console (manual, audited dry-run → apply) instead of a
+// hidden cron. Reuses the SAME injectable, never-throws `runDailyIdeasEmail`
+// orchestrator (chains generate-ideas-email → guard → send-ideas-email) — no
+// logic duplicated here. dry_run = generate + guard + persist the draft to
+// `marketing_ideas_log` for review WITHOUT emailing; apply = email it (the apply
+// click is the explicit consent, so it sends regardless of the env send-gate).
+// Pass `log_id` to send a specific already-generated, guard-passed draft without
+// a second LLM call (the dry-run returns the log id to paste back into apply).
+// ---------------------------------------------------------------------------
+
+/** Pure: parse a CSV/array `recipients` param into a clean string[] (or undefined). */
+export function parseRecipientsCsv(raw: unknown): string[] | undefined {
+  let list: unknown[] | null = null
+  if (Array.isArray(raw)) {
+    list = raw
+  } else if (typeof raw === "string" && raw.trim()) {
+    list = raw.split(",")
+  }
+  if (!list) return undefined
+  const out = list
+    .map((v) => (typeof v === "string" ? v.trim() : String(v ?? "").trim()))
+    .filter((v) => v.length > 0)
+  return out.length > 0 ? out : undefined
+}
+
+/**
+ * Pure: turn the orchestrator summary (generate path) into a MaintenanceJobResult.
+ * Exported for unit testing — keeps the dry-run/apply reporting verifiable without
+ * booting the DB or the LLM.
+ */
+export function buildIdeasEmailGenerateResult(
+  jobId: string,
+  dry_run: boolean,
+  summary: DailyIdeasEmailSummary
+): MaintenanceJobResult {
+  const logId = summary.log_id ?? "(none)"
+  const changes: MaintenanceChange[] = []
+  if (summary.generated) {
+    changes.push({
+      entity: "marketing_ideas_log",
+      id: logId,
+      field: "generated",
+      after: { guard_passed: summary.guard_passed, errored: summary.errored },
+    })
+  }
+  if (summary.guard_passed && summary.log_id) {
+    changes.push({
+      entity: "marketing_ideas_log",
+      id: logId,
+      field: "sent",
+      before: false,
+      after: dry_run ? "(would send)" : summary.sent > 0,
+    })
+  }
+  const applied = !dry_run && summary.sent > 0
+  const guardLabel = summary.guard_passed ? "passed" : "FAILED"
+  const summaryText = dry_run
+    ? `Dry-run: generated ideas log ${logId} (guard ${guardLabel}); ${
+        summary.guard_passed ? "would send" : "send blocked"
+      } — nothing emailed.`
+    : `Generated ideas log ${logId} (guard ${guardLabel}); sent to ${summary.sent} recipient(s)${
+        summary.skipped_reason ? ` (${summary.skipped_reason})` : ""
+      }.`
+  return { job_id: jobId, dry_run, applied, summary: summaryText, changes }
+}
+
+/**
+ * Pure: report the send-an-existing-log path (when `log_id` is supplied). A log
+ * is sendable only when it passed the guard and hasn't been sent yet.
+ */
+export function buildIdeasEmailSendExistingResult(
+  jobId: string,
+  dry_run: boolean,
+  logId: string,
+  log: { guard_passed?: boolean; sent?: boolean },
+  sentCount: number
+): MaintenanceJobResult {
+  const sendable = log?.guard_passed === true && log?.sent !== true
+  const changes: MaintenanceChange[] = []
+  if (sendable) {
+    changes.push({
+      entity: "marketing_ideas_log",
+      id: logId,
+      field: "sent",
+      before: false,
+      after: dry_run ? "(would send)" : sentCount > 0,
+    })
+  }
+  const applied = !dry_run && sentCount > 0
+  const summaryText = !sendable
+    ? `Ideas log ${logId} is not sendable (guard_passed=${
+        log?.guard_passed === true
+      }, sent=${log?.sent === true}) — nothing emailed.`
+    : dry_run
+    ? `Dry-run: ideas log ${logId} is guard-passed + unsent — would send. Nothing emailed.`
+    : `Sent ideas log ${logId} to ${sentCount} recipient(s).`
+  return { job_id: jobId, dry_run, applied, summary: summaryText, changes }
+}
+
+export const runMarketingIdeasEmailJob: MaintenanceJob = {
+  id: "run-marketing-ideas-email",
+  label: "Run marketing tactical-ideas email",
+  description:
+    "Run the daily AI VP-of-Marketing tactical-ideas email on demand (#659). Dry-run (default) generates the email, runs the hallucination guard, and persists the draft to marketing_ideas_log for review — but emails NO ONE. Apply emails it (the apply click is the explicit send consent, so it overrides the MARKETING_IDEAS_EMAIL_ENABLED env gate). Optionally pass log_id to send a specific already-generated, guard-passed draft without a second LLM call, and/or recipients (comma-separated) to override the default operator recipients.",
+  params: [
+    {
+      name: "log_id",
+      type: "string",
+      required: false,
+      description:
+        "Send a specific existing marketing_ideas_log draft (skips regeneration). Omit to generate a fresh email.",
+    },
+    {
+      name: "recipients",
+      type: "string",
+      required: false,
+      description:
+        "Comma-separated recipient override (default: MARKETING_IDEAS_RECIPIENTS env / platform admins).",
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const recipients = parseRecipientsCsv(params.recipients)
+    const logId =
+      typeof params.log_id === "string" && params.log_id.trim()
+        ? params.log_id.trim()
+        : undefined
+
+    // --- send-an-existing-draft path -------------------------------------
+    if (logId) {
+      const marketing: any = container.resolve(MARKETING_MODULE)
+      let log: any
+      try {
+        log = await marketing.retrieveMarketingIdeasLog(logId)
+      } catch {
+        throw new MedusaError(
+          MedusaError.Types.NOT_FOUND,
+          `marketing_ideas_log ${logId} not found`
+        )
+      }
+      const sendable = log?.guard_passed === true && log?.sent !== true
+      let sentCount = 0
+      if (!dry_run && sendable) {
+        const { result } = await sendIdeasEmailWorkflow(container).run({
+          input: { logId, ...(recipients ? { recipients } : {}) },
+        })
+        sentCount = result?.sent ?? 0
+      }
+      return buildIdeasEmailSendExistingResult(
+        runMarketingIdeasEmailJob.id,
+        dry_run,
+        logId,
+        log,
+        sentCount
+      )
+    }
+
+    // --- generate (+ send on apply) path; apply is the explicit consent ----
+    const summary = await runDailyIdeasEmail(container, {
+      sendEnabled: !dry_run,
+      ...(recipients ? { recipients } : {}),
+    })
+    return buildIdeasEmailGenerateResult(
+      runMarketingIdeasEmailJob.id,
+      dry_run,
+      summary
+    )
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -3356,6 +3532,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillStatsPanelWindowJob,
   backfillOrderPersonsJob,
   syncMarketingOutreachEngagementJob,
+  runMarketingIdeasEmailJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
