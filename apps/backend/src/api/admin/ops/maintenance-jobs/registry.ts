@@ -27,6 +27,14 @@ import {
   resolvePartnerLandingBase,
 } from "../../../../workflows/google_merchant/steps/resolve-partner-landing-base"
 import { syncProductToGoogleWorkflow } from "../../../../workflows/google_merchant/workflows/sync-product-to-google"
+import { MARKETING_MODULE } from "../../../../modules/marketing"
+import {
+  reconcileOutreachBatch,
+  selectSyncableOutreach,
+  summarizeOutreachSync,
+  type OutreachSyncEvent,
+  type OutreachSyncRow,
+} from "../../../../modules/marketing/outreach-sync-lib"
 
 /**
  * Admin "data-plumbing" maintenance jobs (#457 / roadmap #33).
@@ -3196,6 +3204,142 @@ export const backfillOrderPersonsJob: MaintenanceJob = {
   },
 }
 
+/**
+ * Hard cap on the marketing-outreach engagement sync scan. Each scanned row may
+ * drive a provider lookup + one column write, so we bound the per-request blast
+ * radius. Bigger sweeps raise `limit` across chunked calls.
+ */
+export const MAX_OUTREACH_SYNC_SCAN = 2000
+
+const syncOutreachParamsSchema = z.object({
+  /** Restrict the sync to one campaign. */
+  campaign: z.string().min(1).optional(),
+  /** Max candidate outreach rows to scan in one call. */
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_OUTREACH_SYNC_SCAN)
+    .optional()
+    .default(500),
+})
+
+/**
+ * Optional provider adapter the deployment can register on the container under
+ * `OUTREACH_SYNC_PROVIDER_KEY` to pull engagement events (e.g. a Resend
+ * message-events client). When absent the job is a safe no-op — it never invents
+ * engagement. The `POST /admin/marketing/outreach/sync` route is the push path
+ * (webhook relays the events directly) and needs no provider.
+ */
+export const OUTREACH_SYNC_PROVIDER_KEY = "marketingOutreachSyncProvider"
+
+export type OutreachSyncProvider = {
+  fetchEvents: (
+    rows: OutreachSyncRow[]
+  ) => Promise<OutreachSyncEvent[]> | OutreachSyncEvent[]
+}
+
+function resolveOutreachSyncProvider(
+  container: any
+): OutreachSyncProvider | null {
+  try {
+    const provider = container.resolve(OUTREACH_SYNC_PROVIDER_KEY)
+    return provider && typeof provider.fetchEvents === "function"
+      ? (provider as OutreachSyncProvider)
+      : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * #659 slice 4 / PR-4d — pull engagement events for non-terminal outreach rows
+ * from the (optional) provider adapter and reconcile them forward-only. Inherits
+ * the Data Plumbing console + ops_audit history for free via the registry.
+ */
+export const syncMarketingOutreachEngagementJob: MaintenanceJob = {
+  id: "sync-marketing-outreach-engagement",
+  label: "Sync marketing outreach engagement",
+  description:
+    `Reconcile marketing-outreach rows against an email-provider engagement feed (#659). Scans non-terminal rows that carry a provider message id (external_id), pulls their latest sent/opened/replied/bounced signals from the registered provider adapter, and advances each row forward-only (fills engagement timestamps, advances status, flags bounces as unreliable — never auto-suppresses). Dry-run (default) previews the change set without writing; apply persists. Idempotent. Requires a provider adapter registered as '${OUTREACH_SYNC_PROVIDER_KEY}'; without one the job is a safe no-op (the push route POST /admin/marketing/outreach/sync reconciles events posted directly). Optionally scope to one campaign. Scans up to 'limit' rows per call (default 500, max ${MAX_OUTREACH_SYNC_SCAN}).`,
+  params: [
+    {
+      name: "campaign",
+      type: "string",
+      required: false,
+      description: "Restrict the sync to one campaign (default: all)",
+    },
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: `Max candidate rows to scan in one call (default 500, max ${MAX_OUTREACH_SYNC_SCAN})`,
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const parsed = syncOutreachParamsSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        parsed.error.issues.map((i) => i.message).join("; ")
+      )
+    }
+    const { campaign, limit } = parsed.data
+
+    const service: any = container.resolve(MARKETING_MODULE)
+    const filters: Record<string, unknown> = {}
+    if (campaign) filters.campaign = campaign
+
+    const allRows = (await service.listMarketingOutreaches(filters, {
+      order: { created_at: "DESC" },
+      take: limit,
+    })) as OutreachSyncRow[]
+    const candidates = selectSyncableOutreach(allRows ?? [])
+
+    const provider = resolveOutreachSyncProvider(container)
+    if (!provider) {
+      return {
+        job_id: syncMarketingOutreachEngagementJob.id,
+        dry_run,
+        applied: false,
+        summary: summarizeOutreachSync({
+          dry_run,
+          eventsReceived: 0,
+          matchedRows: 0,
+          changedRows: 0,
+          totalChanges: 0,
+          providerConfigured: false,
+        }),
+        changes: [],
+      }
+    }
+
+    const events = (await provider.fetchEvents(candidates)) ?? []
+    const result = reconcileOutreachBatch(candidates, events)
+
+    if (!dry_run && result.items.length > 0) {
+      for (const item of result.items) {
+        await service.updateMarketingOutreaches({ id: item.id, ...item.patch })
+      }
+    }
+
+    return {
+      job_id: syncMarketingOutreachEngagementJob.id,
+      dry_run,
+      applied: !dry_run && result.items.length > 0,
+      summary: summarizeOutreachSync({
+        dry_run,
+        eventsReceived: events.length,
+        matchedRows: result.matchedRowIds.length,
+        changedRows: result.items.length,
+        totalChanges: result.changes.length,
+        providerConfigured: true,
+      }),
+      changes: result.changes,
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -3211,6 +3355,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillPartnerOrderFeesJob,
   backfillStatsPanelWindowJob,
   backfillOrderPersonsJob,
+  syncMarketingOutreachEngagementJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
