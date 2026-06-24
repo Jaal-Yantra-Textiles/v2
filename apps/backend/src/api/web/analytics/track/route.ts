@@ -77,6 +77,7 @@
  */
 import { randomUUID } from "crypto";
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { z } from "@medusajs/framework/zod";
 import { trackAnalyticsEventWorkflow } from "../../../../workflows/analytics/track-analytics-event";
 import {
@@ -173,6 +174,7 @@ export const POST = async (
   req: MedusaRequest<TrackEventRequest>,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER);
   try {
     // Validate request body
     const validatedData = TrackEventSchema.parse(req.body);
@@ -220,9 +222,9 @@ export const POST = async (
       } catch (bufferErr) {
         // Buffer unavailable (e.g. Redis down) → fall through to the synchronous
         // write so we never silently drop an event.
-        console.error(
+        logger.error(
           "Analytics buffer push failed, writing through synchronously:",
-          bufferErr
+          bufferErr as Error
         );
       }
     }
@@ -243,7 +245,7 @@ export const POST = async (
       message: "Event tracked",
     });
   } catch (error) {
-    console.error("Analytics tracking error:", error);
+    logger.error("Analytics tracking error:", error as Error);
     // Don't expose errors to client for security
     res.status(200).json({
       success: true,

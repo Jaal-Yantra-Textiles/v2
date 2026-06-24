@@ -115,6 +115,7 @@ export async function GET(
   req: MedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER);
   try {
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
     const params = req.query as StorePartnersQuery;
@@ -165,7 +166,7 @@ export async function GET(
       limit,
     });
   } catch (error) {
-    console.error("[Store] Error fetching partners:", error);
+    logger.error("[Store] Error fetching partners:", error as Error);
     res.status(500).json({
       message: "Failed to fetch partners",
       error: error instanceof Error ? error.message : "Unknown error",

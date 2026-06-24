@@ -26,6 +26,7 @@
  * non-streaming search route.
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { convertToModelMessages, streamText, stepCountIs } from "ai"
 import {
   buildStorefrontChatSystem,
@@ -35,6 +36,7 @@ import { createSearchProductsTool } from "../../../../mastra/agents/tools/storef
 import type { StoreAiChatReq } from "./validators"
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const body = (req as any).validatedBody as StoreAiChatReq
 
   const resolved = await resolveStorefrontChatModel(req.scope as any)
@@ -103,16 +105,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       stopWhen: stepCountIs(3),
       temperature: 0.6,
       onError: (err) => {
-        console.warn(
-          `[store/ai/chat] streamText error (${resolved.provider}):`,
-          (err as any)?.error?.message ?? err
+        logger.warn(
+          `[store/ai/chat] streamText error (${resolved.provider}): ${
+            (err as any)?.error?.message ?? err
+          }`
         )
       },
     })
   } catch (e: any) {
-    console.warn(
-      `[store/ai/chat] streamText threw (${resolved.provider}):`,
-      e?.message ?? e
+    logger.warn(
+      `[store/ai/chat] streamText threw (${resolved.provider}): ${e?.message ?? e}`
     )
     res.status(502).json({ error: "chat provider failed" })
     return

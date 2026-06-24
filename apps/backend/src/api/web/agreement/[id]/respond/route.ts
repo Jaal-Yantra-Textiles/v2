@@ -1,4 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { AGREEMENTS_MODULE } from "../../../../../modules/agreements";
 import { AGREEMENT_RESPONSE_MODULE } from "../../../../../modules/agreement-responses";
 import { WebAgreementResponseSchema } from "../../validators";
@@ -119,7 +120,8 @@ export const POST = async (
       });
     }
 
-    console.error("Error submitting agreement response:", error);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER);
+    logger.error("Error submitting agreement response:", error as Error);
     return res.status(500).json({
       error: "Internal server error",
       message: "An error occurred while submitting your response"

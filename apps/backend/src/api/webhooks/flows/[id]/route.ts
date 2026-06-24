@@ -1,4 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { VISUAL_FLOWS_MODULE } from "../../../../modules/visual_flows"
 import VisualFlowService from "../../../../modules/visual_flows/service"
 import { executeVisualFlowWorkflow } from "../../../../workflows/visual-flows"
@@ -11,6 +12,7 @@ import { executeVisualFlowWorkflow } from "../../../../workflows/visual-flows"
  * The flow must have trigger_type = "webhook" and status = "active"
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const { id } = req.params
     const service: VisualFlowService = req.scope.resolve(VISUAL_FLOWS_MODULE)
@@ -69,7 +71,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           metadata: { webhook_ip: req.ip },
         },
       }).catch(err => {
-        console.error(`[Visual Flow Webhook] Error executing flow ${id}:`, err)
+        logger.error(`[Visual Flow Webhook] Error executing flow ${id}:`, err as Error)
       })
       
       res.status(202).json({ 
@@ -88,7 +90,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       })
       
       if (errors?.length) {
-        console.error("[Visual Flow Webhook] Workflow errors:", errors)
+        logger.error(`[Visual Flow Webhook] Workflow errors: ${JSON.stringify(errors)}`)
         return res.status(500).json({ 
           error: "Flow execution failed", 
           details: errors 
@@ -102,7 +104,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       })
     }
   } catch (error: any) {
-    console.error("[Visual Flow Webhook] Error:", error)
+    logger.error("[Visual Flow Webhook] Error:", error as Error)
     res.status(500).json({ error: error.message })
   }
 }

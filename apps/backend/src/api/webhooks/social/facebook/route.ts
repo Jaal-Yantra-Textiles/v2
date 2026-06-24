@@ -1,4 +1,6 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { logger } from "@medusajs/framework"
 import crypto from "crypto"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import SocialsService from "../../../../modules/socials/service"
@@ -19,6 +21,7 @@ export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const mode = req.query["hub.mode"]
   const token = req.query["hub.verify_token"]
   const challenge = req.query["hub.challenge"]
@@ -26,18 +29,18 @@ export const GET = async (
   const verifyToken = process.env.FACEBOOK_WEBHOOK_VERIFY_TOKEN
 
   if (!verifyToken) {
-    console.error("FACEBOOK_WEBHOOK_VERIFY_TOKEN not configured")
+    logger.error("FACEBOOK_WEBHOOK_VERIFY_TOKEN not configured")
     return res.status(500).send("Webhook verification token not configured")
   }
 
   // Check if mode and token are correct
   if (mode === "subscribe" && token === verifyToken) {
-    console.log("Webhook verified successfully")
+    logger.info("Webhook verified successfully")
     // Respond with the challenge token from the request
     return res.status(200).send(challenge)
   }
 
-  console.error("Webhook verification failed:", { mode, token })
+  logger.error(`Webhook verification failed: mode=${mode} token=${token}`)
   return res.status(403).send("Forbidden")
 }
 
@@ -60,17 +63,18 @@ export const POST = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const signature = req.headers["x-hub-signature-256"] as string | undefined
   const appSecret = process.env.FACEBOOK_CLIENT_SECRET
 
   if (!appSecret) {
-    console.error("FACEBOOK_CLIENT_SECRET not configured")
+    logger.error("FACEBOOK_CLIENT_SECRET not configured")
     return res.status(500).send("Webhook not configured")
   }
 
   // Validate signature
   if (!signature) {
-    console.error("No signature provided")
+    logger.error("No signature provided")
     return res.status(401).send("Unauthorized")
   }
 
@@ -95,30 +99,21 @@ export const POST = async (
   const isValid = `sha256=${expectedSignature}` === signature
 
   if (!isValid) {
-    console.error("Invalid signature", {
-      received: signature,
-      expected: `sha256=${expectedSignature}`,
-      bodyLength: rawBody.length,
-      bodyPreview: rawBody.substring(0, 100)
-    })
+    logger.error(`Invalid signature: received=${signature} expected=sha256=${expectedSignature} bodyLength=${rawBody.length} bodyPreview=${rawBody.substring(0, 100)}`)
     return res.status(401).send("Unauthorized")
   }
 
   // Signature is valid - parse the body
   const body = JSON.parse(rawBody) as FacebookWebhookPayload
 
-  console.log("Webhook received:", {
-    object: body.object,
-    entries: body.entry?.length || 0,
-    timestamp: Date.now(),
-  })
+  logger.info(`Webhook received: object=${body.object} entries=${body.entry?.length || 0} timestamp=${Date.now()}`)
 
   // Return 200 OK immediately (Facebook requires response within 20 seconds)
   res.status(200).send("EVENT_RECEIVED")
 
   // Process webhook asynchronously
   processWebhookEvent(req.scope, body).catch((error) => {
-    console.error("Failed to process webhook event:", error)
+    logger.error("Failed to process webhook event:", error as Error)
   })
 }
 
@@ -129,6 +124,7 @@ async function processWebhookEvent(
   scope: any,
   payload: FacebookWebhookPayload
 ): Promise<void> {
+  const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
   const socials = scope.resolve(SOCIALS_MODULE) as SocialsService
 
   // Handle different object types
@@ -137,7 +133,7 @@ async function processWebhookEvent(
   } else if (payload.object === "instagram") {
     await processInstagramEvents(socials, payload.entry)
   } else {
-    console.warn("Unsupported webhook object type:", payload.object)
+    logger.warn(`Unsupported webhook object type: ${payload.object}`)
   }
 }
 
@@ -149,9 +145,10 @@ async function processPageEvents(
   scope: any,
   entries: FacebookWebhookEntry[]
 ): Promise<void> {
+  const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
   for (const entry of entries) {
     const pageId = entry.id
-    console.log("Processing page event:", { pageId, changes: entry.changes?.length })
+    logger.info(`Processing page event: pageId=${pageId} changes=${entry.changes?.length}`)
 
     for (const change of entry.changes || []) {
       try {
@@ -166,10 +163,10 @@ async function processPageEvents(
         } else if (change.field === "leadgen") {
           await handleLeadgenEvent(socials, scope, pageId, change.value)
         } else {
-          console.log("Unhandled page field:", change.field)
+          logger.info(`Unhandled page field: ${change.field}`)
         }
       } catch (error) {
-        console.error("Failed to process page change:", error)
+        logger.error("Failed to process page change:", error as Error)
       }
     }
   }
@@ -184,7 +181,7 @@ async function processInstagramEvents(
 ): Promise<void> {
   for (const entry of entries) {
     const igUserId = entry.id
-    console.log("Processing Instagram event:", { igUserId, changes: entry.changes?.length })
+    logger.info(`Processing Instagram event: igUserId=${igUserId} changes=${entry.changes?.length}`)
 
     for (const change of entry.changes || []) {
       try {
@@ -195,10 +192,10 @@ async function processInstagramEvents(
         } else if (change.field === "media") {
           await handleInstagramMediaInsights(socials, igUserId, change.value)
         } else {
-          console.log("Unhandled Instagram field:", change.field)
+          logger.info(`Unhandled Instagram field: ${change.field}`)
         }
       } catch (error) {
-        console.error("Failed to process Instagram change:", error)
+        logger.error("Failed to process Instagram change:", error as Error)
       }
     }
   }
@@ -215,7 +212,7 @@ async function handleFeedChange(
   const postId = value.post_id
   const verb = value.verb // "add", "edited", "remove"
 
-  console.log("Feed change:", { pageId, postId, verb })
+  logger.info(`Feed change: pageId=${pageId} postId=${postId} verb=${verb}`)
 
   // Find the social post by Facebook post ID
   const [post] = await socials.listSocialPosts({
@@ -225,7 +222,7 @@ async function handleFeedChange(
   })
 
   if (!post) {
-    console.log("Post not found in database:", postId)
+    logger.info(`Post not found in database: ${postId}`)
     return
   }
 
@@ -270,7 +267,7 @@ async function handlePostInsights(
   const postId = value.post_id
   const insights = value.insights || {}
 
-  console.log("Post insights:", { pageId, postId, insights })
+  logger.info(`Post insights: pageId=${pageId} postId=${postId} insights=${JSON.stringify(insights)}`)
 
   // Find the social post
   const [post] = await socials.listSocialPosts({
@@ -280,7 +277,7 @@ async function handlePostInsights(
   })
 
   if (!post) {
-    console.log("Post not found in database:", postId)
+    logger.info(`Post not found in database: ${postId}`)
     return
   }
 
@@ -315,7 +312,7 @@ async function handleComment(
   const message = value.message
   const from = value.from
 
-  console.log("New comment:", { pageId, postId, commentId, from })
+  logger.info(`New comment: pageId=${pageId} postId=${postId} commentId=${commentId} from=${JSON.stringify(from)}`)
 
   // Find the social post
   const [post] = await socials.listSocialPosts({
@@ -325,7 +322,7 @@ async function handleComment(
   })
 
   if (!post) {
-    console.log("Post not found in database:", postId)
+    logger.info(`Post not found in database: ${postId}`)
     return
   }
 
@@ -366,7 +363,7 @@ async function handleReaction(
   const postId = value.post_id
   const reactionType = value.reaction_type // "like", "love", "wow", etc.
 
-  console.log("New reaction:", { pageId, postId, reactionType })
+  logger.info(`New reaction: pageId=${pageId} postId=${postId} reactionType=${reactionType}`)
 
   // Find the social post
   const [post] = await socials.listSocialPosts({
@@ -376,7 +373,7 @@ async function handleReaction(
   })
 
   if (!post) {
-    console.log("Post not found in database:", postId)
+    logger.info(`Post not found in database: ${postId}`)
     return
   }
 
@@ -416,7 +413,7 @@ async function handleInstagramComment(
   const commentId = value.id
   const text = value.text
 
-  console.log("Instagram comment:", { igUserId, mediaId, commentId })
+  logger.info(`Instagram comment: igUserId=${igUserId} mediaId=${mediaId} commentId=${commentId}`)
 
   // Find the social post
   const [post] = await socials.listSocialPosts({
@@ -426,7 +423,7 @@ async function handleInstagramComment(
   })
 
   if (!post) {
-    console.log("Post not found in database:", mediaId)
+    logger.info(`Post not found in database: ${mediaId}`)
     return
   }
 
@@ -467,20 +464,14 @@ async function handleLeadgenEvent(
   pageId: string,
   value: any
 ): Promise<void> {
+  const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
   const leadgenId = value.leadgen_id
   const formId = value.form_id
   const adId = value.ad_id
   const adgroupId = value.adgroup_id // This is the adset ID
   const createdTime = value.created_time
 
-  console.log("Leadgen event received:", { 
-    pageId, 
-    leadgenId, 
-    formId, 
-    adId, 
-    adgroupId,
-    createdTime 
-  })
+  logger.info(`Leadgen event received: pageId=${pageId} leadgenId=${leadgenId} formId=${formId} adId=${adId} adgroupId=${adgroupId} createdTime=${createdTime}`)
 
   try {
     // Find the platform for this page to get access token
@@ -504,14 +495,14 @@ async function handleLeadgenEvent(
           platformId = platform.id
           break
         } catch (e) {
-          console.warn(`Failed to get access token for platform ${platform.id}:`, e)
+          logger.warn(`Failed to get access token for platform ${platform.id}: ${e}`)
           continue
         }
       }
     }
 
     if (!accessToken || !platformId) {
-      console.error("No access token found for page:", pageId)
+      logger.error(`No access token found for page: ${pageId}`)
       return
     }
 
@@ -519,12 +510,7 @@ async function handleLeadgenEvent(
     const metaAds = new MetaAdsService()
     const leadData = await metaAds.getLead(leadgenId, accessToken)
 
-    console.log("Lead data fetched:", {
-      id: leadData.id,
-      fields: leadData.field_data?.length,
-      campaign: leadData.campaign_name,
-      ad: leadData.ad_name,
-    })
+    logger.info(`Lead data fetched: id=${leadData.id} fields=${leadData.field_data?.length} campaign=${leadData.campaign_name} ad=${leadData.ad_name}`)
 
     // Extract contact info from field_data
     const contactInfo = metaAds.extractLeadContactInfo(leadData.field_data || [])
@@ -535,7 +521,7 @@ async function handleLeadgenEvent(
     })
 
     if (existingLeads.length > 0) {
-      console.log("Lead already exists:", leadgenId)
+      logger.info(`Lead already exists: ${leadgenId}`)
       return
     }
 
@@ -588,13 +574,13 @@ async function handleLeadgenEvent(
       },
     } as any)
 
-    console.log("Lead created successfully:", leadgenId)
+    logger.info(`Lead created successfully: ${leadgenId}`)
 
     // TODO: Trigger notification workflow (email, Slack, etc.)
     // TODO: Create Person record if needed
 
   } catch (error) {
-    console.error("Failed to process leadgen event:", error)
+    logger.error("Failed to process leadgen event:", error as Error)
     throw error
   }
 }
@@ -610,7 +596,7 @@ async function handleInstagramMention(
   const mediaId = value.media_id
   const commentId = value.comment_id
 
-  console.log("Instagram mention:", { igUserId, mediaId, commentId })
+  logger.info(`Instagram mention: igUserId=${igUserId} mediaId=${mediaId} commentId=${commentId}`)
 
   // You can implement mention tracking here
 }
@@ -626,7 +612,7 @@ async function handleInstagramMediaInsights(
   const mediaId = value.media_id
   const insights = value.insights || {}
 
-  console.log("Instagram media insights:", { igUserId, mediaId, insights })
+  logger.info(`Instagram media insights: igUserId=${igUserId} mediaId=${mediaId} insights=${JSON.stringify(insights)}`)
 
   // Find the social post by Instagram media ID
   const [post] = await socials.listSocialPosts({
@@ -636,7 +622,7 @@ async function handleInstagramMediaInsights(
   })
 
   if (!post) {
-    console.log("Post not found in database:", mediaId)
+    logger.info(`Post not found in database: ${mediaId}`)
     return
   }
 

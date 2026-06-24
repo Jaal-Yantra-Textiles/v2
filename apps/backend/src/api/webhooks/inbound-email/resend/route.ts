@@ -1,4 +1,5 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Webhook } from "svix"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import { INBOUND_EMAIL_MODULE } from "../../../../modules/inbound_emails"
@@ -17,6 +18,8 @@ export const POST = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+
   // Read raw body for signature verification
   let rawBody = ""
   await new Promise<void>((resolve, reject) => {
@@ -38,7 +41,7 @@ export const POST = async (
   )
 
   if (!resendPlatform) {
-    console.error("[Resend Webhook] No active Resend email provider configured")
+    logger.error("[Resend Webhook] No active Resend email provider configured")
     return res.status(404).send("Resend provider not configured")
   }
 
@@ -54,7 +57,7 @@ export const POST = async (
   } else if (apiConfig.webhook_signing_secret) {
     signingSecret = apiConfig.webhook_signing_secret
   } else {
-    console.error("[Resend Webhook] No webhook signing secret configured")
+    logger.error("[Resend Webhook] No webhook signing secret configured")
     return res.status(500).send("Webhook signing secret not configured")
   }
 
@@ -64,7 +67,7 @@ export const POST = async (
   const svixSignature = req.headers["svix-signature"] as string
 
   if (!svixId || !svixTimestamp || !svixSignature) {
-    console.error("[Resend Webhook] Missing Svix headers")
+    logger.error("[Resend Webhook] Missing Svix headers")
     return res.status(401).send("Missing signature headers")
   }
 
@@ -77,7 +80,7 @@ export const POST = async (
       "svix-signature": svixSignature,
     }) as any
   } catch (err: any) {
-    console.error("[Resend Webhook] Signature verification failed:", err.message)
+    logger.error("[Resend Webhook] Signature verification failed:", err.message)
     return res.status(401).send("Invalid signature")
   }
 
@@ -86,15 +89,16 @@ export const POST = async (
 
   // Process the event asynchronously
   processResendEvent(req.scope, payload).catch((error) => {
-    console.error("[Resend Webhook] Failed to process event:", error)
+    logger.error("[Resend Webhook] Failed to process event:", error as Error)
   })
 }
 
 async function processResendEvent(scope: any, payload: any): Promise<void> {
+  const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
   const type = payload.type
 
   if (type !== "email.received") {
-    console.log("[Resend Webhook] Ignoring event type:", type)
+    logger.info(`[Resend Webhook] Ignoring event type: ${type}`)
     return
   }
 
@@ -130,10 +134,10 @@ async function processResendEvent(scope: any, payload: any): Promise<void> {
         resend_event_type: type,
       },
     })
-    console.log(
+    logger.info(
       `[Resend Webhook] Stored email: "${subject}" from ${from}`
     )
   } catch (err: any) {
-    console.error("[Resend Webhook] Failed to store email:", err.message)
+    logger.error(`[Resend Webhook] Failed to store email: ${err.message}`)
   }
 }

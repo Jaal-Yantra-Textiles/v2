@@ -17,6 +17,7 @@ export async function GET(
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const customerId = req.auth_context?.actor_id
     const designId = req.params.id
@@ -55,7 +56,7 @@ export async function GET(
 
     res.status(200).json({ design: designs?.[0] })
   } catch (error) {
-    console.error("[Store] Error fetching design:", error)
+    logger.error("[Store] Error fetching design:", error as Error)
     res.status(500).json({
       message: "Failed to fetch design",
       error: error instanceof Error ? error.message : "Unknown error",
@@ -95,6 +96,7 @@ export async function PUT(
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const customerId = req.auth_context?.actor_id
     const designId = req.params.id
@@ -135,7 +137,7 @@ export async function PUT(
     })
 
     if (updateErrors?.length) {
-      console.error("[Store] Error updating design:", updateErrors)
+      logger.error("[Store] Error updating design:", updateErrors)
       res.status(500).json({ message: "Failed to update design", errors: updateErrors })
       return
     }
@@ -156,7 +158,7 @@ export async function PUT(
           },
         })
       } catch (err) {
-        console.warn("[Store] Warning: Failed to re-link inventory:", err)
+        logger.warn("[Store] Warning: Failed to re-link inventory:", err as Error)
       }
     }
 
@@ -170,7 +172,7 @@ export async function PUT(
           },
         })
       } catch (err) {
-        console.warn("[Store] Warning: Failed to re-link partner:", err)
+        logger.warn("[Store] Warning: Failed to re-link partner:", err as Error)
       }
     }
 
@@ -183,7 +185,7 @@ export async function PUT(
 
     res.status(200).json({ design: designs?.[0] })
   } catch (error) {
-    console.error("[Store] Error updating design:", error)
+    logger.error("[Store] Error updating design:", error as Error)
     res.status(500).json({
       message: "Failed to update design",
       error: error instanceof Error ? error.message : "Unknown error",

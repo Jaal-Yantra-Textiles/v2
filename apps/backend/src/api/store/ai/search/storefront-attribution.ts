@@ -55,6 +55,7 @@ const buildPartnerSalesChannelMap = async (
     return partnerScCache
   }
   const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
   const map = new Map<string, PartnerInfo>()
   try {
     const { data } = await query.graph({
@@ -85,9 +86,10 @@ const buildPartnerSalesChannelMap = async (
   } catch (e) {
     // If the lookup fails, downstream callers see an empty map and
     // every product gets kind: "main" — safer than crashing the search.
-    console.warn(
-      "[storefront-attribution] partner map refresh failed:",
-      (e as any)?.message ?? e
+    logger.warn(
+      `[storefront-attribution] partner map refresh failed: ${
+        (e as any)?.message ?? e
+      }`
     )
   }
   partnerScCache = map

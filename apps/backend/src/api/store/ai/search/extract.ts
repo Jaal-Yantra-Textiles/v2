@@ -22,6 +22,7 @@
  *      keyword so search still works — just without the LLM enrichment.
  */
 import type { MedusaContainer } from "@medusajs/framework"
+import { logger } from "@medusajs/framework"
 import { createOpenAI } from "@ai-sdk/openai"
 import { generateObject } from "ai"
 import { z } from "zod"
@@ -239,9 +240,10 @@ export const extractSearchInterpretation = async (
           )
           return object
         } catch (e: any) {
-          console.warn(
-            `[store/ai/search] db-platform ${cfg.platformId} (${cfg.providerType}) failed:`,
-            e?.message ?? e
+          logger.warn(
+            `[store/ai/search] db-platform ${cfg.platformId} (${cfg.providerType}) failed: ${
+              e?.message ?? e
+            }`
           )
           // Fall through to env chain — better degraded behaviour
           // than failing the search outright when one DB-configured
@@ -249,9 +251,8 @@ export const extractSearchInterpretation = async (
         }
       }
     } catch (e: any) {
-      console.warn(
-        "[store/ai/search] getAiPlatformForRole failed:",
-        e?.message ?? e
+      logger.warn(
+        `[store/ai/search] getAiPlatformForRole failed: ${e?.message ?? e}`
       )
     }
   }
@@ -264,9 +265,8 @@ export const extractSearchInterpretation = async (
     try {
       return await withTimeout(attempt.call(), EXTRACT_BUDGET_MS, attempt.name)
     } catch (e: any) {
-      console.warn(
-        `[store/ai/search] ${attempt.name} failed:`,
-        e?.message ?? e
+      logger.warn(
+        `[store/ai/search] ${attempt.name} failed: ${e?.message ?? e}`
       )
     }
   }

@@ -9,6 +9,7 @@ export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: Logger = req.scope.resolve("logger");
   const { id } = req.params;
   const { token } = req.query;
 
@@ -90,9 +91,8 @@ export const GET = async (
       const subjectTemplate = Handlebars.compile(result.agreement.subject);
       processedSubject = subjectTemplate(templateData);
       
-      console.log('Template processing successful at runtime');
+      logger.info('Template processing successful at runtime');
     } catch (error) {
-      const logger: Logger = req.scope.resolve("logger");
       logger.warn(`Handlebars template processing failed for agreement ${result.agreement.id}, falling back to original content: ${error.message}`);
       // Keep original content if processing fails
     }
@@ -156,7 +156,7 @@ export const GET = async (
       });
     }
 
-    console.error("Error fetching agreement:", error);
+    logger.error("Error fetching agreement:", error as Error);
     return res.status(500).json({
       error: "Internal server error",
       message: "An error occurred while fetching the agreement"
