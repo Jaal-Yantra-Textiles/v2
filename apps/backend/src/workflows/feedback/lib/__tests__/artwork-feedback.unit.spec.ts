@@ -1,7 +1,6 @@
 import {
   ArtworkChoice,
   buildArtworkPickUpdate,
-  DEFAULT_FEEDBACK_ARTWORK_SOURCE_ID,
   mapMediaToArtworkChoice,
   normalizeRatingValue,
   resolveArtworkSourceId,
@@ -42,15 +41,25 @@ describe("normalizeRatingValue", () => {
 });
 
 describe("resolveArtworkSourceId", () => {
-  it("prefers override, then env, then default", () => {
+  it("scopes to an explicit override album when given", () => {
     expect(resolveArtworkSourceId({}, "alb_x")).toBe("alb_x");
+  });
+  it("scopes to FEEDBACK_ARTWORK_ALBUM_ID when set", () => {
     expect(resolveArtworkSourceId({ FEEDBACK_ARTWORK_ALBUM_ID: "alb_env" })).toBe(
       "alb_env"
     );
-    expect(resolveArtworkSourceId({})).toBe(DEFAULT_FEEDBACK_ARTWORK_SOURCE_ID);
-    expect(resolveArtworkSourceId({ FEEDBACK_ARTWORK_ALBUM_ID: "  " })).toBe(
-      DEFAULT_FEEDBACK_ARTWORK_SOURCE_ID
-    );
+  });
+  it("returns null (general media pool) when no album is configured", () => {
+    // Null is the signal to draw from the general public-image pool via the
+    // media randomiser — no curated album required on a fresh admin.
+    expect(resolveArtworkSourceId({})).toBeNull();
+    expect(resolveArtworkSourceId({ FEEDBACK_ARTWORK_ALBUM_ID: "  " })).toBeNull();
+    expect(resolveArtworkSourceId({}, "  ")).toBeNull();
+  });
+  it("prefers the override over the env value", () => {
+    expect(
+      resolveArtworkSourceId({ FEEDBACK_ARTWORK_ALBUM_ID: "alb_env" }, "alb_x")
+    ).toBe("alb_x");
   });
 });
 
@@ -123,6 +132,27 @@ describe("selectArtworkChoices", () => {
     const dup = [...pool(2), ...pool(2)];
     const out = selectArtworkChoices(dup, "s", 5);
     expect(out).toHaveLength(2);
+  });
+
+  it("default path: N distinct, seed-reproducible artworks from the general media pool", () => {
+    // Models the randomiser default — no curated album, so `pool` is the
+    // general public-image set fetched via the media randomiser. The offered
+    // set must be exactly N distinct and reproducible for the same feedback id
+    // (the seed), so the POST can validate the pick against the GET's set.
+    const generalPool = pool(40);
+    const seed = "feedback_general_pool";
+    const offered = selectArtworkChoices(generalPool, seed, 3);
+    expect(offered).toHaveLength(3);
+    expect(new Set(offered.map((o) => o.id)).size).toBe(3);
+
+    const again = selectArtworkChoices(generalPool, seed, 3);
+    expect(again.map((o) => o.id)).toEqual(offered.map((o) => o.id));
+
+    // A different feedback id varies the offered set (per-token variation).
+    const other = selectArtworkChoices(generalPool, "feedback_other", 3);
+    expect(other.map((o) => o.id).join(",")).not.toBe(
+      offered.map((o) => o.id).join(",")
+    );
   });
 
   it("caps at pool size and handles empty/zero", () => {
