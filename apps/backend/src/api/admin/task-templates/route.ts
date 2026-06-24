@@ -152,6 +152,7 @@ import {
   MedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 
 import { TaskTemplate } from "./validators";
 import { createTaskTemplateWorkflow } from "../../../workflows/task-templates/create-template";
@@ -173,7 +174,8 @@ export const POST = async (
   });
 
   if (errors.length > 0) {
-    console.warn("Error reported at", errors);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     throw errors;
   }
 
@@ -222,7 +224,8 @@ export const GET = async (
     });
 
     if (errors.length > 0) {
-      console.warn("Error reported at", errors);
+      const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+      logger.warn(`Error reported at ${JSON.stringify(errors)}`);
       throw errors;
     }
 

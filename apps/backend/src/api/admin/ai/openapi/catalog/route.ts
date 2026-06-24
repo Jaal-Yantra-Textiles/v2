@@ -131,6 +131,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import yaml from "js-yaml"
 import { OpenApiGeneratorV31 } from "@asteasolutions/zod-to-openapi"
 import { buildRegistry } from "../custom/registry"
@@ -242,7 +243,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       }
       doc.paths = basePaths
     } catch (e: any) {
-      try { console.warn("[openapi][catalog] failed to merge custom spec", e?.message || e) } catch { }
+      try {
+        const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+        logger.warn(`[openapi][catalog] failed to merge custom spec ${e?.message || e}`)
+      } catch { }
     }
 
     const items: Array<{

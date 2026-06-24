@@ -25,6 +25,7 @@ import {
   MedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { DeletePageSchema, UpdatePageSchema } from "../validators";
 import { deletePageWorkflow } from "../../../../../../workflows/website/website-page/delete-page";
 import { WEBSITE_MODULE } from "../../../../../../modules/website";
@@ -45,7 +46,8 @@ export const DELETE = async (
   });
 
   if (errors.length > 1) {
-    console.warn("Error reported at", errors);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     throw errors;
   }
   res.status(200).json({
@@ -82,7 +84,8 @@ export const PUT = async (
   });
 
   if (errors.length > 1) {
-    console.warn("Error reported at", errors);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     throw errors;
   }
   // Refetch by the URL-derived `pageId`, not the workflow result —

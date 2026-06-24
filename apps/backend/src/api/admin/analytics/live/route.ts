@@ -64,7 +64,7 @@
  *
  * : heartbeat
  */
-import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
+import { MedusaRequest, MedusaResponse, logger } from "@medusajs/framework";
 import { analyticsConnections } from "../../../../subscribers/analytics-realtime";
 import { ANALYTICS_MODULE } from "../../../../modules/analytics";
 import AnalyticsService from "../../../../modules/analytics/service";
@@ -201,7 +201,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const stats = await getCurrentStats(analyticsService, website_id as string);
     res.write(`data: ${JSON.stringify({ type: 'connected', data: stats })}\n\n`);
   } catch (error) {
-    console.error("[Analytics Live] Error getting initial stats:", error);
+    logger.error(`[Analytics Live] Error getting initial stats: ${error}`);
   }
 
   // Send heartbeat every 30 seconds to keep connection alive
@@ -226,7 +226,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       res.write(`data: ${JSON.stringify({ type: 'connected', data: stats })}\n\n`);
     } catch (error) {
       // Keep the stream alive on a transient query/write error; the next tick retries.
-      console.error("[Analytics Live] Error refreshing stats:", error);
+      logger.error(`[Analytics Live] Error refreshing stats: ${error}`);
     }
   }, refreshMs);
 

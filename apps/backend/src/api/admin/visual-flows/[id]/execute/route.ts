@@ -57,6 +57,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 import { executeVisualFlowWorkflow } from "../../../../../workflows/visual-flows"
 import { VISUAL_FLOWS_MODULE } from "../../../../../modules/visual_flows"
@@ -113,7 +114,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     })
     
     if (errors?.length) {
-      console.error("[visual-flows] Execute workflow errors:", errors)
+      const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+      logger.error(`[visual-flows] Execute workflow errors: ${JSON.stringify(errors)}`)
       return res.status(500).json({ 
         error: "Failed to execute flow", 
         details: errors 

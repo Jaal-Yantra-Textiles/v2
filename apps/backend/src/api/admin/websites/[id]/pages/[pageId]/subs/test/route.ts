@@ -121,6 +121,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { z } from "@medusajs/framework/zod";
 import { sendTestBlogEmailWorkflow } from "../../../../../../../../workflows/blogs/send-blog-subscribers";
 import { WEBSITE_MODULE } from "../../../../../../../../modules/website";
@@ -202,7 +203,8 @@ export const POST = async (
       error: result.error
     });
   } catch (error) {
-    console.error("Error sending test blog email:", error);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.error(`Error sending test blog email: ${error}`);
     
     return res.status(500).json({
       message: "Failed to send test blog email",

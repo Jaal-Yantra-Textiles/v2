@@ -26,6 +26,7 @@
  */
 
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { HybridQueryResolverService } from "../../../../../mastra/services/hybrid-query-resolver"
 
 // Singleton instance
@@ -82,7 +83,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       },
     })
   } catch (error: any) {
-    console.error("[AI Chat Resolve] Error:", error)
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.error(`[AI Chat Resolve] Error: ${error}`)
     res.status(500).json({
       error: error.message || "Failed to resolve query",
     })
@@ -124,7 +126,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       },
     })
   } catch (error: any) {
-    console.error("[AI Chat Resolve] Error:", error)
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.error(`[AI Chat Resolve] Error: ${error}`)
     res.status(500).json({
       error: error.message || "Failed to get resolver status",
     })

@@ -69,7 +69,7 @@
  * - 500: Workflow execution errors
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { VISUAL_FLOWS_MODULE } from "../../../../modules/visual_flows"
 import VisualFlowService from "../../../../modules/visual_flows/service"
 import { z } from "@medusajs/framework/zod"
@@ -147,12 +147,13 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   }
   const data = parsed.data
 
-  console.log("[visual-flows PUT] Received update:", {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+  logger.info(`[visual-flows PUT] Received update: ${JSON.stringify({
     id,
     operationsCount: data.operations?.length || 0,
     connectionsCount: data.connections?.length || 0,
     operations: data.operations?.map((o) => ({ key: o.operation_key, type: o.operation_type })),
-  })
+  })}`)
 
   const { result: flow, errors } = await updateVisualFlowWorkflow(req.scope).run({
     input: {
@@ -172,7 +173,7 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   })
 
   if (errors?.length) {
-    console.error("[visual-flows] Update workflow errors:", errors)
+    logger.error(`[visual-flows] Update workflow errors: ${JSON.stringify(errors)}`)
     throw new MedusaError(
       MedusaError.Types.UNEXPECTED_STATE,
       `Failed to update flow: ${errors.map((e: any) => e?.error?.message ?? String(e)).join("; ")}`
@@ -194,7 +195,8 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
   })
 
   if (errors?.length) {
-    console.error("[visual-flows] Delete workflow errors:", errors)
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.error(`[visual-flows] Delete workflow errors: ${JSON.stringify(errors)}`)
     throw new MedusaError(
       MedusaError.Types.UNEXPECTED_STATE,
       `Failed to delete flow: ${errors.map((e: any) => e?.error?.message ?? String(e)).join("; ")}`

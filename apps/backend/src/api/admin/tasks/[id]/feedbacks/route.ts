@@ -139,7 +139,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       count: feedbacks.length,
     });
   } catch (error) {
-    console.error("Error fetching task feedbacks:", error);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.error(`Error fetching task feedbacks: ${error}`);
     return res.status(500).json({
       message: "Failed to fetch task feedbacks",
       error: error instanceof Error ? error.message : String(error),
@@ -171,7 +172,8 @@ export const POST = async (
       feedback: result.feedback,
     });
   } catch (error) {
-    console.error("Error creating task feedback:", error);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.error(`Error creating task feedback: ${error}`);
     return res.status(500).json({
       message: "Failed to create task feedback",
       error: error instanceof Error ? error.message : String(error),

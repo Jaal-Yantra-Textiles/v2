@@ -114,7 +114,7 @@
  * }
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
-import { MedusaError } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { TASKS_MODULE } from "../../../../../modules/tasks";
 import TaskService from "../../../../../modules/tasks/service";
 
@@ -189,7 +189,8 @@ export async function POST(
             }
         } catch (error) {
             // If we can't fetch admin info, use default
-            console.warn("Could not fetch admin user info:", error);
+            const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+            logger.warn(`Could not fetch admin user info: ${error}`);
         }
 
         // Create new comment
@@ -226,7 +227,8 @@ export async function POST(
             });
         }
         
-        console.error("Error adding comment to task:", error);
+        const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+        logger.error(`Error adding comment to task: ${error}`);
         return res.status(500).json({
             message: "Failed to add comment to task"
         });
@@ -273,7 +275,8 @@ export async function GET(
             });
         }
         
-        console.error("Error fetching task comments:", error);
+        const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+        logger.error(`Error fetching task comments: ${error}`);
         return res.status(500).json({
             message: "Failed to fetch task comments"
         });

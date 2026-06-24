@@ -61,6 +61,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { z } from "@medusajs/framework/zod";
 import { sendBlogSubscribersWorkflow } from "../../../../../../../workflows/blogs/send-blog-subscribers";
 import { WEBSITE_MODULE } from "../../../../../../../modules/website";
@@ -141,7 +142,8 @@ export const POST = async (
       subscribers: result.totalSubscribers
     });
   } catch (error) {
-    console.error("Error sending blog to subscribers:", error);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.error(`Error sending blog to subscribers: ${error}`);
     
     return res.status(500).json({
       message: "Failed to send blog to subscribers",

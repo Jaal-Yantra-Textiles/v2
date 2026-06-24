@@ -139,7 +139,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       count: feedbacks.length,
     });
   } catch (error) {
-    console.error("Error fetching partner feedbacks:", error);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.error(`Error fetching partner feedbacks: ${error}`);
     return res.status(500).json({
       message: "Failed to fetch partner feedbacks",
       error: error instanceof Error ? error.message : String(error),
@@ -171,7 +172,8 @@ export const POST = async (
       feedback: result.feedback,
     });
   } catch (error) {
-    console.error("Error creating partner feedback:", error);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.error(`Error creating partner feedback: ${error}`);
     return res.status(500).json({
       message: "Failed to create partner feedback",
       error: error instanceof Error ? error.message : String(error),

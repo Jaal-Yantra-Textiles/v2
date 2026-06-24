@@ -124,6 +124,7 @@ import {
   MedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { DeleteWebsiteSchema, UpdateWebsiteSchema } from "../validators";
 import { deleteWebsiteWorkflow } from "../../../../workflows/website/delete-website";
 import { WEBSITE_MODULE } from "../../../../modules/website";
@@ -143,7 +144,8 @@ export const DELETE = async (
     },
   });
   if (errors.length > 1) {
-    console.warn("Error reported at", errors);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     throw errors;
   }
   res.status(200).json({
@@ -183,7 +185,8 @@ export const PUT = async (
   });
 
   if (errors.length > 1) {
-    console.warn("Error reported at", errors);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     throw errors;
   }
 
