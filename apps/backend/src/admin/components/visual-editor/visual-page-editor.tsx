@@ -5,6 +5,7 @@ import { BlockListPanel } from "./panels/block-list-panel"
 import { PreviewPanel } from "./panels/preview-panel"
 import { PropertyEditorPanel } from "./panels/property-editor-panel"
 import { useIframeCommunication } from "../../hooks/use-iframe-communication"
+import { buildPreviewPath, PreviewPageType } from "./preview-url"
 import { toast, Tooltip } from "@medusajs/ui"
 import { SidebarLeft, SidebarRight, ArrowPath, CursorArrowRays } from "@medusajs/icons"
 import "./visual-page-editor.css"
@@ -42,7 +43,7 @@ export function VisualPageEditor({
   const deleteBlockMutation = useDeletePageBlock(websiteId, pageId)
 
   // Get the preview URL for the page
-  const previewUrl = getPreviewUrl(domain, page.slug)
+  const previewUrl = getPreviewUrl(domain, page.slug, page.page_type)
 
   // Iframe communication hook
   const {
@@ -295,15 +296,19 @@ export function VisualPageEditor({
   )
 }
 
-function getPreviewUrl(domain: string | undefined, slug: string): string {
+function getPreviewUrl(
+  domain: string | undefined,
+  slug: string,
+  pageType?: PreviewPageType
+): string {
   let baseUrl: string
   if (domain) {
-    baseUrl = domain.startsWith("http") ? domain : `https://${domain}/blog`
+    baseUrl = domain.startsWith("http") ? domain : `https://${domain}`
   } else {
 // @ts-ignore
     baseUrl = import.meta.env.VITE_PREVIEW_URL || "http://localhost:3000"
   }
   baseUrl = baseUrl.replace(/\/+$/, "")
-  const path = slug === "home" ? "/" : `/${slug}`
+  const path = buildPreviewPath(slug, pageType)
   return `${baseUrl}${path}?visual_editor=true`
 }
