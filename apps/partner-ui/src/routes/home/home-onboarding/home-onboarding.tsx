@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Alert,
   Button,
@@ -6,6 +6,7 @@ import {
   Input,
   ProgressTabs,
   Select,
+  Switch,
   Text,
   Textarea,
   toast,
@@ -42,6 +43,63 @@ const personSchema = z.object({
   email: z.string().email("Invalid email address"),
 })
 
+// --- Onboarding profile (issue #648, slice 1) ---------------------------
+// Mirrors the partner_onboarding_profile model / validator on the backend.
+type PaymentCollection = "through_us" | "themselves"
+
+type OnboardingProfile = {
+  what_they_sell: string
+  price_range: string
+  person_type: string
+  has_inventory_info: boolean
+  does_stock: boolean
+  does_weaving: boolean
+  team_size: string // kept as string for the input; coerced to number on save
+  payment_collection: PaymentCollection | ""
+}
+
+const WHAT_THEY_SELL_OPTIONS = [
+  { value: "apparel", label: "Apparel / Garments" },
+  { value: "home_textiles", label: "Home textiles" },
+  { value: "fabric", label: "Fabric" },
+  { value: "yarn", label: "Yarn" },
+  { value: "accessories", label: "Accessories" },
+  { value: "other", label: "Other" },
+]
+
+const PRICE_RANGE_OPTIONS = [
+  { value: "economy", label: "Economy" },
+  { value: "mid", label: "Mid-range" },
+  { value: "premium", label: "Premium" },
+  { value: "luxury", label: "Luxury" },
+]
+
+const PERSON_TYPE_OPTIONS = [
+  { value: "individual", label: "Individual" },
+  { value: "business", label: "Business" },
+  { value: "manufacturer", label: "Manufacturer" },
+  { value: "wholesaler", label: "Wholesaler" },
+  { value: "retailer", label: "Retailer" },
+  { value: "artisan", label: "Artisan" },
+  { value: "other", label: "Other" },
+]
+
+const PAYMENT_COLLECTION_OPTIONS: { value: PaymentCollection; label: string }[] = [
+  { value: "through_us", label: "Through JYT (we collect on your behalf)" },
+  { value: "themselves", label: "Myself (I collect payments directly)" },
+]
+
+const emptyProfile: OnboardingProfile = {
+  what_they_sell: "",
+  price_range: "",
+  person_type: "",
+  has_inventory_info: false,
+  does_stock: false,
+  does_weaving: false,
+  team_size: "",
+  payment_collection: "",
+}
+
 const BUSINESS_TYPE_KEYS = [
   "manufacturer",
   "seller",
@@ -58,7 +116,7 @@ const mapBusinessTypeToWorkspaceType = (businessType: string): "seller" | "manuf
   return "manufacturer"
 }
 
-const STEPS = ["about", "logo", "people"] as const
+const STEPS = ["about", "business", "operations", "logo", "people"] as const
 type Step = (typeof STEPS)[number]
 
 const getOnboardingStorageKey = (partnerId: string) =>
@@ -76,6 +134,8 @@ function getStepStatus(
   if (stepIdx > currentIdx) return "not-started"
   if (step === "about") return aboutYou.business_name.trim() ? "completed" : "in-progress"
   if (step === "logo") return hasLogo ? "completed" : "in-progress"
+  // Any earlier step the user has moved past counts as completed.
+  if (stepIdx < currentIdx) return "completed"
   return "not-started"
 }
 
@@ -106,6 +166,8 @@ const OnboardingForm = () => {
 
   const STEP_LABELS: Record<Step, string> = {
     about: t("partner.onboardingModal.steps.about"),
+    business: "Business",
+    operations: "Operations",
     logo: t("partner.onboardingModal.steps.logo"),
     people: t("partner.onboardingModal.steps.people"),
   }
@@ -164,9 +226,46 @@ const OnboardingForm = () => {
     if (saved && saved.length > 0) return saved
     return [{ first_name: "", last_name: "", email: "" }]
   })
+  const [profile, setProfile] = useState<OnboardingProfile>(emptyProfile)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success] = useState(false)
+
+  // Hydrate the onboarding profile from the server if the partner has
+  // started the wizard before (returning users / resumed onboarding).
+  useEffect(() => {
+    let cancelled = false
+    if (!partnerId) return
+    ;(async () => {
+      try {
+        const res = (await sdk.client.fetch(
+          "/partners/onboarding-profile"
+        )) as { onboarding_profile?: Record<string, any> | null }
+        const p = res?.onboarding_profile
+        if (!p || cancelled) return
+        setProfile((prev) => ({
+          ...prev,
+          what_they_sell: p.what_they_sell ?? prev.what_they_sell,
+          price_range: p.price_range ?? prev.price_range,
+          person_type: p.person_type ?? prev.person_type,
+          has_inventory_info: Boolean(p.has_inventory_info),
+          does_stock: Boolean(p.does_stock),
+          does_weaving: Boolean(p.does_weaving),
+          team_size:
+            p.team_size === null || p.team_size === undefined
+              ? prev.team_size
+              : String(p.team_size),
+          payment_collection: (p.payment_collection ??
+            prev.payment_collection) as PaymentCollection | "",
+        }))
+      } catch {
+        // non-blocking — first-time partners have no profile yet
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [partnerId])
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -283,6 +382,33 @@ const OnboardingForm = () => {
         } catch {
           // non-blocking
         }
+      }
+
+      // Persist the onboarding profile (#648 slice 1). Only send fields the
+      // partner actually set; booleans always go through.
+      const profileBody: Record<string, any> = {
+        has_inventory_info: profile.has_inventory_info,
+        does_stock: profile.does_stock,
+        does_weaving: profile.does_weaving,
+        completed: true,
+      }
+      if (profile.what_they_sell) profileBody.what_they_sell = profile.what_they_sell
+      if (profile.price_range) profileBody.price_range = profile.price_range
+      if (profile.person_type) profileBody.person_type = profile.person_type
+      if (profile.payment_collection)
+        profileBody.payment_collection = profile.payment_collection
+      if (profile.team_size.trim() !== "") {
+        const n = Number.parseInt(profile.team_size, 10)
+        if (Number.isFinite(n)) profileBody.team_size = n
+      }
+
+      try {
+        await sdk.client.fetch("/partners/onboarding-profile", {
+          method: "PUT",
+          body: profileBody,
+        })
+      } catch {
+        // non-blocking — wizard state is also kept in localStorage below
       }
 
       const filledPeople = people.filter(
@@ -445,7 +571,201 @@ const OnboardingForm = () => {
             </div>
           </ProgressTabs.Content>
 
-          {/* Step 2: Logo */}
+          {/* Step 2: Business profile */}
+          <ProgressTabs.Content value="business" className="p-6">
+            <div className="mx-auto flex w-full max-w-[720px] flex-col gap-y-4 py-10">
+              <div>
+                <Heading>Your business</Heading>
+                <Text size="small" className="text-ui-fg-subtle mt-1">
+                  Tell us a bit about what you sell so we can tailor your workspace.
+                </Text>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <Text size="small" className="mb-1 block font-medium">
+                    What do you sell?
+                  </Text>
+                  <Select
+                    value={profile.what_they_sell}
+                    onValueChange={(v) =>
+                      setProfile((prev) => ({ ...prev, what_they_sell: v }))
+                    }
+                  >
+                    <Select.Trigger>
+                      <Select.Value placeholder="Select a category" />
+                    </Select.Trigger>
+                    <Select.Content>
+                      {WHAT_THEY_SELL_OPTIONS.map((o) => (
+                        <Select.Item key={o.value} value={o.value}>
+                          {o.label}
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select>
+                </div>
+
+                <div>
+                  <Text size="small" className="mb-1 block font-medium">
+                    Typical price range
+                  </Text>
+                  <Select
+                    value={profile.price_range}
+                    onValueChange={(v) =>
+                      setProfile((prev) => ({ ...prev, price_range: v }))
+                    }
+                  >
+                    <Select.Trigger>
+                      <Select.Value placeholder="Select a price band" />
+                    </Select.Trigger>
+                    <Select.Content>
+                      {PRICE_RANGE_OPTIONS.map((o) => (
+                        <Select.Item key={o.value} value={o.value}>
+                          {o.label}
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <Text size="small" className="mb-1 block font-medium">
+                    What kind of partner are you?
+                  </Text>
+                  <Select
+                    value={profile.person_type}
+                    onValueChange={(v) =>
+                      setProfile((prev) => ({ ...prev, person_type: v }))
+                    }
+                  >
+                    <Select.Trigger>
+                      <Select.Value placeholder="Select a type" />
+                    </Select.Trigger>
+                    <Select.Content>
+                      {PERSON_TYPE_OPTIONS.map((o) => (
+                        <Select.Item key={o.value} value={o.value}>
+                          {o.label}
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </ProgressTabs.Content>
+
+          {/* Step 3: Operations */}
+          <ProgressTabs.Content value="operations" className="p-6">
+            <div className="mx-auto flex w-full max-w-[720px] flex-col gap-y-4 py-10">
+              <div>
+                <Heading>How you operate</Heading>
+                <Text size="small" className="text-ui-fg-subtle mt-1">
+                  This helps us set up inventory, production and payments for you.
+                </Text>
+              </div>
+
+              <div className="flex flex-col gap-y-3">
+                <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+                  <div>
+                    <Text size="small" weight="plus">
+                      Do you keep inventory information?
+                    </Text>
+                    <Text size="xsmall" className="text-ui-fg-subtle">
+                      You track stock counts, SKUs or product catalogues.
+                    </Text>
+                  </div>
+                  <Switch
+                    checked={profile.has_inventory_info}
+                    onCheckedChange={(c) =>
+                      setProfile((prev) => ({ ...prev, has_inventory_info: c }))
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+                  <div>
+                    <Text size="small" weight="plus">
+                      Do you hold stock?
+                    </Text>
+                    <Text size="xsmall" className="text-ui-fg-subtle">
+                      You carry physical stock yourself.
+                    </Text>
+                  </div>
+                  <Switch
+                    checked={profile.does_stock}
+                    onCheckedChange={(c) =>
+                      setProfile((prev) => ({ ...prev, does_stock: c }))
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+                  <div>
+                    <Text size="small" weight="plus">
+                      Do you do weaving?
+                    </Text>
+                    <Text size="xsmall" className="text-ui-fg-subtle">
+                      You produce woven textiles in-house.
+                    </Text>
+                  </div>
+                  <Switch
+                    checked={profile.does_weaving}
+                    onCheckedChange={(c) =>
+                      setProfile((prev) => ({ ...prev, does_weaving: c }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <Text size="small" className="mb-1 block font-medium">
+                    Team size{" "}
+                    <span className="text-ui-fg-muted font-normal">(optional)</span>
+                  </Text>
+                  <Input
+                    value={profile.team_size}
+                    onChange={(e) =>
+                      setProfile((prev) => ({
+                        ...prev,
+                        team_size: e.target.value.replace(/[^0-9]/g, ""),
+                      }))
+                    }
+                    placeholder="e.g. 8"
+                    inputMode="numeric"
+                  />
+                </div>
+
+                <div>
+                  <Text size="small" className="mb-1 block font-medium">
+                    How are payments collected?
+                  </Text>
+                  <Select
+                    value={profile.payment_collection}
+                    onValueChange={(v) =>
+                      setProfile((prev) => ({
+                        ...prev,
+                        payment_collection: v as PaymentCollection,
+                      }))
+                    }
+                  >
+                    <Select.Trigger>
+                      <Select.Value placeholder="Select an option" />
+                    </Select.Trigger>
+                    <Select.Content>
+                      {PAYMENT_COLLECTION_OPTIONS.map((o) => (
+                        <Select.Item key={o.value} value={o.value}>
+                          {o.label}
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </ProgressTabs.Content>
+
+          {/* Step 4: Logo */}
           <ProgressTabs.Content value="logo" className="p-6">
             <div className="mx-auto flex w-full max-w-[720px] flex-col gap-y-4 py-10">
               <div>
@@ -507,7 +827,7 @@ const OnboardingForm = () => {
             </div>
           </ProgressTabs.Content>
 
-          {/* Step 3: Team */}
+          {/* Step 5: Team */}
           <ProgressTabs.Content value="people" className="p-6">
             <div className="mx-auto flex w-full max-w-[720px] flex-col gap-y-4 py-10">
               <div>

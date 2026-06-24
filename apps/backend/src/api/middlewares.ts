@@ -98,6 +98,7 @@ import { AdminCreateEnergyRateReq, AdminUpdateEnergyRateReq } from "./admin/ener
 import { partnerSchema, partnerUpdateSchema } from "./partners/validators";
 import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { updatePartnerMeSchema } from "./partners/me/validators";
+import { onboardingProfileUpdateSchema } from "./partners/onboarding-profile/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
 import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema } from "./admin/inventory-orders/validators";
 // Import already defined above
@@ -737,6 +738,24 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(partnerUpdateSchema)),
+      ],
+    },
+
+    {
+      matcher: "/partners/onboarding-profile",
+      method: "PUT",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(onboardingProfileUpdateSchema)),
+      ],
+    },
+    {
+      matcher: "/partners/onboarding-profile",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
       ],
     },
 
