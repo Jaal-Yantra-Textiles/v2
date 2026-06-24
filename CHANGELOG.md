@@ -1,3 +1,10 @@
+# [13.43.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.42.0...v13.43.0) (2026-06-24)
+
+
+### Features
+
+* **ops:** [#697](https://github.com/Jaal-Yantra-Textiles/v2/issues/697) backfill finished-run energy & labor consumption logs ([#698](https://github.com/Jaal-Yantra-Textiles/v2/issues/698)) ([22ca725](https://github.com/Jaal-Yantra-Textiles/v2/commit/22ca725d9c9e78649f3a5b104128f40bf2274c61)), closes [#457](https://github.com/Jaal-Yantra-Textiles/v2/issues/457)
+
 # [13.42.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.41.0...v13.42.0) (2026-06-23)
 
 
