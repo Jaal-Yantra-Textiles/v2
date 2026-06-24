@@ -115,6 +115,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/partner-payment-config",
     },
     {
+      resolve: "./src/modules/partner-onboarding-profile",
+    },
+    {
       resolve: "./src/modules/partner_billing",
     },
     {
