@@ -334,3 +334,121 @@ export const checkoutDesign = async (
     throw error
   }
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// #729 — Production story (v1 task-list → v2 production-run story)
+//
+// Public, money-free "how this was made" data for a design: production runs
+// (status/activity) + an energy/consumption summary + the people who made it
+// + the raw materials used. Mirrors the backend shape in
+// src/api/store/custom/designs/[id]/production-story/build-story.ts.
+//
+// NOTE: the storefront RENDER that replaces the v1 task-list display with this
+// run-based story is a FOLLOW-UP (Playwright-gated UI). This is the data layer.
+// ──────────────────────────────────────────────────────────────────────────
+
+export type ProductionStoryActivity = {
+  id: string
+  activity_type: string
+  kind: string
+  summary: string | null
+  created_at: string | null
+}
+
+export type ProductionStoryRun = {
+  id: string
+  status: string
+  run_type: string
+  quantity: number | null
+  produced_quantity: number | null
+  rejected_quantity: number | null
+  started_at: string | null
+  finished_at: string | null
+  completed_at: string | null
+  created_at: string | null
+  activity: ProductionStoryActivity[]
+}
+
+export type EnergySummary = {
+  electricity_kwh: number
+  water_liters: number
+  gas_cubic_meters: number
+}
+
+export type MaterialConsumed = {
+  raw_material_id: string | null
+  name: string | null
+  unit_of_measure: string
+  quantity: number
+}
+
+export type ConsumptionSummary = {
+  energy: EnergySummary
+  labor_hours: number
+  materials_consumed: MaterialConsumed[]
+  total_logs: number
+}
+
+export type StoryPerson = { id: string; name: string | null; role: string | null }
+export type StoryPartner = { id: string; name: string | null }
+export type StoryMaterial = {
+  id: string
+  name: string | null
+  composition: string | null
+  color: string | null
+  media: unknown
+  material_type: string | null
+}
+
+export type ProductionStory = {
+  design_id: string
+  runs: ProductionStoryRun[]
+  consumption: ConsumptionSummary
+  people: StoryPerson[]
+  partners: StoryPartner[]
+  materials: StoryMaterial[]
+}
+
+const EMPTY_PRODUCTION_STORY = (designId: string): ProductionStory => ({
+  design_id: designId,
+  runs: [],
+  consumption: {
+    energy: { electricity_kwh: 0, water_liters: 0, gas_cubic_meters: 0 },
+    labor_hours: 0,
+    materials_consumed: [],
+    total_logs: 0,
+  },
+  people: [],
+  partners: [],
+  materials: [],
+})
+
+/**
+ * Fetches the public production story for a design.
+ *
+ * Public/cacheable — no auth required (mirrors the public product → designs.*
+ * exposure on /store/products). Returns a clean empty story on error so a
+ * "how this was made" section can render defensively.
+ */
+export const getProductionStory = async (
+  designId: string
+): Promise<ProductionStory> => {
+  const next = {
+    ...(await getCacheOptions("designs")),
+  }
+
+  try {
+    const data = await sdk.client.fetch<{ production_story: ProductionStory }>(
+      `/store/custom/designs/${designId}/production-story`,
+      {
+        method: "GET",
+        next,
+        cache: "force-cache",
+      }
+    )
+    return data.production_story ?? EMPTY_PRODUCTION_STORY(designId)
+  } catch (error) {
+    console.error("Error fetching production story:", error)
+    return EMPTY_PRODUCTION_STORY(designId)
+  }
+}
