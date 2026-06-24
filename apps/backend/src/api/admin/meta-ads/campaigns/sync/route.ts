@@ -80,6 +80,7 @@
  * }
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"
 import MetaAdsService from "../../../../../modules/social-provider/meta-ads-service"
@@ -98,6 +99,7 @@ export const POST = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
     const body = req.body as Record<string, any>
@@ -171,7 +173,7 @@ export const POST = async (
       accessToken
     )
 
-    console.log(`Found ${metaCampaigns.length} campaigns from Meta`)
+    logger.info(`Found ${metaCampaigns.length} campaigns from Meta`)
 
     for (const metaCampaign of metaCampaigns) {
       try {
@@ -188,7 +190,7 @@ export const POST = async (
               date_preset: "last_30d",
             })
           } catch (e) {
-            console.warn(`Failed to get insights for campaign ${metaCampaign.id}`)
+            logger.warn(`Failed to get insights for campaign ${metaCampaign.id}`)
           }
         }
 
@@ -243,7 +245,7 @@ export const POST = async (
         // Sync Ad Sets for this campaign
         try {
           const metaAdSets = await metaAds.listAdSets(metaCampaign.id, accessToken)
-          console.log(`Found ${metaAdSets.length} ad sets for campaign ${metaCampaign.name}`)
+          logger.info(`Found ${metaAdSets.length} ad sets for campaign ${metaCampaign.name}`)
           
           for (const metaAdSet of metaAdSets) {
             try {
@@ -286,7 +288,7 @@ export const POST = async (
               // Sync Ads for this ad set
               try {
                 const metaAdsData = await metaAds.listAds(metaAdSet.id, accessToken)
-                console.log(`Found ${metaAdsData.length} ads for ad set ${metaAdSet.name}`)
+                logger.info(`Found ${metaAdsData.length} ads for ad set ${metaAdSet.name}`)
                 
                 for (const metaAd of metaAdsData) {
                   try {
@@ -316,23 +318,23 @@ export const POST = async (
                       results.ads_created++
                     }
                   } catch (adError) {
-                    console.error(`Failed to sync ad ${metaAd.id}:`, adError)
+                    logger.error(`Failed to sync ad ${metaAd.id}:`, adError)
                     results.errors++
                   }
                 }
               } catch (adsError) {
-                console.error(`Failed to fetch ads for ad set ${metaAdSet.id}:`, adsError)
+                logger.error(`Failed to fetch ads for ad set ${metaAdSet.id}:`, adsError)
               }
             } catch (adSetError) {
-              console.error(`Failed to sync ad set ${metaAdSet.id}:`, adSetError)
+              logger.error(`Failed to sync ad set ${metaAdSet.id}:`, adSetError)
               results.errors++
             }
           }
         } catch (adSetsError) {
-          console.error(`Failed to fetch ad sets for campaign ${metaCampaign.id}:`, adSetsError)
+          logger.error(`Failed to fetch ad sets for campaign ${metaCampaign.id}:`, adSetsError)
         }
       } catch (error) {
-        console.error(`Failed to sync campaign ${metaCampaign.id}:`, error)
+        logger.error(`Failed to sync campaign ${metaCampaign.id}:`, error)
         results.errors++
       }
     }
@@ -349,7 +351,7 @@ export const POST = async (
       },
     })
   } catch (error: any) {
-    console.error("Failed to sync campaigns:", error)
+    logger.error("Failed to sync campaigns:", error)
     res.status(500).json({
       message: "Failed to sync campaigns",
       error: error.message,

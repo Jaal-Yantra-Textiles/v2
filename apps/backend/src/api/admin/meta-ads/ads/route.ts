@@ -37,6 +37,7 @@
  * }
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import SocialsService from "../../../../modules/socials/service"
 
@@ -49,6 +50,7 @@ export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
     const { ad_set_id, campaign_id, ad_account_id, limit = "200", offset = "0" } = req.query as Record<string, string>
@@ -108,7 +110,7 @@ export const GET = async (
       offset: skip,
     })
   } catch (error: any) {
-    console.error("Failed to list ads:", error)
+    logger.error("Failed to list ads:", error)
     res.status(500).json({
       message: "Failed to list ads",
       error: error.message,
@@ -125,6 +127,7 @@ export const POST = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
     const body = req.body as Record<string, any>
@@ -133,7 +136,7 @@ export const POST = async (
 
     res.json({ ad })
   } catch (error: any) {
-    console.error("Failed to create ad:", error)
+    logger.error("Failed to create ad:", error)
     res.status(500).json({
       message: "Failed to create ad",
       error: error.message,

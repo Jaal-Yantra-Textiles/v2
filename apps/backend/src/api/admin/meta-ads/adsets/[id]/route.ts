@@ -45,10 +45,12 @@
  * }
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
     const { id } = req.params
@@ -75,7 +77,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       },
     })
   } catch (error: any) {
-    console.error("Failed to get ad set:", error)
+    logger.error("Failed to get ad set:", error)
 
     if (error.type === "not_found" || error.message?.includes("was not found")) {
       return res.status(404).json({

@@ -4,6 +4,7 @@
  */
 
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { z } from "@medusajs/framework/zod";
 import { AD_PLANNING_MODULE } from "../../../../modules/ad-planning";
 import { buildSegmentWorkflow } from "../../../../workflows/ad-planning/segments/build-segment";
@@ -82,6 +83,7 @@ const CreateSegmentSchema = z.object({
  * @route POST /admin/ad-planning/segments
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER);
   const data = CreateSegmentSchema.parse(req.body);
   const adPlanningService = req.scope.resolve(AD_PLANNING_MODULE);
 
@@ -106,7 +108,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       });
       return;
     } catch (error) {
-      console.error("[Segments] Failed to build segment:", error);
+      logger.error("[Segments] Failed to build segment:", error);
     }
   }
 

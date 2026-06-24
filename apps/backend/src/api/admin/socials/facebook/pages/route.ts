@@ -91,6 +91,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { publishSocialPostWorkflow } from "../../../../../workflows/socials/publish-post"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"
@@ -109,6 +110,7 @@ export const POST = async (
   req: MedusaRequest<PublishByPostIdBody>,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const { post_id, page_id } = req.body || {}
 
   if (!post_id) {
@@ -116,7 +118,7 @@ export const POST = async (
     return
   }
 
-  console.warn(
+  logger.warn(
     "[DEPRECATED] POST /admin/socials/facebook/pages is deprecated. " +
     "Use POST /admin/social-posts/:id/publish instead."
   )
@@ -145,13 +147,14 @@ export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const platform_id = (req.query?.platform_id as string) || ""
   if (!platform_id) {
     res.status(400).json({ message: "Missing platform_id" })
     return
   }
 
-  console.warn(
+  logger.warn(
     "[DEPRECATED] GET /admin/socials/facebook/pages is deprecated. " +
     "Use platform.api_config.metadata.pages from the social platform instead."
   )

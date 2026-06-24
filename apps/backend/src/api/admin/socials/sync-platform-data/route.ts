@@ -69,6 +69,7 @@
  * }
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { syncPlatformHashtagsMentionsWorkflow } from "../../../../workflows/socials/sync-platform-hashtags-mentions"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import { decryptAccessToken } from "../../../../modules/socials/utils/token-helpers"
@@ -85,6 +86,7 @@ export const POST = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const { platform_id } = req.body as { platform_id: string }
 
   if (!platform_id) {
@@ -131,7 +133,7 @@ export const POST = async (
       results: result,
     })
   } catch (error) {
-    console.error("Error syncing platform data:", error)
+    logger.error("Error syncing platform data:", error)
     res.status(500).json({ 
       error: "Failed to sync platform data",
       details: error.message 

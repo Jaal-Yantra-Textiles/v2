@@ -22,6 +22,7 @@
  * @apiError (500: Internal Server Error) {String} error Error message
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"
 import MetaAdsService from "../../../../../modules/social-provider/meta-ads-service"
@@ -39,6 +40,7 @@ export const POST = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
     const body = req.body as Record<string, any>
@@ -73,7 +75,7 @@ export const POST = async (
     
     // Fallback to generic access token if no user token
     if (!accessToken) {
-      console.log("No user_access_token found, trying generic access_token...")
+      logger.info("No user_access_token found, trying generic access_token...")
       accessToken = decryptAccessToken(apiConfig, req.scope)
     }
     
@@ -83,7 +85,7 @@ export const POST = async (
       })
     }
     
-    console.log("Using access token for ad accounts sync...")
+    logger.info("Using access token for ad accounts sync...")
 
     const metaAds = new MetaAdsService()
     const results = {
@@ -110,7 +112,7 @@ export const POST = async (
       throw error
     }
 
-    console.log(`Found ${metaAccounts.length} ad accounts from Meta`)
+    logger.info(`Found ${metaAccounts.length} ad accounts from Meta`)
 
     for (const metaAccount of metaAccounts) {
       try {
@@ -151,7 +153,7 @@ export const POST = async (
           results.created++
         }
       } catch (error) {
-        console.error(`Failed to sync account ${metaAccount.id}:`, error)
+        logger.error(`Failed to sync account ${metaAccount.id}:`, error)
         results.errors++
       }
     }
@@ -161,7 +163,7 @@ export const POST = async (
       results,
     })
   } catch (error: any) {
-    console.error("Failed to sync ad accounts:", error)
+    logger.error("Failed to sync ad accounts:", error)
     res.status(500).json({
       message: "Failed to sync ad accounts",
       error: error.message,

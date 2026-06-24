@@ -122,6 +122,7 @@
  * }
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"
 
@@ -134,6 +135,7 @@ export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
     const { id } = req.params
@@ -148,7 +150,7 @@ export const GET = async (
 
     res.json({ lead })
   } catch (error: any) {
-    console.error("Failed to get lead:", error)
+    logger.error("Failed to get lead:", error)
     res.status(500).json({
       message: "Failed to get lead",
       error: error.message,
@@ -172,6 +174,7 @@ export const PATCH = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
     const { id } = req.params
@@ -227,7 +230,7 @@ export const PATCH = async (
 
     res.json({ lead })
   } catch (error: any) {
-    console.error("Failed to update lead:", error)
+    logger.error("Failed to update lead:", error)
     res.status(500).json({
       message: "Failed to update lead",
       error: error.message,
@@ -244,6 +247,7 @@ export const DELETE = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
     const { id } = req.params
@@ -259,7 +263,7 @@ export const DELETE = async (
       deleted: true,
     })
   } catch (error: any) {
-    console.error("Failed to delete lead:", error)
+    logger.error("Failed to delete lead:", error)
     res.status(500).json({
       message: "Failed to delete lead",
       error: error.message,

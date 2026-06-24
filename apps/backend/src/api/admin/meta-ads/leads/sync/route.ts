@@ -88,6 +88,7 @@
  * }
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"
 import MetaAdsService from "../../../../../modules/social-provider/meta-ads-service"
@@ -107,6 +108,7 @@ export const POST = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
     const body = req.body as Record<string, any>
@@ -169,12 +171,12 @@ export const POST = async (
           const forms = await metaAds.listLeadForms(page.id, pageToken)
           formsToSync.push(...forms.map(f => f.id))
         } catch (error) {
-          console.error(`Failed to get forms for page ${page.id}:`, error)
+          logger.error(`Failed to get forms for page ${page.id}:`, error)
         }
       }
     }
 
-    console.log(`Syncing leads from ${formsToSync.length} forms`)
+    logger.info(`Syncing leads from ${formsToSync.length} forms`)
 
     // Sync leads from each form
     for (const formId of formsToSync) {
@@ -242,13 +244,13 @@ export const POST = async (
 
             results.synced++
           } catch (error) {
-            console.error(`Failed to create lead ${leadData.id}:`, error)
+            logger.error(`Failed to create lead ${leadData.id}:`, error)
             results.errors++
           }
         }
       } catch (error: any) {
         const errorMsg = error.message || `Failed to sync leads from form ${formId}`
-        console.error(`Failed to sync leads from form ${formId}:`, error)
+        logger.error(`Failed to sync leads from form ${formId}:`, error)
         results.errors++
         results.error_messages.push(errorMsg)
       }
@@ -270,7 +272,7 @@ export const POST = async (
       results,
     })
   } catch (error: any) {
-    console.error("Failed to sync leads:", error)
+    logger.error("Failed to sync leads:", error)
     res.status(500).json({
       message: "Failed to sync leads",
       error: error.message,

@@ -105,6 +105,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { SocialPost } from "./validators";
 import { refetchSocialPost } from "./helpers";
 import { createSocialPostWorkflow } from "../../../workflows/socials/create-social-post";
@@ -160,7 +161,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 };
 
 export const POST = async (req: MedusaRequest<SocialPost>, res: MedusaResponse) => {
-  console.log(req.validatedBody)
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+  logger.info(`${JSON.stringify(req.validatedBody)}`)
   const { result } = await createSocialPostWorkflow(req.scope).run({
     input: req.validatedBody,
   });
