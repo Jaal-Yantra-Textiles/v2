@@ -3,13 +3,15 @@ import {
   createStep,
   WorkflowResponse,
   StepResponse,
-  createWorkflow
+  createWorkflow,
+  transform
 } from "@medusajs/framework/workflows-sdk"
 import { RAW_MATERIAL_MODULE } from "../../modules/raw_material"
 import { LinkDefinition } from "@medusajs/framework/types"
 import RawMaterialService from "../../modules/raw_material/service"
 import type { Link } from "@medusajs/modules-sdk"
 import { generateSkuStep } from "./steps/generate-sku"
+import { syncInventoryThumbnailStep } from "./steps/sync-inventory-thumbnail"
 
 type CreateRawMaterialInput = {
   inventoryId: string
@@ -159,10 +161,18 @@ export const createRawMaterialWorkflow = createWorkflow(
       rawMaterialId: rawMaterialResult.id,
     })
 
+    // Mirror the raw material's primary image onto the inventory item thumbnail.
+    const media = transform(input, (i) => i.rawMaterialData?.media)
+    const thumbnailResult = syncInventoryThumbnailStep({
+      inventoryId: input.inventoryId,
+      media,
+    })
+
     return new WorkflowResponse([
       rawMaterialResult,
       rawMaterialLinkResult,
-      skuResult
+      skuResult,
+      thumbnailResult
     ])
   }
 )
