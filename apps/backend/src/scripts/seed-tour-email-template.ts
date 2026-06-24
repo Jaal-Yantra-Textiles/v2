@@ -72,6 +72,34 @@ const HTML = `<!doctype html>
   </table>
 </body></html>`
 
+/**
+ * Full template spec — exported so the #457 Data Plumbing `seed-email-templates`
+ * maintenance job can preview/create it idempotently without `medusa exec`.
+ */
+export const tourEmailTemplate = {
+  name: TEMPLATE_NAME,
+  description:
+    "Sent to the customer when they confirm their tour itinerary on the visit page.",
+  template_key: TEMPLATE_KEY,
+  subject: SUBJECT,
+  html_content: HTML,
+  is_active: true,
+  template_type: "transactional",
+  variables: {
+    first_name: "string",
+    tour_title: "string",
+    tour_date: "ISO date",
+    visit_url: "string",
+    segments: "Array<{ title, duration?, required? }>",
+    has_payment: "boolean",
+    paid_provider: "string",
+    paid_amount: "number",
+    paid_currency: "ISO 4217",
+    add_ons_amount: "number",
+    add_ons_currency: "ISO 4217",
+  },
+}
+
 export default async function seedTourEmailTemplate({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const templates: any = container.resolve(EMAIL_TEMPLATES_MODULE)
@@ -82,29 +110,7 @@ export default async function seedTourEmailTemplate({ container }: ExecArgs) {
   )
   const current = existing?.[0]
 
-  const fields = {
-    name: TEMPLATE_NAME,
-    description:
-      "Sent to the customer when they confirm their tour itinerary on the visit page.",
-    template_key: TEMPLATE_KEY,
-    subject: SUBJECT,
-    html_content: HTML,
-    is_active: true,
-    template_type: "transactional",
-    variables: {
-      first_name: "string",
-      tour_title: "string",
-      tour_date: "ISO date",
-      visit_url: "string",
-      segments: "Array<{ title, duration?, required? }>",
-      has_payment: "boolean",
-      paid_provider: "string",
-      paid_amount: "number",
-      paid_currency: "ISO 4217",
-      add_ons_amount: "number",
-      add_ons_currency: "ISO 4217",
-    },
-  }
+  const fields = tourEmailTemplate
 
   if (current) {
     await templates.updateEmailTemplates({ id: current.id, ...fields })

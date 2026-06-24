@@ -22,7 +22,7 @@
  */
 import { EMAIL_TEMPLATES_MODULE } from "../modules/email_templates"
 
-const partnerEmailTemplates = [
+export const partnerEmailTemplates = [
   {
     template_key: "partner-production-run-completed",
     name: "Partner — Production Run Completed",

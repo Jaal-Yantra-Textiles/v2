@@ -58,6 +58,7 @@ import {
 } from "../../marketing/marketing-summary-lib"
 import { VISUAL_FLOWS_MODULE } from "../../../../modules/visual_flows"
 import { FLOW_DEF as IDEAS_EMAIL_FLOW_DEF } from "../../../../scripts/seed-marketing-daily-ideas-email-flow"
+import { seedEmailTemplatesJob } from "./seed-jobs"
 
 /**
  * Admin "data-plumbing" maintenance jobs (#457 / roadmap #33).
@@ -4274,6 +4275,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   installMarketingIdeasEmailFlowJob,
   generateWinbackTargetsJob,
   sendMarketingDailySummaryJob,
+  seedEmailTemplatesJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>

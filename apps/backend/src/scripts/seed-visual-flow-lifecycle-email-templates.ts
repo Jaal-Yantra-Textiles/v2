@@ -155,6 +155,24 @@ const FAILURE: TemplateSpec = {
   },
 }
 
+/**
+ * Full template specs — exported so the #457 Data Plumbing `seed-email-templates`
+ * maintenance job can preview/create them idempotently without `medusa exec`.
+ * Mirrors the `fields` object built in `upsert` below (adds is_active +
+ * template_type to each TemplateSpec).
+ */
+export const visualFlowLifecycleTemplates = [STARTED, FAILURE].map((spec) => ({
+  name: spec.name,
+  description: spec.description,
+  template_key: spec.template_key,
+  from: spec.from,
+  subject: spec.subject,
+  html_content: spec.html_content,
+  is_active: true,
+  template_type: "transactional",
+  variables: spec.variables,
+}))
+
 async function upsert(templates: any, spec: TemplateSpec, logger: any) {
   const [existing] = await templates.listAndCountEmailTemplates(
     { template_key: spec.template_key },
