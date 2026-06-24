@@ -5,6 +5,7 @@
  */
 
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { analyzeSentimentWorkflow } from "../../workflows/ad-planning/sentiment/analyze-sentiment";
 import { calculateNPSWorkflow } from "../../workflows/ad-planning/scoring/calculate-nps";
 
@@ -22,13 +23,14 @@ export default async function feedbackCreatedHandler({
   event: { data },
   container,
 }: SubscriberArgs<FeedbackCreatedEvent>) {
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER);
   try {
     const feedback = data;
 
     // Guard against malformed event payloads — workflows downstream
     // assume a real feedback ID.
     if (!feedback?.id) {
-      console.warn("[AdPlanning] feedback.created event missing id — skipping");
+      logger.warn("[AdPlanning] feedback.created event missing id — skipping");
       return;
     }
 
@@ -48,13 +50,13 @@ export default async function feedbackCreatedHandler({
             },
           },
         });
-        console.log(
+        logger.info(
           `[AdPlanning] Sentiment analyzed for feedback: ${feedback.id}`
         );
       } catch (error) {
-        console.error(
+        logger.error(
           "[AdPlanning] Failed to analyze feedback sentiment:",
-          error
+          error as Error
         );
       }
     }
@@ -80,18 +82,18 @@ export default async function feedbackCreatedHandler({
             source_type: "feedback",
           },
         });
-        console.log(
+        logger.info(
           `[AdPlanning] NPS calculated from feedback rating for: ${feedback.person_id}`
         );
       } catch (error) {
-        console.error(
+        logger.error(
           "[AdPlanning] Failed to calculate NPS from feedback:",
-          error
+          error as Error
         );
       }
     }
   } catch (error) {
-    console.error("[AdPlanning] feedback-created subscriber failed:", error);
+    logger.error("[AdPlanning] feedback-created subscriber failed:", error as Error);
   }
 }
 

@@ -8,6 +8,7 @@
  */
 
 import { MedusaContainer } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { AD_PLANNING_MODULE } from "../../modules/ad-planning";
 import { calculateEngagementWorkflow } from "../../workflows/ad-planning/scoring/calculate-engagement";
 import { calculateChurnRiskWorkflow } from "../../workflows/ad-planning/predictive/calculate-churn-risk";
@@ -71,7 +72,8 @@ async function fetchRecentPersonIds(
 }
 
 export default async function recalculateScoresJob(container: MedusaContainer) {
-  console.log("[AdPlanning] Starting weekly score recalculation job...");
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER);
+  logger.info("[AdPlanning] Starting weekly score recalculation job...");
 
   const adPlanningService: any = container.resolve(AD_PLANNING_MODULE);
 
@@ -97,7 +99,7 @@ export default async function recalculateScoresJob(container: MedusaContainer) {
       new Set([...conversionPersonIds, ...journeyPersonIds])
     );
 
-    console.log(
+    logger.info(
       `[AdPlanning] Recalculating scores for ${personIds.length} customers with activity in the last ${ACTIVITY_WINDOW_DAYS} days...`
     );
 
@@ -123,26 +125,24 @@ export default async function recalculateScoresJob(container: MedusaContainer) {
         processed++;
 
         if (processed % 100 === 0) {
-          console.log(
+          logger.info(
             `[AdPlanning] Processed ${processed}/${personIds.length} customers...`
           );
         }
       } catch (error) {
         errors++;
-        console.error(
+        logger.error(
           `[AdPlanning] Failed to calculate scores for person ${personId}:`,
-          error
+          error as Error
         );
       }
     });
 
-    console.log(`[AdPlanning] Score recalculation complete:`, {
-      total_customers: personIds.length,
-      processed,
-      errors,
-    });
+    logger.info(
+      `[AdPlanning] Score recalculation complete: total_customers=${personIds.length}, processed=${processed}, errors=${errors}`
+    );
   } catch (error) {
-    console.error("[AdPlanning] Score recalculation job failed:", error);
+    logger.error("[AdPlanning] Score recalculation job failed:", error as Error);
   }
 }
 

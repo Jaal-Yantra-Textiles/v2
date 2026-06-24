@@ -5,6 +5,7 @@
  */
 
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { AD_PLANNING_MODULE } from "../../modules/ad-planning";
 import { trackConversionWorkflow } from "../../workflows/ad-planning/conversions/track-conversion";
 import { resolveSessionAttributionWorkflow } from "../../workflows/ad-planning/attribution/resolve-session-attribution";
@@ -41,6 +42,7 @@ export default async function analyticsEventCreatedHandler({
   event: { data },
   container,
 }: SubscriberArgs<AnalyticsEventCreatedEvent>) {
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER);
   try {
     const analyticsEvent = data;
 
@@ -93,7 +95,7 @@ export default async function analyticsEventCreatedHandler({
         },
       });
 
-      console.log(`[AdPlanning] Custom conversion tracked for event: ${eventName}`);
+      logger.info(`[AdPlanning] Custom conversion tracked for event: ${eventName}`);
       return;
     }
 
@@ -114,7 +116,7 @@ export default async function analyticsEventCreatedHandler({
       },
     });
 
-    console.log(`[AdPlanning] Conversion tracked for event: ${eventName}`);
+    logger.info(`[AdPlanning] Conversion tracked for event: ${eventName}`);
 
     // Auto-resolve attribution if session has UTM campaign data.
     // Nested inside the outer try/catch so that a failure here doesn't
@@ -135,15 +137,14 @@ export default async function analyticsEventCreatedHandler({
           message.includes("unique") ||
           message.includes("already exists");
         if (!isDuplicate) {
-          console.error(
-            "[AdPlanning] Attribution resolution failed:",
-            message
+          logger.error(
+            `[AdPlanning] Attribution resolution failed: ${message}`
           );
         }
       }
     }
   } catch (error) {
-    console.error("[AdPlanning] Failed to process analytics event:", error);
+    logger.error("[AdPlanning] Failed to process analytics event:", error as Error);
   }
 }
 

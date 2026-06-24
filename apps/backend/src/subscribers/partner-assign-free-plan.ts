@@ -1,4 +1,5 @@
 import { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { PARTNER_PLAN_MODULE } from "../modules/partner-plan"
 import PartnerPlanService from "../modules/partner-plan/service"
 import { createPartnerSubscriptionWorkflow } from "../workflows/partner-subscription/create-subscription"
@@ -12,6 +13,7 @@ export default async function partnerAssignFreePlanHandler({
   email: string
   temp_password: string
 }>) {
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const service: PartnerPlanService = container.resolve(PARTNER_PLAN_MODULE)
 
   // Find the free plan (Simple)
@@ -46,7 +48,7 @@ export default async function partnerAssignFreePlanHandler({
     })
   } catch (e) {
     // Don't block partner creation if subscription assignment fails
-    console.error("Failed to assign free plan to partner:", e)
+    logger.error("Failed to assign free plan to partner:", e as Error)
   }
 }
 
