@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 
 import { FEEDBACK_MODULE } from "../../../../modules/feedback";
 import type FeedbackService from "../../../../modules/feedback/service";
+import { listAllMediasWorkflow } from "../../../../workflows/media/list-all-medias";
 import { listAlbumMediaWorkflow } from "../../../../workflows/media/list-album-media";
 import { listMediaFileWorkflow } from "../../../../workflows/media/list-media-file";
 import {
@@ -18,17 +19,41 @@ const ARTWORK_COUNT = 3;
 const POOL_TAKE = 100;
 
 /**
- * Fetch the curated pool of public artwork images, drawn from an Album first
- * (AlbumMedia → MediaFile) and falling back to a media FOLDER id — mirroring the
- * album-vs-folder resolution in `GET /web/media`. Stable order (no DB-side
- * randomisation); the per-token variation is applied by the pure
- * `selectArtworkChoices` seeded selector.
+ * Fetch the pool of public artwork images the seeded selector draws from.
+ *
+ * - DEFAULT (`sourceId` null): the GENERAL public-image pool — the same source
+ *   the media randomiser (`GET /web/media`) uses — so the feature works against
+ *   whatever media exists, with no curated album required.
+ * - OVERRIDE (`sourceId` set via `FEEDBACK_ARTWORK_ALBUM_ID`): scoped to that
+ *   Album first (AlbumMedia → MediaFile), falling back to a media FOLDER id —
+ *   mirroring the album-vs-folder resolution in `GET /web/media`.
+ *
+ * Stable order (no DB-side randomisation); the per-token variation is applied by
+ * the pure `selectArtworkChoices` seeded selector. An empty pool degrades the
+ * page to a plain rating (caller returns `artworks: []`).
  */
 async function fetchArtworkPool(
   req: MedusaRequest,
-  sourceId: string
+  sourceId: string | null
 ): Promise<ArtworkChoice[]> {
   let mediaFiles: any[] = [];
+
+  if (!sourceId) {
+    // General public-image pool via the media randomiser source. `file_type`
+    // (not `type`) is the column the media workflows whitelist server-side.
+    try {
+      const { result } = await listAllMediasWorkflow(req.scope).run({
+        input: {
+          filters: { is_public: true, file_type: "image" },
+          config: { take: POOL_TAKE, skip: 0 },
+        },
+      });
+      mediaFiles = ((result as any)?.media_files ?? []) as any[];
+    } catch {
+      mediaFiles = [];
+    }
+    return mediaFiles.map((m: any) => mapMediaToArtworkChoice(m));
+  }
 
   try {
     const { result } = await listAlbumMediaWorkflow(req.scope).run({

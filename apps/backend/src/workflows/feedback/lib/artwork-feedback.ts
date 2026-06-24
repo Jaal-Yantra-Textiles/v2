@@ -52,19 +52,20 @@ export function normalizeRatingValue(
 }
 
 /**
- * Resolve the curated media source (an Album or media Folder id) the artwork
- * pool is drawn from. Admin-editable via env rather than hardcoded; falls back
- * to the existing curated hero set so a fresh install still shows artwork.
- * Precedence: explicit override → FEEDBACK_ARTWORK_ALBUM_ID → default.
+ * Resolve the OPTIONAL curated media source (an Album or media Folder id) the
+ * artwork pool is scoped to. When `FEEDBACK_ARTWORK_ALBUM_ID` (or an explicit
+ * override) is set, the pool is scoped to that album/folder; when unset, this
+ * returns `null` — meaning "draw from the GENERAL public media pool via the
+ * media randomiser" (the same mechanism as `GET /web/media`). No curated album
+ * is required, so the feature works against whatever media a fresh admin has.
+ * Precedence: explicit override → FEEDBACK_ARTWORK_ALBUM_ID → null (general pool).
  */
-export const DEFAULT_FEEDBACK_ARTWORK_SOURCE_ID = "media_art_hero";
-
 export function resolveArtworkSourceId(
   env: Record<string, string | undefined> = {},
   override?: string | null
-): string {
+): string | null {
   const raw = (override || env.FEEDBACK_ARTWORK_ALBUM_ID || "").trim();
-  return raw || DEFAULT_FEEDBACK_ARTWORK_SOURCE_ID;
+  return raw || null;
 }
 
 export interface MediaLike {

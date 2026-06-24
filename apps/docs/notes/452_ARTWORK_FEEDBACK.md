@@ -24,10 +24,12 @@ rating are untouched; the artwork pick is optional.
    `Migration20260624150000.ts` (hand-written `add column if not exists` ALTER —
    never edit the create-table migration).
 
-2. **Pure helpers** `src/workflows/feedback/lib/artwork-feedback.ts` (17 unit
+2. **Pure helpers** `src/workflows/feedback/lib/artwork-feedback.ts` (21 unit
    tests):
-   - `resolveArtworkSourceId(env, override?)` — curated source (Album/Folder id),
-     `FEEDBACK_ARTWORK_ALBUM_ID` env → default `media_art_hero`.
+   - `resolveArtworkSourceId(env, override?)` — returns the OPTIONAL album/folder
+     scope (`FEEDBACK_ARTWORK_ALBUM_ID` env / override), or **`null`** when unset.
+     `null` ⇒ draw from the **general public media pool** via the media
+     randomiser — no curated album required (works on a fresh admin).
    - `selectArtworkChoices(pool, seed, count=3)` — deterministic seeded selection
      (FNV-1a → mulberry32, same algo as `GET /web/media`). Same seed → same set
      (so the offered set is reproducible to validate a pick); different seed
@@ -42,9 +44,11 @@ rating are untouched; the artwork pick is optional.
 3. **Public page API** `src/api/web/feedback/[id]/route.ts` (CORS inherited from
    the global `/web/*` matcher; no auth — the id is the capability token):
    - `GET /web/feedback/:id` → `{ feedback, artworks }`. Artworks are the seeded
-     3-set drawn from the curated public-image pool (Album first, media Folder
-     fallback — mirrors `GET /web/media`). No pool configured ⇒ `artworks: []`
-     and the page degrades to a plain rating.
+     3-set. By DEFAULT the pool is the **general public-image pool** (the same
+     source as the media randomiser `GET /web/media`, filtered `file_type:image`);
+     if `FEEDBACK_ARTWORK_ALBUM_ID` is set, the pool is scoped to that Album
+     (with a media Folder fallback — mirrors `GET /web/media`). No media at all ⇒
+     `artworks: []` and the page degrades to a plain rating.
    - `POST /web/feedback/:id` `{ rating?, comment?, artwork_id?, affinity? }` →
      records rating/comment and the **validated** artwork pick into the typed
      columns. Pick validated against the same seeded set the GET returns. 400 if
@@ -52,10 +56,15 @@ rating are untouched; the artwork pick is optional.
 
 ## Artwork source
 
-Reuses the **media module** — a curated Album or media Folder of public images,
-exactly the mechanism the storefront hero already uses (folder `media_art_hero`,
-roadmap #22). Admin-editable via env `FEEDBACK_ARTWORK_ALBUM_ID`; no new model.
-To curate: drop artwork into that folder/album (public images).
+Reuses the **media module** via the same **media randomiser** as `GET /web/media`
+(seeded FNV-1a → mulberry32 selection). By default the pool is **all public
+image media** — so the feature works against whatever media a fresh admin has,
+with **no curated album required**. The per-feedback variation comes from seeding
+the selection by the feedback id (reproducible per token, varies across tokens).
+
+`FEEDBACK_ARTWORK_ALBUM_ID` (env) is an **optional override**: set it to a media
+Album or Folder id to scope the artwork pool to a curated set (e.g. the
+storefront hero folder `media_art_hero`, roadmap #22). No new model.
 
 ## Storefront page (follow-up — NOT in this PR)
 
@@ -71,14 +80,15 @@ Building it is Playwright-gated UI in a separate repo → deferred.
 ## Manual verification (curl)
 
 ```bash
-# Seed: put public images in a folder, set FEEDBACK_ARTWORK_ALBUM_ID=<folderId>.
+# Default: no env needed — any public image media is eligible (media randomiser).
+# (Optional) to curate, set FEEDBACK_ARTWORK_ALBUM_ID=<album-or-folder-id>.
 # Pick a pending feedback id (e.g. from a delivered test order).
-curl -s "$BACKEND/web/feedback/<id>" | jq '.artworks | length'   # → 3
+curl -s "$BACKEND/web/feedback/<id>" | jq '.artworks | length'   # → 3 (if ≥3 public images)
 curl -s -X POST "$BACKEND/web/feedback/<id>" \
   -H 'content-type: application/json' \
   -d '{"rating":5,"artwork_id":"<one-of-the-returned-ids>","affinity":"calm"}' | jq
 # → feedback.chosen_artwork_id == artwork_id, rating == "five"
 ```
 
-Automated coverage: `artwork-feedback.unit.spec.ts` (17) +
+Automated coverage: `artwork-feedback.unit.spec.ts` (21) +
 `integration-tests/http/artwork-feedback.spec.ts` (3, full GET/POST + persistence).
