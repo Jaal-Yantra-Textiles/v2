@@ -1,4 +1,4 @@
-import { ArrowDownTray, ChatBubble, ThumbnailBadge, Trash, TriangleLeftMini, TriangleRightMini } from "@medusajs/icons"
+import { ArrowDownTray, ChatBubble, Tag, ThumbnailBadge, Trash, TriangleLeftMini, TriangleRightMini } from "@medusajs/icons"
 import { Button, IconButton, Text, Tooltip, clx } from "@medusajs/ui"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -7,6 +7,7 @@ import { useFolderMediaViewContext } from "../folder-media-view/folder-media-vie
 import { RouteFocusModal } from "../../../../../../components/modal/route-focus-modal"
 import { getThumbUrl, isImageUrl } from "../../../../../../lib/media"
 import { MediaCommentsSection } from "../../../../../../components/media/folders/folder-comments-section"
+import { BindRawMaterialSection } from "../../../../../../components/media/bind-raw-material-section"
 
 export type FolderMediaGalleryProps = {
   folder: AdminMediaFolder
@@ -15,6 +16,7 @@ export type FolderMediaGalleryProps = {
 export const FolderMediaGallery = ({ folder }: FolderMediaGalleryProps) => {
   const [curr, setCurr] = useState<number>(0)
   const [commentsOpen, setCommentsOpen] = useState<boolean>(true)
+  const [bindOpen, setBindOpen] = useState<boolean>(false)
   const { t } = useTranslation()
   const { goToEdit } = useFolderMediaViewContext()
 
@@ -68,7 +70,27 @@ export const FolderMediaGallery = ({ folder }: FolderMediaGalleryProps) => {
           <IconButton
             size="small"
             type="button"
-            onClick={() => setCommentsOpen((v) => !v)}
+            onClick={() => {
+              setBindOpen((v) => !v)
+              setCommentsOpen(false)
+            }}
+            disabled={noMedia}
+            variant={bindOpen ? "primary" : "transparent"}
+          >
+            <Tag />
+            <span className="sr-only">
+              {bindOpen
+                ? t("media.hideBindRawMaterial", "Hide raw material binding")
+                : t("media.showBindRawMaterial", "Bind to raw material")}
+            </span>
+          </IconButton>
+          <IconButton
+            size="small"
+            type="button"
+            onClick={() => {
+              setCommentsOpen((v) => !v)
+              setBindOpen(false)
+            }}
             disabled={noMedia}
             variant={commentsOpen ? "primary" : "transparent"}
           >
@@ -98,6 +120,17 @@ export const FolderMediaGallery = ({ folder }: FolderMediaGalleryProps) => {
           <Canvas curr={curr} media={media} />
           <Preview curr={curr} media={media} prev={prev} next={next} goTo={goTo} />
         </div>
+        {/* Right: raw-material binding panel for the current media file */}
+        {bindOpen && currentMedia?.id && (
+          <div className="border-ui-border-base flex w-full max-w-sm shrink-0 flex-col overflow-y-auto border-l">
+            <BindRawMaterialSection
+              key={currentMedia.id}
+              mediaId={currentMedia.id}
+              mediaUrl={currentMedia.url}
+              mediaName={currentMedia.file_name}
+            />
+          </div>
+        )}
         {/* Right: comments panel for the current media file */}
         {commentsOpen && currentMedia?.id && (
           <div className="border-ui-border-base flex w-full max-w-sm shrink-0 flex-col overflow-y-auto border-l">
