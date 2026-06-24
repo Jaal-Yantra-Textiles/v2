@@ -1,6 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { tryGetPartnerSalesChannelId } from "../helpers"
 import { PartnerGetOrdersKindParam } from "./validators"
+import { buildPartnerOrderListParams } from "./list-params"
 import { listPartnerOrdersWorkflow } from "../../../workflows/orders/list-partner-orders"
 
 // IMPORTANT: use the `relation.*` suffix syntax, not `*relation` prefix.
@@ -48,28 +49,31 @@ export const GET = async (
   const { kind } = PartnerGetOrdersKindParam.parse({
     kind: (req.query as Record<string, unknown>)?.kind,
   })
+  const resolvedKind = kind ?? "retail"
 
   const { partner, salesChannelId } = await tryGetPartnerSalesChannelId(
     req.auth_context,
     req.scope
   )
 
-  const query = req.query || {}
-  const limit = Number(query.limit) || 20
-  const offset = Number(query.offset) || 0
+  // #486: honor ALL the filter + sort params the partner-UI sends (date ranges,
+  // region/sales-channel for retail, search) — not just status/q — plus the
+  // `order` sort, mirroring admin. Pure helper keeps the param mapping testable.
+  const { baseFilters, order, skip, take } = buildPartnerOrderListParams(
+    (req.query as Record<string, unknown>) || {},
+    resolvedKind
+  )
 
   const { result } = await listPartnerOrdersWorkflow(req.scope).run({
     input: {
       partnerId: partner?.id ?? null,
       salesChannelId,
-      kind: kind ?? "retail",
+      kind: resolvedKind,
       fields: DEFAULT_FIELDS,
-      baseFilters: {
-        ...(query.status ? { status: query.status } : {}),
-        ...(query.q ? { q: query.q } : {}),
-      },
-      skip: offset,
-      take: limit,
+      baseFilters,
+      order,
+      skip,
+      take,
     },
   })
 

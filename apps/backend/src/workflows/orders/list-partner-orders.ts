@@ -29,8 +29,12 @@ export type ListPartnerOrdersWorkflowInput = {
   salesChannelId?: string | null
   kind: PartnerOrderKind
   fields: string[]
-  // status / q passthrough — folded into every kind's filter unchanged.
+  // status / q / date / region passthrough — folded into every kind's filter
+  // unchanged (the route's pure helper decides which are kind-safe). #486.
   baseFilters?: Record<string, any>
+  // Remote-query sort, e.g. `{ created_at: "DESC" }` — mirrors admin's
+  // `queryConfig.pagination.order`. Defaults to newest-first at the route. #486.
+  order?: Record<string, "ASC" | "DESC">
   skip: number
   take: number
 }
@@ -155,6 +159,9 @@ export const listPartnerOrdersWorkflow = createWorkflow(
         filters: plan.filters,
         skip: input.skip,
         take: input.take,
+        // #486: sort is a sibling of `filters` in remote-query variables, exactly
+        // as admin's route spreads `queryConfig.pagination` (skip/take/order).
+        ...(input.order ? { order: input.order } : {}),
       },
     }))
 
