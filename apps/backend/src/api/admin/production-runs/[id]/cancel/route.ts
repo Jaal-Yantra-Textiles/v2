@@ -4,6 +4,7 @@ import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import type ProductionRunService from "../../../../../modules/production_runs/service"
 import { TASKS_MODULE } from "../../../../../modules/tasks"
 import { mirrorRunStatusToUnifiedOrder } from "../../../../../workflows/production-runs/dual-write-unified-run-order"
+import { logger } from "@medusajs/framework"
 
 /**
  * Cancel a single run: update status, cancel tasks.
@@ -45,7 +46,7 @@ async function cancelSingleRun(
       }
     }
   } catch (e: any) {
-    console.error(`[cancel-production-run] Failed to cancel tasks for ${runId}:`, e.message)
+    logger.error(`[cancel-production-run] Failed to cancel tasks for ${runId}: ${e.message}`)
   }
 
   const updated = await productionRunService.retrieveProductionRun(runId)
@@ -109,7 +110,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       if (!skipped) cancelledChildren.push(child.id)
     }
   } catch (e: any) {
-    console.error("[cancel-production-run] Failed to cancel children:", e.message)
+    logger.error(`[cancel-production-run] Failed to cancel children: ${e.message}`)
   }
 
   // If this is a child run, check if all siblings are now terminal → cancel parent
@@ -137,7 +138,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         }
       }
     } catch (e: any) {
-      console.error("[cancel-production-run] Failed to check/cancel parent:", e.message)
+      logger.error(`[cancel-production-run] Failed to check/cancel parent: ${e.message}`)
     }
   }
 

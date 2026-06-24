@@ -99,7 +99,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       count: feedbacks.length,
     });
   } catch (error) {
-    console.error("Error fetching inventory order feedbacks:", error);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.error(`Error fetching inventory order feedbacks: ${error}`);
     return res.status(500).json({
       message: "Failed to fetch inventory order feedbacks",
       error: error instanceof Error ? error.message : String(error),
@@ -131,7 +132,8 @@ export const POST = async (
       feedback: result.feedback,
     });
   } catch (error) {
-    console.error("Error creating inventory order feedback:", error);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.error(`Error creating inventory order feedback: ${error}`);
     return res.status(500).json({
       message: "Failed to create inventory order feedback",
       error: error instanceof Error ? error.message : String(error),

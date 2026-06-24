@@ -87,6 +87,7 @@
  *  - Use the `fields` query on GET to limit returned task fields and reduce payload size.
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { createTasksFromTemplatesWorkflow } from "../../../../../workflows/inventory_orders/create-tasks-from-templates"
 import { getInventoryOrderTasksWorkflow } from "../../../../../workflows/inventory_orders/get-inventory-order-tasks"
 import { AdminPostInventoryOrderTasksReqType } from "./validators"
@@ -96,7 +97,8 @@ import { refetchTask } from "./helpers"
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params
   const fields = req.query.fields ? (req.query.fields as string).split(',') : undefined
-  console.log(req.queryConfig)
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+  logger.debug(`queryConfig: ${JSON.stringify(req.queryConfig)}`)
   // Use the workflow which handles validation and retrieval
   const { result } = await getInventoryOrderTasksWorkflow(req.scope).run({
     input: {

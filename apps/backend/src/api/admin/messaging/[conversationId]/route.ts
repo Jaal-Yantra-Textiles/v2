@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { MESSAGING_MODULE } from "../../../../modules/messaging"
 import { SOCIAL_PROVIDER_MODULE } from "../../../../modules/social-provider"
 import type SocialProviderService from "../../../../modules/social-provider/service"
+import { logger } from "@medusajs/framework"
 import { buildContextSnapshot } from "../context-builder"
 import type { SendMessageInput } from "../validators"
 
@@ -263,10 +264,7 @@ async function resolveConversationSender(
         conversation.default_sender_platform_id
       )
     } catch (e: any) {
-      console.warn(
-        "[messaging] Pinned sender no longer available, falling back:",
-        e.message
-      )
+      logger.warn(`[messaging] Pinned sender no longer available, falling back: ${e.message}`)
     }
   }
 

@@ -2,6 +2,7 @@ import { OpenAPIRegistry } from "@asteasolutions/zod-to-openapi"
 import { z } from "zod"
 import * as fs from "fs"
 import * as path from "path"
+import { logger } from "@medusajs/framework"
 import "./zod-openapi-extend"
 
 let cachedRegistry: OpenAPIRegistry | null = null
@@ -13,7 +14,7 @@ export const buildRegistry = () => {
 
   // Diagnostics: verify Zod is extended
   const zodHasOpenApi = typeof (z as any)?.ZodType?.prototype?.openapi === "function"
-  console.log("[openapi] Zod has openapi on prototype:", zodHasOpenApi)
+  logger.info(`[openapi] Zod has openapi on prototype: ${zodHasOpenApi}`)
 
   // -----------------------------
   // OpenAPI-safe schema variants
@@ -134,9 +135,9 @@ export const buildRegistry = () => {
   const tryRegister = (name: string, schema: any) => {
     try {
       registry.register(name, schema)
-      console.log(`[openapi] registered schema: ${name}`)
+      logger.debug(`[openapi] registered schema: ${name}`)
     } catch (e) {
-      console.error(`[openapi] failed to register schema: ${name}`, e)
+      logger.error(`[openapi] failed to register schema: ${name}: ${e}`)
       throw e
     }
   }
@@ -149,9 +150,9 @@ export const buildRegistry = () => {
       }
       registeredPathKeys.add(key)
       registry.registerPath(path)
-      console.log(`[openapi] registered path: ${path.path}`)
+      logger.debug(`[openapi] registered path: ${path.path}`)
     } catch (e) {
-      console.error(`[openapi] failed to register path: ${path.path}`, e)
+      logger.error(`[openapi] failed to register path: ${path.path}: ${e}`)
       throw e
     }
   }
@@ -443,10 +444,10 @@ export const buildRegistry = () => {
           }
         }
         try {
-          console.log(`[openapi][auto] registering ${m} ${pth} from ${rel}`)
+          logger.debug(`[openapi][auto] registering ${m} ${pth} from ${rel}`)
           tryRegisterPath(def)
         } catch (e) {
-          console.error(`[openapi][auto] failed to register ${m} ${pth} from ${rel}`, e)
+          logger.error(`[openapi][auto] failed to register ${m} ${pth} from ${rel}: ${e}`)
         }
       }
     }
@@ -455,7 +456,7 @@ export const buildRegistry = () => {
   try {
     autoRegister()
   } catch (e) {
-    console.warn("[openapi] autoRegister failed", (e as any)?.message || e)
+    logger.warn(`[openapi] autoRegister failed ${(e as any)?.message || e}`)
   }
 
   // --- Paths: Persons ---

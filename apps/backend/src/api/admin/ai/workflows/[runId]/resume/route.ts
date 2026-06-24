@@ -37,6 +37,7 @@
  * @property {string} message - Error message
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { mastra, mastraStorageInit } from "../../../../../../mastra"
 import { runStorage } from "../../../../../../mastra/run-storage"
 import { generalChatAgent } from "../../../../../../mastra/agents"
@@ -187,7 +188,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             error: (workflowOutput as any)?.error,
         })
     } catch (error: any) {
-        console.error("[HITL Resume] Error:", error)
+        const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+        logger.error(`[HITL Resume] Error: ${error}`)
         return res.status(500).json({
             message: error?.message || "Workflow resume failed",
         })

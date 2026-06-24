@@ -94,6 +94,7 @@
  * of module discovery, entity query testing, and workflow extraction.
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { logger } from "@medusajs/framework"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { WorkflowManager } from "@medusajs/orchestration"
 import { DmlEntity, camelToSnakeCase, pluralize } from "@medusajs/utils"
@@ -715,7 +716,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       },
     })
   } catch (error: any) {
-    console.error("[visual-flows/metadata] Error:", error)
+    logger.error(`[visual-flows/metadata] Error: ${error}`)
     res.status(500).json({ error: error.message })
   }
 }
@@ -1381,14 +1382,14 @@ function getRegisteredEventsFromContainer(container: any): EventMetadata[] {
     const eventBusService = container.resolve(Modules.EVENT_BUS) as any
     
     if (!eventBusService) {
-      console.log("[metadata] Event Bus service not found, returning fallback events")
+      logger.info("[metadata] Event Bus service not found, returning fallback events")
       return getFallbackEvents()
     }
     // Access the eventToSubscribersMap_ which contains all registered events
     const eventMap = eventBusService.eventToSubscribersMap_ as Map<string, any[]> | undefined
     
     if (!eventMap || eventMap.size === 0) {
-      console.log("[metadata] No events found in Event Bus, returning fallback events")
+      logger.info("[metadata] No events found in Event Bus, returning fallback events")
       return getFallbackEvents()
     }
     
@@ -1419,11 +1420,11 @@ function getRegisteredEventsFromContainer(container: any): EventMetadata[] {
       return a.name.localeCompare(b.name)
     })
     
-    console.log(`[metadata] Found ${events.length} registered events from Event Bus`)
+    logger.info(`[metadata] Found ${events.length} registered events from Event Bus`)
     return events
     
   } catch (error: any) {
-    console.error("[metadata] Error getting events from Event Bus:", error.message)
+    logger.error(`[metadata] Error getting events from Event Bus: ${error.message}`)
     return getFallbackEvents()
   }
 }
@@ -1535,7 +1536,7 @@ async function getTriggerableFlows(container: any): Promise<TriggerableFlow[]> {
     const visualFlowsModule = container.resolve("visual_flows") as any
     
     if (!visualFlowsModule) {
-      console.log("[metadata] Visual Flows module not found")
+      logger.info("[metadata] Visual Flows module not found")
       return []
     }
     
@@ -1555,11 +1556,11 @@ async function getTriggerableFlows(container: any): Promise<TriggerableFlow[]> {
         status: flow.status,
       }))
     
-    console.log(`[metadata] Found ${triggerableFlows.length} triggerable flows`)
+    logger.info(`[metadata] Found ${triggerableFlows.length} triggerable flows`)
     return triggerableFlows
     
   } catch (error: any) {
-    console.error("[metadata] Error getting triggerable flows:", error.message)
+    logger.error(`[metadata] Error getting triggerable flows: ${error.message}`)
     return []
   }
 }

@@ -110,6 +110,7 @@
  * @see createRawMaterialCategoryWorkflow
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { listRawMaterialCategoriesWorkflow } from "../../../../workflows/raw-materials/list-raw-material-category";
 import { CreateMaterialTypeType, ReadRawMaterialCategoriesType } from "./validators";
 import { createRawMaterialCategoryWorkflow } from "../../../../workflows/raw-materials/create-raw-material-category";
@@ -150,7 +151,8 @@ export const GET = async (
 
 
     if (errors && errors.length > 0) {
-      console.warn("Error reported at", errors);
+      const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+      logger.warn(`Error reported at ${JSON.stringify(errors)}`);
       throw errors;
     }
 
@@ -190,7 +192,8 @@ export const POST = async (
   });
 
   if (errors && errors.length > 0) {
-    console.warn("Error reported at", errors);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     return res.status(400).json({ error: errors[0] });
   }
 

@@ -171,7 +171,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
             count: tasks.length
         });
     } catch (error) {
-        console.error("Error fetching partner tasks:", error);
+        const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+        logger.error(`Error fetching partner tasks: ${error}`);
         return res.status(500).json({ 
             message: "Failed to fetch partner tasks",
             error: error instanceof Error ? error.message : String(error)
@@ -266,7 +267,8 @@ export const POST = async (req: MedusaRequest<AdminCreatePartnerTaskReq>, res: M
             task: task
         });
     } catch (error) {
-        console.error("Error creating partner task:", error);
+        const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+        logger.error(`Error creating partner task: ${error}`);
         return res.status(500).json({ 
             message: "Failed to create partner task",
             error: error instanceof Error ? error.message : String(error)

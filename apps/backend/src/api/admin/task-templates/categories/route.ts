@@ -66,6 +66,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { listTaskTemplatesCategoriesWorkflow } from "../../../../workflows/task-templates/list-template-categories";
 
 type TaskTemplateCategoriesAllowedFields =
@@ -105,10 +106,11 @@ export const GET = async (
       });
   
       if (errors.length > 0) {
-        console.warn("Error reported at", errors);
+        const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+        logger.warn(`Error reported at ${JSON.stringify(errors)}`);
         throw errors;
       }
-  
+
       const { categories, count } = result;
   
       res.status(200).json({

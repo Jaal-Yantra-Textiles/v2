@@ -80,6 +80,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { mastra, mastraStorageInit } from "../../../../../mastra"
 import { runStorage } from "../../../../../mastra/run-storage"
 import { v4 as uuidv4 } from "uuid"
@@ -153,7 +154,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             result: result.state?.[0]?.output,
         })
     } catch (error: any) {
-        console.error("[HITL Trigger] Error:", error)
+        const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+        logger.error(`[HITL Trigger] Error: ${error}`)
         return res.status(500).json({
             message: error?.message || "Workflow execution failed",
         })

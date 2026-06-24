@@ -119,7 +119,7 @@ import { deletePersonTypeWorkflow } from "../../../../workflows/person_type/dele
 import { PERSON_TYPE_MODULE } from "../../../../modules/persontype";
 import PersonTypeService from "../../../../modules/persontype/service";
 import { PersonTypeAllowedFields, refetchPersonType } from "../helpers";
-import { MedusaError } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { updatePersonTypeWorkflow } from "../../../../workflows/person_type/update-person_type";
 import { AdminPersonTypeResponse } from "../../../../admin/hooks/api/personandtype";
 
@@ -135,7 +135,8 @@ export const DELETE = async (
     },
   });
   if (errors.length > 1) {
-    console.warn("Error reported at", errors);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER);
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     throw errors;
   }
   res.status(200).json({

@@ -155,7 +155,7 @@
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { listPartnersWorkflow } from "../../../workflows/partners/list-partners"
-import { MedusaError, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { createPartnerAdminWithRegistrationWorkflow } from "../../../workflows/partner/create-partner-admin"
 import { buildQSearchFilter } from "../../../lib/list-search-filters"
 import { PostPartnerWithAdminSchema } from "./validators"
@@ -254,7 +254,8 @@ export const POST = async (
 
   // Emit partner.created.fromAdmin with the workflow-provided temp password
   const eventService = req.scope.resolve(Modules.EVENT_BUS)
-  console.log("Emitting partner.created.fromAdmin event",payload)
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+  logger.info(`Emitting partner.created.fromAdmin event ${JSON.stringify(payload)}`)
   eventService.emit({
     name: "partner.created.fromAdmin",
     data: {

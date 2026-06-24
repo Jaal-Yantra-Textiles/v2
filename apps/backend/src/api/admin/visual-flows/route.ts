@@ -85,7 +85,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { VISUAL_FLOWS_MODULE } from "../../../modules/visual_flows"
 import VisualFlowService from "../../../modules/visual_flows/service"
 import { z } from "@medusajs/framework/zod"
@@ -226,7 +226,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   })
 
   if (errors?.length) {
-    console.error("[visual-flows] Create workflow errors:", errors)
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.error(`[visual-flows] Create workflow errors: ${JSON.stringify(errors)}`)
     throw new MedusaError(
       MedusaError.Types.UNEXPECTED_STATE,
       `Failed to create flow: ${errors.map((e: any) => e?.error?.message ?? String(e)).join("; ")}`
