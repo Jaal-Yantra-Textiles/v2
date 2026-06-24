@@ -116,6 +116,53 @@ setupSharedTestSuite(() => {
       expect(inv.sku).toBe("RM-SKU-12345")
     })
 
+    it("mirrors the bound photo onto the linked inventory item's thumbnail (resolved via link)", async () => {
+      const container = getContainer()
+      const mediaService: any = container.resolve(MEDIA_MODULE)
+      const inventoryService: any = container.resolve("inventory")
+      const media = await makeMediaFile(mediaService, "thumb")
+
+      // no thumbnail before binding
+      const before = await inventoryService.retrieveInventoryItem(inventoryItemId)
+      expect(before.thumbnail ?? null).toBeNull()
+
+      // bind WITHOUT passing inventory_item_id — the route resolves it from the
+      // inventory_item_raw_materials link.
+      const res = await api.post(
+        `/admin/medias/file/${media.id}/raw-material`,
+        { raw_material_id: rawMaterialId },
+        headers
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.inventory_thumbnail).toBe(media.file_path)
+
+      const after = await inventoryService.retrieveInventoryItem(inventoryItemId)
+      expect(after.thumbnail).toBe(media.file_path)
+    })
+
+    it("does not clobber an inventory item that already has a thumbnail", async () => {
+      const container = getContainer()
+      const mediaService: any = container.resolve(MEDIA_MODULE)
+      const inventoryService: any = container.resolve("inventory")
+      const media = await makeMediaFile(mediaService, "noclobber")
+
+      const existing = "https://cdn.example.com/manual-thumbnail.jpg"
+      await inventoryService.updateInventoryItems([
+        { id: inventoryItemId, thumbnail: existing },
+      ])
+
+      const res = await api.post(
+        `/admin/medias/file/${media.id}/raw-material`,
+        { raw_material_id: rawMaterialId, inventory_item_id: inventoryItemId },
+        headers
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.inventory_thumbnail).toBeNull()
+
+      const after = await inventoryService.retrieveInventoryItem(inventoryItemId)
+      expect(after.thumbnail).toBe(existing)
+    })
+
     it("creates a new raw material inline and binds the photo", async () => {
       const container = getContainer()
       const mediaService: any = container.resolve(MEDIA_MODULE)

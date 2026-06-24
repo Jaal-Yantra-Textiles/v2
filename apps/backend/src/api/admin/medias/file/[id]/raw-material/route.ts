@@ -32,6 +32,7 @@ import {
   BindRawMaterialSchema,
   UnbindRawMaterialSchema,
 } from "./validators"
+import { pickInventoryThumbnail } from "../../../../../../utils/inventory-thumbnail-decision"
 
 const resolveServices = (req: MedusaRequest) => ({
   logger: req.scope.resolve(ContainerRegistrationKeys.LOGGER) as any,
@@ -153,6 +154,46 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     appliedSku = body.sku
   }
 
+  // --- mirror the bound photo onto the linked inventory item's thumbnail (#730) ---
+  // This append path writes raw_materials.media directly, bypassing the
+  // create/update workflows that run syncInventoryThumbnailStep (#739), so the
+  // inventory item's thumbnail would otherwise stay null (admin table /
+  // storefront show nothing) until the #457 backfill. Best-effort: a failure
+  // here must not fail the bind.
+  let syncedInventoryThumbnail: string | null = null
+  try {
+    let invItemId: string | undefined =
+      createdInventoryItemId ?? body.inventory_item_id
+    if (!invItemId) {
+      const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+      const { data: links } = await query.graph({
+        entity: "inventory_item_raw_materials",
+        filters: { raw_materials_id: rawMaterialId },
+        fields: ["inventory_item_id"],
+      })
+      invItemId = links?.[0]?.inventory_item_id
+    }
+
+    if (invItemId) {
+      const invItem = await inventoryService
+        .retrieveInventoryItem(invItemId)
+        .catch(() => null)
+      const nextThumbnail = pickInventoryThumbnail(invItem?.thumbnail, nextMedia)
+      if (invItem && nextThumbnail) {
+        await inventoryService.updateInventoryItems([
+          { id: invItemId, thumbnail: nextThumbnail },
+        ])
+        syncedInventoryThumbnail = nextThumbnail
+      }
+    }
+  } catch (e: any) {
+    logger?.warn?.(
+      `Bound media ${id} but failed to sync inventory thumbnail: ${
+        e?.message ?? e
+      }`
+    )
+  }
+
   // --- stamp display back-reference on the media file ---
   await mediaService.updateMediaFiles({
     id,
@@ -175,6 +216,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     raw_material: { ...raw, media: nextMedia },
     inventory_item_id: createdInventoryItemId ?? body.inventory_item_id ?? null,
     sku: appliedSku,
+    inventory_thumbnail: syncedInventoryThumbnail,
   })
 }
 
