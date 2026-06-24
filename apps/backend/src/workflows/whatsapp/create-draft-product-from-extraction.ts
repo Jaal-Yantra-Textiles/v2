@@ -12,6 +12,7 @@ import {
 } from "@medusajs/framework/utils"
 import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { downloadAndSaveWhatsAppMedia } from "./whatsapp-media-helper"
+import { buildPartnerProductUrl } from "./partner-product-url"
 
 /**
  * Build a draft product from WhatsApp message extraction.
@@ -303,13 +304,11 @@ export const createDraftProductFromExtractionWorkflow = createWorkflow(
         ({ created, media }): CreateDraftProductFromExtractionResult => ({
           product_id: created.product_id,
           product_title: created.product_title,
-          // Build an absolute admin URL when MEDUSA_BACKEND_URL is set so the
-          // partner can tap the link from the WhatsApp reply directly. Falls
-          // back to the relative path for local dev and tests where no
-          // public hostname is configured.
-          admin_url: process.env.MEDUSA_BACKEND_URL
-            ? `${process.env.MEDUSA_BACKEND_URL.replace(/\/$/, "")}/app/products/${created.product_id}`
-            : `/app/products/${created.product_id}`,
+          // The confirmation message is sent to the PARTNER, who can only open
+          // the partner portal — never the admin app. Build an absolute partner
+          // portal product link (#707). Field name kept as `admin_url` so the
+          // already-seeded message template binding stays intact.
+          admin_url: buildPartnerProductUrl(created.product_id),
           rehosted_image_urls: media.image_urls,
           status: "draft",
         })

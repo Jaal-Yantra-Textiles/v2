@@ -257,7 +257,7 @@ const FLOW_DEF = {
         mode:       "interactive",
         interactive_body:
           "✅ Draft product created: *{{ create_draft.result.product_title }}*\n" +
-          "Admin: {{ create_draft.result.admin_url }}\n\n" +
+          "Open in your portal: {{ create_draft.result.admin_url }}\n\n" +
           "Tap *Confirm* to publish, or *Cancel* to remove the draft.",
         interactive_buttons: [
           { id: "wa_pc_confirm:{{ create_draft.result.product_id }}", title: "✅ Confirm" },
