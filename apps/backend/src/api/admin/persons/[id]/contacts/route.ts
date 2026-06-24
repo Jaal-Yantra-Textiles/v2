@@ -106,6 +106,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { contactSchema } from "./validators";
 import { ContactAllowedFields, refetchPersonContact } from "./helpers";
 import createContactWorkflow from "../../../../../workflows/persons/create-contact";
@@ -119,6 +120,7 @@ export const POST = async (
   },
   res: MedusaResponse,
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const personId = req.params.id;
   const validatedBody = contactSchema.parse(req.body);
 
@@ -131,7 +133,7 @@ export const POST = async (
     });
 
     if (errors.length > 0) {
-      console.warn("Error reported at", errors);
+      logger.warn(`Error reported at ${JSON.stringify(errors)}`);
       throw errors;
     }
 
@@ -155,6 +157,7 @@ export const GET = async (
   },
   res: MedusaResponse,
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const personId = req.params.id;
 
   try {
@@ -165,7 +168,7 @@ export const GET = async (
     });
 
     if (errors.length > 0) {
-      console.warn("Error reported at", errors);
+      logger.warn(`Error reported at ${JSON.stringify(errors)}`);
       throw errors;
     }
 

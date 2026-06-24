@@ -107,6 +107,7 @@ import {
   MedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { RAW_MATERIAL_MODULE } from "../../../../../../modules/raw_material";
 import RawMaterialService from "../../../../../../modules/raw_material/service";
 import updateRawMaterialWorkflow from "../../../../../../workflows/raw-materials/update-raw-material";
@@ -130,6 +131,7 @@ export const PUT = async (
   req: MedusaRequest<UpdateRawMaterial>,
   res: MedusaResponse,
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const { rawMaterialId } = req.params;
 
   const {  errors } = await updateRawMaterialWorkflow(req.scope).run({
@@ -140,7 +142,7 @@ export const PUT = async (
   });
 
   if (errors.length > 0) {
-    console.warn("Error reported at", errors);
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     throw errors;
   }
 

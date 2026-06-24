@@ -1,4 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { splitInventoryItemWorkflow } from "../../../../../workflows/inventory/split-inventory-item"
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -16,6 +17,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const { result, errors } = await splitInventoryItemWorkflow(req.scope).run({
     input: {
       sourceInventoryItemId: req.params.id,
@@ -27,7 +29,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   })
 
   if (errors && errors.length > 0) {
-    console.warn("Split inventory workflow errors:", errors)
+    logger.warn(`Split inventory workflow errors: ${JSON.stringify(errors)}`)
     throw errors[0]
   }
 

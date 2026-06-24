@@ -37,6 +37,7 @@ import { PARTNER_MODULE } from "../../../../../modules/partner";
     req: MedusaRequest<LinkDesignPartner>,
     res: MedusaResponse,
   ) => {
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
 
     const designId = req.params.id
     
@@ -48,7 +49,7 @@ import { PARTNER_MODULE } from "../../../../../modules/partner";
     })
   
     if (errors.length > 0) {
-      console.warn("Error reported at", errors);
+      logger.warn(`Error reported at ${JSON.stringify(errors)}`);
       throw errors;
     }
   

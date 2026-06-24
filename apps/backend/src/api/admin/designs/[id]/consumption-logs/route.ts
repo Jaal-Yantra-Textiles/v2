@@ -1,4 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { AdminPostConsumptionLogReq } from "./validators"
 import { logConsumptionWorkflow } from "../../../../../workflows/consumption-logs/log-consumption"
 import { listConsumptionLogsWorkflow } from "../../../../../workflows/consumption-logs/list-consumption-logs"
@@ -7,6 +8,7 @@ export const POST = async (
   req: MedusaRequest<AdminPostConsumptionLogReq>,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const designId = req.params.id
 
   const { result, errors } = await logConsumptionWorkflow(req.scope).run({
@@ -27,7 +29,7 @@ export const POST = async (
   })
 
   if (errors.length > 0) {
-    console.warn("Error reported at", errors)
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`)
     throw errors
   }
 
@@ -35,6 +37,7 @@ export const POST = async (
 }
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const designId = req.params.id
   const query = req.query as Record<string, any>
 
@@ -55,7 +58,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   })
 
   if (errors.length > 0) {
-    console.warn("Error reported at", errors)
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`)
     throw errors
   }
 

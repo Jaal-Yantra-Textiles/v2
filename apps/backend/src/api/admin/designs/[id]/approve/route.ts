@@ -25,6 +25,7 @@ export async function POST(
   req: MedusaRequest & { params: { id: string } },
   res: MedusaResponse
 ): Promise<void> {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const designId = req.params.id;
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any;
@@ -62,7 +63,7 @@ export async function POST(
       });
 
     if (updateErrors && updateErrors.length > 0) {
-      console.error("[Admin] Error updating design status:", updateErrors);
+      logger.error(`[Admin] Error updating design status: ${JSON.stringify(updateErrors)}`);
       res.status(500).json({
         message: "Failed to update design status",
         errors: updateErrors,
@@ -82,7 +83,7 @@ export async function POST(
       });
 
     if (productErrors && productErrors.length > 0) {
-      console.error("[Admin] Error creating product:", productErrors);
+      logger.error(`[Admin] Error creating product: ${JSON.stringify(productErrors)}`);
       res.status(500).json({
         message: "Failed to create product from design",
         errors: productErrors,
@@ -111,7 +112,7 @@ export async function POST(
       variant_id: productResult.variant_id,
     });
   } catch (error) {
-    console.error("[Admin] Error in design approve:", error);
+    logger.error(`[Admin] Error in design approve: ${error}`, error);
     res.status(500).json({
       message: "Failed to approve design",
       error: error instanceof Error ? error.message : "Unknown error",

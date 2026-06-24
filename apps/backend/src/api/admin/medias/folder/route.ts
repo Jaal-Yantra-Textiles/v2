@@ -65,7 +65,7 @@ import {
     MedusaRequest,
     MedusaResponse,
   } from "@medusajs/framework/http";
-  import { MedusaError } from "@medusajs/framework/utils";
+  import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
   import { createFolderWorkflow } from "../../../../workflows/media/create-folder";
 import { FolderRequest } from "../validator";
 
@@ -74,6 +74,7 @@ import { FolderRequest } from "../validator";
     req: MedusaRequest<FolderRequest>,
     res: MedusaResponse
   ) => {
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
     // Body is validated by middleware (validateAndTransformBody)
     const folderData = req.validatedBody as FolderRequest;
   
@@ -96,7 +97,7 @@ import { FolderRequest } from "../validator";
       });
   
       if (errors.length > 0) {
-        console.error("Errors occurred during folder creation:", errors);
+        logger.error(`Errors occurred during folder creation: ${JSON.stringify(errors)}`);
         throw new MedusaError(
           MedusaError.Types.UNEXPECTED_STATE,
           `Failed to create folder: ${errors.map(e => e.error?.message || "Unknown error").join(", ")}`
@@ -108,7 +109,7 @@ import { FolderRequest } from "../validator";
         folder: result,
       });
     } catch (error) {
-      console.error("Error creating folder:", error);
+      logger.error(`Error creating folder: ${error}`, error);
       throw error;
     }
   };

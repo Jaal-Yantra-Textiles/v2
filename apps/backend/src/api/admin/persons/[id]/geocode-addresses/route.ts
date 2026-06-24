@@ -43,6 +43,7 @@ import {
   MedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { geocodeAllAddressesWorkflow } from "../../../../../workflows/persons/geocode-all-addresses"
 
 /**
@@ -70,11 +71,12 @@ export const POST = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const { id: person_id } =  req.params;
   const workflow = geocodeAllAddressesWorkflow(req.scope)
   const { result, transaction } = await workflow.run({
     input: { person_id },
   })
-  console.log(transaction.getState())
+  logger.info(`Transaction state: ${transaction.getState()}`)
   res.status(202).json({ summary: result, transaction_id: transaction.transactionId })
 }

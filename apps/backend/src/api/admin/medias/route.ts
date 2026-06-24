@@ -118,7 +118,7 @@ import {
     MedusaRequest,
     MedusaResponse,
   } from "@medusajs/framework/http";
-  import { MedusaError } from "@medusajs/framework/utils";
+  import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
   import { uploadAndOrganizeMediaWorkflow } from "../../../workflows/media/upload-and-organize-media";
   import { listAllMediasWorkflow } from "../../../workflows/media/list-all-medias";
 import { UploadMediaRequest } from "./validator";
@@ -131,6 +131,7 @@ import { UploadMediaRequest } from "./validator";
     },
     res: MedusaResponse
   ) => {
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
     try {
       // Normalize uploaded files (support single or multiple)
       const uploadedFiles: Express.Multer.File[] = Array.isArray(req.files)
@@ -177,7 +178,7 @@ import { UploadMediaRequest } from "./validator";
       });
 
       if (errors.length > 0) {
-        console.error("Errors occurred during media upload:", errors);
+        logger.error(`Errors occurred during media upload: ${JSON.stringify(errors)}`);
         throw new MedusaError(
           MedusaError.Types.UNEXPECTED_STATE,
           `Failed to upload media: ${errors.map(e => e.error?.message || "Unknown error").join(", ")}`
@@ -198,7 +199,7 @@ import { UploadMediaRequest } from "./validator";
         result,
       });
     } catch (error) {
-      console.error("Error uploading media:", error);
+      logger.error(`Error uploading media: ${error}`, error);
       if (error instanceof MedusaError) {
         const status = error.type === MedusaError.Types.INVALID_DATA ? 400 : 500
         return res.status(status).json({ message: (error as Error).message })
@@ -212,6 +213,7 @@ import { UploadMediaRequest } from "./validator";
     req: MedusaRequest,
     res: MedusaResponse
   ) => {
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
     try {
       // Optionally forward query filters/config if provided, but normalize types first
       const { filters: rawFilters, config: rawConfig, ...restQuery } = (req.query || {}) as Record<string, any>
@@ -315,7 +317,7 @@ import { UploadMediaRequest } from "./validator";
 
       res.status(200).json(result);
     } catch (error) {
-      console.error("Error listing medias:", error);
+      logger.error(`Error listing medias: ${error}`, error);
       throw new MedusaError(
         MedusaError.Types.UNEXPECTED_STATE,
         "Failed to list media entities"

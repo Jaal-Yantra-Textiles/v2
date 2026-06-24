@@ -38,6 +38,7 @@ export const getAllInventoryWithRawMaterial = async (
   fields: RawMaterialAllowedFields[] = ["*"]
 ) => {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
 
   // Debug: incoming filters
   // Note: In Medusa v2, query.graph cannot filter on linked entity properties.
@@ -58,9 +59,9 @@ export const getAllInventoryWithRawMaterial = async (
     }
   })
 
-  console.log("[getAllInventoryWithRawMaterial] incoming filters:", incoming)
-  console.log("[getAllInventoryWithRawMaterial] apiFilters (applied in query.graph):", apiFilters)
-  console.log("[getAllInventoryWithRawMaterial] postFilters (applied in app):", postFilters, "q:", q)
+  logger.debug(`[getAllInventoryWithRawMaterial] incoming filters: ${JSON.stringify(incoming)}`)
+  logger.debug(`[getAllInventoryWithRawMaterial] apiFilters (applied in query.graph): ${JSON.stringify(apiFilters)}`)
+  logger.debug(`[getAllInventoryWithRawMaterial] postFilters (applied in app): ${JSON.stringify(postFilters)} q: ${q}`)
 
   const { data } = await query.graph({
     entity: RawMaterialInventoryLink.entryPoint,
@@ -70,7 +71,7 @@ export const getAllInventoryWithRawMaterial = async (
   })
 
   const items = Array.isArray(data) ? data : []
-  console.log("[getAllInventoryWithRawMaterial] fetched count:", items.length)
+  logger.debug(`[getAllInventoryWithRawMaterial] fetched count: ${items.length}`)
 
   // Apply q search against common text fields from linked entities
   const applyQ = (list: any[], queryStr?: unknown) => {
@@ -109,13 +110,13 @@ export const getAllInventoryWithRawMaterial = async (
   const beforeQ = result.length
   result = applyQ(result, q)
   if (beforeQ !== result.length) {
-    console.log(`[getAllInventoryWithRawMaterial] q filter applied: ${beforeQ} -> ${result.length}`)
+    logger.debug(`[getAllInventoryWithRawMaterial] q filter applied: ${beforeQ} -> ${result.length}`)
   }
 
   const beforePost = result.length
   result = applyPostFilters(result, postFilters)
   if (beforePost !== result.length) {
-    console.log(`[getAllInventoryWithRawMaterial] postFilters applied: ${beforePost} -> ${result.length}`)
+    logger.debug(`[getAllInventoryWithRawMaterial] postFilters applied: ${beforePost} -> ${result.length}`)
   }
 
   return result

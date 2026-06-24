@@ -41,7 +41,8 @@ import {
   MedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http";
-
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ 
 import { AdminDeleteDesignInventoryReq } from "../validators";
 import { delinkDesignInventoryWorkflow } from "../../../../../../workflows/designs/inventory/link-inventory";
 import { refetchDesign, DesignInventoryAllowedFields } from "../helpers";
@@ -50,6 +51,7 @@ export const POST = async (
   req: MedusaRequest<AdminDeleteDesignInventoryReq>,
   res: MedusaResponse,
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const designId = req.params.id
   
   const { result, errors } = await delinkDesignInventoryWorkflow(req.scope).run({
@@ -60,7 +62,7 @@ export const POST = async (
   })
 
   if (errors.length > 0) {
-    console.warn("Error reported at", errors);
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     throw errors;
   }
 

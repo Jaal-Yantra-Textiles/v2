@@ -89,6 +89,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 
 
 export const GET = async (
@@ -128,14 +129,11 @@ export const POST = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const { id, path } = req.params
 
   if (path[0] === "notes") {
-    console.log("Received POST request for notes path:", { 
-      designId: id, 
-      path,
-      body: req.body 
-    })
+    logger.info(`Received POST request for notes path: ${JSON.stringify({ designId: id, path, body: req.body })}`)
     return res.json({
       message: "Notes path handler - POST",
       designId: id,

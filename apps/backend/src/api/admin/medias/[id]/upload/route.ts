@@ -71,7 +71,7 @@
  * - Workflow failure -> 500 { "message": "Failed to upload media: <error messages>" }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { uploadAndOrganizeMediaWorkflow } from "../../../../../workflows/media/upload-and-organize-media"
 import fs from "fs"
 
@@ -80,6 +80,7 @@ export const POST = async (
   req: MedusaRequest & { files?: Express.Multer.File[]; file?: Express.Multer.File },
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   // Soft deprecation notice in headers
   res.setHeader("Deprecation", "true")
   res.setHeader(
@@ -149,10 +150,10 @@ export const POST = async (
       result,
     })
   } catch (error) {
-    console.error("Folder upload error:", error)
+    logger.error(`Folder upload error: ${error}`, error)
     if (error instanceof MedusaError) {
       const status = error.type === MedusaError.Types.INVALID_DATA ? 400 : 500
-      console.error("Medusa error:", error)
+      logger.error(`Medusa error: ${error}`, error)
       return res.status(status).json({ message: (error as Error).message })
     }
     return res.status(500).json({ message: (error as any)?.message || "An unexpected error occurred in the media upload" })

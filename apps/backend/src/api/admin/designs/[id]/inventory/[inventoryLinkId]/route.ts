@@ -96,7 +96,8 @@ import {
   MedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
-
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ 
 import { AdminPatchDesignInventoryLinkReq } from "../validators"
 import { DesignInventoryAllowedFields, refetchDesign } from "../helpers"
 import { updateDesignInventoryLinkWorkflow } from "../../../../../../workflows/designs/inventory/link-inventory"
@@ -105,6 +106,7 @@ export const PATCH = async (
   req: MedusaRequest<AdminPatchDesignInventoryLinkReq>,
   res: MedusaResponse,
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const designId = req.params.id
   const { inventoryLinkId } = req.params as { inventoryLinkId: string }
   const body = (req.validatedBody ?? req.body ?? {}) as AdminPatchDesignInventoryLinkReq
@@ -121,7 +123,7 @@ export const PATCH = async (
   })
 
   if (errors.length > 0) {
-    console.warn("Error reported at", errors)
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`)
     throw errors
   }
 

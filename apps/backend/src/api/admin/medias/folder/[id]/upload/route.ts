@@ -68,7 +68,7 @@
  *   { "message": "Failed to create media records: <details>" }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { uploadAndOrganizeMediaWorkflow } from "../../../../../../workflows/media/upload-and-organize-media"
 import { UploadMediaRequest } from "../../../validator";
  
@@ -78,6 +78,7 @@ export const POST = async (
   req: MedusaRequest<UploadMediaRequest> & { files?: Express.Multer.File[]; file?: Express.Multer.File },
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const { id: folderId } = req.params as { id?: string }
     if (!folderId) {
@@ -121,11 +122,11 @@ export const POST = async (
     return res.status(200).json({ result })
   } catch (error) {
     if (error instanceof MedusaError) {
-      console.error("Folder upload Medusa error:", error)
+      logger.error(`Folder upload Medusa error: ${error}`, error)
       const status = error.type === MedusaError.Types.INVALID_DATA ? 400 : 500
       return res.status(status).json({ message: (error as Error).message })
     }
-    console.error("Folder upload error:", error)
+    logger.error(`Folder upload error: ${error}`, error)
     return res.status(500).json({ message: (error as any)?.message || "An unexpected error occurred" })
   }
 }

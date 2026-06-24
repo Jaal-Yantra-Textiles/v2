@@ -162,8 +162,9 @@ import {
     MedusaRequest,
     MedusaResponse,
   } from "@medusajs/framework/http";
-
-import { AdminPatchDesignInventoryLinkReq, AdminPostDesignInventoryReq } from "../inventory/validators";
+  import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ 
+  import { AdminPatchDesignInventoryLinkReq, AdminPostDesignInventoryReq } from "../inventory/validators";
 import { linkDesignInventoryWorkflow, updateDesignInventoryLinkWorkflow } from "../../../../../workflows/designs/inventory/link-inventory";
 import { DesignInventoryAllowedFields, refetchDesign } from "../inventory/helpers";
 import { listDesignInventoryWorkflow } from "../../../../../workflows/designs/inventory/list-design-inventory";
@@ -172,6 +173,7 @@ import { listDesignInventoryWorkflow } from "../../../../../workflows/designs/in
     req: MedusaRequest<AdminPostDesignInventoryReq>,
     res: MedusaResponse,
   ) => {
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
 
     const designId = req.params.id
     
@@ -189,7 +191,7 @@ import { listDesignInventoryWorkflow } from "../../../../../workflows/designs/in
     })
   
     if (errors.length > 0) {
-      console.warn("Error reported at", errors);
+      logger.warn(`Error reported at ${JSON.stringify(errors)}`);
       throw errors;
     }
   
@@ -207,6 +209,7 @@ import { listDesignInventoryWorkflow } from "../../../../../workflows/designs/in
     req: MedusaRequest,
     res: MedusaResponse,
   ) => {
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
     const designId = req.params.id
     
     const { result, errors } = await listDesignInventoryWorkflow(req.scope).run({
@@ -216,7 +219,7 @@ import { listDesignInventoryWorkflow } from "../../../../../workflows/designs/in
     })  
 
     if (errors.length > 0) { 
-      console.warn("Error reported at", errors);
+      logger.warn(`Error reported at ${JSON.stringify(errors)}`);
       throw errors;
     }
 
@@ -227,6 +230,7 @@ import { listDesignInventoryWorkflow } from "../../../../../workflows/designs/in
     req: MedusaRequest<AdminPatchDesignInventoryLinkReq>,
     res: MedusaResponse,
   ) => {
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
     const designId = req.params.id;
     const { inventoryLinkId } = req.params as { inventoryLinkId: string };
 
@@ -241,7 +245,7 @@ import { listDesignInventoryWorkflow } from "../../../../../workflows/designs/in
     });
 
     if (errors.length > 0) {
-      console.warn("Error reported at", errors);
+      logger.warn(`Error reported at ${JSON.stringify(errors)}`);
       throw errors;
     }
 

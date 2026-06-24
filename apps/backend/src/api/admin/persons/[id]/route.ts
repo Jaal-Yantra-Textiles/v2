@@ -124,6 +124,7 @@
  */
 // src/api/admin/persons/[id]/route.ts
 import { MedusaRequest, MedusaResponse, refetchEntity } from "@medusajs/framework/http";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import PersonService from "../../../../modules/person/service";
 import { PERSON_MODULE } from "../../../../modules/person";
 import updatePersonWorkflow from "../../../../workflows/update-person";
@@ -153,6 +154,7 @@ export const POST = async (
   },
   res: MedusaResponse,
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const {  ...update } = req.validatedBody
   const existingPerson = await refetchEntity({
     entity: "person",
@@ -179,7 +181,7 @@ export const POST = async (
     },
   });
   if (errors.length > 1) {
-    console.warn("Error reported at", errors);
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     throw errors;
   } 
   const person = await refetchPerson(
@@ -191,6 +193,7 @@ export const POST = async (
 };
 
 export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const { id } = req.params;
     const {result, errors} = await  deletePersonWorkflow(req.scope).run({
       input: {
@@ -198,7 +201,7 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
       },
     });
     if (errors.length > 1) {
-      console.warn("Error reported at", errors);
+      logger.warn(`Error reported at ${JSON.stringify(errors)}`);
       throw errors;
     }
     res.status(201).json({

@@ -2,7 +2,7 @@ import {
   AuthenticatedMedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { resolveFalCredentials } from "../../../../../../mastra/services/fal-credentials"
 
 /**
@@ -21,6 +21,7 @@ export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const { image_url, image_base64 } = req.body as {
     image_url?: string
     image_base64?: string
@@ -64,7 +65,7 @@ export const POST = async (
     resolvedImageUrl = await fal.storage.upload(file)
   }
 
-  console.log(
+  logger.info(
     `[Depth] Running MiDaS on image: ${resolvedImageUrl!.substring(0, 80)}…`
   )
 
@@ -81,9 +82,8 @@ export const POST = async (
   const normalUrl = data?.normal_map?.url
 
   if (!depthUrl) {
-    console.error(
-      "[Depth] MiDaS result shape:",
-      JSON.stringify(result).substring(0, 400)
+    logger.error(
+      `[Depth] MiDaS result shape: ${JSON.stringify(result).substring(0, 400)}`
     )
     throw new MedusaError(
       MedusaError.Types.UNEXPECTED_STATE,
@@ -91,7 +91,7 @@ export const POST = async (
     )
   }
 
-  console.log(`[Depth] Success — depth: ${depthUrl.substring(0, 80)}…`)
+  logger.info(`[Depth] Success — depth: ${depthUrl.substring(0, 80)}…`)
 
   return res.status(200).json({
     depth: {

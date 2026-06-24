@@ -101,6 +101,7 @@
  * No content
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { addressSchema } from "../validators";
 import { refetchPersonAddress, AddressAllowedFields } from "../helpers";
 import { MedusaError } from "@medusajs/utils";
@@ -115,6 +116,7 @@ export const POST = async (
   },
   res: MedusaResponse,
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const personId = req.params.id;
   const addressId = req.params.addressId;
 
@@ -146,7 +148,7 @@ export const POST = async (
     });
 
     if (errors.length > 0) {
-      console.warn("Error reported at", errors);
+      logger.warn(`Error reported at ${JSON.stringify(errors)}`);
       throw errors;
     }
 
@@ -168,10 +170,9 @@ export const DELETE = async (
   req: MedusaRequest,
   res: MedusaResponse,
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const personId = req.params.id;
   const addressId = req.params.addressId;
- 
-  
 
   try {
     // Check if the address exists for this person
@@ -195,7 +196,7 @@ export const DELETE = async (
     });
 
     if (errors.length > 0) {
-      console.warn("Error reported at", errors);
+      logger.warn(`Error reported at ${JSON.stringify(errors)}`);
       throw errors;
     }
 

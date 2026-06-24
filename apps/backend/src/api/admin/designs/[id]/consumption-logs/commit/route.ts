@@ -1,4 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { AdminPostCommitConsumptionReq } from "../validators"
 import { commitConsumptionWorkflow } from "../../../../../../workflows/consumption-logs/commit-consumption"
 
@@ -6,6 +7,7 @@ export const POST = async (
   req: MedusaRequest<AdminPostCommitConsumptionReq>,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const designId = req.params.id
 
   const { result, errors } = await commitConsumptionWorkflow(req.scope).run({
@@ -17,7 +19,7 @@ export const POST = async (
   })
 
   if (errors.length > 0) {
-    console.warn("Error reported at", errors)
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`)
     throw errors
   }
 

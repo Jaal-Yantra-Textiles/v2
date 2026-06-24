@@ -129,6 +129,7 @@
  *   }
  * }
  */
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { LinkPersonValidator } from "./validators"
 import { linkProductWithPersonWorkflow } from "../../../../../workflows/products/link-unlink-products-with-people"
@@ -142,12 +143,13 @@ export const POST = async (
   const { id } = req.params
   const { personId } = req.validatedBody
 
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const { errors } = await linkProductWithPersonWorkflow(req.scope).run({
     input: { productId: id, personId },
   })
 
   if (errors.length) {
-    console.warn("Error reported at", errors)
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`)
     throw errors
   }
 
