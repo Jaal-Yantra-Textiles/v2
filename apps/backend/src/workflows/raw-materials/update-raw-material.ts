@@ -4,9 +4,11 @@ import {
   createStep,
   StepResponse,
   WorkflowResponse,
+  transform,
 } from "@medusajs/framework/workflows-sdk";
 import { RAW_MATERIAL_MODULE } from "../../modules/raw_material"
 import RawMaterialService from "../../modules/raw_material/service"
+import { syncInventoryThumbnailStep } from "./steps/sync-inventory-thumbnail"
 
 type UpdateRawMaterialStepInput = {
   id: string;
@@ -31,6 +33,7 @@ type UpdateRawMaterialStepInput = {
     metadata?: Record<string, any> | null;
     material_type_id?: string;
     material_type?: string;
+    media?: Record<string, any> | null;
   };
 };
 
@@ -133,6 +136,15 @@ const updateRawMaterialWorkflow = createWorkflow(
   },
   (input: UpdateRawMaterialStepInput) => {
     const updatedRawMaterial = updateRawMaterialStep(input);
+
+    // When the update carries a new media blob, mirror its primary image onto
+    // the linked inventory item's thumbnail (resolved from the raw material id).
+    const media = transform(input, (i) => i.update?.media)
+    syncInventoryThumbnailStep({
+      rawMaterialId: input.id,
+      media,
+    })
+
     return new WorkflowResponse(updatedRawMaterial);
   },
 );

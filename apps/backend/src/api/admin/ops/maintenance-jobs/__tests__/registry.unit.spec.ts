@@ -7,6 +7,7 @@ import {
   diffEnergyCostFields,
   diffOrderCurrency,
   diffRunCostFields,
+  diffThumbnail,
   diffUnitCost,
   getMaintenanceJob,
   interpretRunCost,
@@ -23,6 +24,7 @@ import {
   summarizeBulkRecalc,
   summarizeEnergyBackfill,
   summarizeOrderCurrencyBackfill,
+  summarizeThumbnailBackfill,
   summarizeUnitCostBackfill,
 } from "../registry"
 
@@ -260,6 +262,75 @@ describe("ops/maintenance-jobs registry (#457)", () => {
       expect(MAINTENANCE_JOBS.map((j) => j.id)).toContain("backfill-inventory-unit-cost")
       expect(job?.params.some((p) => p.name === "force" && !p.required)).toBe(true)
       expect(job?.params.some((p) => p.name === "limit" && !p.required)).toBe(true)
+    })
+  })
+
+  describe("backfill-inventory-thumbnail registration", () => {
+    it("registers the job with optional force + limit params", () => {
+      const job = getMaintenanceJob("backfill-inventory-thumbnail-from-raw-material-media")
+      expect(job).toBeDefined()
+      expect(MAINTENANCE_JOBS.map((j) => j.id)).toContain(
+        "backfill-inventory-thumbnail-from-raw-material-media"
+      )
+      expect(job?.params.some((p) => p.name === "force" && !p.required)).toBe(true)
+      expect(job?.params.some((p) => p.name === "limit" && !p.required)).toBe(true)
+    })
+  })
+
+  describe("diffThumbnail", () => {
+    const media = { files: ["https://cdn/a.jpg"] }
+
+    it("reports a change when the thumbnail is empty (null/'' → url)", () => {
+      expect(diffThumbnail("inv_1", null, media, false)).toEqual([
+        { entity: "inventory_item", id: "inv_1", field: "thumbnail", before: null, after: "https://cdn/a.jpg" },
+      ])
+      expect(diffThumbnail("inv_1", "", media, false)).toEqual([
+        { entity: "inventory_item", id: "inv_1", field: "thumbnail", before: null, after: "https://cdn/a.jpg" },
+      ])
+    })
+
+    it("returns no change when media yields no usable url", () => {
+      expect(diffThumbnail("inv_1", null, null, false)).toEqual([])
+      expect(diffThumbnail("inv_1", null, { files: [] }, false)).toEqual([])
+      expect(diffThumbnail("inv_1", null, { files: [{ name: "no-url" }] }, false)).toEqual([])
+    })
+
+    it("leaves an already-set thumbnail alone unless force=true", () => {
+      expect(diffThumbnail("inv_1", "https://cdn/old.jpg", media, false)).toEqual([])
+      expect(diffThumbnail("inv_1", "https://cdn/old.jpg", media, true)).toEqual([
+        {
+          entity: "inventory_item",
+          id: "inv_1",
+          field: "thumbnail",
+          before: "https://cdn/old.jpg",
+          after: "https://cdn/a.jpg",
+        },
+      ])
+    })
+
+    it("is idempotent when the thumbnail already matches (even with force)", () => {
+      expect(diffThumbnail("inv_1", "https://cdn/a.jpg", media, false)).toEqual([])
+      expect(diffThumbnail("inv_1", "https://cdn/a.jpg", media, true)).toEqual([])
+    })
+  })
+
+  describe("summarizeThumbnailBackfill", () => {
+    it("reports no changes and keeps the scan count", () => {
+      expect(summarizeThumbnailBackfill(true, 7, 0, 0, 0, 0)).toMatch(
+        /No changes — scanned 7 inventory item/
+      )
+    })
+
+    it("uses 'Would set' for dry-run and appends skip breakdown", () => {
+      expect(summarizeThumbnailBackfill(true, 10, 3, 2, 1, 0)).toBe(
+        "Would set thumbnail on 3 inventory item(s) (scanned 10); 2 unlinked, 1 no usable media"
+      )
+    })
+
+    it("uses 'Set' on apply and appends an error count when present", () => {
+      expect(summarizeThumbnailBackfill(false, 10, 3, 0, 0, 1)).toBe(
+        "Set thumbnail on 3 inventory item(s) (scanned 10); 1 error(s)"
+      )
     })
   })
 

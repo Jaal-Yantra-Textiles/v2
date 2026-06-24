@@ -22,6 +22,7 @@ import partnerRegionLink from "../../../../links/partner-region"
 import productGoogleMerchantLink from "../../../../links/product-google-merchant-link"
 import productionRunConsumptionLogLink from "../../../../links/production-runs-consumption-logs"
 import { resolveStoreCurrency } from "../../../../lib/resolve-store-currency"
+import { firstMediaUrl } from "../../../../utils/first-media-url"
 import {
   normalizeLandingBase,
   resolvePartnerLandingBase,
@@ -812,6 +813,169 @@ export const backfillInventoryUnitCostJob: MaintenanceJob = {
         changedRawMaterials.size,
         noRawMaterial,
         noHistory,
+        errors.length
+      ),
+      changes,
+      errors,
+    }
+  },
+}
+
+const backfillThumbnailParamsSchema = z.object({
+  /** Overwrite a thumbnail that's already set (default: only fill empties). */
+  force: z.boolean().optional().default(false),
+  /** Max inventory items to scan in one call (1..MAX_INVENTORY_SCAN). */
+  limit: z.number().int().positive().max(MAX_INVENTORY_SCAN).optional().default(1000),
+})
+
+/**
+ * Pure: diff an inventory item's currently-stored thumbnail against the URL
+ * derived from its linked raw material's media. Returns a single `thumbnail`
+ * change (or none when already equal, or when there's no usable media URL).
+ * When `force` is false, an item that already has any non-empty thumbnail is
+ * left alone. Exported for unit testing.
+ */
+export function diffThumbnail(
+  inventoryItemId: string,
+  before: string | null | undefined,
+  media: unknown,
+  force: boolean
+): MaintenanceChange[] {
+  const after = firstMediaUrl(media)
+  if (!after) return []
+
+  const beforeValue = before == null || before === "" ? null : before
+  if (beforeValue && !force) return []
+  if (beforeValue === after) return []
+
+  return [{ entity: "inventory_item", id: inventoryItemId, field: "thumbnail", before: beforeValue, after }]
+}
+
+/**
+ * Pure summary builder for the inventory-thumbnail backfill — keeps the
+ * human-facing string verifiable without booting the DB.
+ */
+export function summarizeThumbnailBackfill(
+  dryRun: boolean,
+  scanned: number,
+  changedCount: number,
+  noRawMaterialCount: number,
+  noMediaCount: number,
+  errorCount: number
+): string {
+  const verb = dryRun ? "Would set" : "Set"
+  const head =
+    changedCount === 0
+      ? `No changes — scanned ${scanned} inventory item(s), none needed a thumbnail`
+      : `${verb} thumbnail on ${changedCount} inventory item(s) (scanned ${scanned})`
+  const skips: string[] = []
+  if (noRawMaterialCount > 0) skips.push(`${noRawMaterialCount} unlinked`)
+  if (noMediaCount > 0) skips.push(`${noMediaCount} no usable media`)
+  const tail = skips.length ? `; ${skips.join(", ")}` : ""
+  return errorCount > 0 ? `${head}${tail}; ${errorCount} error(s)` : `${head}${tail}`
+}
+
+/**
+ * #457 ops job: backfill the inventory item `thumbnail` from its linked raw
+ * material's `media`. The inventory item's own thumbnail was historically never
+ * populated — the material image lives in `raw_material.media` — so the admin
+ * inventory table + storefront had nothing to show for items created before the
+ * create/update workflows began mirroring it. For each inventory item linked to
+ * a raw material with usable media, this derives the first media URL and sets it
+ * as the thumbnail. Dry-run (default) previews every before→after without
+ * persisting; apply writes via the inventory module (idempotent). By default
+ * only fills empty thumbnails — set force=true to overwrite existing ones.
+ * Unlinked items / items whose media yields no URL are counted in the summary,
+ * not treated as errors; a genuine per-item failure is reported in `errors`.
+ */
+export const backfillInventoryThumbnailJob: MaintenanceJob = {
+  id: "backfill-inventory-thumbnail-from-raw-material-media",
+  label: "Backfill inventory thumbnail from raw-material media",
+  description:
+    `Set each inventory item's thumbnail from its linked raw material's first usable media URL. Dry-run previews the before/after without persisting; apply writes thumbnail back (idempotent). By default only fills empty thumbnails — set force=true to overwrite existing ones. Scans up to 'limit' items per call (default 1000, max ${MAX_INVENTORY_SCAN}).`,
+  params: [
+    {
+      name: "force",
+      type: "boolean",
+      required: false,
+      description: "Overwrite a thumbnail that is already set (default false)",
+    },
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: `Max inventory items to scan in one call (default 1000, max ${MAX_INVENTORY_SCAN})`,
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const parsed = backfillThumbnailParamsSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        parsed.error.issues.map((i) => i.message).join("; ")
+      )
+    }
+    const { force, limit } = parsed.data
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const inventoryService: any = container.resolve(Modules.INVENTORY)
+
+    const items: any[] = await inventoryService.listInventoryItems({}, { take: limit })
+
+    const changes: MaintenanceChange[] = []
+    const errors: Array<{ id: string; message: string }> = []
+    let noRawMaterial = 0
+    let noMedia = 0
+
+    for (const item of items) {
+      try {
+        let rawMaterial: any = null
+        try {
+          const { data: rmLinks } = await query.graph({
+            entity: "inventory_item_raw_materials",
+            filters: { inventory_item_id: item.id },
+            fields: ["raw_materials.media"],
+          })
+          rawMaterial = rmLinks?.[0]?.raw_materials
+        } catch {
+          // No link table row / not linked — treated as "unlinked" below.
+        }
+
+        if (!rawMaterial) {
+          noRawMaterial++
+          continue
+        }
+
+        const itemChanges = diffThumbnail(item.id, item.thumbnail, rawMaterial.media, force)
+        if (itemChanges.length === 0) {
+          // Either already correct, or media yields no URL — distinguish for the summary.
+          if (!firstMediaUrl(rawMaterial.media)) noMedia++
+          continue
+        }
+
+        changes.push(...itemChanges)
+
+        if (!dry_run) {
+          await inventoryService.updateInventoryItems({
+            id: item.id,
+            thumbnail: itemChanges[0].after as string,
+          })
+        }
+      } catch (e: any) {
+        errors.push({ id: item.id, message: e?.message ?? String(e) })
+      }
+    }
+
+    return {
+      job_id: backfillInventoryThumbnailJob.id,
+      dry_run,
+      applied: !dry_run && changes.length > 0,
+      summary: summarizeThumbnailBackfill(
+        dry_run,
+        items.length,
+        changes.length,
+        noRawMaterial,
+        noMedia,
         errors.length
       ),
       changes,
@@ -4259,6 +4423,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostBulkJob,
   correctProductionRunCostJob,
   backfillInventoryUnitCostJob,
+  backfillInventoryThumbnailJob,
   backfillDesignEnergyCostJob,
   backfillFinishedRunConsumptionJob,
   pruneOpsAuditRunsJob,
