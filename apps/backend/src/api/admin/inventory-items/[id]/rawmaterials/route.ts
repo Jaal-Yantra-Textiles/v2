@@ -75,6 +75,7 @@ import {
   MedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { RawMaterial } from "./validators";
 import { createRawMaterialWorkflow } from "../../../../../workflows/raw-materials/create-raw-material";
 import { RawMaterialAllowedFields, refetchRawMaterial } from "./helpers";
@@ -87,6 +88,7 @@ export const POST = async (
   },
   res: MedusaResponse,
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const { errors } = await createRawMaterialWorkflow(req.scope).run({
     input: {
       inventoryId: req.params.id,
@@ -95,7 +97,7 @@ export const POST = async (
   });
 
   if (errors.length > 0) {
-    console.warn("Error reported at", errors);
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     throw errors;
   }
 

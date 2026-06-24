@@ -16,6 +16,7 @@ export async function GET(
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const { lineItemId } = req.params
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
@@ -120,7 +121,7 @@ export async function GET(
       )
       lineItem = items?.[0] || null
     } catch (e) {
-      console.warn("[design-order detail] Failed to fetch line item:", e)
+      logger.warn(`[design-order detail] Failed to fetch line item: ${e}`)
     }
 
     // 4. Fetch cart details for currency and customer fallback
@@ -274,7 +275,7 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error("[design-order detail] Error:", error)
+    logger.error(`[design-order detail] Error: ${error}`, error)
     res.status(500).json({
       message: "Failed to fetch design order",
       error: error instanceof Error ? error.message : "Unknown error",

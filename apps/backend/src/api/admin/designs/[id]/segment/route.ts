@@ -2,7 +2,7 @@ import {
   AuthenticatedMedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { resolveFalCredentials } from "../../../../../mastra/services/fal-credentials"
 import { SegmentImageReq } from "./validators"
 
@@ -19,6 +19,7 @@ export const POST = async (
   req: AuthenticatedMedusaRequest<SegmentImageReq>,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const { image_url, image_base64, model } = req.validatedBody
 
   if (!image_url && !image_base64) {
@@ -59,7 +60,7 @@ export const POST = async (
     resolvedImageUrl = await fal.storage.upload(file)
   }
 
-  console.log(
+  logger.info(
     `[Segment] Running BiRefNet v2 on image: ${resolvedImageUrl!.substring(0, 80)}…`
   )
 
@@ -79,9 +80,8 @@ export const POST = async (
   const maskUrl = data?.mask_image?.url
 
   if (!cutoutUrl) {
-    console.error(
-      "[Segment] BiRefNet result shape:",
-      JSON.stringify(result).substring(0, 300)
+    logger.error(
+      `[Segment] BiRefNet result shape: ${JSON.stringify(result).substring(0, 300)}`
     )
     throw new MedusaError(
       MedusaError.Types.UNEXPECTED_STATE,
@@ -89,7 +89,7 @@ export const POST = async (
     )
   }
 
-  console.log(`[Segment] Success — cutout: ${cutoutUrl.substring(0, 80)}…`)
+  logger.info(`[Segment] Success — cutout: ${cutoutUrl.substring(0, 80)}…`)
 
   return res.status(200).json({
     segment: {

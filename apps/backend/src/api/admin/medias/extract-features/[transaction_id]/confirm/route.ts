@@ -37,6 +37,7 @@
  */
 
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { IWorkflowEngineService } from "@medusajs/framework/types";
 import { Modules, TransactionHandlerType } from "@medusajs/framework/utils";
 import { StepResponse } from "@medusajs/framework/workflows-sdk";
@@ -46,6 +47,7 @@ import {
 } from "../../../../../../workflows/ai/textile-product-extraction";
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const workflowEngineService: IWorkflowEngineService = req.scope.resolve(
       Modules.WORKFLOW_ENGINE
@@ -76,7 +78,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       transaction_id: transactionId,
     });
   } catch (error) {
-    console.error("[ExtractFeatures/Confirm] Error:", error);
+    logger.error(`[ExtractFeatures/Confirm] Error: ${error}`, error);
 
     // Check if it's a "workflow not found" type error
     const errorMessage = (error as Error)?.message || "";

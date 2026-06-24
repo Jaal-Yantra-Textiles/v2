@@ -47,7 +47,7 @@
  */
 
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
-import { MedusaError } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { ExtractFeaturesRequestSchema, ExtractFeaturesRequest } from "./validators";
 import {
   textileProductExtractionMedusaWorkflow,
@@ -57,6 +57,7 @@ export const POST = async (
   req: MedusaRequest<ExtractFeaturesRequest>,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     // Validate request body
     const parsed = ExtractFeaturesRequestSchema.safeParse(
@@ -115,7 +116,7 @@ export const POST = async (
       summary: result,
     });
   } catch (error) {
-    console.error("[ExtractFeatures] Error:", error);
+    logger.error(`[ExtractFeatures] Error: ${error}`, error);
 
     if (error instanceof MedusaError) {
       const status =

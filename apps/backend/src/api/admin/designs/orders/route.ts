@@ -21,6 +21,7 @@ export async function GET(
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any;
     const limit = Number(req.query.limit) || 20;
@@ -219,7 +220,7 @@ export async function GET(
 
     res.status(200).json({ design_orders: rows, count: total, offset, limit });
   } catch (error) {
-    console.error("[Admin] Error fetching design orders:", error);
+    logger.error(`[Admin] Error fetching design orders: ${error}`, error);
     res.status(500).json({
       message: "Failed to fetch design orders",
       error: error instanceof Error ? error.message : "Unknown error",

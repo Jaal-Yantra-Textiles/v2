@@ -55,6 +55,7 @@
  *   "type": "invalid_data"
  * }
  */
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { unlinkProductFromDesignWorkflow } from "../../../../../workflows/products/link-unlink-products-with-designs";
 import { UnlinkDesignValidator } from "../linkDesign/validators";
@@ -76,6 +77,7 @@ export const POST = async (
     throw new MedusaError(MedusaError.Types.NOT_FOUND, `Design with id ${designId} was not found`)
   }
 
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const { errors } = await unlinkProductFromDesignWorkflow(req.scope).run({
     input: {
       productId: id,
@@ -84,7 +86,7 @@ export const POST = async (
   })
 
   if (errors.length > 0) {
-    console.warn("Error reported at", errors);
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     throw errors;
   }
   // We must verify using the refetch if the design is unlinked

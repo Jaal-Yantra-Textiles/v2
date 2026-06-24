@@ -114,7 +114,7 @@ import {
   MedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http";
-import { MedusaError } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { UpdateDesign } from "../validators";
 import updateDesignWorkflow from "../../../../workflows/designs/update-design";
 import deleteDesignWorkflow from "../../../../workflows/designs/delete-design";
@@ -159,6 +159,7 @@ export const PUT = async (
   },
   res: MedusaResponse,
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   // Scoped run — an unscoped workflow.run() uses a bare container that
   // can't resolve request-scoped registrations like "query".
   const { result, errors } = await updateDesignWorkflow(req.scope).run({
@@ -169,7 +170,7 @@ export const PUT = async (
   });
 
   if (errors.length > 0) {
-    console.warn("Error reported at", errors);
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     throw errors;
   }
 
@@ -189,6 +190,7 @@ export const DELETE = async (
   },
   res: MedusaResponse,
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   // 404 on unknown ids (soft-deleting a missing design 500s deep in the
   // workflow otherwise).
   const existing = await refetchDesign(req.params.id, req.scope, ["id"] as any);
@@ -206,7 +208,7 @@ export const DELETE = async (
   });
 
   if (errors.length > 0) {
-    console.warn("Error reported at", errors);
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     throw errors;
   }
 

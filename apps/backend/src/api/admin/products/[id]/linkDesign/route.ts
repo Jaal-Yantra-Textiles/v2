@@ -3,6 +3,7 @@
  * request
  */
 
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { LinkDesignValidator } from "./validators";
 import { linkProductWithDesignWorkflow } from "../../../../../workflows/products/link-unlink-products-with-designs";
@@ -16,6 +17,7 @@ export const POST = async(
 
   const { designId } = req.validatedBody
 
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const { errors } = await linkProductWithDesignWorkflow(req.scope).run({
     input: {
       productId: id,
@@ -24,7 +26,7 @@ export const POST = async(
   })
   
   if (errors.length > 0) {
-    console.warn("Error reported at", errors);
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     throw errors;
   }
 

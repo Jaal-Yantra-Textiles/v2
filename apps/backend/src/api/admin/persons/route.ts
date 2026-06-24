@@ -140,6 +140,7 @@ import {
   MedusaResponse,
   
 } from "@medusajs/framework/http";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { Person, ListPersonsQuery } from "./validators";
 import createPersonWorkflow from "../../../workflows/create-person";
 import { PersonAllowedFields, refetchPerson } from "./helpers";
@@ -153,11 +154,12 @@ export const POST = async (
   },
   res: MedusaResponse,
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const { result, errors, transaction } = await createPersonWorkflow.run({
     input: req.validatedBody,
   });
   if (errors.length > 1) {
-    console.warn("Error reported at", errors);
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     throw errors;
   }
   const person = await refetchPerson(

@@ -58,7 +58,7 @@
  */
 
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
-import { MedusaError } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { listAlbumWorkflow } from "../../../../workflows/media/list-album";
 
 
@@ -66,6 +66,7 @@ export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const { result } = await listAlbumWorkflow(req.scope).run({
       input: {
@@ -84,7 +85,7 @@ export const GET = async (
       count: result[1] || albums.length,
     });
   } catch (error) {
-    console.error("Error listing albums:", error);
+    logger.error(`Error listing albums: ${error}`, error);
     throw new MedusaError(
       MedusaError.Types.UNEXPECTED_STATE,
       "Failed to list albums"

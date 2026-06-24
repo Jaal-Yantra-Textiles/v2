@@ -163,7 +163,7 @@ export const POST = async (
   },
   res: MedusaResponse,
 ) => {
-  
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
 
   const { result, errors } = await createDesignWorkflow(req.scope).run({
     input: {
@@ -173,7 +173,7 @@ export const POST = async (
   })
 
   if (errors.length > 0) {
-    console.warn("Error reported at", errors);
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     throw errors;
   }
 
@@ -207,6 +207,7 @@ export const GET = async (
   },
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
 
   try {
     // If customer_id is provided, fetch designs directly via the link table (bypassing the
@@ -293,7 +294,7 @@ export const GET = async (
   
 
     if (errors.length > 0) {
-      console.warn("Error reported at", errors);
+      logger.warn(`Error reported at ${JSON.stringify(errors)}`);
       throw errors;
     }
 

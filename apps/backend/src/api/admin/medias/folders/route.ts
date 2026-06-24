@@ -47,7 +47,7 @@
  * @public
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
-import { MedusaError } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { listFolderWorkflow } from "../../../../workflows/media/list-folder";
 
 /**
@@ -58,6 +58,7 @@ export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const { result } = await listFolderWorkflow(req.scope).run({
       input: {
@@ -76,7 +77,7 @@ export const GET = async (
       count: result[1] || folders.length,
     });
   } catch (error) {
-    console.error("Error listing folders:", error);
+    logger.error(`Error listing folders: ${error}`, error);
     throw new MedusaError(
       MedusaError.Types.UNEXPECTED_STATE,
       "Failed to list folders"

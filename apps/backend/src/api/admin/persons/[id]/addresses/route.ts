@@ -136,7 +136,8 @@
  * }
  */
 import { MedusaRequest, MedusaResponse, refetchEntity } from "@medusajs/framework/http";
-
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ 
 import { Address } from "./validators";
 import createAddressWorkflow from "../../../../../workflows/persons/create-address";
 import retrieveAddressesWorkflow from "../../../../../workflows/persons/retrieve-addresses";
@@ -146,6 +147,7 @@ export const POST = async (
   req: MedusaRequest<Address>,
   res: MedusaResponse,
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   
   const personId = req.params.id;
   // Check if the person exists in the personID or is validPersonId
@@ -171,7 +173,7 @@ export const POST = async (
   });
 
   if (errors.length > 0) {
-    console.warn("Error reported at", errors);
+    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
     res.status(400).json({ error: errors });
     throw errors;
   }
@@ -180,6 +182,7 @@ export const POST = async (
 };
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const personId = req.params.id;
 
   try {
@@ -192,7 +195,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const [addresses, count] = result
 
     if (errors.length > 0) {
-      console.warn("Error reported at", errors);
+      logger.warn(`Error reported at ${JSON.stringify(errors)}`);
       throw errors;
     }
 

@@ -59,6 +59,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { TagAllowedFields } from "../helpers";
 import deletePersonTagsWorkflow from "../../../../../../workflows/persons/delete-person-tags";
 import { DeleteTagForPerson } from "../validators";
@@ -71,6 +72,7 @@ export const DELETE = async (
     },
     res: MedusaResponse,
   ) => {
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   
     const personId = req.params.id;
     const tagId = req.params.tagId;
@@ -83,7 +85,7 @@ export const DELETE = async (
       });
   
       if (errors.length > 0) {
-        console.warn("Error reported at", errors);
+        logger.warn(`Error reported at ${JSON.stringify(errors)}`);
         throw errors;
       }
   
