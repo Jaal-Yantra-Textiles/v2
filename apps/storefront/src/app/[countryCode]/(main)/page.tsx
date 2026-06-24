@@ -22,7 +22,11 @@ export async function generateMetadata(props: {
   const { countryCode } = await props.params
   const alternates = await buildLocalizedAlternates(countryCode, "")
 
-  const title = "Cici Label - Handmade, Locally Sourced Fashion"
+  // Display/OG title (also used for og:title + twitter:title below).
+  // 51 chars — the root layout's "%s | Cici Label Store" template pushed
+  // the homepage <title> to 65 chars, above the 50–60 target (audit #734 #4),
+  // so the page title below uses `absolute` to bypass that suffix.
+  const title = "Cici Label — Handmade, Locally Sourced Slow Fashion"
   const description =
     "Cici Label is a slow fashion brand focused on handmade, locally sourced, and ethically produced clothing. Shop handloom and natural-dyed garments."
 
@@ -34,7 +38,7 @@ export async function generateMetadata(props: {
   const ogImage = firstProductImage ?? `${baseUrl}/logo.png`
 
   return {
-    title,
+    title: { absolute: title },
     description,
     alternates,
     openGraph: {

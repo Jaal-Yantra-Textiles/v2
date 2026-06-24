@@ -36,6 +36,14 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  // Emit an explicit <link rel="icon"> in <head>. public/favicon.ico is
+  // served at /favicon.ico but the App Router only auto-injects the <link>
+  // tag for icons living in the app/ dir or declared here (audit #734 #2).
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/logo.png",
+  },
 }
 
 export default function RootLayout(props: { children: React.ReactNode }) {
