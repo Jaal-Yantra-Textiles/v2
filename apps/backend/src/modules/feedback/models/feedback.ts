@@ -12,6 +12,13 @@ const Feedback = model.define("feedback", {
   // than in `metadata` so it survives metadata-replacing updates when the
   // customer later submits their rating.
   order_id: model.text().nullable(),
+  // Playful post-delivery feedback (#452): the customer is shown a small set
+  // of artwork images and picks the one they identify with. The chosen
+  // artwork (a media_file id) + an optional affinity label are load-bearing
+  // analytical state, so they live in typed columns rather than the metadata
+  // blob (which gets fully replaced on update — feedback_no_critical_data_in_metadata).
+  chosen_artwork_id: model.text().nullable(),
+  artwork_affinity: model.text().nullable(),
   reviewed_by: model.text().nullable(),
   reviewed_at: model.dateTime().nullable(),
   metadata: model.json().nullable(),
