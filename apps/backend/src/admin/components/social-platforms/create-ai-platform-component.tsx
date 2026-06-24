@@ -9,6 +9,13 @@ import { RouteFocusModal } from "../modal/route-focus-modal"
 import { useRouteModal } from "../modal/use-route-modal"
 import { getCloudflareModelWarning } from "./cloudflare-model-warning"
 import { buildApiConfig } from "./api-config"
+import {
+  KNOWN_AI_ROLES,
+  KNOWN_ROLE_VALUES,
+  CUSTOM_ROLE_SENTINEL,
+  ROLE_SLUG_REGEX,
+  resolveRoleValue,
+} from "./ai-roles"
 
 /**
  * Tailored "Create AI provider" form.
@@ -23,7 +30,7 @@ import { buildApiConfig } from "./api-config"
  *   - category = "ai"
  *   - auth_type = "bearer"
  *   - metadata.provider_type ∈ {openrouter, dashscope, cloudflare, vercel_ai_gateway, custom}
- *   - metadata.role ∈ {ai_search_chat, ai_search_embed, ai_product_description}
+ *   - metadata.role ∈ KNOWN_AI_ROLES (see ai-roles.ts) OR any custom slug
  *   - metadata.is_default = true/false
  *   - api_config.api_key (plaintext on the wire — the
  *     social-platform-credentials-encryption subscriber encrypts in
@@ -44,23 +51,37 @@ const ProviderTypeEnum = z.enum([
   "custom",
 ])
 
-const RoleEnum = z.enum([
-  "ai_search_chat",
-  "ai_search_embed",
-  "ai_product_description",
-  "ai_image_gen",
-])
-
 const Schema = z.object({
   name: z.string().min(1, "Name is required"),
   provider_type: ProviderTypeEnum,
-  role: RoleEnum,
+  // `role` holds either a known role value or the CUSTOM_ROLE_SENTINEL; when
+  // the sentinel is selected, `custom_role` carries the free-form slug. The
+  // resolver (mastra/services/ai-platforms.ts) is string-tolerant, so any slug
+  // works — we only enforce a sane shape here.
+  role: z.string().min(1, "Role is required"),
+  custom_role: z.string().optional().default(""),
   is_default: z.boolean().optional().default(true),
   api_key: z.string().min(1, "API key is required"),
   default_model: z.string().optional(),
   account_id: z.string().optional(),
   base_url: z.string().url("Must be a valid URL").optional().or(z.literal("")),
 }).superRefine((data, ctx) => {
+  if (data.role === CUSTOM_ROLE_SENTINEL) {
+    if (!ROLE_SLUG_REGEX.test((data.custom_role ?? "").trim())) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["custom_role"],
+        message:
+          "Use a lowercase slug like ai_marketing_vp (letters, digits, underscores)",
+      })
+    }
+  } else if (!KNOWN_ROLE_VALUES.includes(data.role)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["role"],
+      message: "Select a role or choose Custom role…",
+    })
+  }
   if (data.provider_type === "cloudflare" && !data.account_id) {
     ctx.addIssue({
       code: "custom",
@@ -92,13 +113,6 @@ const PROVIDER_LABELS: Record<z.infer<typeof ProviderTypeEnum>, string> = {
   custom: "Custom (OpenAI-compatible)",
 }
 
-const ROLE_LABELS: Record<z.infer<typeof RoleEnum>, string> = {
-  ai_search_chat: "Storefront search — chat / extraction",
-  ai_search_embed: "Storefront search — embeddings",
-  ai_product_description: "Product image → description",
-  ai_image_gen: "Image generation / segmentation (FAL)",
-}
-
 const DEFAULT_MODEL_HINTS: Record<z.infer<typeof ProviderTypeEnum>, string> = {
   openrouter: "meta-llama/llama-3.3-70b-instruct:free",
   dashscope: "qwen-turbo  (chat) / text-embedding-v3 (embed)",
@@ -117,7 +131,8 @@ export const CreateAiPlatformComponent = () => {
     defaultValues: {
       name: "",
       provider_type: "openrouter" as const,
-      role: "ai_search_chat" as const,
+      role: "ai_search_chat",
+      custom_role: "",
       is_default: true,
       api_key: "",
       default_model: "",
@@ -127,6 +142,7 @@ export const CreateAiPlatformComponent = () => {
   })
 
   const providerType = form.watch("provider_type")
+  const roleSelection = form.watch("role")
   const defaultModel = form.watch("default_model")
   const cloudflareModelWarning = getCloudflareModelWarning(
     providerType,
@@ -151,7 +167,7 @@ export const CreateAiPlatformComponent = () => {
         api_config: apiConfig,
         metadata: {
           provider_type: values.provider_type,
-          role: values.role,
+          role: resolveRoleValue(values),
           is_default: values.is_default ?? true,
           source: "admin_ui",
         },
@@ -255,11 +271,14 @@ export const CreateAiPlatformComponent = () => {
                           <Select.Value placeholder="Select role" />
                         </Select.Trigger>
                         <Select.Content>
-                          {Object.entries(ROLE_LABELS).map(([v, label]) => (
-                            <Select.Item key={v} value={v}>
-                              {label}
+                          {KNOWN_AI_ROLES.map((r) => (
+                            <Select.Item key={r.value} value={r.value}>
+                              {r.label}
                             </Select.Item>
                           ))}
+                          <Select.Item value={CUSTOM_ROLE_SENTINEL}>
+                            Custom role…
+                          </Select.Item>
                         </Select.Content>
                       </Select>
                     </Form.Control>
@@ -268,6 +287,31 @@ export const CreateAiPlatformComponent = () => {
                 )}
               />
             </div>
+
+            {roleSelection === CUSTOM_ROLE_SENTINEL && (
+              <Form.Field
+                control={form.control}
+                name="custom_role"
+                render={({ field }) => (
+                  <Form.Item>
+                    <Form.Label>Custom role</Form.Label>
+                    <Form.Control>
+                      <Input
+                        {...field}
+                        placeholder="e.g. ai_marketing_vp"
+                        autoComplete="off"
+                      />
+                    </Form.Control>
+                    <Form.Hint>
+                      Any new role string the resolver should match on
+                      (lowercase slug). Workflows look this up verbatim via{" "}
+                      <code>getAiPlatformForRole</code>.
+                    </Form.Hint>
+                    <Form.ErrorMessage />
+                  </Form.Item>
+                )}
+              />
+            )}
 
             <Form.Field
               control={form.control}
