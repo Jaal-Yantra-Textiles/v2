@@ -9,10 +9,46 @@ const S3_HOSTNAME = process.env.MEDUSA_CLOUD_S3_HOSTNAME
 const S3_PATHNAME = process.env.MEDUSA_CLOUD_S3_PATHNAME
 
 /**
+ * Domain consolidation (audit #734 #1 — canonical URL mismatch).
+ *
+ * The canonical domain is the apex `cicilabel.com`. When NEXT_PUBLIC_BASE_URL
+ * is set to the apex (e.g. https://cicilabel.com), getBaseURL() emits apex
+ * canonicals/sitemap/robots/JSON-LD AND we 301 the `www.` and `shop.`
+ * aliases here to the apex so ranking signals consolidate on one host.
+ *
+ * Derived from NEXT_PUBLIC_BASE_URL so there is a single source of truth and
+ * no hardcoded host. Returns [] (inert) when the env is unset or already
+ * points at a subdomain, so a misconfig can never create a redirect loop.
+ */
+const buildCanonicalRedirects = () => {
+  const base = process.env.NEXT_PUBLIC_BASE_URL
+  if (!base) return []
+  let host
+  try {
+    host = new URL(base).host
+  } catch {
+    return []
+  }
+  const apex = host.replace(/^(www|shop)\./, "")
+  // Skip if base is itself an alias subdomain (would loop) or has no alias form.
+  if (apex !== host || !apex.includes(".")) return []
+  const dest = `${base.replace(/\/$/, "")}/:path*`
+  return ["www", "shop"].map((sub) => ({
+    source: "/:path*",
+    has: [{ type: "host", value: `${sub}.${apex}` }],
+    destination: dest,
+    permanent: true,
+  }))
+}
+
+/**
  * @type {import('next').NextConfig}
  */
 const nextConfig = {
   reactStrictMode: true,
+  async redirects() {
+    return buildCanonicalRedirects()
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "25mb",
