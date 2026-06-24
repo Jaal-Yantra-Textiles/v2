@@ -23,6 +23,7 @@ import {
   getPartnerOpenWork,
 } from "./whatsapp-media-helper"
 import { BUTTON_TITLE_ACTIONS } from "../../scripts/whatsapp-templates/partner-run-templates"
+import { buildPartnerProductUrl } from "./partner-product-url"
 
 interface IncomingMessage {
   from: string // WhatsApp phone number
@@ -1821,14 +1822,14 @@ async function handleProductCreateButtonReply(
     return { handled: true, action: "product_create_button_not_found" }
   }
 
-  const adminBase = (process.env.MEDUSA_BACKEND_URL || "").replace(/\/$/, "")
-  const adminLink = adminBase ? `${adminBase}/app/products/${productId}` : `/app/products/${productId}`
+  // Sent to the PARTNER → link to the partner portal, not the admin app (#707).
+  const portalLink = buildPartnerProductUrl(productId)
 
   if (action === "confirm") {
     if (product.status === "published") {
       await whatsapp.sendTextMessage(
         message.from,
-        `Already published: *${product.title}*\n${adminLink}`
+        `Already published: *${product.title}*\n${portalLink}`
       )
       return { handled: true, action: "product_create_confirm_already_published" }
     }
@@ -1837,13 +1838,13 @@ async function handleProductCreateButtonReply(
     } catch (e: any) {
       await whatsapp.sendTextMessage(
         message.from,
-        `Couldn't publish *${product.title}* — ${e?.message || "unknown error"}. Try again from admin: ${adminLink}`
+        `Couldn't publish *${product.title}* — ${e?.message || "unknown error"}. Try again from your portal: ${portalLink}`
       )
       return { handled: true, action: "product_create_confirm_failed" }
     }
     await whatsapp.sendTextMessage(
       message.from,
-      `✅ Published: *${product.title}*\n${adminLink}`
+      `✅ Published: *${product.title}*\n${portalLink}`
     )
     return { handled: true, action: "product_create_confirmed" }
   }
@@ -1854,7 +1855,7 @@ async function handleProductCreateButtonReply(
       // admin if they really mean it.
       await whatsapp.sendTextMessage(
         message.from,
-        `*${product.title}* is already published. Open admin to unpublish or delete:\n${adminLink}`
+        `*${product.title}* is already published. Open your portal to unpublish or delete:\n${portalLink}`
       )
       return { handled: true, action: "product_create_cancel_after_publish" }
     }
@@ -1876,7 +1877,7 @@ async function handleProductCreateButtonReply(
 
   await whatsapp.sendTextMessage(
     message.from,
-    "Unrecognised action — open admin to manage this product."
+    "Unrecognised action — open your portal to manage this product."
   )
   return { handled: true, action: "product_create_button_unknown" }
 }
