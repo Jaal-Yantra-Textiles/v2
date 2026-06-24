@@ -70,6 +70,7 @@
  * }
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"
 import { PostInsightsService } from "../../../../../modules/socials/services/post-insights-service"
@@ -85,6 +86,7 @@ export const POST = async (
   res: MedusaResponse
 ) => {
   const { id } = req.params
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
   const insightsService = new PostInsightsService()
 
@@ -144,7 +146,7 @@ export const POST = async (
       for (const result of insights.publish_results) {
         if (result.response?.id) {
           platformPostId = result.response.id
-          console.log("[Sync Insights] Found platform post ID in publish_results:", platformPostId)
+          logger.info(`[Sync Insights] Found platform post ID in publish_results: ${platformPostId}`)
           break
         }
       }
@@ -166,7 +168,7 @@ export const POST = async (
         const match = url.match(/instagram\.com\/p\/([^\/\?]+)/)
         if (match) {
           platformPostId = match[1]
-          console.log("[Sync Insights] Extracted Instagram shortcode from URL:", platformPostId)
+          logger.info(`[Sync Insights] Extracted Instagram shortcode from URL: ${platformPostId}`)
         }
       }
       // Extract Facebook post ID from URL
@@ -175,15 +177,15 @@ export const POST = async (
                      url.match(/facebook\.com\/permalink\.php\?story_fbid=(\d+)/)
         if (match) {
           platformPostId = match[match.length - 1]
-          console.log("[Sync Insights] Extracted Facebook post ID from URL:", platformPostId)
+          logger.info(`[Sync Insights] Extracted Facebook post ID from URL: ${platformPostId}`)
         }
       }
     }
 
     if (!platformPostId) {
-      console.log("[Sync Insights] Available insights keys:", Object.keys(insights))
-      console.log("[Sync Insights] Insights structure:", JSON.stringify(insights, null, 2))
-      console.log("[Sync Insights] Post URL:", post.post_url)
+      logger.info(`[Sync Insights] Available insights keys: ${JSON.stringify(Object.keys(insights))}`)
+      logger.info(`[Sync Insights] Insights structure: ${JSON.stringify(insights, null, 2)}`)
+      logger.info(`[Sync Insights] Post URL: ${post.post_url}`)
       
       return res.status(400).json({ 
         error: "No platform post ID found. Post may not have been published successfully.",
@@ -224,7 +226,7 @@ export const POST = async (
       }
     }
     
-    console.log(`[Sync Insights] Using platform type: ${platformType} (detected: ${detectedPlatformType || 'none'})`)
+    logger.info(`[Sync Insights] Using platform type: ${platformType} (detected: ${detectedPlatformType || 'none'})`)
 
     // Sync insights
     const syncedInsights = await insightsService.syncPostInsights(
@@ -240,7 +242,7 @@ export const POST = async (
       insights: syncedInsights,
     })
   } catch (error) {
-    console.error("Error syncing insights:", error)
+    logger.error("Error syncing insights:", error)
     res.status(500).json({ 
       error: "Failed to sync insights",
       details: error.message 

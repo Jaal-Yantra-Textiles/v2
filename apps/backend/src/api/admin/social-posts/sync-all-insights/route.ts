@@ -95,6 +95,7 @@
  * }
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import SocialsService from "../../../../modules/socials/service"
 import { PostInsightsService } from "../../../../modules/socials/services/post-insights-service"
@@ -111,6 +112,7 @@ export const POST = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
   const insightsService = new PostInsightsService()
 
@@ -141,7 +143,7 @@ export const POST = async (
       })
     }
 
-    console.log(`[Bulk Insights Sync] Found ${posts.length} posts to sync`)
+    logger.info(`[Bulk Insights Sync] Found ${posts.length} posts to sync`)
 
     // Group posts by platform for efficient syncing
     const postsByPlatform: Record<string, any[]> = {}
@@ -165,7 +167,7 @@ export const POST = async (
         const [platform] = await socials.listSocialPlatforms({ id: platformId })
         
         if (!platform) {
-          console.warn(`Platform ${platformId} not found, skipping posts`)
+          logger.warn(`Platform ${platformId} not found, skipping posts`)
           platformPosts.forEach(post => {
             allResults.push({
               postId: (post as any).id,
@@ -180,7 +182,7 @@ export const POST = async (
         const accessToken = (platform as any)?.api_config?.access_token
         
         if (!accessToken) {
-          console.warn(`Platform ${platformId} has no access token, skipping posts`)
+          logger.warn(`Platform ${platformId} has no access token, skipping posts`)
           platformPosts.forEach(post => {
             allResults.push({
               postId: (post as any).id,
@@ -258,9 +260,9 @@ export const POST = async (
         totalFailed += failed
         allResults.push(...results)
 
-        console.log(`[Bulk Insights Sync] Platform ${platformId}: ${success} success, ${failed} failed`)
+        logger.info(`[Bulk Insights Sync] Platform ${platformId}: ${success} success, ${failed} failed`)
       } catch (error) {
-        console.error(`[Bulk Insights Sync] Error syncing platform ${platformId}:`, error)
+        logger.error(`[Bulk Insights Sync] Error syncing platform ${platformId}:`, error)
         platformPosts.forEach(post => {
           allResults.push({
             postId: (post as any).id,
@@ -280,7 +282,7 @@ export const POST = async (
       results: allResults,
     })
   } catch (error) {
-    console.error("Error in bulk insights sync:", error)
+    logger.error("Error in bulk insights sync:", error)
     res.status(500).json({ 
       error: "Failed to sync insights",
       details: error.message 

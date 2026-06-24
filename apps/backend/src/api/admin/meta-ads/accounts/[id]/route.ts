@@ -31,6 +31,7 @@
  * // Response: { success: boolean }
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"
 
@@ -43,6 +44,7 @@ export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
     const { id } = req.params
@@ -57,7 +59,7 @@ export const GET = async (
 
     res.json({ account })
   } catch (error: any) {
-    console.error("Failed to get ad account:", error)
+    logger.error("Failed to get ad account:", error)
     res.status(500).json({
       message: "Failed to get ad account",
       error: error.message,

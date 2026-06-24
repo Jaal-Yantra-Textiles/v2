@@ -96,6 +96,7 @@
  * }
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 /**
  * Debug Facebook token permissions
@@ -106,6 +107,7 @@ export const GET = async (
   res: MedusaResponse
 ) => {
   const { id } = req.params
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
 
   try {
     const socials = req.scope.resolve("socialsModuleService") as any
@@ -146,7 +148,7 @@ export const GET = async (
       const meResponse = await fetch(`https://graph.facebook.com/v21.0/me?access_token=${accessToken}`)
       entityInfo = await meResponse.json()
     } catch (error) {
-      console.warn("Could not fetch entity info:", error)
+      logger.warn(`Could not fetch entity info: ${error}`)
     }
 
     return res.json({
@@ -176,7 +178,7 @@ export const GET = async (
     })
 
   } catch (error) {
-    console.error("[Debug Token] Error:", error)
+    logger.error("[Debug Token] Error:", error)
     return res.status(500).json({ 
       error: "Failed to debug token",
       message: error.message 

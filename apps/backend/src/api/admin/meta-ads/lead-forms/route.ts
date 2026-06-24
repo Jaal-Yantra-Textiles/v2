@@ -123,6 +123,7 @@
  * }
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import SocialsService from "../../../../modules/socials/service"
 
@@ -135,6 +136,7 @@ export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
     const { platform_id } = req.query as Record<string, string>
@@ -151,7 +153,7 @@ export const GET = async (
       count: leadForms.length,
     })
   } catch (error: any) {
-    console.error("Failed to list lead forms:", error)
+    logger.error("Failed to list lead forms:", error)
     res.status(500).json({
       message: "Failed to list lead forms",
       error: error.message,
@@ -168,6 +170,7 @@ export const POST = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
     const body = req.body as Record<string, any>
@@ -176,7 +179,7 @@ export const POST = async (
 
     res.json({ leadForm })
   } catch (error: any) {
-    console.error("Failed to create lead form:", error)
+    logger.error("Failed to create lead form:", error)
     res.status(500).json({
       message: "Failed to create lead form",
       error: error.message,

@@ -16,6 +16,7 @@
  * @property {string} expiresAt - ISO 8601 timestamp when the token expires
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIAL_PROVIDER_MODULE, SocialProviderService } from "../../../../modules/social-provider"
 import { EXTERNAL_STORES_MODULE, ExternalStoresService } from "../../../../modules/external_stores"
 import { initiateOauthWorkflow } from "../../../../workflows/socials/initiate-oauth"
@@ -36,6 +37,7 @@ export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse
 ): Promise<void> => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const platform = req.params.platform as string | undefined
 
   if (!platform) {
@@ -76,7 +78,7 @@ export const GET = async (
         state,
       })
     } catch (error: any) {
-      console.error(`[OAuth] Failed to get auth URL for ${platform}:`, error.message)
+      logger.error(`[OAuth] Failed to get auth URL for ${platform}: ${error.message}`)
       res.status(500).json({ message: error.message })
     }
     
@@ -100,12 +102,12 @@ export const GET = async (
     }
     try {
       const token = await provider.getAppBearerToken()
-      console.log(`[App-Only OAuth] Got token for ${platform}:`, { token: token.token.substring(0, 20) + '...', expiresAt: token.expiresAt })
+      logger.info(`[App-Only OAuth] Got token for ${platform}: ${JSON.stringify({ token: token.token.substring(0, 20) + '...', expiresAt: token.expiresAt })}`)
       
       // For app-only flow, we need to store the credentials in the platform
       // This is especially important for Twitter which needs both OAuth 2.0 and OAuth 1.0a
       const platformId = req.query.platform_id as string
-      console.log(`[App-Only OAuth] Platform ID: ${platformId}, Platform: ${platformLower}`)
+      logger.info(`[App-Only OAuth] Platform ID: ${platformId}, Platform: ${platformLower}`)
       
       if (platformId && (platformLower === "twitter" || platformLower === "x")) {
         const socialsService = req.scope.resolve(SOCIALS_MODULE) as any
@@ -119,9 +121,9 @@ export const GET = async (
         const apiKey = process.env.X_API_KEY || process.env.TWITTER_API_KEY
         const apiSecret = process.env.X_API_SECRET || process.env.TWITTER_API_SECRET
         
-        console.log(`[App-Only OAuth] Storing credentials for platform ${platformId}`)
-        console.log(`[App-Only OAuth] Has API Key: ${!!apiKey}, Has API Secret: ${!!apiSecret}`)
-        console.log(`[App-Only OAuth] Existing OAuth 2.0 token: ${!!existingPlatform?.api_config?.access_token}`)
+        logger.info(`[App-Only OAuth] Storing credentials for platform ${platformId}`)
+        logger.info(`[App-Only OAuth] Has API Key: ${!!apiKey}, Has API Secret: ${!!apiSecret}`)
+        logger.info(`[App-Only OAuth] Existing OAuth 2.0 token: ${!!existingPlatform?.api_config?.access_token}`)
         
         const updated = await socialsService.updateSocialPlatforms({
           selector: { id: platformId },
@@ -143,10 +145,10 @@ export const GET = async (
           },
         })
         
-        console.log(`[App-Only OAuth] ✓ Credentials stored successfully for platform ${platformId}`)
-        console.log(`[App-Only OAuth] Updated platforms:`, updated?.length || 0)
+        logger.info(`[App-Only OAuth] ✓ Credentials stored successfully for platform ${platformId}`)
+        logger.info(`[App-Only OAuth] Updated platforms: ${updated?.length || 0}`)
       } else {
-        console.log(`[App-Only OAuth] Skipping storage - platformId: ${platformId}, platform: ${platformLower}`)
+        logger.info(`[App-Only OAuth] Skipping storage - platformId: ${platformId}, platform: ${platformLower}`)
       }
       
       res.status(200).json(token)
@@ -169,11 +171,11 @@ export const GET = async (
     ? (process.env.X_SCOPE || process.env.TWITTER_SCOPE || "")
     : (process.env[scopeEnvKey] ?? "")
   
-  console.log(`[OAuth Initiate] Platform: ${platform}`)
-  console.log(`[OAuth Initiate] Env Platform: ${envPlatform}`)
-  console.log(`[OAuth Initiate] Redirect Env Key: ${redirectEnvKey}`)
-  console.log(`[OAuth Initiate] Redirect URI: ${redirectUri}`)
-  console.log(`[OAuth Initiate] Scope: ${scope}`)
+  logger.info(`[OAuth Initiate] Platform: ${platform}`)
+  logger.info(`[OAuth Initiate] Env Platform: ${envPlatform}`)
+  logger.info(`[OAuth Initiate] Redirect Env Key: ${redirectEnvKey}`)
+  logger.info(`[OAuth Initiate] Redirect URI: ${redirectUri}`)
+  logger.info(`[OAuth Initiate] Scope: ${scope}`)
 
   const { result, errors } = await initiateOauthWorkflow(req.scope).run({
     input: {
@@ -185,7 +187,7 @@ export const GET = async (
 
   if (errors?.length > 0) {
     // TODO: Better error logging
-    console.warn("Workflow reported errors:", errors)
+    logger.warn(`Workflow reported errors: ${JSON.stringify(errors)}`)
     res.status(500).json({ message: "Workflow execution failed." })
     return
   }

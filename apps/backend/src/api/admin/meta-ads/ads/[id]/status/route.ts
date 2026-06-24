@@ -60,6 +60,7 @@
  *     .catch(error => console.error(error));
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../../../modules/socials"
 import SocialsService from "../../../../../../modules/socials/service"
 import MetaAdsService from "../../../../../../modules/social-provider/meta-ads-service"
@@ -77,6 +78,7 @@ export const POST = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
     const { id } = req.params
@@ -157,7 +159,7 @@ export const POST = async (
       ad: updatedAd,
     })
   } catch (error: any) {
-    console.error("Failed to update ad status:", error)
+    logger.error("Failed to update ad status:", error)
     res.status(500).json({
       message: "Failed to update ad status",
       error: error.message,

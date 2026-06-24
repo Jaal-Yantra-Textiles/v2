@@ -136,6 +136,7 @@
  * }
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"
 
@@ -148,6 +149,7 @@ export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
     const { id } = req.params
@@ -195,7 +197,7 @@ export const GET = async (
       },
     })
   } catch (error: any) {
-    console.error("Failed to get campaign:", error)
+    logger.error("Failed to get campaign:", error)
     
     // Check if it's a not_found error
     if (error.type === "not_found" || error.message?.includes("was not found")) {

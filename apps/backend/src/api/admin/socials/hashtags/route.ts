@@ -53,6 +53,7 @@
  * }
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import SocialsService from "../../../../modules/socials/service"
 import { HashtagSearchService } from "../../../../modules/socials/services/hashtag-search-service"
@@ -74,6 +75,7 @@ export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
   const searchService = new HashtagSearchService()
   
@@ -83,7 +85,7 @@ export const GET = async (
   const limit = parseInt(req.query.limit as string) || 10
   const type = req.query.type as "suggestions" | "popular" | "recent" || "suggestions"
 
-  console.log("Hashtag API called:", { query, platform, platformId, limit, type })
+  logger.info(`Hashtag API called: ${JSON.stringify({ query, platform, platformId, limit, type })}`)
 
   let hashtags
 
@@ -122,7 +124,7 @@ export const GET = async (
             }
           }
         } catch (error) {
-          console.log("Could not get Instagram credentials:", error)
+          logger.info(`Could not get Instagram credentials: ${error}`)
         }
       }
 
@@ -136,7 +138,7 @@ export const GET = async (
             pageId = pages[0].id
           }
         } catch (error) {
-          console.log("Could not get Facebook page ID:", error)
+          logger.info(`Could not get Facebook page ID: ${error}`)
         }
       }
 
@@ -154,7 +156,7 @@ export const GET = async (
       )
     }
 
-    console.log("Hashtags found:", hashtags.length)
+    logger.info(`Hashtags found: ${hashtags.length}`)
 
     res.json({
       hashtags: hashtags.map(h => ({
@@ -165,7 +167,7 @@ export const GET = async (
       })),
     })
   } catch (error) {
-    console.error("Error fetching hashtags:", error)
+    logger.error("Error fetching hashtags:", error)
     res.json({ hashtags: [] })
   }
 }

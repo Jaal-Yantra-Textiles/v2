@@ -160,6 +160,7 @@
  * }
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MedusaError } from "@medusajs/utils"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import SocialsService from "../../../../modules/socials/service"
@@ -186,8 +187,9 @@ export const POST = async (
   req: MedusaRequest<{ post_id: string }>,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   // Log deprecation warning
-  console.warn(
+  logger.warn(
     "[DEPRECATED] POST /admin/socials/publish-both is deprecated. " +
     "Use POST /admin/social-posts/:id/publish instead. " +
     "This endpoint will be removed in a future version."

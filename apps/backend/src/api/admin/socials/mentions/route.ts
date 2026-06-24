@@ -82,6 +82,7 @@
  * }
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import SocialsService from "../../../../modules/socials/service"
 
@@ -98,13 +99,14 @@ export const GET = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
-  
+
   const query = req.query.q as string || ""
   const platform = req.query.platform as "facebook" | "instagram" | "twitter" | undefined
   const limit = parseInt(req.query.limit as string) || 10
 
-  console.log("Mention API called:", { query, platform, limit })
+  logger.info(`Mention API called: ${JSON.stringify({ query, platform, limit })}`)
 
   let mentions
 
@@ -124,7 +126,7 @@ export const GET = async (
       mentions = await socials.getMentionSuggestions(query, platform, limit)
     }
 
-    console.log("Mentions found:", mentions.length)
+    logger.info(`Mentions found: ${mentions.length}`)
 
     res.json({
       mentions: mentions.map(m => ({
@@ -136,7 +138,7 @@ export const GET = async (
       })),
     })
   } catch (error) {
-    console.error("Error fetching mentions:", error)
+    logger.error("Error fetching mentions:", error)
     res.json({ mentions: [] })
   }
 }
