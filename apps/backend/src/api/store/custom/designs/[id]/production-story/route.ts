@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import designsPersonLink from "../../../../../../links/designs-person-link"
-import { buildProductionStory } from "./build-story"
+import { buildProductionStory } from "../../production-story-lib/build-story"
 
 /**
  * GET /store/custom/designs/:id/production-story
