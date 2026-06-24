@@ -13,6 +13,8 @@ import { RouteDrawer } from "../../../../../components/modal/route-drawer/route-
 import { useDesignInventory, useUpdateInventoryLink } from "../../../../../hooks/api/designs"
 import { useParams } from "react-router-dom"
 import { useStockLocations } from "../../../../../hooks/api/stock_location"
+import { Thumbnail } from "../../../../../components/common/thumbnail"
+import { firstMediaUrl } from "../../../../../lib/utils/first-media-url"
 
 
 const formatConsumedAt = (consumedAt?: string) => {
@@ -143,18 +145,25 @@ const InventoryLinkDrawerPage = () => {
   return (
     <RouteDrawer>
       <RouteDrawer.Header>
-        <div className="space-y-1">
-          <Heading>{inventory?.title || link.inventory_item_id}</Heading>
-          {inventory?.sku && (
-            <Text size="small" className="text-ui-fg-subtle">
-              {inventory.sku}
-            </Text>
-          )}
-          {link.inventory_item_id && (
-            <Text size="small" className="text-ui-fg-muted">
-              #{link.inventory_item_id}
-            </Text>
-          )}
+        <div className="flex items-center gap-x-3">
+          <Thumbnail
+            src={firstMediaUrl((inventory as any)?.raw_materials?.media)}
+            alt={inventory?.title || link.inventory_item_id}
+            size="large"
+          />
+          <div className="space-y-1">
+            <Heading>{inventory?.title || link.inventory_item_id}</Heading>
+            {inventory?.sku && (
+              <Text size="small" className="text-ui-fg-subtle">
+                {inventory.sku}
+              </Text>
+            )}
+            {link.inventory_item_id && (
+              <Text size="small" className="text-ui-fg-muted">
+                #{link.inventory_item_id}
+              </Text>
+            )}
+          </div>
         </div>
       </RouteDrawer.Header>
       <RouteDrawer.Body>

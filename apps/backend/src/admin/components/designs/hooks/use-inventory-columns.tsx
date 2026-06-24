@@ -1,6 +1,7 @@
 import { Text, createDataTableColumnHelper, Checkbox } from "@medusajs/ui";
 import { InventoryItem } from "../../../hooks/api/raw-materials";
 import { Thumbnail } from "../../../components/common/thumbnail";
+import { firstMediaUrl } from "../../../lib/utils/first-media-url";
 
 const columnHelper = createDataTableColumnHelper<InventoryItem>();
 
@@ -117,11 +118,15 @@ export const useInventoryColumns = (selectionProps?: SelectionProps) => {
       header: "Material Name",
       cell: ({ row }) => {
         const name = row.original.raw_materials?.name || "-";
-        
+        const photo = firstMediaUrl(row.original.raw_materials?.media);
+
         return (
-          <Text size="small" leading="compact">
-            {name}
-          </Text>
+          <div className="flex items-center gap-x-3">
+            <Thumbnail src={photo} alt={name} size="small" />
+            <Text size="small" leading="compact">
+              {name}
+            </Text>
+          </div>
         );
       },
       enableSorting: true,
