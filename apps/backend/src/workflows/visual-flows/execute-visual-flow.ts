@@ -8,6 +8,7 @@ import type { IEventBusModuleService } from "@medusajs/framework/types"
 import { Modules } from "@medusajs/framework/utils"
 import { VISUAL_FLOWS_MODULE } from "../../modules/visual_flows"
 import VisualFlowService from "../../modules/visual_flows/service"
+import { describeFetchError } from "../../utils/describe-fetch-error"
 import {
   operationRegistry,
   DataChain,
@@ -301,6 +302,10 @@ const executeOperationsStep = createStep(
 
       nodeIdToOperation.set(node.id, {
         id: node.id, // Use canvas node ID for graph traversal
+        // Real DB operation id (when this node maps to a stored operation) so
+        // execution logs can FK to it and the executions API can resolve the
+        // operation name — canvas node ids are not DB ids (#704).
+        db_operation_id: dbOp?.id,
         operation_key: opKey,
         operation_type: nodeData.operationType || dbOp?.operation_type || "unknown",
         name: nodeData.label || opKey,
@@ -534,9 +539,15 @@ async function executeSingleOperation(
   const rawOptions = operation.options || {}
   const resolvedOptionsForLog = interpolateVariables(rawOptions, dataChain)
 
-  // Log operation start - use null for operation_id since we're using canvas node IDs
+  // Real DB operation id for this node (when it maps to a stored operation), so
+  // logs FK to the operation and the executions API can resolve its name —
+  // previously left null because canvas node ids aren't DB ids (#704).
+  const dbOperationId: string | undefined = operation.db_operation_id
+
+  // Log operation start
   await service.addExecutionLog({
     execution_id: executionId,
+    operation_id: dbOperationId,
     operation_key: operation.operation_key,
     status: "running",
     input_data: resolvedOptionsForLog,
@@ -557,6 +568,7 @@ async function executeSingleOperation(
       // Log success
       await service.addExecutionLog({
         execution_id: executionId,
+        operation_id: dbOperationId,
         operation_key: operation.operation_key,
         status: "success",
         input_data: resolvedOptionsForLog,
@@ -569,6 +581,7 @@ async function executeSingleOperation(
       // Log failure
       await service.addExecutionLog({
         execution_id: executionId,
+        operation_id: dbOperationId,
         operation_key: operation.operation_key,
         status: "failure",
         input_data: resolvedOptionsForLog,
@@ -582,13 +595,20 @@ async function executeSingleOperation(
   } catch (error: any) {
     const duration = Date.now() - startTime
 
+    // Unwrap undici's opaque "fetch failed" into the real network cause
+    // (connect ETIMEDOUT / ECONNRESET / DNS) so the failure log says WHY —
+    // the WhatsApp notify_partner incident stored a bare "fetch failed" (#704).
+    // describeFetchError falls back to error.message for non-fetch errors.
+    const errorDetail = describeFetchError(error)
+
     // Log failure
     await service.addExecutionLog({
       execution_id: executionId,
+      operation_id: dbOperationId,
       operation_key: operation.operation_key,
       status: "failure",
       input_data: resolvedOptionsForLog,
-      error: error.message,
+      error: errorDetail,
       error_stack: error.stack,
       duration_ms: duration,
     })

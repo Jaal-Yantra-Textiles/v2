@@ -1,5 +1,6 @@
-import { MedusaError } from "@medusajs/utils"
+import { MedusaError, ContainerRegistrationKeys } from "@medusajs/utils"
 import type { MedusaContainer } from "@medusajs/framework/types"
+import { describeFetchError } from "../../utils/describe-fetch-error"
 import { SOCIALS_MODULE } from "../socials"
 import { ENCRYPTION_MODULE } from "../encryption"
 import type EncryptionService from "../encryption/service"
@@ -610,6 +611,22 @@ export default class WhatsAppService {
     return this.sendDocumentMessage(to, mediaUrl, caption, filename)
   }
 
+  // Best-effort diagnostic log for the media fetches below. They return `null`
+  // on failure by contract (inbound media handling degrades gracefully), so we
+  // don't throw — but a bare "fetch failed" was undiagnosable in prod (#704).
+  // Unwrap error.cause + host and log it so the reason is recoverable.
+  private logFetchFailure(err: unknown, url: string, label: string): void {
+    const detail = describeFetchError(err, { url, label })
+    try {
+      const logger: any = this.appContainer_?.resolve(
+        ContainerRegistrationKeys.LOGGER
+      )
+      logger?.warn(`[whatsapp] ${detail}`)
+    } catch {
+      // No container/logger available — swallow; behavior is unchanged.
+    }
+  }
+
   /**
    * Retrieve media URL from Meta's Graph API.
    * WhatsApp webhooks provide a mediaId — this fetches the actual download URL.
@@ -620,8 +637,9 @@ export default class WhatsAppService {
 
     if (!this.accessToken) return null
 
+    const url = `${GRAPH_API_BASE}/${mediaId}`
     try {
-      const resp = await fetch(`${GRAPH_API_BASE}/${mediaId}`, {
+      const resp = await fetch(url, {
         headers: { Authorization: `Bearer ${this.accessToken}` },
       })
 
@@ -630,7 +648,8 @@ export default class WhatsAppService {
       const data = await resp.json() as { url?: string; mime_type?: string; file_size?: number }
       if (!data?.url) return null
       return { url: data.url, mime_type: data.mime_type, file_size: data.file_size }
-    } catch {
+    } catch (e) {
+      this.logFetchFailure(e, url, "WhatsApp media URL")
       return null
     }
   }
@@ -651,7 +670,8 @@ export default class WhatsAppService {
       const contentType = resp.headers.get("content-type") || "application/octet-stream"
       const arrayBuffer = await resp.arrayBuffer()
       return { buffer: Buffer.from(arrayBuffer), contentType }
-    } catch {
+    } catch (e) {
+      this.logFetchFailure(e, mediaUrl, "WhatsApp media download")
       return null
     }
   }
@@ -690,14 +710,27 @@ export default class WhatsAppService {
     }
 
     const url = `${GRAPH_API_BASE}/${this.phoneNumberId}/messages`
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    })
+    // Network-level failures (connect timeout, ECONNRESET, DNS) throw BEFORE a
+    // response and would otherwise bubble up as undici's opaque "fetch failed"
+    // (#704). Unwrap error.cause into an actionable message so the failure log
+    // names the real reason — mirroring the status+body detail the `!resp.ok`
+    // branch already records.
+    let resp: Response
+    try {
+      resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+    } catch (e) {
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        describeFetchError(e, { url, label: "WhatsApp send" })
+      )
+    }
 
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}))

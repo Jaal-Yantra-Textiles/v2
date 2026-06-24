@@ -27,6 +27,7 @@ import {
 } from "../../../../../workflows/marketing/generate-newsletter-draft"
 import { buildNewsletterPrefill } from "../../newsletter-prefill-lib"
 import { buildNoOutputError } from "../newsletter-generate-error-lib"
+import { describeFetchError } from "../../../../../utils/describe-fetch-error"
 
 const NEWSLETTER_AI_ROLE = "ai_newsletter_drafter"
 const DEFAULT_MODEL = "anthropic/claude-3.5-sonnet"
@@ -95,7 +96,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       source = "env"
     }
   } catch (error: any) {
-    caughtError = error?.message || String(error)
+    // Unwrap undici's opaque "fetch failed" into the real network cause so the
+    // 503 names WHY the provider call failed, not just "fetch failed" (#704).
+    // Complements #702's buildNoOutputError (which still receives this string).
+    caughtError = describeFetchError(error)
     logger.error(`[newsletter/generate] AI error: ${caughtError}`)
   }
 
