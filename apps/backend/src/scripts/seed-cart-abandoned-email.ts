@@ -32,7 +32,7 @@ import { EMAIL_TEMPLATES_MODULE } from "../modules/email_templates"
 
 const TEMPLATE_KEY = "cart-abandoned"
 
-const TEMPLATE_DEFINITION = {
+export const TEMPLATE_DEFINITION = {
   name: "Abandoned Cart Reminder",
   template_key: TEMPLATE_KEY,
   from: "shop@jaalyantra.com",

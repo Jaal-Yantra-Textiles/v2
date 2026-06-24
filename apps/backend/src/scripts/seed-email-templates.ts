@@ -1,7 +1,7 @@
 import { EMAIL_TEMPLATES_MODULE } from "../modules/email_templates";
 import { MedusaError } from "@medusajs/framework/utils";
 
-const emailTemplatesData = [
+export const emailTemplatesData = [
   {
     name: "Order Confirmation",
     template_key: "order-placed",
