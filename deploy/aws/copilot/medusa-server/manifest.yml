@@ -53,6 +53,11 @@ network:
 variables:
   NODE_ENV: production
   MEDUSA_WORKER_MODE: server
+  # #707/#712 — base URL for partner-portal product links in WhatsApp confirmation
+  # messages. Read by buildPartnerProductUrl (src/workflows/whatsapp/partner-product-url.ts),
+  # which falls back to a hardcoded default if unset; this makes the prod value explicit.
+  # Non-secret, so it lives here (not under secrets:).
+  PARTNER_APP_URL: https://partner.jaalyantra.com
 
 # Secrets: rotating values come from Secrets Manager.
 # Non-rotating config (CORS, URLs, etc.) comes from SSM Parameter Store — listed
