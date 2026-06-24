@@ -58,6 +58,12 @@ variables:
   # which falls back to a hardcoded default if unset; this makes the prod value explicit.
   # Non-secret, so it lives here (not under secrets:).
   PARTNER_APP_URL: https://partner.jaalyantra.com
+  # #452 — scopes the public feedback artwork picker to a curated art album
+  # instead of the general media pool. Read by resolveArtworkSourceId
+  # (src/workflows/feedback/lib/artwork-feedback.ts); unset → general "everything
+  # in the media randomiser" pool. This album resolves to the 11 curated images
+  # on prod. Non-secret (just an album id), so it lives here (not under secrets:).
+  FEEDBACK_ARTWORK_ALBUM_ID: 01KS74M4JABCFKHB4WTF90KQYS
 
 # Secrets: rotating values come from Secrets Manager.
 # Non-rotating config (CORS, URLs, etc.) comes from SSM Parameter Store — listed
