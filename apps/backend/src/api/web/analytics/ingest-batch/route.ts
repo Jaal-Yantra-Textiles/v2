@@ -13,6 +13,7 @@
  * @module API/Web/Analytics
  */
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { z } from "@medusajs/framework/zod";
 import { ANALYTICS_MODULE } from "../../../../modules/analytics";
 import { trackAnalyticsEventWorkflow } from "../../../../workflows/analytics/track-analytics-event";
@@ -67,6 +68,7 @@ const IngestBatchSchema = z.object({
  *     description: Invalid batch payload
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER);
   const secret = process.env.ANALYTICS_INGEST_SECRET;
 
   const sharedSecretHeader =
@@ -129,7 +131,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       // Non-fatal: if the dedup lookup fails, fall back to inserting all
       // (within-batch dedup already applied). Better to risk a rare duplicate
       // than to drop real events.
-      console.error("ingest-batch dedup lookup failed:", e);
+      logger.error("ingest-batch dedup lookup failed:", e as Error);
     }
   }
 
@@ -172,7 +174,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       accepted++;
     } catch (err) {
       failed++;
-      console.error("ingest-batch event failed:", err);
+      logger.error("ingest-batch event failed:", err as Error);
     }
   }
 

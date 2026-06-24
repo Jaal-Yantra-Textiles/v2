@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import {
   completeCartWorkflow,
   refreshPaymentCollectionForCartWorkflow,
@@ -13,6 +13,7 @@ import {
  * Failure: refreshes payment collection so customer can retry with fresh txnid.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const {
     cart_id,
     payu_status,
@@ -28,7 +29,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   // If PayU reported failure, just refresh the payment collection and return
   if (payu_status && payu_status !== "success") {
-    console.log(`[PayU Complete] Payment failed (${payu_status}), refreshing collection for cart ${cart_id}`)
+    logger.info(`[PayU Complete] Payment failed (${payu_status}), refreshing collection for cart ${cart_id}`)
     await refreshPaymentCollection(req, cart_id)
     return res.json({ type: "cart", error: "Payment failed" })
   }
@@ -77,7 +78,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       },
     })
   } catch (e: any) {
-    console.error("[PayU Complete] Failed to update session:", e.message)
+    logger.error(`[PayU Complete] Failed to update session: ${e.message}`)
     await refreshPaymentCollection(req, cart_id)
     return res.status(500).json({
       type: "cart",
@@ -107,7 +108,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       error: "Payment not authorized",
     })
   } catch (e: any) {
-    console.error("[PayU Complete] Cart completion failed:", e.message)
+    logger.error(`[PayU Complete] Cart completion failed: ${e.message}`)
     await refreshPaymentCollection(req, cart_id)
     return res.status(500).json({
       type: "cart",
@@ -122,12 +123,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
  * the collection so a new payment session (with a fresh txnid) can be created.
  */
 async function refreshPaymentCollection(req: MedusaRequest, cartId: string) {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
     await refreshPaymentCollectionForCartWorkflow(req.scope).run({
       input: { cart_id: cartId },
     })
-    console.log(`[PayU Complete] Payment collection refreshed for cart ${cartId}`)
+    logger.info(`[PayU Complete] Payment collection refreshed for cart ${cartId}`)
   } catch (e: any) {
-    console.error("[PayU Complete] Failed to refresh payment collection:", e.message)
+    logger.error(`[PayU Complete] Failed to refresh payment collection: ${e.message}`)
   }
 }

@@ -87,6 +87,7 @@
  * }
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { getAllInventoryWithRawMaterial, RawMaterialAllowedFields } from "../../../admin/inventory-items/[id]/rawmaterials/helpers";
 
 interface StoreRawMaterialsQuery {
@@ -106,6 +107,7 @@ export async function GET(
   req: MedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER);
   try {
     const query = req.query as StoreRawMaterialsQuery;
     const limit = Number(query.limit ?? 20);
@@ -170,7 +172,7 @@ export async function GET(
       limit,
     });
   } catch (error) {
-    console.error("[Store] Error fetching raw materials:", error);
+    logger.error("[Store] Error fetching raw materials:", error as Error);
     res.status(500).json({ 
       message: "Failed to fetch raw materials",
       error: error instanceof Error ? error.message : "Unknown error"

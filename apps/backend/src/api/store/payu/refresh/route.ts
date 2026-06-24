@@ -1,4 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { refreshPaymentCollectionForCartWorkflow } from "@medusajs/medusa/core-flows"
 
 /**
@@ -7,6 +8,7 @@ import { refreshPaymentCollectionForCartWorkflow } from "@medusajs/medusa/core-f
  * so a fresh session (new txnid) can be created on retry.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const { cart_id } = req.body as { cart_id?: string }
 
   if (!cart_id) {
@@ -20,7 +22,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
     return res.json({ message: "Payment collection refreshed" })
   } catch (e: any) {
-    console.error("[PayU Refresh] Failed:", e.message)
+    logger.error(`[PayU Refresh] Failed: ${e.message}`)
     return res.status(500).json({
       message: "Failed to refresh payment collection",
       error: e.message,

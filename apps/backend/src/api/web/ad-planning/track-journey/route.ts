@@ -4,6 +4,7 @@
  */
 
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { z } from "@medusajs/framework/zod";
 import { AD_PLANNING_MODULE } from "../../../../modules/ad-planning";
 
@@ -126,7 +127,8 @@ export const POST = async (
       journey_id: journey.id,
     });
   } catch (error) {
-    console.error("Journey tracking error:", error);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER);
+    logger.error("Journey tracking error:", error as Error);
     // Don't expose errors to client for security
     res.status(200).json({
       success: true,

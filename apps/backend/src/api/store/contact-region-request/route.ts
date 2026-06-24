@@ -2,7 +2,7 @@ import {
   MedusaStoreRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
-import { MedusaError, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import type { INotificationModuleService } from "@medusajs/types"
 import { getStoreFromPublishableKey } from "../helpers"
 import { sendRegionRequestAdminEmailWorkflow } from "../../../workflows/email/workflows/send-region-request-admin-email"
@@ -45,6 +45,7 @@ export const POST = async (
   req: MedusaStoreRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const body = (req.body ?? {}) as Record<string, any>
   const name = String(body.name ?? "").trim()
   const email = String(body.email ?? "").trim()
@@ -136,7 +137,7 @@ export const POST = async (
       process.env as Record<string, string | undefined>
     )
     if (!recipient) {
-      console.log(
+      logger.info(
         "[contact-region-request] No admin recipient configured (REGION_REQUEST_NOTIFY_EMAIL) — skipping email"
       )
     } else {
@@ -157,7 +158,7 @@ export const POST = async (
       })
 
       if (run?.errors?.length) {
-        console.warn(
+        logger.warn(
           `[contact-region-request] Admin email workflow reported errors: ${run.errors
             .map((e: any) => e?.error?.message || e?.message)
             .join("; ")}`
@@ -167,7 +168,7 @@ export const POST = async (
       }
     }
   } catch (err) {
-    console.warn(
+    logger.warn(
       `[contact-region-request] Admin email send failed (non-fatal): ${
         (err as Error)?.message
       }`

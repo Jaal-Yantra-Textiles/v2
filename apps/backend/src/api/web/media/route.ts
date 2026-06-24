@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
-import { MedusaError } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { listAllMediasWorkflow } from "../../../workflows/media/list-all-medias";
 import { listAlbumMediaWorkflow } from "../../../workflows/media/list-album-media";
 import { listMediaFileWorkflow } from "../../../workflows/media/list-media-file";
@@ -162,7 +162,8 @@ export const GET = async (
       total: publicMediaData.length,
     });
   } catch (error) {
-    console.error("Error fetching public media:", error);
+    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER);
+    logger.error("Error fetching public media:", error as Error);
     throw new MedusaError(
       MedusaError.Types.UNEXPECTED_STATE,
       "Failed to fetch public media"

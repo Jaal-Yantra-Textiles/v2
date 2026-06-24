@@ -1,11 +1,12 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import crypto from "crypto"
 import { SOCIAL_PROVIDER_MODULE } from "../../../../modules/social-provider"
 import type SocialProviderService from "../../../../modules/social-provider/service"
 import type WhatsAppService from "../../../../modules/social-provider/whatsapp-service"
 import { handleIncomingMessage, resolvePartnerByPhone } from "../../../../workflows/whatsapp/whatsapp-message-handler"
 import { resolveAdminByPhone, handleAdminMessage } from "../../../../workflows/whatsapp/whatsapp-admin-handler"
+import { logger } from "@medusajs/framework"
 import  { MESSAGING_MODULE } from "../../../../modules/messaging"
 
 /**
@@ -18,6 +19,7 @@ import  { MESSAGING_MODULE } from "../../../../modules/messaging"
  * WhatsApp platform's verify_token, or (fallback) the legacy env-var token.
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const mode = req.query["hub.mode"]
   const token = req.query["hub.verify_token"]
   const challenge = req.query["hub.challenge"]
@@ -31,7 +33,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   // Try each configured platform. First matching verify_token wins.
   const matched = await findPlatformMatchingVerifyToken(req.scope, socialProvider, token)
   if (matched) {
-    console.log("[whatsapp-webhook] Verified via platform:", matched)
+    logger.info(`[whatsapp-webhook] Verified via platform: ${matched}`)
     return res.status(200).send(challenge)
   }
 
@@ -39,11 +41,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const defaultWa = socialProvider.getWhatsApp(req.scope)
   const defaultToken = await defaultWa.getWebhookVerifyToken()
   if (defaultToken && token === defaultToken) {
-    console.log("[whatsapp-webhook] Verified via default platform")
+    logger.info("[whatsapp-webhook] Verified via default platform")
     return res.status(200).send(challenge)
   }
 
-  console.error("[whatsapp-webhook] Verification failed: no platform matched token")
+  logger.error("[whatsapp-webhook] Verification failed: no platform matched token")
   return res.status(403).send("Forbidden")
 }
 
@@ -85,11 +87,12 @@ async function findPlatformMatchingVerifyToken(
  * Validates X-Hub-Signature-256 HMAC-SHA256 header.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const socialProvider = req.scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
 
   const signature = req.headers["x-hub-signature-256"] as string | undefined
   if (!signature) {
-    console.error("[whatsapp-webhook] No signature provided")
+    logger.error("[whatsapp-webhook] No signature provided")
     return res.status(401).send("Unauthorized")
   }
 
@@ -100,7 +103,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const rawBody = (req as any).rawBody as Buffer | undefined
 
   if (!rawBody || !rawBody.length) {
-    console.error("[whatsapp-webhook] No raw body available for signature verification")
+    logger.error("[whatsapp-webhook] No raw body available for signature verification")
     return res.status(400).send("Empty body")
   }
 
@@ -109,7 +112,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   // app and therefore a single secret — the first attempt succeeds.
   const verified = await verifySignatureAgainstAllPlatforms(req.scope, socialProvider, signature, rawBody)
   if (!verified) {
-    console.error("[whatsapp-webhook] Invalid signature — no platform secret matched")
+    logger.error("[whatsapp-webhook] Invalid signature — no platform secret matched")
     return res.status(401).send("Unauthorized")
   }
 
@@ -120,7 +123,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   // Process asynchronously
   processWhatsAppWebhook(req.scope, body).catch((error) => {
-    console.error("[whatsapp-webhook] Processing failed:", error)
+    logger.error("[whatsapp-webhook] Processing failed:", error as Error)
   })
 }
 
@@ -178,8 +181,9 @@ async function processWhatsAppWebhook(
   scope: any,
   payload: WhatsAppWebhookPayload
 ): Promise<void> {
+  const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
   if (payload.object !== "whatsapp_business_account") {
-    console.log("[whatsapp-webhook] Ignoring non-WhatsApp object:", payload.object)
+    logger.info(`[whatsapp-webhook] Ignoring non-WhatsApp object: ${payload.object}`)
     return
   }
 
@@ -205,14 +209,12 @@ async function processWhatsAppWebhook(
             inboundPhoneNumberId
           )
           if (!boundWa) {
-            console.warn(
-              "[whatsapp-webhook] Inbound phone_number_id not configured as a SocialPlatform:",
-              inboundPhoneNumberId,
-              "— falling back to default sender"
+            logger.warn(
+              `[whatsapp-webhook] Inbound phone_number_id not configured as a SocialPlatform: ${inboundPhoneNumberId} — falling back to default sender`
             )
           }
         } catch (e: any) {
-          console.warn("[whatsapp-webhook] Platform resolution failed:", e.message)
+          logger.warn(`[whatsapp-webhook] Platform resolution failed: ${e.message}`)
         }
       }
       const wa = boundWa ?? socialProvider.getWhatsApp(scope)
@@ -250,7 +252,7 @@ async function processWhatsAppWebhook(
               }
             }
           } catch (e: any) {
-            console.warn("[whatsapp-webhook] Failed to update message status:", e.message)
+            logger.warn(`[whatsapp-webhook] Failed to update message status: ${e.message}`)
           }
         }
         continue
@@ -266,7 +268,7 @@ async function processWhatsAppWebhook(
             { take: 1 }
           )
           if (alreadyExists) {
-            console.log("[whatsapp-webhook] Skipping duplicate message:", msg.id)
+            logger.info(`[whatsapp-webhook] Skipping duplicate message: ${msg.id}`)
             continue
           }
         } catch { /* proceed if check fails */ }
@@ -278,17 +280,12 @@ async function processWhatsAppWebhook(
         // as type "button", the parser returned null, and the payload was
         // lost forever. Now: log first, parse second.
         try {
-          console.log(
-            "[whatsapp-webhook] Incoming message (raw):",
-            JSON.stringify(msg)
+          logger.info(
+            `[whatsapp-webhook] Incoming message (raw): ${JSON.stringify(msg)}`
           )
         } catch {
           // Extremely unlikely but don't let logging crash the handler
-          console.log("[whatsapp-webhook] Incoming message:", {
-            from: msg.from,
-            type: msg.type,
-            id: msg.id,
-          })
+          logger.info(`[whatsapp-webhook] Incoming message: from=${msg.from} type=${msg.type} id=${msg.id}`)
         }
 
         try {
@@ -298,9 +295,8 @@ async function processWhatsAppWebhook(
             // logged the raw body above, so this line is just an operator
             // signal that a new type showed up and needs a case added to
             // parseWebhookMessage() below.
-            console.warn(
-              "[whatsapp-webhook] Parser returned null — unhandled type. See raw log above. Add a case to parseWebhookMessage().",
-              { from: msg.from, type: msg.type, id: msg.id }
+            logger.warn(
+              `[whatsapp-webhook] Parser returned null — unhandled type. See raw log above. Add a case to parseWebhookMessage(). from=${msg.from} type=${msg.type} id=${msg.id}`
             )
             continue
           }
@@ -315,7 +311,7 @@ async function processWhatsAppWebhook(
                 if (media.mime_type) incomingMessage.mediaMimeType = media.mime_type
               }
             } catch (e: any) {
-              console.warn("[whatsapp-webhook] Failed to resolve media URL:", e.message)
+              logger.warn(`[whatsapp-webhook] Failed to resolve media URL: ${e.message}`)
             }
           }
 
@@ -350,19 +346,19 @@ async function processWhatsAppWebhook(
               },
             }])
           } catch (e: any) {
-            console.warn("[whatsapp-webhook] Failed to emit whatsapp.message_received:", e.message)
+            logger.warn(`[whatsapp-webhook] Failed to emit whatsapp.message_received: ${e.message}`)
           }
 
           if (admin) {
             const result = await handleAdminMessage(scope, incomingMessage, admin, wa)
-            console.log("[whatsapp-webhook] Admin handled:", result)
+            logger.info(`[whatsapp-webhook] Admin handled: ${JSON.stringify(result)}`)
           } else {
             // Fall back to partner handler
             const result = await handleIncomingMessage(scope, incomingMessage, wa)
-            console.log("[whatsapp-webhook] Partner handled:", result)
+            logger.info(`[whatsapp-webhook] Partner handled: ${JSON.stringify(result)}`)
           }
         } catch (error: any) {
-          console.error("[whatsapp-webhook] Failed to handle message:", error.message)
+          logger.error(`[whatsapp-webhook] Failed to handle message: ${error.message}`)
         }
       }
     }
@@ -463,9 +459,8 @@ function parseWebhookMessage(msg: any): ParsedWhatsAppMessage | null {
       // additions). The full raw body was logged upstream — this warning
       // just names the type so an operator can grep quickly and add the
       // case here.
-      console.warn(
-        "[whatsapp-webhook] Unsupported message type — add case to parseWebhookMessage:",
-        msg.type
+      logger.warn(
+        `[whatsapp-webhook] Unsupported message type — add case to parseWebhookMessage: ${msg.type}`
       )
       return null
   }

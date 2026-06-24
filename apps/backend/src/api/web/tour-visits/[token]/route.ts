@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
-import { MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { FORMS_MODULE } from "../../../../modules/forms"
 import FormsService from "../../../../modules/forms/service"
 import { sendNotificationEmailWorkflow } from "../../../../workflows/email"
@@ -288,7 +288,8 @@ export const PATCH = async (
       // Log only — confirmation UX shouldn't fail because email is misbehaving.
       // The customer already saw the in-app confirmation. Note: we do NOT
       // set confirmed_at here, so the next click will retry the email.
-      console.error("tour-itinerary-confirmation email failed", err)
+      const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+      logger.error("tour-itinerary-confirmation email failed", err as Error)
     }
   }
 

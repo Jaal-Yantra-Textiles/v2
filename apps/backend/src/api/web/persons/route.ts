@@ -1,4 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { listPublicPersonsWorkflow } from "../../../workflows/persons/list-public-persons";
 import { ListPublicPersonsQuery } from "./validators";
 
@@ -8,7 +9,8 @@ export const GET = async (req: MedusaRequest<ListPublicPersonsQuery>, res: Medus
   // Exclude pagination fields to get only filter parameters
   const { limit, offset, ...filters } = req.validatedQuery;
 
-  console.log(filters)
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER);
+  logger.debug(`list-public-persons filters: ${JSON.stringify(filters)}`)
 
   const { result: persons, errors } = await listPublicPersonsWorkflow(req.scope).run({
     input: {

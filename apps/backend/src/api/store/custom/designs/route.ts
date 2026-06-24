@@ -358,6 +358,7 @@ export async function POST(
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER);
   try {
     const body = req.body as StoreCreateDesignBody;
     const customerId = req.auth_context?.actor_id;
@@ -395,7 +396,7 @@ export async function POST(
     });
 
     if (designErrors?.length > 0) {
-      console.error("[Store] Error creating design:", designErrors);
+      logger.error("[Store] Error creating design:", designErrors);
       res.status(500).json({ 
         message: "Failed to create design",
         errors: designErrors 
@@ -424,12 +425,12 @@ export async function POST(
         });
 
         if (inventoryErrors?.length > 0) {
-          console.warn("[Store] Warning: Failed to link inventory:", inventoryErrors);
+          logger.warn("[Store] Warning: Failed to link inventory:", inventoryErrors);
         } else {
           linkedInventory = inventoryResult;
         }
       } catch (error) {
-        console.warn("[Store] Warning: Failed to link inventory:", error);
+        logger.warn("[Store] Warning: Failed to link inventory:", error as Error);
       }
     }
 
@@ -444,12 +445,12 @@ export async function POST(
         });
 
         if (partnerErrors?.length > 0) {
-          console.warn("[Store] Warning: Failed to link partner:", partnerErrors);
+          logger.warn("[Store] Warning: Failed to link partner:", partnerErrors);
         } else {
           linkedPartner = partnerResult;
         }
       } catch (error) {
-        console.warn("[Store] Warning: Failed to link partner:", error);
+        logger.warn("[Store] Warning: Failed to link partner:", error as Error);
       }
     }
 
@@ -473,7 +474,7 @@ export async function POST(
       linked_partner: linkedPartner,
     });
   } catch (error) {
-    console.error("[Store] Error in design creation:", error);
+    logger.error("[Store] Error in design creation:", error as Error);
     res.status(500).json({
       message: "Failed to create design",
       error: error instanceof Error ? error.message : "Unknown error",
@@ -496,6 +497,7 @@ export async function GET(
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER);
   try {
     const customerId = req.auth_context?.actor_id;
 
@@ -562,7 +564,7 @@ export async function GET(
       limit,
     });
   } catch (error) {
-    console.error("[Store] Error fetching designs:", error);
+    logger.error("[Store] Error fetching designs:", error as Error);
     res.status(500).json({
       message: "Failed to fetch designs",
       error: error instanceof Error ? error.message : "Unknown error",
