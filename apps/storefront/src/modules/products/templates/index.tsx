@@ -8,6 +8,8 @@ import ProductTabs from "@modules/products/components/product-tabs"
 import RelatedProducts from "@modules/products/components/related-products"
 import ProductInfo from "@modules/products/templates/product-info"
 import { DesignInfo } from "@modules/products/templates/design-info"
+import ProductionStory from "@modules/products/components/production-story"
+import ProductionStorySkeleton from "@modules/products/components/production-story/skeleton"
 import SkeletonRelatedProducts from "@modules/skeletons/templates/skeleton-related-products"
 import { notFound } from "next/navigation"
 import ProductActionsWrapper from "./product-actions-wrapper"
@@ -93,6 +95,11 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
           <ProductInfo product={product} />
           <div className="hidden small:block">
             <DesignInfo design={design} designScore={designScore} />
+            {design?.id && (
+              <Suspense fallback={<ProductionStorySkeleton />}>
+                <ProductionStory designId={design.id} />
+              </Suspense>
+            )}
           </div>
           <div className="hidden small:block">
             <ProductTabs product={product} />
@@ -103,6 +110,11 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
         </div>
         <div className="w-full py-8 small:hidden">
           <DesignInfo design={design} designScore={designScore} />
+          {design?.id && (
+            <Suspense fallback={<ProductionStorySkeleton />}>
+              <ProductionStory designId={design.id} />
+            </Suspense>
+          )}
           <div className="mt-8">
             <ProductTabs product={product} />
           </div>
