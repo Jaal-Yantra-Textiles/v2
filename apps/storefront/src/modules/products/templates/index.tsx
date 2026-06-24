@@ -8,8 +8,6 @@ import ProductTabs from "@modules/products/components/product-tabs"
 import RelatedProducts from "@modules/products/components/related-products"
 import ProductInfo from "@modules/products/templates/product-info"
 import { DesignInfo } from "@modules/products/templates/design-info"
-import ProductionStory from "@modules/products/components/production-story"
-import ProductionStorySkeleton from "@modules/products/components/production-story/skeleton"
 import SkeletonRelatedProducts from "@modules/skeletons/templates/skeleton-related-products"
 import { notFound } from "next/navigation"
 import ProductActionsWrapper from "./product-actions-wrapper"
@@ -19,6 +17,8 @@ import { Text } from "@medusajs/ui"
 import { StoreDesign } from "../../../types/product-design"
 import { buildProductJsonLd } from "./product-jsonld"
 import { buildBreadcrumbJsonLd } from "@lib/util/breadcrumb-jsonld"
+import { getProductionStory } from "@lib/data/designs"
+import { summarizeProductionJourney } from "@modules/products/components/production-story/lib"
 
 type ProductTemplateProps = {
   product: HttpTypes.StoreProduct & { designs?: StoreDesign[] } // Extend product type to include designs
@@ -46,18 +46,25 @@ const calculateDesignScore = (design: StoreDesign | undefined) => {
   return { score, maxScore: 4 }
 }
 
-const ProductTemplate: React.FC<ProductTemplateProps> = ({
+const ProductTemplate = async ({
   product,
   region,
   countryCode,
   images,
-}) => {
+}: ProductTemplateProps) => {
   if (!product || !product.id) {
     return notFound()
   }
 
   const design = product.designs?.[0]
   const designScore = calculateDesignScore(design)
+
+  // v2 production story (money-free). Powers the "Crafted by" tab + the clean
+  // Activity Timeline in DesignInfo. Empty/absent for v1-only designs, which
+  // then keep their task-based timeline.
+  const story = design?.id ? await getProductionStory(design.id) : null
+  const activityTimeline =
+    summarizeProductionJourney(story?.runs)?.steps ?? undefined
 
   const jsonLd = buildProductJsonLd(product, { countryCode })
 
@@ -94,29 +101,27 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
         <div className="flex flex-col small:sticky small:top-48 small:py-0 small:max-w-[300px] w-full py-8 gap-y-6">
           <ProductInfo product={product} />
           <div className="hidden small:block">
-            <DesignInfo design={design} designScore={designScore} />
-            {design?.id && (
-              <Suspense fallback={<ProductionStorySkeleton />}>
-                <ProductionStory designId={design.id} />
-              </Suspense>
-            )}
+            <DesignInfo
+              design={design}
+              designScore={designScore}
+              activityTimeline={activityTimeline}
+            />
           </div>
           <div className="hidden small:block">
-            <ProductTabs product={product} />
+            <ProductTabs product={product} story={story} />
           </div>
         </div>
         <div className="block w-full relative">
           <ImageGallery images={images} />
         </div>
         <div className="w-full py-8 small:hidden">
-          <DesignInfo design={design} designScore={designScore} />
-          {design?.id && (
-            <Suspense fallback={<ProductionStorySkeleton />}>
-              <ProductionStory designId={design.id} />
-            </Suspense>
-          )}
+          <DesignInfo
+            design={design}
+            designScore={designScore}
+            activityTimeline={activityTimeline}
+          />
           <div className="mt-8">
-            <ProductTabs product={product} />
+            <ProductTabs product={product} story={story} />
           </div>
         </div>
 

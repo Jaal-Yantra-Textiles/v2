@@ -3,6 +3,7 @@ import {
   StoreInventoryItem,
   StoreRawMaterial,
 } from "../../../../types/product-design"
+import { pickFirstMediaUrl } from "../../components/production-story/lib"
 
 type RawMaterialsTabProps = {
   inventory_items?: StoreInventoryItem[]
@@ -19,20 +20,43 @@ const RawMaterialsTab = ({ inventory_items }: RawMaterialsTabProps) => {
             <div key={item.id}>
               {item.raw_materials && (
                 <div key={item.raw_materials.id}>
-                  <Text className="text-large-semi mb-2">
-                    {item.raw_materials.name}
-                  </Text>
-                  <Text className="text-small-regular text-ui-fg-subtle mb-4">
-                    {item.raw_materials.description}
-                  </Text>
+                  <div className="mb-4 flex items-start gap-x-4">
+                    {(() => {
+                      const imageUrl = pickFirstMediaUrl(
+                        (item.raw_materials as { media?: unknown }).media
+                      )
+                      return imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- raw-material media urls are arbitrary external hosts; avoid next/image domain config.
+                        <img
+                          src={imageUrl}
+                          alt={item.raw_materials.name || "Material"}
+                          loading="lazy"
+                          className="h-20 w-20 shrink-0 rounded-md border border-ui-border-base object-cover bg-ui-bg-subtle"
+                        />
+                      ) : null
+                    })()}
+                    <div className="flex flex-col">
+                      <Text className="text-large-semi mb-1">
+                        {item.raw_materials.name}
+                      </Text>
+                      <Text className="text-small-regular text-ui-fg-subtle">
+                        {item.raw_materials.description}
+                      </Text>
+                    </div>
+                  </div>
                   <div className="text-small-regular py-8">
                     <div className="grid grid-cols-2 gap-x-8">
                       <div className="flex flex-col gap-y-4">
                         <div>
                           <span className="font-semibold">Material</span>
                           <p>
-                            {item.raw_materials.material_type.name} (
-                            {item.raw_materials.material_type.category})
+                            {item.raw_materials.material_type
+                              ? `${item.raw_materials.material_type.name}${
+                                  item.raw_materials.material_type.category
+                                    ? ` (${item.raw_materials.material_type.category})`
+                                    : ""
+                                }`
+                              : "-"}
                           </p>
                         </div>
                         <div>

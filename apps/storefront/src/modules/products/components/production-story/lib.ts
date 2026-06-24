@@ -120,6 +120,74 @@ export function formatNumber(value: number): string {
   return Number(value.toFixed(2)).toString()
 }
 
+export type JourneyStep = {
+  id: string
+  label: string
+  date: string | null
+  done: boolean
+}
+
+export type ProductionJourney = {
+  steps: JourneyStep[]
+  stepCount: number
+  endDate: string | null
+  completed: boolean
+}
+
+/**
+ * Consolidate a design's production runs into ONE clean activity timeline.
+ *
+ * Runs come back as a PARENT + one CHILD per partner assignment (same
+ * design_id). We don't surface that split or any run IDs — just the lifecycle
+ * activities, merged across runs, de-duped by label+date, sorted chronologically
+ * (ISO timestamps sort lexically).
+ */
+export function summarizeProductionJourney(
+  runs: ProductionStory["runs"] | null | undefined
+): ProductionJourney | null {
+  if (!runs || runs.length === 0) return null
+
+  const seen = new Set<string>()
+  const steps: JourneyStep[] = []
+  for (const run of runs) {
+    for (const a of run.activity ?? []) {
+      const label = (a.summary || humanizeStatus(a.activity_type)).trim()
+      if (!label) continue
+      const key = `${label.toLowerCase()}__${a.created_at ?? ""}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      steps.push({
+        id: a.id,
+        label,
+        date: a.created_at ?? null,
+        done: a.kind === "completed" || a.kind === "done",
+      })
+    }
+  }
+
+  steps.sort((x, y) => (x.date ?? "").localeCompare(y.date ?? ""))
+
+  const endDate =
+    pickLatestDate(runs.map((r) => r.completed_at)) ??
+    pickLatestDate(runs.map((r) => r.finished_at)) ??
+    pickLatestDate(runs.map((r) => r.created_at))
+
+  return {
+    steps,
+    stepCount: steps.length,
+    endDate,
+    completed: runs.some((r) => r.status === "completed"),
+  }
+}
+
+/** Latest of a set of ISO date strings (lexical sort), or null. */
+export function pickLatestDate(
+  values: (string | null | undefined)[]
+): string | null {
+  const valid = values.filter((v): v is string => !!v).sort()
+  return valid.length ? valid[valid.length - 1] : null
+}
+
 /** Short date like "Mar 5, 2026", or null when unparseable. */
 export function formatStoryDate(value: string | null | undefined): string | null {
   if (!value) return null
