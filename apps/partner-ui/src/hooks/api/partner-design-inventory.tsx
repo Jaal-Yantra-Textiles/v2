@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-query"
 
 import { sdk } from "../../lib/client"
+import { firstMediaUrl } from "../../lib/first-media-url"
 import { queryClient } from "../../lib/query-client"
 import { partnerDesignsQueryKeys } from "./partner-designs"
 
@@ -96,16 +97,6 @@ export type PartnerRawMaterialRow = {
   media_url?: string | null
 }
 
-const firstMediaUrl = (media: any): string | null => {
-  if (!media) return null
-  const arr = Array.isArray(media) ? media : [media]
-  for (const m of arr) {
-    if (typeof m === "string") return m
-    if (m && typeof m.url === "string") return m.url
-  }
-  return null
-}
-
 const normalizeRawMaterialRow = (row: any): PartnerRawMaterialRow => {
   const inv = row?.inventory_item || {}
   const rm = Array.isArray(row?.raw_materials)
@@ -119,7 +110,8 @@ const normalizeRawMaterialRow = (row: any): PartnerRawMaterialRow => {
     composition: rm?.composition ?? null,
     color: rm?.color ?? null,
     unit_of_measure: rm?.unit_of_measure ?? null,
-    media_url: firstMediaUrl(rm?.media) ?? firstMediaUrl(inv?.metadata?.media),
+    media_url:
+      firstMediaUrl(rm?.media) ?? firstMediaUrl(inv?.metadata?.media) ?? null,
   }
 }
 

@@ -11,6 +11,7 @@ import {
 import { Link } from "react-router-dom"
 
 import { Skeleton } from "../../../../components/common/skeleton"
+import { mediaUrls } from "../../../../lib/first-media-url"
 
 import { ActionMenu } from "../../../../components/common/action-menu"
 import { PartnerDesign } from "../../../../hooks/api/partner-designs"
@@ -32,23 +33,20 @@ function toArray<T = any>(val: any): T[] {
   return Array.isArray(val) ? val : [val]
 }
 
-/** Pull image URLs out of a raw_material.media / inventory media json blob. */
+/**
+ * Pull image URLs out of a raw_material.media / inventory media json blob.
+ * Delegates to the shared `mediaUrls` helper so every supported shape
+ * (`{ files: [...] }`, raw arrays, single object/string) is unwrapped — the
+ * canonical prod shape `{ files: ["…"] }` previously returned nothing here.
+ */
 function extractMedia(line: PartnerDesignInventoryItem): string[] {
   const urls: string[] = []
-  const push = (m: any) => {
-    if (!m) return
-    if (typeof m === "string") urls.push(m)
-    else if (typeof m?.url === "string") urls.push(m.url)
-  }
   for (const rm of toArray(line.inventory_item?.raw_materials)) {
-    const media = (rm as any)?.media
-    if (Array.isArray(media)) media.forEach(push)
-    else push(media)
+    urls.push(...mediaUrls((rm as any)?.media))
   }
   // Fall back to the inventory item's own media if the raw material has none.
   if (!urls.length) {
-    const im = (line.inventory_item as any)?.metadata?.media
-    if (Array.isArray(im)) im.forEach(push)
+    urls.push(...mediaUrls((line.inventory_item as any)?.metadata?.media))
   }
   return urls.slice(0, 4)
 }
