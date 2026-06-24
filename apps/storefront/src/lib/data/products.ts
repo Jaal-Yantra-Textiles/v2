@@ -63,14 +63,15 @@ export const listProducts = async ({
           offset,
           region_id: region?.id,
           // #729: keep designs/partners/tasks/raw-materials (v1 task-list
-          // render still depends on tasks) and ADD the v2 story bits — people
-          // (designs.persons.*) and energy/consumption
-          // (designs.consumption_logs.*). Production runs link by design_id
-          // (not a relation) so they come from the dedicated
-          // /store/custom/designs/:id/production-story route — see
-          // getProductionStory() in lib/data/designs.ts.
+          // render still depends on tasks). The v2 story bits — people,
+          // energy/consumption AND production runs — all come from the dedicated
+          // /store/custom/designs/:id/production-story route (see
+          // getProductionStory() in lib/data/designs.ts), NOT this product
+          // fetch: `persons`/`consumption_logs` are module links, not ORM
+          // relations on Design, so populating them here throws
+          // "Entity 'Design' does not have property 'persons'".
           fields:
-            "*variants.calculated_price,+variants.inventory_quantity,*variants.images,+metadata,+tags,+designs.*, +designs.partners.*, +designs.persons.*, +designs.tasks.*, +designs.consumption_logs.*, +designs.inventory_items.raw_materials.*, +designs.inventory_items.raw_materials.material_type.*",
+            "*variants.calculated_price,+variants.inventory_quantity,*variants.images,+metadata,+tags,+designs.*, +designs.partners.*, +designs.tasks.*, +designs.inventory_items.raw_materials.*, +designs.inventory_items.raw_materials.material_type.*",
           ...queryParams,
         },
         headers,

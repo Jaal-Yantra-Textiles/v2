@@ -5,6 +5,8 @@ import Link from "next/link"
 import { CheckCircleSolid, Clock } from "@medusajs/icons"
 
 import { StoreDesign } from "../../../../types/product-design"
+import type { JourneyStep } from "../../components/production-story/lib"
+import { formatStoryDate } from "../../components/production-story/lib"
 
 type DesignInfoProps = {
   design?: StoreDesign
@@ -12,9 +14,19 @@ type DesignInfoProps = {
     score: number
     maxScore: number
   }
+  /**
+   * v2 production-run lifecycle (clean: sent→accepted→started→finished→
+   * completed). When present it replaces the v1 design.tasks Activity Timeline;
+   * v1-only designs (no production runs) keep the task-based timeline.
+   */
+  activityTimeline?: JourneyStep[]
 }
 
-export const DesignInfo = ({ design, designScore }: DesignInfoProps) => {
+export const DesignInfo = ({
+  design,
+  designScore,
+  activityTimeline,
+}: DesignInfoProps) => {
   if (!design) {
     return null
   }
@@ -279,7 +291,35 @@ export const DesignInfo = ({ design, designScore }: DesignInfoProps) => {
           </Text>
           <InfoPopover ariaLabel="Activity timeline info" tooltip={timelineTooltip} />
         </div>
-        {design.tasks && design.tasks.length > 0 ? (
+        {activityTimeline && activityTimeline.length > 0 ? (
+          // v2: clean production-run lifecycle on a single connecting thread.
+          <ol className="flex flex-col">
+            {activityTimeline.map((step, i) => {
+              const last = i === activityTimeline.length - 1
+              const date = formatStoryDate(step.date)
+              return (
+                <li key={step.id} className="flex gap-x-3">
+                  <div className="flex flex-col items-center">
+                    <span
+                      className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ring-4 ring-ui-bg-base ${
+                        step.done ? "bg-ui-fg-interactive" : "bg-ui-border-strong"
+                      }`}
+                    />
+                    {!last && <span className="w-px grow bg-ui-border-base" />}
+                  </div>
+                  <div className={`flex flex-col ${last ? "" : "pb-5"}`}>
+                    <Text className="text-small-semi text-ui-fg-base">
+                      {step.label}
+                    </Text>
+                    {date && (
+                      <Text className="text-small text-ui-fg-muted">{date}</Text>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+        ) : design.tasks && design.tasks.length > 0 ? (
           <ol className="space-y-3">
             {design.tasks.map((task) => (
               <li key={task.id} className="flex items-start gap-x-3">
