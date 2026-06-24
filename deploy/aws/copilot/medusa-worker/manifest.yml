@@ -25,6 +25,11 @@ variables:
   NODE_ENV: production
   MEDUSA_WORKER_MODE: worker
   DISABLE_MEDUSA_ADMIN: "true"
+  # #707/#712 — base URL for partner-portal product links in WhatsApp confirmation
+  # messages. The worker runs the subscribers (visual-flow-event-trigger →
+  # createDraftProductFromExtractionWorkflow) that build these links via
+  # buildPartnerProductUrl, so it needs the same explicit value as the server.
+  PARTNER_APP_URL: https://partner.jaalyantra.com
 
 # Worker needs DB + Redis + R2 (for export/report jobs that write files).
 # Does NOT need JWT/COOKIE/CORS (no HTTP surface).
