@@ -7,7 +7,7 @@
  * Idempotent: if the cart is already completed (duplicate webhook), it returns
  * the existing order id instead of throwing.
  */
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import {
   completeCartWorkflow,
   createPaymentCollectionForCartWorkflow,
@@ -33,6 +33,7 @@ export async function completeCartFromExternalPayment(
     fields: [
       "id",
       "completed_at",
+      "metadata",
       "payment_collection.id",
       "payment_collection.payment_sessions.id",
       "payment_collection.payment_sessions.provider_id",
@@ -45,13 +46,14 @@ export async function completeCartFromExternalPayment(
   }
 
   // Idempotency: already turned into an order by an earlier (duplicate) event.
+  // The order id is read from the cart metadata marker stamped at completion
+  // (below) — Medusa's order↔cart relation is a link, not a queryable
+  // `order.cart_id` column, so we can't filter orders by cart id directly.
   if (cart.completed_at) {
-    const { data: orders } = await query.graph({
-      entity: "order",
-      fields: ["id"],
-      filters: { cart_id: cartId } as any,
-    })
-    return { order_id: orders?.[0]?.id ?? null, already_completed: true }
+    return {
+      order_id: (cart.metadata as any)?.payu_order_id ?? null,
+      already_completed: true,
+    }
   }
 
   // Ensure a payment collection.
@@ -77,6 +79,23 @@ export async function completeCartFromExternalPayment(
 
   // Standard completion → order.
   const { result } = await completeCartWorkflow(scope).run({ input: { id: cartId } })
-  logger.info(`[PayU Link] cart ${cartId} completed → order ${(result as any)?.id}`)
-  return { order_id: (result as any)?.id ?? null, already_completed: false }
+  const orderId = (result as any)?.id ?? null
+  logger.info(`[PayU Link] cart ${cartId} completed → order ${orderId}`)
+
+  // Stamp the order id on the cart so a replayed webhook can return it
+  // idempotently (see the completed_at branch above). Best-effort.
+  if (orderId) {
+    try {
+      const cartService: any = scope.resolve(Modules.CART)
+      await cartService.updateCarts(cartId, {
+        metadata: { ...(cart.metadata || {}), payu_order_id: orderId },
+      })
+    } catch (e: any) {
+      logger.warn(
+        `[PayU Link] failed to stamp payu_order_id on cart ${cartId}: ${e?.message}`
+      )
+    }
+  }
+
+  return { order_id: orderId, already_completed: false }
 }
