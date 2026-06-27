@@ -81,13 +81,6 @@
       "utf-8-validate"
     ],
     "patchedDependencies": {},
-    "packageExtensions": {
-      "@medusajs/test-utils": {
-        "dependencies": {
-          "pg-god": "^1.0.12"
-        }
-      }
-    },
     "peerDependencyRules": {
       "allowedVersions": {
         "react": "18.3.1 || 19.0.4",
