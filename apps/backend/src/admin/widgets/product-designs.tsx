@@ -7,7 +7,7 @@ import { PencilSquare, Plus, Trash } from "@medusajs/icons"
 import { useProduct, useUnlinkProductDesign } from "../hooks/api/products"
 import { useDesignInventory } from "../hooks/api/designs"
 import { AdminProductionRun, useProductionRuns } from "../hooks/api/production-runs"
-import { summarizeProductionRunTotals } from "./production-run-totals"
+import { summarizeProductionRunTotals } from "../lib/production-run-totals"
 
 const designStatusColor = (status: string): "green" | "blue" | "orange" | "grey" | "red" | "purple" => {
   switch (status) {

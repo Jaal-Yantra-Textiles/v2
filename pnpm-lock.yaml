@@ -20,8 +20,6 @@ overrides:
   zod: ^4.2.0
   '@types/node': ^20.12.11
 
-packageExtensionsChecksum: sha256-pVMSz6CRaB3KjVXjNR3tt/4MxWevrz8ehUoQXPNMwi0=
-
 importers:
 
   .:
@@ -24049,14 +24047,12 @@ snapshots:
       axios: 1.13.5
       express: 4.22.1
       get-port: 5.1.1
-      pg-god: 1.0.12
       ulid: 2.4.0
     optionalDependencies:
       '@medusajs/core-flows': 2.17.1(@medusajs/framework@2.17.1(@medusajs/cli@2.17.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))
       '@medusajs/medusa': 2.17.1(c19b2390f357d222923509d2d95872fa)
     transitivePeerDependencies:
       - debug
-      - pg-native
       - supports-color
 
   '@medusajs/translation@2.17.1(@medusajs/framework@2.17.1(@medusajs/cli@2.17.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))':
