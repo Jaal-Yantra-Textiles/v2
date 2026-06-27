@@ -33,6 +33,11 @@ import {
   resolveStorefrontChatModel,
 } from "../../../../mastra/agents/storefront-chat"
 import { createSearchProductsTool } from "../../../../mastra/agents/tools/storefront-search-products"
+import {
+  createGetCategoriesTool,
+  createGetCategoryProductsTool,
+  createGetProductDetailsTool,
+} from "../../../../mastra/agents/tools/storefront-catalog-tools"
 import type { StoreAiChatReq } from "./validators"
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -51,6 +56,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const system = buildStorefrontChatSystem(body.prefs)
   const tools = {
     search_products: createSearchProductsTool(req.scope as any),
+    get_categories: createGetCategoriesTool(req.scope as any),
+    get_category_products: createGetCategoryProductsTool(req.scope as any),
+    get_product_details: createGetProductDetailsTool(req.scope as any),
   }
 
   // Normalise the inbound UI messages.
@@ -99,10 +107,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       system,
       messages: convertToModelMessages(messages as any),
       tools,
-      // Allow at most one round-trip of tool-call → tool-result →
-      // model reply per turn. Higher counts let the model spin on
-      // tool calls; one is enough for "search and summarise".
-      stopWhen: stepCountIs(3),
+      // Allow a couple of tool round-trips per turn (e.g. get_categories
+      // then get_category_products, or search then get_product_details)
+      // while still capping runaway tool loops.
+      stopWhen: stepCountIs(5),
       temperature: 0.6,
       onError: (err) => {
         logger.warn(
