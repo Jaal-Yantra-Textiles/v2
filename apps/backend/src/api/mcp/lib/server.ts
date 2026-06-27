@@ -167,7 +167,9 @@ export function buildStoreMcpServer(ctx: StoreMcpContext): Server {
         publishableKey,
         bearer: ctx.bearer,
       })
-      return textResult(JSON.stringify(data, null, 2))
+      // Optional provider-specific normalization (e.g. payment next_action).
+      const out = def.transform ? def.transform(data, args) : data
+      return textResult(JSON.stringify(out, null, 2))
     } catch (e) {
       const err = e as ProxyError
       return textResult(

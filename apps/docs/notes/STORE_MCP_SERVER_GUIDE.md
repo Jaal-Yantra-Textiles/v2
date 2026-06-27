@@ -187,10 +187,77 @@ create_cart ──▶ add_line_item* ──▶ update_cart (email + shipping/bil
 | `create_payment_collection` | POST | `/store/payment-collections` |
 | `initialize_payment_session` | POST | `/store/payment-collections/:id/payment-sessions` |
 | `complete_cart` | POST | `/store/carts/:id/complete` |
+| `payu_complete_payment` | POST | `/store/payu/complete` (INR) |
+| `payu_refresh_payment` | POST | `/store/payu/refresh` (INR) |
 
 `complete_cart` returns `{ type: "order", order }` on success or
 `{ type: "cart", cart, error }` if completion failed (e.g. payment not
 authorized) — surface both to the agent.
+
+### Resolving the actual payment step (`next_action`)
+
+`initialize_payment_session` doesn't just create the session — it normalizes the
+provider's payload into a concrete `next_action` so the agent knows what to do
+next, regardless of gateway:
+
+```jsonc
+// returns { next_action, payment_collection }
+// PayU (pp_payu_*):
+{ "next_action": { "type": "redirect_form", "provider": "payu",
+    "url": "https://secure.payu.in/_payment", "method": "POST",
+    "fields": { "key": "…", "txnid": "…", "amount": "…", "hash": "…", … } } }
+// Stripe (pp_stripe_*):
+{ "next_action": { "type": "client_secret", "provider": "stripe",
+    "client_secret": "pi_…_secret_…" } }
+// manual / pp_system_default:
+{ "next_action": { "type": "session_ready" } }   // just complete_cart
+```
+
+So **PayU resolves to a hosted payment link + signed form fields**, **Stripe hands
+over the `client_secret`** for client-side card collection, and manual providers
+are immediately completable. The normalization is a pure function
+(`paymentNextAction` in `registry.ts`, unit-tested) applied via the tool def's
+`transform` hook — the generic way a proxy tool reshapes its response.
+
+### PayU (INR) — the redirect-gateway exception
+
+PayU (provider `pp_payu_payu`, used for INR) is a **redirect + hash gateway**, not
+a server-side charge API. That changes the tail of the flow:
+
+```
+… create_payment_collection
+→ initialize_payment_session({ provider_id: "pp_payu_payu" })
+     ⇒ session.data = { payment_url, key, txnid, hash, amount, firstname, email, … }
+→ [BROWSER] POST those fields to payment_url (PayU hosted page); shopper pays
+     (card / UPI / netbanking); PayU redirects back with a signed callback
+→ payu_complete_payment({ cart_id, payu_status, mihpayid, txnid, hash, amount })
+     ⇒ { type: "order", order_id }   (or { type: "cart", error } + auto-refresh)
+```
+
+- **`initialize_payment_session`** already surfaces everything the redirect needs
+  (`payment_url`, `key`, `txnid`, `hash`) in `session.data`, because it proxies
+  the native payment-sessions route.
+- **`payu_complete_payment`** wraps `POST /store/payu/complete`: it writes the
+  callback fields onto the session and runs `completeCartWorkflow`. Use it
+  **instead of `complete_cart`** for PayU.
+- **`payu_refresh_payment`** wraps `POST /store/payu/refresh`: resets the payment
+  collection (deletes stale sessions) so a retry gets a fresh `txnid`/`hash`.
+
+**What the MCP cannot do for PayU (by design, not a gap):**
+- The hosted-page payment step itself is a **browser redirect** with a
+  hash-signed form POST to `test.payu.in` / `secure.payu.in`. An agent can
+  *initiate* and *complete*, but the actual card/UPI entry happens in a browser —
+  there is no server-side "charge" call to wrap.
+- Provider-internal lifecycle methods (`authorizePayment`, `capturePayment`,
+  `refundPayment`, `verifyPayment` in `payu-payment/service.ts`) are invoked **by
+  Medusa's workflows**, not exposed as `/store/*` routes — so they're out of
+  scope for the Store MCP. Refunds are an **admin** concern, not a store one.
+- Credentials resolve **per partner** (sales channel → store → partner →
+  `partner_payment_config`, falling back to global). The agent never handles
+  `merchant_key`/`merchant_salt`; scoping the call to the right `store` is enough.
+
+So: the two PayU **store** routes map cleanly onto MCP tools; the gateway redirect
+and the admin/provider-internal operations intentionally do not.
 
 ---
 

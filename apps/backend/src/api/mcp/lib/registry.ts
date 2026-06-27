@@ -49,6 +49,81 @@ export type McpToolDef = {
    * STORE_MCP_ENABLE_WRITE is set. Read tools omit this.
    */
   write?: boolean
+  /**
+   * Optional post-processor applied to a successful proxy response before it is
+   * returned to the agent. Used to normalize provider-specific payloads into an
+   * actionable shape (e.g. the payment `next_action`). Must be pure.
+   */
+  transform?: (data: any, args: Record<string, unknown>) => any
+}
+
+/**
+ * Normalize an initialized payment session into the concrete next step the
+ * client must take, per provider:
+ *  - PayU (INR): a redirect form — POST the signed fields to PayU's hosted page
+ *    (this resolves the "payment link"); finish with payu_complete_payment.
+ *  - Stripe: the client_secret to collect/confirm the card client-side, then
+ *    complete_cart.
+ *  - anything else (manual / system): the session is ready; complete_cart once
+ *    authorized.
+ */
+export const paymentNextAction = (session: any): Record<string, any> => {
+  const providerId: string = session?.provider_id || ""
+  const d: Record<string, any> = session?.data || {}
+
+  if (providerId.includes("payu")) {
+    return {
+      type: "redirect_form",
+      provider: "payu",
+      provider_id: providerId,
+      description:
+        "POST these fields as application/x-www-form-urlencoded to `url` to open PayU's hosted checkout (card/UPI/netbanking). Add your own surl/furl (success/failure return URLs). PayU redirects back signed; finish the order with payu_complete_payment.",
+      method: "POST",
+      url: d.payment_url ?? null,
+      fields: {
+        key: d.key ?? null,
+        txnid: d.txnid ?? null,
+        amount: d.amount ?? null,
+        productinfo: d.productinfo ?? null,
+        firstname: d.firstname ?? null,
+        email: d.email ?? null,
+        phone: d.phone ?? null,
+        udf1: d.udf1 ?? null,
+        hash: d.hash ?? null,
+      },
+      txnid: d.txnid ?? null,
+    }
+  }
+
+  if (providerId.includes("stripe")) {
+    return {
+      type: "client_secret",
+      provider: "stripe",
+      provider_id: providerId,
+      description:
+        "Hand this client_secret to Stripe.js / PaymentSheet on the client to collect and confirm the card, then call complete_cart.",
+      client_secret: d.client_secret ?? null,
+    }
+  }
+
+  return {
+    type: "session_ready",
+    provider_id: providerId || null,
+    description:
+      "Payment session initialized. Once the payment is authorized, call complete_cart.",
+  }
+}
+
+/** Find the just-initialized session (by provider_id) on a payment collection. */
+export const pickSession = (data: any, providerId: unknown): any => {
+  const sessions = data?.payment_collection?.payment_sessions || []
+  const pid = typeof providerId === "string" ? providerId : ""
+  return (
+    sessions.find((s: any) => s?.provider_id === pid) ||
+    sessions.find((s: any) => pid && String(s?.provider_id || "").includes(pid)) ||
+    sessions[sessions.length - 1] ||
+    null
+  )
 }
 
 const PAGINATION_PROPS = {
@@ -431,12 +506,16 @@ const CHECKOUT_WRITE_TOOLS: McpToolDef[] = [
   {
     name: "initialize_payment_session",
     description:
-      "Initialize a payment session on a payment collection for the chosen provider (e.g. 'pp_system_default' or a Stripe provider). Returns the payment collection with the session.",
+      "Initialize a payment session for the chosen provider ('pp_system_default', a Stripe provider, or 'pp_payu_payu' for INR) and resolve the concrete next step. Returns { next_action, payment_collection }: for PayU, next_action is a redirect_form with the hosted payment link (url) + signed fields; for Stripe, a client_secret to collect the card client-side; otherwise session_ready (call complete_cart). For PayU, finish with payu_complete_payment after the redirect.",
     write: true,
     method: "POST",
     path: "/store/payment-collections/:id/payment-sessions",
     pathParams: ["id"],
     bodyParams: ["provider_id", "data"],
+    transform: (data, args) => ({
+      next_action: paymentNextAction(pickSession(data, args.provider_id)),
+      payment_collection: data?.payment_collection ?? data,
+    }),
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -452,7 +531,7 @@ const CHECKOUT_WRITE_TOOLS: McpToolDef[] = [
   {
     name: "complete_cart",
     description:
-      "Complete a cart and place the order. Run this last, after a payment session is initialized. Returns { type: 'order', order } on success or { type: 'cart', cart, error } if completion failed.",
+      "Complete a cart and place the order. Run this last, after a payment session is initialized. Returns { type: 'order', order } on success or { type: 'cart', cart, error } if completion failed. NOTE: for PayU/INR (provider pp_payu_payu) use payu_complete_payment instead — PayU needs its redirect-callback data before the cart can complete.",
     write: true,
     method: "POST",
     path: "/store/carts/:id/complete",
@@ -465,6 +544,53 @@ const CHECKOUT_WRITE_TOOLS: McpToolDef[] = [
       properties: {
         id: { type: "string", description: "Cart id (cart_...)." },
         idempotency_key: { type: "string", description: "Optional key to make completion idempotent on retry." },
+        ...STORE_PROP,
+      },
+    },
+  },
+  // --- PayU (INR) — redirect-gateway completion -------------------------
+  // PayU is a redirect/hash gateway: initialize_payment_session(provider_id
+  // "pp_payu_payu") returns session data with { payment_url, key, txnid, hash,
+  // amount, ... } that a BROWSER posts to PayU's hosted page. The shopper pays
+  // there (card/UPI/netbanking) and PayU redirects back with a signed callback.
+  // These two tools finish that flow once the callback fields are known.
+  {
+    name: "payu_complete_payment",
+    description:
+      "Finish a PayU (INR) checkout after the shopper returns from PayU's hosted page. Updates the PayU payment session with the redirect-callback fields and completes the cart. Returns { type: 'order', order_id } on success, or { type: 'cart', error } (collection auto-refreshed for retry) on failure. Use INSTEAD of complete_cart for pp_payu_payu sessions.",
+    write: true,
+    method: "POST",
+    path: "/store/payu/complete",
+    bodyParams: ["cart_id", "payu_status", "mihpayid", "txnid", "hash", "amount"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["cart_id"],
+      properties: {
+        cart_id: { type: "string", description: "Cart id (cart_...) being completed." },
+        payu_status: { type: "string", description: "PayU's status from the callback ('success' or a failure value). Non-success just refreshes the collection for retry." },
+        mihpayid: { type: "string", description: "PayU's gateway payment id from the callback." },
+        txnid: { type: "string", description: "The merchant transaction id used to initiate (from the session data)." },
+        hash: { type: "string", description: "PayU's response hash for verification." },
+        amount: { type: "string", description: "Amount reported by PayU in the callback." },
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
+    name: "payu_refresh_payment",
+    description:
+      "Reset a cart's PayU payment collection — deletes stale payment sessions so a fresh PayU session (new txnid + hash) can be initialized for a retry. Use after a failed/abandoned PayU attempt before initializing a new session.",
+    write: true,
+    method: "POST",
+    path: "/store/payu/refresh",
+    bodyParams: ["cart_id"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["cart_id"],
+      properties: {
+        cart_id: { type: "string", description: "Cart id (cart_...) to refresh." },
         ...STORE_PROP,
       },
     },
