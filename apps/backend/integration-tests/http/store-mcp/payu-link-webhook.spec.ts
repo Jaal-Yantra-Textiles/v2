@@ -1,64 +1,26 @@
 /**
  * PayU payment-link webhook → order completion (offline, no live gateway).
  *
- * Exercises the HTTP behaviour of `POST /webhooks/payu/link` that the pure
- * helpers (verifyWebhookHash / isLinkPaid — unit-tested in
- * src/api/store/payu/payment-link/__tests__) cannot cover:
- *   - a tampered/invalid reverse-SHA512 hash is rejected (401),
- *   - a verified-but-not-success event is acked without completing (200),
- *   - a verified success event with udf1=<cart> completes the cart into an
- *     order via the manual provider, and a replayed event is idempotent.
+ * The webhook authenticates via server-side re-verification (verify_payment /
+ * OneAPI /txns), NOT the inbound hash — PayU signs link webhooks with the
+ * unreproducible Salt-v2/RSA scheme (see verify-payment.ts). So:
+ *   - HTTP layer: a non-success event is acked without completing; a success
+ *     event that can't be re-verified (no creds) is acked as not-completed
+ *     (never an order).
+ *   - Orchestrator layer (processPayuLinkWebhook with an injected verifier):
+ *     a PayU-confirmed payment completes the cart into an order and is
+ *     idempotent on replay; a PayU-denied payment never completes.
  *
- * The OneAPI re-verification branch is intentionally skipped here: the seeded
- * cart carries no `payu_invoice_number`, so the route proceeds "on hash only"
- * (its documented fallback) without reaching out to PayU. The live gateway path
- * is covered separately by store-mcp-payu-live.spec.ts (opt-in PAYU_LIVE_TEST).
+ * The live gateway path stays opt-in in store-mcp-payu-live.spec.ts.
  */
-import { createHash } from "crypto"
 import { Modules } from "@medusajs/utils"
 import { createAdminUser, getAuthHeaders } from "../../helpers/create-admin-user"
 import { createTestCustomer } from "../../helpers/create-customer"
 import { setupCheckoutInfrastructure } from "../../helpers/setup-checkout-infrastructure"
+import { processPayuLinkWebhook } from "../../../src/api/store/payu/lib/process-link-webhook"
 import { getSharedTestEnv, setupSharedTestSuite } from "../shared-test-setup"
 
 jest.setTimeout(120000)
-
-const sha512Hex = (s: string) => createHash("sha512").update(s).digest("hex")
-
-/**
- * Build a webhook payload whose `hash` matches the route's reverse-SHA512
- * verification (mirrors verifyWebhookHash's signing string, no
- * additionalCharges). Salt must equal PAYU_MERCHANT_SALT.
- */
-const signedPayload = (
-  salt: string,
-  fields: Record<string, string>
-): Record<string, string> => {
-  const p = {
-    status: "success",
-    udf1: "",
-    udf2: "",
-    udf3: "",
-    udf4: "",
-    udf5: "",
-    email: "buyer@jyt.test",
-    firstname: "Asha",
-    productinfo: "Order",
-    amount: "1.00",
-    txnid: "txn_test_1",
-    key: "TESTKEY",
-    mihpayid: "mih_1",
-    mode: "UPI",
-    bank_ref_num: "ref_1",
-    ...fields,
-  }
-  const tail = [
-    p.status, "", "", "", "", "",
-    p.udf5, p.udf4, p.udf3, p.udf2, p.udf1,
-    p.email, p.firstname, p.productinfo, p.amount, p.txnid, p.key,
-  ]
-  return { ...p, hash: sha512Hex([salt, ...tail].join("|")) }
-}
 
 const FORM = { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
 const postWebhook = (api: any, payload: Record<string, string>) =>
@@ -68,15 +30,17 @@ setupSharedTestSuite(() => {
   describe("PayU payment-link webhook → order", () => {
     const { api, getContainer } = getSharedTestEnv()
 
-    const SALT = "WEBHOOK_TEST_SALT"
-    let prevSalt: string | undefined
+    let prevKey: string | undefined
     let pk: string
     let regionId: string
     let variantId: string
 
     beforeEach(async () => {
-      prevSalt = process.env.PAYU_MERCHANT_SALT
-      process.env.PAYU_MERCHANT_SALT = SALT
+      prevKey = process.env.PAYU_MERCHANT_KEY
+      // No classic creds in the test env → the default re-verifier is a no-op
+      // (returns null, never hits the network). Orchestrator tests inject their
+      // own verifier instead.
+      delete process.env.PAYU_MERCHANT_KEY
 
       const container = getContainer()
       await createAdminUser(container)
@@ -84,11 +48,10 @@ setupSharedTestSuite(() => {
       const { apiKey } = await createTestCustomer(container)
       pk = apiKey.token
 
-      // setupCheckoutInfrastructure seeds a US/USD shipping zone + flat rate and
+      // setupCheckoutInfrastructure seeds a US/USD shipping zone + flat-rate and
       // links pp_system_default (the provider the webhook authorizes the
       // out-of-band link payment with) to the region — so the cart must be
-      // US/USD to match. The completion path is currency-agnostic; real PayU
-      // links are INR and covered by the live spec.
+      // US/USD to match. Completion is currency-agnostic; real PayU links are INR.
       const region = await api.post(
         "/admin/regions",
         { name: "US", currency_code: "usd", countries: ["us"] },
@@ -97,14 +60,12 @@ setupSharedTestSuite(() => {
       regionId = region.data.region.id
       const infra = await setupCheckoutInfrastructure(container, regionId)
 
-      // Published product in the publishable key's default sales channel.
       const storeService: any = container.resolve(Modules.STORE)
       const store = (await storeService.listStores({}))?.[0]
       const salesChannelId = store?.default_sales_channel_id
 
       // /store/shipping-options filters by stock locations reachable from the
-      // cart's sales channel — the helper links the location to fulfillment but
-      // not to the sales channel, so do that here or options come back empty.
+      // cart's sales channel — link the location to the sales channel too.
       try {
         const remoteLink: any = container.resolve("link")
         await remoteLink.create({
@@ -114,6 +75,7 @@ setupSharedTestSuite(() => {
       } catch {
         // link may already exist
       }
+
       const product = await api.post(
         "/admin/products",
         {
@@ -136,8 +98,8 @@ setupSharedTestSuite(() => {
     })
 
     afterEach(() => {
-      if (prevSalt === undefined) delete process.env.PAYU_MERCHANT_SALT
-      else process.env.PAYU_MERCHANT_SALT = prevSalt
+      if (prevKey === undefined) delete process.env.PAYU_MERCHANT_KEY
+      else process.env.PAYU_MERCHANT_KEY = prevKey
     })
 
     const storeHeaders = () => ({ headers: { "x-publishable-api-key": pk } })
@@ -162,7 +124,6 @@ setupSharedTestSuite(() => {
         storeHeaders()
       )
       const cartId = cartRes.data.cart.id
-
       const shippingRes = await api.get(
         `/store/shipping-options?cart_id=${cartId}`,
         storeHeaders()
@@ -177,43 +138,73 @@ setupSharedTestSuite(() => {
       return cartId
     }
 
-    it("rejects a tampered/invalid signature with 401", async () => {
-      const payload = signedPayload(SALT, { udf1: "cart_x" })
-      payload.amount = "9999.00" // mutate after signing → hash no longer matches
-      const res = await postWebhook(api, payload).catch((e: any) => e.response)
-      expect(res.status).toBe(401)
-    })
-
+    // ── HTTP layer ────────────────────────────────────────────────────────
     it("acks a verified non-success event without completing", async () => {
-      const payload = signedPayload(SALT, { status: "failure", udf1: "cart_x" })
-      const res = await postWebhook(api, payload)
+      const res = await postWebhook(api, { status: "failure", udf1: "cart_x", txnid: "t1" })
       expect(res.status).toBe(200)
       expect(res.data.received).toBe(true)
       expect(res.data.completed).toBeUndefined()
     })
 
-    it("completes the cart into an order on a verified success, idempotently", async () => {
-      const cartId = await buildCompletableCart()
-
-      const payload = signedPayload(SALT, { udf1: cartId })
-      const res = await postWebhook(api, payload)
+    it("acks (not-completed) a success event that cannot be re-verified", async () => {
+      // No PayU creds → re-verification can't confirm → must NOT complete, but
+      // still 200 so PayU stops retrying. The hash is irrelevant (never a gate).
+      const res = await postWebhook(api, {
+        status: "success",
+        udf1: "cart_does_not_exist",
+        txnid: "t2",
+        hash: "deadbeef",
+      })
       expect(res.status).toBe(200)
-      expect(res.data.completed).toBe(true)
-      expect(typeof res.data.order_id).toBe("string")
-      const orderId = res.data.order_id
-
-      // Replayed webhook → same order, no duplicate completion.
-      const replay = await postWebhook(api, payload)
-      expect(replay.status).toBe(200)
-      expect(replay.data.order_id).toBe(orderId)
+      expect(res.data.completed).toBe(false)
     })
 
-    it("returns 500 when PAYU_MERCHANT_SALT is not configured", async () => {
-      delete process.env.PAYU_MERCHANT_SALT
-      const res = await postWebhook(api, signedPayload(SALT, { udf1: "cart_x" })).catch(
-        (e: any) => e.response
+    // ── Orchestrator layer (injected verifier) ─────────────────────────────
+    it("completes the cart into an order when PayU re-verification confirms it, idempotently", async () => {
+      const cartId = await buildCompletableCart()
+      const payload = { status: "success", udf1: cartId, txnid: "918188", mihpayid: "mih_1" }
+      const verifyTransaction = jest.fn(async () => ({
+        paid: true,
+        status: "success",
+        amount: 9999,
+        raw: {},
+      }))
+
+      const r1 = await processPayuLinkWebhook(getContainer(), payload, { verifyTransaction })
+      expect(r1.completed).toBe(true)
+      expect(typeof r1.order_id).toBe("string")
+      expect(verifyTransaction).toHaveBeenCalledWith("918188", expect.anything())
+
+      // Replay → idempotent: same order, no second completion.
+      const r2 = await processPayuLinkWebhook(getContainer(), payload, { verifyTransaction })
+      expect(r2.completed).toBe(true)
+      expect(r2.order_id).toBe(r1.order_id)
+    })
+
+    it("never completes when PayU re-verification denies the payment", async () => {
+      const cartId = await buildCompletableCart()
+      const payload = { status: "success", udf1: cartId, txnid: "918189" }
+      const verifyTransaction = jest.fn(async () => ({
+        paid: false,
+        status: "failure",
+        amount: null,
+        raw: {},
+      }))
+
+      const r = await processPayuLinkWebhook(getContainer(), payload, { verifyTransaction })
+      expect(r.completed).toBe(false)
+      expect(r.reason).toBe("not_verified")
+    })
+
+    it("reports cart_not_found without throwing for an unknown cart", async () => {
+      const verifyTransaction = jest.fn(async () => ({ paid: true, status: "success", amount: 1, raw: {} }))
+      const r = await processPayuLinkWebhook(
+        getContainer(),
+        { status: "success", udf1: "cart_nope", txnid: "t3" },
+        { verifyTransaction }
       )
-      expect(res.status).toBe(500)
+      expect(r.completed).toBe(false)
+      expect(r.reason).toBe("cart_not_found")
     })
   })
 })
