@@ -66,12 +66,17 @@ These are deliberate; don't "simplify" them away.
    sales channel → publishable token via `store-resolver.ts` (mirrors
    `GET /web/storefront/[subdomain]`). Any proxy tool also accepts an optional
    `store` arg that resolves the same way.
-   - **The core store is not partner-owned**, so iterating partners alone misses
-     it. `store-resolver.ts` therefore also queries the `stores` entity and
-     includes any store **not** linked to a partner, flagged `is_default: true`
-     and given the apex domain (`ROOT_DOMAIN`, default `cicilabel.com`). It is
-     resolvable by `"default"` / `"main"`, the apex domain, or its store
-     name/id/sales-channel id. `list_stores` returns default store(s) first.
+   - **Store-first assembly.** `store-resolver.ts` enumerates the `stores` entity
+     (the same rich field set as core `GET /admin/stores`:
+     `supported_currencies`, `default_region_id`, `default_location_id`, …) and
+     joins partner handle/domain on top. So **every** store is returned —
+     including the core store that iterating partners alone would miss. A store
+     not linked to a partner is flagged `is_default: true` with the apex domain
+     (`ROOT_DOMAIN`, default `cicilabel.com`) and sorted first. `resolveStorefront`
+     filters this assembled list, so `"default"` / `"main"` / the apex domain /
+     a store name/id/sales-channel id all resolve the core store.
+   - Each `StorefrontInfo` carries `default_region_id` and `currency_code`, handy
+     defaults for `create_cart`.
 
 5. **Stateless Streamable-HTTP transport.** Each POST is a self-contained
    JSON-RPC request (`sessionIdGenerator: undefined`, `enableJsonResponse: true`).

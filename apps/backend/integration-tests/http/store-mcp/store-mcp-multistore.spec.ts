@@ -136,6 +136,11 @@ setupSharedTestSuite(() => {
       expect(typeof def.store_id).toBe("string")
       // Apex domain is attached (defaults to cicilabel.com / ROOT_DOMAIN).
       expect(typeof def.domain === "string" || def.domain === null).toBe(true)
+      // Store-first assembly carries the rich fields from the `store` entity.
+      expect(def).toHaveProperty("default_region_id")
+      expect(def).toHaveProperty("currency_code")
+      // Core/default store(s) are sorted first.
+      expect(payload.stores[0].is_default).toBe(true)
     })
 
     it("get_storefront_key resolves the core store via 'default'", async () => {

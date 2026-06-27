@@ -673,7 +673,7 @@ export const STORE_MCP_TOOLS: McpToolDef[] = [
   {
     name: "get_storefront_key",
     description:
-      "Resolve a storefront's default publishable API key by partner handle/subdomain or domain, OR the platform core store via 'default'/'main' or its apex domain (cicilabel.com). Returns { handle, name, domain, store_id, sales_channel_id, publishable_key, is_default }. Publishable keys are public storefront keys.",
+      "Resolve a storefront's default publishable API key by partner handle/subdomain or domain, OR the platform core store via 'default'/'main' or its apex domain (cicilabel.com). Returns { handle, name, domain, store_id, sales_channel_id, default_region_id, default_location_id, currency_code, publishable_key, is_default }. Publishable keys are public storefront keys.",
     native: "get_storefront_key",
     inputSchema: {
       type: "object",
