@@ -36,7 +36,12 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # Scope to the analytics workspace only. A full install builds the
+        # backend's isolated-vm (it's in onlyBuiltDependencies, so no prebuild)
+        # from source, which fails on this Node 20 runner — isolated-vm@6.1.x
+        # needs Node 22+'s V8 (v8::SourceLocation). Analytics is pure JS
+        # (terser), so it needs none of the backend's native deps.
+        run: pnpm install --frozen-lockfile --filter @jyt/analytics
 
       - name: Build analytics script
         run: pnpm --filter @jyt/analytics build
