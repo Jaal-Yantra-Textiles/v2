@@ -33,6 +33,11 @@ export type StoreMcpContext = {
   bearer?: string
   /** Medusa container (req.scope) for native store-resolution tools. */
   container?: any
+  /**
+   * When false (default), mutating cart/checkout tools are hidden from
+   * tools/list and rejected by tools/call. Toggled by STORE_MCP_ENABLE_WRITE.
+   */
+  enableWrite?: boolean
 }
 
 const SERVER_INFO = { name: "jyt-store", version: "0.1.0" } as const
@@ -45,8 +50,13 @@ const textResult = (text: string, isError = false) => ({
 export function buildStoreMcpServer(ctx: StoreMcpContext): Server {
   const server = new Server(SERVER_INFO, { capabilities: { tools: {} } })
 
+  // Write (cart/checkout) tools are only visible/callable when writes are on.
+  const visibleTools = STORE_MCP_TOOLS.filter(
+    (t) => ctx.enableWrite || !t.write
+  )
+
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: STORE_MCP_TOOLS.map((t) => ({
+    tools: visibleTools.map((t) => ({
       name: t.name,
       description: t.description,
       inputSchema: t.inputSchema,
@@ -57,6 +67,13 @@ export function buildStoreMcpServer(ctx: StoreMcpContext): Server {
     const def = STORE_MCP_TOOLS.find((t) => t.name === req.params.name)
     if (!def) {
       return textResult(`Unknown tool: ${req.params.name}`, true)
+    }
+    // Refuse mutating tools unless writes are explicitly enabled on the server.
+    if (def.write && !ctx.enableWrite) {
+      return textResult(
+        `Tool '${def.name}' is a write/checkout tool and is disabled on this server. Set STORE_MCP_ENABLE_WRITE=true to enable cart & payment tools.`,
+        true
+      )
     }
     const args = (req.params.arguments ?? {}) as Record<string, unknown>
 
@@ -132,11 +149,21 @@ export function buildStoreMcpServer(ctx: StoreMcpContext): Server {
       }
     }
 
+    // Assemble the JSON body for write tools from the whitelisted body params.
+    const body: Record<string, unknown> = {}
+    for (const k of def.bodyParams ?? []) {
+      if (args[k] !== undefined && args[k] !== null) {
+        body[k] = args[k]
+      }
+    }
+
     try {
       const data = await callStoreRoute({
         baseUrl: ctx.baseUrl,
+        method: def.method ?? "GET",
         path,
         query,
+        body,
         publishableKey,
         bearer: ctx.bearer,
       })

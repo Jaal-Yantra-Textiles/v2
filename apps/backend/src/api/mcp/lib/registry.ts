@@ -27,14 +27,28 @@ export type McpToolDef = {
    * unset and use method/path below.
    */
   native?: "list_stores" | "get_storefront_key"
-  /** Only GET (read-only) endpoints are wrapped (proxy tools). */
-  method?: "GET"
+  /**
+   * HTTP method of the wrapped store route. GET = read tool (always exposed).
+   * POST/DELETE = write tool (cart/checkout), gated behind STORE_MCP_ENABLE_WRITE.
+   */
+  method?: "GET" | "POST" | "DELETE"
   /** Store route path, with `:param` placeholders, e.g. `/store/products/:id`. */
   path?: string
   /** Names of `:param` placeholders that must be supplied as arguments. */
   pathParams?: string[]
   /** Argument keys forwarded to the route as query-string params. */
   queryParams?: string[]
+  /**
+   * Argument keys assembled into the JSON request body (write tools only).
+   * The store route's own validator is the source of truth, so the MCP schema
+   * stays permissive — see proxy.ts.
+   */
+  bodyParams?: string[]
+  /**
+   * Mutating tool: hidden from `tools/list` and rejected by `tools/call` unless
+   * STORE_MCP_ENABLE_WRITE is set. Read tools omit this.
+   */
+  write?: boolean
 }
 
 const PAGINATION_PROPS = {
@@ -140,6 +154,322 @@ const getTool = (
     },
   },
 })
+
+// --- Write-tool helpers -----------------------------------------------
+// A cart/billing/shipping address. Mirrors Medusa's StoreAddAddress — kept
+// loose (all optional) so the store route's validator stays the source of truth.
+const ADDRESS_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    first_name: { type: "string" },
+    last_name: { type: "string" },
+    phone: { type: "string" },
+    company: { type: "string" },
+    address_1: { type: "string" },
+    address_2: { type: "string" },
+    city: { type: "string" },
+    country_code: {
+      type: "string",
+      description: "Two-letter ISO country code, e.g. 'in'.",
+    },
+    province: { type: "string" },
+    postal_code: { type: "string" },
+  },
+} as const
+
+const LINE_ITEM_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["variant_id", "quantity"],
+  properties: {
+    variant_id: { type: "string", description: "Product variant id (variant_...)." },
+    quantity: { type: "integer", minimum: 1, description: "Quantity to add." },
+  },
+} as const
+
+/**
+ * The cart -> checkout -> pay write tools. Every tool here is `write: true`, so
+ * it is hidden/blocked unless STORE_MCP_ENABLE_WRITE is set. Typical agent flow:
+ *
+ *   create_cart -> add_line_item* -> update_cart (email + addresses)
+ *   -> list_shipping_options -> add_shipping_method
+ *   -> list_payment_providers -> create_payment_collection
+ *   -> initialize_payment_session -> complete_cart (=> order)
+ */
+const CHECKOUT_WRITE_TOOLS: McpToolDef[] = [
+  {
+    name: "create_cart",
+    description:
+      "Create a cart in the storefront's sales channel. Optionally seed it with region, email, addresses, line items, and promo codes. Returns the cart (use cart.id for subsequent tools).",
+    write: true,
+    method: "POST",
+    path: "/store/carts",
+    bodyParams: [
+      "region_id",
+      "email",
+      "currency_code",
+      "items",
+      "shipping_address",
+      "billing_address",
+      "promo_codes",
+      "metadata",
+    ],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        region_id: { type: "string", description: "Region id (reg_...). Defaults to the store's default region." },
+        email: { type: "string", description: "Customer email for the cart." },
+        currency_code: { type: "string", description: "Currency code; defaults to the region currency." },
+        items: { type: "array", items: LINE_ITEM_SCHEMA, description: "Initial line items." },
+        shipping_address: ADDRESS_SCHEMA,
+        billing_address: ADDRESS_SCHEMA,
+        promo_codes: { type: "array", items: { type: "string" }, description: "Promotion codes to apply." },
+        metadata: { type: "object", additionalProperties: true, description: "Custom key-value data." },
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
+    name: "get_cart",
+    description: "Retrieve a cart by id, including line items, totals, and the chosen shipping/payment state.",
+    write: true,
+    method: "GET",
+    path: "/store/carts/:id",
+    pathParams: ["id"],
+    queryParams: ["fields"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id"],
+      properties: {
+        id: { type: "string", description: "Cart id (cart_...)." },
+        ...FIELDS_PROP,
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
+    name: "update_cart",
+    description:
+      "Update a cart's email, region, addresses, or promo codes. Use this to set the customer email and shipping/billing address before checkout.",
+    write: true,
+    method: "POST",
+    path: "/store/carts/:id",
+    pathParams: ["id"],
+    bodyParams: ["region_id", "email", "shipping_address", "billing_address", "promo_codes", "metadata"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id"],
+      properties: {
+        id: { type: "string", description: "Cart id (cart_...)." },
+        region_id: { type: "string", description: "Region id (reg_...)." },
+        email: { type: "string", description: "Customer email." },
+        shipping_address: ADDRESS_SCHEMA,
+        billing_address: ADDRESS_SCHEMA,
+        promo_codes: { type: "array", items: { type: "string" }, description: "Promotion codes (replaces existing)." },
+        metadata: { type: "object", additionalProperties: true },
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
+    name: "add_line_item",
+    description: "Add a product variant to a cart. Returns the updated cart.",
+    write: true,
+    method: "POST",
+    path: "/store/carts/:id/line-items",
+    pathParams: ["id"],
+    bodyParams: ["variant_id", "quantity", "metadata"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "variant_id", "quantity"],
+      properties: {
+        id: { type: "string", description: "Cart id (cart_...)." },
+        variant_id: { type: "string", description: "Product variant id (variant_...)." },
+        quantity: { type: "integer", minimum: 1, description: "Quantity to add." },
+        metadata: { type: "object", additionalProperties: true },
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
+    name: "update_line_item",
+    description: "Change the quantity of an existing cart line item. Returns the updated cart.",
+    write: true,
+    method: "POST",
+    path: "/store/carts/:id/line-items/:line_id",
+    pathParams: ["id", "line_id"],
+    bodyParams: ["quantity", "metadata"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "line_id", "quantity"],
+      properties: {
+        id: { type: "string", description: "Cart id (cart_...)." },
+        line_id: { type: "string", description: "Line item id (item_...)." },
+        quantity: { type: "integer", minimum: 1, description: "New quantity." },
+        metadata: { type: "object", additionalProperties: true },
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
+    name: "remove_line_item",
+    description: "Remove a line item from a cart. Returns the deletion result.",
+    write: true,
+    method: "DELETE",
+    path: "/store/carts/:id/line-items/:line_id",
+    pathParams: ["id", "line_id"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "line_id"],
+      properties: {
+        id: { type: "string", description: "Cart id (cart_...)." },
+        line_id: { type: "string", description: "Line item id (item_...)." },
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
+    name: "add_promotion",
+    description: "Apply one or more promotion codes to a cart. Returns the updated cart.",
+    write: true,
+    method: "POST",
+    path: "/store/carts/:id/promotions",
+    pathParams: ["id"],
+    bodyParams: ["promo_codes"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "promo_codes"],
+      properties: {
+        id: { type: "string", description: "Cart id (cart_...)." },
+        promo_codes: { type: "array", items: { type: "string" }, description: "Promotion codes to apply." },
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
+    name: "list_shipping_options",
+    description:
+      "List the shipping options available for a cart (call after the cart has a shipping address). Use a returned option id with add_shipping_method.",
+    write: true,
+    method: "GET",
+    path: "/store/shipping-options",
+    queryParams: ["cart_id", "fields"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["cart_id"],
+      properties: {
+        cart_id: { type: "string", description: "Cart id (cart_...) to price options for." },
+        ...FIELDS_PROP,
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
+    name: "add_shipping_method",
+    description: "Select a shipping option for a cart. Returns the updated cart with the shipping method and totals.",
+    write: true,
+    method: "POST",
+    path: "/store/carts/:id/shipping-methods",
+    pathParams: ["id"],
+    bodyParams: ["option_id", "data"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "option_id"],
+      properties: {
+        id: { type: "string", description: "Cart id (cart_...)." },
+        option_id: { type: "string", description: "Shipping option id (so_...) from list_shipping_options." },
+        data: { type: "object", additionalProperties: true, description: "Optional fulfillment-provider data." },
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
+    name: "list_payment_providers",
+    description: "List the payment providers enabled for a region. Use a returned provider id with initialize_payment_session.",
+    write: true,
+    method: "GET",
+    path: "/store/payment-providers",
+    queryParams: ["region_id", "fields", "limit", "offset"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["region_id"],
+      properties: {
+        region_id: { type: "string", description: "Region id (reg_...) — the cart's region." },
+        ...FIELDS_PROP,
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
+    name: "create_payment_collection",
+    description: "Create a payment collection for a cart (the container for its payment sessions). Returns the payment collection.",
+    write: true,
+    method: "POST",
+    path: "/store/payment-collections",
+    bodyParams: ["cart_id"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["cart_id"],
+      properties: {
+        cart_id: { type: "string", description: "Cart id (cart_...)." },
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
+    name: "initialize_payment_session",
+    description:
+      "Initialize a payment session on a payment collection for the chosen provider (e.g. 'pp_system_default' or a Stripe provider). Returns the payment collection with the session.",
+    write: true,
+    method: "POST",
+    path: "/store/payment-collections/:id/payment-sessions",
+    pathParams: ["id"],
+    bodyParams: ["provider_id", "data"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "provider_id"],
+      properties: {
+        id: { type: "string", description: "Payment collection id (paycol_...)." },
+        provider_id: { type: "string", description: "Payment provider id from list_payment_providers." },
+        data: { type: "object", additionalProperties: true, description: "Optional provider-specific data." },
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
+    name: "complete_cart",
+    description:
+      "Complete a cart and place the order. Run this last, after a payment session is initialized. Returns { type: 'order', order } on success or { type: 'cart', cart, error } if completion failed.",
+    write: true,
+    method: "POST",
+    path: "/store/carts/:id/complete",
+    pathParams: ["id"],
+    bodyParams: ["idempotency_key"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id"],
+      properties: {
+        id: { type: "string", description: "Cart id (cart_...)." },
+        idempotency_key: { type: "string", description: "Optional key to make completion idempotent on retry." },
+        ...STORE_PROP,
+      },
+    },
+  },
+]
 
 export const STORE_MCP_TOOLS: McpToolDef[] = [
   {
@@ -358,4 +688,8 @@ export const STORE_MCP_TOOLS: McpToolDef[] = [
       },
     },
   },
+  // --- Write tools: cart -> checkout -> pay -----------------------------
+  // Gated behind STORE_MCP_ENABLE_WRITE. Each proxies the matching native
+  // Medusa /store route, so the route's validators/pricing/scoping still run.
+  ...CHECKOUT_WRITE_TOOLS,
 ]

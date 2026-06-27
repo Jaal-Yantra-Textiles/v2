@@ -96,11 +96,38 @@ search with a lexical fallback).
 
 To wrap another store endpoint, add one row to `lib/registry.ts`.
 
+## Write tools (cart & checkout) — opt-in
+
+Off by default. Set `STORE_MCP_ENABLE_WRITE=true` to expose the mutating
+cart → checkout → pay tools (otherwise they're hidden from `tools/list` and
+rejected by `tools/call`). They proxy the matching native `/store` routes, so
+sales-channel scoping, pricing/tax, and validators still apply.
+
+**Cart:** `create_cart`, `get_cart`, `update_cart`, `add_line_item`,
+`update_line_item`, `remove_line_item`, `add_promotion`
+
+**Checkout / pay:** `list_shipping_options`, `add_shipping_method`,
+`list_payment_providers`, `create_payment_collection`,
+`initialize_payment_session`, `complete_cart`
+
+Typical agent flow:
+
+```
+create_cart → add_line_item* → update_cart (email + address)
+→ list_shipping_options → add_shipping_method
+→ list_payment_providers → create_payment_collection
+→ initialize_payment_session → complete_cart   ⇒  { type: "order", order }
+```
+
+Architecture, the full route table, and how to author new tools:
+`apps/docs/notes/STORE_MCP_SERVER_GUIDE.md`.
+
 ## Configuration
 
 | Env var | Purpose |
 |---------|---------|
 | `STORE_MCP_DEFAULT_PUBLISHABLE_KEY` | Optional last-resort key when a call has no `store` arg and no header. Set to the main storefront's public key. |
+| `STORE_MCP_ENABLE_WRITE` | `true`/`1`/`yes` to enable cart & payment write tools. Default off (read-only). |
 | `STORE_MCP_LOOPBACK_URL` | Optional. Override the loopback origin (default: derived from the request, e.g. `http://localhost:9000`). |
 
 ## Layout

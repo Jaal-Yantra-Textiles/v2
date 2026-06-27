@@ -14,6 +14,15 @@ import { buildStoreMcpServer } from "./server"
 const PUBLISHABLE_HEADER = "x-publishable-api-key"
 
 /**
+ * Whether mutating cart/checkout tools are enabled. Off by default: the MCP
+ * server is read-only unless STORE_MCP_ENABLE_WRITE is explicitly truthy.
+ */
+function isWriteEnabled(): boolean {
+  const v = (process.env.STORE_MCP_ENABLE_WRITE || "").trim().toLowerCase()
+  return v === "true" || v === "1" || v === "yes"
+}
+
+/**
  * Loopback origin for proxying to /store/* on this same process.
  *
  * Derived from the incoming request by default (`proto://host`), which is
@@ -56,6 +65,7 @@ export async function handleMcpRequest(
     publishableKey,
     bearer,
     container: req.scope,
+    enableWrite: isWriteEnabled(),
   })
 
   const transport = new StreamableHTTPServerTransport({
