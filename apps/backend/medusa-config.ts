@@ -247,35 +247,46 @@ module.exports = defineConfig({
     //     ],
     //   },
     // },
-    // {
-    //   resolve: "@medusajs/medusa/payment",
-    //   options: {
-    //     providers: [
-    //       {
-    //         resolve: "@medusajs/medusa/payment-stripe",
-    //         id: "stripe",
-    //         options: {
-    //           apiKey: process.env.STRIPE_API_KEY,
-    //           webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
-    //         },
-    //       },
-    //       ...(process.env.PAYU_MERCHANT_KEY
-    //         ? [
-    //             {
-    //               resolve: "./src/modules/payu-payment",
-    //               id: "payu",
-    //               options: {
-    //                 merchant_key: process.env.PAYU_MERCHANT_KEY,
-    //                 merchant_salt: process.env.PAYU_MERCHANT_SALT,
-    //                 mode: process.env.PAYU_MODE || "test",
-    //                 auto_capture: true,
-    //               },
-    //             },
-    //           ]
-    //         : []),
-    //     ],
-    //   },
-    // },
+    // Payment module: register providers only when their creds are present, so
+    // dev/test stay clean without keys (mirrors medusa-config.prod.ts). The
+    // built-in system provider (pp_system_default) is always available.
+    ...(process.env.STRIPE_API_KEY || process.env.PAYU_MERCHANT_KEY
+      ? [
+          {
+            resolve: "@medusajs/medusa/payment",
+            options: {
+              providers: [
+                ...(process.env.STRIPE_API_KEY
+                  ? [
+                      {
+                        resolve: "@medusajs/medusa/payment-stripe",
+                        id: "stripe",
+                        options: {
+                          apiKey: process.env.STRIPE_API_KEY,
+                          webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+                        },
+                      },
+                    ]
+                  : []),
+                ...(process.env.PAYU_MERCHANT_KEY
+                  ? [
+                      {
+                        resolve: "./src/modules/payu-payment",
+                        id: "payu",
+                        options: {
+                          merchant_key: process.env.PAYU_MERCHANT_KEY,
+                          merchant_salt: process.env.PAYU_MERCHANT_SALT,
+                          mode: process.env.PAYU_MODE || "test",
+                          auto_capture: true,
+                        },
+                      },
+                    ]
+                  : []),
+              ],
+            },
+          },
+        ]
+      : []),
     // {
     //   resolve: "@medusajs/medusa/fulfillment",
     //   options: {
