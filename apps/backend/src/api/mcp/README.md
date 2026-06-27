@@ -113,8 +113,11 @@ sales-channel scoping, pricing/tax, and validators still apply.
 `list_payment_providers`, `create_payment_collection`,
 `initialize_payment_session`, `complete_cart`
 
-**PayU (INR):** `payu_generate_upi_intent`, `payu_complete_payment`,
-`payu_refresh_payment` — PayU (`pp_payu_payu`) is a redirect gateway;
+**PayU (INR):** `create_payment_link` (OneAPI shareable `v.payu.in/…` link;
+paying it auto-completes the cart into an order via the verified
+`/webhooks/payu/link` webhook), `payu_generate_upi_intent`,
+`payu_complete_payment`, `payu_refresh_payment` — PayU (`pp_payu_payu`) is a
+redirect gateway;
 `initialize_payment_session` returns the `payment_url`/`hash`/`txnid` a browser
 posts to PayU's page, then `payu_complete_payment` finishes the order from the
 redirect callback (use it instead of `complete_cart`). `payu_generate_upi_intent`

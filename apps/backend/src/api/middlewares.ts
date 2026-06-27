@@ -653,6 +653,14 @@ export default defineMiddlewares({
       bodyParser: false, // Need raw body for Svix signature verification
     },
     {
+      // PayU posts application/x-www-form-urlencoded; preserve the raw body so
+      // the route can parse it (and the reverse-hash uses the exact fields).
+      matcher: "/webhooks/payu/link",
+      method: "POST",
+      middlewares: [],
+      bodyParser: { preserveRawBody: true },
+    },
+    {
       matcher: "/webhooks/meta-ads/leadgen",
       method: "GET",
       middlewares: [],

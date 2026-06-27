@@ -581,6 +581,49 @@ const CHECKOUT_WRITE_TOOLS: McpToolDef[] = [
     },
   },
   {
+    name: "create_payment_link",
+    description:
+      "Create a shareable PayU payment link (INR) whose checkout offers UPI + cards. Pass cart_id to bill a cart's total (and, once paid, the PayU webhook completes the cart into an order automatically), or pass amount + customer for a standalone link. Returns { type:'payment_link', payment_link, invoice_number }. Requires PayU OneAPI env (PAYU_CLIENT_ID/SECRET/MERCHANT_ID).",
+    write: true,
+    method: "POST",
+    path: "/store/payu/payment-link",
+    bodyParams: [
+      "cart_id",
+      "amount",
+      "description",
+      "customer",
+      "invoice_number",
+      "is_partial_payment_allowed",
+      "success_url",
+      "failure_url",
+      "expiry_date",
+    ],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        cart_id: { type: "string", description: "Cart to bill (derives amount + customer; paid link auto-completes the order via webhook)." },
+        amount: { type: "number", description: "Amount in INR (major units). Required if no cart_id." },
+        description: { type: "string", description: "Link description shown to the payer." },
+        customer: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            name: { type: "string" },
+            email: { type: "string" },
+            mobileNumber: { type: "string" },
+          },
+        },
+        invoice_number: { type: "string", description: "Optional unique invoice id (≤16 chars; auto-generated otherwise)." },
+        is_partial_payment_allowed: { type: "boolean" },
+        success_url: { type: "string" },
+        failure_url: { type: "string" },
+        expiry_date: { type: "string", description: "Optional ISO expiry timestamp." },
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
     name: "payu_generate_upi_intent",
     description:
       "Generate a UPI Intent (a upi://pay deep link the customer taps in any UPI app) for a cart that already has an initialized PayU session (run create_payment_collection → initialize_payment_session with provider_id 'pp_payu_payu' first). Returns { type:'upi_intent', upi_link, qr_url, txnid }. The order completes via the PayU webhook / payu_complete_payment.",

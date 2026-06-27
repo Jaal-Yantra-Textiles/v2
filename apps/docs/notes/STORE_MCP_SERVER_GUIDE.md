@@ -188,8 +188,12 @@ create_cart ──▶ add_line_item* ──▶ update_cart (email + shipping/bil
 | `initialize_payment_session` | POST | `/store/payment-collections/:id/payment-sessions` |
 | `complete_cart` | POST | `/store/carts/:id/complete` |
 | `payu_generate_upi_intent` | POST | `/store/payu/intent` (INR — UPI deep link) |
+| `create_payment_link` | POST | `/store/payu/payment-link` (INR — shareable link) |
 | `payu_complete_payment` | POST | `/store/payu/complete` (INR) |
 | `payu_refresh_payment` | POST | `/store/payu/refresh` (INR) |
+
+(The PayU dashboard webhook `POST /webhooks/payu/link` — outside `/store`, no tool —
+completes a paid payment link into an order.)
 
 `complete_cart` returns `{ type: "order", order }` on success or
 `{ type: "cart", cart, error }` if completion failed (e.g. payment not
@@ -261,6 +265,38 @@ JSON, S2S UPI Intent isn't enabled on that merchant (409 with a clear message);
 fall back to the hosted link. This is the most agent-friendly INR primitive: a
 returnable link/QR with zero PCI surface.
 
+### PayU Payment Link (`create_payment_link`) → order (verify-then-complete)
+
+A second INR rail (PayU **OneAPI**, OAuth) that returns a **shareable
+`https://v.payu.in/…` link** whose checkout offers UPI + cards. Unlike the
+session-based rails, the link is paid out-of-band — so completion is
+**webhook-verified**, never trust-the-redirect:
+
+```
+create_payment_link({ cart_id })           # amount+customer from the cart; udf1=cart_id
+   ⇒ { payment_link, invoice_number }       # invoice_number persisted on cart.metadata
+→ customer opens link, pays (UPI/card)
+→ PayU dashboard webhook  POST /webhooks/payu/link   (urlencoded, reverse-SHA512 hash)
+     1. verify the hash with PAYU_MERCHANT_SALT
+     2. re-query OneAPI GET /payment-links/{invoice}/txns → confirm success + amount
+     3. completeCartFromExternalPayment(cart) → manual session → completeCartWorkflow → ORDER
+```
+
+- **Verify-then-complete**, layered: the webhook hash proves PayU sent it; the
+  OneAPI `/txns` re-query proves it was actually paid (webhooks can be replayed).
+  Only then does the cart complete.
+- The link is collected on PayU's side, so the Medusa payment is modelled with the
+  **manual provider** (`PAYU_LINK_COMPLETE_PROVIDER`, default `pp_system_default`)
+  and the PayU `txnid`/`mihpayid`/`bank_ref_num` are stored on the session for
+  reconciliation. Completion is **idempotent** (duplicate webhook → existing order).
+- Pure, unit-tested: `verifyWebhookHash`, `isLinkPaid`, `buildPaymentLinkBody`.
+- **Webhook URL is configured in the PayU dashboard** (Developers → Webhooks),
+  pointing at `https://<backend>/webhooks/payu/link` — there is no per-link notify
+  field in PayU's API. Needs the OneAPI env (below) for the re-query step.
+- ⚠️ Assumes the OneAPI merchant and the classic `merchant_key`/`salt` are the
+  **same** PayU account (the webhook hash uses the classic salt). End-to-end
+  validation needs a live PayU sandbox + a public webhook URL.
+
 **What the MCP cannot do for PayU (by design, not a gap):**
 - The hosted-page payment step itself is a **browser redirect** with a
   hash-signed form POST to `test.payu.in` / `secure.payu.in`. An agent can
@@ -302,6 +338,10 @@ and the admin/provider-internal operations intentionally do not.
 | `STORE_MCP_DEFAULT_PUBLISHABLE_KEY` | Last-resort key when a call has no `store` arg and no header. Set to the main storefront's public key. |
 | `STORE_MCP_ENABLE_WRITE` | `true`/`1`/`yes` to enable cart & payment write tools. Default off (read-only). |
 | `STORE_MCP_LOOPBACK_URL` | Override the loopback origin (default: derived from the request, e.g. `http://localhost:9000`). |
+| `PAYU_MERCHANT_KEY` / `PAYU_MERCHANT_SALT` | Classic PayU creds — hosted checkout, UPI intent, and the payment-link webhook hash verification. |
+| `PAYU_CLIENT_ID` / `PAYU_CLIENT_SECRET` / `PAYU_MERCHANT_ID` | PayU **OneAPI** OAuth creds for `create_payment_link` + the webhook `/txns` re-verification. |
+| `PAYU_ONEAPI_MODE` | `test` (UAT, default) or `prod` — selects the `uatoneapi`/`uat-accounts` vs `oneapi`/`accounts` hosts. |
+| `PAYU_LINK_COMPLETE_PROVIDER` | Manual provider used to complete a paid link into an order. Default `pp_system_default`. |
 
 ---
 
