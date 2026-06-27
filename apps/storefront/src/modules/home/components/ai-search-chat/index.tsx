@@ -513,7 +513,12 @@ const AssistantBubble = ({ msg }: { msg: UIMessage }) => {
               </p>
             )
           }
-          if (typeof part.type === "string" && part.type.startsWith("tool-")) {
+          // Only tools that return products render cards. Other tool parts
+          // (e.g. get_categories) carry their answer in the model's prose.
+          if (
+            typeof part.type === "string" &&
+            PRODUCT_TOOL_PARTS.has(part.type)
+          ) {
             return <SearchProductsCall key={i} part={part} />
           }
           return null
@@ -522,6 +527,14 @@ const AssistantBubble = ({ msg }: { msg: UIMessage }) => {
     </div>
   )
 }
+
+// Tool parts that return `{ products: [...] }` and therefore render cards.
+// Other tools (e.g. get_categories) answer through the model's prose.
+const PRODUCT_TOOL_PARTS = new Set([
+  "tool-search_products",
+  "tool-get_category_products",
+  "tool-get_product_details",
+])
 
 const SearchProductsCall = ({ part }: { part: any }) => {
   const state = part?.state as string | undefined
