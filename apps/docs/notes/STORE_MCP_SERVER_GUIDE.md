@@ -59,12 +59,19 @@ These are deliberate; don't "simplify" them away.
    to scope the request — it never HTTP-500s.
 
 4. **Multi-tenant store resolution.** The platform runs many partner
-   storefronts (each = one sales channel = one publishable key). Agents work in
-   terms of **store names**, not raw `pk_` tokens. Native (container-backed)
-   tools `list_stores` and `get_storefront_key` resolve
-   partner handle/domain → store → default sales channel → publishable token via
-   `store-resolver.ts` (mirrors `GET /web/storefront/[subdomain]`). Any proxy
-   tool also accepts an optional `store` arg that resolves the same way.
+   storefronts (each = one sales channel = one publishable key) **plus its own
+   core store** (the apex `cicilabel.com`). Agents work in terms of **store
+   names**, not raw `pk_` tokens. Native (container-backed) tools `list_stores`
+   and `get_storefront_key` resolve partner handle/domain → store → default
+   sales channel → publishable token via `store-resolver.ts` (mirrors
+   `GET /web/storefront/[subdomain]`). Any proxy tool also accepts an optional
+   `store` arg that resolves the same way.
+   - **The core store is not partner-owned**, so iterating partners alone misses
+     it. `store-resolver.ts` therefore also queries the `stores` entity and
+     includes any store **not** linked to a partner, flagged `is_default: true`
+     and given the apex domain (`ROOT_DOMAIN`, default `cicilabel.com`). It is
+     resolvable by `"default"` / `"main"`, the apex domain, or its store
+     name/id/sales-channel id. `list_stores` returns default store(s) first.
 
 5. **Stateless Streamable-HTTP transport.** Each POST is a self-contained
    JSON-RPC request (`sessionIdGenerator: undefined`, `enableJsonResponse: true`).

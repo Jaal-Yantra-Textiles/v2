@@ -21,6 +21,12 @@ export type StorefrontInfo = {
   store_name: string | null
   sales_channel_id: string | null
   publishable_key: string | null
+  /**
+   * True for the platform's own store(s) — i.e. a store NOT linked to any
+   * partner, whose `sales_channel_id` is the default sales channel. Partner
+   * storefronts are false/omitted.
+   */
+  is_default?: boolean
 }
 
 const PARTNER_FIELDS = [
@@ -67,6 +73,47 @@ async function buildSalesChannelKeyMap(
   return map
 }
 
+/**
+ * Apex domain of the platform's own (default) store. Partner storefronts live on
+ * `*.cicilabel.com` subdomains; the bare apex is the core store. Mirrors the
+ * `ROOT_DOMAIN` convention used by the storefront provisioning scripts.
+ */
+const defaultStoreDomain = (): string | null => {
+  const d = (
+    process.env.STORE_MCP_DEFAULT_STORE_DOMAIN ||
+    process.env.ROOT_DOMAIN ||
+    "cicilabel.com"
+  ).trim()
+  return d ? normalizeDomain(d) : null
+}
+
+/** Map a raw `store` row (not partner-owned) to a default StorefrontInfo. */
+const storeRowToInfo = (
+  s: any,
+  keyMap: Map<string, string>
+): StorefrontInfo => {
+  const scId = s?.default_sales_channel_id || null
+  return {
+    handle: null,
+    name: s?.name ?? null,
+    domain: defaultStoreDomain(),
+    store_id: s?.id ?? null,
+    store_name: s?.name ?? null,
+    sales_channel_id: scId,
+    publishable_key: scId ? keyMap.get(scId) ?? null : null,
+    is_default: true,
+  }
+}
+
+/** All `store` rows on the platform (partner-owned and the core store alike). */
+async function listAllStoreRows(query: any): Promise<any[]> {
+  const { data } = await query.graph({
+    entity: "stores",
+    fields: ["id", "name", "default_sales_channel_id"],
+  })
+  return data || []
+}
+
 const toInfo = (p: any, keyMap: Map<string, string>): StorefrontInfo | null => {
   const store = (p?.stores || [])[0]
   if (!store) {
@@ -84,7 +131,12 @@ const toInfo = (p: any, keyMap: Map<string, string>): StorefrontInfo | null => {
   }
 }
 
-/** List every live storefront (partner with a store) and its default key. */
+/**
+ * List every live storefront and its default publishable key. Includes both
+ * partner storefronts (partner → store) AND the platform's own core store(s) —
+ * i.e. any `store` not linked to a partner (e.g. the apex cicilabel.com store),
+ * which iterating partners alone would miss. Default store(s) come first.
+ */
 export async function listStorefronts(
   container: any
 ): Promise<StorefrontInfo[]> {
@@ -94,9 +146,20 @@ export async function listStorefronts(
     fields: PARTNER_FIELDS,
   })
   const keyMap = await buildSalesChannelKeyMap(query)
-  return (partners || [])
+
+  const partnerStorefronts = (partners || [])
     .map((p: any) => toInfo(p, keyMap))
     .filter((x: StorefrontInfo | null): x is StorefrontInfo => x !== null)
+
+  // Any store NOT owned by a partner is a platform/default store.
+  const partnerStoreIds = new Set(
+    partnerStorefronts.map((s) => s.store_id).filter(Boolean)
+  )
+  const defaultStores = (await listAllStoreRows(query))
+    .filter((s) => !partnerStoreIds.has(s.id))
+    .map((s) => storeRowToInfo(s, keyMap))
+
+  return [...defaultStores, ...partnerStorefronts]
 }
 
 /**
@@ -129,10 +192,35 @@ export async function resolveStorefront(
   if (!partner && dom.includes(".")) {
     partner = await byFilter({ handle: dom.split(".")[0] })
   }
-  if (!partner) {
-    return null
-  }
 
   const keyMap = await buildSalesChannelKeyMap(query)
-  return toInfo(partner, keyMap)
+  if (partner) {
+    return toInfo(partner, keyMap)
+  }
+
+  // No partner matched — try the platform/core store(s). Resolvable by the
+  // "default"/"main" keyword, the apex domain (cicilabel.com), or a store's
+  // name / id / default sales-channel id.
+  const partnerStoreIds = new Set(
+    (
+      await query.graph({ entity: "partners", fields: ["stores.id"] })
+    ).data?.flatMap((p: any) => (p?.stores || []).map((s: any) => s.id)) || []
+  )
+  const defaultRows = (await listAllStoreRows(query)).filter(
+    (s) => !partnerStoreIds.has(s.id)
+  )
+  const lower = raw.toLowerCase()
+  const apex = defaultStoreDomain()
+  const isDefaultKeyword = lower === "default" || lower === "main"
+  const isApex = !!apex && (dom === apex || lower === apex)
+
+  const match =
+    defaultRows.find(
+      (s) =>
+        s.id === raw ||
+        s.default_sales_channel_id === raw ||
+        (s.name && s.name.toLowerCase() === lower)
+    ) || (isDefaultKeyword || isApex ? defaultRows[0] : undefined)
+
+  return match ? storeRowToInfo(match, keyMap) : null
 }

@@ -59,12 +59,15 @@ const tools = await mcp.getTools()
 ## Multi-tenant: picking a store
 
 The platform runs many partner storefronts (each = one sales channel + one
-publishable key). Agents work in terms of **store names**, not raw `pk_` tokens:
+publishable key) **plus its own core store** (the apex `cicilabel.com`). Agents
+work in terms of **store names**, not raw `pk_` tokens:
 
 1. `list_stores` → discover storefronts (`handle`, `name`, `domain`, `store_id`,
-   `publishable_key`).
+   `publishable_key`, `is_default`). The platform core store is included with
+   `is_default: true` and listed first.
 2. `get_storefront_key({ store: "acme" })` → resolve a storefront's default key by
-   handle/subdomain or domain.
+   handle/subdomain or domain. Use `{ store: "default" }` (or the apex domain) for
+   the core store.
 3. Pass `store` to any catalog tool — the server resolves it to that store's key:
    ```
    list_products({ store: "acme", q: "saree" })
@@ -128,6 +131,7 @@ Architecture, the full route table, and how to author new tools:
 |---------|---------|
 | `STORE_MCP_DEFAULT_PUBLISHABLE_KEY` | Optional last-resort key when a call has no `store` arg and no header. Set to the main storefront's public key. |
 | `STORE_MCP_ENABLE_WRITE` | `true`/`1`/`yes` to enable cart & payment write tools. Default off (read-only). |
+| `STORE_MCP_DEFAULT_STORE_DOMAIN` | Optional. Apex domain reported for the platform core store. Falls back to `ROOT_DOMAIN`, then `cicilabel.com`. |
 | `STORE_MCP_LOOPBACK_URL` | Optional. Override the loopback origin (default: derived from the request, e.g. `http://localhost:9000`). |
 
 ## Layout

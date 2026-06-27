@@ -118,6 +118,42 @@ setupSharedTestSuite(() => {
       expect(found.publishable_key).toBe(publishableKey)
     })
 
+    it("list_stores includes the platform core/default store (is_default)", async () => {
+      // The shared env seeds a default (non-partner) store via createDefaultsWorkflow.
+      await fullSetup(api, getContainer)
+
+      const res = await api.post(
+        "/mcp",
+        rpc("tools/call", { name: "list_stores", arguments: {} }),
+        { headers: MCP_HEADERS }
+      )
+      expect(res.status).toBe(200)
+      expect(res.data?.result?.isError).toBeFalsy()
+
+      const payload = JSON.parse(res.data.result.content[0].text)
+      const def = payload.stores.find((s: any) => s.is_default === true)
+      expect(def).toBeTruthy()
+      expect(typeof def.store_id).toBe("string")
+      // Apex domain is attached (defaults to cicilabel.com / ROOT_DOMAIN).
+      expect(typeof def.domain === "string" || def.domain === null).toBe(true)
+    })
+
+    it("get_storefront_key resolves the core store via 'default'", async () => {
+      await fullSetup(api, getContainer)
+
+      const res = await api.post(
+        "/mcp",
+        rpc("tools/call", { name: "get_storefront_key", arguments: { store: "default" } }),
+        { headers: MCP_HEADERS }
+      )
+      expect(res.status).toBe(200)
+      expect(res.data?.result?.isError).toBeFalsy()
+
+      const info = JSON.parse(res.data.result.content[0].text)
+      expect(info.is_default).toBe(true)
+      expect(typeof info.store_id).toBe("string")
+    })
+
     it("get_storefront_key resolves the publishable key by handle", async () => {
       const { partner, publishableKey } = await fullSetup(api, getContainer)
 

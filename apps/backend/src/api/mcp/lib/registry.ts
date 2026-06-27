@@ -71,7 +71,7 @@ const STORE_PROP = {
   store: {
     type: "string",
     description:
-      "Storefront to scope to: a partner handle/subdomain (e.g. 'acme') or its domain. Resolved server-side to that store's default publishable key. Use list_stores to discover. If omitted, falls back to the x-publishable-api-key header or the server default key.",
+      "Storefront to scope to: a partner handle/subdomain (e.g. 'acme') or its domain, or 'default'/the apex domain for the platform core store (cicilabel.com). Resolved server-side to that store's default publishable key. Use list_stores to discover. If omitted, falls back to the x-publishable-api-key header or the server default key.",
   },
 } as const
 
@@ -662,7 +662,7 @@ export const STORE_MCP_TOOLS: McpToolDef[] = [
   {
     name: "list_stores",
     description:
-      "List live storefronts (partner stores) with handle, name, domain, store id, sales channel, and default publishable key. Use this to discover which store to scope catalog queries to.",
+      "List live storefronts with handle, name, domain, store id, sales channel, and default publishable key. Includes the platform's core/default store (is_default=true, e.g. cicilabel.com) and every partner store. Use this to discover which store to scope catalog queries to.",
     native: "list_stores",
     inputSchema: {
       type: "object",
@@ -673,7 +673,7 @@ export const STORE_MCP_TOOLS: McpToolDef[] = [
   {
     name: "get_storefront_key",
     description:
-      "Resolve a storefront's default publishable API key by partner handle/subdomain or domain. Returns { handle, name, domain, store_id, sales_channel_id, publishable_key }. Publishable keys are public storefront keys.",
+      "Resolve a storefront's default publishable API key by partner handle/subdomain or domain, OR the platform core store via 'default'/'main' or its apex domain (cicilabel.com). Returns { handle, name, domain, store_id, sales_channel_id, publishable_key, is_default }. Publishable keys are public storefront keys.",
     native: "get_storefront_key",
     inputSchema: {
       type: "object",
