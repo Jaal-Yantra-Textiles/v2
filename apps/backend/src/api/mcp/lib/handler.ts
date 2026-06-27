@@ -55,6 +55,7 @@ export async function handleMcpRequest(
     baseUrl: resolveBaseUrl(req),
     publishableKey,
     bearer,
+    container: req.scope,
   })
 
   const transport = new StreamableHTTPServerTransport({
