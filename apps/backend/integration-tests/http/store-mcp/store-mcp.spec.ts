@@ -46,6 +46,44 @@ setupSharedTestSuite(() => {
       expect(getProduct.inputSchema.required).toContain("id")
     })
 
+    it("every read-only list tool returns a valid 200 envelope under the key", async () => {
+      const listTools = [
+        "list_collections",
+        "list_categories",
+        "list_product_tags",
+        "list_product_types",
+        "list_product_variants",
+        "list_regions",
+        "list_currencies",
+        "list_return_reasons",
+        "list_raw_materials",
+      ]
+      for (const name of listTools) {
+        const res = await api.post(
+          "/store/mcp",
+          rpc("tools/call", { name, arguments: { limit: 2 } }),
+          { headers: { ...MCP_HEADERS, "x-publishable-api-key": publishableKey } }
+        )
+        expect(res.status).toBe(200)
+        if (res.data?.result?.isError) {
+          // eslint-disable-next-line no-console
+          console.log(`[mcp-test] ${name} in-band error:`, res.data.result.content?.[0]?.text)
+        }
+        expect(res.data?.result?.isError).toBeFalsy()
+      }
+    })
+
+    it("semantic_search is wired and never HTTP-500s (AI provider optional)", async () => {
+      const res = await api.post(
+        "/store/mcp",
+        rpc("tools/call", { name: "semantic_search", arguments: { query: "cotton" } }),
+        { headers: { ...MCP_HEADERS, "x-publishable-api-key": publishableKey } }
+      )
+      // The MCP layer always answers 200; AI errors surface in-band, not as 500.
+      expect(res.status).toBe(200)
+      expect(Array.isArray(res.data?.result?.content)).toBe(true)
+    })
+
     it("/store/mcp rejects requests with no publishable key (gated mount)", async () => {
       let status = 0
       try {

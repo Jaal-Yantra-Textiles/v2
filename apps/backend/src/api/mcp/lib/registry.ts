@@ -72,6 +72,75 @@ const PRICING_PROPS = {
   },
 } as const
 
+const FIELDS_PROP = {
+  fields: {
+    type: "string",
+    description:
+      "Comma-separated field selector, e.g. 'id,title,handle'. Prefix with '+'/'*' to add relations; omit price fields to skip pricing context.",
+  },
+} as const
+
+const Q_PROP = {
+  q: { type: "string", description: "Full-text search term." },
+} as const
+
+/** Builder for a sales-channel-scoped list endpoint. */
+const listTool = (
+  name: string,
+  description: string,
+  path: string,
+  opts: { searchable?: boolean; query?: string[]; props?: Record<string, any> } = {}
+): McpToolDef => ({
+  name,
+  description,
+  method: "GET",
+  path,
+  queryParams: [
+    ...(opts.searchable ? ["q"] : []),
+    ...(opts.query ?? []),
+    "fields",
+    "limit",
+    "offset",
+  ],
+  inputSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      ...(opts.searchable ? Q_PROP : {}),
+      ...(opts.props ?? {}),
+      ...FIELDS_PROP,
+      ...STORE_PROP,
+      ...PAGINATION_PROPS,
+    },
+  },
+})
+
+/** Builder for a retrieve-by-id endpoint (`/path/:id`). */
+const getTool = (
+  name: string,
+  description: string,
+  path: string,
+  opts: { query?: string[]; props?: Record<string, any> } = {}
+): McpToolDef => ({
+  name,
+  description,
+  method: "GET",
+  path,
+  pathParams: ["id"],
+  queryParams: [...(opts.query ?? []), "fields"],
+  inputSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["id"],
+    properties: {
+      id: { type: "string", description: "Resource id." },
+      ...(opts.props ?? {}),
+      ...FIELDS_PROP,
+      ...STORE_PROP,
+    },
+  },
+})
+
 export const STORE_MCP_TOOLS: McpToolDef[] = [
   {
     name: "list_products",
@@ -153,6 +222,113 @@ export const STORE_MCP_TOOLS: McpToolDef[] = [
       },
     },
   },
+  // --- Built-in catalog -------------------------------------------------
+  listTool(
+    "list_collections",
+    "List product collections in the active sales channel.",
+    "/store/collections",
+    { searchable: true, query: ["handle"], props: { handle: { type: "string", description: "Filter by exact collection handle." } } }
+  ),
+  getTool(
+    "get_collection",
+    "Retrieve a product collection by id.",
+    "/store/collections/:id"
+  ),
+  listTool(
+    "list_categories",
+    "List product categories in the active sales channel.",
+    "/store/product-categories",
+    {
+      searchable: true,
+      query: ["handle", "parent_category_id"],
+      props: {
+        handle: { type: "string", description: "Filter by exact category handle." },
+        parent_category_id: { type: "string", description: "Filter to children of this category id." },
+      },
+    }
+  ),
+  getTool(
+    "get_category",
+    "Retrieve a product category by id.",
+    "/store/product-categories/:id"
+  ),
+  listTool(
+    "list_product_tags",
+    "List product tags in the active sales channel.",
+    "/store/product-tags",
+    { searchable: true }
+  ),
+  listTool(
+    "list_product_types",
+    "List product types in the active sales channel.",
+    "/store/product-types",
+    { searchable: true }
+  ),
+  listTool(
+    "list_product_variants",
+    "List product variants in the active sales channel.",
+    "/store/product-variants",
+    { searchable: true }
+  ),
+  // --- Storefront config ------------------------------------------------
+  listTool(
+    "list_regions",
+    "List the store's regions (currency + supported countries).",
+    "/store/regions"
+  ),
+  getTool("get_region", "Retrieve a region by id.", "/store/regions/:id"),
+  listTool(
+    "list_currencies",
+    "List the store's enabled currencies.",
+    "/store/currencies"
+  ),
+  listTool(
+    "list_return_reasons",
+    "List the store's return reasons.",
+    "/store/return-reasons"
+  ),
+  // --- Custom routes ----------------------------------------------------
+  listTool(
+    "list_raw_materials",
+    "Browse raw materials available for customization (name, color, composition, material type).",
+    "/store/custom/raw-materials",
+    { searchable: true }
+  ),
+  getTool(
+    "get_production_story",
+    "Get the public production story (timeline + credits) for a custom design.",
+    "/store/custom/designs/:id/production-story"
+  ),
+  {
+    name: "semantic_search",
+    description:
+      "Natural-language product search (LLM-interpreted, vector search with lexical fallback). Returns storefront products best matching the query.",
+    method: "GET",
+    path: "/store/ai/search",
+    queryParams: ["query", "limit"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["query"],
+      properties: {
+        query: {
+          type: "string",
+          minLength: 2,
+          maxLength: 200,
+          description: "Natural-language search query, e.g. 'lightweight cotton summer saree'.",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 24,
+          default: 6,
+          description: "Max results (1-24).",
+        },
+        ...STORE_PROP,
+      },
+    },
+  },
+  // --- Native (container-backed) store discovery ------------------------
   {
     name: "list_stores",
     description:
