@@ -92,6 +92,9 @@ export const paymentNextAction = (session: any): Record<string, any> => {
         hash: d.hash ?? null,
       },
       txnid: d.txnid ?? null,
+      // If a UPI intent was already generated (payu_generate_upi_intent), surface it.
+      upi_link: d.upi_intent_uri ?? null,
+      upi_hint: "For UPI, call payu_generate_upi_intent to get a upi://pay deep link + QR.",
     }
   }
 
@@ -573,6 +576,32 @@ const CHECKOUT_WRITE_TOOLS: McpToolDef[] = [
         txnid: { type: "string", description: "The merchant transaction id used to initiate (from the session data)." },
         hash: { type: "string", description: "PayU's response hash for verification." },
         amount: { type: "string", description: "Amount reported by PayU in the callback." },
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
+    name: "payu_generate_upi_intent",
+    description:
+      "Generate a UPI Intent (a upi://pay deep link the customer taps in any UPI app) for a cart that already has an initialized PayU session (run create_payment_collection → initialize_payment_session with provider_id 'pp_payu_payu' first). Returns { type:'upi_intent', upi_link, qr_url, txnid }. The order completes via the PayU webhook / payu_complete_payment.",
+    write: true,
+    method: "POST",
+    path: "/store/payu/intent",
+    bodyParams: ["cart_id", "upi_app", "return_url_base"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["cart_id"],
+      properties: {
+        cart_id: { type: "string", description: "Cart id (cart_...) with an initialized pp_payu_payu session." },
+        upi_app: {
+          type: "string",
+          description: "Optional UPI app hint: 'phonepe', 'googlepay', 'paytm', or 'genericintent' (default).",
+        },
+        return_url_base: {
+          type: "string",
+          description: "Optional storefront origin for success/failure return URLs (defaults to the owning store's domain).",
+        },
         ...STORE_PROP,
       },
     },

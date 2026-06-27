@@ -107,6 +107,7 @@ setupSharedTestSuite(() => {
         "create_payment_collection",
         "initialize_payment_session",
         "complete_cart",
+        "payu_generate_upi_intent",
         "payu_complete_payment",
         "payu_refresh_payment",
       ]) {

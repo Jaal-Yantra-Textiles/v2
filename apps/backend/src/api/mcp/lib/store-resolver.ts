@@ -166,6 +166,21 @@ export async function listStorefronts(
 }
 
 /**
+ * Resolve the storefront that owns a given sales channel (a cart's
+ * `sales_channel_id`). Used to derive a checkout's return-URL origin.
+ */
+export async function findStorefrontBySalesChannel(
+  container: any,
+  salesChannelId: string | null | undefined
+): Promise<StorefrontInfo | null> {
+  if (!salesChannelId) {
+    return null
+  }
+  const all = await listStorefronts(container)
+  return all.find((s) => s.sales_channel_id === salesChannelId) ?? null
+}
+
+/**
  * Resolve a single storefront. Matches (in order): partner handle, exact domain,
  * store id, default sales-channel id, store name, the first domain label as a
  * handle, then the platform core store via "default"/"main" or the apex domain.

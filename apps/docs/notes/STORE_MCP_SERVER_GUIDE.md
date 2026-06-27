@@ -187,6 +187,7 @@ create_cart ──▶ add_line_item* ──▶ update_cart (email + shipping/bil
 | `create_payment_collection` | POST | `/store/payment-collections` |
 | `initialize_payment_session` | POST | `/store/payment-collections/:id/payment-sessions` |
 | `complete_cart` | POST | `/store/carts/:id/complete` |
+| `payu_generate_upi_intent` | POST | `/store/payu/intent` (INR — UPI deep link) |
 | `payu_complete_payment` | POST | `/store/payu/complete` (INR) |
 | `payu_refresh_payment` | POST | `/store/payu/refresh` (INR) |
 
@@ -242,6 +243,23 @@ a server-side charge API. That changes the tail of the flow:
   **instead of `complete_cart`** for PayU.
 - **`payu_refresh_payment`** wraps `POST /store/payu/refresh`: resets the payment
   collection (deletes stale sessions) so a retry gets a fresh `txnid`/`hash`.
+
+**UPI Intent (`payu_generate_upi_intent`) — the no-redirect, no-card path.** After
+a PayU session is initialized, this generates a **`upi://pay?…` deep link** (+ QR)
+the customer taps in any UPI app — no hosted-page redirect, no card data:
+
+```
+… create_payment_collection → initialize_payment_session({ provider_id: "pp_payu_payu" })
+→ payu_generate_upi_intent({ cart_id })  ⇒ { upi_link: "upi://pay?pa=…&am=…&cu=INR", qr_url, txnid }
+→ [customer pays in their UPI app] → PayU webhook / payu_complete_payment
+```
+
+It wraps `POST /store/payu/intent`, which **replays the session's already-signed
+fields** to PayU's S2S `/_payment` (`bankcode=INTENT`) — so it needs no salt and
+reuses the same hash the provider built. If PayU returns its HTML page instead of
+JSON, S2S UPI Intent isn't enabled on that merchant (409 with a clear message);
+fall back to the hosted link. This is the most agent-friendly INR primitive: a
+returnable link/QR with zero PCI surface.
 
 **What the MCP cannot do for PayU (by design, not a gap):**
 - The hosted-page payment step itself is a **browser redirect** with a

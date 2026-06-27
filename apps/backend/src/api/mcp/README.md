@@ -113,11 +113,13 @@ sales-channel scoping, pricing/tax, and validators still apply.
 `list_payment_providers`, `create_payment_collection`,
 `initialize_payment_session`, `complete_cart`
 
-**PayU (INR):** `payu_complete_payment`, `payu_refresh_payment` — PayU
-(`pp_payu_payu`) is a redirect gateway; `initialize_payment_session` returns the
-`payment_url`/`hash`/`txnid` a browser posts to PayU's page, then
-`payu_complete_payment` finishes the order from the redirect callback (use it
-instead of `complete_cart`). See the guide for the full flow + boundaries.
+**PayU (INR):** `payu_generate_upi_intent`, `payu_complete_payment`,
+`payu_refresh_payment` — PayU (`pp_payu_payu`) is a redirect gateway;
+`initialize_payment_session` returns the `payment_url`/`hash`/`txnid` a browser
+posts to PayU's page, then `payu_complete_payment` finishes the order from the
+redirect callback (use it instead of `complete_cart`). `payu_generate_upi_intent`
+turns the session into a `upi://pay` deep link + QR (no redirect, no card). See
+the guide for the full flow + boundaries.
 
 Typical agent flow:
 
