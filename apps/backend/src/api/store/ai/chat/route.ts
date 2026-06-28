@@ -39,6 +39,8 @@ import {
   createGetProductDetailsTool,
 } from "../../../../mastra/agents/tools/storefront-catalog-tools"
 import { foldSystemForProvider } from "./system-fold-lib"
+import { parseChatProvider } from "./chat-usage-lib"
+import { logAiUsage } from "../../../../mastra/services/ai-platforms"
 import type { StoreAiChatReq } from "./validators"
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -108,6 +110,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   // Only OpenRouter keeps the native `system` param. See system-fold-lib.ts.
   const folded = foldSystemForProvider(resolved.provider, system, messages)
 
+  // Map the chat resolver's `provider` string into structured [ai-usage] fields
+  // so chat emits the same telemetry as every other AI feature.
+  const usage = parseChatProvider(resolved.provider)
+  const startedAt = Date.now()
+
   let result
   try {
     result = streamText({
@@ -120,18 +127,45 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       // while still capping runaway tool loops.
       stopWhen: stepCountIs(5),
       temperature: 0.6,
+      onFinish: ({ usage: u }: any) => {
+        logAiUsage(logger, {
+          feature: "store/ai/chat",
+          role: "ai_search_chat",
+          provider: usage.providerType,
+          source: usage.source,
+          platformId: usage.platformId,
+          model: usage.modelId,
+          ok: true,
+          ms: Date.now() - startedAt,
+          tokens: u?.totalTokens,
+        })
+      },
       onError: (err) => {
-        logger.warn(
-          `[store/ai/chat] streamText error (${resolved.provider}): ${
-            (err as any)?.error?.message ?? err
-          }`
-        )
+        logAiUsage(logger, {
+          feature: "store/ai/chat",
+          role: "ai_search_chat",
+          provider: usage.providerType,
+          source: usage.source,
+          platformId: usage.platformId,
+          model: usage.modelId,
+          ok: false,
+          ms: Date.now() - startedAt,
+          error: (err as any)?.error ?? err,
+        })
       },
     })
   } catch (e: any) {
-    logger.warn(
-      `[store/ai/chat] streamText threw (${resolved.provider}): ${e?.message ?? e}`
-    )
+    logAiUsage(logger, {
+      feature: "store/ai/chat",
+      role: "ai_search_chat",
+      provider: usage.providerType,
+      source: usage.source,
+      platformId: usage.platformId,
+      model: usage.modelId,
+      ok: false,
+      ms: Date.now() - startedAt,
+      error: e,
+    })
     res.status(502).json({ error: "chat provider failed" })
     return
   }
