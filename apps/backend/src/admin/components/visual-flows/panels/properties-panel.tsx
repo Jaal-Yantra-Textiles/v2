@@ -2,7 +2,8 @@ import { Text, Heading, IconButton, Button, Input, Label, Textarea, Select, Chec
 import { XMark, Trash, MagnifyingGlass } from "@medusajs/icons"
 import { Edge, Node } from "@xyflow/react"
 import { useState, useEffect, useMemo } from "react"
-import { useFlowMetadata, EntityMetadata, WorkflowInputField } from "../../../hooks/api/visual-flows"
+import { useFlowMetadata, useAiPlatforms, EntityMetadata, WorkflowInputField } from "../../../hooks/api/visual-flows"
+import { KNOWN_AI_ROLES } from "../../social-platforms/ai-roles"
 import { CodeEditorModal } from "../code-editor-modal"
 import { JsonEditorModal } from "../json-editor-modal"
 import { StackedFocusModal } from "../../modal/stacked-modal/stacked-focused-modal"
@@ -19,6 +20,7 @@ interface PropertiesPanelProps {
 
 export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpdate, onDelete, onClose }: PropertiesPanelProps) {
   const { data: metadata, isLoading: metadataLoading } = useFlowMetadata()
+  const { data: aiPlatforms, isLoading: aiPlatformsLoading } = useAiPlatforms()
   const [label, setLabel] = useState(String(node.data.label || ""))
   const [operationKey, setOperationKey] = useState(String(node.data.operationKey || ""))
   const [options, setOptions] = useState<Record<string, any>>(node.data.options || {})
@@ -240,6 +242,53 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
 
   const isTrigger = node.type === "trigger"
   const operationType = String(node.data.operationType || "")
+
+  // AI role options for the platform picker (known roles + any configured via
+  // the category sweep), each annotated with the resolved provider/model.
+  const aiRoleOptions = useMemo(() => {
+    const byRole = aiPlatforms?.by_role || {}
+    const seen = new Set<string>()
+    const opts: { value: string; label: string; hint: string }[] = []
+    const push = (value: string, baseLabel: string) => {
+      if (!value || seen.has(value)) return
+      seen.add(value)
+      const entries = byRole[value] || []
+      const def = entries.find((e) => e.isDefault) || entries[0]
+      const hint = def
+        ? `${def.providerType ?? "?"}${def.defaultModel ? ` · ${def.defaultModel}` : ""}`
+        : "no platform → free models"
+      opts.push({ value, label: baseLabel, hint })
+    }
+    KNOWN_AI_ROLES.forEach((r) => push(r.value, r.label))
+    Object.keys(byRole).forEach((r) => push(r, r))
+    return opts
+  }, [aiPlatforms])
+
+  // Shared role <Select> for AI operations (ai_generate / ai_extract).
+  const renderAiRoleSelect = () => (
+    <div>
+      <Label htmlFor="ai_role">AI Platform (role)</Label>
+      <Select
+        value={options.role || "ai_search_chat"}
+        onValueChange={(value) => updateOption("role", value)}
+      >
+        <Select.Trigger>
+          <Select.Value placeholder={aiPlatformsLoading ? "Loading platforms…" : "Select role…"} />
+        </Select.Trigger>
+        <Select.Content className="max-h-72 overflow-y-auto">
+          {aiRoleOptions.map((o) => (
+            <Select.Item key={o.value} value={o.value}>
+              {o.label} — {o.hint}
+            </Select.Item>
+          ))}
+        </Select.Content>
+      </Select>
+      <Text className="text-xs text-ui-fg-subtle mt-1">
+        Provider, API key and model come from Settings → External Platforms
+        (category=ai). Falls back to free models when none is configured.
+      </Text>
+    </div>
+  )
 
   // Render operation-specific fields
   const renderOperationFields = () => {
@@ -1884,6 +1933,76 @@ return {
           </>
         )
 
+      case "ai_generate": {
+        return (
+          <>
+            {/* AI platform role (resolves provider/model from External Platforms) */}
+            {renderAiRoleSelect()}
+
+            {/* System prompt */}
+            <div>
+              <Label htmlFor="ai_gen_system">System Prompt</Label>
+              <Textarea
+                id="ai_gen_system"
+                value={options.system_prompt || ""}
+                onChange={(e) => updateOption("system_prompt", e.target.value)}
+                rows={3}
+                placeholder="You are a concise assistant. Write a short summary…"
+              />
+              <Text className="text-xs text-ui-fg-subtle mt-1">
+                Instructions for the model. Supports {"{{ variable }}"}.
+              </Text>
+            </div>
+
+            {/* Prompt / input */}
+            <div>
+              <Label htmlFor="ai_gen_input">Prompt</Label>
+              <Textarea
+                id="ai_gen_input"
+                value={options.input || ""}
+                onChange={(e) => updateOption("input", e.target.value)}
+                rows={4}
+                placeholder={"Summarise this: {{ read_data.records[0].body }}"}
+                className="font-mono text-xs"
+              />
+              <Text className="text-xs text-ui-fg-subtle mt-1">
+                Output is available downstream as {"{{ $last.text }}"}.
+              </Text>
+            </div>
+
+            {/* Max output tokens */}
+            <div>
+              <Label htmlFor="ai_gen_max">Max output tokens (optional)</Label>
+              <Input
+                id="ai_gen_max"
+                type="number"
+                min={1}
+                value={options.max_output_tokens ?? ""}
+                onChange={(e) =>
+                  updateOption(
+                    "max_output_tokens",
+                    e.target.value ? Number(e.target.value) : undefined
+                  )
+                }
+                placeholder="e.g. 800"
+              />
+            </div>
+
+            {/* Fallback on error */}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="ai_gen_fallback"
+                checked={!!options.fallback_on_error}
+                onCheckedChange={(checked) => updateOption("fallback_on_error", !!checked)}
+              />
+              <Label htmlFor="ai_gen_fallback" className="cursor-pointer">
+                Return empty text instead of failing the flow on error
+              </Label>
+            </div>
+          </>
+        )
+      }
+
       case "ai_extract": {
         const schemaFields: Array<{ name: string; type: string; description?: string; enumValues?: string[]; required?: boolean }> = options.schema_fields || []
 
@@ -1907,9 +2026,12 @@ return {
 
         return (
           <>
-            {/* Model */}
+            {/* AI platform role (resolves provider/model from External Platforms) */}
+            {renderAiRoleSelect()}
+
+            {/* Model — legacy OpenRouter override, ignored once a platform is configured for the role */}
             <div>
-              <Label htmlFor="ai_model">Model</Label>
+              <Label htmlFor="ai_model">Model (legacy override)</Label>
               <Select
                 value={options.model || "google/gemini-2.0-flash-exp:free"}
                 onValueChange={(value) => updateOption("model", value)}
