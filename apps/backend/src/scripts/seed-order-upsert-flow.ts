@@ -192,7 +192,9 @@ const FLOW_DEF = {
       position_x: X_CENTER,
       position_y: Y_PARSE,
       options: {
-        model: "google/gemini-2.5-flash-preview",
+        // Model/provider resolved from the admin-configured AI platform for
+        // this role (category=ai, metadata.role=ai_search_chat); free fallback.
+        role: "ai_search_chat",
         input: "Subject: {{ read_email.records[0].subject }}\n\n{{ read_email.records[0].text_body }}",
         system_prompt:
           "Extract purchase order details from this supplier email. " +
