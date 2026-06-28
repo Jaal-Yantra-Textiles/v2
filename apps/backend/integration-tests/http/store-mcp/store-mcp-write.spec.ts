@@ -89,10 +89,10 @@ setupSharedTestSuite(() => {
       expect(res.data.result.content[0].text).toMatch(/STORE_MCP_ENABLE_WRITE/)
     })
 
-    it("exposes write tools in tools/list when STORE_MCP_ENABLE_WRITE is on", async () => {
+    it("exposes write tools in tools/list on the keyed /store/mcp mount when STORE_MCP_ENABLE_WRITE is on", async () => {
       process.env.STORE_MCP_ENABLE_WRITE = "true"
-      const res = await api.post("/mcp", rpc("tools/list", {}), {
-        headers: MCP_HEADERS,
+      const res = await api.post("/store/mcp", rpc("tools/list", {}), {
+        headers: { ...MCP_HEADERS, "x-publishable-api-key": publishableKey },
       })
       expect(res.status).toBe(200)
       const names = (res.data?.result?.tools ?? []).map((t: any) => t.name)
@@ -114,6 +114,31 @@ setupSharedTestSuite(() => {
       ]) {
         expect(names).toContain(t)
       }
+    })
+
+    it("hides write tools on the open /mcp mount even when STORE_MCP_ENABLE_WRITE is on (no validated key)", async () => {
+      process.env.STORE_MCP_ENABLE_WRITE = "true"
+      const res = await api.post("/mcp", rpc("tools/list", {}), {
+        headers: MCP_HEADERS,
+      })
+      expect(res.status).toBe(200)
+      const names = (res.data?.result?.tools ?? []).map((t: any) => t.name)
+      // Reads remain available, writes do not (require a validated publishable key).
+      expect(names).toContain("list_products")
+      expect(names).not.toContain("create_cart")
+      expect(names).not.toContain("complete_cart")
+      expect(names).not.toContain("create_payment_link")
+    })
+
+    it("rejects a write tool call on the open /mcp mount even when writes are enabled", async () => {
+      process.env.STORE_MCP_ENABLE_WRITE = "true"
+      const res = await api.post(
+        "/mcp",
+        rpc("tools/call", { name: "create_cart", arguments: {} }),
+        { headers: MCP_HEADERS }
+      )
+      expect(res.status).toBe(200)
+      expect(res.data?.result?.isError).toBe(true)
     })
 
     it("PayU tools are gated with the rest of the write surface", async () => {
