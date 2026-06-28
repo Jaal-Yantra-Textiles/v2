@@ -1,9 +1,13 @@
 import { z } from "@medusajs/framework/zod"
-import { createOpenRouter } from "@openrouter/ai-sdk-provider"
 import { generateText } from "ai"
 import { OperationDefinition, OperationContext, OperationResult } from "./types"
 import { interpolateString } from "./utils"
 import { extractionEvalWorkflow } from "../../../mastra/workflows/extractionEval"
+import {
+  resolveRoleTextModel,
+  buildGenerateArgs,
+  logAiUsage,
+} from "../../../mastra/services/ai-platforms"
 
 interface SchemaField {
   name: string
@@ -65,10 +69,21 @@ export const aiExtractOperation: OperationDefinition = {
   category: "integration",
 
   optionsSchema: z.object({
+    role: z
+      .string()
+      .default("ai_search_chat")
+      .describe(
+        "AI role to resolve the platform for (metadata.role on the external " +
+          "platform row). The model/provider/key come from Settings → External " +
+          "Platforms (category=ai); falls back to free models when none is set."
+      ),
     model: z
       .string()
-      .default("google/gemini-2.5-flash-preview")
-      .describe("OpenRouter model ID"),
+      .optional()
+      .describe(
+        "DEPRECATED — legacy OpenRouter model id. Ignored once a platform is " +
+          "configured for `role`; configure the model on the platform instead."
+      ),
     input: z
       .string()
       .describe("Input text sent to the model (supports {{ variable }} interpolation)"),
@@ -106,7 +121,7 @@ export const aiExtractOperation: OperationDefinition = {
   }),
 
   defaultOptions: {
-    model: "google/gemini-2.5-flash-preview",
+    role: "ai_search_chat",
     input: "",
     system_prompt: "Extract order information from this email.",
     schema_fields: [],
@@ -133,7 +148,9 @@ export const aiExtractOperation: OperationDefinition = {
             input,
             system_prompt: options.system_prompt,
             schema_fields: options.schema_fields ?? [],
-            model: options.model,
+            // Opt-in legacy eval path still runs on OpenRouter; the platform
+            // migration covers the default (non-eval) path. See #755.
+            model: options.model || "google/gemini-2.5-flash-preview",
           },
         })
 
@@ -159,10 +176,26 @@ export const aiExtractOperation: OperationDefinition = {
       }
     }
 
+    const role = options.role || "ai_search_chat"
+    let logger: any
+    try {
+      logger = (context.container as any)?.resolve?.("logger")
+    } catch {
+      /* logger optional */
+    }
+
+    // Resolve the model from the admin-configured platform for the role, else
+    // free models. Folds the system prompt for OpenAI-compatible providers
+    // (DashScope rejects the `developer` role @ai-sdk/openai emits — #752).
+    const resolved = await resolveRoleTextModel(
+      context.container as any,
+      role,
+      options.model || undefined
+    )
+    const started = Date.now()
     try {
       const fields: SchemaField[] = options.schema_fields || []
       const input = interpolateString(options.input, context.dataChain)
-      const modelId: string = options.model || "google/gemini-2.5-flash-preview"
 
       // Build the full system prompt: user instructions + JSON shape hint from fields
       const systemPrompt = [
@@ -172,26 +205,23 @@ export const aiExtractOperation: OperationDefinition = {
         .join("")
         .trim()
 
-      console.log("[ai_extract] Calling model:", modelId, {
-        inputLength: input.length,
-        inputPreview: input.slice(0, 150) + (input.length > 150 ? `… [${input.length} chars]` : ""),
-        fields: fields.map((f) => f.name),
-      })
-
-      const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY })
-
       const result = await generateText({
-        model: openrouter(modelId) as any,
-        messages: [{ role: "user", content: input }],
-        ...(systemPrompt ? { system: systemPrompt } : {}),
+        model: resolved.model as any,
+        ...buildGenerateArgs({ providerType: resolved.providerType }, systemPrompt, input),
       })
 
       const object = extractJson(result.text)
 
-      console.log("[ai_extract] Extraction complete:", {
-        model: modelId,
-        usage: result.usage,
-        keys: Object.keys(object),
+      logAiUsage(logger, {
+        feature: "visual-flow/ai_extract",
+        role,
+        provider: resolved.providerType,
+        source: resolved.source,
+        model: resolved.modelId,
+        platformId: resolved.platformId,
+        ok: true,
+        ms: Date.now() - started,
+        tokens: (result as any)?.usage?.totalTokens,
       })
 
       return {
@@ -201,7 +231,17 @@ export const aiExtractOperation: OperationDefinition = {
     } catch (error: any) {
       const message =
         error?.responseBody ?? error?.cause?.message ?? error?.message ?? String(error)
-      console.error("[ai_extract] Error:", message)
+      logAiUsage(logger, {
+        feature: "visual-flow/ai_extract",
+        role,
+        provider: resolved.providerType,
+        source: resolved.source,
+        model: resolved.modelId,
+        platformId: resolved.platformId,
+        ok: false,
+        ms: Date.now() - started,
+        error,
+      })
 
       if (options.fallback_on_error) {
         return { success: true, data: {} }
