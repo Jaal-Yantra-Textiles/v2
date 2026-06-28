@@ -88,7 +88,8 @@ agents; everything here is read-only.
 `list_categories`, `get_category`, `list_product_tags`, `list_product_types`,
 `list_product_variants`, `semantic_search`
 
-**Storefront config:** `list_regions`, `get_region`, `list_currencies`,
+**Storefront config:** `list_regions`, `get_region`, `detect_region` (resolve a
+customer's ISO-2 country to its region, or list all to ask), `list_currencies`,
 `list_return_reasons`
 
 **Custom:** `list_raw_materials`, `get_production_story`
@@ -112,7 +113,9 @@ the `x-publishable-api-key` header). They are hidden/blocked on the open `/mcp`
 mount, so the zero-config endpoint stays read-only and writes are never callable
 anonymously. Point write clients at `/store/mcp` with a publishable key.
 
-**Cart:** `create_cart`, `get_cart`, `update_cart`, `add_line_item`,
+**Cart:** `create_cart`, `get_cart`, `update_cart`, `set_customer_details`
+(onboard the shopper — flat name/email/address, billing mirrors shipping;
+returns `missing:[...]` when fields are absent), `add_line_item`,
 `update_line_item`, `remove_line_item`, `add_promotion`
 
 **Checkout / pay:** `list_shipping_options`, `add_shipping_method`,
@@ -127,8 +130,19 @@ redirect gateway;
 `initialize_payment_session` returns the `payment_url`/`hash`/`txnid` a browser
 posts to PayU's page, then `payu_complete_payment` finishes the order from the
 redirect callback (use it instead of `complete_cart`). `payu_generate_upi_intent`
-turns the session into a `upi://pay` deep link + QR (no redirect, no card). See
-the guide for the full flow + boundaries.
+turns the session into a `upi://pay` deep link + QR (no redirect, no card), and
+`generate_upi_qr` renders any UPI link/VPA (or a cart's stored intent) as a
+scannable PNG QR data URL to show the shopper. See the guide for the full flow +
+boundaries.
+
+**Stripe (non-INR):** `create_stripe_payment_page` → a shareable hosted card page
+(`/stripe/pay/:cart_id`) where the customer enters their card (Apple/Google Pay
+included). Unlike PayU, completion is automatic: the page confirms the cart's own
+PaymentIntent — the one admin captures — and core's Stripe webhook completes the
+cart into an order. Poll `get_checkout_status` (`{ status, order_id }`) for the
+result. Requires a Stripe provider on the region + `STRIPE_PUBLISHABLE_KEY`. (The
+raw `client_secret` from `initialize_payment_session` is still returned for
+callers that render Stripe.js themselves.)
 
 Typical agent flow:
 

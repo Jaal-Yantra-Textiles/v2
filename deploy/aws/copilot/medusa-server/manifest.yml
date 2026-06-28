@@ -153,6 +153,10 @@ secrets:
   # Off by default in code; "true" here exposes them. See src/api/mcp/README.md.
   STORE_MCP_ENABLE_WRITE: /jyt/prod/STORE_MCP_ENABLE_WRITE
   STRIPE_API_KEY: /jyt/prod/STRIPE_API_KEY
+  # Public client-side key (pk_…) for the self-hosted Stripe card page
+  # (GET /stripe/pay/:cart_id). Non-secret, but env-specific so it's sourced from
+  # SSM like the other Stripe params. Without it the hosted page won't render.
+  STRIPE_PUBLISHABLE_KEY: /jyt/prod/STRIPE_PUBLISHABLE_KEY
   STRIPE_WEBHOOK_SECRET: /jyt/prod/STRIPE_WEBHOOK_SECRET
   VERCEL_STOREFRONT_REPO: /jyt/prod/VERCEL_STOREFRONT_REPO
   VERCEL_TEAM_ID: /jyt/prod/VERCEL_TEAM_ID

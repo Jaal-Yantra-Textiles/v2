@@ -61,6 +61,25 @@ const WRITE_MOUNT_HINT =
   "`x-publishable-api-key` header — those write tools are intentionally not " +
   "exposed on this open read-only endpoint."
 
+// Shown on the keyed mount where the cart→checkout→order tools are live, so the
+// agent runs the flow in the right order and follows up after the order lands.
+const WRITE_FLOW_GUIDE =
+  " Checkout flow (run in order): 1) detect_region for the shopper's country " +
+  "(ask if unclear). 2) create_cart in that region; add_line_item for each " +
+  "product. 3) set_customer_details — ALWAYS ask the shopper for their real " +
+  "name, email and full shipping address first; never fabricate them. 4) " +
+  "list_shipping_options → add_shipping_method. 5) Payment by region: INR → " +
+  "create_payment_link (PayU card/UPI link); for UPI specifically, " +
+  "payu_generate_upi_intent then generate_upi_qr to show a scannable QR. " +
+  "Non-INR → create_stripe_payment_page. Each returns a URL/QR — hand it to the " +
+  "shopper to pay. 6) Completion is asynchronous via webhook for BOTH PayU and " +
+  "Stripe: after the shopper pays, POLL get_checkout_status every few seconds " +
+  "until status='completed', then confirm the order to the shopper with its " +
+  "order_id (and offer the order details). Don't assume payment succeeded — wait " +
+  "for the poll. Only fall back to complete_cart / payu_complete_payment for a " +
+  "manual or redirect-callback provider. If a step returns a `missing` list or " +
+  "an error, ask the shopper for what's needed and retry."
+
 const textResult = (text: string, isError = false) => ({
   content: [{ type: "text" as const, text }],
   ...(isError ? { isError: true } : {}),
@@ -69,7 +88,10 @@ const textResult = (text: string, isError = false) => ({
 export function buildStoreMcpServer(ctx: StoreMcpContext): Server {
   // Writes are on for the deployment but not reachable on this (keyless) mount.
   const writesRequireKey = !!ctx.writesEnabledGlobally && !ctx.enableWrite
-  const instructions = BASE_INSTRUCTIONS + (writesRequireKey ? WRITE_MOUNT_HINT : "")
+  const instructions =
+    BASE_INSTRUCTIONS +
+    (writesRequireKey ? WRITE_MOUNT_HINT : "") +
+    (ctx.enableWrite ? WRITE_FLOW_GUIDE : "")
 
   const server = new Server(SERVER_INFO, {
     capabilities: { tools: {} },

@@ -104,7 +104,7 @@ export const paymentNextAction = (session: any): Record<string, any> => {
       provider: "stripe",
       provider_id: providerId,
       description:
-        "Hand this client_secret to Stripe.js / PaymentSheet on the client to collect and confirm the card, then call complete_cart.",
+        "Stripe (non-INR) checkout. For a no-frontend flow, call create_stripe_payment_page to get a shareable hosted card page, then poll get_checkout_status — the cart completes into an order via Stripe's webhook automatically. Or, if you render Stripe.js / PaymentSheet yourself, hand this client_secret to the client to confirm the card.",
       client_secret: d.client_secret ?? null,
     }
   }
@@ -115,6 +115,48 @@ export const paymentNextAction = (session: any): Record<string, any> => {
     description:
       "Payment session initialized. Once the payment is authorized, call complete_cart.",
   }
+}
+
+/** A region slimmed to the fields an agent needs to choose/checkout against. */
+type SlimRegion = {
+  id: string | null
+  name: string | null
+  currency_code: string | null
+  countries: string[]
+}
+
+/**
+ * Resolve which region a customer's country falls into, for `detect_region`.
+ * Pure over the /store/regions payload + the requested country code.
+ *
+ * Returns `{ match, regions }`: `match` is the region whose supported countries
+ * include the ISO-2 code (or null when none/ambiguous), and `regions` always
+ * lists every region so the agent can fall back to *asking* the user. The agent
+ * uses the matched region for create_cart so pricing/tax/payment providers
+ * (PayU for INR, Stripe for the rest) resolve correctly.
+ */
+export const detectRegion = (
+  data: any,
+  countryCode: unknown
+): { match: SlimRegion | null; regions: SlimRegion[] } => {
+  const regions: any[] = Array.isArray(data?.regions) ? data.regions : []
+  const cc = String(countryCode ?? "").trim().toLowerCase()
+  const slim = (r: any): SlimRegion => ({
+    id: r?.id ?? null,
+    name: r?.name ?? null,
+    currency_code: r?.currency_code ?? null,
+    countries: (r?.countries ?? [])
+      .map((c: any) => c?.iso_2)
+      .filter((iso: unknown): iso is string => typeof iso === "string"),
+  })
+  const match = cc
+    ? regions.find((r: any) =>
+        (r?.countries ?? []).some(
+          (c: any) => String(c?.iso_2 ?? "").toLowerCase() === cc
+        )
+      )
+    : undefined
+  return { match: match ? slim(match) : null, regions: regions.map(slim) }
 }
 
 /** Find the just-initialized session (by provider_id) on a payment collection. */
@@ -349,6 +391,54 @@ const CHECKOUT_WRITE_TOOLS: McpToolDef[] = [
         billing_address: ADDRESS_SCHEMA,
         promo_codes: { type: "array", items: { type: "string" }, description: "Promotion codes (replaces existing)." },
         metadata: { type: "object", additionalProperties: true },
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
+    name: "set_customer_details",
+    description:
+      "Onboard the shopper onto a cart in one step: set their name, email, phone and shipping address (billing defaults to the same). ALWAYS ASK the user for these details — full name, email, and complete shipping address (street, city, postal/ZIP code, country) — before completing a checkout; don't invent them. Fields are flat for easy filling. Returns { type:'cart', cart } on success, or { type:'cart', error, missing:[...] } listing what's still needed. Run after create_cart (and add_line_item) and before the payment step. Setting the email also makes the cart recoverable in admin.",
+    write: true,
+    method: "POST",
+    path: "/store/carts/:id/customer-details",
+    pathParams: ["id"],
+    bodyParams: [
+      "name",
+      "first_name",
+      "last_name",
+      "email",
+      "phone",
+      "company",
+      "address_1",
+      "address_2",
+      "city",
+      "province",
+      "postal_code",
+      "country_code",
+      "billing_same_as_shipping",
+      "billing_address",
+    ],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "email", "address_1", "city", "postal_code", "country_code"],
+      properties: {
+        id: { type: "string", description: "Cart id (cart_...)." },
+        name: { type: "string", description: "Shopper's full name (split into first/last automatically). Or pass first_name/last_name." },
+        first_name: { type: "string", description: "First name (alternative to name)." },
+        last_name: { type: "string", description: "Last name (alternative to name)." },
+        email: { type: "string", description: "Shopper's email — for order confirmation + recovery. Required." },
+        phone: { type: "string", description: "Contact phone (optional but recommended for delivery)." },
+        company: { type: "string", description: "Company name (optional)." },
+        address_1: { type: "string", description: "Street address line 1. Required." },
+        address_2: { type: "string", description: "Apartment/suite/landmark (optional)." },
+        city: { type: "string", description: "City. Required." },
+        province: { type: "string", description: "State / province / region (optional but recommended)." },
+        postal_code: { type: "string", description: "Postal / ZIP / PIN code. Required." },
+        country_code: { type: "string", description: "Two-letter ISO country code, e.g. 'in', 'us'. Must match the cart's region. Required." },
+        billing_same_as_shipping: { type: "boolean", description: "Default true — bill to the shipping address. Set false to provide a separate billing_address." },
+        billing_address: ADDRESS_SCHEMA,
         ...STORE_PROP,
       },
     },
@@ -650,6 +740,28 @@ const CHECKOUT_WRITE_TOOLS: McpToolDef[] = [
     },
   },
   {
+    name: "generate_upi_qr",
+    description:
+      "Render a UPI payment as a scannable QR code (PNG data URL) the shopper points any UPI app at — use when the shopper chooses UPI. Pass a cart_id (reuses the upi://pay intent from payu_generate_upi_intent), or an explicit upi_link, or a vpa (+ amount, payee_name, note) to build one. Returns { type:'upi_qr', upi_link, qr_data_url }. INR only; the order still completes via the PayU webhook — poll get_checkout_status after the shopper pays.",
+    write: true,
+    method: "POST",
+    path: "/store/payu/upi-qr",
+    bodyParams: ["cart_id", "upi_link", "vpa", "amount", "payee_name", "note"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        cart_id: { type: "string", description: "Cart id (cart_...) with a generated UPI intent — the easiest path." },
+        upi_link: { type: "string", description: "An explicit 'upi://pay?...' link to encode." },
+        vpa: { type: "string", description: "A UPI id / VPA (e.g. 'merchant@hdfc') to build a link from." },
+        amount: { type: "number", description: "Amount in INR (major units) when building from a vpa." },
+        payee_name: { type: "string", description: "Payee display name when building from a vpa." },
+        note: { type: "string", description: "Optional transaction note when building from a vpa." },
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
     name: "payu_refresh_payment",
     description:
       "Reset a cart's PayU payment collection — deletes stale payment sessions so a fresh PayU session (new txnid + hash) can be initialized for a retry. Use after a failed/abandoned PayU attempt before initializing a new session.",
@@ -663,6 +775,43 @@ const CHECKOUT_WRITE_TOOLS: McpToolDef[] = [
       required: ["cart_id"],
       properties: {
         cart_id: { type: "string", description: "Cart id (cart_...) to refresh." },
+        ...STORE_PROP,
+      },
+    },
+  },
+  // --- Stripe (non-INR) — hosted card page + completion polling --------
+  {
+    name: "create_stripe_payment_page",
+    description:
+      "Create a shareable hosted card-payment page for a cart in a NON-INR (Stripe) region — the Stripe equivalent of create_payment_link. Ensures a Stripe payment session, then returns { url } to a page where the customer enters their card (Apple/Google Pay included). The page confirms the cart's own PaymentIntent (the one admin captures), and Stripe's webhook completes the cart into an order automatically — poll get_checkout_status for the order_id. Requires a Stripe provider on the cart's region; for INR use create_payment_link instead. Run detect_region first if unsure of the region.",
+    write: true,
+    method: "POST",
+    path: "/store/stripe/payment-page",
+    bodyParams: ["cart_id"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["cart_id"],
+      properties: {
+        cart_id: { type: "string", description: "Cart id (cart_...) to bill via Stripe." },
+        ...STORE_PROP,
+      },
+    },
+  },
+  {
+    name: "get_checkout_status",
+    description:
+      "Check whether a cart has been completed into an order. Use to POLL after a customer pays on a hosted page (Stripe or PayU link), since completion happens asynchronously via webhook. Returns { status: 'pending' | 'completed', order_id, completed_at }; when completed, order_id is the placed order.",
+    write: true,
+    method: "GET",
+    path: "/store/carts/:id/checkout-status",
+    pathParams: ["id"],
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id"],
+      properties: {
+        id: { type: "string", description: "Cart id (cart_...) to check." },
         ...STORE_PROP,
       },
     },
@@ -805,6 +954,27 @@ export const STORE_MCP_TOOLS: McpToolDef[] = [
     "/store/regions"
   ),
   getTool("get_region", "Retrieve a region by id.", "/store/regions/:id"),
+  {
+    name: "detect_region",
+    description:
+      "Resolve the storefront region for a customer's country. Pass an ISO-2 country code (e.g. 'in' for India, 'us', 'de') and get back { match, regions }: `match` is the region whose supported countries include that code (id, name, currency_code, countries) or null when there's no match; `regions` always lists every region so you can ASK the user which to use when detection is ambiguous. Run this before create_cart so prices, taxes, and payment providers resolve correctly (INR regions checkout via PayU; others via Stripe).",
+    method: "GET",
+    path: "/store/regions",
+    transform: (data, args) => detectRegion(data, args.country_code),
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["country_code"],
+      properties: {
+        country_code: {
+          type: "string",
+          description:
+            "Two-letter ISO country code to resolve to a region, e.g. 'in', 'us', 'gb'.",
+        },
+        ...STORE_PROP,
+      },
+    },
+  },
   listTool(
     "list_currencies",
     "List the store's enabled currencies.",
