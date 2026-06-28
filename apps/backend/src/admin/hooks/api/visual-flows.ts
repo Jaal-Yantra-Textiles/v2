@@ -469,3 +469,39 @@ export function useFlowMetadata() {
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   })
 }
+
+/** One configured AI External Platform, as returned by GET /admin/ai/platforms. */
+export interface AiPlatformCatalogEntry {
+  platformId: string
+  name?: string
+  role: string | null
+  providerType: string | null
+  defaultModel: string | null
+  isDefault: boolean
+  status: string
+  hasApiKey: boolean
+}
+
+export interface AiPlatformCatalog {
+  catalog: AiPlatformCatalogEntry[]
+  by_role: Record<string, AiPlatformCatalogEntry[]>
+  roles: string[]
+}
+
+const AI_PLATFORMS_KEY = ["ai-platforms", "catalog"] as const
+
+/**
+ * Sweep the configured AI External Platforms (category=ai), grouped by role.
+ * Powers the role picker on AI flow operations (ai_generate / ai_extract) so
+ * operators select a configured platform instead of typing a role string.
+ */
+export function useAiPlatforms() {
+  return useQuery({
+    queryKey: AI_PLATFORMS_KEY,
+    queryFn: async () => {
+      const response = await sdk.client.fetch<AiPlatformCatalog>("/admin/ai/platforms")
+      return response
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+}
