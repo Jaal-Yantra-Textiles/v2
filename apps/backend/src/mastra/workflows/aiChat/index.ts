@@ -48,6 +48,13 @@ import {
   waitAfterRateLimit,
 } from "../../services/model-rotator"
 
+import {
+  getAiPlatformForRole,
+  buildChatModel,
+  foldSystemContentMessages,
+  logAiUsage,
+} from "../../services/ai-platforms"
+
 // Logger
 import { workflowLogger as log } from "../../services/logger"
 
@@ -761,10 +768,64 @@ const generateResponseStep = createStep({
       { role: "user" as const, content: message },
     ]
 
-    // Generate response with model rotation
+    // Generate response. Prefer the admin-configured ai_search_chat platform;
+    // fall back to the free-model rotation when none is set or it fails.
     let reply = ""
     let usedModel = ""
-    const responseModels = await getModelsForStep("response_generation", requestId)
+
+    try {
+      const cfg = await getAiPlatformForRole(container, "ai_search_chat")
+      if (cfg) {
+        const started = Date.now()
+        try {
+          pushStep("trying_platform", {
+            provider: cfg.providerType,
+            platformId: cfg.platformId,
+          })
+          const result = await generateText({
+            model: buildChatModel(cfg) as any,
+            // Fold the system message for OpenAI-compatible providers
+            // (DashScope rejects the `developer` role @ai-sdk/openai emits).
+            messages: foldSystemContentMessages(cfg.providerType, messages) as any,
+            maxTokens: 2000,
+          })
+          reply = result.text || ""
+          usedModel = `platform:${cfg.providerType}:${cfg.defaultModel ?? ""}`
+          logAiUsage(log, {
+            feature: "admin/ai-chat",
+            role: "ai_search_chat",
+            provider: cfg.providerType,
+            source: "platform",
+            model: cfg.defaultModel ?? undefined,
+            platformId: cfg.platformId,
+            ok: Boolean(reply),
+            ms: Date.now() - started,
+            tokens: (result as any)?.usage?.totalTokens,
+          })
+          if (reply) pushStep("response_generated", { modelId: usedModel, length: reply.length })
+        } catch (error: any) {
+          logAiUsage(log, {
+            feature: "admin/ai-chat",
+            role: "ai_search_chat",
+            provider: cfg.providerType,
+            source: "platform",
+            model: cfg.defaultModel ?? undefined,
+            platformId: cfg.platformId,
+            ok: false,
+            ms: Date.now() - started,
+            error,
+          })
+          log.warn("Configured platform failed, falling back to free rotation", {
+            error: String(error),
+          })
+        }
+      }
+    } catch (e: any) {
+      log.warn("getAiPlatformForRole failed for admin chat", { error: String(e) })
+    }
+
+    const responseModels =
+      reply ? [] : await getModelsForStep("response_generation", requestId)
 
     for (const modelId of responseModels) {
       try {

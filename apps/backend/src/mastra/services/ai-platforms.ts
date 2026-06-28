@@ -390,6 +390,66 @@ export const resolveRoleTextModel = async (
   }
 }
 
+import { generateText } from "ai"
+
+/**
+ * Build a `(prompt) => Promise<string>` generator bound to a role — the shape
+ * the marketing orchestrators (`opts.aiGenerate`) and any prompt-in/text-out
+ * caller expect. Resolves the configured platform for `role` (free-model
+ * fallback), folds the system prompt for OpenAI-compatible providers via
+ * `buildGenerateArgs`, emits one `[ai-usage]` line, and returns "" on error so
+ * callers keep their existing graceful-degrade contract.
+ */
+export const makeRoleAiGenerate = (
+  container: MedusaContainer,
+  role: AiRole,
+  feature: string,
+  opts: { system?: string; maxOutputTokens?: number } = {}
+): ((prompt: string) => Promise<string>) => {
+  return async (prompt: string): Promise<string> => {
+    const resolved = await resolveRoleTextModel(container, role)
+    let logger: any
+    try {
+      logger = container.resolve("logger")
+    } catch {
+      /* logger optional */
+    }
+    const started = Date.now()
+    try {
+      const res = await generateText({
+        model: resolved.model,
+        ...buildGenerateArgs({ providerType: resolved.providerType }, opts.system, prompt),
+        ...(opts.maxOutputTokens ? { maxOutputTokens: opts.maxOutputTokens } : {}),
+      })
+      logAiUsage(logger, {
+        feature,
+        role,
+        provider: resolved.providerType,
+        source: resolved.source,
+        model: resolved.modelId,
+        platformId: resolved.platformId,
+        ok: true,
+        ms: Date.now() - started,
+        tokens: (res as any)?.usage?.totalTokens,
+      })
+      return (res.text || "").trim()
+    } catch (error: any) {
+      logAiUsage(logger, {
+        feature,
+        role,
+        provider: resolved.providerType,
+        source: resolved.source,
+        model: resolved.modelId,
+        platformId: resolved.platformId,
+        ok: false,
+        ms: Date.now() - started,
+        error,
+      })
+      return ""
+    }
+  }
+}
+
 export type AiUsage = {
   /** Stable feature key, e.g. "store/ai/search", "marketing/ideas_email". */
   feature: string
@@ -442,6 +502,45 @@ export const logAiUsage = (logger: any, u: AiUsage): void => {
   } catch {
     /* logging must never break the AI call */
   }
+}
+
+/**
+ * Place the system prompt for a `{role, content}` message list (the shape
+ * Mastra's admin chat uses). OpenRouter keeps the native `system` role;
+ * OpenAI-compatible providers get all system messages folded into the first
+ * user message (avoids @ai-sdk/openai's `developer` role that DashScope
+ * rejects — same fix as the storefront chat route, #752). Pure / testable.
+ */
+export const foldSystemContentMessages = <
+  M extends { role: string; content: string }
+>(
+  providerType: AiProviderType,
+  messages: M[]
+): Array<{ role: string; content: string }> => {
+  if (providerType === "openrouter") return messages.map((m) => ({ ...m }))
+
+  const systemText = messages
+    .filter((m) => m.role === "system")
+    .map((m) => m.content)
+    .join("\n\n")
+    .trim()
+  const rest = messages
+    .filter((m) => m.role !== "system")
+    .map((m) => ({ role: m.role, content: m.content }))
+
+  if (!systemText) return rest
+
+  const firstUser = rest.findIndex((m) => m.role === "user")
+  if (firstUser === -1) {
+    return [{ role: "user", content: systemText }, ...rest]
+  }
+  rest[firstUser] = {
+    ...rest[firstUser],
+    content: rest[firstUser].content
+      ? `${systemText}\n\n${rest[firstUser].content}`
+      : systemText,
+  }
+  return rest
 }
 
 // ── Category sweep / discovery (auto-pick up new providers + roles) ─────

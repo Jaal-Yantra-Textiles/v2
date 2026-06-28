@@ -25,8 +25,7 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
-import { generateText } from "ai"
-import { createOpenRouter } from "@openrouter/ai-sdk-provider"
+import { makeRoleAiGenerate } from "../../mastra/services/ai-platforms"
 
 import { MARKETING_MODULE } from "../../modules/marketing"
 import type { GroundTruth, GroundTruthValue } from "./ideas-email-guard-lib"
@@ -37,7 +36,8 @@ import { buildIdeasPrompt, STRICTER_SUFFIX } from "./ideas-email-prompt-lib"
 export type AiGenerateFn = (prompt: string) => Promise<string>
 
 export type GenerateIdeasEmailOptions = {
-  /** Injected for tests; defaults to the real OpenRouter call. */
+  /** Injected for tests; defaults to the role-resolved platform generator
+   *  (ai_newsletter_drafter → configured platform, else free models). */
   aiGenerate?: AiGenerateFn
   /** The "One Goal" string; never invented in code (report §3.6). */
   oneGoal?: string
@@ -63,7 +63,8 @@ export type GenerateIdeasEmailResult = {
   reason?: string
 }
 
-const DEFAULT_MODEL = "anthropic/claude-3.5-sonnet"
+/** Role this generator resolves a platform for (free-model fallback). */
+const IDEAS_EMAIL_ROLE = "ai_newsletter_drafter"
 
 const DEFAULT_BUSINESS_DESCRIPTION =
   "JYT is a textile-production commerce platform: it runs an admin storefront " +
@@ -148,25 +149,6 @@ export function buildGroundTruthFromSnapshots(
   return { values, date_ist: opts.dateIst, one_goal: opts.oneGoal }
 }
 
-/** The real LLM call. Mirrors analyze-sentiment.ts:44-71 (try/catch → "" on error). */
-async function defaultAiGenerate(prompt: string): Promise<string> {
-  try {
-    const openrouter = createOpenRouter({
-      apiKey: process.env.OPENROUTER_API_KEY,
-    })
-    const result = await generateText({
-      model: openrouter(process.env.MARKETING_IDEAS_MODEL || DEFAULT_MODEL),
-      prompt,
-      maxOutputTokens: 700,
-    })
-    return (result.text || "").trim()
-  } catch (error: any) {
-    // eslint-disable-next-line no-console
-    console.error("[generate-ideas-email] AI error:", error?.message)
-    return ""
-  }
-}
-
 /**
  * Core orchestration (no Medusa-step wrapper, so it's directly unit/integration
  * testable with a stubbed `aiGenerate`): gather ground truth → generate → guard
@@ -176,7 +158,11 @@ export async function generateIdeasEmail(
   container: any,
   opts: GenerateIdeasEmailOptions = {}
 ): Promise<GenerateIdeasEmailResult> {
-  const aiGenerate = opts.aiGenerate || defaultAiGenerate
+  const aiGenerate =
+    opts.aiGenerate ||
+    makeRoleAiGenerate(container, IDEAS_EMAIL_ROLE, "marketing/ideas_email", {
+      maxOutputTokens: 700,
+    })
   const now = opts.now || new Date()
   const oneGoal =
     opts.oneGoal ||
@@ -186,7 +172,7 @@ export async function generateIdeasEmail(
     opts.businessDescription ||
     process.env.MARKETING_BUSINESS_DESCRIPTION ||
     DEFAULT_BUSINESS_DESCRIPTION
-  const modelId = process.env.MARKETING_IDEAS_MODEL || DEFAULT_MODEL
+  const modelId = `role:${IDEAS_EMAIL_ROLE}`
 
   const empty: GenerateIdeasEmailResult = {
     skipped: false,

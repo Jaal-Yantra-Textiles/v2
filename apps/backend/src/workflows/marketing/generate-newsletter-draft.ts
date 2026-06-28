@@ -26,13 +26,13 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
-import { generateText } from "ai"
-import { createOpenRouter } from "@openrouter/ai-sdk-provider"
+import { makeRoleAiGenerate } from "../../mastra/services/ai-platforms"
 
 import { MARKETING_MODULE } from "../../modules/marketing"
 import type { AiGenerateFn } from "./generate-ideas-email"
 
-const DEFAULT_MODEL = "anthropic/claude-3.5-sonnet"
+/** Role this generator resolves a platform for (free-model fallback). */
+const NEWSLETTER_DRAFT_ROLE = "ai_newsletter_drafter"
 
 const DEFAULT_BUSINESS_DESCRIPTION =
   "JYT is a textile-production commerce platform: it runs an admin storefront " +
@@ -234,29 +234,6 @@ function fallbackPayload(rawText: string): NewsletterPayload {
   }
 }
 
-/** The real LLM call. Mirrors generate-ideas-email.ts:152-168 (try/catch → ""). */
-async function defaultAiGenerate(prompt: string): Promise<string> {
-  try {
-    const openrouter = createOpenRouter({
-      apiKey: process.env.OPENROUTER_API_KEY,
-    })
-    const result = await generateText({
-      model: openrouter(
-        process.env.MARKETING_NEWSLETTER_MODEL ||
-          process.env.MARKETING_IDEAS_MODEL ||
-          DEFAULT_MODEL
-      ),
-      prompt,
-      maxOutputTokens: 1200,
-    })
-    return (result.text || "").trim()
-  } catch (error: any) {
-    // eslint-disable-next-line no-console
-    console.error("[generate-newsletter-draft] AI error:", error?.message)
-    return ""
-  }
-}
-
 /**
  * Core orchestration (no Medusa-step wrapper, so it's directly unit/integration
  * testable with a stubbed `aiGenerate`): build prompt → generate → parse →
@@ -266,17 +243,18 @@ export async function generateNewsletterDraft(
   container: any,
   opts: GenerateNewsletterDraftOptions = {}
 ): Promise<GenerateNewsletterDraftResult> {
-  const aiGenerate = opts.aiGenerate || defaultAiGenerate
+  const aiGenerate =
+    opts.aiGenerate ||
+    makeRoleAiGenerate(container, NEWSLETTER_DRAFT_ROLE, "marketing/newsletter_draft", {
+      maxOutputTokens: 1200,
+    })
   const now = opts.now || new Date()
   const dateIst = istDateString(now)
   const businessDescription =
     opts.businessDescription ||
     process.env.MARKETING_BUSINESS_DESCRIPTION ||
     DEFAULT_BUSINESS_DESCRIPTION
-  const modelId =
-    process.env.MARKETING_NEWSLETTER_MODEL ||
-    process.env.MARKETING_IDEAS_MODEL ||
-    DEFAULT_MODEL
+  const modelId = `role:${NEWSLETTER_DRAFT_ROLE}`
   const name = opts.name?.trim() || `newsletter-${dateIst}`
   const status: "draft" | "approved" = opts.markReady ? "approved" : "draft"
 

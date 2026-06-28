@@ -5,6 +5,7 @@ import {
   summarizeAiPlatformCatalog,
   groupAiCatalogByRole,
   sweepAiPlatformsByCategory,
+  foldSystemContentMessages,
   type AiUsage,
 } from "../ai-platforms"
 
@@ -170,6 +171,51 @@ describe("sweepAiPlatformsByCategory", () => {
 
     await sweepAiPlatformsByCategory(container, { includeInactive: true })
     expect(seen[1]).toEqual({ category: "ai" })
+  })
+})
+
+describe("foldSystemContentMessages", () => {
+  const msgs = [
+    { role: "system", content: "SYS" },
+    { role: "user", content: "hi" },
+    { role: "assistant", content: "yo" },
+    { role: "user", content: "again" },
+  ]
+
+  it("keeps system role untouched for OpenRouter", () => {
+    const out = foldSystemContentMessages("openrouter", msgs)
+    expect(out).toEqual(msgs)
+    expect(out).not.toBe(msgs) // copied
+  })
+
+  it("folds system into the first user message for DashScope (no system role)", () => {
+    const out = foldSystemContentMessages("dashscope", msgs)
+    expect(out.find((m) => m.role === "system")).toBeUndefined()
+    expect(out[0]).toEqual({ role: "user", content: "SYS\n\nhi" })
+    expect(out[2]).toEqual({ role: "user", content: "again" }) // later user untouched
+  })
+
+  it("joins multiple system messages", () => {
+    const out = foldSystemContentMessages("cloudflare", [
+      { role: "system", content: "A" },
+      { role: "system", content: "B" },
+      { role: "user", content: "q" },
+    ])
+    expect(out).toEqual([{ role: "user", content: "A\n\nB\n\nq" }])
+  })
+
+  it("prepends a user message when none exists", () => {
+    const out = foldSystemContentMessages("dashscope", [
+      { role: "system", content: "SYS" },
+      { role: "assistant", content: "hello" },
+    ])
+    expect(out[0]).toEqual({ role: "user", content: "SYS" })
+    expect(out[1].role).toBe("assistant")
+  })
+
+  it("is a no-op (minus system) when there's no system text", () => {
+    const out = foldSystemContentMessages("dashscope", [{ role: "user", content: "q" }])
+    expect(out).toEqual([{ role: "user", content: "q" }])
   })
 })
 
