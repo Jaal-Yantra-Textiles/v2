@@ -66,7 +66,8 @@ export async function handleMcpRequest(
   // i.e. cart/checkout/PayU write tools require authenticating with a real key and
   // are never exposed anonymously on the zero-config endpoint. Reads stay open.
   const hasValidatedKey = !!(req as any).publishable_key_context
-  const enableWrite = isWriteEnabled() && hasValidatedKey
+  const writesEnabledGlobally = isWriteEnabled()
+  const enableWrite = writesEnabledGlobally && hasValidatedKey
 
   const server = buildStoreMcpServer({
     baseUrl: resolveBaseUrl(req),
@@ -74,6 +75,9 @@ export async function handleMcpRequest(
     bearer,
     container: req.scope,
     enableWrite,
+    // True on the open /mcp mount when writes exist but aren't reachable here —
+    // lets the server tell agents to use the keyed /store/mcp mount instead.
+    writesEnabledGlobally,
   })
 
   const transport = new StreamableHTTPServerTransport({

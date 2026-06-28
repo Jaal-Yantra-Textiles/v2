@@ -130,7 +130,7 @@ setupSharedTestSuite(() => {
       expect(names).not.toContain("create_payment_link")
     })
 
-    it("rejects a write tool call on the open /mcp mount even when writes are enabled", async () => {
+    it("rejects a write tool call on the open /mcp mount and points to /store/mcp", async () => {
       process.env.STORE_MCP_ENABLE_WRITE = "true"
       const res = await api.post(
         "/mcp",
@@ -139,6 +139,22 @@ setupSharedTestSuite(() => {
       )
       expect(res.status).toBe(200)
       expect(res.data?.result?.isError).toBe(true)
+      expect(res.data.result.content[0].text).toMatch(/\/store\/mcp/)
+    })
+
+    it("advertises the write mount in the open /mcp server instructions when writes are on", async () => {
+      process.env.STORE_MCP_ENABLE_WRITE = "true"
+      const res = await api.post(
+        "/mcp",
+        rpc("initialize", {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          clientInfo: { name: "test", version: "0" },
+        }),
+        { headers: MCP_HEADERS }
+      )
+      expect(res.status).toBe(200)
+      expect(res.data?.result?.instructions).toMatch(/\/store\/mcp/)
     })
 
     it("PayU tools are gated with the rest of the write surface", async () => {

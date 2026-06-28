@@ -35,12 +35,31 @@ export type StoreMcpContext = {
   container?: any
   /**
    * When false (default), mutating cart/checkout tools are hidden from
-   * tools/list and rejected by tools/call. Toggled by STORE_MCP_ENABLE_WRITE.
+   * tools/list and rejected by tools/call. Effective flag = writes enabled AND a
+   * validated publishable key (only the /store/mcp mount).
    */
   enableWrite?: boolean
+  /**
+   * Whether STORE_MCP_ENABLE_WRITE is on at all (independent of the key). Used to
+   * point agents on the open /mcp mount at the keyed /store/mcp write mount.
+   */
+  writesEnabledGlobally?: boolean
 }
 
 const SERVER_INFO = { name: "jyt-store", version: "0.1.0" } as const
+
+const BASE_INSTRUCTIONS =
+  "JYT Store MCP — browse the storefront catalog (products, categories, " +
+  "collections, regions, currencies) and discover storefronts (list_stores). " +
+  "Multi-tenant: pass a `store` arg (handle/domain) or an x-publishable-api-key " +
+  "header to scope to a storefront."
+
+// Shown on the open /mcp mount when write tools exist but require a key.
+const WRITE_MOUNT_HINT =
+  " To create or modify carts, run checkout, complete orders, or generate PayU " +
+  "payment links, use the keyed write mount at POST /store/mcp with an " +
+  "`x-publishable-api-key` header — those write tools are intentionally not " +
+  "exposed on this open read-only endpoint."
 
 const textResult = (text: string, isError = false) => ({
   content: [{ type: "text" as const, text }],
@@ -48,7 +67,14 @@ const textResult = (text: string, isError = false) => ({
 })
 
 export function buildStoreMcpServer(ctx: StoreMcpContext): Server {
-  const server = new Server(SERVER_INFO, { capabilities: { tools: {} } })
+  // Writes are on for the deployment but not reachable on this (keyless) mount.
+  const writesRequireKey = !!ctx.writesEnabledGlobally && !ctx.enableWrite
+  const instructions = BASE_INSTRUCTIONS + (writesRequireKey ? WRITE_MOUNT_HINT : "")
+
+  const server = new Server(SERVER_INFO, {
+    capabilities: { tools: {} },
+    instructions,
+  })
 
   // Write (cart/checkout) tools are only visible/callable when writes are on.
   const visibleTools = STORE_MCP_TOOLS.filter(
@@ -68,12 +94,12 @@ export function buildStoreMcpServer(ctx: StoreMcpContext): Server {
     if (!def) {
       return textResult(`Unknown tool: ${req.params.name}`, true)
     }
-    // Refuse mutating tools unless writes are explicitly enabled on the server.
+    // Refuse mutating tools unless writes are enabled AND a key was presented.
     if (def.write && !ctx.enableWrite) {
-      return textResult(
-        `Tool '${def.name}' is a write/checkout tool and is disabled on this server. Set STORE_MCP_ENABLE_WRITE=true to enable cart & payment tools.`,
-        true
-      )
+      const msg = writesRequireKey
+        ? `Tool '${def.name}' is a write/checkout tool, available only on the keyed write mount. Reconnect to POST /store/mcp with an 'x-publishable-api-key' header.`
+        : `Tool '${def.name}' is a write/checkout tool and is disabled on this server. Set STORE_MCP_ENABLE_WRITE=true to enable cart & payment tools.`
+      return textResult(msg, true)
     }
     const args = (req.params.arguments ?? {}) as Record<string, unknown>
 
