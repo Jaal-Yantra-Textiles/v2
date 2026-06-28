@@ -106,6 +106,12 @@ cart → checkout → pay tools (otherwise they're hidden from `tools/list` and
 rejected by `tools/call`). They proxy the matching native `/store` routes, so
 sales-channel scoping, pricing/tax, and validators still apply.
 
+**Writes require the keyed mount.** Even with `STORE_MCP_ENABLE_WRITE=true`, the
+write tools are only exposed on the gated **`/store/mcp`** mount (which validates
+the `x-publishable-api-key` header). They are hidden/blocked on the open `/mcp`
+mount, so the zero-config endpoint stays read-only and writes are never callable
+anonymously. Point write clients at `/store/mcp` with a publishable key.
+
 **Cart:** `create_cart`, `get_cart`, `update_cart`, `add_line_item`,
 `update_line_item`, `remove_line_item`, `add_promotion`
 

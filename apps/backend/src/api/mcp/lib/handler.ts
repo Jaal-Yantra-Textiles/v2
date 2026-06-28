@@ -60,12 +60,24 @@ export async function handleMcpRequest(
 
   const bearer = req.get("authorization") || undefined
 
+  // Writes are gated behind a *validated* publishable key. `publishable_key_context`
+  // is only populated by Medusa's /store/* publishable-key middleware, so it is
+  // present on the gated /store/mcp mount and absent on the open /mcp mount —
+  // i.e. cart/checkout/PayU write tools require authenticating with a real key and
+  // are never exposed anonymously on the zero-config endpoint. Reads stay open.
+  const hasValidatedKey = !!(req as any).publishable_key_context
+  const writesEnabledGlobally = isWriteEnabled()
+  const enableWrite = writesEnabledGlobally && hasValidatedKey
+
   const server = buildStoreMcpServer({
     baseUrl: resolveBaseUrl(req),
     publishableKey,
     bearer,
     container: req.scope,
-    enableWrite: isWriteEnabled(),
+    enableWrite,
+    // True on the open /mcp mount when writes exist but aren't reachable here —
+    // lets the server tell agents to use the keyed /store/mcp mount instead.
+    writesEnabledGlobally,
   })
 
   const transport = new StreamableHTTPServerTransport({

@@ -116,9 +116,15 @@ secrets:
   OPENAI_API_KEY: /jyt/prod/OPENAI_API_KEY
   OPENROUTER_API_KEY: /jyt/prod/OPENROUTER_API_KEY
   PARTNER_CORS: /jyt/prod/PARTNER_CORS
+  # PayU OneAPI (OAuth) — used by the MCP create_payment_link write tool.
+  PAYU_CLIENT_ID: /jyt/prod/PAYU_CLIENT_ID
+  PAYU_CLIENT_SECRET: /jyt/prod/PAYU_CLIENT_SECRET
+  PAYU_MERCHANT_ID: /jyt/prod/PAYU_MERCHANT_ID
+  # PayU classic (hash key/salt) — UPI intent + webhook verify_payment.
   PAYU_MERCHANT_KEY: /jyt/prod/PAYU_MERCHANT_KEY
   PAYU_MERCHANT_SALT: /jyt/prod/PAYU_MERCHANT_SALT
   PAYU_MODE: /jyt/prod/PAYU_MODE
+  PAYU_ONEAPI_MODE: /jyt/prod/PAYU_ONEAPI_MODE
   REDIS_URL: /jyt/prod/REDIS_URL
   # #576 slice C — recipient for storefront region-request admin emails. Read by
   # api/store/contact-region-request; unset → the route logs + skips (no error).
@@ -143,6 +149,9 @@ secrets:
   SHIPROCKET_EMAIL: /jyt/prod/SHIPROCKET_EMAIL
   STOREFRONT_REVALIDATE_SECRET: /jyt/prod/STOREFRONT_REVALIDATE_SECRET
   STORE_CORS: /jyt/prod/STORE_CORS
+  # Enables the Store MCP cart/checkout/PayU *write* tools (POST /mcp + /store/mcp).
+  # Off by default in code; "true" here exposes them. See src/api/mcp/README.md.
+  STORE_MCP_ENABLE_WRITE: /jyt/prod/STORE_MCP_ENABLE_WRITE
   STRIPE_API_KEY: /jyt/prod/STRIPE_API_KEY
   STRIPE_WEBHOOK_SECRET: /jyt/prod/STRIPE_WEBHOOK_SECRET
   VERCEL_STOREFRONT_REPO: /jyt/prod/VERCEL_STOREFRONT_REPO
