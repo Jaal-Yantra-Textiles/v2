@@ -29,7 +29,10 @@ import { z } from "zod"
 import { dynamicFreeTextModel } from "../../../../mastra/providers/dynamic-text-model"
 import {
   buildChatModel,
+  buildGenerateArgs,
   getAiPlatformForRole,
+  logAiUsage,
+  type AiProviderType,
 } from "../../../../mastra/services/ai-platforms"
 
 const SearchInterpretationSchema = z.object({
@@ -108,13 +111,20 @@ const getCloudflare = () => {
 
 type Attempt = { name: string; call: () => Promise<SearchInterpretation> }
 
+/**
+ * generateObject args with the system prompt placed where the provider accepts
+ * it: OpenRouter keeps the native `system` role; OpenAI-compatible providers
+ * (DashScope/Cloudflare) get it folded into the user message via
+ * `buildGenerateArgs`, since @ai-sdk/openai would otherwise emit role
+ * `developer` and DashScope rejects it (same bug as the chat route, #752).
+ */
+const buildObjectArgs = (query: string, providerType: AiProviderType) => ({
+  schema: SearchInterpretationSchema,
+  ...buildGenerateArgs({ providerType }, SYSTEM_PROMPT, query),
+  temperature: 0.1,
+})
+
 const buildAttempts = (query: string): Attempt[] => {
-  const opts = {
-    schema: SearchInterpretationSchema,
-    system: SYSTEM_PROMPT,
-    prompt: query,
-    temperature: 0.1,
-  }
   const attempts: Attempt[] = []
 
   // 1. OpenRouter free models (via existing dynamic rotator)
@@ -123,7 +133,7 @@ const buildAttempts = (query: string): Attempt[] => {
       name: "openrouter:free",
       call: async () => {
         const { object } = await generateObject({
-          ...opts,
+          ...buildObjectArgs(query, "openrouter"),
           model: dynamicFreeTextModel,
         })
         return object
@@ -140,7 +150,7 @@ const buildAttempts = (query: string): Attempt[] => {
       name: `dashscope:${modelId}`,
       call: async () => {
         const { object } = await generateObject({
-          ...opts,
+          ...buildObjectArgs(query, "dashscope"),
           model: dashscope(modelId),
         })
         return object
@@ -158,7 +168,7 @@ const buildAttempts = (query: string): Attempt[] => {
       name: `cloudflare:${modelId}`,
       call: async () => {
         const { object } = await generateObject({
-          ...opts,
+          ...buildObjectArgs(query, "cloudflare"),
           model: cloudflare(modelId),
         })
         return object
@@ -217,34 +227,44 @@ export const extractSearchInterpretation = async (
   query: string,
   container?: MedusaContainer
 ): Promise<SearchInterpretation> => {
-  const opts = {
-    schema: SearchInterpretationSchema,
-    system: SYSTEM_PROMPT,
-    prompt: query,
-    temperature: 0.1,
-  }
-
   // 1. DB-configured platform — wins if present.
   if (container) {
     try {
       const cfg = await getAiPlatformForRole(container, "ai_search_chat")
       if (cfg) {
+        const started = Date.now()
         try {
           const { object } = await withTimeout(
             generateObject({
-              ...opts,
+              ...buildObjectArgs(query, cfg.providerType),
               model: buildChatModel(cfg),
             }),
             EXTRACT_BUDGET_MS,
             `db-platform:${cfg.providerType}`
           )
+          logAiUsage(logger, {
+            feature: "store/ai/search",
+            role: "ai_search_chat",
+            provider: cfg.providerType,
+            source: "platform",
+            model: cfg.defaultModel ?? undefined,
+            platformId: cfg.platformId,
+            ok: true,
+            ms: Date.now() - started,
+          })
           return object
         } catch (e: any) {
-          logger.warn(
-            `[store/ai/search] db-platform ${cfg.platformId} (${cfg.providerType}) failed: ${
-              e?.message ?? e
-            }`
-          )
+          logAiUsage(logger, {
+            feature: "store/ai/search",
+            role: "ai_search_chat",
+            provider: cfg.providerType,
+            source: "platform",
+            model: cfg.defaultModel ?? undefined,
+            platformId: cfg.platformId,
+            ok: false,
+            ms: Date.now() - started,
+            error: e,
+          })
           // Fall through to env chain — better degraded behaviour
           // than failing the search outright when one DB-configured
           // provider has a transient issue.

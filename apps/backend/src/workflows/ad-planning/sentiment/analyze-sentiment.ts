@@ -13,7 +13,13 @@ import {
 import { AD_PLANNING_MODULE } from "../../../modules/ad-planning";
 import type AdPlanningService from "../../../modules/ad-planning/service";
 import { generateText } from "ai";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import {
+  resolveRoleTextModel,
+  logAiUsage,
+} from "../../../mastra/services/ai-platforms";
+
+/** Role this step resolves a platform for (free-model fallback). */
+const SENTIMENT_ROLE = "ai_digest_summary";
 
 type AnalyzeSentimentInput = {
   text: string;
@@ -41,9 +47,15 @@ type SentimentResult = {
 const aiAnalyzeStep = createStep(
   "ai-analyze-sentiment",
   async (input: { text: string }, { container }) => {
-    const openrouter = createOpenRouter({
-      apiKey: process.env.OPENROUTER_API_KEY,
-    });
+    // Resolve the configured platform for the sentiment/summary role
+    // (admin-configured External Platform → free models when none).
+    const resolved = await resolveRoleTextModel(container, SENTIMENT_ROLE);
+    let logger: any;
+    try {
+      logger = container.resolve("logger");
+    } catch {
+      /* logger optional */
+    }
 
     const prompt = `Analyze the sentiment of the following text and respond in JSON format only:
 
@@ -63,9 +75,11 @@ Respond with a JSON object containing:
 
 Only respond with the JSON object, no other text.`;
 
+    const started = Date.now();
     try {
+      // Prompt-only (no system message) → no provider system-role concerns.
       const result = await generateText({
-        model: openrouter("anthropic/claude-3.5-sonnet"),
+        model: resolved.model,
         prompt,
         maxOutputTokens: 500,
       });
@@ -74,10 +88,31 @@ Only respond with the JSON object, no other text.`;
       const jsonStr = result.text.trim();
       const analysis = JSON.parse(jsonStr) as SentimentResult;
 
+      logAiUsage(logger, {
+        feature: "ad-planning/sentiment",
+        role: SENTIMENT_ROLE,
+        provider: resolved.providerType,
+        source: resolved.source,
+        model: resolved.modelId,
+        platformId: resolved.platformId,
+        ok: true,
+        ms: Date.now() - started,
+        tokens: (result as any)?.usage?.totalTokens,
+      });
       return new StepResponse(analysis);
     } catch (error: any) {
       // Return neutral sentiment on error
-      console.error("[SentimentAnalysis] AI error:", error.message);
+      logAiUsage(logger, {
+        feature: "ad-planning/sentiment",
+        role: SENTIMENT_ROLE,
+        provider: resolved.providerType,
+        source: resolved.source,
+        model: resolved.modelId,
+        platformId: resolved.platformId,
+        ok: false,
+        ms: Date.now() - started,
+        error,
+      });
       return new StepResponse({
         sentiment_score: 0,
         sentiment_label: "neutral" as const,
