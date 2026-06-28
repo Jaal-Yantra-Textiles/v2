@@ -35,6 +35,7 @@ export const VisualFlowOperation = model.define("visual_flow_operation", {
     "log",
     "ai_extract",
     "ai_extract_platform",
+    "ai_generate",
     "aggregate_product_analytics",
     "generate_partner_deeplink",
   ]),
