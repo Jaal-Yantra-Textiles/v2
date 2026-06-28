@@ -330,6 +330,205 @@ export const buildEmbeddingModel = (
   return client.embedding(id)
 }
 
+// ── Unified role → model resolution + usage logging ────────────────────
+
+import { dynamicFreeTextModel } from "../providers/dynamic-text-model"
+
+export type ResolvedRoleModel = {
+  /** AI-SDK LanguageModel for generateText / generateObject / streamText. */
+  model: any
+  /** Provider behind the model — drives system-prompt placement (buildGenerateArgs). */
+  providerType: AiProviderType
+  /** "platform" when an admin-configured External Platform served the role,
+   *  "free" when we fell back to the auto-rotating OpenRouter free models. */
+  source: "platform" | "free"
+  /** Set only when source==="platform". */
+  platformId?: string
+  /** Resolved model id (platform default, or "free-rotator" sentinel). */
+  modelId?: string
+}
+
+/**
+ * Single entry point every text AI feature should use to pick its model.
+ *
+ *   1. Admin-configured External Platform for `role` (metadata.role lookup) —
+ *      this is the source of truth; uses the operator's chosen provider/model.
+ *   2. Free fallback — the auto-rotating OpenRouter `:free` resolver
+ *      (`dynamicFreeTextModel`). No paid hardcoded models.
+ *
+ * Never throws — a resolution failure degrades to the free fallback so a
+ * feature never goes dark because of a transient platform error.
+ */
+export const resolveRoleTextModel = async (
+  container: MedusaContainer,
+  role: AiRole,
+  modelOverride?: string
+): Promise<ResolvedRoleModel> => {
+  try {
+    const cfg = await getAiPlatformForRole(container, role)
+    if (cfg) {
+      return {
+        model: buildChatModel(cfg, modelOverride),
+        providerType: cfg.providerType,
+        source: "platform",
+        platformId: cfg.platformId,
+        modelId: modelOverride ?? cfg.defaultModel ?? undefined,
+      }
+    }
+  } catch (e: any) {
+    console.warn(
+      `[ai-platforms] resolveRoleTextModel(${role}) failed, using free fallback: ${
+        e?.message ?? e
+      }`
+    )
+  }
+  return {
+    model: dynamicFreeTextModel,
+    providerType: "openrouter",
+    source: "free",
+    modelId: "free-rotator",
+  }
+}
+
+export type AiUsage = {
+  /** Stable feature key, e.g. "store/ai/search", "marketing/ideas_email". */
+  feature: string
+  role: AiRole
+  provider: AiProviderType
+  source: "platform" | "free"
+  ok: boolean
+  model?: string
+  platformId?: string
+  /** Wall-clock duration of the model call, ms. */
+  ms?: number
+  /** Total tokens if the SDK reported usage. */
+  tokens?: number
+  /** Error message when ok===false. */
+  error?: unknown
+}
+
+/**
+ * Format a single structured AI-usage line. Pure — returned string is what
+ * `logAiUsage` emits, so it's unit-testable without a logger.
+ *
+ * Shape: `[ai-usage] feature=… role=… provider=… source=… model=… ok=… ms=… tokens=… error=…`
+ * Designed for CloudWatch grep/metric-filters ("when & how each AI feature ran").
+ */
+export const formatAiUsage = (u: AiUsage): string => {
+  const parts = [
+    `feature=${u.feature}`,
+    `role=${u.role}`,
+    `provider=${u.provider}`,
+    `source=${u.source}`,
+    u.model ? `model=${u.model}` : null,
+    u.platformId ? `platform=${u.platformId}` : null,
+    `ok=${u.ok}`,
+    u.ms != null ? `ms=${Math.round(u.ms)}` : null,
+    u.tokens != null ? `tokens=${u.tokens}` : null,
+    u.ok ? null : `error=${String((u.error as any)?.message ?? u.error ?? "").slice(0, 200)}`,
+  ].filter(Boolean)
+  return `[ai-usage] ${parts.join(" ")}`
+}
+
+/**
+ * Emit one structured AI-usage line. Medusa's Logger takes a single string;
+ * success → info, failure → warn. Best-effort — never throws into the caller.
+ */
+export const logAiUsage = (logger: any, u: AiUsage): void => {
+  try {
+    const line = formatAiUsage(u)
+    if (u.ok) logger?.info?.(line)
+    else logger?.warn?.(line)
+  } catch {
+    /* logging must never break the AI call */
+  }
+}
+
+// ── Category sweep / discovery (auto-pick up new providers + roles) ─────
+
+export type AiPlatformCatalogEntry = {
+  platformId: string
+  name?: string
+  /** metadata.role — null when the operator hasn't tagged one. */
+  role: string | null
+  providerType: AiProviderType | null
+  defaultModel: string | null
+  /** metadata.is_default — the chosen platform for its role. */
+  isDefault: boolean
+  status: string
+  /** True when an api key is present (encrypted or plaintext) — usable now. */
+  hasApiKey: boolean
+}
+
+/**
+ * Pure: map raw `social_platform` rows (category=ai) into catalog entries.
+ * Exported for unit testing — no container, no decryption.
+ */
+export const summarizeAiPlatformCatalog = (
+  rows: any[]
+): AiPlatformCatalogEntry[] =>
+  (rows ?? []).map((p) => {
+    const apiConfig = (p?.api_config ?? {}) as Record<string, any>
+    const meta = (p?.metadata ?? {}) as Record<string, any>
+    return {
+      platformId: p?.id,
+      name: p?.name ?? undefined,
+      role: (meta.role as string) ?? null,
+      providerType: normalizeProviderType(meta.provider_type ?? apiConfig.provider_type),
+      defaultModel: apiConfig.default_model ?? meta.default_model ?? null,
+      isDefault: meta.is_default === true,
+      status: p?.status ?? "unknown",
+      hasApiKey: Boolean(
+        apiConfig.api_key_encrypted || apiConfig.api_key || apiConfig.encrypted_api_key
+      ),
+    }
+  })
+
+/**
+ * Group a catalog by role. Roles with no `metadata.role` tag land under the
+ * `"_untagged"` bucket. Pure — testable.
+ */
+export const groupAiCatalogByRole = (
+  catalog: AiPlatformCatalogEntry[]
+): Record<string, AiPlatformCatalogEntry[]> => {
+  const out: Record<string, AiPlatformCatalogEntry[]> = {}
+  for (const e of catalog) {
+    const key = e.role ?? "_untagged"
+    ;(out[key] ??= []).push(e)
+  }
+  return out
+}
+
+/**
+ * Sweep every `category=ai` External Platform and return the discovered
+ * catalog. This is the "discovery, not declaration" mechanism: any provider the
+ * operator adds — including under a brand-new custom `metadata.role` — is picked
+ * up automatically, no code change. Powers the visual-flow op role picker, an
+ * admin discovery endpoint, and ops reporting. Never throws → `[]` on failure.
+ */
+export const sweepAiPlatformsByCategory = async (
+  container: MedusaContainer,
+  opts: { includeInactive?: boolean } = {}
+): Promise<AiPlatformCatalogEntry[]> => {
+  let socials: SocialsService
+  try {
+    socials = container.resolve(SOCIALS_MODULE) as unknown as SocialsService
+  } catch {
+    return []
+  }
+  try {
+    const filters: any = { category: "ai" }
+    if (!opts.includeInactive) filters.status = "active"
+    const rows = await socials.listSocialPlatforms(filters, { take: 200 })
+    return summarizeAiPlatformCatalog(rows ?? [])
+  } catch (e: any) {
+    console.warn(
+      `[ai-platforms] sweepAiPlatformsByCategory failed: ${e?.message ?? e}`
+    )
+    return []
+  }
+}
+
 export const PROVIDER_TYPES: AiProviderType[] = [
   "openrouter",
   "dashscope",
