@@ -38,6 +38,7 @@ import {
   createGetCategoryProductsTool,
   createGetProductDetailsTool,
 } from "../../../../mastra/agents/tools/storefront-catalog-tools"
+import { foldSystemForProvider } from "./system-fold-lib"
 import type { StoreAiChatReq } from "./validators"
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -100,12 +101,19 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   })
 
+  // Place the system prompt where the resolved provider accepts it. For
+  // OpenAI-compatible endpoints (DashScope/Cloudflare/…), @ai-sdk/openai emits
+  // the system message with role `developer` for any non-GPT model id, which
+  // DashScope rejects — so we fold it into the first user message instead.
+  // Only OpenRouter keeps the native `system` param. See system-fold-lib.ts.
+  const folded = foldSystemForProvider(resolved.provider, system, messages)
+
   let result
   try {
     result = streamText({
       model: resolved.model,
-      system,
-      messages: convertToModelMessages(messages as any),
+      ...(folded.system ? { system: folded.system } : {}),
+      messages: convertToModelMessages(folded.messages as any),
       tools,
       // Allow a couple of tool round-trips per turn (e.g. get_categories
       // then get_category_products, or search then get_product_details)
