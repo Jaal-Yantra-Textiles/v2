@@ -29,6 +29,7 @@ export { bulkHttpRequestOperation } from "./bulk-http-request"
 export { bulkTriggerWorkflowOperation } from "./bulk-trigger-workflow"
 export { aiExtractOperation } from "./ai-extract"
 export { aiExtractPlatformOperation } from "./ai-extract-platform"
+export { aiGenerateOperation } from "./ai-generate"
 export { generatePartnerDeeplinkOperation } from "./generate-partner-deeplink"
 export { partnerAnalyticsDigestOperation } from "./partner-analytics-digest"
 export { marketingDailyIdeasEmailOperation } from "./marketing-daily-ideas-email"
@@ -62,6 +63,7 @@ import { bulkHttpRequestOperation } from "./bulk-http-request"
 import { bulkTriggerWorkflowOperation } from "./bulk-trigger-workflow"
 import { aiExtractOperation } from "./ai-extract"
 import { aiExtractPlatformOperation } from "./ai-extract-platform"
+import { aiGenerateOperation } from "./ai-generate"
 import { generatePartnerDeeplinkOperation } from "./generate-partner-deeplink"
 import { partnerAnalyticsDigestOperation } from "./partner-analytics-digest"
 import { marketingDailyIdeasEmailOperation } from "./marketing-daily-ideas-email"
@@ -95,6 +97,7 @@ export function registerBuiltInOperations(): void {
   operationRegistry.register(triggerFlowOperation)
   operationRegistry.register(aiExtractOperation)
   operationRegistry.register(aiExtractPlatformOperation)
+  operationRegistry.register(aiGenerateOperation)
   
   // Utility operations
   operationRegistry.register(transformOperation)
