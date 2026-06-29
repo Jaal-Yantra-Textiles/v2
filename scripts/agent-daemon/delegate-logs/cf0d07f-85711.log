@@ -1,0 +1,1656 @@
+Let me read all the specified files in parallel.
+Now I'll begin editing all 19 files. Let me process them in parallel batches.
+Let me start with the first batch of edits. I'll do all the simpler files first.
+Now file 3: ads/[id]/status/route.ts
+All edits applied. Let me verify no `console.*` calls remain outside JSDoc comments.
+All runtime `console.*` calls are replaced. The 4 remaining matches are inside JSDoc `/** ... */` comment blocks (Rule 6), left intentionally untouched.
+CHANGED: apps/backend/src/api/admin/meta-ads/ads/route.ts, apps/backend/src/api/admin/meta-ads/ads/[id]/route.ts, apps/backend/src/api/admin/meta-ads/ads/[id]/status/route.ts, apps/backend/src/api/admin/meta-ads/insights/route.ts, apps/backend/src/api/admin/meta-ads/leads/route.ts, apps/backend/src/api/admin/meta-ads/leads/sync/route.ts, apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts, apps/backend/src/api/admin/meta-ads/accounts/route.ts, apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts, apps/backend/src/api/admin/meta-ads/accounts/[id]/route.ts, apps/backend/src/api/admin/meta-ads/campaigns/route.ts, apps/backend/src/api/admin/meta-ads/campaigns/[id]/route.ts, apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts, apps/backend/src/api/admin/meta-ads/campaigns/[id]/status/route.ts, apps/backend/src/api/admin/meta-ads/campaigns/totals/route.ts, apps/backend/src/api/admin/meta-ads/lead-forms/route.ts, apps/backend/src/api/admin/meta-ads/adsets/[id]/route.ts, apps/backend/src/api/admin/meta-ads/adsets/route.ts, apps/backend/src/api/admin/meta-ads/adsets/[id]/status/route.ts
+
+- Each file: added `ContainerRegistrationKeys` import from `@medusajs/framework/utils`
+- Each handler function: added `const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)` as first statement
+- `console.error("msg:", error)` → `logger.error("msg:", error)` (kept 2-arg form)
+- `console.log(msg)` → `logger.info(...)` (single string only)
+- `console.warn(msg)` → `logger.warn(...)` (single string only)
+- 4 JSDoc-internal `console.*` in ads/[id]/status/route.ts (lines 33,59,60) and adsets/[id]/status/route.ts (line 65) left as-is per Rule 6
+
+--- stderr ---
+[0m
+> jyt-drafter · deepseek-v4-flash-free
+[0m
+[0m✱ [0mGlob "apps/backend/src/api/admin/meta-ads/**/route.ts"[90m 23 matches[0m
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/ads/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/ads/[id]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/ads/[id]/status/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/insights/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/leads/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/accounts/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/campaigns/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/campaigns/[id]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/accounts/[id]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/campaigns/[id]/status/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/campaigns/totals/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/lead-forms/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/adsets/[id]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/adsets/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/adsets/[id]/status/route.ts
+[0m
+[0m# [0mTodos
+[•] Edit ads/route.ts - add logger import + logger handles for GET & POST
+[ ] Edit ads/[id]/route.ts - add logger import + logger handle for GET
+[ ] Edit ads/[id]/status/route.ts - add logger import + logger handle for POST
+[ ] Edit insights/route.ts - add logger import + logger handles for GET & POST
+[ ] Edit leads/route.ts - add logger import + logger handles for GET & POST
+[ ] Edit leads/sync/route.ts - add logger import + logger handle for POST
+[ ] Edit leads/[id]/route.ts - add logger import + logger handles for GET, PATCH, DELETE
+[ ] Edit accounts/route.ts - add logger import + logger handles for GET & POST
+[ ] Edit accounts/sync/route.ts - add logger import + logger handle for POST
+[ ] Edit accounts/[id]/route.ts - add logger import + logger handle for GET
+[ ] Edit campaigns/route.ts - add logger import + logger handles for GET & POST
+[ ] Edit campaigns/[id]/route.ts - add logger import + logger handle for GET
+[ ] Edit campaigns/sync/route.ts - add logger import + logger handle for POST
+[ ] Edit campaigns/[id]/status/route.ts - add logger import + logger handle for POST
+[ ] Edit campaigns/totals/route.ts - add logger import + logger handle for GET
+[ ] Edit lead-forms/route.ts - add logger import + logger handles for GET & POST
+[ ] Edit adsets/[id]/route.ts - add logger import + logger handle for GET
+[ ] Edit adsets/route.ts - add logger import + logger handles for GET & POST
+[ ] Edit adsets/[id]/status/route.ts - add logger import + logger handle for POST
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/ads/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/route.ts
+@@ -36,8 +36,9 @@
+  *   }
+  * }
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../modules/socials"
+ import SocialsService from "../../../../modules/socials/service"
+ 
+ /**
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/ads/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/route.ts
+@@ -49,8 +49,9 @@
+ export const GET = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const { ad_set_id, campaign_id, ad_account_id, limit = "200", offset = "0" } = req.query as Record<string, string>
+     
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/ads/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/route.ts
+@@ -109,9 +109,9 @@
+     limit: take,
+     offset: skip,
+   })
+ } catch (error: any) {
+-  console.error("Failed to list ads:", error)
++  logger.error("Failed to list ads:", error)
+   res.status(500).json({
+     message: "Failed to list ads",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/ads/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/route.ts
+@@ -126,8 +126,9 @@
+ export const POST = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const body = req.body as Record<string, any>
+     
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/ads/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/route.ts
+@@ -135,9 +135,9 @@
+   const ad = await socials.createAds(body)
+ 
+   res.json({ ad })
+ } catch (error: any) {
+-  console.error("Failed to create ad:", error)
++  logger.error("Failed to create ad:", error)
+   res.status(500).json({
+     message: "Failed to create ad",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/ads/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/route.ts
+@@ -34,8 +34,9 @@
+  * - 404: Ad not found
+  * - 500: Failed to get ad (with error details)
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../../modules/socials"
+ import SocialsService from "../../../../../modules/socials/service"
+ 
+ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/ads/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/route.ts
+@@ -39,8 +39,9 @@
+ import { SOCIALS_MODULE } from "../../../../../modules/socials"
+ import SocialsService from "../../../../../modules/socials/service"
+ 
+ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const { id } = req.params
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/ads/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/route.ts
+@@ -70,9 +70,9 @@
+       ad_account: adAccount,
+     },
+   })
+ } catch (error: any) {
+-  console.error("Failed to get ad:", error)
++  logger.error("Failed to get ad:", error)
+ 
+   if (error.type === "not_found" || error.message?.includes("was not found")) {
+     return res.status(404).json({
+       message: "Ad not found",
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/ads/[id]/status/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/status/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/status/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/status/route.ts
+@@ -59,8 +59,9 @@
+  *     .then(data => console.log(data))
+  *     .catch(error => console.error(error));
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../../../modules/socials"
+ import SocialsService from "../../../../../../modules/socials/service"
+ import MetaAdsService from "../../../../../../modules/social-provider/meta-ads-service"
+ import { decryptAccessToken } from "../../../../../../modules/socials/utils/token-helpers"
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/ads/[id]/status/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/status/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/status/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/status/route.ts
+@@ -77,8 +77,9 @@
+ export const POST = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const { id } = req.params
+     const { status } = req.body as { status: "ACTIVE" | "PAUSED" }
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/ads/[id]/status/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/status/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/status/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/ads/[id]/status/route.ts
+@@ -158,9 +158,9 @@
+     message: `Ad ${status === "ACTIVE" ? "resumed" : "paused"} successfully`,
+     ad: updatedAd,
+   })
+ } catch (error: any) {
+-  console.error("Failed to update ad status:", error)
++  logger.error("Failed to update ad status:", error)
+   res.status(500).json({
+     message: "Failed to update ad status",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/insights/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/insights/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/insights/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/insights/route.ts
+@@ -101,8 +101,9 @@
+  *   }
+  * }
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../modules/socials"
+ import SocialsService from "../../../../modules/socials/service"
+ 
+ /**
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/insights/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/insights/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/insights/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/insights/route.ts
+@@ -114,8 +114,9 @@
+ export const GET = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const { campaign_id, level } = req.query as Record<string, string>
+     
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/insights/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/insights/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/insights/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/insights/route.ts
+@@ -134,9 +134,9 @@
+       insights,
+       count: (insights as any[]).length,
+     })
+   } catch (error: any) {
+-    console.error("Failed to list insights:", error)
++    logger.error("Failed to list insights:", error)
+     res.status(500).json({
+       message: "Failed to list insights",
+       error: error.message,
+     })
+@@ -151,8 +151,9 @@
+ export const POST = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const body = req.body as Record<string, any>
+     
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/insights/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/insights/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/insights/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/insights/route.ts
+@@ -166,9 +166,9 @@
+   const insight = await socials.createAdInsights(insightData as any)
+ 
+   res.json({ insight })
+ } catch (error: any) {
+-  console.error("Failed to create insight:", error)
++  logger.error("Failed to create insight:", error)
+   res.status(500).json({
+     message: "Failed to create insight",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/route.ts
+@@ -127,8 +127,9 @@
+  *   }
+  * }
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../modules/socials"
+ import SocialsService from "../../../../modules/socials/service"
+ 
+ /**
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/route.ts
+@@ -151,8 +151,9 @@
+ export const GET = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     
+     const {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/route.ts
+@@ -229,9 +229,9 @@
+       limit: parseInt(limit, 10),
+       offset: parseInt(offset, 10),
+     })
+   } catch (error: any) {
+-    console.error("Failed to list leads:", error)
++    logger.error("Failed to list leads:", error)
+     res.status(500).json({
+       message: "Failed to list leads",
+       error: error.message,
+     })
+@@ -246,8 +246,9 @@
+ export const POST = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const body = req.body as Record<string, any>
+     
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/route.ts
+@@ -255,9 +255,9 @@
+   const lead = await socials.createLeads(body)
+ 
+   res.json({ lead })
+ } catch (error: any) {
+-  console.error("Failed to create lead:", error)
++  logger.error("Failed to create lead:", error)
+   res.status(500).json({
+     message: "Failed to create lead",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+@@ -87,8 +87,9 @@
+  *   "error": "Internal server error details"
+  * }
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../../modules/socials"
+ import SocialsService from "../../../../../modules/socials/service"
+ import MetaAdsService from "../../../../../modules/social-provider/meta-ads-service"
+ import { decryptAccessToken } from "../../../../../modules/socials/utils/token-helpers"
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+@@ -107,8 +107,9 @@
+ export const POST = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const body = req.body as Record<string, any>
+     
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+@@ -170,9 +170,9 @@
+       const pageToken = page.access_token || accessToken
+       const forms = await metaAds.listLeadForms(page.id, pageToken)
+       formsToSync.push(...forms.map(f => f.id))
+     } catch (error) {
+-      console.error(`Failed to get forms for page ${page.id}:`, error)
++      logger.error(`Failed to get forms for page ${page.id}:`, error)
+     }
+   }
+ }
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+@@ -175,9 +175,9 @@
+     }
+   }
+ }
+ 
+-console.log(`Syncing leads from ${formsToSync.length} forms`)
++logger.info(`Syncing leads from ${formsToSync.length} forms`)
+ 
+ // Sync leads from each form
+ for (const formId of formsToSync) {
+   try {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+@@ -243,9 +243,9 @@
+       } as any)
+ 
+       results.synced++
+     } catch (error) {
+-      console.error(`Failed to create lead ${leadData.id}:`, error)
++      logger.error(`Failed to create lead ${leadData.id}:`, error)
+       results.errors++
+     }
+   }
+ } catch (error: any) {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+@@ -249,9 +249,9 @@
+       }
+     }
+   } catch (error: any) {
+     const errorMsg = error.message || `Failed to sync leads from form ${formId}`
+-    console.error(`Failed to sync leads from form ${formId}:`, error)
++    logger.error(`Failed to sync leads from form ${formId}:`, error)
+     results.errors++
+     results.error_messages.push(errorMsg)
+   }
+ }
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/sync/route.ts
+@@ -271,9 +271,9 @@
+       : "Lead sync completed",
+     results,
+   })
+ } catch (error: any) {
+-  console.error("Failed to sync leads:", error)
++  logger.error("Failed to sync leads:", error)
+   res.status(500).json({
+     message: "Failed to sync leads",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+@@ -121,8 +121,9 @@
+  *   "deleted": true
+  * }
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../../modules/socials"
+ import SocialsService from "../../../../../modules/socials/service"
+ 
+ /**
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+@@ -134,8 +134,9 @@
+ export const GET = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const { id } = req.params
+ 
+
+[0m
+[0m✗ [0mEdit apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts failed
+[91m[1mError: [0mCould not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings.
+[0m→ [0mRead apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts[90m [offset=145, limit=50][0m
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+@@ -149,9 +149,9 @@
+   }
+ 
+   res.json({ lead })
+ } catch (error: any) {
+-  console.error("Failed to get lead:", error)
++  logger.error("Failed to get lead:", error)
+   res.status(500).json({
+     message: "Failed to get lead",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+@@ -173,8 +173,9 @@
+ export const PATCH = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const { id } = req.params
+     const body = req.body as Record<string, any>
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+@@ -229,9 +229,9 @@
+   const lead = await socials.retrieveLead(id)
+ 
+   res.json({ lead })
+ } catch (error: any) {
+-  console.error("Failed to update lead:", error)
++  logger.error("Failed to update lead:", error)
+   res.status(500).json({
+     message: "Failed to update lead",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+@@ -246,8 +246,9 @@
+ export const DELETE = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const { id } = req.params
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/leads/[id]/route.ts
+@@ -262,9 +262,9 @@
+     id,
+     deleted: true,
+   })
+ } catch (error: any) {
+-  console.error("Failed to delete lead:", error)
++  logger.error("Failed to delete lead:", error)
+   res.status(500).json({
+     message: "Failed to delete lead",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/accounts/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/route.ts
+@@ -47,8 +47,9 @@
+  * //   }
+  * // }
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../modules/socials"
+ import SocialsService from "../../../../modules/socials/service"
+ 
+ /**
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/accounts/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/route.ts
+@@ -60,8 +60,9 @@
+ export const GET = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     
+     const accounts = await socials.listAdAccounts({}, {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/accounts/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/route.ts
+@@ -73,9 +73,9 @@
+       accounts,
+       count: accounts.length,
+     })
+   } catch (error: any) {
+-    console.error("Failed to list ad accounts:", error)
++    logger.error("Failed to list ad accounts:", error)
+     res.status(500).json({
+       message: "Failed to list ad accounts",
+       error: error.message,
+     })
+@@ -90,8 +90,9 @@
+ export const POST = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const body = req.body as Record<string, any>
+     
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/accounts/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/route.ts
+@@ -99,9 +99,9 @@
+   const account = await socials.createAdAccounts(body)
+ 
+   res.json({ account })
+ } catch (error: any) {
+-  console.error("Failed to create ad account:", error)
++  logger.error("Failed to create ad account:", error)
+   res.status(500).json({
+     message: "Failed to create ad account",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+@@ -21,8 +21,9 @@
+  * @apiError (500: Internal Server Error) {String} message "Failed to sync ad accounts"
+  * @apiError (500: Internal Server Error) {String} error Error message
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../../modules/socials"
+ import SocialsService from "../../../../../modules/socials/service"
+ import MetaAdsService from "../../../../../modules/social-provider/meta-ads-service"
+ import { decryptAccessToken, decryptUserAccessToken } from "../../../../../modules/socials/utils/token-helpers"
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+@@ -39,8 +39,9 @@
+ export const POST = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const body = req.body as Record<string, any>
+     
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+@@ -74,9 +74,9 @@
+ let accessToken = decryptUserAccessToken(apiConfig, req.scope)
+ 
+ // Fallback to generic access token if no user token
+ if (!accessToken) {
+-  console.log("No user_access_token found, trying generic access_token...")
++  logger.info("No user_access_token found, trying generic access_token...")
+   accessToken = decryptAccessToken(apiConfig, req.scope)
+ }
+ 
+ if (!accessToken) {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+@@ -84,9 +84,9 @@
+     message: "No access token available",
+   })
+ }
+ 
+-console.log("Using access token for ad accounts sync...")
++logger.info("Using access token for ad accounts sync...")
+ 
+ const metaAds = new MetaAdsService()
+ const results = {
+   created: 0,
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+@@ -111,9 +111,9 @@
+   }
+   throw error
+ }
+ 
+-console.log(`Found ${metaAccounts.length} ad accounts from Meta`)
++logger.info(`Found ${metaAccounts.length} ad accounts from Meta`)
+ 
+ for (const metaAccount of metaAccounts) {
+   try {
+     // Check if account already exists
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+@@ -152,9 +152,9 @@
+       await socials.createAdAccounts(accountData as any)
+       results.created++
+     }
+   } catch (error) {
+-    console.error(`Failed to sync account ${metaAccount.id}:`, error)
++    logger.error(`Failed to sync account ${metaAccount.id}:`, error)
+     results.errors++
+   }
+ }
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/sync/route.ts
+@@ -162,9 +162,9 @@
+     message: "Ad account sync completed",
+     results,
+   })
+ } catch (error: any) {
+-  console.error("Failed to sync ad accounts:", error)
++  logger.error("Failed to sync ad accounts:", error)
+   res.status(500).json({
+     message: "Failed to sync ad accounts",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/accounts/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/[id]/route.ts
+@@ -30,8 +30,9 @@
+  * // Headers: { Authorization: "Bearer <token>" }
+  * // Response: { success: boolean }
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../../modules/socials"
+ import SocialsService from "../../../../../modules/socials/service"
+ 
+ /**
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/accounts/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/[id]/route.ts
+@@ -43,8 +43,9 @@
+ export const GET = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const { id } = req.params
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/accounts/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/accounts/[id]/route.ts
+@@ -58,9 +58,9 @@
+   }
+ 
+   res.json({ account })
+ } catch (error: any) {
+-  console.error("Failed to get ad account:", error)
++  logger.error("Failed to get ad account:", error)
+   res.status(500).json({
+     message: "Failed to get ad account",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/route.ts
+@@ -115,8 +115,9 @@
+  *   }
+  * }
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../modules/socials"
+ import SocialsService from "../../../../modules/socials/service"
+ 
+ /**
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/route.ts
+@@ -134,8 +134,9 @@
+ export const GET = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     
+     const {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/route.ts
+@@ -170,9 +170,9 @@
+       limit: parseInt(limit, 10),
+       offset: parseInt(offset, 10),
+     })
+   } catch (error: any) {
+-    console.error("Failed to list campaigns:", error)
++    logger.error("Failed to list campaigns:", error)
+     res.status(500).json({
+       message: "Failed to list campaigns",
+       error: error.message,
+     })
+@@ -187,8 +187,9 @@
+ export const POST = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const body = req.body as Record<string, any>
+     
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/route.ts
+@@ -196,9 +196,9 @@
+   const campaign = await socials.createAdCampaigns(body)
+ 
+   res.json({ campaign })
+ } catch (error: any) {
+-  console.error("Failed to create campaign:", error)
++  logger.error("Failed to create campaign:", error)
+   res.status(500).json({
+     message: "Failed to create campaign",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/route.ts
+@@ -135,8 +135,9 @@
+  *   "error": "Database connection error"
+  * }
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../../modules/socials"
+ import SocialsService from "../../../../../modules/socials/service"
+ 
+ /**
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/route.ts
+@@ -148,8 +148,9 @@
+ export const GET = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const { id } = req.params
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/route.ts
+@@ -196,9 +196,9 @@
+       insights,
+     },
+   })
+ } catch (error: any) {
+-  console.error("Failed to get campaign:", error)
++  logger.error("Failed to get campaign:", error)
+   
+   // Check if it's a not_found error
+   if (error.type === "not_found" || error.message?.includes("was not found")) {
+     return res.status(404).json({
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+@@ -79,8 +79,9 @@
+  *   "error": "Internal server error details"
+  * }
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../../modules/socials"
+ import SocialsService from "../../../../../modules/socials/service"
+ import MetaAdsService from "../../../../../modules/social-provider/meta-ads-service"
+ import { decryptAccessToken } from "../../../../../modules/socials/utils/token-helpers"
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+@@ -98,8 +98,9 @@
+ export const POST = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const body = req.body as Record<string, any>
+     
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+@@ -172,9 +172,9 @@
+   (adAccount as any).meta_account_id,
+   accessToken
+ )
+ 
+-console.log(`Found ${metaCampaigns.length} campaigns from Meta`)
++logger.info(`Found ${metaCampaigns.length} campaigns from Meta`)
+ 
+ for (const metaCampaign of metaCampaigns) {
+   try {
+     // Check if campaign already exists
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+@@ -189,9 +189,9 @@
+     insights = await metaAds.getInsights(metaCampaign.id, accessToken, {
+       date_preset: "last_30d",
+     })
+   } catch (e) {
+-    console.warn(`Failed to get insights for campaign ${metaCampaign.id}`)
++    logger.warn(`Failed to get insights for campaign ${metaCampaign.id}`)
+   }
+ }
+ 
+ const campaignData: Record<string, any> = {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+@@ -244,9 +244,9 @@
+ 
+ // Sync Ad Sets for this campaign
+ try {
+   const metaAdSets = await metaAds.listAdSets(metaCampaign.id, accessToken)
+-  console.log(`Found ${metaAdSets.length} ad sets for campaign ${metaCampaign.name}`)
++  logger.info(`Found ${metaAdSets.length} ad sets for campaign ${metaCampaign.name}`)
+   
+   for (const metaAdSet of metaAdSets) {
+     try {
+       const existingAdSets = await socials.listAdSets({
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+@@ -287,9 +287,9 @@
+ 
+ // Sync Ads for this ad set
+ try {
+   const metaAdsData = await metaAds.listAds(metaAdSet.id, accessToken)
+-  console.log(`Found ${metaAdsData.length} ads for ad set ${metaAdSet.name}`)
++  logger.info(`Found ${metaAdsData.length} ads for ad set ${metaAdSet.name}`)
+   
+   for (const metaAd of metaAdsData) {
+     try {
+       const existingAds = await socials.listAds({
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+@@ -317,9 +317,9 @@
+         await socials.createAds(adData as any)
+         results.ads_created++
+       }
+     } catch (adError) {
+-      console.error(`Failed to sync ad ${metaAd.id}:`, adError)
++      logger.error(`Failed to sync ad ${metaAd.id}:`, adError)
+       results.errors++
+     }
+   }
+ } catch (adsError) {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+@@ -322,9 +322,9 @@
+         results.errors++
+       }
+     }
+   } catch (adsError) {
+-    console.error(`Failed to fetch ads for ad set ${metaAdSet.id}:`, adsError)
++    logger.error(`Failed to fetch ads for ad set ${metaAdSet.id}:`, adsError)
+   }
+ } catch (adSetError) {
+   console.error(`Failed to sync ad set ${metaAdSet.id}:`, adSetError)
+   results.errors++
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+@@ -325,9 +325,9 @@
+       } catch (adsError) {
+         logger.error(`Failed to fetch ads for ad set ${metaAdSet.id}:`, adsError)
+       }
+     } catch (adSetError) {
+-      console.error(`Failed to sync ad set ${metaAdSet.id}:`, adSetError)
++      logger.error(`Failed to sync ad set ${metaAdSet.id}:`, adSetError)
+       results.errors++
+     }
+   }
+ } catch (adSetsError) {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+@@ -330,9 +330,9 @@
+         results.errors++
+       }
+     }
+   } catch (adSetsError) {
+-    console.error(`Failed to fetch ad sets for campaign ${metaCampaign.id}:`, adSetsError)
++    logger.error(`Failed to fetch ad sets for campaign ${metaCampaign.id}:`, adSetsError)
+   }
+ } catch (error) {
+   console.error(`Failed to sync campaign ${metaCampaign.id}:`, error)
+   results.errors++
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+@@ -333,9 +333,9 @@
+     } catch (adSetsError) {
+       logger.error(`Failed to fetch ad sets for campaign ${metaCampaign.id}:`, adSetsError)
+     }
+   } catch (error) {
+-    console.error(`Failed to sync campaign ${metaCampaign.id}:`, error)
++    logger.error(`Failed to sync campaign ${metaCampaign.id}:`, error)
+     results.errors++
+   }
+ }
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/sync/route.ts
+@@ -350,9 +350,9 @@
+       ...results,
+     },
+   })
+ } catch (error: any) {
+-  console.error("Failed to sync campaigns:", error)
++  logger.error("Failed to sync campaigns:", error)
+   res.status(500).json({
+     message: "Failed to sync campaigns",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/[id]/status/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/status/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/status/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/status/route.ts
+@@ -73,8 +73,9 @@
+  *   }
+  * }
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../../../modules/socials"
+ import SocialsService from "../../../../../../modules/socials/service"
+ import MetaAdsService from "../../../../../../modules/social-provider/meta-ads-service"
+ import { decryptAccessToken } from "../../../../../../modules/socials/utils/token-helpers"
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/[id]/status/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/status/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/status/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/status/route.ts
+@@ -91,8 +91,9 @@
+ export const POST = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const { id } = req.params
+     const { status } = req.body as { status: "ACTIVE" | "PAUSED" }
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/[id]/status/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/status/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/status/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/[id]/status/route.ts
+@@ -159,9 +159,9 @@
+     message: `Campaign ${status === "ACTIVE" ? "resumed" : "paused"} successfully`,
+     campaign: updatedCampaign,
+   })
+ } catch (error: any) {
+-  console.error("Failed to update campaign status:", error)
++  logger.error("Failed to update campaign status:", error)
+   res.status(500).json({
+     message: "Failed to update campaign status",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/totals/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/totals/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/totals/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/totals/route.ts
+@@ -52,8 +52,9 @@
+  *   }
+  * }
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../../modules/socials"
+ import SocialsService from "../../../../../modules/socials/service"
+ 
+ /**
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/totals/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/totals/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/totals/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/totals/route.ts
+@@ -69,8 +69,9 @@
+ export const GET = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const { ad_account_id, status } = req.query as Record<string, string>
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/campaigns/totals/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/totals/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/totals/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/campaigns/totals/route.ts
+@@ -143,9 +143,9 @@
+       campaign_count: campaigns.length,
+     },
+   })
+ } catch (error: any) {
+-  console.error("Failed to get campaign totals:", error)
++  logger.error("Failed to get campaign totals:", error)
+   res.status(500).json({
+     message: "Failed to get campaign totals",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/lead-forms/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/lead-forms/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/lead-forms/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/lead-forms/route.ts
+@@ -122,8 +122,9 @@
+  *   }
+  * }
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../modules/socials"
+ import SocialsService from "../../../../modules/socials/service"
+ 
+ /**
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/lead-forms/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/lead-forms/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/lead-forms/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/lead-forms/route.ts
+@@ -135,8 +135,9 @@
+ export const GET = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const { platform_id } = req.query as Record<string, string>
+     
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/lead-forms/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/lead-forms/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/lead-forms/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/lead-forms/route.ts
+@@ -152,9 +152,9 @@
+       leadForms,
+       count: leadForms.length,
+     })
+   } catch (error: any) {
+-    console.error("Failed to list lead forms:", error)
++    logger.error("Failed to list lead forms:", error)
+     res.status(500).json({
+       message: "Failed to list lead forms",
+       error: error.message,
+     })
+@@ -169,8 +169,9 @@
+ export const POST = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const body = req.body as Record<string, any>
+     
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/lead-forms/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/lead-forms/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/lead-forms/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/lead-forms/route.ts
+@@ -178,9 +178,9 @@
+   const leadForm = await socials.createLeadForms(body)
+ 
+   res.json({ leadForm })
+ } catch (error: any) {
+-  console.error("Failed to create lead form:", error)
++  logger.error("Failed to create lead form:", error)
+   res.status(500).json({
+     message: "Failed to create lead form",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/adsets/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/route.ts
+@@ -44,8 +44,9 @@
+  *   "error": "Internal server error details"
+  * }
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../../modules/socials"
+ import SocialsService from "../../../../../modules/socials/service"
+ 
+ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/adsets/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/route.ts
+@@ -49,8 +49,9 @@
+ import { SOCIALS_MODULE } from "../../../../../modules/socials"
+ import SocialsService from "../../../../../modules/socials/service"
+ 
+ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const { id } = req.params
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/adsets/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/route.ts
+@@ -76,9 +76,9 @@
+       ad_account: adAccount,
+     },
+   })
+ } catch (error: any) {
+-  console.error("Failed to get ad set:", error)
++  logger.error("Failed to get ad set:", error)
+ 
+   if (error.type === "not_found" || error.message?.includes("was not found")) {
+     return res.status(404).json({
+       message: "Ad set not found",
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/adsets/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/route.ts
+@@ -39,8 +39,9 @@
+  *   }
+  * }
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../modules/socials"
+ import SocialsService from "../../../../modules/socials/service"
+ 
+ /**
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/adsets/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/route.ts
+@@ -52,8 +52,9 @@
+ export const GET = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const { campaign_id, ad_account_id, limit = "200", offset = "0" } = req.query as Record<string, string>
+     
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/adsets/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/route.ts
+@@ -103,9 +103,9 @@
+       limit: take,
+       offset: skip,
+     })
+   } catch (error: any) {
+-    console.error("Failed to list ad sets:", error)
++    logger.error("Failed to list ad sets:", error)
+     res.status(500).json({
+       message: "Failed to list ad sets",
+       error: error.message,
+     })
+@@ -120,8 +120,9 @@
+ export const POST = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const body = req.body as Record<string, any>
+     
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/adsets/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/route.ts
+@@ -129,9 +129,9 @@
+   const adSet = await socials.createAdSets(body)
+ 
+   res.json({ adSet })
+ } catch (error: any) {
+-  console.error("Failed to create ad set:", error)
++  logger.error("Failed to create ad set:", error)
+   res.status(500).json({
+     message: "Failed to create ad set",
+     error: error.message,
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/adsets/[id]/status/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/status/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/status/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/status/route.ts
+@@ -64,8 +64,9 @@
+  *     const data = await response.json();
+  *     console.log(data);
+  */
+ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { SOCIALS_MODULE } from "../../../../../../modules/socials"
+ import SocialsService from "../../../../../../modules/socials/service"
+ import MetaAdsService from "../../../../../../modules/social-provider/meta-ads-service"
+ import { decryptAccessToken } from "../../../../../../modules/socials/utils/token-helpers"
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/adsets/[id]/status/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/status/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/status/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/status/route.ts
+@@ -82,8 +82,9 @@
+ export const POST = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const socials = req.scope.resolve(SOCIALS_MODULE) as SocialsService
+     const { id } = req.params
+     const { status } = req.body as { status: "ACTIVE" | "PAUSED" }
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/meta-ads/adsets/[id]/status/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/status/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/status/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/meta-ads/adsets/[id]/status/route.ts
+@@ -155,9 +155,9 @@
+     message: `Ad set ${status === "ACTIVE" ? "resumed" : "paused"} successfully`,
+     adSet: updatedAdSet,
+   })
+ } catch (error: any) {
+-  console.error("Failed to update ad set status:", error)
++  logger.error("Failed to update ad set status:", error)
+   res.status(500).json({
+     message: "Failed to update ad set status",
+     error: error.message,
+   })
+
+[0m
+[0m✱ [0mGrep "console\.(log|error|warn|info|debug)\("[90m in apps/backend/src/api/admin/meta-ads · 0 matches[0m
+[0m✱ [0mGrep "console\."[90m in apps/backend/src/api/admin/meta-ads · 4 matches[0m
+[0m
+[0m# [0mTodos
+[✓] Edit ads/route.ts - add logger import + logger handles for GET & POST
+[✓] Edit ads/[id]/route.ts - add logger import + logger handle for GET
+[✓] Edit ads/[id]/status/route.ts - add logger import + logger handle for POST
+[✓] Edit insights/route.ts - add logger import + logger handles for GET & POST
+[✓] Edit leads/route.ts - add logger import + logger handles for GET & POST
+[✓] Edit leads/sync/route.ts - add logger import + logger handle for POST
+[✓] Edit leads/[id]/route.ts - add logger import + logger handles for GET, PATCH, DELETE
+[✓] Edit accounts/route.ts - add logger import + logger handles for GET & POST
+[✓] Edit accounts/sync/route.ts - add logger import + logger handle for POST
+[✓] Edit accounts/[id]/route.ts - add logger import + logger handle for GET
+[✓] Edit campaigns/route.ts - add logger import + logger handles for GET & POST
+[✓] Edit campaigns/[id]/route.ts - add logger import + logger handle for GET
+[✓] Edit campaigns/sync/route.ts - add logger import + logger handle for POST
+[✓] Edit campaigns/[id]/status/route.ts - add logger import + logger handle for POST
+[✓] Edit campaigns/totals/route.ts - add logger import + logger handle for GET
+[✓] Edit lead-forms/route.ts - add logger import + logger handles for GET & POST
+[✓] Edit adsets/[id]/route.ts - add logger import + logger handle for GET
+[✓] Edit adsets/route.ts - add logger import + logger handles for GET & POST
+[✓] Edit adsets/[id]/status/route.ts - add logger import + logger handle for POST
+[0m

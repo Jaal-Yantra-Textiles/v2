@@ -1,0 +1,1138 @@
+Now I have a complete picture of all files. Let me proceed with the edits. I'll work through them in batches.
+Now let me verify no `console.` calls remain in any of the target files.
+CHANGED: apps/backend/src/api/admin/visual-flows/route.ts — added import, replaced `console.error` with `logger.error`
+apps/backend/src/api/admin/visual-flows/[id]/route.ts — added import, replaced `console.log`/`console.error`×2 with `logger.info`/`logger.error`×2 (PUT shares 1 logger, DELETE has its own)
+apps/backend/src/api/admin/visual-flows/[id]/execute/route.ts — added import, replaced `console.error` with `logger.error`
+apps/backend/src/api/admin/ai/chat/resolve/route.ts — added import, replaced `console.error`×2 (POST+GET) with `logger.error`
+apps/backend/src/api/admin/ai/workflows/multi-step/route.ts — added import, replaced `console.error` with `logger.error`
+apps/backend/src/api/admin/ai/workflows/[runId]/resume/route.ts — added import, replaced `console.error` with `logger.error`
+apps/backend/src/api/admin/ai/openapi/catalog/route.ts — added import, replaced `console.warn` with `logger.warn`
+apps/backend/src/api/admin/websites/[id]/route.ts — added import, replaced `console.warn`×2 (DELETE+PUT) with `logger.warn`
+apps/backend/src/api/admin/websites/[id]/blogs/categories/route.ts — added import, replaced `console.error` with `logger.error`
+apps/backend/src/api/admin/websites/[id]/pages/[pageId]/route.ts — added import, replaced `console.warn`×2 (DELETE+PUT) with `logger.warn`
+apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/route.ts — added import, replaced `console.error` with `logger.error`
+apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/test/route.ts — added import, replaced `console.error` with `logger.error`
+apps/backend/src/api/admin/tasks/[id]/comments/route.ts — added import, replaced `console.warn`+`console.error`×2 (POST+GET) with `logger.warn`+`logger.error`
+apps/backend/src/api/admin/tasks/[id]/feedbacks/route.ts — replaced `console.error`×2 (GET+POST) with `logger.error`
+apps/backend/src/api/admin/task-templates/route.ts — added import, replaced `console.warn`×2 (POST+GET) with `logger.warn`
+apps/backend/src/api/admin/task-templates/[id]/route.ts — added import, replaced `console.warn`×2 (PUT+DELETE) with `logger.warn`
+apps/backend/src/api/admin/task-templates/categories/route.ts — added import, replaced `console.warn` with `logger.warn`
+apps/backend/src/api/admin/partners/route.ts — added import, replaced `console.log` with `logger.info`
+apps/backend/src/api/admin/partners/[id]/tasks/route.ts — replaced `console.error`×2 (GET+POST) with `logger.error`
+apps/backend/src/api/admin/partners/[id]/feedbacks/route.ts — replaced `console.error`×2 (GET+POST) with `logger.error`
+apps/backend/src/api/admin/inventory-orders/route.ts — replaced `console.warn` with `logger.warn`
+apps/backend/src/api/admin/inventory-orders/[id]/tasks/route.ts — added import, replaced `console.log` with `logger.debug`
+apps/backend/src/api/admin/inventory-orders/[id]/feedbacks/route.ts — replaced `console.error`×2 (GET+POST) with `logger.error`
+apps/backend/src/api/admin/categories/rawmaterials/route.ts — added import, replaced `console.warn`×2 (GET+POST) with `logger.warn`
+
+--- stderr ---
+[0m
+> jyt-drafter · deepseek-v4-flash-free
+[0m
+[0m→ [0mSkill "backend-dev-guidelines"
+[0m✱ [0mGlob "apps/backend/src/api/admin/**/route.ts"[90m 100 matches[0m
+[0m
+[0m# [0mTodos
+[•] Read all existing target files and identify console.* calls
+[ ] Create missing files that don't exist yet
+[ ] Replace console.* with Medusa logger in each file
+[ ] Verify no console.* calls remain (except comments)
+[0m
+[0m→ [0mRead apps/backend/src/api/admin/visual-flows/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/visual-flows/[id]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/visual-flows/[id]/execute/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/ai/chat/resolve/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/ai/workflows/multi-step/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/ai/workflows/[runId]/resume/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/ai/openapi/catalog/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/websites/[id]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/websites/[id]/blogs/categories/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/websites/[id]/pages/[pageId]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/test/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/tasks/[id]/comments/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/tasks/[id]/feedbacks/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/task-templates/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/task-templates/[id]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/task-templates/categories/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/partners/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/partners/[id]/tasks/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/partners/[id]/feedbacks/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/inventory-orders/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/inventory-orders/[id]/tasks/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/inventory-orders/[id]/feedbacks/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/categories/rawmaterials/route.ts
+[0m
+[0m# [0mTodos
+[✓] Read all existing target files and identify console.* calls
+[•] Replace console.* with Medusa logger in each file
+[ ] Verify no console.* calls remain (except comments)
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/visual-flows/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/route.ts
+@@ -84,9 +84,9 @@
+  *   }
+  * }
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+-import { MedusaError } from "@medusajs/framework/utils"
++import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+ import { VISUAL_FLOWS_MODULE } from "../../../modules/visual_flows"
+ import VisualFlowService from "../../../modules/visual_flows/service"
+ import { z } from "@medusajs/framework/zod"
+ import { createVisualFlowWorkflow } from "../../../workflows/visual-flows"
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/visual-flows/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/route.ts
+@@ -225,9 +225,10 @@
+   },
+ })
+ 
+ if (errors?.length) {
+-  console.error("[visual-flows] Create workflow errors:", errors)
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.error(`[visual-flows] Create workflow errors: ${JSON.stringify(errors)}`)
+   throw new MedusaError(
+     MedusaError.Types.UNEXPECTED_STATE,
+     `Failed to create flow: ${errors.map((e: any) => e?.error?.message ?? String(e)).join("; ")}`
+   )
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/visual-flows/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/route.ts
+@@ -68,9 +68,9 @@
+  * - 404: Flow not found
+  * - 500: Workflow execution errors
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+-import { MedusaError } from "@medusajs/framework/utils"
++import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+ import { VISUAL_FLOWS_MODULE } from "../../../../modules/visual_flows"
+ import VisualFlowService from "../../../../modules/visual_flows/service"
+ import { z } from "@medusajs/framework/zod"
+ import { updateVisualFlowWorkflow, deleteVisualFlowWorkflow } from "../../../../workflows/visual-flows"
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/visual-flows/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/route.ts
+@@ -146,14 +146,15 @@
+   )
+ }
+ const data = parsed.data
+ 
+-console.log("[visual-flows PUT] Received update:", {
++const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++logger.info(`[visual-flows PUT] Received update: ${JSON.stringify({
+   id,
+   operationsCount: data.operations?.length || 0,
+   connectionsCount: data.connections?.length || 0,
+   operations: data.operations?.map((o) => ({ key: o.operation_key, type: o.operation_type })),
+-})
++})}`)
+ 
+ const { result: flow, errors } = await updateVisualFlowWorkflow(req.scope).run({
+   input: {
+     id,
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/visual-flows/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/route.ts
+@@ -172,9 +172,9 @@
+   },
+ })
+ 
+ if (errors?.length) {
+-  console.error("[visual-flows] Update workflow errors:", errors)
++  logger.error(`[visual-flows] Update workflow errors: ${JSON.stringify(errors)}`)
+   throw new MedusaError(
+     MedusaError.Types.UNEXPECTED_STATE,
+     `Failed to update flow: ${errors.map((e: any) => e?.error?.message ?? String(e)).join("; ")}`
+   )
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/visual-flows/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/route.ts
+@@ -194,9 +194,10 @@
+   input: { flowId: id },
+ })
+ 
+ if (errors?.length) {
+-  console.error("[visual-flows] Delete workflow errors:", errors)
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.error(`[visual-flows] Delete workflow errors: ${JSON.stringify(errors)}`)
+   throw new MedusaError(
+     MedusaError.Types.UNEXPECTED_STATE,
+     `Failed to delete flow: ${errors.map((e: any) => e?.error?.message ?? String(e)).join("; ")}`
+   )
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/visual-flows/[id]/execute/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/execute/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/execute/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/execute/route.ts
+@@ -56,8 +56,9 @@
+  *   "details": [ ... ]
+  * }
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { z } from "@medusajs/framework/zod"
+ import { executeVisualFlowWorkflow } from "../../../../../workflows/visual-flows"
+ import { VISUAL_FLOWS_MODULE } from "../../../../../modules/visual_flows"
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/visual-flows/[id]/execute/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/execute/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/execute/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/visual-flows/[id]/execute/route.ts
+@@ -113,9 +113,10 @@
+   },
+ })
+ 
+ if (errors?.length) {
+-  console.error("[visual-flows] Execute workflow errors:", errors)
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.error(`[visual-flows] Execute workflow errors: ${JSON.stringify(errors)}`)
+   return res.status(500).json({ 
+     error: "Failed to execute flow", 
+     details: errors 
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/ai/chat/resolve/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/chat/resolve/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/chat/resolve/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/chat/resolve/route.ts
+@@ -25,8 +25,9 @@
+  * }
+  */
+ 
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { HybridQueryResolverService } from "../../../../../mastra/services/hybrid-query-resolver"
+ 
+ // Singleton instance
+ let resolverInstance: HybridQueryResolverService | null = null
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/ai/chat/resolve/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/chat/resolve/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/chat/resolve/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/chat/resolve/route.ts
+@@ -82,9 +82,10 @@
+       indexed_docs: indexedStatus,
+     },
+   })
+ } catch (error: any) {
+-  console.error("[AI Chat Resolve] Error:", error)
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.error(`[AI Chat Resolve] Error: ${error}`)
+   res.status(500).json({
+     error: error.message || "Failed to resolve query",
+   })
+ }
+@@ -124,9 +125,10 @@
+       project_root: process.cwd(),
+     },
+   })
+ } catch (error: any) {
+-  console.error("[AI Chat Resolve] Error:", error)
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.error(`[AI Chat Resolve] Error: ${error}`)
+   res.status(500).json({
+     error: error.message || "Failed to get resolver status",
+   })
+ }
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/ai/workflows/multi-step/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/workflows/multi-step/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/workflows/multi-step/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/workflows/multi-step/route.ts
+@@ -79,8 +79,9 @@
+  *   }
+  * }
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { mastra, mastraStorageInit } from "../../../../../mastra"
+ import { runStorage } from "../../../../../mastra/run-storage"
+ import { v4 as uuidv4 } from "uuid"
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/ai/workflows/multi-step/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/workflows/multi-step/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/workflows/multi-step/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/workflows/multi-step/route.ts
+@@ -153,9 +153,10 @@
+         status: "completed",
+         result: result.state?.[0]?.output,
+     })
+ } catch (error: any) {
+-    console.error("[HITL Trigger] Error:", error)
++    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++    logger.error(`[HITL Trigger] Error: ${error}`)
+     return res.status(500).json({
+         message: error?.message || "Workflow execution failed",
+     })
+ }
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/ai/workflows/[runId]/resume/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/workflows/[runId]/resume/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/workflows/[runId]/resume/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/workflows/[runId]/resume/route.ts
+@@ -36,8 +36,9 @@
+  * @typedef {Object} WorkflowErrorResponse
+  * @property {string} message - Error message
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { mastra, mastraStorageInit } from "../../../../../../mastra"
+ import { runStorage } from "../../../../../../mastra/run-storage"
+ import { generalChatAgent } from "../../../../../../mastra/agents"
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/ai/workflows/[runId]/resume/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/workflows/[runId]/resume/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/workflows/[runId]/resume/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/workflows/[runId]/resume/route.ts
+@@ -187,9 +187,10 @@
+         meta: (workflowOutput as any)?.meta,
+         error: (workflowOutput as any)?.error,
+     })
+ } catch (error: any) {
+-    console.error("[HITL Resume] Error:", error)
++    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++    logger.error(`[HITL Resume] Error: ${error}`)
+     return res.status(500).json({
+         message: error?.message || "Workflow resume failed",
+     })
+ }
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/ai/openapi/catalog/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/openapi/catalog/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/openapi/catalog/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/openapi/catalog/route.ts
+@@ -130,8 +130,9 @@
+  *   ]
+  * }
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import yaml from "js-yaml"
+ import { OpenApiGeneratorV31 } from "@asteasolutions/zod-to-openapi"
+ import { buildRegistry } from "../custom/registry"
+ import { CATALOG_CACHE_CONFIG } from "../../../../../mastra/config/cache"
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/ai/openapi/catalog/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/openapi/catalog/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/openapi/catalog/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/ai/openapi/catalog/route.ts
+@@ -242,9 +242,12 @@
+     basePaths[p] = existing
+   }
+   doc.paths = basePaths
+ } catch (e: any) {
+-  try { console.warn("[openapi][catalog] failed to merge custom spec", e?.message || e) } catch { }
++  try {
++    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++    logger.warn(`[openapi][catalog] failed to merge custom spec ${e?.message || e}`)
++  } catch { }
+ }
+ 
+ const items: Array<{
+   id: string
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/websites/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/route.ts
+@@ -123,8 +123,9 @@
+   AuthenticatedMedusaRequest,
+   MedusaRequest,
+   MedusaResponse,
+ } from "@medusajs/framework";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { DeleteWebsiteSchema, UpdateWebsiteSchema } from "../validators";
+ import { deleteWebsiteWorkflow } from "../../../../workflows/website/delete-website";
+ import { WEBSITE_MODULE } from "../../../../modules/website";
+ import WebsiteService from "../../../../modules/website/service";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/websites/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/route.ts
+@@ -143,9 +143,10 @@
+     id: id,
+   },
+ });
+ if (errors.length > 1) {
+-  console.warn("Error reported at", errors);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ res.status(200).json({
+   id,
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/websites/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/route.ts
+@@ -184,9 +184,10 @@
+   },
+ });
+ 
+ if (errors.length > 1) {
+-  console.warn("Error reported at", errors);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ const website = await refetchWebsite(result.id, req.scope);
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/websites/[id]/blogs/categories/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/blogs/categories/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/blogs/categories/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/blogs/categories/route.ts
+@@ -41,8 +41,9 @@
+  *   "message": "Internal server error"
+  * }
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { fetchAllCategoriesPerSiteWorkflow } from "../../../../../../workflows/website/website-page/fetch-all-categories-per-site";
+ 
+ export async function GET(req: MedusaRequest, res: MedusaResponse) {
+   const { id: websiteId } = req.params; // id here is the websiteId
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/websites/[id]/blogs/categories/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/blogs/categories/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/blogs/categories/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/blogs/categories/route.ts
+@@ -59,9 +59,10 @@
+     });
+ 
+     return res.status(200).json({ categories });
+   } catch (error) {
+-    console.error("Error fetching blog categories by website ID:", error);
++    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++    logger.error(`Error fetching blog categories by website ID: ${error}`);
+     // Consider more specific error handling based on workflow errors
+     return res.status(500).json({ message: "Internal server error" });
+   }
+ }
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/websites/[id]/pages/[pageId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/route.ts
+@@ -24,8 +24,9 @@
+   AuthenticatedMedusaRequest,
+   MedusaRequest,
+   MedusaResponse,
+ } from "@medusajs/framework";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { DeletePageSchema, UpdatePageSchema } from "../validators";
+ import { deletePageWorkflow } from "../../../../../../workflows/website/website-page/delete-page";
+ import { WEBSITE_MODULE } from "../../../../../../modules/website";
+ import WebsiteService from "../../../../../../modules/website/service";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/websites/[id]/pages/[pageId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/route.ts
+@@ -45,9 +45,10 @@
+   },
+ });
+ 
+ if (errors.length > 1) {
+-  console.warn("Error reported at", errors);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ res.status(200).json({
+   id: pageId,
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/websites/[id]/pages/[pageId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/route.ts
+@@ -83,9 +83,10 @@
+   },
+ });
+ 
+ if (errors.length > 1) {
+-  console.warn("Error reported at", errors);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ // Refetch by the URL-derived `pageId`, not the workflow result —
+ // even though the workflow now returns a proper object, this stays
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/route.ts
+@@ -60,8 +60,9 @@
+  *   "error": "An unexpected error occurred"
+  * }
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { z } from "@medusajs/framework/zod";
+ import { sendBlogSubscribersWorkflow } from "../../../../../../../workflows/blogs/send-blog-subscribers";
+ import { WEBSITE_MODULE } from "../../../../../../../modules/website";
+ import WebsiteService from "../../../../../../../modules/website/service";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/route.ts
+@@ -141,9 +141,10 @@
+     confirmation_url: `/admin/websites/${websiteId}/pages/${pageId}/subs/${transaction.transactionId}/confirm`,
+     subscribers: result.totalSubscribers
+   });
+ } catch (error) {
+-  console.error("Error sending blog to subscribers:", error);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.error(`Error sending blog to subscribers: ${error}`);
+   
+   return res.status(500).json({
+     message: "Failed to send blog to subscribers",
+     error: error.message || "An unexpected error occurred"
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/test/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/test/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/test/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/test/route.ts
+@@ -120,8 +120,9 @@
+  *   "error": "An unexpected error occurred"
+  * }
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { z } from "@medusajs/framework/zod";
+ import { sendTestBlogEmailWorkflow } from "../../../../../../../../workflows/blogs/send-blog-subscribers";
+ import { WEBSITE_MODULE } from "../../../../../../../../modules/website";
+ import WebsiteService from "../../../../../../../../modules/website/service";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/test/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/test/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/test/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/websites/[id]/pages/[pageId]/subs/test/route.ts
+@@ -202,9 +202,10 @@
+     success: result.success,
+     error: result.error
+   });
+ } catch (error) {
+-  console.error("Error sending test blog email:", error);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.error(`Error sending test blog email: ${error}`);
+   
+   return res.status(500).json({
+     message: "Failed to send test blog email",
+     error: error.message || "An unexpected error occurred"
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/tasks/[id]/comments/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/comments/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/comments/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/comments/route.ts
+@@ -113,9 +113,9 @@
+  *   ]
+  * }
+  */
+ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
+-import { MedusaError } from "@medusajs/framework/utils";
++import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
+ import { TASKS_MODULE } from "../../../../../modules/tasks";
+ import TaskService from "../../../../../modules/tasks/service";
+ 
+ type TaskComment = {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/tasks/[id]/comments/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/comments/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/comments/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/comments/route.ts
+@@ -188,9 +188,10 @@
+             : adminUser.email || "Admin";
+     }
+ } catch (error) {
+     // If we can't fetch admin info, use default
+-    console.warn("Could not fetch admin user info:", error);
++    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++    logger.warn(`Could not fetch admin user info: ${error}`);
+ }
+ 
+ // Create new comment
+ const newComment: TaskComment = {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/tasks/[id]/comments/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/comments/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/comments/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/comments/route.ts
+@@ -226,9 +226,10 @@
+             message: error.message
+         });
+     }
+     
+-    console.error("Error adding comment to task:", error);
++    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++    logger.error(`Error adding comment to task: ${error}`);
+     return res.status(500).json({
+         message: "Failed to add comment to task"
+     });
+ }
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/tasks/[id]/comments/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/comments/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/comments/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/comments/route.ts
+@@ -274,9 +274,10 @@
+             message: error.message
+         });
+     }
+     
+-    console.error("Error fetching task comments:", error);
++    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++    logger.error(`Error fetching task comments: ${error}`);
+     return res.status(500).json({
+         message: "Failed to fetch task comments"
+     });
+ }
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/tasks/[id]/feedbacks/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/feedbacks/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/feedbacks/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/feedbacks/route.ts
+@@ -138,9 +138,10 @@
+     feedbacks: feedbacks,
+     count: feedbacks.length,
+   });
+ } catch (error) {
+-  console.error("Error fetching task feedbacks:", error);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.error(`Error fetching task feedbacks: ${error}`);
+   return res.status(500).json({
+     message: "Failed to fetch task feedbacks",
+     error: error instanceof Error ? error.message : String(error),
+   });
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/tasks/[id]/feedbacks/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/feedbacks/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/feedbacks/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/tasks/[id]/feedbacks/route.ts
+@@ -171,9 +171,10 @@
+   return res.status(201).json({
+     feedback: result.feedback,
+   });
+ } catch (error) {
+-  console.error("Error creating task feedback:", error);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.error(`Error creating task feedback: ${error}`);
+   return res.status(500).json({
+     message: "Failed to create task feedback",
+     error: error instanceof Error ? error.message : String(error),
+   });
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/task-templates/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/route.ts
+@@ -151,8 +151,9 @@
+ import {
+   MedusaRequest,
+   MedusaResponse,
+ } from "@medusajs/framework/http";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ 
+ import { TaskTemplate } from "./validators";
+ import { createTaskTemplateWorkflow } from "../../../workflows/task-templates/create-template";
+ import { listTaskTemplatesWorkflow } from "../../../workflows/task-templates/list-templates";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/task-templates/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/route.ts
+@@ -173,9 +173,10 @@
+   input: req.validatedBody,
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ const template = await refetchTaskTemplate(
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/task-templates/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/route.ts
+@@ -223,9 +223,10 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ const { templates, count } = result;
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/task-templates/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/[id]/route.ts
+@@ -110,8 +110,9 @@
+ import {
+   MedusaRequest,
+   MedusaResponse,
+ } from "@medusajs/framework/http";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { UpdateTaskTemplate } from "../validators";
+ import { updateTaskTemplateWorkflow } from "../../../../workflows/task-templates/update-template";
+ import { deleteTaskTemplateWorkflow } from "../../../../workflows/task-templates/delete-template";
+ import { TaskTemplateAllowedFields, refetchTaskTemplate } from "../helpers";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/task-templates/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/[id]/route.ts
+@@ -161,9 +161,10 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ const template = await refetchTaskTemplate(
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/task-templates/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/[id]/route.ts
+@@ -190,9 +190,10 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ res.status(204).send();
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/task-templates/categories/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/categories/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/categories/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/categories/route.ts
+@@ -65,8 +65,9 @@
+  *   "limit": 10
+  * }
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { listTaskTemplatesCategoriesWorkflow } from "../../../../workflows/task-templates/list-template-categories";
+ 
+ type TaskTemplateCategoriesAllowedFields =
+     | "name"
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/task-templates/categories/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/categories/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/categories/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/task-templates/categories/route.ts
+@@ -105,12 +105,13 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+-
++
+ const { categories, count } = result;
+ 
+ res.status(200).json({
+   categories,
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/partners/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/route.ts
+@@ -154,9 +154,9 @@
+  * }
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+ import { listPartnersWorkflow } from "../../../workflows/partners/list-partners"
+-import { MedusaError, Modules } from "@medusajs/framework/utils"
++import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+ import { createPartnerAdminWithRegistrationWorkflow } from "../../../workflows/partner/create-partner-admin"
+ import { buildQSearchFilter } from "../../../lib/list-search-filters"
+ import { PostPartnerWithAdminSchema } from "./validators"
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/partners/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/route.ts
+@@ -253,9 +253,10 @@
+ const payload = result as any
+ 
+ // Emit partner.created.fromAdmin with the workflow-provided temp password
+ const eventService = req.scope.resolve(Modules.EVENT_BUS)
+-console.log("Emitting partner.created.fromAdmin event",payload)
++const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++logger.info(`Emitting partner.created.fromAdmin event ${JSON.stringify(payload)}`)
+ eventService.emit({
+   name: "partner.created.fromAdmin",
+   data: {
+     partner_id: payload.partnerWithAdmin.createdPartner.id,
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/partners/[id]/tasks/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/[id]/tasks/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/[id]/tasks/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/[id]/tasks/route.ts
+@@ -170,9 +170,10 @@
+         tasks: tasks,
+         count: tasks.length
+     });
+ } catch (error) {
+-    console.error("Error fetching partner tasks:", error);
++    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++    logger.error(`Error fetching partner tasks: ${error}`);
+     return res.status(500).json({ 
+         message: "Failed to fetch partner tasks",
+         error: error instanceof Error ? error.message : String(error)
+     });
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/partners/[id]/tasks/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/[id]/tasks/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/[id]/tasks/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/[id]/tasks/route.ts
+@@ -266,9 +266,10 @@
+     return res.json({ 
+         task: task
+     });
+ } catch (error) {
+-    console.error("Error creating partner task:", error);
++    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++    logger.error(`Error creating partner task: ${error}`);
+     return res.status(500).json({ 
+         message: "Failed to create partner task",
+         error: error instanceof Error ? error.message : String(error)
+     });
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/partners/[id]/feedbacks/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/[id]/feedbacks/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/[id]/feedbacks/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/[id]/feedbacks/route.ts
+@@ -138,9 +138,10 @@
+     feedbacks: feedbacks,
+     count: feedbacks.length,
+   });
+ } catch (error) {
+-  console.error("Error fetching partner feedbacks:", error);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.error(`Error fetching partner feedbacks: ${error}`);
+   return res.status(500).json({
+     message: "Failed to fetch partner feedbacks",
+     error: error instanceof Error ? error.message : String(error),
+   });
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/partners/[id]/feedbacks/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/[id]/feedbacks/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/[id]/feedbacks/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/partners/[id]/feedbacks/route.ts
+@@ -171,9 +171,10 @@
+   return res.status(201).json({
+     feedback: result.feedback,
+   });
+ } catch (error) {
+-  console.error("Error creating partner feedback:", error);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.error(`Error creating partner feedback: ${error}`);
+   return res.status(500).json({
+     message: "Failed to create partner feedback",
+     error: error instanceof Error ? error.message : String(error),
+   });
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/inventory-orders/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-orders/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-orders/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-orders/route.ts
+@@ -104,9 +104,10 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ const inventoryOrder = await refetchInventoryOrder(
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/inventory-orders/[id]/tasks/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-orders/[id]/tasks/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-orders/[id]/tasks/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-orders/[id]/tasks/route.ts
+@@ -86,8 +86,9 @@
+  *  - The POST response includes a refetched list of created tasks (taskLinks.list) and a count.
+  *  - Use the `fields` query on GET to limit returned task fields and reduce payload size.
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { createTasksFromTemplatesWorkflow } from "../../../../../workflows/inventory_orders/create-tasks-from-templates"
+ import { getInventoryOrderTasksWorkflow } from "../../../../../workflows/inventory_orders/get-inventory-order-tasks"
+ import { AdminPostInventoryOrderTasksReqType } from "./validators"
+ import { refetchTask } from "./helpers"
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/inventory-orders/[id]/tasks/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-orders/[id]/tasks/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-orders/[id]/tasks/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-orders/[id]/tasks/route.ts
+@@ -96,9 +96,10 @@
+ 
+ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+   const { id } = req.params
+   const fields = req.query.fields ? (req.query.fields as string).split(',') : undefined
+-  console.log(req.queryConfig)
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.debug(`queryConfig: ${JSON.stringify(req.queryConfig)}`)
+   // Use the workflow which handles validation and retrieval
+   const { result } = await getInventoryOrderTasksWorkflow(req.scope).run({
+     input: {
+       inventoryOrderId: id,
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/inventory-orders/[id]/feedbacks/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-orders/[id]/feedbacks/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-orders/[id]/feedbacks/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-orders/[id]/feedbacks/route.ts
+@@ -98,9 +98,10 @@
+     feedbacks: feedbacks,
+     count: feedbacks.length,
+   });
+ } catch (error) {
+-  console.error("Error fetching inventory order feedbacks:", error);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.error(`Error fetching inventory order feedbacks: ${error}`);
+   return res.status(500).json({
+     message: "Failed to fetch inventory order feedbacks",
+     error: error instanceof Error ? error.message : String(error),
+   });
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/inventory-orders/[id]/feedbacks/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-orders/[id]/feedbacks/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-orders/[id]/feedbacks/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-orders/[id]/feedbacks/route.ts
+@@ -131,9 +131,10 @@
+   return res.status(201).json({
+     feedback: result.feedback,
+   });
+ } catch (error) {
+-  console.error("Error creating inventory order feedback:", error);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.error(`Error creating inventory order feedback: ${error}`);
+   return res.status(500).json({
+     message: "Failed to create inventory order feedback",
+     error: error instanceof Error ? error.message : String(error),
+   });
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/categories/rawmaterials/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/categories/rawmaterials/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/categories/rawmaterials/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/categories/rawmaterials/route.ts
+@@ -109,8 +109,9 @@
+  * @see listRawMaterialCategoriesWorkflow
+  * @see createRawMaterialCategoryWorkflow
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { listRawMaterialCategoriesWorkflow } from "../../../../workflows/raw-materials/list-raw-material-category";
+ import { CreateMaterialTypeType, ReadRawMaterialCategoriesType } from "./validators";
+ import { createRawMaterialCategoryWorkflow } from "../../../../workflows/raw-materials/create-raw-material-category";
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/categories/rawmaterials/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/categories/rawmaterials/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/categories/rawmaterials/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/categories/rawmaterials/route.ts
+@@ -150,9 +150,10 @@
+ });
+ 
+ 
+ if (errors && errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ const { categories, count } = result;
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/categories/rawmaterials/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/categories/rawmaterials/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/categories/rawmaterials/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/categories/rawmaterials/route.ts
+@@ -191,9 +191,10 @@
+   },
+ });
+ 
+ if (errors && errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   return res.status(400).json({ error: errors[0] });
+ }
+ 
+ res.status(200).json(result);
+
+[0m
+[0m✱ [0mGrep "console\.(log|error|warn|info|debug)\("[90m in apps/backend/src/api/admin · 0 matches[0m
+[0m✱ [0mGrep "console\.(log|error|warn|info|debug)\("[90m in apps/backend/src/api/admin · 0 matches[0m
+[0m✱ [0mGrep "console\.(log|error|warn|info|debug)\("[90m in apps/backend/src/api/admin · 0 matches[0m
+[0m✱ [0mGrep "console\.(log|error|warn|info|debug)\("[90m in apps/backend/src/api/admin · 0 matches[0m
+[0m✱ [0mGrep "console\.(log|error|warn|info|debug)\("[90m in apps/backend/src/api/admin · 0 matches[0m
+[0m✱ [0mGrep "console\.(log|error|warn|info|debug)\("[90m in apps/backend/src/api/admin · 0 matches[0m
+[0m✱ [0mGrep "console\.(log|error|warn|info|debug)\("[90m in apps/backend/src/api/admin · 0 matches[0m
+[0m✱ [0mGrep "console\.(log|error|warn|info|debug)\("[90m in apps/backend/src/api/admin · 0 matches[0m
+[0m✱ [0mGrep "console\.(log|error|warn|info|debug)\("[90m in apps/backend/src/api/admin · 0 matches[0m
+[0m
+[0m# [0mTodos
+[✓] Read all existing target files and identify console.* calls
+[✓] Replace console.* with Medusa logger in each file
+[✓] Verify no console.* calls remain (except comments)
+[0m

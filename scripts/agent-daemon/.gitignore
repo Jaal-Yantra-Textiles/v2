@@ -1,0 +1,9 @@
+# The SDK install carries a ~215MB native CLI binary — never commit it
+# (GitHub rejects >100MB). Reinstall with `npm i` in this dir.
+node_modules/
+package-lock.json
+# Per-run usage telemetry — local only.
+usage-ledger.jsonl
+
+# task queue (local runtime state)
+queue/
