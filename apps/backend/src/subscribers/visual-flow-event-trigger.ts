@@ -213,6 +213,10 @@ export const config: SubscriberConfig = {
     "inventory_orders.inventory-orders.created",
     "inventory_orders.inventory-orders.updated",
     "inventory_orders.inventory-orders.deleted",
+    // Fires only on a real status transition (previous → new), unlike the noisy
+    // generic "updated" above which also fires on metadata-only writes. Prefer
+    // this as the trigger for partner inventory-order notification flows (#771).
+    "inventory_orders.inventory-order.status-changed",
     
     // Partners
     "partner.partner.created",
