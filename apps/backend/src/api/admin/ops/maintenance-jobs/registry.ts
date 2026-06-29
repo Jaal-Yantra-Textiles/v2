@@ -60,6 +60,11 @@ import {
 import { VISUAL_FLOWS_MODULE } from "../../../../modules/visual_flows"
 import { FLOW_DEF as IDEAS_EMAIL_FLOW_DEF } from "../../../../scripts/seed-marketing-daily-ideas-email-flow"
 import { FLOW_DEF as INVENTORY_ORDER_STATUS_FLOW_DEF } from "../../../../scripts/seed-inventory-order-status-flow"
+import { ALL_WHATSAPP_TEMPLATES } from "../../../../scripts/whatsapp-templates/all-templates"
+import {
+  syncWhatsAppTemplates,
+  type SyncTemplateResult,
+} from "../../../../scripts/whatsapp-templates/meta-template-sync"
 import { seedEmailTemplatesJob } from "./seed-jobs"
 import {
   sweepAiPlatformsByCategory,
@@ -4234,6 +4239,121 @@ export const installInventoryOrderStatusFlowJob: MaintenanceJob = {
 }
 
 // ---------------------------------------------------------------------------
+// sync-whatsapp-templates (#771) — submit missing WhatsApp message templates to
+// Meta for approval from the Data Plumbing console, using the WhatsApp/Facebook
+// social-provider keys already configured (waba_id + access token per
+// SocialPlatform) — no shell, no env juggling. Shares the Meta sync core with
+// the CLI (manage-whatsapp-templates.ts). Dry-run previews exactly which
+// template×language variants would be created per WABA; apply submits the
+// missing ones (created PENDING — Meta approves async). Never overwrites or
+// deletes an existing template.
+// ---------------------------------------------------------------------------
+
+/**
+ * Pure: turn a Meta template-sync outcome into a MaintenanceJobResult. Exported
+ * for unit testing so the dry-run/apply wording + per-variant change set +
+ * skipped/unreadable-platform roll-up are verifiable without hitting Meta.
+ */
+export function buildSyncTemplatesResult(
+  jobId: string,
+  dry_run: boolean,
+  sync: SyncTemplateResult
+): MaintenanceJobResult {
+  const platformNote =
+    sync.platformsUsed.length === 0
+      ? " No usable WhatsApp platforms (need waba_id + access token)."
+      : ` ${sync.platformsUsed.length} platform(s).`
+  const skipNote = sync.platformsSkipped.length
+    ? ` Skipped ${sync.platformsSkipped.length} platform(s) (${sync.platformsSkipped
+        .map((s) => s.reason)
+        .join(", ")}).`
+    : ""
+  const listNote = sync.listErrors.length
+    ? ` ${sync.listErrors.length} platform(s) unreadable.`
+    : ""
+
+  if (dry_run) {
+    const changes: MaintenanceChange[] = sync.toCreate.map((a) => ({
+      entity: "whatsapp_template",
+      id: `${a.platformLabel}:${a.name}:${a.language}`,
+      field: "created",
+      after: {
+        name: a.name,
+        language: a.language,
+        platform: a.platformLabel,
+        status: "(would create)",
+      },
+    }))
+    const summary =
+      `Dry-run:${platformNote} ${sync.toCreate.length} template variant(s) would be submitted to Meta, ` +
+      `${sync.existing.length} already exist.${skipNote}${listNote} Nothing written.`
+    return { job_id: jobId, dry_run, applied: false, summary, changes }
+  }
+
+  const changes: MaintenanceChange[] = sync.created.map((c) => ({
+    entity: "whatsapp_template",
+    id: `${c.platformId}:${c.name}:${c.language}`,
+    field: "created",
+    after: {
+      name: c.name,
+      language: c.language,
+      meta_template_id: c.id,
+      status: "PENDING",
+    },
+  }))
+  const errors = sync.errors.map((e) => ({
+    id: `${e.platformId}:${e.name}:${e.language}`,
+    message: e.message,
+  }))
+  const errNote = sync.errors.length ? ` ${sync.errors.length} failed.` : ""
+  const summary =
+    `Submitted ${sync.created.length} template variant(s) to Meta (PENDING approval); ` +
+    `${sync.existing.length} already existed.${errNote}${skipNote}${listNote}`
+  return {
+    job_id: jobId,
+    dry_run,
+    applied: sync.created.length > 0,
+    summary,
+    changes,
+    ...(errors.length ? { errors } : {}),
+  }
+}
+
+export const syncWhatsAppTemplatesJob: MaintenanceJob = {
+  id: "sync-whatsapp-templates",
+  label: "Sync WhatsApp templates to Meta",
+  description:
+    "Submit any missing WhatsApp message templates to Meta for approval, using the WhatsApp/Facebook social-provider keys already configured (waba_id + access token per SocialPlatform) — no shell or env juggling (#771). Dry-run previews exactly which template×language variants would be created on each WABA; apply submits the missing ones (created PENDING — Meta approves asynchronously). Never overwrites or deletes an existing template. Optionally scope to specific platform ids.",
+  params: [
+    {
+      name: "platform_ids",
+      type: "string",
+      required: false,
+      description:
+        "Comma-separated SocialPlatform ids to target. Omit for all configured WhatsApp platforms.",
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const raw = params?.platform_ids
+    const platformIdFilter =
+      typeof raw === "string"
+        ? raw.split(",").map((s) => s.trim()).filter(Boolean)
+        : Array.isArray(raw)
+          ? (raw as any[]).map(String)
+          : undefined
+
+    const sync = await syncWhatsAppTemplates(container, {
+      templates: ALL_WHATSAPP_TEMPLATES,
+      apply: !dry_run,
+      platformIdFilter,
+      logger,
+    })
+    return buildSyncTemplatesResult(syncWhatsAppTemplatesJob.id, dry_run, sync)
+  },
+}
+
+// ---------------------------------------------------------------------------
 // generate-winback-targets (#659, report §12.5) — read ad_planning churn-risk
 // (+ optional CLV) scores, resolve each scored Person's email, and select
 // winback targets with a PURE, unit-tested selector (threshold + optional CLV
@@ -4656,6 +4776,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   runMarketingIdeasEmailJob,
   installMarketingIdeasEmailFlowJob,
   installInventoryOrderStatusFlowJob,
+  syncWhatsAppTemplatesJob,
   generateWinbackTargetsJob,
   sendMarketingDailySummaryJob,
   auditAiPlatformsJob,
