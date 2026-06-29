@@ -26,7 +26,9 @@ export const useImageExtraction = (
 ) => {
   return useMutation({
     mutationFn: async (payload: ImageExtractionPayload) => {
-      const response = (await sdk.client.fetch(`/admin/ai/image-extraction`, {
+      // #770: canonical inventory-nested path (legacy /admin/ai/image-extraction
+      // is retained server-side as a backward-compatible alias).
+      const response = (await sdk.client.fetch(`/admin/inventory-items/import-from-image`, {
         method: "POST",
         body: payload,
       })) as ImageExtractionResponse

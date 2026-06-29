@@ -2706,6 +2706,14 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminImageExtractionReq))],
     },
+    // Inventory-nested alias of the image-extraction endpoint (#770) — the
+    // canonical "Import From Image" path under the Inventory resource. Same
+    // validation as the legacy /admin/ai/image-extraction matcher above.
+    {
+      matcher: "/admin/inventory-items/import-from-image",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminImageExtractionReq))],
+    },
     // AI Chat endpoints (BM25 + LLM hybrid)
     {
       matcher: "/admin/ai/chat/chat",
