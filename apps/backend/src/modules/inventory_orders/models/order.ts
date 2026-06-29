@@ -19,6 +19,11 @@ const InventoryOrder = model.define("inventory_orders", {
   metadata: model.json().nullable(),
   shipping_address: model.json().nullable(),
   is_sample: model.boolean().default(false),
+  // Cancellation audit (#778 C4). Typed columns rather than metadata, because
+  // these are load-bearing state that must survive later metadata replacements.
+  cancelled_at: model.dateTime().nullable(),
+  cancellation_reason: model.text().nullable(),
+  cancelled_by: model.text().nullable(),
 }).cascades({
   delete: ['orderlines']
 });
