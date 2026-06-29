@@ -95,11 +95,14 @@ export const POST = async (
       throw new MedusaError(MedusaError.Types.INVALID_DATA, "No files provided for upload")
     }
 
-    // Build workflow files using string content to avoid Buffer serialization in workflows
+    // Build workflow files using base64 string content to avoid Buffer
+    // serialization in workflows. NOT "binary"/latin1: the Medusa file provider
+    // UTF-8-re-encodes non-base64 content, corrupting any byte >= 0x80 in real
+    // images (#769).
     const files = uploadedFiles.map((file) => ({
       filename: file.originalname,
       mimeType: file.mimetype,
-      content: (file as any).buffer?.toString("binary"),
+      content: (file as any).buffer?.toString("base64"),
       size: file.size,
     }))
 

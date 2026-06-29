@@ -5,7 +5,48 @@ import {
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk";
 import { MedusaError } from "@medusajs/framework/utils";
+import { describeFetchError } from "../../utils/describe-fetch-error";
 import { mastra } from "../../mastra";
+
+/**
+ * Pull the most actionable message out of a failed Mastra step error so the
+ * route returns the REAL reason instead of a generic "workflow failed" (#769).
+ *
+ * The vision call surfaces AI SDK `APICallError`s whose `responseBody` carries
+ * the provider's real error (e.g. Cloudflare "cannot identify image file",
+ * "Authentication error", quota), nested 1-2 levels deep in JSON. Network
+ * failures arrive as undici "fetch failed" with the detail on `.cause` —
+ * handled by `describeFetchError`. Pure + exported for unit testing.
+ */
+export function summarizeAiStepError(err: unknown): string {
+  const e = err as any
+  const status = e?.statusCode ?? e?.status
+  const rawBody = typeof e?.responseBody === "string" ? e.responseBody : undefined
+
+  let providerMsg: string | undefined
+  if (rawBody) {
+    try {
+      const parsed = JSON.parse(rawBody)
+      providerMsg =
+        parsed?.errors?.[0]?.message ??
+        parsed?.error?.message ??
+        parsed?.message
+    } catch {
+      /* responseBody wasn't JSON */
+    }
+    // Providers (e.g. Cloudflare) double-nest the real reason as an AiError
+    // string: `AiError: {"error":{"message":"..."}}`. Dig the innermost message.
+    if (typeof providerMsg === "string") {
+      const nested = providerMsg.match(/"message"\s*:\s*"([^"]+)"/)
+      if (nested) providerMsg = nested[1]
+    }
+    if (!providerMsg) providerMsg = rawBody.slice(0, 300)
+  }
+
+  const base = providerMsg ?? describeFetchError(err)
+  const prefix = status ? `HTTP ${status}: ` : ""
+  return `${prefix}${base}`.slice(0, 500)
+}
 import {
   resolveRoleVisionModel,
   logAiUsage,
@@ -176,7 +217,22 @@ const runMastraExtraction = createStep(
       })
     }
 
-    throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, "Mastra image extraction workflow failed")
+    // Surface the REAL failure instead of a generic message (#769). The vision
+    // call lives in extractItems; its error carries the provider's actual reason
+    // (e.g. "cannot identify image file", auth/quota, network), which is what an
+    // operator needs to fix their AI-platform config or the source image.
+    const extractErr = (workflowResult.steps.extractItems as any)?.error
+    if (workflowResult.steps.extractItems?.status === "failed" && extractErr) {
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        `Image extraction failed: ${summarizeAiStepError(extractErr)}`
+      )
+    }
+
+    throw new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
+      "Image extraction produced no result (no items and no step error)"
+    )
   }
 )
 
