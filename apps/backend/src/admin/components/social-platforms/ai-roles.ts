@@ -37,6 +37,10 @@ export const KNOWN_AI_ROLES: KnownAiRole[] = [
     value: "ai_newsletter_drafter",
     label: "Newsletter / Marketing — Write with AI",
   },
+  {
+    value: "ai_image_extraction",
+    label: "Inventory image → items (vision extraction)",
+  },
 ]
 
 /** Sentinel form value selected when the operator wants a free-form role. */

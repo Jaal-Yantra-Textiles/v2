@@ -59,8 +59,8 @@ describe("auditAiPlatformsJob", () => {
     expect(updates).toHaveLength(0)
     expect(res.applied).toBe(false)
     expect(res.summary).toContain("known AI roles configured")
-    // one coverage row per known role (6)
-    expect(res.changes.filter((c) => c.field === "coverage")).toHaveLength(6)
+    // one coverage row per known role (7)
+    expect(res.changes.filter((c) => c.field === "coverage")).toHaveLength(7)
     // no secret leaked into the coverage payload
     expect(JSON.stringify(res.changes)).not.toContain("sk-secret")
   })

@@ -108,21 +108,47 @@ export const imageExtractionAgent = new Agent({
 })
 
 /**
- * Factory function to create an ImageExtractionAgent with dynamically selected model
- * Use this when you need the best available free vision model
+ * Factory function to create an ImageExtractionAgent.
+ *
+ * Pass a `model` (resolved via the role-based AI provider registry,
+ * `resolveRoleVisionModel("ai_image_extraction")`, #769) to use the
+ * admin-configured vision provider. When omitted, falls back to the
+ * auto-rotating OpenRouter free vision model so the feature keeps working
+ * without any External Platform configured.
  */
-export async function createImageExtractionAgent(): Promise<Agent> {
-  const modelId = await getVisionModelId()
-  console.log(`[ImageExtractionAgent] Using dynamic model: ${modelId}`)
+export async function createImageExtractionAgent(model?: any): Promise<Agent> {
+  const visionModel = model ?? openrouter(await getVisionModelId())
   return new Agent({
     name: "image-extraction-agent",
-    model: openrouter(modelId) as any,
+    model: visionModel as any,
     instructions:
       "You are an expert vision analyst that converts images of inventory lists, bills of materials, and packaging labels into clean, structured JSON. " +
       "Return only data that is visible or clearly implied. Use conservative estimates if uncertain and mark items with confidence scores. " +
       "Normalize units (e.g., pcs, m, kg) and include quantity as a number.",
     memory,
   })
+}
+
+/**
+ * Per-run hand-off registry for the image-extraction agent (#769).
+ *
+ * The Mastra workflow has no Medusa container, so the provider is resolved in
+ * the Medusa `run-mastra-extraction` step (which does) and the built agent is
+ * stashed here keyed by Mastra runId — a non-secret handle passed through the
+ * workflow input. The Mastra step `take`s it (read-once, race-free across
+ * concurrent extractions). Falls back to the free-vision factory when absent.
+ */
+const _extractionAgentByRun = new Map<string, Agent>()
+
+export function setExtractionAgentForRun(runId: string, agent: Agent): void {
+  if (runId) _extractionAgentByRun.set(runId, agent)
+}
+
+export function takeExtractionAgentForRun(runId?: string): Agent | undefined {
+  if (!runId) return undefined
+  const agent = _extractionAgentByRun.get(runId)
+  if (agent) _extractionAgentByRun.delete(runId)
+  return agent
 }
 
 // General chat agent for conversational tasks (text-only)

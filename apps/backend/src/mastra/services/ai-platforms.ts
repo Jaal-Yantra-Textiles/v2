@@ -59,6 +59,11 @@ export type AiRole =
   // provider from the admin-configured External Platform; falls back to the
   // OPENROUTER_API_KEY env var when no provider is tagged for this role.
   | "ai_newsletter_drafter"
+  // Vision extraction for inventory/import-from-image (#769). Resolves a
+  // vision-capable provider from the admin-configured External Platform;
+  // falls back to the auto-rotating OpenRouter free vision model. Previously
+  // hardcoded to OPENROUTER_API_KEY which made the feature go dark when unset.
+  | "ai_image_extraction"
   // String escape hatch so callers can use ad-hoc roles without
   // bumping this union every time.
   | (string & {})
@@ -390,6 +395,55 @@ export const resolveRoleTextModel = async (
   }
 }
 
+import { getVisionModelId } from "../providers/openrouter"
+
+/**
+ * Vision-capable sibling of `resolveRoleTextModel`. Used by image/vision
+ * features (inventory import-from-image, #769) so they pick their provider the
+ * same way text features do, instead of hardcoding OpenRouter.
+ *
+ *   1. Admin-configured External Platform for `role` (must be a vision-capable
+ *      model — the operator is responsible for picking one).
+ *   2. Free fallback — the auto-rotating OpenRouter `:free` vision model
+ *      (`getVisionModelId`). No paid hardcoded models.
+ *
+ * Never throws — a resolution failure degrades to the free vision fallback.
+ * Note `buildChatModel` is used for both text and vision: OpenRouter `.chat()`
+ * and the OpenAI-compatible `.chat()` both accept multimodal content arrays.
+ */
+export const resolveRoleVisionModel = async (
+  container: MedusaContainer,
+  role: AiRole,
+  modelOverride?: string
+): Promise<ResolvedRoleModel> => {
+  try {
+    const cfg = await getAiPlatformForRole(container, role)
+    if (cfg) {
+      return {
+        model: buildChatModel(cfg, modelOverride),
+        providerType: cfg.providerType,
+        source: "platform",
+        platformId: cfg.platformId,
+        modelId: modelOverride ?? cfg.defaultModel ?? undefined,
+      }
+    }
+  } catch (e: any) {
+    console.warn(
+      `[ai-platforms] resolveRoleVisionModel(${role}) failed, using free vision fallback: ${
+        e?.message ?? e
+      }`
+    )
+  }
+  const visionId = await getVisionModelId()
+  const router = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY })
+  return {
+    model: router.chat(visionId),
+    providerType: "openrouter",
+    source: "free",
+    modelId: visionId,
+  }
+}
+
 import { generateText } from "ai"
 
 /**
@@ -648,4 +702,5 @@ export const AI_ROLES: AiRole[] = [
   "ai_image_gen",
   "ai_digest_summary",
   "ai_newsletter_drafter",
+  "ai_image_extraction",
 ]

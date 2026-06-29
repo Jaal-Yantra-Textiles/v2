@@ -6,6 +6,15 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { MedusaError } from "@medusajs/framework/utils";
 import { mastra } from "../../mastra";
+import {
+  resolveRoleVisionModel,
+  logAiUsage,
+} from "../../mastra/services/ai-platforms";
+import {
+  createImageExtractionAgent,
+  setExtractionAgentForRun,
+  takeExtractionAgentForRun,
+} from "../../mastra/agents";
 
 // Input mirrors AdminImageExtractionReqType to keep coupling minimal
 export type ImageExtractionInput = {
@@ -83,16 +92,64 @@ const deriveResourceId = createStep(
 
 const runMastraExtraction = createStep(
   "run-mastra-extraction",
-  async (input: ImageExtractionInput) => {
-    // Execute the Mastra imageExtractionWorkflow to unify behavior
-    const run  = await mastra.getWorkflow("imageExtractionWorkflow").createRun()
-    const workflowResult = await run.start({ inputData: {
-      image_url: input.image_url,
-      entity_type: input.entity_type || "raw_material",
-      notes: input.notes,
-      threadId: input.threadId,
-      resourceId: input.resourceId,
-    } })
+  async (input: ImageExtractionInput, { container }) => {
+    // Resolve the vision provider via the role-based AI platform registry
+    // (#769) — admin-configured "External Platform" for ai_image_extraction,
+    // else the auto-rotating OpenRouter free vision model. The Mastra workflow
+    // has no container, so we build the agent here and hand it off by runId.
+    let logger: any
+    try { logger = container.resolve("logger") } catch { /* optional */ }
+
+    const run = await mastra.getWorkflow("imageExtractionWorkflow").createRun()
+    let providerType: any = "openrouter"
+    let source: any = "free"
+    let modelId: string | undefined
+    let platformId: string | undefined
+    const started = Date.now()
+    try {
+      const resolved = await resolveRoleVisionModel(container, "ai_image_extraction")
+      providerType = resolved.providerType
+      source = resolved.source
+      modelId = resolved.modelId
+      platformId = resolved.platformId
+      const agent = await createImageExtractionAgent(resolved.model)
+      setExtractionAgentForRun(run.runId, agent)
+    } catch (e: any) {
+      // Provider resolution itself failed — let the Mastra step fall back to
+      // its own free-vision factory rather than blocking extraction.
+      console.warn(
+        `[image-extraction] vision provider resolution failed, using free fallback: ${e?.message ?? e}`
+      )
+    }
+
+    let workflowResult: any
+    try {
+      workflowResult = await run.start({ inputData: {
+        image_url: input.image_url,
+        entity_type: input.entity_type || "raw_material",
+        notes: input.notes,
+        threadId: input.threadId,
+        resourceId: input.resourceId,
+        run_id: run.runId,
+      } })
+    } finally {
+      // If the Mastra step never consumed the agent (early failure), drop it.
+      takeExtractionAgentForRun(run.runId)
+    }
+
+    const extractOk =
+      workflowResult.steps.validateExtraction?.status === "success" ||
+      workflowResult.steps.extractItems?.status === "success"
+    logAiUsage(logger, {
+      feature: "inventory/image-extraction",
+      role: "ai_image_extraction",
+      provider: providerType,
+      source,
+      model: modelId,
+      platformId,
+      ok: extractOk,
+      ms: Date.now() - started,
+    })
 
     // Validate steps
     if (workflowResult.steps.validateExtraction?.status === "failed") {

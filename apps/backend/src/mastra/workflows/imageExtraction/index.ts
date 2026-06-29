@@ -1,7 +1,7 @@
 // @ts-nocheck - Ignore all TypeScript errors in this file
 import { createWorkflow, createStep } from "@mastra/core/workflows";
 import { z } from "zod";
-import { createImageExtractionAgent } from "../../agents";
+import { createImageExtractionAgent, takeExtractionAgentForRun } from "../../agents";
 
 // Trigger: image to analyze and optional entity type
 export const triggerSchema = z.object({
@@ -21,6 +21,9 @@ export const triggerSchema = z.object({
   // Optional memory context
   threadId: z.string().optional(),
   resourceId: z.string().optional(),
+  // Mastra runId handed in by the Medusa bridge step so we can pick up the
+  // provider-resolved agent for this run (#769). Non-secret handle.
+  run_id: z.string().optional(),
 });
 
 // Item structure extracted from the image
@@ -106,8 +109,11 @@ const extractItems = createStep({
       : 'image-extraction:inventory-extraction'
       console.log(stableResourceId)
 
-    // Create agent with dynamically selected best free vision model
-    const agent = await createImageExtractionAgent();
+    // Prefer the agent built by the Medusa bridge step from the role-resolved
+    // vision provider (#769); fall back to the free-vision factory.
+    const agent =
+      takeExtractionAgentForRun(inputData.run_id) ??
+      (await createImageExtractionAgent());
 
     const response = await agent.generate(
       [
