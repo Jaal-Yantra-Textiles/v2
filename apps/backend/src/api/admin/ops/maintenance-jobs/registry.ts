@@ -59,6 +59,7 @@ import {
 } from "../../marketing/marketing-summary-lib"
 import { VISUAL_FLOWS_MODULE } from "../../../../modules/visual_flows"
 import { FLOW_DEF as IDEAS_EMAIL_FLOW_DEF } from "../../../../scripts/seed-marketing-daily-ideas-email-flow"
+import { FLOW_DEF as INVENTORY_ORDER_STATUS_FLOW_DEF } from "../../../../scripts/seed-inventory-order-status-flow"
 import { seedEmailTemplatesJob } from "./seed-jobs"
 import {
   sweepAiPlatformsByCategory,
@@ -4124,6 +4125,115 @@ export const installMarketingIdeasEmailFlowJob: MaintenanceJob = {
 }
 
 // ---------------------------------------------------------------------------
+// install-inventory-order-status-flow (#771) — LOAD the partner WhatsApp
+// inventory-order status notification flow from the Data Plumbing console,
+// instead of shelling in to run the seed script. The flow listens to the #776
+// status-changed event → reads order + partner → maps status to the generic
+// jyt_inventory_order_status_v1 template → send_whatsapp. Same FLOW_DEF as the
+// CLI seed (single source of truth). Idempotent — refuses to overwrite an
+// existing flow; created as a DRAFT (stays inert until the operator approves
+// the template + flips draft→active).
+// ---------------------------------------------------------------------------
+
+/**
+ * Pure: report the event-flow install dry-run/apply outcome. Sibling of
+ * `summarizeFlowInstall` (which is schedule/cron-worded) for event-triggered
+ * flows whose trigger is described by an event name rather than a cron. Exported
+ * for unit testing so the preview/created/already-exists wording is verifiable
+ * without the DB.
+ */
+export function summarizeEventFlowInstall(args: {
+  jobId: string
+  dry_run: boolean
+  flowName: string
+  eventTrigger: string
+  nodeCount: number
+  existingId: string | null
+  createdId: string | null
+}): MaintenanceJobResult {
+  const { jobId, dry_run, flowName, eventTrigger, nodeCount, existingId, createdId } =
+    args
+  if (existingId) {
+    return {
+      job_id: jobId,
+      dry_run,
+      applied: false,
+      summary: `Visual flow "${flowName}" already installed (${existingId}) — nothing to do. Edit it on the canvas (trigger: ${eventTrigger}).`,
+      changes: [],
+    }
+  }
+  const changes: MaintenanceChange[] = [
+    {
+      entity: "visual_flow",
+      id: createdId ?? "(new)",
+      field: "created",
+      after: { name: flowName, trigger: `event ${eventTrigger}`, nodes: nodeCount },
+    },
+  ]
+  const applied = !dry_run && !!createdId
+  const summary = dry_run
+    ? `Would create visual flow "${flowName}" (event ${eventTrigger}, ${nodeCount} nodes) — nothing written. Apply to install.`
+    : `Created visual flow "${flowName}" (${createdId}); event ${eventTrigger}. Approve the jyt_inventory_order_status_v1 WhatsApp template, then flip draft→active to go live.`
+  return { job_id: jobId, dry_run, applied, summary, changes }
+}
+
+export const installInventoryOrderStatusFlowJob: MaintenanceJob = {
+  id: "install-inventory-order-status-flow",
+  label: "Install inventory-order status visual flow",
+  description:
+    "Load/create the 'Partner WhatsApp — Inventory Order Status' visual flow into the system from the console — no shell or seed script needed (#771). The flow listens to the inventory-order status-changed event and sends the partner a WhatsApp notification (Processing / Shipped / Partial / Delivered / Cancelled) via the generic jyt_inventory_order_status_v1 template. Dry-run previews the flow it would create (or reports it already exists); apply creates it idempotently as a DRAFT. It stays inert until you approve the template and flip the flow draft→active. Re-running never overwrites an existing flow.",
+  params: [],
+  run: async (container, { dry_run }) => {
+    const service: any = container.resolve(VISUAL_FLOWS_MODULE)
+    const flowName = INVENTORY_ORDER_STATUS_FLOW_DEF.name
+    const eventTrigger =
+      INVENTORY_ORDER_STATUS_FLOW_DEF.trigger_config?.event_types?.[0] ?? "event"
+    const nodeCount =
+      INVENTORY_ORDER_STATUS_FLOW_DEF.canvas_state?.nodes?.length ?? 0
+
+    const [existing] = await service.listVisualFlows({ name: flowName })
+    if (existing) {
+      return summarizeEventFlowInstall({
+        jobId: installInventoryOrderStatusFlowJob.id,
+        dry_run,
+        flowName,
+        eventTrigger,
+        nodeCount,
+        existingId: existing.id,
+        createdId: null,
+      })
+    }
+
+    let createdId: string | null = null
+    if (!dry_run) {
+      const flow = await service.createCompleteFlow({
+        flow: {
+          name: INVENTORY_ORDER_STATUS_FLOW_DEF.name,
+          description: INVENTORY_ORDER_STATUS_FLOW_DEF.description,
+          status: INVENTORY_ORDER_STATUS_FLOW_DEF.status,
+          trigger_type: INVENTORY_ORDER_STATUS_FLOW_DEF.trigger_type,
+          trigger_config: INVENTORY_ORDER_STATUS_FLOW_DEF.trigger_config,
+          canvas_state: INVENTORY_ORDER_STATUS_FLOW_DEF.canvas_state,
+        },
+        operations: INVENTORY_ORDER_STATUS_FLOW_DEF.operations,
+        connections: INVENTORY_ORDER_STATUS_FLOW_DEF.connections,
+      })
+      createdId = flow?.id ?? null
+    }
+
+    return summarizeEventFlowInstall({
+      jobId: installInventoryOrderStatusFlowJob.id,
+      dry_run,
+      flowName,
+      eventTrigger,
+      nodeCount,
+      existingId: null,
+      createdId,
+    })
+  },
+}
+
+// ---------------------------------------------------------------------------
 // generate-winback-targets (#659, report §12.5) — read ad_planning churn-risk
 // (+ optional CLV) scores, resolve each scored Person's email, and select
 // winback targets with a PURE, unit-tested selector (threshold + optional CLV
@@ -4545,6 +4655,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   syncMarketingOutreachEngagementJob,
   runMarketingIdeasEmailJob,
   installMarketingIdeasEmailFlowJob,
+  installInventoryOrderStatusFlowJob,
   generateWinbackTargetsJob,
   sendMarketingDailySummaryJob,
   auditAiPlatformsJob,
