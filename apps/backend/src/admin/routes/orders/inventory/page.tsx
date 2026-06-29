@@ -493,7 +493,7 @@ const InventoryOrdersPage = () => {
                   variant="secondary"
                   onClick={() => navigate("/inventory/import-from-image")}
                 >
-                  Import inventory
+                  Import From Image
                 </Button>
                 <Button
                   size="small"
