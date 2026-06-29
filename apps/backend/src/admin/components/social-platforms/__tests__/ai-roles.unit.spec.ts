@@ -19,6 +19,7 @@ describe("ai-roles shared module", () => {
         "ai_image_gen",
         "ai_digest_summary",
         "ai_newsletter_drafter",
+        "ai_image_extraction",
       ])
     )
     // every entry carries a non-empty human label
