@@ -78,7 +78,7 @@
  *  - Errors returned from workflows are forwarded as 400 with an `errors` array.
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { UpdateInventoryOrder } from "../validators";
 import { refetchInventoryOrder } from "../helpers";
 import updateInventoryOrderWorkflow from "../../../../workflows/inventory_orders/update-inventory-orders";
@@ -154,8 +154,20 @@ export const GET = async(
       input: {
         id,
       },
+      throwOnError: false,
     });
     if (errors.length > 0) {
+      // #778 H11 — surface the delete guards with proper status codes:
+      // NOT_FOUND → 404 (missing order, now actually detected) and
+      // NOT_ALLOWED → 409 (Shipped/Delivered/Partial — cancel it first).
+      const err = errors[0]?.error as any;
+      const type = err?.type || err?.constructor?.name;
+      if (type === MedusaError.Types.NOT_FOUND) {
+        return res.status(404).json({ message: err.message });
+      }
+      if (type === MedusaError.Types.NOT_ALLOWED) {
+        return res.status(409).json({ message: err.message });
+      }
       return res.status(400).json({ errors });
     }
     res.status(200).json({});

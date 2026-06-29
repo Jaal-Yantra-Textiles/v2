@@ -1,4 +1,4 @@
-import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import {
   createWorkflow,
   createStep,
@@ -12,6 +12,7 @@ import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
 import InventoryOrderService from "../../modules/inventory_orders/service";
 import { InferTypeOf } from "@medusajs/framework/types"
 import { default as InventoryOrderModel } from "../../modules/inventory_orders/models/order";
+import { assertDeletable } from "./lib/delete-helpers";
 export type InventoryOrder = InferTypeOf<typeof InventoryOrderModel>;
 
 // --- Interfaces for API Input ---
@@ -33,11 +34,14 @@ export const fetchInventoryOrderStep = createStep(
       filters: {
         id: input.id
       },
-      fields: ["id", "orderlines.*", "orderlines.inventory_items.*", "stock_locations.*"]
+      fields: ["id", "status", "orderlines.*", "orderlines.inventory_items.*", "stock_locations.*"]
     });
 
-    if (!inventoryOrder) {
-      throw new MedusaError(MedusaError.Types.NOT_FOUND, 
+    // #778 H11 — query.graph returns an array (truthy even when empty), so the
+    // old `if (!inventoryOrder)` check never fired and a missing order fell
+    // through. Check the first element instead.
+    if (!inventoryOrder || inventoryOrder.length === 0 || !inventoryOrder[0]) {
+      throw new MedusaError(MedusaError.Types.NOT_FOUND,
         `Inventory order with id ${input.id} not found`
       );
     }
@@ -46,58 +50,45 @@ export const fetchInventoryOrderStep = createStep(
   }
 );
 
-export const dismissInventoryItemLinksStep = createStep(
-  "dismiss-inventory-item-links-step",
-  async (input: { 
+/**
+ * Cascade-delete EVERY link the inventory order (and each of its lines)
+ * participates in (#778 H11). The old steps only dismissed the inventory-item
+ * and stock-location links, orphaning the partner, task, internal-payment,
+ * feedback, inbound-email and unified-order links (and the per-line fulfillment
+ * links). `remoteLink.delete({ [MODULE]: { <fk>: id } })` removes all link rows
+ * for that record across every registered link definition, so nothing is left
+ * dangling. Best-effort per record so one failing link table doesn't abort the
+ * whole delete.
+ */
+export const dismissInventoryOrderLinksStep = createStep(
+  "dismiss-inventory-order-links-step",
+  async (input: {
     inventoryOrder: any;
   }, { container }) => {
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
-    
-    // Only proceed if there are order lines with inventory items
-    if (!input.inventoryOrder.orderlines || input.inventoryOrder.orderlines.length === 0) {
-      return new StepResponse([]);
+    const order = input.inventoryOrder;
+
+    // Order-level links (partner / task / internal_payments / feedback /
+    // stock_location / inbound_email / unified core order).
+    try {
+      await remoteLink.delete({
+        [ORDER_INVENTORY_MODULE]: { inventory_orders_id: order.id },
+      });
+    } catch {
+      /* best-effort */
     }
 
-    // Dismiss links between order lines and inventory items
-    const dismissPromises = input.inventoryOrder.orderlines.map(async (orderLine: any) => {
-      if (orderLine.inventory_items && orderLine.inventory_items.length > 0) {
-        await remoteLink.dismiss({
-          [ORDER_INVENTORY_MODULE]: {
-            inventory_order_line_id: orderLine.id,
-          },
-          [Modules.INVENTORY]: {
-            inventory_item_id: orderLine.inventory_items[0].id,
-          }
+    // Per-line links (inventory_item + line_fulfillment).
+    for (const orderLine of order.orderlines || []) {
+      if (!orderLine?.id) continue;
+      try {
+        await remoteLink.delete({
+          [ORDER_INVENTORY_MODULE]: { inventory_order_line_id: orderLine.id },
         });
+      } catch {
+        /* best-effort */
       }
-    });
-
-    await Promise.all(dismissPromises);
-    return new StepResponse();
-  }
-);
-
-export const dismissStockLocationLinkStep = createStep(
-  "dismiss-stock-location-link-step",
-  async (input: { 
-    inventoryOrder: any;
-  }, { container }) => {
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
-    
-    // Only proceed if there's a stock location
-    if (!input.inventoryOrder.stock_locations || input.inventoryOrder.stock_locations.length === 0) {
-      return new StepResponse(true);
     }
-
-    // Dismiss link between inventory order and stock location
-    await remoteLink.dismiss({
-      [ORDER_INVENTORY_MODULE]: {
-        inventory_orders_id: input.inventoryOrder.id,
-      },
-      [Modules.STOCK_LOCATION]: {
-        stock_location_id: input.inventoryOrder.stock_locations[0].id,
-      }
-    });
 
     return new StepResponse(true);
   }
@@ -132,29 +123,31 @@ export const deleteInventoryOrderWorkflow = createWorkflow(
       // Step 1: Fetch the inventory order with its relations
       const inventoryOrder = fetchInventoryOrderStep(input);
       
-      // Step 2: Transform the data for the next steps
+      // Step 2: Transform the data + guard the delete transition (#778 H11):
+      // refuse to hard-delete an order that has posted stock / active
+      // fulfillments (Shipped / Delivered / Partial) — it must be cancelled
+      // first so the stock is reversed.
       const transformedData = transform(
         { inventoryOrder },
         ({ inventoryOrder }) => {
           const orderData = inventoryOrder[0]
-          
+
           if (!orderData) {
             throw new Error("No inventory order data found");
           }
-          
+
+          assertDeletable((orderData as any).status);
+
           return {
             inventoryOrder: orderData
           };
         }
       );
-      
-      // Step 3: Dismiss links between order lines and inventory items
-      dismissInventoryItemLinksStep(transformedData);
-      
-      // Step 4: Dismiss link between inventory order and stock location
-      dismissStockLocationLinkStep(transformedData);
-      
-      // Step 5: Delete the inventory order and its order lines
+
+      // Step 3: Cascade-delete ALL links the order + its lines participate in
+      dismissInventoryOrderLinksStep(transformedData);
+
+      // Step 4: Delete the inventory order and its order lines
       deleteInventoryOrderStep(transformedData);
       
       return new WorkflowResponse(true);
