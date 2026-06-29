@@ -74,7 +74,7 @@ export const linkFulfillmentToOrderStep = createStep(
 
     const links: LinkDefinition[] = [
       {
-        [ORDER_INVENTORY_MODULE]: { inventory_order_lines_id: input.orderLineId },
+        [ORDER_INVENTORY_MODULE]: { inventory_order_line_id: input.orderLineId },
         [FULLFILLED_ORDERS_MODULE]: { line_fulfillment_id: input.entryId },
       },
       {

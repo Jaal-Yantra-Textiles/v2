@@ -1,9 +1,18 @@
-import { MedusaService } from "@medusajs/framework/utils";
+import {
+  MedusaService,
+  MedusaError,
+  InjectTransactionManager,
+  MedusaContext,
+} from "@medusajs/framework/utils";
 
 import InventoryOrder from "./models/order";
 import OrderLine from "./models/orderline";
 
-import { InferTypeOf } from "@medusajs/framework/types"
+import { InferTypeOf, Context } from "@medusajs/framework/types"
+import {
+  buildOrderLinePayloads,
+  buildInventoryLineLinkPairs,
+} from "./lib/create-helpers";
 export type OrderLinesResponse = InferTypeOf<typeof OrderLine>[]
 
 interface CreateInventoryOrder {
@@ -41,8 +50,29 @@ class InventoryOrderService extends MedusaService({
   }
 
   
-  async createInvWithLines(inventory_order: CreateInventoryOrder, order_lines: CreateOrderLine[]) {
-    // Input validation
+  /**
+   * Create an inventory order together with its lines, atomically (#778 C3).
+   *
+   * `@InjectTransactionManager` wraps the whole method in a single module
+   * transaction; the shared context is threaded into the auto-generated
+   * `createInventoryOrders` / `createOrderLines` calls so they enlist in it.
+   * Either the order and ALL its lines commit, or nothing does — replacing the
+   * previous behaviour that created the order, then created lines in a loop that
+   * swallowed per-line failures and returned a partial `orderLines` (which the
+   * linking step then zipped against the full input by index, mis-linking the
+   * wrong inventory item to the wrong line).
+   *
+   * Returns the line ↔ inventory-item pairing computed at creation time so the
+   * downstream link step pairs explicitly rather than positionally.
+   */
+  @InjectTransactionManager()
+  async createInvWithLines(
+    inventory_order: CreateInventoryOrder,
+    order_lines: CreateOrderLine[],
+    @MedusaContext() sharedContext: Context = {}
+  ) {
+    // Input validation (runs inside the transaction; nothing is created yet, so
+    // a throw here simply aborts before any write).
     if (!Array.isArray(order_lines) || order_lines.length === 0) {
       throw new Error("At least one order line is required.");
     }
@@ -66,43 +96,31 @@ class InventoryOrderService extends MedusaService({
       }
     }
 
-    // Create the InventoryOrder
     let order: InferTypeOf<typeof InventoryOrder>;
+    let orderLines: OrderLinesResponse;
     try {
-      order = await this.createInventoryOrders({ ...inventory_order });
-    } catch (err) {
-      throw new Error(`Failed to create inventory order: ${err.message}`);
+      // Both writes share `sharedContext` → same transaction. A failure on the
+      // lines rolls the order back too (rethrow below keeps us inside the
+      // transaction's failure path).
+      order = (await this.createInventoryOrders(
+        { ...inventory_order },
+        sharedContext
+      )) as InferTypeOf<typeof InventoryOrder>;
+
+      orderLines = (await this.createOrderLines(
+        buildOrderLinePayloads(order_lines, order.id),
+        sharedContext
+      )) as OrderLinesResponse;
+    } catch (err: any) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Failed to create inventory order with lines: ${err?.message || String(err)}`
+      );
     }
 
-    // Create OrderLines, collecting errors
-    const orderLines: OrderLinesResponse = [];
-    const errors: { index: number; inventory_id: string; error: string }[] = [];
-    for (const [i, order_line] of order_lines.entries()) {
-      try {
-        const createdLine = await this.createOrderLines({
-          ...order_line,
-          inventory_orders: order.id
-        });
-        orderLines.push(createdLine);
-      } catch (lineErr) {
-        errors.push({
-          index: i,
-          inventory_id: order_line.inventory_id,
-          error: lineErr.message || String(lineErr)
-        });
-      }
-    }
+    const lineItemPairs = buildInventoryLineLinkPairs(orderLines, order_lines);
 
-    if (errors.length > 0) {
-      return {
-        order,
-        orderLines,
-        errors,
-        message: `Some order lines failed to be created. See 'errors' for details.`
-      };
-    }
-
-    return { order, orderLines };
+    return { order, orderLines, lineItemPairs };
   }
 } 
 
