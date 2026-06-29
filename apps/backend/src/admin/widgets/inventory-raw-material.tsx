@@ -6,6 +6,7 @@ import { ActionMenu } from "../components/common/action-menu"
 import { Button } from "@medusajs/ui"
 import { PencilSquare, Plus, Trash, InformationCircleSolid, SquareTwoStack, DocumentText } from "@medusajs/icons"
 import { useInventoryItem } from "../hooks/api/raw-materials"
+import { ThumbnailPreview } from "../components/common/thumbnail-preview"
 
 const materialStatusColor = (status: string) => {
   switch (status) {
@@ -115,7 +116,7 @@ const InventoryRawMaterialWidget = ({
         {
           label: "Edit",
           icon: <PencilSquare />,
-          to: `raw-materials/edit`,
+          to: `raw-materials`,
         },
         {
           label: "Print Label",
@@ -276,12 +277,12 @@ const InventoryRawMaterialWidget = ({
                   Media
                 </Text>
                 <div className="flex flex-wrap gap-2">
-                                    {inventory_item.raw_materials.media.files.map((url: string, index: number) => (
-                    <img
+                  {inventory_item.raw_materials.media.files.map((url: string, index: number) => (
+                    <ThumbnailPreview
                       key={index}
                       src={url}
-                      alt={`Media ${index + 1}`}
-                      className="h-10 w-10 rounded-md object-cover"
+                      alt={`${inventory_item.raw_materials?.name ?? "Raw material"} media ${index + 1}`}
+                      size="large"
                     />
                   ))}
                 </div>

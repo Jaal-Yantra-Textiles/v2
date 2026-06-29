@@ -1,6 +1,6 @@
 import { Text, createDataTableColumnHelper, Checkbox } from "@medusajs/ui";
 import { InventoryItem } from "../../../hooks/api/raw-materials";
-import { Thumbnail } from "../../../components/common/thumbnail";
+import { ThumbnailPreview } from "../../../components/common/thumbnail-preview";
 import { firstMediaUrl } from "../../../lib/utils/first-media-url";
 
 const columnHelper = createDataTableColumnHelper<InventoryItem>();
@@ -69,9 +69,9 @@ export const useInventoryColumns = (selectionProps?: SelectionProps) => {
         
         return (
           <div className="flex items-center gap-x-3">
-            <Thumbnail 
-              src={row.original.thumbnail} 
-              alt={title} 
+            <ThumbnailPreview
+              src={row.original.thumbnail}
+              alt={title}
               size="small"
             />
             <Text size="small" leading="compact">
@@ -122,7 +122,7 @@ export const useInventoryColumns = (selectionProps?: SelectionProps) => {
 
         return (
           <div className="flex items-center gap-x-3">
-            <Thumbnail src={photo} alt={name} size="small" />
+            <ThumbnailPreview src={photo} alt={name} size="small" />
             <Text size="small" leading="compact">
               {name}
             </Text>
