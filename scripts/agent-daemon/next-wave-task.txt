@@ -1,0 +1,22 @@
+BUILD wave for #659 (AI VP of Marketing) — the NEWSLETTER EDITOR OPTION (the last #659 build item). ONE feature, ONE PR, PR-only (NO merge — human review). Branch off fresh origin/main. Persist learnings to memory + a #659/#352 handoff. Delegate mechanical drafts (validators/enum/UI option/tests) to the free model (delegate.mjs); YOU verify + run them (free model has bash denied). YOU (Claude) own the DB migration — do NOT delegate it.
+
+GOAL: let the operator create / edit / send a NEWSLETTER by REUSING the existing blog editor — add a `"Newsletter"` value to the website `page` model's `page_type` enum. Newsletters then inherit the existing blog→subscriber send (`src/workflows/blogs/send-blog-subscribers/`) and the per-day queue `src/jobs/process-email-queue.ts`. NO new editor, NO new send infra.
+
+DESIGN NOTE (do NOT conflate): the merged #687 generator writes AI drafts to the SEPARATE `marketing_draft` model (kind="newsletter") — that's an AI-assist Data-Plumbing job, NOT the editable newsletter. This PR is the `page`-model editor path only. Wiring the generator's output into a Newsletter page is a FUTURE follow-up — note it, do NOT build it here.
+
+GROUNDING (verify by grep before editing — paths confirmed to exist):
+- `src/modules/website/models/page.ts` → `page_type: model.enum([...])` (currently Home/About/Contact/Blog/Product/Service/Portfolio/Landing/Custom). The `page` table also has `sent_to_subscribers`/`sent_to_subscribers_at`/`subscriber_count` columns (newsletters reuse them).
+- `src/api/admin/websites/[id]/pages/validators.ts:7` → `page_type: z.enum([...])` (SAME list — keep in sync).
+- `src/admin/components/creates/create-blog.tsx` → the create form; surface "Newsletter" as a selectable page_type (find how the enum maps to the Select/options and add it; optionally a small conditional hint for the Newsletter type).
+- The create-table migration `src/modules/website/migrations/Migration20250417085315.ts` shows `page_type` is a `text CHECK ("page_type" in ('Home',...,'Custom'))` column (NOT a pg enum type).
+
+THE MIGRATION (Claude-owned, careful — this is a PROD table):
+- Hand-write a NEW ALTER migration (globally-unique class name — grep all migrations before stamping; memory reference_medusa_migration_create_if_not_exists_hazard: NEVER edit the create-table migration, it won't run on existing DBs).
+- Pattern (mirror the `drop constraint if exists` precedents in `src/modules/agreements/migrations/` + `src/modules/analytics/migrations/`):
+    `alter table "page" drop constraint if exists "page_page_type_check";`
+    `alter table "page" add constraint "page_page_type_check" check ("page_type" in ('Home','About','Contact','Blog','Product','Service','Portfolio','Landing','Custom','Newsletter'));`
+  VERIFY the actual constraint name first (MikroORM names inline column checks `<table>_<column>_check` → likely `page_page_type_check`; confirm against a generated snapshot or the live schema). Include a down() that restores the old constraint.
+
+TESTS: keep it light + verifiable — a unit test asserting the validator z.enum now accepts "Newsletter" (and still rejects garbage); if feasible on the shared DB, an integration check that a page with page_type="Newsletter" persists (the migration ran). Run the per-file spec; typecheck clean.
+
+Hard rules: reuse the blog editor + existing subscriber-send + page columns; NO new model, NO new send path, do NOT touch the registry or marketing_draft. PR-only, single PR. Stop (emit DAEMON_DONE alone on the final line) when shipped as ONE PR. Do NOT invent scope.

@@ -1,0 +1,2702 @@
+Let me read all the listed route files to find which ones exist and contain `console.*` calls.
+Now I have a complete picture. Let me batch all the edits. I'll start with the files that have `console.*` calls.
+Let me apply all the edits now. Starting with the first batch of files:
+## Goal
+- Migrate every runtime `console.*` call to the Medusa logger (`req.scope.resolve(ContainerRegistrationKeys.LOGGER)`) across 41 admin route handler files, keeping all message text and behavior identical.
+
+## Constraints & Preferences
+- Edit ONLY the 41 listed files under `apps/backend/src/api/admin/`.
+- Do NOT touch any other files, git, network, package manager, or run commands.
+- Match surrounding file style and conventions (Medusa 2.x, TypeScript).
+- At top of each handler containing a console.* call: `const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)` (one per handler).
+- Ensure `ContainerRegistrationKeys` is imported from `@medusajs/framework/utils` (add to existing named import or create new line).
+- Replace console.log/info/warn/debug/error with logger.info/warn/debug/error, folding multiple args into a single template string; Error args may use two-arg form.
+- Do not touch console.* in comments/JSDoc.
+- Do not change behavior, control flow, message text, tags, or add other imports.
+
+## Progress
+### Done
+- Read all 41 listed route files to identify which contain runtime `console.*` calls.
+- Applied edits to files:
+  - `designs/auto/route.ts`
+  - `designs/route.ts`
+  - `designs/orders/[lineItemId]/route.ts`
+  - `designs/orders/route.ts`
+  - `designs/[id]/route.ts`
+  - `designs/[id]/[path]/route.ts`
+  - `designs/[id]/segment/route.ts`
+  - `designs/[id]/segment/depth/route.ts`
+  - `designs/[id]/consumption-logs/route.ts`
+  - `designs/[id]/consumption-logs/commit/route.ts`
+  - `designs/[id]/partner/route.ts`
+  - `designs/[id]/approve/route.ts`
+  - `designs/[id]/inventory/route.ts`
+  - `designs/[id]/inventory/[inventoryLinkId]/route.ts`
+  - `designs/[id]/inventory/delink/route.ts`
+  - `medias/route.ts`
+  - `medias/extract-features/route.ts`
+  - `medias/extract-features/[transaction_id]/confirm/route.ts`
+  - `medias/folder/route.ts`
+  - `medias/folder/[id]/upload/route.ts`
+  - `medias/[id]/upload/route.ts`
+  - `medias/albums/route.ts`
+  - `persons/route.ts`
+  - `persons/[id]/route.ts`
+  - `persons/[id]/contacts/route.ts`
+  - `persons/[id]/contacts/[contactId]/route.ts`
+  - `persons/[id]/tags/route.ts`
+  - `persons/[id]/tags/[tagId]/route.ts`
+  - `persons/[id]/addresses/route.ts`
+  - `persons/[id]/addresses/[addressId]/route.ts`
+  - `persons/[id]/geocode-addresses/route.ts`
+  - `inventory-items/[id]/split/route.ts`
+  - `inventory-items/[id]/rawmaterials/route.ts`
+  - `inventory-items/[id]/rawmaterials/[rawMaterialId]/route.ts`
+  - `products/[id]/unlinkPerson/route.ts`
+  - `products/[id]/linkDesign/route.ts`
+  - `products/[id]/unlinkDesign/route.ts`
+  - `products/[id]/linkPerson/route.ts`
+
+### In Progress
+- (none)
+
+### Blocked
+- (none)
+
+## Key Decisions
+- Files `medias/file/[id]/route.ts`, `medias/folder/[id]/route.ts`, `medias/folder/[id]/detail/route.ts` had zero runtime console.* calls (only in JSDoc/comments) — left untouched as per rule 5.
+- For `.error` calls where the value is an Error variable named `error`/`err`, the two-arg form `logger.error(\`message\`, error)` was used; otherwise values were folded into the template string.
+
+## Next Steps
+- Verify each edited file has zero runtime `console.` calls remaining.
+
+## Critical Context
+- All edited files are Medusa 2.x admin HTTP route handlers.
+- `req.scope.resolve(ContainerRegistrationKeys.LOGGER)` provides the Medusa logger instance — injected once per handler function at its top.
+- The `ContainerRegistrationKeys` import must be added to files that don't already import it.
+
+## Relevant Files
+- `apps/backend/src/api/admin/designs/auto/route.ts`: POST handler — console.warn migrated
+- `apps/backend/src/api/admin/designs/route.ts`: POST + GET handlers — console.warn migrated
+- `apps/backend/src/api/admin/designs/orders/[lineItemId]/route.ts`: GET handler — console.warn + console.error migrated
+- `apps/backend/src/api/admin/designs/orders/route.ts`: GET handler — console.error migrated
+- `apps/backend/src/api/admin/designs/[id]/route.ts`: PUT + DELETE handlers — console.warn migrated
+- `apps/backend/src/api/admin/designs/[id]/[path]/route.ts`: POST handler — console.log migrated
+- `apps/backend/src/api/admin/designs/[id]/segment/route.ts`: POST handler — console.log + console.error migrated
+- `apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts`: POST handler — console.log + console.error migrated
+- `apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts`: POST + GET handlers — console.warn migrated
+- `apps/backend/src/api/admin/designs/[id]/consumption-logs/commit/route.ts`: POST handler — console.warn migrated
+- `apps/backend/src/api/admin/designs/[id]/partner/route.ts`: POST handler — console.warn migrated
+- `apps/backend/src/api/admin/designs/[id]/approve/route.ts`: POST handler — console.error migrated
+- `apps/backend/src/api/admin/designs/[id]/inventory/route.ts`: POST + GET + PATCH handlers — console.warn migrated
+- `apps/backend/src/api/admin/designs/[id]/inventory/[inventoryLinkId]/route.ts`: PATCH handler — console.warn migrated
+- `apps/backend/src/api/admin/designs/[id]/inventory/delink/route.ts`: POST handler — console.warn migrated
+- `apps/backend/src/api/admin/medias/route.ts`: POST + GET handlers — console.error migrated
+- `apps/backend/src/api/admin/medias/extract-features/route.ts`: POST handler — console.error migrated
+- `apps/backend/src/api/admin/medias/extract-features/[transaction_id]/confirm/route.ts`: POST handler — console.error migrated
+- `apps/backend/src/api/admin/medias/file/[id]/route.ts`: (no changes — no runtime console.*)
+- `apps/backend/src/api/admin/medias/folder/route.ts`: POST handler — console.error migrated
+- `apps/backend/src/api/admin/medias/folder/[id]/route.ts`: (no changes — no runtime console.*)
+- `apps/backend/src/api/admin/medias/folder/[id]/detail/route.ts`: (no changes — no runtime console.*)
+- `apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts`: POST handler — console.error migrated
+- `apps/backend/src/api/admin/medias/[id]/upload/route.ts`: POST handler — console.error migrated
+- `apps/backend/src/api/admin/medias/albums/route.ts`: GET handler — console.error migrated
+- `apps/backend/src/api/admin/persons/route.ts`: POST handler — console.warn migrated
+- `apps/backend/src/api/admin/persons/[id]/route.ts`: POST + DELETE handlers — console.warn migrated
+- `apps/backend/src/api/admin/persons/[id]/contacts/route.ts`: POST + GET handlers — console.warn migrated
+- `apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts`: POST + DELETE handlers — console.warn migrated
+- `apps/backend/src/api/admin/persons/[id]/tags/route.ts`: POST + GET + PUT handlers — console.warn migrated
+- `apps/backend/src/api/admin/persons/[id]/tags/[tagId]/route.ts`: DELETE handler — console.warn migrated
+- `apps/backend/src/api/admin/persons/[id]/addresses/route.ts`: POST + GET handlers — console.warn migrated
+- `apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts`: POST + DELETE handlers — console.warn migrated
+- `apps/backend/src/api/admin/persons/[id]/geocode-addresses/route.ts`: POST handler — console.log migrated
+- `apps/backend/src/api/admin/inventory-items/[id]/split/route.ts`: POST handler — console.warn migrated
+- `apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts`: POST handler — console.warn migrated
+- `apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/[rawMaterialId]/route.ts`: PUT handler — console.warn migrated
+- `apps/backend/src/api/admin/products/[id]/unlinkPerson/route.ts`: POST handler — console.warn migrated
+- `apps/backend/src/api/admin/products/[id]/linkDesign/route.ts`: POST handler — console.warn migrated
+- `apps/backend/src/api/admin/products/[id]/unlinkDesign/route.ts`: POST handler — console.warn migrated
+- `apps/backend/src/api/admin/products/[id]/linkPerson/route.ts`: POST handler — console.warn migrated
+Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed.
+Let me re-read the current state of these files to see what's already been applied.
+Now I can see the remaining console.* calls. Let me apply the edits.
+All edits applied. Let me verify no runtime `console.*` calls remain in the edited files.
+All 41 files in scope are now clean. The remaining 7 `console.*` matches are in files **not** on the original list (`inventory-orders`, `visual-flows`, `editor-files` comment only, `task-templates`, `partners`, `social-posts`) — outside scope.
+
+Migration complete. Every runtime `console.*` call in the 41 listed admin route handler files has been replaced with the Medusa logger (`logger.info/warn/error`), with `ContainerRegistrationKeys` imported and `logger` initialized via `req.scope.resolve(...)` in each handler.
+
+--- stderr ---
+[0m
+> jyt-drafter · deepseek-v4-flash-free
+[0m
+[0m# [0mTodos
+[•] Read all listed files and identify those with console.* calls
+[ ] Migrate console.* to Medusa logger in each file
+[ ] Verify no runtime console.* calls remain
+[0m
+[0m→ [0mRead apps/backend/src/api/admin/designs/auto/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/designs/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/designs/orders/[lineItemId]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/designs/orders/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/designs/[id]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/designs/[id]/[path]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/designs/[id]/segment/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/designs/[id]/consumption-logs/commit/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/designs/[id]/partner/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/designs/[id]/approve/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/designs/[id]/inventory/[inventoryLinkId]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/designs/[id]/inventory/delink/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/medias/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/medias/extract-features/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/medias/extract-features/[transaction_id]/confirm/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/medias/file/[id]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/medias/folder/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/medias/folder/[id]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/medias/folder/[id]/detail/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/medias/[id]/upload/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/medias/albums/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/persons/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/persons/[id]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/persons/[id]/contacts/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/persons/[id]/tags/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/persons/[id]/tags/[tagId]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/persons/[id]/addresses/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/persons/[id]/geocode-addresses/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/inventory-items/[id]/split/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/[rawMaterialId]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/products/[id]/unlinkPerson/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/products/[id]/linkDesign/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/products/[id]/unlinkDesign/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/products/[id]/linkPerson/route.ts
+[0m
+[0m# [0mTodos
+[✓] Read all listed files and identify those with console.* calls
+[•] Migrate console.* to Medusa logger in each file
+[ ] Verify no runtime console.* calls remain
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/auto/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/auto/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/auto/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/auto/route.ts
+@@ -49,22 +49,24 @@
+  *       "metadata": { "collection": "summer-24", "priority": "high" }
+  *     }'
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import createDesignFromLLMWorkflow from "../../../../workflows/designs/create-design-from-llm";
+ import { refetchDesign } from "../helpers";
+ import { CreateDesignLLM } from "../validators";
+ 
+ export const POST = async (
+     req: MedusaRequest<CreateDesignLLM>,
+     res: MedusaResponse,
+ ) => {
++    const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+     const { result, errors } = await createDesignFromLLMWorkflow(req.scope).run({
+         input: req.validatedBody,
+     });
+ 
+     if (errors.length > 0) {
+-        console.warn("Error reported at", errors);
++        logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+         throw errors;
+     }
+ 
+     const design = await refetchDesign(
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/route.ts
+@@ -162,9 +162,9 @@
+     };
+   },
+   res: MedusaResponse,
+ ) => {
+-  
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+ 
+   const { result, errors } = await createDesignWorkflow(req.scope).run({
+     input: {
+       ...req.validatedBody,
+@@ -172,9 +172,9 @@
+     },
+   })
+ 
+   if (errors.length > 0) {
+-    console.warn("Error reported at", errors);
++    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+     throw errors;
+   }
+ 
+   const design = await refetchDesign(
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/route.ts
+@@ -206,8 +206,9 @@
+     };
+   },
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+ 
+   try {
+     // If customer_id is provided, fetch designs directly via the link table (bypassing the
+     // workflow which doesn't support id-array filtering natively)
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/route.ts
+@@ -293,9 +293,9 @@
+ 
+ 
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ const { designs, count } = result;
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/orders/[lineItemId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/orders/[lineItemId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/orders/[lineItemId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/orders/[lineItemId]/route.ts
+@@ -119,9 +119,9 @@
+     { select: ["id", "cart_id", "title", "unit_price", "quantity", "created_at", "metadata"] }
+   )
+   lineItem = items?.[0] || null
+ } catch (e) {
+-  console.warn("[design-order detail] Failed to fetch line item:", e)
++  logger.warn(`[design-order detail] Failed to fetch line item: ${e}`)
+ }
+ 
+ // 4. Fetch cart details for currency and customer fallback
+ let cartCurrencyCode: string | null = null
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/orders/[lineItemId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/orders/[lineItemId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/orders/[lineItemId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/orders/[lineItemId]/route.ts
+@@ -273,9 +273,9 @@
+       checkout_url: checkoutUrl,
+     },
+   })
+ } catch (error) {
+-  console.error("[design-order detail] Error:", error)
++  logger.error(`[design-order detail] Error: ${error}`, error)
+   res.status(500).json({
+     message: "Failed to fetch design order",
+     error: error instanceof Error ? error.message : "Unknown error",
+   })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/orders/[lineItemId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/orders/[lineItemId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/orders/[lineItemId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/orders/[lineItemId]/route.ts
+@@ -15,8 +15,9 @@
+ export async function GET(
+   req: AuthenticatedMedusaRequest,
+   res: MedusaResponse
+ ): Promise<void> {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const { lineItemId } = req.params
+     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/orders/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/orders/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/orders/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/orders/route.ts
+@@ -20,8 +20,9 @@
+ export async function GET(
+   req: AuthenticatedMedusaRequest,
+   res: MedusaResponse
+ ): Promise<void> {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any;
+     const limit = Number(req.query.limit) || 20;
+     const offset = Number(req.query.offset) || 0;
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/orders/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/orders/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/orders/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/orders/route.ts
+@@ -219,9 +219,9 @@
+   const rows = allOrders.slice(offset, offset + limit);
+ 
+   res.status(200).json({ design_orders: rows, count: total, offset, limit });
+ } catch (error) {
+-  console.error("[Admin] Error fetching design orders:", error);
++  logger.error(`[Admin] Error fetching design orders: ${error}`, error);
+   res.status(500).json({
+     message: "Failed to fetch design orders",
+     error: error instanceof Error ? error.message : "Unknown error",
+   });
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/route.ts
+@@ -113,9 +113,9 @@
+ import {
+   MedusaRequest,
+   MedusaResponse,
+ } from "@medusajs/framework/http";
+-import { MedusaError } from "@medusajs/framework/utils";
++import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
+ import { UpdateDesign } from "../validators";
+ import updateDesignWorkflow from "../../../../workflows/designs/update-design";
+ import deleteDesignWorkflow from "../../../../workflows/designs/delete-design";
+ import { DesignAllowedFields, refetchDesign } from "../helpers";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/route.ts
+@@ -158,8 +158,9 @@
+     };
+   },
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   // Scoped run — an unscoped workflow.run() uses a bare container that
+   // can't resolve request-scoped registrations like "query".
+   const { result, errors } = await updateDesignWorkflow(req.scope).run({
+     input: {
+@@ -168,9 +169,9 @@
+     } as any,
+   });
+ 
+   if (errors.length > 0) {
+-    console.warn("Error reported at", errors);
++    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+     throw errors;
+   }
+ 
+   const design = await refetchDesign(
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/route.ts
+@@ -189,8 +189,9 @@
+     params: { id: string };
+   },
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   // 404 on unknown ids (soft-deleting a missing design 500s deep in the
+   // workflow otherwise).
+   const existing = await refetchDesign(req.params.id, req.scope, ["id"] as any);
+   if (!existing) {
+@@ -206,9 +207,9 @@
+     },
+   });
+ 
+   if (errors.length > 0) {
+-    console.warn("Error reported at", errors);
++    logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+     throw errors;
+   }
+ 
+   res.status(201).send({
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/[path]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/[path]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/[path]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/[path]/route.ts
+@@ -88,8 +88,9 @@
+  *   "message": "Path unknown not found for design design_123456789"
+  * }
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ 
+ 
+ export const GET = async (
+   req: MedusaRequest,
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/[path]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/[path]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/[path]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/[path]/route.ts
+@@ -128,16 +128,13 @@
+ export const POST = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const { id, path } = req.params
+ 
+   if (path[0] === "notes") {
+-    console.log("Received POST request for notes path:", { 
+-      designId: id, 
+-      path,
+-      body: req.body 
+-    })
++    logger.info(`Received POST request for notes path: ${JSON.stringify({ designId: id, path, body: req.body })}`)
+     return res.json({
+       message: "Notes path handler - POST",
+       designId: id,
+       path: path
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/segment/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/route.ts
+@@ -1,9 +1,9 @@
+ import {
+   AuthenticatedMedusaRequest,
+   MedusaResponse,
+ } from "@medusajs/framework/http"
+-import { MedusaError } from "@medusajs/framework/utils"
++import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+ import { resolveFalCredentials } from "../../../../../mastra/services/fal-credentials"
+ import { SegmentImageReq } from "./validators"
+ 
+ /**
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/segment/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/route.ts
+@@ -18,8 +18,9 @@
+ export const POST = async (
+   req: AuthenticatedMedusaRequest<SegmentImageReq>,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const { image_url, image_base64, model } = req.validatedBody
+ 
+   if (!image_url && !image_base64) {
+     throw new MedusaError(
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/segment/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/route.ts
+@@ -59,9 +59,9 @@
+   })
+   resolvedImageUrl = await fal.storage.upload(file)
+ }
+ 
+-console.log(
++logger.info(
+   `[Segment] Running BiRefNet v2 on image: ${resolvedImageUrl!.substring(0, 80)}…`
+ )
+ 
+ const result = await fal.subscribe("fal-ai/birefnet/v2", {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/segment/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/route.ts
+@@ -79,11 +79,10 @@
+ const cutoutUrl = data?.image?.url
+ const maskUrl = data?.mask_image?.url
+ 
+ if (!cutoutUrl) {
+-  console.error(
+-    "[Segment] BiRefNet result shape:",
+-    JSON.stringify(result).substring(0, 300)
++  logger.error(
++    `[Segment] BiRefNet result shape: ${JSON.stringify(result).substring(0, 300)}`
+   )
+   throw new MedusaError(
+     MedusaError.Types.UNEXPECTED_STATE,
+     "BiRefNet returned no image"
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/segment/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/route.ts
+@@ -88,9 +88,9 @@
+     "BiRefNet returned no image"
+   )
+ }
+ 
+-console.log(`[Segment] Success — cutout: ${cutoutUrl.substring(0, 80)}…`)
++logger.info(`[Segment] Success — cutout: ${cutoutUrl.substring(0, 80)}…`)
+ 
+ return res.status(200).json({
+   segment: {
+     cutout_url: cutoutUrl,
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
+@@ -1,9 +1,9 @@
+ import {
+   AuthenticatedMedusaRequest,
+   MedusaResponse,
+ } from "@medusajs/framework/http"
+-import { MedusaError } from "@medusajs/framework/utils"
++import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+ import { resolveFalCredentials } from "../../../../../../mastra/services/fal-credentials"
+ 
+ /**
+  * POST /admin/designs/:id/segment/depth
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
+@@ -20,8 +20,9 @@
+ export const POST = async (
+   req: AuthenticatedMedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const { image_url, image_base64 } = req.body as {
+     image_url?: string
+     image_base64?: string
+   }
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
+@@ -64,9 +64,9 @@
+   })
+   resolvedImageUrl = await fal.storage.upload(file)
+ }
+ 
+-console.log(
++logger.info(
+   `[Depth] Running MiDaS on image: ${resolvedImageUrl!.substring(0, 80)}…`
+ )
+ 
+ const result = await fal.subscribe("fal-ai/image-preprocessors/midas", {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
+@@ -81,11 +81,10 @@
+ const depthUrl = data?.depth_map?.url
+ const normalUrl = data?.normal_map?.url
+ 
+ if (!depthUrl) {
+-  console.error(
+-    "[Depth] MiDaS result shape:",
+-    JSON.stringify(result).substring(0, 400)
++  logger.error(
++    `[Depth] MiDaS result shape: ${JSON.stringify(result).substring(0, 400)}`
+   )
+   throw new MedusaError(
+     MedusaError.Types.UNEXPECTED_STATE,
+     "MiDaS returned no depth map"
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/segment/depth/route.ts
+@@ -90,9 +90,9 @@
+     "MiDaS returned no depth map"
+   )
+ }
+ 
+-console.log(`[Depth] Success — depth: ${depthUrl.substring(0, 80)}…`)
++logger.info(`[Depth] Success — depth: ${depthUrl.substring(0, 80)}…`)
+ 
+ return res.status(200).json({
+   depth: {
+     depth_url: depthUrl,
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
+@@ -1,5 +1,6 @@
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { AdminPostConsumptionLogReq } from "./validators"
+ import { logConsumptionWorkflow } from "../../../../../workflows/consumption-logs/log-consumption"
+ import { listConsumptionLogsWorkflow } from "../../../../../workflows/consumption-logs/list-consumption-logs"
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
+@@ -7,8 +7,9 @@
+ export const POST = async (
+   req: MedusaRequest<AdminPostConsumptionLogReq>,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const designId = req.params.id
+ 
+   const { result, errors } = await logConsumptionWorkflow(req.scope).run({
+     input: {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
+@@ -36,8 +36,9 @@
+   res.status(201).json({ consumption_log: result })
+ }
+ 
+ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const designId = req.params.id
+   const query = req.query as Record<string, any>
+ 
+   const { result, errors } = await listConsumptionLogsWorkflow(req.scope).run({
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
+@@ -57,9 +57,9 @@
+   },
+ })
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`)
+   throw errors
+ }
+ 
+ res.status(200).json(result)
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/route.ts
+@@ -28,9 +28,9 @@
+   },
+ })
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`)
+   throw errors
+ }
+ 
+ res.status(201).json({ consumption_log: result })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/consumption-logs/commit/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/commit/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/commit/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/commit/route.ts
+@@ -1,5 +1,6 @@
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { AdminPostCommitConsumptionReq } from "../validators"
+ import { commitConsumptionWorkflow } from "../../../../../../workflows/consumption-logs/commit-consumption"
+ 
+ export const POST = async (
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/consumption-logs/commit/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/commit/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/commit/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/commit/route.ts
+@@ -6,8 +6,9 @@
+ export const POST = async (
+   req: MedusaRequest<AdminPostCommitConsumptionReq>,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const designId = req.params.id
+ 
+   const { result, errors } = await commitConsumptionWorkflow(req.scope).run({
+     input: {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/consumption-logs/commit/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/commit/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/commit/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/consumption-logs/commit/route.ts
+@@ -18,9 +18,9 @@
+   },
+ })
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`)
+   throw errors
+ }
+ 
+ res.status(200).json(result)
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/partner/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/partner/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/partner/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/partner/route.ts
+@@ -36,8 +36,9 @@
+ export const POST = async (
+    req: MedusaRequest<LinkDesignPartner>,
+    res: MedusaResponse,
+  ) => {
++   const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+ 
+    const designId = req.params.id
+    
+    const { result, errors } = await linkDesignPartnerWorkflow(req.scope).run({
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/partner/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/partner/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/partner/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/partner/route.ts
+@@ -48,9 +48,9 @@
+   },
+ })
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ res.status(201).json( result );
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/approve/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/approve/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/approve/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/approve/route.ts
+@@ -24,8 +24,9 @@
+ export async function POST(
+   req: MedusaRequest & { params: { id: string } },
+   res: MedusaResponse
+ ): Promise<void> {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const designId = req.params.id;
+     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any;
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/approve/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/approve/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/approve/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/approve/route.ts
+@@ -62,9 +62,9 @@
+     },
+   });
+ 
+ if (updateErrors && updateErrors.length > 0) {
+-  console.error("[Admin] Error updating design status:", updateErrors);
++  logger.error(`[Admin] Error updating design status: ${JSON.stringify(updateErrors)}`);
+   res.status(500).json({
+     message: "Failed to update design status",
+     errors: updateErrors,
+   });
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/approve/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/approve/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/approve/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/approve/route.ts
+@@ -82,9 +82,9 @@
+     },
+   });
+ 
+ if (productErrors && productErrors.length > 0) {
+-  console.error("[Admin] Error creating product:", productErrors);
++  logger.error(`[Admin] Error creating product: ${JSON.stringify(productErrors)}`);
+   res.status(500).json({
+     message: "Failed to create product from design",
+     errors: productErrors,
+   });
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/approve/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/approve/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/approve/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/approve/route.ts
+@@ -111,9 +111,9 @@
+     product_id: productResult.product_id,
+     variant_id: productResult.variant_id,
+   });
+ } catch (error) {
+-  console.error("[Admin] Error in design approve:", error);
++  logger.error(`[Admin] Error in design approve: ${error}`, error);
+   res.status(500).json({
+     message: "Failed to approve design",
+     error: error instanceof Error ? error.message : "Unknown error",
+   });
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+@@ -161,10 +161,11 @@
+ import {
+     MedusaRequest,
+     MedusaResponse,
+   } from "@medusajs/framework/http";
+-
+-import { AdminPatchDesignInventoryLinkReq, AdminPostDesignInventoryReq } from "../inventory/validators";
++  import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
++ 
++  import { AdminPatchDesignInventoryLinkReq, AdminPostDesignInventoryReq } from "../inventory/validators";
+ import { linkDesignInventoryWorkflow, updateDesignInventoryLinkWorkflow } from "../../../../../workflows/designs/inventory/link-inventory";
+ import { DesignInventoryAllowedFields, refetchDesign } from "../inventory/helpers";
+ import { listDesignInventoryWorkflow } from "../../../../../workflows/designs/inventory/list-design-inventory";
+   
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+@@ -172,8 +172,9 @@
+ export const POST = async (
+   req: MedusaRequest<AdminPostDesignInventoryReq>,
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+ 
+   const designId = req.params.id
+   
+   const { result, errors } = await linkDesignInventoryWorkflow(req.scope).run({
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+@@ -190,9 +190,9 @@
+   },
+ })
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ const design = await refetchDesign(
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+@@ -208,8 +208,9 @@
+ export const GET = async (
+   req: MedusaRequest,
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const designId = req.params.id
+   
+   const { result, errors } = await listDesignInventoryWorkflow(req.scope).run({
+     input: {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+@@ -218,9 +218,9 @@
+   },
+ })  
+ 
+ if (errors.length > 0) { 
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ res.status(200).json(result);
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+@@ -229,8 +229,9 @@
+ export const PATCH = async (
+   req: MedusaRequest<AdminPatchDesignInventoryLinkReq>,
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const designId = req.params.id;
+   const { inventoryLinkId } = req.params as { inventoryLinkId: string };
+ 
+   const { errors } = await updateDesignInventoryLinkWorkflow(req.scope).run({
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/route.ts
+@@ -244,9 +244,9 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ const design = await refetchDesign(
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/inventory/[inventoryLinkId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/[inventoryLinkId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/[inventoryLinkId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/[inventoryLinkId]/route.ts
+@@ -95,9 +95,10 @@
+ import {
+   MedusaRequest,
+   MedusaResponse,
+ } from "@medusajs/framework/http"
+-
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
++ 
+ import { AdminPatchDesignInventoryLinkReq } from "../validators"
+ import { DesignInventoryAllowedFields, refetchDesign } from "../helpers"
+ import { updateDesignInventoryLinkWorkflow } from "../../../../../../workflows/designs/inventory/link-inventory"
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/inventory/[inventoryLinkId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/[inventoryLinkId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/[inventoryLinkId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/[inventoryLinkId]/route.ts
+@@ -105,8 +105,9 @@
+ export const PATCH = async (
+   req: MedusaRequest<AdminPatchDesignInventoryLinkReq>,
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const designId = req.params.id
+   const { inventoryLinkId } = req.params as { inventoryLinkId: string }
+   const body = (req.validatedBody ?? req.body ?? {}) as AdminPatchDesignInventoryLinkReq
+   const { plannedQuantity, locationId, metadata } = body
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/inventory/[inventoryLinkId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/[inventoryLinkId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/[inventoryLinkId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/[inventoryLinkId]/route.ts
+@@ -122,9 +122,9 @@
+   },
+ })
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`)
+   throw errors
+ }
+ 
+ const design = await refetchDesign(
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/inventory/delink/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/delink/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/delink/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/delink/route.ts
+@@ -40,9 +40,10 @@
+ import {
+   MedusaRequest,
+   MedusaResponse,
+ } from "@medusajs/framework/http";
+-
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
++ 
+ import { AdminDeleteDesignInventoryReq } from "../validators";
+ import { delinkDesignInventoryWorkflow } from "../../../../../../workflows/designs/inventory/link-inventory";
+ import { refetchDesign, DesignInventoryAllowedFields } from "../helpers";
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/inventory/delink/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/delink/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/delink/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/delink/route.ts
+@@ -50,8 +50,9 @@
+ export const POST = async (
+   req: MedusaRequest<AdminDeleteDesignInventoryReq>,
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const designId = req.params.id
+   
+   const { result, errors } = await delinkDesignInventoryWorkflow(req.scope).run({
+     input: {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/designs/[id]/inventory/delink/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/delink/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/delink/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/designs/[id]/inventory/delink/route.ts
+@@ -61,9 +61,9 @@
+   },
+ })
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ const design = await refetchDesign(
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
+@@ -117,9 +117,9 @@
+ import {
+     MedusaRequest,
+     MedusaResponse,
+   } from "@medusajs/framework/http";
+-  import { MedusaError } from "@medusajs/framework/utils";
++  import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
+   import { uploadAndOrganizeMediaWorkflow } from "../../../workflows/media/upload-and-organize-media";
+   import { listAllMediasWorkflow } from "../../../workflows/media/list-all-medias";
+ import { UploadMediaRequest } from "./validator";
+   import fs from "fs";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
+@@ -130,8 +130,9 @@
+     files?: Express.Multer.File[] 
+   },
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     // Normalize uploaded files (support single or multiple)
+     const uploadedFiles: Express.Multer.File[] = Array.isArray(req.files)
+       ? (req.files as Express.Multer.File[])
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
+@@ -177,9 +177,9 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.error("Errors occurred during media upload:", errors);
++  logger.error(`Errors occurred during media upload: ${JSON.stringify(errors)}`);
+   throw new MedusaError(
+     MedusaError.Types.UNEXPECTED_STATE,
+     `Failed to upload media: ${errors.map(e => e.error?.message || "Unknown error").join(", ")}`
+   );
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
+@@ -198,9 +198,9 @@
+     message: "Media uploaded and organized successfully",
+     result,
+   });
+ } catch (error) {
+-  console.error("Error uploading media:", error);
++  logger.error(`Error uploading media: ${error}`, error);
+   if (error instanceof MedusaError) {
+     const status = error.type === MedusaError.Types.INVALID_DATA ? 400 : 500
+     return res.status(status).json({ message: (error as Error).message })
+   }
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
+@@ -212,8 +212,9 @@
+ export const GET = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     // Optionally forward query filters/config if provided, but normalize types first
+     const { filters: rawFilters, config: rawConfig, ...restQuery } = (req.query || {}) as Record<string, any>
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/route.ts
+@@ -316,9 +316,9 @@
+   })
+ 
+   res.status(200).json(result);
+ } catch (error) {
+-  console.error("Error listing medias:", error);
++  logger.error(`Error listing medias: ${error}`, error);
+   throw new MedusaError(
+     MedusaError.Types.UNEXPECTED_STATE,
+     "Failed to list media entities"
+   );
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/extract-features/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/route.ts
+@@ -46,9 +46,9 @@
+  * - confidence score
+  */
+ 
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+-import { MedusaError } from "@medusajs/framework/utils";
++import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
+ import { ExtractFeaturesRequestSchema, ExtractFeaturesRequest } from "./validators";
+ import {
+   textileProductExtractionMedusaWorkflow,
+ } from "../../../../workflows/ai/textile-product-extraction";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/extract-features/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/route.ts
+@@ -56,8 +56,9 @@
+ export const POST = async (
+   req: MedusaRequest<ExtractFeaturesRequest>,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     // Validate request body
+     const parsed = ExtractFeaturesRequestSchema.safeParse(
+       (req as any).validatedBody || req.body
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/extract-features/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/route.ts
+@@ -115,9 +115,9 @@
+     status: "pending_confirmation",
+     summary: result,
+   });
+ } catch (error) {
+-  console.error("[ExtractFeatures] Error:", error);
++  logger.error(`[ExtractFeatures] Error: ${error}`, error);
+ 
+   if (error instanceof MedusaError) {
+     const status =
+       error.type === MedusaError.Types.INVALID_DATA
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/extract-features/[transaction_id]/confirm/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/[transaction_id]/confirm/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/[transaction_id]/confirm/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/[transaction_id]/confirm/route.ts
+@@ -36,8 +36,9 @@
+  * 4. Send notification on completion/failure
+  */
+ 
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { IWorkflowEngineService } from "@medusajs/framework/types";
+ import { Modules, TransactionHandlerType } from "@medusajs/framework/utils";
+ import { StepResponse } from "@medusajs/framework/workflows-sdk";
+ import {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/extract-features/[transaction_id]/confirm/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/[transaction_id]/confirm/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/[transaction_id]/confirm/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/[transaction_id]/confirm/route.ts
+@@ -46,8 +46,9 @@
+   waitConfirmationTextileExtractionStepId,
+ } from "../../../../../../workflows/ai/textile-product-extraction";
+ 
+ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const workflowEngineService: IWorkflowEngineService = req.scope.resolve(
+       Modules.WORKFLOW_ENGINE
+     );
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/extract-features/[transaction_id]/confirm/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/[transaction_id]/confirm/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/[transaction_id]/confirm/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/extract-features/[transaction_id]/confirm/route.ts
+@@ -77,9 +77,9 @@
+     message: "Extraction confirmed. Processing started.",
+     transaction_id: transactionId,
+   });
+ } catch (error) {
+-  console.error("[ExtractFeatures/Confirm] Error:", error);
++  logger.error(`[ExtractFeatures/Confirm] Error: ${error}`, error);
+ 
+   // Check if it's a "workflow not found" type error
+   const errorMessage = (error as Error)?.message || "";
+   if (
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/folder/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/route.ts
+@@ -64,9 +64,9 @@
+ import {
+     MedusaRequest,
+     MedusaResponse,
+   } from "@medusajs/framework/http";
+-  import { MedusaError } from "@medusajs/framework/utils";
++  import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
+   import { createFolderWorkflow } from "../../../../workflows/media/create-folder";
+ import { FolderRequest } from "../validator";
+ 
+   
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/folder/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/route.ts
+@@ -73,8 +73,9 @@
+ export const POST = async (
+   req: MedusaRequest<FolderRequest>,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   // Body is validated by middleware (validateAndTransformBody)
+   const folderData = req.validatedBody as FolderRequest;
+ 
+   try {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/folder/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/route.ts
+@@ -96,9 +96,9 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.error("Errors occurred during folder creation:", errors);
++  logger.error(`Errors occurred during folder creation: ${JSON.stringify(errors)}`);
+   throw new MedusaError(
+     MedusaError.Types.UNEXPECTED_STATE,
+     `Failed to create folder: ${errors.map(e => e.error?.message || "Unknown error").join(", ")}`
+   );
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/folder/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/route.ts
+@@ -108,9 +108,9 @@
+       message: "Folder created successfully",
+       folder: result,
+     });
+   } catch (error) {
+-    console.error("Error creating folder:", error);
++    logger.error(`Error creating folder: ${error}`, error);
+     throw error;
+   }
+ };
+ 
+\ No newline at end of file
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts
+@@ -67,9 +67,9 @@
+  *   HTTP/1.1 500 Internal Server Error
+  *   { "message": "Failed to create media records: <details>" }
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+-import { MedusaError } from "@medusajs/framework/utils"
++import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+ import { uploadAndOrganizeMediaWorkflow } from "../../../../../../workflows/media/upload-and-organize-media"
+ import { UploadMediaRequest } from "../../../validator";
+  
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts
+@@ -77,8 +77,9 @@
+ export const POST = async (
+   req: MedusaRequest<UploadMediaRequest> & { files?: Express.Multer.File[]; file?: Express.Multer.File },
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const { id: folderId } = req.params as { id?: string }
+     if (!folderId) {
+       throw new MedusaError(MedusaError.Types.INVALID_DATA, "Folder ID is required")
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts
+@@ -121,9 +121,9 @@
+ 
+   return res.status(200).json({ result })
+ } catch (error) {
+   if (error instanceof MedusaError) {
+-    console.error("Folder upload Medusa error:", error)
++    logger.error(`Folder upload Medusa error: ${error}`, error)
+     const status = error.type === MedusaError.Types.INVALID_DATA ? 400 : 500
+     return res.status(status).json({ message: (error as Error).message })
+   }
+   console.error("Folder upload error:", error)
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/folder/[id]/upload/route.ts
+@@ -125,8 +125,8 @@
+       logger.error(`Folder upload Medusa error: ${error}`, error)
+       const status = error.type === MedusaError.Types.INVALID_DATA ? 400 : 500
+       return res.status(status).json({ message: (error as Error).message })
+     }
+-    console.error("Folder upload error:", error)
++    logger.error(`Folder upload error: ${error}`, error)
+     return res.status(500).json({ message: (error as any)?.message || "An unexpected error occurred" })
+   }
+ }
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/[id]/upload/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/[id]/upload/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/[id]/upload/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/[id]/upload/route.ts
+@@ -70,9 +70,9 @@
+  * - No files provided -> 400 { "message": "No files provided for upload" }
+  * - Workflow failure -> 500 { "message": "Failed to upload media: <error messages>" }
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+-import { MedusaError } from "@medusajs/framework/utils"
++import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+ import { uploadAndOrganizeMediaWorkflow } from "../../../../../workflows/media/upload-and-organize-media"
+ import fs from "fs"
+ 
+ // DEPRECATED: Use POST /admin/medias/folder/:id/upload instead
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/[id]/upload/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/[id]/upload/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/[id]/upload/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/[id]/upload/route.ts
+@@ -79,8 +79,9 @@
+ export const POST = async (
+   req: MedusaRequest & { files?: Express.Multer.File[]; file?: Express.Multer.File },
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   // Soft deprecation notice in headers
+   res.setHeader("Deprecation", "true")
+   res.setHeader(
+     "Link",
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/[id]/upload/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/[id]/upload/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/[id]/upload/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/[id]/upload/route.ts
+@@ -149,9 +149,9 @@
+     next: `/admin/medias/folder/${folderId}/upload`,
+     result,
+   })
+ } catch (error) {
+-  console.error("Folder upload error:", error)
++  logger.error(`Folder upload error: ${error}`, error)
+   if (error instanceof MedusaError) {
+     const status = error.type === MedusaError.Types.INVALID_DATA ? 400 : 500
+     console.error("Medusa error:", error)
+     return res.status(status).json({ message: (error as Error).message })
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/[id]/upload/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/[id]/upload/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/[id]/upload/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/[id]/upload/route.ts
+@@ -152,9 +152,9 @@
+ } catch (error) {
+   logger.error(`Folder upload error: ${error}`, error)
+   if (error instanceof MedusaError) {
+     const status = error.type === MedusaError.Types.INVALID_DATA ? 400 : 500
+-    console.error("Medusa error:", error)
++    logger.error(`Medusa error: ${error}`, error)
+     return res.status(status).json({ message: (error as Error).message })
+   }
+   return res.status(500).json({ message: (error as any)?.message || "An unexpected error occurred in the media upload" })
+ }
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/albums/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/albums/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/albums/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/albums/route.ts
+@@ -57,9 +57,9 @@
+  * List all albums (lightweight for dropdowns)
+  */
+ 
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+-import { MedusaError } from "@medusajs/framework/utils";
++import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
+ import { listAlbumWorkflow } from "../../../../workflows/media/list-album";
+ 
+ 
+ export const GET = async (
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/albums/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/albums/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/albums/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/albums/route.ts
+@@ -65,8 +65,9 @@
+ export const GET = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   try {
+     const { result } = await listAlbumWorkflow(req.scope).run({
+       input: {
+         filters: {},
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/medias/albums/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/albums/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/albums/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/medias/albums/route.ts
+@@ -84,9 +84,9 @@
+     albums,
+     count: result[1] || albums.length,
+   });
+ } catch (error) {
+-  console.error("Error listing albums:", error);
++  logger.error(`Error listing albums: ${error}`, error);
+   throw new MedusaError(
+     MedusaError.Types.UNEXPECTED_STATE,
+     "Failed to list albums"
+   );
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/route.ts
+@@ -139,8 +139,9 @@
+   MedusaRequest,
+   MedusaResponse,
+   
+ } from "@medusajs/framework/http";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { Person, ListPersonsQuery } from "./validators";
+ import createPersonWorkflow from "../../../workflows/create-person";
+ import { PersonAllowedFields, refetchPerson } from "./helpers";
+ import { listAndCountPersonsWithFilterWorkflow } from "../../../workflows/persons/list-and-count-with-filter/list-and-count-with-filter";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/route.ts
+@@ -153,8 +153,9 @@
+     };
+   },
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const { result, errors, transaction } = await createPersonWorkflow.run({
+     input: req.validatedBody,
+   });
+   if (errors.length > 1) {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/route.ts
+@@ -158,9 +158,9 @@
+ const { result, errors, transaction } = await createPersonWorkflow.run({
+   input: req.validatedBody,
+ });
+ if (errors.length > 1) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ const person = await refetchPerson(
+   result.id,
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/route.ts
+@@ -123,8 +123,9 @@
+  * }
+  */
+ // src/api/admin/persons/[id]/route.ts
+ import { MedusaRequest, MedusaResponse, refetchEntity } from "@medusajs/framework/http";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import PersonService from "../../../../modules/person/service";
+ import { PERSON_MODULE } from "../../../../modules/person";
+ import updatePersonWorkflow from "../../../../workflows/update-person";
+ import { PersonAllowedFields, refetchPerson } from "../helpers";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/route.ts
+@@ -153,8 +153,9 @@
+     };
+   },
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const {  ...update } = req.validatedBody
+   const existingPerson = await refetchEntity({
+     entity: "person",
+     idOrFilter: req.params.id,
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/route.ts
+@@ -180,9 +180,9 @@
+     update: update
+   },
+ });
+ if (errors.length > 1) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ } 
+ const person = await refetchPerson(
+   result.id, 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/route.ts
+@@ -192,8 +192,9 @@
+   res.status(201).json({ person });
+ };
+ 
+ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const { id } = req.params;
+     const {result, errors} = await  deletePersonWorkflow(req.scope).run({
+       input: {
+         id,
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/route.ts
+@@ -200,9 +200,9 @@
+     id,
+   },
+ });
+ if (errors.length > 1) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ res.status(201).json({
+   id,
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/contacts/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/route.ts
+@@ -105,8 +105,9 @@
+  *   "count": 2
+  * }
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { contactSchema } from "./validators";
+ import { ContactAllowedFields, refetchPersonContact } from "./helpers";
+ import createContactWorkflow from "../../../../../workflows/persons/create-contact";
+ import retrieveContactsWorkflow from "../../../../../workflows/persons/retrieve-contacts";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/contacts/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/route.ts
+@@ -119,8 +119,9 @@
+     };
+   },
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const personId = req.params.id;
+   const validatedBody = contactSchema.parse(req.body);
+ 
+   try {
+
+[0m
+[0m✗ [0mEdit apps/backend/src/api/admin/persons/[id]/contacts/route.ts failed
+[91m[1mError: [0mFound multiple matches for oldString. Provide more surrounding context to make the match unique.
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/contacts/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/route.ts
+@@ -156,8 +156,9 @@
+     };
+   },
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const personId = req.params.id;
+ 
+   try {
+     const { result, errors } = await retrieveContactsWorkflow(req.scope).run({
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
+@@ -106,8 +106,9 @@
+  * @example response 204
+  * No content
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { contactSchema } from "../validators";
+ import { refetchPersonContact, ContactAllowedFields } from "../helpers";
+ import { MedusaError } from "@medusajs/utils";
+ import updateContactWorkflow from "../../../../../../workflows/persons/update-contact";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
+@@ -121,8 +121,9 @@
+     };
+   },
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const personId = req.params.id;
+   const contactId = req.params.contactId;
+ 
+   // Make all fields optional for update
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
+@@ -153,9 +153,9 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ // Refetch the updated contact to get the latest state
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
+@@ -175,8 +175,9 @@
+ export const DELETE = async (
+   req: MedusaRequest,
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const personId = req.params.id;
+   const contactId = req.params.contactId;
+ 
+   try {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/[contactId]/route.ts
+@@ -202,9 +202,9 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ res.status(204).end();
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/tags/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
+@@ -136,8 +136,9 @@
+  *   ]
+  * }
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import {  deleteTagSchema, tagSchema, UpdateTagsForPerson } from "./validators";
+ import { TagAllowedFields, refetchPersonTags } from "./helpers";
+ 
+ import createPersonTagsWorkflow from "../../../../../workflows/persons/create-person-tags";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/tags/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
+@@ -152,8 +152,9 @@
+     };
+   },
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const personId = req.params.id;
+   const validatedBody = tagSchema.parse(req.body);
+     const { result, errors } = await createPersonTagsWorkflow.run({
+       input: {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/tags/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
+@@ -162,9 +162,9 @@
+    ...validatedBody
+   },
+ });
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ const tags = await refetchPersonTags(personId, req.scope);
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/tags/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
+@@ -179,8 +179,9 @@
+     };
+   },
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const personId = req.params.id;
+ 
+   try {
+     const { result, errors } = await retrievePersonTagsWorkflow.run({
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/tags/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
+@@ -190,9 +190,9 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ res.status(200).json({ tags: result.tags });
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/tags/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
+@@ -208,8 +208,9 @@
+     };
+   },
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const personId = req.params.id;
+ 
+   try {
+     const { result, errors } = await updatePersonTagsWorkflow.run({
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/tags/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/route.ts
+@@ -220,9 +220,9 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ const tags = await refetchPersonTags(personId, req.scope);
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/contacts/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/contacts/route.ts
+@@ -167,9 +167,9 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ const [contacts, count] = result
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/tags/[tagId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/[tagId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/[tagId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/[tagId]/route.ts
+@@ -58,8 +58,9 @@
+  *   "deleted": true
+  * }
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { TagAllowedFields } from "../helpers";
+ import deletePersonTagsWorkflow from "../../../../../../workflows/persons/delete-person-tags";
+ import { DeleteTagForPerson } from "../validators";
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/tags/[tagId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/[tagId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/[tagId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/[tagId]/route.ts
+@@ -71,8 +71,9 @@
+     };
+   },
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+ 
+   const personId = req.params.id;
+   const tagId = req.params.tagId;
+   try {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/tags/[tagId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/[tagId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/[tagId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/tags/[tagId]/route.ts
+@@ -84,9 +84,9 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ res.status(200).json({ tags: result, deleted: true });
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/addresses/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/route.ts
+@@ -135,9 +135,10 @@
+  *   "count": 2
+  * }
+  */
+ import { MedusaRequest, MedusaResponse, refetchEntity } from "@medusajs/framework/http";
+-
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
++ 
+ import { Address } from "./validators";
+ import createAddressWorkflow from "../../../../../workflows/persons/create-address";
+ import retrieveAddressesWorkflow from "../../../../../workflows/persons/retrieve-addresses";
+ import { MedusaError } from "@medusajs/framework/utils";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/addresses/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/route.ts
+@@ -146,8 +146,9 @@
+ export const POST = async (
+   req: MedusaRequest<Address>,
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   
+   const personId = req.params.id;
+   // Check if the person exists in the personID or is validPersonId
+   const existingPerson = await refetchEntity({
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/addresses/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/route.ts
+@@ -172,9 +172,9 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   res.status(400).json({ error: errors });
+   throw errors;
+ }
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/addresses/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/route.ts
+@@ -181,8 +181,9 @@
+   res.status(201).json({ address: result });
+ };
+ 
+ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const personId = req.params.id;
+ 
+   try {
+     const { result, errors } = await retrieveAddressesWorkflow(req.scope).run({
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/addresses/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/route.ts
+@@ -194,9 +194,9 @@
+ 
+ const [addresses, count] = result
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ res.status(200).json({
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
+@@ -100,8 +100,9 @@
+  * @example response 204
+  * No content
+  */
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { addressSchema } from "../validators";
+ import { refetchPersonAddress, AddressAllowedFields } from "../helpers";
+ import { MedusaError } from "@medusajs/utils";
+ import updateAddressWorkflow from "../../../../../../workflows/persons/update-address";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
+@@ -115,8 +115,9 @@
+     };
+   },
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const personId = req.params.id;
+   const addressId = req.params.addressId;
+ 
+   // Make all fields optional for update
+
+[0m
+[0m✗ [0mEdit apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts failed
+[91m[1mError: [0mCould not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings.
+[0m✗ [0mEdit apps/backend/src/api/admin/persons/[id]/geocode-addresses/route.ts failed
+[91m[1mError: [0mCould not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings.
+[0m✗ [0mEdit apps/backend/src/api/admin/persons/[id]/geocode-addresses/route.ts failed
+[91m[1mError: [0mCould not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings.
+[0m✗ [0mEdit apps/backend/src/api/admin/persons/[id]/geocode-addresses/route.ts failed
+[91m[1mError: [0mCould not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings.
+[0m✗ [0mEdit apps/backend/src/api/admin/inventory-items/[id]/split/route.ts failed
+[91m[1mError: [0mCould not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings.
+[0m✗ [0mEdit apps/backend/src/api/admin/inventory-items/[id]/split/route.ts failed
+[91m[1mError: [0mCould not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings.
+[0m✗ [0mEdit apps/backend/src/api/admin/inventory-items/[id]/split/route.ts failed
+[91m[1mError: [0mCould not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings.
+[0m✗ [0mEdit apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts failed
+[91m[1mError: [0mCould not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings.
+[0m✗ [0mEdit apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts failed
+[91m[1mError: [0mCould not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings.
+[0m✗ [0mEdit apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts failed
+[91m[1mError: [0mCould not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings.
+[0m→ [0mRead apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/persons/[id]/geocode-addresses/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/inventory-items/[id]/split/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/[rawMaterialId]/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/products/[id]/unlinkPerson/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/products/[id]/linkDesign/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/products/[id]/unlinkDesign/route.ts
+[0m→ [0mRead apps/backend/src/api/admin/products/[id]/linkPerson/route.ts
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
+@@ -147,9 +147,9 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ // Refetch the updated address to get the latest state
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
+@@ -169,12 +169,11 @@
+ export const DELETE = async (
+   req: MedusaRequest,
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const personId = req.params.id;
+   const addressId = req.params.addressId;
+- 
+-  
+ 
+   try {
+     // Check if the address exists for this person
+   const existingAddress = await refetchPersonAddress(
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/addresses/[addressId]/route.ts
+@@ -195,9 +195,9 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ res.status(204).end();
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/geocode-addresses/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/geocode-addresses/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/geocode-addresses/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/geocode-addresses/route.ts
+@@ -42,8 +42,9 @@
+ import {
+   MedusaRequest,
+   MedusaResponse,
+ } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { geocodeAllAddressesWorkflow } from "../../../../../workflows/persons/geocode-all-addresses"
+ 
+ /**
+  * @swagger
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/persons/[id]/geocode-addresses/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/geocode-addresses/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/geocode-addresses/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/persons/[id]/geocode-addresses/route.ts
+@@ -70,12 +70,13 @@
+ export const POST = async (
+   req: MedusaRequest,
+   res: MedusaResponse
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const { id: person_id } =  req.params;
+   const workflow = geocodeAllAddressesWorkflow(req.scope)
+   const { result, transaction } = await workflow.run({
+     input: { person_id },
+   })
+-  console.log(transaction.getState())
++  logger.info(`Transaction state: ${transaction.getState()}`)
+   res.status(202).json({ summary: result, transaction_id: transaction.transactionId })
+ }
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/inventory-items/[id]/split/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/split/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/split/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/split/route.ts
+@@ -1,5 +1,6 @@
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { splitInventoryItemWorkflow } from "../../../../../workflows/inventory/split-inventory-item"
+ 
+ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+   const body = req.validatedBody as {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/inventory-items/[id]/split/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/split/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/split/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/split/route.ts
+@@ -16,8 +16,9 @@
+     extra?: Record<string, string>
+   }
+ }
+ 
++const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+ const { result, errors } = await splitInventoryItemWorkflow(req.scope).run({
+   input: {
+     sourceInventoryItemId: req.params.id,
+     quantity: body.quantity,
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/inventory-items/[id]/split/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/split/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/split/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/split/route.ts
+@@ -28,9 +28,9 @@
+   },
+ })
+ 
+ if (errors && errors.length > 0) {
+-  console.warn("Split inventory workflow errors:", errors)
++  logger.warn(`Split inventory workflow errors: ${JSON.stringify(errors)}`)
+   throw errors[0]
+ }
+ 
+ res.status(201).json(result)
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts
+@@ -74,8 +74,9 @@
+ import {
+   MedusaRequest,
+   MedusaResponse,
+ } from "@medusajs/framework/http";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { RawMaterial } from "./validators";
+ import { createRawMaterialWorkflow } from "../../../../../workflows/raw-materials/create-raw-material";
+ import { RawMaterialAllowedFields, refetchRawMaterial } from "./helpers";
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts
+@@ -87,8 +87,9 @@
+     };
+   },
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const { errors } = await createRawMaterialWorkflow(req.scope).run({
+     input: {
+       inventoryId: req.params.id,
+       rawMaterialData: req.validatedBody.rawMaterialData
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/route.ts
+@@ -96,9 +96,9 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ const rawMaterial = await refetchRawMaterial(
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/[rawMaterialId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/[rawMaterialId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/[rawMaterialId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/[rawMaterialId]/route.ts
+@@ -106,8 +106,9 @@
+ import {
+   MedusaRequest,
+   MedusaResponse,
+ } from "@medusajs/framework";
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { RAW_MATERIAL_MODULE } from "../../../../../../modules/raw_material";
+ import RawMaterialService from "../../../../../../modules/raw_material/service";
+ import updateRawMaterialWorkflow from "../../../../../../workflows/raw-materials/update-raw-material";
+ import { UpdateRawMaterial } from "../validators";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/[rawMaterialId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/[rawMaterialId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/[rawMaterialId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/[rawMaterialId]/route.ts
+@@ -130,8 +130,9 @@
+ export const PUT = async (
+   req: MedusaRequest<UpdateRawMaterial>,
+   res: MedusaResponse,
+ ) => {
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const { rawMaterialId } = req.params;
+ 
+   const {  errors } = await updateRawMaterialWorkflow(req.scope).run({
+     input: {
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/[rawMaterialId]/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/[rawMaterialId]/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/[rawMaterialId]/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/inventory-items/[id]/rawmaterials/[rawMaterialId]/route.ts
+@@ -141,9 +141,9 @@
+   },
+ });
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ // Fetch the updated raw material
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/products/[id]/unlinkPerson/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkPerson/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkPerson/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkPerson/route.ts
+@@ -87,8 +87,9 @@
+  *     "categories": []
+  *   }
+  * }
+  */
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
+ import { UnlinkPersonValidator } from "../linkPerson/validators"
+ import { unlinkProductFromPersonWorkflow } from "../../../../../workflows/products/link-unlink-products-with-people"
+ import { refetchProduct } from "../linkPerson/helper"
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/products/[id]/unlinkPerson/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkPerson/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkPerson/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkPerson/route.ts
+@@ -100,8 +100,9 @@
+ ) => {
+   const { id } = req.params
+   const { personId } = req.validatedBody
+ 
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const { errors } = await unlinkProductFromPersonWorkflow(req.scope).run({
+     input: { productId: id, personId },
+   })
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/products/[id]/unlinkPerson/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkPerson/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkPerson/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkPerson/route.ts
+@@ -106,9 +106,9 @@
+   input: { productId: id, personId },
+ })
+ 
+ if (errors.length) {
+-  console.warn("Error reported at", errors)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`)
+   throw errors
+ }
+ 
+ const product = await refetchProduct(id, req.scope)
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/products/[id]/linkDesign/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkDesign/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkDesign/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkDesign/route.ts
+@@ -2,8 +2,9 @@
+  * This API takes one design id and links it to the product, its a POST 
+  * request
+  */
+ 
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
+ import { LinkDesignValidator } from "./validators";
+ import { linkProductWithDesignWorkflow } from "../../../../../workflows/products/link-unlink-products-with-designs";
+ import { refetchProduct } from "./helper";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/products/[id]/linkDesign/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkDesign/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkDesign/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkDesign/route.ts
+@@ -16,8 +16,9 @@
+ const { id } = req.params
+ 
+ const { designId } = req.validatedBody
+ 
++const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+ const { errors } = await linkProductWithDesignWorkflow(req.scope).run({
+   input: {
+     productId: id,
+     designId
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/products/[id]/linkDesign/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkDesign/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkDesign/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkDesign/route.ts
+@@ -25,9 +25,9 @@
+   }
+ })
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ 
+ // We are going to refetch the product and see if its linked
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/products/[id]/unlinkDesign/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkDesign/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkDesign/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkDesign/route.ts
+@@ -54,8 +54,9 @@
+  *   "message": "Design is still linked to the product",
+  *   "type": "invalid_data"
+  * }
+  */
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
+ import { unlinkProductFromDesignWorkflow } from "../../../../../workflows/products/link-unlink-products-with-designs";
+ import { UnlinkDesignValidator } from "../linkDesign/validators";
+ import { refetchProduct } from "../linkDesign/helper";
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/products/[id]/unlinkDesign/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkDesign/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkDesign/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkDesign/route.ts
+@@ -76,8 +76,9 @@
+ if (!design) {
+   throw new MedusaError(MedusaError.Types.NOT_FOUND, `Design with id ${designId} was not found`)
+ }
+ 
++const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+ const { errors } = await unlinkProductFromDesignWorkflow(req.scope).run({
+   input: {
+     productId: id,
+     designId
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/products/[id]/unlinkDesign/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkDesign/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkDesign/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/unlinkDesign/route.ts
+@@ -85,9 +85,9 @@
+   }
+ })
+ 
+ if (errors.length > 0) {
+-  console.warn("Error reported at", errors);
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`);
+   throw errors;
+ }
+ // We must verify using the refetch if the design is unlinked
+ const unLinkedProduct = await refetchProduct(id, req.scope)
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/products/[id]/linkPerson/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkPerson/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkPerson/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkPerson/route.ts
+@@ -128,8 +128,9 @@
+  *     ]
+  *   }
+  * }
+  */
++import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+ import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
+ import { LinkPersonValidator } from "./validators"
+ import { linkProductWithPersonWorkflow } from "../../../../../workflows/products/link-unlink-products-with-people"
+ import { refetchProduct } from "./helper"
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/products/[id]/linkPerson/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkPerson/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkPerson/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkPerson/route.ts
+@@ -142,8 +142,9 @@
+ ) => {
+   const { id } = req.params
+   const { personId } = req.validatedBody
+ 
++  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+   const { errors } = await linkProductWithPersonWorkflow(req.scope).run({
+     input: { productId: id, personId },
+   })
+ 
+
+[0m
+[0m← [0mEdit apps/backend/src/api/admin/products/[id]/linkPerson/route.ts
+Index: /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkPerson/route.ts
+===================================================================
+--- /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkPerson/route.ts
++++ /Users/saranshsharma/Developer/jyt/apps/backend/src/api/admin/products/[id]/linkPerson/route.ts
+@@ -148,9 +148,9 @@
+   input: { productId: id, personId },
+ })
+ 
+ if (errors.length) {
+-  console.warn("Error reported at", errors)
++  logger.warn(`Error reported at ${JSON.stringify(errors)}`)
+   throw errors
+ }
+ 
+ const product = await refetchProduct(id, req.scope)
+
+[0m
+[0m✱ [0mGrep "console\.(log|info|warn|debug|error)\("[90m in apps/backend/src/api/admin · 7 matches[0m

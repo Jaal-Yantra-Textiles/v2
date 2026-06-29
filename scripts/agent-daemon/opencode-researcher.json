@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "jyt-researcher": {
+      "description": "Web-research drafter for the JYT daemon. Unlike jyt-drafter, webfetch is ALLOWED so it can read competitor/marketing sites and write a GROUNDED positioning analysis. bash + installs stay hard-denied; it can fetch pages and author the one doc it is told to.",
+      "mode": "primary",
+      "model": "opencode/deepseek-v4-flash-free",
+      "temperature": 0.2,
+      "permission": {
+        "edit": "allow",
+        "bash": "deny",
+        "webfetch": "allow"
+      }
+    }
+  }
+}

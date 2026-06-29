@@ -3,6 +3,15 @@ import { OperationDefinition, OperationContext, OperationResult } from "./types"
 import { getValueByPath } from "./utils"
 import { loadPackage } from "./package-loader"
 import { isIsolatedVmEnabled, runInIsolate } from "./isolated-runner"
+import { parseTimeoutMs } from "../../../utils/parse-timeout-ms"
+
+// Timeout for the sandboxed `fetch` helper. Defaults to 30s (was a hardcoded
+// 10s, #742) and is overridable via VFLOW_FETCH_TIMEOUT_MS so flows calling
+// slower upstreams don't fail on a too-short window.
+const SANDBOX_FETCH_TIMEOUT_MS = parseTimeoutMs(
+  process.env.VFLOW_FETCH_TIMEOUT_MS,
+  30000
+)
 
 // Import npm packages to expose in sandbox
 import lodash from "lodash"
@@ -464,7 +473,7 @@ export const AVAILABLE_PACKAGES = {
   fetch: {
     name: "fetch",
     alias: "fetch",
-    description: "Make HTTP requests (10s timeout)",
+    description: "Make HTTP requests (timeout via VFLOW_FETCH_TIMEOUT_MS, default 30s)",
     examples: ["await fetch(url)", "await fetch(url, { method: 'POST', body: JSON.stringify(data) })"],
   },
 }
@@ -586,7 +595,7 @@ function createSandbox(
       }
       const response = await globalThis.fetch(url, {
         ...options,
-        signal: AbortSignal.timeout(10000), // 10s timeout
+        signal: AbortSignal.timeout(SANDBOX_FETCH_TIMEOUT_MS),
       })
       return {
         ok: response.ok,

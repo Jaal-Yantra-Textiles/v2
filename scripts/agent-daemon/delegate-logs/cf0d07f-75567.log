@@ -1,0 +1,19 @@
+Let me check existing test file conventions.
+I've read the implementation and existing test conventions. Now I'll write the test file.
+CHANGED: apps/backend/src/utils/__tests__/describe-fetch-error.unit.spec.ts — 8 test cases covering undici ETIMEDOUT with full opts, ECONNRESET, ENOTFOUND, plain Error, non-Error stringified values, url-only prefix, label-only prefix, and structured cause overriding generic 'fetch failed' message.
+
+--- stderr ---
+[0m
+> jyt-drafter · deepseek-v4-flash-free
+[0m
+[0m→ [0mRead apps/backend/src/utils/describe-fetch-error.ts
+[0m✱ [0mGlob "apps/backend/src/utils/__tests__/*.unit.spec.ts"[90m 0 matches[0m
+[0m✱ [0mGlob "apps/backend/src/**/*.unit.spec.ts"[90m 100 matches[0m
+[0m→ [0mRead apps/backend/src/modules/partner_billing/__tests__/describe-fee.unit.spec.ts
+[0m✗ [0mRead apps/backend/src/utils/__tests__ failed
+[91m[1mError: [0mFile not found: /Users/saranshsharma/Developer/jyt/apps/backend/src/utils/__tests__
+[0m
+[0m← [0mWrite apps/backend/src/utils/__tests__/describe-fetch-error.unit.spec.ts
+Wrote file successfully.
+[0m
+[0m→ [0mRead apps/backend/src/utils/__tests__/describe-fetch-error.unit.spec.ts

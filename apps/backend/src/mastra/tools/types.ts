@@ -6,6 +6,8 @@
  * and enhanced query plans.
  */
 
+import { parseTimeoutMs } from "../../utils/parse-timeout-ms"
+
 // ============================================
 // ENTITY CLASSIFICATION
 // ============================================
@@ -257,7 +259,14 @@ export interface EnhancedPlanExecutionResult {
 // ============================================
 
 export const MAX_RETRIES = 2
-export const DEFAULT_STEP_TIMEOUT_MS = 10000
+
+// Per-step execution timeout. Defaults to 60s (was a hardcoded 10s, #742) and
+// is overridable via MASTRA_STEP_TIMEOUT_MS for ops that run longer LLM /
+// external-API chains without a code change.
+export const DEFAULT_STEP_TIMEOUT_MS = parseTimeoutMs(
+  process.env.MASTRA_STEP_TIMEOUT_MS,
+  60000
+)
 
 /**
  * Quality score weights for calculating overall quality
