@@ -12,7 +12,7 @@ because our solution is uniquely focused on bringing the full source story of ev
 
 
 <p align="center">
-  <img src="design.gif" alt="Medo Design Workflow" width="100%">
+  <img src="design-to-cart.gif" alt="Medo Design Workflow" width="100%">
 </p>
 
 ---
