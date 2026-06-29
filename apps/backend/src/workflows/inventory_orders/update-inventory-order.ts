@@ -58,6 +58,12 @@ type UpdateInventoryOrderStepInput = {
     order_date?: Date;
     shipping_address?: Record<string, any>;
     is_sample?: boolean;
+    // Cancellation audit columns (#778 C4) — passed straight through to the
+    // service update so the cancel workflow can stamp them while reusing the
+    // status-changed event + unified-order mirror.
+    cancelled_at?: Date | null;
+    cancellation_reason?: string | null;
+    cancelled_by?: string | null;
   };
 };
 
