@@ -145,15 +145,20 @@ import { UploadMediaRequest } from "./validator";
         );
       }
 
-      // Transform multer files to workflow input format
-      // Pass content as a binary string to avoid Buffer in workflow inputs
+      // Transform multer files to workflow input format.
+      // Content MUST be base64, not "binary"/latin1: the Medusa file provider
+      // (local-file/file-s3) tries `Buffer.from(content, "base64")` and only
+      // keeps the decoded bytes when it round-trips as base64 — otherwise it
+      // falls back to `Buffer.from(content, "utf8")`, which UTF-8-re-encodes any
+      // byte >= 0x80 and corrupts every real image (#769). base64 avoids Buffer
+      // in the (serialized) workflow input while staying loss-free.
       const files = uploadedFiles.map((file) => {
         const hasBuffer = (file as any).buffer && Buffer.isBuffer((file as any).buffer)
         const hasPath = (file as any).path && typeof (file as any).path === "string"
         const contentStr = hasBuffer
-          ? (file as any).buffer.toString("binary")
+          ? (file as any).buffer.toString("base64")
           : hasPath
-            ? fs.readFileSync((file as any).path).toString("binary")
+            ? fs.readFileSync((file as any).path).toString("base64")
             : ""
         return {
           filename: file.originalname,

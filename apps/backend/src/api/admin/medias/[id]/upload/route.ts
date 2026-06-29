@@ -104,13 +104,15 @@ export const POST = async (
       throw new MedusaError(MedusaError.Types.INVALID_DATA, "No files provided for upload")
     }
 
+    // base64 (not "binary"/latin1): the Medusa file provider UTF-8-re-encodes
+    // non-base64 content and corrupts any byte >= 0x80 in real images (#769).
     const files = uploadedFiles.map((file) => {
       const hasBuffer = (file as any).buffer && Buffer.isBuffer((file as any).buffer)
       const hasPath = (file as any).path && typeof (file as any).path === "string"
       const contentStr = hasBuffer
-        ? (file as any).buffer.toString("binary")
+        ? (file as any).buffer.toString("base64")
         : hasPath
-          ? fs.readFileSync((file as any).path).toString("binary")
+          ? fs.readFileSync((file as any).path).toString("base64")
           : ""
       return {
         filename: file.originalname,
