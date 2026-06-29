@@ -109,6 +109,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { z } from "@medusajs/framework/zod";
 import { getPartnerFromAuthContext, assertPartnerOwnsInventoryOrder } from "../../../helpers";
 import { partnerCompleteInventoryOrderWorkflow } from "../../../../../workflows/inventory_orders/partner-complete-inventory-order";
+import { createInventoryOrderShipmentWorkflow } from "../../../../../workflows/inventory_orders/create-inventory-order-shipment";
 
 // Accept both snake_case and camelCase for backward compatibility, then normalize
 const requestBodySchema = z.object({
@@ -122,7 +123,19 @@ const requestBodySchema = z.object({
     lines: z.array(z.object({
         order_line_id: z.string(),
         quantity: z.number().positive("Quantity must be greater than 0")
-    })).nonempty()
+    })).nonempty(),
+    // #772 — opt-in: generate a real carrier shipment (AWB + label) for this
+    // completion instead of (or in addition to) recording a free-text tracking
+    // number. Off by default — existing behaviour is unchanged.
+    generate_shipment: z.boolean().optional(),
+    pickup_stock_location_id: z.string().optional(),
+    weight_grams: z.number().positive().optional(),
+    dimensions_cm: z.object({
+        length: z.number().positive(),
+        breadth: z.number().positive(),
+        height: z.number().positive(),
+    }).partial().optional(),
+    preferred_courier_id: z.union([z.string(), z.number()]).optional(),
 });
 
 export async function POST(
@@ -140,7 +153,7 @@ export async function POST(
         });
     }
     
-    const { notes, deliveryDate, delivery_date, trackingNumber, tracking_number, stock_location_id, stockLocationId, lines } = validation.data;
+    const { notes, deliveryDate, delivery_date, trackingNumber, tracking_number, stock_location_id, stockLocationId, lines, generate_shipment, pickup_stock_location_id, weight_grams, dimensions_cm, preferred_courier_id } = validation.data;
     const normalizedDeliveryDate = deliveryDate || delivery_date;
     const normalizedTrackingNumber = trackingNumber || tracking_number;
     const normalizedStockLocationId = stock_location_id || stockLocationId;
@@ -178,9 +191,45 @@ export async function POST(
                 details: errors
             })
         }
+
+        // #772 — opt-in carrier shipment. Runs only after the completion
+        // succeeded, in its own workflow. Non-fatal: a shipment failure must
+        // not undo a completed delivery, so we surface it alongside the result
+        // rather than 500-ing.
+        let shipment: any = undefined;
+        let shipment_error: string | undefined = undefined;
+        if (generate_shipment) {
+            const deliveredQuantities = lines.reduce(
+                (acc: Record<string, number>, l) => {
+                    acc[l.order_line_id] = (acc[l.order_line_id] || 0) + l.quantity;
+                    return acc;
+                },
+                {} as Record<string, number>
+            );
+            const { result: shipResult, errors: shipErrors } = await createInventoryOrderShipmentWorkflow(req.scope).run({
+                input: {
+                    orderId,
+                    pickupStockLocationId: pickup_stock_location_id || normalizedStockLocationId,
+                    weightGrams: weight_grams,
+                    dimensionsCm: dimensions_cm as any,
+                    preferredCourierId: preferred_courier_id,
+                    deliveredQuantities,
+                    actingEmail: (partner as any)?.email || undefined,
+                },
+                throwOnError: false,
+            });
+            if (shipErrors && shipErrors.length > 0) {
+                shipment_error = shipErrors.map((e: any) => e.error?.message).filter(Boolean).join("; ") || "Shipment creation failed";
+            } else {
+                shipment = shipResult;
+            }
+        }
+
         return res.status(200).json({
             message: result?.fullyFulfilled ? "Order completed successfully" : "Order updated (partial delivery)",
-            result
+            result,
+            ...(shipment ? { shipment } : {}),
+            ...(shipment_error ? { shipment_error } : {}),
         })
-        
+
 }
