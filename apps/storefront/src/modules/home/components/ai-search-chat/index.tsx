@@ -3,29 +3,11 @@
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport, type UIMessage } from "ai"
+import { Button, Heading, IconButton, Input, Text } from "@medusajs/ui"
+import { ArrowUpMini, StopCircleSolid } from "@medusajs/icons"
 import {
-  Button,
-  FocusModal as FocusModalBase,
-  Heading,
-  IconButton,
-  Input,
-  Prompt as PromptBase,
-  Text,
-} from "@medusajs/ui"
-
-// @medusajs/ui ships with @types/react v18; the storefront runs on
-// React 19's types. The runtime is fine — only the type metadata
-// disagrees on what `ReactNode` / `children` looks like — so we cast
-// these two components at the import boundary and let everything
-// downstream type-check normally.
-const FocusModal = FocusModalBase as any
-const Prompt = PromptBase as any
-import { ArrowUpMini, StopCircleSolid, XMark } from "@medusajs/icons"
-import {
-  type Ref,
   useCallback,
   useEffect,
-  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -36,26 +18,28 @@ import {
   toWireFormat,
   type AiChatPreferences,
 } from "@lib/util/ai-chat-preferences"
+import {
+  clearConciergeThread,
+  loadConciergeMessages,
+  saveConciergeMessages,
+} from "@lib/util/concierge-thread"
 import { getOrCreateVisitorId } from "@lib/util/visitor-id"
 import OnboardingForm, { type OnboardingHandle } from "./onboarding"
 
 /**
- * Chat-style concierge modal, built on Medusa UI's `FocusModal`.
+ * Full-page Cici concierge chat, rendered at `/[countryCode]/chat`.
  *
- * Why FocusModal:
- *   - It's a Radix Dialog under the hood, so scroll lock, focus trap,
- *     and Escape-to-close come for free — no hand-rolled body styles
- *     or keydown listeners.
- *   - Onboarding and chat both live inside the same FocusModal — the
- *     layout naturally fills the viewport on mobile and a centered
- *     panel on desktop without us choreographing two CSS variants.
+ * It used to be a Medusa UI `FocusModal` mounted inside the home hero,
+ * but the modal's own scroll fought the pinned hero `ScrollStage` +
+ * Lenis + the scroll-driven nav header. Moving it to a dedicated route
+ * removes that conflict entirely: the message list owns a native
+ * `overflow-y-auto` scroll area while the page itself barely scrolls.
  *
- * Unsaved-changes guard uses `Prompt` from Medusa UI (matches the
- * pattern in apps/backend/src/admin/components/modal/route-modal-form.tsx).
- * When onboarding has unsaved selections, the close attempt — whether
- * via Radix's X button, Escape, or pointer-outside — is intercepted by
- * `onEscapeKeyDown` / `onPointerDownOutside` / the controlled
- * `onOpenChange` and pops the Prompt instead.
+ * The conversation is persisted to localStorage (`concierge-thread.ts`)
+ * so a returning visitor resumes the same thread — including streamed
+ * product-card tool outputs — and the floating launcher can show an
+ * "active thread" dot. An optional `initialQuery` (seeded from the hero
+ * search bar via `?q=`) is auto-sent once on mount.
  *
  * Streams from /api/ai-chat via `useChat` from @ai-sdk/react with a
  * DefaultChatTransport so tool-call lifecycles, partial tokens, and
@@ -63,9 +47,9 @@ import OnboardingForm, { type OnboardingHandle } from "./onboarding"
  * body on every turn for personalisation.
  */
 
-export type AiSearchChatHandle = {
-  open: (initialQuery?: string) => void
-  close: () => void
+type AiSearchChatProps = {
+  /** Pre-typed query (from the hero search bar) auto-sent once on mount. */
+  initialQuery?: string
 }
 
 type ProductHit = {
@@ -94,24 +78,19 @@ type SearchToolOutput = {
 
 const PLACEHOLDER = "Ask me anything — products, fabrics, sizing…"
 
-type AiSearchChatProps = { ref?: Ref<AiSearchChatHandle> }
-
-export default function AiSearchChat({ ref }: AiSearchChatProps) {
-  const [open, setOpen] = useState(false)
+export default function AiSearchChat({ initialQuery }: AiSearchChatProps) {
   const [input, setInput] = useState("")
   const [prefs, setPrefs] = useState<AiChatPreferences>({})
   const [showOnboarding, setShowOnboarding] = useState(false)
-  // Dirty state of the onboarding form — populated by the child via
-  // onDirtyChange. We keep it here (not inside OnboardingForm) so the
-  // Radix close interceptors can read it.
-  const [onboardingDirty, setOnboardingDirty] = useState(false)
-  // True when the unsaved-changes Prompt is on screen.
-  const [confirmingClose, setConfirmingClose] = useState(false)
 
   const visitorIdRef = useRef<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const onboardingRef = useRef<OnboardingHandle>(null)
+  // Guards so the one-time mount effects (restore, auto-send) never
+  // re-run and clobber state on re-render / React strict-mode double-invoke.
+  const restoredRef = useRef(false)
+  const sentInitialRef = useRef(false)
 
   // useChat transport — re-built when prefs change so the body
   // closure picks up the latest personalisation snapshot.
@@ -133,50 +112,38 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
 
   const isStreaming = status === "submitted" || status === "streaming"
 
-  useImperativeHandle(
-    ref,
-    () => ({
-      open: (initialQuery) => {
-        const loaded = loadPreferences()
-        setPrefs(loaded)
-        visitorIdRef.current = getOrCreateVisitorId()
-        setShowOnboarding(!loaded.onboarded)
-        setOnboardingDirty(false)
-        setOpen(true)
-        if (initialQuery !== undefined) setInput(initialQuery)
-        window.setTimeout(() => inputRef.current?.focus(), 0)
-      },
-      close: () => setOpen(false),
-    }),
-    []
-  )
+  // Mount: load prefs + visitor id, restore any saved thread, and
+  // decide whether to show onboarding. Onboarding is skipped when the
+  // visitor arrived with an intent query (?q=) — they came to chat.
+  useEffect(() => {
+    if (restoredRef.current) return
+    const loaded = loadPreferences()
+    setPrefs(loaded)
+    visitorIdRef.current = getOrCreateVisitorId()
+    const hasIntent = Boolean(initialQuery && initialQuery.trim().length >= 2)
+    setShowOnboarding(!loaded.onboarded && !hasIntent)
+    const saved = loadConciergeMessages()
+    if (saved.length) setMessages(saved)
+    restoredRef.current = true
+  }, [initialQuery, setMessages])
 
-  // Single place that decides whether a close attempt should pop the
-  // Prompt or actually close. Used by onOpenChange (X button), the
-  // explicit close button in the header, and indirectly by the
-  // onEscapeKeyDown / onPointerDownOutside guards on FocusModal.Content
-  // (those preventDefault THEN call this).
-  const requestClose = useCallback(() => {
-    if (showOnboarding && onboardingDirty) {
-      setConfirmingClose(true)
-      return
-    }
-    setOpen(false)
-  }, [showOnboarding, onboardingDirty])
+  // Auto-send the seeded query once, on the next tick so it lands after
+  // the restore above (the AI SDK appends to its internal message list).
+  useEffect(() => {
+    const q = initialQuery?.trim()
+    if (!q || q.length < 2 || sentInitialRef.current) return
+    sentInitialRef.current = true
+    const t = window.setTimeout(() => sendMessage({ text: q }), 0)
+    return () => window.clearTimeout(t)
+  }, [initialQuery, sendMessage])
 
-  // Radix calls onOpenChange when the user does anything that
-  // dismisses the dialog. We only intercept the close direction —
-  // opening always goes through our imperative handle.
-  const handleOpenChange = useCallback(
-    (next: boolean) => {
-      if (next) {
-        setOpen(true)
-        return
-      }
-      requestClose()
-    },
-    [requestClose]
-  )
+  // Persist after each settled turn. Never auto-save an empty list —
+  // that would let the mount race wipe a restored thread; explicit
+  // clears go through clearConciergeThread() in onClear.
+  useEffect(() => {
+    if (!restoredRef.current || isStreaming) return
+    if (messages.length) saveConciergeMessages(messages)
+  }, [messages, isStreaming])
 
   useEffect(() => {
     if (!scrollRef.current) return
@@ -199,19 +166,18 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
 
   const onClear = useCallback(() => {
     setMessages([])
+    clearConciergeThread()
   }, [setMessages])
 
   const onOnboardingDone = useCallback((next: AiChatPreferences) => {
     setPrefs(next)
     setShowOnboarding(false)
-    setOnboardingDirty(false)
     window.setTimeout(() => inputRef.current?.focus(), 0)
   }, [])
 
   const onOnboardingSkip = useCallback(() => {
     setPrefs((p) => ({ ...p, onboarded: true }))
     setShowOnboarding(false)
-    setOnboardingDirty(false)
     window.setTimeout(() => inputRef.current?.focus(), 0)
   }, [])
 
@@ -219,235 +185,144 @@ export default function AiSearchChat({ ref }: AiSearchChatProps) {
     savePreferences({ onboarded: false })
     setPrefs({ onboarded: false })
     setShowOnboarding(true)
-    setOnboardingDirty(false)
   }, [])
 
   return (
-    <FocusModal open={open} onOpenChange={handleOpenChange}>
-      <FocusModal.Content
-        // Lift the modal above the sticky nav (z-50 in
-        // layout/templates/nav/nav-scroll-header.tsx) and the cart
-        // dropdown (z-50 too). Without this bump, the top of the
-        // FocusModal sits behind "CICI Label Store" and the visitor
-        // can't reach the close button or first input row.
-        className="z-[100]"
-        // Don't restore focus to whatever opened the modal — there's
-        // no `<Dialog.Trigger>` (we open imperatively from the hero),
-        // so Radix's default restore-focus algorithm walks the page
-        // and lands on the first focusable thing it finds (which has
-        // been our footer Send button → page jumps awkwardly on
-        // close). preventDefault tells Radix to leave focus alone.
-        onCloseAutoFocus={(e: Event) => {
-          e.preventDefault()
-        }}
-        // Block dismissal while onboarding has unsaved selections. The
-        // Prompt is opened directly here; we never let Radix close the
-        // dialog out from under the user.
-        onEscapeKeyDown={(e: Event) => {
-          if (showOnboarding && onboardingDirty) {
-            e.preventDefault()
-            setConfirmingClose(true)
-          }
-        }}
-        onPointerDownOutside={(e: Event) => {
-          if (showOnboarding && onboardingDirty) {
-            e.preventDefault()
-            setConfirmingClose(true)
-          }
-        }}
-        onInteractOutside={(e: Event) => {
-          if (showOnboarding && onboardingDirty) {
-            e.preventDefault()
-          }
-        }}
-      >
-        <FocusModal.Header>
-          <div className="flex items-center justify-between gap-2 px-2">
-            <div className="flex flex-col">
-              <FocusModal.Title asChild>
-                <Heading level="h2" className="text-ui-fg-base">
-                  Cici concierge
-                </Heading>
-              </FocusModal.Title>
-              <FocusModal.Description asChild>
-                <Text size="small" className="text-ui-fg-subtle">
-                  Ask about products, fabrics, custom design, or sizing.
-                </Text>
-              </FocusModal.Description>
-            </div>
-            <div className="flex items-center gap-2">
-              {!showOnboarding && messages.length > 0 && (
-                <Button variant="transparent" size="small" onClick={onClear}>
-                  Clear
-                </Button>
+    // Fill the viewport minus the sticky nav (h-16 = 64px) so the
+    // message list owns a native scroll area and the page itself doesn't
+    // scroll — sidestepping the Lenis / scroll-driven-nav conflict that
+    // the old in-hero modal hit.
+    <div className="mx-auto flex h-[calc(100dvh-64px)] w-full max-w-2xl flex-col px-4 sm:px-6">
+      <header className="flex items-center justify-between gap-2 border-b border-ui-border-base py-4">
+        <div className="flex flex-col">
+          <Heading level="h1" className="text-ui-fg-base">
+            Cici concierge
+          </Heading>
+          <Text size="small" className="text-ui-fg-subtle">
+            Ask about products, fabrics, custom design, or sizing.
+          </Text>
+        </div>
+        <div className="flex items-center gap-2">
+          {!showOnboarding && messages.length > 0 && (
+            <Button variant="transparent" size="small" onClick={onClear}>
+              Clear
+            </Button>
+          )}
+          {!showOnboarding && (
+            <Button
+              variant="transparent"
+              size="small"
+              onClick={onResetPrefs}
+              title="Update your preferences"
+            >
+              Prefs
+            </Button>
+          )}
+        </div>
+      </header>
+
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        {showOnboarding ? (
+          <OnboardingForm
+            ref={onboardingRef}
+            initial={prefs}
+            onDone={onOnboardingDone}
+            onSkip={onOnboardingSkip}
+          />
+        ) : (
+          <div className="py-6">
+            {messages.length === 0 && !isStreaming && (
+              <EmptyState prefs={prefs} />
+            )}
+            <ol className="flex flex-col gap-4">
+              {messages.map((m) => (
+                <li key={m.id}>
+                  {m.role === "user" ? (
+                    <UserBubble msg={m} />
+                  ) : (
+                    <AssistantBubble msg={m} />
+                  )}
+                </li>
+              ))}
+              {isStreaming &&
+                messages[messages.length - 1]?.role !== "assistant" && (
+                  <li>
+                    <AssistantSkeleton />
+                  </li>
+                )}
+              {error && (
+                <li>
+                  <div className="rounded-2xl border border-ui-border-error bg-ui-bg-base-error/10 px-3.5 py-3 text-sm text-ui-fg-error">
+                    Something went wrong.{" "}
+                    {error.message ? `(${error.message})` : ""} Try again.
+                  </div>
+                </li>
               )}
-              {!showOnboarding && (
-                <Button
+            </ol>
+          </div>
+        )}
+      </div>
+
+      <div className="shrink-0 border-t border-ui-border-base py-3">
+        {showOnboarding ? (
+          <div className="flex w-full items-center justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => onboardingRef.current?.skip()}
+            >
+              Skip
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => onboardingRef.current?.submit()}
+            >
+              Looks good
+            </Button>
+          </div>
+        ) : (
+          // Input + send-icon laid out as a single rounded "search-bar"
+          // affordance — input spans full width, icon button sits
+          // absolutely inside it on the right.
+          <form onSubmit={onSubmit} className="relative w-full">
+            <Input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={PLACEHOLDER}
+              disabled={isStreaming}
+              className="w-full pr-12"
+              maxLength={500}
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
+              {isStreaming ? (
+                <IconButton
+                  type="button"
                   variant="transparent"
                   size="small"
-                  onClick={onResetPrefs}
-                  title="Update your preferences"
+                  aria-label="Stop generating"
+                  onClick={() => stop()}
                 >
-                  Prefs
-                </Button>
+                  <StopCircleSolid />
+                </IconButton>
+              ) : (
+                <IconButton
+                  type="submit"
+                  variant="primary"
+                  size="small"
+                  aria-label="Send message"
+                  disabled={input.trim().length < 2}
+                >
+                  <ArrowUpMini />
+                </IconButton>
               )}
-              <IconButton
-                variant="transparent"
-                size="small"
-                aria-label="Close"
-                onClick={requestClose}
-              >
-                <XMark />
-              </IconButton>
             </div>
-          </div>
-        </FocusModal.Header>
-
-        <FocusModal.Body
-          ref={scrollRef}
-          className="flex flex-col overflow-y-auto"
-        >
-          {showOnboarding ? (
-            <OnboardingForm
-              ref={onboardingRef}
-              initial={prefs}
-              onDone={onOnboardingDone}
-              onSkip={onOnboardingSkip}
-              onDirtyChange={setOnboardingDirty}
-            />
-          ) : (
-            <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
-              {messages.length === 0 && !isStreaming && (
-                <EmptyState prefs={prefs} />
-              )}
-              <ol className="flex flex-col gap-4">
-                {messages.map((m) => (
-                  <li key={m.id}>
-                    {m.role === "user" ? (
-                      <UserBubble msg={m} />
-                    ) : (
-                      <AssistantBubble msg={m} />
-                    )}
-                  </li>
-                ))}
-                {isStreaming &&
-                  messages[messages.length - 1]?.role !== "assistant" && (
-                    <li>
-                      <AssistantSkeleton />
-                    </li>
-                  )}
-                {error && (
-                  <li>
-                    <div className="rounded-2xl border border-ui-border-error bg-ui-bg-base-error/10 px-3.5 py-3 text-sm text-ui-fg-error">
-                      Something went wrong.{" "}
-                      {error.message ? `(${error.message})` : ""} Try again.
-                    </div>
-                  </li>
-                )}
-              </ol>
-            </div>
-          )}
-        </FocusModal.Body>
-
-        <FocusModal.Footer>
-          {showOnboarding ? (
-            <div className="flex w-full items-center justify-end gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => onboardingRef.current?.skip()}
-              >
-                Skip
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => onboardingRef.current?.submit()}
-              >
-                Looks good
-              </Button>
-            </div>
-          ) : (
-            // Input + send-icon laid out as a single rounded "search-bar"
-            // affordance — input spans full width, icon button sits
-            // absolutely inside it on the right. No separate Send word,
-            // and on small screens the input no longer collapses into a
-            // narrow corner column.
-            <form onSubmit={onSubmit} className="relative w-full">
-              <Input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={PLACEHOLDER}
-                disabled={isStreaming}
-                className="w-full pr-12"
-                maxLength={500}
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
-                {isStreaming ? (
-                  <IconButton
-                    type="button"
-                    variant="transparent"
-                    size="small"
-                    aria-label="Stop generating"
-                    onClick={() => stop()}
-                  >
-                    <StopCircleSolid />
-                  </IconButton>
-                ) : (
-                  <IconButton
-                    type="submit"
-                    variant="primary"
-                    size="small"
-                    aria-label="Send message"
-                    disabled={input.trim().length < 2}
-                  >
-                    <ArrowUpMini />
-                  </IconButton>
-                )}
-              </div>
-            </form>
-          )}
-        </FocusModal.Footer>
-      </FocusModal.Content>
-
-      {/* Unsaved-changes guard. Mirrors the Prompt pattern in admin's
-          route-modal-form.tsx (apps/backend/src/admin/components/modal). */}
-      <Prompt
-        open={confirmingClose}
-        onOpenChange={(o: boolean) => {
-          if (!o) setConfirmingClose(false)
-        }}
-        variant="confirmation"
-      >
-        <Prompt.Content>
-          <Prompt.Header>
-            <Prompt.Title>Unsaved selections</Prompt.Title>
-            <Prompt.Description>
-              You&apos;ve started telling us what you like. Leave anyway?
-            </Prompt.Description>
-          </Prompt.Header>
-          <Prompt.Footer>
-            <Prompt.Cancel
-              type="button"
-              onClick={() => setConfirmingClose(false)}
-            >
-              Keep editing
-            </Prompt.Cancel>
-            <Prompt.Action
-              type="button"
-              onClick={() => {
-                setConfirmingClose(false)
-                setOpen(false)
-              }}
-            >
-              Leave
-            </Prompt.Action>
-          </Prompt.Footer>
-        </Prompt.Content>
-      </Prompt>
-    </FocusModal>
+          </form>
+        )}
+      </div>
+    </div>
   )
 }
 

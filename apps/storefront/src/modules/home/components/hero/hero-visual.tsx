@@ -1,10 +1,8 @@
 "use client"
 
 import imageLoader from "@lib/util/image-loader"
-import { useRef, useState } from "react"
-import AiSearchChat, {
-  type AiSearchChatHandle,
-} from "../ai-search-chat"
+import { useParams, useRouter } from "next/navigation"
+import { useState } from "react"
 import HeroScrollButton from "./hero-scroll-button"
 
 interface HeroVisualProps {
@@ -24,10 +22,11 @@ function nextImg(url: string, w: 1080 | 1920 | 2400 = 1920, q = 82) {
 /**
  * Painting-backed hero with a centred chat-trigger search bar.
  *
- * The chat modal (AiSearchChat) is rendered here so the trigger can
- * .open() it directly — placing them in the same component means a
- * click on the search bar pops the same concierge experience that
- * lives elsewhere on the storefront, with no prop drilling.
+ * Submitting the search bar navigates to the dedicated concierge route
+ * (`/[countryCode]/chat?q=…`) rather than opening an in-hero modal —
+ * the old modal lived inside this pinned `ScrollStage` hero and its
+ * scroll fought Lenis + the scroll-driven nav header. The typed query
+ * is forwarded via `?q=` and auto-sent on the chat page.
  *
  * Layout: a single full-bleed image fills the viewport. A subtle
  * top→bottom darkening keeps the search bar + CTAs legible against
@@ -40,17 +39,19 @@ function nextImg(url: string, w: 1080 | 1920 | 2400 = 1920, q = 82) {
  * don't need a Framer Motion import for a one-shot fade.
  */
 export default function HeroVisual({ imageUrl, alt, credit }: HeroVisualProps) {
-  const chatRef = useRef<AiSearchChatHandle>(null)
+  const router = useRouter()
+  const { countryCode } = useParams()
   const [input, setInput] = useState("")
 
-  const openChat = () => {
-    chatRef.current?.open(input.trim() || undefined)
-    setInput("")
+  const goToChat = () => {
+    const q = input.trim()
+    const base = countryCode ? `/${countryCode}/chat` : "/chat"
+    router.push(q ? `${base}?q=${encodeURIComponent(q)}` : base)
   }
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    openChat()
+    goToChat()
   }
 
   return (
@@ -135,7 +136,6 @@ export default function HeroVisual({ imageUrl, alt, credit }: HeroVisualProps) {
             maxLength={200}
             autoComplete="off"
             spellCheck={false}
-            onFocus={openChat}
           />
           <button
             type="submit"
@@ -173,11 +173,6 @@ export default function HeroVisual({ imageUrl, alt, credit }: HeroVisualProps) {
           {credit}
         </p>
       )}
-
-      {/* Render the chat modal here so the search trigger can open it
-          inline. Mounted once on the hero — the same component is also
-          mounted elsewhere on the storefront where needed. */}
-      <AiSearchChat ref={chatRef} />
     </section>
   )
 }
