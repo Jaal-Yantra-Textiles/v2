@@ -9,7 +9,7 @@ import { useMemo, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 
 import { _DataTable } from "../../../../../components/table/data-table"
-import { Thumbnail } from "../../../../../components/common/thumbnail"
+import { ThumbnailPreview } from "../../../../../components/common/thumbnail/thumbnail-preview"
 import { RouteFocusModal, useRouteModal } from "../../../../../components/modals"
 import { useDataTable } from "../../../../../hooks/use-data-table"
 import {
@@ -167,7 +167,7 @@ const useColumns = () =>
           const r = row.original
           return (
             <div className="flex items-center gap-x-3 overflow-hidden">
-              <Thumbnail src={r.media_url ?? undefined} alt={r.raw_material_name ?? ""} />
+              <ThumbnailPreview src={r.media_url ?? undefined} alt={r.raw_material_name ?? ""} />
               <div className="flex flex-col overflow-hidden">
                 <span className="truncate font-medium">
                   {r.raw_material_name || r.title || r.id}

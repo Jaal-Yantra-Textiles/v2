@@ -15,7 +15,7 @@ import {
 } from "@medusajs/ui";
 import { Outlet, useNavigate, useSearchParams } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
-import { PencilSquare, Eye, ArrowPath } from "@medusajs/icons";
+import { PencilSquare, Eye } from "@medusajs/icons";
 import CreateButton from "../../components/creates/create-button";
 import { RecreateForProductionDrawer } from "../../components/designs/recreate-for-production-drawer";
 import { BulkLinkPartnerDrawer } from "../../components/designs/bulk-link-partner-drawer";
