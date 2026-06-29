@@ -192,7 +192,7 @@ export default function AiSearchChat({ initialQuery }: AiSearchChatProps) {
     // message list owns a native scroll area and the page itself doesn't
     // scroll — sidestepping the Lenis / scroll-driven-nav conflict that
     // the old in-hero modal hit.
-    <div className="mx-auto flex h-[calc(100dvh-64px)] w-full max-w-2xl flex-col px-4 sm:px-6">
+    <div className="flex h-[calc(100dvh-64px)] w-full flex-col px-4 sm:px-6">
       <header className="flex items-center justify-between gap-2 border-b border-ui-border-base py-4">
         <div className="flex flex-col">
           <Heading level="h1" className="text-ui-fg-base">
