@@ -60,6 +60,15 @@ import {
 import { VISUAL_FLOWS_MODULE } from "../../../../modules/visual_flows"
 import { FLOW_DEF as IDEAS_EMAIL_FLOW_DEF } from "../../../../scripts/seed-marketing-daily-ideas-email-flow"
 import { seedEmailTemplatesJob } from "./seed-jobs"
+import {
+  sweepAiPlatformsByCategory,
+  AI_ROLES,
+} from "../../../../mastra/services/ai-platforms"
+import { SOCIALS_MODULE } from "../../../../modules/socials"
+import {
+  buildAiPlatformCoverageReport,
+  planAiPlatformNormalization,
+} from "./ai-platform-sweep-lib"
 
 /**
  * Admin "data-plumbing" maintenance jobs (#457 / roadmap #33).
@@ -4418,6 +4427,104 @@ export const sendMarketingDailySummaryJob: MaintenanceJob = {
   },
 }
 
+/**
+ * Audit configured AI External Platforms by role (#756). Sweeps every
+ * `category=ai` platform (`sweepAiPlatformsByCategory`, #753) and reports, per
+ * known role, whether a usable (active + api-keyed) default platform is
+ * configured or the role falls back to a free model — plus untagged / unknown /
+ * missing-default flags the operator should act on. No secrets are surfaced
+ * (only a `hasApiKey` boolean).
+ *
+ * Dry-run (default) reports only — writes nothing. Apply performs ONLY the safe,
+ * unambiguous normalization: a role whose single usable platform isn't marked
+ * default gets `metadata.is_default = true` (idempotent). It never auto-renames
+ * role typos; those stay as report flags for a human.
+ */
+export const auditAiPlatformsJob: MaintenanceJob = {
+  id: "audit-ai-platforms",
+  label: "Audit AI platforms by role",
+  description:
+    "Sweep category=ai External Platforms and report coverage per known role: which roles have a usable (active, api-keyed, default) platform vs which fall back to free models, plus untagged/unknown-role and missing/ambiguous-default flags. No secrets are shown (only a hasApiKey boolean). Dry-run (default) reports only; apply performs the single safe normalization — mark a role's sole usable platform as default (idempotent). Role-name typos are reported, never auto-corrected.",
+  params: [],
+  run: async (container, { dry_run }) => {
+    const catalog = await sweepAiPlatformsByCategory(container, {
+      includeInactive: true,
+    })
+
+    const report = buildAiPlatformCoverageReport(catalog, AI_ROLES)
+
+    // Coverage rows — one per role, always present (the report payload).
+    const changes: MaintenanceChange[] = report.roles.map((r) => ({
+      entity: "ai-platform-role",
+      id: r.role,
+      field: "coverage",
+      after: {
+        configured: r.configured,
+        hasDefault: r.hasDefault,
+        platformCount: r.platformCount,
+        flags: r.flags,
+        platforms: r.platforms,
+      },
+    }))
+
+    const errors: Array<{ id: string; message: string }> = []
+    let normalized = 0
+
+    // Apply: only the safe sole-usable-platform → default normalization.
+    const plan = planAiPlatformNormalization(catalog)
+    if (plan.length > 0) {
+      const socials: any = container.resolve(SOCIALS_MODULE)
+      for (const action of plan) {
+        if (!dry_run) {
+          try {
+            const [row] = await socials.listSocialPlatforms({
+              id: action.platformId,
+            })
+            const nextMeta = {
+              ...((row?.metadata as Record<string, any>) ?? {}),
+              is_default: true,
+            }
+            await socials.updateSocialPlatforms({
+              selector: { id: action.platformId },
+              data: { metadata: nextMeta },
+            })
+            normalized++
+          } catch (e: any) {
+            errors.push({
+              id: action.platformId,
+              message: e?.message ?? String(e),
+            })
+            continue
+          }
+        }
+        changes.push({
+          entity: "social_platform",
+          id: action.platformId,
+          field: action.field,
+          before: action.before,
+          after: action.after,
+        })
+      }
+    }
+
+    const planNote =
+      plan.length > 0
+        ? dry_run
+          ? `; ${plan.length} default(s) would be set (apply to fix)`
+          : `; set ${normalized} default(s)`
+        : ""
+
+    return {
+      job_id: auditAiPlatformsJob.id,
+      dry_run,
+      applied: !dry_run && normalized > 0,
+      summary: report.summary + planNote,
+      changes,
+      ...(errors.length ? { errors } : {}),
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -4440,6 +4547,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   installMarketingIdeasEmailFlowJob,
   generateWinbackTargetsJob,
   sendMarketingDailySummaryJob,
+  auditAiPlatformsJob,
   seedEmailTemplatesJob,
 ]
 

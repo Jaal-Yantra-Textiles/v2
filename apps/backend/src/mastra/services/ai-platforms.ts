@@ -636,9 +636,16 @@ export const PROVIDER_TYPES: AiProviderType[] = [
   "custom",
 ]
 
+// Backend canonical list of the known AI roles. Keep in sync with the admin
+// dropdown (`src/admin/components/social-platforms/ai-roles.ts`
+// → KNOWN_AI_ROLES). Custom (operator-coined) roles are still discovered at
+// runtime by the category sweep — this list only drives "expected role"
+// reporting (e.g. the AI-platform coverage Data Plumbing job, #756).
 export const AI_ROLES: AiRole[] = [
   "ai_search_chat",
   "ai_search_embed",
   "ai_product_description",
+  "ai_image_gen",
+  "ai_digest_summary",
   "ai_newsletter_drafter",
 ]
