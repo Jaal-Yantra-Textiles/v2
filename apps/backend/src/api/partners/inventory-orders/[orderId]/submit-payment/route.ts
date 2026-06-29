@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { z } from "@medusajs/framework/zod";
-import { getPartnerFromAuthContext } from "../../../helpers";
+import { getPartnerFromAuthContext, assertPartnerOwnsInventoryOrder } from "../../../helpers";
 import { createPaymentAndLinkWorkflow } from "../../../../../workflows/internal_payments/create-payment-and-link";
 
 const attachmentSchema = z.object({
@@ -48,6 +48,9 @@ export async function POST(
             error: "Partner authentication required"
         });
     }
+    // #778 C1 — ownership guard: this order must belong to the acting partner.
+    // Throws NOT_FOUND (→404) otherwise; closes the IDOR.
+    await assertPartnerOwnsInventoryOrder(req.scope, orderId, partner.id);
 
     const { amount, payment_type, payment_date, note, paid_to_id, attachments } = validation.data;
 

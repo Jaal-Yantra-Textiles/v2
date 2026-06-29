@@ -79,7 +79,7 @@ import { updateInventoryOrderWorkflow } from "../../../../../workflows/inventory
 import { ORDER_INVENTORY_MODULE } from "../../../../../modules/inventory_orders";
 import InventoryOrderService from "../../../../../modules/inventory_orders/service";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
-import { getPartnerFromAuthContext } from "../../../helpers";
+import { getPartnerFromAuthContext, assertPartnerOwnsInventoryOrder } from "../../../helpers";
 import { TASKS_MODULE } from "../../../../../modules/tasks";
 import TaskService from "../../../../../modules/tasks/service";
 
@@ -102,6 +102,9 @@ export async function POST(
             error: "Partner authentication required"
         });
     }
+    // #778 C1 — ownership guard: this order must belong to the acting partner.
+    // Throws NOT_FOUND (→404) otherwise; closes the IDOR.
+    await assertPartnerOwnsInventoryOrder(req.scope, orderId, partner.id);
     const inventoryOrderService: InventoryOrderService = req.scope.resolve(ORDER_INVENTORY_MODULE);
     
     // Get the order to validate it exists and get transaction ID

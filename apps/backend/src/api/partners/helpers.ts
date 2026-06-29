@@ -196,6 +196,45 @@ export const validatePartnerEntityOwnership = async (
 }
 
 /**
+ * Pure ownership predicate (#778 C1): does this inventory order's linked partner
+ * match the acting partner? Exported for unit testing.
+ */
+export const inventoryOrderOwnedByPartner = (
+    orderPartner: { id?: string | null } | null | undefined,
+    partnerId: string | null | undefined,
+): boolean => Boolean(orderPartner?.id && partnerId && orderPartner.id === partnerId)
+
+/**
+ * Assert the acting partner owns the inventory order, else throw NOT_FOUND.
+ *
+ * Closes the IDOR on the partner mutation routes (start / complete /
+ * submit-payment, #778 C1): they previously fetched the order by bare id and
+ * never checked it belonged to the caller, so any authenticated partner could
+ * mutate any order. Mirrors the GET-detail ownership rule (`inventory_orders.partner`),
+ * but throws NOT_FOUND rather than NOT_ALLOWED so we don't leak the existence of
+ * other partners' orders.
+ */
+export const assertPartnerOwnsInventoryOrder = async (
+    container: MedusaContainer,
+    orderId: string,
+    partnerId: string,
+): Promise<void> => {
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+        entity: "inventory_orders",
+        fields: ["id", "partner.id"],
+        filters: { id: orderId },
+    })
+    const order = data?.[0] as any
+    if (!order || !inventoryOrderOwnedByPartner(order.partner, partnerId)) {
+        throw new MedusaError(
+            MedusaError.Types.NOT_FOUND,
+            `Inventory order ${orderId} not found`,
+        )
+    }
+}
+
+/**
  * Validates that an order belongs to the partner — by the SAME two scoping rules
  * the partner orders LIST uses (`list-partner-orders` workflow), so the detail +
  * its 27 sibling action routes accept exactly the orders the list shows:
