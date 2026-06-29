@@ -40,6 +40,7 @@ import {
   type TemplateLanguageVariant,
 } from "./whatsapp-templates/partner-run-templates"
 import { PARTNER_PAYMENT_TEMPLATES } from "./whatsapp-templates/partner-payment-templates"
+import { INVENTORY_ORDER_TEMPLATES } from "./whatsapp-templates/inventory-order-templates"
 
 // All templates this script manages. Add a new TemplateSpec[] here when
 // a new domain (e.g. shipping notifications) joins the system — Meta
@@ -47,6 +48,7 @@ import { PARTNER_PAYMENT_TEMPLATES } from "./whatsapp-templates/partner-payment-
 const ALL_TEMPLATES: TemplateSpec[] = [
   ...PARTNER_RUN_TEMPLATES,
   ...PARTNER_PAYMENT_TEMPLATES,
+  ...INVENTORY_ORDER_TEMPLATES, // #771 inventory-order status notifications
 ]
 
 const GRAPH_API_BASE = "https://graph.facebook.com/v21.0"
