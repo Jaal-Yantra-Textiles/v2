@@ -221,7 +221,24 @@ export default function AiSearchChat({ initialQuery }: AiSearchChatProps) {
         </div>
       </header>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+      {/*
+        Two things are required for this list to actually scroll:
+          1. `min-h-0` — a flex child defaults to `min-height: auto`, so
+             without this the list grows to fit its content instead of
+             constraining to `flex-1` and `overflow-y-auto` never engages.
+          2. `data-lenis-prevent` — the app is wrapped in `<ReactLenis root>`
+             (smooth-scroll.tsx), which hijacks wheel/touch on the whole
+             document. Lenis only lets a nested element scroll natively when
+             it (or an ancestor) carries this attribute. Without it the
+             message list "can't scroll" — wheel/touch drive the page, not
+             the list. `overscroll-contain` stops the bounce from chaining
+             back out to the page at the ends.
+      */}
+      <div
+        ref={scrollRef}
+        data-lenis-prevent
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+      >
         {showOnboarding ? (
           <OnboardingForm
             ref={onboardingRef}
