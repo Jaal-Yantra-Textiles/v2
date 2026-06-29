@@ -107,7 +107,7 @@
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { z } from "@medusajs/framework/zod";
-import { getPartnerFromAuthContext } from "../../../helpers";
+import { getPartnerFromAuthContext, assertPartnerOwnsInventoryOrder } from "../../../helpers";
 import { partnerCompleteInventoryOrderWorkflow } from "../../../../../workflows/inventory_orders/partner-complete-inventory-order";
 
 // Accept both snake_case and camelCase for backward compatibility, then normalize
@@ -158,6 +158,9 @@ export async function POST(
                 error: "Partner authentication required"
             });
         }
+        // #778 C1 — ownership guard: this order must belong to the acting partner.
+        // Throws NOT_FOUND (→404) otherwise; closes the IDOR.
+        await assertPartnerOwnsInventoryOrder(req.scope, orderId, partner.id);
         // Delegate to workflow which validates, updates, completes tasks, and signals conditionally
         const { result, errors } = await partnerCompleteInventoryOrderWorkflow(req.scope).run({
             input: {
