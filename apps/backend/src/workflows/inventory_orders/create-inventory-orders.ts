@@ -102,7 +102,26 @@ export const createInventoryOrderWithLinesStep = createStep(
     }
 
     const created = await inventoryOrderService.createInvWithLines(processedOrderData, orderLinesForService);
-    return new StepResponse(created);
+    // Compensation data so the SAGA can roll the order + lines back if a later
+    // (cross-module) step fails — the module-link writes are NOT part of the
+    // create transaction, so this is how we stay consistent across that boundary
+    // (#778 C3).
+    return new StepResponse(created, {
+      orderId: created?.order?.id,
+      lineIds: (created?.orderLines ?? []).map((l: any) => l.id),
+    });
+  },
+  async (compensationData, { container }) => {
+    if (!compensationData?.orderId) return;
+    const service = container.resolve(ORDER_INVENTORY_MODULE) as InventoryOrderService;
+    try {
+      if (compensationData.lineIds?.length) {
+        await (service as any).deleteOrderLines(compensationData.lineIds);
+      }
+      await service.deleteInventoryOrders(compensationData.orderId);
+    } catch {
+      /* best-effort rollback */
+    }
   }
 );
 
@@ -111,25 +130,35 @@ export const createInventoryOrderWithLinesStep = createStep(
 export const linkInventoryItemsWithLinesStep = createStep(
   "link-inventory-items-with-lines-step",
   async (
-    input: { order_id: string; orderline_ids: string[]; inventory_item_ids: string[] },
+    input: { order_id: string; line_pairs: { order_line_id: string; inventory_item_id: string }[] },
     { container }
   ) => {
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
-    const links: LinkDefinition[] = input.orderline_ids.map((orderlineId, idx) => ({
+    // Link each line to its inventory item by the explicit pairing computed at
+    // creation time (#778 C3) — never by re-zipping two arrays by index.
+    const links: LinkDefinition[] = (input.line_pairs ?? []).map(({ order_line_id, inventory_item_id }) => ({
       [ORDER_INVENTORY_MODULE]: {
-        inventory_order_line_id: orderlineId,
+        inventory_order_line_id: order_line_id,
       },
       [Modules.INVENTORY]: {
-        inventory_item_id: input.inventory_item_ids[idx],
+        inventory_item_id,
       },
       data: {
-        //order_id: input.order_id,
-        order_line_id: orderlineId,
-        inventory_item_id: input.inventory_item_ids[idx],
+        order_line_id,
+        inventory_item_id,
       },
     }));
     await remoteLink.create(links);
-    return new StepResponse(links);
+    return new StepResponse(links, links);
+  },
+  async (links, { container }) => {
+    if (!links?.length) return;
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
+    try {
+      await remoteLink.dismiss(links as any);
+    } catch {
+      /* best-effort link cleanup */
+    }
   }
 );
 
@@ -216,8 +245,9 @@ export const createInventoryOrderWorkflow = createWorkflow(
         }
         return {
           order_id: created.order.id,
-          orderline_ids: created.orderLines.map((ol: any) => ol.id),
-          inventory_item_ids: input.order_lines.map((ol: any) => ol.inventory_item_id),
+          // Explicit line→item pairing from the create step (#778 C3) — not a
+          // positional zip of separately-derived id arrays.
+          line_pairs: created.lineItemPairs ?? [],
           order: created.order,
           orderLines: created.orderLines,
         }
