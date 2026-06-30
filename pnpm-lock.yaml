@@ -20,8 +20,6 @@ overrides:
   zod: ^4.2.0
   '@types/node': ^20.12.11
 
-packageExtensionsChecksum: sha256-tIw/7vgSnmr1pm+T4Ic21AlQDu12tlA3c6lnDdh4nAM=
-
 importers:
 
   .:
@@ -23964,7 +23962,6 @@ snapshots:
   '@medusajs/loyalty-plugin@2.17.1(@medusajs/admin-sdk@2.17.1)(@medusajs/cli@2.17.1(@types/node@20.19.34))(@medusajs/dashboard@2.17.1(@emotion/is-prop-valid@1.4.0)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(typescript@5.9.3))(@medusajs/framework@2.17.1(@medusajs/cli@2.17.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(@medusajs/icons@2.17.1(react@18.3.1))(@medusajs/test-utils@2.17.1)(@medusajs/ui@4.1.18(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@medusajs/framework': 2.17.1(@medusajs/cli@2.17.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6)
-      '@tanstack/react-query': 5.90.21(react@18.3.1)
     optionalDependencies:
       '@medusajs/admin-sdk': 2.17.1
       '@medusajs/cli': 2.17.1(@types/node@20.19.34)
