@@ -184,6 +184,9 @@ const awaitOrderStart = createStep(
     {
         name: 'await-order-start',
         async: true,
+        // #778 H12 — actually apply the configured await timeout (was computed
+        // but never wired), mirroring production-run lifecycle steps.
+        timeout: AWAIT_TIMEOUT_SECONDS,
         maxRetries: 2
     },
     async (_, { container }) => {
@@ -195,6 +198,8 @@ const awaitOrderCompletion = createStep(
     {
         name: 'await-order-completion',
         async: true,
+        // #778 H12 — apply the configured await timeout (see awaitOrderStart).
+        timeout: AWAIT_TIMEOUT_SECONDS,
         maxRetries: 2
     },
     async (_, { container }) => {
