@@ -1,4 +1,4 @@
-import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
 import {
   createWorkflow,
   createStep,
@@ -14,7 +14,6 @@ import InventoryOrder from "../../modules/inventory_orders/models/order";
 import InventoryOrderService from "../../modules/inventory_orders/service";
 import type { InventoryOrderInputStatus } from "../../modules/inventory_orders/constants";
 import type { Link } from "@medusajs/modules-sdk";
-import type { IInventoryService } from "@medusajs/types";
 import { dualWriteUnifiedOrderStep } from "./dual-write-unified-order";
 export type InventoryOrder = InferTypeOf<typeof InventoryOrder>;
 
@@ -41,29 +40,6 @@ export interface CreateInventoryOrderInput {
 }
 
 // --- Inventory Orders Steps ---
-
-export const validateInventoryStep = createStep(
-  "validate-inventory-step",
-  async (input: CreateInventoryOrderInput, { container }) => {
-    const inventoryService = container.resolve(Modules.INVENTORY) as IInventoryService;
-    const missingItems: string[] = [];
-    for (const line of input.order_lines) {
-      try {
-        await inventoryService.retrieveInventoryItem(line.inventory_item_id);
-      } catch (err) {
-        // If not found, Medusa's retrieveInventoryItem should throw
-        missingItems.push(line.inventory_item_id);
-      }
-    }
-    if (missingItems.length > 0) {
-      throw new MedusaError(
-        MedusaError.Types.NOT_FOUND,
-        `Inventory items not found: ${missingItems.join(", ")}`
-      );
-    }
-    return new StepResponse(true);
-  }
-);
 
 export const createInventoryOrderWithLinesStep = createStep(
   "create-inventory-order-with-lines-step",

@@ -12,12 +12,12 @@ import { inventoryOrderLoader } from "./loader";
 import InventoryOrderIDSection from "../../../../components/inventory-orders/inventory-order-general-orderId";
 
 const InventoryOrderDetailPage = () => {
-  const intialData = useLoaderData() as Awaited<AdminInventoryOrderResponse>
+  const initialData = useLoaderData() as Awaited<AdminInventoryOrderResponse>
   const { id } = useParams();
   const { inventoryOrder, isLoading, isError, error } = useInventoryOrder(id!, {
     fields: ['orderlines.*', 'orderlines.inventory_items.*', 'stock_locations.*', 'stock_locations.address.*', '+tasks.*', '+partner.*', '+internal_payments.*', '+internal_payments.attachments.*']
   }, {
-    initialData: intialData
+    initialData
   });
   
   // Show loading skeleton while data is being fetched

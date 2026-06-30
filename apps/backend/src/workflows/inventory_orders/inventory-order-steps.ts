@@ -21,14 +21,14 @@ export const setInventoryOrderStepSuccessStep = createStep(
         { stepId, updatedOrder }: SetInventoryOrderStepSuccessInput,
         { container, context }
     ) {
-        console.log("setInventoryOrderStepSuccessStep", updatedOrder)
+        const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
         const engineService = container.resolve(
             Modules.WORKFLOW_ENGINE
         ) as IWorkflowEngineService
-        
+
         // Get the workflow transaction ID from associated tasks instead of order metadata
         const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
-        
+
         // Find tasks linked to this inventory order that have a transaction ID
         const taskLinksResult = await query.graph({
             entity: "inventory_orders",
@@ -42,14 +42,7 @@ export const setInventoryOrderStepSuccessStep = createStep(
             }
         })
         const taskLinks = taskLinksResult.data || []
-        try {
-            const first = Array.isArray(taskLinks) ? taskLinks[0] : undefined
-            const tasksPreview = first?.tasks ? first.tasks.map((t: any) => ({ id: t.id, status: t.status })) : []
-            console.log("taskLinksResult preview", { count: taskLinks.length, tasksPreview })
-        } catch (e) {
-            console.warn("Unable to log taskLinksResult safely")
-        }
-        
+
         // Find a task with a transaction ID (should be one of the partner workflow tasks)
         let workflowTransactionId: string | null = null
         for (const order of taskLinks) {
@@ -68,12 +61,10 @@ export const setInventoryOrderStepSuccessStep = createStep(
             throw new Error(`No workflow transaction ID found in tasks for inventory order ${updatedOrder.id}`);
         }
         
-        console.log("Setting inventory order step success:", {
-            stepId,
-            workflowTransactionId,
-            workflowName: sendInventoryOrderToPartnerWorkflow.getName()
-        });
-        
+        logger.debug(
+            `[inventory-order] step success stepId=${stepId} txn=${workflowTransactionId} workflow=${sendInventoryOrderToPartnerWorkflow.getName()}`
+        )
+
         await engineService.setStepSuccess({
             idempotencyKey: {
                 action: TransactionHandlerType.INVOKE,
@@ -98,6 +89,7 @@ export const setInventoryOrderStepFailedStep = createStep(
         { stepId, updatedOrder, error }: SetInventoryOrderStepFailedInput,
         { container }
     ) {
+        const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
         const engineService = container.resolve(
             Modules.WORKFLOW_ENGINE
         ) as IWorkflowEngineService
@@ -138,13 +130,10 @@ export const setInventoryOrderStepFailedStep = createStep(
             throw new Error(`No workflow transaction ID found in tasks for inventory order ${updatedOrder.id}`);
         }
         
-        console.log("Setting inventory order step failure:", {
-            stepId,
-            workflowTransactionId,
-            error,
-            workflowName: sendInventoryOrderToPartnerWorkflow.getName()
-        });
-        
+        logger.debug(
+            `[inventory-order] step failure stepId=${stepId} txn=${workflowTransactionId} error=${error ?? ""} workflow=${sendInventoryOrderToPartnerWorkflow.getName()}`
+        )
+
         await engineService.setStepFailure({
             idempotencyKey: {
                 action: TransactionHandlerType.INVOKE,

@@ -4,30 +4,35 @@
  * POST /admin/inventory-orders
  * - Description: Create a new inventory order via the createInventoryOrderWorkflow.
  * - Permissions: Admin
- * - Request Body (application/json): CreateInventoryOrder
+ * - Request Body (application/json): see createInventoryOrdersSchema (validators.ts)
  *   Example:
  *   {
- *     "supplier_id": "sup_123",
- *     "items": [
- *       { "sku": "FABRIC_A", "quantity": 200, "unit_price": 4.5 },
- *       { "sku": "TRIM_B", "quantity": 50, "unit_price": 1.25 }
+ *     "order_lines": [
+ *       { "inventory_item_id": "iitem_FABRIC_A", "quantity": 200, "price": 4.5 },
+ *       { "inventory_item_id": "iitem_TRIM_B", "quantity": 50, "price": 1.25 }
  *     ],
+ *     "quantity": 250,
+ *     "total_price": 962.5,
+ *     "status": "Pending",
+ *     "order_date": "2026-01-14T00:00:00.000Z",
  *     "expected_delivery_date": "2026-02-15T00:00:00.000Z",
- *     "notes": "Urgent run for spring collection"
+ *     "shipping_address": { "city": "Delhi", "country_code": "in" },
+ *     "stock_location_id": "sloc_warehouse",
+ *     "is_sample": false
  *   }
  * - Success (201):
  *   Content-Type: application/json
  *   Example:
  *   {
  *     "inventoryOrder": {
- *       "id": "invord_abc123",
- *       "supplier_id": "sup_123",
- *       "status": "pending",
- *       "items": [
- *         { "sku": "FABRIC_A", "quantity": 200, "unit_price": 4.5 },
- *         { "sku": "TRIM_B", "quantity": 50, "unit_price": 1.25 }
+ *       "id": "inv_order_abc123",
+ *       "status": "Pending",
+ *       "quantity": 250,
+ *       "total_price": 962.5,
+ *       "orderlines": [
+ *         { "id": "...", "inventory_id": "iitem_FABRIC_A", "quantity": 200, "price": 4.5 },
+ *         { "id": "...", "inventory_id": "iitem_TRIM_B", "quantity": 50, "price": 1.25 }
  *       ],
- *       "total_price": 1000.0,
  *       "expected_delivery_date": "2026-02-15T00:00:00.000Z",
  *       "created_at": "2026-01-14T12:00:00.000Z"
  *     }
@@ -40,7 +45,7 @@
  * curl -X POST "https://api.example.com/admin/inventory-orders" \
  *   -H "Authorization: Bearer <ADMIN_TOKEN>" \
  *   -H "Content-Type: application/json" \
- *   -d '{ "supplier_id":"sup_123", "items":[{"sku":"FABRIC_A","quantity":200,"unit_price":4.5}], "expected_delivery_date":"2026-02-15T00:00:00.000Z" }'
+ *   -d '{ "order_lines":[{"inventory_item_id":"iitem_FABRIC_A","quantity":200,"price":4.5}], "quantity":200, "total_price":900, "status":"Pending", "order_date":"2026-01-14T00:00:00.000Z", "expected_delivery_date":"2026-02-15T00:00:00.000Z", "shipping_address":{"city":"Delhi","country_code":"in"}, "stock_location_id":"sloc_warehouse" }'
  *
  * --------------------------------------------------------------------------
  *
@@ -49,14 +54,14 @@
  * - Permissions: Admin
  * - Query Parameters (see listInventoryOrdersQuerySchema):
  *   - q (string)         : text search / id
- *   - status (string)    : one of InventoryOrderStatus (e.g. pending, received, cancelled)
+ *   - status (string)    : one of INVENTORY_ORDER_STATUS (e.g. "Pending", "Processing", "Partial", "Delivered", "Cancelled")
  *   - quantity (number)  : exact quantity filter
  *   - total_price (number): exact total price filter
  *   - expected_delivery_date (ISO date)
  *   - order_date (ISO date)
  *   - order (string)     : "created_at:desc" or "total_price:asc" (parsed by parseOrderParam)
  *   - offset (number)    : pagination offset (default 0)
- *   - limit (number)     : pagination limit (default 50)
+ *   - limit (number)     : pagination limit (default 20, max 100)
  * - Success (200):
  *   Content-Type: application/json
  *   Example:
