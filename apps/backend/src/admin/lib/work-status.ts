@@ -51,6 +51,8 @@ export const getStatusBadgeColor = (
     case "started":
     case "processing":
     case "proposed":
+    // #778 H8 — a partial/short fulfillment needs attention, like in-progress.
+    case "partial":
       return "orange"
 
     case "awaiting_review":
