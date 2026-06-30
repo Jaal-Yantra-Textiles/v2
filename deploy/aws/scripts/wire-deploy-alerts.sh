@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# ⚠️  RETIRED (2026-06-30): the per-deploy ECS notification emails were turned
+# off — GitHub already carries enough deploy detail. The EventBridge rule this
+# script creates (jyt-prod-ecs-deploy-state-change) has been removed in prod.
+# DO NOT re-run this without intent; run unwire-deploy-alerts.sh to tear down.
+# (The jyt-prod-alerts SNS topic + email subscription remain in use by the
+#  operational CloudWatch alarms — those are unaffected.)
+#
 # Wire ECS deployment state-change events from the prod cluster into the
 # existing jyt-prod-alerts SNS topic, and subscribe an email endpoint.
 #
