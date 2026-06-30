@@ -115,8 +115,8 @@ importers:
         specifier: ^5.0.1
         version: 5.2.2(react-hook-form@7.71.2(react@18.3.1))
       '@jytextiles/medusa-plugin-etsy-sync':
-        specifier: workspace:*
-        version: link:../../packages/medusa-plugin-etsy-sync
+        specifier: 0.1.0
+        version: 0.1.0(@medusajs/admin-sdk@2.17.1)(@medusajs/cli@2.17.1(@types/node@20.19.34))(@medusajs/dashboard@2.17.1(@emotion/is-prop-valid@1.4.0)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(typescript@5.9.3))(@medusajs/framework@2.17.1(@medusajs/cli@2.17.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(@medusajs/icons@2.17.1(react@18.3.1))(@medusajs/medusa@2.17.1)(@medusajs/test-utils@2.17.1)(@medusajs/types@2.17.1(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)))(@medusajs/ui@4.1.18(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
       '@mastra/core':
         specifier: latest
         version: 1.28.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.19.19)(quansync@0.2.11)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.19.19)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.3.6)
@@ -4063,6 +4063,22 @@ packages:
     engines: {node: '>=10.0'}
     peerDependencies:
       tslib: '2'
+
+  '@jytextiles/medusa-plugin-etsy-sync@0.1.0':
+    resolution: {integrity: sha512-qD6VlZCWYIMXm/UA1FstebcY+19r/WIU4MKsA7HLNgznHvdGQJ5W7ReDpSBHMpThMnI4xLuwN+7MzNqBkN88yg==}
+    peerDependencies:
+      '@medusajs/admin-sdk': 2.17.1
+      '@medusajs/cli': 2.17.1
+      '@medusajs/dashboard': 2.17.1
+      '@medusajs/framework': 2.17.1
+      '@medusajs/icons': 2.17.1
+      '@medusajs/medusa': 2.17.1
+      '@medusajs/test-utils': 2.17.1
+      '@medusajs/types': 2.17.1
+      '@medusajs/ui': 4.1.18
+      react: ^18.3.1
+      react-dom: ^18.3.1
+      react-router-dom: 6.30.3
 
   '@leichtgewicht/ip-codec@2.0.5':
     resolution: {integrity: sha512-Vo+PSpZG2/fmgmiNzYK9qWRh8h/CHrwD0mo1h1DzL4yzHNSfWYujGTYsWGreD000gcgmZ7K4Ys6Tx9TxtsKdDw==}
@@ -23170,6 +23186,21 @@ snapshots:
       '@jsonjoy.com/buffers': 17.67.0(tslib@2.8.1)
       '@jsonjoy.com/codegen': 17.67.0(tslib@2.8.1)
       tslib: 2.8.1
+
+  '@jytextiles/medusa-plugin-etsy-sync@0.1.0(@medusajs/admin-sdk@2.17.1)(@medusajs/cli@2.17.1(@types/node@20.19.34))(@medusajs/dashboard@2.17.1(@emotion/is-prop-valid@1.4.0)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(typescript@5.9.3))(@medusajs/framework@2.17.1(@medusajs/cli@2.17.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(@medusajs/icons@2.17.1(react@18.3.1))(@medusajs/medusa@2.17.1)(@medusajs/test-utils@2.17.1)(@medusajs/types@2.17.1(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)))(@medusajs/ui@4.1.18(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      '@medusajs/admin-sdk': 2.17.1
+      '@medusajs/cli': 2.17.1(@types/node@20.19.34)
+      '@medusajs/dashboard': 2.17.1(@emotion/is-prop-valid@1.4.0)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(typescript@5.9.3)
+      '@medusajs/framework': 2.17.1(@medusajs/cli@2.17.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6)
+      '@medusajs/icons': 2.17.1(react@18.3.1)
+      '@medusajs/medusa': 2.17.1(c19b2390f357d222923509d2d95872fa)
+      '@medusajs/test-utils': 2.17.1(@medusajs/core-flows@2.17.1(@medusajs/framework@2.17.1(@medusajs/cli@2.17.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6)))(@medusajs/framework@2.17.1(@medusajs/cli@2.17.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.3.6))(@medusajs/medusa@2.17.1)
+      '@medusajs/types': 2.17.1(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))
+      '@medusajs/ui': 4.1.18(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+      react-router-dom: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
 
   '@leichtgewicht/ip-codec@2.0.5': {}
 

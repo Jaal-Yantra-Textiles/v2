@@ -78,7 +78,7 @@
     "@medusajs/types": "2.17.1",
     "@medusajs/ui": "4.1.18",
     "@medusajs/workflows-sdk": "2.17.1",
-    "@jytextiles/medusa-plugin-etsy-sync": "workspace:*",
+    "@jytextiles/medusa-plugin-etsy-sync": "0.1.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@monaco-editor/react": "^4.7.0",
     "@openrouter/ai-sdk-provider": "^1.1.2",
