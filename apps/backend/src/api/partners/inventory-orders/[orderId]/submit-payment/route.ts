@@ -70,10 +70,8 @@ export async function POST(
     });
 
     if (errors && errors.length > 0) {
-        return res.status(500).json({
-            error: "Failed to submit payment",
-            details: errors
-        });
+        // #778 H10 — surface the real error; MedusaError types map to 4xx.
+        throw errors[0].error
     }
 
     return res.status(200).json({

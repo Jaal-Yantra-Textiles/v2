@@ -70,13 +70,16 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { updateInventoryOrderWorkflow } from "../../../../../workflows/inventory_orders/update-inventory-orders";
 import { refetchInventoryOrder } from "../../helpers";
+import type { UpdateInventoryOrderLines } from "../../validators";
 
 export const PUT = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
   const { id } = req.params;
-  const payload = req.body as any;
+  // #778 H10 — use the validated/transformed body (a validator is registered
+  // for this route in middlewares.ts), not the raw req.body.
+  const payload = req.validatedBody as UpdateInventoryOrderLines;
 
   const { result, errors } = await updateInventoryOrderWorkflow(req.scope).run({
     input: {
@@ -87,7 +90,9 @@ export const PUT = async (
   });
 
   if (errors.length > 0) {
-    throw errors;
+    // Throw the underlying MedusaError so it maps to the right 4xx, not the
+    // raw errors array.
+    throw errors[0].error;
   }
 
   const inventoryOrder = await refetchInventoryOrder(id, req.scope);

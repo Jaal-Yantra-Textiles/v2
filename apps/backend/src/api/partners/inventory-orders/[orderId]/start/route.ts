@@ -178,11 +178,8 @@ export async function POST(
     });
     
     if (errors && errors.length > 0) {
-        console.warn("Error updating inventory order:", errors);
-        return res.status(500).json({
-            error: "Failed to update inventory order",
-            details: errors
-        });
+        // #778 H10 — surface the real error; MedusaError types map to 4xx.
+        throw errors[0].error
     }
     
     // Mark the "received" task as completed to update partner status
@@ -226,11 +223,8 @@ export async function POST(
     });
     
     if (stepErrors && stepErrors.length > 0) {
-        console.warn("Error signaling workflow:", stepErrors);
-        return res.status(500).json({
-            error: "Failed to update workflow",
-            details: stepErrors
-        });
+        // #778 H10 — surface the real error; MedusaError types map to 4xx.
+        throw stepErrors[0].error
     }
     
     res.status(200).json({
