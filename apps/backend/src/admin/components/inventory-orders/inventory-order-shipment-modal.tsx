@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Drawer, Button, Input, Label, Text, toast } from "@medusajs/ui";
+import { Drawer, Button, Input, Label, Select, Text, toast } from "@medusajs/ui";
 import {
   AdminInventoryOrder,
   useCreateInventoryOrderShipment,
 } from "../../hooks/api/inventory-orders";
+import { useStockLocations } from "../../hooks/api/stock_location";
 
 type Props = {
   inventoryOrder: AdminInventoryOrder;
@@ -18,7 +19,12 @@ type Props = {
  * success and the workflow's actionable message on failure.
  */
 export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange }: Props) => {
-  const [pickup, setPickup] = useState("");
+  // Default the pickup ("ship from") to the order's own from-location when one
+  // is assigned — a shipment is created per order, so the location the goods
+  // leave from is the natural default; the user can still pick another.
+  const orderFromLocationId =
+    (inventoryOrder as any).from_stock_location?.id ?? "";
+  const [pickup, setPickup] = useState(orderFromLocationId);
   const [weight, setWeight] = useState("");
   const [length, setLength] = useState("");
   const [breadth, setBreadth] = useState("");
@@ -26,6 +32,7 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
   const [courier, setCourier] = useState("");
 
   const { mutateAsync, isPending } = useCreateInventoryOrderShipment(inventoryOrder.id);
+  const { stock_locations = [] } = useStockLocations({ limit: 100 });
 
   const handleSubmit = async () => {
     const dims =
@@ -69,8 +76,19 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
             leave them blank to use the order's defaults and a registered pickup.
           </Text>
           <div className="flex flex-col gap-1">
-            <Label size="small" htmlFor="pickup">Pickup stock location ID</Label>
-            <Input id="pickup" value={pickup} onChange={(e) => setPickup(e.target.value)} placeholder="sloc_… (optional)" />
+            <Label size="small" htmlFor="pickup">Ship from (pickup location)</Label>
+            <Select value={pickup} onValueChange={setPickup}>
+              <Select.Trigger id="pickup">
+                <Select.Value placeholder="Use registered carrier pickup (optional)" />
+              </Select.Trigger>
+              <Select.Content>
+                {stock_locations.map((loc) => (
+                  <Select.Item key={loc.id} value={loc.id}>
+                    {loc.name}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
           </div>
           <div className="flex flex-col gap-1">
             <Label size="small" htmlFor="weight">Weight (grams)</Label>

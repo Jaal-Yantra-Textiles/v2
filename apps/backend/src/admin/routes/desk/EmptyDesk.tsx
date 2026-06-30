@@ -1,10 +1,14 @@
-import { Container, Heading, Text } from "@medusajs/ui"
 import { EntityPickerGrid, type EntityKey } from "./EntityPicker"
 
 /**
- * Centered empty state shown when the workspace has no tabs. Mirrors
- * the visual of the existing /operations + /content hub pages so it
- * feels native to the admin.
+ * Empty state shown when the workspace has no tabs.
+ *
+ * Renders only the entity-picker grid — NOT its own `<Container>` or heading.
+ * It sits inside the Desk page-level `<Container>` (see page.tsx), which now
+ * carries the "Open a workspace tab" heading; wrapping it again stacked two
+ * `shadow-elevation-card-rest` cards (a card-in-a-card) that read as two
+ * overlapping containers. The grid is centered in the available area so the
+ * spacing above and below it is equal.
  */
 export const EmptyDesk = ({
   onSelect,
@@ -14,18 +18,8 @@ export const EmptyDesk = ({
   onOpenCore?: (path: string) => void
 }) => (
   <div className="flex items-center justify-center h-full p-6">
-    <Container className="max-w-2xl w-full p-0">
-      <div className="px-6 py-4 border-b border-ui-border-base">
-        <Heading>Open a workspace tab</Heading>
-        <Text size="small" className="text-ui-fg-subtle">
-          Pick what you want to work on. Each tab is its own routing
-          context — you can open several side by side and drag them to
-          split. Press <kbd>⌘⇧K</kbd> anywhere in the Desk to search.
-        </Text>
-      </div>
-      <div className="px-6 py-4">
-        <EntityPickerGrid onSelect={onSelect} onOpenCore={onOpenCore} />
-      </div>
-    </Container>
+    <div className="max-w-2xl w-full">
+      <EntityPickerGrid onSelect={onSelect} onOpenCore={onOpenCore} />
+    </div>
   </div>
 )
