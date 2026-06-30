@@ -87,6 +87,10 @@ export interface AdminInventoryOrdersQuery {
   order_date?: string;
   expected_delivery_date?: string;
   q?: string;
+  // Sort directive, e.g. "order_date:DESC" — parsed server-side by
+  // parseOrderParam. Drives the table's default recent-first ordering and
+  // column-header sorting (#784).
+  order?: string;
 }
 
 const INVENTORY_ORDER_QUERY_KEY = "inventory-orders" as const;
