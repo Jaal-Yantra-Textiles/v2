@@ -404,4 +404,39 @@ setupSharedTestSuite(() => {
 
 
     });
+
+    // #790 slice 2 — standalone admin shipment endpoint. The status guard +
+    // not-found checks are deterministic (they fire before the carrier call), so
+    // they don't depend on a live shipping provider in the test env.
+    describe("POST /admin/inventory-orders/:id/shipment", () => {
+      it("rejects creating a shipment for a Pending order (status guard)", async () => {
+        const orderPayload = {
+          order_lines: [{ inventory_item_id: inventoryItemId, quantity: 2, price: 100 }],
+          quantity: 2,
+          total_price: 200,
+          status: "Pending",
+          expected_delivery_date: new Date().toISOString(),
+          order_date: new Date().toISOString(),
+          shipping_address: {},
+          stock_location_id: stockLocationId,
+          from_stock_location_id: fromStockLocationId,
+        };
+        const created = await api.post("/admin/inventory-orders", orderPayload, headers);
+        expect(created.status).toBe(201);
+        const id = created.data.inventoryOrder.id;
+
+        const res = await api
+          .post(`/admin/inventory-orders/${id}/shipment`, {}, headers)
+          .catch((err) => err.response);
+        expect(res.status).toBe(400);
+        expect(res.data.message).toMatch(/cannot create a shipment/i);
+      });
+
+      it("returns 404 for a non-existent order", async () => {
+        const res = await api
+          .post("/admin/inventory-orders/inv_order_does_not_exist/shipment", {}, headers)
+          .catch((err) => err.response);
+        expect(res.status).toBe(404);
+      });
+    });
 });
