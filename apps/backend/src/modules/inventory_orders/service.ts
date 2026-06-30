@@ -7,6 +7,7 @@ import {
 
 import InventoryOrder from "./models/order";
 import OrderLine from "./models/orderline";
+import InventoryOrderActivity from "./models/inventory-order-activity";
 import type { InventoryOrderInputStatus } from "./constants";
 
 import { InferTypeOf, Context } from "@medusajs/framework/types"
@@ -37,6 +38,7 @@ interface CreateOrderLine {
 class InventoryOrderService extends MedusaService({
   InventoryOrder,
   OrderLine,
+  InventoryOrderActivity,
 }) {
   constructor() {
     super(...arguments)
