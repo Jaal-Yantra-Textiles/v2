@@ -181,7 +181,8 @@ export const useUpdateInventoryOrder = (
   });
 };
 
-// #790 slice 3 — mark an order "Ready for Delivery" (Processing/Partial → it).
+// #790 slice 3 — mark an order "Ready for Delivery" (Partial → it; completion
+// must be recorded first, so raw "Processing" is rejected by the API).
 export const useMarkInventoryOrderReadyForDelivery = (
   id: string,
   options?: UseMutationOptions<{ order: AdminInventoryOrder }, FetchError, void>,
