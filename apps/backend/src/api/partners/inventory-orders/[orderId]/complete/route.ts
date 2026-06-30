@@ -182,7 +182,10 @@ export async function POST(
                 deliveryDate: normalizedDeliveryDate,
                 trackingNumber: normalizedTrackingNumber,
                 stock_location_id: normalizedStockLocationId,
-                lines
+                lines,
+                // #780 C1 defense-in-depth — re-verify ownership inside the
+                // workflow too (route already guards via assertPartnerOwnsInventoryOrder).
+                partnerId: partner.id,
             }
         })
         if (errors && errors.length > 0) {
