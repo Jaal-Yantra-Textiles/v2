@@ -199,13 +199,14 @@ const validateAndFetchOrderStep = createStep(
 
     const order = orders[0]
 
-    // Allow Processing or Partial for subsequent partial deliveries (lint-safe cast)
+    // #778 H3 — the order's `status` column is the SINGLE source of truth for
+    // "is this order in a partner-started state". Processing (started) or Partial
+    // (mid partial-delivery) may receive a completion; anything else may not.
+    // (The old duplicate `metadata.partner_status` guard was redundant with this
+    // — status and that metadata field were always written in lockstep — and is
+    // removed along with the metadata writes to end the triple-source drift.)
     if (!(((order as any).status === "Processing") || ((order as any).status === "Partial"))) {
       throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Inventory order ${input.orderId} not in an updatable state (status: ${order.status})`)
-    }
-
-    if (order.metadata?.partner_status !== "started" && order.metadata?.partner_status !== "partial") {
-      throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Inventory order ${input.orderId} is not in started state`)
     }
 
     if (!Array.isArray(input.lines) || input.lines.length === 0) {
@@ -296,12 +297,14 @@ const validateAndFetchOrderStep = createStep(
       submitted_at: new Date().toISOString(),
     }
 
-    // Compute metadata patch with delivery info
+    // Compute metadata patch with delivery info. #778 H3 — no `partner_status`
+    // here anymore: the order's `status` column (Shipped/Partial/Delivered set by
+    // this workflow's update) is the single source of truth; the metadata copy
+    // was write-only drift.
     const completionMetadata = {
       ...(order.metadata || {}),
       // Bug 7 fix: only set partner_completed_at when fully fulfilled
       ...(fullyFulfilled ? { partner_completed_at: new Date().toISOString() } : {}),
-      partner_status: fullyFulfilled ? "completed" : "partial",
       partner_completion_notes: input.notes,
       partner_delivery_date: input.deliveryDate,
       partner_tracking_number: input.trackingNumber,

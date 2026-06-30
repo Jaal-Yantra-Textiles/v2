@@ -167,11 +167,12 @@ export async function POST(
         input: {
             id: orderId,
             update: {
+                // #778 H3 — `status` is the single source of truth for partner
+                // progress; no `metadata.partner_status` copy (that was drift).
                 status: "Processing", // Change status from Pending to Processing
                 metadata: {
                     ...order.metadata,
                     partner_started_at: new Date().toISOString(),
-                    partner_status: 'started'
                 }
             }
         }
