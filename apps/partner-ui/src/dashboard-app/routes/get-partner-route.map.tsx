@@ -684,6 +684,20 @@ export function getPartnerRouteMap(): RouteObject[] {
                           "../../routes/inventory-orders/inventory-order-submit-payment"
                         ),
                     },
+                    {
+                      path: "inventory/ready-for-delivery",
+                      lazy: () =>
+                        import(
+                          "../../routes/inventory-orders/inventory-order-ready-for-delivery"
+                        ),
+                    },
+                    {
+                      path: "inventory/create-shipment",
+                      lazy: () =>
+                        import(
+                          "../../routes/inventory-orders/inventory-order-create-shipment"
+                        ),
+                    },
                     // #342 — design work-order task detail, folded onto the
                     // unified order detail (was `/production-runs/:id/tasks/:task_id`).
                     // Standalone partner tasks (not tied to a run) keep their own

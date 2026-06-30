@@ -3424,6 +3424,8 @@
       "producing": "Producing",
       "start": "Start",
       "complete": "Complete",
+      "readyForDelivery": "Mark ready for delivery",
+      "createShipment": "Create shipment",
       "submitPayment": "Submit payment",
       "fulfillments": "Fulfillments",
       "noFulfillments": "No deliveries recorded yet.",
