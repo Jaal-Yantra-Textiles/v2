@@ -5,6 +5,10 @@ const InventoryOrder = model.define("inventory_orders", {
   id: model.id({prefix: 'inv_order'}).primaryKey(),
   quantity: model.float(),
   total_price: model.bigNumber(),
+  // #778 H9 — the order's currency. Previously absent: the dual-write to the
+  // unified order assumed INR (currency_assumed:true). Defaults to "inr" for
+  // back-compat; the dual-write now uses this instead of guessing.
+  currency_code: model.text().default("inr"),
   status: model.enum([
     "Pending",
     "Processing",

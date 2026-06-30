@@ -24,6 +24,8 @@ const inventoryOrdersBaseSchema = z.object({
   // Allow decimal order quantity (sum of line quantities)
   quantity: z.number().nonnegative("Order quantity must be zero or positive"),
   total_price: z.number().nonnegative("Total price must be zero or positive"),
+  // #778 H9 — ISO currency code; defaults to inr at the DB layer when omitted.
+  currency_code: z.string().min(3).max(3).optional(),
   // System-only statuses (e.g. "Partial") are intentionally excluded — see
   // INVENTORY_ORDER_STATUS_INPUT in the module constants (#778 H8).
   status: z.enum(

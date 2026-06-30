@@ -20,6 +20,7 @@ export type OrderLinesResponse = InferTypeOf<typeof OrderLine>[]
 interface CreateInventoryOrder {
   quantity: number;
   total_price: number;
+  currency_code?: string;
   status: InventoryOrderInputStatus;
   expected_delivery_date: Date | undefined;
   order_date: Date | undefined;
