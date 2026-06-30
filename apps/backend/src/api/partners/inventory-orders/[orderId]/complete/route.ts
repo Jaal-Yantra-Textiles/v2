@@ -186,10 +186,10 @@ export async function POST(
             }
         })
         if (errors && errors.length > 0) {
-            return res.status(500).json({
-                error: "Failed to complete inventory order",
-                details: errors
-            })
+            // #778 H10 — let the underlying error drive the HTTP status. A
+            // MedusaError (NOT_ALLOWED/INVALID_DATA/NOT_FOUND) maps to the right
+            // 4xx via the framework error handler; only genuine failures 500.
+            throw errors[0].error
         }
 
         // #772 — opt-in carrier shipment. Runs only after the completion

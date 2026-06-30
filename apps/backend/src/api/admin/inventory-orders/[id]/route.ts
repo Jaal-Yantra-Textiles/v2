@@ -102,10 +102,14 @@ export const PUT = async (
 
   const { errors } = await updateInventoryOrderWorkflow(req.scope).run({ input });
   if (errors.length > 0) {
-    return res.status(400).json({ errors });
+    // #778 H10 — surface the underlying MedusaError so the status reflects the
+    // failure type (NOT_FOUND→404, NOT_ALLOWED→403, …) instead of a blanket 400.
+    throw errors[0].error;
   }
   const inventoryOrder = await refetchInventoryOrder(id, req.scope);
-  return res.status(200).json(inventoryOrder);
+  // #778 H10 — wrap the payload as { inventoryOrder } to match GET and the
+  // admin hook's expected shape (an unwrapped object broke cache/parse).
+  return res.status(200).json({ inventoryOrder });
 };
 
 

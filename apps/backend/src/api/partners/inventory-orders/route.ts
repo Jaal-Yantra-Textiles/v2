@@ -262,10 +262,14 @@ export async function GET(
             offset
         });
     } catch (error) {
-        console.error("[Inventory Orders] Error:", error);
-        return res.status(500).json({
-            error: "Failed to fetch inventory orders",
-            details: error instanceof Error ? error.message : String(error)
-        });
+        const logger = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+        logger.error(
+            "[partner inventory-orders] list failed",
+            error instanceof Error ? error : new Error(String(error))
+        )
+        // #778 H10 — don't leak internal error details to the client; let the
+        // framework error handler produce a sanitized response (MedusaError
+        // types still map to the right 4xx).
+        throw error
     }
 }
