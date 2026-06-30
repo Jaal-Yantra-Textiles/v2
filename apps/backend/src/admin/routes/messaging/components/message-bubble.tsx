@@ -267,6 +267,17 @@ export const MessageBubble = ({
             </span>
           )}
         </div>
+
+        {/* Why a delivery failed (Meta error). Captured from the WhatsApp status
+            webhook so the operator sees the reason instead of a bare ✗. */}
+        {isOutbound && message.status === "failed" && message.fail_reason && (
+          <div
+            className="mt-1 text-[10px] text-red-300 text-right break-words"
+            title={message.fail_reason}
+          >
+            {message.fail_reason}
+          </div>
+        )}
       </div>
 
       {/* Reply + actions (right side for inbound) */}
