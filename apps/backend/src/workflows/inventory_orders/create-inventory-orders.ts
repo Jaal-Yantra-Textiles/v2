@@ -13,6 +13,7 @@ import { InferTypeOf } from "@medusajs/framework/types"
 import InventoryOrder from "../../modules/inventory_orders/models/order";
 import InventoryOrderService from "../../modules/inventory_orders/service";
 import type { InventoryOrderInputStatus } from "../../modules/inventory_orders/constants";
+import { sumLineTotals } from "../../modules/inventory_orders/lib/create-helpers";
 import type { Link } from "@medusajs/modules-sdk";
 import { dualWriteUnifiedOrderStep } from "./dual-write-unified-order";
 export type InventoryOrder = InferTypeOf<typeof InventoryOrder>;
@@ -28,6 +29,7 @@ export interface InventoryOrderLineInput {
 export interface CreateInventoryOrderInput {
   quantity: number;
   total_price: number;
+  currency_code?: string;
   status: InventoryOrderInputStatus;
   expected_delivery_date: Date | undefined;
   order_date: Date | undefined;
@@ -57,11 +59,10 @@ export const createInventoryOrderWithLinesStep = createStep(
       metadata: line.metadata
     }));
 
-    // Compute defaults for fields that may be undefined when called from a visual flow
-    const totalFromLines = orderLinesForService.reduce(
-      (sum, l) => sum + (Number(l.price) || 0),
-      0
-    )
+    // Compute defaults for fields that may be undefined when called from a visual
+    // flow. #778 H9 — `price` is the PER-UNIT price, so the order total is the
+    // sum of price × quantity per line (see sumLineTotals).
+    const totalFromLines = sumLineTotals(orderLinesForService)
     const quantityFromLines = orderLinesForService.reduce(
       (sum, l) => sum + (Number(l.quantity) || 0),
       0

@@ -28,6 +28,21 @@ export type LineItemPair = {
   inventory_item_id: string
 }
 
+/**
+ * Sum the per-unit line prices into an order total (#778 H9).
+ *
+ * `price` is the PER-UNIT price (matches the admin UI, validators, and registry
+ * cost reads), so each line contributes `price × quantity`. Used as the fallback
+ * order total when a caller (e.g. a visual flow) omits `total_price`.
+ */
+export const sumLineTotals = (
+  order_lines: Pick<CreateOrderLineInput, "price" | "quantity">[]
+): number =>
+  order_lines.reduce(
+    (sum, l) => sum + (Number(l.price) || 0) * (Number(l.quantity) || 0),
+    0
+  )
+
 /** Build the persistence payloads for the order lines of one inventory order. */
 export const buildOrderLinePayloads = (
   order_lines: CreateOrderLineInput[],

@@ -261,10 +261,15 @@ export const dualWriteUnifiedOrderStep = createStep(
           skipped: "no_region",
         })
       }
-      // #485: centralised default-currency selection. Partner is linked AFTER
-      // creation here, so the platform/base store currency is used at stamping
-      // time; the #457 backfill job re-stamps to the partner currency later.
-      const currencyCode = pickDefaultCurrency(store, "inr")
+      // #778 H9 — prefer the order's own currency_code; only fall back to the
+      // store/platform default when it's missing (legacy rows). #485: centralised
+      // default-currency selection; the #457 backfill job re-stamps to the
+      // partner currency later.
+      const orderCurrency =
+        typeof (order as any).currency_code === "string" && (order as any).currency_code
+          ? String((order as any).currency_code)
+          : null
+      const currencyCode = orderCurrency || pickDefaultCurrency(store, "inr")
 
       // Internal sales channel keeps work-orders out of storefront analytics
       // and retail listings. Lazily ensured (idempotent) instead of a seed
@@ -295,20 +300,22 @@ export const dualWriteUnifiedOrderStep = createStep(
         ])
       )
 
-      // Legacy line `price` is the line-total contribution (the legacy
-      // workflow sums plain prices into total_price); core wants unit price.
+      // #778 H9 — legacy line `price` is the PER-UNIT price (matches the admin
+      // UI, validators, and registry cost reads). Core also wants unit price, so
+      // pass it straight through — do NOT divide by quantity (that was the money
+      // bug: it under-priced every multi-unit line on the unified order).
       const items = orderLines.map((line: any, idx: number) => {
         const legacyLine = input.order_lines[idx]
         const quantity = Number(line.quantity)
-        const lineTotal = Number(line.price)
+        const unitPrice = Number(line.price)
         return {
           title: titleByItemId.get(legacyLine?.inventory_item_id) ?? "Raw material",
           quantity,
-          unit_price: quantity > 0 ? lineTotal / quantity : lineTotal,
+          unit_price: unitPrice,
           metadata: {
             inventory_item_id: legacyLine?.inventory_item_id,
             legacy_orderline_id: line.id,
-            legacy_line_price: lineTotal,
+            legacy_unit_price: unitPrice,
           },
         }
       })
@@ -326,7 +333,8 @@ export const dualWriteUnifiedOrderStep = createStep(
         to_stock_location_id:
           input.to_stock_location_id || input.stock_location_id,
         from_stock_location_id: input.from_stock_location_id ?? null,
-        currency_assumed: true,
+        // #778 H9 — only "assumed" when the order didn't carry its own currency.
+        currency_assumed: !orderCurrency,
         ...(extra ? { shipping_address_extra: extra } : {}),
       }
 

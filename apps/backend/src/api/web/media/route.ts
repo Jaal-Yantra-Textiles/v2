@@ -70,9 +70,12 @@ export const GET = async (
       is_public: true,
     };
 
-    // Add type filter if provided
+    // Add type filter if provided. Must use `file_type` (the actual
+    // MediaFile column) — the listAllMediasWorkflow whitelist drops
+    // unknown keys, so `type` would silently no-op and leak every
+    // public media regardless of the requested type.
     if (type) {
-      filters.type = type;
+      filters.file_type = type;
     }
 
     let mediaFiles: any[] = []

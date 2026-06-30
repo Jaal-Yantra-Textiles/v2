@@ -1,7 +1,37 @@
 import {
   buildOrderLinePayloads,
   buildInventoryLineLinkPairs,
+  sumLineTotals,
 } from "../lib/create-helpers"
+
+describe("sumLineTotals (#778 H9 — price is per-unit)", () => {
+  it("sums price × quantity per line", () => {
+    expect(
+      sumLineTotals([
+        { price: 4.5, quantity: 200 },
+        { price: 1.25, quantity: 50 },
+      ])
+    ).toBeCloseTo(962.5)
+  })
+
+  it("does NOT treat price as a line total (the old bug)", () => {
+    // 10 units @ 8 each = 80, not 8.
+    expect(sumLineTotals([{ price: 8, quantity: 10 }])).toBe(80)
+  })
+
+  it("treats missing/NaN price or quantity as 0", () => {
+    expect(
+      sumLineTotals([
+        { price: NaN as any, quantity: 5 },
+        { price: 3, quantity: undefined as any },
+      ])
+    ).toBe(0)
+  })
+
+  it("is 0 for no lines", () => {
+    expect(sumLineTotals([])).toBe(0)
+  })
+})
 
 describe("buildOrderLinePayloads (#778 C3)", () => {
   it("maps each input line to a persistence payload bound to the order id", () => {
