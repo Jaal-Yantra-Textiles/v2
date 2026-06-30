@@ -20,7 +20,7 @@ const inventoryOrdersBaseSchema = z.object({
   // Allow decimal order quantity (sum of line quantities)
   quantity: z.number().nonnegative("Order quantity must be zero or positive"),
   total_price: z.number().nonnegative("Total price must be zero or positive"),
-  status: z.enum(["Pending", "Processing", "Shipped", "Delivered", "Cancelled"]),
+  status: z.enum(["Pending", "Processing", "Ready for Delivery", "Shipped", "Delivered", "Cancelled"]),
   expected_delivery_date: z.coerce.date(),
   order_date: z.coerce.date(),
   metadata: z.record(z.string(), z.unknown()).optional(),

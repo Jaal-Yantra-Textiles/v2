@@ -417,7 +417,7 @@ const WORKFLOW_INPUT_SCHEMAS: Record<string, WorkflowInputField[]> = {
   "create-inventory-order-workflow": [
     { name: "quantity",               type: "number",  required: true,  description: "Total unit count", placeholder: "{{ extracted.total_quantity }}" },
     { name: "total_price",            type: "number",  required: true,  description: "Total order price", placeholder: "{{ extracted.total }}" },
-    { name: "status",                 type: "string",  required: true,  description: "Pending | Processing | Shipped | Delivered | Cancelled", placeholder: "Pending" },
+    { name: "status",                 type: "string",  required: true,  description: "Pending | Processing | Ready for Delivery | Shipped | Delivered | Cancelled", placeholder: "Pending" },
     { name: "stock_location_id",      type: "id",      required: true,  description: "Destination stock location ID", placeholder: "sloc_..." },
     { name: "order_date",             type: "date",    required: false, description: "ISO date string", placeholder: "{{ $trigger.received_at }}" },
     { name: "expected_delivery_date", type: "date",    required: false, description: "ISO date string", placeholder: "{{ extracted.estimated_delivery }}" },
@@ -426,7 +426,7 @@ const WORKFLOW_INPUT_SCHEMAS: Record<string, WorkflowInputField[]> = {
   ],
   "update-inventory-order-workflow": [
     { name: "id",       type: "id",     required: true,  description: "Inventory order ID", placeholder: "{{ $last.id }}" },
-    { name: "status",   type: "string", required: false, description: "Pending | Processing | Shipped | Delivered | Cancelled", placeholder: "Shipped" },
+    { name: "status",   type: "string", required: false, description: "Pending | Processing | Ready for Delivery | Shipped | Delivered | Cancelled", placeholder: "Shipped" },
     { name: "metadata", type: "object", required: false, description: "Fields to merge into metadata", placeholder: '{ "key": "value" }' },
   ],
   "delete-inventory-order-workflow": [

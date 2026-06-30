@@ -8,6 +8,9 @@ const InventoryOrder = model.define("inventory_orders", {
   status: model.enum([
     "Pending",
     "Processing",
+    // #790 — goods packed/ready to hand to the carrier, before the shipment/AWB
+    // is created. Sits between Processing and Shipped in the lifecycle.
+    "Ready for Delivery",
     "Shipped",
     "Delivered",
     "Cancelled",

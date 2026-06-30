@@ -210,6 +210,7 @@ const InventoryOrdersPage = () => {
       options: [
         { label: "Pending", value: "Pending" },
         { label: "Processing", value: "Processing" },
+        { label: "Ready for Delivery", value: "Ready for Delivery" },
         { label: "Shipped", value: "Shipped" },
         { label: "Delivered", value: "Delivered" },
         { label: "Cancelled", value: "Cancelled" },

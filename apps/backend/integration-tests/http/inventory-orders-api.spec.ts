@@ -107,6 +107,28 @@ setupSharedTestSuite(() => {
         expect(res.status).toBe(400);
         expect(res.data || res.data).toBeDefined();
       });
+
+      // #790 — the new "Ready for Delivery" status must be accepted by the
+      // validator AND the DB check constraint (proves Migration20260630120000
+      // landed the new enum value).
+      it("should accept the new 'Ready for Delivery' status", async () => {
+        const orderPayload = {
+          order_lines: [
+            { inventory_item_id: inventoryItemId, quantity: 2, price: 100 },
+          ],
+          quantity: 2,
+          total_price: 200,
+          status: "Ready for Delivery",
+          expected_delivery_date: new Date().toISOString(),
+          order_date: new Date().toISOString(),
+          shipping_address: {},
+          stock_location_id: stockLocationId,
+          from_stock_location_id: fromStockLocationId,
+        };
+        const res = await api.post("/admin/inventory-orders", orderPayload, headers);
+        expect(res.status).toBe(201);
+        expect(res.data.inventoryOrder.status).toBe("Ready for Delivery");
+      });
     });
 
     type OrderLine = { inventory_item_id: string; quantity: number; price: number };
