@@ -12,6 +12,7 @@ import { transform } from "@medusajs/framework/workflows-sdk";
 import { InferTypeOf } from "@medusajs/framework/types"
 import InventoryOrder from "../../modules/inventory_orders/models/order";
 import InventoryOrderService from "../../modules/inventory_orders/service";
+import type { InventoryOrderInputStatus } from "../../modules/inventory_orders/constants";
 import type { Link } from "@medusajs/modules-sdk";
 import type { IInventoryService } from "@medusajs/types";
 import { dualWriteUnifiedOrderStep } from "./dual-write-unified-order";
@@ -28,7 +29,7 @@ export interface InventoryOrderLineInput {
 export interface CreateInventoryOrderInput {
   quantity: number;
   total_price: number;
-  status: 'Pending' | 'Processing' | 'Ready for Delivery' | 'Shipped' | 'Delivered' | 'Cancelled';
+  status: InventoryOrderInputStatus;
   expected_delivery_date: Date | undefined;
   order_date: Date | undefined;
   shipping_address: Record<string, unknown>;

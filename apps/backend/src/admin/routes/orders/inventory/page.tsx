@@ -207,11 +207,15 @@ const InventoryOrdersPage = () => {
     filterHelper.accessor("status", {
       type: "select",
       label: "Status",
+      // Keep in sync with INVENTORY_ORDER_STATUS (modules/inventory_orders/
+      // constants.ts). "Partial" is system-set on short fulfillments but must
+      // be filterable here (#778 H8).
       options: [
         { label: "Pending", value: "Pending" },
         { label: "Processing", value: "Processing" },
         { label: "Ready for Delivery", value: "Ready for Delivery" },
         { label: "Shipped", value: "Shipped" },
+        { label: "Partial", value: "Partial" },
         { label: "Delivered", value: "Delivered" },
         { label: "Cancelled", value: "Cancelled" },
       ],

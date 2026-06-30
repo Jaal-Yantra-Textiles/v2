@@ -1,6 +1,10 @@
 import { z } from "@medusajs/framework/zod";
 // Query schema for listing inventory orders
-import { INVENTORY_ORDER_STATUS } from "../../../modules/inventory_orders/constants";
+import {
+  INVENTORY_ORDER_STATUS,
+  INVENTORY_ORDER_STATUS_INPUT,
+  type InventoryOrderInputStatus,
+} from "../../../modules/inventory_orders/constants";
 
 // Input schema for inventory order lines
 export const inventoryOrderLineInputSchema = z.object({
@@ -20,7 +24,14 @@ const inventoryOrdersBaseSchema = z.object({
   // Allow decimal order quantity (sum of line quantities)
   quantity: z.number().nonnegative("Order quantity must be zero or positive"),
   total_price: z.number().nonnegative("Total price must be zero or positive"),
-  status: z.enum(["Pending", "Processing", "Ready for Delivery", "Shipped", "Delivered", "Cancelled"]),
+  // System-only statuses (e.g. "Partial") are intentionally excluded — see
+  // INVENTORY_ORDER_STATUS_INPUT in the module constants (#778 H8).
+  status: z.enum(
+    INVENTORY_ORDER_STATUS_INPUT as [
+      InventoryOrderInputStatus,
+      ...InventoryOrderInputStatus[]
+    ]
+  ),
   expected_delivery_date: z.coerce.date(),
   order_date: z.coerce.date(),
   metadata: z.record(z.string(), z.unknown()).optional(),

@@ -7,6 +7,7 @@ import {
 
 import InventoryOrder from "./models/order";
 import OrderLine from "./models/orderline";
+import type { InventoryOrderInputStatus } from "./constants";
 
 import { InferTypeOf, Context } from "@medusajs/framework/types"
 import {
@@ -18,7 +19,7 @@ export type OrderLinesResponse = InferTypeOf<typeof OrderLine>[]
 interface CreateInventoryOrder {
   quantity: number;
   total_price: number;
-  status: 'Pending' | 'Processing' | 'Ready for Delivery' | 'Shipped' | 'Delivered' | 'Cancelled';
+  status: InventoryOrderInputStatus;
   expected_delivery_date: Date | undefined;
   order_date: Date | undefined;
   metadata?: Record<string, unknown>;
