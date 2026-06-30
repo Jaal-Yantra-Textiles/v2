@@ -268,11 +268,28 @@ import { UploadMediaRequest } from "./validator";
         delete filters.q
       }
 
-      // Validate file_type filter against allowed enum values
+      // Validate file_type filter against allowed enum values. Accepts
+      // a single string OR an array (multi-type, e.g. video+image) —
+      // arrays are normalized to a `$in` operator so the workflow's
+      // MediaFile query matches any of the requested types. Mirrors the
+      // pattern in admin/visual-flows/route.ts. Invalid values are
+      // dropped; if none remain, the filter is removed entirely.
       if (filters.file_type !== undefined) {
         const validTypes = ["image", "video", "audio", "document", "archive", "other"]
-        if (typeof filters.file_type !== "string" || !validTypes.includes(filters.file_type)) {
+        const raw = Array.isArray(filters.file_type)
+          ? filters.file_type
+          : typeof filters.file_type === "string"
+            ? [filters.file_type]
+            : []
+        const valid = raw.filter(
+          (t: any) => typeof t === "string" && validTypes.includes(t)
+        )
+        if (valid.length === 0) {
           delete filters.file_type
+        } else if (valid.length === 1) {
+          filters.file_type = valid[0]
+        } else {
+          filters.file_type = { $in: valid }
         }
       }
 

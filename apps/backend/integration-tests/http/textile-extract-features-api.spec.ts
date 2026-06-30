@@ -303,7 +303,7 @@ setupSharedTestSuite(() => {
       expect(listRes.data).toBeDefined()
 
       // All returned items should be images
-      const mediaFiles = listRes.data.mediaFiles || []
+      const mediaFiles = listRes.data.media_files || listRes.data.mediaFiles || []
       for (const media of mediaFiles) {
         expect(media.file_type).toBe("image")
       }
@@ -312,6 +312,36 @@ setupSharedTestSuite(() => {
     })
 
     it("should filter media by file_type=video", async () => {
+      const unique = Date.now()
+      const mediaService: any = getContainer().resolve("media")
+
+      // Seed one public video and one public image into the global pool
+      // so the video filter has something to match — and so we can prove
+      // the image is excluded. Without seeding, an empty result set
+      // passes vacuously and hides a broken filter.
+      await mediaService.createMediaFiles({
+        file_name: `admin-filter-vid-${unique}.mp4`,
+        original_name: `admin-filter-vid-${unique}.mp4`,
+        file_path: `https://cdn.example.com/admin-filter-vid-${unique}.mp4`,
+        file_type: "video",
+        mime_type: "video/mp4",
+        file_size: 5000,
+        file_hash: `hash-admin-vid-${unique}`,
+        extension: "mp4",
+        is_public: true,
+      })
+      await mediaService.createMediaFiles({
+        file_name: `admin-filter-img-${unique}.jpg`,
+        original_name: `admin-filter-img-${unique}.jpg`,
+        file_path: `https://cdn.example.com/admin-filter-img-${unique}.jpg`,
+        file_type: "image",
+        mime_type: "image/jpeg",
+        file_size: 1000,
+        file_hash: `hash-admin-img-${unique}`,
+        extension: "jpg",
+        is_public: true,
+      })
+
       const listRes = await api.get("/admin/medias", {
         ...headers,
         params: {
@@ -322,13 +352,63 @@ setupSharedTestSuite(() => {
       expect(listRes.status).toBe(200)
       expect(listRes.data).toBeDefined()
 
-      // All returned items should be videos (or empty if none exist)
-      const mediaFiles = listRes.data.mediaFiles || []
+      const mediaFiles = listRes.data.media_files || listRes.data.mediaFiles || []
       for (const media of mediaFiles) {
         expect(media.file_type).toBe("video")
       }
 
+      const paths = mediaFiles.map((m: any) => m.file_path)
+      expect(paths).toContain(`https://cdn.example.com/admin-filter-vid-${unique}.mp4`)
+      expect(paths).not.toContain(`https://cdn.example.com/admin-filter-img-${unique}.jpg`)
+
       console.log(`Found ${mediaFiles.length} video files`)
+    })
+
+    it("should filter media by multiple file_type values (video + image)", async () => {
+      const unique = Date.now()
+      const mediaService: any = getContainer().resolve("media")
+
+      // Seed one of each: video, image, and a document. The multi-type
+      // filter (video + image) must return the first two and exclude the
+      // document. If the route drops array file_type values, the filter
+      // no-ops and the document leaks through.
+      const mk = (file_type: string, ext: string, mime: string) =>
+        mediaService.createMediaFiles({
+          file_name: `multi-${file_type}-${unique}.${ext}`,
+          original_name: `multi-${file_type}-${unique}.${ext}`,
+          file_path: `https://cdn.example.com/multi-${file_type}-${unique}.${ext}`,
+          file_type,
+          mime_type: mime,
+          file_size: 1000,
+          file_hash: `hash-multi-${file_type}-${unique}`,
+          extension: ext,
+          is_public: true,
+        })
+      await mk("video", "mp4", "video/mp4")
+      await mk("image", "jpg", "image/jpeg")
+      await mk("document", "pdf", "application/pdf")
+
+      const listRes = await api.get("/admin/medias", {
+        ...headers,
+        params: {
+          "filters[file_type]": ["video", "image"],
+        },
+      })
+
+      expect(listRes.status).toBe(200)
+      const mediaFiles = listRes.data.media_files || listRes.data.mediaFiles || []
+
+      const allowed = new Set(["video", "image"])
+      for (const media of mediaFiles) {
+        expect(allowed.has(media.file_type)).toBe(true)
+      }
+
+      const paths = mediaFiles.map((m: any) => m.file_path)
+      expect(paths).toContain(`https://cdn.example.com/multi-video-${unique}.mp4`)
+      expect(paths).toContain(`https://cdn.example.com/multi-image-${unique}.jpg`)
+      expect(paths).not.toContain(`https://cdn.example.com/multi-document-${unique}.pdf`)
+
+      console.log(`Found ${mediaFiles.length} files matching video+image`)
     })
 
     it("should ignore invalid file_type values", async () => {
@@ -358,13 +438,109 @@ setupSharedTestSuite(() => {
       expect(listRes.status).toBe(200)
       expect(listRes.data).toBeDefined()
 
-      const mediaFiles = listRes.data.mediaFiles || []
+      const mediaFiles = listRes.data.media_files || listRes.data.mediaFiles || []
       expect(mediaFiles.length).toBeLessThanOrEqual(5)
 
       for (const media of mediaFiles) {
         expect(media.file_type).toBe("image")
       }
       console.log("Combined filters work correctly")
+    })
+
+    it("should filter media by is_public", async () => {
+      const unique = Date.now()
+      const mediaService: any = getContainer().resolve("media")
+
+      // Seed one public and one private image. The is_public=true filter
+      // must surface the public one and exclude the private one.
+      await mediaService.createMediaFiles({
+        file_name: `pub-${unique}.jpg`,
+        original_name: `pub-${unique}.jpg`,
+        file_path: `https://cdn.example.com/pub-${unique}.jpg`,
+        file_type: "image",
+        mime_type: "image/jpeg",
+        file_size: 1000,
+        file_hash: `hash-pub-${unique}`,
+        extension: "jpg",
+        is_public: true,
+      })
+      await mediaService.createMediaFiles({
+        file_name: `priv-${unique}.jpg`,
+        original_name: `priv-${unique}.jpg`,
+        file_path: `https://cdn.example.com/priv-${unique}.jpg`,
+        file_type: "image",
+        mime_type: "image/jpeg",
+        file_size: 1000,
+        file_hash: `hash-priv-${unique}`,
+        extension: "jpg",
+        is_public: false,
+      })
+
+      const listRes = await api.get("/admin/medias", {
+        ...headers,
+        params: { "filters[is_public]": true },
+      })
+
+      expect(listRes.status).toBe(200)
+      const mediaFiles = listRes.data.media_files || listRes.data.mediaFiles || []
+      for (const media of mediaFiles) {
+        expect(media.is_public).toBe(true)
+      }
+      const paths = mediaFiles.map((m: any) => m.file_path)
+      expect(paths).toContain(`https://cdn.example.com/pub-${unique}.jpg`)
+      expect(paths).not.toContain(`https://cdn.example.com/priv-${unique}.jpg`)
+      console.log("is_public filter works correctly")
+    })
+
+    it("should filter media by created_at range", async () => {
+      const unique = Date.now()
+      const mediaService: any = getContainer().resolve("media")
+
+      // Seed a row, then bracket "now" so the range [start, end] captures it.
+      await mediaService.createMediaFiles({
+        file_name: `range-${unique}.jpg`,
+        original_name: `range-${unique}.jpg`,
+        file_path: `https://cdn.example.com/range-${unique}.jpg`,
+        file_type: "image",
+        mime_type: "image/jpeg",
+        file_size: 1000,
+        file_hash: `hash-range-${unique}`,
+        extension: "jpg",
+        is_public: true,
+      })
+
+      const start = new Date(unique - 60_000).toISOString()
+      const end = new Date(unique + 60_000).toISOString()
+
+      const inRange = await api.get("/admin/medias", {
+        ...headers,
+        params: {
+          "filters[created_at][gte]": start,
+          "filters[created_at][lte]": end,
+        },
+      })
+      expect(inRange.status).toBe(200)
+      const inFiles = inRange.data.media_files || inRange.data.mediaFiles || []
+      expect(inFiles.map((m: any) => m.file_path)).toContain(
+        `https://cdn.example.com/range-${unique}.jpg`
+      )
+
+      // A window entirely in the past must exclude the just-seeded row.
+      const pastEnd = new Date(unique - 60_000).toISOString()
+      const pastStart = new Date(unique - 120_000).toISOString()
+      const outRange = await api.get("/admin/medias", {
+        ...headers,
+        params: {
+          "filters[created_at][gte]": pastStart,
+          "filters[created_at][lte]": pastEnd,
+        },
+      })
+      expect(outRange.status).toBe(200)
+      const outFiles = outRange.data.media_files || outRange.data.mediaFiles || []
+      expect(outFiles.map((m: any) => m.file_path)).not.toContain(
+        `https://cdn.example.com/range-${unique}.jpg`
+      )
+      console.log("created_at range filter works correctly")
     })
   })
 })
