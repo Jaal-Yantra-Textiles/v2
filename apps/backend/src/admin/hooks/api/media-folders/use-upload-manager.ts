@@ -87,24 +87,26 @@ async function uploadLargeFile(
   const partSize = 8 * 1024 * 1024 // 8MB
   const maxPartConcurrency = 4
 
-  // 1) Initiate multipart upload
-  const initResponse = await sdk.client.fetch("/admin/medias/uploads/initiate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name: file.name,
-      type: file.type || "application/octet-stream",
-      size: file.size,
-      existingAlbumIds: uploadOptions?.existingAlbumIds,
-    }),
-  }) as Response
-
-  if (!initResponse.ok) {
-    const data = await initResponse.json().catch(() => ({})) as any
-    throw new Error(data?.message || "Failed to initiate upload")
+  // 1) Initiate multipart upload.
+  // NOTE: sdk.client.fetch serializes the body itself (it JSON.stringifies any
+  // body when content-type is application/json, which it defaults to) and
+  // returns the *parsed* JSON, throwing on non-2xx. Passing a pre-stringified
+  // string here double-encodes it into a quoted JSON string, which Express's
+  // strict body parser rejects with an HTML "Bad Request" before the route runs.
+  let initData: any
+  try {
+    initData = await sdk.client.fetch("/admin/medias/uploads/initiate", {
+      method: "POST",
+      body: {
+        name: file.name,
+        type: file.type || "application/octet-stream",
+        size: file.size,
+        existingAlbumIds: uploadOptions?.existingAlbumIds,
+      },
+    })
+  } catch (e: any) {
+    throw new Error(e?.message || "Failed to initiate upload")
   }
-
-  const initData = await initResponse.json() as any
   const uploadId: string = initData.uploadId
   const key: string = initData.key
 
@@ -121,17 +123,15 @@ async function uploadLargeFile(
     }
 
     // Get presigned URLs for this batch
-    const partsResponse = await sdk.client.fetch("/admin/medias/uploads/parts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uploadId, key, partNumbers: batch }),
-    }) as Response
-
-    if (!partsResponse.ok) {
-      throw new Error("Failed to get presigned URLs")
+    let partsData: any
+    try {
+      partsData = await sdk.client.fetch("/admin/medias/uploads/parts", {
+        method: "POST",
+        body: { uploadId, key, partNumbers: batch },
+      })
+    } catch (e: any) {
+      throw new Error(e?.message || "Failed to get presigned URLs")
     }
-
-    const partsData = await partsResponse.json() as any
     const urls: { partNumber: number; url: string }[] = partsData.urls
 
     // Upload parts in parallel
@@ -168,28 +168,25 @@ async function uploadLargeFile(
   }
 
   // 3) Complete multipart upload
-  const completeResponse = await sdk.client.fetch("/admin/medias/uploads/complete", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      uploadId,
-      key,
-      parts: etags.sort((a, b) => a.PartNumber - b.PartNumber),
-      name: file.name,
-      type: file.type || "application/octet-stream",
-      size: file.size,
-      existingAlbumIds: uploadOptions?.existingAlbumIds,
-      existingFolderId: uploadOptions?.existingFolderId,
-      metadata: uploadOptions?.metadata,
-    }),
-  }) as Response
-
-  if (!completeResponse.ok) {
-    const data = await completeResponse.json().catch(() => ({})) as any
-    throw new Error(data?.message || "Failed to complete upload")
+  let result: any
+  try {
+    result = await sdk.client.fetch("/admin/medias/uploads/complete", {
+      method: "POST",
+      body: {
+        uploadId,
+        key,
+        parts: etags.sort((a, b) => a.PartNumber - b.PartNumber),
+        name: file.name,
+        type: file.type || "application/octet-stream",
+        size: file.size,
+        existingAlbumIds: uploadOptions?.existingAlbumIds,
+        existingFolderId: uploadOptions?.existingFolderId,
+        metadata: uploadOptions?.metadata,
+      },
+    })
+  } catch (e: any) {
+    throw new Error(e?.message || "Failed to complete upload")
   }
-
-  const result = await completeResponse.json() as any
 
   // Notify completion
   onProgress?.({
