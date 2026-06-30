@@ -1,0 +1,78 @@
+name: Publish Etsy Plugin
+
+# Publishes @jytextiles/medusa-plugin-etsy-sync to npm when the plugin source
+# changes on main. Publish is gated on a version bump: the job is a no-op unless
+# the version in package.json is not yet on the registry, so unrelated pushes
+# (or re-runs) never error on "cannot publish over existing version".
+#
+# To cut a release: bump `version` in packages/medusa-plugin-etsy-sync/package.json
+# and merge to main. That's it.
+#
+# AUTH: uses the NPM_TOKEN repo secret (a granular automation token). npm forces
+# these to expire (<=90 days), so they must be rotated. The rotation-free upgrade
+# is npm Trusted Publishing (OIDC): once the package exists on npm, configure a
+# trusted publisher (this repo + this workflow file) in the package's npm settings,
+# then drop NPM_TOKEN and switch the publish step to rely on `id-token: write`
+# (already granted below) — no secret to rotate. See the README for the steps.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'packages/medusa-plugin-etsy-sync/**'
+      - '.github/workflows/publish-etsy-plugin.yml'
+  workflow_dispatch: {}
+
+# id-token is granted now so the move to OIDC Trusted Publishing later needs no
+# workflow change. contents:read is the least privilege for checkout.
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-etsy-plugin
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/medusa-plugin-etsy-sync
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+
+      # Install at the workspace root so the plugin's devDeps (medusa CLI, etc.)
+      # are available for the build.
+      - name: Install dependencies
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      - name: Build plugin
+        run: pnpm build
+
+      - name: Test plugin
+        run: pnpm test
+
+      - name: Publish to npm (only if version changed)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "${NAME}@${VERSION}" version >/dev/null 2>&1; then
+            echo "::notice::${NAME}@${VERSION} is already published — skipping (bump the version to release)."
+            exit 0
+          fi
+          echo "Publishing ${NAME}@${VERSION}…"
+          npm publish --access public --provenance

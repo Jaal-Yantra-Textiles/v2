@@ -53,6 +53,19 @@ module.exports = defineConfig({
       resolve: "@medusajs/loyalty-plugin",
       options: {},
     },
+    {
+      resolve: "@jytextiles/medusa-plugin-etsy-sync",
+      options: {
+        keystring: process.env.ETSY_KEYSTRING ?? "",
+        sharedSecret: process.env.ETSY_SHARED_SECRET ?? "",
+        redirectUri:
+          process.env.ETSY_REDIRECT_URI ??
+          "http://localhost:9000/app/settings/oauth/etsy/callback",
+        scope:
+          process.env.ETSY_SCOPE ??
+          "listings_r listings_w listings_d shops_r",
+      },
+    },
   ],
 
   modules: [
