@@ -230,6 +230,21 @@ async function processWhatsAppWebhook(
         }
 
         for (const status of value.statuses) {
+          // Meta attaches an `errors` array ONLY on failed statuses, and it is
+          // the single record of WHY a message failed — Meta exposes no API to
+          // re-fetch a past webhook body by wamid (see the incoming-message note
+          // below). If we don't log it here the reason is lost forever and the
+          // message just shows as "failed" with no explanation. Log verbatim.
+          if (status.status === "failed" || status.errors?.length) {
+            const err = status.errors?.[0]
+            logger.error(
+              `[whatsapp-webhook] Message delivery failed — wamid=${status.id} ` +
+                `recipient=${status.recipient_id} code=${err?.code ?? "unknown"} ` +
+                `title=${err?.title ?? "unknown"} message=${err?.message ?? "unknown"} ` +
+                `details=${err?.error_data?.details ?? "none"}`
+            )
+          }
+
           // Update all messages matching this wa_message_id (handles duplicates)
           try {
             const messagingService = scope.resolve(MESSAGING_MODULE) as any
@@ -484,6 +499,15 @@ interface WhatsAppWebhookPayload {
           status: string
           timestamp: string
           recipient_id: string
+          // Present only on failed deliveries. Meta's error code/title/message
+          // is the only diagnosable record of why a send failed.
+          errors?: Array<{
+            code?: number
+            title?: string
+            message?: string
+            error_data?: { details?: string }
+            href?: string
+          }>
         }>
       }
     }>
