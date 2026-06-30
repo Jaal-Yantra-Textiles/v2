@@ -402,6 +402,54 @@ setupSharedTestSuite(() => {
         expect(res.data.message).toBe('Invalid request: Value for field \'quantity\' too small, expected at least: \'0\'');
       });
 
+      // #778 C2 admin-half — admin marking an order Delivered must POST stock to
+      // the destination location (mirroring partner-complete), not just write the
+      // status column, and record the delivered lines so a later cancel reverses.
+      it("should post stock to the destination location when an admin marks an order Delivered", async () => {
+        const invRes = await api.post("/admin/inventory-items", {
+          title: "Deliverable Inventory",
+          description: "for admin-delivered stock posting",
+        }, headers);
+        expect(invRes.status).toBe(200);
+        const itemId = invRes.data.inventory_item.id;
+
+        const destLoc = await api.post("/admin/stock-locations", { name: "Dest Warehouse" }, headers);
+        const destLocId = destLoc.data.stock_location.id;
+
+        const orderPayload = {
+          order_lines: [{ inventory_item_id: itemId, quantity: 3, price: 100 }],
+          quantity: 3,
+          total_price: 300,
+          status: "Processing",
+          expected_delivery_date: new Date().toISOString(),
+          order_date: new Date().toISOString(),
+          shipping_address: {},
+          stock_location_id: destLocId,
+          from_stock_location_id: fromStockLocationId,
+        };
+        const orderRes = await api.post("/admin/inventory-orders", orderPayload, headers);
+        expect(orderRes.status).toBe(201);
+        const orderId = orderRes.data.inventoryOrder.id;
+
+        // Mark Delivered via the generic admin PUT.
+        const putRes = await api.put(`/admin/inventory-orders/${orderId}`, { status: "Delivered" }, headers);
+        expect(putRes.status).toBe(200);
+
+        // Stock for the item must now be posted at the destination location.
+        const levelRes = await api.get(`/admin/inventory-items/${itemId}?fields=*location_levels`, headers);
+        expect(levelRes.status).toBe(200);
+        const levels = levelRes.data.inventory_item.location_levels || [];
+        const destLevel = levels.find((l: any) => l.location_id === destLocId);
+        expect(destLevel).toBeDefined();
+        expect(destLevel.stocked_quantity).toBe(3);
+
+        // The delivered lines must be recorded for cancel reversal.
+        const orderGet = await api.get(`/admin/inventory-orders/${orderId}?fields=id,status,metadata`, headers);
+        expect(orderGet.data.inventoryOrder.status).toBe("Delivered");
+        const delivered = orderGet.data.inventoryOrder.metadata?.partner_delivered_lines || [];
+        expect(delivered).toEqual([{ order_line_id: expect.any(String), quantity: 3 }]);
+      });
+
 
     });
 
