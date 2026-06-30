@@ -360,9 +360,11 @@ const Desk = () => {
     >
       {!hasTabs && (
         <div className="px-6 py-4 shrink-0">
-          <Heading>Desk</Heading>
+          <Heading>Open a workspace tab</Heading>
           <Text size="small" className="text-ui-fg-subtle">
-            Multi-pane workspace. Open entities as tabs and drag them to split panes.
+            Pick what you want to work on. Each tab is its own routing
+            context — you can open several side by side and drag them to
+            split. Press <kbd>⌘⇧K</kbd> anywhere in the Desk to search.
           </Text>
         </div>
       )}
