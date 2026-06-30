@@ -205,6 +205,55 @@ export const useCompletePartnerInventoryOrder = (
   })
 }
 
+// #790 — mark an inventory order "Ready for Delivery" (Processing/Partial → it).
+export const useMarkPartnerInventoryOrderReadyForDelivery = (
+  orderId: string,
+  options?: UseMutationOptions<{ order: any }, FetchError, void>
+) => {
+  return useMutation({
+    mutationFn: async () =>
+      sdk.client.fetch<{ order: any }>(
+        `/partners/inventory-orders/${orderId}/ready-for-delivery`,
+        { method: "POST", body: {} }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.detail(orderId) })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+// #790 — generate a standalone carrier shipment (AWB + label) for the order.
+export type PartnerCreateShipmentPayload = {
+  carrier?: string
+  pickup_stock_location_id?: string
+  weight_grams?: number
+  dimensions_cm?: { length?: number; breadth?: number; height?: number }
+  preferred_courier_id?: string | number
+  delivered_quantities?: Record<string, number>
+}
+
+export const useCreatePartnerInventoryOrderShipment = (
+  orderId: string,
+  options?: UseMutationOptions<{ shipment?: any }, FetchError, PartnerCreateShipmentPayload>
+) => {
+  return useMutation({
+    mutationFn: async (payload) =>
+      sdk.client.fetch<{ shipment?: any }>(
+        `/partners/inventory-orders/${orderId}/shipment`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.detail(orderId) })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
 export const useSubmitPartnerInventoryOrderPayment = (
   orderId: string,
   options?: UseMutationOptions<

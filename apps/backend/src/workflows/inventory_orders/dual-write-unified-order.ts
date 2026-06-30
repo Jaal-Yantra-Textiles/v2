@@ -41,6 +41,8 @@ export const PROTECTED_UNIFICATION_METADATA_KEYS = [
 const LEGACY_TO_CORE_STATUS: Record<string, string> = {
   Pending: "pending",
   Processing: "pending",
+  // #790 — packed/ready, work still open → core stays "pending" (like Shipped).
+  "Ready for Delivery": "pending",
   Shipped: "pending",
   Partial: "pending",
   Delivered: "completed",
@@ -55,6 +57,9 @@ const LEGACY_TO_CORE_STATUS: Record<string, string> = {
 // existing value untouched rather than inventing one.
 const LEGACY_TO_PARTNER_STATUS: Record<string, string> = {
   Processing: "in_progress",
+  // #790 — packed/ready is still in-progress work (distinct from Shipped's
+  // "finished"); reuses the existing vocabulary so no panel/label changes.
+  "Ready for Delivery": "in_progress",
   Shipped: "finished",
   Partial: "partial",
   Delivered: "completed",

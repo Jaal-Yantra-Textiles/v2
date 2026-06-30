@@ -63,9 +63,9 @@ describe("seed-inventory-order-status-flow FLOW_DEF", () => {
     expect(code).toContain("$input.read_order?.records?.[0]")
   })
 
-  it("notifies exactly the five non-Pending statuses (Pending is skipped)", () => {
+  it("notifies the non-Pending statuses (Pending is skipped)", () => {
     const code = (byKey.resolve_message.options as any).code as string
-    for (const s of ["Processing", "Shipped", "Partial", "Delivered", "Cancelled"]) {
+    for (const s of ["Processing", "Ready for Delivery", "Shipped", "Partial", "Delivered", "Cancelled"]) {
       expect(code).toContain(`"${s}":`)
     }
     // Pending must NOT be a notified status — it is the initial state.

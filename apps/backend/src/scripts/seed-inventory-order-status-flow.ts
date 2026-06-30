@@ -10,6 +10,7 @@
  *
  * Status → notification mapping (defined inline in the resolve_message node):
  *   Processing → "In Production"        ┐
+ *   Ready for Delivery → "Ready for Delivery" │ all use the single generic template
  *   Shipped    → "Shipped"              │  all use the single generic template
  *   Partial    → "Partially Delivered"  │  jyt_inventory_order_status_v1 with
  *   Delivered  → "Delivered"            │  vars [partnerName, orderId, statusLabel]
@@ -109,6 +110,7 @@ if (!partner) {
 // initial state) and any unmapped/future status fall through to skip.
 const labels = {
   "Processing": "In Production",
+  "Ready for Delivery": "Ready for Delivery",
   "Shipped": "Shipped",
   "Partial": "Partially Delivered",
   "Delivered": "Delivered",

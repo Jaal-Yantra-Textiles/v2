@@ -50,7 +50,7 @@ export const buildStatusChangedEvent = (
 type UpdateInventoryOrderStepInput = {
   id: string;
   update: {
-    status?: "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled" | "Partial";
+    status?: "Pending" | "Processing" | "Ready for Delivery" | "Shipped" | "Delivered" | "Cancelled" | "Partial";
     metadata?: Record<string, any>;
     quantity?: number;
     total_price?: number;

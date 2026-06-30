@@ -181,6 +181,61 @@ export const useUpdateInventoryOrder = (
   });
 };
 
+// #790 slice 3 — mark an order "Ready for Delivery" (Processing/Partial → it).
+export const useMarkInventoryOrderReadyForDelivery = (
+  id: string,
+  options?: UseMutationOptions<{ order: AdminInventoryOrder }, FetchError, void>,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      sdk.client.fetch<{ order: AdminInventoryOrder }>(`/admin/inventory-orders/${id}/ready-for-delivery`, {
+        method: "POST",
+        body: {},
+      }),
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.lists() });
+      options?.onSuccess?.(...args);
+    },
+    ...options,
+  });
+};
+
+export interface CreateInventoryOrderShipmentPayload {
+  carrier?: string;
+  pickup_stock_location_id?: string;
+  weight_grams?: number;
+  dimensions_cm?: { length?: number; breadth?: number; height?: number };
+  preferred_courier_id?: string | number;
+  delivered_quantities?: Record<string, number>;
+}
+
+export interface CreateInventoryOrderShipmentResponse {
+  shipment?: { awb?: string; tracking_number?: string; label_url?: string; [k: string]: any };
+}
+
+// #790 slice 3 — generate a real carrier shipment (AWB + label) for the order.
+export const useCreateInventoryOrderShipment = (
+  id: string,
+  options?: UseMutationOptions<CreateInventoryOrderShipmentResponse, FetchError, CreateInventoryOrderShipmentPayload>,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: CreateInventoryOrderShipmentPayload) =>
+      sdk.client.fetch<CreateInventoryOrderShipmentResponse>(`/admin/inventory-orders/${id}/shipment`, {
+        method: "POST",
+        body: payload,
+      }),
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.lists() });
+      options?.onSuccess?.(...args);
+    },
+    ...options,
+  });
+};
+
 export const useCreateInventoryOrderTasks = (
   id: string,
   options?: UseMutationOptions<any, FetchError, { type: string; template_names: string[]; dependency_type?: string }>,

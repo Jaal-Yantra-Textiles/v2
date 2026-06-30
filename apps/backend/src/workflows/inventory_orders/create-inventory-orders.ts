@@ -28,7 +28,7 @@ export interface InventoryOrderLineInput {
 export interface CreateInventoryOrderInput {
   quantity: number;
   total_price: number;
-  status: 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
+  status: 'Pending' | 'Processing' | 'Ready for Delivery' | 'Shipped' | 'Delivered' | 'Cancelled';
   expected_delivery_date: Date | undefined;
   order_date: Date | undefined;
   shipping_address: Record<string, unknown>;
