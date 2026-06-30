@@ -75,7 +75,9 @@ export const listAllMediasWorkflow = createWorkflow(
         // Whitelist only fields that exist on Folder
         const allowedKeys = new Set(["id", "name", "slug", "description", "path", "level", "sort_order", "is_public", "parent_folder_id", "metadata", "created_at", "updated_at"])
         return {
-          filters: pickAllowed(data.input.filters, allowedKeys),
+          // `q` is a free-text search key (not a column) — Folder.name is
+          // searchable, so keep it for filtering but NOT for order scoping.
+          filters: pickAllowed(data.input.filters, new Set([...allowedKeys, "q"])),
           config: scopeConfig(data.input.config, allowedKeys),
         }
       }),
@@ -86,7 +88,8 @@ export const listAllMediasWorkflow = createWorkflow(
         // Whitelist only fields that exist on Album
         const allowedKeys = new Set(["id", "name", "description", "slug", "is_public", "sort_order", "type", "metadata", "cover_media_id", "created_at", "updated_at"])
         return {
-          filters: pickAllowed(data.input.filters, allowedKeys),
+          // Album.name is searchable — keep `q` for filtering, not ordering.
+          filters: pickAllowed(data.input.filters, new Set([...allowedKeys, "q"])),
           config: scopeConfig(data.input.config, allowedKeys),
         }
       }),
@@ -102,7 +105,8 @@ export const listAllMediasWorkflow = createWorkflow(
           "is_public", "metadata", "folder_id", "created_at", "updated_at"
         ])
         return {
-          filters: pickAllowed(data.input.filters, allowedKeys),
+          // MediaFile.file_name is searchable — keep `q` for filtering, not ordering.
+          filters: pickAllowed(data.input.filters, new Set([...allowedKeys, "q"])),
           config: scopeConfig(data.input.config, allowedKeys),
         }
       }),

@@ -246,6 +246,8 @@ const AllMediaPage = () => {
       } else if (key === "parent_folder_id") {
         if (value !== "") out.parent_folder_id = value;
       } else if (key === "file_type") {
+        // multiselect → array; skip empty so we don't send an empty filter.
+        if (Array.isArray(value) && value.length === 0) continue;
         out.file_type = value;
       } else if (key === "created_at") {
         // DataTable date filter produces a comparison-operator object that
@@ -327,7 +329,7 @@ const AllMediaPage = () => {
     if (tab === "files") {
       base.push(
         filterHelper.accessor("file_type" as any, {
-          type: "select",
+          type: "multiselect",
           label: "File Type",
           options: [
             { label: "Images", value: "image" },

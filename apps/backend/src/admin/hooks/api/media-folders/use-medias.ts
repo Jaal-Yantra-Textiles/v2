@@ -12,8 +12,8 @@ export type FileType = "image" | "video" | "audio" | "document" | "archive" | "o
  * Filter options for media queries
  */
 export type MediasFilters = {
-  /** Filter by file type */
-  file_type?: FileType;
+  /** Filter by file type. Accepts a single type or an array (multi-select → `$in`). */
+  file_type?: FileType | FileType[];
   /** Filter by public/private status */
   is_public?: boolean;
   /** Filter by parent folder ID */

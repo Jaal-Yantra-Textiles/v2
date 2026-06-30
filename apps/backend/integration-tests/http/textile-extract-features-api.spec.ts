@@ -542,5 +542,49 @@ setupSharedTestSuite(() => {
       )
       console.log("created_at range filter works correctly")
     })
+
+    it("should search media by file_name via q", async () => {
+      const unique = Date.now()
+      const mediaService: any = getContainer().resolve("media")
+
+      // Seed two rows with distinct, searchable file_names. q must match the
+      // one whose file_name contains the term and exclude the other. Guards
+      // the regression where `q` was stripped before the list step.
+      const token = `qsearch${unique}`
+      await mediaService.createMediaFiles({
+        file_name: `${token}-match.jpg`,
+        original_name: `${token}-match.jpg`,
+        file_path: `https://cdn.example.com/${token}-match.jpg`,
+        file_type: "image",
+        mime_type: "image/jpeg",
+        file_size: 1000,
+        file_hash: `hash-${token}-match`,
+        extension: "jpg",
+        is_public: true,
+      })
+      await mediaService.createMediaFiles({
+        file_name: `other-${unique}-nomatch.jpg`,
+        original_name: `other-${unique}-nomatch.jpg`,
+        file_path: `https://cdn.example.com/other-${unique}-nomatch.jpg`,
+        file_type: "image",
+        mime_type: "image/jpeg",
+        file_size: 1000,
+        file_hash: `hash-other-${unique}`,
+        extension: "jpg",
+        is_public: true,
+      })
+
+      const listRes = await api.get("/admin/medias", {
+        ...headers,
+        params: { "filters[q]": token },
+      })
+
+      expect(listRes.status).toBe(200)
+      const mediaFiles = listRes.data.media_files || listRes.data.mediaFiles || []
+      const paths = mediaFiles.map((m: any) => m.file_path)
+      expect(paths).toContain(`https://cdn.example.com/${token}-match.jpg`)
+      expect(paths).not.toContain(`https://cdn.example.com/other-${unique}-nomatch.jpg`)
+      console.log(`q search matched ${mediaFiles.length} file(s)`)
+    })
   })
 })
