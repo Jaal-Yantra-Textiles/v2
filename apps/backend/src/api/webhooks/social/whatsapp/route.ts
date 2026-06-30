@@ -235,8 +235,21 @@ async function processWhatsAppWebhook(
           // re-fetch a past webhook body by wamid (see the incoming-message note
           // below). If we don't log it here the reason is lost forever and the
           // message just shows as "failed" with no explanation. Log verbatim.
+          let failReason: string | null = null
           if (status.status === "failed" || status.errors?.length) {
             const err = status.errors?.[0]
+            // Compact, human-readable reason persisted on the message + shown in
+            // the admin messaging UI: "<code> · <title> — <message> (<details>)".
+            failReason = err
+              ? [
+                  err.code != null ? `${err.code} · ` : "",
+                  err.title ?? "Delivery failed",
+                  err.message ? ` — ${err.message}` : "",
+                  err.error_data?.details ? ` (${err.error_data.details})` : "",
+                ]
+                  .join("")
+                  .slice(0, 500)
+              : "Delivery failed (no error detail from Meta)"
             logger.error(
               `[whatsapp-webhook] Message delivery failed — wamid=${status.id} ` +
                 `recipient=${status.recipient_id} code=${err?.code ?? "unknown"} ` +
@@ -263,6 +276,7 @@ async function processWhatsAppWebhook(
                 await messagingService.updateMessagingMessages({
                   id: msg.id,
                   status: status.status as any,
+                  ...(failReason ? { fail_reason: failReason } : {}),
                 })
               }
             }

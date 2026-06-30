@@ -17,6 +17,9 @@ const Message = model.define("messaging_message", {
     media_mime_type: model.text().nullable(),
     reply_to_id: model.text().nullable(),
     reply_to_snapshot: model.json().nullable(),
+    // Human-readable reason a delivery failed (Meta error code/title/message).
+    // Set from the WhatsApp status webhook when status flips to "failed".
+    fail_reason: model.text().nullable(),
     metadata: model.json().nullable(),
 })
 
