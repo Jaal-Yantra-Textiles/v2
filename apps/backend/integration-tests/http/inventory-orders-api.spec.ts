@@ -503,8 +503,13 @@ setupSharedTestSuite(() => {
       });
 
       it("transitions a Partial order to Ready for Delivery", async () => {
-        const created = await api.post("/admin/inventory-orders", baseOrder("Partial"), headers);
+        const created = await api.post("/admin/inventory-orders", baseOrder("Processing"), headers);
         const id = created.data.inventoryOrder.id;
+        // "Partial" is a system-set status (only the complete workflow sets it on
+        // partial fulfilment) — the create/update API validators don't accept it,
+        // so put the order into Partial directly via the module service.
+        const svc: any = getContainer().resolve("inventory_orders");
+        await svc.updateInventoryOrders({ id, status: "Partial" });
         const res = await api.post(`/admin/inventory-orders/${id}/ready-for-delivery`, {}, headers);
         expect(res.status).toBe(200);
         const got = await api.get(`/admin/inventory-orders/${id}?fields=id,status`, headers);
