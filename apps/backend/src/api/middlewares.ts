@@ -2382,6 +2382,24 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    {
+      // #790 — partner marks an order Ready for Delivery. Without this
+      // matcher authenticate("partner") never runs, req.auth_context is
+      // undefined, and the route's own guard returns 401.
+      matcher: "/partners/inventory-orders/:orderId/ready-for-delivery",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      // #790 — partner creates a carrier shipment for the order.
+      matcher: "/partners/inventory-orders/:orderId/shipment",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     // Partner Payments APIs
     {
       matcher: "/partners/:id/payments",
