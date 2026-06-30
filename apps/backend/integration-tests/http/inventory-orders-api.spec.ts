@@ -439,4 +439,37 @@ setupSharedTestSuite(() => {
         expect(res.status).toBe(404);
       });
     });
+
+    // #790 slice 3 — admin "Mark Ready for Delivery" transition route.
+    describe("POST /admin/inventory-orders/:id/ready-for-delivery", () => {
+      const baseOrder = (status: string) => ({
+        order_lines: [{ inventory_item_id: inventoryItemId, quantity: 2, price: 100 }],
+        quantity: 2,
+        total_price: 200,
+        status,
+        expected_delivery_date: new Date().toISOString(),
+        order_date: new Date().toISOString(),
+        shipping_address: {},
+        stock_location_id: stockLocationId,
+        from_stock_location_id: fromStockLocationId,
+      });
+
+      it("transitions a Processing order to Ready for Delivery", async () => {
+        const created = await api.post("/admin/inventory-orders", baseOrder("Processing"), headers);
+        const id = created.data.inventoryOrder.id;
+        const res = await api.post(`/admin/inventory-orders/${id}/ready-for-delivery`, {}, headers);
+        expect(res.status).toBe(200);
+        const got = await api.get(`/admin/inventory-orders/${id}?fields=id,status`, headers);
+        expect(got.data.inventoryOrder.status).toBe("Ready for Delivery");
+      });
+
+      it("rejects from a non-allowed status (Pending)", async () => {
+        const created = await api.post("/admin/inventory-orders", baseOrder("Pending"), headers);
+        const id = created.data.inventoryOrder.id;
+        const res = await api
+          .post(`/admin/inventory-orders/${id}/ready-for-delivery`, {}, headers)
+          .catch((err) => err.response);
+        expect(res.status).toBe(400);
+      });
+    });
 });

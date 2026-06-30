@@ -1,20 +1,40 @@
+import { useState } from "react";
 import { Container, Heading, Text, StatusBadge, toast, usePrompt } from "@medusajs/ui";
-import { PencilSquare, Trash, ArrowUpRightOnBox } from "@medusajs/icons";
+import { PencilSquare, Trash, ArrowUpRightOnBox, TruckFast, CheckCircle } from "@medusajs/icons";
 import { useNavigate } from "react-router-dom";
 import { ActionMenu } from "../common/action-menu";
-import { AdminInventoryOrder, useDeleteInventoryOrder } from "../../hooks/api/inventory-orders";
+import {
+  AdminInventoryOrder,
+  useDeleteInventoryOrder,
+  useMarkInventoryOrderReadyForDelivery,
+} from "../../hooks/api/inventory-orders";
 import {
   PARTNER_STATUS_LABELS,
   getPartnerWorkStatus,
   getStatusBadgeColor,
 } from "../../lib/work-status";
+import { InventoryOrderShipmentModal } from "./inventory-order-shipment-modal";
 
-
+// #790 — which statuses allow each action.
+const READY_FOR_DELIVERY_FROM = new Set(["Processing", "Partial"]);
+const SHIPPABLE = new Set(["Processing", "Ready for Delivery", "Partial", "Shipped"]);
 
 export const InventoryOrderGeneralSection = ({ inventoryOrder }: { inventoryOrder: AdminInventoryOrder }) => {
   const prompt = usePrompt();
   const navigate = useNavigate();
   const { mutateAsync } = useDeleteInventoryOrder(inventoryOrder.id);
+  const { mutateAsync: markReady } = useMarkInventoryOrderReadyForDelivery(inventoryOrder.id);
+  const [shipmentOpen, setShipmentOpen] = useState(false);
+
+  const canMarkReady = READY_FOR_DELIVERY_FROM.has(inventoryOrder.status);
+  const canShip = SHIPPABLE.has(inventoryOrder.status);
+
+  const handleMarkReady = async () => {
+    await markReady(undefined, {
+      onSuccess: () => toast.success('Marked "Ready for Delivery"'),
+      onError: (error: any) => toast.error(error?.message || "Failed to update status"),
+    });
+  };
 
   const handleDelete = async () => {
     const confirmed = await prompt({
@@ -52,6 +72,17 @@ export const InventoryOrderGeneralSection = ({ inventoryOrder }: { inventoryOrde
               ],
             },
             {
+              // #790 — fulfilment actions, gated by the order's current status.
+              actions: [
+                ...(canMarkReady
+                  ? [{ label: "Mark Ready for Delivery", icon: <CheckCircle />, onClick: handleMarkReady }]
+                  : []),
+                ...(canShip
+                  ? [{ label: "Create shipment", icon: <TruckFast />, onClick: () => setShipmentOpen(true) }]
+                  : []),
+              ],
+            },
+            {
               actions: [
                 { label: "Delete", icon: <Trash />, onClick: handleDelete },
               ],
@@ -59,6 +90,11 @@ export const InventoryOrderGeneralSection = ({ inventoryOrder }: { inventoryOrde
           ]}
         />
       </div>
+      <InventoryOrderShipmentModal
+        inventoryOrder={inventoryOrder}
+        open={shipmentOpen}
+        onOpenChange={setShipmentOpen}
+      />
       {getPartnerWorkStatus(inventoryOrder) && (
         <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
           <Text size="small" weight="plus">Work status</Text>
