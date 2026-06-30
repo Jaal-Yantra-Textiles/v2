@@ -8,12 +8,17 @@ name: Publish Etsy Plugin
 # To cut a release: bump `version` in packages/medusa-plugin-etsy-sync/package.json
 # and merge to main. That's it.
 #
-# AUTH: uses the NPM_TOKEN repo secret (a granular automation token). npm forces
-# these to expire (<=90 days), so they must be rotated. The rotation-free upgrade
-# is npm Trusted Publishing (OIDC): once the package exists on npm, configure a
-# trusted publisher (this repo + this workflow file) in the package's npm settings,
-# then drop NPM_TOKEN and switch the publish step to rely on `id-token: write`
-# (already granted below) — no secret to rotate. See the README for the steps.
+# AUTH: npm Trusted Publishing (OIDC) — no long-lived token, nothing to rotate.
+# GitHub Actions mints a short-lived OIDC token (id-token: write below) that npm
+# exchanges for publish auth. One-time setup on npmjs.com:
+#   Package → Settings → Trusted publishing →
+#     Organization or user: Jaal-Yantra-Textiles
+#     Repository:           v2
+#     Workflow filename:    publish-etsy-plugin.yml
+#     Allowed actions:      npm publish
+# Provenance is generated automatically (no --provenance flag). Needs npm >= 11.5.1
+# (installed below) and Node >= 22.14. The old NPM_TOKEN secret is no longer
+# referenced and can be deleted once an OIDC publish (on a version bump) succeeds.
 
 on:
   push:
@@ -64,9 +69,11 @@ jobs:
       - name: Test plugin
         run: pnpm test
 
-      - name: Publish to npm (only if version changed)
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Trusted Publishing (OIDC) requires npm >= 11.5.1; Node 22 ships npm 10.x.
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Publish to npm via OIDC (only if version changed)
         run: |
           NAME=$(node -p "require('./package.json').name")
           VERSION=$(node -p "require('./package.json').version")
@@ -74,5 +81,6 @@ jobs:
             echo "::notice::${NAME}@${VERSION} is already published — skipping (bump the version to release)."
             exit 0
           fi
-          echo "Publishing ${NAME}@${VERSION}…"
-          npm publish --access public --provenance
+          echo "Publishing ${NAME}@${VERSION} via trusted publishing…"
+          # No token + no --provenance: OIDC auth and provenance are automatic.
+          npm publish --access public
