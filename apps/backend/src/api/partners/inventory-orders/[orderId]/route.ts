@@ -194,10 +194,14 @@ export async function GET(
     }
     
     const order = orders[0];
-    // Check if this order is assigned to the authenticated partner
+    // Check if this order is assigned to the authenticated partner.
+    // #778/#780 — throw NOT_FOUND (not NOT_ALLOWED): a partner must not be able
+    // to tell, by status code, whether some other partner's order id exists.
+    // Matches the mutation-route guard (assertPartnerOwnsInventoryOrder) which
+    // also 404s, so the whole partner surface leaks nothing about other tenants.
     const assignedPartner = order.partner;
     if (!assignedPartner || assignedPartner.id !== partner.id) {
-        throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Inventory order ${orderId} is not assigned to your partner account`)
+        throw new MedusaError(MedusaError.Types.NOT_FOUND, `Inventory order ${orderId} not found`)
     }
     
     // Extract partner workflow status from tasks instead of metadata

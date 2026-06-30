@@ -4,7 +4,7 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk";
-import { Modules } from "@medusajs/framework/utils";
+import { Modules, MedusaError } from "@medusajs/framework/utils";
 import type { IEventBusModuleService } from "@medusajs/types";
 import InventoryOrderService from "../../modules/inventory_orders/service";
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
@@ -49,6 +49,13 @@ export const buildStatusChangedEvent = (
 
 type UpdateInventoryOrderStepInput = {
   id: string;
+  // #780 H7 — optional compare-and-set precondition. When set, the row is
+  // updated only if its current status still equals this value (single atomic
+  // UPDATE ... WHERE status = expected). A 0-row result means a concurrent
+  // request already moved the order on → we throw CONFLICT instead of silently
+  // re-applying the transition. Closes the start route's read-Pending→write-
+  // Processing TOCTOU. Omitted by every other caller → unconditional update.
+  expectedCurrentStatus?: "Pending" | "Processing" | "Ready for Delivery" | "Shipped" | "Delivered" | "Cancelled" | "Partial";
   update: {
     status?: "Pending" | "Processing" | "Ready for Delivery" | "Shipped" | "Delivered" | "Cancelled" | "Partial";
     metadata?: Record<string, any>;
@@ -87,10 +94,28 @@ export const updateInventoryOrderStep = createStep(
       }
     }
 
-    const order = await inventoryOrderService.updateInventoryOrders({
-      id: input.id,
-      ...input.update
-    });
+    let order: any;
+    if (input.expectedCurrentStatus !== undefined) {
+      // #780 H7 — atomic compare-and-set: only rows still at the expected status
+      // are updated. Returns the updated rows (empty if none matched).
+      const updated = await inventoryOrderService.updateInventoryOrders({
+        selector: { id: input.id, status: input.expectedCurrentStatus },
+        data: { ...input.update },
+      });
+      const rows = Array.isArray(updated) ? updated : updated ? [updated] : [];
+      if (rows.length === 0) {
+        throw new MedusaError(
+          MedusaError.Types.CONFLICT,
+          `Inventory order ${input.id} is no longer in "${input.expectedCurrentStatus}" state (already updated by a concurrent request)`
+        );
+      }
+      order = rows[0];
+    } else {
+      order = await inventoryOrderService.updateInventoryOrders({
+        id: input.id,
+        ...input.update
+      });
+    }
 
     const event = buildStatusChangedEvent(
       input.id,

@@ -166,6 +166,11 @@ export async function POST(
     const { result, errors } = await updateInventoryOrderWorkflow(req.scope).run({
         input: {
             id: orderId,
+            // #780 H7 — atomic compare-and-set on the transition. The pre-read
+            // above gives a friendly 400 on the common already-started path; this
+            // closes the residual TOCTOU window if two start requests race (the
+            // loser gets CONFLICT/409 instead of a second Processing write).
+            expectedCurrentStatus: "Pending",
             update: {
                 // #778 H3 — `status` is the single source of truth for partner
                 // progress; no `metadata.partner_status` copy (that was drift).

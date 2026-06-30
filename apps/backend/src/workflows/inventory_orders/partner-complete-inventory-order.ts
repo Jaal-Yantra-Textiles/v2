@@ -25,6 +25,11 @@ export type PartnerCompleteInventoryOrderInput = {
   trackingNumber?: string
   stock_location_id?: string
   lines: PartnerCompleteOrderLine[]
+  // #780 C1 defense-in-depth — when supplied (the partner route always supplies
+  // it), the workflow re-verifies the order is linked to this partner and
+  // throws NOT_FOUND otherwise, so ownership is enforced inside the workflow and
+  // not only at the route. Optional so admin/internal callers can omit it.
+  partnerId?: string
 }
 
 // Step: prepare fulfillment payloads (filters happen inside the step)
@@ -189,6 +194,9 @@ const validateAndFetchOrderStep = createStep(
         "stock_locations.*",
         // include existing fulfillments to compute cumulative delivered qty
         "orderlines.line_fulfillments.quantity_delta",
+        // #780 C1 defense-in-depth — the linked partner, to re-verify ownership
+        // inside the workflow.
+        "partner.id",
       ],
       filters: { id: input.orderId },
     })
@@ -198,6 +206,13 @@ const validateAndFetchOrderStep = createStep(
     }
 
     const order = orders[0]
+
+    // #780 C1 defense-in-depth — enforce partner ownership inside the workflow,
+    // not just at the route. NOT_FOUND (not NOT_ALLOWED) so a foreign caller
+    // can't distinguish "exists but not yours" from "doesn't exist".
+    if (input.partnerId && (order as any).partner?.id !== input.partnerId) {
+      throw new MedusaError(MedusaError.Types.NOT_FOUND, `Inventory order ${input.orderId} not found`)
+    }
 
     // #778 H3 — the order's `status` column is the SINGLE source of truth for
     // "is this order in a partner-started state". Processing (started) or Partial
