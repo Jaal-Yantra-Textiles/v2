@@ -158,12 +158,8 @@ export const createTasksFromTemplatesWorkflow = createWorkflow(
       { input },
       (data) => {
         const { inventoryOrderId, ...taskInput } = data.input;
-        // CRITICAL: Ensure that workflow input metadata (including assignment_notes) 
-        // is preserved and will be merged with template metadata
-        if ('metadata' in taskInput && taskInput.metadata) {
-        }
-        console.log(taskInput)
-        
+        // Workflow input metadata (including assignment_notes) is preserved here
+        // and merged with template metadata downstream.
         return taskInput;
       }
     );

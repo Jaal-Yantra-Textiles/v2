@@ -11,9 +11,10 @@
  * Request:
  * - Path parameter:
  *   - id: string — the inventory order id to update
- * - Body (JSON):
- *   - data?: Record<string, any> — optional top-level metadata/attributes to update
- *   - order_lines?: Array<any> — optional array of order line updates
+ * - Body (JSON): see updateInventoryOrderLinesSchema (validators.ts)
+ *   - data?: { quantity?: number; total_price?: number } — optional order totals
+ *   - order_lines: Array<{ id?: string; inventory_item_id: string; quantity: number; price: number }>
+ *     The full desired set of lines (existing lines carry `id`; new lines omit it).
  *
  * Response:
  * - 200: { inventoryOrder: object } — the refreshed inventory order after the update
@@ -21,31 +22,31 @@
  * Errors:
  * - Throws the workflow errors if the update workflow returns any errors.
  *
- * @param req - MedusaRequest; req.params.id is required, body should contain `data` and/or `order_lines`
+ * @param req - MedusaRequest; req.params.id is required, body must contain `order_lines` (and optional `data`)
  * @param res - MedusaResponse; used to return the updated inventoryOrder
  *
  * @example Curl
- * curl -X PUT "https://example.com/admin/inventory-orders/ord_123/order-lines" \
+ * curl -X PUT "https://example.com/admin/inventory-orders/inv_order_123/order-lines" \
  *   -H "Content-Type: application/json" \
  *   -H "Authorization: Bearer <ADMIN_TOKEN>" \
  *   -d '{
- *     "data": { "status": "received", "notes": "Updated via API" },
+ *     "data": { "quantity": 15, "total_price": 120 },
  *     "order_lines": [
- *       { "id": "ol_1", "quantity": 10 },
- *       { "id": "ol_2", "quantity": 0, "action": "remove" }
+ *       { "id": "ol_1", "inventory_item_id": "iitem_A", "quantity": 10, "price": 8 },
+ *       { "inventory_item_id": "iitem_B", "quantity": 5, "price": 8 }
  *     ]
  *   }'
  *
  * @example Fetch (Node / Browser)
- * const res = await fetch("/admin/inventory-orders/ord_123/order-lines", {
+ * const res = await fetch("/admin/inventory-orders/inv_order_123/order-lines", {
  *   method: "PUT",
  *   headers: {
  *     "Content-Type": "application/json",
  *     "Authorization": "Bearer <ADMIN_TOKEN>"
  *   },
  *   body: JSON.stringify({
- *     data: { status: "received" },
- *     order_lines: [{ id: "ol_1", quantity: 5 }]
+ *     data: { quantity: 5 },
+ *     order_lines: [{ id: "ol_1", inventory_item_id: "iitem_A", quantity: 5, price: 8 }]
  *   })
  * });
  * const { inventoryOrder } = await res.json();

@@ -29,37 +29,6 @@ export type PartnerCompleteInventoryOrderInput = {
 
 // Step: prepare fulfillment payloads (filters happen inside the step)
 
-// Debug step: logs stock posting decisions and computed arrays
-const debugStockPostingStep = createStep(
-  "partner-complete-debug-stock-posting",
-  async (
-    input: {
-      orderId: string
-      orderDestLocation?: string | null
-      deliveredLines?: Array<{ order_line_id: string; quantity: number }>
-      levels?: Array<{ location_id: string; inventory_item_id: string; stocked_quantity: number }>
-      existing?: Array<{ id: string; location_id: string; inventory_item_id: string; stocked_quantity: number }>
-      missing?: Array<{ location_id: string; inventory_item_id: string; stocked_quantity: number }>
-      createInputs?: Array<{ inventory_item_id: string; location_id: string; stocked_quantity: number; incoming_quantity?: number }>
-      updates?: Array<{ id: string; inventory_item_id: string; location_id: string; stocked_quantity: number }>
-    }
-  ) => {
-    try {
-      console.log("[WF][partner-complete] orderId=", input.orderId)
-      console.log("[WF][partner-complete] orderDestLocation=", input.orderDestLocation)
-      console.log("[WF][partner-complete] deliveredLines=", JSON.stringify(input.deliveredLines || [], null, 2))
-      console.log("[WF][partner-complete] inventoryLevelsInput (levels)=", JSON.stringify(input.levels || [], null, 2))
-      console.log("[WF][partner-complete] existingLevels=", JSON.stringify(input.existing || [], null, 2))
-      console.log("[WF][partner-complete] missingPairs=", JSON.stringify(input.missing || [], null, 2))
-      console.log("[WF][partner-complete] createInputs=", JSON.stringify(input.createInputs || [], null, 2))
-      console.log("[WF][partner-complete] updates=", JSON.stringify(input.updates || [], null, 2))
-    } catch (e) {
-      // no-op
-    }
-    return new StepResponse(null)
-  }
-)
-
 // Step: resolve existing inventory levels for given (item, location) pairs
 export const resolveExistingLevelsStep = createStep(
   "partner-complete-resolve-existing-levels",
@@ -94,21 +63,6 @@ export const resolveExistingLevelsStep = createStep(
   }
 )
 
-// Debug step: logs partial completion context at execution time
-const debugPartialCompletionStep = createStep(
-  "partner-complete-debug-partial",
-  async (
-    input: { orderId: string; shortages: Array<{ orderLineId?: string; shortage?: number }>; transactionId?: string },
-    { context }
-  ) => {
-    try {
-      const shortages = Array.isArray(input.shortages) ? input.shortages : []
-      const compact = shortages.map((s: any) => ({ line: s.orderLineId || s.order_line_id, shortage: s.shortage }))
-    } catch (e) {
-    }
-    return new StepResponse(null)
-  }
-)
 const prepareFulfillmentPayloadsStep = createStep(
   "partner-complete-prepare-fulfillment-payloads",
   async (
@@ -562,18 +516,12 @@ export const partnerCompleteInventoryOrderWorkflow = createWorkflow(
         ...summaryTask,
       }))
 
-      // Protect API from being blocked by task creation issues in partial path
-      try {
-        createTasksFromTemplatesWorkflow.runAsStep({
-          input: taskWorkflowInput as any,
-        })
-      } catch (e) {
-      }
-
-      // Additional focused debug log for partial completion
-      debugPartialCompletionStep({
-        orderId: input.orderId,
-        shortages: shortagesList as unknown as any[],
+      // Create the partial-completion summary task. NOTE: a try/catch here is
+      // ineffective — runAsStep registers a step at composition time, so it
+      // cannot swallow a runtime failure. If task creation must be non-blocking,
+      // that has to be handled inside the workflow itself.
+      createTasksFromTemplatesWorkflow.runAsStep({
+        input: taskWorkflowInput as any,
       })
     })
 
@@ -670,23 +618,6 @@ export const partnerCompleteInventoryOrderWorkflow = createWorkflow(
         })
       }
     )
-
-    // Log computed state for debugging stock postings
-    const orderDestLocationForLog = transform({ v: validated, input }, ({ v, input }) => {
-      const order = v.order as any
-      return String(input?.stock_location_id || order.to_stock_location_id || order.stock_location_id || order.destination_stock_location_id || "")
-    })
-    const deliveredLinesForLog = transform({ v: validated }, ({ v }) => (v.completionMetadata?.partner_delivered_lines || []))
-    debugStockPostingStep({
-      orderId: input.orderId,
-      orderDestLocation: orderDestLocationForLog as unknown as string,
-      deliveredLines: deliveredLinesForLog as unknown as any[],
-      levels: inventoryLevelsInput as unknown as any[],
-      existing: existing as unknown as any[],
-      missing: missing as unknown as any[],
-      createInputs: createInputs as unknown as any[],
-      updates: updates as unknown as any[],
-    })
 
     const hasUpdates = transform({ updates }, ({ updates }) => Array.isArray(updates) && (updates as any[]).length > 0)
 

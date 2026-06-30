@@ -70,60 +70,6 @@ const validateInventoryOrderStep = createStep(
     }
 )
 
-// Detect if this order already has the partner workflow tasks (idempotency guard)
-const checkExistingPartnerAssignmentStep = createStep(
-    "check-existing-partner-assignment",
-    async (input: { orderId: string }, { container }) => {
-        const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
-        const { data } = await query.graph({
-            entity: "inventory_orders",
-            fields: ["id", "tasks.*"],
-            filters: { id: input.orderId },
-        })
-        const orders = data || []
-        let taskIds: string[] = []
-        let hasAssignment = false
-        if (orders.length > 0) {
-            const order: any = orders[0]
-            const tasks: any[] = Array.isArray(order.tasks) ? order.tasks : []
-            taskIds = tasks.map((t) => t.id).filter(Boolean)
-            // Consider assigned if any of the partner templates exist
-            hasAssignment = tasks.some((t) =>
-                ["partner-order-sent", "partner-order-received", "partner-order-shipped"].includes(t?.title)
-            )
-        }
-        return new StepResponse({ hasAssignment, taskIds })
-    }
-)
-
-// If tasks already exist, just (re)set their transaction IDs for coordination
-const setExistingTasksTransactionIdsStep = createStep(
-    "set-existing-task-transaction-ids",
-    async (input: { orderId: string }, { container, context }) => {
-        const taskService: TaskService = container.resolve(TASKS_MODULE)
-        const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
-        const workflowTransactionId = context.transactionId
-
-        const { data } = await query.graph({
-            entity: "inventory_orders",
-            fields: ["id", "tasks.*"],
-            filters: { id: input.orderId },
-        })
-        const orders = data || []
-        const tasks: any[] = orders.length > 0 ? (orders[0] as any).tasks || [] : []
-        const updated: any[] = []
-        for (const t of tasks) {
-            const upd = await taskService.updateTasks({
-                id: t.id,
-                transaction_id: workflowTransactionId,
-                status: (t.title || "").includes("sent") ? "completed" : t.status || "pending",
-            })
-            updated.push(upd)
-        }
-        return new StepResponse({ count: updated.length })
-    }
-)
-
 const validatePartnerStep = createStep(
     "validate-partner",
     async (input: SendInventoryOrderToPartnerInput, { container }) => {
