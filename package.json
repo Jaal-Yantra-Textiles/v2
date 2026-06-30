@@ -81,6 +81,13 @@
       "utf-8-validate"
     ],
     "patchedDependencies": {},
+    "packageExtensions": {
+      "@medusajs/loyalty-plugin": {
+        "dependencies": {
+          "@tanstack/react-query": "^5.90.20"
+        }
+      }
+    },
     "peerDependencyRules": {
       "allowedVersions": {
         "react": "18.3.1 || 19.0.4",

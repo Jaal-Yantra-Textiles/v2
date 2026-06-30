@@ -7,3 +7,4 @@ packages:
   - "apps/storefront"
   - "deploy/cloudflare"
   - "apps/docs"
+  - "packages/*"

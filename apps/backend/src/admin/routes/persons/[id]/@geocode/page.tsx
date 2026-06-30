@@ -1,4 +1,4 @@
-import { useParams } from "react-router"
+import { useParams } from "react-router-dom"
 import { PersonGeocode } from "../../../../components/persons/person-geocode/person-geocode"
 
 const PersonGeocodePage = () => {

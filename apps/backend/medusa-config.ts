@@ -19,14 +19,18 @@ module.exports = defineConfig({
 
   admin: {
     vite: () => ({
-      // Keep Medusa's default config
-       resolve: {
-              alias: {
-                "@": path.resolve(__dirname, "./src/admin"),
-              }
-              // Keep Medusa's existing resolve options
-            },
-            optimizeDeps: {
+      resolve: {
+        alias: {
+          "@": path.resolve(__dirname, "./src/admin"),
+        },
+        dedupe: [
+          "react",
+          "react-dom",
+          "react/jsx-runtime",
+          "react-router-dom",
+        ],
+      },
+      optimizeDeps: {
         include: ["pdf-lib", "qrcode"],
       },
             css: {
@@ -55,6 +59,19 @@ module.exports = defineConfig({
     {
       resolve: "@medusajs/loyalty-plugin",
       options: {},
+    },
+    {
+      resolve: "medusa-plugin-etsy-sync",
+      options: {
+        keystring: process.env.ETSY_KEYSTRING ?? "",
+        sharedSecret: process.env.ETSY_SHARED_SECRET ?? "",
+        redirectUri:
+          process.env.ETSY_REDIRECT_URI ??
+          "http://localhost:9000/app/settings/oauth/etsy/callback",
+        scope:
+          process.env.ETSY_SCOPE ??
+          "listings_r listings_w listings_d shops_r",
+      },
     },
   ],
 

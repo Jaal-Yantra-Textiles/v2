@@ -39,6 +39,8 @@ apps/**/node_modules
 apps/**/dist
 apps/**/.env
 deploy/**/node_modules
+packages/**/node_modules
+packages/**/dist
 apps/**/.yarn/*
 !apps/**/.yarn/patches
 !apps/**/.yarn/plugins
