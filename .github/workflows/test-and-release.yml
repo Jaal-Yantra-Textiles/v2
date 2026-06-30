@@ -5,6 +5,7 @@ on:
     branches: [ main ]
     paths:
       - 'apps/backend/**'
+      - 'packages/**'
       - 'pnpm-lock.yaml'
       - 'package.json'
       - 'pnpm-workspace.yaml'
@@ -13,6 +14,7 @@ on:
     branches: [ main ]
     paths:
       - 'apps/backend/**'
+      - 'packages/**'
       - 'pnpm-lock.yaml'
       - 'package.json'
       - 'pnpm-workspace.yaml'
@@ -52,11 +54,21 @@ jobs:
     - name: Use Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '>=20'
+        # Pin to 22 (the backend's `engines` floor + prod runtime). Leaving it
+        # at '>=20' floats to the newest available (Node 24), which is fine for
+        # isolated-vm but non-deterministic across runs.
+        node-version: '22'
         cache: 'pnpm'
 
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
+
+    # Workspace plugins ship their built output under .medusa/ (their package
+    # exports point there). pnpm install only symlinks the package, so the
+    # backend can't load the plugin until it's built — without this step every
+    # /admin/etsy/* route 404s and the etsySync module won't resolve.
+    - name: Build workspace plugins
+      run: pnpm --filter "@jytextiles/medusa-plugin-etsy-sync" build
 
     - name: Check medusa-config dev/prod parity
       run: pnpm --filter @jyt/backend check:prod-config
@@ -164,7 +176,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20.x"
+          node-version: "22.x"
           cache: 'pnpm'
 
       - name: Install dependencies

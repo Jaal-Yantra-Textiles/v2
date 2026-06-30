@@ -1,6 +1,10 @@
 {
-  "name": "medusa-plugin-etsy-sync",
+  "name": "@jytextiles/medusa-plugin-etsy-sync",
   "version": "0.1.0",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "description": "Medusa v2 plugin to sync Medusa products to a personal Etsy shop account via the Etsy Open API v3.",
   "keywords": [
     "medusa-v2",
@@ -11,6 +15,16 @@
     "plugin"
   ],
   "license": "MIT",
+  "author": "Jaal Yantra Textiles",
+  "homepage": "https://github.com/Jaal-Yantra-Textiles/v2/tree/main/packages/medusa-plugin-etsy-sync#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jaal-Yantra-Textiles/v2.git",
+    "directory": "packages/medusa-plugin-etsy-sync"
+  },
+  "bugs": {
+    "url": "https://github.com/Jaal-Yantra-Textiles/v2/issues"
+  },
   "scripts": {
     "build": "medusa plugin:build",
     "dev": "medusa plugin:develop",

@@ -61,7 +61,7 @@ module.exports = defineConfig({
       options: {},
     },
     {
-      resolve: "medusa-plugin-etsy-sync",
+      resolve: "@jytextiles/medusa-plugin-etsy-sync",
       options: {
         keystring: process.env.ETSY_KEYSTRING ?? "",
         sharedSecret: process.env.ETSY_SHARED_SECRET ?? "",
