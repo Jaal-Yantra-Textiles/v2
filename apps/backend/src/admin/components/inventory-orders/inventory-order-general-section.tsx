@@ -15,8 +15,10 @@ import {
 } from "../../lib/work-status";
 import { InventoryOrderShipmentModal } from "./inventory-order-shipment-modal";
 
-// #790 — which statuses allow each action.
-const READY_FOR_DELIVERY_FROM = new Set(["Processing", "Partial"]);
+// #790 — which statuses allow each action. Ready-for-delivery requires the
+// order to be at least partially fulfilled (completion recorded) — not raw
+// "Processing", where nothing has been produced yet.
+const READY_FOR_DELIVERY_FROM = new Set(["Partial"]);
 const SHIPPABLE = new Set(["Processing", "Ready for Delivery", "Partial", "Shipped"]);
 
 export const InventoryOrderGeneralSection = ({ inventoryOrder }: { inventoryOrder: AdminInventoryOrder }) => {

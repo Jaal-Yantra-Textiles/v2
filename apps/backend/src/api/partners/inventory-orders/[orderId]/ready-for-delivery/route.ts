@@ -8,14 +8,18 @@
  * IDOR-guarded route is the partner's transition. Routes through the singular
  * update workflow so the #776 status-changed event + unified-order mirror fire.
  *
- * Allowed only from Processing or Partial. Success: 200 -> { order }.
+ * Allowed only from Partial (completion must be recorded first). Success: 200 -> { order }.
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { getPartnerFromAuthContext, assertPartnerOwnsInventoryOrder } from "../../../helpers";
 import { updateInventoryOrderWorkflow } from "../../../../../workflows/inventory_orders/update-inventory-order";
 
-const READY_FROM = new Set(["Processing", "Partial"]);
+// Only a partially-fulfilled order may be marked Ready for Delivery: completion
+// must be recorded first. "Processing" means started but nothing fulfilled yet,
+// so marking it ready would claim goods are packed before any were produced.
+// (Full completion already moves the order straight to "Shipped".)
+const READY_FROM = new Set(["Partial"]);
 
 export async function POST(req: AuthenticatedMedusaRequest, res: MedusaResponse) {
   const orderId = req.params.orderId;
@@ -38,7 +42,7 @@ export async function POST(req: AuthenticatedMedusaRequest, res: MedusaResponse)
   const current = (data?.[0] as any)?.status;
   if (!READY_FROM.has(String(current ?? ""))) {
     return res.status(400).json({
-      message: `Cannot mark an inventory order "Ready for Delivery" from status '${current ?? "unknown"}'.`,
+      message: `Cannot mark "Ready for Delivery" from status '${current ?? "unknown"}' — complete (fulfill) the order first; only a partially-fulfilled (Partial) order can be marked ready.`,
     });
   }
 

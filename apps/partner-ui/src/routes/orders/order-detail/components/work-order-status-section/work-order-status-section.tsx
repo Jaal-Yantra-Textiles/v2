@@ -47,8 +47,9 @@ const buildInventoryActions = (
     (status === "in_progress" || status === "finished") &&
     !info.partner_completed_at
   const showSubmitPayment = !!info.partner_started_at
-  const showReadyForDelivery =
-    coreStatus === "Processing" || coreStatus === "Partial"
+  // Ready-for-delivery requires completion recorded (Partial) — not raw
+  // "Processing", where nothing has been fulfilled yet. The API enforces this.
+  const showReadyForDelivery = coreStatus === "Partial"
   const showCreateShipment =
     coreStatus === "Processing" ||
     coreStatus === "Ready for Delivery" ||

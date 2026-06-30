@@ -502,13 +502,22 @@ setupSharedTestSuite(() => {
         from_stock_location_id: fromStockLocationId,
       });
 
-      it("transitions a Processing order to Ready for Delivery", async () => {
-        const created = await api.post("/admin/inventory-orders", baseOrder("Processing"), headers);
+      it("transitions a Partial order to Ready for Delivery", async () => {
+        const created = await api.post("/admin/inventory-orders", baseOrder("Partial"), headers);
         const id = created.data.inventoryOrder.id;
         const res = await api.post(`/admin/inventory-orders/${id}/ready-for-delivery`, {}, headers);
         expect(res.status).toBe(200);
         const got = await api.get(`/admin/inventory-orders/${id}?fields=id,status`, headers);
         expect(got.data.inventoryOrder.status).toBe("Ready for Delivery");
+      });
+
+      it("rejects from Processing (completion not recorded yet)", async () => {
+        const created = await api.post("/admin/inventory-orders", baseOrder("Processing"), headers);
+        const id = created.data.inventoryOrder.id;
+        const res = await api
+          .post(`/admin/inventory-orders/${id}/ready-for-delivery`, {}, headers)
+          .catch((err) => err.response);
+        expect(res.status).toBe(400);
       });
 
       it("rejects from a non-allowed status (Pending)", async () => {
