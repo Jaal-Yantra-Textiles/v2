@@ -1170,6 +1170,37 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/analytics/delete-analytics-event.ts"
   },
+  "get-partner-storefront-digest": {
+    "fields": [
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "period",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.period }}"
+      },
+      {
+        "name": "thresholds",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.thresholds }}"
+      },
+      {
+        "name": "now",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.now }}",
+        "description": "Compute a per-partner storefront analytics digest (#581 S1). Given a partner id + period it resolves the partner's website, runs the #569 overview for the current AND previous windows (for deltas), pulls the #559 breakdowns the digest surfaces, and assembles a digest JSON with rule-based suggestions (pure helpers in `partner-digest-lib.ts`). Per-partner scoping: a partner's analytics = their website's events. The website is resolved from the partner's `website_id` column (metadata fallback), then `storefront_domain` — mirroring `api/partners/storefront/helpers.ts#getPartnerWebsite`. / export type GetPartnerStorefrontDigestInput = { partner_id: string; period?: DigestPeriod; thresholds?: Partial<DigestThresholds>; /** ISO timestamp; injectable for deterministic runs. Defaults to now."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/analytics/get-partner-storefront-digest.ts"
+  },
   "get-website-analytics-overview": {
     "fields": [
       {
@@ -1248,6 +1279,49 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/analytics/list-analytics-event.ts"
   },
+  "get-analytics-breakdown": {
+    "fields": [
+      {
+        "name": "website_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.website_id }}"
+      },
+      {
+        "name": "dimension",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.dimension }}"
+      },
+      {
+        "name": "start_date",
+        "type": "date",
+        "required": false,
+        "placeholder": "{{ $trigger.start_date }}"
+      },
+      {
+        "name": "end_date",
+        "type": "date",
+        "required": false,
+        "placeholder": "{{ $trigger.end_date }}"
+      },
+      {
+        "name": "filters",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}",
+        "description": "Get Analytics Breakdown (#559 slice 3) Granular single-dimension breakdown of a website's events, with composable equality filters and an optional date range. Complements the high-level getAnalyticsStatsWorkflow which returns a fixed set of aggregates. / export type GetAnalyticsBreakdownInput = { website_id: string; dimension: BreakdownDimension; start_date?: Date; end_date?: Date; /** Composable equality filters keyed by filterable field name."
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false,
+        "placeholder": "0"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/analytics/reports/get-analytics-breakdown.ts"
+  },
   "get-analytics-stats": {
     "fields": [
       {
@@ -1301,6 +1375,91 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/analytics/reports/get-analytics-timeseries.ts"
+  },
+  "get-outbound-links": {
+    "fields": [
+      {
+        "name": "website_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.website_id }}"
+      },
+      {
+        "name": "start_date",
+        "type": "date",
+        "required": false,
+        "placeholder": "{{ $trigger.start_date }}"
+      },
+      {
+        "name": "end_date",
+        "type": "date",
+        "required": false,
+        "placeholder": "{{ $trigger.end_date }}"
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false,
+        "placeholder": "0"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/analytics/reports/get-outbound-links.ts"
+  },
+  "get-session-pages": {
+    "fields": [
+      {
+        "name": "website_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.website_id }}"
+      },
+      {
+        "name": "start_date",
+        "type": "date",
+        "required": false,
+        "placeholder": "{{ $trigger.start_date }}"
+      },
+      {
+        "name": "end_date",
+        "type": "date",
+        "required": false,
+        "placeholder": "{{ $trigger.end_date }}"
+      },
+      {
+        "name": "dimensions",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.dimensions }}",
+        "description": "Get Session Pages Breakdown (#569 S2) Ranked aggregation of a website's analytics sessions by their entry and/or exit page, over an optional date range. Complements the events breakdown (getAnalyticsBreakdownWorkflow) which groups raw events; here we group sessions so the admin can see \"top landing pages\" and \"top exit pages\". There is NO website→analytics_session module link, so sessions are resolved directly off the custom_analytics service (mirrors get-website-analytics- overview's S1 session fetch). The fetch is best-effort: a missing service/method or query error degrades to empty (zeroed) breakdowns rather than throwing. / export type GetSessionPagesInput = { website_id: string; start_date?: Date; end_date?: Date; /** Which page dimensions to compute. Defaults to both entry + exit."
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false,
+        "placeholder": "0"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/analytics/reports/get-session-pages.ts"
+  },
+  "get-website-sessions": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "inferred",
+    "sourceFile": "src/workflows/analytics/reports/get-website-sessions.ts"
   },
   "track-analytics-event": {
     "fields": [
@@ -1363,6 +1522,30 @@
         "type": "date",
         "required": true,
         "placeholder": "{{ $trigger.timestamp }}"
+      },
+      {
+        "name": "client_event_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.client_event_id }}"
+      },
+      {
+        "name": "country",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.country }}"
+      },
+      {
+        "name": "timezone",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.timezone }}"
+      },
+      {
+        "name": "locale",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.locale }}"
       },
       {
         "name": "query_string",
@@ -3089,6 +3272,12 @@
         "type": "array",
         "required": false,
         "placeholder": "{{ $last.inventoryOrderIds }}"
+      },
+      {
+        "name": "attachments",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.attachments }}"
       }
     ],
     "source": "custom_ts",
@@ -3353,6 +3542,64 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/inventory/split-inventory-item.ts"
   },
+  "create-inventory-order-shipment": {
+    "fields": [
+      {
+        "name": "orderId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.orderId }}"
+      },
+      {
+        "name": "carrier",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.carrier }}",
+        "description": "Generate a real carrier shipment (forward → AWB → label) for a partner inventory-order completion and persist the carrier refs onto the inventory order (#772). Opt-in: invoked only when the partner asked to generate a shipment; the legacy free-text `partner_tracking_number` path is untouched otherwise. Pickup bootstrap: when a source stock location is given, ensure it's a registered carrier pickup via `registerShiprocketPickup` (lists first, then registers from the location's address — handles the \"first time, no pickup yet\" case). Otherwise fall back to any registered pickup. A clean MedusaError (not a 500) is thrown when no pickup can be resolved so the UI shows an actionable message. / export type CreateInventoryOrderShipmentInput = { orderId: string /** Defaults to \"shiprocket\"."
+      },
+      {
+        "name": "pickupStockLocationId",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.pickupStockLocationId }}",
+        "description": "Generate a real carrier shipment (forward → AWB → label) for a partner inventory-order completion and persist the carrier refs onto the inventory order (#772). Opt-in: invoked only when the partner asked to generate a shipment; the legacy free-text `partner_tracking_number` path is untouched otherwise. Pickup bootstrap: when a source stock location is given, ensure it's a registered carrier pickup via `registerShiprocketPickup` (lists first, then registers from the location's address — handles the \"first time, no pickup yet\" case). Otherwise fall back to any registered pickup. A clean MedusaError (not a 500) is thrown when no pickup can be resolved so the UI shows an actionable message. / export type CreateInventoryOrderShipmentInput = { orderId: string /** Defaults to \"shiprocket\". */ carrier?: string /** Source stock location to ship from; auto-registered as a pickup if new."
+      },
+      {
+        "name": "weightGrams",
+        "type": "number",
+        "required": false,
+        "placeholder": "0"
+      },
+      {
+        "name": "dimensionsCm",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.dimensionsCm }}"
+      },
+      {
+        "name": "preferredCourierId",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.preferredCourierId }}"
+      },
+      {
+        "name": "deliveredQuantities",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}",
+        "description": "Generate a real carrier shipment (forward → AWB → label) for a partner inventory-order completion and persist the carrier refs onto the inventory order (#772). Opt-in: invoked only when the partner asked to generate a shipment; the legacy free-text `partner_tracking_number` path is untouched otherwise. Pickup bootstrap: when a source stock location is given, ensure it's a registered carrier pickup via `registerShiprocketPickup` (lists first, then registers from the location's address — handles the \"first time, no pickup yet\" case). Otherwise fall back to any registered pickup. A clean MedusaError (not a 500) is thrown when no pickup can be resolved so the UI shows an actionable message. / export type CreateInventoryOrderShipmentInput = { orderId: string /** Defaults to \"shiprocket\". */ carrier?: string /** Source stock location to ship from; auto-registered as a pickup if new. */ pickupStockLocationId?: string weightGrams?: number dimensionsCm?: Dimensions preferredCourierId?: string | number /** Delivered quantities keyed by order_line_id (restricts shipment items)."
+      },
+      {
+        "name": "actingEmail",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.actingEmail }}",
+        "description": "Generate a real carrier shipment (forward → AWB → label) for a partner inventory-order completion and persist the carrier refs onto the inventory order (#772). Opt-in: invoked only when the partner asked to generate a shipment; the legacy free-text `partner_tracking_number` path is untouched otherwise. Pickup bootstrap: when a source stock location is given, ensure it's a registered carrier pickup via `registerShiprocketPickup` (lists first, then registers from the location's address — handles the \"first time, no pickup yet\" case). Otherwise fall back to any registered pickup. A clean MedusaError (not a 500) is thrown when no pickup can be resolved so the UI shows an actionable message. / export type CreateInventoryOrderShipmentInput = { orderId: string /** Defaults to \"shiprocket\". */ carrier?: string /** Source stock location to ship from; auto-registered as a pickup if new. */ pickupStockLocationId?: string weightGrams?: number dimensionsCm?: Dimensions preferredCourierId?: string | number /** Delivered quantities keyed by order_line_id (restricts shipment items). */ deliveredQuantities?: Record<string, number> /** Acting user's email recorded on a freshly-registered pickup (#427)."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/inventory_orders/create-inventory-order-shipment.ts"
+  },
   "create-inventory-order-tasks-from-templates": {
     "fields": [
       {
@@ -3491,6 +3738,120 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/inventory_orders/update-inventory-order.ts"
+  },
+  "generate-ideas-email": {
+    "fields": [
+      {
+        "name": "oneGoal",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.oneGoal }}",
+        "description": "generate-ideas-email.ts — #659 slice 2, PR-2. The \"AI tactical-ideas email\" generate workflow: read today's ground-truth numbers from `marketing_metric_snapshot`, ask the LLM for 3-5 tactical moves (referring to numbers ONLY by {TOKEN} placeholder), run the two-layer hallucination guard (`ideas-email-guard-lib.ts`), regenerate ONCE on failure, then persist a `marketing_ideas_log` row BEFORE anything is ever sent (report §4.3: \"every job writes its result to Postgres before sending\"). Testability: the AI call is an INJECTABLE function (`AiGenerateFn`) — the integration test passes a stub returning fixed `{TOKEN}` copy, so CI NEVER calls a live LLM. The Medusa workflow wrapper injects the real OpenRouter call (mirrors the verified pattern in `src/workflows/ad-planning/sentiment/analyze-sentiment.ts:44-71`). This PR does NOT send the email — `sent` stays false; the send workflow (PR-3) flips it. The job that schedules this (PR-4) stays disabled until the One Goal is picked. / import { createWorkflow, createStep, StepResponse, WorkflowResponse, } from \"@medusajs/framework/workflows-sdk\" import { makeRoleAiGenerate } from \"../../mastra/services/ai-platforms\" import { MARKETING_MODULE } from \"../../modules/marketing\" import type { GroundTruth, GroundTruthValue } from \"./ideas-email-guard-lib\" import { runGuard } from \"./ideas-email-guard-lib\" import { buildIdeasPrompt, STRICTER_SUFFIX } from \"./ideas-email-prompt-lib\" /** An injectable LLM call: prompt in, raw text out (or \"\" on failure). */ export type AiGenerateFn = (prompt: string) => Promise<string> export type GenerateIdeasEmailOptions = { /** Injected for tests; defaults to the role-resolved platform generator (ai_newsletter_drafter → configured platform, else free models). */ aiGenerate?: AiGenerateFn /** The \"One Goal\" string; never invented in code (report §3.6)."
+      },
+      {
+        "name": "businessDescription",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.businessDescription }}",
+        "description": "generate-ideas-email.ts — #659 slice 2, PR-2. The \"AI tactical-ideas email\" generate workflow: read today's ground-truth numbers from `marketing_metric_snapshot`, ask the LLM for 3-5 tactical moves (referring to numbers ONLY by {TOKEN} placeholder), run the two-layer hallucination guard (`ideas-email-guard-lib.ts`), regenerate ONCE on failure, then persist a `marketing_ideas_log` row BEFORE anything is ever sent (report §4.3: \"every job writes its result to Postgres before sending\"). Testability: the AI call is an INJECTABLE function (`AiGenerateFn`) — the integration test passes a stub returning fixed `{TOKEN}` copy, so CI NEVER calls a live LLM. The Medusa workflow wrapper injects the real OpenRouter call (mirrors the verified pattern in `src/workflows/ad-planning/sentiment/analyze-sentiment.ts:44-71`). This PR does NOT send the email — `sent` stays false; the send workflow (PR-3) flips it. The job that schedules this (PR-4) stays disabled until the One Goal is picked. / import { createWorkflow, createStep, StepResponse, WorkflowResponse, } from \"@medusajs/framework/workflows-sdk\" import { makeRoleAiGenerate } from \"../../mastra/services/ai-platforms\" import { MARKETING_MODULE } from \"../../modules/marketing\" import type { GroundTruth, GroundTruthValue } from \"./ideas-email-guard-lib\" import { runGuard } from \"./ideas-email-guard-lib\" import { buildIdeasPrompt, STRICTER_SUFFIX } from \"./ideas-email-prompt-lib\" /** An injectable LLM call: prompt in, raw text out (or \"\" on failure). */ export type AiGenerateFn = (prompt: string) => Promise<string> export type GenerateIdeasEmailOptions = { /** Injected for tests; defaults to the role-resolved platform generator (ai_newsletter_drafter → configured platform, else free models). */ aiGenerate?: AiGenerateFn /** The \"One Goal\" string; never invented in code (report §3.6). */ oneGoal?: string /** Business description fed to the prompt."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/marketing/generate-ideas-email.ts"
+  },
+  "generate-newsletter-draft": {
+    "fields": [
+      {
+        "name": "topic",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.topic }}",
+        "description": "generate-newsletter-draft.ts — #659 slice (report §12.4). The \"AI newsletter draft generator\": ask the LLM for a customer-facing newsletter (subject / preheader / intro / sections / CTA) and persist it to the EXISTING `marketing_draft` model as an OPERATOR-REVIEW draft. Sending is NOT done here — drafts are reviewed/edited in the (separate) Newsletter editor UI and later enqueued through the existing `src/jobs/process-email-queue.ts`. Reuses the verified generate-ideas-email wiring: - the AI call is an INJECTABLE `AiGenerateFn` (prompt in, text out) so CI never calls a live LLM; the Medusa workflow wrapper injects the real OpenRouter call (mirrors generate-ideas-email.ts:152-168). Unlike the tactical-ideas email this is CUSTOMER-FACING, so it does NOT read internal metric snapshots — we never want raw platform GMV leaking into a brand newsletter. The model is told to avoid inventing specific numbers. Pure, unit-tested helpers: `buildNewsletterPrompt`, `parseNewsletterPayload`, `coerceNewsletterPayload`. / import { createWorkflow, createStep, StepResponse, WorkflowResponse, } from \"@medusajs/framework/workflows-sdk\" import { makeRoleAiGenerate } from \"../../mastra/services/ai-platforms\" import { MARKETING_MODULE } from \"../../modules/marketing\" import type { AiGenerateFn } from \"./generate-ideas-email\" /** Role this generator resolves a platform for (free-model fallback). */ const NEWSLETTER_DRAFT_ROLE = \"ai_newsletter_drafter\" const DEFAULT_BUSINESS_DESCRIPTION = \"JYT is a textile-production commerce platform: it runs an admin storefront \" + \"and onboards partner brands who sell their own products through per-partner \" + \"storefronts.\" /** v1 newsletter voice rules — kept pure (the workflow may pass an override). */ export const NEWSLETTER_VOICE_RULES = [ \"Warm and brand-forward, but never hype. Sound like a real person, not an ad.\", \"Lead with value for the reader; keep paragraphs short and scannable.\", \"Do NOT invent specific numbers, percentages, prices, discounts, or dates.\", \"End with one clear, low-pressure call to action.\", ].join(\"\\n- \") // IST = UTC+5:30. Return the IST calendar date (YYYY-MM-DD) for a UTC instant. function istDateString(d: Date): string { const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000) return ist.toISOString().slice(0, 10) } export type NewsletterSection = { heading: string body: string } export type NewsletterPayload = { subject: string preheader: string intro: string sections: NewsletterSection[] cta: string /** true when the model output could not be parsed as JSON and we fell back. */ parse_error?: boolean } export type GenerateNewsletterDraftOptions = { /** Injected for tests; defaults to the real OpenRouter call. */ aiGenerate?: AiGenerateFn /** Operator topic/angle for this newsletter (free text)."
+      },
+      {
+        "name": "businessDescription",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.businessDescription }}",
+        "description": "generate-newsletter-draft.ts — #659 slice (report §12.4). The \"AI newsletter draft generator\": ask the LLM for a customer-facing newsletter (subject / preheader / intro / sections / CTA) and persist it to the EXISTING `marketing_draft` model as an OPERATOR-REVIEW draft. Sending is NOT done here — drafts are reviewed/edited in the (separate) Newsletter editor UI and later enqueued through the existing `src/jobs/process-email-queue.ts`. Reuses the verified generate-ideas-email wiring: - the AI call is an INJECTABLE `AiGenerateFn` (prompt in, text out) so CI never calls a live LLM; the Medusa workflow wrapper injects the real OpenRouter call (mirrors generate-ideas-email.ts:152-168). Unlike the tactical-ideas email this is CUSTOMER-FACING, so it does NOT read internal metric snapshots — we never want raw platform GMV leaking into a brand newsletter. The model is told to avoid inventing specific numbers. Pure, unit-tested helpers: `buildNewsletterPrompt`, `parseNewsletterPayload`, `coerceNewsletterPayload`. / import { createWorkflow, createStep, StepResponse, WorkflowResponse, } from \"@medusajs/framework/workflows-sdk\" import { makeRoleAiGenerate } from \"../../mastra/services/ai-platforms\" import { MARKETING_MODULE } from \"../../modules/marketing\" import type { AiGenerateFn } from \"./generate-ideas-email\" /** Role this generator resolves a platform for (free-model fallback). */ const NEWSLETTER_DRAFT_ROLE = \"ai_newsletter_drafter\" const DEFAULT_BUSINESS_DESCRIPTION = \"JYT is a textile-production commerce platform: it runs an admin storefront \" + \"and onboards partner brands who sell their own products through per-partner \" + \"storefronts.\" /** v1 newsletter voice rules — kept pure (the workflow may pass an override). */ export const NEWSLETTER_VOICE_RULES = [ \"Warm and brand-forward, but never hype. Sound like a real person, not an ad.\", \"Lead with value for the reader; keep paragraphs short and scannable.\", \"Do NOT invent specific numbers, percentages, prices, discounts, or dates.\", \"End with one clear, low-pressure call to action.\", ].join(\"\\n- \") // IST = UTC+5:30. Return the IST calendar date (YYYY-MM-DD) for a UTC instant. function istDateString(d: Date): string { const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000) return ist.toISOString().slice(0, 10) } export type NewsletterSection = { heading: string body: string } export type NewsletterPayload = { subject: string preheader: string intro: string sections: NewsletterSection[] cta: string /** true when the model output could not be parsed as JSON and we fell back. */ parse_error?: boolean } export type GenerateNewsletterDraftOptions = { /** Injected for tests; defaults to the real OpenRouter call. */ aiGenerate?: AiGenerateFn /** Operator topic/angle for this newsletter (free text). */ topic?: string /** Business description fed to the prompt."
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.name }}",
+        "description": "generate-newsletter-draft.ts — #659 slice (report §12.4). The \"AI newsletter draft generator\": ask the LLM for a customer-facing newsletter (subject / preheader / intro / sections / CTA) and persist it to the EXISTING `marketing_draft` model as an OPERATOR-REVIEW draft. Sending is NOT done here — drafts are reviewed/edited in the (separate) Newsletter editor UI and later enqueued through the existing `src/jobs/process-email-queue.ts`. Reuses the verified generate-ideas-email wiring: - the AI call is an INJECTABLE `AiGenerateFn` (prompt in, text out) so CI never calls a live LLM; the Medusa workflow wrapper injects the real OpenRouter call (mirrors generate-ideas-email.ts:152-168). Unlike the tactical-ideas email this is CUSTOMER-FACING, so it does NOT read internal metric snapshots — we never want raw platform GMV leaking into a brand newsletter. The model is told to avoid inventing specific numbers. Pure, unit-tested helpers: `buildNewsletterPrompt`, `parseNewsletterPayload`, `coerceNewsletterPayload`. / import { createWorkflow, createStep, StepResponse, WorkflowResponse, } from \"@medusajs/framework/workflows-sdk\" import { makeRoleAiGenerate } from \"../../mastra/services/ai-platforms\" import { MARKETING_MODULE } from \"../../modules/marketing\" import type { AiGenerateFn } from \"./generate-ideas-email\" /** Role this generator resolves a platform for (free-model fallback). */ const NEWSLETTER_DRAFT_ROLE = \"ai_newsletter_drafter\" const DEFAULT_BUSINESS_DESCRIPTION = \"JYT is a textile-production commerce platform: it runs an admin storefront \" + \"and onboards partner brands who sell their own products through per-partner \" + \"storefronts.\" /** v1 newsletter voice rules — kept pure (the workflow may pass an override). */ export const NEWSLETTER_VOICE_RULES = [ \"Warm and brand-forward, but never hype. Sound like a real person, not an ad.\", \"Lead with value for the reader; keep paragraphs short and scannable.\", \"Do NOT invent specific numbers, percentages, prices, discounts, or dates.\", \"End with one clear, low-pressure call to action.\", ].join(\"\\n- \") // IST = UTC+5:30. Return the IST calendar date (YYYY-MM-DD) for a UTC instant. function istDateString(d: Date): string { const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000) return ist.toISOString().slice(0, 10) } export type NewsletterSection = { heading: string body: string } export type NewsletterPayload = { subject: string preheader: string intro: string sections: NewsletterSection[] cta: string /** true when the model output could not be parsed as JSON and we fell back. */ parse_error?: boolean } export type GenerateNewsletterDraftOptions = { /** Injected for tests; defaults to the real OpenRouter call. */ aiGenerate?: AiGenerateFn /** Operator topic/angle for this newsletter (free text). */ topic?: string /** Business description fed to the prompt. */ businessDescription?: string /** Voice override. */ voiceRules?: string /** Human label for the draft row; defaults to `newsletter-<IST date>`."
+      },
+      {
+        "name": "markReady",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false",
+        "description": "generate-newsletter-draft.ts — #659 slice (report §12.4). The \"AI newsletter draft generator\": ask the LLM for a customer-facing newsletter (subject / preheader / intro / sections / CTA) and persist it to the EXISTING `marketing_draft` model as an OPERATOR-REVIEW draft. Sending is NOT done here — drafts are reviewed/edited in the (separate) Newsletter editor UI and later enqueued through the existing `src/jobs/process-email-queue.ts`. Reuses the verified generate-ideas-email wiring: - the AI call is an INJECTABLE `AiGenerateFn` (prompt in, text out) so CI never calls a live LLM; the Medusa workflow wrapper injects the real OpenRouter call (mirrors generate-ideas-email.ts:152-168). Unlike the tactical-ideas email this is CUSTOMER-FACING, so it does NOT read internal metric snapshots — we never want raw platform GMV leaking into a brand newsletter. The model is told to avoid inventing specific numbers. Pure, unit-tested helpers: `buildNewsletterPrompt`, `parseNewsletterPayload`, `coerceNewsletterPayload`. / import { createWorkflow, createStep, StepResponse, WorkflowResponse, } from \"@medusajs/framework/workflows-sdk\" import { makeRoleAiGenerate } from \"../../mastra/services/ai-platforms\" import { MARKETING_MODULE } from \"../../modules/marketing\" import type { AiGenerateFn } from \"./generate-ideas-email\" /** Role this generator resolves a platform for (free-model fallback). */ const NEWSLETTER_DRAFT_ROLE = \"ai_newsletter_drafter\" const DEFAULT_BUSINESS_DESCRIPTION = \"JYT is a textile-production commerce platform: it runs an admin storefront \" + \"and onboards partner brands who sell their own products through per-partner \" + \"storefronts.\" /** v1 newsletter voice rules — kept pure (the workflow may pass an override). */ export const NEWSLETTER_VOICE_RULES = [ \"Warm and brand-forward, but never hype. Sound like a real person, not an ad.\", \"Lead with value for the reader; keep paragraphs short and scannable.\", \"Do NOT invent specific numbers, percentages, prices, discounts, or dates.\", \"End with one clear, low-pressure call to action.\", ].join(\"\\n- \") // IST = UTC+5:30. Return the IST calendar date (YYYY-MM-DD) for a UTC instant. function istDateString(d: Date): string { const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000) return ist.toISOString().slice(0, 10) } export type NewsletterSection = { heading: string body: string } export type NewsletterPayload = { subject: string preheader: string intro: string sections: NewsletterSection[] cta: string /** true when the model output could not be parsed as JSON and we fell back. */ parse_error?: boolean } export type GenerateNewsletterDraftOptions = { /** Injected for tests; defaults to the real OpenRouter call. */ aiGenerate?: AiGenerateFn /** Operator topic/angle for this newsletter (free text). */ topic?: string /** Business description fed to the prompt. */ businessDescription?: string /** Voice override. */ voiceRules?: string /** Human label for the draft row; defaults to `newsletter-<IST date>`. */ name?: string /** When true, persist as status=\"approved\" (ready); else status=\"draft\"."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/marketing/generate-newsletter-draft.ts"
+  },
+  "log-outreach": {
+    "fields": [
+      {
+        "name": "recipient_email",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.recipient_email }}"
+      },
+      {
+        "name": "recipient_name",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.recipient_name }}"
+      },
+      {
+        "name": "company",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.company }}"
+      },
+      {
+        "name": "campaign",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.campaign }}"
+      },
+      {
+        "name": "channel",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.channel }}"
+      },
+      {
+        "name": "status",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.status }}"
+      },
+      {
+        "name": "notes",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.notes }}"
+      },
+      {
+        "name": "external_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.external_id }}"
+      },
+      {
+        "name": "sent_at",
+        "type": "date",
+        "required": false,
+        "placeholder": "{{ $trigger.sent_at }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/marketing/log-outreach.ts"
   },
   "create-album-media": {
     "fields": [
@@ -4080,6 +4441,60 @@
     "source": "inferred",
     "sourceFile": "src/workflows/meta-ads/fetch-overview/index.ts"
   },
+  "list-partner-orders": {
+    "fields": [
+      {
+        "name": "partnerId",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.partnerId }}"
+      },
+      {
+        "name": "salesChannelId",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.salesChannelId }}"
+      },
+      {
+        "name": "kind",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.kind }}"
+      },
+      {
+        "name": "fields",
+        "type": "array",
+        "required": true,
+        "placeholder": "{{ $last.fields }}"
+      },
+      {
+        "name": "baseFilters",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      },
+      {
+        "name": "order",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      },
+      {
+        "name": "skip",
+        "type": "number",
+        "required": true,
+        "placeholder": "0"
+      },
+      {
+        "name": "take",
+        "type": "number",
+        "required": true,
+        "placeholder": "0"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/orders/list-partner-orders.ts"
+  },
   "associate-partner-person-types": {
     "fields": [
       {
@@ -4224,6 +4639,42 @@
     ],
     "source": "inferred",
     "sourceFile": "src/workflows/partner-subscription/seed-plans.ts"
+  },
+  "attach-storefront-domain": {
+    "fields": [
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "vercel_project_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.vercel_project_id }}"
+      },
+      {
+        "name": "website_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.website_id }}"
+      },
+      {
+        "name": "domain",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.domain }}"
+      },
+      {
+        "name": "prev_metadata",
+        "type": "object",
+        "required": true,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partners/attach-storefront-domain.ts"
   },
   "delete-partner": {
     "fields": [
