@@ -3,6 +3,7 @@ import {
   CheckCircle,
   CurrencyDollar,
   PlaySolid,
+  TruckFast,
 } from "@medusajs/icons"
 import { Container, Copy, Heading, StatusBadge, Text } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
@@ -36,16 +37,29 @@ const buildInventoryActions = (
 ): ActionGroup[] => {
   const info = inventoryOrder?.partner_info || {}
   const status = info.partner_status
+  // #790 fulfilment actions gate on the order's CORE status (same sets the admin
+  // uses), which the partner view exposes as `inventoryOrder.status`. The
+  // endpoints enforce validity and surface a 4xx if the state is wrong.
+  const coreStatus = inventoryOrder?.status
   const showStart =
     (status === "assigned" || status === "incoming") && !info.partner_started_at
   const showComplete =
     (status === "in_progress" || status === "finished") &&
     !info.partner_completed_at
   const showSubmitPayment = !!info.partner_started_at
+  const showReadyForDelivery =
+    coreStatus === "Processing" || coreStatus === "Partial"
+  const showCreateShipment =
+    coreStatus === "Processing" ||
+    coreStatus === "Ready for Delivery" ||
+    coreStatus === "Partial" ||
+    coreStatus === "Shipped"
 
   const actions = [
     showStart && { label: t("partner.workOrders.start"), icon: <PlaySolid />, to: "inventory/start" },
     showComplete && { label: t("partner.workOrders.complete"), icon: <CheckCircle />, to: "inventory/complete" },
+    showReadyForDelivery && { label: t("partner.workOrders.readyForDelivery"), icon: <CheckCircle />, to: "inventory/ready-for-delivery" },
+    showCreateShipment && { label: t("partner.workOrders.createShipment"), icon: <TruckFast />, to: "inventory/create-shipment" },
     showSubmitPayment && { label: t("partner.workOrders.submitPayment"), icon: <CurrencyDollar />, to: "inventory/submit-payment" },
   ].filter(Boolean) as ActionGroup["actions"]
 
