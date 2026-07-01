@@ -4890,6 +4890,136 @@ export const backfillDesignPartnerLinksJob: MaintenanceJob = {
   },
 }
 
+// #829 — group globals a per-color raw_material inherits fill-blank.
+const backfillGroupGlobalsParamsSchema = z.object({
+  group_ids: z.string().trim().optional(),
+  limit: z.coerce.number().int().positive().max(2000).optional().default(500),
+})
+
+const GROUP_GLOBAL_FIELDS = [
+  "composition",
+  "material_type_id",
+  "unit_cost",
+  "cost_currency",
+  "lead_time_days",
+  "minimum_order_quantity",
+  "specifications",
+] as const
+
+const isBlankGlobal = (v: unknown) =>
+  v === null ||
+  v === undefined ||
+  v === "" ||
+  (typeof v === "object" &&
+    v !== null &&
+    !Array.isArray(v) &&
+    Object.keys(v as Record<string, unknown>).length === 0)
+
+/**
+ * Propagate a Material Group's global specs onto its existing per-color
+ * raw_materials (#829). FILL-BLANK only — a field is written to a color only
+ * when that color has no value of its own, so deliberate per-color overrides are
+ * never clobbered. This is the "apply group edits to colors created earlier"
+ * companion to the copy-on-create inheritance in the /colors routes. Idempotent.
+ */
+export const backfillGroupGlobalsToColorsJob: MaintenanceJob = {
+  id: "backfill-group-globals-to-colors",
+  label: "Backfill group globals to colors",
+  description:
+    "Propagate a Material Group's global specs (composition, material type, specifications, unit cost, currency, lead time, MOQ) onto its existing per-color raw_materials — FILL-BLANK only (never overwrites a color's own value). Run after editing a group's globals. Dry-run previews the before/after; apply writes. Idempotent — re-run safely. Note: default location is not propagated here (it's an inventory-level concern, not a raw_material field).",
+  params: [
+    {
+      name: "group_ids",
+      type: "string",
+      required: false,
+      description: "Comma-separated group ids to limit the propagation (optional).",
+    },
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: "Max groups to scan (default 500, max 2000).",
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const { group_ids, limit } = backfillGroupGlobalsParamsSchema.parse(params ?? {})
+    const groupIdFilter = parseCsv(group_ids)
+
+    const rawMaterialService: any = container.resolve(RAW_MATERIAL_MODULE)
+
+    const changes: MaintenanceChange[] = []
+    const errors: Array<{ id: string; message: string }> = []
+
+    const groupFilter: Record<string, unknown> = {}
+    if (groupIdFilter) groupFilter.id = groupIdFilter
+    const groups: any[] = await rawMaterialService.listRawMaterialGroups(
+      groupFilter,
+      { take: limit }
+    )
+
+    let scannedColors = 0
+    let updatedColors = 0
+
+    for (const group of groups) {
+      // Only the globals the group actually provides (non-blank).
+      const provided: Record<string, unknown> = {}
+      for (const f of GROUP_GLOBAL_FIELDS) {
+        if (!isBlankGlobal((group as any)[f])) provided[f] = (group as any)[f]
+      }
+      if (Object.keys(provided).length === 0) continue
+
+      let colors: any[] = []
+      try {
+        colors = await rawMaterialService.listRawMaterials(
+          { group_id: group.id },
+          { take: 1000 }
+        )
+      } catch (e: any) {
+        errors.push({ id: group.id, message: e?.message ?? String(e) })
+        continue
+      }
+
+      for (const rm of colors) {
+        scannedColors++
+        const update: Record<string, unknown> = {}
+        for (const [f, gv] of Object.entries(provided)) {
+          if (isBlankGlobal((rm as any)[f])) {
+            update[f] = gv
+            changes.push({
+              entity: "raw_materials",
+              id: rm.id,
+              field: f,
+              before: (rm as any)[f] ?? null,
+              after: gv,
+            })
+          }
+        }
+        if (Object.keys(update).length === 0) continue
+        updatedColors++
+        if (!dry_run) {
+          try {
+            await rawMaterialService.updateRawMaterials({ id: rm.id, ...update })
+          } catch (e: any) {
+            errors.push({ id: rm.id, message: e?.message ?? String(e) })
+          }
+        }
+      }
+    }
+
+    const verb = dry_run ? "Would update" : "Updated"
+    return {
+      job_id: "backfill-group-globals-to-colors",
+      dry_run,
+      applied: !dry_run && changes.length > 0,
+      summary: `${verb} ${changes.length} field(s) across ${updatedColors} color(s) in ${groups.length} group(s) scanned (${scannedColors} colors examined${
+        errors.length ? `, ${errors.length} failed` : ""
+      }).`,
+      changes,
+      ...(errors.length ? { errors } : {}),
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -4917,6 +5047,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   auditAiPlatformsJob,
   seedEmailTemplatesJob,
   backfillDesignPartnerLinksJob,
+  backfillGroupGlobalsToColorsJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
