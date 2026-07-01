@@ -227,7 +227,20 @@ const FocusLayout = ({
   lines: CollatedLine[]
   onActionSuccess?: () => void
 }) => {
-  const [activeId, setActiveId] = useState<string>(String(lines[0]?.id))
+  const { id: orderId } = useParams()
+  const focusKey = `collated-design-focus:${orderId}`
+  const [activeId, setActiveId] = useState<string>(() => {
+    if (orderId && typeof window !== "undefined") {
+      const stored = window.localStorage.getItem(focusKey)
+      if (stored && lines.some((l) => String(l.id) === stored)) return stored
+    }
+    return String(lines[0]?.id)
+  })
+  useEffect(() => {
+    if (orderId && typeof window !== "undefined") {
+      window.localStorage.setItem(focusKey, activeId)
+    }
+  }, [activeId, focusKey, orderId])
   const activeLine =
     lines.find((l) => String(l.id) === activeId) ?? lines[0]
   return (

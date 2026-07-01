@@ -122,7 +122,7 @@ const MiniStepper = ({ run }: { run: any }) => {
 
 // ── Per-design run card ──────────────────────────────────────────────
 
-const RunCard = ({
+export const RunCard = ({
   run,
   design,
   partnerName,
@@ -229,6 +229,37 @@ const RunCard = ({
     </div>
   )
 }
+
+// ── Reusable run list ────────────────────────────────────────────────
+
+/**
+ * The per-design run cards, joined to design details + partner names. Reused by
+ * the commissioning design-order Production section AND the standalone
+ * design-work-orders admin view (no-customer produced orders).
+ */
+export const ProductionRunList = ({
+  runs,
+  designById = {},
+  partnerNameById = {},
+  currencyCode,
+}: {
+  runs: any[]
+  designById?: Record<string, any>
+  partnerNameById?: Record<string, string>
+  currencyCode?: string
+}) => (
+  <>
+    {runs.map((run: any) => (
+      <RunCard
+        key={String(run.id)}
+        run={run}
+        design={designById[run.design_id]}
+        partnerName={run.partner_id ? partnerNameById[run.partner_id] : null}
+        currencyCode={currencyCode}
+      />
+    ))}
+  </>
+)
 
 // ── Section ──────────────────────────────────────────────────────────
 

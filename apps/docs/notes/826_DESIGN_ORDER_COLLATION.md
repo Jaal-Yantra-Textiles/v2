@@ -260,11 +260,24 @@ produced, lists every per-design run fanned out from the ONE commissioning order
   runnable from Settings → Data Plumbing. Verified: dry-run "would create 4",
   apply "created 4", old order #30 then rendered full inline detail.
 
-### Still open / next
-- Admin section could grow admin-driven actions (send-to-partner with template
-  pick, approve/complete on review) — today it's status + View design + Cancel.
-- Operator picks a preferred default partner layout; maybe promote the per-order
-  view preference from localStorage to a real setting.
+**Wave 3 — dedup + focus persistence + no-customer admin view (shipped):**
+- **De-dup (#2)** — the collated partner order's `<DesignOrderLines>` is now a
+  slim "Designs (N) + Total" summary; the per-design cards live ONLY in the
+  Production section (no double list).
+- **Focus persistence (#5)** — the Focus layout remembers the selected design per
+  order (`collated-design-focus:<orderId>`).
+- **No-customer admin view (#6)** — new admin route **Design Work Orders**
+  (`admin/routes/design-work-orders/page.tsx` + `GET /admin/design-work-orders` +
+  `useDesignWorkOrders`) lists ALL collated work-orders (commissioned AND direct/
+  no-customer), each with its per-design runs (reused exported `ProductionRunList`
+  from the design-order Production section). Lists via the "Partner Work Orders"
+  sales channel filtered to `metadata.collated_design_order`. Live-verified.
+
+### Still open / next (gap review items not yet done)
+- **#3** consumption logs / media inline (decision).
+- **#7/#8/#12** admin depth: order-level entry already covered by Design Work
+  Orders; customise the core work-order page; converge single-design render.
+- **#10 (multi-partner per-line scoping) / #11 (pricing)** — spec decisions.
 
 ---
 
