@@ -16,6 +16,10 @@ export interface OrderLine {
   inventory_item_id: string;
   quantity: number;
   price: number;
+  // #817 S2 — denormalized color identity persisted on the line.
+  color?: string | null;
+  material_name?: string | null;
+  raw_material_id?: string | null;
 }
 
 export interface StockLocations {

@@ -13,7 +13,12 @@ import { InferTypeOf } from "@medusajs/framework/types"
 import InventoryOrder from "../../modules/inventory_orders/models/order";
 import InventoryOrderService from "../../modules/inventory_orders/service";
 import type { InventoryOrderInputStatus } from "../../modules/inventory_orders/constants";
-import { sumLineTotals } from "../../modules/inventory_orders/lib/create-helpers";
+import {
+  sumLineTotals,
+  buildMaterialLookupByInventoryId,
+  enrichOrderLinesWithMaterial,
+  type CreateOrderLineInput,
+} from "../../modules/inventory_orders/lib/create-helpers";
 import type { Link } from "@medusajs/modules-sdk";
 import { dualWriteUnifiedOrderStep } from "./dual-write-unified-order";
 export type InventoryOrder = InferTypeOf<typeof InventoryOrder>;
@@ -59,6 +64,33 @@ export const createInventoryOrderWithLinesStep = createStep(
       metadata: line.metadata
     }));
 
+    // #817 S2 — denormalize color identity onto each line from its
+    // inventory_item's linked raw_material, so the order is self-describing.
+    // Resolved here (the step has the container) since the module service's
+    // create transaction can't do a cross-module query.graph. Best-effort: a
+    // lookup failure leaves the fields null rather than failing order creation.
+    let enrichedLines: CreateOrderLineInput[] = orderLinesForService;
+    try {
+      const inventoryItemIds = Array.from(
+        new Set(orderLinesForService.map((l) => l.inventory_id).filter(Boolean))
+      );
+      if (inventoryItemIds.length) {
+        const query = container.resolve(ContainerRegistrationKeys.QUERY);
+        const { data: inventoryItems } = await query.graph({
+          entity: "inventory_item",
+          fields: ["id", "raw_materials.id", "raw_materials.color", "raw_materials.name"],
+          filters: { id: inventoryItemIds },
+        });
+        const lookup = buildMaterialLookupByInventoryId(inventoryItems as any);
+        enrichedLines = enrichOrderLinesWithMaterial(orderLinesForService, lookup);
+      }
+    } catch (err) {
+      // Denormalization is best-effort; the module link remains source of truth.
+      console.warn(
+        `[create-inventory-order] color-identity denormalization skipped: ${(err as any)?.message || err}`
+      );
+    }
+
     // Compute defaults for fields that may be undefined when called from a visual
     // flow. #778 H9 — `price` is the PER-UNIT price, so the order total is the
     // sum of price × quantity per line (see sumLineTotals).
@@ -79,7 +111,7 @@ export const createInventoryOrderWithLinesStep = createStep(
         : (orderData.metadata ?? null),
     }
 
-    const created = await inventoryOrderService.createInvWithLines(processedOrderData, orderLinesForService);
+    const created = await inventoryOrderService.createInvWithLines(processedOrderData, enrichedLines);
     // Compensation data so the SAGA can roll the order + lines back if a later
     // (cross-module) step fails — the module-link writes are NOT part of the
     // create transaction, so this is how we stay consistent across that boundary

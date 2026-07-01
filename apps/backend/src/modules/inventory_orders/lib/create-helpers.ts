@@ -13,6 +13,10 @@ export type CreateOrderLineInput = {
   quantity: number
   price: number
   metadata?: Record<string, unknown>
+  // #817 S2 — color identity denormalized off the line's inventory_item.
+  color?: string | null
+  material_name?: string | null
+  raw_material_id?: string | null
 }
 
 export type OrderLinePayload = {
@@ -20,6 +24,11 @@ export type OrderLinePayload = {
   price: number
   metadata: Record<string, unknown> | null
   inventory_orders: string
+  // #817 S2 — persisted denormalized color identity (null when the line's
+  // inventory_item has no linked raw_material).
+  color: string | null
+  material_name: string | null
+  raw_material_id: string | null
 }
 
 /** The line ↔ inventory-item pairing used to create the module links. */
@@ -53,7 +62,69 @@ export const buildOrderLinePayloads = (
     price: line.price,
     metadata: line.metadata ?? null,
     inventory_orders: orderId,
+    // #817 S2 — pass through the denormalized color identity resolved by the
+    // caller (the create step), defaulting to null when absent.
+    color: line.color ?? null,
+    material_name: line.material_name ?? null,
+    raw_material_id: line.raw_material_id ?? null,
   }))
+
+/** Denormalized color identity for one inventory_item's linked raw_material. */
+export type MaterialInfo = {
+  color: string | null
+  material_name: string | null
+  raw_material_id: string | null
+}
+
+/**
+ * Shape of an inventory_item as returned by query.graph with the
+ * `raw_materials` link fields selected. The link is 1:1 but graph results can
+ * come back either as an object or a single-element array, so both are handled.
+ */
+export type InventoryItemWithMaterial = {
+  id: string
+  raw_materials?:
+    | { id?: string | null; color?: string | null; name?: string | null }
+    | { id?: string | null; color?: string | null; name?: string | null }[]
+    | null
+}
+
+/**
+ * Build an `inventory_item_id → MaterialInfo` lookup from query.graph results,
+ * so the create step can denormalize color identity onto each order line
+ * (#817 S2). Items with no linked raw_material simply map to all-null.
+ */
+export const buildMaterialLookupByInventoryId = (
+  inventoryItems: InventoryItemWithMaterial[]
+): Record<string, MaterialInfo> => {
+  const lookup: Record<string, MaterialInfo> = {}
+  for (const item of inventoryItems ?? []) {
+    if (!item?.id) continue
+    const rm = Array.isArray(item.raw_materials)
+      ? item.raw_materials[0]
+      : item.raw_materials
+    lookup[item.id] = {
+      color: rm?.color ?? null,
+      material_name: rm?.name ?? null,
+      raw_material_id: rm?.id ?? null,
+    }
+  }
+  return lookup
+}
+
+/**
+ * Merge the resolved color identity onto each order line by inventory_item id.
+ * Lines whose item isn't in the lookup are left as-is (fields stay undefined →
+ * persisted as null by buildOrderLinePayloads).
+ */
+export const enrichOrderLinesWithMaterial = (
+  order_lines: CreateOrderLineInput[],
+  lookup: Record<string, MaterialInfo>
+): CreateOrderLineInput[] =>
+  order_lines.map((line) => {
+    const info = lookup[line.inventory_id]
+    return info ? { ...line, ...info } : line
+  })
 
 /**
  * Pair each created order line to the inventory item it was created from, by

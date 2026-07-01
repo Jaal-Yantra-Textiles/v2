@@ -34,6 +34,10 @@ interface CreateOrderLine {
   quantity: number;
   price: number;
   metadata?: Record<string, unknown>;
+  // #817 S2 — denormalized color identity, resolved by the create step.
+  color?: string | null;
+  material_name?: string | null;
+  raw_material_id?: string | null;
 }
 
 class InventoryOrderService extends MedusaService({

@@ -20,6 +20,10 @@ import {
   computeAdminDeliveryPosting,
 } from "./lib/deliver-helpers";
 import type { DeliveredLine } from "./lib/cancel-helpers";
+import {
+  buildMaterialLookupByInventoryId,
+  type MaterialInfo,
+} from "../../modules/inventory_orders/lib/create-helpers";
 
 
 // Types
@@ -106,6 +110,32 @@ export const updateOrderLinesStep = createStep(
     const currentOrderlines = currentOrder.orderlines || [];
     const byId = new Map<string, any>(currentOrderlines.map((l: any) => [l.id, l]));
 
+    // #817 S2 — resolve color identity for newly-added lines so they're
+    // self-describing just like create-path lines. Existing lines keep their
+    // item (no relink here), so only new lines need enrichment. Best-effort:
+    // a lookup failure leaves the fields null rather than failing the update.
+    let materialLookup: Record<string, MaterialInfo> = {};
+    try {
+      const newItemIds = Array.from(new Set(
+        input.order_lines
+          .filter((l) => !l.remove && !l.id && l.inventory_item_id)
+          .map((l) => l.inventory_item_id)
+      ));
+      if (newItemIds.length) {
+        const query = container.resolve(ContainerRegistrationKeys.QUERY);
+        const { data: inventoryItems } = await query.graph({
+          entity: "inventory_item",
+          fields: ["id", "raw_materials.id", "raw_materials.color", "raw_materials.name"],
+          filters: { id: newItemIds },
+        });
+        materialLookup = buildMaterialLookupByInventoryId(inventoryItems as any);
+      }
+    } catch (err) {
+      console.warn(
+        `[update-inventory-order] color-identity denormalization skipped: ${(err as any)?.message || err}`
+      );
+    }
+
     const created: Array<{ id: string; inventory_item_id?: string }> = [];
     const updated: Array<{ id: string; prevQuantity: number; prevPrice: any }> = [];
     const removed: Array<{ id: string; inventory_item_id?: string; quantity: number; price: any }> = [];
@@ -149,11 +179,15 @@ export const updateOrderLinesStep = createStep(
         });
         // If inventory_item_id changed, handle link update (not implemented here, but can be compared with currentOrderlines)
       } else {
-        // Create orderline
+        // Create orderline (with denormalized color identity when resolvable).
+        const info = materialLookup[line.inventory_item_id];
         const created_line = await inventoryOrderService.createOrderLines({
           inventory_orders_id: input.order_id,
           quantity: line.quantity,
           price: line.price,
+          color: info?.color ?? null,
+          material_name: info?.material_name ?? null,
+          raw_material_id: info?.raw_material_id ?? null,
         });
         // Create link to inventory item
         if (line.inventory_item_id) {
