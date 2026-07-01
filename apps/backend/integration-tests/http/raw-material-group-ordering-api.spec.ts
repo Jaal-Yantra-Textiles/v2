@@ -178,4 +178,118 @@ setupSharedTestSuite(() => {
       .catch((e: any) => e.response)
     expect(res.status).toBe(400)
   })
+
+  it("adds a color with the full material-spec envelope (/colors/full)", async () => {
+    const { data: { raw_material_group: group } } = await api.post(
+      "/admin/raw-material-groups",
+      { name: "Denim Twill", composition: "100% Cotton", unit_of_measure: "Meter" },
+      headers
+    )
+
+    const res = await api.post(
+      `/admin/raw-material-groups/${group.id}/colors/full`,
+      {
+        rawMaterialData: {
+          name: "Denim Twill — Indigo",
+          color: "Indigo",
+          composition: "100% Cotton",
+          unit_of_measure: "Meter",
+          unit_cost: 12,
+          cost_currency: "inr",
+        },
+      },
+      headers
+    )
+    expect(res.status).toBe(201)
+    const colors = res.data.raw_material_group.raw_materials
+    expect(colors).toHaveLength(1)
+    expect(colors[0].color).toBe("Indigo")
+    // the endpoint provisions the inventory item for the new color
+    expect(colors[0].inventory_item?.id).toBeTruthy()
+    expect(typeof colors[0].inventory_item?.sku).toBe("string")
+  })
+
+  it("rejects /colors/full without a color", async () => {
+    const { data: { raw_material_group: group } } = await api.post(
+      "/admin/raw-material-groups",
+      { name: "No Color Full" },
+      headers
+    )
+    const res = await api
+      .post(
+        `/admin/raw-material-groups/${group.id}/colors/full`,
+        { rawMaterialData: { name: "Missing color" } },
+        headers
+      )
+      .catch((e: any) => e.response)
+    expect(res.status).toBe(400)
+  })
+
+  it("links existing ungrouped raw_materials as colors (/colors/link)", async () => {
+    const service: any = getContainer().resolve(RAW_MATERIAL_MODULE)
+    const { data: { raw_material_group: group } } = await api.post(
+      "/admin/raw-material-groups",
+      { name: "Poplin Link", composition: "100% Cotton" },
+      headers
+    )
+    // an ungrouped raw material created directly on the module
+    const loose = await service.createRawMaterials({
+      name: "Loose Poplin — Teal",
+      description: "ungrouped",
+      composition: "100% Cotton",
+      color: "Teal",
+    })
+
+    const res = await api.post(
+      `/admin/raw-material-groups/${group.id}/colors/link`,
+      { raw_material_ids: [loose.id] },
+      headers
+    )
+    expect(res.status).toBe(200)
+    const colors = res.data.raw_material_group.raw_materials
+    expect(colors.map((c: any) => c.id)).toContain(loose.id)
+  })
+
+  it("returns the group's color order-lines grouped-ready (GET /orders)", async () => {
+    const { data: { raw_material_group: group } } = await api.post(
+      "/admin/raw-material-groups",
+      { name: "Canvas Orders", composition: "100% Cotton", unit_of_measure: "Meter" },
+      headers
+    )
+    await api.post(
+      `/admin/raw-material-groups/${group.id}/colors`,
+      { name: "Canvas — Natural", color: "Natural" },
+      headers
+    )
+    const { data: detail } = await api.get(
+      `/admin/raw-material-groups/${group.id}`,
+      { headers: headers.headers }
+    )
+    const colors = detail.raw_material_group.raw_materials
+
+    // empty before any order
+    const before = await api.get(
+      `/admin/raw-material-groups/${group.id}/orders`,
+      { headers: headers.headers }
+    )
+    expect(before.status).toBe(200)
+    expect(before.data.order_lines).toHaveLength(0)
+
+    await api.post(
+      `/admin/raw-material-groups/${group.id}/orders`,
+      orderFields(colors.map((c: any) => ({ raw_material_id: c.id, quantity: 15, price: 4 }))),
+      headers
+    )
+
+    const after = await api.get(
+      `/admin/raw-material-groups/${group.id}/orders`,
+      { headers: headers.headers }
+    )
+    expect(after.status).toBe(200)
+    expect(after.data.order_lines.length).toBeGreaterThanOrEqual(1)
+    const line = after.data.order_lines[0]
+    expect(line.color).toBe("Natural")
+    expect(line.inventory_orders?.id).toBeTruthy()
+    expect(line.inventory_orders?.status).toBe("Pending")
+  })
 })
