@@ -107,7 +107,11 @@ export const CreateInventoryOrderComponent = () => {
   }, [tab]);
 
   const { stock_locations = [] } = useStockLocations();
-  const { inventory_items = [], isLoading } = useInventoryWithRawMaterials({ limit: 100 });
+  const [itemSearch, setItemSearch] = useState("");
+  const { inventory_items = [], isLoading } = useInventoryWithRawMaterials({
+    limit: 100,
+    ...(itemSearch ? { q: itemSearch } : {}),
+  });
 
   // Use Field Array for order lines
   const { fields, append, remove } = useFieldArray({
@@ -334,6 +338,7 @@ export const CreateInventoryOrderComponent = () => {
                       loading={isLoading}
                       onAddNewRow={() => append({ inventory_item_id: "", quantity: 0, price: 0 })}
                       onRemoveRow={remove}
+                      onSearchItems={setItemSearch}
                     />
                   </div>
                   <Text size="small" className="text-ui-fg-subtle mt-2">

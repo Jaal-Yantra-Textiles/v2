@@ -8,11 +8,22 @@ import { useDataGridContext } from "../context"
 
 interface DataGridSelectCellProps<TData, TValue = any>
   extends DataGridCellProps<TData, TValue> {
-  options: { label: React.ReactNode; value: string; disabled?: boolean }[]
+  options: {
+    label: React.ReactNode
+    value: string
+    disabled?: boolean
+    // Optional lowercased search text (name, color, sku…) matched by the search box.
+    keywords?: string
+  }[]
   // Optional loading state to render a loading item
   loading?: boolean
   searchable?: boolean
   noResultsLabel?: string
+  /**
+   * When provided, the search box queries the server (full catalog) instead of
+   * only filtering the already-loaded page. Called debounced with the query.
+   */
+  onSearch?: (query: string) => void
 }
 
 export const DataGridSelectCell = <TData, TValue = any>({
@@ -21,6 +32,7 @@ export const DataGridSelectCell = <TData, TValue = any>({
   loading = false,
   searchable = false,
   noResultsLabel = "No results",
+  onSearch,
 }: DataGridSelectCellProps<TData, TValue>) => {
   const { field, control, renderProps } = useDataGridCell({
     context,
@@ -53,6 +65,18 @@ export const DataGridSelectCell = <TData, TValue = any>({
     }
   }, [open])
 
+  // #831 — forward the query to the server (debounced) so the picker searches
+  // the full catalog, not just the loaded page. Only runs while the dropdown is
+  // open to avoid spurious refetches; the client-side filter below still applies
+  // for instant feedback on the already-loaded options.
+  useEffect(() => {
+    if (!onSearch || !open) {
+      return
+    }
+    const handle = setTimeout(() => onSearch(filterQuery.trim()), 300)
+    return () => clearTimeout(handle)
+  }, [filterQuery, open, onSearch])
+
   const { setTrapActive } = useDataGridContext()
 
   const filteredOptions = useMemo(() => {
@@ -62,6 +86,9 @@ export const DataGridSelectCell = <TData, TValue = any>({
 
     const lower = filterQuery.toLowerCase()
     return displayOptions.filter((option) => {
+      if (option.keywords) {
+        return option.keywords.includes(lower)
+      }
       if (typeof option.label === "string") {
         return option.label.toLowerCase().includes(lower)
       }

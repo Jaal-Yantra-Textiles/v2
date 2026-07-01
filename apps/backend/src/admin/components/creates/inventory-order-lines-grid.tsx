@@ -1,14 +1,14 @@
 import { UseFormReturn } from "react-hook-form";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { createDataGridHelper } from "../data-grid/helpers/create-data-grid-column-helper";
 import { DataGrid } from "../data-grid/data-grid";
 import { DataGridCurrencyCell, DataGridNumberCell } from "../data-grid/components";
 import { DataGridSelectCell } from "../data-grid/components/data-grid-select-cell";
-import { IconButton, Text, Tooltip } from "@medusajs/ui";
-import { Trash } from "@medusajs/icons";
+import { Badge, IconButton, Text, Tooltip } from "@medusajs/ui";
+import { Eye, Trash } from "@medusajs/icons";
 import { InventoryItem, RawMaterial } from "../../hooks/api/raw-materials";
-import { MaterialItemModalTrigger } from "../inventory-orders/material-item-modal";
+import { MaterialItemModal } from "../inventory-orders/material-item-modal";
 
 interface InventoryOrderLine {
   inventory_item_id: string;
@@ -24,6 +24,11 @@ interface InventoryOrderLinesGridProps<T> {
   onAddNewRow: () => void;
   onRemoveRow?: (index: number) => void;
   loading?: boolean;
+  /**
+   * Server-side search callback for the item picker. When provided, the picker's
+   * search box queries the full catalog instead of filtering only the loaded page.
+   */
+  onSearchItems?: (query: string) => void;
 }
 
 export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; sku?: string; width?: string | null; length?: string | null; height?: string | null; weight?: string | number | null; }>({
@@ -34,10 +39,17 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
   onAddNewRow,
   onRemoveRow,
   loading,
+  onSearchItems,
 }: InventoryOrderLinesGridProps<T>) => {
   // Create columns for the data grid using DataGrid helpers
   const columnHelper = createDataGridHelper<InventoryOrderLine, any>();
   const { setError, clearErrors } = form;
+
+  // #832 — the item-details modal is rendered once at the grid root and driven
+  // by this state, so grid re-renders (which rebuild the columns) can't wipe it.
+  const [detailItem, setDetailItem] = useState<
+    (InventoryItem & { raw_materials?: RawMaterial | null }) | null
+  >(null);
 
   useEffect(() => {
     const duplicateIndexes = new Set<number>();
@@ -71,23 +83,55 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
     });
   }, [orderLines, setError, clearErrors]);
 
+  const keyOf = (item: any) =>
+    item?.inventory_item_id || (item?.inventory_item ?? item)?.id || item?.id
+
+  // #831 — accumulate every item we've ever loaded (across server searches) so
+  // that narrowing the picker with a query never drops items already selected in
+  // other rows. Without this, searching in one cell would blank out selections
+  // elsewhere once those items fall out of the fetched page.
+  const [mergedItems, setMergedItems] = useState<T[]>(inventoryItems)
+  useEffect(() => {
+    if (!inventoryItems.length) {
+      return
+    }
+    setMergedItems((prev) => {
+      const map = new Map<string, T>()
+      for (const it of prev) {
+        const v = keyOf(it)
+        if (v) map.set(v, it)
+      }
+      for (const it of inventoryItems) {
+        const v = keyOf(it)
+        if (v) map.set(v, it)
+      }
+      return Array.from(map.values())
+    })
+  }, [inventoryItems])
+
   // Build options once per inventory change or search query change
   const options = useMemo(() => {
-    return inventoryItems.map((item: any) => {
+    return mergedItems.map((item: any) => {
       const inv = item?.inventory_item ?? item
       const raw = item?.raw_materials
       const rawLabel = raw?.name || inv?.title || inv?.sku || ""
       const value = item?.inventory_item_id || inv?.id || item?.id
-      return { label: rawLabel, value }
+      // Searchable keywords beyond the visible name so the picker matches on
+      // color / material / sku too (#831 — quick matching).
+      const keywords = [raw?.name, raw?.color, raw?.material_name, inv?.title, inv?.sku]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+      return { label: rawLabel, value, keywords }
     })
-  }, [inventoryItems])
+  }, [mergedItems])
 
   const inventoryItemMap = useMemo(() => {
     const map = new Map<
       string,
       (InventoryItem & { raw_materials?: RawMaterial | null }) | null
     >()
-    inventoryItems.forEach((item: any) => {
+    mergedItems.forEach((item: any) => {
       const inv = (item?.inventory_item ?? item) as InventoryItem | undefined
       const raw = item?.raw_materials as RawMaterial | undefined
       const value = item?.inventory_item_id || inv?.id || item?.id
@@ -96,7 +140,7 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
       }
     })
     return map
-  }, [inventoryItems])
+  }, [mergedItems])
 
   const columns: ColumnDef<InventoryOrderLine>[] = [
     columnHelper.column({
@@ -124,10 +168,36 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
             }))}
             loading={loading}
             searchable
+            onSearch={onSearchItems}
           />
         );
       },
       disableHiding: true,
+    }),
+    columnHelper.column({
+      id: "color",
+      name: "Color",
+      header: "Color",
+      cell: (context: any) => {
+        const inventoryItemId =
+          orderLines?.[context.row.index]?.inventory_item_id || "";
+        const color = inventoryItemId
+          ? inventoryItemMap.get(inventoryItemId)?.raw_materials?.color
+          : null;
+        return (
+          <div className="flex h-full items-center px-4">
+            {color ? (
+              <Badge size="2xsmall" color="grey" className="capitalize">
+                {color}
+              </Badge>
+            ) : (
+              <Text size="small" className="text-ui-fg-muted">
+                —
+              </Text>
+            )}
+          </div>
+        );
+      },
     }),
     columnHelper.column({
       id: "quantity",
@@ -188,7 +258,22 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
 
         return (
           <div className="flex items-center justify-center gap-1.5">
-            <MaterialItemModalTrigger item={inventoryItem} />
+            <Tooltip
+              content={inventoryItem ? "View item details" : "Select an item first"}
+              side="left"
+            >
+              <IconButton
+                type="button"
+                size="small"
+                variant="transparent"
+                className="text-ui-fg-muted hover:text-ui-fg-base"
+                disabled={!inventoryItem}
+                onClick={() => inventoryItem && setDetailItem(inventoryItem)}
+              >
+                <Eye />
+                <span className="sr-only">View item details</span>
+              </IconButton>
+            </Tooltip>
             <Tooltip content="Remove row" side="left">
               <IconButton
                 type="button"
@@ -212,7 +297,10 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
   const sizedColumns: ColumnDef<InventoryOrderLine>[] = useMemo(() => {
     return columns.map((col) => {
       if (col.id === "item") {
-        return { ...col, size: 600, maxSize: 800 }
+        return { ...col, size: 480, maxSize: 720 }
+      }
+      if (col.id === "color") {
+        return { ...col, size: 160, maxSize: 220 }
       }
       if (col.id === "quantity") {
         return { ...col, size: 180, maxSize: 240 }
@@ -262,6 +350,15 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
       <Text size="xsmall" className="text-ui-fg-muted mt-2">
         Tip: use Delete to drop the last line, the eye icon to inspect details, or the trash icon to remove a specific row.
       </Text>
+      <MaterialItemModal
+        item={detailItem}
+        open={!!detailItem}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailItem(null);
+          }
+        }}
+      />
     </div>
   );
 };

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "@medusajs/framework/zod";
@@ -62,7 +63,11 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
     resolver: zodResolver(editOrderLinesSchema),
   });
 
-  const { inventory_items = [], isLoading } = useInventoryWithRawMaterials({ limit: 100 });
+  const [itemSearch, setItemSearch] = useState("");
+  const { inventory_items = [], isLoading } = useInventoryWithRawMaterials({
+    limit: 100,
+    ...(itemSearch ? { q: itemSearch } : {}),
+  });
 
   // Use Field Array for order lines
   const { fields, append, remove } = useFieldArray({
@@ -156,6 +161,7 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
                   loading={isLoading}
                   onAddNewRow={() => append({ inventory_item_id: "", quantity: 0, price: 0, isExisting: false })}
                   onRemoveRow={remove}
+                  onSearchItems={setItemSearch}
                 />
               </div>
               <Text size="small" className="text-ui-fg-subtle mt-2">
