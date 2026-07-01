@@ -8,6 +8,7 @@ import {
   StatusBadge,
   Button,
   Input,
+  Select,
   toast,
   usePrompt,
   Skeleton,
@@ -30,10 +31,12 @@ import {
   useApproveDesign,
   useCancelDesignOrder,
   useConvertDesignOrder,
+  useProduceDesignOrder,
   useGenerateShiprocketLabel,
   useAttachShiprocketAwb,
   useShiprocketRates,
 } from "../../../hooks/api/design-orders"
+import { usePartners } from "../../../hooks/api/partners"
 import {
   PARTNER_STATUS_LABELS,
   getPartnerWorkStatus,
@@ -291,6 +294,36 @@ const OrderSection = ({
   const [selectedCourierId, setSelectedCourierId] = useState<
     string | number | null
   >(null)
+  // #826 S3a — produce (fan out per-design runs + collate into one work-order).
+  const { mutateAsync: produce, isPending: isProducing } =
+    useProduceDesignOrder(order?.id ?? "")
+  const [produceOpen, setProduceOpen] = useState(false)
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string>("")
+  const { partners = [] } = usePartners(
+    { limit: 100 },
+    { enabled: produceOpen } as any
+  )
+
+  const handleProduce = async () => {
+    await produce(
+      { partner_id: selectedPartnerId || undefined },
+      {
+        onSuccess: (res) => {
+          const p = res.design_order_production
+          toast.success(
+            `Produced ${p.created} design${p.created === 1 ? "" : "s"} into one collated work-order`,
+            {
+              description: selectedPartnerId
+                ? "Assigned to the partner — visible in their Design Orders."
+                : "Assign a partner to make it visible in the partner portal.",
+            }
+          )
+          setProduceOpen(false)
+        },
+        onError: (e) => toast.error(e.message),
+      }
+    )
+  }
   const {
     data: ratesData,
     isLoading: isLoadingRates,
@@ -413,6 +446,12 @@ const OrderSection = ({
               ...(!isCanceled
                 ? [
                     {
+                      label: "Produce (collate to work-order)",
+                      icon: <SquareTwoStack />,
+                      onClick: () => setProduceOpen(true),
+                      disabled: isProducing,
+                    },
+                    {
                       label: "Choose courier & generate label",
                       icon: <HandTruck />,
                       onClick: () => setCourierOpen(true),
@@ -436,6 +475,53 @@ const OrderSection = ({
           }]}
         />
       </div>
+      {produceOpen && (
+        <div className="px-6 py-4 bg-ui-bg-subtle">
+          <div className="flex items-center justify-between mb-2">
+            <Text size="xsmall" className="text-ui-fg-subtle">
+              Fan out one production run per design and collate them into ONE
+              work-order. Pick a partner to assign the work (they'll see one
+              order with all designs); leave blank to collate unassigned.
+            </Text>
+            <Button
+              variant="transparent"
+              size="small"
+              onClick={() => setProduceOpen(false)}
+            >
+              Close
+            </Button>
+          </div>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <Text size="xsmall" className="text-ui-fg-subtle mb-1">
+                Partner (optional)
+              </Text>
+              <Select
+                value={selectedPartnerId}
+                onValueChange={setSelectedPartnerId}
+              >
+                <Select.Trigger>
+                  <Select.Value placeholder="Unassigned" />
+                </Select.Trigger>
+                <Select.Content>
+                  {partners.map((p: any) => (
+                    <Select.Item key={p.id} value={p.id}>
+                      {p.name}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select>
+            </div>
+            <Button
+              size="small"
+              isLoading={isProducing}
+              onClick={handleProduce}
+            >
+              Produce
+            </Button>
+          </div>
+        </div>
+      )}
       {courierOpen && (
         <div className="px-6 py-4 bg-ui-bg-subtle">
           <div className="flex items-center justify-between mb-2">

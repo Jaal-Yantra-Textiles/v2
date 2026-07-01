@@ -266,6 +266,46 @@ export const useConvertDesignOrder = (
   });
 };
 
+// #826 S3a — produce a design order: fan out one production run per design line
+// and collate them into ONE kind=design work-order. Optional partner_id commits
+// the work (runs born sent_to_partner → the work-order is visible to that
+// partner). Idempotent.
+export interface ProduceDesignOrderPayload {
+  partner_id?: string;
+}
+export interface ProduceDesignOrderResponse {
+  design_order_production: {
+    created: number;
+    run_ids: string[];
+    design_ids: string[];
+    work_order_id: string | null;
+  };
+}
+export const useProduceDesignOrder = (
+  orderId: string,
+  options?: UseMutationOptions<
+    ProduceDesignOrderResponse,
+    FetchError,
+    ProduceDesignOrderPayload
+  >
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: ProduceDesignOrderPayload = {}) =>
+      sdk.client.fetch<ProduceDesignOrderResponse>(
+        `/admin/orders/${orderId}/design/produce`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({
+        queryKey: designOrdersQueryKeys.lists(),
+      });
+      options?.onSuccess?.(...args);
+    },
+    ...options,
+  });
+};
+
 export type ShiprocketRateOption = {
   courier_id?: string | number;
   courier_name?: string;
