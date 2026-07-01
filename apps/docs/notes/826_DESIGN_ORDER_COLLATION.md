@@ -120,3 +120,96 @@ key yet — the fan-out must stamp it.
 - run fan-out gate (Bug #8): `src/subscribers/order-placed.ts`
 - links: `order-production-run.ts` (D5 1:1), `design-order-link.ts`,
   `design-line-item-link.ts`, `design-customer-link.ts`, partner↔order (D3)
+
+---
+
+## Session 2026-07-01b — command bar, no-customer produce, design↔partner fix
+
+### Shipped (PR #828, branch `feat/826-design-order-collation`)
+- **Compact command bar** (`src/admin/routes/designs/page.tsx`): the Designs
+  list command bar now renders each action as just its shortcut-letter badge
+  (`<CommandBar.Command label="" shortcut="x">`) wrapped in a `<Tooltip>` that
+  reveals the full label on hover. Custom `<CommandBar>` (from `@medusajs/ui`)
+  replaces `<DataTable.CommandBar>`; `CommandBar.Command` registers its OWN
+  keydown, so `commands` was dropped from `useDataTable` to avoid double
+  registration. `useCommands` now returns plain `{label,shortcut,action}` (no
+  `createDataTableCommandHelper`).
+- **"Send to Production" (no customer)** — collate N selected designs into ONE
+  partner work-order WITHOUT a commissioning order / sale ("just make these"):
+  - `collateRunsIntoWorkOrder(container, runs, {sourceOrderId})` — extracted
+    shared core from `projectDesignOrderToUnifiedOrder` (region/channel + one
+    line per run + order↔run 1:many + design↔order + partner↔order + aggregate
+    status). Both the commissioning path and the no-customer path call it.
+  - `produceDesignsAsWorkOrder(container, design_ids, partner_id)`
+    (`src/workflows/designs/produce-designs-as-work-order.ts`): one run/design
+    (born `sent_to_partner`, `skip_unified_projection`, NO `order_id`) → collate.
+    `source_order_id` on the collated order is `null` for this path.
+  - `POST /admin/designs/produce {design_ids, partner_id}` → `{design_production}`.
+  - `SendToProductionDrawer` partner picker (mirrors `BulkLinkPartnerDrawer`);
+    "Send to Production" command (shortcut `g`) on the designs list.
+  - Test: `integration-tests/http/designs-produce-no-customer.spec.ts`.
+- **Fix "design-details shows nothing found"** — root cause: `GET
+  /partners/designs/:id` (`src/api/partners/designs/[designId]/route.ts:157`)
+  scopes on the **design_partner** link and 404s ("Design not found for this
+  partner") when absent. The produce paths created design↔order + partner↔order
+  but never design↔partner. `collateRunsIntoWorkOrder` now creates a
+  design↔partner link per (design, committed-partner) pair (best-effort,
+  idempotent). Test asserts every produced design is assigned.
+
+### NEXT SESSION — capture the collated lifecycle in the ONE order space
+Two UI features remain (both partner-ui, some admin), grounded here so a clean
+session can start immediately:
+
+1. **Per-design details navigation (finish the "nothing found" UX).** The
+   collated order (`order-detail.tsx`) shows N `<DesignOrderLines>` cards but
+   only ONE top "Design details" link, and `OrderDesignDetails`
+   (`routes/orders/order-design-details/order-design-details.tsx`) resolves the
+   design via `order.metadata.legacy_id` = **runs[0].id only** → always the
+   first design. Plan:
+   - Make each `<DesignOrderLines>` card link to its OWN design, e.g.
+     `/orders/:id/design-details/:designId` (design_id is on
+     `line.metadata.design_id`; run id on `line.metadata.production_run_id`).
+   - `OrderDesignDetails`: read the `:designId` route param when present and
+     resolve THAT design (fall back to legacy_id for legacy single-design
+     orders). Register the nested route in `get-partner-route.map.tsx`.
+   - Now that design↔partner links exist, each design resolves (no more 404).
+
+2. **Manage all production runs' lifecycle from the collated order space** (the
+   user's core ask). Today the collated `<DesignOrderLines>` shows qty/amount
+   only — no run status, no lifecycle actions. The single-design order uses
+   `<ProductionRunCard>` (accept/start/finish/complete + consumption). Plan:
+   - The collated order has `order.production_runs` (1:many) — one run per
+     design line (`line.metadata.production_run_id` ↔ run). Fetch the runs for
+     the order and join to lines by `production_run_id`.
+   - Per design card: show the run's `partner_status` badge + inline lifecycle
+     actions (reuse the partner run mutation hooks used by `ProductionRunCard`;
+     `usePartnerProductionRun` per run, or a batch fetch). So a partner can drive
+     accept→start→finish→complete for EVERY design of the collated order from
+     one screen — the "same place where the collated designs lifecycle is
+     captured".
+   - Order-level roll-up already exists: `aggregatePartnerStatus`/
+     `aggregateCoreStatus` (least-advanced). On each per-run lifecycle
+     transition, re-aggregate onto the collated order — see the OPEN follow-up:
+     `mirrorRunStatusToUnifiedOrder` currently writes the collated order's status
+     from a SINGLE run; it must aggregate across all the order's runs (noted in
+     commit `2ee9ff7f1`). This is the backend piece that makes the collated
+     lifecycle correct as individual runs advance.
+   - Admin mirror: the collated work-order detail should likewise list per-design
+     run status/actions (admin already has the produce button on the design
+     order; extend to show/advance the resulting runs).
+
+### Key files (this session + next)
+- shared collate core: `src/workflows/production-runs/dual-write-unified-run-order.ts`
+  (`collateRunsIntoWorkOrder`, `projectDesignOrderToUnifiedOrder`,
+  `mirrorRunStatusToUnifiedOrder` ← aggregation TODO)
+- no-customer produce: `src/workflows/designs/produce-designs-as-work-order.ts`
+  + `src/api/admin/designs/produce/route.ts`
+- commissioning produce: `src/workflows/designs/create-runs-for-design-order.ts`
+  + `src/api/admin/orders/[id]/design/produce/route.ts`
+- designs list UI: `src/admin/routes/designs/page.tsx` +
+  `src/admin/components/designs/send-to-production-drawer.tsx`
+- partner collated render: `apps/partner-ui/src/routes/orders/order-detail/order-detail.tsx`
+  + `components/work-orders/design-order-lines.tsx`
+  + `routes/orders/order-design-details/order-design-details.tsx` (per-design TODO)
+- partner run lifecycle card (reuse): `apps/partner-ui/src/components/work-orders/production-run-card.tsx`
+- partner design scoping (404 cause): `src/api/partners/designs/[designId]/route.ts:157`
