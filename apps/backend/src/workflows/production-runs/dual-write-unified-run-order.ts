@@ -585,6 +585,37 @@ export const collateRunsIntoWorkOrder = async (
     await createPartnerOrderLink(container, partnerId as string, unified.id)
   }
 
+  // design↔partner link per (design, committed-partner) pair. WITHOUT this the
+  // partner UI's design-details (`GET /partners/designs/:id`, scoped on the
+  // design_partner link) 404s "Design not found for this partner" — the
+  // "nothing found" the operator sees when opening a design from the collated
+  // work-order. Producing a design to a partner IS the assignment, so the link
+  // belongs here. Best-effort + idempotent (a re-produce just re-hits it).
+  for (const run of runs) {
+    if (
+      !run.partner_id ||
+      !run.design_id ||
+      !["sent_to_partner", "in_progress", "completed"].includes(run.status)
+    ) {
+      continue
+    }
+    await remoteLink
+      .create([
+        {
+          [DESIGN_MODULE]: { design_id: run.design_id },
+          [PARTNER_MODULE]: { partner_id: run.partner_id },
+        },
+      ])
+      .catch((e: any) => {
+        // A duplicate (design already assigned to this partner) is fine.
+        if (!/duplicate|already exists|unique/i.test(e?.message || "")) {
+          logger.warn(
+            `[orders-unification] collated design↔partner link failed for design ${run.design_id} / partner ${run.partner_id}: ${e?.message}`
+          )
+        }
+      })
+  }
+
   // Aggregate partner_status onto the sidecar column (best-effort).
   const partnerStatus = aggregatePartnerStatus(runs)
   if (partnerStatus) {

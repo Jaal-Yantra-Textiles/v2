@@ -7,6 +7,7 @@ import { produceDesignsAsWorkOrder } from "../../src/workflows/designs/produce-d
 import { PRODUCTION_RUNS_MODULE } from "../../src/modules/production_runs"
 import { PARTNER_MODULE } from "../../src/modules/partner"
 import partnerOrderLink from "../../src/links/partner-order"
+import designPartnerLink from "../../src/links/design-partners-link"
 
 jest.setTimeout(90 * 1000)
 
@@ -132,6 +133,21 @@ setupSharedTestSuite(() => {
       })
       const partnerLinkIds = (partnerLinks ?? []).map((r: any) => r.partner_id)
       expect(partnerLinkIds).toContain(partnerId)
+
+      // design↔partner link per design — without it partner-ui design-details
+      // (`GET /partners/designs/:id`) 404s "Design not found for this partner"
+      // (the "nothing found" bug). Every produced design must be assigned.
+      const { data: designPartnerLinks } = await query.graph({
+        entity: designPartnerLink.entryPoint,
+        fields: ["design_id", "partner_id"],
+        filters: { partner_id: partnerId },
+      })
+      const assignedDesignIds = (designPartnerLinks ?? []).map(
+        (r: any) => r.design_id
+      )
+      for (const designId of designIds) {
+        expect(assignedDesignIds).toContain(designId)
+      }
     })
   })
 })
