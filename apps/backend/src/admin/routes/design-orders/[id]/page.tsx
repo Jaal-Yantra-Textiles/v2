@@ -42,6 +42,7 @@ import {
   getPartnerWorkStatus,
   getStatusBadgeColor,
 } from "../../../lib/work-status"
+import { DesignOrderProductionSection } from "../../../components/designs/design-order-production-section"
 
 // ─── Status helpers ─────────────────────────────────────────────────────────
 
@@ -828,6 +829,7 @@ const DesignOrderDetailPage = () => {
         <DesignOrderHeaderSection designOrder={designOrder} />
         <LineItemSection designOrder={designOrder} />
         <OrderSection designOrder={designOrder} lineItemId={id!} />
+        <DesignOrderProductionSection designOrder={designOrder} />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
         <CustomerSection designOrder={designOrder} />

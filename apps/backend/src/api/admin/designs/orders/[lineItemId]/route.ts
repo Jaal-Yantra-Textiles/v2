@@ -40,7 +40,7 @@ export async function GET(
       query.graph({
         entity: "design",
         filters: { id: designId },
-        fields: ["id", "name", "status", "description", "thumbnail_url", "estimated_cost", "design_type"],
+        fields: ["id", "name", "status", "description", "thumbnail_url", "estimated_cost", "design_type", "priority", "target_completion_date"],
       }),
       query.graph({
         entity: designCustomerLink.entryPoint,
@@ -207,7 +207,7 @@ export async function GET(
             const { data: siblingDesigns } = await query.graph({
               entity: "design",
               filters: { id: siblingDesignIds },
-              fields: ["id", "name", "status", "estimated_cost"],
+              fields: ["id", "name", "status", "estimated_cost", "design_type", "priority", "target_completion_date"],
             })
             const siblingDesignById: Record<string, any> = {}
             for (const d of siblingDesigns || []) siblingDesignById[d.id] = d

@@ -216,12 +216,29 @@ span). Design "Open design manager" (`/designs/:id`) kept as the escape hatch.
 Future: per-order view preference could move from localStorage to a real setting
 ("ask per order how they want to see").
 
+### Admin mirror (SHIPPED, same session)
+The admin design-order detail (`admin/routes/design-orders/[id]/page.tsx`, where
+the Produce button lives) now has a **Production** section
+(`admin/components/designs/design-order-production-section.tsx`) that, once
+produced, lists every per-design run fanned out from the ONE commissioning order:
+- Fetched via `useProductionRuns({ order_id })` — needed a new `order_id` filter
+  on `GET /admin/production-runs` (route.ts). Design details joined from the
+  design-order payload's `design` + `sibling_items[].design` (endpoint enriched
+  with `design_type`/`priority`/`target_completion_date`).
+- Per run: design name (link) + type/status badges, a 5-step progress stepper,
+  important details (qty · cost · due date · partner name), an **admin action
+  menu** (View design / Cancel run), and — surfaced for the operator — **"Now:
+  <what's happening>  →  Partner's next: <the partner's upcoming lifecycle
+  action>"** (accept → start → finish → complete).
+- Live-verified in admin :9000 on the produced commissioning order #29 (3 runs
+  "sent to partner"): all three show "Now: Sent — awaiting acceptance → Partner's
+  next: Accept the run", stepper at Received, partner name + INR cost.
+
 ### Still open / next
-- **Admin mirror** — the admin collated work-order detail should likewise list
-  per-design run status/actions (the produce button already exists on the design
-  order; extend the resulting-runs view). Not yet built.
-- Live-verify in partner-ui (multi-design produce → open order → toggle the 3
-  layouts; each design drives its lifecycle inline; specs render under the order).
+- Admin section could grow admin-driven actions (send-to-partner with template
+  pick, approve/complete on review) — today it's status + View design + Cancel.
+- Operator picks a preferred default partner layout; maybe promote the per-order
+  view preference from localStorage to a real setting.
 
 ---
 

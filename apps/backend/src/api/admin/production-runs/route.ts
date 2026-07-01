@@ -172,6 +172,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   if (q.design_id) {
     filters.design_id = q.design_id
   }
+  // #826 — filter by the commissioning order so the admin design-order detail
+  // can list all the per-design runs a produce fanned out for that one order.
+  if (q.order_id) {
+    filters.order_id = q.order_id
+  }
   if (q.status) {
     filters.status = q.status
   }
