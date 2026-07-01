@@ -36,6 +36,7 @@ type CreateRawMaterialInput = {
     metadata?: Record<string, any>
     material_type?: string | object  // Can be string (name) or object
     material_type_id?: string        // Or existing ID
+    group_id?: string                // #817 — the raw_material_group this color belongs to
     media?: Record<string, any>
   }
 }
