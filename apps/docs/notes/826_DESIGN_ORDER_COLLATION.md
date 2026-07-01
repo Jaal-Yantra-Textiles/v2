@@ -83,10 +83,24 @@ instead ensure the projection stamps design identity (name/status) onto each lin
 item it creates (it already sets title from `run.snapshot.design.name`). Revised
 slices below drop S2.
 
+### CORRECTION (2026-07-01): "Bug #8" is INTENTIONAL, not a bug
+`convert-design-order.ts:169-179` builds **title-only** order line items (no
+`product_id`) *specifically* so `order-placed.ts` does NOT auto-spawn runs for a
+customer design order (draft order, `no_notification`). The order line items DO
+inherit `metadata.design_id` + `source_cart_line_item_id` from the cart line
+items (draft workflow stamps `metadata.design_id` at create). So run creation for
+design orders is a DELIBERATE explicit admin step, not order-placed.
+=> Collation entry point is an **explicit "send design order to production"
+fan-out**, NOT an order-placed change. Runs today (admin `/designs/:id/
+production-runs`) do NOT carry the commissioning `order_id`, so there's no group
+key yet — the fan-out must stamp it.
+
 ### Revised build order
-1. **Bug #8** — `order-placed.ts:48-53`: fan out one production_run per design
-   line item (resolve `design_id` from design↔line-item link; `order_line_item_id`
-   already the run key; stamp `order_id`). Prereq: runs must exist per design line.
+1. **Fan-out-runs-for-design-order** (new workflow + admin action): given a
+   commissioning order, create one production_run per design line item, each
+   stamped `order_id`=commissioning order + `order_line_item_id`=that line +
+   `design_id` (from line `metadata.design_id`). This gives the collation its
+   `run.order_id` group key while respecting the deliberate no-auto-run design.
 2. **S3a — collated projection:** batch `projectRunToUnifiedOrder` so N runs
    sharing `order_id` → ONE unified work-order with N line items; `order↔run`
    1:many; idempotent on the collated order. Mirror `dual-write-unified-order.ts`.
