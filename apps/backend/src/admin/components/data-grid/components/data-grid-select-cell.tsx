@@ -137,13 +137,33 @@ export const DataGridSelectCell = <TData, TValue = any>({
                </Select.Trigger>
                <Select.Content>
                 {searchable && (
-                  <div className="border-b border-ui-border-base px-3 py-2">
+                  <div
+                    className="border-b border-ui-border-base px-3 py-2"
+                    // Radix Select treats bubbled key events as typeahead/nav and
+                    // pointer events as item interaction. Contain both here so the
+                    // search box is actually typeable/clickable.
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onPointerMove={(e) => e.stopPropagation()}
+                  >
                     <Input
                       size="small"
                       placeholder="Search"
                       value={filterQuery}
                       onChange={(event) => setFilterQuery(event.target.value)}
                       autoFocus
+                      onKeyDown={(e) => {
+                        // Keep keystrokes in the search box; Radix Select would
+                        // otherwise hijack letters (typeahead), arrows/space
+                        // (navigation) and Enter (select). Let Escape bubble so
+                        // the dropdown can still close.
+                        if (e.key === "Escape") {
+                          return
+                        }
+                        e.stopPropagation()
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                        }
+                      }}
                     />
                   </div>
                 )}

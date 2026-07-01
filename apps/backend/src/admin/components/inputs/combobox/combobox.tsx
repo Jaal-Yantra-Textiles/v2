@@ -63,6 +63,10 @@ interface ComboboxProps<T extends Value = Value>
   noResultsPlaceholder?: ReactNode
   allowClear?: boolean
   forceHideInput?: boolean // always hide input -> used for singe value select that don't have query/filter
+  // Render the options popover in a portal at <body>. Off by default; enable it
+  // when the combobox lives inside a transformed/overflow-clipped ancestor (e.g.
+  // a virtualized DataGrid row) so the list isn't trapped/clipped.
+  portal?: boolean
 }
 
 const ComboboxImpl = <T extends Value = string>(
@@ -80,6 +84,7 @@ const ComboboxImpl = <T extends Value = string>(
     noResultsPlaceholder,
     allowClear,
     forceHideInput,
+    portal,
     ...inputProps
   }: ComboboxProps<T>,
   ref: ForwardedRef<HTMLInputElement>
@@ -345,6 +350,7 @@ const ComboboxImpl = <T extends Value = string>(
       <PrimitiveComboboxPopover
         gutter={4}
         sameWidth
+        portal={portal}
         ref={listboxRef}
         role="listbox"
         className={clx(

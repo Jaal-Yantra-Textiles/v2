@@ -444,6 +444,19 @@ export const DataGridRoot = <
 
   useEffect(() => {
     const specialFocusHandler = (e: KeyboardEvent) => {
+      // Ignore keystrokes typed into a foreign input (e.g. the item-picker
+      // Combobox) so we don't start editing a grid cell from its keystrokes.
+      const t = e.target as HTMLElement | null
+      const tag = t?.tagName
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        t?.isContentEditable ||
+        t?.getAttribute?.("role") === "combobox"
+      ) {
+        return
+      }
       if (isSpecialFocusKey(e)) {
         handleSpecialFocusKeys(e)
         return

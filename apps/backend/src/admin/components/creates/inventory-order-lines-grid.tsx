@@ -1,14 +1,87 @@
-import { UseFormReturn } from "react-hook-form";
+import { Controller, UseFormReturn, useWatch } from "react-hook-form";
 import { useEffect, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { createDataGridHelper } from "../data-grid/helpers/create-data-grid-column-helper";
 import { DataGrid } from "../data-grid/data-grid";
 import { DataGridCurrencyCell, DataGridNumberCell } from "../data-grid/components";
-import { DataGridSelectCell } from "../data-grid/components/data-grid-select-cell";
 import { Badge, IconButton, Text, Tooltip } from "@medusajs/ui";
 import { Eye, Trash } from "@medusajs/icons";
+import { Combobox } from "../inputs/combobox/combobox";
 import { InventoryItem, RawMaterial } from "../../hooks/api/raw-materials";
 import { MaterialItemModal } from "../inventory-orders/material-item-modal";
+
+type PickerOption = { label: string; value: string; keywords?: string; disabled?: boolean };
+
+/**
+ * Item picker cell — a real (ariakit) Combobox instead of a search box wedged
+ * inside a Radix Select. The Select approach fought Radix's focus/typeahead and
+ * dropped keystrokes (flaky search); the Combobox is a portaled popover with a
+ * stable text input and server-side search wiring. Bound straight to the form so
+ * a picked item reflects immediately (no double-click-to-edit dance).
+ */
+const ItemComboboxCell = ({
+  form,
+  index,
+  options,
+  loading,
+  onSearch,
+}: {
+  form: UseFormReturn<any>;
+  index: number;
+  options: PickerOption[];
+  loading?: boolean;
+  onSearch?: (query: string) => void;
+}) => {
+  const [query, setQuery] = useState("");
+
+  // Debounced server-side search over the full catalog (#831).
+  useEffect(() => {
+    if (!onSearch) {
+      return;
+    }
+    const handle = setTimeout(() => onSearch(query.trim()), 300);
+    return () => clearTimeout(handle);
+  }, [query, onSearch]);
+
+  return (
+    <Controller
+      control={form.control}
+      name={`order_lines.${index}.inventory_item_id`}
+      render={({ field, fieldState }) => (
+        <div
+          className="flex h-full w-full flex-col justify-center px-2"
+          // The grid registers GLOBAL window keydown handlers (arrows/space/
+          // enter/backspace = grid navigation) that don't check the target, so
+          // they hijack the combobox and made search flaky. Contain key events
+          // here: ariakit's handlers on the input have already run by the time
+          // this bubbles, and React's stopPropagation also stops the native
+          // window listener — WITHOUT toggling grid state (which re-rendered the
+          // grid, remounted the cell, and made the dropdown flicker).
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <Combobox
+            value={(field.value as string) || ""}
+            onChange={(v) => field.onChange((v as string) ?? "")}
+            onBlur={field.onBlur}
+            searchValue={query}
+            onSearchValueChange={setQuery}
+            options={options}
+            allowClear
+            disabled={loading}
+            placeholder="Search items…"
+            // Portal the options out of the virtualized/overflow-clipped grid row.
+            portal
+          />
+          {fieldState.error?.message && (
+            <Text size="xsmall" className="text-ui-fg-error mt-1 px-1">
+              {fieldState.error.message}
+            </Text>
+          )}
+        </div>
+      )}
+    />
+  );
+};
 
 interface InventoryOrderLine {
   inventory_item_id: string;
@@ -51,12 +124,24 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
     (InventoryItem & { raw_materials?: RawMaterial | null }) | null
   >(null);
 
+  // The `orderLines` prop is react-hook-form's `fields` array — a snapshot whose
+  // values only change on structural edits (append/remove), NOT when a cell's
+  // value is edited in place. Reading it for the Color pill / details eye meant
+  // they only refreshed after the next row was added. Watch the live form values
+  // instead so a picked item reflects immediately in the same render.
+  const watchedLines =
+    (useWatch({ control: form.control, name: "order_lines" }) as
+      | InventoryOrderLine[]
+      | undefined) ?? orderLines;
+  const lineAt = (index: number): InventoryOrderLine | undefined =>
+    watchedLines?.[index] ?? orderLines?.[index];
+
   useEffect(() => {
     const duplicateIndexes = new Set<number>();
     const seen = new Map<string, number[]>();
 
-    orderLines.forEach((line, index) => {
-      if (!line.inventory_item_id) {
+    watchedLines.forEach((line, index) => {
+      if (!line?.inventory_item_id) {
         return;
       }
       const list = seen.get(line.inventory_item_id) ?? [];
@@ -70,7 +155,7 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
       }
     });
 
-    orderLines.forEach((_, index) => {
+    watchedLines.forEach((_, index) => {
       const fieldName = `order_lines.${index}.inventory_item_id` as const;
       if (duplicateIndexes.has(index)) {
         setError(fieldName, {
@@ -81,7 +166,7 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
         clearErrors(fieldName);
       }
     });
-  }, [orderLines, setError, clearErrors]);
+  }, [watchedLines, setError, clearErrors]);
 
   const keyOf = (item: any) =>
     item?.inventory_item_id || (item?.inventory_item ?? item)?.id || item?.id
@@ -147,27 +232,24 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
       id: "item",
       name: "Item",
       header: "Item",
-      field: (context: any) => `order_lines.${context.row.index}.inventory_item_id`,
-      type: "text",
       cell: (context: any) => {
         const rowIndex = context.row.index;
 
-        // Check if item is already selected in other rows
-        const isOptionDisabled = (optionValue: string) => {
-          return orderLines.some((line, index) => 
-            line.inventory_item_id === optionValue && index !== rowIndex
-          );
-        };
+        // Disable items already picked in another row (live values).
+        const rowOptions = options.map((option) => ({
+          ...option,
+          disabled: watchedLines.some(
+            (line, index) =>
+              line?.inventory_item_id === option.value && index !== rowIndex
+          ),
+        }));
 
         return (
-          <DataGridSelectCell
-            context={context}
-            options={options.map((option: any) => ({
-              ...option,
-              disabled: isOptionDisabled(option.value)
-            }))}
+          <ItemComboboxCell
+            form={form}
+            index={rowIndex}
+            options={rowOptions}
             loading={loading}
-            searchable
             onSearch={onSearchItems}
           />
         );
@@ -180,7 +262,7 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
       header: "Color",
       cell: (context: any) => {
         const inventoryItemId =
-          orderLines?.[context.row.index]?.inventory_item_id || "";
+          lineAt(context.row.index)?.inventory_item_id || "";
         const color = inventoryItemId
           ? inventoryItemMap.get(inventoryItemId)?.raw_materials?.color
           : null;
@@ -243,7 +325,7 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
         }
 
         const inventoryItemId =
-          orderLines?.[context.row.index]?.inventory_item_id || ""
+          lineAt(context.row.index)?.inventory_item_id || ""
         const inventoryItem = inventoryItemId
           ? inventoryItemMap.get(inventoryItemId) || null
           : null
@@ -253,8 +335,8 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
         };
 
         const disabled =
-          orderLines.length <= 1 &&
-          !orderLines.some((line) => line.inventory_item_id);
+          watchedLines.length <= 1 &&
+          !watchedLines.some((line) => line?.inventory_item_id);
 
         return (
           <div className="flex items-center justify-center gap-1.5">
