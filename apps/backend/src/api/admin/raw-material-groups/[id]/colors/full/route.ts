@@ -51,6 +51,9 @@ export const POST = async (
         composition: group.composition ?? "",
         unit_of_measure: group.unit_of_measure ?? "Other",
         ...rawMaterialData,
+        // `description` is required on the model; the spec form leaves it
+        // optional, so default it here (same as the quick-add /colors route).
+        description: rawMaterialData.description ?? "",
         name: title,
         group_id: groupId,
       },
