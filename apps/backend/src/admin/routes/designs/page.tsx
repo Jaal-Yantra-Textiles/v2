@@ -12,6 +12,7 @@ import {
   DataTableRowSelectionState,
   Button,
   Badge,
+  toast,
 } from "@medusajs/ui";
 import { Outlet, useNavigate, useSearchParams } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -33,11 +34,18 @@ import { SaveViewDialog } from "../../components/views/save-view-dialog";
 import { useViewConfigurationActions } from "../../hooks/use-view-configurations";
 import type { ViewConfiguration } from "../../hooks/api/views";
 import { usePartners } from "../../hooks/api/partners";
+import { sdk } from "../../lib/config";
+import { DesignOrderPreviewDrawer } from "../../components/designs/design-order-preview-drawer";
+import type {
+  PreviewDesignOrderResponse,
+  CreateDesignOrderResponse,
+} from "../../hooks/api/designs";
 const columnHelper = createDataTableColumnHelper<AdminDesign>();
 
 const commandHelper = createDataTableCommandHelper();
 
 const useCommands = (callbacks: {
+  onCreateOrder: () => void
   onProductionRun: () => void
   onRecreate: () => void
   onEdit: () => void
@@ -48,6 +56,12 @@ const useCommands = (callbacks: {
   onRevise: () => void
 }) => {
   return [
+    // #826 S1 — collate the selected designs into ONE customer order.
+    commandHelper.command({
+      label: "Create Order",
+      shortcut: "o",
+      action: callbacks.onCreateOrder,
+    }),
     commandHelper.command({
       label: "Run Production Run",
       shortcut: "p",
@@ -157,6 +171,13 @@ const DesignsPage = () => {
   const [isUpdateStatusOpen, setIsUpdateStatusOpen] = useState(false);
   const [isAssignTagsOpen, setIsAssignTagsOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  // #826 S1 — collated "Create Order" from the general Designs list.
+  const [orderCustomerId, setOrderCustomerId] = useState<string | null>(null);
+  const [orderDesignIds, setOrderDesignIds] = useState<string[]>([]);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<PreviewDesignOrderResponse | null>(null);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
 
   const {
     listViews,
@@ -551,6 +572,7 @@ const DesignsPage = () => {
   ) : null;
 
   const commands = useCommands({
+    onCreateOrder: () => handleCreateOrder(),
     onProductionRun: () => {
       if (selectedDesignIds.length === 1) {
         navigate(`/designs/${selectedDesignIds[0]}/production-run`)
@@ -613,6 +635,94 @@ const DesignsPage = () => {
   });
 
   const clearSelection = () => setRowSelection({});
+
+  // #826 S1 — collate the selected designs into ONE customer order.
+  // Option A: the order is the commissioning order; per-design production runs
+  // stay per-design downstream. Resolves the customer from the selected
+  // designs' customer link (enriched onto the list response); requires a single
+  // shared customer for now (picker fallback deferred).
+  const handleCreateOrder = async () => {
+    if (selectedDesigns.length === 0 || isPreviewing) return;
+
+    const customerIds = Array.from(
+      new Set(
+        selectedDesigns
+          .map((d) => (d as any).customer_id)
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+
+    if (customerIds.length === 0) {
+      toast.error("No customer linked", {
+        description:
+          "The selected designs aren't linked to a customer. Link a customer first, then create the order.",
+      });
+      return;
+    }
+    if (customerIds.length > 1) {
+      toast.error("Multiple customers selected", {
+        description:
+          "An order collates designs for a single customer. Select designs that all belong to the same customer.",
+      });
+      return;
+    }
+
+    const customerId = customerIds[0];
+    const designIds = selectedDesigns.map((d) => d.id as string);
+
+    setOrderCustomerId(customerId);
+    setOrderDesignIds(designIds);
+    setIsPreviewing(true);
+    try {
+      const preview = await sdk.client.fetch<PreviewDesignOrderResponse>(
+        `/admin/customers/${customerId}/design-order/preview`,
+        { method: "POST", body: { design_ids: designIds } }
+      );
+      setPreviewData(preview);
+      setPreviewOpen(true);
+    } catch (err: any) {
+      toast.error("Failed to estimate order", {
+        description: err?.message || "An unexpected error occurred.",
+      });
+    } finally {
+      setIsPreviewing(false);
+    }
+  };
+
+  const handleConfirmOrder = async (
+    priceOverrides: Record<string, number>,
+    overrideCurrency?: string
+  ) => {
+    if (!orderCustomerId || orderDesignIds.length === 0) return;
+    setIsCreatingOrder(true);
+    try {
+      await sdk.client.fetch<CreateDesignOrderResponse>(
+        `/admin/customers/${orderCustomerId}/design-order`,
+        {
+          method: "POST",
+          body: {
+            design_ids: orderDesignIds,
+            price_overrides:
+              Object.keys(priceOverrides).length > 0 ? priceOverrides : undefined,
+            override_currency: overrideCurrency,
+          },
+        }
+      );
+      setPreviewOpen(false);
+      setPreviewData(null);
+      clearSelection();
+      toast.success("Checkout cart created", {
+        description:
+          "Share the checkout link with the customer to complete payment.",
+      });
+    } catch (err: any) {
+      toast.error("Failed to create order", {
+        description: err?.message || "An unexpected error occurred.",
+      });
+    } finally {
+      setIsCreatingOrder(false);
+    }
+  };
 
   if (isError) {
     throw error;
@@ -692,6 +802,18 @@ const DesignsPage = () => {
         editingView={editingView}
         onClose={handleDialogClose}
         onSaved={handleViewSaved}
+      />
+    )}
+
+    {previewData && (
+      <DesignOrderPreviewDrawer
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        estimates={previewData.estimates}
+        currencyCode={previewData.currency_code}
+        total={previewData.total}
+        onConfirm={handleConfirmOrder}
+        isConfirming={isCreatingOrder}
       />
     )}
 

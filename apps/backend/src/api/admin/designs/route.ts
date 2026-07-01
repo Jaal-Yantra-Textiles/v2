@@ -300,8 +300,50 @@ export const GET = async (
 
     const { designs, count } = result;
 
+    // #826 S1 — attach each design's linked customer so the general Designs
+    // list can collate a multi-select "Create Order" for a single customer
+    // without an extra round-trip. One link query for the returned page only.
+    let designsWithCustomer = designs;
+    if (Array.isArray(designs) && designs.length > 0) {
+      try {
+        const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
+        const { data: customerLinks } = await query.graph({
+          entity: designCustomerLink.entryPoint,
+          filters: { design_id: designs.map((d: any) => d.id) },
+          fields: [
+            "design_id",
+            "customer_id",
+            "customer.email",
+            "customer.first_name",
+            "customer.last_name",
+          ],
+        });
+        const customerByDesignId: Record<string, any> = {};
+        for (const link of (customerLinks || []) as any[]) {
+          // First link wins if a design is linked to multiple customers.
+          if (!customerByDesignId[link.design_id]) {
+            customerByDesignId[link.design_id] = {
+              customer_id: link.customer_id,
+              customer: link.customer || null,
+            };
+          }
+        }
+        designsWithCustomer = designs.map((d: any) => ({
+          ...d,
+          customer_id: customerByDesignId[d.id]?.customer_id ?? null,
+          customer: customerByDesignId[d.id]?.customer ?? null,
+        }));
+      } catch (e) {
+        logger.warn(
+          `#826 customer enrichment failed, returning designs without customer: ${
+            e instanceof Error ? e.message : e
+          }`
+        );
+      }
+    }
+
     res.status(200).json({
-      designs,
+      designs: designsWithCustomer,
       count,
       offset: req.query.offset || 0,
       limit: req.query.limit || 10,
