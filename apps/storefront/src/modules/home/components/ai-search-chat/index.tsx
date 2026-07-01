@@ -3,7 +3,7 @@
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport, type UIMessage } from "ai"
-import { Button, Heading, IconButton, Input, Text } from "@medusajs/ui"
+import { Button, Heading, Text } from "@medusajs/ui"
 import { ArrowUpMini, StopCircleSolid } from "@medusajs/icons"
 import {
   useCallback,
@@ -300,41 +300,46 @@ export default function AiSearchChat({ initialQuery }: AiSearchChatProps) {
           // Input + send-icon laid out as a single rounded "search-bar"
           // affordance — input spans full width, icon button sits
           // absolutely inside it on the right.
-          <form onSubmit={onSubmit} className="relative w-full">
-            <Input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={PLACEHOLDER}
-              disabled={isStreaming}
-              className="w-full pr-12"
-              maxLength={500}
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
-              {isStreaming ? (
-                <IconButton
-                  type="button"
-                  variant="transparent"
-                  size="small"
-                  aria-label="Stop generating"
-                  onClick={() => stop()}
-                >
-                  <StopCircleSolid />
-                </IconButton>
-              ) : (
-                <IconButton
-                  type="submit"
-                  variant="primary"
-                  size="small"
-                  aria-label="Send message"
-                  disabled={input.trim().length < 2}
-                >
-                  <ArrowUpMini />
-                </IconButton>
-              )}
+          <form onSubmit={onSubmit} className="mx-auto w-full max-w-3xl">
+            <div className="relative flex items-center rounded-2xl border border-ui-border-base bg-ui-bg-field shadow-sm transition-all focus-within:border-ui-border-interactive focus-within:shadow-borders-focus">
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={PLACEHOLDER}
+                disabled={isStreaming}
+                className="w-full bg-transparent px-4 py-3.5 pr-20 text-base text-ui-fg-base placeholder:text-ui-fg-muted focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                maxLength={500}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                {input.length > 0 && (
+                  <span className="hidden select-none text-xs text-ui-fg-muted sm:inline">
+                    {input.length}/500
+                  </span>
+                )}
+                {isStreaming ? (
+                  <button
+                    type="button"
+                    onClick={() => stop()}
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-ui-fg-muted text-ui-bg-field transition hover:bg-ui-fg-subtle active:scale-95"
+                    aria-label="Stop generating"
+                  >
+                    <StopCircleSolid className="h-5 w-5" />
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={input.trim().length < 2}
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-ui-fg-base text-ui-bg-field transition hover:bg-ui-fg-base/90 active:scale-95 disabled:opacity-30"
+                    aria-label="Send message"
+                  >
+                    <ArrowUpMini className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
             </div>
           </form>
         )}

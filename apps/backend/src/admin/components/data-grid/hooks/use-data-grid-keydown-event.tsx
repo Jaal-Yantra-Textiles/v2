@@ -14,6 +14,27 @@ import {
 } from "../models"
 import { DataGridCoordinates } from "../types"
 
+/**
+ * The grid registers its keyboard handlers on `window`, so they fire for every
+ * keystroke regardless of where focus is. When focus is in a real text/combobox
+ * input that isn't a grid cell (e.g. the item-picker Combobox, which portals its
+ * popover to <body>), the grid must NOT treat the keystroke as navigation — that
+ * hijacked typing and made in-cell search flaky. Grid cells themselves route
+ * through the `isEditing` guards, so this only excludes foreign inputs.
+ */
+const isForeignEditableTarget = (target: EventTarget | null): boolean => {
+  const el = target as HTMLElement | null
+  if (!el || typeof el.closest !== "function") {
+    return false
+  }
+  const tag = el.tagName
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable) {
+    return true
+  }
+  const role = el.getAttribute?.("role")
+  return role === "combobox" || role === "textbox" || role === "listbox"
+}
+
 type UseDataGridKeydownEventOptions<TData, TFieldValues extends FieldValues> = {
   containerRef: React.RefObject<HTMLDivElement>
   matrix: DataGridMatrix<TData, TFieldValues>
@@ -614,6 +635,12 @@ export const useDataGridKeydownEvent = <
 
   const handleKeyDownEvent = useCallback(
     (e: KeyboardEvent) => {
+      // Don't hijack keystrokes typed into a foreign input (e.g. the item-picker
+      // Combobox); let that element handle its own keyboard.
+      if (isForeignEditableTarget(e.target)) {
+        return
+      }
+
       if (ARROW_KEYS.includes(e.key)) {
         handleKeyboardNavigation(e)
         return

@@ -38,10 +38,26 @@ import { useDebouncedSearch } from "../../hooks/use-debounce"
 // ---------------------------------------------------------------------------
 
 export const GroupGeneralSection = ({ group }: { group: RawMaterialGroup }) => {
+  const { stock_locations = [] } = useStockLocations()
+  const locationName =
+    stock_locations.find((sl: any) => sl.id === group.stock_location_id)?.name ||
+    group.stock_location_id ||
+    "—"
+
+  const cost =
+    group.unit_cost != null
+      ? `${group.unit_cost}${group.cost_currency ? ` ${group.cost_currency.toUpperCase()}` : ""}`
+      : "—"
+
+  // #829 — these are the "global" specs new colors inherit fill-blank.
   const rows: Array<[string, React.ReactNode]> = [
     ["Composition", group.composition || "—"],
     ["Unit of measure", group.unit_of_measure || "—"],
     ["Material type", group.material_type?.name || "—"],
+    ["Default location", locationName],
+    ["Default cost", cost],
+    ["Lead time (days)", group.lead_time_days ?? "—"],
+    ["Min. order qty", group.minimum_order_quantity ?? "—"],
     ["Colors", group.raw_materials?.length ?? 0],
   ]
 
@@ -49,9 +65,27 @@ export const GroupGeneralSection = ({ group }: { group: RawMaterialGroup }) => {
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
         <Heading>{group.name}</Heading>
-        <Badge size="small" color={group.status === "Active" || !group.status ? "green" : "grey"}>
-          {group.status || "Active"}
-        </Badge>
+        <div className="flex items-center gap-x-2">
+          <Badge
+            size="small"
+            color={group.status === "Active" || !group.status ? "green" : "grey"}
+          >
+            {group.status || "Active"}
+          </Badge>
+          <ActionMenu
+            groups={[
+              {
+                actions: [
+                  {
+                    icon: <PencilSquare />,
+                    label: "Edit",
+                    to: `/raw-material-groups/${group.id}/edit`,
+                  },
+                ],
+              },
+            ]}
+          />
+        </div>
       </div>
       {rows.map(([label, value]) => (
         <div

@@ -25,6 +25,15 @@ const RawMaterialGroup = model.define("raw_material_group", {
     "Roll",
     "Other"
   ]).default("Other"),
+  // #829 — shared "global" specs a group sets once; new per-color raw_materials
+  // inherit these (fill-blank) when quick-added / created. width/weight/grade are
+  // intentionally NOT here (they can differ per dye lot / color).
+  unit_cost: model.float().nullable(),
+  cost_currency: model.text().nullable(),
+  lead_time_days: model.number().nullable(),
+  minimum_order_quantity: model.number().nullable(),
+  // Default receiving stock location for the group's colors (set once).
+  stock_location_id: model.text().nullable(),
   status: model.enum([
     "Active",
     "Discontinued",

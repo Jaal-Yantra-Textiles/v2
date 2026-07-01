@@ -101,7 +101,7 @@ import { updatePartnerMeSchema } from "./partners/me/validators";
 import { onboardingProfileUpdateSchema } from "./partners/onboarding-profile/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
 import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema } from "./admin/inventory-orders/validators";
-import { createRawMaterialGroupSchema, listRawMaterialGroupsQuerySchema, addGroupColorSchema, addGroupColorFullSchema, linkGroupColorsSchema, createGroupOrderSchema, readGroupQuerySchema } from "./admin/raw-material-groups/validators";
+import { createRawMaterialGroupSchema, updateRawMaterialGroupSchema, listRawMaterialGroupsQuerySchema, addGroupColorSchema, addGroupColorFullSchema, linkGroupColorsSchema, createGroupOrderSchema, readGroupQuerySchema } from "./admin/raw-material-groups/validators";
 import { pinDesignGroupSchema, updateDesignGroupSchema } from "./admin/designs/[id]/material-groups/validators";
 // Import already defined above
 import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]/subs/route";
@@ -2904,6 +2904,11 @@ export default defineMiddlewares({
       matcher: "/admin/raw-material-groups/:id",
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(readGroupQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/raw-material-groups/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(updateRawMaterialGroupSchema))],
     },
     {
       matcher: "/admin/raw-material-groups/:id/colors",
