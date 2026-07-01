@@ -66,6 +66,24 @@ export const addGroupColorSchema = z.object({
 })
 export type AddGroupColor = z.infer<typeof addGroupColorSchema>
 
+// Full-detail color add: accepts the same `rawMaterialData` envelope the shared
+// RawMaterialForm submits (createRawMaterialWorkflow validates the shape), so a
+// color can be created with all material specs. `color` is required for a variant.
+export const addGroupColorFullSchema = z.object({
+  rawMaterialData: z
+    .object({ color: z.string().min(1, "Color is required") })
+    .passthrough(),
+})
+export type AddGroupColorFull = z.infer<typeof addGroupColorFullSchema>
+
+// Link existing raw_materials to a group as its colors.
+export const linkGroupColorsSchema = z.object({
+  raw_material_ids: z
+    .array(z.string().min(1))
+    .min(1, "At least one raw material is required"),
+})
+export type LinkGroupColors = z.infer<typeof linkGroupColorsSchema>
+
 // --- Order a group in multiple colors (fan-out) ---
 
 const groupOrderLineSchema = z.object({

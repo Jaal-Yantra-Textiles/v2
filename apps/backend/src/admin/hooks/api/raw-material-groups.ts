@@ -24,10 +24,26 @@ export interface RawMaterialGroup {
   created_at?: string
 }
 
+export interface GroupOrderLineRow {
+  id: string
+  quantity: number
+  price: number
+  color?: string | null
+  material_name?: string | null
+  raw_material_id?: string | null
+  inventory_orders?: {
+    id: string
+    status?: string
+    order_date?: string
+    expected_delivery_date?: string
+  } | null
+}
+
 const groupKeys = {
   all: ["raw-material-groups"] as const,
   list: (q?: Record<string, unknown>) => ["raw-material-groups", "list", q] as const,
   detail: (id: string) => ["raw-material-groups", "detail", id] as const,
+  orders: (id: string) => ["raw-material-groups", "orders", id] as const,
 }
 
 export const useRawMaterialGroups = (query?: {
@@ -57,6 +73,16 @@ export const useRawMaterialGroup = (id?: string) =>
       ),
   })
 
+export const useRawMaterialGroupOrders = (id?: string) =>
+  useQuery({
+    queryKey: groupKeys.orders(id!),
+    enabled: !!id,
+    queryFn: () =>
+      sdk.client.fetch<{ order_lines: GroupOrderLineRow[] }>(
+        `/admin/raw-material-groups/${id}/orders`
+      ),
+  })
+
 export const useCreateRawMaterialGroup = () => {
   const qc = useQueryClient()
   return useMutation({
@@ -76,6 +102,32 @@ export const useAddGroupColor = (groupId: string) => {
       sdk.client.fetch<{ raw_material_group: RawMaterialGroup }>(
         `/admin/raw-material-groups/${groupId}/colors`,
         { method: "POST", body }
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: groupKeys.detail(groupId) }),
+  })
+}
+
+// Full-detail color add — posts the shared RawMaterialForm's { rawMaterialData }.
+export const useCreateGroupColorFull = (groupId: string) => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (rawMaterialData: Record<string, unknown>) =>
+      sdk.client.fetch<{ raw_material_group: RawMaterialGroup }>(
+        `/admin/raw-material-groups/${groupId}/colors/full`,
+        { method: "POST", body: { rawMaterialData } }
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: groupKeys.detail(groupId) }),
+  })
+}
+
+// Attach existing raw_materials to the group as colors.
+export const useLinkGroupColors = (groupId: string) => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (raw_material_ids: string[]) =>
+      sdk.client.fetch<{ raw_material_group: RawMaterialGroup }>(
+        `/admin/raw-material-groups/${groupId}/colors/link`,
+        { method: "POST", body: { raw_material_ids } }
       ),
     onSuccess: () => qc.invalidateQueries({ queryKey: groupKeys.detail(groupId) }),
   })

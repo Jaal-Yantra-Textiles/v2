@@ -23,6 +23,55 @@ import {
 import { refetchInventoryOrder } from "../../../inventory-orders/helpers"
 import { CreateGroupOrder } from "../../validators"
 
+/**
+ * GET — list the inventory-order lines that belong to this group's colors,
+ * each with its parent order. Powers the group detail "Orders" section so a
+ * color's order history reads back without re-traversing links (S2 denorm).
+ */
+export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const { id: groupId } = req.params
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+
+  const service: any = req.scope.resolve(RAW_MATERIAL_MODULE)
+  const group = await service.retrieveRawMaterialGroup(groupId).catch(() => null)
+  if (!group) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_FOUND,
+      `Raw material group with id "${groupId}" not found`
+    )
+  }
+
+  const { data: colors } = await query.graph({
+    entity: "raw_material",
+    fields: ["id"],
+    filters: { group_id: groupId },
+  })
+  const rawMaterialIds = (colors as any[]).map((c) => c.id).filter(Boolean)
+
+  if (!rawMaterialIds.length) {
+    return res.json({ order_lines: [] })
+  }
+
+  const { data: lines } = await query.graph({
+    entity: "inventory_order_line",
+    fields: [
+      "id",
+      "quantity",
+      "price",
+      "color",
+      "material_name",
+      "raw_material_id",
+      "inventory_orders.id",
+      "inventory_orders.status",
+      "inventory_orders.order_date",
+      "inventory_orders.expected_delivery_date",
+    ],
+    filters: { raw_material_id: rawMaterialIds },
+  })
+
+  res.json({ order_lines: lines ?? [] })
+}
+
 export const POST = async (
   req: MedusaRequest<CreateGroupOrder>,
   res: MedusaResponse

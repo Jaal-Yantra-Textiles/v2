@@ -3,20 +3,25 @@ import { Swatch } from "@medusajs/icons"
 import {
   Button,
   Container,
+  DataTable,
+  DataTableFilteringState,
+  DataTablePaginationState,
   Heading,
   Input,
   Label,
-  Table,
   Text,
   Textarea,
   FocusModal,
   Badge,
-  Skeleton,
+  createDataTableColumnHelper,
+  createDataTableFilterHelper,
   toast,
+  useDataTable,
 } from "@medusajs/ui"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import {
+  RawMaterialGroup,
   useRawMaterialGroups,
   useCreateRawMaterialGroup,
 } from "../../hooks/api/raw-material-groups"
@@ -79,63 +84,118 @@ const CreateGroupModal = () => {
   )
 }
 
+const columnHelper = createDataTableColumnHelper<RawMaterialGroup>()
+const filterHelper = createDataTableFilterHelper<RawMaterialGroup>()
+
+const columns = [
+  columnHelper.accessor("name", {
+    header: "Name",
+    enableSorting: true,
+  }),
+  columnHelper.accessor("composition", {
+    header: "Composition",
+    cell: ({ getValue }) => (
+      <span className="text-ui-fg-subtle">{getValue() || "—"}</span>
+    ),
+  }),
+  columnHelper.display({
+    id: "colors",
+    header: "Colors",
+    cell: ({ row }) => row.original.raw_materials?.length ?? 0,
+  }),
+  columnHelper.accessor("status", {
+    header: "Status",
+    cell: ({ getValue }) => {
+      const status = getValue() || "Active"
+      return (
+        <Badge size="small" color={status === "Active" ? "green" : "grey"}>
+          {status}
+        </Badge>
+      )
+    },
+  }),
+]
+
+const filters = [
+  filterHelper.accessor("status", {
+    type: "select",
+    label: "Status",
+    options: [
+      { label: "Active", value: "Active" },
+      { label: "Discontinued", value: "Discontinued" },
+      { label: "Under Review", value: "Under_Review" },
+      { label: "Development", value: "Development" },
+    ],
+  }),
+]
+
+const PAGE_SIZE = 20
+
 const RawMaterialGroupsPage = () => {
   const navigate = useNavigate()
-  const { data, isLoading } = useRawMaterialGroups({ limit: 50 })
-  const groups = data?.raw_material_groups ?? []
+
+  const [pagination, setPagination] = useState<DataTablePaginationState>({
+    pageIndex: 0,
+    pageSize: PAGE_SIZE,
+  })
+  const [filtering, setFiltering] = useState<DataTableFilteringState>({})
+  const [search, setSearch] = useState("")
+
+  const statusFilter = filtering.status
+  const status = Array.isArray(statusFilter)
+    ? (statusFilter[0] as string | undefined)
+    : (statusFilter as string | undefined)
+
+  const { data, isLoading } = useRawMaterialGroups({
+    q: search || undefined,
+    status: status || undefined,
+    limit: pagination.pageSize,
+    offset: pagination.pageIndex * pagination.pageSize,
+  })
+
+  const groups = useMemo(() => data?.raw_material_groups ?? [], [data])
+
+  const table = useDataTable({
+    columns,
+    data: groups,
+    getRowId: (row) => row.id,
+    rowCount: data?.count ?? 0,
+    isLoading,
+    onRowClick: (_, row) => navigate(`/raw-material-groups/${row.id}`),
+    filters,
+    pagination: {
+      state: pagination,
+      onPaginationChange: setPagination,
+    },
+    search: {
+      state: search,
+      onSearchChange: setSearch,
+    },
+    filtering: {
+      state: filtering,
+      onFilteringChange: setFiltering,
+    },
+  })
 
   return (
     <Container className="divide-y p-0">
-      <div className="flex items-center justify-between px-6 py-4">
-        <div>
-          <Heading level="h1">Raw-material groups</Heading>
-          <Text size="small" className="text-ui-fg-subtle">
-            Order a material in multiple colors without losing color identity.
-          </Text>
-        </div>
-        <CreateGroupModal />
-      </div>
-
-      {isLoading ? (
-        <div className="flex flex-col gap-2 px-6 py-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-10 w-full" />
-          ))}
-        </div>
-      ) : !groups.length ? (
-        <div className="px-6 py-8 text-center">
-          <Text className="text-ui-fg-subtle">No groups yet. Create one to get started.</Text>
-        </div>
-      ) : (
-        <Table>
-          <Table.Header>
-            <Table.Row>
-              <Table.HeaderCell>Name</Table.HeaderCell>
-              <Table.HeaderCell>Composition</Table.HeaderCell>
-              <Table.HeaderCell>Colors</Table.HeaderCell>
-              <Table.HeaderCell>Status</Table.HeaderCell>
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
-            {groups.map((g) => (
-              <Table.Row
-                key={g.id}
-                className="cursor-pointer"
-                onClick={() => navigate(`/raw-material-groups/${g.id}`)}
-              >
-                <Table.Cell>{g.name}</Table.Cell>
-                <Table.Cell className="text-ui-fg-subtle">{g.composition || "—"}</Table.Cell>
-                <Table.Cell>{g.raw_materials?.length ?? 0}</Table.Cell>
-                <Table.Cell>
-                  <Badge size="small" color={g.status === "Active" ? "green" : "grey"}>
-                    {g.status || "Active"}
-                  </Badge>
-                </Table.Cell>
-              </Table.Row>
-            ))}
-          </Table.Body>
-        </Table>
-      )}
+      <DataTable instance={table}>
+        <DataTable.Toolbar className="flex items-center justify-between px-6 py-4">
+          <div>
+            <Heading level="h1">Material Groups</Heading>
+            <Text size="small" className="text-ui-fg-subtle">
+              Order a material in multiple colors without losing color identity.
+            </Text>
+          </div>
+          <div className="flex items-center gap-x-2">
+            <DataTable.Search placeholder="Search groups" />
+            <DataTable.FilterMenu tooltip="Filter groups" />
+            <CreateGroupModal />
+          </div>
+        </DataTable.Toolbar>
+        <DataTable.Table />
+        <DataTable.Pagination />
+      </DataTable>
     </Container>
   )
 }

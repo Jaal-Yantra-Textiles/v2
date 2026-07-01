@@ -7,6 +7,7 @@ import { useParams, useNavigate } from "react-router-dom"
 import { RouteFocusModal } from "../../modal/route-focus-modal"
 import { KeyboundForm } from "../../utilitites/key-bound-form"
 import { useCreateRawMaterial, useRawMaterialCategories } from "../../../hooks/api/raw-materials"
+import { useCreateGroupColorFull } from "../../../hooks/api/raw-material-groups"
 import { useRouteModal } from "../../modal/use-route-modal"
 import { useState, useEffect } from "react"
 import { CategorySearch } from "../../common/category-search"
@@ -22,8 +23,23 @@ enum Tab {
 
 type TabState = Record<Tab, ProgressStatus>
 
-export const RawMaterialForm = () => {
-  const { id: inventoryId } = useParams();
+type RawMaterialFormProps = {
+  // "inventory" (default): create a raw material on the current inventory item.
+  // "group": create a new per-color raw material under a raw-material group,
+  // reusing the exact same spec form (the group endpoint provisions the
+  // inventory item). `color` is required in group mode.
+  mode?: "inventory" | "group"
+  groupId?: string
+}
+
+export const RawMaterialForm = ({
+  mode = "inventory",
+  groupId,
+}: RawMaterialFormProps = {}) => {
+  const { id: routeId } = useParams();
+  const inventoryId = routeId;
+  const isGroup = mode === "group";
+  const backTo = isGroup ? `/raw-material-groups/${groupId}` : `/inventory/${inventoryId}`;
   const navigate = useNavigate();
   const { handleSuccess } = useRouteModal();
   
@@ -82,6 +98,7 @@ export const RawMaterialForm = () => {
   });
 
   const createMutation = useCreateRawMaterial(inventoryId!);
+  const createGroupColorMutation = useCreateGroupColorFull(groupId ?? "");
 
   const onNext = async (currentTab: Tab) => {
     // For General tab, only validate fields in General tab
@@ -174,7 +191,26 @@ export const RawMaterialForm = () => {
     // Cleanup helper fields
     delete (submissionData as any).material_type_properties;
     delete (submissionData as any).additional_properties_json;
-    
+
+    // Group mode: a color is what makes this a distinct variant of the group.
+    if (isGroup && !(submissionData as any).color?.trim?.()) {
+      toast.error("Color is required when adding a color to a group");
+      return;
+    }
+
+    if (isGroup) {
+      await createGroupColorMutation.mutateAsync(submissionData as any, {
+        onSuccess: () => {
+          toast.success("Color added to group");
+          handleSuccess(backTo);
+        },
+        onError: (error: any) => {
+          toast.error(error?.message || "Failed to add color");
+        },
+      });
+      return;
+    }
+
     await createMutation.mutateAsync(
       {
         rawMaterialData: submissionData as any // Cast to any to bypass type checking
@@ -182,7 +218,7 @@ export const RawMaterialForm = () => {
       {
         onSuccess: () => {
           toast.success("Raw material created successfully");
-          handleSuccess(`/inventory/${inventoryId}`);
+          handleSuccess(backTo);
         },
         onError: (error) => {
           toast.error(error.message);
@@ -348,9 +384,27 @@ export const RawMaterialForm = () => {
                         </Form.Item>
                       )}
                     />
-                    
+
+                    <Form.Field
+                      control={form.control}
+                      name="color"
+                      render={({ field }) => (
+                        <Form.Item>
+                          <Form.Label optional>{"Color"}</Form.Label>
+                          <Form.Control>
+                            <Input
+                              placeholder="e.g. Blue"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </Form.Control>
+                          <Form.ErrorMessage />
+                        </Form.Item>
+                      )}
+                    />
+
                   </div>
-                  
+
                 </div>
                 <div className="mt-4">
                   <h2 className="text-base-semi">Media</h2>
@@ -454,20 +508,6 @@ export const RawMaterialForm = () => {
                               {...field}
                               onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
                             />
-                          </Form.Control>
-                          <Form.ErrorMessage />
-                        </Form.Item>
-                      )}
-                    />
-
-                    <Form.Field
-                      control={form.control}
-                      name="color"
-                      render={({ field }) => (
-                        <Form.Item>
-                          <Form.Label>{"Color"}</Form.Label>
-                          <Form.Control>
-                            <Input autoComplete="off" {...field} />
                           </Form.Control>
                           <Form.ErrorMessage />
                         </Form.Item>
@@ -711,7 +751,7 @@ export const RawMaterialForm = () => {
                 type="button"
                 variant="secondary"
                 size="small"
-                onClick={() => navigate(`/inventory/${inventoryId}`)}
+                onClick={() => navigate(backTo)}
               >
                 Cancel
               </Button>
