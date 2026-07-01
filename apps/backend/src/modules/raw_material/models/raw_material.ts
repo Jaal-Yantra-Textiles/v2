@@ -1,5 +1,6 @@
 import { model } from "@medusajs/framework/utils";
 import MaterialType from "./material_type";
+import RawMaterialGroup from "./raw_material_group";
 
 const RawMaterial = model.define("raw_materials", {
   id: model.id().primaryKey(),
@@ -37,6 +38,8 @@ const RawMaterial = model.define("raw_materials", {
   media: model.json().nullable(),
   // Relationship with MaterialType
   material_type: model.belongsTo(() => MaterialType, { mappedBy: "raw_materials" }).nullable(),
+  // Parent group tying this color to its sibling colors (nullable: existing rows stay ungrouped).
+  group: model.belongsTo(() => RawMaterialGroup, { mappedBy: "raw_materials" }).nullable(),
 });
 
 export default RawMaterial;
