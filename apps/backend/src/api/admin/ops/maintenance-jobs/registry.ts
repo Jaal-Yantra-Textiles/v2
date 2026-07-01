@@ -19,6 +19,8 @@ import { computeFee } from "../../../../modules/partner_billing/compute-fee"
 import { resolvePartnerFeeRate } from "../../../../modules/partner_billing/resolve-fee-rate"
 import partnerOrderLink from "../../../../links/partner-order"
 import partnerRegionLink from "../../../../links/partner-region"
+import designPartnersLink from "../../../../links/design-partners-link"
+import { PARTNER_MODULE } from "../../../../modules/partner"
 import productGoogleMerchantLink from "../../../../links/product-google-merchant-link"
 import productionRunConsumptionLogLink from "../../../../links/production-runs-consumption-logs"
 import { resolveStoreCurrency } from "../../../../lib/resolve-store-currency"
@@ -4755,6 +4757,139 @@ export const auditAiPlatformsJob: MaintenanceJob = {
   },
 }
 
+// #826 — repair design→partner links for PREVIOUSLY-produced collated orders.
+// Runs produced before the design↔partner link fix set run.partner_id but never
+// created the design_partners_link, so the partner sees the run/order but the
+// design 404s ("details unavailable"). This walks every non-cancelled run with a
+// partner + design and creates the missing link. Additive + idempotent.
+const backfillDesignPartnerLinksParamsSchema = z.object({
+  design_ids: z.string().trim().optional(),
+  partner_ids: z.string().trim().optional(),
+  limit: z.coerce.number().int().positive().max(5000).optional().default(2000),
+})
+
+const parseCsv = (v?: string): string[] | null => {
+  const raw = (v ?? "").trim()
+  if (!raw) return null
+  return raw.split(",").map((s) => s.trim()).filter(Boolean)
+}
+
+export const backfillDesignPartnerLinksJob: MaintenanceJob = {
+  id: "backfill-design-partner-links",
+  label: "Backfill design → partner links from runs",
+  description:
+    "Create missing design↔partner links from non-cancelled, partner-assigned production runs (#826). Fixes collated/design orders produced before the link fix, where the partner sees the run but the design shows 'details unavailable'. Dry-run previews the links; apply creates them. Additive + idempotent — never removes a link. Re-run safely.",
+  params: [
+    {
+      name: "design_ids",
+      type: "string",
+      required: false,
+      description: "Comma-separated design ids to limit the repair (optional).",
+    },
+    {
+      name: "partner_ids",
+      type: "string",
+      required: false,
+      description: "Comma-separated partner ids to limit the repair (optional).",
+    },
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: "Max runs to scan (default 2000, max 5000).",
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const { design_ids, partner_ids, limit } =
+      backfillDesignPartnerLinksParamsSchema.parse(params ?? {})
+    const designIdFilter = parseCsv(design_ids)
+    const partnerIdFilter = parseCsv(partner_ids)
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+
+    const changes: MaintenanceChange[] = []
+    const errors: Array<{ id: string; message: string }> = []
+
+    // Non-cancelled runs carrying both a partner and a design.
+    const { data: runs } = await query.graph({
+      entity: "production_runs",
+      filters: { status: { $nin: ["cancelled"] } } as any,
+      fields: ["id", "design_id", "partner_id", "status"],
+      pagination: { skip: 0, take: limit },
+    })
+
+    const pairKey = (d: string, p: string) => `${d}::${p}`
+    const wanted = new Map<string, { design_id: string; partner_id: string }>()
+    for (const r of (runs ?? []) as any[]) {
+      const d = r?.design_id
+      const p = r?.partner_id
+      if (!d || !p) continue
+      if (designIdFilter && !designIdFilter.includes(d)) continue
+      if (partnerIdFilter && !partnerIdFilter.includes(p)) continue
+      wanted.set(pairKey(d, p), { design_id: d, partner_id: p })
+    }
+
+    let alreadyLinked = 0
+    if (wanted.size) {
+      const designIds = Array.from(
+        new Set(Array.from(wanted.values()).map((p) => p.design_id))
+      )
+      const { data: existing } = await query.graph({
+        entity: designPartnersLink.entryPoint,
+        filters: { design_id: designIds },
+        fields: ["design_id", "partner_id"],
+      })
+      const linked = new Set<string>(
+        (existing ?? []).map((l: any) => pairKey(l.design_id, l.partner_id))
+      )
+
+      for (const { design_id, partner_id } of wanted.values()) {
+        if (linked.has(pairKey(design_id, partner_id))) {
+          alreadyLinked++
+          continue
+        }
+        if (!dry_run) {
+          try {
+            await remoteLink.create({
+              [DESIGN_MODULE]: { design_id },
+              [PARTNER_MODULE]: { partner_id },
+            })
+            linked.add(pairKey(design_id, partner_id))
+          } catch (err) {
+            errors.push({
+              id: pairKey(design_id, partner_id),
+              message: err instanceof Error ? err.message : String(err),
+            })
+            continue
+          }
+        }
+        changes.push({
+          entity: "design_partners_link",
+          id: pairKey(design_id, partner_id),
+          field: "link",
+          before: null,
+          after: { design_id, partner_id },
+        })
+      }
+    }
+
+    const verb = dry_run ? "Would create" : "Created"
+    return {
+      job_id: "backfill-design-partner-links",
+      dry_run,
+      applied: !dry_run && changes.length > 0,
+      summary: `${verb} ${changes.length} design→partner link${
+        changes.length === 1 ? "" : "s"
+      } (${alreadyLinked} already linked, ${wanted.size} pairs scanned${
+        errors.length ? `, ${errors.length} failed` : ""
+      }).`,
+      changes,
+      ...(errors.length ? { errors } : {}),
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -4781,6 +4916,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   sendMarketingDailySummaryJob,
   auditAiPlatformsJob,
   seedEmailTemplatesJob,
+  backfillDesignPartnerLinksJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>

@@ -237,6 +237,29 @@ produced, lists every per-design run fanned out from the ONE commissioning order
   "sent to partner"): all three show "Now: Sent — awaiting acceptance → Partner's
   next: Accept the run", stepper at Received, partner name + INR cost.
 
+## Follow-ups (post-merge, branch `feat/826-collation-followups`)
+
+**Wave 1 (shipped):**
+- **Batch advance** — "Advance all ready (N)" bar on the collated partner order
+  accepts/starts every ready design in one click (no-data steps only; finish/
+  complete stay per-design). `useBatchAdvancePartnerRuns` + invisible per-line
+  `RunProbe`s feed the bar. Live-verified.
+- **Graceful missing-design** — a design that 404s for the partner (missing
+  design↔partner link on a pre-fix order) shows a "details unavailable — ask
+  admin to reassign" card + run status instead of a forever skeleton.
+- **Cancel roll-up** — `aggregateCoreStatus` drops cancelled runs so one
+  cancelled + rest completed → order "completed" (was stranded "pending").
+
+**Wave 2 — previously-created designs (shipped):**
+- Root fix already in main (produce creates the link). For orders produced
+  BEFORE that, new Data Plumbing job **`backfill-design-partner-links`**
+  (`api/admin/ops/maintenance-jobs/registry.ts`) creates the missing
+  design↔partner links from non-cancelled partner-assigned runs (dry-run→apply,
+  additive, idempotent, optional design_ids/partner_ids/limit). Mirrors the
+  existing `backfill-design-partners-from-runs.ts` exec script but operator-
+  runnable from Settings → Data Plumbing. Verified: dry-run "would create 4",
+  apply "created 4", old order #30 then rendered full inline detail.
+
 ### Still open / next
 - Admin section could grow admin-driven actions (send-to-partner with template
   pick, approve/complete on review) — today it's status + View design + Cancel.
