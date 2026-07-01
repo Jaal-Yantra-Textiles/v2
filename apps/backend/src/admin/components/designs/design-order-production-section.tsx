@@ -1,22 +1,16 @@
 import {
   Badge,
-  Button,
   Container,
   Heading,
   StatusBadge,
   Text,
   clx,
-  toast,
-  usePrompt,
 } from "@medusajs/ui"
-import { ArrowRightMini, PencilSquare, XCircle } from "@medusajs/icons"
+import { ArrowRightMini, ArrowUpRightOnBox, PencilSquare } from "@medusajs/icons"
 import { Link } from "react-router-dom"
 
 import { ActionMenu } from "../../components/common/action-menu"
-import {
-  useProductionRuns,
-  useCancelProductionRun,
-} from "../../hooks/api/production-runs"
+import { useProductionRuns } from "../../hooks/api/production-runs"
 import { usePartners } from "../../hooks/api/partners"
 
 // ── Lifecycle helpers ────────────────────────────────────────────────
@@ -139,12 +133,7 @@ const RunCard = ({
   partnerName?: string | null
   currencyCode?: string
 }) => {
-  const prompt = usePrompt()
-  const { mutateAsync: cancel, isPending: isCanceling } =
-    useCancelProductionRun(String(run.id))
-
   const status = String(run.status || "")
-  const isTerminal = status === "completed" || status === "cancelled"
   const title = design?.name || run?.snapshot?.design?.name || `Design ${run.design_id}`
   const nextStep = partnerNextStep(run)
   const targetDate = fmtDate(design?.target_completion_date)
@@ -152,23 +141,6 @@ const RunCard = ({
     run?.partner_cost_estimate ?? design?.estimated_cost,
     (design as any)?.cost_currency ?? currencyCode
   )
-
-  const handleCancel = async () => {
-    const confirmed = await prompt({
-      title: "Cancel production run?",
-      description: `Cancel the run for "${title}"? The partner can no longer act on it.`,
-      confirmText: "Cancel run",
-      cancelText: "Go back",
-    })
-    if (!confirmed) return
-    await cancel(
-      {},
-      {
-        onSuccess: () => toast.success(`Run for "${title}" cancelled`),
-        onError: (e) => toast.error(e.message),
-      }
-    )
-  }
 
   return (
     <div
@@ -211,26 +183,23 @@ const RunCard = ({
             {` · ${partnerName ? partnerName : "Unassigned"}`}
           </Text>
         </div>
+        {/* Lifecycle actions (approve / dispatch / cost / cancel / tasks) live on
+            the canonical run page — link there instead of duplicating them. */}
         <ActionMenu
           groups={[
             {
               actions: [
+                {
+                  label: "Manage run",
+                  icon: <ArrowUpRightOnBox />,
+                  to: `/production-runs/${run.id}`,
+                },
                 ...(design?.id
                   ? [
                       {
                         label: "View design",
                         icon: <PencilSquare />,
                         to: `/designs/${design.id}`,
-                      },
-                    ]
-                  : []),
-                ...(!isTerminal
-                  ? [
-                      {
-                        label: isCanceling ? "Cancelling…" : "Cancel run",
-                        icon: <XCircle />,
-                        onClick: handleCancel,
-                        disabled: isCanceling,
                       },
                     ]
                   : []),

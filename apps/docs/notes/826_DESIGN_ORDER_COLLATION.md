@@ -226,10 +226,13 @@ produced, lists every per-design run fanned out from the ONE commissioning order
   design-order payload's `design` + `sibling_items[].design` (endpoint enriched
   with `design_type`/`priority`/`target_completion_date`).
 - Per run: design name (link) + type/status badges, a 5-step progress stepper,
-  important details (qty · cost · due date · partner name), an **admin action
-  menu** (View design / Cancel run), and — surfaced for the operator — **"Now:
-  <what's happening>  →  Partner's next: <the partner's upcoming lifecycle
-  action>"** (accept → start → finish → complete).
+  important details (qty · cost · due date · partner name), and — surfaced for
+  the operator — **"Now: <what's happening>  →  Partner's next: <the partner's
+  upcoming lifecycle action>"** (accept → start → finish → complete).
+- Lifecycle ACTIONS are NOT reinvented here — the canonical
+  `/production-runs/:id` page already has Approve / Dispatch-to-partner (send to
+  production) / Edit cost / Cancel / tasks. Each card's ⋯ menu deep-links there
+  ("Manage run") + "View design".
 - Live-verified in admin :9000 on the produced commissioning order #29 (3 runs
   "sent to partner"): all three show "Now: Sent — awaiting acceptance → Partner's
   next: Accept the run", stepper at Received, partner name + INR cost.
