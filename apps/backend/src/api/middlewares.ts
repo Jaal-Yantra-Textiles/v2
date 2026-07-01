@@ -101,6 +101,7 @@ import { updatePartnerMeSchema } from "./partners/me/validators";
 import { onboardingProfileUpdateSchema } from "./partners/onboarding-profile/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
 import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema } from "./admin/inventory-orders/validators";
+import { pinDesignGroupSchema, updateDesignGroupSchema } from "./admin/designs/[id]/material-groups/validators";
 // Import already defined above
 import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]/subs/route";
 import { subscriptionSchema } from "./web/website/[domain]/validators";
@@ -3105,6 +3106,18 @@ export default defineMiddlewares({
       matcher: "/admin/designs/:id/inventory/delink",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminDeleteDesignInventoryReq))],
+    },
+
+    // Raw-material groups pinned to a design (#817 S4)
+    {
+      matcher: "/admin/designs/:id/material-groups",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(pinDesignGroupSchema))],
+    },
+    {
+      matcher: "/admin/designs/:id/material-groups/:groupId",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(updateDesignGroupSchema))],
     },
 
     // Consumption logs on Designs
