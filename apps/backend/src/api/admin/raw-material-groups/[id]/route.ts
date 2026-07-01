@@ -37,12 +37,25 @@ export const POST = async (
     )
   }
 
-  const { material_type_id, ...rest } = body
+  const { material_type_id, material_type, ...rest } = body
+
+  // Resolve a category NAME to an id (find-or-create), mirroring the raw-material
+  // create flow, so the group edit form's category picker can select or add one.
+  let resolvedMaterialTypeId = material_type_id
+  if (resolvedMaterialTypeId === undefined && material_type) {
+    const existing = await service.listMaterialTypes({ name: material_type })
+    resolvedMaterialTypeId =
+      existing?.[0]?.id ??
+      (await service.createMaterialTypes({ name: material_type }))?.id
+  }
+
   await service.updateRawMaterialGroups({
     id,
     ...rest,
-    // Pass material_type_id through only when present (supports clearing via null).
-    ...(material_type_id !== undefined ? { material_type_id } : {}),
+    // Pass material_type_id through only when resolved (supports clearing via null).
+    ...(resolvedMaterialTypeId !== undefined
+      ? { material_type_id: resolvedMaterialTypeId }
+      : {}),
   })
 
   const raw_material_group = await refetchRawMaterialGroup(id, req.scope)

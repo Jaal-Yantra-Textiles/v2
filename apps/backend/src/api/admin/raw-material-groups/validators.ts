@@ -29,6 +29,8 @@ const groupGlobalsShape = {
   specifications: z.record(z.string(), z.unknown()).optional(),
   unit_of_measure: z.enum(UNIT_OF_MEASURE).optional(),
   material_type_id: z.string().optional(),
+  // A category NAME (find-or-create); resolved to material_type_id server-side.
+  material_type: z.string().optional(),
   unit_cost: z.number().optional(),
   cost_currency: z.string().optional(),
   lead_time_days: z.number().int().optional(),
