@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { Button, Heading, Input, Label, Select, Text, Textarea, toast } from "@medusajs/ui"
+import { Fragment, useMemo, useState } from "react"
+import { Button, Input, Label, Select, Text, Textarea, toast } from "@medusajs/ui"
 
 import { RouteDrawer } from "../modal/route-drawer/route-drawer"
 import { useRouteModal } from "../modal/use-route-modal"
@@ -9,7 +9,7 @@ import {
 } from "../../hooks/api/raw-material-groups"
 import { useRawMaterialCategories } from "../../hooks/api/raw-materials"
 import { useStockLocations } from "../../hooks/api/stock_location"
-import { CategorySearch } from "../common/category-search"
+import { Combobox } from "../inputs/combobox/combobox"
 
 const UNIT_OPTIONS = ["Meter", "Yard", "Kilogram", "Gram", "Piece", "Roll", "Other"]
 const STATUS_OPTIONS = ["Active", "Discontinued", "Under_Review", "Development"]
@@ -48,6 +48,21 @@ export const EditGroupForm = ({ group }: { group: RawMaterialGroup }) => {
   const [specs, setSpecs] = useState(
     group.specifications ? JSON.stringify(group.specifications, null, 2) : ""
   )
+
+  // Options for the material-type picker. Include the group's current value even
+  // if it isn't in the fetched category list (e.g. a previously-created name) so
+  // it renders as selected. Backed by the plain Combobox (not CategorySearch,
+  // which wires into react-hook-form's Form context this drawer doesn't have).
+  const materialTypeOptions = useMemo(() => {
+    const base = (materialCategories as any[]).map((c) => ({
+      value: c.name,
+      label: c.name,
+    }))
+    if (materialType && !base.some((o) => o.value === materialType)) {
+      base.push({ value: materialType, label: materialType })
+    }
+    return base
+  }, [materialCategories, materialType])
 
   const onSubmit = async () => {
     if (!name.trim()) {
@@ -88,12 +103,7 @@ export const EditGroupForm = ({ group }: { group: RawMaterialGroup }) => {
   }
 
   return (
-    <RouteDrawer>
-      <RouteDrawer.Header>
-        <RouteDrawer.Title asChild>
-          <Heading>Edit group</Heading>
-        </RouteDrawer.Title>
-      </RouteDrawer.Header>
+    <Fragment>
       <RouteDrawer.Body className="flex flex-col gap-y-4 overflow-y-auto">
         <Text size="small" className="text-ui-fg-subtle">
           These specs are set once for the group. New colors inherit any field
@@ -142,18 +152,13 @@ export const EditGroupForm = ({ group }: { group: RawMaterialGroup }) => {
 
         <div className="flex flex-col gap-y-1">
           <Label size="small">Material type (category)</Label>
-          <CategorySearch
-            categories={materialCategories as any}
-            defaultValue={materialType}
-            onSelect={(category: any) => {
-              const value = category?.name || ""
-              setMaterialType(value)
-              return value
-            }}
-            onValueChange={(value: string) => {
-              setMaterialType(value)
-              return value
-            }}
+          <Combobox
+            options={materialTypeOptions}
+            value={materialType}
+            onChange={(v) => setMaterialType((v as string) || "")}
+            onCreateOption={(name) => setMaterialType(name)}
+            allowClear
+            placeholder="Search or create a category"
           />
         </div>
 
@@ -247,6 +252,6 @@ export const EditGroupForm = ({ group }: { group: RawMaterialGroup }) => {
           </Button>
         </div>
       </RouteDrawer.Footer>
-    </RouteDrawer>
+    </Fragment>
   )
 }
