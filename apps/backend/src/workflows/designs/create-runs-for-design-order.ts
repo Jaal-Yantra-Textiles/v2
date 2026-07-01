@@ -81,6 +81,11 @@ export async function createRunsForDesignOrder(
           order_id: orderId,
           order_line_item_id: lineItemId,
           partner_id: opts?.partner_id ?? undefined,
+          // Producing a design order commits it to a partner, so the runs are
+          // born partner-facing (sent_to_partner) when a partner is assigned —
+          // that's the status the collated projection needs to create the
+          // partner↔order link (else the work-order is invisible to the partner).
+          ...(opts?.partner_id ? { status: "sent_to_partner" as const } : {}),
           // Collated into ONE work-order by projectDesignOrderToUnifiedOrder
           // below — do NOT let each run mint its own per-run work-order.
           skip_unified_projection: true,

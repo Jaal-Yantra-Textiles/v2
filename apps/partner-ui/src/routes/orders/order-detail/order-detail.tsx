@@ -4,6 +4,7 @@ import { Outlet, useLoaderData, useLocation, useParams } from "react-router-dom"
 import { TwoColumnPageSkeleton } from "../../../components/common/skeleton"
 import { TwoColumnPage } from "../../../components/layout/pages"
 import { InventoryOrderLines } from "../../../components/work-orders/inventory-order-lines"
+import { DesignOrderLines } from "../../../components/work-orders/design-order-lines"
 import {
   InventoryFulfillmentsSection,
   InventoryPaymentsSection,
@@ -158,20 +159,36 @@ export const OrderDetail = () => {
               productionRun={production_run}
               inventoryOrder={inventoryOrder}
             />
-            {kind === "design" && design && (
-              <WorkOrderSummarySection kind="design" design={design} designId={designId} />
-            )}
-            {kind === "design" && production_run && design && (
-              <ProductionRunCard
-                run={production_run}
-                design={design}
-                consumptionLogs={consumptionLogs}
-                consumptionCount={consumptionCount}
-                onActionSuccess={invalidateOrder}
-                showTimeline={false}
-                taskLinkBase="tasks"
-              />
-            )}
+            {/* #826 S3b — a COLLATED design work-order shows one line per design
+                (the "one order, many designs" view). Legacy per-run design
+                orders (one design each) keep the single-design detail below. */}
+            {kind === "design" &&
+              (order as any)?.metadata?.collated_design_order && (
+                <DesignOrderLines
+                  lines={((order as any).items ?? []) as Array<Record<string, any>>}
+                  currencyCode={(order as any).currency_code}
+                  totalPrice={(order as any).total}
+                />
+              )}
+            {kind === "design" &&
+              !(order as any)?.metadata?.collated_design_order &&
+              design && (
+                <WorkOrderSummarySection kind="design" design={design} designId={designId} />
+              )}
+            {kind === "design" &&
+              !(order as any)?.metadata?.collated_design_order &&
+              production_run &&
+              design && (
+                <ProductionRunCard
+                  run={production_run}
+                  design={design}
+                  consumptionLogs={consumptionLogs}
+                  consumptionCount={consumptionCount}
+                  onActionSuccess={invalidateOrder}
+                  showTimeline={false}
+                  taskLinkBase="tasks"
+                />
+              )}
             {kind === "inventory" && inventoryOrder && (
               <>
                 <WorkOrderSummarySection kind="inventory" inventoryOrder={inventoryOrder} />
