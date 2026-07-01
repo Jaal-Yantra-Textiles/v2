@@ -359,13 +359,16 @@ export const projectRunToUnifiedOrder = async (
 }
 
 // #826 S3a — aggregate the core order.status for a COLLATED design work-order
-// from its N runs: completed iff every run completed, canceled iff every run
-// cancelled, else pending (in-flight). Deliberately conservative — a collated
-// order is "done" only when all its design lines are.
+// from its N runs. Cancelled runs are dropped a design line pulled from the
+// order, so completion rides on the ACTIVE (non-cancelled) runs: completed iff
+// every active run completed; canceled iff ALL runs cancelled; else pending.
+// (#826 follow-up: this stops a collated order stranding in "pending" forever
+// when one design was cancelled but the rest completed.)
 const aggregateCoreStatus = (runs: any[]): string => {
-  const statuses = runs.map((r) => r.status)
-  if (statuses.length && statuses.every((s) => s === "completed")) return "completed"
-  if (statuses.length && statuses.every((s) => s === "cancelled")) return "canceled"
+  if (!runs.length) return "pending"
+  const active = runs.filter((r) => r.status !== "cancelled")
+  if (!active.length) return "canceled" // every run cancelled
+  if (active.every((r) => r.status === "completed")) return "completed"
   return "pending"
 }
 

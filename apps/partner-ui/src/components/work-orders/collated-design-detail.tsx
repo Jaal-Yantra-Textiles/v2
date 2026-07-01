@@ -1,5 +1,5 @@
 import { ArrowUpRightOnBox } from "@medusajs/icons"
-import { Badge, Button, Container, Heading, Skeleton, Text } from "@medusajs/ui"
+import { Badge, Button, Container, Heading, Skeleton, StatusBadge, Text } from "@medusajs/ui"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 
@@ -164,6 +164,40 @@ export const DesignSpecs = ({ design }: { design: any }) => {
 }
 
 /**
+ * Graceful fallback when a design can't be loaded for this partner (missing
+ * design↔partner link — e.g. an order produced before the link fix). Shows the
+ * run status we do have plus a clear next step, instead of a forever skeleton.
+ */
+const DesignLineUnavailable = ({
+  line,
+  run,
+}: {
+  line: CollatedLine
+  run?: any
+}) => {
+  const title = designLineTitle(line, run)
+  const badge = run ? runPartnerBadge(run) : null
+  return (
+    <Container className="divide-y p-0">
+      <div className="flex flex-wrap items-center gap-2 px-6 py-4">
+        <Heading level="h2" className="truncate">
+          {title}
+        </Heading>
+        {badge && (
+          <StatusBadge color={badge.color}>{badge.label}</StatusBadge>
+        )}
+      </div>
+      <div className="px-6 py-4">
+        <Text size="small" className="text-ui-fg-subtle">
+          Design details aren't available for your account yet. Ask the admin to
+          (re)assign this design to you, then reopen the order.
+        </Text>
+      </div>
+    </Container>
+  )
+}
+
+/**
  * The full inline detail for ONE design of a collated order: its specs stacked
  * above its production run card (lifecycle + tasks). Fetches the run, design and
  * consumption logs off the line metadata.
@@ -178,10 +212,15 @@ export const DesignLineDetail = ({
   const runId = line?.metadata?.production_run_id as string | undefined
   const designId = line?.metadata?.design_id as string | undefined
 
-  const { production_run } = usePartnerProductionRun(runId ?? "", {
-    enabled: !!runId,
-  })
-  const { design } = usePartnerDesign(designId ?? "", { enabled: !!designId })
+  const { production_run, isError: runError } = usePartnerProductionRun(
+    runId ?? "",
+    { enabled: !!runId }
+  )
+  const {
+    design,
+    isError: designError,
+    isPending: designPending,
+  } = usePartnerDesign(designId ?? "", { enabled: !!designId })
   const { logs = [], count = 0 } = usePartnerConsumptionLogs(
     designId ?? "",
     undefined,
@@ -190,6 +229,15 @@ export const DesignLineDetail = ({
 
   if (!runId || !designId) {
     return null
+  }
+
+  // #826 — a design that 404s for this partner (no design↔partner link — e.g. an
+  // order produced before the link fix) must NOT hang on a skeleton. Show a
+  // graceful "unavailable" card with whatever run status we do have.
+  if (designError || runError || (!design && !designPending && !!designId)) {
+    return (
+      <DesignLineUnavailable line={line} run={production_run} />
+    )
   }
 
   if (!production_run || !design) {

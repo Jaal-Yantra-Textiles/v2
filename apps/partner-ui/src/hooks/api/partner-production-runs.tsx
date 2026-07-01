@@ -228,6 +228,59 @@ export const useCompletePartnerProductionRun = (
   })
 }
 
+// #826 — advance MANY runs of a collated order in one action (accept/start),
+// so a partner isn't clicking through ten designs one-by-one. Each item names
+// its own next no-data step; complete/finish stay per-design (they need forms).
+export type BatchAdvanceItem = { runId: string; action: "accept" | "start" }
+export type BatchAdvanceResult = { succeeded: string[]; failed: string[] }
+
+export const useBatchAdvancePartnerRuns = (
+  options?: UseMutationOptions<
+    BatchAdvanceResult,
+    FetchError,
+    { items: BatchAdvanceItem[] }
+  >
+) => {
+  const { onSuccess, ...restOptions } = options || {}
+  return useMutation({
+    mutationFn: async ({ items }: { items: BatchAdvanceItem[] }) => {
+      const results = await Promise.allSettled(
+        items.map((it) =>
+          sdk.client.fetch<any>(
+            `/partners/production-runs/${it.runId}/${it.action}`,
+            { method: "POST" }
+          )
+        )
+      )
+      const succeeded: string[] = []
+      const failed: string[] = []
+      results.forEach((r, i) =>
+        (r.status === "fulfilled" ? succeeded : failed).push(items[i].runId)
+      )
+      return { succeeded, failed }
+    },
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({
+        queryKey: partnerProductionRunsQueryKeys.lists(),
+      })
+      queryClient.refetchQueries({
+        queryKey: partnerProductionRunsQueryKeys.lists(),
+      })
+      variables.items.forEach((it) => {
+        queryClient.invalidateQueries({
+          queryKey: partnerProductionRunsQueryKeys.detail(it.runId),
+        })
+        queryClient.refetchQueries({
+          queryKey: partnerProductionRunsQueryKeys.detail(it.runId),
+        })
+      })
+      queryClient.invalidateQueries({ queryKey: ["partner-designs"] })
+      onSuccess?.(data, variables, context)
+    },
+    ...restOptions,
+  })
+}
+
 // Roadmap #6 Phase 4 — partner creates a self-approved run on their own design.
 export type CreatePartnerProductionRunPayload = {
   quantity?: number
