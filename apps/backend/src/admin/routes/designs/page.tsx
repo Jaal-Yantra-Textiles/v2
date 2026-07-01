@@ -6,13 +6,14 @@ import {
   useDataTable,
   createDataTableFilterHelper,
   createDataTableColumnHelper,
-  createDataTableCommandHelper,
   DataTablePaginationState,
   DataTableFilteringState,
   DataTableRowSelectionState,
   Button,
   Badge,
   toast,
+  CommandBar,
+  Tooltip,
 } from "@medusajs/ui";
 import { Outlet, useNavigate, useSearchParams } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -23,7 +24,8 @@ import { BulkLinkPartnerDrawer } from "../../components/designs/bulk-link-partne
 import { BulkUpdateStatusDrawer } from "../../components/designs/bulk-update-status-drawer";
 import { BulkAssignTagsDrawer } from "../../components/designs/bulk-assign-tags-drawer";
 import { BulkDeleteDialog } from "../../components/designs/bulk-delete-dialog";
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { SendToProductionDrawer } from "../../components/designs/send-to-production-drawer";
+import { useMemo, useState, useCallback, useEffect, Fragment } from "react";
 import { EntityActions } from "../../components/persons/personsActions";
 import { AdminDesign, useDesigns } from "../../hooks/api/designs";
 import { useDesignsTableColumns } from "../../hooks/columns/useDesignsTableColumns";
@@ -42,10 +44,14 @@ import type {
 } from "../../hooks/api/designs";
 const columnHelper = createDataTableColumnHelper<AdminDesign>();
 
-const commandHelper = createDataTableCommandHelper();
+// Plain command descriptors — the compact CommandBar below renders them (letter
+// badge + hover tooltip) and CommandBar.Command owns the keyboard shortcut, so
+// there's no need for the DataTable command helper / its (ctx) => action shape.
+type DesignCommand = { label: string; shortcut: string; action: () => void };
 
 const useCommands = (callbacks: {
   onCreateOrder: () => void
+  onSendToProduction: () => void
   onProductionRun: () => void
   onRecreate: () => void
   onEdit: () => void
@@ -54,54 +60,33 @@ const useCommands = (callbacks: {
   onUpdateStatus: () => void
   onDelete: () => void
   onRevise: () => void
-}) => {
+}): DesignCommand[] => {
   return [
     // #826 S1 — collate the selected designs into ONE customer order.
-    commandHelper.command({
-      label: "Create Order",
-      shortcut: "o",
-      action: callbacks.onCreateOrder,
-    }),
-    commandHelper.command({
+    { label: "Create Order", shortcut: "o", action: callbacks.onCreateOrder },
+    // #826 — collate the selected designs into ONE partner work-order with NO
+    // customer/sale (the "just make these" path).
+    {
+      label: "Send to Production",
+      shortcut: "g",
+      action: callbacks.onSendToProduction,
+    },
+    {
       label: "Run Production Run",
       shortcut: "p",
       action: callbacks.onProductionRun,
-    }),
-    commandHelper.command({
+    },
+    {
       label: "Re-Create for Production",
       shortcut: "r",
       action: callbacks.onRecreate,
-    }),
-    commandHelper.command({
-      label: "Edit Design",
-      shortcut: "e",
-      action: callbacks.onEdit,
-    }),
-    commandHelper.command({
-      label: "Link to Partner",
-      shortcut: "l",
-      action: callbacks.onLinkPartner,
-    }),
-    commandHelper.command({
-      label: "Assign Tags",
-      shortcut: "t",
-      action: callbacks.onAssignTags,
-    }),
-    commandHelper.command({
-      label: "Update Status",
-      shortcut: "s",
-      action: callbacks.onUpdateStatus,
-    }),
-    commandHelper.command({
-      label: "Delete",
-      shortcut: "d",
-      action: callbacks.onDelete,
-    }),
-    commandHelper.command({
-      label: "Revise Design",
-      shortcut: "v",
-      action: callbacks.onRevise,
-    }),
+    },
+    { label: "Edit Design", shortcut: "e", action: callbacks.onEdit },
+    { label: "Link to Partner", shortcut: "l", action: callbacks.onLinkPartner },
+    { label: "Assign Tags", shortcut: "t", action: callbacks.onAssignTags },
+    { label: "Update Status", shortcut: "s", action: callbacks.onUpdateStatus },
+    { label: "Delete", shortcut: "d", action: callbacks.onDelete },
+    { label: "Revise Design", shortcut: "v", action: callbacks.onRevise },
   ];
 };
 
@@ -171,6 +156,7 @@ const DesignsPage = () => {
   const [isUpdateStatusOpen, setIsUpdateStatusOpen] = useState(false);
   const [isAssignTagsOpen, setIsAssignTagsOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isSendToProductionOpen, setIsSendToProductionOpen] = useState(false);
   // #826 S1 — collated "Create Order" from the general Designs list.
   const [orderCustomerId, setOrderCustomerId] = useState<string | null>(null);
   const [orderDesignIds, setOrderDesignIds] = useState<string[]>([]);
@@ -573,6 +559,7 @@ const DesignsPage = () => {
 
   const commands = useCommands({
     onCreateOrder: () => handleCreateOrder(),
+    onSendToProduction: () => setIsSendToProductionOpen(true),
     onProductionRun: () => {
       if (selectedDesignIds.length === 1) {
         navigate(`/designs/${selectedDesignIds[0]}/production-run`)
@@ -611,7 +598,9 @@ const DesignsPage = () => {
     rowCount: count,
     isLoading,
     filters,
-    commands,
+    // NOTE: commands are rendered by the custom compact CommandBar below (letter
+    // badge + hover tooltip); it owns the keyboard shortcuts, so they are NOT
+    // passed here to avoid double registration.
     rowSelection: {
       state: rowSelection,
       onRowSelectionChange: setRowSelection,
@@ -791,8 +780,29 @@ const DesignsPage = () => {
         
         <DataTable.Table />
         <DataTable.Pagination />
-        <DataTable.CommandBar selectedLabel={(count) => `${count} selected`} />
       </DataTable>
+      {/* #826 — compact command bar: each action is just its shortcut letter;
+          hover reveals the full label. Owns its own keyboard shortcuts (the
+          DataTable's `commands` were removed to avoid double registration). */}
+      <CommandBar open={selectedDesignIds.length > 0}>
+        <CommandBar.Bar>
+          <CommandBar.Value>
+            {selectedDesignIds.length} selected
+          </CommandBar.Value>
+          {commands.map((cmd) => (
+            <Fragment key={cmd.shortcut}>
+              <CommandBar.Seperator />
+              <Tooltip content={cmd.label}>
+                <CommandBar.Command
+                  label=""
+                  shortcut={cmd.shortcut}
+                  action={cmd.action}
+                />
+              </Tooltip>
+            </Fragment>
+          ))}
+        </CommandBar.Bar>
+      </CommandBar>
     </Container>
     <Outlet></Outlet>
     {isSaveDialogOpen && (
@@ -846,6 +856,12 @@ const DesignsPage = () => {
         <BulkDeleteDialog
           open={isDeleteDialogOpen}
           onOpenChange={setIsDeleteDialogOpen}
+          selectedDesigns={selectedDesigns}
+          onComplete={clearSelection}
+        />
+        <SendToProductionDrawer
+          open={isSendToProductionOpen}
+          onOpenChange={setIsSendToProductionOpen}
           selectedDesigns={selectedDesigns}
           onComplete={clearSelection}
         />
