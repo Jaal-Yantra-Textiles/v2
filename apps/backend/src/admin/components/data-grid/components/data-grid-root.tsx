@@ -550,18 +550,37 @@ export const DataGridRoot = <
     ]
   )
 
-  const handleRestoreGridFocus = useCallback(() => {
-    if (anchor && !trapActive) {
-      setTrapActive(true)
+  const handleRestoreGridFocus = useCallback(
+    (e?: React.SyntheticEvent) => {
+      // A cell can embed a foreign interactive element — e.g. the item-picker
+      // Combobox (role="combobox" input + portaled role="listbox"/"option"
+      // popover). Clicking or focusing it bubbles up to this container handler,
+      // which would otherwise yank focus straight back to the anchored grid cell
+      // on the next frame — stealing the click, closing the dropdown, and eating
+      // keystrokes (the "it closes on the selected value" flakiness). Bail so the
+      // combobox keeps focus.
+      const target = e?.target as HTMLElement | null
+      if (
+        target?.closest?.(
+          '[role="combobox"], [role="listbox"], [role="option"]'
+        )
+      ) {
+        return
+      }
 
-      setSingleRange(anchor)
-      scrollToCoordinates(anchor, "both")
+      if (anchor && !trapActive) {
+        setTrapActive(true)
 
-      requestAnimationFrame(() => {
-        queryTool?.getContainer(anchor)?.focus()
-      })
-    }
-  }, [anchor, trapActive, setSingleRange, scrollToCoordinates, queryTool])
+        setSingleRange(anchor)
+        scrollToCoordinates(anchor, "both")
+
+        requestAnimationFrame(() => {
+          queryTool?.getContainer(anchor)?.focus()
+        })
+      }
+    },
+    [anchor, trapActive, setSingleRange, scrollToCoordinates, queryTool]
+  )
 
   return (
     <DataGridContext.Provider value={values}>

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "@medusajs/framework/zod";
@@ -63,10 +62,11 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
     resolver: zodResolver(editOrderLinesSchema),
   });
 
-  const [itemSearch, setItemSearch] = useState("");
+  // Single large fetch + client-side narrowing in the picker (see
+  // create-inventory-order for why server-side `q` search was dropped: the
+  // per-keystroke refetch remounted the picker cell and made search flaky).
   const { inventory_items = [], isLoading } = useInventoryWithRawMaterials({
-    limit: 100,
-    ...(itemSearch ? { q: itemSearch } : {}),
+    limit: 1000,
   });
 
   // Use Field Array for order lines
@@ -161,7 +161,6 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
                   loading={isLoading}
                   onAddNewRow={() => append({ inventory_item_id: "", quantity: 0, price: 0, isExisting: false })}
                   onRemoveRow={remove}
-                  onSearchItems={setItemSearch}
                 />
               </div>
               <Text size="small" className="text-ui-fg-subtle mt-2">

@@ -107,10 +107,15 @@ export const CreateInventoryOrderComponent = () => {
   }, [tab]);
 
   const { stock_locations = [] } = useStockLocations();
-  const [itemSearch, setItemSearch] = useState("");
+  // Load a generous page of the catalog once and filter the item picker purely
+  // client-side (see inventory-order-lines-grid). Server-side `q` search was
+  // dropped on purpose: changing the query key on every keystroke re-fetched,
+  // churned the grid's option/column state and REMOUNTED the picker cell mid-
+  // type — which blurred the input, closed the dropdown and wiped the query
+  // (the "search flickers / closes on the earlier value" flakiness). A single
+  // large fetch + local narrowing is stable and covers our catalog size.
   const { inventory_items = [], isLoading } = useInventoryWithRawMaterials({
-    limit: 100,
-    ...(itemSearch ? { q: itemSearch } : {}),
+    limit: 1000,
   });
 
   // Use Field Array for order lines
@@ -338,7 +343,6 @@ export const CreateInventoryOrderComponent = () => {
                       loading={isLoading}
                       onAddNewRow={() => append({ inventory_item_id: "", quantity: 0, price: 0 })}
                       onRemoveRow={remove}
-                      onSearchItems={setItemSearch}
                     />
                   </div>
                   <Text size="small" className="text-ui-fg-subtle mt-2">

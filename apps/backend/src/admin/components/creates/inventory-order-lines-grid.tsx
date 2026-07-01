@@ -43,6 +43,23 @@ const ItemComboboxCell = ({
     return () => clearTimeout(handle);
   }, [query, onSearch]);
 
+  // The Combobox runs in controlled-search mode (we drive searchValue), which
+  // disables its built-in matchSorter — so on its own the list wouldn't narrow as
+  // you type and would show every loaded item (reads as "the search doesn't
+  // work"). The whole catalog is fetched once up-front (see create/edit order
+  // pages), so narrow it locally here for instant, flicker-free filtering.
+  const filteredOptions = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) {
+      return options;
+    }
+    return options.filter(
+      (o) =>
+        o.label.toLowerCase().includes(q) ||
+        (o.keywords ? o.keywords.includes(q) : false)
+    );
+  }, [options, query]);
+
   return (
     <Controller
       control={form.control}
@@ -65,9 +82,12 @@ const ItemComboboxCell = ({
             onBlur={field.onBlur}
             searchValue={query}
             onSearchValueChange={setQuery}
-            options={options}
+            options={filteredOptions}
             allowClear
-            disabled={loading}
+            // Only disable on the genuine first load (catalog not fetched yet).
+            // Disabling a focused input blurs it, closes the dropdown and wipes
+            // the typed query — so once we have items, never disable mid-use.
+            disabled={loading && options.length === 0}
             placeholder="Search items…"
             // Portal the options out of the virtualized/overflow-clipped grid row.
             portal
