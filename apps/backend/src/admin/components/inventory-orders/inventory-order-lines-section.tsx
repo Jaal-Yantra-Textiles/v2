@@ -5,8 +5,12 @@ import { Link } from "react-router-dom";
 import { ActionMenu } from "../common/action-menu";
 
 export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder: AdminInventoryOrder }) => {
-  // Define extended line type with inventory_item relation
-  type InventoryOrderLine = OrderLine & { inventory_items: [{ id: string; sku: string; title?: string }] };
+  // Define extended line type with inventory_item relation. The denormalized
+  // color identity (#817 S2) lives on the base OrderLine type and rides along
+  // with the orderlines.* field selection.
+  type InventoryOrderLine = OrderLine & {
+    inventory_items: [{ id: string; sku: string; title?: string }];
+  };
 
   // Only allow editing if status is Pending or Processing
   const canEdit = ["Pending", "Processing"].includes(inventoryOrder.status);
@@ -57,9 +61,12 @@ export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder:
                 <div className="flex items-center gap-3">
                   <div className="flex flex-1 flex-col overflow-hidden">
                     <span className="text-ui-fg-base font-medium">
-                      {inventoryItem.title}
+                      {line.material_name || inventoryItem.title}
                     </span>
-                    <div className="flex gap-2 mt-2">
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {line.color && (
+                        <Badge size="small" color="grey">{line.color}</Badge>
+                      )}
                       <Badge size="small" className="text-ui-fg-subtle">Price: ${line.price}</Badge>
                       <Badge size="small" className="text-ui-fg-subtle">Quantity: {line.quantity}</Badge>
                     </div>

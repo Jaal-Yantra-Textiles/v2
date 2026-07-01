@@ -69,7 +69,10 @@ export const InventoryOrderLines = ({
 
       <div className="px-6 py-4">
         {orderLines.map((line) => {
+          // #817 S2 — color identity is denormalized onto the line, so the card
+          // reads correctly even without the inventory_item relation loaded.
           const title =
+            line?.material_name ||
             line?.inventory_items?.[0]?.title ||
             line?.inventory_items?.[0]?.name ||
             line?.inventory_item_id ||
@@ -80,12 +83,15 @@ export const InventoryOrderLines = ({
           const fulfilled = lineFulfilled(line)
           const remaining = Math.max(0, requested - fulfilled)
           const price = Number(line?.price) || 0
+          const subtitle =
+            [line?.color, sku ? `SKU ${sku}` : null].filter(Boolean).join(" · ") ||
+            `${t("partner.inventoryOrders.detail.linePrefix")}: ${line.id}`
 
           return (
             <WorkOrderLineCard
               key={String(line.id)}
               title={String(title)}
-              subtitle={sku ? `SKU ${sku}` : `${t("partner.inventoryOrders.detail.linePrefix")}: ${line.id}`}
+              subtitle={subtitle}
               thumbnail={thumbnail}
             >
               <WorkOrderLineStat label={t("partner.inventoryOrders.detail.columns.requested")} value={fmt(requested)} />
