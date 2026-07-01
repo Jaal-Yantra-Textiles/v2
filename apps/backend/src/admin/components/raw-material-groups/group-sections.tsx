@@ -1,7 +1,6 @@
 import {
   Badge,
   Button,
-  Checkbox,
   Container,
   DataTable,
   DataTablePaginationState,
@@ -18,7 +17,7 @@ import {
   useDataTable,
 } from "@medusajs/ui"
 import { PencilSquare, Plus, Component as ComponentIcon, Link as LinkIcon } from "@medusajs/icons"
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
 import { ActionMenu } from "../common/action-menu"
@@ -284,7 +283,36 @@ const LinkExistingColorsModal = ({
 // Order the group in colors (fan-out)
 // ---------------------------------------------------------------------------
 
-type LineDraft = { selected: boolean; quantity: string; price: string }
+type LineDraft = { quantity: string; price: string }
+
+// Self-contained numeric input so per-row edits keep focus across DataTable
+// re-renders; the value is lifted to the parent's drafts on change.
+const NumberCell = ({
+  initial,
+  placeholder,
+  onChange,
+}: {
+  initial: string
+  placeholder: string
+  onChange: (v: string) => void
+}) => {
+  const [v, setV] = useState(initial)
+  return (
+    <Input
+      type="number"
+      min="0"
+      placeholder={placeholder}
+      value={v}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => {
+        setV(e.target.value)
+        onChange(e.target.value)
+      }}
+    />
+  )
+}
+
+const orderColumnHelper = createDataTableColumnHelper<RawMaterialGroupColor>()
 
 const OrderInColorsModal = ({
   groupId,
@@ -299,23 +327,73 @@ const OrderInColorsModal = ({
 }) => {
   const [stockLocationId, setStockLocationId] = useState<string>("")
   const [drafts, setDrafts] = useState<Record<string, LineDraft>>({})
+  const [rowSelection, setRowSelection] = useState<DataTableRowSelectionState>({})
   const { stock_locations = [] } = useStockLocations()
   const { mutateAsync, isPending } = useCreateGroupOrder(groupId)
 
-  const setDraft = (id: string, patch: Partial<LineDraft>) =>
-    setDrafts((d) => ({
-      ...d,
-      [id]: { selected: false, quantity: "", price: "", ...d[id], ...patch },
-    }))
+  const setDraft = useCallback(
+    (id: string, patch: Partial<LineDraft>) =>
+      setDrafts((d) => ({
+        ...d,
+        [id]: { quantity: "", price: "", ...d[id], ...patch },
+      })),
+    []
+  )
+
+  const columns = useMemo(
+    () => [
+      orderColumnHelper.select(),
+      orderColumnHelper.accessor("color", {
+        header: "Color",
+        cell: ({ row }) => row.original.color || row.original.name,
+      }),
+      orderColumnHelper.display({
+        id: "quantity",
+        header: "Quantity",
+        cell: ({ row }) => (
+          <NumberCell
+            initial={drafts[row.original.id]?.quantity ?? ""}
+            placeholder="0"
+            onChange={(v) => setDraft(row.original.id, { quantity: v })}
+          />
+        ),
+      }),
+      orderColumnHelper.display({
+        id: "price",
+        header: "Unit price",
+        cell: ({ row }) => (
+          <NumberCell
+            initial={drafts[row.original.id]?.price ?? ""}
+            placeholder="0"
+            onChange={(v) => setDraft(row.original.id, { price: v })}
+          />
+        ),
+      }),
+    ],
+    // `drafts` intentionally omitted: NumberCell owns its live value, we only
+    // need the initial when the modal (re)opens. Depending on drafts here would
+    // recreate the cells on every keystroke and drop focus.
+    [setDraft]
+  )
+
+  const table = useDataTable({
+    columns,
+    data: colors,
+    getRowId: (row) => row.id,
+    rowCount: colors.length,
+    rowSelection: {
+      state: rowSelection,
+      onRowSelectionChange: setRowSelection,
+    },
+  })
 
   const submit = async () => {
-    const lines = colors
-      .filter((c) => drafts[c.id]?.selected)
-      .map((c) => ({
-        raw_material_id: c.id,
-        quantity: Number(drafts[c.id]?.quantity) || 0,
-        price: Number(drafts[c.id]?.price) || 0,
-      }))
+    const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id])
+    const lines = selectedIds.map((id) => ({
+      raw_material_id: id,
+      quantity: Number(drafts[id]?.quantity) || 0,
+      price: Number(drafts[id]?.price) || 0,
+    }))
     if (!lines.length) {
       toast.error("Select at least one color")
       return
@@ -341,6 +419,7 @@ const OrderInColorsModal = ({
       toast.success(`Order placed${created}`)
       onOpenChange(false)
       setDrafts({})
+      setRowSelection({})
     } catch (e: any) {
       toast.error(e?.message || "Failed to place order")
     }
@@ -348,78 +427,39 @@ const OrderInColorsModal = ({
 
   return (
     <FocusModal open={open} onOpenChange={onOpenChange}>
-      <FocusModal.Content>
+      <FocusModal.Content className="flex flex-col">
         <FocusModal.Header>
           <Button size="small" onClick={submit} isLoading={isPending}>Place order</Button>
         </FocusModal.Header>
-        <FocusModal.Body className="flex flex-col items-center py-16">
-          <div className="flex w-full max-w-2xl flex-col gap-y-6">
-            <div>
-              <FocusModal.Title asChild>
-                <Heading>Order this group in colors</Heading>
-              </FocusModal.Title>
-              <FocusModal.Description asChild>
-                <Text size="small" className="text-ui-fg-subtle">
-                  One order line per selected color. Colors without stock are created automatically.
-                </Text>
-              </FocusModal.Description>
-            </div>
-            <div className="flex flex-col gap-y-2">
-              <Label>Ship to location</Label>
-              <Select value={stockLocationId} onValueChange={setStockLocationId}>
-                <Select.Trigger>
-                  <Select.Value placeholder="Select a stock location" />
-                </Select.Trigger>
-                <Select.Content>
-                  {stock_locations.map((sl: any) => (
-                    <Select.Item key={sl.id} value={sl.id}>{sl.name}</Select.Item>
-                  ))}
-                </Select.Content>
-              </Select>
-            </div>
-            <Table>
-              <Table.Header>
-                <Table.Row>
-                  <Table.HeaderCell> </Table.HeaderCell>
-                  <Table.HeaderCell>Color</Table.HeaderCell>
-                  <Table.HeaderCell>Quantity</Table.HeaderCell>
-                  <Table.HeaderCell>Unit price</Table.HeaderCell>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {colors.map((c) => {
-                  const d = drafts[c.id]
-                  return (
-                    <Table.Row key={c.id}>
-                      <Table.Cell>
-                        <Checkbox
-                          checked={!!d?.selected}
-                          onCheckedChange={(v) => setDraft(c.id, { selected: !!v })}
-                        />
-                      </Table.Cell>
-                      <Table.Cell>{c.color || c.name}</Table.Cell>
-                      <Table.Cell>
-                        <Input
-                          type="number"
-                          disabled={!d?.selected}
-                          value={d?.quantity ?? ""}
-                          onChange={(e) => setDraft(c.id, { quantity: e.target.value })}
-                        />
-                      </Table.Cell>
-                      <Table.Cell>
-                        <Input
-                          type="number"
-                          disabled={!d?.selected}
-                          value={d?.price ?? ""}
-                          onChange={(e) => setDraft(c.id, { price: e.target.value })}
-                        />
-                      </Table.Cell>
-                    </Table.Row>
-                  )
-                })}
-              </Table.Body>
-            </Table>
-          </div>
+        <FocusModal.Body className="flex flex-1 flex-col overflow-hidden p-0">
+          <DataTable instance={table}>
+            <DataTable.Toolbar className="flex flex-col items-start gap-y-3 px-6 py-4">
+              <div>
+                <FocusModal.Title asChild>
+                  <Heading>Order this group in colors</Heading>
+                </FocusModal.Title>
+                <FocusModal.Description asChild>
+                  <Text size="small" className="text-ui-fg-subtle">
+                    One order line per selected color. Colors without stock are created automatically.
+                  </Text>
+                </FocusModal.Description>
+              </div>
+              <div className="flex w-full max-w-sm flex-col gap-y-2">
+                <Label>Ship to location</Label>
+                <Select value={stockLocationId} onValueChange={setStockLocationId}>
+                  <Select.Trigger>
+                    <Select.Value placeholder="Select a stock location" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {stock_locations.map((sl: any) => (
+                      <Select.Item key={sl.id} value={sl.id}>{sl.name}</Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
+              </div>
+            </DataTable.Toolbar>
+            <DataTable.Table />
+          </DataTable>
         </FocusModal.Body>
       </FocusModal.Content>
     </FocusModal>

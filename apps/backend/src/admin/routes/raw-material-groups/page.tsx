@@ -207,4 +207,9 @@ export const config = defineRouteConfig({
   nested: "/inventory",
 })
 
+// Parent crumb so the detail page reads "Material Groups > <name>".
+export const handle = {
+  breadcrumb: () => "Material Groups",
+}
+
 export default RawMaterialGroupsPage
