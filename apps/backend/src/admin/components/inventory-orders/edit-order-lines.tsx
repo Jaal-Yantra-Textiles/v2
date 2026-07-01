@@ -62,7 +62,12 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
     resolver: zodResolver(editOrderLinesSchema),
   });
 
-  const { inventory_items = [], isLoading } = useInventoryWithRawMaterials({ limit: 100 });
+  // Single large fetch + client-side narrowing in the picker (see
+  // create-inventory-order for why server-side `q` search was dropped: the
+  // per-keystroke refetch remounted the picker cell and made search flaky).
+  const { inventory_items = [], isLoading } = useInventoryWithRawMaterials({
+    limit: 1000,
+  });
 
   // Use Field Array for order lines
   const { fields, append, remove } = useFieldArray({

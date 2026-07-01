@@ -23,18 +23,39 @@ const GROUP_STATUS = [
 
 // --- Group CRUD ---
 
-export const createRawMaterialGroupSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  description: z.string().optional(),
+// #829 — global specs the group holds once; new colors inherit these fill-blank.
+const groupGlobalsShape = {
   composition: z.string().optional(),
   specifications: z.record(z.string(), z.unknown()).optional(),
   unit_of_measure: z.enum(UNIT_OF_MEASURE).optional(),
-  status: z.enum(GROUP_STATUS).optional(),
   material_type_id: z.string().optional(),
+  // A category NAME (find-or-create); resolved to material_type_id server-side.
+  material_type: z.string().optional(),
+  unit_cost: z.number().optional(),
+  cost_currency: z.string().optional(),
+  lead_time_days: z.number().int().optional(),
+  minimum_order_quantity: z.number().int().optional(),
+  stock_location_id: z.string().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
   media: z.record(z.string(), z.unknown()).optional(),
+}
+
+export const createRawMaterialGroupSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().optional(),
+  status: z.enum(GROUP_STATUS).optional(),
+  ...groupGlobalsShape,
 })
 export type CreateRawMaterialGroup = z.infer<typeof createRawMaterialGroupSchema>
+
+// Update a group's fields (all optional). Reuses the globals + name/desc/status.
+export const updateRawMaterialGroupSchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().nullish(),
+  status: z.enum(GROUP_STATUS).optional(),
+  ...groupGlobalsShape,
+})
+export type UpdateRawMaterialGroup = z.infer<typeof updateRawMaterialGroupSchema>
 
 export const listRawMaterialGroupsQuerySchema = z.object({
   q: z.string().optional(),
@@ -57,10 +78,13 @@ export const addGroupColorSchema = z.object({
   color: z.string().min(1, "Color is required"),
   description: z.string().optional(),
   composition: z.string().optional(),
+  specifications: z.record(z.string(), z.unknown()).optional(),
   unit_of_measure: z.enum(UNIT_OF_MEASURE).optional(),
   material_type_id: z.string().optional(),
   unit_cost: z.number().optional(),
   cost_currency: z.string().optional(),
+  lead_time_days: z.number().int().optional(),
+  minimum_order_quantity: z.number().int().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
   media: z.record(z.string(), z.unknown()).optional(),
 })

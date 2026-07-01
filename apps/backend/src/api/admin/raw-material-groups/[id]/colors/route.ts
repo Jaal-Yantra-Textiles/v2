@@ -8,7 +8,7 @@
  *        group when omitted.
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { createInventoryItemsWorkflow } from "@medusajs/medusa/core-flows"
 import { RAW_MATERIAL_MODULE } from "../../../../../modules/raw_material"
 import { createRawMaterialWorkflow } from "../../../../../workflows/raw-materials/create-raw-material"
@@ -47,6 +47,15 @@ export const POST = async (
   }
 
   // 2) Create the per-color raw_material (with group_id) + link + SKU.
+  //
+  // #829 — inherit the group's global specs fill-blank: an explicit value on the
+  // request wins; otherwise fall back to the group's value; otherwise leave unset.
+  // width/weight/grade are intentionally NOT inherited (per-color).
+  const inherit = <T,>(bodyVal: T | undefined | null, groupVal: T | undefined | null) =>
+    bodyVal != null ? bodyVal : groupVal != null ? groupVal : undefined
+  const opt = (key: string, value: unknown) =>
+    value !== undefined && value !== null && value !== "" ? { [key]: value } : {}
+
   const rawMaterialData = {
     name: body.name,
     color: body.color,
@@ -58,8 +67,14 @@ export const POST = async (
       : group.material_type_id
         ? { material_type_id: group.material_type_id }
         : {}),
-    ...(body.unit_cost != null ? { unit_cost: body.unit_cost } : {}),
-    ...(body.cost_currency ? { cost_currency: body.cost_currency } : {}),
+    ...opt("specifications", inherit(body.specifications, group.specifications)),
+    ...opt("unit_cost", inherit(body.unit_cost, group.unit_cost)),
+    ...opt("cost_currency", inherit(body.cost_currency, group.cost_currency)),
+    ...opt("lead_time_days", inherit(body.lead_time_days, group.lead_time_days)),
+    ...opt(
+      "minimum_order_quantity",
+      inherit(body.minimum_order_quantity, group.minimum_order_quantity)
+    ),
     ...(body.metadata ? { metadata: body.metadata } : {}),
     ...(body.media ? { media: body.media } : {}),
     group_id: groupId,
@@ -68,6 +83,24 @@ export const POST = async (
   await createRawMaterialWorkflow(req.scope).run({
     input: { inventoryId: inventoryItem.id, rawMaterialData },
   })
+
+  // 3) Seed a zero-stock level at the group's default receiving location so the
+  // color shares the same location as its siblings from the start (best-effort).
+  if (group.stock_location_id) {
+    try {
+      const inventoryService: any = req.scope.resolve(Modules.INVENTORY)
+      await inventoryService.createInventoryLevels([
+        {
+          inventory_item_id: inventoryItem.id,
+          location_id: group.stock_location_id,
+          stocked_quantity: 0,
+          incoming_quantity: 0,
+        },
+      ])
+    } catch {
+      // non-fatal — the color exists; a level can be seeded when it's ordered.
+    }
+  }
 
   const raw_material_group = await refetchRawMaterialGroup(groupId, req.scope)
   res.status(201).json({ raw_material_group })

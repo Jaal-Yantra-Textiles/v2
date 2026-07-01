@@ -17,9 +17,17 @@ export interface RawMaterialGroup {
   name: string
   description?: string | null
   composition?: string | null
+  specifications?: Record<string, unknown> | null
   unit_of_measure?: string
   status?: string
+  // #829 — global specs the group holds once; new colors inherit these.
+  unit_cost?: number | null
+  cost_currency?: string | null
+  lead_time_days?: number | null
+  minimum_order_quantity?: number | null
+  stock_location_id?: string | null
   material_type?: { id: string; name?: string; category?: string } | null
+  material_type_id?: string | null
   raw_materials?: RawMaterialGroupColor[]
   created_at?: string
 }
@@ -92,6 +100,22 @@ export const useCreateRawMaterialGroup = () => {
         { method: "POST", body }
       ),
     onSuccess: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
+  })
+}
+
+// #829 — update a group's fields (name/status + global specs set once).
+export const useUpdateRawMaterialGroup = (groupId: string) => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      sdk.client.fetch<{ raw_material_group: RawMaterialGroup }>(
+        `/admin/raw-material-groups/${groupId}`,
+        { method: "POST", body }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: groupKeys.detail(groupId) })
+      qc.invalidateQueries({ queryKey: groupKeys.all })
+    },
   })
 }
 
