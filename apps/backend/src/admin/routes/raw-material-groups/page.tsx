@@ -143,6 +143,8 @@ const RawMaterialGroupsPage = () => {
 export const config = defineRouteConfig({
   label: "Material Groups",
   icon: Swatch,
+  // Nest under the core Inventory menu instead of a top-level Extensions item.
+  nested: "/inventory",
 })
 
 export default RawMaterialGroupsPage
