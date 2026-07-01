@@ -3,6 +3,9 @@ import {
   Button,
   Checkbox,
   Container,
+  DataTable,
+  DataTablePaginationState,
+  DataTableRowSelectionState,
   Heading,
   Input,
   Label,
@@ -10,7 +13,9 @@ import {
   Table,
   Text,
   FocusModal,
+  createDataTableColumnHelper,
   toast,
+  useDataTable,
 } from "@medusajs/ui"
 import { PencilSquare, Plus, Component as ComponentIcon, Link as LinkIcon } from "@medusajs/icons"
 import { useMemo, useState } from "react"
@@ -27,6 +32,7 @@ import {
 } from "../../hooks/api/raw-material-groups"
 import { useInventoryWithRawMaterials } from "../../hooks/api/raw-materials"
 import { useStockLocations } from "../../hooks/api/stock_location"
+import { useDebouncedSearch } from "../../hooks/use-debounce"
 
 // ---------------------------------------------------------------------------
 // General section
@@ -133,6 +139,31 @@ const QuickAddColorModal = ({
 // Add-color: link an existing raw material
 // ---------------------------------------------------------------------------
 
+type LinkCandidate = {
+  rawMaterialId: string
+  name: string
+  color: string
+  sku: string
+}
+
+const linkColumnHelper = createDataTableColumnHelper<LinkCandidate>()
+
+const linkColumns = [
+  linkColumnHelper.select(),
+  linkColumnHelper.accessor("name", { header: "Name" }),
+  linkColumnHelper.accessor("color", {
+    header: "Color",
+    cell: ({ getValue }) =>
+      getValue() ? <Badge size="small" color="grey">{getValue()}</Badge> : "—",
+  }),
+  linkColumnHelper.accessor("sku", {
+    header: "SKU",
+    cell: ({ getValue }) => (
+      <span className="text-ui-fg-subtle">{getValue() || "—"}</span>
+    ),
+  }),
+]
+
 const LinkExistingColorsModal = ({
   groupId,
   open,
@@ -142,51 +173,76 @@ const LinkExistingColorsModal = ({
   open: boolean
   onOpenChange: (v: boolean) => void
 }) => {
-  const [search, setSearch] = useState("")
-  const [selected, setSelected] = useState<Record<string, string>>({})
+  const { searchValue, onSearchValueChange, query } = useDebouncedSearch()
+  const [rowSelection, setRowSelection] = useState<DataTableRowSelectionState>({})
+  const [pagination, setPagination] = useState<DataTablePaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  })
   const { mutateAsync, isPending } = useLinkGroupColors(groupId)
+  // Search is done server-side (the endpoint's full-text `q` across inventory +
+  // raw-material fields), not with a local filter.
   const { inventory_items = [], isLoading } = useInventoryWithRawMaterials({
+    q: query,
     fields: "+raw_materials.*",
     limit: 200,
   })
 
   // Only ungrouped raw materials can be linked — a color belongs to one group.
-  const candidates = useMemo(() => {
-    const rows = inventory_items
-      .filter((it: any) => it.raw_materials && !it.raw_materials.group_id)
-      .map((it: any) => ({
-        rawMaterialId: it.raw_materials.id as string,
-        name: it.raw_materials.name as string,
-        color: (it.raw_materials.color as string) || "",
-        sku: it.inventory_item?.sku || it.sku || "",
-      }))
-    if (!search) return rows
-    const q = search.toLowerCase()
-    return rows.filter(
-      (r) => `${r.name} ${r.color} ${r.sku}`.toLowerCase().includes(q)
-    )
-  }, [inventory_items, search])
+  // This is a business rule, not search, so it stays client-side.
+  const candidates: LinkCandidate[] = useMemo(
+    () =>
+      inventory_items
+        .filter((it: any) => it.raw_materials && !it.raw_materials.group_id)
+        .map((it: any) => ({
+          rawMaterialId: it.raw_materials.id as string,
+          name: it.raw_materials.name as string,
+          color: (it.raw_materials.color as string) || "",
+          sku: it.inventory_item?.sku || it.sku || "",
+        })),
+    [inventory_items]
+  )
 
-  const toggle = (id: string, name: string) =>
-    setSelected((s) => {
-      if (s[id]) {
-        const { [id]: _, ...rest } = s
-        return rest
-      }
-      return { ...s, [id]: name }
-    })
+  const paginated = useMemo(() => {
+    const start = pagination.pageIndex * pagination.pageSize
+    return candidates.slice(start, start + pagination.pageSize)
+  }, [candidates, pagination])
+
+  const table = useDataTable({
+    columns: linkColumns,
+    data: paginated,
+    getRowId: (row) => row.rawMaterialId,
+    rowCount: candidates.length,
+    isLoading,
+    rowSelection: {
+      state: rowSelection,
+      onRowSelectionChange: setRowSelection,
+    },
+    pagination: {
+      state: pagination,
+      onPaginationChange: setPagination,
+    },
+    search: {
+      state: searchValue,
+      onSearchChange: onSearchValueChange,
+    },
+  })
+
+  const selectedIds = useMemo(
+    () => Object.keys(rowSelection).filter((id) => rowSelection[id]),
+    [rowSelection]
+  )
 
   const submit = async () => {
-    const ids = Object.keys(selected)
-    if (!ids.length) {
+    if (!selectedIds.length) {
       toast.error("Select at least one raw material")
       return
     }
     try {
-      await mutateAsync(ids)
-      toast.success(`Linked ${ids.length} color(s)`)
+      await mutateAsync(selectedIds)
+      toast.success(`Linked ${selectedIds.length} color(s)`)
       onOpenChange(false)
-      setSelected({})
+      setRowSelection({})
     } catch (e: any) {
       toast.error(e?.message || "Failed to link colors")
     }
@@ -194,77 +250,30 @@ const LinkExistingColorsModal = ({
 
   return (
     <FocusModal open={open} onOpenChange={onOpenChange}>
-      <FocusModal.Content>
+      <FocusModal.Content className="flex flex-col">
         <FocusModal.Header>
           <Button size="small" onClick={submit} isLoading={isPending}>
-            Link {Object.keys(selected).length || ""}
+            Link {selectedIds.length || ""}
           </Button>
         </FocusModal.Header>
-        <FocusModal.Body className="flex flex-col items-center py-10">
-          <div className="flex w-full max-w-2xl flex-col gap-y-4">
-            <div>
-              <FocusModal.Title asChild>
-                <Heading>Link existing raw materials</Heading>
-              </FocusModal.Title>
-              <FocusModal.Description asChild>
-                <Text size="small" className="text-ui-fg-subtle">
-                  Attach materials that already exist (with their stock item) as colors of this group.
-                </Text>
-              </FocusModal.Description>
-            </div>
-            <Input
-              placeholder="Search by name, color or SKU"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <div className="max-h-[420px] overflow-y-auto">
-              <Table>
-                <Table.Header>
-                  <Table.Row>
-                    <Table.HeaderCell> </Table.HeaderCell>
-                    <Table.HeaderCell>Name</Table.HeaderCell>
-                    <Table.HeaderCell>Color</Table.HeaderCell>
-                    <Table.HeaderCell>SKU</Table.HeaderCell>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
-                  {isLoading ? (
-                    <Table.Row>
-                      <Table.Cell colSpan={4} className="text-ui-fg-subtle">
-                        Loading…
-                      </Table.Cell>
-                    </Table.Row>
-                  ) : !candidates.length ? (
-                    <Table.Row>
-                      <Table.Cell colSpan={4} className="text-ui-fg-subtle">
-                        No ungrouped raw materials found.
-                      </Table.Cell>
-                    </Table.Row>
-                  ) : (
-                    candidates.map((c) => (
-                      <Table.Row
-                        key={c.rawMaterialId}
-                        className="cursor-pointer"
-                        onClick={() => toggle(c.rawMaterialId, c.name)}
-                      >
-                        <Table.Cell>
-                          <Checkbox
-                            checked={!!selected[c.rawMaterialId]}
-                            onCheckedChange={() => toggle(c.rawMaterialId, c.name)}
-                          />
-                        </Table.Cell>
-                        <Table.Cell>{c.name}</Table.Cell>
-                        <Table.Cell>
-                          {c.color ? <Badge size="small" color="grey">{c.color}</Badge> : "—"}
-                        </Table.Cell>
-                        <Table.Cell className="text-ui-fg-subtle">{c.sku || "—"}</Table.Cell>
-                      </Table.Row>
-                    ))
-                  )}
-                </Table.Body>
-              </Table>
-            </div>
-          </div>
+        <FocusModal.Body className="flex flex-1 flex-col overflow-hidden p-0">
+          <DataTable instance={table}>
+            <DataTable.Toolbar className="flex flex-col items-start gap-y-3 px-6 py-4">
+              <div>
+                <FocusModal.Title asChild>
+                  <Heading>Link existing raw materials</Heading>
+                </FocusModal.Title>
+                <FocusModal.Description asChild>
+                  <Text size="small" className="text-ui-fg-subtle">
+                    Attach materials that already exist (with their stock item) as colors of this group.
+                  </Text>
+                </FocusModal.Description>
+              </div>
+              <DataTable.Search placeholder="Search by name, color or SKU" />
+            </DataTable.Toolbar>
+            <DataTable.Table />
+            <DataTable.Pagination />
+          </DataTable>
         </FocusModal.Body>
       </FocusModal.Content>
     </FocusModal>
@@ -601,7 +610,7 @@ export const GroupOrdersSection = ({ groupId }: { groupId: string }) => {
                     key={l.id}
                     className={order?.id ? "cursor-pointer" : undefined}
                     onClick={() =>
-                      order?.id && navigate(`/inventory-orders/${order.id}`)
+                      order?.id && navigate(`/orders/inventory/${order.id}`)
                     }
                   >
                     <Table.Cell>
