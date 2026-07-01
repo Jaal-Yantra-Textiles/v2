@@ -274,7 +274,12 @@ produced, lists every per-design run fanned out from the ONE commissioning order
   sales channel filtered to `metadata.collated_design_order`. Live-verified.
 
 ### Still open / next (gap review items not yet done)
-- **#3** consumption logs / media inline (decision).
+- **#3 — DECIDED (user, 2026-07-01): consumption logs + media belong INSIDE the
+  design production run**, not as separate inline order sections. I.e. surface
+  consumption/media within `ProductionRunCard` (the per-design production run
+  detail) rather than as their own Containers under the order. Not yet built —
+  wire consumption logs + media/moodboard into the run card's detail (they're
+  already fetched per design: `usePartnerConsumptionLogs`; media via the design).
 - **#7/#8/#12** admin depth: order-level entry already covered by Design Work
   Orders; customise the core work-order page; converge single-design render.
 - **#10 (multi-partner per-line scoping) / #11 (pricing)** — spec decisions.
