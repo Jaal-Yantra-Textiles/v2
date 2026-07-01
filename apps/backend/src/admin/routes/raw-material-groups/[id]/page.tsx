@@ -56,7 +56,9 @@ const AddColorModal = ({ groupId }: { groupId: string }) => {
         </FocusModal.Header>
         <FocusModal.Body className="flex flex-col items-center py-16">
           <div className="flex w-full max-w-lg flex-col gap-y-6">
-            <Heading>Add a color</Heading>
+            <FocusModal.Title asChild>
+              <Heading>Add a color</Heading>
+            </FocusModal.Title>
             <div className="flex flex-col gap-y-2">
               <Label>Name</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Cotton Poplin — Blue" />
@@ -143,10 +145,14 @@ const OrderInColorsModal = ({
         <FocusModal.Body className="flex flex-col items-center py-16">
           <div className="flex w-full max-w-2xl flex-col gap-y-6">
             <div>
-              <Heading>Order this group in colors</Heading>
-              <Text size="small" className="text-ui-fg-subtle">
-                One order line per selected color. Colors without stock are created automatically.
-              </Text>
+              <FocusModal.Title asChild>
+                <Heading>Order this group in colors</Heading>
+              </FocusModal.Title>
+              <FocusModal.Description asChild>
+                <Text size="small" className="text-ui-fg-subtle">
+                  One order line per selected color. Colors without stock are created automatically.
+                </Text>
+              </FocusModal.Description>
             </div>
             <div className="flex flex-col gap-y-2">
               <Label>Ship to location</Label>

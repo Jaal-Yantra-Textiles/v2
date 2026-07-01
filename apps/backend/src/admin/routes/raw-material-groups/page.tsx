@@ -55,10 +55,14 @@ const CreateGroupModal = () => {
         <FocusModal.Body className="flex flex-col items-center py-16">
           <div className="flex w-full max-w-lg flex-col gap-y-6">
             <div>
-              <Heading>New raw-material group</Heading>
-              <Text size="small" className="text-ui-fg-subtle">
-                A group ties per-color materials together (e.g. "Cotton Poplin" in blue / red / green).
-              </Text>
+              <FocusModal.Title asChild>
+                <Heading>New raw-material group</Heading>
+              </FocusModal.Title>
+              <FocusModal.Description asChild>
+                <Text size="small" className="text-ui-fg-subtle">
+                  A group ties per-color materials together (e.g. "Cotton Poplin" in blue / red / green).
+                </Text>
+              </FocusModal.Description>
             </div>
             <div className="flex flex-col gap-y-2">
               <Label>Name</Label>
