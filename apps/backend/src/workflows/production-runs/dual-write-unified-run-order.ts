@@ -664,23 +664,54 @@ export const mirrorRunStatusToUnifiedOrder = async (
       return { linked: false, skipped: "no_unified_order" }
     }
 
-    // coreStatus/partnerStatus derive from `run` (read above, a different
-    // entity), so they're computed outside the unified-order lock.
-    const coreStatus = RUN_TO_CORE_STATUS[run.status]
-    const partnerStatus = deriveRunPartnerStatus(run, opts)
+    // Fetch the order's metadata + ALL its linked runs in one graph read. A
+    // COLLATED design work-order (#826) has N runs → 1 order, so its status is
+    // the roll-up across every run, not just the one that transitioned; a plain
+    // per-run order simply resolves to its own single run.
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data: orderRows } = await query.graph({
+      entity: "order",
+      fields: [
+        "id",
+        "metadata",
+        "production_runs.id",
+        "production_runs.status",
+        "production_runs.accepted_at",
+        "production_runs.started_at",
+        "production_runs.finished_at",
+      ],
+      filters: { id: unifiedOrderId },
+    })
+    const unifiedOrder = orderRows?.[0]
 
     // A parent order superseded by a run split stays canceled forever — the
     // child orders carry the commercial reality. `superseded_by_run_ids` is the
     // one metadata key still read here; it's write-once at approve, so this is a
     // plain read (PR-H retired the per-order metadata lock — partner_status now
     // lives on the sidecar column, which has no RMW to serialize).
-    const orderService: any = container.resolve(Modules.ORDER)
-    const unifiedOrder = await orderService.retrieveOrder(unifiedOrderId, {
-      select: ["id", "metadata"],
-    })
     if (unifiedOrder?.metadata?.superseded_by_run_ids) {
       return { linked: false, skipped: "superseded" }
     }
+
+    // #826 — coreStatus/partnerStatus for a COLLATED order aggregate across all
+    // its runs (least-advanced partner_status; completed/canceled only when
+    // every run is). A single-run order keeps the exact per-run mapping — the
+    // aggregate helpers deliberately don't model the draft/decline nuances the
+    // per-run path needs.
+    const linkedRuns: any[] = (unifiedOrder?.production_runs ?? []).filter(
+      Boolean
+    )
+    let coreStatus: string | undefined
+    let partnerStatus: string | undefined
+    if (linkedRuns.length > 1) {
+      coreStatus = aggregateCoreStatus(linkedRuns)
+      partnerStatus = aggregatePartnerStatus(linkedRuns)
+    } else {
+      coreStatus = RUN_TO_CORE_STATUS[run.status]
+      partnerStatus = deriveRunPartnerStatus(run, opts)
+    }
+
+    const orderService: any = container.resolve(Modules.ORDER)
 
     // core order.status — single-column blind write, no lock.
     if (coreStatus) {

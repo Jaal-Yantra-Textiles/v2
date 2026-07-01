@@ -5,6 +5,7 @@ import { createOrderWorkflow } from "@medusajs/medusa/core-flows"
 import { setupSharedTestSuite, getSharedTestEnv } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { createRunsForDesignOrder } from "../../src/workflows/designs/create-runs-for-design-order"
+import { mirrorRunStatusToUnifiedOrder } from "../../src/workflows/production-runs/dual-write-unified-run-order"
 import { PRODUCTION_RUNS_MODULE } from "../../src/modules/production_runs"
 
 jest.setTimeout(90 * 1000)
@@ -149,6 +150,69 @@ setupSharedTestSuite(() => {
       expect(again.work_order_id).toBe(workOrderId)
       const runsAfter = await runService.listProductionRuns({ order_id: [orderId] })
       expect(runsAfter).toHaveLength(designIds.length)
+    })
+
+    // #826 — the collated order's status is the ROLL-UP across all its runs, so
+    // a single run transition mirrors the aggregate, not just that one run.
+    it("aggregates the collated order status across ALL runs on each transition", async () => {
+      const container = getContainer()
+      const runService: any = container.resolve(PRODUCTION_RUNS_MODULE)
+      const orderService: any = container.resolve(Modules.ORDER)
+      const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+
+      // The runner rolls back per-`it` writes, so (re)produce the collated
+      // work-order + runs within this test.
+      const produce = await createRunsForDesignOrder(container, orderId)
+      const workOrderId = produce.work_order_id!
+      expect(workOrderId).toBeTruthy()
+
+      const runs = await runService.listProductionRuns(
+        { order_id: [orderId] },
+        { select: ["id", "status"] }
+      )
+      expect(runs).toHaveLength(2)
+      const [runA, runB] = runs
+
+      const readOrder = async () =>
+        orderService.retrieveOrder(workOrderId, { select: ["id", "status"] })
+      const readPartnerStatus = async () => {
+        const { data } = await query.graph({
+          entity: "order",
+          fields: ["id", "unified_order_status.partner_status"],
+          filters: { id: workOrderId },
+        })
+        return data?.[0]?.unified_order_status?.partner_status
+      }
+
+      // runA is further along (accepted) than runB (just assigned). The order's
+      // partner_status is the LEAST-advanced = "assigned", and core stays pending
+      // — the order isn't done until every run is.
+      await runService.updateProductionRuns([
+        { id: runA.id, status: "in_progress", accepted_at: new Date() },
+      ])
+      await runService.updateProductionRuns([
+        { id: runB.id, status: "sent_to_partner" },
+      ])
+      await mirrorRunStatusToUnifiedOrder(container, runA.id)
+
+      expect((await readOrder()).status).not.toBe("completed")
+      expect(await readPartnerStatus()).toBe("assigned")
+
+      // Complete only runA → order is STILL not completed (runB in-flight).
+      await runService.updateProductionRuns([
+        { id: runA.id, status: "completed", completed_at: new Date() },
+      ])
+      await mirrorRunStatusToUnifiedOrder(container, runA.id)
+      expect((await readOrder()).status).not.toBe("completed")
+
+      // Complete runB too → NOW every run is done, so the order rolls up to
+      // completed and partner_status to "completed".
+      await runService.updateProductionRuns([
+        { id: runB.id, status: "completed", completed_at: new Date() },
+      ])
+      await mirrorRunStatusToUnifiedOrder(container, runB.id)
+      expect((await readOrder()).status).toBe("completed")
+      expect(await readPartnerStatus()).toBe("completed")
     })
   })
 })

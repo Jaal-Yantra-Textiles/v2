@@ -11,19 +11,25 @@ import { usePartnerProductionRun } from "./api/partner-production-runs"
  * standalone design manager and the in-order design-details sub-route.
  */
 export const useResolvedDesignId = (): string => {
-  const { id } = useParams()
+  const { id, designId: designIdParam } = useParams()
   const location = useLocation()
   const underOrder = location.pathname.startsWith("/orders/")
 
+  // #826 — a collated order's per-design route (`/design-details/:designId`)
+  // names the design directly; use it and skip the legacy_id run resolution.
   const { order } = useOrder(
     id || "",
     { fields: "id,metadata" },
-    { enabled: underOrder && !!id }
+    { enabled: underOrder && !designIdParam && !!id }
   )
   const runId = (order?.metadata as any)?.legacy_id as string | undefined
   const { production_run } = usePartnerProductionRun(runId ?? "", {
-    enabled: underOrder && !!runId,
+    enabled: underOrder && !designIdParam && !!runId,
   })
+
+  if (designIdParam) {
+    return designIdParam
+  }
 
   return (
     (underOrder ? ((production_run as any)?.design_id as string | undefined) : id) ||

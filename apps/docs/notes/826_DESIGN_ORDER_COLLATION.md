@@ -156,7 +156,56 @@ key yet — the fan-out must stamp it.
   design↔partner link per (design, committed-partner) pair (best-effort,
   idempotent). Test asserts every produced design is assigned.
 
-### NEXT SESSION — capture the collated lifecycle in the ONE order space
+## Session 2026-07-01c — collated lifecycle in the ONE order space (SHIPPED)
+
+Both "next session" features below are now built (branch
+`feat/826-design-order-collation`, PR #828):
+
+1. **Per-design details navigation.**
+   - `DesignOrderLines` (`components/work-orders/design-order-lines.tsx`) now
+     wraps each design card in a `<Link to="/orders/:id/design-details/:designId">`
+     (design id from `line.metadata.design_id`), so each card opens ITS OWN
+     design (no more "first-run-only").
+   - New route `design-details/:designId` in `get-partner-route.map.tsx`
+     (sibling of the legacy `design-details`, sharing the extracted
+     `designDetailsChildren` media/moodboard array).
+   - `OrderDesignDetails` reads `useParams().designId` and resolves that design
+     directly; falls back to the order's `legacy_id`→run→design only when no
+     param (legacy single-design orders). `useResolvedDesignId` (media/moodboard
+     uploads) likewise prefers `:designId`.
+
+2. **Per-design run lifecycle from the collated order.**
+   - New `CollatedDesignRuns` (`components/work-orders/collated-design-runs.tsx`)
+     renders a full `<ProductionRunCard>` per design line — each child card
+     fetches its own run + design + consumption logs
+     (`usePartnerProductionRun` / `usePartnerDesign` /
+     `usePartnerConsumptionLogs` keyed off the line metadata) so the partner
+     drives accept→start→finish→complete + material logging + tasks for EVERY
+     design from the single order screen. Rendered under `DesignOrderLines` in
+     `order-detail.tsx` for `metadata.collated_design_order` orders.
+   - **Backend aggregation fix** — `mirrorRunStatusToUnifiedOrder`
+     (`dual-write-unified-run-order.ts`) now fetches the order's metadata + ALL
+     its linked runs in one `query.graph` and, when the order has >1 run,
+     aggregates `aggregateCoreStatus` / `aggregatePartnerStatus` across them
+     (completed/canceled only when every run is; partner_status = least-advanced).
+     Single-run orders keep the exact per-run mapping (the aggregate helpers
+     don't model the draft/decline nuances). So a single run transition rolls the
+     WHOLE collated order forward correctly.
+   - Test: `design-order-produce-fanout.spec.ts` → new
+     "aggregates the collated order status across ALL runs on each transition"
+     (runA completes → order still pending; runB completes → order completed;
+     partner_status tracks least-advanced then "completed").
+
+### Still open / next
+- **Admin mirror** — the admin collated work-order detail should likewise list
+  per-design run status/actions (the produce button already exists on the design
+  order; extend the resulting-runs view). Not yet built.
+- Live-verify in partner-ui (multi-design produce → open order → per-design cards
+  drive lifecycle; each card's "Design details" link resolves its own design).
+
+---
+
+### (archived) NEXT SESSION — capture the collated lifecycle in the ONE order space
 Two UI features remain (both partner-ui, some admin), grounded here so a clean
 session can start immediately:
 

@@ -1,4 +1,5 @@
 import { Container, Heading, Text, Badge } from "@medusajs/ui"
+import { Link, useParams } from "react-router-dom"
 
 import { getStylizedAmount } from "../../lib/money-amount-helpers"
 import { WorkOrderLineCard, WorkOrderLineStat } from "./work-order-line-card"
@@ -27,6 +28,8 @@ export const DesignOrderLines = ({
   currencyCode?: string
   totalPrice?: number | null
 }) => {
+  const { id: orderId } = useParams()
+
   if (!lines?.length) {
     return null
   }
@@ -58,9 +61,12 @@ export const DesignOrderLines = ({
           const title = line?.title || line?.metadata?.design_id || line?.id
           const quantity = Number(line?.quantity) || 0
           const unit = Number(line?.unit_price ?? line?.unit_price_incl_tax) || 0
-          return (
+          // #826 — each card opens ITS OWN design's details (collated orders
+          // carry the design id on the line metadata). Falls back to a plain
+          // card when the design or order id is unknown.
+          const designId = line?.metadata?.design_id as string | undefined
+          const card = (
             <WorkOrderLineCard
-              key={String(line.id)}
               title={String(title)}
               subtitle={`Qty ${fmt(quantity)}`}
             >
@@ -73,6 +79,17 @@ export const DesignOrderLines = ({
                 />
               )}
             </WorkOrderLineCard>
+          )
+          return designId && orderId ? (
+            <Link
+              key={String(line.id)}
+              to={`/orders/${orderId}/design-details/${designId}`}
+              className="block outline-none focus-visible:shadow-borders-interactive-with-active rounded-xl"
+            >
+              {card}
+            </Link>
+          ) : (
+            <div key={String(line.id)}>{card}</div>
           )
         })}
       </div>

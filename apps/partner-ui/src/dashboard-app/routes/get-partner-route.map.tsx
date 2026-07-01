@@ -10,6 +10,25 @@ import { ErrorBoundary } from "../../components/utilities/error-boundary"
 import { TaxRegionDetailBreadcrumb } from "../../routes/tax-regions/tax-region-detail/breadcrumb"
 import { taxRegionLoader } from "../../routes/tax-regions/tax-region-detail/loader"
 
+// #826 — media / moodboard UPLOAD children for the in-order design-details
+// sub-route. Shared by both the legacy single-design `design-details` route and
+// the per-design `design-details/:designId` route (collated orders). The upload
+// components resolve the design id via useResolvedDesignId (prefers :designId).
+const designDetailsChildren: RouteObject[] = [
+  {
+    path: "media",
+    lazy: () => import("../../routes/designs/design-media"),
+  },
+  {
+    path: "media-preview",
+    lazy: () => import("../../routes/designs/design-media-preview"),
+  },
+  {
+    path: "moodboard",
+    lazy: () => import("../../routes/designs/design-moodboard"),
+  },
+]
+
 export function getPartnerRouteMap(): RouteObject[] {
   return [
     {
@@ -638,25 +657,18 @@ export function getPartnerRouteMap(): RouteObject[] {
                       lazy: () =>
                         import("../../routes/orders/order-design-details"),
                       handle: { breadcrumb: () => "Design details" },
-                      children: [
-                        // Media / moodboard UPLOAD for the assigned design, in
-                        // the order context. The components resolve the design
-                        // id from the order via useResolvedDesignId.
-                        {
-                          path: "media",
-                          lazy: () => import("../../routes/designs/design-media"),
-                        },
-                        {
-                          path: "media-preview",
-                          lazy: () =>
-                            import("../../routes/designs/design-media-preview"),
-                        },
-                        {
-                          path: "moodboard",
-                          lazy: () =>
-                            import("../../routes/designs/design-moodboard"),
-                        },
-                      ],
+                      children: designDetailsChildren,
+                    },
+                    // #826 — per-design details for a COLLATED order (many
+                    // designs on one order). `:designId` selects WHICH design;
+                    // OrderDesignDetails resolves it directly instead of via the
+                    // order's single legacy_id run pointer.
+                    {
+                      path: "design-details/:designId",
+                      lazy: () =>
+                        import("../../routes/orders/order-design-details"),
+                      handle: { breadcrumb: () => "Design details" },
+                      children: designDetailsChildren,
                     },
                     // #342 — inventory work-order actions folded onto the
                     // unified order detail. Nested under `inventory/` to avoid

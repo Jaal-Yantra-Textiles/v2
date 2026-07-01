@@ -5,6 +5,7 @@ import { TwoColumnPageSkeleton } from "../../../components/common/skeleton"
 import { TwoColumnPage } from "../../../components/layout/pages"
 import { InventoryOrderLines } from "../../../components/work-orders/inventory-order-lines"
 import { DesignOrderLines } from "../../../components/work-orders/design-order-lines"
+import { CollatedDesignRuns } from "../../../components/work-orders/collated-design-runs"
 import {
   InventoryFulfillmentsSection,
   InventoryPaymentsSection,
@@ -164,11 +165,20 @@ export const OrderDetail = () => {
                 orders (one design each) keep the single-design detail below. */}
             {kind === "design" &&
               (order as any)?.metadata?.collated_design_order && (
-                <DesignOrderLines
-                  lines={((order as any).items ?? []) as Array<Record<string, any>>}
-                  currencyCode={(order as any).currency_code}
-                  totalPrice={(order as any).total}
-                />
+                <>
+                  <DesignOrderLines
+                    lines={((order as any).items ?? []) as Array<Record<string, any>>}
+                    currencyCode={(order as any).currency_code}
+                    totalPrice={(order as any).total}
+                  />
+                  {/* #826 — per-design production lifecycle (accept → start →
+                      finish → complete) for EVERY design of the collated order,
+                      driven from this one screen. */}
+                  <CollatedDesignRuns
+                    lines={((order as any).items ?? []) as Array<Record<string, any>>}
+                    onActionSuccess={invalidateOrder}
+                  />
+                </>
               )}
             {kind === "design" &&
               !(order as any)?.metadata?.collated_design_order &&
