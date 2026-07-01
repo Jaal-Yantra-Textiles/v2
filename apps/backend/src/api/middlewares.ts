@@ -101,6 +101,7 @@ import { updatePartnerMeSchema } from "./partners/me/validators";
 import { onboardingProfileUpdateSchema } from "./partners/onboarding-profile/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
 import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema } from "./admin/inventory-orders/validators";
+import { createRawMaterialGroupSchema, listRawMaterialGroupsQuerySchema, addGroupColorSchema, createGroupOrderSchema, readGroupQuerySchema } from "./admin/raw-material-groups/validators";
 import { pinDesignGroupSchema, updateDesignGroupSchema } from "./admin/designs/[id]/material-groups/validators";
 // Import already defined above
 import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]/subs/route";
@@ -2887,6 +2888,32 @@ export default defineMiddlewares({
       matcher: "/admin/inventory-orders/:id/order-lines",
       method: 'PUT',
       middlewares: [validateAndTransformBody(wrapSchema(updateInventoryOrderLinesSchema))],
+    },
+    // Raw-material groups (#817 S3)
+    {
+      matcher: "/admin/raw-material-groups",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(createRawMaterialGroupSchema))],
+    },
+    {
+      matcher: "/admin/raw-material-groups",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(listRawMaterialGroupsQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/raw-material-groups/:id",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(readGroupQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/raw-material-groups/:id/colors",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(addGroupColorSchema))],
+    },
+    {
+      matcher: "/admin/raw-material-groups/:id/orders",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(createGroupOrderSchema))],
     },
     // Inbound Emails routes
     {
