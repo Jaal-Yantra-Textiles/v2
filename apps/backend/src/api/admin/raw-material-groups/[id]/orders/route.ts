@@ -42,7 +42,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const { data: colors } = await query.graph({
-    entity: "raw_material",
+    entity: "raw_materials",
     fields: ["id"],
     filters: { group_id: groupId },
   })
