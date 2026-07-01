@@ -196,12 +196,32 @@ Both "next session" features below are now built (branch
      (runA completes → order still pending; runB completes → order completed;
      partner_status tracks least-advanced then "completed").
 
+### Standardised collated order UI (SHIPPED, same session)
+The collated design order now runs its whole lifecycle + specs INLINE in the one
+order span (no jumping to production-runs / tasks / design-details), styled like
+the Medusa core order page (stacked Containers + SectionRows). The operator picks
+how the N designs lay out, remembered **per order** (localStorage
+`collated-design-view:<orderId>`) — so different orders can read differently:
+- **expandable** (default) — collapsible `Container` per design; header shows
+  name + qty + run status, body reveals specs + `ProductionRunCard`. First open.
+- **stacked** — every design expanded, mirroring the single-design order layout.
+- **focus** — compact list; the selected design's specs + lifecycle render below.
+
+Files: `components/work-orders/collated-design-detail.tsx` (shared
+`useDesignLineRun` / `runPartnerBadge` / `DesignSpecs` [general + `DesignInventoryBomSection`
++ `DesignCostSection`] / `DesignLineDetail` [specs + `ProductionRunCard`]) +
+`collated-design-runs.tsx` (orchestrator + `ModeToggle` + the 3 layouts). Tasks
+stay inline in `ProductionRunCard` (drawer at `tasks/:id`, still in the order
+span). Design "Open design manager" (`/designs/:id`) kept as the escape hatch.
+Future: per-order view preference could move from localStorage to a real setting
+("ask per order how they want to see").
+
 ### Still open / next
 - **Admin mirror** — the admin collated work-order detail should likewise list
   per-design run status/actions (the produce button already exists on the design
   order; extend the resulting-runs view). Not yet built.
-- Live-verify in partner-ui (multi-design produce → open order → per-design cards
-  drive lifecycle; each card's "Design details" link resolves its own design).
+- Live-verify in partner-ui (multi-design produce → open order → toggle the 3
+  layouts; each design drives its lifecycle inline; specs render under the order).
 
 ---
 
