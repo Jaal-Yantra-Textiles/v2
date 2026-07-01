@@ -214,5 +214,44 @@ setupSharedTestSuite(() => {
       expect((await readOrder()).status).toBe("completed")
       expect(await readPartnerStatus()).toBe("completed")
     })
+
+    // #826 follow-up — a cancelled design line is DROPPED from completion, so a
+    // collated order with one cancelled + the rest completed still rolls up to
+    // "completed" (not stranded in "pending" forever).
+    it("treats a cancelled run as dropped so the rest can complete the order", async () => {
+      const container = getContainer()
+      const runService: any = container.resolve(PRODUCTION_RUNS_MODULE)
+      const orderService: any = container.resolve(Modules.ORDER)
+
+      await createRunsForDesignOrder(container, orderId)
+      const runs = await runService.listProductionRuns(
+        { order_id: [orderId] },
+        { select: ["id", "status"] }
+      )
+      expect(runs).toHaveLength(2)
+      const [runA, runB] = runs
+
+      // Cancel A; complete B → order is completed (A dropped, not stranding it).
+      await runService.updateProductionRuns([{ id: runA.id, status: "cancelled" }])
+      await runService.updateProductionRuns([
+        { id: runB.id, status: "completed", completed_at: new Date() },
+      ])
+      await mirrorRunStatusToUnifiedOrder(container, runB.id)
+
+      const workOrderId = (
+        await runService.retrieveProductionRun(runB.id)
+      ).id // ensure run exists
+      void workOrderId
+      const { data: linkRows } = await (
+        container.resolve(ContainerRegistrationKeys.QUERY) as any
+      ).graph({
+        entity: "production_runs",
+        fields: ["id", "order.id"],
+        filters: { id: [runB.id] },
+      })
+      const oid = linkRows[0].order.id
+      const wo = await orderService.retrieveOrder(oid, { select: ["id", "status"] })
+      expect(wo.status).toBe("completed")
+    })
   })
 })
