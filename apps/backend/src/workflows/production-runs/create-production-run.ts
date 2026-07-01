@@ -58,6 +58,10 @@ export type CreateProductionRunInput = {
     | "cancelled"
   execution_mode?: "in_house" | "outsourced"
   sub_partner_id?: string | null
+  // #826 S3a — suppress the per-run unified-order projection. Design-order runs
+  // are collated into ONE work-order by the batch projection
+  // (projectDesignOrderToUnifiedOrder), so they must NOT each mint their own.
+  skip_unified_projection?: boolean
 }
 
 const fetchDesignSnapshotStep = createStep(
@@ -276,8 +280,12 @@ export const createProductionRunWorkflow = createWorkflow(
       })
     })
 
-    // #342 — best-effort projection onto a kind=design core order
-    dualWriteUnifiedRunOrderStep({ production_run_id: productionRunId })
+    // #342 — best-effort projection onto a kind=design core order. Skipped for
+    // design-order runs (#826 S3a): they're collated into one work-order by the
+    // batch projection instead of each minting their own.
+    when({ input }, (data) => !data.input.skip_unified_projection).then(() => {
+      dualWriteUnifiedRunOrderStep({ production_run_id: productionRunId })
+    })
 
     return new WorkflowResponse(run)
   }

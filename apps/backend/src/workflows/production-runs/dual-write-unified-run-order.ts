@@ -358,6 +358,228 @@ export const projectRunToUnifiedOrder = async (
   }
 }
 
+// #826 S3a — aggregate the core order.status for a COLLATED design work-order
+// from its N runs: completed iff every run completed, canceled iff every run
+// cancelled, else pending (in-flight). Deliberately conservative — a collated
+// order is "done" only when all its design lines are.
+const aggregateCoreStatus = (runs: any[]): string => {
+  const statuses = runs.map((r) => r.status)
+  if (statuses.length && statuses.every((s) => s === "completed")) return "completed"
+  if (statuses.length && statuses.every((s) => s === "cancelled")) return "canceled"
+  return "pending"
+}
+
+// #826 S3a — aggregate partner_status for a collated design work-order: the
+// LEAST-advanced non-empty per-run status along assigned→accepted→in_progress→
+// finished→completed (the order isn't "completed" until every line is).
+const PARTNER_STATUS_ORDER = [
+  "assigned",
+  "accepted",
+  "in_progress",
+  "finished",
+  "completed",
+]
+const aggregatePartnerStatus = (runs: any[]): string | undefined => {
+  const perRun = runs
+    .map((r) => deriveRunPartnerStatus(r))
+    .filter((s): s is string => Boolean(s))
+  if (!perRun.length) return undefined
+  let minIdx = PARTNER_STATUS_ORDER.length - 1
+  for (const s of perRun) {
+    const idx = PARTNER_STATUS_ORDER.indexOf(s)
+    if (idx >= 0 && idx < minIdx) minIdx = idx
+  }
+  return PARTNER_STATUS_ORDER[minIdx]
+}
+
+type CollatedProjectionResult = ProjectionResult & { line_count?: number }
+
+/**
+ * #826 S3a — project a design COMMISSIONING order's runs onto ONE collated
+ * kind=design work-order: N line items, one per run/design (the design analog
+ * of inventory's one-order → N-orderlines → one work-order projection). Grouped
+ * by `run.order_id` = the commissioning order. The per-run projection is
+ * suppressed for these runs (skip_unified_projection), so this is the SOLE
+ * projection and the order↔run link is 1:many (all N runs → this one order).
+ *
+ * Idempotent: if the order's runs already share a linked work-order, returns it.
+ * Best-effort like the per-run projection — never throws to the caller.
+ */
+export const projectDesignOrderToUnifiedOrder = async (
+  container: MedusaContainer,
+  commissioningOrderId: string
+): Promise<CollatedProjectionResult> => {
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+  try {
+    const runService: ProductionRunService =
+      container.resolve(PRODUCTION_RUNS_MODULE)
+    const runs: any[] = await runService.listProductionRuns(
+      { order_id: [commissioningOrderId] } as any,
+      {
+        select: [
+          "id",
+          "design_id",
+          "partner_id",
+          "quantity",
+          "status",
+          "cost_type",
+          "partner_cost_estimate",
+          "execution_mode",
+          "sub_partner_id",
+          "order_line_item_id",
+          "snapshot",
+        ],
+      }
+    )
+    if (!runs.length) {
+      return { unified_order_id: null, skipped: "no_runs" }
+    }
+
+    // Idempotency: any run already linked to a work-order → that IS the collated
+    // order (forward run→order link is authoritative). query.graph, never index.
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data: linkedRuns } = await query.graph({
+      entity: "production_runs",
+      fields: ["id", "order.id"],
+      filters: { id: runs.map((r) => r.id) },
+    })
+    const already = (linkedRuns || []).find((r: any) => r?.order?.id)?.order?.id
+    if (already) {
+      return { unified_order_id: already, skipped: "already_projected" }
+    }
+
+    const { regionId, currencyCode } = await resolveRegionAndCurrency(container)
+    if (!regionId) {
+      logger.warn(
+        `[orders-unification] skipped collated design-order projection for ${commissioningOrderId}: no region exists`
+      )
+      return { unified_order_id: null, skipped: "no_region" }
+    }
+    const channel = await ensureWorkOrdersChannel(container)
+
+    // One line item per run — self-describing (design name + run pointer).
+    const items = runs.map((run) => {
+      const quantity = Number(run.quantity) || 1
+      const estimate = Number(run.partner_cost_estimate) || 0
+      const unitPrice =
+        run.cost_type === "per_unit"
+          ? estimate
+          : quantity > 0
+          ? estimate / quantity
+          : estimate
+      return {
+        title: run.snapshot?.design?.name ?? `Design ${run.design_id}`,
+        quantity,
+        unit_price: unitPrice,
+        metadata: {
+          design_id: run.design_id,
+          production_run_id: run.id,
+          cost_type: run.cost_type ?? null,
+          legacy_cost_estimate: run.partner_cost_estimate ?? null,
+        },
+      }
+    })
+
+    const { result: unified }: any = await createOrderWorkflow(container).run({
+      input: {
+        region_id: regionId,
+        sales_channel_id: channel.id,
+        currency_code: currencyCode,
+        status: aggregateCoreStatus(runs) as any,
+        items: items as any,
+        metadata: {
+          // The commissioning order this collates (the group key).
+          source_order_id: commissioningOrderId,
+          collated_design_order: true,
+          production_run_ids: runs.map((r) => r.id),
+          // Keep a legacy_id pointer so use-order-kind consumers that read
+          // order.metadata.legacy_id still resolve a run (S3b renders N lines
+          // off the order items rather than this single pointer).
+          legacy_id: runs[0].id,
+          currency_assumed: true,
+        },
+      },
+    })
+
+    // order↔run for EACH run (1:many). First via the rollback path so the
+    // kind=design discriminator link exists-or-the-order-rolls-back; the rest
+    // best-effort (a stray link failure must not orphan the whole order).
+    await linkUnifiedOrderOrRollback(container, unified.id, {
+      [Modules.ORDER]: { order_id: unified.id },
+      [PRODUCTION_RUNS_MODULE]: { production_runs_id: runs[0].id },
+    })
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+    for (const run of runs.slice(1)) {
+      await remoteLink
+        .create([
+          {
+            [Modules.ORDER]: { order_id: unified.id },
+            [PRODUCTION_RUNS_MODULE]: { production_runs_id: run.id },
+          },
+        ])
+        .catch((e: any) =>
+          logger.warn(
+            `[orders-unification] collated order↔run link failed for run ${run.id}: ${e?.message}`
+          )
+        )
+    }
+
+    // design↔order per distinct design (reuse #29 design-order link infra).
+    const designIds = Array.from(
+      new Set(runs.map((r) => r.design_id).filter(Boolean))
+    )
+    for (const designId of designIds) {
+      await remoteLink
+        .create([
+          {
+            [DESIGN_MODULE]: { design_id: designId },
+            [Modules.ORDER]: { order_id: unified.id },
+          },
+        ])
+        .catch((e: any) =>
+          logger.warn(
+            `[orders-unification] collated design link failed for ${designId}: ${e?.message}`
+          )
+        )
+    }
+
+    // partner↔order (D3) per distinct partner among runs already at/past
+    // sent_to_partner (the partner is committed).
+    const partnerIds = Array.from(
+      new Set(
+        runs
+          .filter(
+            (r) =>
+              r.partner_id &&
+              ["sent_to_partner", "in_progress", "completed"].includes(r.status)
+          )
+          .map((r) => r.partner_id)
+      )
+    )
+    for (const partnerId of partnerIds) {
+      await createPartnerOrderLink(container, partnerId as string, unified.id)
+    }
+
+    // Aggregate partner_status onto the sidecar column (best-effort).
+    const partnerStatus = aggregatePartnerStatus(runs)
+    if (partnerStatus) {
+      await setUnifiedOrderPartnerStatus(container, unified.id, partnerStatus).catch(
+        (e: any) =>
+          logger.warn(
+            `[orders-unification] collated sidecar status write failed for ${unified.id}: ${e?.message}`
+          )
+      )
+    }
+
+    return { unified_order_id: unified.id, line_count: items.length }
+  } catch (e: any) {
+    logger.warn(
+      `[orders-unification] collated design-order projection failed for ${commissioningOrderId}: ${e?.message}`
+    )
+    return { unified_order_id: null, error: e?.message }
+  }
+}
+
 /**
  * Mirror a run's current status onto its unified order per §5. Re-reads the
  * run from DB (not workflow input) so compensations mirror correctly too.

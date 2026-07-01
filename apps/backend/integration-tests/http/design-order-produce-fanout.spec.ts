@@ -1,4 +1,4 @@
-import { Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { IRegionModuleService } from "@medusajs/types"
 import { createOrderWorkflow } from "@medusajs/medusa/core-flows"
 
@@ -107,9 +107,46 @@ setupSharedTestSuite(() => {
         expect(run.order_line_item_id).toBe(lineItemByDesign[run.design_id])
       }
 
-      // Idempotent: producing the same order again creates no duplicate runs.
+      // ── Collation (#826 S3a) ────────────────────────────────────────────
+      // The N runs fold into ONE kind=design work-order with a line per design.
+      expect(result.work_order_id).toBeTruthy()
+      const workOrderId = result.work_order_id!
+
+      const orderService: any = container.resolve(Modules.ORDER)
+      const workOrder = await orderService.retrieveOrder(workOrderId, {
+        relations: ["items"],
+      })
+      expect(workOrder.items).toHaveLength(designIds.length)
+      expect(workOrder.metadata?.collated_design_order).toBe(true)
+      expect(workOrder.metadata?.source_order_id).toBe(orderId)
+
+      // Every run links to that ONE work-order (order↔run is now 1:many).
+      const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+      const { data: linkRows } = await query.graph({
+        entity: "production_runs",
+        fields: ["id", "order.id"],
+        filters: { id: runs.map((r: any) => r.id) },
+      })
+      expect(linkRows).toHaveLength(designIds.length)
+      for (const r of linkRows as any[]) {
+        expect(r.order?.id).toBe(workOrderId)
+      }
+
+      // The work-order reads as kind=design: order.production_runs is the
+      // collated array of N runs.
+      const { data: wo } = await query.graph({
+        entity: "orders",
+        fields: ["id", "production_runs.id"],
+        filters: { id: workOrderId },
+      })
+      const linkedRunIds = (wo?.[0]?.production_runs || []).map((x: any) => x.id)
+      expect(linkedRunIds.sort()).toEqual(runs.map((r: any) => r.id).sort())
+
+      // Idempotent: producing the same order again creates no duplicate runs
+      // and resolves the SAME collated work-order (no second order).
       const again = await createRunsForDesignOrder(container, orderId)
       expect(again.created).toBe(0)
+      expect(again.work_order_id).toBe(workOrderId)
       const runsAfter = await runService.listProductionRuns({ order_id: [orderId] })
       expect(runsAfter).toHaveLength(designIds.length)
     })

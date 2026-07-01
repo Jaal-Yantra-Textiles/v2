@@ -3,6 +3,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import type { IOrderModuleService } from "@medusajs/types"
 
 import { createProductionRunWorkflow } from "../production-runs/create-production-run"
+import { projectDesignOrderToUnifiedOrder } from "../production-runs/dual-write-unified-run-order"
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
 
@@ -31,7 +32,12 @@ export async function createRunsForDesignOrder(
   container: MedusaContainer,
   orderId: string,
   opts?: { partner_id?: string | null }
-): Promise<{ created: number; run_ids: string[]; design_ids: string[] }> {
+): Promise<{
+  created: number
+  run_ids: string[]
+  design_ids: string[]
+  work_order_id: string | null
+}> {
   const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
   const orderService = container.resolve(Modules.ORDER) as IOrderModuleService
   const runService = container.resolve(
@@ -75,6 +81,9 @@ export async function createRunsForDesignOrder(
           order_id: orderId,
           order_line_item_id: lineItemId,
           partner_id: opts?.partner_id ?? undefined,
+          // Collated into ONE work-order by projectDesignOrderToUnifiedOrder
+          // below — do NOT let each run mint its own per-run work-order.
+          skip_unified_projection: true,
           metadata: {
             source: "design-order-produce",
             source_order_id: orderId,
@@ -93,5 +102,15 @@ export async function createRunsForDesignOrder(
     }
   }
 
-  return { created: runIds.length, run_ids: runIds, design_ids: designIds }
+  // Collate the order's runs (the just-created ones + any pre-existing) into ONE
+  // kind=design work-order with a line per design (#826 S3a). Idempotent, so a
+  // re-produce that created nothing new still resolves the existing work-order.
+  const projection = await projectDesignOrderToUnifiedOrder(container, orderId)
+
+  return {
+    created: runIds.length,
+    run_ids: runIds,
+    design_ids: designIds,
+    work_order_id: projection.unified_order_id,
+  }
 }
