@@ -32,6 +32,17 @@ export default defineLink(
   OrderModule.linkable.order,
   {
     linkable: ProductionRunsModule.linkable.productionRuns,
+    // #826 S3a — was 1:1 (one order per run). Now 1:many: ONE unified work-order
+    // COLLATES the N per-design runs of a commissioning order (grouped by
+    // run.order_id), the design analog of one inventory_order → N orderlines →
+    // one order. A run still belongs to at most one work-order (run side stays
+    // single), so the forward accessor (production_runs.order) is unchanged;
+    // only the reverse (order.production_runs) now returns an array. Existing
+    // readers already tolerate array-or-object (list-partner-orders `linked()`,
+    // both detail-route attaches, use-order-kind), and legacy_id keeps pointing
+    // at a run via order.metadata. Existing per-run work-orders (one run each)
+    // remain valid 1:many rows.
+    isList: true,
     filterable: ["id"],
     // adds the singular `production_run` alias to the INDEX (query.index) so the
     // admin retail anti-join can filter `production_run: { id: null }`. Does NOT
