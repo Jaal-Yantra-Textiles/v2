@@ -25,19 +25,27 @@ import { DesignMoodboardSection } from "../../designs/design-detail/components/d
  */
 export const OrderDesignDetails = () => {
   const { t } = useTranslation()
-  const { id } = useParams()
+  const { id, designId: designIdParam } = useParams()
 
   const { order } = useOrder(id!, { fields: "id,metadata" })
+  // #826 — a collated order links each card to `/design-details/:designId`, so
+  // the param names the design directly. Only fall back to the order's single
+  // legacy_id run pointer (legacy single-design orders) when no param is given.
   const runId = order?.metadata?.legacy_id as string | undefined
   const { production_run } = usePartnerProductionRun(runId ?? "", {
-    enabled: !!runId,
+    enabled: !designIdParam && !!runId,
   })
-  const designId = (production_run as any)?.design_id as string | undefined
+  const designId =
+    designIdParam ?? ((production_run as any)?.design_id as string | undefined)
   const { design, isPending } = usePartnerDesign(designId ?? "", {
     enabled: !!designId,
   })
 
-  if (!order || (runId && !production_run) || (designId && isPending)) {
+  if (
+    !order ||
+    (!designIdParam && runId && !production_run) ||
+    (designId && isPending)
+  ) {
     return <TwoColumnPageSkeleton mainSections={3} sidebarSections={1} showJSON={false} />
   }
 
