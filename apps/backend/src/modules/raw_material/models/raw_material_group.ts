@@ -16,6 +16,12 @@ const RawMaterialGroup = model.define("raw_material_group", {
   description: model.text().translatable().nullable(),
   composition: model.text().translatable().nullable(), // shared, e.g. "100% Cotton"
   specifications: model.json().nullable(), // shared technical specifications
+  // Operator-defined variant axes this group varies its members along. `color`
+  // is the built-in, always-present axis (kept as a first-class column on the
+  // member for display/denorm); `dimensions` lets a group declare additional
+  // axes later (finish, pattern, size, …) WITHOUT a schema change — each entry
+  // is { key, label, values? }. Empty/null ⇒ color-only (today's behavior).
+  dimensions: model.json().nullable(),
   unit_of_measure: model.enum([
     "Meter",
     "Yard",

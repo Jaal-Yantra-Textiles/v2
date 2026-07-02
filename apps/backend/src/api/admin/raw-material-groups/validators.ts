@@ -23,10 +23,20 @@ const GROUP_STATUS = [
 
 // --- Group CRUD ---
 
+// Operator-defined variant axes a group varies its members along. `color` is the
+// built-in axis and never needs declaring here; `dimensions` is additive room
+// for extra axes (finish, pattern, size, …) — see raw_material_group.dimensions.
+const groupDimensionSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().min(1),
+  values: z.array(z.string()).optional(),
+})
+
 // #829 — global specs the group holds once; new colors inherit these fill-blank.
 const groupGlobalsShape = {
   composition: z.string().optional(),
   specifications: z.record(z.string(), z.unknown()).optional(),
+  dimensions: z.array(groupDimensionSchema).optional(),
   unit_of_measure: z.enum(UNIT_OF_MEASURE).optional(),
   material_type_id: z.string().optional(),
   // A category NAME (find-or-create); resolved to material_type_id server-side.
@@ -85,6 +95,9 @@ export const addGroupColorSchema = z.object({
   cost_currency: z.string().optional(),
   lead_time_days: z.number().int().optional(),
   minimum_order_quantity: z.number().int().optional(),
+  // Per-member variant coordinates keyed by the group's `dimensions`
+  // (e.g. { color: "Blue", finish: "Matte" }). `color` above stays canonical.
+  attributes: z.record(z.string(), z.unknown()).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
   media: z.record(z.string(), z.unknown()).optional(),
 })
