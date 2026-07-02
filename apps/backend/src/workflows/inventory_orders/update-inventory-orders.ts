@@ -13,6 +13,7 @@ import { createInventoryLevelsWorkflow, updateInventoryLevelsWorkflow } from "@m
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
 import InventoryOrderService from "../../modules/inventory_orders/service";
 import { mirrorUnifiedOrderStatusStep } from "./dual-write-unified-order";
+import { reprojectInventoryMirrorItemsStep } from "./reproject-inventory-mirror-items";
 import { resolveExistingLevelsStep } from "./partner-complete-inventory-order";
 import inventoryOrdersStockLocations from "../../links/inventory-orders-stock-locations";
 import {
@@ -434,6 +435,9 @@ export const updateInventoryOrderWorkflow = createWorkflow(
 
     // #342 — best-effort §5 status mirror onto the unified core order
     mirrorUnifiedOrderStatusStep({ inventoryOrderId: input.id });
+    // Keep the core mirror's items in sync with the (just-updated) lines so the
+    // unified order never drifts from the inventory order again. Best-effort.
+    reprojectInventoryMirrorItemsStep({ inventoryOrderId: input.id });
     return new WorkflowResponse({ order: updatedOrder, orderlines: updatedOrderlines });
   },
 );

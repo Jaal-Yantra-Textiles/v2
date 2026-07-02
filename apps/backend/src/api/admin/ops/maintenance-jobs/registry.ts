@@ -25,6 +25,7 @@ import { PARTNER_MODULE } from "../../../../modules/partner"
 import productGoogleMerchantLink from "../../../../links/product-google-merchant-link"
 import productionRunConsumptionLogLink from "../../../../links/production-runs-consumption-logs"
 import { resolveStoreCurrency } from "../../../../lib/resolve-store-currency"
+import { reprojectInventoryMirrorItems } from "../../../../workflows/inventory_orders/reproject-inventory-mirror-items"
 import { firstMediaUrl } from "../../../../utils/first-media-url"
 import {
   normalizeLandingBase,
@@ -5158,6 +5159,83 @@ export const retitleGroupColorNamesJob: MaintenanceJob = {
   },
 }
 
+const reconcileInventoryMirrorParamsSchema = z.object({
+  inventory_order_id: z.string().min(1, "inventory_order_id is required"),
+})
+
+/**
+ * Reconcile an inventory order's core "unified" mirror so its line items match
+ * the LIVE inventory lines. The mirror is projected once at creation and (until
+ * the update workflow now re-projects) only its status was mirrored — so line
+ * edits left stale items + a stale total. Order totals are calculated from
+ * items, so replacing the items fixes the total for free. Idempotent: a mirror
+ * already in sync is a no-op; an order with no projected mirror is skipped.
+ */
+export const reconcileInventoryMirrorJob: MaintenanceJob = {
+  id: "reconcile-inventory-mirror",
+  label: "Reconcile inventory order → core mirror items",
+  description:
+    "Rebuild an inventory order's core mirror (unified order) line items to match its LIVE lines, fixing stale items + total after line edits. Dry-run previews the items that would be created/removed without persisting; apply writes them (idempotent — a mirror already in sync is a no-op). An inventory order with no projected core order is skipped.",
+  params: [
+    {
+      name: "inventory_order_id",
+      type: "string",
+      required: true,
+      description: "ID of the inventory order whose core mirror to reconcile",
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const parsed = reconcileInventoryMirrorParamsSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        parsed.error.issues.map((i) => i.message).join("; ")
+      )
+    }
+    const { inventory_order_id } = parsed.data
+
+    const summary = await reprojectInventoryMirrorItems(container, inventory_order_id, {
+      dryRun: dry_run,
+    })
+
+    if (summary.skipped === "no_mirror") {
+      return {
+        job_id: reconcileInventoryMirrorJob.id,
+        dry_run,
+        applied: false,
+        summary: `Skipped — inventory order ${inventory_order_id} has no projected core mirror order.`,
+        changes: [],
+      }
+    }
+
+    const changes: MaintenanceChange[] = []
+    for (const c of summary.plan.create) {
+      changes.push({
+        entity: "order_line_item",
+        id: String(summary.unified_order_id),
+        field: "create",
+        after: `${c.title} ×${c.quantity} @ ${c.unit_price} (line ${c.metadata.legacy_orderline_id})`,
+      })
+    }
+    for (const removedId of summary.plan.removeItemIds) {
+      changes.push({ entity: "order_line_item", id: removedId, field: "remove", before: removedId })
+    }
+
+    const noop = summary.created === 0 && summary.removed === 0
+    const summaryText = noop
+      ? `No changes — core mirror ${summary.unified_order_id} already matches inventory order ${inventory_order_id} (${summary.unchanged} items in sync, total ${summary.before_total}).`
+      : `${dry_run ? "Would sync" : "Synced"} core mirror ${summary.unified_order_id}: +${summary.created} / -${summary.removed} item(s), ${summary.unchanged} kept (was total ${summary.before_total}).`
+
+    return {
+      job_id: reconcileInventoryMirrorJob.id,
+      dry_run,
+      applied: !dry_run && !noop,
+      summary: summaryText,
+      changes,
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -5187,6 +5265,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillDesignPartnerLinksJob,
   backfillGroupGlobalsToColorsJob,
   retitleGroupColorNamesJob,
+  reconcileInventoryMirrorJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
