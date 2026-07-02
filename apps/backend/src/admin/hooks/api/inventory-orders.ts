@@ -322,10 +322,13 @@ export const useUpdateInventoryOrderLines = (
 ) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: UpdateInventoryOrderLinesPayload) =>
-      sdk.client.fetch<AdminInventoryOrderResponse>(`/admin/inventory-orders/${payload.id}/order-lines`, {
+    mutationFn: async ({ id, ...body }: UpdateInventoryOrderLinesPayload) =>
+      // `id` is the URL param only — the PUT body is strictly validated against
+      // updateInventoryOrderLinesSchema ({ data?, order_lines }), so sending a
+      // top-level `id` fails with "unrecognised fields: id". Send just the body.
+      sdk.client.fetch<AdminInventoryOrderResponse>(`/admin/inventory-orders/${id}/order-lines`, {
         method: "PUT",
-        body: payload,
+        body,
       }),
     onSuccess: async (data, variables, ...args) => {
       // Invalidate all queries related to inventory orders

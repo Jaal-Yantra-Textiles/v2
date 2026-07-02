@@ -351,6 +351,19 @@ const ComboboxImpl = <T extends Value = string>(
         gutter={4}
         sameWidth
         portal={portal}
+        // When portaled inside a modal (Radix Dialog / FocusModal), react-remove-
+        // scroll blocks wheel scrolling on anything portaled OUTSIDE the dialog
+        // subtree — so a body-portaled options list can't be scrolled with the
+        // wheel. Portal into the enclosing dialog instead (positioning is fixed
+        // via floating-ui, so it still won't clip); fall back to body otherwise.
+        portalElement={
+          portal
+            ? () =>
+                (comboboxRef.current?.closest(
+                  '[role="dialog"]'
+                ) as HTMLElement | null) ?? null
+            : undefined
+        }
         ref={listboxRef}
         role="listbox"
         className={clx(
