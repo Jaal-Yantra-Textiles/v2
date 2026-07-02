@@ -45,8 +45,8 @@ describe("buildOrderLinePayloads (#778 C3)", () => {
       "invord_1"
     )
     expect(payloads).toEqual([
-      { quantity: 10, price: 50, metadata: { sku: "A" }, inventory_orders: "invord_1", color: null, material_name: null, raw_material_id: null },
-      { quantity: 4, price: 100, metadata: null, inventory_orders: "invord_1", color: null, material_name: null, raw_material_id: null },
+      { quantity: 10, price: 50, metadata: { sku: "A" }, inventory_orders: "invord_1", batch_number: null, color: null, material_name: null, raw_material_id: null },
+      { quantity: 4, price: 100, metadata: null, inventory_orders: "invord_1", batch_number: null, color: null, material_name: null, raw_material_id: null },
     ])
   })
 
