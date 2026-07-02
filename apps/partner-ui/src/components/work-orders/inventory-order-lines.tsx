@@ -1,8 +1,9 @@
-import { Container, Heading, Text } from "@medusajs/ui"
+import { Badge, Container, Heading, Text } from "@medusajs/ui"
+import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 
-import { getStylizedAmount } from "../../lib/money-amount-helpers"
-import { WorkOrderLineCard, WorkOrderLineStat } from "./work-order-line-card"
+import { getLocaleAmount, getStylizedAmount } from "../../lib/money-amount-helpers"
+import { Thumbnail } from "../common/thumbnail"
 
 const fmt = (n: number) => {
   if (!Number.isFinite(n)) {
@@ -21,10 +22,12 @@ const lineFulfilled = (line: Record<string, any>): number =>
     : 0
 
 /**
- * The requested / fulfilled / remaining line items for an inventory work-order
- * (#342), rendered in the retail order-summary aesthetic: per-line cards
- * (`WorkOrderLineCard`) with a cost-breakdown + bold Total footer — so a
- * work-order reads like a normal order.
+ * Inventory work-order line items (#342), rendered in the Medusa core order
+ * line-item aesthetic (order-summary-section `Item`): a `grid-cols-2` row —
+ * product info on the left, an aligned `unit-price · {qty}x · total` money
+ * block on the right — with a subtle fulfillment badge so a work-order reads
+ * exactly like a normal order. Lines are sorted deterministically so the list
+ * never re-shuffles between fetches.
  */
 export const InventoryOrderLines = ({
   orderLines,
@@ -37,9 +40,23 @@ export const InventoryOrderLines = ({
 }) => {
   const { t } = useTranslation()
 
-  if (!orderLines.length) {
+  // Deterministic order: by creation time, then id — so rows don't jump around.
+  const lines = useMemo(
+    () =>
+      [...orderLines].sort((a, b) => {
+        const ta = Date.parse(a?.created_at ?? "") || 0
+        const tb = Date.parse(b?.created_at ?? "") || 0
+        if (ta !== tb) {
+          return ta - tb
+        }
+        return String(a?.id ?? "").localeCompare(String(b?.id ?? ""))
+      }),
+    [orderLines]
+  )
+
+  if (!lines.length) {
     return (
-      <Container className="divide-y p-0">
+      <Container className="divide-y divide-dashed p-0">
         <div className="px-6 py-4">
           <Heading level="h2">{t("partner.inventoryOrders.detail.linesHeading")}</Heading>
           <Text size="small" className="text-ui-fg-subtle">
@@ -50,16 +67,13 @@ export const InventoryOrderLines = ({
     )
   }
 
-  const totalRequested = orderLines.reduce(
-    (sum, l) => sum + (Number(l?.quantity) || 0),
-    0
-  )
   const cc = (currencyCode || "").toLowerCase()
-  const money = (amount: number) =>
-    cc ? getStylizedAmount(amount, cc) : fmt(amount)
+  const unitMoney = (amount: number) => (cc ? getLocaleAmount(amount, cc) : fmt(amount))
+  const totalMoney = (amount: number) => (cc ? getStylizedAmount(amount, cc) : fmt(amount))
+  const totalRequested = lines.reduce((sum, l) => sum + (Number(l?.quantity) || 0), 0)
 
   return (
-    <Container className="divide-y p-0">
+    <Container className="divide-y divide-dashed p-0">
       <div className="px-6 py-4">
         <Heading level="h2">{t("partner.inventoryOrders.detail.linesHeading")}</Heading>
         <Text size="small" className="text-ui-fg-subtle">
@@ -67,43 +81,82 @@ export const InventoryOrderLines = ({
         </Text>
       </div>
 
-      <div className="px-6 py-4">
-        {orderLines.map((line) => {
-          // #817 S2 — color identity is denormalized onto the line, so the card
-          // reads correctly even without the inventory_item relation loaded.
-          const title =
-            line?.material_name ||
-            line?.inventory_items?.[0]?.title ||
-            line?.inventory_items?.[0]?.name ||
-            line?.inventory_item_id ||
-            line?.id
-          const sku = line?.inventory_items?.[0]?.sku
-          const thumbnail = line?.inventory_items?.[0]?.thumbnail
-          const requested = Number(line?.quantity) || 0
-          const fulfilled = lineFulfilled(line)
-          const remaining = Math.max(0, requested - fulfilled)
-          const price = Number(line?.price) || 0
-          const subtitle =
-            [line?.color, sku ? `SKU ${sku}` : null].filter(Boolean).join(" · ") ||
-            `${t("partner.inventoryOrders.detail.linePrefix")}: ${line.id}`
+      {lines.map((line) => {
+        // #817 S2 — color identity is denormalized onto the line, so this reads
+        // correctly even without the inventory_item relation loaded.
+        const title =
+          line?.material_name ||
+          line?.inventory_items?.[0]?.title ||
+          line?.inventory_items?.[0]?.name ||
+          line?.inventory_item_id ||
+          line?.id
+        const sku = line?.inventory_items?.[0]?.sku
+        const thumbnail = line?.inventory_items?.[0]?.thumbnail
+        const requested = Number(line?.quantity) || 0
+        const fulfilled = lineFulfilled(line)
+        const remaining = Math.max(0, requested - fulfilled)
+        const price = Number(line?.price) || 0
+        const subtitle = [line?.color, sku ? `SKU ${sku}` : null]
+          .filter(Boolean)
+          .join(" · ")
 
-          return (
-            <WorkOrderLineCard
-              key={String(line.id)}
-              title={String(title)}
-              subtitle={subtitle}
-              thumbnail={thumbnail}
-            >
-              <WorkOrderLineStat label={t("partner.inventoryOrders.detail.columns.requested")} value={fmt(requested)} />
-              <WorkOrderLineStat label={t("partner.inventoryOrders.detail.columns.fulfilled")} value={fmt(fulfilled)} />
-              <WorkOrderLineStat label={t("partner.inventoryOrders.detail.columns.remaining")} value={fmt(remaining)} emphasis />
-              {price > 0 && (
-                <WorkOrderLineStat label={t("partner.workOrders.amount")} value={money(price * requested)} emphasis />
-              )}
-            </WorkOrderLineCard>
-          )
-        })}
-      </div>
+        return (
+          <div
+            key={String(line.id)}
+            className="text-ui-fg-subtle grid grid-cols-1 items-center gap-x-4 gap-y-3 px-6 py-4 sm:grid-cols-2"
+          >
+            {/* Left: product info — thumbnail + title/subtitle + fulfilment badge */}
+            <div className="flex items-start gap-x-4">
+              <Thumbnail src={thumbnail} alt={String(title)} />
+              <div className="flex min-w-0 flex-col gap-y-1">
+                <Text
+                  size="small"
+                  leading="compact"
+                  weight="plus"
+                  className="text-ui-fg-base truncate"
+                  title={String(title)}
+                >
+                  {String(title)}
+                </Text>
+                {subtitle && (
+                  <Text size="small" leading="compact" className="text-ui-fg-subtle truncate">
+                    {subtitle}
+                  </Text>
+                )}
+                <div className="flex items-center gap-x-1.5 pt-0.5">
+                  <Badge size="2xsmall" color={remaining === 0 ? "green" : "orange"}>
+                    {remaining === 0
+                      ? t("partner.inventoryOrders.detail.columns.fulfilled")
+                      : `${fmt(remaining)} ${t("partner.inventoryOrders.detail.columns.remaining")}`}
+                  </Badge>
+                  {fulfilled > 0 && remaining > 0 && (
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      {fmt(fulfilled)}/{fmt(requested)}
+                    </Text>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right: money block — mirrors core "unit  {qty}x  total" grid */}
+            <div className="grid grid-cols-3 items-center gap-x-4">
+              <div className="flex items-center justify-end">
+                <Text size="small">{price > 0 ? unitMoney(price) : "—"}</Text>
+              </div>
+              <div className="flex items-center justify-end">
+                <Text size="small">
+                  <span className="tabular-nums">{fmt(requested)}</span>x
+                </Text>
+              </div>
+              <div className="flex items-center justify-end">
+                <Text size="small" weight="plus" className="text-ui-fg-base text-nowrap">
+                  {price > 0 ? totalMoney(price * requested) : "—"}
+                </Text>
+              </div>
+            </div>
+          </div>
+        )
+      })}
 
       {/* Total footer — the retail order-summary money block */}
       <div className="flex flex-col gap-y-2 px-6 py-4">
@@ -117,7 +170,7 @@ export const InventoryOrderLines = ({
               {t("partner.workOrders.total")}
             </Text>
             <Text size="small" weight="plus">
-              {money(Number(totalPrice))}
+              {totalMoney(Number(totalPrice))}
             </Text>
           </div>
         )}

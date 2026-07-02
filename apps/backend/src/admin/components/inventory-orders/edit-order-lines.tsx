@@ -10,6 +10,11 @@ import { InventoryOrderLinesGrid } from "../creates/inventory-order-lines-grid";
 import { AddMaterialGroupControl } from "./add-material-group-control";
 import { AdminInventoryOrder } from "../../hooks/api/inventory-orders";
 import { useUpdateInventoryOrderLines } from "../../hooks/api/inventory-orders";
+import {
+  buildOrderLinesUpdatePayload,
+  computeOrderLineTotals,
+  type EditableOrderLine,
+} from "./order-lines-payload";
 
 // Schema for editing order lines
 const editOrderLinesSchema = z.object({
@@ -73,10 +78,16 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
     limit: 1000,
   });
 
-  // Use Field Array for order lines
+  // Use Field Array for order lines.
+  // keyName MUST NOT be the default "id": react-hook-form overwrites the row's
+  // `id` with its own generated field key, and that key was being compared
+  // against DB line ids to compute removals — two id-spaces that never match, so
+  // every existing line was marked for deletion on every save (the prod wipe).
+  // A distinct keyName lets `fields[i].id` keep carrying the real DB id.
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "order_lines",
+    keyName: "_rhfId",
   });
 
   // Live inventory_item_ids on the form — feeds the add-by-group control so a
@@ -92,24 +103,18 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
 
   const { mutateAsync, isPending } = useUpdateInventoryOrderLines();
 
-  // Calculate totals from order lines
-  const calculateTotals = () => {
-    const validLines = fields.filter((line: OrderLine) => line.inventory_item_id);
-    const totalQuantity = validLines.reduce((sum: number, line: OrderLine) => sum + (Number(line.quantity) || 0), 0);
-    const totalPrice = validLines.reduce((sum: number, line: OrderLine) => sum + (Number(line.price) || 0) * (Number(line.quantity) || 0), 0);
-    return { totalQuantity, totalPrice };
-  };
+  // Display totals from the LIVE watched rows (not the `fields` snapshot, whose
+  // quantity/price values go stale as soon as a cell is edited).
+  const displayTotals = computeOrderLineTotals((watchedForGroup ?? []) as EditableOrderLine[]);
 
   const handleSubmit = form.handleSubmit(async (data) => {
-    const { totalQuantity, totalPrice } = calculateTotals();
-
-    // Prepare order lines for the update workflow
-    const orderLines = fields.map((line: OrderLine, index: number) => {
+    // Merge the field-array rows (authoritative for the DB `id` + `isExisting`,
+    // preserved because keyName isn't "id") with the live submitted values.
+    const currentLines: EditableOrderLine[] = fields.map((line: OrderLine, index: number) => {
       const formLine = data.order_lines[index];
       return {
-        // Only include ID if it's marked as existing (from database)
-        // New lines added by user won't have isExisting flag
-        id: line.isExisting ? line.id : undefined,
+        id: line.id,
+        isExisting: line.isExisting,
         inventory_item_id: formLine.inventory_item_id,
         quantity: Number(formLine.quantity) || 0,
         price: Number(formLine.price) || 0,
@@ -117,35 +122,11 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
       };
     });
 
-    // Dropping a line from the field array just removes it from the payload —
-    // the update workflow only DELETES a line when it receives an explicit
-    // { id, remove: true } marker, so without this a dropped existing line
-    // silently survives. Diff the original existing lines against the ones
-    // still present and send a removal marker for each that's gone.
-    const remainingExistingIds = new Set(
-      (fields as OrderLine[])
-        .filter((l) => l.isExisting && l.id)
-        .map((l) => l.id)
-    );
-    const removedLines = (existingLines as OrderLine[])
-      .filter((l) => l.id && !remainingExistingIds.has(l.id))
-      .map((l) => ({
-        id: l.id,
-        inventory_item_id: l.inventory_item_id || "",
-        // Ignored server-side for removals, but must satisfy the line schema.
-        quantity: l.quantity && l.quantity >= 1 ? l.quantity : 1,
-        price: typeof l.price === "number" && l.price >= 0 ? l.price : 0,
-        remove: true,
-      }));
-
-    const payload = {
-      id: inventoryOrder.id,
-      data: {
-        quantity: totalQuantity,
-        total_price: totalPrice,
-      },
-      order_lines: [...orderLines, ...removedLines],
-    };
+    // Pure, unit-tested payload builder: keeps present lines by their DB id and
+    // emits removal markers ONLY for existing lines actually dropped from the
+    // grid. See order-lines-payload.ts for why this must not use RHF field keys.
+    const built = buildOrderLinesUpdatePayload(existingLines as EditableOrderLine[], currentLines);
+    const payload = { id: inventoryOrder.id, ...built };
 
     try {
       await mutateAsync(payload);
@@ -215,11 +196,11 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
             <div className="flex-shrink-0 border-t border-dashed p-8 bg-ui-bg-base">
               <div className="flex justify-between items-center mb-2">
                 <Text weight="plus">Total Order Quantity:</Text>
-                <Text weight="plus">{calculateTotals().totalQuantity}</Text>
+                <Text weight="plus">{displayTotals.totalQuantity}</Text>
               </div>
               <div className="flex justify-between items-center">
                 <Text weight="plus">Total Order Price:</Text>
-                <Text weight="plus">${calculateTotals().totalPrice.toFixed(2)}</Text>
+                <Text weight="plus">${displayTotals.totalPrice.toFixed(2)}</Text>
               </div>
             </div>
           </div>

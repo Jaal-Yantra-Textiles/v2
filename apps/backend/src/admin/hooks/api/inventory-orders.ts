@@ -311,11 +311,14 @@ export interface UpdateInventoryOrderLinesPayload {
     quantity?: number;
     total_price?: number;
   };
+  // Fields are all optional to mirror the server validator (updateOrderLineSchema):
+  // a keep/update entry carries inventory_item_id/quantity/price; a removal marker
+  // needs only { id, remove: true }.
   order_lines: Array<{
     id?: string;
-    inventory_item_id: string;
-    quantity: number;
-    price: number;
+    inventory_item_id?: string;
+    quantity?: number;
+    price?: number;
     batch_number?: number | null;
     // Marks an existing line for deletion (soft-delete + link dismiss server-side).
     remove?: boolean;
