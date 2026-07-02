@@ -58,6 +58,7 @@ export async function ensureStripeSession(
         "completed_at",
         "currency_code",
         "total",
+        "sales_channel_id",
         "region.payment_providers.id",
         "region.payment_providers.is_enabled",
         "payment_collection.id",
@@ -105,7 +106,14 @@ export async function ensureStripeSession(
   let session = findStripeSession(cart.payment_collection?.payment_sessions)
   if (!session) {
     await createPaymentSessionsWorkflow(scope).run({
-      input: { payment_collection_id: pcId!, provider_id: provider },
+      input: {
+        payment_collection_id: pcId!,
+        provider_id: provider,
+        // Carry the cart's sales channel so a Stripe Connect provider can
+        // resolve the owning partner (cart → sales_channel → store → partner).
+        // Harmless for the plain Stripe/system providers, which ignore it.
+        context: { sales_channel_id: cart.sales_channel_id },
+      },
     })
     cart = await readCart()
     session = findStripeSession(cart?.payment_collection?.payment_sessions)

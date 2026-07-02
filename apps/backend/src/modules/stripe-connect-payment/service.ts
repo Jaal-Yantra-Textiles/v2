@@ -26,6 +26,7 @@ import {
 } from "@medusajs/framework/types"
 import {
   computeApplicationFee,
+  fromStripeMinorUnits,
   mapStripeStatus,
   parseFeePercent,
   toStripeMinorUnits,
@@ -412,17 +413,43 @@ class StripeConnectPaymentProviderService extends AbstractPaymentProvider<Stripe
     const type = event?.type as string
     const intent = event?.data?.object || event?.object || {}
     const sessionId = intent?.metadata?.session_id
+    const currency = intent?.currency || "eur"
 
     if (!sessionId) return { action: "not_supported" }
 
-    const amount = intent?.amount
+    // Report amounts in MAJOR units — Medusa's processPaymentWorkflow expects
+    // the same convention as @medusajs/payment-stripe.
     switch (type) {
       case "payment_intent.succeeded":
-        return { action: "captured", data: { session_id: sessionId, amount } }
+        return {
+          action: "captured",
+          data: {
+            session_id: sessionId,
+            amount: fromStripeMinorUnits(
+              intent.amount_received ?? intent.amount,
+              currency
+            ),
+          },
+        }
       case "payment_intent.amount_capturable_updated":
-        return { action: "authorized", data: { session_id: sessionId, amount } }
+        return {
+          action: "authorized",
+          data: {
+            session_id: sessionId,
+            amount: fromStripeMinorUnits(
+              intent.amount_capturable ?? intent.amount,
+              currency
+            ),
+          },
+        }
       case "payment_intent.payment_failed":
-        return { action: "failed", data: { session_id: sessionId, amount } }
+        return {
+          action: "failed",
+          data: {
+            session_id: sessionId,
+            amount: fromStripeMinorUnits(intent.amount, currency),
+          },
+        }
       default:
         return { action: "not_supported" }
     }

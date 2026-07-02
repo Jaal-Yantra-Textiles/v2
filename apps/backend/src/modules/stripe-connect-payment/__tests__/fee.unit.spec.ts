@@ -2,6 +2,7 @@ import { PaymentSessionStatus } from "@medusajs/framework/utils"
 import {
   currencyMultiplier,
   toStripeMinorUnits,
+  fromStripeMinorUnits,
   parseFeePercent,
   computeApplicationFee,
   mapStripeStatus,
@@ -41,6 +42,26 @@ describe("stripe-connect fee/amount lib (Half B)", () => {
     })
     it("returns 0 for non-finite input", () => {
       expect(toStripeMinorUnits("abc", "eur")).toBe(0)
+    })
+  })
+
+  describe("fromStripeMinorUnits (webhook amounts → major units)", () => {
+    it("converts cents back to major units", () => {
+      expect(fromStripeMinorUnits(1250, "eur")).toBe(12.5)
+      expect(fromStripeMinorUnits(999, "USD")).toBe(9.99)
+    })
+    it("passes zero-decimal currencies through", () => {
+      expect(fromStripeMinorUnits(1500, "JPY")).toBe(1500)
+    })
+    it("round-trips with toStripeMinorUnits", () => {
+      for (const [amt, cur] of [[12.5, "eur"], [1500, "jpy"], [1.234, "kwd"]] as const) {
+        expect(fromStripeMinorUnits(toStripeMinorUnits(amt, cur), cur)).toBeCloseTo(
+          toStripeMinorUnits(amt, cur) / currencyMultiplier(cur)
+        )
+      }
+    })
+    it("returns 0 for non-finite input", () => {
+      expect(fromStripeMinorUnits("x", "eur")).toBe(0)
     })
   })
 
