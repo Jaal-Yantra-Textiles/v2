@@ -1,11 +1,75 @@
-import { Badge, Button, Table, Text } from "@medusajs/ui"
-import { useState } from "react"
+import {
+  Badge,
+  Button,
+  DataTable,
+  Text,
+  createDataTableColumnHelper,
+  useDataTable,
+} from "@medusajs/ui"
+import { useMemo, useState } from "react"
 
 import type {
   MaintenanceChange,
   MaintenanceJobResult,
   MaintenanceRun,
 } from "../../../hooks/api/ops-maintenance"
+
+/** Cap diff rows so a huge job result can't blow up the DOM. */
+const CHANGE_ROW_CAP = 200
+const BATCH_ROW_CAP = 300
+
+type ChangeRow = MaintenanceChange & { _rid: string }
+type BatchChangeRow = MaintenanceChange & { _rid: string; job_id: string }
+
+const mono = (v: unknown) => (
+  <span className="font-mono text-xs">{formatValue(v)}</span>
+)
+
+const changeColumnHelper = createDataTableColumnHelper<ChangeRow>()
+const changeColumns = [
+  changeColumnHelper.accessor("entity", { header: "Entity" }),
+  changeColumnHelper.accessor("id", {
+    header: "ID",
+    cell: ({ getValue }) => <span className="font-mono text-xs">{getValue()}</span>,
+  }),
+  changeColumnHelper.accessor("field", {
+    header: "Field",
+    cell: ({ getValue }) => getValue() ?? "—",
+  }),
+  changeColumnHelper.accessor("before", {
+    header: "Before",
+    cell: ({ getValue }) => mono(getValue()),
+  }),
+  changeColumnHelper.accessor("after", {
+    header: "After",
+    cell: ({ getValue }) => mono(getValue()),
+  }),
+]
+
+const batchChangeColumnHelper = createDataTableColumnHelper<BatchChangeRow>()
+const batchChangeColumns = [
+  batchChangeColumnHelper.accessor("job_id", {
+    header: "Job",
+    cell: ({ getValue }) => <span className="font-mono text-xs">{getValue()}</span>,
+  }),
+  batchChangeColumnHelper.accessor("entity", { header: "Entity" }),
+  batchChangeColumnHelper.accessor("id", {
+    header: "ID",
+    cell: ({ getValue }) => <span className="font-mono text-xs">{getValue()}</span>,
+  }),
+  batchChangeColumnHelper.accessor("field", {
+    header: "Field",
+    cell: ({ getValue }) => getValue() ?? "—",
+  }),
+  batchChangeColumnHelper.accessor("before", {
+    header: "Before",
+    cell: ({ getValue }) => mono(getValue()),
+  }),
+  batchChangeColumnHelper.accessor("after", {
+    header: "After",
+    cell: ({ getValue }) => mono(getValue()),
+  }),
+]
 
 /**
  * Shared presentational helpers for the Settings → Data Plumbing console
@@ -59,6 +123,21 @@ type ChangeLike = {
 export const ChangesTable = ({ result }: { result: ChangeLike }) => {
   const errors = result.errors ?? []
 
+  const rows: ChangeRow[] = useMemo(
+    () =>
+      result.changes
+        .slice(0, CHANGE_ROW_CAP)
+        .map((c, i) => ({ ...c, _rid: `${c.entity}-${c.id}-${c.field ?? ""}-${i}` })),
+    [result.changes]
+  )
+
+  const table = useDataTable({
+    columns: changeColumns,
+    data: rows,
+    getRowId: (row) => row._rid,
+    rowCount: rows.length,
+  })
+
   if (!result.changes.length && !errors.length) {
     return (
       <Text size="small" className="text-ui-fg-subtle">
@@ -70,37 +149,14 @@ export const ChangesTable = ({ result }: { result: ChangeLike }) => {
   return (
     <div className="flex flex-col gap-y-4">
       {result.changes.length > 0 && (
-        <Table>
-          <Table.Header>
-            <Table.Row>
-              <Table.HeaderCell>Entity</Table.HeaderCell>
-              <Table.HeaderCell>ID</Table.HeaderCell>
-              <Table.HeaderCell>Field</Table.HeaderCell>
-              <Table.HeaderCell>Before</Table.HeaderCell>
-              <Table.HeaderCell>After</Table.HeaderCell>
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
-            {result.changes.slice(0, 200).map((c, i) => (
-              <Table.Row key={`${c.entity}-${c.id}-${c.field ?? ""}-${i}`}>
-                <Table.Cell>{c.entity}</Table.Cell>
-                <Table.Cell className="font-mono text-xs">{c.id}</Table.Cell>
-                <Table.Cell>{c.field ?? "—"}</Table.Cell>
-                <Table.Cell className="font-mono text-xs">
-                  {formatValue(c.before)}
-                </Table.Cell>
-                <Table.Cell className="font-mono text-xs">
-                  {formatValue(c.after)}
-                </Table.Cell>
-              </Table.Row>
-            ))}
-          </Table.Body>
-        </Table>
+        <DataTable instance={table}>
+          <DataTable.Table />
+        </DataTable>
       )}
 
-      {result.changes.length > 200 && (
+      {result.changes.length > CHANGE_ROW_CAP && (
         <Text size="small" className="text-ui-fg-subtle">
-          Showing first 200 of {result.changes.length} changes.
+          Showing first {CHANGE_ROW_CAP} of {result.changes.length} changes.
         </Text>
       )}
 
@@ -168,14 +224,30 @@ const BatchJobCard = ({ run }: { run: MaintenanceRun }) => {
 
 /** Flat table of every change across all child runs (table view). */
 const BatchFlatChanges = ({ jobs }: { jobs: MaintenanceRun[] }) => {
-  const rows = jobs.flatMap((run) =>
-    run.changes.map((c) => ({ job_id: run.job_id, change: c }))
+  const allRows = useMemo(
+    () =>
+      jobs.flatMap((run) =>
+        run.changes.map((c, i) => ({
+          ...c,
+          job_id: run.job_id,
+          _rid: `${run.job_id}-${c.id}-${c.field ?? ""}-${i}`,
+        }))
+      ) as BatchChangeRow[],
+    [jobs]
   )
+  const rows = useMemo(() => allRows.slice(0, BATCH_ROW_CAP), [allRows])
   const errorRows = jobs.flatMap((run) =>
     (run.errors ?? []).map((e) => ({ job_id: run.job_id, error: e }))
   )
 
-  if (!rows.length && !errorRows.length) {
+  const table = useDataTable({
+    columns: batchChangeColumns,
+    data: rows,
+    getRowId: (row) => row._rid,
+    rowCount: rows.length,
+  })
+
+  if (!allRows.length && !errorRows.length) {
     return (
       <Text size="small" className="text-ui-fg-subtle">
         No changes — data already consistent.
@@ -185,42 +257,15 @@ const BatchFlatChanges = ({ jobs }: { jobs: MaintenanceRun[] }) => {
 
   return (
     <div className="flex flex-col gap-y-4">
-      {rows.length > 0 && (
-        <Table>
-          <Table.Header>
-            <Table.Row>
-              <Table.HeaderCell>Job</Table.HeaderCell>
-              <Table.HeaderCell>Entity</Table.HeaderCell>
-              <Table.HeaderCell>ID</Table.HeaderCell>
-              <Table.HeaderCell>Field</Table.HeaderCell>
-              <Table.HeaderCell>Before</Table.HeaderCell>
-              <Table.HeaderCell>After</Table.HeaderCell>
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
-            {rows.slice(0, 300).map((r, i) => (
-              <Table.Row key={`${r.job_id}-${r.change.id}-${i}`}>
-                <Table.Cell className="font-mono text-xs">{r.job_id}</Table.Cell>
-                <Table.Cell>{r.change.entity}</Table.Cell>
-                <Table.Cell className="font-mono text-xs">
-                  {r.change.id}
-                </Table.Cell>
-                <Table.Cell>{r.change.field ?? "—"}</Table.Cell>
-                <Table.Cell className="font-mono text-xs">
-                  {formatValue(r.change.before)}
-                </Table.Cell>
-                <Table.Cell className="font-mono text-xs">
-                  {formatValue(r.change.after)}
-                </Table.Cell>
-              </Table.Row>
-            ))}
-          </Table.Body>
-        </Table>
+      {allRows.length > 0 && (
+        <DataTable instance={table}>
+          <DataTable.Table />
+        </DataTable>
       )}
 
-      {rows.length > 300 && (
+      {allRows.length > BATCH_ROW_CAP && (
         <Text size="small" className="text-ui-fg-subtle">
-          Showing first 300 of {rows.length} changes.
+          Showing first {BATCH_ROW_CAP} of {allRows.length} changes.
         </Text>
       )}
 
