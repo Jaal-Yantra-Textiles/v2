@@ -28,7 +28,6 @@ import {
   computeApplicationFee,
   fromStripeMinorUnits,
   mapStripeStatus,
-  parseFeePercent,
   toStripeMinorUnits,
 } from "./lib/fee"
 
@@ -47,21 +46,16 @@ type StripeConnectOptions = {
   allowPlatformFallback?: boolean
 }
 
-// partner_payment_config.provider_id under which Half A stores the Connect
-// account — NOT this payment provider's own id.
-const CONNECT_CONFIG_PROVIDER_ID = "pp_stripe_stripe"
-
-type ResolvedConnect = {
-  connectAccountId: string
-  partnerId: string
-}
-
 /**
  * Storefront payment provider that routes a partner's checkout INTO their
  * Stripe Connect (Standard) account via **direct charges** with an
- * application_fee_amount to the platform. Mirrors the per-partner resolution
- * pattern already proven by the PayU provider (cart → sales_channel → store →
- * partner → partner_payment_config).
+ * application_fee_amount to the platform.
+ *
+ * The connected account + fee are resolved UPSTREAM (in the route/workflow via
+ * resolvePartnerConnect, which has query access) and handed down through the
+ * payment-session `context` — payment providers run in an isolated module
+ * container with no access to `query` or other modules, so they cannot resolve
+ * the partner themselves.
  */
 class StripeConnectPaymentProviderService extends AbstractPaymentProvider<StripeConnectOptions> {
   static identifier = "stripe-connect"
@@ -97,86 +91,6 @@ class StripeConnectPaymentProviderService extends AbstractPaymentProvider<Stripe
     return accountId ? { stripeAccount: accountId } : {}
   }
 
-  /**
-   * Resolve the partner's ACTIVE connected account from the cart context.
-   * cart.sales_channel_id → store → partner → partner_payment_config. Returns
-   * null when the partner has no charge-enabled Connect account.
-   */
-  private async resolveConnect(
-    context?: Record<string, unknown>
-  ): Promise<ResolvedConnect | null> {
-    if (!context) return null
-    try {
-      const salesChannelId =
-        (context as any)?.extra?.sales_channel_id ||
-        (context as any)?.sales_channel_id
-      if (!salesChannelId) return null
-
-      const query = this.container_.resolve?.("query")
-      if (!query) return null
-
-      const { data: stores } = await query
-        .graph({
-          entity: "store",
-          filters: { default_sales_channel_id: salesChannelId },
-          fields: ["id", "partner.*"],
-        })
-        .catch(() => ({ data: [] }))
-
-      const partnerId = stores?.[0]?.partner?.id
-      if (!partnerId) return null
-
-      const configService = this.container_.resolve?.("partner_payment_config")
-      if (!configService) return null
-
-      const configs = await configService.listPartnerPaymentConfigs({
-        partner_id: partnerId,
-        provider_id: CONNECT_CONFIG_PROVIDER_ID,
-        is_active: true,
-      })
-      const config = configs?.[0]
-      if (
-        !config?.connect_account_id ||
-        !config?.connect_charges_enabled // "Connect wins when active"
-      ) {
-        return null
-      }
-
-      return { connectAccountId: config.connect_account_id, partnerId }
-    } catch (e: any) {
-      this.logger_.warn(
-        `[stripe-connect] failed to resolve connected account: ${e?.message}`
-      )
-      return null
-    }
-  }
-
-  /**
-   * Application fee fraction from the partner's active plan
-   * (partner_subscription → plan.features.payment_processing_fee). Falls back
-   * to options.defaultFeePercent (default 0).
-   */
-  private async resolveFeePercent(partnerId: string): Promise<number> {
-    const fallback = this.options_.defaultFeePercent ?? 0
-    try {
-      const query = this.container_.resolve?.("query")
-      if (!query) return fallback
-      const { data: subs } = await query
-        .graph({
-          entity: "partner_subscription",
-          filters: { partner_id: partnerId, status: "active" },
-          fields: ["id", "plan.features"],
-        })
-        .catch(() => ({ data: [] }))
-      const feeRaw = subs?.[0]?.plan?.features?.payment_processing_fee
-      if (feeRaw == null) return fallback
-      const pct = parseFeePercent(feeRaw)
-      return pct > 0 ? pct : fallback
-    } catch {
-      return fallback
-    }
-  }
-
   async initiatePayment(
     input: InitiatePaymentInput
   ): Promise<InitiatePaymentOutput> {
@@ -187,10 +101,17 @@ class StripeConnectPaymentProviderService extends AbstractPaymentProvider<Stripe
     const email =
       (context as any)?.email || (context?.customer as any)?.email || undefined
 
-    const resolved = await this.resolveConnect(context)
+    // Resolved upstream by resolvePartnerConnect and passed via context — the
+    // provider can't reach query/other modules to resolve it itself.
+    const connectAccountId = (context as any)?.connect_account_id as string | undefined
+    const partnerId = (context as any)?.connect_partner_id as string | undefined
+    const ctxFeePercent = (context as any)?.connect_fee_percent
 
-    if (resolved) {
-      const pct = await this.resolveFeePercent(resolved.partnerId)
+    if (connectAccountId) {
+      const pct =
+        ctxFeePercent != null
+          ? Number(ctxFeePercent)
+          : this.options_.defaultFeePercent ?? 0
       const fee = computeApplicationFee(minor, pct)
 
       const intent = await stripe.paymentIntents.create(
@@ -201,17 +122,17 @@ class StripeConnectPaymentProviderService extends AbstractPaymentProvider<Stripe
           ...(fee > 0 ? { application_fee_amount: fee } : {}),
           ...(email ? { receipt_email: email } : {}),
           metadata: {
-            partner_id: resolved.partnerId,
+            partner_id: partnerId ?? "",
             session_id: sessionId,
             platform: "jyt",
           },
         },
-        this.accountOpts(resolved.connectAccountId)
+        this.accountOpts(connectAccountId)
       )
 
       this.logger_.info(
-        `[stripe-connect] direct charge on ${resolved.connectAccountId} ` +
-          `amount=${minor}${currency_code} fee=${fee} (partner=${resolved.partnerId})`
+        `[stripe-connect] direct charge on ${connectAccountId} ` +
+          `amount=${minor}${currency_code} fee=${fee} (partner=${partnerId})`
       )
 
       return {
@@ -219,8 +140,8 @@ class StripeConnectPaymentProviderService extends AbstractPaymentProvider<Stripe
         data: {
           id: intent.id,
           client_secret: intent.client_secret,
-          connect_account_id: resolved.connectAccountId,
-          partner_id: resolved.partnerId,
+          connect_account_id: connectAccountId,
+          partner_id: partnerId,
           application_fee_amount: fee,
           amount: minor,
           currency: currency_code.toLowerCase(),
@@ -372,13 +293,12 @@ class StripeConnectPaymentProviderService extends AbstractPaymentProvider<Stripe
     const minor = toStripeMinorUnits(Number(amount), currency_code)
     const connectAccountId = data?.connect_account_id as string
 
-    // Recompute the application fee for the new amount (direct charges allow
-    // updating application_fee_amount pre-capture).
-    let fee = (data?.application_fee_amount as number) ?? 0
-    if (connectAccountId && data?.partner_id) {
-      const pct = await this.resolveFeePercent(data.partner_id as string)
-      fee = computeApplicationFee(minor, pct)
-    }
+    // Recompute the application fee for the new amount at the original rate
+    // (direct charges allow updating application_fee_amount pre-capture).
+    const prevAmount = Number(data?.amount) || 0
+    const prevFee = Number(data?.application_fee_amount) || 0
+    const rate = prevAmount > 0 ? prevFee / prevAmount : 0
+    const fee = connectAccountId ? Math.round(minor * rate) : 0
 
     try {
       await stripe.paymentIntents.update(
