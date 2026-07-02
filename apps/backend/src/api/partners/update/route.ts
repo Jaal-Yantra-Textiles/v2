@@ -102,6 +102,8 @@ export const PUT = async (
     status?: "active" | "inactive" | "pending"
     is_verified?: boolean
     workspace_type?: "seller" | "manufacturer" | "individual"
+    country_code?: string | null
+    currency_code?: string | null
     metadata?: Record<string, any> | null
   }>,
   res: MedusaResponse

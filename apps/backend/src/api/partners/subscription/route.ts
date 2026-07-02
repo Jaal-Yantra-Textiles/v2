@@ -31,10 +31,25 @@ export const GET = async (
     { order: { sort_order: "ASC" }, take: 100 }
   )
 
-  const partnerCurrency = (partner.metadata as any)?.currency_code || "inr"
+  // Prefer the typed column (set during onboarding); fall back to the legacy
+  // metadata.currency_code for partners onboarded before it existed.
+  const partnerCurrency = (
+    (partner as any).currency_code ||
+    (partner.metadata as any)?.currency_code ||
+    "inr"
+  ).toLowerCase()
   const recommended_provider = partnerCurrency === "inr" ? "payu" : "stripe"
 
-  res.json({ subscription, plans, recommended_provider })
+  // Only surface plans priced in the partner's billing currency (plus any free
+  // plan), so an INR partner never sees the EUR plan and vice-versa — the paid
+  // provider is chosen from the partner currency, so a mismatched-currency plan
+  // would otherwise be uncharge-able.
+  const visiblePlans = (plans || []).filter(
+    (p: any) =>
+      p.price === 0 || (p.currency_code || "").toLowerCase() === partnerCurrency
+  )
+
+  res.json({ subscription, plans: visiblePlans, recommended_provider })
 }
 
 export const POST = async (
@@ -65,7 +80,13 @@ export const POST = async (
   }
 
   // Paid plans — determine payment provider and create payment session
-  const partnerCurrency = (partner.metadata as any)?.currency_code || "inr"
+  // Prefer the typed column (set during onboarding); fall back to the legacy
+  // metadata.currency_code for partners onboarded before it existed.
+  const partnerCurrency = (
+    (partner as any).currency_code ||
+    (partner.metadata as any)?.currency_code ||
+    "inr"
+  ).toLowerCase()
   const provider = partnerCurrency === "inr" ? "payu" : "stripe"
 
   if (provider === "payu") {
