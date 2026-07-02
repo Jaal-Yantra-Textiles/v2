@@ -219,7 +219,25 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
     return mergedItems.map((item: any) => {
       const inv = item?.inventory_item ?? item
       const raw = item?.raw_materials
-      const rawLabel = raw?.name || inv?.title || inv?.sku || ""
+      const baseLabel = raw?.name || inv?.title || inv?.sku || ""
+      // #846 — many colors of one material share the same raw-material name
+      // (e.g. 12 "Tangaliya weave suit piece"), which made the picker options
+      // visually identical and read as "missing/duplicate items". Disambiguate
+      // the visible label with color and SKU so every option is distinct.
+      const color = raw?.color
+      const sku = inv?.sku
+      // Don't re-append a color the name already carries (newer group colors
+      // fold the color into the raw-material name at creation — #846).
+      const showColor =
+        color && !baseLabel.toLowerCase().includes(String(color).toLowerCase())
+      const label = [
+        baseLabel,
+        showColor ? `— ${color}` : "",
+        sku ? `(${sku})` : "",
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .trim() || baseLabel
       const value = item?.inventory_item_id || inv?.id || item?.id
       // Searchable keywords beyond the visible name so the picker matches on
       // color / material / sku too (#831 — quick matching).
@@ -227,7 +245,7 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
-      return { label: rawLabel, value, keywords }
+      return { label, value, keywords }
     })
   }, [mergedItems])
 

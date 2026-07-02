@@ -14,6 +14,7 @@ import { RAW_MATERIAL_MODULE } from "../../../../../modules/raw_material"
 import { createRawMaterialWorkflow } from "../../../../../workflows/raw-materials/create-raw-material"
 import { AddGroupColor } from "../../validators"
 import { refetchRawMaterialGroup } from "../../helpers"
+import { buildGroupColorTitle } from "../../../../../modules/raw_material/lib/group-order-helpers"
 
 export const POST = async (
   req: MedusaRequest<AddGroupColor>,
@@ -34,9 +35,13 @@ export const POST = async (
     )
   }
 
+  // #846 — fold the color into the title/name so sibling colors of a group are
+  // distinguishable everywhere (the order-line picker reads the raw-material name).
+  const title = buildGroupColorTitle(group.name, body.name, body.color)
+
   // 1) Create the inventory item for this color.
   const { result: created } = await createInventoryItemsWorkflow(req.scope).run({
-    input: { items: [{ title: body.name }] },
+    input: { items: [{ title }] },
   })
   const inventoryItem = ((created as any)?.items || (created as any) || [])[0]
   if (!inventoryItem?.id) {
@@ -57,7 +62,7 @@ export const POST = async (
     value !== undefined && value !== null && value !== "" ? { [key]: value } : {}
 
   const rawMaterialData = {
-    name: body.name,
+    name: title,
     color: body.color,
     description: body.description ?? "",
     composition: body.composition ?? group.composition ?? "",

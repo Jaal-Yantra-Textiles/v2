@@ -13,6 +13,7 @@ import { RAW_MATERIAL_MODULE } from "../../../../../../modules/raw_material"
 import { createRawMaterialWorkflow } from "../../../../../../workflows/raw-materials/create-raw-material"
 import { AddGroupColorFull } from "../../../validators"
 import { refetchRawMaterialGroup } from "../../../helpers"
+import { buildGroupColorTitle } from "../../../../../../modules/raw_material/lib/group-order-helpers"
 
 export const POST = async (
   req: MedusaRequest<AddGroupColorFull>,
@@ -30,7 +31,13 @@ export const POST = async (
     )
   }
 
-  const title = rawMaterialData.name || `${group.name} — ${rawMaterialData.color}`
+  // #846 — always fold the color into the title so sibling colors of a group
+  // aren't visually identical (the picker/list read this name).
+  const title = buildGroupColorTitle(
+    group.name,
+    rawMaterialData.name,
+    rawMaterialData.color
+  )
 
   const { result: created } = await createInventoryItemsWorkflow(req.scope).run({
     input: { items: [{ title }] },

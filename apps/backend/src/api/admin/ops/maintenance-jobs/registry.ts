@@ -6,6 +6,7 @@ import { DESIGN_MODULE } from "../../../../modules/designs"
 import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import { CONSUMPTION_LOG_MODULE } from "../../../../modules/consumption_log"
 import { RAW_MATERIAL_MODULE } from "../../../../modules/raw_material"
+import { buildGroupColorTitle } from "../../../../modules/raw_material/lib/group-order-helpers"
 import { OPS_AUDIT_MODULE } from "../../../../modules/ops_audit"
 import { STATS_MODULE } from "../../../../modules/stats"
 import { PARTNER_BILLING_MODULE } from "../../../../modules/partner_billing"
@@ -5020,6 +5021,143 @@ export const backfillGroupGlobalsToColorsJob: MaintenanceJob = {
   },
 }
 
+const retitleGroupColorParamsSchema = z.object({
+  group_ids: z.string().trim().optional(),
+  limit: z.coerce.number().int().positive().max(2000).optional().default(500),
+})
+
+/**
+ * #846 — re-title existing per-color materials of a Material Group so the color
+ * is folded into the raw-material name (and its linked inventory item's title).
+ *
+ * Sibling colors of a group were historically created with the same base name
+ * (the group/product name), which made them visually identical in the order-line
+ * picker and item lists (e.g. 12 identical "Tangaliya Weave Suit Piece"). New
+ * colors now fold the color in at creation (buildGroupColorTitle); this job
+ * repairs the ones created before that. Dry-run previews every before→after
+ * WITHOUT persisting; apply writes the raw-material `name` + inventory `title`.
+ * Idempotent — buildGroupColorTitle won't re-append a color the name already has,
+ * and colors without a color value are left untouched.
+ */
+export const retitleGroupColorNamesJob: MaintenanceJob = {
+  id: "retitle-group-color-names",
+  label: "Re-title group colors with their color",
+  description:
+    "Fold each Material-Group color's color into its raw-material name + linked inventory item title, so sibling colors aren't visually identical in the order-line picker/lists. Dry-run previews the before/after; apply writes both. Idempotent — skips names that already carry the color and colors with no color value. Scans up to 'limit' groups per call (default 500, max 2000); optionally restrict to specific group_ids.",
+  params: [
+    {
+      name: "group_ids",
+      type: "string",
+      required: false,
+      description: "Comma-separated group ids to limit the re-titling (optional).",
+    },
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: "Max groups to scan (default 500, max 2000).",
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const { group_ids, limit } = retitleGroupColorParamsSchema.parse(params ?? {})
+    const groupIdFilter = parseCsv(group_ids)
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const rawMaterialService: any = container.resolve(RAW_MATERIAL_MODULE)
+    const inventoryService: any = container.resolve(Modules.INVENTORY)
+
+    const changes: MaintenanceChange[] = []
+    const errors: Array<{ id: string; message: string }> = []
+
+    const groupFilter: Record<string, unknown> = {}
+    if (groupIdFilter) groupFilter.id = groupIdFilter
+    const groups: any[] = await rawMaterialService.listRawMaterialGroups(groupFilter, {
+      take: limit,
+    })
+
+    let scannedColors = 0
+    let updatedColors = 0
+
+    for (const group of groups) {
+      let colors: any[] = []
+      try {
+        colors = await rawMaterialService.listRawMaterials(
+          { group_id: group.id },
+          { take: 1000 }
+        )
+      } catch (e: any) {
+        errors.push({ id: group.id, message: e?.message ?? String(e) })
+        continue
+      }
+
+      for (const rm of colors) {
+        scannedColors++
+        const newName = buildGroupColorTitle(group.name, rm.name, rm.color)
+        if (!newName || newName === rm.name) {
+          continue
+        }
+        updatedColors++
+        changes.push({
+          entity: "raw_materials",
+          id: rm.id,
+          field: "name",
+          before: rm.name ?? null,
+          after: newName,
+        })
+
+        // Mirror the new name onto the linked inventory item's title.
+        let inventoryItemId: string | null = null
+        try {
+          const { data: links } = await query.graph({
+            entity: "inventory_item_raw_materials",
+            filters: { raw_materials_id: rm.id },
+            fields: ["inventory_item.id", "inventory_item.title"],
+          })
+          const inv = links?.[0]?.inventory_item
+          inventoryItemId = inv?.id ?? null
+          if (inv?.id && inv.title !== newName) {
+            changes.push({
+              entity: "inventory_item",
+              id: inv.id,
+              field: "title",
+              before: inv.title ?? null,
+              after: newName,
+            })
+          }
+        } catch {
+          // No link row — the raw-material rename still stands on its own.
+        }
+
+        if (!dry_run) {
+          try {
+            await rawMaterialService.updateRawMaterials({ id: rm.id, name: newName })
+            if (inventoryItemId) {
+              await inventoryService.updateInventoryItems({
+                id: inventoryItemId,
+                title: newName,
+              })
+            }
+          } catch (e: any) {
+            errors.push({ id: rm.id, message: e?.message ?? String(e) })
+          }
+        }
+      }
+    }
+
+    const verb = dry_run ? "Would re-title" : "Re-titled"
+    return {
+      job_id: retitleGroupColorNamesJob.id,
+      dry_run,
+      applied: !dry_run && changes.length > 0,
+      summary: `${verb} ${updatedColors} color(s) across ${groups.length} group(s) scanned (${scannedColors} colors examined${
+        errors.length ? `, ${errors.length} failed` : ""
+      }).`,
+      changes,
+      ...(errors.length ? { errors } : {}),
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -5048,6 +5186,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   seedEmailTemplatesJob,
   backfillDesignPartnerLinksJob,
   backfillGroupGlobalsToColorsJob,
+  retitleGroupColorNamesJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>

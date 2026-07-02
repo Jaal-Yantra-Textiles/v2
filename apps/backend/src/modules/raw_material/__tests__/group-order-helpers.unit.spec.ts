@@ -4,7 +4,47 @@ import {
   buildResolvedOrderLines,
   sumGroupOrderTotal,
   sumGroupOrderQuantity,
+  buildGroupColorTitle,
 } from "../lib/group-order-helpers"
+
+describe("buildGroupColorTitle (#846)", () => {
+  it("appends the color to the provided name", () => {
+    expect(buildGroupColorTitle("Tangaliya Suit", "Tangaliya Suit", "Pink")).toBe(
+      "Tangaliya Suit — Pink"
+    )
+  })
+
+  it("falls back to the group name when no explicit name is given", () => {
+    expect(buildGroupColorTitle("Tangaliya Suit", "", "Blue")).toBe(
+      "Tangaliya Suit — Blue"
+    )
+    expect(buildGroupColorTitle("Tangaliya Suit", null, "Blue")).toBe(
+      "Tangaliya Suit — Blue"
+    )
+  })
+
+  it("does not double-append a color the name already carries", () => {
+    expect(
+      buildGroupColorTitle("Poplin", "Verify Poplin — Teal", "Teal")
+    ).toBe("Verify Poplin — Teal")
+    expect(buildGroupColorTitle("Poplin", "Red Poplin", "red")).toBe("Red Poplin")
+  })
+
+  it("returns just the base when there is no color", () => {
+    expect(buildGroupColorTitle("Group", "My Material", "")).toBe("My Material")
+    expect(buildGroupColorTitle("Group", "My Material", null)).toBe("My Material")
+  })
+
+  it("returns just the color when there is no name or group", () => {
+    expect(buildGroupColorTitle("", "", "Green")).toBe("Green")
+  })
+
+  it("trims surrounding whitespace", () => {
+    expect(buildGroupColorTitle("  Group  ", "  ", "  Amber  ")).toBe(
+      "Group — Amber"
+    )
+  })
+})
 
 describe("buildItemIdByRawMaterialId (#817 S3)", () => {
   it("maps raw_material_id -> inventory_item_id from link rows", () => {

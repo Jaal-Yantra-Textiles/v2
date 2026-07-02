@@ -1,4 +1,4 @@
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "@medusajs/framework/zod";
 import { Button, Heading, Text, toast } from "@medusajs/ui";
@@ -7,6 +7,7 @@ import { RouteFocusModal } from "../modal/route-focus-modal";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { useInventoryWithRawMaterials } from "../../hooks/api/raw-materials";
 import { InventoryOrderLinesGrid } from "../creates/inventory-order-lines-grid";
+import { AddMaterialGroupControl } from "./add-material-group-control";
 import { AdminInventoryOrder } from "../../hooks/api/inventory-orders";
 import { useUpdateInventoryOrderLines } from "../../hooks/api/inventory-orders";
 
@@ -75,6 +76,15 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
     name: "order_lines",
   });
 
+  // Live inventory_item_ids on the form — feeds the add-by-group control so a
+  // group re-selection skips members already present in the order.
+  const watchedForGroup = useWatch({ control: form.control, name: "order_lines" }) as
+    | OrderLine[]
+    | undefined;
+  const existingItemIds = (watchedForGroup ?? [])
+    .map((l) => l?.inventory_item_id)
+    .filter(Boolean) as string[];
+
   const { handleSuccess } = useRouteModal();
 
   const { mutateAsync, isPending } = useUpdateInventoryOrderLines();
@@ -136,14 +146,22 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-2">
                   <Heading className="text-xl">Order Lines</Heading>
-                  <Button 
-                    size="small" 
-                    variant="secondary" 
-                    type="button" 
-                    onClick={() => append({ inventory_item_id: "", quantity: 0, price: 0, isExisting: false })}
-                  >
-                    Add New Line
-                  </Button>
+                  <div className="flex items-center gap-x-2">
+                    <AddMaterialGroupControl
+                      existingItemIds={existingItemIds}
+                      onAdd={(lines) =>
+                        lines.forEach((l) => append({ ...l, isExisting: false }))
+                      }
+                    />
+                    <Button
+                      size="small"
+                      variant="secondary"
+                      type="button"
+                      onClick={() => append({ inventory_item_id: "", quantity: 0, price: 0, isExisting: false })}
+                    >
+                      Add New Line
+                    </Button>
+                  </div>
                 </div>
                 <Text size="small" className="text-ui-fg-subtle">
                   {isProcessing 

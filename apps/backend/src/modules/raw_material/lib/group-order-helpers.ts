@@ -7,6 +7,33 @@ import { MedusaError } from "@medusajs/framework/utils"
  * workflow step; everything here is pure so it's unit-testable in isolation.
  */
 
+/**
+ * #846 — compose a distinct title/name for a per-color material created under a
+ * group. Sibling colors of a group are typically added with the same base name
+ * (the group/product name), which made them visually identical everywhere
+ * (order-line picker, item lists). Folding the color into the title/name at
+ * creation keeps each sibling distinguishable.
+ *
+ * Rules: prefer the provided name, else the group name; append `— <color>` when
+ * a color is present and not already contained in the base (case-insensitive)
+ * so we never double-append.
+ */
+export const buildGroupColorTitle = (
+  groupName: string | undefined | null,
+  providedName: string | undefined | null,
+  color: string | undefined | null
+): string => {
+  const base = (providedName?.trim() || groupName?.trim() || "").trim()
+  const c = color?.trim()
+  if (!c) {
+    return base
+  }
+  if (base.toLowerCase().includes(c.toLowerCase())) {
+    return base
+  }
+  return base ? `${base} — ${c}` : c
+}
+
 /** One requested color line in a group order. */
 export type GroupOrderLineInput = {
   raw_material_id: string
