@@ -3,6 +3,7 @@ import {
   accountToConnectFields,
   isConnectLive,
   assertSafeUrl,
+  isStripeConnectEligible,
 } from "../lib/stripe-connect"
 
 describe("stripe-connect lib (Half A)", () => {
@@ -105,6 +106,28 @@ describe("stripe-connect lib (Half A)", () => {
       expect(() => assertSafeUrl(undefined, "return_url")).toThrow()
       expect(() => assertSafeUrl("", "return_url")).toThrow()
       expect(() => assertSafeUrl("/relative/path", "return_url")).toThrow()
+    })
+  })
+
+  describe("isStripeConnectEligible", () => {
+    it("is true for EUR partners", () => {
+      expect(isStripeConnectEligible({ currency_code: "eur" })).toBe(true)
+      expect(isStripeConnectEligible({ country_code: "DE", currency_code: "EUR" })).toBe(true)
+    })
+
+    it("is false for India partners (PayU/INR rail)", () => {
+      expect(isStripeConnectEligible({ country_code: "IN", currency_code: "inr" })).toBe(false)
+      expect(isStripeConnectEligible({ country_code: "in" })).toBe(false)
+      // India can never slip through even if currency were mislabelled EUR.
+      expect(isStripeConnectEligible({ country_code: "IN", currency_code: "eur" })).toBe(false)
+    })
+
+    it("is false for non-EUR / unknown partners", () => {
+      expect(isStripeConnectEligible({ currency_code: "usd" })).toBe(false)
+      expect(isStripeConnectEligible({ country_code: "US" })).toBe(false)
+      expect(isStripeConnectEligible({})).toBe(false)
+      expect(isStripeConnectEligible(null)).toBe(false)
+      expect(isStripeConnectEligible(undefined)).toBe(false)
     })
   })
 })

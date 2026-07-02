@@ -117,13 +117,34 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
       };
     });
 
+    // Dropping a line from the field array just removes it from the payload —
+    // the update workflow only DELETES a line when it receives an explicit
+    // { id, remove: true } marker, so without this a dropped existing line
+    // silently survives. Diff the original existing lines against the ones
+    // still present and send a removal marker for each that's gone.
+    const remainingExistingIds = new Set(
+      (fields as OrderLine[])
+        .filter((l) => l.isExisting && l.id)
+        .map((l) => l.id)
+    );
+    const removedLines = (existingLines as OrderLine[])
+      .filter((l) => l.id && !remainingExistingIds.has(l.id))
+      .map((l) => ({
+        id: l.id,
+        inventory_item_id: l.inventory_item_id || "",
+        // Ignored server-side for removals, but must satisfy the line schema.
+        quantity: l.quantity && l.quantity >= 1 ? l.quantity : 1,
+        price: typeof l.price === "number" && l.price >= 0 ? l.price : 0,
+        remove: true,
+      }));
+
     const payload = {
       id: inventoryOrder.id,
       data: {
         quantity: totalQuantity,
         total_price: totalPrice,
       },
-      order_lines: orderLines,
+      order_lines: [...orderLines, ...removedLines],
     };
 
     try {

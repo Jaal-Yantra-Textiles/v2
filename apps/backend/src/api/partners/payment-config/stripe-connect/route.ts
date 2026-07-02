@@ -8,12 +8,17 @@ import {
   getPlatformStripe,
   accountToConnectFields,
   assertSafeUrl,
+  isStripeConnectEligible,
 } from "../../../../modules/partner-payment-config/lib/stripe-connect"
 
 /**
  * Shape returned to the partner UI describing their Connect state.
  */
-const toStatusPayload = (config: any) => ({
+const toStatusPayload = (config: any, eligible: boolean) => ({
+  // Whether the partner is on the EUR/Stripe Connect rail at all (see
+  // isStripeConnectEligible). The UI hides the "Connect with Stripe" card when
+  // false so India/non-EU partners never see or trigger onboarding.
+  eligible,
   connected: !!config?.connect_account_id,
   account_id: config?.connect_account_id ?? null,
   status: config?.connect_status ?? null,
@@ -67,7 +72,7 @@ export const GET = async (
     }
   }
 
-  res.json({ stripe_connect: toStatusPayload(config) })
+  res.json({ stripe_connect: toStatusPayload(config, isStripeConnectEligible(partner)) })
 }
 
 /**
@@ -86,6 +91,15 @@ export const POST = async (
   const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
   if (!partner) {
     throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "Partner not found")
+  }
+
+  // India/non-EUR partners aren't on the Stripe Connect (EUR) rail — reject
+  // cleanly instead of surfacing a confusing Stripe onboarding error.
+  if (!isStripeConnectEligible(partner)) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      "Stripe Connect is available for EUR partners only. Your account uses a different payment rail (e.g. PayU for India)."
+    )
   }
 
   const body = (req.body ?? {}) as { return_url?: string; refresh_url?: string }

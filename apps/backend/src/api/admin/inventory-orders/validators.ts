@@ -158,14 +158,54 @@ export const listInventoryOrdersQuerySchema = z.object({
 export type ListInventoryOrdersQuery = z.infer<typeof listInventoryOrdersQuerySchema>;
 
 // Schema for updating order lines
-export const updateOrderLineSchema = z.object({
-  id: z.string().optional(), // Existing lines have IDs
-  inventory_item_id: z.string().min(1, "Inventory item ID is required"),
-  quantity: z.number().min(1, "Quantity must be at least 1"),
-  price: z.number().min(0, "Price must be non-negative"),
-  // Optional batch tag (see inventoryOrderLineInputSchema).
-  batch_number: z.number().int().positive().nullish(),
-});
+export const updateOrderLineSchema = z
+  .object({
+    id: z.string().optional(), // Existing lines have IDs
+    inventory_item_id: z.string().optional(),
+    quantity: z.number().optional(),
+    price: z.number().optional(),
+    // Optional batch tag (see inventoryOrderLineInputSchema).
+    batch_number: z.number().int().positive().nullish(),
+    // Explicit removal marker for an existing line: the update workflow
+    // soft-deletes the line (by `id`) and dismisses its inventory-item link.
+    // Without this key the middleware would strip it and a dropped line would
+    // silently survive. A removal marker only needs `id` — the other fields
+    // are ignored server-side (compensation reads the prior values).
+    remove: z.boolean().optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.remove) {
+      if (!val.id) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["id"],
+          message: "A removal marker requires the existing line id",
+        });
+      }
+      return; // removals skip the create/update field requirements
+    }
+    if (!val.inventory_item_id || val.inventory_item_id.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["inventory_item_id"],
+        message: "Inventory item ID is required",
+      });
+    }
+    if (val.quantity == null || val.quantity < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["quantity"],
+        message: "Quantity must be at least 1",
+      });
+    }
+    if (val.price == null || val.price < 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["price"],
+        message: "Price must be non-negative",
+      });
+    }
+  });
 
 export const updateInventoryOrderLinesSchema = z.object({
   data: z.object({

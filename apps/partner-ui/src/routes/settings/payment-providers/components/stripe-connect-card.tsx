@@ -51,6 +51,13 @@ export const StripeConnectCard = () => {
     )
   }
 
+  // India (PayU/INR) and non-EUR partners aren't on the Stripe Connect rail —
+  // don't render the card at all for them. While the status is still loading
+  // (stripe_connect undefined) we also render nothing to avoid a flash.
+  if (!stripe_connect?.eligible) {
+    return null
+  }
+
   const status = stripe_connect?.status
   const isActive = status === "active" && stripe_connect?.charges_enabled
   const isOnboarding =
