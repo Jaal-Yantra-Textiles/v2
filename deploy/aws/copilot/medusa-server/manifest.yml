@@ -153,6 +153,11 @@ secrets:
   # Off by default in code; "true" here exposes them. See src/api/mcp/README.md.
   STORE_MCP_ENABLE_WRITE: /jyt/prod/STORE_MCP_ENABLE_WRITE
   STRIPE_API_KEY: /jyt/prod/STRIPE_API_KEY
+  # Go-live switch for the Stripe Connect *checkout routing* provider (Half B).
+  # "false" = the pp_stripe-connect provider is NOT registered (dormant). Flip the
+  # SSM value to "true" + redeploy to register it, then add it to the target
+  # region's payment providers. Half A onboarding does NOT need this.
+  STRIPE_CONNECT_ENABLED: /jyt/prod/STRIPE_CONNECT_ENABLED
   # Signing secret for the Stripe *Connect* webhook (POST /webhooks/stripe/connect),
   # which keeps partner_payment_config Connect status in sync (account.updated).
   # Distinct from STRIPE_WEBHOOK_SECRET (the store/cart payment webhook) — it's the
