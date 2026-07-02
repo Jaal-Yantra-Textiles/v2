@@ -107,6 +107,7 @@ interface InventoryOrderLine {
   inventory_item_id: string;
   quantity: number;
   price: number;
+  batch_number?: number | null;
 }
 
 interface InventoryOrderLinesGridProps<T> {
@@ -309,6 +310,27 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
             {color ? (
               <Badge size="2xsmall" color="grey" className="capitalize">
                 {color}
+              </Badge>
+            ) : (
+              <Text size="small" className="text-ui-fg-muted">
+                —
+              </Text>
+            )}
+          </div>
+        );
+      },
+    }),
+    columnHelper.column({
+      id: "batch",
+      name: "Batch",
+      header: "Batch",
+      cell: (context: any) => {
+        const batch = lineAt(context.row.index)?.batch_number;
+        return (
+          <div className="flex h-full items-center px-4">
+            {batch ? (
+              <Badge size="2xsmall" color="blue">
+                {`#${batch}`}
               </Badge>
             ) : (
               <Text size="small" className="text-ui-fg-muted">

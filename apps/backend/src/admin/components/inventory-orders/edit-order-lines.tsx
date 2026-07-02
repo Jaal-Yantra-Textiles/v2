@@ -20,6 +20,7 @@ const editOrderLinesSchema = z.object({
         inventory_item_id: z.string().min(1, "Item is required"),
         quantity: z.number().min(1, "Quantity must be at least 1"),
         price: z.number().min(0, "Price must be non-negative"),
+        batch_number: z.number().int().positive().nullish(), // batch tag (separate-batch adds)
         isExisting: z.boolean().optional(), // Flag to mark existing lines
       })
     )
@@ -33,6 +34,7 @@ interface OrderLine {
   inventory_item_id: string;
   quantity: number;
   price: number;
+  batch_number?: number | null;
   isExisting?: boolean;
 }
 
@@ -53,6 +55,7 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
     inventory_item_id: line.inventory_items?.[0]?.id || line.inventory_item_id || "",
     quantity: line.quantity,
     price: line.price,
+    batch_number: line.batch_number ?? null,
     isExisting: true, // Mark as existing
   }));
 
@@ -110,6 +113,7 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
         inventory_item_id: formLine.inventory_item_id,
         quantity: Number(formLine.quantity) || 0,
         price: Number(formLine.price) || 0,
+        batch_number: (formLine as any).batch_number ?? line.batch_number ?? null,
       };
     });
 

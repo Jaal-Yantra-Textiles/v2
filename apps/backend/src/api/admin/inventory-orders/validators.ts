@@ -12,6 +12,8 @@ export const inventoryOrderLineInputSchema = z.object({
   // Allow decimal quantities >= 0 (0 allowed for empty seeded rows)
   quantity: z.number().nonnegative("Quantity must be zero or positive"),
   price: z.number().nonnegative("Price must be zero or positive"),
+  // Optional batch tag for the "keep batches as separate lines" quick-add mode.
+  batch_number: z.number().int().positive().nullish(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -161,6 +163,8 @@ export const updateOrderLineSchema = z.object({
   inventory_item_id: z.string().min(1, "Inventory item ID is required"),
   quantity: z.number().min(1, "Quantity must be at least 1"),
   price: z.number().min(0, "Price must be non-negative"),
+  // Optional batch tag (see inventoryOrderLineInputSchema).
+  batch_number: z.number().int().positive().nullish(),
 });
 
 export const updateInventoryOrderLinesSchema = z.object({

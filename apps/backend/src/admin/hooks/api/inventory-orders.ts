@@ -16,6 +16,8 @@ export interface OrderLine {
   inventory_item_id: string;
   quantity: number;
   price: number;
+  // Batch tag for separate-batch quick-add lines (null ⇒ not batched).
+  batch_number?: number | null;
   // #817 S2 — denormalized color identity persisted on the line.
   color?: string | null;
   material_name?: string | null;
@@ -314,6 +316,7 @@ export interface UpdateInventoryOrderLinesPayload {
     inventory_item_id: string;
     quantity: number;
     price: number;
+    batch_number?: number | null;
   }>;
 }
 

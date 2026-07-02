@@ -32,6 +32,7 @@ export type UpdateInventoryOrderLineInput = {
   inventory_item_id: string;
   quantity: number;
   price: number;
+  batch_number?: number | null; // Batch tag for separate-batch quick-add lines
   remove?: boolean; // If true, remove this orderline
 };
 
@@ -175,6 +176,7 @@ export const updateOrderLinesStep = createStep(
           data: {
             quantity: line.quantity,
             price: line.price,
+            ...(line.batch_number !== undefined ? { batch_number: line.batch_number } : {}),
           }
         });
         // If inventory_item_id changed, handle link update (not implemented here, but can be compared with currentOrderlines)
@@ -185,6 +187,7 @@ export const updateOrderLinesStep = createStep(
           inventory_orders_id: input.order_id,
           quantity: line.quantity,
           price: line.price,
+          batch_number: line.batch_number ?? null,
           color: info?.color ?? null,
           material_name: info?.material_name ?? null,
           raw_material_id: info?.raw_material_id ?? null,

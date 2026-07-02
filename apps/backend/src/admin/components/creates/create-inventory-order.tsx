@@ -29,6 +29,7 @@ export const inventoryOrderFormSchema = z
           inventory_item_id: z.string().min(1, "Item is required"),
           quantity: z.number().min(1, "Quantity must be at least 1"),
           price: z.number().min(0, "Price must be non-negative"),
+          batch_number: z.number().int().positive().nullish(), // batch tag (separate-batch adds)
         })
       )
       .min(1, "At least one order line is required"),
@@ -50,6 +51,7 @@ interface OrderLine {
   inventory_item_id: string;
   quantity: number;
   price: number;
+  batch_number?: number | null;
 }
 
 enum Tab {
@@ -170,10 +172,11 @@ export const CreateInventoryOrderComponent = () => {
       is_sample: data.is_sample,
       order_lines: fields
         .filter((l: OrderLine) => l.inventory_item_id)
-        .map(({ inventory_item_id, quantity, price }: OrderLine) => ({ 
-          inventory_item_id, 
-          quantity: Number(quantity) || 0, 
-          price: Number(price) || 0 
+        .map(({ inventory_item_id, quantity, price, batch_number }: OrderLine) => ({
+          inventory_item_id,
+          quantity: Number(quantity) || 0,
+          price: Number(price) || 0,
+          batch_number: batch_number ?? null,
         })),
     };
     if (data.from_stock_location_id) {

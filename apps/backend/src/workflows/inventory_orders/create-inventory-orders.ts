@@ -28,6 +28,7 @@ export interface InventoryOrderLineInput {
   inventory_item_id: string;
   quantity: number;
   price: number;
+  batch_number?: number | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -61,6 +62,7 @@ export const createInventoryOrderWithLinesStep = createStep(
       inventory_id: line.inventory_item_id,
       quantity: line.quantity,
       price: line.price,
+      batch_number: line.batch_number ?? null,
       metadata: line.metadata
     }));
 

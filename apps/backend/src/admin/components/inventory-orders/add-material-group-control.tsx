@@ -1,20 +1,32 @@
-import { useEffect, useState } from "react"
-import { Select, toast } from "@medusajs/ui"
+import { useMemo, useState } from "react"
 import {
-  useRawMaterialGroups,
-  useRawMaterialGroup,
-} from "../../hooks/api/raw-material-groups"
+  Button,
+  Checkbox,
+  Input,
+  Label,
+  Popover,
+  Switch,
+  Text,
+  toast,
+} from "@medusajs/ui"
+import { sdk } from "../../lib/config"
+import { useRawMaterialGroups } from "../../hooks/api/raw-material-groups"
+import type { RawMaterialGroup } from "../../hooks/api/raw-material-groups"
+import {
+  expandGroupsToBatchLines,
+  summarizeExpansion,
+  type BatchLineToAdd,
+} from "./group-batch-helpers"
 
-export type GroupLineToAdd = {
-  inventory_item_id: string
-  quantity: number
-  price: number
-}
+// Kept for backwards compatibility with earlier callers; the batch fields are
+// additive so the append() sites don't need to change.
+export type GroupLineToAdd = BatchLineToAdd
 
 interface AddMaterialGroupControlProps {
   /**
    * inventory_item_ids already present in the order-lines form — group members
-   * matching these are skipped so re-selecting a group never duplicates a line.
+   * matching these are skipped (summed mode) so re-selecting a group never
+   * duplicates a line.
    */
   existingItemIds: string[]
   /** Called with the resolved lines the parent should append to its field array. */
@@ -23,15 +35,16 @@ interface AddMaterialGroupControlProps {
 }
 
 /**
- * #846 — "add by Material Group" for the inventory order-lines picker. Selecting
- * a group fans out ALL of its per-color members that already have an inventory
- * item into order lines in one action, pre-filling quantity (group MOQ, else 1)
- * and price (group unit_cost, else 0) — both still editable in the grid.
+ * "Add by Material Group" for the inventory order-lines picker — now supports
+ * MASS BATCHES: pick several groups at once, choose a batch count N, and decide
+ * whether the batches collapse into one line per color (summed) or stay as N
+ * separate, individually-trackable lines (see group-batch-helpers).
  *
- * Colors that don't have an inventory item yet are skipped here (the create flow
- * needs a concrete inventory_item_id); the group-order endpoint's fan-out
- * (resolveGroupColorInventoryItemsWorkflow) is the path that auto-creates those,
- * so we surface a count rather than silently dropping them.
+ * Group detail (per-color members + their inventory items) is fetched on demand
+ * for the selected groups when "Add" is pressed — the list endpoint doesn't
+ * carry the linked inventory items. Colors without an inventory item yet are
+ * skipped (the create flow needs a concrete inventory_item_id) and surfaced in
+ * the toast rather than silently dropped.
  */
 export const AddMaterialGroupControl = ({
   existingItemIds,
@@ -41,95 +54,175 @@ export const AddMaterialGroupControl = ({
   const { data, isLoading } = useRawMaterialGroups({ limit: 100 })
   const groups = data?.raw_material_groups ?? []
 
-  // Two-step: pick a group -> fetch its detail (colors + linked items) -> add.
-  const [pendingId, setPendingId] = useState<string | null>(null)
-  const { data: detail, isFetching } = useRawMaterialGroup(pendingId ?? undefined)
+  const [open, setOpen] = useState(false)
+  const [selected, setSelected] = useState<Record<string, boolean>>({})
+  const [batches, setBatches] = useState(1)
+  const [keepSeparate, setKeepSeparate] = useState(false)
+  const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
-    if (!pendingId) {
+  const selectedIds = useMemo(
+    () => Object.keys(selected).filter((id) => selected[id]),
+    [selected]
+  )
+
+  const reset = () => {
+    setSelected({})
+    setBatches(1)
+    setKeepSeparate(false)
+  }
+
+  const handleAdd = async () => {
+    if (!selectedIds.length) {
       return
     }
-    const group = detail?.raw_material_group
-    if (!group || group.id !== pendingId) {
-      return
-    }
-
-    const existing = new Set(existingItemIds)
-    const colors = group.raw_materials ?? []
-    const quantity =
-      group.minimum_order_quantity && group.minimum_order_quantity > 0
-        ? group.minimum_order_quantity
-        : 1
-    const price = typeof group.unit_cost === "number" ? group.unit_cost : 0
-
-    const toAdd: GroupLineToAdd[] = []
-    let skippedNoItem = 0
-    let skippedDuplicate = 0
-    for (const color of colors) {
-      const inventoryItemId = color.inventory_item?.id
-      if (!inventoryItemId) {
-        skippedNoItem++
-        continue
+    setBusy(true)
+    try {
+      // Fetch each selected group's detail (colors + linked inventory items).
+      const details = await Promise.all(
+        selectedIds.map((id) =>
+          sdk.client
+            .fetch<{ raw_material_group: RawMaterialGroup }>(
+              `/admin/raw-material-groups/${id}`
+            )
+            .then((r) => r.raw_material_group)
+            .catch(() => null)
+        )
+      )
+      const resolvedGroups = details.filter(Boolean) as RawMaterialGroup[]
+      if (!resolvedGroups.length) {
+        toast.error("Could not load the selected group(s)")
+        return
       }
-      if (existing.has(inventoryItemId)) {
-        skippedDuplicate++
-        continue
+
+      const { lines, summary } = expandGroupsToBatchLines({
+        groups: resolvedGroups.map((g) => ({
+          name: g.name,
+          minimum_order_quantity: g.minimum_order_quantity ?? null,
+          unit_cost: g.unit_cost ?? null,
+          raw_materials: (g.raw_materials ?? []).map((c) => ({
+            inventory_item: c.inventory_item ?? null,
+          })),
+        })),
+        existingItemIds,
+        batches,
+        keepSeparate,
+      })
+
+      if (lines.length) {
+        onAdd(lines)
       }
-      existing.add(inventoryItemId)
-      toAdd.push({ inventory_item_id: inventoryItemId, quantity, price })
-    }
+      const msg = summarizeExpansion(summary, resolvedGroups.length)
+      if (lines.length) {
+        toast.success(msg)
+      } else {
+        toast.info(msg)
+      }
 
-    if (toAdd.length) {
-      onAdd(toAdd)
+      reset()
+      setOpen(false)
+    } finally {
+      setBusy(false)
     }
+  }
 
-    const summary = [
-      `Added ${toAdd.length} ${toAdd.length === 1 ? "color" : "colors"} from “${group.name}”`,
-    ]
-    if (skippedDuplicate) {
-      summary.push(`${skippedDuplicate} already in the order`)
-    }
-    if (skippedNoItem) {
-      summary.push(`${skippedNoItem} without a stock item yet`)
-    }
-    if (toAdd.length) {
-      toast.success(summary.join(" · "))
-    } else {
-      toast.info(summary.join(" · "))
-    }
-
-    setPendingId(null)
-  }, [detail, pendingId, existingItemIds, onAdd])
+  const triggerDisabled = disabled || isLoading || groups.length === 0
 
   return (
-    <Select
-      size="small"
-      value=""
-      onValueChange={(value) => setPendingId(value)}
-      disabled={disabled || isLoading || isFetching || groups.length === 0}
-    >
-      <Select.Trigger className="min-w-[200px]">
-        <Select.Value
-          placeholder={
-            groups.length === 0
-              ? "No material groups"
-              : isFetching
-                ? "Adding…"
-                : "Add a material group…"
-          }
-        />
-      </Select.Trigger>
-      <Select.Content>
-        {groups.map((group) => {
-          const count = group.raw_materials?.length
-          return (
-            <Select.Item key={group.id} value={group.id}>
-              {group.name}
-              {count ? ` (${count})` : ""}
-            </Select.Item>
-          )
-        })}
-      </Select.Content>
-    </Select>
+    <Popover open={open} onOpenChange={setOpen}>
+      <Popover.Trigger asChild>
+        <Button size="small" variant="secondary" type="button" disabled={triggerDisabled}>
+          {groups.length === 0 ? "No material groups" : "Add material groups…"}
+        </Button>
+      </Popover.Trigger>
+      <Popover.Content className="w-80 p-0" align="end">
+        <div className="flex flex-col">
+          <div className="max-h-64 overflow-y-auto p-3">
+            {groups.length === 0 ? (
+              <Text size="small" className="text-ui-fg-subtle">
+                No material groups yet.
+              </Text>
+            ) : (
+              <div className="flex flex-col gap-y-2">
+                {groups.map((group) => {
+                  const count = group.raw_materials?.length
+                  return (
+                    <label
+                      key={group.id}
+                      className="flex items-center gap-x-2 cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={!!selected[group.id]}
+                        onCheckedChange={(v) =>
+                          setSelected((s) => ({ ...s, [group.id]: !!v }))
+                        }
+                      />
+                      <Text size="small" className="flex-1">
+                        {group.name}
+                        {count ? (
+                          <span className="text-ui-fg-subtle">{` (${count})`}</span>
+                        ) : (
+                          ""
+                        )}
+                      </Text>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-ui-border-base p-3 flex flex-col gap-y-3">
+            <div className="flex items-center justify-between">
+              <Label size="small" htmlFor="mg-batches" weight="plus">
+                Batches
+              </Label>
+              <Input
+                id="mg-batches"
+                type="number"
+                min={1}
+                className="w-20"
+                size="small"
+                value={batches}
+                onChange={(e) =>
+                  setBatches(Math.max(1, Math.floor(Number(e.target.value) || 1)))
+                }
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-x-2">
+              <div className="flex flex-col">
+                <Label size="small" htmlFor="mg-separate" weight="plus">
+                  Keep batches as separate lines
+                </Label>
+                <Text size="xsmall" className="text-ui-fg-subtle">
+                  {keepSeparate
+                    ? "One line per batch (trackable)"
+                    : "Summed into one line per color"}
+                </Text>
+              </div>
+              <Switch
+                id="mg-separate"
+                checked={keepSeparate}
+                onCheckedChange={setKeepSeparate}
+              />
+            </div>
+
+            <Button
+              size="small"
+              type="button"
+              onClick={handleAdd}
+              disabled={!selectedIds.length || busy}
+              isLoading={busy}
+            >
+              {selectedIds.length
+                ? `Add ${selectedIds.length} ${
+                    selectedIds.length === 1 ? "group" : "groups"
+                  }`
+                : "Select groups"}
+            </Button>
+          </div>
+        </div>
+      </Popover.Content>
+    </Popover>
   )
 }

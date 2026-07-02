@@ -13,6 +13,8 @@ export type CreateOrderLineInput = {
   quantity: number
   price: number
   metadata?: Record<string, unknown>
+  // Batch tag for separate-batch quick-add lines (null ⇒ not batched).
+  batch_number?: number | null
   // #817 S2 — color identity denormalized off the line's inventory_item.
   color?: string | null
   material_name?: string | null
@@ -24,6 +26,7 @@ export type OrderLinePayload = {
   price: number
   metadata: Record<string, unknown> | null
   inventory_orders: string
+  batch_number: number | null
   // #817 S2 — persisted denormalized color identity (null when the line's
   // inventory_item has no linked raw_material).
   color: string | null
@@ -62,6 +65,7 @@ export const buildOrderLinePayloads = (
     price: line.price,
     metadata: line.metadata ?? null,
     inventory_orders: orderId,
+    batch_number: line.batch_number ?? null,
     // #817 S2 — pass through the denormalized color identity resolved by the
     // caller (the create step), defaulting to null when absent.
     color: line.color ?? null,
