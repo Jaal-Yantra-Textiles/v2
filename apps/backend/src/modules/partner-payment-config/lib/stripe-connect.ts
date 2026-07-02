@@ -5,6 +5,29 @@ export const STRIPE_PROVIDER_ID = "pp_stripe_stripe"
 export type ConnectStatus = "pending" | "active" | "restricted" | "disconnected"
 
 /**
+ * Whether a partner is eligible for JYT Stripe Connect.
+ *
+ * Stripe Connect (Half B) settles storefront checkout in EUR, so it's the
+ * EUR/EU rail only. India partners are on the PayU/INR rail and non-EUR
+ * partners have no Connect region — showing "Connect with Stripe" to them both
+ * clutters the UI and errors on the API (Stripe can't onboard them here). Gate
+ * on the partner's `currency_code` (set by the onboarding wizard, #849), with
+ * an explicit India exclusion as a belt-and-suspenders guard. Pure — unit
+ * tested.
+ */
+export const isStripeConnectEligible = (
+  partner: { country_code?: string | null; currency_code?: string | null } | null | undefined
+): boolean => {
+  if (!partner) return false
+  const country = (partner.country_code || "").trim().toUpperCase()
+  const currency = (partner.currency_code || "").trim().toLowerCase()
+  // India = PayU/INR rail — never Stripe Connect.
+  if (country === "IN" || currency === "inr") return false
+  // Only the EUR rail has a Connect region to settle into.
+  return currency === "eur"
+}
+
+/**
  * Resolve the platform's Stripe client (JYT's own account) — this is the
  * account that owns the connected Standard accounts. Reuses STRIPE_API_KEY,
  * the same secret the partner-subscription checkout already uses.

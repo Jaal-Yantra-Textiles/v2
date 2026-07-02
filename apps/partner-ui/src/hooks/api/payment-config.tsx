@@ -33,6 +33,9 @@ export type PaymentConfig = {
 }
 
 export type StripeConnectStatus = {
+  // Whether the partner is on the EUR/Stripe Connect rail. False for India
+  // (PayU/INR) and non-EUR partners — the UI hides the card entirely.
+  eligible: boolean
   connected: boolean
   account_id: string | null
   status: "pending" | "active" | "restricted" | "disconnected" | null

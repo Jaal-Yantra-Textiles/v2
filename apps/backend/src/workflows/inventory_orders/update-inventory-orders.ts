@@ -29,9 +29,13 @@ import {
 // Types
 export type UpdateInventoryOrderLineInput = {
   id?: string; // If present, update; if not, create
-  inventory_item_id: string;
-  quantity: number;
-  price: number;
+  // Optional at the type level so a removal marker ({ id, remove: true }) is
+  // valid. For create/update lines the route validator (updateOrderLineSchema)
+  // enforces these are present, so the create/update branches below can rely on
+  // them at runtime.
+  inventory_item_id?: string;
+  quantity?: number;
+  price?: number;
   batch_number?: number | null; // Batch tag for separate-batch quick-add lines
   remove?: boolean; // If true, remove this orderline
 };
@@ -120,7 +124,7 @@ export const updateOrderLinesStep = createStep(
       const newItemIds = Array.from(new Set(
         input.order_lines
           .filter((l) => !l.remove && !l.id && l.inventory_item_id)
-          .map((l) => l.inventory_item_id)
+          .map((l) => l.inventory_item_id as string)
       ));
       if (newItemIds.length) {
         const query = container.resolve(ContainerRegistrationKeys.QUERY);
@@ -182,7 +186,7 @@ export const updateOrderLinesStep = createStep(
         // If inventory_item_id changed, handle link update (not implemented here, but can be compared with currentOrderlines)
       } else {
         // Create orderline (with denormalized color identity when resolvable).
-        const info = materialLookup[line.inventory_item_id];
+        const info = line.inventory_item_id ? materialLookup[line.inventory_item_id] : undefined;
         const created_line = await inventoryOrderService.createOrderLines({
           inventory_orders_id: input.order_id,
           quantity: line.quantity,

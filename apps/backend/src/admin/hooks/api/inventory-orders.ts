@@ -317,6 +317,8 @@ export interface UpdateInventoryOrderLinesPayload {
     quantity: number;
     price: number;
     batch_number?: number | null;
+    // Marks an existing line for deletion (soft-delete + link dismiss server-side).
+    remove?: boolean;
   }>;
 }
 

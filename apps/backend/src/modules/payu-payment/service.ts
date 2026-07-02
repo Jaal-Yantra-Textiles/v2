@@ -65,64 +65,36 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
   /**
    * Resolve PayU credentials: partner-specific > global defaults.
    *
-   * Flow: context.extra.sales_channel_id → store → partner → partner_payment_config
-   * Falls back to this.options_ (global credentials from medusa-config.ts).
+   * Partner credentials are resolved UPSTREAM (in the store payment-sessions
+   * route via `resolvePartnerPayuCredentials`, which has `query` access) and
+   * handed down through the payment-session `context` as `payu_merchant_key` /
+   * `payu_merchant_salt` / `payu_mode`. Payment providers run in an isolated
+   * module container with no access to `query` or other modules, so they
+   * cannot resolve the partner themselves — an earlier version tried to and
+   * silently fell back to the platform's global creds every time. Mirrors the
+   * Stripe Connect provider, which reads its connected account from context.
+   *
+   * Falls back to this.options_ (global credentials from medusa-config.ts) when
+   * no partner-specific credentials were injected.
    */
-  private async resolveCredentials(context?: Record<string, unknown>): Promise<PayUOptions> {
+  private resolveCredentials(context?: Record<string, unknown>): PayUOptions {
     if (!context) return this.options_
 
-    try {
-      const salesChannelId = (context as any)?.extra?.sales_channel_id
-        || (context as any)?.sales_channel_id
-      if (!salesChannelId) return this.options_
+    const ctx = context as any
+    const merchant_key = ctx.payu_merchant_key ?? ctx.extra?.payu_merchant_key
+    const merchant_salt = ctx.payu_merchant_salt ?? ctx.extra?.payu_merchant_salt
+    const mode = ctx.payu_mode ?? ctx.extra?.payu_mode
 
-      // Resolve partner from sales channel → store → partner (via link)
-      const query = this.container_.resolve?.("query")
-      if (!query) return this.options_
-
-      // Find store linked to this sales channel, and traverse the partner link
-      const { data: stores } = await query.graph({
-        entity: "store",
-        filters: { default_sales_channel_id: salesChannelId },
-        fields: ["id", "partner.*"],
-      }).catch(() => ({ data: [] }))
-
-      if (!stores?.length) return this.options_
-
-      // The partner is resolved via the module link traversal
-      const partner = stores[0].partner
-      const partnerId = partner?.id
-
-      if (!partnerId) {
-        // Fallback: try to find partner from store metadata
-        this.logger_.debug(`[PayU] No partner link found for store ${stores[0].id}`)
-        return this.options_
+    if (merchant_key && merchant_salt) {
+      this.logger_.info(
+        `[PayU] Using partner credentials (partner=${ctx.payu_partner_id ?? "unknown"})`
+      )
+      return {
+        merchant_key,
+        merchant_salt,
+        mode: mode || this.options_.mode,
+        auto_capture: this.options_.auto_capture,
       }
-
-      // Look up partner payment config
-      const configService = this.container_.resolve?.("partner_payment_config")
-      if (!configService) return this.options_
-
-      const configs = await configService.listPartnerPaymentConfigs({
-        partner_id: partnerId,
-        provider_id: "pp_payu_payu",
-        is_active: true,
-      })
-
-      if (!configs?.length) return this.options_
-
-      const partnerCreds = configs[0].credentials
-      if (partnerCreds?.merchant_key && partnerCreds?.merchant_salt) {
-        this.logger_.info(`[PayU] Using partner credentials for partner=${partnerId}`)
-        return {
-          merchant_key: partnerCreds.merchant_key,
-          merchant_salt: partnerCreds.merchant_salt,
-          mode: partnerCreds.mode || this.options_.mode,
-          auto_capture: this.options_.auto_capture,
-        }
-      }
-    } catch (e: any) {
-      this.logger_.warn(`[PayU] Failed to resolve partner credentials, using defaults: ${e.message}`)
     }
 
     return this.options_
@@ -202,8 +174,8 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
   ): Promise<InitiatePaymentOutput> {
     const { amount, currency_code, context, data } = input
 
-    // Resolve partner-specific or global credentials
-    const opts = await this.resolveCredentials(context)
+    // Resolve partner-specific (injected via context upstream) or global credentials
+    const opts = this.resolveCredentials(context)
 
     const txnid = this.generateTxnId()
     const amountStr = this.toAmount(amount)
@@ -379,7 +351,7 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
 
   async updatePayment(input: UpdatePaymentInput): Promise<UpdatePaymentOutput> {
     const { amount, currency_code, context, data } = input
-    const opts = this.resolveFromSessionData(data) || await this.resolveCredentials(context) || this.options_
+    const opts = this.resolveFromSessionData(data) || this.resolveCredentials(context) || this.options_
 
     if (amount && data?.txnid) {
       const amountStr = this.toAmount(amount)
