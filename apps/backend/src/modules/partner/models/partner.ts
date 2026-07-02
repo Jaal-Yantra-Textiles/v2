@@ -28,6 +28,14 @@ const Partner = model.define("partner", {
     tax_id: model.text().nullable(),
     tax_id_type: model.text().nullable(), // e.g. "GSTIN", "VAT", "PAN"
 
+    // Billing locale — the partner's country and the currency their subscription
+    // is charged in. Load-bearing (drives subscription payment-provider routing:
+    // INR → PayU, everything else → Stripe), so typed columns NOT metadata.
+    // Set during onboarding; the subscription route prefers these over the legacy
+    // metadata.currency_code fallback.
+    country_code: model.text().nullable(), // ISO-3166 alpha-2, e.g. "IN", "DE"
+    currency_code: model.text().nullable(), // ISO-4217 lower, e.g. "inr", "eur"
+
     // Storefront
     storefront_domain: model.text().nullable(),
     website_id: model.text().nullable(),

@@ -70,6 +70,44 @@ const DEFAULT_PLANS = [
     },
   },
   {
+    // Launch offer for partners billed outside India (charged via Stripe in EUR).
+    // list price €18/mo, discounted to €7/mo incl. tax. `price` is what's charged;
+    // `metadata.list_price` is the strikethrough shown in the UI.
+    name: "Growth",
+    slug: "growth-eur",
+    description:
+      "For scaling brands. Lower fees, AI support, and advanced analytics to grow faster.",
+    price: 7,
+    currency_code: "eur",
+    interval: PlanInterval.MONTHLY,
+    sort_order: 1,
+    is_active: true,
+    metadata: {
+      list_price: 18,
+      discount: true,
+      tax_inclusive: true,
+    },
+    features: {
+      unlimited_products: true,
+      unlimited_staff: true,
+      unlimited_selling: true,
+      storefront_source_code: true,
+      jyt_emails: true,
+      custom_domain: true,
+      theme_customization: "full",
+      live_shipping: true,
+      shipping_partners: ["delhivery", "dhl", "ups", "fedex", "auspost"],
+      payment_processing_fee: "2%",
+      payment_gateways: ["stripe"],
+      analytics: "advanced",
+      ai_chat_support: true,
+      custom_modules: false,
+      custom_apis: false,
+      priority_support: true,
+      white_label: false,
+    },
+  },
+  {
     name: "Enterprise",
     slug: "enterprise",
     description:

@@ -22,6 +22,7 @@ import { KeyboundForm } from "../../../components/utilities/keybound-form"
 import { useMe } from "../../../hooks/api/users"
 import { sdk } from "../../../lib/client"
 import { queryClient } from "../../../lib/query-client"
+import { OnboardingPlanStep } from "./onboarding-plan-step"
 
 type Person = {
   first_name: string
@@ -116,8 +117,37 @@ const mapBusinessTypeToWorkspaceType = (businessType: string): "seller" | "manuf
   return "manufacturer"
 }
 
-const STEPS = ["about", "business", "operations", "logo", "people"] as const
+const STEPS = ["about", "business", "operations", "logo", "people", "plan"] as const
 type Step = (typeof STEPS)[number]
+
+// Onboarding country → billing currency. India bills in INR (PayU); everywhere
+// else bills in EUR via Stripe (matches the seeded EUR launch plan). Curated
+// list of common partner countries; extend as needed.
+const COUNTRY_OPTIONS: { value: string; label: string }[] = [
+  { value: "IN", label: "India" },
+  { value: "DE", label: "Germany" },
+  { value: "FR", label: "France" },
+  { value: "IT", label: "Italy" },
+  { value: "ES", label: "Spain" },
+  { value: "NL", label: "Netherlands" },
+  { value: "BE", label: "Belgium" },
+  { value: "AT", label: "Austria" },
+  { value: "IE", label: "Ireland" },
+  { value: "PT", label: "Portugal" },
+  { value: "SE", label: "Sweden" },
+  { value: "DK", label: "Denmark" },
+  { value: "FI", label: "Finland" },
+  { value: "PL", label: "Poland" },
+  { value: "LV", label: "Latvia" },
+  { value: "LT", label: "Lithuania" },
+  { value: "EE", label: "Estonia" },
+  { value: "GB", label: "United Kingdom" },
+  { value: "US", label: "United States" },
+  { value: "AE", label: "United Arab Emirates" },
+]
+
+const currencyForCountry = (countryCode: string): "inr" | "eur" =>
+  countryCode === "IN" ? "inr" : "eur"
 
 const getOnboardingStorageKey = (partnerId: string) =>
   `partner_onboarding_${partnerId}`
@@ -170,6 +200,7 @@ const OnboardingForm = () => {
     operations: "Operations",
     logo: t("partner.onboardingModal.steps.logo"),
     people: t("partner.onboardingModal.steps.people"),
+    plan: "Plan",
   }
 
   const BUSINESS_TYPES = BUSINESS_TYPE_KEYS.map((key) => ({
@@ -220,6 +251,22 @@ const OnboardingForm = () => {
       metadata.contact_phone ||
       "",
   }))
+  const [countryCode, setCountryCode] = useState<string>(
+    () =>
+      savedState?.about?.country_code ||
+      (partner as any)?.country_code ||
+      metadata.country_code ||
+      ""
+  )
+  // Billing currency the subscription is charged in — drives which plans show and
+  // which payment provider the backend routes to (INR → PayU, EUR → Stripe).
+  const currencyCode = useMemo(
+    () =>
+      countryCode
+        ? currencyForCountry(countryCode)
+        : (partner as any)?.currency_code || metadata.currency_code || "inr",
+    [countryCode, partner, metadata]
+  )
   const [logo, setLogo] = useState<File | null>(null)
   const [people, setPeople] = useState<Person[]>(() => {
     const saved = savedState?.people as Person[] | undefined
@@ -350,10 +397,12 @@ const OnboardingForm = () => {
     }
   }
 
-  const handleSubmit = async () => {
-    if (!validatePeople()) return
-
-    setIsSubmitting(true)
+  // Persist all onboarding data (partner update + profile + wizard snapshot)
+  // WITHOUT navigating. Returns false on a validation error. Used both by the
+  // final "finish" action and by the plan step (which must save before a paid
+  // plan redirects the browser away to the payment page).
+  const persistOnboarding = async (): Promise<boolean> => {
+    if (!validatePeople()) return false
     setError(null)
 
     try {
@@ -362,6 +411,11 @@ const OnboardingForm = () => {
 
       if (aboutYou.business_type) {
         updateBody.workspace_type = mapBusinessTypeToWorkspaceType(aboutYou.business_type)
+      }
+      // Billing locale → typed columns (drive subscription provider routing).
+      if (countryCode) {
+        updateBody.country_code = countryCode
+        updateBody.currency_code = currencyCode
       }
       if (aboutYou.business_name) metadataUpdate.business_name = aboutYou.business_name
       if (aboutYou.description) metadataUpdate.business_description = aboutYou.description
@@ -421,7 +475,7 @@ const OnboardingForm = () => {
           JSON.stringify({
             completed: true,
             skipped: false,
-            about: aboutYou,
+            about: { ...aboutYou, country_code: countryCode },
             people: filledPeople,
             logo: logo ? { name: logo.name, type: logo.type, size: logo.size } : null,
             completed_at: new Date().toISOString(),
@@ -429,10 +483,21 @@ const OnboardingForm = () => {
         )
       }
 
-      toast.success(t("partner.onboardingModal.toast.completed"))
-      handleSuccess("/")
+      return true
     } catch (e) {
       setError(e instanceof Error ? e.message : t("partner.onboardingModal.errors.unknown"))
+      return false
+    }
+  }
+
+  // Finish onboarding without picking a paid plan here (free / choose later).
+  const handleSubmit = async () => {
+    setIsSubmitting(true)
+    try {
+      const ok = await persistOnboarding()
+      if (!ok) return
+      toast.success(t("partner.onboardingModal.toast.completed"))
+      handleSuccess("/")
     } finally {
       setIsSubmitting(false)
     }
@@ -518,6 +583,34 @@ const OnboardingForm = () => {
                       ))}
                     </Select.Content>
                   </Select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <Text size="small" className="mb-1 block font-medium">
+                    Country
+                  </Text>
+                  <Select
+                    value={countryCode}
+                    onValueChange={(v) => setCountryCode(v)}
+                  >
+                    <Select.Trigger>
+                      <Select.Value placeholder="Select your country" />
+                    </Select.Trigger>
+                    <Select.Content>
+                      {COUNTRY_OPTIONS.map((c) => (
+                        <Select.Item key={c.value} value={c.value}>
+                          {c.label}
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select>
+                  {countryCode && (
+                    <Text size="xsmall" className="text-ui-fg-subtle mt-1">
+                      {currencyCode === "inr"
+                        ? "Billed in ₹ (INR) via PayU."
+                        : "Billed in € (EUR) via Stripe."}
+                    </Text>
+                  )}
                 </div>
 
                 <div className="md:col-span-2">
@@ -894,6 +987,23 @@ const OnboardingForm = () => {
                 {t("partner.onboardingModal.team.addAnother")}
               </Button>
             </div>
+          </ProgressTabs.Content>
+
+          {/* Step 6: Plan */}
+          <ProgressTabs.Content value="plan" className="p-6">
+            {error && (
+              <div className="mx-auto w-full max-w-[820px] pt-6">
+                <Alert variant="error">{error}</Alert>
+              </div>
+            )}
+            <OnboardingPlanStep
+              currencyCode={currencyCode}
+              onBeforeSelect={persistOnboarding}
+              onFreeActivated={() => {
+                toast.success(t("partner.onboardingModal.toast.completed"))
+                handleSuccess("/")
+              }}
+            />
           </ProgressTabs.Content>
         </RouteFocusModal.Body>
 

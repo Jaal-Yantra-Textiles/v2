@@ -18,6 +18,7 @@ export type PartnerPlan = {
   currency_code: string
   interval: string
   features?: Record<string, unknown>
+  metadata?: Record<string, unknown> | null
   is_active: boolean
   sort_order: number
   created_at: string
