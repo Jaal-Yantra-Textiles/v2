@@ -285,6 +285,28 @@ module.exports = defineConfig({
                       },
                     ]
                   : []),
+                ...(process.env.STRIPE_API_KEY &&
+                process.env.STRIPE_CONNECT_ENABLED === "true"
+                  ? [
+                      {
+                        resolve: "./src/modules/stripe-connect-payment",
+                        id: "stripe-connect",
+                        options: {
+                          apiKey: process.env.STRIPE_API_KEY,
+                          // Fee falls back to the partner plan's
+                          // payment_processing_fee at runtime; this is only used
+                          // when no plan is resolvable.
+                          defaultFeePercent: process.env
+                            .STRIPE_CONNECT_DEFAULT_FEE_PERCENT
+                            ? Number(process.env.STRIPE_CONNECT_DEFAULT_FEE_PERCENT)
+                            : 0,
+                          refundApplicationFee: true,
+                          allowPlatformFallback:
+                            process.env.STRIPE_CONNECT_PLATFORM_FALLBACK === "true",
+                        },
+                      },
+                    ]
+                  : []),
                 ...(process.env.PAYU_MERCHANT_KEY
                   ? [
                       {
