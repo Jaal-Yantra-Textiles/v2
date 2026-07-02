@@ -80,6 +80,9 @@ export const POST = async (
       "minimum_order_quantity",
       inherit(body.minimum_order_quantity, group.minimum_order_quantity)
     ),
+    // Generic variant coordinates: always seed `color` (the built-in axis) and
+    // fold in any extra axes the caller supplied per the group's `dimensions`.
+    attributes: { ...(body.attributes ?? {}), color: body.color },
     ...(body.metadata ? { metadata: body.metadata } : {}),
     ...(body.media ? { media: body.media } : {}),
     group_id: groupId,

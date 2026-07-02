@@ -22,6 +22,11 @@ const RawMaterial = model.define("raw_materials", {
   minimum_order_quantity: model.number().nullable(),
   lead_time_days: model.number().nullable(),
   color: model.text().nullable(),
+  // Generic per-member variant coordinates keyed by the parent group's
+  // `dimensions` (e.g. { color: "Blue", finish: "Matte" }). `color` above stays
+  // the canonical display/denorm key; `attributes` is additive room for new axes
+  // introduced on the group later — no migration required to add an axis.
+  attributes: model.json().nullable(),
   width: model.text().nullable(), // For fabrics and similar materials
   weight: model.text().nullable(), // Weight per unit
   grade: model.text().nullable(),
