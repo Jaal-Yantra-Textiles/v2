@@ -38,6 +38,20 @@ export const toStripeMinorUnits = (
 }
 
 /**
+ * Convert Stripe's smallest unit back to the major unit (1250 → 12.50 EUR).
+ * Inverse of toStripeMinorUnits; used when reporting webhook amounts, which
+ * Medusa expects in major units (matching @medusajs/payment-stripe).
+ */
+export const fromStripeMinorUnits = (
+  minor: number | string,
+  currency: string
+): number => {
+  const n = typeof minor === "number" ? minor : Number(minor)
+  if (!isFinite(n)) return 0
+  return n / currencyMultiplier(currency)
+}
+
+/**
  * Parse a plan's payment_processing_fee ("2%", "2", 2, "2.5%") into a fraction
  * (0.02 / 0.025). Anything invalid or negative → 0 (no fee — the safe default).
  */

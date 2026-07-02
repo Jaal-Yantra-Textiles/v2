@@ -1,24 +1,30 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { logger } from "@medusajs/framework"
+import { Modules, PaymentActions } from "@medusajs/framework/utils"
+import { processPaymentWorkflow } from "@medusajs/core-flows"
 import { PARTNER_PAYMENT_CONFIG_MODULE } from "../../../../modules/partner-payment-config"
 import {
   getPlatformStripe,
   accountToConnectFields,
 } from "../../../../modules/partner-payment-config/lib/stripe-connect"
 
+// Must match the provider registration (id "stripe-connect") — the payment
+// module derives the provider id as `pp_${provider}`.
+const CONNECT_PAYMENT_PROVIDER = "stripe-connect_stripe-connect"
+
 /**
  * POST /webhooks/stripe/connect
  *
- * Receives Stripe Connect account events for JYT's platform account. Keeps the
- * partner_payment_config Connect columns in sync with Stripe as partners finish
- * (or lose) onboarding.
+ * Receives Stripe Connect events for JYT's platform account:
+ *  - account.updated / account.application.deauthorized → keep the
+ *    partner_payment_config Connect columns in sync (onboarding status).
+ *  - payment_intent.* (direct charges on connected accounts are delivered here,
+ *    not to the per-provider /hooks route) → dispatch into the payment module
+ *    so the payment session is captured/authorized/failed, mirroring the core
+ *    payment-webhook subscriber.
  *
  * Signature is verified against STRIPE_CONNECT_WEBHOOK_SECRET using the raw
  * request bytes (middleware sets bodyParser: { preserveRawBody: true }).
- *
- * Handled events:
- *  - account.updated              → refresh charges/payouts/details + status
- *  - account.application.deauthorized → partner disconnected → mark disconnected
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const secret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET
@@ -43,7 +49,41 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(400).send(`Webhook Error: ${e?.message}`)
   }
 
-  // On Connect events, the connected account id is at the top level.
+  // Payment events (direct charges on connected accounts) → drive the payment
+  // session. Delegates to our provider's getWebhookActionAndData + the core
+  // processPaymentWorkflow, exactly like Medusa's built-in payment-webhook
+  // subscriber (which never sees these because they arrive on the Connect
+  // endpoint). Signature is already verified above.
+  if (typeof event.type === "string" && event.type.startsWith("payment_intent.")) {
+    try {
+      const paymentService: any = req.scope.resolve(Modules.PAYMENT)
+      const processed = await paymentService.getWebhookActionAndData({
+        provider: CONNECT_PAYMENT_PROVIDER,
+        payload: { data: event, rawData: rawBody, headers: req.headers },
+      })
+
+      const skip =
+        !processed?.data?.session_id ||
+        processed.action === PaymentActions.NOT_SUPPORTED ||
+        processed.action === PaymentActions.CANCELED ||
+        processed.action === PaymentActions.FAILED ||
+        processed.action === PaymentActions.REQUIRES_MORE
+
+      if (!skip) {
+        await processPaymentWorkflow(req.scope).run({ input: processed })
+        logger.info(
+          `[stripe-connect-webhook] ${event.type} → ${processed.action} ` +
+            `session=${processed.data.session_id}`
+        )
+      }
+    } catch (e: any) {
+      logger.error(`[stripe-connect-webhook] payment dispatch error: ${e?.message}`)
+      return res.status(500).send("Payment handler error")
+    }
+    return res.json({ received: true })
+  }
+
+  // On Connect account events, the connected account id is at the top level.
   const accountId: string | undefined = event.account
   const configService = req.scope.resolve(PARTNER_PAYMENT_CONFIG_MODULE) as any
 

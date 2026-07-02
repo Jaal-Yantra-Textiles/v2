@@ -12,6 +12,10 @@ import {
   createPaymentCollectionForCartWorkflow,
   createPaymentSessionsWorkflow,
 } from "@medusajs/medusa/core-flows"
+import {
+  resolvePartnerConnect,
+  connectContext,
+} from "../../../../modules/stripe-connect-payment/lib/resolve-connect"
 
 /** The Stripe provider enabled on the cart's region, or null. */
 export function resolveStripeProvider(
@@ -58,6 +62,7 @@ export async function ensureStripeSession(
         "completed_at",
         "currency_code",
         "total",
+        "sales_channel_id",
         "region.payment_providers.id",
         "region.payment_providers.is_enabled",
         "payment_collection.id",
@@ -104,8 +109,23 @@ export async function ensureStripeSession(
   // Ensure a Stripe session (initiatePayment → creates the PaymentIntent).
   let session = findStripeSession(cart.payment_collection?.payment_sessions)
   if (!session) {
+    // Resolve the partner's connected account here (we have query access) and
+    // hand it to the provider via context — the provider's isolated container
+    // can't resolve it. Harmless for the plain Stripe/system providers.
+    const connect = await resolvePartnerConnect(
+      scope,
+      cart.sales_channel_id,
+      Number(process.env.STRIPE_CONNECT_DEFAULT_FEE_PERCENT) || 0
+    )
     await createPaymentSessionsWorkflow(scope).run({
-      input: { payment_collection_id: pcId!, provider_id: provider },
+      input: {
+        payment_collection_id: pcId!,
+        provider_id: provider,
+        context: {
+          sales_channel_id: cart.sales_channel_id,
+          ...connectContext(connect),
+        },
+      },
     })
     cart = await readCart()
     session = findStripeSession(cart?.payment_collection?.payment_sessions)
