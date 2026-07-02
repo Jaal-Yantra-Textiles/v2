@@ -663,6 +663,14 @@ export default defineMiddlewares({
       bodyParser: { preserveRawBody: true },
     },
     {
+      // Stripe Connect account events (JYT platform account). Raw body is
+      // required to verify the Stripe signature against STRIPE_CONNECT_WEBHOOK_SECRET.
+      matcher: "/webhooks/stripe/connect",
+      method: "POST",
+      middlewares: [],
+      bodyParser: { preserveRawBody: true },
+    },
+    {
       matcher: "/webhooks/meta-ads/leadgen",
       method: "GET",
       middlewares: [],
@@ -1499,6 +1507,16 @@ export default defineMiddlewares({
     // Partner Payment Config (per-partner credentials)
     {
       matcher: "/partners/payment-config",
+      method: ["GET", "POST"],
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // JYT Stripe Connect onboarding (must precede the /:configId matcher so
+    // "stripe-connect" isn't treated as a config id).
+    {
+      matcher: "/partners/payment-config/stripe-connect",
       method: ["GET", "POST"],
       middlewares: [
         createCorsPartnerMiddleware(),

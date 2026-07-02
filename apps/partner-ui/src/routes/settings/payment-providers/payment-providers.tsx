@@ -15,6 +15,7 @@ import {
   useDeletePaymentConfig,
   type PaymentConfig,
 } from "../../../hooks/api/payment-config"
+import { StripeConnectCard } from "./components/stripe-connect-card"
 
 const PROVIDER_LABELS: Record<string, string> = {
   pp_payu_payu: "PayU",
@@ -31,6 +32,7 @@ export const PaymentProvidersPage = () => {
 
   return (
     <>
+      <StripeConnectCard />
       <Container className="divide-y px-0 py-0">
         <DataTable
           data={payment_configs}
