@@ -3765,6 +3765,26 @@
         "created": "Payment method created"
       }
     },
+    "stripeConnect": {
+      "heading": "JYT Stripe Connect",
+      "payoutsPending": "payouts pending",
+      "badge": {
+        "active": "Active",
+        "pending": "Setup incomplete"
+      },
+      "description": {
+        "default": "Skip entering API keys. Connect a Stripe account through JYT to get paid faster, with payouts and refunds handled for you.",
+        "active": "Payments run through JYT's Stripe Connect. This is your live Stripe source — any manually entered keys below are used only as a fallback."
+      },
+      "actions": {
+        "connect": "Connect with Stripe",
+        "resume": "Finish setup",
+        "manage": "Update details"
+      },
+      "toast": {
+        "startFailed": "Could not start Stripe onboarding"
+      }
+    },
     "paymentProviders": {
       "heading": "Payment Credentials",
       "subHeading": "Your payment provider credentials. These override platform defaults for your store.",

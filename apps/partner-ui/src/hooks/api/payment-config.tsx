@@ -21,8 +21,24 @@ export type PaymentConfig = {
   credentials: Record<string, any>
   is_active: boolean
   metadata?: Record<string, any>
+  // JYT Stripe Connect (Standard) — populated for pp_stripe_stripe when the
+  // partner onboards via JYT instead of bringing their own keys.
+  connect_account_id?: string | null
+  connect_status?: "pending" | "active" | "restricted" | "disconnected" | null
+  connect_charges_enabled?: boolean
+  connect_payouts_enabled?: boolean
+  connect_details_submitted?: boolean
   created_at: string
   updated_at: string
+}
+
+export type StripeConnectStatus = {
+  connected: boolean
+  account_id: string | null
+  status: "pending" | "active" | "restricted" | "disconnected" | null
+  charges_enabled: boolean
+  payouts_enabled: boolean
+  details_submitted: boolean
 }
 
 export type CreatePaymentConfigPayload = {
@@ -109,6 +125,62 @@ export const useUpdatePaymentConfig = (
       ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: paymentConfigQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+const STRIPE_CONNECT_QUERY_KEY = "stripe_connect" as const
+export const stripeConnectQueryKeys = queryKeysFactory(STRIPE_CONNECT_QUERY_KEY)
+
+/**
+ * Current JYT Stripe Connect status for the partner. Server live-syncs from
+ * Stripe on each read, so this reflects onboarding completion immediately.
+ */
+export const useStripeConnectStatus = (
+  options?: Omit<
+    UseQueryOptions<
+      { stripe_connect: StripeConnectStatus },
+      FetchError,
+      { stripe_connect: StripeConnectStatus },
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: stripeConnectQueryKeys.details(),
+    queryFn: () =>
+      sdk.client.fetch<{ stripe_connect: StripeConnectStatus }>(
+        "/partners/payment-config/stripe-connect",
+        { method: "GET" }
+      ),
+    ...options,
+  })
+
+  return { stripe_connect: data?.stripe_connect, ...rest }
+}
+
+/**
+ * Start (or resume) JYT Stripe Connect onboarding. Returns a Stripe-hosted
+ * onboarding URL to redirect the partner to.
+ */
+export const useStartStripeConnect = (
+  options?: UseMutationOptions<
+    { url: string; account_id: string },
+    FetchError,
+    { return_url: string; refresh_url?: string }
+  >
+) => {
+  return useMutation({
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ url: string; account_id: string }>(
+        "/partners/payment-config/stripe-connect",
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: stripeConnectQueryKeys.all })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,

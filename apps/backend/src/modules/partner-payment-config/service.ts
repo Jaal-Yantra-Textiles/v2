@@ -25,6 +25,20 @@ class PartnerPaymentConfigService extends MedusaService({
       is_active: true,
     })
   }
+
+  /**
+   * Find the (single) config row that owns a given Stripe connected account.
+   * Used by the Connect webhook, which only knows the account id — not the
+   * partner. Ignores is_active so we can still process account.updated events
+   * for accounts that were deactivated.
+   */
+  async findByConnectAccountId(accountId: string) {
+    if (!accountId) return null
+    const configs = await this.listPartnerPaymentConfigs({
+      connect_account_id: accountId,
+    })
+    return configs?.[0] || null
+  }
 }
 
 export default PartnerPaymentConfigService

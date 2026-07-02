@@ -153,6 +153,11 @@ secrets:
   # Off by default in code; "true" here exposes them. See src/api/mcp/README.md.
   STORE_MCP_ENABLE_WRITE: /jyt/prod/STORE_MCP_ENABLE_WRITE
   STRIPE_API_KEY: /jyt/prod/STRIPE_API_KEY
+  # Signing secret for the Stripe *Connect* webhook (POST /webhooks/stripe/connect),
+  # which keeps partner_payment_config Connect status in sync (account.updated).
+  # Distinct from STRIPE_WEBHOOK_SECRET (the store/cart payment webhook) — it's the
+  # signing secret of the Connect endpoint registered in the Stripe dashboard.
+  STRIPE_CONNECT_WEBHOOK_SECRET: /jyt/prod/STRIPE_CONNECT_WEBHOOK_SECRET
   # Public client-side key (pk_…) for the self-hosted Stripe card page
   # (GET /stripe/pay/:cart_id). Non-secret, but env-specific so it's sourced from
   # SSM like the other Stripe params. Without it the hosted page won't render.
