@@ -102,7 +102,8 @@ setupSharedTestSuite(() => {
       const { data } = await query.graph({
         entity: "order",
         filters: { id: unifiedOrderId },
-        fields: ["id", "status", "items.id", "items.title", "items.quantity"],
+        // `items.*` (wildcard) is required for the calculated `total` to resolve.
+        fields: ["id", "status", "total", "items.*"],
       })
       return data?.[0]
     }
@@ -204,7 +205,7 @@ setupSharedTestSuite(() => {
       expect(after.orderlines.map((l: any) => l.id).sort()).toEqual([a.id, b.id].sort())
     })
 
-    it("REPRO #855: the buggy form payload wipes ALL inventory lines but the core mirror survives", async () => {
+    it("REPRO #855: buggy payload wipes inventory lines; core mirror now re-syncs to match (no drift)", async () => {
       const legacy = await createOrderWithThreeLines()
       const lines = legacy.orderlines as any[]
       const unifiedId = await resolveUnifiedOrderId(legacy.id)
@@ -234,17 +235,53 @@ setupSharedTestSuite(() => {
       )
       expect(res.status).toBe(200)
 
-      // Non-core: every line is gone.
+      // Non-core: every line is gone (the wipe still happens at the workflow
+      // level when handed this payload — the real fix is client-side, so the
+      // buggy payload can no longer be produced by the form).
       const after = await fetchLegacyLines(legacy.id)
       expect(after.orderlines).toHaveLength(0)
       // …yet the header total was still written from the on-screen figure.
       expect(Number(after.total_price)).toBe(2150)
 
-      // Core mirror: untouched — still holds the original three items. This is
-      // the exact divergence seen in prod (core order #68 kept its items while
-      // the inventory order lost all lines).
+      // Core mirror: NO LONGER drifts. The update workflow now re-projects the
+      // mirror's items to match the live lines, so it follows the inventory
+      // order down to zero instead of stranding the original three (this is the
+      // systemic fix for the prod #68 "core kept old items" divergence).
+      const core = await fetchCoreItems(unifiedId!)
+      expect(core.items).toHaveLength(0)
+    })
+
+    it("core mirror re-projects on a correct edit (add one, drop one) to match the live lines", async () => {
+      const legacy = await createOrderWithThreeLines()
+      const [a, b, c] = legacy.orderlines
+      const unifiedId = await resolveUnifiedOrderId(legacy.id)
+      expect(unifiedId).toBeTruthy()
+      expect((await fetchCoreItems(unifiedId!)).items).toHaveLength(3)
+
+      // Keep A & B, drop C, add D — a well-formed edit.
+      const res = await api.put(
+        `/admin/inventory-orders/${legacy.id}/order-lines`,
+        {
+          order_lines: [
+            { id: a.id, inventory_item_id: a.inventory_items?.[0]?.id ?? itemA, quantity: 10, price: 100 },
+            { id: b.id, inventory_item_id: b.inventory_items?.[0]?.id ?? itemB, quantity: 5, price: 200 },
+            { id: c.id, remove: true },
+            { inventory_item_id: itemD, quantity: 3, price: 100 },
+          ],
+        },
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+
+      // Inventory order: A, B, D (3 lines).
+      const afterInv = await fetchLegacyLines(legacy.id)
+      expect(afterInv.orderlines).toHaveLength(3)
+
+      // Core mirror now tracks the same 3 lines, and the total reflects them:
+      // 10*100 + 5*200 + 3*100 = 2300.
       const core = await fetchCoreItems(unifiedId!)
       expect(core.items).toHaveLength(3)
+      expect(Number(core.total)).toBe(2300)
     })
   })
 })
