@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Alert, Button, Heading, Hint, Input, Text } from "@medusajs/ui"
+import { Alert, Button, Heading, Hint, Input, Text, toast } from "@medusajs/ui"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { Link } from "react-router-dom"
@@ -10,6 +10,7 @@ import { Form } from "../../components/common/form"
 import AvatarBox from "../../components/common/logo-box/avatar-box"
 import { useRegisterPartner } from "../../hooks/api"
 import { isFetchError } from "../../lib/is-fetch-error"
+import { resendPartnerVerification } from "../../lib/partner-verification"
 
 const RegisterSchema = z.object({
   company_name: z.string().min(1, "Company name is required"),
@@ -24,6 +25,10 @@ type RegisterValues = z.infer<typeof RegisterSchema>
 
 export const Register = () => {
   const [success, setSuccess] = useState(false)
+  const [pendingVerification, setPendingVerification] = useState<
+    { email: string; password: string } | null
+  >(null)
+  const [resendPending, setResendPending] = useState(false)
   const navigate = useNavigate()
 
   const form = useForm<RegisterValues>({
@@ -42,8 +47,17 @@ export const Register = () => {
 
   const handleSubmit = form.handleSubmit(async (values) => {
     await mutateAsync(values, {
-      onSuccess: () => {
+      onSuccess: (data) => {
         setSuccess(true)
+
+        if (data.verificationRequired) {
+          // Hold email+password (this session only) so "Resend" can re-login.
+          setPendingVerification({
+            email: values.email,
+            password: values.password,
+          })
+          return
+        }
 
         setTimeout(() => {
           navigate("/login", { replace: true })
@@ -65,6 +79,77 @@ export const Register = () => {
       },
     })
   })
+
+  const handleResend = async () => {
+    if (!pendingVerification) {
+      return
+    }
+    setResendPending(true)
+    try {
+      const stillPending = await resendPartnerVerification(
+        pendingVerification.email,
+        pendingVerification.password
+      )
+      if (stillPending) {
+        toast.success("Verification email sent", {
+          description: `We re-sent the link to ${pendingVerification.email}.`,
+        })
+      } else {
+        toast.info("Your email is already verified — you can sign in.")
+      }
+    } catch (e) {
+      toast.error("Couldn't resend the email", {
+        description: e instanceof Error ? e.message : "Please try again shortly.",
+      })
+    } finally {
+      setResendPending(false)
+    }
+  }
+
+  // Post-registration: email verification pending — show the "check your inbox"
+  // panel instead of the form.
+  if (pendingVerification) {
+    return (
+      <div className="bg-ui-bg-subtle relative flex min-h-dvh w-dvw items-center justify-center p-4">
+        <div className="flex w-full max-w-[360px] flex-col items-center">
+          <AvatarBox checked />
+          <div className="w-full text-center">
+            <Heading>Check your email</Heading>
+            <Text size="small" className="text-ui-fg-subtle mt-2 block">
+              We sent a verification link to{" "}
+              <span className="text-ui-fg-base font-medium">
+                {pendingVerification.email}
+              </span>
+              . Click it to activate your partner account, then sign in.
+            </Text>
+
+            <Alert className="bg-ui-bg-base mt-6 text-left" variant="info">
+              Didn't get it? Check spam, or resend the link below. The link
+              expires after a short while.
+            </Alert>
+
+            <div className="mt-6 flex flex-col gap-y-3">
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={handleResend}
+                isLoading={resendPending}
+              >
+                Resend verification email
+              </Button>
+              <Button
+                variant="primary"
+                className="w-full"
+                onClick={() => navigate("/login", { replace: true })}
+              >
+                Go to sign in
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const serverError = form.formState.errors?.root?.serverError?.message
   const validationError =
