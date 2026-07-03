@@ -64,6 +64,12 @@ variables:
   # in the media randomiser" pool. This album resolves to the 11 curated images
   # on prod. Non-secret (just an album id), so it lives here (not under secrets:).
   FEEDBACK_ARTWORK_ALBUM_ID: 01KS74M4JABCFKHB4WTF90KQYS
+  # #859/#861 — sales-channel id of the core storefront ("JYT Medu Store") that
+  # approved artisan products are cross-listed onto. There is NO "core store"
+  # entity; the channel id IS the identity. Read by resolve-core-sales-channel.ts
+  # (the cross-list subscriber runs on the WORKER — set there too). Non-secret.
+  # Unset → falls back to the nondeterministic is_default storefront pick.
+  CORE_SALES_CHANNEL_ID: sc_01JNQG1YX5549246DFCKKFTE0W
 
 # Secrets: rotating values come from Secrets Manager.
 # Non-rotating config (CORS, URLs, etc.) comes from SSM Parameter Store — listed

@@ -30,6 +30,10 @@ variables:
   # createDraftProductFromExtractionWorkflow) that build these links via
   # buildPartnerProductUrl, so it needs the same explicit value as the server.
   PARTNER_APP_URL: https://partner.jaalyantra.com
+  # #859/#861 — the artisan cross-list subscriber (artisan-product-cross-list.ts)
+  # runs HERE (worker mode) and reads this to resolve the core storefront's sales
+  # channel. Must mirror the server manifest value. Non-secret (just a channel id).
+  CORE_SALES_CHANNEL_ID: sc_01JNQG1YX5549246DFCKKFTE0W
 
 # Worker needs DB + Redis + R2 (for export/report jobs that write files).
 # Does NOT need JWT/COOKIE/CORS (no HTTP surface).
