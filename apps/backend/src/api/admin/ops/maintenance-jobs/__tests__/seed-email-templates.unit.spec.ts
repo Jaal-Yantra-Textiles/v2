@@ -167,13 +167,77 @@ describe("ops/maintenance-jobs seed-email-templates (#457)", () => {
       expect(getMaintenanceJob("seed-email-templates")).toBe(seedEmailTemplatesJob)
     })
 
-    it("exposes a single optional `set` param", () => {
-      expect(seedEmailTemplatesJob.params).toHaveLength(1)
-      expect(seedEmailTemplatesJob.params[0]).toMatchObject({
-        name: "set",
-        type: "string",
-        required: false,
+    it("exposes set + overwrite + only params (all optional)", () => {
+      expect(seedEmailTemplatesJob.params).toHaveLength(3)
+      expect(seedEmailTemplatesJob.params.map((p) => p.name)).toEqual([
+        "set",
+        "overwrite",
+        "only",
+      ])
+      expect(seedEmailTemplatesJob.params.every((p) => p.required === false)).toBe(true)
+    })
+  })
+
+  describe("overwrite + only (redesign push)", () => {
+    it("without overwrite, existing keys are skipped (no updates)", () => {
+      const plan = planEmailTemplateSeed(specs, new Set(["a", "b", "c"]))
+      expect(plan.toUpdate).toEqual([])
+      expect(plan.existingKeys).toEqual(["a", "b", "c"])
+    })
+
+    it("overwrite routes existing keys to toUpdate instead of skipping", () => {
+      const plan = planEmailTemplateSeed(specs, new Set(["a", "c"]), { overwrite: true })
+      expect(plan.toCreate.map((s) => s.template_key)).toEqual(["b"])
+      expect(plan.toUpdate.map((s) => s.template_key)).toEqual(["a", "c"])
+      expect(plan.existingKeys).toEqual([])
+    })
+
+    it("only scopes the run to a single template_key", () => {
+      const plan = planEmailTemplateSeed(specs, new Set(["a", "b", "c"]), {
+        overwrite: true,
+        only: "b",
       })
+      expect(plan.total).toBe(1)
+      expect(plan.toUpdate.map((s) => s.template_key)).toEqual(["b"])
+      expect(plan.toCreate).toEqual([])
+    })
+
+    it("summary appends the update clause + is marked applied on overwrite", () => {
+      const plan = planEmailTemplateSeed(specs, new Set(["a"]), { overwrite: true, only: "a" })
+      const res = buildEmailTemplateSeedResult("seed-email-templates", false, plan, "email templates")
+      expect(res.applied).toBe(true)
+      expect(res.summary).toBe("Created 0 of 1 email templates; 0 already exist; updated 1")
+      expect(res.changes).toEqual([
+        { entity: "email_template", id: "a", field: "content", before: "(existing)", after: "Alpha" },
+      ])
+    })
+
+    it("run() with overwrite+only updates the scoped template", async () => {
+      const created: string[] = []
+      const updated: string[] = []
+      const reengagement = resolveEmailTemplateSpecs("reengagement").specs
+      const key = reengagement[0].template_key
+      const container = {
+        resolve: () => ({
+          listEmailTemplates: async () =>
+            reengagement.map((s, i) => ({ id: `id_${i}`, template_key: s.template_key })),
+          createEmailTemplates: async (rows: any[]) => {
+            for (const r of rows) created.push(r.template_key)
+            return rows
+          },
+          updateEmailTemplates: async (row: any) => {
+            updated.push(row.template_key)
+            return row
+          },
+        }),
+      }
+      const res = await seedEmailTemplatesJob.run(container, {
+        dry_run: false,
+        params: { set: "reengagement", overwrite: true, only: key },
+      })
+      expect(created).toEqual([])
+      expect(updated).toEqual([key])
+      expect(res.applied).toBe(true)
     })
   })
 
