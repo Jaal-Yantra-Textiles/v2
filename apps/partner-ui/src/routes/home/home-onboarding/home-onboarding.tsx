@@ -13,6 +13,7 @@ import {
   clx,
   toast,
 } from "@medusajs/ui"
+import { LockClosedSolidMini } from "@medusajs/icons"
 import { z } from "@medusajs/framework/zod"
 import { useTranslation } from "react-i18next"
 
@@ -63,6 +64,8 @@ type OnboardingProfile = {
   payment_collection: PaymentCollection | ""
   selling_mode: SellingMode | ""
   commission_pct: string // % in the input; coerced to basis points on save
+  // #859/#861 — orthogonal supplier capability (we place orders WITH them).
+  supplies_to_platform: boolean
 }
 
 const WHAT_THEY_SELL_OPTIONS = [
@@ -127,6 +130,7 @@ const emptyProfile: OnboardingProfile = {
   payment_collection: "",
   selling_mode: "",
   commission_pct: "",
+  supplies_to_platform: false,
 }
 
 const BUSINESS_TYPE_KEYS = [
@@ -145,8 +149,14 @@ const mapBusinessTypeToWorkspaceType = (businessType: string): "seller" | "manuf
   return "manufacturer"
 }
 
-const STEPS = ["about", "business", "operations", "selling", "logo", "people", "plan"] as const
+// #859/#861 — "Selling" moved up to gate the rest of the wizard. Once the
+// partner makes a selling choice (a selling_mode and/or the supplier switch),
+// the dependent steps after it unlock.
+const STEPS = ["about", "selling", "business", "operations", "logo", "people", "plan"] as const
 type Step = (typeof STEPS)[number]
+
+// The pivot step whose completion unlocks everything after it.
+const GATE_STEP: Step = "selling"
 
 // Onboarding country → billing currency. India bills in INR (PayU); everywhere
 // else bills in EUR via Stripe (matches the seeded EUR launch plan). Curated
@@ -338,6 +348,7 @@ const OnboardingForm = () => {
             p.commission_bps === null || p.commission_bps === undefined
               ? prev.commission_pct
               : String(p.commission_bps / 100),
+          supplies_to_platform: Boolean(p.supplies_to_platform),
         }))
       } catch {
         // non-blocking — first-time partners have no profile yet
@@ -401,10 +412,26 @@ const OnboardingForm = () => {
   const isFirstStep = currentIdx === 0
   const isLastStep = currentIdx === STEPS.length - 1
 
+  // #859/#861 — gating. The Selling step must be answered — a selling_mode
+  // and/or the supplier switch — before the dependent steps unlock.
+  const gateIdx = STEPS.indexOf(GATE_STEP)
+  const sellingSatisfied =
+    profile.selling_mode !== "" || profile.supplies_to_platform === true
+  const isStepLocked = useCallback(
+    (step: Step) => STEPS.indexOf(step) > gateIdx && !sellingSatisfied,
+    [gateIdx, sellingSatisfied]
+  )
+  // Blocks "Continue" while sitting on the gate step with nothing chosen.
+  const nextIsLocked = currentStep === GATE_STEP && !sellingSatisfied
+
   const goNext = useCallback(() => {
     const idx = STEPS.indexOf(currentStep)
-    if (idx < STEPS.length - 1) setCurrentStep(STEPS[idx + 1])
-  }, [currentStep])
+    if (idx >= STEPS.length - 1) return
+    const next = STEPS[idx + 1]
+    // Don't step into a locked (dependent) step before the gate is satisfied.
+    if (STEPS.indexOf(next) > gateIdx && !sellingSatisfied) return
+    setCurrentStep(next)
+  }, [currentStep, gateIdx, sellingSatisfied])
 
   const goBack = useCallback(() => {
     const idx = STEPS.indexOf(currentStep)
@@ -500,6 +527,8 @@ const OnboardingForm = () => {
           profileBody.commission_bps = Math.round(pct * 100)
         }
       }
+      // #859/#861 — supplier capability (orthogonal; always sent).
+      profileBody.supplies_to_platform = profile.supplies_to_platform
 
       try {
         await sdk.client.fetch("/partners/onboarding-profile", {
@@ -551,7 +580,11 @@ const OnboardingForm = () => {
   return (
     <ProgressTabs
       value={currentStep}
-      onValueChange={(v) => setCurrentStep(v as Step)}
+      onValueChange={(v) => {
+        const step = v as Step
+        if (isStepLocked(step)) return // locked until the Selling step is answered
+        setCurrentStep(step)
+      }}
       className="flex h-full flex-col overflow-hidden"
     >
       <KeyboundForm
@@ -572,10 +605,16 @@ const OnboardingForm = () => {
                 <ProgressTabs.Trigger
                   key={step}
                   value={step}
+                  disabled={isStepLocked(step)}
                   status={getStepStatus(step, currentStep, aboutYou, !!logo || !!partner?.logo)}
                   className="w-full max-w-[200px]"
                 >
-                  {STEP_LABELS[step]}
+                  <span className="flex items-center gap-x-1.5">
+                    {isStepLocked(step) && (
+                      <LockClosedSolidMini className="text-ui-fg-muted" />
+                    )}
+                    {STEP_LABELS[step]}
+                  </span>
                 </ProgressTabs.Trigger>
               ))}
             </ProgressTabs.List>
@@ -988,6 +1027,35 @@ const OnboardingForm = () => {
                   </div>
                 </div>
               )}
+
+              {/* #859/#861 — supplier capability. Orthogonal to the selling
+                  choice above: a partner can list on the marketplace AND supply
+                  us, or be a supplier only. */}
+              <div className="flex items-start justify-between gap-x-3 rounded-lg border px-4 py-3">
+                <div>
+                  <Text size="small" weight="plus">
+                    We also order from you (supplier)
+                  </Text>
+                  <Text size="xsmall" className="text-ui-fg-subtle">
+                    Turn this on if JYT places production / inventory orders with
+                    you — e.g. a handloom supplier or manufacturer. You can pick
+                    this alongside a selling option above, or on its own.
+                  </Text>
+                </div>
+                <Switch
+                  checked={profile.supplies_to_platform}
+                  onCheckedChange={(c) =>
+                    setProfile((prev) => ({ ...prev, supplies_to_platform: c }))
+                  }
+                />
+              </div>
+
+              {!sellingSatisfied && (
+                <Alert variant="warning">
+                  Choose how you'll sell — or turn on the supplier option — to
+                  unlock the rest of onboarding.
+                </Alert>
+              )}
             </div>
           </ProgressTabs.Content>
 
@@ -1163,7 +1231,12 @@ const OnboardingForm = () => {
                 {t("partner.onboardingModal.footer.complete")}
               </Button>
             ) : (
-              <Button size="small" variant="primary" type="submit">
+              <Button
+                size="small"
+                variant="primary"
+                type="submit"
+                disabled={nextIsLocked}
+              >
                 {t("partner.onboardingModal.footer.continue")}
               </Button>
             )}

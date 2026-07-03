@@ -43,6 +43,9 @@ export const onboardingProfileUpdateSchema = z
       .optional(),
     // Agreed commission in basis points (1000 = 10.00%). Capped at 100%.
     commission_bps: z.number().int().min(0).max(10000).nullable().optional(),
+    // #859 / #861 — supplier capability (we place orders WITH this partner).
+    // Orthogonal to selling_mode; a partner can be both.
+    supplies_to_platform: z.boolean().nullable().optional(),
     completed: z.boolean().optional(),
   })
   .strict()

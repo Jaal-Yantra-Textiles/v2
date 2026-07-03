@@ -100,4 +100,23 @@ describe("onboardingProfileUpdateSchema (#648 slice 1)", () => {
       onboardingProfileUpdateSchema.safeParse({ commission_bps: 12.5 }).success
     ).toBe(false)
   })
+
+  // #859 / #861 — supplier capability (orthogonal to selling_mode)
+  it("accepts supplies_to_platform booleans and null", () => {
+    expect(
+      onboardingProfileUpdateSchema.safeParse({ supplies_to_platform: true }).success
+    ).toBe(true)
+    expect(
+      onboardingProfileUpdateSchema.safeParse({ supplies_to_platform: false }).success
+    ).toBe(true)
+    expect(
+      onboardingProfileUpdateSchema.safeParse({ supplies_to_platform: null }).success
+    ).toBe(true)
+  })
+
+  it("rejects a non-boolean supplies_to_platform", () => {
+    expect(
+      onboardingProfileUpdateSchema.safeParse({ supplies_to_platform: "yes" }).success
+    ).toBe(false)
+  })
 })
