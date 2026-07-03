@@ -6,6 +6,7 @@ import { useRouteModal } from "../modal/use-route-modal";
 import { useUpdateRawMaterial, RawMaterial, useRawMaterialCategories } from "../../hooks/api/raw-materials";
 import { useParams } from "react-router-dom";
 import { CategorySearch } from "../common/category-search";
+import { MediaField } from "../forms/raw-material/media-field";
 import { useState } from "react";
 
 // Define an interface for the raw material update data that supports both material_type and material_type_id
@@ -28,6 +29,7 @@ interface RawMaterialUpdateData {
   status?: "Active" | "Discontinued" | "Under_Review" | "Development"
   material_type?: string  // String for new category names
   material_type_id?: string  // ID for existing categories
+  media?: Record<string, any>  // { files: string[] } — mirrors the create payload
 }
 
 const rawMaterialEditSchema = z.object({
@@ -73,6 +75,8 @@ const rawMaterialEditSchema = z.object({
   ]),
   // Material type can be either an object (for existing categories) or a string (for new ones)
   material_type: z.any(),
+  // Selected media URLs (string[]); persisted as { files } on submit.
+  media: z.any().optional(),
 });
 
 type RawMaterialEditFormData = z.infer<typeof rawMaterialEditSchema>;
@@ -143,7 +147,11 @@ export const EditRawMaterialForm = ({ rawMaterial }: EditRawMaterialFormProps) =
       grade: data.grade,
       usage_guidelines: data.usage_guidelines,
       storage_requirements: data.storage_requirements,
-      status: data.status
+      status: data.status,
+      // Replace the material's media with the current selection (same shape the
+      // create flow sends). The update workflow persists it + syncs the
+      // inventory thumbnail.
+      media: { files: Array.isArray(data.media) ? data.media : [] },
     };
     
     // Handle material_type based on whether it's an existing one or new one
@@ -264,6 +272,12 @@ await mutateAsync({ rawMaterialData: rawMaterialData as any },
       gridCols: 1
     },
     {
+      name: "media",
+      type: "custom",
+      label: t("Media"),
+      customComponent: MediaField,
+    },
+    {
       name: "material_type",
       type: "custom",
       label: t("Material Type"),
@@ -296,6 +310,14 @@ await mutateAsync({ rawMaterialData: rawMaterialData as any },
 
   ];
 
+  // Existing media urls → the picker's initial selection. Media is stored as
+  // { files: [...] }; files may be plain URLs or objects with a `url`.
+  const existingMediaUrls: string[] = Array.isArray((rawMaterial as any).media?.files)
+    ? (rawMaterial as any).media.files
+        .map((f: any) => (typeof f === "string" ? f : f?.url))
+        .filter(Boolean)
+    : [];
+
   // Define initial values for the form
   const initialValues: RawMaterialEditFormData = {
     name: rawMaterial.name,
@@ -313,6 +335,7 @@ await mutateAsync({ rawMaterialData: rawMaterialData as any },
     usage_guidelines: rawMaterial.usage_guidelines || "",
     storage_requirements: rawMaterial.storage_requirements || "",
     status: rawMaterial.status,
+    media: existingMediaUrls,
     // If we have an existing material_type, set it as an object with isExisting flag
     material_type: rawMaterial.material_type ? {
       id: rawMaterial.material_type.id,
