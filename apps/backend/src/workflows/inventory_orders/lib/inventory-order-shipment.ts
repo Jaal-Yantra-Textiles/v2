@@ -21,6 +21,33 @@ import type {
 
 export const DEFAULT_INVENTORY_SHIPMENT_WEIGHT_GRAMS = 500
 
+/**
+ * Normalize a loose L/B/H dimensions payload onto the canonical `Dimensions`
+ * shape (`{ length, width, height }`).
+ *
+ * The API/UI layer speaks Shiprocket's vocabulary — `breadth` — while the
+ * provider interface and client use `width` (the client reads
+ * `dimensions_cm.width`). Passing `{ length, breadth, height }` straight through
+ * meant `width` was undefined and the breadth the operator typed was silently
+ * dropped (defaulted to 10cm at the carrier). Map `breadth → width` here so the
+ * dimension actually reaches the courier. Only defined values are kept. Pure &
+ * exported for unit testing.
+ */
+export function normalizeDimensionsCm(
+  d:
+    | { length?: number; width?: number; breadth?: number; height?: number }
+    | null
+    | undefined
+): Dimensions | undefined {
+  if (!d) return undefined
+  const widthRaw = d.width ?? d.breadth
+  const out: Record<string, number> = {}
+  if (d.length != null) out.length = Number(d.length)
+  if (widthRaw != null) out.width = Number(widthRaw)
+  if (d.height != null) out.height = Number(d.height)
+  return Object.keys(out).length ? (out as Dimensions) : undefined
+}
+
 export type InventoryOrderLineForShipment = {
   id?: string | null
   quantity?: number | null
