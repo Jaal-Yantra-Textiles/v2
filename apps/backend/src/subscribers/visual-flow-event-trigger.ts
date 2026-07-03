@@ -223,6 +223,13 @@ export const config: SubscriberConfig = {
     "partner.partner.updated",
     "partner.partner.deleted",
     "partner.created.fromAdmin",
+
+    // Artisan quasi-partner product proposals (#859 / #861). Dedicated events
+    // fired only on real artisan actions — not the generic product firehose —
+    // so flows can drive review notifications / cross-listing automations.
+    "partner_product.proposed",
+    "partner_product.approved",
+    "partner_product.rejected",
     
     // Tasks
     "tasks.task.created",

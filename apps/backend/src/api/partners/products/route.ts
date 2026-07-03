@@ -195,6 +195,18 @@ export const POST = async (
       [PARTNER_MODULE]: { partner_id: partner.id },
       [Modules.PRODUCT]: { product_id: created.id },
     })
+
+    // Dedicated proposal event — the seam for admin-review notifications and
+    // visual flows (registered in visual-flow-event-trigger.ts). Kept off the
+    // generic `product.created`/`updated` firehose so flows only wake on real
+    // artisan proposals.
+    const eventBus = req.scope.resolve(Modules.EVENT_BUS) as any
+    await eventBus
+      .emit({
+        name: "partner_product.proposed",
+        data: { id: created.id, partner_id: partner.id },
+      })
+      .catch(() => {})
   }
 
   return res.status(201).json({
