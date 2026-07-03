@@ -64,6 +64,7 @@ import {
 import { VISUAL_FLOWS_MODULE } from "../../../../modules/visual_flows"
 import { FLOW_DEF as IDEAS_EMAIL_FLOW_DEF } from "../../../../scripts/seed-marketing-daily-ideas-email-flow"
 import { FLOW_DEF as INVENTORY_ORDER_STATUS_FLOW_DEF } from "../../../../scripts/seed-inventory-order-status-flow"
+import { FLOW_DEF as ARTISAN_PRODUCT_APPROVAL_FLOW_DEF } from "../../../../scripts/seed-artisan-product-approval-flow"
 import { ALL_WHATSAPP_TEMPLATES } from "../../../../scripts/whatsapp-templates/all-templates"
 import {
   syncWhatsAppTemplates,
@@ -4246,6 +4247,73 @@ export const installInventoryOrderStatusFlowJob: MaintenanceJob = {
 }
 
 // ---------------------------------------------------------------------------
+// install-artisan-product-approval-flow (#859 S2 / #861) — LOAD the artisan
+// product review EMAIL flow from the Data Plumbing console. The flow listens to
+// partner_product.approved / .rejected → reads product + owning partner →
+// resolves the artisan's admin email → maps the event to an email template
+// (approved / needs-changes with reason + re-submit CTA) → send_email. Same
+// FLOW_DEF as the CLI seed (single source of truth). Idempotent — refuses to
+// overwrite; created as a DRAFT (inert until the operator seeds the templates
+// and flips draft→active).
+// ---------------------------------------------------------------------------
+
+export const installArtisanProductApprovalFlowJob: MaintenanceJob = {
+  id: "install-artisan-product-approval-flow",
+  label: "Install artisan product review email flow",
+  description:
+    "Load/create the 'Artisan Product Review — Email' visual flow into the system from the console — no shell or seed script needed (#859 S2 / #861). The flow listens to partner_product.approved and partner_product.rejected, resolves the owning artisan's admin email, and sends the matching email template ('artisan-product-approved', or 'artisan-product-rejected' with the reviewer's reason + a re-submit CTA). Dry-run previews the flow it would create (or reports it already exists); apply creates it idempotently as a DRAFT. It stays inert until you seed the two email templates (Data Plumbing 'Seed email templates') and flip the flow draft→active. Re-running never overwrites an existing flow.",
+  params: [],
+  run: async (container, { dry_run }) => {
+    const service: any = container.resolve(VISUAL_FLOWS_MODULE)
+    const flowName = ARTISAN_PRODUCT_APPROVAL_FLOW_DEF.name
+    const eventTrigger =
+      ARTISAN_PRODUCT_APPROVAL_FLOW_DEF.trigger_config?.event_types?.[0] ?? "event"
+    const nodeCount =
+      ARTISAN_PRODUCT_APPROVAL_FLOW_DEF.canvas_state?.nodes?.length ?? 0
+
+    const [existing] = await service.listVisualFlows({ name: flowName })
+    if (existing) {
+      return summarizeEventFlowInstall({
+        jobId: installArtisanProductApprovalFlowJob.id,
+        dry_run,
+        flowName,
+        eventTrigger,
+        nodeCount,
+        existingId: existing.id,
+        createdId: null,
+      })
+    }
+
+    let createdId: string | null = null
+    if (!dry_run) {
+      const flow = await service.createCompleteFlow({
+        flow: {
+          name: ARTISAN_PRODUCT_APPROVAL_FLOW_DEF.name,
+          description: ARTISAN_PRODUCT_APPROVAL_FLOW_DEF.description,
+          status: ARTISAN_PRODUCT_APPROVAL_FLOW_DEF.status,
+          trigger_type: ARTISAN_PRODUCT_APPROVAL_FLOW_DEF.trigger_type,
+          trigger_config: ARTISAN_PRODUCT_APPROVAL_FLOW_DEF.trigger_config,
+          canvas_state: ARTISAN_PRODUCT_APPROVAL_FLOW_DEF.canvas_state,
+        },
+        operations: ARTISAN_PRODUCT_APPROVAL_FLOW_DEF.operations,
+        connections: ARTISAN_PRODUCT_APPROVAL_FLOW_DEF.connections,
+      })
+      createdId = flow?.id ?? null
+    }
+
+    return summarizeEventFlowInstall({
+      jobId: installArtisanProductApprovalFlowJob.id,
+      dry_run,
+      flowName,
+      eventTrigger,
+      nodeCount,
+      existingId: null,
+      createdId,
+    })
+  },
+}
+
+// ---------------------------------------------------------------------------
 // sync-whatsapp-templates (#771) — submit missing WhatsApp message templates to
 // Meta for approval from the Data Plumbing console, using the WhatsApp/Facebook
 // social-provider keys already configured (waba_id + access token per
@@ -5260,6 +5328,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   runMarketingIdeasEmailJob,
   installMarketingIdeasEmailFlowJob,
   installInventoryOrderStatusFlowJob,
+  installArtisanProductApprovalFlowJob,
   syncWhatsAppTemplatesJob,
   generateWinbackTargetsJob,
   sendMarketingDailySummaryJob,

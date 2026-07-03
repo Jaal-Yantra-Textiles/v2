@@ -954,6 +954,15 @@ export default defineMiddlewares({
         validateAndTransformBody(wrapSchema(PartnerCreateProductReq)),
       ],
     },
+    {
+      // #859 S2 (#861): an artisan re-submits a rejected product for review.
+      matcher: "/partners/products/:id/resubmit",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
 
     {
       matcher: "/partners/stores/:id/products",

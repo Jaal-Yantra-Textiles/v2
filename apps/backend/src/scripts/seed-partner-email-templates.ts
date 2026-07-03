@@ -118,6 +118,41 @@ export const partnerEmailTemplates = [
     },
     html_content: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;color:#18181b"><h1 style="font-size:20px;margin:0 0 12px">Confirm your email</h1><p style="font-size:14px;line-height:1.6;color:#3f3f46;margin:0 0 20px">Welcome to Jaal Yantra Textiles. Confirm this email address to activate your partner account and start listing your work.</p><p style="margin:0 0 24px"><a href="{{verify_url}}" style="background:#18181b;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-size:15px;font-weight:600;display:inline-block">Verify my email</a></p><p style="font-size:13px;line-height:1.6;color:#71717a;margin:0 0 8px">This link expires in {{expires_label}}. If it stops working, request a new one from the sign-up screen.</p><p style="font-size:12px;line-height:1.6;color:#a1a1aa;margin:0 0 20px">If the button doesn't work, paste this link into your browser:<br/><span style="color:#3f3f46;word-break:break-all">{{verify_url}}</span></p><p style="font-size:12px;color:#a1a1aa;border-top:1px solid #e4e4e7;padding-top:16px;margin:0">Didn't create a partner account? You can safely ignore this email.<br/>Jaal Yantra Textiles</p></div>`,
   },
+  // #859 S2 (#861) — artisan product review outcome emails. Sent by the
+  // "Artisan Product Review — Email" visual flow on partner_product.approved /
+  // .rejected (see scripts/seed-artisan-product-approval-flow.ts).
+  {
+    template_key: "artisan-product-approved",
+    name: "Artisan — Product Approved",
+    template_type: "partner",
+    from: "partner@partner.jaalyantra.com",
+    is_active: true,
+    subject: "🎉 Your product is approved — {{product_title}}",
+    variables: {
+      partner_name: "Artisan first name (or partner name)",
+      product_title: "Product title",
+      product_url: "Storefront product link",
+      store_url: "Storefront URL",
+      current_year: "Year",
+    },
+    html_content: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#18181b"><h1 style="font-size:18px;margin:0 0 12px">Hi {{partner_name}},</h1><p style="font-size:14px;line-height:1.6;color:#3f3f46">Great news — your product <strong>{{product_title}}</strong> has been <strong style="color:#16a34a">approved</strong> and is now live on the store.</p>{{#if product_url}}<p style="margin:20px 0"><a href="{{product_url}}" style="background:#18181b;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;display:inline-block">View it live</a></p>{{/if}}<p style="font-size:14px;line-height:1.6;color:#3f3f46">Thanks for listing with us. Keep adding pieces — approved products reach the whole storefront.</p><p style="font-size:12px;color:#a1a1aa;margin-top:24px">Jaal Yantra Textiles · {{current_year}}</p></div>`,
+  },
+  {
+    template_key: "artisan-product-rejected",
+    name: "Artisan — Product Needs Changes",
+    template_type: "partner",
+    from: "partner@partner.jaalyantra.com",
+    is_active: true,
+    subject: "Changes needed on your product — {{product_title}}",
+    variables: {
+      partner_name: "Artisan first name (or partner name)",
+      product_title: "Product title",
+      reason: "Optional rejection reason from the reviewer",
+      resubmit_url: "Partner-UI products link to revise + re-submit",
+      current_year: "Year",
+    },
+    html_content: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#18181b"><h1 style="font-size:18px;margin:0 0 12px">Hi {{partner_name}},</h1><p style="font-size:14px;line-height:1.6;color:#3f3f46">Thanks for submitting <strong>{{product_title}}</strong>. It isn't approved yet — a few changes are needed before it can go live.</p>{{#if reason}}<p style="font-size:13px;color:#71717a;background:#fef2f2;padding:10px 12px;border-radius:8px"><strong>What to change:</strong> {{reason}}</p>{{/if}}<p style="font-size:14px;line-height:1.6;color:#3f3f46">Once you've made the updates, re-submit it and we'll review again.</p>{{#if resubmit_url}}<p style="margin:20px 0"><a href="{{resubmit_url}}" style="background:#18181b;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;display:inline-block">Revise &amp; re-submit</a></p>{{/if}}<p style="font-size:12px;color:#a1a1aa;margin-top:24px">Jaal Yantra Textiles · {{current_year}}</p></div>`,
+  },
 ]
 
 export default async function seedPartnerEmailTemplates({ container }: { container: any }) {

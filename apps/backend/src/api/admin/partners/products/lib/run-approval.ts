@@ -29,6 +29,13 @@ export async function runArtisanApproval(
   const productId = req.params.id
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
 
+  // Optional free-text reason (only meaningful on reject) — surfaced to the
+  // artisan in the rejection email so they know what to revise.
+  const rejectionReason =
+    action === "reject" && typeof (req.body as any)?.rejection_reason === "string"
+      ? String((req.body as any).rejection_reason).trim().slice(0, 2000)
+      : undefined
+
   // Resolve ownership (artisan products carry a partner-product link).
   const { data: ownerLinks = [] } = await query.graph({
     entity: LINK_ENTRY,
@@ -65,10 +72,19 @@ export async function runArtisanApproval(
     input: { products: [{ id: productId, status: decision.nextStatus }] },
   })
 
+  // The rejection reason rides the event payload only — it's consumed by the
+  // rejection email / visual flow. We intentionally do NOT persist it on the
+  // product (Medusa replaces the whole metadata blob on update, and native
+  // products can't take a typed column). If persistent review history is ever
+  // needed, add a dedicated typed table keyed by product_id.
   const eventBus = req.scope.resolve(Modules.EVENT_BUS) as IEventBusModuleService
   await eventBus.emit({
     name: decision.event,
-    data: { id: productId, partner_id: partnerId },
+    data: {
+      id: productId,
+      partner_id: partnerId,
+      ...(action === "reject" ? { rejection_reason: rejectionReason ?? null } : {}),
+    },
   })
 
   return res.json({
@@ -76,5 +92,6 @@ export async function runArtisanApproval(
     status: decision.nextStatus,
     partner_id: partnerId,
     event: decision.event,
+    ...(action === "reject" ? { rejection_reason: rejectionReason ?? null } : {}),
   })
 }
