@@ -2420,6 +2420,16 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    {
+      // #641-inv — partner lists Shiprocket courier rates for the order (so it
+      // can pick a courier before creating the shipment). GET still needs the
+      // matcher or req.auth_context is undefined (partner-route auth gotcha).
+      matcher: "/partners/inventory-orders/:orderId/shiprocket-rates",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     // Partner Payments APIs
     {
       matcher: "/partners/:id/payments",

@@ -21,12 +21,60 @@ const json = (body: any, status = 200) =>
     text: async () => JSON.stringify(body),
   }) as any
 
+/**
+ * Captures what the stub last received, so integration specs can assert the
+ * exact payload the client would send to Shiprocket (billing address, order_items
+ * SKUs, L/B/H) end-to-end. Reset it in a test's `beforeEach` when needed.
+ */
+export const shiprocketStubState: { lastAdhocBody?: any; lastPickupBody?: any } = {}
+
+const parseBody = (init: any): any => {
+  try {
+    return init?.body ? JSON.parse(init.body) : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export function createShiprocketStubFetch(): FetchLike {
-  return async (input: any) => {
+  return async (input: any, init?: any) => {
     const url = String(input)
 
     if (url.endsWith("/auth/login")) {
       return json({ token: "stub-token" })
+    }
+
+    // Adhoc order create — capture the body (the whole point of the #864/#866/#869
+    // end-to-end assertions) and return a shipment id.
+    if (url.endsWith("/orders/create/adhoc")) {
+      shiprocketStubState.lastAdhocBody = parseBody(init)
+      return json({ order_id: 9001, shipment_id: 8001 })
+    }
+
+    if (url.endsWith("/courier/assign/awb")) {
+      return json({
+        response: {
+          data: {
+            awb_code: "STUBAWB123",
+            courier_company_id: 51,
+            courier_name: "Xpressbees Surface",
+          },
+        },
+      })
+    }
+
+    if (url.endsWith("/courier/generate/label")) {
+      return json({ label_url: "https://shiprocket.stub/label.pdf" })
+    }
+
+    if (url.endsWith("/courier/generate/pickup")) {
+      shiprocketStubState.lastPickupBody = parseBody(init)
+      return json({
+        response: {
+          pickup_scheduled_date: "2026-07-05 10:00:00",
+          pickup_token_number: 555,
+        },
+      })
     }
 
     if (url.includes("/settings/company/pickup")) {
