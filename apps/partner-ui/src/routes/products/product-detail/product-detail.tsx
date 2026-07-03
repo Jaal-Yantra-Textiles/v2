@@ -5,6 +5,7 @@ import { TwoColumnPage } from "../../../components/layout/pages"
 import { useProduct } from "../../../hooks/api/products"
 import { ProductAttributeSection } from "./components/product-attribute-section"
 import { ProductGeneralSection } from "./components/product-general-section"
+import { ProductReviewBanner } from "./components/product-review-banner/product-review-banner"
 import { ProductMediaSection } from "./components/product-media-section"
 import { ProductOptionSection } from "./components/product-option-section"
 import { ProductOrganizationSection } from "./components/product-organization-section"
@@ -65,6 +66,7 @@ export const ProductDetail = () => {
       data={product}
     >
       <TwoColumnPage.Main>
+        <ProductReviewBanner product={product} />
         <ProductGeneralSection product={product} />
         <ProductMediaSection product={product} />
         <ProductOptionSection product={product} />
