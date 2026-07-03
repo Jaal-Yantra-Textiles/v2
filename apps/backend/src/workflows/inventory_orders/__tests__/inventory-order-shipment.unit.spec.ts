@@ -2,9 +2,34 @@ import {
   buildInventoryOrderShipmentInput,
   DEFAULT_INVENTORY_SHIPMENT_WEIGHT_GRAMS,
   missingDestinationAddressFields,
+  normalizeDimensionsCm,
   resolveInventoryDestinationAddress,
   type InventoryOrderForShipment,
 } from "../lib/inventory-order-shipment"
+
+describe("normalizeDimensionsCm (breadth → width for the courier)", () => {
+  it("maps breadth to the canonical width the client reads", () => {
+    expect(normalizeDimensionsCm({ length: 30, breadth: 20, height: 10 })).toEqual(
+      { length: 30, width: 20, height: 10 }
+    )
+  })
+
+  it("passes an explicit width through and prefers it over breadth", () => {
+    expect(
+      normalizeDimensionsCm({ length: 30, width: 25, breadth: 20, height: 10 } as any)
+    ).toEqual({ length: 30, width: 25, height: 10 })
+  })
+
+  it("keeps only provided fields (partial dims)", () => {
+    expect(normalizeDimensionsCm({ breadth: 15 })).toEqual({ width: 15 })
+  })
+
+  it("returns undefined for empty/absent input", () => {
+    expect(normalizeDimensionsCm(undefined)).toBeUndefined()
+    expect(normalizeDimensionsCm(null)).toBeUndefined()
+    expect(normalizeDimensionsCm({})).toBeUndefined()
+  })
+})
 
 const baseOrder: InventoryOrderForShipment = {
   id: "invord_1",

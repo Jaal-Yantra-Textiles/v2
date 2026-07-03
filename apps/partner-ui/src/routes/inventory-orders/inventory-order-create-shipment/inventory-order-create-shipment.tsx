@@ -28,6 +28,9 @@ const InventoryOrderCreateShipmentContent = () => {
   const { handleSuccess } = useRouteModal()
   const queryClient = useQueryClient()
   const [weight, setWeight] = useState("")
+  const [length, setLength] = useState("")
+  const [breadth, setBreadth] = useState("")
+  const [height, setHeight] = useState("")
 
   const { mutateAsync, isPending } =
     useCreatePartnerInventoryOrderShipment(id || "")
@@ -37,8 +40,22 @@ const InventoryOrderCreateShipmentContent = () => {
       return
     }
 
+    // Mirrors the admin shipment modal: L/B/H are sent as dimensions_cm so the
+    // real package size reaches the courier (else it defaults to 10×10×10).
+    const dims =
+      length || breadth || height
+        ? {
+            ...(length ? { length: Number(length) } : {}),
+            ...(breadth ? { breadth: Number(breadth) } : {}),
+            ...(height ? { height: Number(height) } : {}),
+          }
+        : undefined
+
     await mutateAsync(
-      { ...(weight ? { weight_grams: Number(weight) } : {}) },
+      {
+        ...(weight ? { weight_grams: Number(weight) } : {}),
+        ...(dims ? { dimensions_cm: dims } : {}),
+      },
       {
         onSuccess: (data) => {
           const awb = data?.shipment?.awb || data?.shipment?.tracking_number
@@ -62,8 +79,8 @@ const InventoryOrderCreateShipmentContent = () => {
       <RouteDrawer.Body className="flex flex-col gap-y-4">
         <Text size="small" className="text-ui-fg-subtle">
           Generate a carrier shipment (AWB + label) for this order using the
-          registered pickup. Weight is optional — leave it blank to use the
-          order's default.
+          registered pickup. Weight and dimensions are optional — leave them
+          blank to use the order's defaults.
         </Text>
         <div className="flex flex-col gap-y-1">
           <Label size="small" htmlFor="weight">
@@ -76,6 +93,41 @@ const InventoryOrderCreateShipmentContent = () => {
             onChange={(e) => setWeight(e.target.value)}
             placeholder="500"
           />
+        </div>
+        <div className="grid grid-cols-3 gap-x-2">
+          <div className="flex flex-col gap-y-1">
+            <Label size="small" htmlFor="length">
+              Length (cm)
+            </Label>
+            <Input
+              id="length"
+              type="number"
+              value={length}
+              onChange={(e) => setLength(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-y-1">
+            <Label size="small" htmlFor="breadth">
+              Breadth (cm)
+            </Label>
+            <Input
+              id="breadth"
+              type="number"
+              value={breadth}
+              onChange={(e) => setBreadth(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-y-1">
+            <Label size="small" htmlFor="height">
+              Height (cm)
+            </Label>
+            <Input
+              id="height"
+              type="number"
+              value={height}
+              onChange={(e) => setHeight(e.target.value)}
+            />
+          </div>
         </div>
         {!id && (
           <Text size="small" className="text-ui-fg-subtle">

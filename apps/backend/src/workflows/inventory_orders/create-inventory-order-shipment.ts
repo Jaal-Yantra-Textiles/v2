@@ -21,6 +21,7 @@ import type {
 import {
   buildInventoryOrderShipmentInput,
   missingDestinationAddressFields,
+  normalizeDimensionsCm,
   resolveInventoryDestinationAddress,
 } from "./lib/inventory-order-shipment"
 
@@ -178,7 +179,9 @@ export async function createInventoryOrderShipment(
   const shipmentInput = buildInventoryOrderShipmentInput(orderForShipment as any, {
     pickupLocationName,
     weightGrams: input.weightGrams,
-    dimensionsCm: input.dimensionsCm,
+    // Map breadth → width so the operator-entered breadth reaches the courier
+    // (the client reads dimensions_cm.width); undefined dims still default.
+    dimensionsCm: normalizeDimensionsCm(input.dimensionsCm as any),
     preferredCourierId: input.preferredCourierId,
     taxId,
     deliveredQuantities: input.deliveredQuantities,
