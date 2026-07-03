@@ -74,6 +74,7 @@ import { seedEmailTemplatesJob } from "./seed-jobs"
 import { replayFxFanoutJob } from "./fanout-fx-job"
 import { backfillStoreCurrenciesJob } from "./backfill-store-currencies-job"
 import { backfillPartnerEmailVerifiedJob } from "./backfill-partner-email-verified-job"
+import { enableStripeConnectEurRegionsJob } from "./enable-stripe-connect-eur-regions-job"
 import {
   sweepAiPlatformsByCategory,
   AI_ROLES,
@@ -5341,6 +5342,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   replayFxFanoutJob,
   backfillStoreCurrenciesJob,
   backfillPartnerEmailVerifiedJob,
+  enableStripeConnectEurRegionsJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
