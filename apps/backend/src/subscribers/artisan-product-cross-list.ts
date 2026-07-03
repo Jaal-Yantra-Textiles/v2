@@ -1,21 +1,29 @@
 import { SubscriberArgs, type SubscriberConfig } from "@medusajs/framework"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import partnerProductLink from "../links/partner-product"
-import { listStorefronts } from "../api/mcp/lib/store-resolver"
 import { decideCrossList } from "./lib/artisan-cross-list-decision"
+import { resolveCoreSalesChannelId } from "./lib/resolve-core-sales-channel"
 
 const LINK_ENTRY = partnerProductLink.entryPoint
 
 /**
- * #859 S2 (#861) — cross-list an artisan's proposed product onto the core
- * cicilabel.com sales channel once an admin publishes it.
+ * #859 S2 (#861) — cross-list an artisan's approved product onto the core
+ * sales channel.
  *
  * An artisan (`core_channel_listing`) partner creates products as `proposed`,
  * bound only to their own channel, with a `partner-product` link recording
- * ownership. When an admin flips the product to `published`, this handler
- * attaches the core store's sales channel so it appears on the core storefront.
- * Non-artisan products (no partner-product link) are ignored, so this stays
- * cheap on the high-frequency `product.updated` event.
+ * ownership. An admin reviews and approves via
+ * `POST /admin/partners/products/:id/approve`, which publishes the product and
+ * emits `partner_product.approved`. This handler reacts to that dedicated
+ * event — NOT the high-frequency generic `product.updated` — and attaches the
+ * core sales channel so the product appears on the core storefront.
+ *
+ * The core channel is identified by its sales-channel id (CORE_SALES_CHANNEL_ID
+ * env); there is no "core store" entity. See resolve-core-sales-channel.ts.
+ *
+ * The same `partner_product.approved` event is also available to the visual
+ * flow editor (registered in visual-flow-event-trigger.ts), so operators can
+ * layer notifications/automations on approval without touching code.
  */
 export default async function artisanProductCrossListHandler({
   event: { data },
@@ -27,6 +35,8 @@ export default async function artisanProductCrossListHandler({
   const logger = container.resolve("logger") as any
 
   // Only artisan-owned products carry a partner-product link. No link → ignore.
+  // (The approve endpoint only emits for artisan products, but we re-check so a
+  // stray/hand-fired event can't cross-list an unrelated product.)
   let ownerLinks: any[] = []
   try {
     const res = await query.graph({
@@ -43,7 +53,7 @@ export default async function artisanProductCrossListHandler({
   }
   if (ownerLinks.length === 0) return
 
-  // Cross-list only once the product is published.
+  // Cross-list only once the product is published (approve publishes first).
   let product: any
   try {
     const res = await query.graph({
@@ -60,13 +70,11 @@ export default async function artisanProductCrossListHandler({
   }
   if (!product) return
 
-  // Resolve the core (platform) store's sales channel — the store not owned by
-  // any partner (apex cicilabel.com). Reuses the MCP store-resolver.
+  // Resolve the core sales channel by its id (env-configured), not by guessing
+  // a "default" store.
   let coreChannelId: string | null = null
   try {
-    const storefronts = await listStorefronts(container)
-    coreChannelId =
-      storefronts.find((s) => s.is_default)?.sales_channel_id || null
+    coreChannelId = await resolveCoreSalesChannelId(container)
   } catch (e: any) {
     logger?.warn?.(
       `[artisan cross-list] core channel resolve failed for ${data.id}: ${e.message}`
@@ -101,5 +109,6 @@ export default async function artisanProductCrossListHandler({
 }
 
 export const config: SubscriberConfig = {
-  event: ["product.updated"],
+  // Dedicated approval event — not the noisy generic product.updated.
+  event: ["partner_product.approved"],
 }
