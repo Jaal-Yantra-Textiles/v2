@@ -86,6 +86,38 @@ describe("buildInventoryOrderShipmentInput (#772)", () => {
   })
 })
 
+describe("buildInventoryOrderShipmentInput colour-variant identity (#817 / SKU-repeat fix)", () => {
+  // Mirrors the real order #68: 16 colour variants, no line/metadata SKU, but a
+  // real inventory_item SKU + material_name + colour on each line.
+  const colourOrder: InventoryOrderForShipment = {
+    id: "inv_1",
+    orderlines: [
+      { id: "l1", quantity: 2, price: 100, sku: "OTH-TAN-BLA-001", color: "Black", material_name: "Tangaliya Weave — Black" },
+      { id: "l2", quantity: 3, price: 100, sku: "OTH-TAN-MID-001", color: "midnight blue", material_name: "Tangaliya Weave — midnight blue" },
+      // A no-SKU line whose base name does NOT embed the colour — colour is appended.
+      { id: "l3", quantity: 1, price: 100, color: "Soft pale yellow", material_name: "Tangaliya Weave" },
+    ],
+  }
+
+  it("gives each colour variant a distinct sku + name (no repeats)", () => {
+    const input = buildInventoryOrderShipmentInput(colourOrder, {})
+    expect(input.items).toHaveLength(3)
+    expect(input.items.map((i) => i.sku)).toEqual([
+      "OTH-TAN-BLA-001",
+      "OTH-TAN-MID-001",
+      undefined, // falls back to the (distinct) name
+    ])
+    // base already embeds the colour → not appended twice
+    expect(input.items[0].name).toBe("Tangaliya Weave — Black")
+    expect(input.items[1].name).toBe("Tangaliya Weave — midnight blue")
+    // base has no colour → colour appended for distinctness
+    expect(input.items[2].name).toBe("Tangaliya Weave — Soft pale yellow")
+    // The effective carrier key (sku || name) is unique across all lines.
+    const effective = input.items.map((i) => i.sku || i.name)
+    expect(new Set(effective).size).toBe(input.items.length)
+  })
+})
+
 describe("resolveInventoryDestinationAddress (#772 to-location fill)", () => {
   const locAddress = {
     address_1: "9 Mill Rd",

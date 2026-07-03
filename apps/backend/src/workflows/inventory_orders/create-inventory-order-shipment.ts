@@ -139,8 +139,34 @@ export async function createInventoryOrderShipment(
     )
   }
 
+  // Resolve each line's real inventory_item SKU (the line itself has no sku
+  // column). Without this, no-SKU lines collapse to one repeated fallback and
+  // Shiprocket 400s "SKU cannot be repeated"; with it, colour variants carry
+  // their true unique SKUs (e.g. OTH-TAN-BLA-001). Best-effort — the builder
+  // still distinguishes lines by material_name + colour if this lookup fails.
+  let orderlines: any[] = (order as any).orderlines || []
+  try {
+    const { data: rows } = await query.graph({
+      entity: "inventory_orders",
+      fields: ["orderlines.id", "orderlines.inventory_items.sku"],
+      filters: { id: order.id },
+    })
+    const skuByLine = new Map<string, string>()
+    for (const ol of rows?.[0]?.orderlines || []) {
+      const sku = (ol?.inventory_items || [])[0]?.sku
+      if (ol?.id && sku) skuByLine.set(String(ol.id), String(sku))
+    }
+    orderlines = orderlines.map((l) => ({
+      ...l,
+      sku: l.sku ?? skuByLine.get(String(l.id)) ?? null,
+    }))
+  } catch {
+    // best-effort — name-based distinctness (material_name + colour) still holds
+  }
+
   const orderForShipment = {
     ...(order as any),
+    orderlines,
     shipping_address: destinationAddress,
   }
 
