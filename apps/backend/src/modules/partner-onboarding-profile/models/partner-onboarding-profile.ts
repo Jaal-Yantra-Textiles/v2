@@ -66,6 +66,13 @@ const PartnerOnboardingProfile = model.define("partner_onboarding_profile", {
   //     override (#336 override slot).
   commission_bps: model.number().nullable(),
 
+  // 11. Supplier capability (#859 / #861). ORTHOGONAL to selling_mode: true when
+  //     the platform places production / inventory orders WITH this partner
+  //     (a handloom supplier / manufacturer). A partner can both list on the
+  //     marketplace AND supply us, so this is a separate flag rather than a
+  //     third selling_mode value. Seeds the future inventory_orders unification.
+  supplies_to_platform: model.boolean().nullable(),
+
   // Set true once the partner submits the wizard.
   completed: model.boolean().default(false),
 
