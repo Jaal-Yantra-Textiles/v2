@@ -144,95 +144,105 @@ export const emailTemplatesData = [
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>{{blog_title}} - Jaal Yantra Textiles</title>
       </head>
-      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8f9fa;">
-        <div style="max-width: 680px; margin: 0 auto; background-color: #ffffff;">
-          
-          <!-- Header -->
-          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center;">
-            <h1 style="color: #ffffff; font-size: 32px; font-weight: 700; margin: 0 0 10px 0; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f5f3ef; color: #1a1a1e;">
+        <div style="max-width: 620px; margin: 0 auto; background-color: #ffffff;">
+
+          <!-- Masthead: slim indigo rule + wordmark -->
+          <div style="height: 4px; background-color: #33348e;"></div>
+          <div style="padding: 28px 36px 22px 36px; border-bottom: 1px solid #ece9e3;">
+            <p style="margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: #1a1a1e;">
               Jaal Yantra Textiles
-            </h1>
-            <p style="color: #e8eaff; font-size: 16px; margin: 0; opacity: 0.9;">
-              Premium Textiles & Fashion Blog
+            </p>
+            <p style="margin: 4px 0 0 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #8a8880;">
+              Notes from the loom
             </p>
           </div>
 
-          <!-- Personal Greeting -->
-          <div style="padding: 30px; border-bottom: 1px solid #e9ecef;">
-            <p style="color: #495057; font-size: 18px; margin: 0; line-height: 1.5;">
+          <!-- Greeting -->
+          <div style="padding: 30px 36px 6px 36px;">
+            <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #33323a;">
               Hello {{first_name}},
             </p>
-            <p style="color: #6c757d; font-size: 16px; margin: 15px 0 0 0; line-height: 1.6;">
-              We have a new blog post that we think you'll love. Here's what's fresh from our textile world:
+            <p style="margin: 12px 0 0 0; font-size: 15px; line-height: 1.7; color: #6b6a73;">
+              Something new from our textile world — we thought you'd want to read it first.
             </p>
           </div>
 
-          <!-- Blog Content -->
-          <div style="padding: 40px 30px;">
-            <!-- Blog Title -->
-            <h2 style="color: #212529; font-size: 28px; font-weight: 600; margin: 0 0 20px 0; line-height: 1.3;">
+          {{#if custom_message}}
+          <!-- Personal note -->
+          <div style="margin: 22px 36px 0 36px; padding: 16px 20px; background-color: #f6f5fb; border-left: 3px solid #33348e; border-radius: 6px;">
+            <p style="margin: 0; font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 15px; line-height: 1.7; color: #3a3947;">
+              {{custom_message}}
+            </p>
+          </div>
+          {{/if}}
+
+          <!-- Article -->
+          <div style="padding: 28px 36px 8px 36px;">
+            <h1 style="margin: 0 0 18px 0; font-family: Georgia, 'Times New Roman', serif; font-size: 26px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; color: #16151b;">
               {{blog_title}}
-            </h2>
-            
-            <!-- Blog Content -->
-            <div style="color: #495057; font-size: 16px; line-height: 1.7; margin-bottom: 30px;">
+            </h1>
+            <div style="font-size: 15px; line-height: 1.75; color: #454550;">
               {{{blog_content}}}
             </div>
-            
-            <!-- Read More Button -->
-            <div style="text-align: center; margin: 40px 0;">
-              <a href="{{blog_url}}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
-                Read Full Article →
+
+            <!-- Read full article -->
+            <div style="margin: 32px 0 8px 0;">
+              <a href="{{blog_url}}" style="display: inline-block; background-color: #33348e; color: #ffffff; text-decoration: none; padding: 13px 30px; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                Read the full article &rarr;
               </a>
             </div>
-            
-            <!-- Blog Tags -->
+
             {{#if blog_tags}}
-            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
-              <p style="color: #6c757d; font-size: 14px; margin: 0 0 10px 0; font-weight: 500;">
-                Topics:
-              </p>
-              <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                {{#each blog_tags}}
-                <span style="background-color: #e9ecef; color: #495057; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500;">
-                  {{this}}
-                </span>
-                {{/each}}
-              </div>
+            <div style="margin-top: 26px; padding-top: 18px; border-top: 1px solid #ece9e3;">
+              <p style="margin: 0 0 10px 0; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #8a8880;">Topics</p>
+              {{#each blog_tags}}
+              <span style="display: inline-block; background-color: #f0eef8; color: #33348e; padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 500; margin: 0 6px 6px 0;">{{this}}</span>
+              {{/each}}
             </div>
             {{/if}}
           </div>
 
+          <!-- Two doors: shop + create -->
+          <div style="margin: 14px 36px 0 36px; padding: 26px 24px; background-color: #faf9f6; border: 1px solid #ece9e3; border-radius: 10px; text-align: center;">
+            <p style="margin: 0 0 18px 0; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: #8a8880;">Two ways to go further</p>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto;">
+              <tr>
+                <td style="padding: 6px 8px;">
+                  <a href="{{shop_url}}" style="display: inline-block; background-color: #16151b; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 14px;">
+                    Shop at cicilabel.com
+                  </a>
+                </td>
+                <td style="padding: 6px 8px;">
+                  <a href="{{create_url}}" style="display: inline-block; background-color: #ffffff; color: #16151b; text-decoration: none; padding: 11px 23px; border: 1px solid #d7d4cc; border-radius: 8px; font-weight: 600; font-size: 14px;">
+                    Create at jaalyantra.com
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin: 16px 0 0 0; font-size: 13px; line-height: 1.6; color: #6b6a73;">
+              Buy finished pieces at <strong style="color:#16151b;">cicilabel.com</strong>, or design &amp; produce something new at <strong style="color:#16151b;">jaalyantra.com</strong>.
+            </p>
+          </div>
+
+          <!-- Sign-off -->
+          <div style="padding: 28px 36px 8px 36px;">
+            <p style="margin: 0; font-size: 15px; line-height: 1.7; color: #6b6a73;">
+              Warmly,<br>
+              <span style="color:#16151b; font-weight:600;">The Jaal Yantra studio</span> &nbsp;&#129525;
+            </p>
+          </div>
+
           <!-- Footer -->
-          <div style="background-color: #f8f9fa; padding: 30px; text-align: center; border-top: 1px solid #e9ecef;">
-            <div style="margin-bottom: 20px;">
-              <h3 style="color: #495057; font-size: 18px; margin: 0 0 10px 0; font-weight: 600;">
-                Stay Connected
-              </h3>
-              <p style="color: #6c757d; font-size: 14px; margin: 0; line-height: 1.5;">
-                Follow us for more insights into the world of premium textiles and fashion.
-              </p>
-            </div>
-            
-            <!-- Social Links Placeholder -->
-            <div style="margin-bottom: 25px;">
-              <a href="{{website_url}}" style="color: #667eea; text-decoration: none; font-weight: 500; font-size: 14px;">
-                Visit Our Website
-              </a>
-            </div>
-            
-            <!-- Unsubscribe -->
-            <div style="border-top: 1px solid #dee2e6; padding-top: 20px;">
-              <p style="color: #6c757d; font-size: 12px; margin: 0 0 8px 0; line-height: 1.4;">
-                You're receiving this email because you subscribed to our blog updates.
-              </p>
-              <p style="color: #6c757d; font-size: 12px; margin: 0; line-height: 1.4;">
-                <a href="{{unsubscribe_url}}" style="color: #6c757d; text-decoration: underline;">
-                  Unsubscribe
-                </a> | 
-                &copy; {{current_year}} Jaal Yantra Textiles. All rights reserved.
-              </p>
-            </div>
+          <div style="padding: 22px 36px 30px 36px; border-top: 1px solid #ece9e3;">
+            <p style="margin: 0 0 6px 0;">
+              <a href="{{website_url}}" style="color: #33348e; text-decoration: none; font-weight: 500; font-size: 13px;">Visit our website &rarr;</a>
+            </p>
+            <p style="margin: 12px 0 0 0; font-size: 11px; line-height: 1.5; color: #a3a19a;">
+              You're receiving this because you subscribed to Jaal Yantra Textiles updates.
+              <a href="{{unsubscribe_url}}" style="color: #8a8880; text-decoration: underline;">Unsubscribe</a>
+              &nbsp;&middot;&nbsp; &copy; {{current_year}} Jaal Yantra Textiles.
+            </p>
           </div>
         </div>
       </body>
@@ -241,13 +251,16 @@ export const emailTemplatesData = [
     variables: {
       blog_title: "Blog post title",
       blog_content: "Blog post HTML content from TipTap editor",
-      blog_url: "URL to the full blog post",
+      blog_url: "URL to the full blog post (carries UTM source/medium)",
       blog_tags: "Array of blog tags",
       first_name: "Subscriber's first name",
       last_name: "Subscriber's last name",
       email: "Subscriber's email address",
+      custom_message: "Optional personal note from the sender (per-send)",
+      shop_url: "cicilabel.com storefront link (UTM-tagged)",
+      create_url: "jaalyantra.com create/design link (UTM-tagged)",
       unsubscribe_url: "URL to unsubscribe from blog emails",
-      website_url: "Main website URL",
+      website_url: "Main website URL (UTM-tagged)",
       current_year: "Current year for copyright"
     },
     template_type: "blog_subscriber",

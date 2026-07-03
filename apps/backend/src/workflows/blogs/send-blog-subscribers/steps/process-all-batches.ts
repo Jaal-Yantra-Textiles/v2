@@ -45,10 +45,17 @@ function buildEmailData(
   htmlContent: string,
   emailConfig: { subject: string; customMessage?: string }
 ) {
+  const frontend = process.env.FRONTEND_URL || "https://jaalyantra.com"
+  // UTM tagging so newsletter/blog traffic is attributable in analytics.
+  // Campaign defaults to the post slug when available for per-post attribution.
+  const campaign = (blogData?.slug || "blog_broadcast").toString()
+  const UTM = `utm_source=newsletter&utm_medium=email&utm_campaign=${encodeURIComponent(campaign)}`
+  const withUtm = (u: string) => (u ? `${u}${u.includes("?") ? "&" : "?"}${UTM}` : u)
+
   return {
     blog_title: blogData.title,
     blog_content: htmlContent,
-    blog_url: `${process.env.FRONTEND_URL || ""}${blogData.url}`,
+    blog_url: withUtm(`${frontend}${blogData.url}`),
     blog_created_at: blogData.created_at,
     blog_updated_at: blogData.updated_at,
     blog_tags: blogData.tags || [],
@@ -58,8 +65,11 @@ function buildEmailData(
     subscriber_id: subscriber.id,
     subject: emailConfig.subject,
     custom_message: emailConfig.customMessage || "",
-    unsubscribe_url: `${process.env.FRONTEND_URL || ""}/unsubscribe?id=${subscriber.id}`,
-    website_url: process.env.FRONTEND_URL || "",
+    unsubscribe_url: `${frontend}/unsubscribe?id=${subscriber.id}`,
+    website_url: withUtm(frontend),
+    // Two doors: buy finished pieces on cicilabel.com; design & produce on jaalyantra.com.
+    shop_url: withUtm("https://cicilabel.com"),
+    create_url: withUtm("https://jaalyantra.com"),
     current_year: new Date().getFullYear().toString(),
     blog: {
       title: blogData.title,
