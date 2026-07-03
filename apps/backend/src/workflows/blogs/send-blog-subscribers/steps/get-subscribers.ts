@@ -56,6 +56,7 @@ export const getSubscribersStep = createStep(
 
       for (const person of persons as any[]) {
         if (person.metadata?.bounced) continue // hard-bounced — never mail
+        if (person.metadata?.unsubscribed) continue // opted out — never mail
         const sub = person.subscribed
         if (!sub || sub.subscription_status !== "active") continue
         for (const email of extractEmails(person.email)) {
@@ -80,6 +81,7 @@ export const getSubscribersStep = createStep(
 
       for (const customer of customers) {
         if ((customer as any).metadata?.bounced) continue // hard-bounced — never mail
+        if ((customer as any).metadata?.unsubscribed) continue // opted out — never mail
         for (const email of extractEmails(customer.email)) {
           const key = email.toLowerCase()
           if (!uniqueSubscribers.has(key)) {
@@ -102,6 +104,7 @@ export const getSubscribersStep = createStep(
 
       for (const lead of leads as any[]) {
         if (lead.metadata?.bounced) continue // hard-bounced — never mail
+        if (lead.metadata?.unsubscribed) continue // opted out — never mail
         for (const email of extractEmails(lead.email)) {
           const key = email.toLowerCase()
           if (!uniqueSubscribers.has(key)) {

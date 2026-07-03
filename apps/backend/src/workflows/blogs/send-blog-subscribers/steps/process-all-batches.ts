@@ -65,7 +65,11 @@ function buildEmailData(
     subscriber_id: subscriber.id,
     subject: emailConfig.subject,
     custom_message: emailConfig.customMessage || "",
-    unsubscribe_url: `${frontend}/unsubscribe?id=${subscriber.id}`,
+    // Carry the email alongside the (ambiguous person|customer|lead) id so the
+    // unsubscribe endpoint suppresses by email even when the id can't resolve.
+    unsubscribe_url: `${frontend}/unsubscribe?id=${encodeURIComponent(
+      subscriber.id
+    )}&email=${encodeURIComponent(subscriber.email)}`,
     website_url: withUtm(frontend),
     // Two doors: buy finished pieces on cicilabel.com; design & produce on jaalyantra.com.
     shop_url: withUtm("https://cicilabel.com"),
