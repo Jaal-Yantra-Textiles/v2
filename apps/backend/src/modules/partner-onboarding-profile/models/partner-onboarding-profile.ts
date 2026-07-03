@@ -52,6 +52,20 @@ const PartnerOnboardingProfile = model.define("partner_onboarding_profile", {
   //    lives in /partners/payment-config (out of scope for slice 1).
   payment_collection: model.enum(["through_us", "themselves"]).nullable(),
 
+  // 9. How the partner wants to sell (#859 S1 / #860):
+  //    - dedicated_storefront: runs their own storefront/sales channel.
+  //    - core_channel_listing: Airbnb-style listing on the core cicilabel.com
+  //      sales channel, at an agreed commission (see commission_bps).
+  selling_mode: model
+    .enum(["dedicated_storefront", "core_channel_listing"])
+    .nullable(),
+
+  // 10. Agreed commission / revenue-share, in basis points (1000 = 10.00%).
+  //     Nullable — when unset the platform default (PLATFORM_TX_FEE_BPS, 2%)
+  //     applies. Wired into partner_billing/resolve-fee-rate as the per-partner
+  //     override (#336 override slot).
+  commission_bps: model.number().nullable(),
+
   // Set true once the partner submits the wizard.
   completed: model.boolean().default(false),
 

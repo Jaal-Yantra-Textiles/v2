@@ -36,6 +36,13 @@ export const onboardingProfileUpdateSchema = z
       .enum(["through_us", "themselves"])
       .nullable()
       .optional(),
+    // #859 S1 / #860 — how the partner wants to sell.
+    selling_mode: z
+      .enum(["dedicated_storefront", "core_channel_listing"])
+      .nullable()
+      .optional(),
+    // Agreed commission in basis points (1000 = 10.00%). Capped at 100%.
+    commission_bps: z.number().int().min(0).max(10000).nullable().optional(),
     completed: z.boolean().optional(),
   })
   .strict()
