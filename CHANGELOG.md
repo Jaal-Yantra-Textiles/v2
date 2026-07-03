@@ -1,3 +1,50 @@
+# [13.46.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.45.0...v13.46.0) (2026-07-03)
+
+
+### Bug Fixes
+
+* **inventory-orders:** editorder save (drop top-level id) + picker dropdown wheel-scroll in modals ([916ce72](https://github.com/Jaal-Yantra-Textiles/v2/commit/916ce729d38d86a395dccd672334a896c177ceb3))
+* **storefront:** make chat input mobile-compliant and stylish ([#834](https://github.com/Jaal-Yantra-Textiles/v2/issues/834)) ([23fb388](https://github.com/Jaal-Yantra-Textiles/v2/commit/23fb3882c3009ff4cf4319e95b3dcf6d163fde55))
+* **payments+inventory:** PayU partner creds, order-line drop, Connect gating ([#855](https://github.com/Jaal-Yantra-Textiles/v2/issues/855)) ([788467d](https://github.com/Jaal-Yantra-Textiles/v2/commit/788467d3ecc79dcd642188b4e607de8740d00b43))
+* **inventory-orders:** re-project core mirror items on line update (stop drift) ([#857](https://github.com/Jaal-Yantra-Textiles/v2/issues/857)) ([5fbc738](https://github.com/Jaal-Yantra-Textiles/v2/commit/5fbc738da877d6aca1a1b32564bb4131b4bcf2bc)), closes [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342) [#68](https://github.com/Jaal-Yantra-Textiles/v2/issues/68) [#68](https://github.com/Jaal-Yantra-Textiles/v2/issues/68)
+* **partner-payments:** rename connect-columns migration (name collision → skipped on prod) ([#854](https://github.com/Jaal-Yantra-Textiles/v2/issues/854)) ([b7927fb](https://github.com/Jaal-Yantra-Textiles/v2/commit/b7927fb5a045a7ba61ea6bc743aad881f167bdfc)), closes [#847](https://github.com/Jaal-Yantra-Textiles/v2/issues/847) [#847](https://github.com/Jaal-Yantra-Textiles/v2/issues/847)
+* **inventory-orders:** stop Edit Order Lines wiping all lines on every save ([#856](https://github.com/Jaal-Yantra-Textiles/v2/issues/856)) ([bf88455](https://github.com/Jaal-Yantra-Textiles/v2/commit/bf88455cdd1d6f7525518955d0c7249a17d32a8c)), closes [#855](https://github.com/Jaal-Yantra-Textiles/v2/issues/855) [#855](https://github.com/Jaal-Yantra-Textiles/v2/issues/855)
+
+
+### Features
+
+* **designs:** [#826](https://github.com/Jaal-Yantra-Textiles/v2/issues/826) collate designs into one order — lifecycle inline (partner + admin) ([#828](https://github.com/Jaal-Yantra-Textiles/v2/issues/828)) ([d8bf7df](https://github.com/Jaal-Yantra-Textiles/v2/commit/d8bf7df7fdd79a9ee0059af2c96c47c3e6312530)), closes [#32](https://github.com/Jaal-Yantra-Textiles/v2/issues/32) [#29](https://github.com/Jaal-Yantra-Textiles/v2/issues/29)
+* **raw-material-groups:** additive variant dimensions + member attributes ([#847](https://github.com/Jaal-Yantra-Textiles/v2/issues/847)) ([73be36d](https://github.com/Jaal-Yantra-Textiles/v2/commit/73be36da23046c1652b9a6bfc8bb24e99ae685b7))
+* **#826:** collated design-order lifecycle follow-ups + Design Work Orders view ([#837](https://github.com/Jaal-Yantra-Textiles/v2/issues/837)) ([2658a60](https://github.com/Jaal-Yantra-Textiles/v2/commit/2658a609b31a3731e988fbf0c7b97f6ce7548ea7)), closes [#826](https://github.com/Jaal-Yantra-Textiles/v2/issues/826) [#826](https://github.com/Jaal-Yantra-Textiles/v2/issues/826) [#32](https://github.com/Jaal-Yantra-Textiles/v2/issues/32) [#30](https://github.com/Jaal-Yantra-Textiles/v2/issues/30) [#826](https://github.com/Jaal-Yantra-Textiles/v2/issues/826) [#30](https://github.com/Jaal-Yantra-Textiles/v2/issues/30) [#826](https://github.com/Jaal-Yantra-Textiles/v2/issues/826) [#6](https://github.com/Jaal-Yantra-Textiles/v2/issues/6) [#2](https://github.com/Jaal-Yantra-Textiles/v2/issues/2) [#5](https://github.com/Jaal-Yantra-Textiles/v2/issues/5) [#3](https://github.com/Jaal-Yantra-Textiles/v2/issues/3)
+* **partner-payments:** Connect webhook dispatch + checkout-routing context fix ([#853](https://github.com/Jaal-Yantra-Textiles/v2/issues/853)) ([06f12c2](https://github.com/Jaal-Yantra-Textiles/v2/commit/06f12c21a21d32bc690a160deeab1755ebdbfdc2))
+* **partner-payments:** JYT Stripe Connect onboarding in payment config (Half A) ([#850](https://github.com/Jaal-Yantra-Textiles/v2/issues/850)) ([53bb371](https://github.com/Jaal-Yantra-Textiles/v2/commit/53bb3716316b0e70140d529634db8c967367bc3c))
+* **inventory-orders:** mass batches in material-group quick-add ([#848](https://github.com/Jaal-Yantra-Textiles/v2/issues/848)) ([9e1e879](https://github.com/Jaal-Yantra-Textiles/v2/commit/9e1e879d93ed48f0437e33fe919a58647fb7ab92))
+* **#817/#829-#832:** Material Groups global specs + order-lines picker UX ([#836](https://github.com/Jaal-Yantra-Textiles/v2/issues/836)) ([8c19108](https://github.com/Jaal-Yantra-Textiles/v2/commit/8c19108afc9398a8b807d7ff3d5246ff3f4107b5)), closes [#817](https://github.com/Jaal-Yantra-Textiles/v2/issues/817) [#829](https://github.com/Jaal-Yantra-Textiles/v2/issues/829) [-#832](https://github.com/-/issues/832) [#829](https://github.com/Jaal-Yantra-Textiles/v2/issues/829) [-#832](https://github.com/-/issues/832) [#830](https://github.com/Jaal-Yantra-Textiles/v2/issues/830) [#831](https://github.com/Jaal-Yantra-Textiles/v2/issues/831) [#832](https://github.com/Jaal-Yantra-Textiles/v2/issues/832) [#830](https://github.com/Jaal-Yantra-Textiles/v2/issues/830) [#831](https://github.com/Jaal-Yantra-Textiles/v2/issues/831) [#832](https://github.com/Jaal-Yantra-Textiles/v2/issues/832) [#829](https://github.com/Jaal-Yantra-Textiles/v2/issues/829) [#831](https://github.com/Jaal-Yantra-Textiles/v2/issues/831) [#829](https://github.com/Jaal-Yantra-Textiles/v2/issues/829) [#831](https://github.com/Jaal-Yantra-Textiles/v2/issues/831) [#832](https://github.com/Jaal-Yantra-Textiles/v2/issues/832) [#829](https://github.com/Jaal-Yantra-Textiles/v2/issues/829) [#832](https://github.com/Jaal-Yantra-Textiles/v2/issues/832) [#829](https://github.com/Jaal-Yantra-Textiles/v2/issues/829) [#832](https://github.com/Jaal-Yantra-Textiles/v2/issues/832)
+* **#846:** material-group order-line picker — add-by-group + distinct labels + retitle backfill ([7ab919f](https://github.com/Jaal-Yantra-Textiles/v2/commit/7ab919f8fc0b93e615e71cd94c64e1d25c453a02)), closes [#846](https://github.com/Jaal-Yantra-Textiles/v2/issues/846) [#457](https://github.com/Jaal-Yantra-Textiles/v2/issues/457)
+* **partner-payments:** Stripe Connect checkout routing provider (Half B) ([#851](https://github.com/Jaal-Yantra-Textiles/v2/issues/851)) ([82b905c](https://github.com/Jaal-Yantra-Textiles/v2/commit/82b905c940ca745633c1a16e2b1cb75074f8297a)), closes [#850](https://github.com/Jaal-Yantra-Textiles/v2/issues/850)
+* **partner-onboarding:** subscription billing in the onboarding wizard ([#849](https://github.com/Jaal-Yantra-Textiles/v2/issues/849)) ([cbfe371](https://github.com/Jaal-Yantra-Textiles/v2/commit/cbfe371fc9e0d43b02f0ed9e261638d04cf8e7d9))
+
+
+### BREAKING CHANGES
+
+* **raw-material-groups:** anything:
+
+- `raw_material_group.dimensions` (jsonb): operator-defined extra variant
+  axes ({ key, label, values? }[]). Null/empty ⇒ color-only (today).
+- `raw_materials.attributes` (jsonb): per-member variant coordinates keyed
+  by those dimensions. `color` stays the canonical display/denorm key; the
+  color-add route always seeds `attributes.color`.
+
+Hand-written idempotent ALTER migration (both tables already exist on live
+DBs — the create-if-not-exists hazard). Validators pass the new fields
+through; group create/update spread them, color-add threads attributes.
+
+New axes can be introduced later with no schema change. 4 validator unit
+tests.
+
+Co-authored-by: Saransh Sharma <Saransh Sharma>
+Co-authored-by: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
 # [13.45.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.44.0...v13.45.0) (2026-07-01)
 
 
