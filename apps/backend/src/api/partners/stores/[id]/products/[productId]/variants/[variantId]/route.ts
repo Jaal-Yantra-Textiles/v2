@@ -6,6 +6,7 @@ import {
 } from "@medusajs/medusa/core-flows"
 import { remapVariantResponse } from "@medusajs/medusa/api/admin/products/helpers"
 import { scopeAndAggregateVariantInventory, validatePartnerStoreAccess } from "../../../../../../helpers"
+import { fanoutVariantPrices } from "../../../../../../../../workflows/fx/fanout-variant-prices"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -68,7 +69,7 @@ export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerStoreAccess(
+  const { store } = await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
     req.scope
@@ -97,6 +98,16 @@ export const POST = async (
   })
 
   const variant = result?.[0]
+
+  // FX fanout — re-run so any changed/added price re-materialises the store's
+  // other supported currencies. Idempotent (existing currencies are skipped) +
+  // never throws.
+  if (variant?.id) {
+    await fanoutVariantPrices(req.scope, {
+      storeId: store.id,
+      variantIds: [variant.id],
+    })
+  }
 
   res.json({ variant })
 }

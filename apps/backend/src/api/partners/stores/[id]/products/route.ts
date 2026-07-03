@@ -5,6 +5,7 @@ import {
   validatePartnerStoreAccess,
 } from "../../../helpers"
 import listStoreProductsWorkflow from "../../../../../workflows/partner/list-store-products"
+import { fanoutVariantPrices } from "../../../../../workflows/fx/fanout-variant-prices"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -65,6 +66,11 @@ export const POST = async (
   // partner-ui inventory page 404s on those items.
   const variantIds = (product?.variants || []).map((v: any) => v.id)
   await ensureInventoryLevelsForVariants(req.scope, store, variantIds)
+
+  // FX fanout — materialise auto-converted prices in the store's other
+  // supported currencies so the product isn't "not available" in non-native
+  // regions. Idempotent + never throws (see fanout-variant-prices.ts).
+  await fanoutVariantPrices(req.scope, { storeId: store.id, variantIds })
 
   res.status(201).json({ product })
 }

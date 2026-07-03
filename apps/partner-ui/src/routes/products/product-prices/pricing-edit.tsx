@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { HttpTypes } from "@medusajs/types"
-import { Button } from "@medusajs/ui"
+import { Button, toast } from "@medusajs/ui"
 import { useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
@@ -205,7 +205,11 @@ export const PricingEdit = ({
             )
           )
         }
+        toast.success(t("products.prices.edit.successToast"))
         handleSuccess("..")
+      },
+      onError: (e) => {
+        toast.error(e.message)
       },
     })
   })
