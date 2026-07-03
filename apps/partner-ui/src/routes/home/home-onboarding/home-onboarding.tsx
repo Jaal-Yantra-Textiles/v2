@@ -1031,8 +1031,8 @@ const OnboardingForm = () => {
               {/* #859/#861 — supplier capability. Orthogonal to the selling
                   choice above: a partner can list on the marketplace AND supply
                   us, or be a supplier only. */}
-              <div className="flex items-start justify-between gap-x-3 rounded-lg border px-4 py-3">
-                <div>
+              <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+                <div className="pr-4">
                   <Text size="small" weight="plus">
                     We also order from you (supplier)
                   </Text>
@@ -1043,6 +1043,7 @@ const OnboardingForm = () => {
                   </Text>
                 </div>
                 <Switch
+                  className="shrink-0"
                   checked={profile.supplies_to_platform}
                   onCheckedChange={(c) =>
                     setProfile((prev) => ({ ...prev, supplies_to_platform: c }))
