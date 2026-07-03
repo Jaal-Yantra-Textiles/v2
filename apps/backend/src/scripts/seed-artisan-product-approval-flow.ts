@@ -77,8 +77,10 @@ const partnerName = (primary && primary.first_name) ? primary.first_name : (part
 const productTitle = (product && product.title) ? product.title : "your product"
 const productHandle = product && product.handle ? product.handle : ""
 
-const storeUrl = ($env && ($env.STOREFRONT_URL || $env.VITE_STOREFRONT_URL)) || "https://cicilabel.com"
-const partnerAppUrl = ($env && $env.PARTNER_APP_URL) || "https://partner.jaalyantra.com"
+// Base URLs as literals — the execute_code sandbox exposes $trigger/$input but
+// NOT $env. Tune these on the canvas if the storefront/partner host changes.
+const storeUrl = "https://cicilabel.com"
+const partnerAppUrl = "https://partner.jaalyantra.com"
 const trimTrail = function (s) { return String(s).replace(/\\/+$/, "") }
 const productUrl = productHandle ? (trimTrail(storeUrl) + "/products/" + productHandle) : storeUrl
 const resubmitUrl = trimTrail(partnerAppUrl) + "/products"
