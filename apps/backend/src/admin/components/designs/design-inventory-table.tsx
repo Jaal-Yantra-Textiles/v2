@@ -44,11 +44,23 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
   const prevSelectedCount = useRef(0)
   const navigate = useNavigate()
 
+  const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  // Debounce the free-text search into the SERVER query (`q`) so it matches
+  // across ALL raw materials (server-side q over raw_material.name / title /
+  // sku), not just within the first 100 rows loaded on the page.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    return () => clearTimeout(t)
+  }, [search])
+
   const linkInventory = useLinkDesignInventory(designId)
   const { data: linkedInventory, isLoading: isLoadingLinked } = useDesignInventory(designId)
   const { inventory_items = [], isLoading: isLoadingItems } = useInventoryWithRawMaterials({
     fields: "+raw_materials.*, +raw_materials.material_type.*, +location_levels.*, +location_levels.stock_locations.*",
     limit: 100,
+    // Server-side search across the whole catalogue; keeps the 100 display cap.
+    ...(debouncedSearch ? { q: debouncedSearch } : {}),
   })
 
   const linkedItemIds = useMemo(() => {
@@ -93,21 +105,15 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
     pageSize: 10,
   })
   const [filtering, setFiltering] = useState<DataTableFilteringState>({})
-  const [search, setSearch] = useState("")
 
+  // Search is now resolved server-side (see `q` above), so the client only
+  // excludes already-linked items and applies the select filters.
   const filteredItems = useMemo(() => {
     let result = inventory_items.filter((item) => {
       const itemId = getRowId(item)
       const isLinked = linkedItemIds.has(itemId)
       return item.raw_materials && !isLinked
     })
-
-    if (search) {
-      result = result.filter((item) => {
-        const haystack = `${item.raw_materials?.name ?? ""} ${item.title ?? ""}`.toLowerCase()
-        return haystack.includes(search.toLowerCase())
-      })
-    }
 
     result = result.filter((item) => {
       return Object.entries(filtering).every(([key, value]) => {
@@ -131,7 +137,13 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
     })
 
     return result
-  }, [inventory_items, linkedItemIds, filtering, search])
+  }, [inventory_items, linkedItemIds, filtering])
+
+  // A new search/filter narrows the set — jump back to the first page so results
+  // aren't hidden behind an out-of-range page index.
+  useEffect(() => {
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }, [debouncedSearch, filtering])
 
   const handleRowSelect = useCallback(
     (row: InventoryItem) => {
