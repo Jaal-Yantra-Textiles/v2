@@ -71,6 +71,7 @@ import {
 } from "../../../../scripts/whatsapp-templates/meta-template-sync"
 import { seedEmailTemplatesJob } from "./seed-jobs"
 import { replayFxFanoutJob } from "./fanout-fx-job"
+import { backfillStoreCurrenciesJob } from "./backfill-store-currencies-job"
 import {
   sweepAiPlatformsByCategory,
   AI_ROLES,
@@ -5268,6 +5269,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   retitleGroupColorNamesJob,
   reconcileInventoryMirrorJob,
   replayFxFanoutJob,
+  backfillStoreCurrenciesJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
