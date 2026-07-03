@@ -40,6 +40,8 @@ export interface AdminPartnersResponse {
 export interface AdminPartnersQuery {
   offset?: number
   limit?: number
+  q?: string
+  order?: string
   name?: string
   handle?: string
   status?: "active" | "inactive" | "pending"

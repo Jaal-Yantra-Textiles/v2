@@ -25,10 +25,19 @@ const PartnersPage = () => {
   const [sorting, setSorting] = useState<SortingState>(null)
 
   const handleFilterChange = useCallback(
-    debounce((newFilters: DataTableFilteringState) => setFiltering(newFilters), 300),
+    debounce((newFilters: DataTableFilteringState) => {
+      setFiltering(newFilters)
+      setPagination((p) => ({ ...p, pageIndex: 0 }))
+    }, 300),
     [],
   )
-  const handleSearchChange = useCallback(debounce((q: string) => setSearch(q), 300), [])
+  const handleSearchChange = useCallback(
+    debounce((q: string) => {
+      setSearch(q)
+      setPagination((p) => ({ ...p, pageIndex: 0 }))
+    }, 300),
+    [],
+  )
 
   const offset = pagination.pageIndex * pagination.pageSize
 
@@ -40,6 +49,8 @@ const PartnersPage = () => {
     limit: pagination.pageSize,
     offset,
     ...(orderParam ? { order: orderParam } : {}),
+    // Free-text search (server-side $ilike over name + handle)
+    ...(search ? { q: search } : {}),
     // Apply known filters only
     ...(Object.keys(filtering).length > 0
       ? Object.entries(filtering).reduce((acc: Record<string, any>, [key, value]) => {
