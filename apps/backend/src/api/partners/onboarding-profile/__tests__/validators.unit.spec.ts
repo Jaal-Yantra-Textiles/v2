@@ -60,4 +60,44 @@ describe("onboardingProfileUpdateSchema (#648 slice 1)", () => {
       onboardingProfileUpdateSchema.safeParse({ not_real: "x" }).success
     ).toBe(false)
   })
+
+  // #859 S1 / #860 — selling_mode + commission_bps
+  it("accepts a valid selling_mode", () => {
+    expect(
+      onboardingProfileUpdateSchema.safeParse({
+        selling_mode: "core_channel_listing",
+      }).success
+    ).toBe(true)
+  })
+
+  it("rejects an out-of-enum selling_mode", () => {
+    expect(
+      onboardingProfileUpdateSchema.safeParse({ selling_mode: "franchise" })
+        .success
+    ).toBe(false)
+  })
+
+  it("accepts commission_bps within 0..10000", () => {
+    expect(
+      onboardingProfileUpdateSchema.safeParse({ commission_bps: 1500 }).success
+    ).toBe(true)
+    expect(
+      onboardingProfileUpdateSchema.safeParse({ commission_bps: 0 }).success
+    ).toBe(true)
+  })
+
+  it("rejects commission_bps above 100% (>10000) or negative", () => {
+    expect(
+      onboardingProfileUpdateSchema.safeParse({ commission_bps: 10001 }).success
+    ).toBe(false)
+    expect(
+      onboardingProfileUpdateSchema.safeParse({ commission_bps: -1 }).success
+    ).toBe(false)
+  })
+
+  it("rejects a non-integer commission_bps", () => {
+    expect(
+      onboardingProfileUpdateSchema.safeParse({ commission_bps: 12.5 }).success
+    ).toBe(false)
+  })
 })

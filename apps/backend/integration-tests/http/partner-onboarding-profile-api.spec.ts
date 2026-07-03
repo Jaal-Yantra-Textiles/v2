@@ -73,6 +73,8 @@ setupSharedTestSuite(() => {
         person_type: "manufacturer",
         team_size: 12,
         payment_collection: "through_us",
+        selling_mode: "core_channel_listing",
+        commission_bps: 1500,
         completed: true,
       }
 
@@ -107,6 +109,28 @@ setupSharedTestSuite(() => {
       expect(second.data.onboarding_profile.what_they_sell).toBe("fabric")
       expect(second.data.onboarding_profile.price_range).toBe("luxury")
       expect(second.data.onboarding_profile.completed).toBe(true)
+    })
+
+    it("PUT persists selling_mode + commission_bps (#859 S1 / #860)", async () => {
+      const put = await api.put(
+        "/partners/onboarding-profile",
+        { selling_mode: "dedicated_storefront", commission_bps: 0 },
+        { headers: partner.headers }
+      )
+      expect(put.status).toBe(200)
+      expect(put.data.onboarding_profile.selling_mode).toBe("dedicated_storefront")
+      expect(put.data.onboarding_profile.commission_bps).toBe(0)
+    })
+
+    it("PUT rejects an out-of-range commission_bps with 400", async () => {
+      const res = await api
+        .put(
+          "/partners/onboarding-profile",
+          { commission_bps: 20000 },
+          { headers: partner.headers }
+        )
+        .catch((e: any) => e.response)
+      expect(res.status).toBe(400)
     })
 
     it("PUT rejects an invalid enum value with 400", async () => {

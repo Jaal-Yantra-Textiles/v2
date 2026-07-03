@@ -1,4 +1,5 @@
 import { parsePlatformFeeBps, type FeeBasis } from "./compute-fee"
+import { PARTNER_ONBOARDING_PROFILE_MODULE } from "../partner-onboarding-profile"
 
 /**
  * #336 Slice 1 — partner commission fee-rate resolution.
@@ -47,28 +48,56 @@ export function pickFeeRate(
 
 export type ResolvePartnerFeeRateOpts = {
   /**
-   * The partner the order is being accrued for. Reserved for the future
-   * per-partner override lookup; ignored today (overrides are a later slice).
+   * The partner the order is being accrued for. Used to look up a per-partner
+   * commission override (the agreed rate captured during onboarding).
    */
   partnerId?: string | null
 }
 
 /**
+ * The per-partner commission override, in basis points, or null.
+ *
+ * Source (#859 S1 / #860): the partner's onboarding profile `commission_bps`
+ * — the agreed revenue-share for a `core_channel_listing` artisan. Never
+ * throws: any resolution failure (missing module, no profile, bad value)
+ * falls back to null so the platform default applies and order placement is
+ * never broken. Exported for testing.
+ */
+export async function resolvePartnerCommissionOverrideBps(
+  container: any,
+  partnerId?: string | null
+): Promise<number | null> {
+  if (!partnerId) return null
+  try {
+    const service: any = container?.resolve?.(PARTNER_ONBOARDING_PROFILE_MODULE)
+    if (!service?.findByPartner) return null
+    const profile = await service.findByPartner(partnerId)
+    const bps = profile?.commission_bps
+    return bps == null ? null : Number(bps)
+  } catch {
+    return null
+  }
+}
+
+/**
  * Resolve the commission rate for a partner's order.
  *
- * Today: the platform default from `PLATFORM_TX_FEE_BPS` (200 = 2%), percentage
- * basis. Per-partner overrides are deferred (no `partner_fee_config` model yet);
- * when they land, query the override here and pass it to `pickFeeRate`.
+ * Precedence: the partner's onboarding-agreed `commission_bps` override →
+ * the platform default from `PLATFORM_TX_FEE_BPS` (200 = 2%), percentage basis.
+ * Best-effort: override lookup never throws (see
+ * `resolvePartnerCommissionOverrideBps`).
  */
 export async function resolvePartnerFeeRate(
-  _container: any,
-  _opts: ResolvePartnerFeeRateOpts = {}
+  container: any,
+  opts: ResolvePartnerFeeRateOpts = {}
 ): Promise<ResolvedFeeRate> {
   const defaultBps = parsePlatformFeeBps(
     process.env.PLATFORM_TX_FEE_BPS,
     PLATFORM_DEFAULT_FEE_BPS
   )
-  // Override resolution intentionally deferred (#336: "per-partner override later").
-  const overrideBps: number | null = null
+  const overrideBps = await resolvePartnerCommissionOverrideBps(
+    container,
+    opts.partnerId
+  )
   return pickFeeRate(overrideBps, defaultBps)
 }
