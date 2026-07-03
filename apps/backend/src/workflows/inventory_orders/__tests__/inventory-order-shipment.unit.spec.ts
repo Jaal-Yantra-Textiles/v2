@@ -1,6 +1,8 @@
 import {
   buildInventoryOrderShipmentInput,
   DEFAULT_INVENTORY_SHIPMENT_WEIGHT_GRAMS,
+  missingDestinationAddressFields,
+  resolveInventoryDestinationAddress,
   type InventoryOrderForShipment,
 } from "../lib/inventory-order-shipment"
 
@@ -81,5 +83,56 @@ describe("buildInventoryOrderShipmentInput (#772)", () => {
     expect(input.to.name).toBe("Warehouse")
     expect(input.to.country).toBe("IN")
     expect(input.items).toEqual([])
+  })
+})
+
+describe("resolveInventoryDestinationAddress (#772 to-location fill)", () => {
+  const locAddress = {
+    address_1: "9 Mill Rd",
+    city: "Surat",
+    province: "GJ",
+    postal_code: "395003",
+    country_code: "in",
+    phone: "8887776665",
+  }
+
+  it("fills a sparse shipping_address from the to-location stock-location address", () => {
+    const resolved = resolveInventoryDestinationAddress(
+      { city: "Delhi", country_code: "in" }, // typical minimal blob
+      locAddress,
+      "Surat Warehouse"
+    )
+    expect(resolved.address_1).toBe("9 Mill Rd")
+    expect(resolved.postal_code).toBe("395003")
+    expect(resolved.phone).toBe("8887776665")
+    // explicit shipping_address value wins over the location value
+    expect(resolved.city).toBe("Delhi")
+    // no contact name → fall back to the location name
+    expect(resolved.first_name).toBe("Surat Warehouse")
+    expect(missingDestinationAddressFields(resolved)).toEqual([])
+  })
+
+  it("keeps explicit shipping_address contact fields over the location name", () => {
+    const resolved = resolveInventoryDestinationAddress(
+      { first_name: "Amit", phone: "9001112223" },
+      locAddress,
+      "Surat Warehouse"
+    )
+    expect(resolved.first_name).toBe("Amit")
+    expect(resolved.phone).toBe("9001112223")
+    expect(resolved.address_1).toBe("9 Mill Rd")
+  })
+
+  it("reports the specific missing fields when neither source is complete", () => {
+    const resolved = resolveInventoryDestinationAddress(
+      { city: "Delhi", country_code: "in" },
+      { city: "Delhi" }, // location has no street/pincode/phone either
+      "Delhi Warehouse"
+    )
+    expect(missingDestinationAddressFields(resolved)).toEqual([
+      "street address",
+      "pincode",
+      "phone",
+    ])
   })
 })

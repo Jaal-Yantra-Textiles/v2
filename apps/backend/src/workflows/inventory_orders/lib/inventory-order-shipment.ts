@@ -57,6 +57,71 @@ const lineName = (l: InventoryOrderLineForShipment): string => {
   return (m.title || m.name || m.description || m.sku || "Inventory item") as string
 }
 
+/** Canonical destination-address fields Shiprocket's adhoc order needs. */
+const DEST_ADDRESS_KEYS = [
+  "first_name",
+  "last_name",
+  "company",
+  "address_1",
+  "address_2",
+  "city",
+  "province",
+  "postal_code",
+  "country_code",
+  "phone",
+] as const
+
+const nonEmpty = (v: unknown): boolean =>
+  v !== undefined && v !== null && String(v).trim() !== ""
+
+/**
+ * Resolve the shipment destination (ship-to) address for an inventory order.
+ *
+ * The inventory order's free-form `shipping_address` JSON is frequently minimal
+ * (often just `{ city, country_code }`), which left Shiprocket's required
+ * `billing_address`/pincode/phone empty → "The billing address field is
+ * required" (#772). The destination warehouse is the order's linked
+ * `to_location` stock location, which carries a proper structured address — so
+ * we fill from the stock-location address and let any explicit non-empty
+ * `shipping_address` field win on top (contact name/phone the order captured).
+ *
+ * Pure & exported for unit testing.
+ */
+export function resolveInventoryDestinationAddress(
+  shippingAddress: Record<string, any> | null | undefined,
+  stockLocationAddress: Record<string, any> | null | undefined,
+  locationName?: string | null
+): Record<string, any> {
+  const ship = shippingAddress || {}
+  const loc = stockLocationAddress || {}
+  const out: Record<string, any> = {}
+  for (const key of DEST_ADDRESS_KEYS) {
+    // stock-location value as the base, overridden by an explicit shipping value
+    if (nonEmpty(loc[key])) out[key] = loc[key]
+    if (nonEmpty(ship[key])) out[key] = ship[key]
+  }
+  // Shiprocket needs a customer name; fall back to the warehouse/location name
+  // so the label isn't a bare "Warehouse".
+  if (!nonEmpty(out.first_name) && !nonEmpty(out.last_name) && nonEmpty(locationName)) {
+    out.first_name = locationName
+  }
+  return out
+}
+
+/** The subset Shiprocket rejects the order without. */
+export function missingDestinationAddressFields(
+  addr: Record<string, any> | null | undefined
+): string[] {
+  const a = addr || {}
+  const required: Array<[string, string]> = [
+    ["address_1", "street address"],
+    ["city", "city"],
+    ["postal_code", "pincode"],
+    ["phone", "phone"],
+  ]
+  return required.filter(([k]) => !nonEmpty(a[k])).map(([, label]) => label)
+}
+
 export function buildInventoryOrderShipmentInput(
   order: InventoryOrderForShipment,
   opts: BuildInventoryShipmentOpts = {}

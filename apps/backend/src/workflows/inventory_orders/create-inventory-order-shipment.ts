@@ -4,9 +4,10 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
-import { MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
+import InventoryOrdersStockLocationsLink from "../../links/inventory-orders-stock-locations"
 import { resolveShippingProvider } from "../../modules/shipping-providers/resolver"
 import {
   chooseRegisteredPickup,
@@ -17,7 +18,11 @@ import type {
   Dimensions,
   ShipmentResult,
 } from "../../modules/shipping-providers/provider-interface"
-import { buildInventoryOrderShipmentInput } from "./lib/inventory-order-shipment"
+import {
+  buildInventoryOrderShipmentInput,
+  missingDestinationAddressFields,
+  resolveInventoryDestinationAddress,
+} from "./lib/inventory-order-shipment"
 
 /**
  * Generate a real carrier shipment (forward → AWB → label) for a partner
@@ -100,12 +105,51 @@ export async function createInventoryOrderShipment(
     )
   }
 
-  const taxId = await resolvePlatformTaxIdForCountry(
-    container,
-    (order as any)?.shipping_address?.country_code || "IN"
+  // Destination (ship-to) address: the order's linked `to_location` stock
+  // location is the physical destination and carries a complete structured
+  // address; the free-form `shipping_address` JSON is often just
+  // `{ city, country_code }`. Fill from the to-location, letting any explicit
+  // shipping_address field win, so Shiprocket's required billing fields are
+  // populated (#772 — "The billing address field is required").
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+  let toLocation: any = null
+  try {
+    const { data: links } = await query.graph({
+      entity: (InventoryOrdersStockLocationsLink as any).entryPoint,
+      fields: ["to_location", "stock_location.name", "stock_location.address.*"],
+      filters: { inventory_orders_id: order.id },
+    })
+    toLocation = (links || []).find((l: any) => l?.to_location)?.stock_location || null
+  } catch {
+    // best-effort — the guard below produces the actionable error
+  }
+
+  const destinationAddress = resolveInventoryDestinationAddress(
+    (order as any)?.shipping_address,
+    toLocation?.address,
+    toLocation?.name
   )
 
-  const shipmentInput = buildInventoryOrderShipmentInput(order as any, {
+  const missing = missingDestinationAddressFields(destinationAddress)
+  if (missing.length) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `Destination address is incomplete (missing ${missing.join(", ")}). ` +
+        `Set a complete address on the order's destination stock location, or on the order's shipping address, before generating a shipment.`
+    )
+  }
+
+  const orderForShipment = {
+    ...(order as any),
+    shipping_address: destinationAddress,
+  }
+
+  const taxId = await resolvePlatformTaxIdForCountry(
+    container,
+    destinationAddress.country_code || "IN"
+  )
+
+  const shipmentInput = buildInventoryOrderShipmentInput(orderForShipment as any, {
     pickupLocationName,
     weightGrams: input.weightGrams,
     dimensionsCm: input.dimensionsCm,
