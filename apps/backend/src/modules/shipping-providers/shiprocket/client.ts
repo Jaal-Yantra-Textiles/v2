@@ -517,6 +517,18 @@ export class ShiprocketClient implements ShippingProviderClient {
   async registerPickupLocation(
     input: RegisterPickupLocationInput
   ): Promise<{ name: string; raw?: any }> {
+    // Shiprocket validates the `address` (line 1) alone must contain a
+    // road/house token ("address must have Road or House no") and does NOT
+    // consult `address_2` for that check. Our stored addresses often strand the
+    // road/landmark in line 2 (or keep a Plus Code in line 1), which failed
+    // registration even though the real street was present. The dashboard
+    // flattens everything into line 1, so mirror it: compose both lines into
+    // `address` and leave `address_2` empty.
+    const composedAddress =
+      [input.address_1, input.address_2]
+        .map((s) => (s || "").trim())
+        .filter(Boolean)
+        .join(", ") || input.address_1
     const json = await this.request<any>(`/settings/company/addpickup`, {
       method: "POST",
       body: JSON.stringify({
@@ -526,8 +538,8 @@ export class ShiprocketClient implements ShippingProviderClient {
         // email so registration always has a valid contact (#427).
         email: input.email || this.email,
         phone: input.phone,
-        address: input.address_1,
-        address_2: input.address_2 || "",
+        address: composedAddress,
+        address_2: "",
         city: input.city,
         state: input.state,
         country: input.country || "India",
