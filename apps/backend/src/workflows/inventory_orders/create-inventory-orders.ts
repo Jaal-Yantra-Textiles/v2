@@ -77,7 +77,7 @@ export const createInventoryOrderWithLinesStep = createStep(
         new Set(orderLinesForService.map((l) => l.inventory_id).filter(Boolean))
       );
       if (inventoryItemIds.length) {
-        const query = container.resolve(ContainerRegistrationKeys.QUERY);
+        const query: any = container.resolve(ContainerRegistrationKeys.QUERY);
         const { data: inventoryItems } = await query.graph({
           entity: "inventory_item",
           fields: ["id", "raw_materials.id", "raw_materials.color", "raw_materials.name"],

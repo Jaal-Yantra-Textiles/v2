@@ -14,12 +14,16 @@ module.exports = defineConfig({
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
       // Require email verification for partners registering with emailpass.
       // Opt-in via PARTNER_EMAIL_VERIFICATION=true. See medusa-config.ts.
-      authVerificationsPerActor: {
-        partner:
-          process.env.PARTNER_EMAIL_VERIFICATION === "true"
-            ? [{ entity_type: "email", auth_provider: "emailpass" }]
-            : [],
-      },
+      // Spread a cast object so the key doesn't trip the excess-property check
+      // on older @medusajs/types (prod build version drift); runtime unchanged.
+      ...({
+        authVerificationsPerActor: {
+          partner:
+            process.env.PARTNER_EMAIL_VERIFICATION === "true"
+              ? [{ entity_type: "email", auth_provider: "emailpass" }]
+              : [],
+        },
+      } as any),
     },
     redisUrl: process.env.REDIS_URL,
     workerMode: process.env.MEDUSA_WORKER_MODE as "shared" | "worker" | "server",

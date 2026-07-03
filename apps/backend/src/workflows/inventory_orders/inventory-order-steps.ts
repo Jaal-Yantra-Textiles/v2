@@ -21,7 +21,7 @@ export const setInventoryOrderStepSuccessStep = createStep(
         { stepId, updatedOrder }: SetInventoryOrderStepSuccessInput,
         { container, context }
     ) {
-        const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+        const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
         const engineService = container.resolve(
             Modules.WORKFLOW_ENGINE
         ) as IWorkflowEngineService
@@ -89,7 +89,7 @@ export const setInventoryOrderStepFailedStep = createStep(
         { stepId, updatedOrder, error }: SetInventoryOrderStepFailedInput,
         { container }
     ) {
-        const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+        const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
         const engineService = container.resolve(
             Modules.WORKFLOW_ENGINE
         ) as IWorkflowEngineService
