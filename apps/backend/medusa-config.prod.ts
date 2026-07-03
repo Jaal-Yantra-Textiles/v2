@@ -12,6 +12,14 @@ module.exports = defineConfig({
       authCors: process.env.AUTH_CORS!,
       jwtSecret: process.env.JWT_SECRET || "supersecret",
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
+      // Require email verification for partners registering with emailpass.
+      // Opt-in via PARTNER_EMAIL_VERIFICATION=true. See medusa-config.ts.
+      authVerificationsPerActor: {
+        partner:
+          process.env.PARTNER_EMAIL_VERIFICATION === "true"
+            ? [{ entity_type: "email", auth_provider: "emailpass" }]
+            : [],
+      },
     },
     redisUrl: process.env.REDIS_URL,
     workerMode: process.env.MEDUSA_WORKER_MODE as "shared" | "worker" | "server",

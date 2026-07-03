@@ -2,6 +2,11 @@ import { FetchError } from "@medusajs/js-sdk"
 import { UseMutationOptions, useMutation } from "@tanstack/react-query"
 
 import { sdk } from "../../lib/client"
+import {
+  getTokenFromResponse,
+  isVerificationRequired,
+  requestPartnerVerification,
+} from "../../lib/partner-verification"
 
 export type RegisterPartnerPayload = {
   company_name: string
@@ -14,23 +19,10 @@ export type RegisterPartnerPayload = {
 
 export type RegisterPartnerResponse = {
   partner?: Record<string, any>
-}
-
-const getTokenFromLoginResponse = (data: unknown) => {
-  if (!data) {
-    return undefined
-  }
-
-  if (typeof data === "string") {
-    return data
-  }
-
-  if (typeof data === "object" && "token" in data) {
-    const token = (data as any).token
-    return typeof token === "string" ? token : undefined
-  }
-
-  return undefined
+  /** True when the partner must confirm their email before signing in. */
+  verificationRequired: boolean
+  /** Echoed back so the UI can show "we emailed <email>". */
+  email: string
 }
 
 export const useRegisterPartner = (
@@ -60,8 +52,12 @@ export const useRegisterPartner = (
         }
       )
 
-      const token = getTokenFromLoginResponse(loginResponse)
+      const token = getTokenFromResponse(loginResponse)
+      const verificationRequired = isVerificationRequired(loginResponse)
 
+      // Create the partner record now. The actorless token is accepted here
+      // (route allows unregistered actors); when verification is on the partner
+      // still can't sign in until they confirm their email.
       const createPartnerPayload = {
         name: company_name,
         handle,
@@ -74,11 +70,29 @@ export const useRegisterPartner = (
 
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined
 
-      return await sdk.client.fetch<RegisterPartnerResponse>("/partners", {
-        method: "POST",
-        body: createPartnerPayload,
-        headers,
-      })
+      const partnerResponse = await sdk.client.fetch<{ partner?: Record<string, any> }>(
+        "/partners",
+        {
+          method: "POST",
+          body: createPartnerPayload,
+          headers,
+        }
+      )
+
+      // If email verification is required, kick off the verification email.
+      if (verificationRequired && token) {
+        try {
+          await requestPartnerVerification(token, email)
+        } catch {
+          // Non-fatal: the user can resend from the "check your email" screen.
+        }
+      }
+
+      return {
+        partner: partnerResponse?.partner,
+        verificationRequired,
+        email,
+      }
     },
     onSuccess: (data, variables, context) => {
       options?.onSuccess?.(data, variables, context)

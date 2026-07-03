@@ -1513,6 +1513,10 @@ export function getPartnerRouteMap(): RouteObject[] {
           lazy: () => import("../../routes/register/index"),
         },
         {
+          path: "/verify-email",
+          lazy: () => import("../../routes/verify-email/index"),
+        },
+        {
           path: "/invite",
           lazy: () => import("../../routes/invite"),
         },

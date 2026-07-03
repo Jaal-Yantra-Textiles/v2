@@ -12,6 +12,23 @@ module.exports = defineConfig({
       authCors: process.env.AUTH_CORS!,
       jwtSecret: process.env.JWT_SECRET || "supersecret",
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
+      // Require email verification for partners registering with emailpass.
+      // Native Medusa 2.16+ flow: login returns { verification_required, token },
+      // then /auth/verification/request emits `auth.verification_requested`
+      // (handled by src/subscribers/partner-verification-requested.ts to email
+      // the code) and /auth/verification/confirm marks the identity verified.
+      //
+      // Opt-in via env (read at boot, mirrors STRIPE_CONNECT_ENABLED): when
+      // required, an unverified partner's login returns an actorless token and
+      // can't reach `/partners/*` until they verify. Left OFF by default so the
+      // existing partner test suite (which never verifies) is unaffected; set
+      // PARTNER_EMAIL_VERIFICATION=true in dev/prod to switch it on.
+      authVerificationsPerActor: {
+        partner:
+          process.env.PARTNER_EMAIL_VERIFICATION === "true"
+            ? [{ entity_type: "email", auth_provider: "emailpass" }]
+            : [],
+      },
     },
     //redisUrl: process.env.REDIS_URL,
     //workerMode: process.env.MEDUSA_WORKER_MODE as "shared" | "worker" | "server",

@@ -132,6 +132,18 @@ describe("ops/maintenance-jobs seed-email-templates (#457)", () => {
       expect(() => resolveEmailTemplateSpecs("nope")).toThrow(/Unknown email-template set/)
     })
 
+    it("exposes the partner-email-verification template via the 'partner' set (#858 seeded through Data Plumbing, not a manual exec)", () => {
+      const partner = resolveEmailTemplateSpecs("partner")
+      expect(partner.specs.map((s) => s.template_key)).toContain(
+        "partner-email-verification"
+      )
+      // …and therefore through the default "all" selection.
+      const all = resolveEmailTemplateSpecs("all")
+      expect(all.specs.map((s) => s.template_key)).toContain(
+        "partner-email-verification"
+      )
+    })
+
     it("dedupes template_keys across sets so 'all' never lists a key twice", () => {
       const all = resolveEmailTemplateSpecs("all")
       const keys = all.specs.map((s) => s.template_key)
