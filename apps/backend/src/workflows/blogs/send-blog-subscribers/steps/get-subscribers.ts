@@ -51,10 +51,11 @@ export const getSubscribersStep = createStep(
       const personService: PersonService = container.resolve(PERSON_MODULE)
       const persons = await personService.listPeople(
         {},
-        { relations: ["subscribed"], select: ["id", "first_name", "last_name", "email"] }
+        { relations: ["subscribed"], select: ["id", "first_name", "last_name", "email", "metadata"] }
       )
 
       for (const person of persons as any[]) {
+        if (person.metadata?.bounced) continue // hard-bounced — never mail
         const sub = person.subscribed
         if (!sub || sub.subscription_status !== "active") continue
         for (const email of extractEmails(person.email)) {
@@ -74,10 +75,11 @@ export const getSubscribersStep = createStep(
       const customerService = container.resolve(Modules.CUSTOMER) as ICustomerModuleService
       const customers = await customerService.listCustomers(
         {},
-        { select: ["id", "first_name", "last_name", "email"] }
+        { select: ["id", "first_name", "last_name", "email", "metadata"] }
       )
 
       for (const customer of customers) {
+        if ((customer as any).metadata?.bounced) continue // hard-bounced — never mail
         for (const email of extractEmails(customer.email)) {
           const key = email.toLowerCase()
           if (!uniqueSubscribers.has(key)) {
@@ -95,10 +97,11 @@ export const getSubscribersStep = createStep(
       const socialsService: SocialsService = container.resolve(SOCIALS_MODULE)
       const leads = await socialsService.listLeads(
         { status: { $nin: ["archived", "lost", "unqualified"] } },
-        { select: ["id", "email", "first_name", "last_name", "full_name"] }
+        { select: ["id", "email", "first_name", "last_name", "full_name", "metadata"] }
       )
 
       for (const lead of leads as any[]) {
+        if (lead.metadata?.bounced) continue // hard-bounced — never mail
         for (const email of extractEmails(lead.email)) {
           const key = email.toLowerCase()
           if (!uniqueSubscribers.has(key)) {

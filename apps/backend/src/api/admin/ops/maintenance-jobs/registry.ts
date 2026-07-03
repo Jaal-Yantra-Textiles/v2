@@ -75,6 +75,7 @@ import { replayFxFanoutJob } from "./fanout-fx-job"
 import { backfillStoreCurrenciesJob } from "./backfill-store-currencies-job"
 import { backfillPartnerEmailVerifiedJob } from "./backfill-partner-email-verified-job"
 import { enableStripeConnectEurRegionsJob } from "./enable-stripe-connect-eur-regions-job"
+import { suppressBouncedSubscribersJob } from "./suppress-bounced-subscribers-job"
 import {
   sweepAiPlatformsByCategory,
   AI_ROLES,
@@ -5343,6 +5344,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillStoreCurrenciesJob,
   backfillPartnerEmailVerifiedJob,
   enableStripeConnectEurRegionsJob,
+  suppressBouncedSubscribersJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
