@@ -655,6 +655,21 @@ export default defineMiddlewares({
       bodyParser: false, // Need raw body for Svix signature verification
     },
     {
+      // Resend delivery events (bounce/complaint) → auto-suppress. Svix-signed,
+      // so the raw body is required for verification.
+      matcher: "/webhooks/resend/email-events",
+      method: "POST",
+      middlewares: [],
+      bodyParser: false,
+    },
+    {
+      // Mailjet Event API (bounce/blocked/spam/unsub) → auto-suppress. Gated by
+      // MAILJET_WEBHOOK_SECRET (?token=), JSON body parsed normally.
+      matcher: "/webhooks/mailjet/events",
+      method: "POST",
+      middlewares: [],
+    },
+    {
       // PayU posts application/x-www-form-urlencoded; preserve the raw body so
       // the route can parse it (and the reverse-hash uses the exact fields).
       matcher: "/webhooks/payu/link",
@@ -3575,6 +3590,18 @@ export default defineMiddlewares({
       matcher: "/web/website/:domain/subscribe",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(subscriptionSchema))],
+    },
+    {
+      // Public unsubscribe — GET resolves the (masked) target for the confirm
+      // page; POST performs the opt-out. Both validated inline in the route.
+      matcher: "/web/website/:domain/unsubscribe",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/web/website/:domain/unsubscribe",
+      method: "POST",
+      middlewares: [],
     },
     {
       matcher: "/web/website/:domain/forms/:handle",

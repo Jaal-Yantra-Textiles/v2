@@ -3,6 +3,7 @@ import { z } from "@medusajs/framework/zod"
 
 import { PERSON_MODULE } from "../../../../modules/person"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
+import { EMAIL_SUPPRESSION_MODULE } from "../../../../modules/email_suppression"
 import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./registry"
 
 /**
@@ -123,6 +124,9 @@ export const suppressBouncedSubscribersJob: MaintenanceJob = {
     const changes: MaintenanceChange[] = []
     const errors: Array<{ id: string; message: string }> = []
     const matched = new Set<string>()
+    // Emails that had at least one record flipped — logged to email_suppression
+    // (the single source of truth shared with the provider bounce webhooks).
+    const suppressedEmails = new Set<string>()
     let personsSuppressed = 0
     let customersSuppressed = 0
     let leadsSuppressed = 0
@@ -155,6 +159,7 @@ export const suppressBouncedSubscribersJob: MaintenanceJob = {
           }
           if (nextMeta) await personService.updatePeople({ id: p.id, metadata: nextMeta })
         }
+        suppressedEmails.add(String(p.email || "").toLowerCase())
         personsSuppressed++
       } catch (e: any) {
         errors.push({ id: p.id, message: e?.message ?? String(e) })
@@ -172,6 +177,7 @@ export const suppressBouncedSubscribersJob: MaintenanceJob = {
         if (!nextMeta) continue
         changes.push({ entity: "customer", id: c.id, field: "metadata.bounced", before: false, after: true })
         if (!dry_run) await customerService.updateCustomers(c.id, { metadata: nextMeta })
+        suppressedEmails.add(String(c.email || "").toLowerCase())
         customersSuppressed++
       } catch (e: any) {
         errors.push({ id: c.id, message: e?.message ?? String(e) })
@@ -189,9 +195,31 @@ export const suppressBouncedSubscribersJob: MaintenanceJob = {
         if (!nextMeta) continue
         changes.push({ entity: "lead", id: l.id, field: "metadata.bounced", before: false, after: true })
         if (!dry_run) await socialsService.updateLeads({ id: l.id, metadata: nextMeta })
+        suppressedEmails.add(String(l.email || "").toLowerCase())
         leadsSuppressed++
       } catch (e: any) {
         errors.push({ id: l.id, message: e?.message ?? String(e) })
+      }
+    }
+
+    // Write the durable email_suppression rows (single source of truth shared
+    // with the provider bounce webhooks). Best-effort — the suppression already
+    // happened, so a logging failure must not fail the job.
+    if (!dry_run && suppressedEmails.size > 0) {
+      try {
+        const suppressionService: any = container.resolve(EMAIL_SUPPRESSION_MODULE)
+        await suppressionService.createEmailSuppressions(
+          [...suppressedEmails].map((email) => ({
+            email,
+            reason: parsed.data.reason === "hard_bounce" ? "hard_bounce" : "manual",
+            provider: "manual",
+            event_id: null,
+            event_at: at,
+            suppressed: true,
+          }))
+        )
+      } catch {
+        // swallow — suppression is already applied
       }
     }
 

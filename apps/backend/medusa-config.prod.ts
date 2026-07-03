@@ -479,6 +479,12 @@ module.exports = defineConfig({
     resolve: "./src/modules/email-provider-manager",
   },
   {
+    resolve: "./src/modules/email_suppression",
+  },
+  {
+    resolve: "./src/modules/audience",
+  },
+  {
       resolve: "./src/modules/partner-payment-config",
     },
     {
