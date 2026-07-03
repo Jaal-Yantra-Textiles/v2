@@ -5,10 +5,12 @@ import {
   Heading,
   Input,
   ProgressTabs,
+  RadioGroup,
   Select,
   Switch,
   Text,
   Textarea,
+  clx,
   toast,
 } from "@medusajs/ui"
 import { z } from "@medusajs/framework/zod"
@@ -47,6 +49,8 @@ const personSchema = z.object({
 // --- Onboarding profile (issue #648, slice 1) ---------------------------
 // Mirrors the partner_onboarding_profile model / validator on the backend.
 type PaymentCollection = "through_us" | "themselves"
+// #859 S1 / #860 — how the partner sells.
+type SellingMode = "dedicated_storefront" | "core_channel_listing"
 
 type OnboardingProfile = {
   what_they_sell: string
@@ -57,6 +61,8 @@ type OnboardingProfile = {
   does_weaving: boolean
   team_size: string // kept as string for the input; coerced to number on save
   payment_collection: PaymentCollection | ""
+  selling_mode: SellingMode | ""
+  commission_pct: string // % in the input; coerced to basis points on save
 }
 
 const WHAT_THEY_SELL_OPTIONS = [
@@ -90,6 +96,26 @@ const PAYMENT_COLLECTION_OPTIONS: { value: PaymentCollection; label: string }[] 
   { value: "themselves", label: "Myself (I collect payments directly)" },
 ]
 
+// #859 S1 / #860 — the two selling models presented on the "How you'll sell" step.
+const SELLING_MODE_OPTIONS: {
+  value: SellingMode
+  label: string
+  description: string
+}[] = [
+  {
+    value: "dedicated_storefront",
+    label: "Run my own storefront",
+    description:
+      "Your own branded store and sales channel. You manage your catalogue and checkout; JYT provides the platform.",
+  },
+  {
+    value: "core_channel_listing",
+    label: "List on the JYT marketplace",
+    description:
+      "Airbnb-style listing on the core cicilabel.com store. We verify and publish your products; you sell through our channel at an agreed commission.",
+  },
+]
+
 const emptyProfile: OnboardingProfile = {
   what_they_sell: "",
   price_range: "",
@@ -99,6 +125,8 @@ const emptyProfile: OnboardingProfile = {
   does_weaving: false,
   team_size: "",
   payment_collection: "",
+  selling_mode: "",
+  commission_pct: "",
 }
 
 const BUSINESS_TYPE_KEYS = [
@@ -117,7 +145,7 @@ const mapBusinessTypeToWorkspaceType = (businessType: string): "seller" | "manuf
   return "manufacturer"
 }
 
-const STEPS = ["about", "business", "operations", "logo", "people", "plan"] as const
+const STEPS = ["about", "business", "operations", "selling", "logo", "people", "plan"] as const
 type Step = (typeof STEPS)[number]
 
 // Onboarding country → billing currency. India bills in INR (PayU); everywhere
@@ -198,6 +226,7 @@ const OnboardingForm = () => {
     about: t("partner.onboardingModal.steps.about"),
     business: "Business",
     operations: "Operations",
+    selling: "Selling",
     logo: t("partner.onboardingModal.steps.logo"),
     people: t("partner.onboardingModal.steps.people"),
     plan: "Plan",
@@ -304,6 +333,11 @@ const OnboardingForm = () => {
               : String(p.team_size),
           payment_collection: (p.payment_collection ??
             prev.payment_collection) as PaymentCollection | "",
+          selling_mode: (p.selling_mode ?? prev.selling_mode) as SellingMode | "",
+          commission_pct:
+            p.commission_bps === null || p.commission_bps === undefined
+              ? prev.commission_pct
+              : String(p.commission_bps / 100),
         }))
       } catch {
         // non-blocking — first-time partners have no profile yet
@@ -454,6 +488,17 @@ const OnboardingForm = () => {
       if (profile.team_size.trim() !== "") {
         const n = Number.parseInt(profile.team_size, 10)
         if (Number.isFinite(n)) profileBody.team_size = n
+      }
+      // #859 S1 / #860 — selling mode + agreed commission (% → basis points).
+      if (profile.selling_mode) profileBody.selling_mode = profile.selling_mode
+      if (
+        profile.selling_mode === "core_channel_listing" &&
+        profile.commission_pct.trim() !== ""
+      ) {
+        const pct = Number.parseFloat(profile.commission_pct)
+        if (Number.isFinite(pct) && pct >= 0 && pct <= 100) {
+          profileBody.commission_bps = Math.round(pct * 100)
+        }
       }
 
       try {
@@ -858,7 +903,95 @@ const OnboardingForm = () => {
             </div>
           </ProgressTabs.Content>
 
-          {/* Step 4: Logo */}
+          {/* Step 4: How you'll sell (#859 S1 / #860) */}
+          <ProgressTabs.Content value="selling" className="p-6">
+            <div className="mx-auto flex w-full max-w-[720px] flex-col gap-y-4 py-10">
+              <div>
+                <Heading>How you'll sell</Heading>
+                <Text size="small" className="text-ui-fg-subtle mt-1">
+                  Choose whether you want your own storefront, or to list on the
+                  JYT marketplace. You can change this later with our team.
+                </Text>
+              </div>
+
+              <RadioGroup
+                value={profile.selling_mode}
+                onValueChange={(v) =>
+                  setProfile((prev) => ({
+                    ...prev,
+                    selling_mode: v as SellingMode,
+                  }))
+                }
+                className="flex flex-col gap-y-3"
+              >
+                {SELLING_MODE_OPTIONS.map((o) => {
+                  const selected = profile.selling_mode === o.value
+                  return (
+                    <label
+                      key={o.value}
+                      htmlFor={`selling-${o.value}`}
+                      className={clx(
+                        "flex cursor-pointer items-start gap-x-3 rounded-lg border px-4 py-3 transition-colors",
+                        {
+                          "border-ui-border-interactive bg-ui-bg-base-pressed":
+                            selected,
+                          "hover:bg-ui-bg-base-hover": !selected,
+                        }
+                      )}
+                    >
+                      <RadioGroup.Item
+                        value={o.value}
+                        id={`selling-${o.value}`}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <Text size="small" weight="plus">
+                          {o.label}
+                        </Text>
+                        <Text size="xsmall" className="text-ui-fg-subtle">
+                          {o.description}
+                        </Text>
+                      </div>
+                    </label>
+                  )
+                })}
+              </RadioGroup>
+
+              {profile.selling_mode === "core_channel_listing" && (
+                <div className="rounded-lg border px-4 py-3">
+                  <Text size="small" className="mb-1 block font-medium">
+                    Agreed commission{" "}
+                    <span className="text-ui-fg-muted font-normal">(%)</span>
+                  </Text>
+                  <Text size="xsmall" className="text-ui-fg-subtle mb-2 block">
+                    The revenue-share JYT keeps on each marketplace sale. Leave
+                    blank to use the platform default.
+                  </Text>
+                  <div className="flex max-w-[160px] items-center gap-x-2">
+                    <Input
+                      value={profile.commission_pct}
+                      onChange={(e) =>
+                        setProfile((prev) => ({
+                          ...prev,
+                          commission_pct: e.target.value.replace(
+                            /[^0-9.]/g,
+                            ""
+                          ),
+                        }))
+                      }
+                      placeholder="e.g. 20"
+                      inputMode="decimal"
+                    />
+                    <Text size="small" className="text-ui-fg-subtle">
+                      %
+                    </Text>
+                  </div>
+                </div>
+              )}
+            </div>
+          </ProgressTabs.Content>
+
+          {/* Step 5: Logo */}
           <ProgressTabs.Content value="logo" className="p-6">
             <div className="mx-auto flex w-full max-w-[720px] flex-col gap-y-4 py-10">
               <div>
@@ -920,7 +1053,7 @@ const OnboardingForm = () => {
             </div>
           </ProgressTabs.Content>
 
-          {/* Step 5: Team */}
+          {/* Step 6: Team */}
           <ProgressTabs.Content value="people" className="p-6">
             <div className="mx-auto flex w-full max-w-[720px] flex-col gap-y-4 py-10">
               <div>
@@ -989,7 +1122,7 @@ const OnboardingForm = () => {
             </div>
           </ProgressTabs.Content>
 
-          {/* Step 6: Plan */}
+          {/* Step 7: Plan */}
           <ProgressTabs.Content value="plan" className="p-6">
             {error && (
               <div className="mx-auto w-full max-w-[820px] pt-6">
