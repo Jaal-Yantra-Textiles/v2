@@ -217,7 +217,11 @@ export async function POST(
                     dimensionsCm: dimensions_cm as any,
                     preferredCourierId: preferred_courier_id,
                     deliveredQuantities,
-                    actingEmail: (partner as any)?.email || undefined,
+                    // Contact email recorded on the Shiprocket pickup. The email
+                    // lives on the partner's admin(s), not the partner org row
+                    // (partner.email is undefined), so pull the first admin's
+                    // email — else it silently falls back to the account email.
+                    actingEmail: (partner as any)?.admins?.[0]?.email || undefined,
                 },
                 throwOnError: false,
             });

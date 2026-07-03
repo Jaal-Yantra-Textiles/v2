@@ -12,10 +12,25 @@
  * Success: 200 -> { shipment }
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils";
 import { z } from "@medusajs/framework/zod";
 import { createInventoryOrderShipmentWorkflow } from "../../../../../workflows/inventory_orders/create-inventory-order-shipment";
 import { assertShipmentAllowed } from "../../../../../workflows/inventory_orders/lib/shipment-guard";
+
+/** The logged-in admin's email, used as the Shiprocket pickup contact. */
+const resolveActorEmail = async (
+  req: AuthenticatedMedusaRequest
+): Promise<string | undefined> => {
+  try {
+    const actorId = (req as any).auth_context?.actor_id;
+    if (!actorId) return undefined;
+    const userService: any = req.scope.resolve(Modules.USER);
+    const user = await userService.retrieveUser(actorId);
+    return user?.email;
+  } catch {
+    return undefined;
+  }
+};
 
 const bodySchema = z.object({
   carrier: z.string().optional(),
@@ -62,6 +77,9 @@ export async function POST(req: AuthenticatedMedusaRequest, res: MedusaResponse)
       preferredCourierId: parsed.data.preferred_courier_id,
       deliveredQuantities: parsed.data.delivered_quantities,
       pickupDate: parsed.data.pickup_date,
+      // Record the acting admin's email as the Shiprocket pickup contact
+      // rather than falling back to the generic account email.
+      actingEmail: await resolveActorEmail(req),
     },
     throwOnError: false,
   });

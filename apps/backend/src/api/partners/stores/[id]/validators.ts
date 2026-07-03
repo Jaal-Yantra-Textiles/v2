@@ -69,10 +69,16 @@ export const PartnerUpdateLocationReq = z.object({
     .object({
       address_1: z.string().optional(),
       address_2: z.string().nullable().optional(),
+      company: z.string().nullable().optional(),
       city: z.string().nullable().optional(),
       province: z.string().nullable().optional(),
       postal_code: z.string().nullable().optional(),
       country_code: z.string().optional(),
+      // Mirror admin's AdminUpsertStockLocationAddress: `phone` was omitted
+      // here, so Zod stripped it and partner-submitted phone numbers were
+      // never persisted on the stock-location address.
+      phone: z.string().nullable().optional(),
+      metadata: z.record(z.string(), z.any()).nullable().optional(),
     })
     .optional(),
   metadata: z.record(z.string(), z.any()).optional(),

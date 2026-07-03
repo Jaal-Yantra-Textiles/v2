@@ -73,7 +73,10 @@ export async function POST(req: AuthenticatedMedusaRequest, res: MedusaResponse)
       preferredCourierId: parsed.data.preferred_courier_id,
       deliveredQuantities: parsed.data.delivered_quantities,
       pickupDate: parsed.data.pickup_date,
-      actingEmail: (partner as any)?.email || undefined,
+      // The email lives on the partner's admin(s), not the partner org row, so
+      // pull the first admin's email — else the Shiprocket pickup registers
+      // under the generic account email instead of the partner's contact.
+      actingEmail: (partner as any)?.admins?.[0]?.email || undefined,
     },
     throwOnError: false,
   });
