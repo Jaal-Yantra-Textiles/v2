@@ -113,6 +113,9 @@ secrets:
   MAILJET_FROM_EMAIL: /jyt/prod/MAILJET_FROM_EMAIL
   MAILJET_FROM_NAME: /jyt/prod/MAILJET_FROM_NAME
   MAILJET_SECRET_KEY: /jyt/prod/MAILJET_SECRET_KEY
+  # #839 — gates POST /webhooks/mailjet/events (Mailjet doesn't sign payloads;
+  # the ?token= query param is the only auth). Unset → endpoint runs open.
+  MAILJET_WEBHOOK_SECRET: /jyt/prod/MAILJET_WEBHOOK_SECRET
   MASTRA_ENABLE_EMBEDDINGS: /jyt/prod/MASTRA_ENABLE_EMBEDDINGS
   MEDUSA_BACKEND_URL: /jyt/prod/MEDUSA_BACKEND_URL
   MEDUSA_FF_CACHING: /jyt/prod/MEDUSA_FF_CACHING
