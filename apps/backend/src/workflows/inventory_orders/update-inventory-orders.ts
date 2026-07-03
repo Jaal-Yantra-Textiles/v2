@@ -128,7 +128,7 @@ export const updateOrderLinesStep = createStep(
           .map((l) => l.inventory_item_id as string)
       ));
       if (newItemIds.length) {
-        const query = container.resolve(ContainerRegistrationKeys.QUERY);
+        const query: any = container.resolve(ContainerRegistrationKeys.QUERY);
         const { data: inventoryItems } = await query.graph({
           entity: "inventory_item",
           fields: ["id", "raw_materials.id", "raw_materials.color", "raw_materials.name"],
@@ -273,7 +273,7 @@ export const updateOrderLinesStep = createStep(
 export const loadDeliveryContextStep = createStep(
   "load-inventory-order-delivery-context-step",
   async (input: { id: string }, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>;
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>;
     const { data } = await query.graph({
       entity: "inventory_orders",
       filters: { id: input.id },

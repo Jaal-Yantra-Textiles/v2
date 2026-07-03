@@ -23,12 +23,18 @@ module.exports = defineConfig({
       // can't reach `/partners/*` until they verify. Left OFF by default so the
       // existing partner test suite (which never verifies) is unaffected; set
       // PARTNER_EMAIL_VERIFICATION=true in dev/prod to switch it on.
-      authVerificationsPerActor: {
-        partner:
-          process.env.PARTNER_EMAIL_VERIFICATION === "true"
-            ? [{ entity_type: "email", auth_provider: "emailpass" }]
-            : [],
-      },
+      // Spread a cast object so the extra key doesn't trip the excess-property
+      // check on @medusajs/types versions that predate authVerificationsPerActor
+      // (the prod build resolves an older type than local 2.17.1). Runtime is
+      // unchanged — validate-verification reads projectConfig.http.authVerificationsPerActor.
+      ...({
+        authVerificationsPerActor: {
+          partner:
+            process.env.PARTNER_EMAIL_VERIFICATION === "true"
+              ? [{ entity_type: "email", auth_provider: "emailpass" }]
+              : [],
+        },
+      } as any),
     },
     //redisUrl: process.env.REDIS_URL,
     //workerMode: process.env.MEDUSA_WORKER_MODE as "shared" | "worker" | "server",
