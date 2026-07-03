@@ -56,7 +56,8 @@
     "unsavedChangesDescription": "Máte neuložené změny, které budou ztraceny, pokud opustíte tento formulář.",
     "includesTaxTooltip": "Ceny v tomto sloupci jsou včetně daně.",
     "excludesTaxTooltip": "Ceny v tomto sloupci jsou bez daně.",
-    "noMoreData": "Žádná další data"
+    "noMoreData": "Žádná další data",
+    "noRecordsMessageFiltered": "Žádné záznamy neodpovídají nastaveným filtrům"
   },
   "json": {
     "header": "JSON",
@@ -138,7 +139,9 @@
     "hide": "Skrýt",
     "export": "Exportovat",
     "import": "Importovat",
-    "cannotUndo": "Tuto akci nelze vrátit zpět"
+    "cannotUndo": "Tuto akci nelze vrátit zpět",
+    "editVariantImages": "Upravit obrázky varianty",
+    "editImages": "Upravit obrázky"
   },
   "operators": {
     "in": "V"
@@ -252,7 +255,25 @@
       },
       "main": {
         "store": "Obchod",
-        "storeSettings": "Nastavení obchodu"
+        "storeSettings": "Nastavení obchodu",
+        "home": "Domů",
+        "designs": "Návrhy",
+        "productionRuns": "Výrobní běhy",
+        "tasks": "Úkoly",
+        "paymentSubmissions": "Odeslané platby",
+        "inventoryOrders": "Objednávky zásob",
+        "sharedFolders": "Sdílené složky",
+        "products": "Produkty",
+        "categories": "Kategorie",
+        "collections": "Kolekce",
+        "productTypes": "Typy",
+        "stock": "Sklad",
+        "orders": "Objednávky",
+        "customers": "Zákazníci",
+        "webStore": "Webový obchod",
+        "content": "Obsah",
+        "theme": "Motiv",
+        "analytics": "Analýzy"
       },
       "settings": {
         "header": "Nastavení",
@@ -523,7 +544,14 @@
         "description": "Přidejte média k produktu, aby se zobrazila ve vašem obchodě.",
         "action": "Přidat média"
       },
-      "successToast": "Média byla úspěšně aktualizována."
+      "successToast": "Média byla úspěšně aktualizována.",
+      "manageImageVariants": "Spravovat přidružené varianty",
+      "fileTooLarge": "Jeden nebo více souborů překračuje maximální velikost souboru {{size}}: {{name}}",
+      "variantImages": "Obrázky variant",
+      "showAvailableImages": "Zobrazit dostupné obrázky",
+      "availableImages": "Vyberte obrázky",
+      "selectToAdd": "Přidejte obrázky produktu k variantě. Chcete-li přidat nové obrázky, nejprve je přidejte k produktu.",
+      "removeSelected": "Odebrat vybrané"
     },
     "discountableHint": "Když není zaškrtnuto, slevy nebudou na tento produkt aplikovány.",
     "noSalesChannels": "Není dostupné v žádných prodejních kanálech",
@@ -715,6 +743,35 @@
           "header": "Nepodařilo se smazat produkt"
         }
       }
+    },
+    "variantMedia": {
+      "label": "Média varianty",
+      "manageVariants": "Spravovat varianty",
+      "addToMultipleVariants": "Přidat do více variant",
+      "manageVariantsDescription": "Spravovat přidružené varianty pro tento obrázek",
+      "successToast": "Obrázkové varianty byly úspěšně aktualizovány.",
+      "emptyState": {
+        "header": "Zatím žádná média",
+        "description": "Přidejte média k variantě, abyste ji mohli zobrazit ve svém e-shopu.",
+        "action": "Přidat média"
+      }
+    },
+    "columns": {
+      "product_display": "Produkt",
+      "variants_count": "Varianty",
+      "sales_channels_display": "Prodejní kanály",
+      "collection": "Kolekce",
+      "status": "Stav",
+      "thumbnail": "Náhled",
+      "title": "Název",
+      "handle": "Identifikátor",
+      "created_at": "Vytvořeno",
+      "updated_at": "Aktualizováno"
+    },
+    "prices": {
+      "edit": {
+        "successToast": "Ceny byly úspěšně aktualizovány"
+      }
     }
   },
   "collections": {
@@ -871,7 +928,8 @@
       "disablePrompt_other": "Chystáte se zakázat {{count}} úrovní lokace. Tuto akci nelze vrátit zpět.",
       "disabledToggleTooltip": "Nelze zakázat: vymažte příchozí a/nebo rezervované množství před zakázáním.",
       "successToast": "Úrovně inventáře byly úspěšně aktualizovány."
-    }
+    },
+    "levelDeleted": "Úroveň zásob byla úspěšně odstraněna."
   },
   "giftCards": {
     "domain": "Dárkové karty",
@@ -1067,7 +1125,8 @@
       "itemSubtotal": "Mezisoučet položek",
       "shippingSubtotal": "Mezisoučet dopravy",
       "discountSubtotal": "Mezisoučet slevy",
-      "taxTotal": "Celková daň"
+      "taxTotal": "Celková daň",
+      "totalAfterDiscount": "Celkem po slevě"
     },
     "transfer": {
       "title": "Převod vlastnictví",
@@ -1289,7 +1348,10 @@
       "panel": {
         "title": "Výměna zahájena",
         "description": "Existuje otevřená žádost o výměnu, která musí být dokončena"
-      }
+      },
+      "carryOverPromotion": "Převést akce",
+      "carryOverPromotionHint": "Použít akce z objednávky na zboží výměny",
+      "carryOverPromotionTooltip": "Akce typu „pevná částka“ s alokací „každý položka“ a akce typu „procento“ s alokací „každý položka“ nebo „celkově“ lze převést na zboží výměny."
     },
     "reservations": {
       "allocatedLabel": "Přiděleno",
@@ -1305,7 +1367,8 @@
       "consistsOf": "Skládá se z {{num}}x inventárních položek",
       "requires": "Vyžaduje {{num}} na variantu",
       "toast": {
-        "created": "Položky byly úspěšně přiděleny"
+        "created": "Položky byly úspěšně přiděleny",
+        "error": "Nepodařilo se přidělit následující položky: {{items}}"
       },
       "error": {
         "quantityNotAllocated": "Existují nepřidělené položky."
@@ -1317,7 +1380,9 @@
       "addTracking": "Přidat sledovací číslo",
       "sendNotification": "Odeslat oznámení",
       "sendNotificationHint": "Oznámit zákazníkovi o této zásilce.",
-      "toastCreated": "Zásilka byla úspěšně vytvořena."
+      "toastCreated": "Zásilka byla úspěšně vytvořena.",
+      "trackingUrl": "URL sledování",
+      "labelUrl": "URL štítku"
     },
     "fulfillment": {
       "cancelWarning": "Chystáte se zrušit plnění. Tuto akci nelze vrátit zpět.",
@@ -1520,7 +1585,10 @@
   "stockLocations": {
     "domain": "Lokace & Doprava",
     "list": {
-      "description": "Spravujte skladové lokace a možnosti dopravy vašeho obchodu."
+      "description": "Spravujte skladové lokace a možnosti dopravy vašeho obchodu.",
+      "noRecordsMessage": "Žádné záznamy",
+      "noRecordsMessageEmpty": "Žádná místa nenalezena",
+      "noRecordsMessageFiltered": "Žádná místa neodpovídají zadaným filtrům"
     },
     "create": {
       "header": "Vytvořit skladovou lokaci",
@@ -1533,7 +1601,8 @@
       "successToast": "Lokace {{name}} byla úspěšně aktualizována."
     },
     "delete": {
-      "confirmation": "Chystáte se smazat skladovou lokaci {{name}}. Tuto akci nelze vrátit zpět."
+      "confirmation": "Chystáte se smazat skladovou lokaci {{name}}. Tuto akci nelze vrátit zpět.",
+      "successToast": "Místo „{{name}}“ bylo úspěšně odstraněno."
     },
     "fulfillmentProviders": {
       "header": "Poskytovatelé plnění",
@@ -1566,6 +1635,10 @@
       "shippingProfiles": {
         "label": "Profily dopravy",
         "description": "Skupinové produkty podle požadavků na dopravu"
+      },
+      "shippingOptionTypes": {
+        "label": "Typy možností dopravy",
+        "description": "Seskupte možnosti dopravy podle typů"
       }
     },
     "salesChannels": {
@@ -1683,7 +1756,8 @@
         },
         "provider": "Poskytovatel plnění",
         "profile": "Profil dopravy",
-        "fulfillmentOption": "Možnost plnění"
+        "fulfillmentOption": "Možnost plnění",
+        "type": "Typ možnosti dopravy"
       }
     },
     "serviceZones": {
@@ -1898,7 +1972,8 @@
           "productCollection": "Kolekce produktů",
           "productTag": "Štítky produktů",
           "productType": "Typy produktů",
-          "customerGroup": "Skupiny zákazníků"
+          "customerGroup": "Skupiny zákazníků",
+          "shippingOption": "Dopravní možnosti"
         },
         "operators": {
           "in": "v",
@@ -1910,14 +1985,16 @@
           "productCollection": "Hledat kolekce produktů",
           "productTag": "Hledat štítky produktů",
           "productType": "Hledat typy produktů",
-          "customerGroup": "Hledat skupiny zákazníků"
+          "customerGroup": "Hledat skupiny zákazníků",
+          "shippingOption": "Vyhledat dopravní možnosti"
         },
         "tags": {
           "product": "Produkt",
           "productCollection": "Kolekce produktů",
           "productTag": "Štítek produktu",
           "productType": "Typ produktu",
-          "customerGroup": "Skupina zákazníků"
+          "customerGroup": "Skupina zákazníků",
+          "shippingOption": "Dopravní možnost"
         },
         "modal": {
           "header": "Přidat cíle"
@@ -2006,13 +2083,28 @@
         },
         "target-rules": {
           "title": "Na které položky bude propagace aplikována?",
-          "description": "Propagace bude aplikována na položky, které odpovídají následujícím podmínkám."
+          "description": "Propagace bude aplikována na položky, které odpovídají následujícím podmínkám.",
+          "order": {
+            "title": "Na které položky se bude akce vztahovat?",
+            "description": "Akce se bude vztahovat na položky, které splňují následující podmínky."
+          },
+          "shipping_methods": {
+            "title": "Na které způsoby dopravy se bude akce vztahovat?",
+            "description": "Akce se bude vztahovat na způsoby dopravy, které splňují následující podmínky."
+          },
+          "items": {
+            "title": "Na které položky se bude akce vztahovat?",
+            "description": "Akce se bude vztahovat na položky, které splňují následující podmínky."
+          }
         },
         "buy-rules": {
           "title": "Co musí být v košíku, aby se propagace odemkla?",
           "description": "Pokud tyto podmínky odpovídají, povolíme propagaci na cílové položky."
         }
-      }
+      },
+      "allocationTooltip": "Každý vynucuje limit množství na položku, zatímco možnost „Jednou“ vynucuje limit množství pro celou objednávku",
+      "usageLimit": "Limit využití",
+      "usage": "Využití"
     },
     "tooltips": {
       "campaignType": "Kód měny musí být vybrán v propagaci pro nastavení rozpočtu výdajů."
@@ -2124,6 +2216,10 @@
         "across": {
           "title": "Napříč",
           "description": "Aplikuje hodnotu napříč položkami"
+        },
+        "once": {
+          "title": "Jednou",
+          "description": "Použije hodnotu na omezený počet položek"
         }
       },
       "code": {
@@ -2131,7 +2227,8 @@
         "description": "Kód, který vaši zákazníci zadají při pokladně."
       },
       "value": {
-        "title": "Hodnota propagace"
+        "title": "Hodnota propagace",
+        "invalid": "Neplatná hodnota akce"
       },
       "value_type": {
         "fixed": {
@@ -2142,6 +2239,10 @@
           "title": "Hodnota propagace",
           "description": "Procento, které bude odečteno z částky. např. 8%"
         }
+      },
+      "limit": {
+        "title": "Limit využití",
+        "description": "Maximální počet použití této akce ve všech objednávkách. Pro neomezené využití ponechte prázdné."
       }
     },
     "deleteWarning": "Chystáte se smazat propagaci {{code}}. Tuto akci nelze vrátit zpět.",
@@ -2197,7 +2298,8 @@
       "budget_limit": "Limit rozpočtu",
       "campaign_id": {
         "hint": "Pouze kampaně se stejným kódem měny jako propagace jsou zobrazeny v tomto seznamu."
-      }
+      },
+      "totalUsedByAttribute": "Celkem použito"
     },
     "budget": {
       "create": {
@@ -2209,7 +2311,12 @@
         "type": "Typ",
         "currency": "Měna",
         "limit": "Limit",
-        "used": "Použito"
+        "used": "Použito",
+        "budgetAttribute": "Limit použití podle",
+        "budgetAttributeTooltip": "Nastavte, kolikrát lze akci využít jednotlivým zákazníkům nebo e-mailovým adresám.",
+        "totalUsedByAttribute": "Limit rozpočtu na: {{attribute}}",
+        "totalUsedByAttributeCustomerId": "Limit rozpočtu na zákazníka",
+        "totalUsedByAttributeEmail": "Limit rozpočtu na e-mail"
       },
       "type": {
         "spend": {
@@ -2219,10 +2326,20 @@
         "usage": {
           "title": "Použití",
           "description": "Nastavit limit na počet použití propagace."
+        },
+        "useByAttribute": {
+          "title": "Použití podle atributu (ID zákazníka, e-mail atd.)",
+          "titleCustomerId": "Použití na zákazníka",
+          "titleEmail": "Použití na e-mail",
+          "description": "Nastavte limit, kolikrát lze akci využít pro konkrétní hodnotu atributu."
         }
       },
       "edit": {
         "header": "Upravit rozpočet kampaně"
+      },
+      "attribute": {
+        "customer_id": "zákazník",
+        "customer_email": "e-mail"
       }
     },
     "promotions": {
@@ -2351,7 +2468,10 @@
     "manageYourProfileDetails": "Spravujte detaily svého profilu.",
     "fields": {
       "languageLabel": "Jazyk",
-      "usageInsightsLabel": "Přehledy používání"
+      "usageInsightsLabel": "Přehledy používání",
+      "onboardingLabel": "Úvodní průvodce",
+      "onboardingCompleted": "Dokončeno",
+      "onboardingNotCompleted": "Nedokončeno"
     },
     "edit": {
       "header": "Upravit profil",
@@ -2425,8 +2545,15 @@
       "update": "Obchod byl úspěšně aktualizován",
       "currenciesUpdated": "Měny byly úspěšně aktualizovány",
       "currenciesRemoved": "Měny byly úspěšně odstraněny z obchodu",
-      "updatedTaxInclusivitySuccessfully": "Ceny včetně daně byly úspěšně aktualizovány"
-    }
+      "updatedTaxInclusivitySuccessfully": "Ceny včetně daně byly úspěšně aktualizovány",
+      "localesUpdated": "Jazyková nastavení byla úspěšně aktualizována",
+      "localesRemoved": "Jazyková nastavení byla úspěšně odebrána z obchodu"
+    },
+    "defaultLocale": "Výchozí jazykové nastavení",
+    "locales": "Jazyková nastavení",
+    "removeLocaleWarning_one": "Chystáte se odebrat z vašeho obchodu {{count}} jazykové nastavení. Všechny překlady v tomto jazykovém nastavení budou odstraněny.",
+    "removeLocaleWarning_other": "Chystáte se odebrat z vašeho obchodu {{count}} jazykových nastavení. Všechny překlady v těchto jazykových nastaveních budou odstraněny.",
+    "localeAlreadyAdded": "Jazykové nastavení již bylo do vašeho obchodu přidáno."
   },
   "regions": {
     "domain": "Regiony",
@@ -2872,7 +2999,9 @@
     "from": "Od",
     "to": "Do",
     "beaware": "Buďte opatrní",
-    "loading": "Načítání"
+    "loading": "Načítání",
+    "selectValue": "Vyberte hodnotu",
+    "selectValues": "Vyberte hodnoty"
   },
   "fields": {
     "amount": "Částka",
@@ -3033,7 +3162,11 @@
     "startDate": "Datum začátku",
     "endDate": "Datum konce",
     "draft": "Koncept",
-    "values": "Hodnoty"
+    "values": "Hodnoty",
+    "enabledInStore": "Povoleno v obchodě",
+    "isReturn": "Jde o vrácení",
+    "promotionCode": "Kód slevy",
+    "serviceZone": "Služební zóna"
   },
   "dateTime": {
     "years_one": "Rok",
@@ -3169,7 +3302,8 @@
         "description": "Toto se zobrazí ve vašem profilu partnera a na e-shopu. Můžete jej kdykoli změnit.",
         "clickToChange": "Klikněte pro změnu",
         "clickToUpload": "Klikněte pro nahrání nebo přetáhněte sem soubor",
-        "fileTypes": "SVG, PNG, JPG (MAX. 5 MB)"
+        "fileTypes": "SVG, PNG, JPG (MAX. 5 MB)",
+        "currentLogo": "Současný logotyp"
       },
       "team": {
         "heading": "Přidejte členy svého týmu",
@@ -3189,10 +3323,14 @@
         "stepCount": "Krok {{current}} z {{total}}",
         "back": "Zpět",
         "continue": "Pokračovat",
-        "complete": "Dokončit nastavení"
+        "complete": "Dokončit nastavení",
+        "skipShort": "Přeskočit"
       },
       "errors": {
         "unknown": "Došlo k neznámé chybě"
+      },
+      "toast": {
+        "completed": "Úvodní průvodce dokončen"
       }
     },
     "plan": {
@@ -3506,6 +3644,14 @@
         "copySuccessDescription": "\"{{title}}\" zkopírován jako návrh.",
         "copyFailed": "Kopírování produktu selhalo",
         "somethingWrong": "Něco se pokazilo"
+      },
+      "whatsNew": {
+        "heading": "Co je nové",
+        "dismiss": "Zavřít",
+        "defaultCta": "Podívat se",
+        "previous": "Předchozí aktualizace",
+        "next": "Další aktualizace",
+        "goToUpdate": "Přejít na aktualizaci {{index}}"
       }
     },
     "sharedFolders": {
@@ -3567,6 +3713,150 @@
         "noPagesTitle": "Zatím žádné stránky",
         "noPagesMessage": "Vytvořte své výchozí stránky, abyste mohli začít spravovat obsah webových stránek.",
         "noMatches": "Žádné stránky nenalezeny"
+      }
+    },
+    "workOrders": {
+      "designOrder": "Objednávka návrhu",
+      "inventoryOrder": "Objednávka zásob",
+      "manageDesign": "Spravovat návrh",
+      "amount": "Částka",
+      "totalQuantity": "Celkové množství",
+      "total": "Celkem",
+      "producing": "Výroba",
+      "start": "Spustit",
+      "complete": "Dokončit",
+      "readyForDelivery": "Označit jako připraveno k doručení",
+      "createShipment": "Vytvořit zásilku",
+      "submitPayment": "Odeslat platbu",
+      "fulfillments": "Doručení",
+      "noFulfillments": "Zatím nebyla zaznamenána žádná doručení.",
+      "payments": "Platby",
+      "noPayments": "Zatím nebyly odeslány žádné platby.",
+      "delivered": "Doručeno",
+      "paymentSubmitted": "Platba odeslána",
+      "summary": "Souhrn",
+      "type": "Typ",
+      "designStatus": "Stav návrhu",
+      "priority": "Priorita",
+      "targetDate": "Cílové datum",
+      "estimatedCost": "Odhadovaná cena",
+      "materials": "Materiály",
+      "moodboard": "Náladový panel",
+      "media": "Média",
+      "orderStatus": "Stav",
+      "sample": "Vzorek",
+      "yes": "Ano",
+      "no": "Ne",
+      "orderDate": "Datum objednávky",
+      "expectedDelivery": "Očekávané doručení",
+      "stockLocation": "Umístění skladu",
+      "designDetails": "Podrobnosti návrhu",
+      "openDesignManager": "Otevřít správce návrhů",
+      "noDesign": "Tato objednávka není propojena s žádným návrhem.",
+      "activity": {
+        "title": "Aktivita",
+        "placed": "Objednávka vložena",
+        "accepted": "Výroba přijata",
+        "started": "Výroba zahájena",
+        "finished": "Označeno jako dokončeno",
+        "completed": "Výroba dokončena"
+      }
+    },
+    "stripeConnect": {
+      "heading": "JYT Stripe Connect",
+      "payoutsPending": "čekající výplaty",
+      "badge": {
+        "active": "Aktivní",
+        "pending": "Nastavení nedokončeno"
+      },
+      "description": {
+        "default": "Vynechte zadání API klíčů. Připojte účet Stripe prostřednictvím JYT, abyste získali platby rychleji – výplaty i vrácení prostředků jsou pro vás zpracována automaticky.",
+        "active": "Platby probíhají prostřednictvím JYT Stripe Connect. Toto je váš živý zdroj Stripe – jakékoli ručně zadané klíče níže slouží pouze jako záloha."
+      },
+      "actions": {
+        "connect": "Připojit pomocí Stripe",
+        "resume": "Dokončit nastavení",
+        "manage": "Aktualizovat údaje"
+      },
+      "toast": {
+        "startFailed": "Nepodařilo se spustit úvodní průvodce Stripe"
+      }
+    }
+  },
+  "shippingOptionTypes": {
+    "domain": "Typy dopravních možností",
+    "subtitle": "Uspořádejte své dopravní možnosti do typů.",
+    "create": {
+      "header": "Vytvořit typ dopravní možnosti",
+      "hint": "Vytvořte nový typ dopravní možnosti pro kategorizaci vašich dopravních možností.",
+      "successToast": "Typ dopravní možnosti {{label}} byl úspěšně vytvořen."
+    },
+    "edit": {
+      "header": "Upravit typ dopravní možnosti",
+      "successToast": "Typ dopravní možnosti {{label}} byl úspěšně aktualizován."
+    },
+    "delete": {
+      "confirmation": "Chystáte se odstranit typ dopravní možnosti „{{label}}“. Tuto akci nelze vrátit zpět.",
+      "successToast": "Typ dopravní možnosti „{{label}}“ byl úspěšně odstraněn."
+    },
+    "fields": {
+      "label": "Popisek",
+      "code": "Kód",
+      "description": "Popis"
+    }
+  },
+  "refundReasons": {
+    "domain": "Důvody vrácení peněz",
+    "subtitle": "Spravujte důvody pro vrácení peněz.",
+    "calloutHint": "Spravujte důvody k zařazení vrácení peněz do kategorií.",
+    "editReason": "Upravit důvod vrácení peněz",
+    "create": {
+      "header": "Přidat důvod vrácení peněz",
+      "subtitle": "Zadejte nejběžnější důvody pro vrácení peněz.",
+      "hint": "Vytvořte nový důvod vrácení peněz pro zařazení do kategorií.",
+      "successToast": "Důvod vrácení peněz {{label}} byl úspěšně vytvořen."
+    },
+    "edit": {
+      "header": "Upravit důvod vrácení peněz",
+      "subtitle": "Upravte hodnotu důvodu vrácení peněz.",
+      "successToast": "Důvod vrácení peněz {{label}} byl úspěšně aktualizován."
+    },
+    "delete": {
+      "confirmation": "Chystáte se odstranit důvod vrácení peněz „{{label}}“. Tuto akci nelze vrátit zpět.",
+      "successToast": "Důvod vrácení peněz byl úspěšně odstraněn."
+    },
+    "fields": {
+      "label": {
+        "label": "Popisek",
+        "placeholder": "Gestum dobré vůle"
+      },
+      "code": {
+        "label": "Kód",
+        "placeholder": "gestum_dobre_vule"
+      },
+      "description": {
+        "label": "Popis",
+        "placeholder": "Zákazník měl špatné nákupní zážitky"
+      }
+    }
+  },
+  "views": {
+    "save": "Uložit",
+    "saveAsNew": "Uložit jako nové zobrazení",
+    "updateDefaultForEveryone": "Aktualizovat výchozí zobrazení pro všechny",
+    "updateViewName": "Upravit zobrazení",
+    "prompts": {
+      "updateDefault": {
+        "title": "Aktualizovat výchozí zobrazení",
+        "description": "Tímto se aktualizuje výchozí zobrazení pro všechny uživatele. Opravdu si to přejete?",
+        "confirmText": "Aktualizovat pro všechny",
+        "cancelText": "Zrušit"
+      },
+      "updateView": {
+        "title": "Upravit zobrazení",
+        "description": "Opravdu si přejete aktualizovat „{{name}}“?",
+        "confirmText": "Aktualizovat",
+        "cancelText": "Zrušit"
       }
     }
   }

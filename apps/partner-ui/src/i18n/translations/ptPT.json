@@ -255,7 +255,25 @@
       },
       "main": {
         "store": "Loja",
-        "storeSettings": "Definições da loja"
+        "storeSettings": "Definições da loja",
+        "home": "Início",
+        "designs": "Designs",
+        "productionRuns": "Execuções de Produção",
+        "tasks": "Tarefas",
+        "paymentSubmissions": "Envios de Pagamento",
+        "inventoryOrders": "Encomendas de Inventário",
+        "sharedFolders": "Pastas Partilhadas",
+        "products": "Produtos",
+        "categories": "Categorias",
+        "collections": "Coleções",
+        "productTypes": "Tipos",
+        "stock": "Stock",
+        "orders": "Encomendas",
+        "customers": "Clientes",
+        "webStore": "WebStore",
+        "content": "Conteúdo",
+        "theme": "Tema",
+        "analytics": "Análise"
       },
       "settings": {
         "header": "Definições",
@@ -532,7 +550,8 @@
       "showAvailableImages": "Mostrar imagens disponíveis",
       "availableImages": "Selecionar imagens",
       "selectToAdd": "Adiciona imagens do produto à variante. Para adicionar novas imagens, adiciona-as primeiro ao produto.",
-      "removeSelected": "Remover selecionadas"
+      "removeSelected": "Remover selecionadas",
+      "fileTooLarge": "Um ou mais ficheiros excedem o tamanho máximo de ficheiro de {{size}}: {{name}}"
     },
     "variantMedia": {
       "label": "Multimédia da variante",
@@ -747,6 +766,11 @@
         "error": {
           "header": "Falha ao eliminar o produto"
         }
+      }
+    },
+    "prices": {
+      "edit": {
+        "successToast": "Os preços foram atualizados com sucesso"
       }
     }
   },
@@ -1324,7 +1348,10 @@
       "panel": {
         "title": "Troca iniciada",
         "description": "Existe um pedido de troca em aberto para ser concluído"
-      }
+      },
+      "carryOverPromotion": "Manter promoções",
+      "carryOverPromotionHint": "Aplicar as promoções da encomenda aos artigos de troca",
+      "carryOverPromotionTooltip": "Apenas as promoções de tipo fixo com alocação POR e as promoções de tipo percentagem com alocação POR ou EM TODOS podem ser mantidas nos artigos de saída de troca."
     },
     "reservations": {
       "allocatedLabel": "Alocado",
@@ -2073,7 +2100,9 @@
           "title": "O que tem de estar no carrinho para desbloquear a promoção?",
           "description": "Se estas condições corresponderem, ativamos a promoção nos itens de destino."
         }
-      }
+      },
+      "usageLimit": "Limite de utilização",
+      "usage": "Utilização"
     },
     "tooltips": {
       "campaignType": "É necessário selecionar a moeda na promoção para definir um orçamento de gasto."
@@ -2208,6 +2237,10 @@
           "title": "Percentagem",
           "description": "A percentagem a descontar do montante, p.ex. 8%"
         }
+      },
+      "limit": {
+        "title": "Limite de utilização",
+        "description": "Número máximo de vezes que esta promoção pode ser utilizada em todos os pedidos. Deixe em branco para utilização ilimitada."
       }
     },
     "deleteWarning": "Estás prestes a eliminar a promoção {{code}}. Esta ação não pode ser anulada.",
@@ -2433,7 +2466,10 @@
     "manageYourProfileDetails": "Gere os detalhes do teu perfil.",
     "fields": {
       "languageLabel": "Idioma",
-      "usageInsightsLabel": "Informações de utilização"
+      "usageInsightsLabel": "Informações de utilização",
+      "onboardingLabel": "Introdução",
+      "onboardingCompleted": "Concluído",
+      "onboardingNotCompleted": "Não concluído"
     },
     "edit": {
       "header": "Editar Perfil",
@@ -2507,8 +2543,15 @@
       "update": "Loja atualizada com sucesso",
       "currenciesUpdated": "Moedas atualizadas com sucesso",
       "currenciesRemoved": "Moedas removidas da loja com sucesso",
-      "updatedTaxInclusivitySuccessfully": "Preços com impostos incluídos atualizados com sucesso"
-    }
+      "updatedTaxInclusivitySuccessfully": "Preços com impostos incluídos atualizados com sucesso",
+      "localesUpdated": "Localizações atualizadas com sucesso",
+      "localesRemoved": "Localizações removidas da loja com sucesso"
+    },
+    "defaultLocale": "Localização predefinida",
+    "locales": "Localizações",
+    "removeLocaleWarning_one": "Está prestes a remover {{count}} localização da sua loja. Qualquer tradução que utilize esta localização será eliminada.",
+    "removeLocaleWarning_other": "Está prestes a remover {{count}} localizações da sua loja. Quaisquer traduções que utilizem estas localizações serão eliminadas.",
+    "localeAlreadyAdded": "Esta localização já foi adicionada à sua loja."
   },
   "regions": {
     "domain": "Regiões",
@@ -3334,7 +3377,8 @@
         "description": "Este aparecerá no seu perfil de parceiro e na sua loja online. Pode alterá-lo sempre que quiser.",
         "clickToChange": "Clique para alterar",
         "clickToUpload": "Clique para carregar ou arraste e largue",
-        "fileTypes": "SVG, PNG, JPG (MÁX. 5 MB)"
+        "fileTypes": "SVG, PNG, JPG (MÁX. 5 MB)",
+        "currentLogo": "Logótipo atual"
       },
       "team": {
         "heading": "Adicione os membros da sua equipa",
@@ -3354,10 +3398,14 @@
         "stepCount": "Passo {{current}} de {{total}}",
         "back": "Voltar",
         "continue": "Continuar",
-        "complete": "Concluir Configuração"
+        "complete": "Concluir Configuração",
+        "skipShort": "Ignorar"
       },
       "errors": {
         "unknown": "Ocorreu um erro desconhecido"
+      },
+      "toast": {
+        "completed": "Configuração concluída"
       }
     },
     "plan": {
@@ -3671,6 +3719,14 @@
         "copySuccessDescription": "\"{{title}}\" copiado como rascunho.",
         "copyFailed": "Falha ao copiar o produto",
         "somethingWrong": "Ocorreu um erro"
+      },
+      "whatsNew": {
+        "heading": "Novidades",
+        "dismiss": "Ignorar",
+        "defaultCta": "Ver detalhes",
+        "previous": "Atualização anterior",
+        "next": "Próxima atualização",
+        "goToUpdate": "Ir para a atualização {{index}}"
       }
     },
     "sharedFolders": {
@@ -3732,6 +3788,73 @@
         "noPagesTitle": "Ainda não existem páginas",
         "noPagesMessage": "Crie as suas páginas predefinidas para começar a gerir o conteúdo da sua vitrine online.",
         "noMatches": "Nenhuma página encontrada"
+      }
+    },
+    "workOrders": {
+      "designOrder": "Encomenda de design",
+      "inventoryOrder": "Encomenda de inventário",
+      "manageDesign": "Gerir design",
+      "amount": "Montante",
+      "totalQuantity": "Quantidade total",
+      "total": "Total",
+      "producing": "A produzir",
+      "start": "Iniciar",
+      "complete": "Concluir",
+      "readyForDelivery": "Marcar como pronta para entrega",
+      "createShipment": "Criar envio",
+      "submitPayment": "Submeter pagamento",
+      "fulfillments": "Entregas",
+      "noFulfillments": "Ainda não foram registadas entregas.",
+      "payments": "Pagamentos",
+      "noPayments": "Ainda não foram submetidos pagamentos.",
+      "delivered": "Entregue",
+      "paymentSubmitted": "Pagamento submetido",
+      "summary": "Resumo",
+      "type": "Tipo",
+      "designStatus": "Estado do design",
+      "priority": "Prioridade",
+      "targetDate": "Data prevista",
+      "estimatedCost": "Custo estimado",
+      "materials": "Materiais",
+      "moodboard": "Moodboard",
+      "media": "Mídia",
+      "orderStatus": "Estado",
+      "sample": "Amostra",
+      "yes": "Sim",
+      "no": "Não",
+      "orderDate": "Data da encomenda",
+      "expectedDelivery": "Entrega prevista",
+      "stockLocation": "Localização do stock",
+      "designDetails": "Detalhes do design",
+      "openDesignManager": "Abrir gestor de design",
+      "noDesign": "Nenhum design associado a esta encomenda.",
+      "activity": {
+        "title": "Atividade",
+        "placed": "Encomenda colocada",
+        "accepted": "Execução aceite",
+        "started": "Produção iniciada",
+        "finished": "Marcada como concluída",
+        "completed": "Execução concluída"
+      }
+    },
+    "stripeConnect": {
+      "heading": "JYT Stripe Connect",
+      "payoutsPending": "pagamentos pendentes",
+      "badge": {
+        "active": "Ativo",
+        "pending": "Configuração incompleta"
+      },
+      "description": {
+        "default": "Evite introduzir chaves API. Ligue uma conta Stripe através do JYT para receber pagamentos mais rapidamente, com pagamentos e reembolsos geridos automaticamente.",
+        "active": "Os pagamentos são processados através do Stripe Connect do JYT. Esta é a sua fonte Stripe em produção — quaisquer chaves inseridas manualmente abaixo são utilizadas apenas como alternativa."
+      },
+      "actions": {
+        "connect": "Ligar com o Stripe",
+        "resume": "Concluir configuração",
+        "manage": "Atualizar dados"
+      },
+      "toast": {
+        "startFailed": "Não foi possível iniciar a configuração do Stripe"
       }
     }
   }

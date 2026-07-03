@@ -272,7 +272,8 @@
         "customers": "ग्राहक",
         "webStore": "वेबस्टोर",
         "content": "सामग्री",
-        "theme": "थीम"
+        "theme": "थीम",
+        "analytics": "विश्लेषण"
       },
       "settings": {
         "header": "सेटिंग्स",
@@ -765,6 +766,11 @@
         "error": {
           "header": "उत्पाद हटाने में विफल"
         }
+      }
+    },
+    "prices": {
+      "edit": {
+        "successToast": "मूल्य सफलतापूर्वक अपडेट किए गए"
       }
     }
   },
@@ -3320,6 +3326,14 @@
         "copySuccessDescription": "\"{{title}}\" ड्राफ्ट के रूप में कॉपी किया गया।",
         "copyFailed": "उत्पाद कॉपी करने में विफल",
         "somethingWrong": "कुछ गलत हो गया"
+      },
+      "whatsNew": {
+        "heading": "नया क्या है",
+        "dismiss": "अस्वीकार करें",
+        "defaultCta": "देखें",
+        "previous": "पिछला अपडेट",
+        "next": "अगला अपडेट",
+        "goToUpdate": "अपडेट {{index}} पर जाएँ"
       }
     },
     "sharedFolders": {
@@ -3774,6 +3788,73 @@
         "completed": "पूर्ण",
         "notCompleted": "अपूर्ण",
         "open": "ऑनबोर्डिंग खोलें"
+      }
+    },
+    "workOrders": {
+      "designOrder": "डिज़ाइन ऑर्डर",
+      "inventoryOrder": "इन्वेंट्री ऑर्डर",
+      "manageDesign": "डिज़ाइन प्रबंधित करें",
+      "amount": "राशि",
+      "totalQuantity": "कुल मात्रा",
+      "total": "कुल",
+      "producing": "उत्पादन चल रहा है",
+      "start": "शुरू करें",
+      "complete": "पूर्ण करें",
+      "readyForDelivery": "डिलीवरी के लिए तैयार चिह्नित करें",
+      "createShipment": "शिपमेंट बनाएँ",
+      "submitPayment": "भुगतान सबमिट करें",
+      "fulfillments": "पूर्ति",
+      "noFulfillments": "अभी तक कोई डिलीवरी दर्ज नहीं की गई है।",
+      "payments": "भुगतान",
+      "noPayments": "अभी तक कोई भुगतान सबमिट नहीं किया गया है।",
+      "delivered": "डिलीवर किया गया",
+      "paymentSubmitted": "भुगतान सबमिट किया गया",
+      "summary": "सारांश",
+      "type": "प्रकार",
+      "designStatus": "डिज़ाइन स्थिति",
+      "priority": "प्राथमिकता",
+      "targetDate": "लक्ष्य तिथि",
+      "estimatedCost": "अनुमानित लागत",
+      "materials": "सामग्री",
+      "moodboard": "मूडबोर्ड",
+      "media": "मीडिया",
+      "orderStatus": "स्थिति",
+      "sample": "नमूना",
+      "yes": "हाँ",
+      "no": "नहीं",
+      "orderDate": "ऑर्डर तिथि",
+      "expectedDelivery": "अपेक्षित डिलीवरी",
+      "stockLocation": "स्टॉक स्थान",
+      "designDetails": "डिज़ाइन विवरण",
+      "openDesignManager": "डिज़ाइन प्रबंधक खोलें",
+      "noDesign": "इस ऑर्डर से कोई डिज़ाइन जुड़ी नहीं है।",
+      "activity": {
+        "title": "गतिविधि",
+        "placed": "ऑर्डर दर्ज किया गया",
+        "accepted": "रन स्वीकार किया गया",
+        "started": "उत्पादन शुरू हुआ",
+        "finished": "पूर्ण के रूप में चिह्नित किया गया",
+        "completed": "रन पूर्ण हुआ"
+      }
+    },
+    "stripeConnect": {
+      "heading": "JYT स्ट्राइप कनेक्ट",
+      "payoutsPending": "भुगतान लंबित हैं",
+      "badge": {
+        "active": "सक्रिय",
+        "pending": "सेटअप अधूरा"
+      },
+      "description": {
+        "default": "API कुंजियाँ दर्ज करने से बचें। JYT के माध्यम से एक स्ट्राइप खाते को कनेक्ट करें ताकि आप तेज़ी से भुगतान प्राप्त कर सकें, और भुगतान तथा धनवापसी का प्रबंधन आपके लिए किया जाए।",
+        "active": "भुगतान JYT के स्ट्राइप कनेक्ट के माध्यम से चलते हैं। यह आपका लाइव स्ट्राइप स्रोत है — नीचे दर्ज कोई भी मैनुअल कुंजियाँ केवल बैकअप के रूप में उपयोग की जाती हैं।"
+      },
+      "actions": {
+        "connect": "स्ट्राइप के साथ कनेक्ट करें",
+        "resume": "सेटअप पूरा करें",
+        "manage": "विवरण अद्यतन करें"
+      },
+      "toast": {
+        "startFailed": "स्ट्राइप ओनबोर्डिंग शुरू नहीं की जा सकी"
       }
     }
   }

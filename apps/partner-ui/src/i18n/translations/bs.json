@@ -56,7 +56,8 @@
     "unsavedChangesDescription": "Imate nesačuvane promjene koje će biti izgubljene ako izađete iz ovog obrasca.",
     "includesTaxTooltip": "Cijene u ovoj koloni uključuju porez.",
     "excludesTaxTooltip": "Cijene u ovoj koloni ne uključuju porez.",
-    "noMoreData": "Nema više podataka"
+    "noMoreData": "Nema više podataka",
+    "noRecordsMessageFiltered": "Nema zapisa koji odgovaraju filtrima"
   },
   "json": {
     "header": "JSON",
@@ -138,7 +139,9 @@
     "hide": "Sakrij",
     "export": "Izvezi",
     "import": "Uvezi",
-    "cannotUndo": "Ova akcija se ne može poništiti"
+    "cannotUndo": "Ova akcija se ne može poništiti",
+    "editVariantImages": "Uređivanje slika varijante",
+    "editImages": "Uređivanje slika"
   },
   "operators": {
     "in": "U"
@@ -252,7 +255,25 @@
       },
       "main": {
         "store": "Trgovina",
-        "storeSettings": "Postavke trgovine"
+        "storeSettings": "Postavke trgovine",
+        "home": "Početna",
+        "designs": "Dizajni",
+        "productionRuns": "Proizvodni ciklusi",
+        "tasks": "Zadaci",
+        "paymentSubmissions": "Podnosi za plaćanja",
+        "inventoryOrders": "Narudžbe zaliha",
+        "sharedFolders": "Dijeljeni folderi",
+        "products": "Proizvodi",
+        "categories": "Kategorije",
+        "collections": "Kolekcije",
+        "productTypes": "Tipovi",
+        "stock": "Zalihe",
+        "orders": "Narudžbe",
+        "customers": "Kupci",
+        "webStore": "WebShop",
+        "content": "Sadržaj",
+        "theme": "Tema",
+        "analytics": "Analitika"
       },
       "settings": {
         "header": "Postavke",
@@ -523,7 +544,14 @@
         "description": "Dodajte medije u proizvod kako biste ga prikazali u vašoj prodavnici.",
         "action": "Dodajte medije"
       },
-      "successToast": "Mediji su uspješno ažurirani."
+      "successToast": "Mediji su uspješno ažurirani.",
+      "manageImageVariants": "Upravljajte povezanim varijantama",
+      "fileTooLarge": "Jedna ili više datoteka premašuje maksimalnu veličinu datoteke od {{size}}: {{name}}",
+      "variantImages": "Slike varijanti",
+      "showAvailableImages": "Prikaži dostupne slike",
+      "availableImages": "Odaberite slike",
+      "selectToAdd": "Dodajte slike proizvoda varijanti. Da biste dodali nove slike, prvo ih dodajte proizvodu.",
+      "removeSelected": "Ukloni odabrano"
     },
     "discountableHint": "Kada je neoznačeno, popusti neće biti primijenjeni na ovaj proizvod.",
     "noSalesChannels": "Nema dostupnosti u prodajnim kanalima",
@@ -715,6 +743,35 @@
           "header": "Brisanje proizvoda nije uspjelo"
         }
       }
+    },
+    "variantMedia": {
+      "label": "Mediji varijanti",
+      "manageVariants": "Upravljajte varijantama",
+      "addToMultipleVariants": "Dodajte na više varijanti",
+      "manageVariantsDescription": "Upravljajte povezanim varijantama za ovu sliku",
+      "successToast": "Mediji varijanti uspješno ažurirani.",
+      "emptyState": {
+        "header": "Još nema medija",
+        "description": "Dodajte medije varijanti kako bi ih prikazali na vašem trgovinskom sajtu.",
+        "action": "Dodajte medije"
+      }
+    },
+    "columns": {
+      "product_display": "Proizvod",
+      "variants_count": "Varijante",
+      "sales_channels_display": "Prodajni kanali",
+      "collection": "Kolekcija",
+      "status": "Status",
+      "thumbnail": "Sličica",
+      "title": "Naslov",
+      "handle": "Identifikator",
+      "created_at": "Kreirano",
+      "updated_at": "Ažurirano"
+    },
+    "prices": {
+      "edit": {
+        "successToast": "Cijene su uspješno ažurirane"
+      }
     }
   },
   "collections": {
@@ -871,7 +928,8 @@
       "disablePrompt_other": "Spremate se onemogućiti {{count}} nivoa lokacije. Ova akcija se ne može poništiti.",
       "disabledToggleTooltip": "Nije moguće onemogućiti: očistite dolaznu i/ili rezervisanu količinu prije onemogućavanja.",
       "successToast": "Nivoi inventara su uspješno ažurirani."
-    }
+    },
+    "levelDeleted": "Nivo zaliha uspješno obrisan."
   },
   "giftCards": {
     "domain": "Poklon kartice",
@@ -1042,7 +1100,8 @@
       "itemSubtotal": "Međuzbroj artikala",
       "shippingSubtotal": "Međuzbroj dostave",
       "discountSubtotal": "Međuzbroj popusta",
-      "taxTotal": "Ukupno porez"
+      "taxTotal": "Ukupno porez",
+      "totalAfterDiscount": "Ukupno nakon popusta"
     },
     "transfer": {
       "title": "Prenos vlasništva",
@@ -1083,7 +1142,8 @@
       "createRefundWrongQuantity": "Količina treba biti broj između 1 i {{number}}",
       "refundAmount": "Povrat {{ amount }}",
       "paymentLink": "Kopiraj link za uplatu za {{ amount }}",
-      "selectPaymentToRefund": "Odaberite uplatu za povrat"
+      "selectPaymentToRefund": "Odaberite uplatu za povrat",
+      "totalStoreCreditRefunds": "Ukupni povrati trgovinskog kredita"
     },
     "edits": {
       "title": "Uredi narudžbu",
@@ -1263,7 +1323,10 @@
       "panel": {
         "title": "Zamjena pokrenuta",
         "description": "Postoji otvoreni zahtjev za zamjenu koji treba biti dovršen"
-      }
+      },
+      "carryOverPromotion": "Preuzmi promocije",
+      "carryOverPromotionHint": "Primijeni promocije porudžbine na artikle za zamjenu",
+      "carryOverPromotionTooltip": "Samo promocije fiksne vrijednosti s alokacijom ZA SVAKI te promocije postotne vrijednosti s alokacijom ZA SVAKI ili U CJELINI mogu se prenijeti na artikle za izlaznu zamjenu."
     },
     "reservations": {
       "allocatedLabel": "Dodijeljeno",
@@ -1279,7 +1342,8 @@
       "consistsOf": "Sastoji se od {{num}}x inventarnih stavki",
       "requires": "Zahtijeva {{num}} po varijanti",
       "toast": {
-        "created": "Stavke uspješno dodijeljene"
+        "created": "Stavke uspješno dodijeljene",
+        "error": "Alokacija sljedećih stavki nije uspjela: {{items}}"
       },
       "error": {
         "quantityNotAllocated": "Postoje nedodijeljene stavke."
@@ -1291,7 +1355,9 @@
       "addTracking": "Dodaj broj za praćenje",
       "sendNotification": "Pošaljite obavijest",
       "sendNotificationHint": "Obavijestite kupca o ovoj pošiljci.",
-      "toastCreated": "Pošiljka uspješno kreirana."
+      "toastCreated": "Pošiljka uspješno kreirana.",
+      "trackingUrl": "URL za praćenje",
+      "labelUrl": "URL za nalepnicu"
     },
     "fulfillment": {
       "cancelWarning": "Spremate se otkazati ispunjenje. Ova radnja se ne može poništiti.",
@@ -1446,6 +1512,31 @@
       "displayId": "ID za prikaz",
       "refundableAmount": "Iznos koji se može refundirati",
       "returnableQuantity": "Količina koja se može vratiti"
+    },
+    "giftCardsStoreCreditLines": "Poklon kartice i kreditne linije",
+    "creditLines": {
+      "title": "Kreditne linije",
+      "total": "Ukupan iznos svih kreditnih linija",
+      "creditOrDebit": "Kredit / Dug",
+      "createCreditLine": "Kreiraj kreditnu liniju",
+      "createCreditLineSuccess": "Kreditna linija uspješno kreirana",
+      "createCreditLineError": "Greška prilikom kreiranja kreditne linije",
+      "createCreditLineDescription": "Kreiraj kreditnu liniju za iznos {{amount}}",
+      "operation": "Operacija",
+      "credit": "Kredit",
+      "creditDescription": "Dodaje pozitivan iznos u porudžbinu",
+      "debit": "Dug",
+      "debitDescription": "Oduzima negativan iznos od porudžbine"
+    },
+    "balanceSettlement": {
+      "title": "Uravnoteženje salda",
+      "settlementType": "Vrsta uravnoteženja",
+      "settlementTypes": {
+        "paymentMethod": "Način plaćanja",
+        "paymentMethodDescription": "Iznos povrata na način plaćanja",
+        "creditLine": "Trgovinski kredit",
+        "creditLineDescription": "Iznos povrata kao trgovinski kredit"
+      }
     }
   },
   "draftOrders": {
@@ -1494,7 +1585,10 @@
   "stockLocations": {
     "domain": "Lokacije i Dostava",
     "list": {
-      "description": "Upravljajte lokacijama skladišta i opcijama dostave vašeg dućana."
+      "description": "Upravljajte lokacijama skladišta i opcijama dostave vašeg dućana.",
+      "noRecordsMessage": "Nema zapisa",
+      "noRecordsMessageEmpty": "Nijedna lokacija nije pronađena",
+      "noRecordsMessageFiltered": "Nijedna lokacija nije pronađena koja odgovara filtrima"
     },
     "create": {
       "header": "Kreiraj lokaciju skladišta",
@@ -1507,7 +1601,8 @@
       "successToast": "Lokacija {{name}} je uspješno ažurirana."
     },
     "delete": {
-      "confirmation": "Upravo ćete obrisati lokaciju skladišta \"{{name}}\". Ova radnja se ne može poništiti."
+      "confirmation": "Upravo ćete obrisati lokaciju skladišta \"{{name}}\". Ova radnja se ne može poništiti.",
+      "successToast": "Lokacija \"{{name}}\" je uspješno izbrisana."
     },
     "fulfillmentProviders": {
       "header": "Pružatelji usluga ispunjenja",
@@ -1540,6 +1635,10 @@
       "shippingProfiles": {
         "label": "Profili dostave",
         "description": "Grupirajte proizvode prema zahtjevima za dostavu"
+      },
+      "shippingOptionTypes": {
+        "label": "Vrste opcija dostave",
+        "description": "Grupirajte opcije dostave po vrstama"
       }
     },
     "salesChannels": {
@@ -1657,7 +1756,8 @@
         },
         "provider": "Pružatelj usluga ispunjenja",
         "profile": "Profil dostave",
-        "fulfillmentOption": "Opcija ispunjenja"
+        "fulfillmentOption": "Opcija ispunjenja",
+        "type": "Vrsta opcije dostave"
       }
     },
     "serviceZones": {
@@ -1719,12 +1819,16 @@
       "hint": "Kreirajte novu poresku regiju kako biste definirali poreske stope za određenu zemlju.",
       "errors": {
         "rateIsRequired": "Poreska stopa je obavezna pri kreiranju osnovne poreske stope.",
-        "nameIsRequired": "Ime je obavezno pri kreiranju osnovne poreske stope."
+        "nameIsRequired": "Ime je obavezno pri kreiranju osnovne poreske stope.",
+        "missingProvider": "Pružatelj usluge je obavezan prilikom kreiranja poreske regije.",
+        "missingCountry": "Država je obavezna prilikom kreiranja poreske regije."
       },
       "successToast": "Poreska regija je uspješno kreirana."
     },
     "edit": {
-      "successToast": "Poreska regija je uspješno ažurirana."
+      "successToast": "Poreska regija je uspješno ažurirana.",
+      "header": "Uredi poresku regiju",
+      "hint": "Uredite detalje poreske regije."
     },
     "province": {
       "header": "Provincije",
@@ -1870,7 +1974,8 @@
           "productCollection": "Kolekcije proizvoda",
           "productTag": "Oznake proizvoda",
           "productType": "Vrste proizvoda",
-          "customerGroup": "Grupe kupaca"
+          "customerGroup": "Grupe kupaca",
+          "shippingOption": "Opcije dostave"
         },
         "operators": {
           "in": "u",
@@ -1882,14 +1987,16 @@
           "productCollection": "Pretraži kolekcije proizvoda",
           "productTag": "Pretraži oznake proizvoda",
           "productType": "Pretraži vrste proizvoda",
-          "customerGroup": "Pretraži grupe kupaca"
+          "customerGroup": "Pretraži grupe kupaca",
+          "shippingOption": "Pretražite opcije dostave"
         },
         "tags": {
           "product": "Proizvod",
           "productCollection": "Kolekcija proizvoda",
           "productTag": "Oznaka proizvoda",
           "productType": "Vrsta proizvoda",
-          "customerGroup": "Grupa kupaca"
+          "customerGroup": "Grupa kupaca",
+          "shippingOption": "Opcija dostave"
         },
         "modal": {
           "header": "Dodaj ciljeve"
@@ -1977,13 +2084,29 @@
         },
         "target-rules": {
           "title": "Na koje artikle će se promocija primijeniti?",
-          "description": "Promocija će se primijeniti na artikle koji zadovoljavaju sljedeće uvjete."
+          "description": "Promocija će se primijeniti na artikle koji zadovoljavaju sljedeće uvjete.",
+          "order": {
+            "title": "Na koje stavke će se promocija primijeniti?",
+            "description": "Promocija će se primijeniti na stavke koje zadovoljavaju sljedeće uvjete."
+          },
+          "shipping_methods": {
+            "title": "Na koje načine dostave će se promocija primijeniti?",
+            "description": "Promocija će se primijeniti na načine dostave koji zadovoljavaju sljedeće uvjete."
+          },
+          "items": {
+            "title": "Na koje stavke će se promocija primijeniti?",
+            "description": "Promocija će se primijeniti na stavke koje zadovoljavaju sljedeće uvjete."
+          }
         },
         "buy-rules": {
           "title": "Šta mora biti u košarici da bi se otključala promocija?",
           "description": "Ako ovi uvjeti budu zadovoljeni, omogućit ćemo promociju na ciljnim artiklima."
         }
-      }
+      },
+      "allocationTooltip": "Svaki ograničava količinu po stavci, dok Jednom ograničava količinu za cijelu košaricu",
+      "taxInclusive": "Uključujući porez",
+      "usageLimit": "Ograničenje korištenja",
+      "usage": "Korištenje"
     },
     "tooltips": {
       "campaignType": "Šifra valute mora biti odabrana u promociji da biste postavili budžet za potrošnju."
@@ -2091,6 +2214,10 @@
         "across": {
           "title": "Na sve",
           "description": "Primjenjuje vrijednost na sve proizvode"
+        },
+        "once": {
+          "title": "Jednom",
+          "description": "Primjenjuje vrijednost na ograničen broj stavki"
         }
       },
       "code": {
@@ -2098,7 +2225,8 @@
         "description": "Kod koji će vaši kupci unijeti prilikom plačanja."
       },
       "value": {
-        "title": "Vrijednost promocije"
+        "title": "Vrijednost promocije",
+        "invalid": "Neispravna vrijednost promocije"
       },
       "value_type": {
         "fixed": {
@@ -2109,6 +2237,14 @@
           "title": "Postotak",
           "description": "Postotak koji će biti popust od iznosa. npr. 8%"
         }
+      },
+      "taxInclusive": {
+        "title": "Uključuje li promocija poreze?",
+        "description": "Omogućite ovo polje da biste primijenili promociju nakon poreza"
+      },
+      "limit": {
+        "title": "Ograničenje korištenja",
+        "description": "Maksimalan broj puta koliko se ova promocija može koristiti u svim narudžbama. Ostavite prazno za neograničeno korištenje."
       }
     },
     "deleteWarning": "Spremate se obrisati promociju {{code}}. Ova radnja se ne može poništiti.",
@@ -2164,7 +2300,8 @@
       "budget_limit": "Limit budžeta",
       "campaign_id": {
         "hint": "Samo kampanje sa istim valutnim kodom kao promocija su prikazane na ovom popisu."
-      }
+      },
+      "totalUsedByAttribute": "Ukupno korišteno"
     },
     "budget": {
       "create": {
@@ -2176,7 +2313,12 @@
         "type": "Tip",
         "currency": "Valuta",
         "limit": "Limit",
-        "used": "Iskorišteno"
+        "used": "Iskorišteno",
+        "budgetAttribute": "Ograničenje korištenja po",
+        "budgetAttributeTooltip": "Definišite koliko puta se promotivna ponuda može koristiti po kupcu ili e-mailu.",
+        "totalUsedByAttribute": "Ograničenje budžeta po: {{attribute}}",
+        "totalUsedByAttributeCustomerId": "Ograničenje budžeta po kupcu",
+        "totalUsedByAttributeEmail": "Ograničenje budžeta po e-mailu"
       },
       "type": {
         "spend": {
@@ -2186,10 +2328,20 @@
         "usage": {
           "title": "Upotreba",
           "description": "Postavite limit na broj puta koliko se promocija može iskoristiti."
+        },
+        "useByAttribute": {
+          "title": "Korištenje po atributu (ID kupca, e-mail itd.)",
+          "titleCustomerId": "Korištenje po kupcu",
+          "titleEmail": "Korištenje po e-mailu",
+          "description": "Postavite ograničenje koliko puta se promotivna ponuda može koristiti za određenu vrijednost atributa."
         }
       },
       "edit": {
         "header": "Uredi budžet kampanje"
+      },
+      "attribute": {
+        "customer_id": "kupac",
+        "customer_email": "e-mail"
       }
     },
     "promotions": {
@@ -2318,7 +2470,10 @@
     "manageYourProfileDetails": "Upravljajte detaljima vašeg profila.",
     "fields": {
       "languageLabel": "Jezik",
-      "usageInsightsLabel": "Uvid u korištenje"
+      "usageInsightsLabel": "Uvid u korištenje",
+      "onboardingLabel": "Uvođenje u sistem",
+      "onboardingCompleted": "Završeno",
+      "onboardingNotCompleted": "Nije završeno"
     },
     "edit": {
       "header": "Uredi profil",
@@ -2392,8 +2547,15 @@
       "update": "Trgovina uspješno ažurirana",
       "currenciesUpdated": "Valute uspješno ažurirane",
       "currenciesRemoved": "Valute uspješno uklonjene iz trgovine",
-      "updatedTaxInclusivitySuccessfully": "Porez sa uključenim cijenama uspješno ažuriran"
-    }
+      "updatedTaxInclusivitySuccessfully": "Porez sa uključenim cijenama uspješno ažuriran",
+      "localesUpdated": "Jezici uspješno ažurirani",
+      "localesRemoved": "Jezici uspješno uklonjeni iz trgovine"
+    },
+    "defaultLocale": "Podrazumijevani jezik",
+    "locales": "Jezici",
+    "removeLocaleWarning_one": "Upravo uklanjate {{count}} jezik iz vaše trgovine. Svi prijevodi koji koriste ovaj jezik bit će uklonjeni.",
+    "removeLocaleWarning_other": "Upravo uklanjate {{count}} jezika iz vaše trgovine. Svi prijevodi koji koriste ove jezike bit će uklonjeni.",
+    "localeAlreadyAdded": "Jezik je već dodan u vašu trgovinu."
   },
   "regions": {
     "domain": "Regije",
@@ -2839,7 +3001,9 @@
     "from": "Od",
     "to": "Do",
     "beaware": "Pazite",
-    "loading": "Učitavanje"
+    "loading": "Učitavanje",
+    "selectValue": "Odaberite vrijednost",
+    "selectValues": "Odaberite vrijednosti"
   },
   "fields": {
     "amount": "Iznos",
@@ -2997,7 +3161,14 @@
     "startDate": "Datum početka",
     "endDate": "Datum završetka",
     "draft": "Skica",
-    "values": "Vrijednosti"
+    "values": "Vrijednosti",
+    "reference": "Referenca",
+    "reference_id": "ID reference",
+    "enabledInStore": "Omogućeno u trgovini",
+    "isReturn": "Je povrat",
+    "promotionCode": "Kod promocije",
+    "serviceZone": "Zona usluge",
+    "creditTotal": "Ukupno kreditnih linija"
   },
   "dateTime": {
     "years_one": "Godina",
@@ -3133,7 +3304,8 @@
         "description": "Ovo će se pojaviti na vašem profilu partnera i trgovini. Možete to promijeniti kasnije.",
         "clickToChange": "Kliknite za promjenu",
         "clickToUpload": "Kliknite za postavljanje ili prevucite i ispustite",
-        "fileTypes": "SVG, PNG, JPG (MAX. 5 MB)"
+        "fileTypes": "SVG, PNG, JPG (MAX. 5 MB)",
+        "currentLogo": "Trenutni logotip"
       },
       "team": {
         "heading": "Dodajte članove svog tima",
@@ -3153,10 +3325,14 @@
         "stepCount": "Korak {{current}} od {{total}}",
         "back": "Natrag",
         "continue": "Nastavi",
-        "complete": "Završi postavljanje"
+        "complete": "Završi postavljanje",
+        "skipShort": "Preskoči"
       },
       "errors": {
         "unknown": "Došlo je do nepoznate greške"
+      },
+      "toast": {
+        "completed": "Uvodni proces dovršen"
       }
     },
     "plan": {
@@ -3470,6 +3646,14 @@
         "copySuccessDescription": "\"{{title}}\" kopiran kao nacrt.",
         "copyFailed": "Neuspjelo kopiranje proizvoda",
         "somethingWrong": "Došlo je do greške"
+      },
+      "whatsNew": {
+        "heading": "Šta je novo",
+        "dismiss": "Odbaci",
+        "defaultCta": "Pogledajte",
+        "previous": "Prethodno ažuriranje",
+        "next": "Sljedeće ažuriranje",
+        "goToUpdate": "Idi na ažuriranje {{index}}"
       }
     },
     "sharedFolders": {
@@ -3531,6 +3715,150 @@
         "noPagesTitle": "Još nema stranica",
         "noPagesMessage": "Kreirajte svoje osnovne stranice da biste započeli sa sadržajem svog prodajnog mjesta.",
         "noMatches": "Nema pronađenih stranica"
+      }
+    },
+    "workOrders": {
+      "designOrder": "Narudžba dizajna",
+      "inventoryOrder": "Narudžba zaliha",
+      "manageDesign": "Upravljaj dizajnom",
+      "amount": "Iznos",
+      "totalQuantity": "Ukupna količina",
+      "total": "Ukupno",
+      "producing": "U proizvodnji",
+      "start": "Započni",
+      "complete": "Završi",
+      "readyForDelivery": "Označi kao spremno za dostavu",
+      "createShipment": "Kreiraj pošiljku",
+      "submitPayment": "Pošalji uplatu",
+      "fulfillments": "Dostave",
+      "noFulfillments": "Još nema evidentiranih dostava.",
+      "payments": "Uplate",
+      "noPayments": "Još nema poslanih uplata.",
+      "delivered": "Dostavljeno",
+      "paymentSubmitted": "Uplata poslana",
+      "summary": "Sažetak",
+      "type": "Vrsta",
+      "designStatus": "Stanje dizajna",
+      "priority": "Prioritet",
+      "targetDate": "Planirani datum",
+      "estimatedCost": "Procijenjena cijena",
+      "materials": "Materijali",
+      "moodboard": "Moodboard",
+      "media": "Mediji",
+      "orderStatus": "Stanje",
+      "sample": "Uzorak",
+      "yes": "Da",
+      "no": "Ne",
+      "orderDate": "Datum narudžbe",
+      "expectedDelivery": "Očekivana dostava",
+      "stockLocation": "Lokacija zaliha",
+      "designDetails": "Detalji dizajna",
+      "openDesignManager": "Otvori menadžer dizajna",
+      "noDesign": "Nijedan dizajn nije povezan s ovom narudžbom.",
+      "activity": {
+        "title": "Aktivnost",
+        "placed": "Narudžba poslana",
+        "accepted": "Pokret prihvaćen",
+        "started": "Proizvodnja započeta",
+        "finished": "Označeno kao završeno",
+        "completed": "Pokret završen"
+      }
+    },
+    "stripeConnect": {
+      "heading": "JYT Stripe Connect",
+      "payoutsPending": "isplate u čekanju",
+      "badge": {
+        "active": "Aktivno",
+        "pending": "Postavljanje nije dovršeno"
+      },
+      "description": {
+        "default": "Preskočite unos API ključeva. Povežite Stripe račun putem JYT-a kako biste brže primili novac, dok se isplate i povrati obrađuju automatski.",
+        "active": "Uplate se obrađuju putem JYT-ovog Stripe Connecta. Ovo je vaš živi Stripe izvor — bilo koji ručno uneseni ključevi ispod koriste se samo kao rezervna opcija."
+      },
+      "actions": {
+        "connect": "Poveži sa Stripeom",
+        "resume": "Dovrši postavljanje",
+        "manage": "Ažuriraj podatke"
+      },
+      "toast": {
+        "startFailed": "Nije moguće pokrenuti Stripe uvodni proces"
+      }
+    }
+  },
+  "shippingOptionTypes": {
+    "domain": "Vrste opcija dostave",
+    "subtitle": "Organizirajte svoje opcije dostave u vrste.",
+    "create": {
+      "header": "Kreirajte vrstu opcije dostave",
+      "hint": "Kreirajte novu vrstu opcije dostave za kategorizaciju vaših opcija dostave.",
+      "successToast": "Vrsta opcije dostave {{label}} je uspješno kreirana."
+    },
+    "edit": {
+      "header": "Uredite vrstu opcije dostave",
+      "successToast": "Vrsta opcije dostave {{label}} je uspješno ažurirana."
+    },
+    "delete": {
+      "confirmation": "Upravo ćete izbrisati vrstu opcije dostave \"{{label}}\". Ova radnja se ne može poništiti.",
+      "successToast": "Vrsta opcije dostave \"{{label}}\" je uspješno izbrisana."
+    },
+    "fields": {
+      "label": "Oznaka",
+      "code": "Šifra",
+      "description": "Opis"
+    }
+  },
+  "refundReasons": {
+    "domain": "Razlozi za povrat novca",
+    "subtitle": "Upravljajte razlozima za izdavanje povrata novca.",
+    "calloutHint": "Upravljajte razlozima kako biste kategorizirali povrate novca.",
+    "editReason": "Uredi razlog za povrat novca",
+    "create": {
+      "header": "Dodaj razlog za povrat novca",
+      "subtitle": "Navedite najčešće razloge za povrate novca.",
+      "hint": "Kreirajte novi razlog za povrat novca kako biste kategorizirali povrate novca.",
+      "successToast": "Razlog za povrat novca {{label}} je uspješno kreiran."
+    },
+    "edit": {
+      "header": "Uredi razlog za povrat novca",
+      "subtitle": "Uredite vrijednost razloga za povrat novca.",
+      "successToast": "Razlog za povrat novca {{label}} je uspješno ažuriran."
+    },
+    "delete": {
+      "confirmation": "Upravo ćete izbrisati razlog za povrat novca \"{{label}}\". Ova radnja se ne može poništiti.",
+      "successToast": "Razlog za povrat novca je uspješno obrisan."
+    },
+    "fields": {
+      "label": {
+        "label": "Oznaka",
+        "placeholder": "Gest dobre volje"
+      },
+      "code": {
+        "label": "Šifra",
+        "placeholder": "gest_dobre_volje"
+      },
+      "description": {
+        "label": "Opis",
+        "placeholder": "Kupac je imao loše iskustvo prilikom kupovine"
+      }
+    }
+  },
+  "views": {
+    "save": "Sačuvaj",
+    "saveAsNew": "Sačuvaj kao novi prikaz",
+    "updateDefaultForEveryone": "Ažuriraj zadani prikaz za sve",
+    "updateViewName": "Ažuriraj prikaz",
+    "prompts": {
+      "updateDefault": {
+        "title": "Ažuriraj zadani prikaz",
+        "description": "Ovo će ažurirati zadani prikaz za sve korisnike. Da li ste sigurni?",
+        "confirmText": "Ažuriraj za sve",
+        "cancelText": "Otkaži"
+      },
+      "updateView": {
+        "title": "Ažuriraj prikaz",
+        "description": "Da li ste sigurni da želite ažurirati \"{{name}}\"?",
+        "confirmText": "Ažuriraj",
+        "cancelText": "Otkaži"
       }
     }
   }

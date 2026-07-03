@@ -58,7 +58,8 @@
     "unsavedChangesDescription": "Masz niezapisane zmiany, które zostaną utracone po wyjściu.",
     "includesTaxTooltip": "Ceny w tej kolumnie zawierają podatek.",
     "excludesTaxTooltip": "Ceny w tej kolumnie są bez podatku.",
-    "noMoreData": "Brak dodatkowych danych"
+    "noMoreData": "Brak dodatkowych danych",
+    "noRecordsMessageFiltered": "Brak rekordów pasujących do filtrów"
   },
   "json": {
     "header": "JSON",
@@ -146,7 +147,9 @@
     "hide": "Ukryj",
     "export": "Eksportuj",
     "import": "Importuj",
-    "cannotUndo": "Tego działania nie można cofnąć"
+    "cannotUndo": "Tego działania nie można cofnąć",
+    "editVariantImages": "Edytuj obrazy wariantu",
+    "editImages": "Edytuj obrazy"
   },
   "operators": {
     "in": "W"
@@ -260,7 +263,25 @@
       },
       "main": {
         "store": "Sklep",
-        "storeSettings": "Ustawienia sklepu"
+        "storeSettings": "Ustawienia sklepu",
+        "home": "Strona główna",
+        "designs": "Projekty",
+        "productionRuns": "Seria produkcyjna",
+        "tasks": "Zadania",
+        "paymentSubmissions": "Przesłane płatności",
+        "inventoryOrders": "Zamówienia zapasów",
+        "sharedFolders": "Wspólne foldery",
+        "products": "Produkty",
+        "categories": "Kategorie",
+        "collections": "Kolekcje",
+        "productTypes": "Typy",
+        "stock": "Stan magazynowy",
+        "orders": "Zamówienia",
+        "customers": "Klienci",
+        "webStore": "Sklep internetowy",
+        "content": "Treść",
+        "theme": "Motyw",
+        "analytics": "Analityka"
       },
       "settings": {
         "header": "Ustawienia",
@@ -537,7 +558,14 @@
         "description": "Dodaj media do produktu, aby zaprezentować go w swoim sklepie.",
         "action": "Dodaj media"
       },
-      "successToast": "Media zostały pomyślnie zaktualizowane."
+      "successToast": "Media zostały pomyślnie zaktualizowane.",
+      "manageImageVariants": "Zarządzaj powiązanymi wariantami",
+      "fileTooLarge": "Jeden lub więcej plików przekracza maksymalny rozmiar pliku {{size}}: {{name}}",
+      "variantImages": "Obrazy wariantów",
+      "showAvailableImages": "Pokaż dostępne obrazy",
+      "availableImages": "Wybierz obrazy",
+      "selectToAdd": "Dodaj obrazy produktu do wariantu. Aby dodać nowe obrazy, najpierw dodaj je do produktu.",
+      "removeSelected": "Usuń zaznaczone"
     },
     "discountableHint": "Jeśli odznaczone, rabaty nie będą stosowane do tego produktu.",
     "noSalesChannels": "Niedostępny w żadnych kanałach sprzedaży",
@@ -733,6 +761,35 @@
           "header": "Nie udało się usunąć produktu"
         }
       }
+    },
+    "variantMedia": {
+      "label": "Media wariantów",
+      "manageVariants": "Zarządzaj wariantami",
+      "addToMultipleVariants": "Dodaj do wielu wariantów",
+      "manageVariantsDescription": "Zarządzaj powiązanymi wariantami dla tego obrazu",
+      "successToast": "Obrazy wariantów zostały pomyślnie zaktualizowane.",
+      "emptyState": {
+        "header": "Brak mediów",
+        "description": "Dodaj media do wariantu, aby wyświetlić je w sklepie internetowym.",
+        "action": "Dodaj media"
+      }
+    },
+    "columns": {
+      "product_display": "Produkt",
+      "variants_count": "Warianty",
+      "sales_channels_display": "Kanały sprzedaży",
+      "collection": "Kolekcja",
+      "status": "Status",
+      "thumbnail": "Miniatura",
+      "title": "Tytuł",
+      "handle": "Identyfikator",
+      "created_at": "Utworzono",
+      "updated_at": "Zaktualizowano"
+    },
+    "prices": {
+      "edit": {
+        "successToast": "Ceny zostały pomyślnie zaktualizowane"
+      }
     }
   },
   "collections": {
@@ -903,7 +960,8 @@
       "disablePrompt_other": "Zamierzasz wyłączyć {{count}} stanów magazynowych. Tej operacji nie można cofnąć.",
       "disabledToggleTooltip": "Nie można wyłączyć: najpierw wyzeruj przychodzące i/lub zarezerwowane ilości.",
       "successToast": "Stany magazynowe zostały pomyślnie zaktualizowane."
-    }
+    },
+    "levelDeleted": "Poziom zapasów został pomyślnie usunięty."
   },
   "giftCards": {
     "domain": "Karty podarunkowe",
@@ -1328,7 +1386,10 @@
       "panel": {
         "title": "Inicjowana wymiana",
         "description": "Istnieje otwarty wniosek o wymianę do realizacji"
-      }
+      },
+      "carryOverPromotion": "Przenieś promocje",
+      "carryOverPromotionHint": "Zastosuj promocje z zamówienia do przedmiotów wymiany",
+      "carryOverPromotionTooltip": "Tylko promocje typu stała z przydziałem EACH oraz promocje procentowe z przydziałem EACH lub ACROSS mogą zostać przeniesione na przedmioty wychodzące wymiany."
     },
     "reservations": {
       "allocatedLabel": "Przydzielone",
@@ -1357,7 +1418,9 @@
       "addTracking": "Dodaj numer do śledzenia przesyłki",
       "sendNotification": "Wyślij powiadomienie",
       "sendNotificationHint": "Powiadom klienta o tej wysyłce.",
-      "toastCreated": "Wysyłka została pomyślnie utworzona."
+      "toastCreated": "Wysyłka została pomyślnie utworzona.",
+      "trackingUrl": "Adres URL śledzenia",
+      "labelUrl": "Adres URL etykiety"
     },
     "fulfillment": {
       "cancelWarning": "Masz zamiar anulować realizację. Tej akcji nie można cofnąć.",
@@ -1566,7 +1629,10 @@
   "stockLocations": {
     "domain": "Lokalizacje i wysyłka",
     "list": {
-      "description": "Zarządzaj lokalizacjami magazynowymi i opcjami wysyłki swojego sklepu."
+      "description": "Zarządzaj lokalizacjami magazynowymi i opcjami wysyłki swojego sklepu.",
+      "noRecordsMessage": "Brak rekordów",
+      "noRecordsMessageEmpty": "Nie znaleziono żadnych lokalizacji",
+      "noRecordsMessageFiltered": "Nie znaleziono lokalizacji pasujących do filtrów"
     },
     "create": {
       "header": "Utwórz lokalizację magazynową",
@@ -1579,7 +1645,8 @@
       "successToast": "Lokalizacja {{name}} została pomyślnie zaktualizowana."
     },
     "delete": {
-      "confirmation": "Masz zamiar usunąć lokalizację magazynową {{name}}. Tej akcji nie można cofnąć."
+      "confirmation": "Masz zamiar usunąć lokalizację magazynową {{name}}. Tej akcji nie można cofnąć.",
+      "successToast": "Lokalizacja „{{name}}” została pomyślnie usunięta."
     },
     "fulfillmentProviders": {
       "header": "Dostawcy realizacji",
@@ -2088,7 +2155,10 @@
           "title": "Co musi znaleźć się w koszyku, aby odblokować promocję?",
           "description": "Jeżeli te warunki są zgodne, włączamy promocję na wybrane pozycje."
         }
-      }
+      },
+      "allocationTooltip": "Każdy wymusza limit ilościowy na poszczególny przedmiot, podczas gdy opcja „Raz” wymusza limit ilościowy na cały koszyk",
+      "usageLimit": "Limit wykorzystania",
+      "usage": "Wykorzystanie"
     },
     "tooltips": {
       "campaignType": "Aby ustawić budżet wydatków, w promocji należy wybrać kod waluty."
@@ -2200,6 +2270,10 @@
         "across": {
           "title": "Przez",
           "description": "Stosuje wartość do wszystkich elementów"
+        },
+        "once": {
+          "title": "Raz",
+          "description": "Stosuje wartość do ograniczonej liczby przedmiotów"
         }
       },
       "code": {
@@ -2219,6 +2293,10 @@
           "title": "Wartość procentowa",
           "description": "Procent rabatu od kwoty. np. 8%"
         }
+      },
+      "limit": {
+        "title": "Limit wykorzystania",
+        "description": "Maksymalna liczba zamówień, w których można zastosować tę promocję. Pozostaw puste, aby umożliwić nieograniczone wykorzystanie."
       }
     },
     "deleteWarning": "Zamierzasz usunąć promocję {{code}}. Tej akcji nie można cofnąć.",
@@ -2274,7 +2352,8 @@
       "budget_limit": "Limit budżetu",
       "campaign_id": {
         "hint": "Na tej liście wyświetlane są tylko kampanie z tym samym kodem waluty co promocja."
-      }
+      },
+      "totalUsedByAttribute": "Łącznie użyto"
     },
     "budget": {
       "create": {
@@ -2286,7 +2365,12 @@
         "type": "Typ",
         "currency": "Waluta",
         "limit": "Limit",
-        "used": "Używany"
+        "used": "Używany",
+        "budgetAttribute": "Limit użycia na",
+        "budgetAttributeTooltip": "Zdefiniuj, ile razy promocja może zostać zastosowana przez każdego klienta lub adres e-mail.",
+        "totalUsedByAttribute": "Limit budżetu na: {{attribute}}",
+        "totalUsedByAttributeCustomerId": "Limit budżetu na klienta",
+        "totalUsedByAttributeEmail": "Limit budżetu na adres e-mail"
       },
       "type": {
         "spend": {
@@ -2296,10 +2380,20 @@
         "usage": {
           "title": "Stosowanie",
           "description": "Ustaw limit ile razy można skorzystać z promocji."
+        },
+        "useByAttribute": {
+          "title": "Użycie według atrybutu (identyfikator klienta, adres e-mail itp.)",
+          "titleCustomerId": "Użycie na klienta",
+          "titleEmail": "Użycie na adres e-mail",
+          "description": "Ustaw limit liczby zastosowań promocji dla konkretnej wartości atrybutu."
         }
       },
       "edit": {
         "header": "Edytuj budżet kampanii"
+      },
+      "attribute": {
+        "customer_id": "klient",
+        "customer_email": "adres e-mail"
       }
     },
     "promotions": {
@@ -2432,7 +2526,10 @@
     "manageYourProfileDetails": "Zarządzaj danymi swojego profilu.",
     "fields": {
       "languageLabel": "Język",
-      "usageInsightsLabel": "Informacje o użytkowaniu"
+      "usageInsightsLabel": "Informacje o użytkowaniu",
+      "onboardingLabel": "Wprowadzenie",
+      "onboardingCompleted": "Zakończone",
+      "onboardingNotCompleted": "Nieukończone"
     },
     "edit": {
       "header": "Edytuj profil",
@@ -2508,8 +2605,15 @@
       "update": "Sklep pomyślnie zaktualizowany",
       "currenciesUpdated": "Waluty zostały pomyślnie zaktualizowane",
       "currenciesRemoved": "Pomyślnie usunięto waluty ze sklepu",
-      "updatedTaxInclusivitySuccessfully": "Ceny zawierające podatek zostały pomyślnie zaktualizowane"
-    }
+      "updatedTaxInclusivitySuccessfully": "Ceny zawierające podatek zostały pomyślnie zaktualizowane",
+      "localesUpdated": "Wersje językowe zaktualizowane pomyślnie",
+      "localesRemoved": "Wersje językowe usunięte pomyślnie ze sklepu"
+    },
+    "defaultLocale": "Domyślna wersja językowa",
+    "locales": "Wersje językowe",
+    "removeLocaleWarning_one": "Zamierzasz usunąć {{count}} wersję językową ze swojego sklepu. Wszelkie tłumaczenia używające tej wersji językowej zostaną usunięte.",
+    "removeLocaleWarning_other": "Zamierzasz usunąć {{count}} wersji językowych ze swojego sklepu. Wszelkie tłumaczenia używające tych wersji językowych zostaną usunięte.",
+    "localeAlreadyAdded": "Ta wersja językowa została już dodana do Twojego sklepu."
   },
   "regions": {
     "domain": "Regiony",
@@ -3157,7 +3261,8 @@
     "startDate": "Data rozpoczęcia",
     "endDate": "Data końcowa",
     "draft": "Projekt",
-    "values": "Wartości"
+    "values": "Wartości",
+    "promotionCode": "Kod promocyjny"
   },
   "dateTime": {
     "years_one": "Rok",
@@ -3307,7 +3412,8 @@
         "description": "Zostanie ono wyświetlone w profilu partnera i sklepie internetowym. Możesz zmienić je w każdej chwili.",
         "clickToChange": "Kliknij, aby zmienić",
         "clickToUpload": "Kliknij, aby przesłać lub przeciągnij i upuść",
-        "fileTypes": "SVG, PNG, JPG (maks. 5 MB)"
+        "fileTypes": "SVG, PNG, JPG (maks. 5 MB)",
+        "currentLogo": "Obecny logo"
       },
       "team": {
         "heading": "Dodaj członków zespołu",
@@ -3327,10 +3433,14 @@
         "stepCount": "Krok {{current}} z {{total}}",
         "back": "Wstecz",
         "continue": "Kontynuuj",
-        "complete": "Zakończ konfigurację"
+        "complete": "Zakończ konfigurację",
+        "skipShort": "Pomiń"
       },
       "errors": {
         "unknown": "Wystąpił nieznany błąd"
+      },
+      "toast": {
+        "completed": "Wprowadzenie zakończone"
       }
     },
     "plan": {
@@ -3644,6 +3754,14 @@
         "copySuccessDescription": "„{{title}}” skopiowany jako szkic.",
         "copyFailed": "Nie udało się skopiować produktu",
         "somethingWrong": "Wystąpił błąd"
+      },
+      "whatsNew": {
+        "heading": "Co nowego",
+        "dismiss": "Odrzuć",
+        "defaultCta": "Zobacz",
+        "previous": "Poprzednia aktualizacja",
+        "next": "Następna aktualizacja",
+        "goToUpdate": "Przejdź do aktualizacji {{index}}"
       }
     },
     "sharedFolders": {
@@ -3705,6 +3823,128 @@
         "noPagesTitle": "Brak stron",
         "noPagesMessage": "Utwórz domyślne strony, aby rozpocząć pracę z treścią strony internetowej.",
         "noMatches": "Nie znaleziono stron"
+      }
+    },
+    "workOrders": {
+      "designOrder": "Zamówienie projektu",
+      "inventoryOrder": "Zamówienie zapasów",
+      "manageDesign": "Zarządzaj projektem",
+      "amount": "Kwota",
+      "totalQuantity": "Łączna ilość",
+      "total": "Razem",
+      "producing": "W produkcji",
+      "start": "Rozpocznij",
+      "complete": "Zakończ",
+      "readyForDelivery": "Oznacz jako gotowe do dostawy",
+      "createShipment": "Utwórz przesyłkę",
+      "submitPayment": "Złóż płatność",
+      "fulfillments": "Realizacje",
+      "noFulfillments": "Nie zarejestrowano jeszcze żadnych dostaw.",
+      "payments": "Płatności",
+      "noPayments": "Nie złożono jeszcze żadnych płatności.",
+      "delivered": "Dostarczono",
+      "paymentSubmitted": "Płatność złożona",
+      "summary": "Podsumowanie",
+      "type": "Typ",
+      "designStatus": "Stan projektu",
+      "priority": "Priorytet",
+      "targetDate": "Data docelowa",
+      "estimatedCost": "Szacunkowy koszt",
+      "materials": "Materiały",
+      "moodboard": "Moodboard",
+      "media": "Media",
+      "orderStatus": "Status",
+      "sample": "Próbka",
+      "yes": "Tak",
+      "no": "Nie",
+      "orderDate": "Data zamówienia",
+      "expectedDelivery": "Przewidywana data dostawy",
+      "stockLocation": "Lokalizacja magazynu",
+      "designDetails": "Szczegóły projektu",
+      "openDesignManager": "Otwórz menedżera projektów",
+      "noDesign": "Do tego zamówienia nie przypisano żadnego projektu.",
+      "activity": {
+        "title": "Aktywność",
+        "placed": "Zamówienie złożone",
+        "accepted": "Zlecenie zaakceptowane",
+        "started": "Rozpoczęto produkcję",
+        "finished": "Oznaczono jako zakończone",
+        "completed": "Zlecenie zakończone"
+      }
+    },
+    "stripeConnect": {
+      "heading": "JYT Stripe Connect",
+      "payoutsPending": "płatności w oczekiwaniu",
+      "badge": {
+        "active": "Aktywne",
+        "pending": "Konfiguracja nieukończona"
+      },
+      "description": {
+        "default": "Pomiń wprowadzanie kluczy API. Połącz konto Stripe przez JYT, aby szybciej otrzymywać płatności — wypłaty i zwroty są obsługiwane automatycznie.",
+        "active": "Płatności są przetwarzane przez Stripe Connect JYT. To jest Twoje aktywne źródło Stripe — wszelkie ręcznie wprowadzone poniżej klucze są używane wyłącznie jako rezerwa."
+      },
+      "actions": {
+        "connect": "Połącz z Stripe",
+        "resume": "Dokończ konfigurację",
+        "manage": "Zaktualizuj dane"
+      },
+      "toast": {
+        "startFailed": "Nie udało się rozpocząć procesu wprowadzenia Stripe"
+      }
+    }
+  },
+  "views": {
+    "save": "Zapisz",
+    "saveAsNew": "Zapisz jako nowy widok",
+    "updateDefaultForEveryone": "Zaktualizuj domyślny widok dla wszystkich",
+    "updateViewName": "Zaktualizuj widok",
+    "prompts": {
+      "updateDefault": {
+        "title": "Zaktualizuj domyślny widok",
+        "description": "Spowoduje to zaktualizowanie domyślnego widoku dla wszystkich użytkowników. Czy na pewno chcesz kontynuować?",
+        "confirmText": "Zaktualizuj dla wszystkich",
+        "cancelText": "Anuluj"
+      },
+      "updateView": {
+        "title": "Zaktualizuj widok",
+        "description": "Czy na pewno chcesz zaktualizować „{{name}}”?",
+        "confirmText": "Zaktualizuj",
+        "cancelText": "Anuluj"
+      }
+    }
+  },
+  "refundReasons": {
+    "domain": "Powody zwrotów",
+    "subtitle": "Zarządzaj powodami wydawania zwrotów.",
+    "calloutHint": "Zarządzaj powodami kategoryzacji zwrotów.",
+    "editReason": "Edytuj powód zwrotu",
+    "create": {
+      "header": "Dodaj powód zwrotu",
+      "subtitle": "Określ najczęściej występujące powody zwrotów.",
+      "hint": "Utwórz nowy powód zwrotu, aby kategoryzować zwroty.",
+      "successToast": "Powód zwrotu {{label}} został pomyślnie utworzony."
+    },
+    "edit": {
+      "header": "Edytuj powód zwrotu",
+      "subtitle": "Zmień wartość powodu zwrotu.",
+      "successToast": "Powód zwrotu {{label}} został pomyślnie zaktualizowany."
+    },
+    "delete": {
+      "confirmation": "Zamierzasz usunąć powód zwrotu „{{label}}”. Ta akcja jest nieodwracalna.",
+      "successToast": "Powód zwrotu został pomyślnie usunięty."
+    },
+    "fields": {
+      "label": {
+        "label": "Etykieta",
+        "placeholder": "Gest dobrej woli"
+      },
+      "code": {
+        "label": "Kod",
+        "placeholder": "gest_dobrej_woli"
+      },
+      "description": {
+        "label": "Opis",
+        "placeholder": "Klient miał negatywne doświadczenie zakupowe"
       }
     }
   }

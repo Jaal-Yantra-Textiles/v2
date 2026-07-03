@@ -55,7 +55,9 @@
     "unsavedChangesDescription": "保存されていない変更があります。このフォームを終了すると、これらの変更は失われます。",
     "includesTaxTooltip": "この列の価格は税込みです。",
     "excludesTaxTooltip": "この列の価格は税抜きです。",
-    "noMoreData": "これ以上データはありません"
+    "noMoreData": "これ以上データはありません",
+    "areYouSureDescription": "{{entity}}「{{title}}」を削除しようとしています。この操作は元に戻せません。",
+    "noRecordsMessageFiltered": "フィルターに一致するレコードがありません"
   },
   "json": {
     "header": "JSON",
@@ -137,7 +139,9 @@
     "hide": "非表示",
     "export": "エクスポート",
     "import": "インポート",
-    "cannotUndo": "この操作は元に戻せません"
+    "cannotUndo": "この操作は元に戻せません",
+    "editVariantImages": "バリエーションの画像を編集",
+    "editImages": "画像を編集"
   },
   "operators": {
     "in": "含む"
@@ -251,7 +255,25 @@
       },
       "main": {
         "store": "ストア",
-        "storeSettings": "ストア設定"
+        "storeSettings": "ストア設定",
+        "home": "ホーム",
+        "designs": "デザイン",
+        "productionRuns": "製造実行",
+        "tasks": "タスク",
+        "paymentSubmissions": "支払い申請",
+        "inventoryOrders": "在庫発注",
+        "sharedFolders": "共有フォルダー",
+        "products": "商品",
+        "categories": "カテゴリ",
+        "collections": "コレクション",
+        "productTypes": "タイプ",
+        "stock": "在庫",
+        "orders": "注文",
+        "customers": "顧客",
+        "webStore": "WebStore",
+        "content": "コンテンツ",
+        "theme": "テーマ",
+        "analytics": "アナリティクス"
       },
       "settings": {
         "header": "設定",
@@ -306,7 +328,9 @@
       "lastTwelveMonths": "過去12ヶ月",
       "custom": "カスタム",
       "from": "開始日",
-      "to": "終了日"
+      "to": "終了日",
+      "starting": "開始日",
+      "ending": "終了日"
     },
     "compare": {
       "lessThan": "未満",
@@ -323,7 +347,16 @@
       "true": "真",
       "false": "偽"
     },
-    "addFilter": "フィルター追加"
+    "addFilter": "フィルター追加",
+    "sortLabel": "並べ替え",
+    "filterLabel": "フィルター",
+    "searchLabel": "検索",
+    "sorting": {
+      "alphabeticallyAsc": "A→Z",
+      "alphabeticallyDesc": "Z→A",
+      "dateAsc": "新しい順",
+      "dateDesc": "古い順"
+    }
   },
   "errorBoundary": {
     "badRequestTitle": "400 - 不正なリクエスト",
@@ -352,7 +385,8 @@
       "sameAsShipping": "配送先住所と同じ"
     },
     "contactHeading": "連絡先",
-    "locationHeading": "所在地"
+    "locationHeading": "所在地",
+    "title": "住所"
   },
   "email": {
     "editHeader": "Eメールを編集",
@@ -510,7 +544,14 @@
         "description": "ストアフロントで商品を展示するためにメディアを追加します。",
         "action": "メディアを追加"
       },
-      "successToast": "メディアは正常に更新されました。"
+      "successToast": "メディアは正常に更新されました。",
+      "manageImageVariants": "関連するバリエーションを管理",
+      "fileTooLarge": "1つ以上のファイルが最大ファイルサイズ {{size}} を超過しています: {{name}}",
+      "variantImages": "バリエーション画像",
+      "showAvailableImages": "利用可能な画像を表示",
+      "availableImages": "画像を選択",
+      "selectToAdd": "バリエーションに製品画像を追加します。新しい画像を追加するには、まず製品に追加してください。",
+      "removeSelected": "選択した項目を削除"
     },
     "discountableHint": "チェックを外すと、この商品に割引は適用されません。",
     "noSalesChannels": "どの販売チャネルでも利用できません",
@@ -599,6 +640,10 @@
       },
       "hs_code": {
         "label": "HSコード"
+      },
+      "shipping_profile": {
+        "label": "配送プロフィール",
+        "hint": "製品を配送プロフィールに接続"
       }
     },
     "variant": {
@@ -673,6 +718,58 @@
         },
         "error": {
           "header": "商品の削除に失敗しました"
+        }
+      }
+    },
+    "variantMedia": {
+      "label": "バリエーションメディア",
+      "manageVariants": "バリエーションを管理",
+      "addToMultipleVariants": "複数のバリエーションに追加",
+      "manageVariantsDescription": "画像に関連付けられたバリエーションを管理",
+      "successToast": "画像のバリエーションを正常に更新しました。",
+      "emptyState": {
+        "header": "まだメディアがありません",
+        "description": "ストアフロントで表示するために、バリエーションにメディアを追加してください。",
+        "action": "メディアを追加"
+      }
+    },
+    "columns": {
+      "product_display": "製品",
+      "variants_count": "バリエーション数",
+      "sales_channels_display": "販売チャネル",
+      "collection": "コレクション",
+      "status": "ステータス",
+      "thumbnail": "サムネイル",
+      "title": "タイトル",
+      "handle": "ハンドル",
+      "created_at": "作成日",
+      "updated_at": "更新日"
+    },
+    "prices": {
+      "edit": {
+        "successToast": "価格を正常に更新しました"
+      }
+    },
+    "stock": {
+      "heading": "製品の在庫レベルと場所を管理",
+      "description": "製品のすべてのバリエーションについて、在庫数を更新します。",
+      "loading": "しばらくお待ちください。処理に時間がかかる場合があります...",
+      "tooltips": {
+        "alreadyManaged": "この在庫アイテムはすでに {{title}} の下で編集可能です。",
+        "alreadyManagedWithSku": "この在庫アイテムはすでに {{title}} ({{sku}}) の下で編集可能です。"
+      }
+    },
+    "shippingProfile": {
+      "header": "配送設定",
+      "edit": {
+        "header": "配送設定",
+        "toasts": {
+          "success": "{{title}} の配送プロフィールを正常に更新しました。"
+        }
+      },
+      "create": {
+        "errors": {
+          "required": "配送プロフィールは必須です"
         }
       }
     }
@@ -819,6 +916,19 @@
       "updateLocations": "拠点が正常に更新されました。",
       "updateLevel": "在庫レベルが正常に更新されました。",
       "updateItem": "在庫アイテムが正常に更新されました。"
+    },
+    "manageLocationQuantity": "ロケーションごとの在庫数を管理",
+    "quantityAcrossLocations": "{{locations}}か所のロケーションで合計{{quantity}}",
+    "levelDeleted": "在庫レベルを正常に削除しました。",
+    "stock": {
+      "title": "在庫レベルを更新",
+      "description": "選択した在庫アイテムの在庫レベルを更新します。",
+      "action": "在庫レベルを編集",
+      "placeholder": "有効化されていません",
+      "disablePrompt_one": "{{count}}件のロケーションレベルを無効化しようとしています。この操作は元に戻せません。",
+      "disablePrompt_other": "{{count}}件のロケーションレベルを無効化しようとしています。この操作は元に戻せません。",
+      "disabledToggleTooltip": "無効化できません：無効化前に、入荷予定数および/または予約済み数量をクリアしてください。",
+      "successToast": "在庫レベルを正常に更新しました。"
     }
   },
   "giftCards": {
@@ -887,7 +997,28 @@
     },
     "registered": "登録済み",
     "guest": "ゲスト",
-    "hasAccount": "アカウントあり"
+    "hasAccount": "アカウントあり",
+    "addresses": {
+      "title": "住所",
+      "fields": {
+        "addressName": "住所名",
+        "address1": "住所 1",
+        "address2": "住所 2",
+        "city": "市区町村",
+        "province": "都道府県",
+        "postalCode": "郵便番号",
+        "country": "国",
+        "phone": "電話番号",
+        "company": "会社名",
+        "countryCode": "国コード",
+        "provinceCode": "都道府県コード"
+      },
+      "create": {
+        "header": "住所の作成",
+        "hint": "顧客向けに新しい住所を作成します。",
+        "successToast": "住所が正常に作成されました。"
+      }
+    }
   },
   "customerGroups": {
     "domain": "顧客グループ",
@@ -924,6 +1055,16 @@
       "list": {
         "noRecordsMessage": "このグループには顧客がいません。"
       }
+    },
+    "list": {
+      "empty": {
+        "heading": "顧客グループがありません",
+        "description": "表示する顧客グループがありません。"
+      },
+      "filtered": {
+        "heading": "該当する結果がありません",
+        "description": "現在のフィルター条件に一致する顧客グループがありません。"
+      }
     }
   },
   "orders": {
@@ -949,7 +1090,8 @@
       "itemSubtotal": "アイテム小計",
       "shippingSubtotal": "配送小計",
       "discountSubtotal": "割引小計",
-      "taxTotal": "税金合計"
+      "taxTotal": "税金合計",
+      "totalAfterDiscount": "割引後の合計"
     },
     "transfer": {
       "title": "所有権の移転",
@@ -990,7 +1132,8 @@
       "createRefundWrongQuantity": "数量は1から{{number}}の間の数字である必要があります",
       "refundAmount": "{{ amount }}を返金",
       "paymentLink": "{{ amount }}の支払いリンクをコピー",
-      "selectPaymentToRefund": "返金する支払いを選択"
+      "selectPaymentToRefund": "返金する支払いを選択",
+      "totalStoreCreditRefunds": "ストアクレジットによる返金総額"
     },
     "edits": {
       "title": "注文を編集",
@@ -1104,7 +1247,8 @@
       "panel": {
         "title": "返品が開始されました",
         "description": "完了する必要のある未処理の返品リクエストがあります"
-      }
+      },
+      "estDifference": "推定差額"
     },
     "claims": {
       "create": "クレームを作成",
@@ -1170,7 +1314,10 @@
       "panel": {
         "title": "交換が開始されました",
         "description": "完了する必要のある未処理の交換リクエストがあります"
-      }
+      },
+      "carryOverPromotion": "プロモーションを継承",
+      "carryOverPromotionHint": "注文に適用されたプロモーションを交換商品にも適用します",
+      "carryOverPromotionTooltip": "「EACH」割り当てタイプの固定金額プロモーション、および「EACH」または「ACROSS」割り当てタイプのパーセンテージプロモーションのみ、出荷用交換商品に継承できます。"
     },
     "reservations": {
       "allocatedLabel": "割り当て済み",
@@ -1186,7 +1333,8 @@
       "consistsOf": "{{num}}個の在庫アイテムで構成",
       "requires": "バリエーションごとに{{num}}個必要",
       "toast": {
-        "created": "アイテムが正常に割り当てられました"
+        "created": "アイテムが正常に割り当てられました",
+        "error": "以下の商品の割り当てに失敗しました: {{items}}"
       },
       "error": {
         "quantityNotAllocated": "割り当てられていないアイテムがあります。"
@@ -1198,7 +1346,9 @@
       "addTracking": "追跡番号を追加",
       "sendNotification": "通知を送信",
       "sendNotificationHint": "この出荷について顧客に通知します。",
-      "toastCreated": "出荷が正常に作成されました。"
+      "toastCreated": "出荷が正常に作成されました。",
+      "trackingUrl": "追跡URL",
+      "labelUrl": "ラベルURL"
     },
     "fulfillment": {
       "cancelWarning": "出荷をキャンセルしようとしています。この操作は元に戻せません。",
@@ -1223,7 +1373,9 @@
       "error": {
         "wrongQuantity": "出荷可能なアイテムは1つのみです",
         "wrongQuantity_other": "数量は1から{{number}}の間の数字である必要があります",
-        "noItems": "出荷するアイテムがありません。"
+        "noItems": "出荷するアイテムがありません。",
+        "noShippingOption": "配送オプションを指定してください",
+        "noLocation": "ロケーションを指定してください"
       },
       "status": {
         "notFulfilled": "未出荷",
@@ -1242,11 +1394,15 @@
         "created": "出荷が正常に作成されました",
         "canceled": "出荷が正常にキャンセルされました",
         "fulfillmentShipped": "すでに配送された出荷をキャンセルすることはできません",
-        "fulfillmentDelivered": "出荷が正常に配達済みとしてマークされました"
+        "fulfillmentDelivered": "出荷が正常に配達済みとしてマークされました",
+        "fulfillmentPickedUp": "履行が正常に「受け取り済み」としてマークされました"
       },
       "trackingLabel": "追跡",
       "shippingFromLabel": "発送元",
-      "itemsLabel": "アイテム"
+      "itemsLabel": "アイテム",
+      "differentOptionSelected": "選択した配送オプションは、顧客が選択したオプションと異なります。",
+      "disabledItemTooltip": "選択した配送オプションでは、この商品の履行に対応していません。",
+      "markAsPickedUp": "受け取り済みとしてマーク"
     },
     "refund": {
       "title": "返金を作成",
@@ -1347,6 +1503,41 @@
       "displayId": "表示ID",
       "refundableAmount": "返金可能金額",
       "returnableQuantity": "返品可能数量"
+    },
+    "giftCardsStoreCreditLines": "ギフトカードおよびクレジット残高",
+    "creditLines": {
+      "title": "クレジット残高",
+      "total": "すべてのクレジット残高の合計",
+      "creditOrDebit": "クレジット／デビット",
+      "createCreditLine": "クレジット残高を作成",
+      "createCreditLineSuccess": "クレジット残高が正常に作成されました",
+      "createCreditLineError": "クレジット残高の作成中にエラーが発生しました",
+      "createCreditLineDescription": "金額 {{amount}} のクレジット残高を作成します",
+      "operation": "操作",
+      "credit": "クレジット",
+      "creditDescription": "注文に正の金額を追加します",
+      "debit": "デビット",
+      "debitDescription": "注文から負の金額を差し引きます"
+    },
+    "balanceSettlement": {
+      "title": "残高精算",
+      "settlementType": "精算方法",
+      "settlementTypes": {
+        "paymentMethod": "支払い方法",
+        "paymentMethodDescription": "返金額を支払い方法へ返金",
+        "creditLine": "ストアクレジット",
+        "creditLineDescription": "返金額をストアクレジットとして付与"
+      }
+    },
+    "orderCanceled": "注文が正常にキャンセルされました",
+    "status": {
+      "not_paid": "未支払い",
+      "pending": "処理中",
+      "completed": "完了",
+      "draft": "下書き",
+      "archived": "アーカイブ済み",
+      "canceled": "キャンセル済み",
+      "requires_action": "対応が必要"
     }
   },
   "draftOrders": {
@@ -1395,7 +1586,10 @@
   "stockLocations": {
     "domain": "在庫拠点と配送",
     "list": {
-      "description": "店舗の在庫拠点と配送オプションを管理します。"
+      "description": "店舗の在庫拠点と配送オプションを管理します。",
+      "noRecordsMessage": "レコードがありません",
+      "noRecordsMessageEmpty": "ロケーションが見つかりません",
+      "noRecordsMessageFiltered": "フィルターに一致するロケーションが見つかりません"
     },
     "create": {
       "header": "在庫拠点を作成",
@@ -1408,7 +1602,8 @@
       "successToast": "拠点「{{name}}」が正常に更新されました。"
     },
     "delete": {
-      "confirmation": "在庫拠点「{{name}}」を削除しようとしています。この操作は取り消せません。"
+      "confirmation": "在庫拠点「{{name}}」を削除しようとしています。この操作は取り消せません。",
+      "successToast": "ロケーション「{{name}}」を正常に削除しました。"
     },
     "fulfillmentProviders": {
       "header": "フルフィルメントプロバイダー",
@@ -1441,6 +1636,10 @@
       "shippingProfiles": {
         "label": "配送プロファイル",
         "description": "配送要件ごとに商品をグループ化"
+      },
+      "shippingOptionTypes": {
+        "label": "配送オプションの種類",
+        "description": "配送オプションを種類別にグループ化します"
       }
     },
     "salesChannels": {
@@ -1449,7 +1648,8 @@
       "connectedTo": "{{total}}個中{{count}}個の販売チャネルに接続済み",
       "noChannels": "この拠点は販売チャネルに接続されていません。",
       "action": "販売チャネルを接続",
-      "successToast": "販売チャネルが正常に更新されました。"
+      "successToast": "販売チャネルが正常に更新されました。",
+      "hint": "このロケーションに接続されている販売チャネルを管理します。"
     },
     "shippingOptions": {
       "create": {
@@ -1469,7 +1669,13 @@
           "details": "詳細",
           "prices": "価格"
         },
-        "action": "オプションを作成"
+        "action": "オプションを作成",
+        "pickup": {
+          "header": "{{zone}}向けピックアップオプションの作成",
+          "hint": "このロケーションから商品をピックアップする方法を定義するために、新しいピックアップオプションを作成します。",
+          "label": "ピックアップオプション",
+          "successToast": "ピックアップオプション「{{name}}」を正常に作成しました。"
+        }
       },
       "delete": {
         "confirmation": "配送オプション「{{name}}」を削除しようとしています。この操作は取り消せません。",
@@ -1488,7 +1694,9 @@
           "shipping_one": "{{count}}個の配送オプション",
           "shipping_other": "{{count}}個の配送オプション",
           "returns_one": "{{count}}個の返品オプション",
-          "returns_other": "{{count}}個の返品オプション"
+          "returns_other": "{{count}}個の返品オプション",
+          "pickup_one": "{{count}} 件のピックアップオプション",
+          "pickup_other": "{{count}} 件のピックアップオプション"
         },
         "priceType": {
           "label": "価格タイプ",
@@ -1508,7 +1716,44 @@
           "hint": "顧客がチェックアウト時にこのオプションを使用できるかどうか。"
         },
         "provider": "フルフィルメントプロバイダー",
-        "profile": "配送プロファイル"
+        "profile": "配送プロファイル",
+        "type": "配送オプションの種類",
+        "fulfillmentOption": "フルフィルメントオプション"
+      },
+      "conditionalPrices": {
+        "header": "{{name}} の条件付き価格",
+        "description": "カート内の商品合計金額に基づいて、この配送オプションの条件付き価格を管理します。",
+        "attributes": {
+          "cartItemTotal": "カート内商品合計金額"
+        },
+        "summaries": {
+          "range": "<0>{{attribute}}</0> が <1>{{gte}}</1> 以上 <2>{{lte}}</2> 以下の場合",
+          "greaterThan": "<0>{{attribute}}</0> ≥ <1>{{gte}}</1> の場合",
+          "lessThan": "<0>{{attribute}}</0> ≤ <1>{{lte}}</1> の場合"
+        },
+        "actions": {
+          "addPrice": "価格を追加",
+          "manageConditionalPrices": "条件付き価格を管理"
+        },
+        "rules": {
+          "amount": "配送オプションの価格",
+          "gte": "カート内商品合計金額（最小）",
+          "lte": "カート内商品合計金額（最大）"
+        },
+        "customRules": {
+          "label": "カスタムルール",
+          "tooltip": "この条件付き価格には、ダッシュボードで管理できないルールが含まれています。",
+          "eq": "カート内商品合計金額は次の値と等しくなければなりません",
+          "gt": "カート内商品合計金額は次の値より大きくなければなりません",
+          "lt": "カート内商品合計金額は次の値より小さくなければなりません"
+        },
+        "errors": {
+          "amountRequired": "配送オプションの価格は必須です",
+          "minOrMaxRequired": "カート内商品合計金額の最小値または最大値のいずれか一方は必ず指定してください",
+          "minGreaterThanMax": "カート内商品合計金額の最小値は、最大値以下でなければなりません",
+          "duplicateAmount": "各条件に対して、配送オプションの価格は一意である必要があります",
+          "overlappingConditions": "すべての価格ルール間で、条件は重複してはなりません"
+        }
       }
     },
     "serviceZones": {
@@ -1536,6 +1781,11 @@
       "fields": {
         "noRecords": "配送オプションを追加するサービスゾーンがありません。",
         "tip": "サービスゾーンは地理的ゾーンまたはエリアの集合です。定義された一連の拠点に利用可能な配送オプションを制限するために使用されます。"
+      }
+    },
+    "pickupOptions": {
+      "edit": {
+        "header": "ピックアップオプションの編集"
       }
     }
   },
@@ -1570,7 +1820,9 @@
       "hint": "特定の国の税率を定義するための新しい税地域を作成します。",
       "errors": {
         "rateIsRequired": "デフォルトの税率を作成する際は税率が必要です。",
-        "nameIsRequired": "デフォルトの税率を作成する際は名前が必要です。"
+        "nameIsRequired": "デフォルトの税率を作成する際は名前が必要です。",
+        "missingProvider": "税金領域を作成するには、プロバイダーを指定する必要があります。",
+        "missingCountry": "税金領域を作成するには、国を指定する必要があります。"
       },
       "successToast": "税地域が正常に作成されました。"
     },
@@ -1714,7 +1966,8 @@
           "productCollection": "商品コレクション",
           "productTag": "商品タグ",
           "productType": "商品タイプ",
-          "customerGroup": "顧客グループ"
+          "customerGroup": "顧客グループ",
+          "shippingOption": "配送オプション"
         },
         "operators": {
           "in": "に含まれる",
@@ -1726,14 +1979,16 @@
           "productCollection": "商品コレクションを検索",
           "productTag": "商品タグを検索",
           "productType": "商品タイプを検索",
-          "customerGroup": "顧客グループを検索"
+          "customerGroup": "顧客グループを検索",
+          "shippingOption": "配送オプションを検索"
         },
         "tags": {
           "product": "商品",
           "productCollection": "商品コレクション",
           "productTag": "商品タグ",
           "productType": "商品タイプ",
-          "customerGroup": "顧客グループ"
+          "customerGroup": "顧客グループ",
+          "shippingOption": "配送オプション"
         },
         "modal": {
           "header": "対象を追加"
@@ -1789,7 +2044,16 @@
       "noDefaultRate": {
         "label": "デフォルト税率なし",
         "tooltip": "この税地域にはデフォルトの税率がありません。国のVATなど標準税率がある場合は、この地域に追加してください。"
-      }
+      },
+      "taxProvider": "税金プロバイダー"
+    },
+    "edit": {
+      "header": "税金領域の編集",
+      "hint": "税金領域の詳細を編集します。",
+      "successToast": "税金領域が正常に更新されました。"
+    },
+    "provider": {
+      "header": "税金プロバイダー"
     }
   },
   "promotions": {
@@ -1821,13 +2085,29 @@
         },
         "target-rules": {
           "title": "プロモーションはどの商品に適用されますか？",
-          "description": "プロモーションは、次の条件に一致する商品に適用されます。"
+          "description": "プロモーションは、次の条件に一致する商品に適用されます。",
+          "order": {
+            "title": "このプロモーションを適用する対象アイテムは何ですか？",
+            "description": "以下の条件に合致するアイテムにプロモーションが適用されます。"
+          },
+          "shipping_methods": {
+            "title": "このプロモーションを適用する対象の配送方法は何ですか？",
+            "description": "以下の条件に合致する配送方法にプロモーションが適用されます。"
+          },
+          "items": {
+            "title": "このプロモーションを適用する対象アイテムは何ですか？",
+            "description": "以下の条件に合致するアイテムにプロモーションが適用されます。"
+          }
         },
         "buy-rules": {
           "title": "プロモーションを有効にするためにカートに必要なものは？",
           "description": "これらの条件が一致した場合、ターゲット商品に対してプロモーションが有効になります。"
         }
-      }
+      },
+      "allocationTooltip": "「各アイテムごと」はアイテム単位で数量制限を適用します。「1回のみ」はカート全体で数量制限を適用します",
+      "taxInclusive": "税込",
+      "usageLimit": "使用回数制限",
+      "usage": "使用状況"
     },
     "tooltips": {
       "campaignType": "支出予算を設定するには、プロモーションで通貨コードを選択する必要があります。"
@@ -1888,7 +2168,20 @@
         }
       },
       "status": {
-        "title": "ステータス"
+        "title": "ステータス",
+        "label": "ステータス",
+        "draft": {
+          "title": "下書き",
+          "description": "顧客はこのコードを使用できません"
+        },
+        "active": {
+          "title": "有効",
+          "description": "顧客はこのコードを使用できます"
+        },
+        "inactive": {
+          "title": "無効",
+          "description": "顧客はこのコードを使用できなくなります"
+        }
       },
       "method": {
         "label": "方法",
@@ -1923,6 +2216,10 @@
         "across": {
           "title": "全体",
           "description": "アイテム全体に値を適用します。"
+        },
+        "once": {
+          "title": "1回のみ",
+          "description": "限定数量のアイテムに値を適用します"
         }
       },
       "code": {
@@ -1930,7 +2227,8 @@
         "description": "顧客がチェックアウト時に入力するコードです。"
       },
       "value": {
-        "title": "プロモーション値"
+        "title": "プロモーション値",
+        "invalid": "無効なプロモーション値です"
       },
       "value_type": {
         "fixed": {
@@ -1941,6 +2239,14 @@
           "title": "プロモーション値",
           "description": "金額から割引されるパーセンテージ。例：8%"
         }
+      },
+      "taxInclusive": {
+        "title": "プロモーションは税込価格に適用されますか？",
+        "description": "このフィールドを有効化すると、税金計算後にプロモーションが適用されます"
+      },
+      "limit": {
+        "title": "使用回数制限",
+        "description": "このプロモーションをすべての注文で使用できる最大回数です。無制限の場合は空欄のままにしてください。"
       }
     },
     "deleteWarning": "プロモーション「{{code}}」を削除しようとしています。この操作は取り消せません。",
@@ -1996,7 +2302,8 @@
       "budget_limit": "予算制限",
       "campaign_id": {
         "hint": "プロモーションと同じ通貨コードのキャンペーンのみがこのリストに表示されます。"
-      }
+      },
+      "totalUsedByAttribute": "合計使用回数"
     },
     "budget": {
       "create": {
@@ -2008,7 +2315,12 @@
         "type": "タイプ",
         "currency": "通貨",
         "limit": "制限",
-        "used": "使用済み"
+        "used": "使用済み",
+        "budgetAttribute": "属性ごとの使用制限",
+        "budgetAttributeTooltip": "各顧客またはメールアドレスに対して、プロモーションを何回まで使用できるかを定義します。",
+        "totalUsedByAttribute": "{{attribute}}ごとの予算上限",
+        "totalUsedByAttributeCustomerId": "顧客ごとの予算上限",
+        "totalUsedByAttributeEmail": "メールアドレスごとの予算上限"
       },
       "type": {
         "spend": {
@@ -2018,10 +2330,20 @@
         "usage": {
           "title": "使用",
           "description": "プロモーションが使用できる回数に制限を設定します。"
+        },
+        "useByAttribute": {
+          "title": "属性による使用制限（顧客ID、メールアドレスなど）",
+          "titleCustomerId": "顧客ごとの使用制限",
+          "titleEmail": "メールアドレスごとの使用制限",
+          "description": "特定の属性値に対して、プロモーションの使用回数の上限を設定します。"
         }
       },
       "edit": {
         "header": "キャンペーン予算を編集"
+      },
+      "attribute": {
+        "customer_id": "顧客",
+        "customer_email": "メールアドレス"
       }
     },
     "promotions": {
@@ -2150,7 +2472,10 @@
     "manageYourProfileDetails": "プロフィールの詳細を管理します。",
     "fields": {
       "languageLabel": "言語",
-      "usageInsightsLabel": "使用状況のインサイト"
+      "usageInsightsLabel": "使用状況のインサイト",
+      "onboardingLabel": "オンボーディング",
+      "onboardingCompleted": "完了",
+      "onboardingNotCompleted": "未完了"
     },
     "edit": {
       "header": "プロフィールを編集",
@@ -2186,7 +2511,18 @@
       "member": "メンバー"
     },
     "deleteUserWarning": "{{name}}を削除しようとしています。この操作は取り消せません。",
-    "invite": "招待"
+    "invite": "招待",
+    "list": {
+      "empty": {
+        "heading": "ユーザーが見つかりません",
+        "description": "ユーザーを招待すると、ここに表示されます。"
+      },
+      "filtered": {
+        "heading": "該当するユーザーが見つかりません",
+        "description": "現在のフィルター条件に一致するユーザーはいません。"
+      }
+    },
+    "deleteUserSuccess": "ユーザー {{name}} を正常に削除しました"
   },
   "store": {
     "domain": "ストア",
@@ -2211,8 +2547,17 @@
       "update": "ストアが正常に更新されました。",
       "currenciesUpdated": "通貨が正常に更新されました。",
       "currenciesRemoved": "ストアから通貨が正常に削除されました。",
-      "updatedTaxInclusivitySuccessfully": "税込価格が正常に更新されました。"
-    }
+      "updatedTaxInclusivitySuccessfully": "税込価格が正常に更新されました。",
+      "localesUpdated": "ロケールを正常に更新しました",
+      "localesRemoved": "ロケールをストアから正常に削除しました"
+    },
+    "defaultLocale": "デフォルトロケール",
+    "defaultSalesChannel": "デフォルト販売チャネル",
+    "defaultLocation": "デフォルトロケーション",
+    "locales": "ロケール",
+    "removeLocaleWarning_one": "{{count}}つのロケールをストアから削除しようとしています。このロケールを使用している翻訳はすべて削除されます。",
+    "removeLocaleWarning_other": "{{count}}つのロケールをストアから削除しようとしています。これらのロケールを使用している翻訳はすべて削除されます。",
+    "localeAlreadyAdded": "このロケールは既にストアに追加されています。"
   },
   "regions": {
     "domain": "地域",
@@ -2365,6 +2710,16 @@
         "list": {
           "noRecordsMessage": "最初に商品を作成してください。"
         }
+      }
+    },
+    "list": {
+      "empty": {
+        "heading": "販売チャネルが見つかりません",
+        "description": "販売チャネルを作成すると、ここに表示されます。"
+      },
+      "filtered": {
+        "heading": "検索結果がありません",
+        "description": "現在のフィルター条件に一致する販売チャネルはありません。"
       }
     }
   },
@@ -2635,7 +2990,9 @@
     "expired": "期限切れ",
     "active": "アクティブ",
     "enabled": "有効",
-    "disabled": "無効"
+    "disabled": "無効",
+    "inactive": "非アクティブ",
+    "draft": "下書き"
   },
   "labels": {
     "productVariant": "商品バリエーション",
@@ -2645,7 +3002,11 @@
     "added": "追加済み",
     "removed": "削除済み",
     "from": "から",
-    "to": "へ"
+    "to": "へ",
+    "beaware": "注意",
+    "loading": "読み込み中",
+    "selectValue": "値を選択",
+    "selectValues": "値を選択"
   },
   "fields": {
     "amount": "金額",
@@ -2803,7 +3164,14 @@
     "startDate": "開始日",
     "endDate": "終了日",
     "draft": "下書き",
-    "values": "値"
+    "values": "値",
+    "reference": "参照",
+    "reference_id": "参照 ID",
+    "enabledInStore": "ストアで有効",
+    "isReturn": "返品である",
+    "promotionCode": "プロモーションコード",
+    "serviceZone": "サービスゾーン",
+    "creditTotal": "クレジットライン合計"
   },
   "dateTime": {
     "years_one": "年",
@@ -2939,7 +3307,8 @@
         "description": "これはパートナープロフィールおよびストアフロントに表示されます。後からいつでも変更可能です。",
         "clickToChange": "クリックして変更",
         "clickToUpload": "クリックしてアップロード、またはドラッグ＆ドロップ",
-        "fileTypes": "SVG、PNG、JPG（最大5MB）"
+        "fileTypes": "SVG、PNG、JPG（最大5MB）",
+        "currentLogo": "現在のロゴ"
       },
       "team": {
         "heading": "チームメンバーを追加",
@@ -2959,10 +3328,14 @@
         "stepCount": "ステップ {{current}} / {{total}}",
         "back": "戻る",
         "continue": "次へ",
-        "complete": "セットアップを完了"
+        "complete": "セットアップを完了",
+        "skipShort": "スキップ"
       },
       "errors": {
         "unknown": "不明なエラーが発生しました"
+      },
+      "toast": {
+        "completed": "オンボーディングが完了しました"
       }
     },
     "plan": {
@@ -3276,6 +3649,14 @@
         "copySuccessDescription": "「{{title}}」がドラフトとしてコピーされました。",
         "copyFailed": "製品のコピーに失敗しました",
         "somethingWrong": "問題が発生しました"
+      },
+      "whatsNew": {
+        "heading": "新着情報",
+        "dismiss": "閉じる",
+        "defaultCta": "確認する",
+        "previous": "前の更新",
+        "next": "次の更新",
+        "goToUpdate": "{{index}}番目の更新へ移動"
       }
     },
     "sharedFolders": {
@@ -3337,6 +3718,150 @@
         "noPagesTitle": "ページがまだありません",
         "noPagesMessage": "ストアフロントのコンテンツを開始するには、デフォルトページを作成してください。",
         "noMatches": "該当するページが見つかりません"
+      }
+    },
+    "workOrders": {
+      "designOrder": "デザイン発注",
+      "inventoryOrder": "在庫発注",
+      "manageDesign": "デザイン管理",
+      "amount": "金額",
+      "totalQuantity": "合計数量",
+      "total": "合計",
+      "producing": "製造中",
+      "start": "開始",
+      "complete": "完了",
+      "readyForDelivery": "納品準備完了としてマーク",
+      "createShipment": "出荷を作成",
+      "submitPayment": "支払いを送信",
+      "fulfillments": "納品",
+      "noFulfillments": "まだ納品記録がありません。",
+      "payments": "支払い",
+      "noPayments": "まだ支払いが送信されていません。",
+      "delivered": "納品済み",
+      "paymentSubmitted": "支払いが送信済み",
+      "summary": "概要",
+      "type": "種別",
+      "designStatus": "デザインステータス",
+      "priority": "優先度",
+      "targetDate": "目標納期",
+      "estimatedCost": "見積金額",
+      "materials": "素材",
+      "moodboard": "ムードボード",
+      "media": "メディア",
+      "orderStatus": "ステータス",
+      "sample": "サンプル",
+      "yes": "はい",
+      "no": "いいえ",
+      "orderDate": "発注日",
+      "expectedDelivery": "予定納期",
+      "stockLocation": "在庫場所",
+      "designDetails": "デザイン詳細",
+      "openDesignManager": "デザインマネージャーを開く",
+      "noDesign": "この注文にはデザインが関連付けられていません。",
+      "activity": {
+        "title": "活動履歴",
+        "placed": "注文が確定",
+        "accepted": "実行が承認",
+        "started": "製造が開始",
+        "finished": "完了としてマーク",
+        "completed": "実行が完了"
+      }
+    },
+    "stripeConnect": {
+      "heading": "JYT Stripe Connect",
+      "payoutsPending": "未処理の支払額",
+      "badge": {
+        "active": "有効",
+        "pending": "設定未完了"
+      },
+      "description": {
+        "default": "APIキーの入力をスキップできます。JYT経由でStripeアカウントを接続すると、支払いのスピードアップや、自動化された支払・返金処理が可能になります。",
+        "active": "支払いはJYTのStripe Connect経由で処理されます。これはお客様の本番Stripeソースです — 以下に手動で入力したキーは、フォールバック用にのみ使用されます。"
+      },
+      "actions": {
+        "connect": "Stripeと接続",
+        "resume": "設定を完了",
+        "manage": "詳細を更新"
+      },
+      "toast": {
+        "startFailed": "Stripeオンボーディングを開始できませんでした"
+      }
+    }
+  },
+  "refundReasons": {
+    "domain": "返金理由",
+    "subtitle": "返金の理由を管理します。",
+    "calloutHint": "返金を分類するための理由を管理します。",
+    "editReason": "返金理由の編集",
+    "create": {
+      "header": "返金理由の追加",
+      "subtitle": "返金の最も一般的な理由を指定します。",
+      "hint": "返金を分類するための新しい返金理由を作成します。",
+      "successToast": "返金理由「{{label}}」が正常に作成されました。"
+    },
+    "edit": {
+      "header": "返金理由の編集",
+      "subtitle": "返金理由の値を編集します。",
+      "successToast": "返金理由「{{label}}」が正常に更新されました。"
+    },
+    "delete": {
+      "confirmation": "返金理由「{{label}}」を削除しようとしています。この操作は元に戻せません。",
+      "successToast": "返金理由が正常に削除されました。"
+    },
+    "fields": {
+      "label": {
+        "label": "ラベル",
+        "placeholder": "善意のジェスチャー"
+      },
+      "code": {
+        "label": "コード",
+        "placeholder": "gesture_of_goodwill"
+      },
+      "description": {
+        "label": "説明",
+        "placeholder": "顧客が不満なショッピング体験をした"
+      }
+    }
+  },
+  "shippingOptionTypes": {
+    "domain": "配送オプションの種類",
+    "subtitle": "配送オプションを種類別に整理します。",
+    "create": {
+      "header": "配送オプションの種類を作成",
+      "hint": "新しい配送オプションの種類を作成して、配送オプションを分類します。",
+      "successToast": "配送オプションの種類「{{label}}」が正常に作成されました。"
+    },
+    "edit": {
+      "header": "配送オプションの種類を編集",
+      "successToast": "配送オプションの種類「{{label}}」が正常に更新されました。"
+    },
+    "delete": {
+      "confirmation": "配送オプションの種類「{{label}}」を削除しようとしています。この操作は元に戻せません。",
+      "successToast": "配送オプションの種類「{{label}}」が正常に削除されました。"
+    },
+    "fields": {
+      "label": "ラベル",
+      "code": "コード",
+      "description": "説明"
+    }
+  },
+  "views": {
+    "save": "保存",
+    "saveAsNew": "新規ビューとして保存",
+    "updateDefaultForEveryone": "全ユーザーのデフォルトビューを更新",
+    "updateViewName": "ビューを更新",
+    "prompts": {
+      "updateDefault": {
+        "title": "デフォルトビューを更新",
+        "description": "すべてのユーザーのデフォルトビューが更新されます。よろしいですか？",
+        "confirmText": "全ユーザーに適用",
+        "cancelText": "キャンセル"
+      },
+      "updateView": {
+        "title": "ビューを更新",
+        "description": "「{{name}}」を更新してもよろしいですか？",
+        "confirmText": "更新",
+        "cancelText": "キャンセル"
       }
     }
   }

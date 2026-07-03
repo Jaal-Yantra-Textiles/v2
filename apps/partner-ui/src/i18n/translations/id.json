@@ -56,7 +56,8 @@
     "unsavedChangesDescription": "Anda memiliki perubahan yang belum disimpan yang akan hilang jika Anda keluar dari formulir ini.",
     "includesTaxTooltip": "Harga di kolom ini sudah termasuk pajak.",
     "excludesTaxTooltip": "Harga di kolom ini belum termasuk pajak.",
-    "noMoreData": "Tidak ada data lagi"
+    "noMoreData": "Tidak ada data lagi",
+    "noRecordsMessageFiltered": "Tidak ada catatan yang sesuai dengan filter yang diterapkan"
   },
   "json": {
     "header": "JSON",
@@ -138,7 +139,9 @@
     "hide": "Sembunyikan",
     "export": "Ekspor",
     "import": "Impor",
-    "cannotUndo": "Tindakan ini tidak dapat dibatalkan"
+    "cannotUndo": "Tindakan ini tidak dapat dibatalkan",
+    "editVariantImages": "Edit gambar varian",
+    "editImages": "Edit gambar"
   },
   "operators": {
     "in": "Dalam"
@@ -252,7 +255,25 @@
       },
       "main": {
         "store": "Toko",
-        "storeSettings": "Pengaturan toko"
+        "storeSettings": "Pengaturan toko",
+        "home": "Beranda",
+        "designs": "Desain",
+        "productionRuns": "Jalannya Produksi",
+        "tasks": "Tugas",
+        "paymentSubmissions": "Pengiriman Pembayaran",
+        "inventoryOrders": "Pesanan Persediaan",
+        "sharedFolders": "Folder Bersama",
+        "products": "Produk",
+        "categories": "Kategori",
+        "collections": "Koleksi",
+        "productTypes": "Jenis",
+        "stock": "Stok",
+        "orders": "Pesanan",
+        "customers": "Pelanggan",
+        "webStore": "WebStore",
+        "content": "Konten",
+        "theme": "Tema",
+        "analytics": "Analitik"
       },
       "settings": {
         "header": "Pengaturan",
@@ -523,7 +544,14 @@
         "description": "Tambah media ke produk untuk menampilkannya di etalase Anda.",
         "action": "Tambah media"
       },
-      "successToast": "Media berhasil diperbarui."
+      "successToast": "Media berhasil diperbarui.",
+      "manageImageVariants": "Kelola varian terkait",
+      "fileTooLarge": "Satu atau beberapa berkas melebihi ukuran maksimum {{size}}: {{name}}",
+      "variantImages": "Gambar varian",
+      "showAvailableImages": "Tampilkan gambar yang tersedia",
+      "availableImages": "Pilih gambar",
+      "selectToAdd": "Tambahkan gambar produk ke varian. Untuk menambahkan gambar baru, tambahkan terlebih dahulu ke produk.",
+      "removeSelected": "Hapus yang Dipilih"
     },
     "discountableHint": "Jika tidak dicentang, diskon tidak akan diterapkan pada produk ini.",
     "noSalesChannels": "Tidak tersedia di saluran penjualan mana pun",
@@ -715,6 +743,35 @@
           "header": "Gagal menghapus produk"
         }
       }
+    },
+    "variantMedia": {
+      "label": "Media Varian",
+      "manageVariants": "Kelola varian",
+      "addToMultipleVariants": "Tambahkan ke beberapa varian",
+      "manageVariantsDescription": "Kelola varian terkait untuk gambar ini",
+      "successToast": "Varian gambar berhasil diperbarui.",
+      "emptyState": {
+        "header": "Belum ada media",
+        "description": "Tambahkan media ke varian untuk memamerkannya di toko daring Anda.",
+        "action": "Tambahkan media"
+      }
+    },
+    "columns": {
+      "product_display": "Produk",
+      "variants_count": "Varian",
+      "sales_channels_display": "Saluran Penjualan",
+      "collection": "Koleksi",
+      "status": "Status",
+      "thumbnail": "Gambar Mini",
+      "title": "Judul",
+      "handle": "Handle",
+      "created_at": "Dibuat",
+      "updated_at": "Diperbarui"
+    },
+    "prices": {
+      "edit": {
+        "successToast": "Harga berhasil diperbarui"
+      }
     }
   },
   "collections": {
@@ -871,7 +928,8 @@
       "disablePrompt_other": "Anda akan menonaktifkan {{count}} tingkat lokasi. Tindakan ini tidak dapat dibatalkan.",
       "disabledToggleTooltip": "Tidak dapat menonaktifkan: kosongkan kuantitas masuk dan/atau dipesan sebelum menonaktifkan.",
       "successToast": "Tingkat inventaris berhasil diperbarui."
-    }
+    },
+    "levelDeleted": "Tingkat inventaris berhasil dihapus."
   },
   "giftCards": {
     "domain": "Kartu Hadiah",
@@ -1042,7 +1100,8 @@
       "itemSubtotal": "Subtotal Item",
       "shippingSubtotal": "Subtotal Pengiriman",
       "discountSubtotal": "Subtotal Diskon",
-      "taxTotal": "Total Pajak"
+      "taxTotal": "Total Pajak",
+      "totalAfterDiscount": "Total Setelah Diskon"
     },
     "transfer": {
       "title": "Transfer kepemilikan",
@@ -1083,7 +1142,8 @@
       "createRefundWrongQuantity": "Kuantitas harus berupa angka antara 1 dan {{number}}",
       "refundAmount": "Pengembalian dana {{ amount }}",
       "paymentLink": "Salin tautan pembayaran untuk {{ amount }}",
-      "selectPaymentToRefund": "Pilih pembayaran untuk dikembalikan"
+      "selectPaymentToRefund": "Pilih pembayaran untuk dikembalikan",
+      "totalStoreCreditRefunds": "Total pengembalian kredit toko"
     },
     "edits": {
       "title": "Edit pesanan",
@@ -1263,7 +1323,10 @@
       "panel": {
         "title": "Penukaran dimulai",
         "description": "Ada permintaan penukaran terbuka yang harus diselesaikan"
-      }
+      },
+      "carryOverPromotion": "Bawa promosi ke depan",
+      "carryOverPromotionHint": "Terapkan promosi pesanan ke item penukaran",
+      "carryOverPromotionTooltip": "Hanya promosi tipe tetap dengan alokasi EACH dan promosi tipe persentase dengan alokasi EACH atau ACROSS yang dapat dibawa ke item penukaran keluar."
     },
     "reservations": {
       "allocatedLabel": "Dialokasikan",
@@ -1279,7 +1342,8 @@
       "consistsOf": "Terdiri dari {{num}}x item inventaris",
       "requires": "Membutuhkan {{num}} per varian",
       "toast": {
-        "created": "Item berhasil dialokasikan"
+        "created": "Item berhasil dialokasikan",
+        "error": "Gagal mengalokasikan item berikut: {{items}}"
       },
       "error": {
         "quantityNotAllocated": "Ada item yang belum dialokasikan."
@@ -1291,7 +1355,9 @@
       "addTracking": "Tambah nomor pelacakan",
       "sendNotification": "Kirim notifikasi",
       "sendNotificationHint": "Beritahu pelanggan tentang pengiriman ini.",
-      "toastCreated": "Pengiriman berhasil dibuat."
+      "toastCreated": "Pengiriman berhasil dibuat.",
+      "trackingUrl": "URL pelacakan",
+      "labelUrl": "URL label"
     },
     "fulfillment": {
       "cancelWarning": "Anda akan membatalkan pemenuhan. Tindakan ini tidak dapat dibatalkan.",
@@ -1446,6 +1512,31 @@
       "displayId": "ID Tampilan",
       "refundableAmount": "Jumlah dapat dikembalikan",
       "returnableQuantity": "Kuantitas dapat dikembalikan"
+    },
+    "giftCardsStoreCreditLines": "Kartu hadiah & garis kredit toko",
+    "creditLines": {
+      "title": "Garis kredit",
+      "total": "Jumlah seluruh garis kredit",
+      "creditOrDebit": "Kredit / Debit",
+      "createCreditLine": "Buat garis kredit",
+      "createCreditLineSuccess": "Garis kredit berhasil dibuat",
+      "createCreditLineError": "Terjadi kesalahan saat membuat garis kredit",
+      "createCreditLineDescription": "Buat garis kredit untuk jumlah {{amount}}",
+      "operation": "Operasi",
+      "credit": "Kredit",
+      "creditDescription": "Menambahkan jumlah positif ke pesanan",
+      "debit": "Debit",
+      "debitDescription": "Mengurangkan jumlah negatif dari pesanan"
+    },
+    "balanceSettlement": {
+      "title": "Penyelesaian saldo",
+      "settlementType": "Jenis penyelesaian",
+      "settlementTypes": {
+        "paymentMethod": "Metode pembayaran",
+        "paymentMethodDescription": "Mengembalikan jumlah ke metode pembayaran",
+        "creditLine": "Kredit toko",
+        "creditLineDescription": "Mengembalikan jumlah sebagai kredit toko"
+      }
     }
   },
   "draftOrders": {
@@ -1494,7 +1585,10 @@
   "stockLocations": {
     "domain": "Lokasi & Pengiriman",
     "list": {
-      "description": "Kelola lokasi stok dan opsi pengiriman toko Anda."
+      "description": "Kelola lokasi stok dan opsi pengiriman toko Anda.",
+      "noRecordsMessage": "Tidak ada catatan",
+      "noRecordsMessageEmpty": "Tidak ditemukan lokasi",
+      "noRecordsMessageFiltered": "Tidak ditemukan lokasi yang sesuai dengan filter"
     },
     "create": {
       "header": "Buat Lokasi Stok",
@@ -1507,7 +1601,8 @@
       "successToast": "Lokasi {{name}} berhasil diperbarui."
     },
     "delete": {
-      "confirmation": "Anda akan menghapus lokasi stok \"{{name}}\". Tindakan ini tidak dapat dibatalkan."
+      "confirmation": "Anda akan menghapus lokasi stok \"{{name}}\". Tindakan ini tidak dapat dibatalkan.",
+      "successToast": "Lokasi \"{{name}}\" berhasil dihapus."
     },
     "fulfillmentProviders": {
       "header": "Penyedia Pemenuhan",
@@ -1540,6 +1635,10 @@
       "shippingProfiles": {
         "label": "Profil Pengiriman",
         "description": "Kelompokkan produk berdasarkan persyaratan pengiriman"
+      },
+      "shippingOptionTypes": {
+        "label": "Jenis Opsi Pengiriman",
+        "description": "Kelompokkan opsi pengiriman berdasarkan jenisnya"
       }
     },
     "salesChannels": {
@@ -1657,7 +1756,8 @@
         },
         "provider": "Penyedia pemenuhan",
         "profile": "Profil pengiriman",
-        "fulfillmentOption": "Opsi pemenuhan"
+        "fulfillmentOption": "Opsi pemenuhan",
+        "type": "Jenis opsi pengiriman"
       }
     },
     "serviceZones": {
@@ -1872,7 +1972,8 @@
           "productCollection": "Koleksi produk",
           "productTag": "Tag produk",
           "productType": "Jenis produk",
-          "customerGroup": "Grup pelanggan"
+          "customerGroup": "Grup pelanggan",
+          "shippingOption": "Opsi pengiriman"
         },
         "operators": {
           "in": "dalam",
@@ -1884,14 +1985,16 @@
           "productCollection": "Cari koleksi produk",
           "productTag": "Cari tag produk",
           "productType": "Cari jenis produk",
-          "customerGroup": "Cari grup pelanggan"
+          "customerGroup": "Cari grup pelanggan",
+          "shippingOption": "Cari opsi pengiriman"
         },
         "tags": {
           "product": "Produk",
           "productCollection": "Koleksi produk",
           "productTag": "Tag produk",
           "productType": "Jenis produk",
-          "customerGroup": "Grup pelanggan"
+          "customerGroup": "Grup pelanggan",
+          "shippingOption": "Opsi pengiriman"
         },
         "modal": {
           "header": "Tambah target"
@@ -1979,13 +2082,29 @@
         },
         "target-rules": {
           "title": "Item apa yang akan dikenakan promosi?",
-          "description": "Promosi akan diterapkan pada item yang sesuai dengan kondisi berikut."
+          "description": "Promosi akan diterapkan pada item yang sesuai dengan kondisi berikut.",
+          "order": {
+            "title": "Item apa yang akan dikenakan promosi ini?",
+            "description": "Promosi ini akan diterapkan pada item yang memenuhi kondisi berikut."
+          },
+          "shipping_methods": {
+            "title": "Metode pengiriman apa yang akan dikenakan promosi ini?",
+            "description": "Promosi ini akan diterapkan pada metode pengiriman yang memenuhi kondisi berikut."
+          },
+          "items": {
+            "title": "Item apa yang akan dikenakan promosi ini?",
+            "description": "Promosi ini akan diterapkan pada item yang memenuhi kondisi berikut."
+          }
         },
         "buy-rules": {
           "title": "Apa yang harus ada di keranjang untuk membuka promosi?",
           "description": "Jika kondisi ini cocok, kami mengaktifkan promosi pada item target."
         }
-      }
+      },
+      "allocationTooltip": "Masing-masing memberlakukan batas kuantitas per item, sedangkan Sekali memberlakukan batas kuantitas untuk seluruh keranjang",
+      "taxInclusive": "Termasuk Pajak",
+      "usageLimit": "Batas Penggunaan",
+      "usage": "Penggunaan"
     },
     "tooltips": {
       "campaignType": "Kode mata uang harus dipilih dalam promosi untuk menetapkan anggaran belanja."
@@ -2093,6 +2212,10 @@
         "across": {
           "title": "Di Seluruh",
           "description": "Terapkan nilai di seluruh item"
+        },
+        "once": {
+          "title": "Sekali",
+          "description": "Menerapkan nilai pada sejumlah terbatas item"
         }
       },
       "code": {
@@ -2100,7 +2223,8 @@
         "description": "Kode yang akan dimasukkan pelanggan Anda saat checkout."
       },
       "value": {
-        "title": "Nilai Promosi"
+        "title": "Nilai Promosi",
+        "invalid": "Nilai promosi tidak valid"
       },
       "value_type": {
         "fixed": {
@@ -2111,6 +2235,14 @@
           "title": "Persentase",
           "description": "Persentase diskon dari jumlah. contoh: 8%"
         }
+      },
+      "taxInclusive": {
+        "title": "Apakah promosi ini mencakup pajak?",
+        "description": "Aktifkan opsi ini untuk menerapkan promosi setelah pajak"
+      },
+      "limit": {
+        "title": "Batas Penggunaan",
+        "description": "Jumlah maksimum penggunaan promosi ini di seluruh pesanan. Biarkan kosong untuk penggunaan tanpa batas."
       }
     },
     "deleteWarning": "Anda akan menghapus promosi {{code}}. Tindakan ini tidak dapat dibatalkan.",
@@ -2166,7 +2298,8 @@
       "budget_limit": "Batas anggaran",
       "campaign_id": {
         "hint": "Hanya kampanye dengan kode mata uang yang sama dengan promosi yang ditampilkan dalam daftar ini."
-      }
+      },
+      "totalUsedByAttribute": "Total digunakan"
     },
     "budget": {
       "create": {
@@ -2178,7 +2311,12 @@
         "type": "Jenis",
         "currency": "Mata uang",
         "limit": "Batas",
-        "used": "Digunakan"
+        "used": "Digunakan",
+        "budgetAttribute": "Batas penggunaan per",
+        "budgetAttributeTooltip": "Tentukan berapa kali promosi ini dapat digunakan oleh masing-masing pelanggan atau alamat email.",
+        "totalUsedByAttribute": "Batas anggaran per: {{attribute}}",
+        "totalUsedByAttributeCustomerId": "Batas anggaran per pelanggan",
+        "totalUsedByAttributeEmail": "Batas anggaran per email"
       },
       "type": {
         "spend": {
@@ -2188,10 +2326,20 @@
         "usage": {
           "title": "Penggunaan",
           "description": "Tetapkan batas berapa kali promosi dapat digunakan."
+        },
+        "useByAttribute": {
+          "title": "Penggunaan berdasarkan atribut (ID pelanggan, email, dll.)",
+          "titleCustomerId": "Penggunaan per pelanggan",
+          "titleEmail": "Penggunaan per email",
+          "description": "Tetapkan batas jumlah penggunaan promosi berdasarkan nilai atribut tertentu."
         }
       },
       "edit": {
         "header": "Edit Anggaran Kampanye"
+      },
+      "attribute": {
+        "customer_id": "pelanggan",
+        "customer_email": "email"
       }
     },
     "promotions": {
@@ -2320,7 +2468,10 @@
     "manageYourProfileDetails": "Kelola detail profil Anda.",
     "fields": {
       "languageLabel": "Bahasa",
-      "usageInsightsLabel": "Wawasan penggunaan"
+      "usageInsightsLabel": "Wawasan penggunaan",
+      "onboardingLabel": "Panduan Awal",
+      "onboardingCompleted": "Selesai",
+      "onboardingNotCompleted": "Belum selesai"
     },
     "edit": {
       "header": "Edit Profil",
@@ -2394,8 +2545,15 @@
       "update": "Toko berhasil diperbarui",
       "currenciesUpdated": "Mata uang berhasil diperbarui",
       "currenciesRemoved": "Mata uang berhasil dihapus dari toko",
-      "updatedTaxInclusivitySuccessfully": "Harga termasuk pajak berhasil diperbarui"
-    }
+      "updatedTaxInclusivitySuccessfully": "Harga termasuk pajak berhasil diperbarui",
+      "localesUpdated": "Lokal berhasil diperbarui",
+      "localesRemoved": "Lokal berhasil dihapus dari toko"
+    },
+    "defaultLocale": "Lokal default",
+    "locales": "Lokal",
+    "removeLocaleWarning_one": "Anda akan menghapus {{count}} lokal dari toko Anda. Semua terjemahan yang menggunakan lokal ini akan dihapus.",
+    "removeLocaleWarning_other": "Anda akan menghapus {{count}} lokal dari toko Anda. Semua terjemahan yang menggunakan lokal ini akan dihapus.",
+    "localeAlreadyAdded": "Lokal ini sudah ditambahkan ke toko Anda."
   },
   "regions": {
     "domain": "Wilayah",
@@ -2841,7 +2999,9 @@
     "from": "Dari",
     "to": "Kepada",
     "beaware": "Perhatikan",
-    "loading": "Memuat"
+    "loading": "Memuat",
+    "selectValue": "Pilih Nilai",
+    "selectValues": "Pilih Nilai-Nilai"
   },
   "fields": {
     "amount": "Jumlah",
@@ -2999,7 +3159,14 @@
     "startDate": "Tanggal mulai",
     "endDate": "Tanggal akhir",
     "draft": "Draf",
-    "values": "Nilai"
+    "values": "Nilai",
+    "reference": "Referensi",
+    "reference_id": "ID Referensi",
+    "enabledInStore": "Diaktifkan di toko",
+    "isReturn": "Merupakan retur",
+    "promotionCode": "Kode promosi",
+    "serviceZone": "Zona Layanan",
+    "creditTotal": "Total Garis Kredit"
   },
   "dateTime": {
     "years_one": "Tahun",
@@ -3135,7 +3302,8 @@
         "description": "Ini akan muncul di profil mitra dan toko online Anda. Anda dapat mengubahnya kapan saja.",
         "clickToChange": "Klik untuk mengubah",
         "clickToUpload": "Klik untuk mengunggah atau seret & lepas",
-        "fileTypes": "SVG, PNG, JPG (MAKS. 5MB)"
+        "fileTypes": "SVG, PNG, JPG (MAKS. 5MB)",
+        "currentLogo": "Logo saat ini"
       },
       "team": {
         "heading": "Tambahkan anggota tim Anda",
@@ -3155,10 +3323,14 @@
         "stepCount": "Langkah {{current}} dari {{total}}",
         "back": "Kembali",
         "continue": "Lanjutkan",
-        "complete": "Selesaikan Pengaturan"
+        "complete": "Selesaikan Pengaturan",
+        "skipShort": "Lewati"
       },
       "errors": {
         "unknown": "Terjadi kesalahan tak diketahui"
+      },
+      "toast": {
+        "completed": "Onboarding selesai"
       }
     },
     "plan": {
@@ -3472,6 +3644,14 @@
         "copySuccessDescription": "\"{{title}}\" disalin sebagai draf.",
         "copyFailed": "Gagal menyalin produk",
         "somethingWrong": "Terjadi kesalahan"
+      },
+      "whatsNew": {
+        "heading": "Apa yang baru",
+        "dismiss": "Tutup",
+        "defaultCta": "Lihat sekarang",
+        "previous": "Pembaruan sebelumnya",
+        "next": "Pembaruan berikutnya",
+        "goToUpdate": "Buka pembaruan {{index}}"
       }
     },
     "sharedFolders": {
@@ -3533,6 +3713,150 @@
         "noPagesTitle": "Belum ada halaman",
         "noPagesMessage": "Buat halaman bawaan Anda untuk memulai pengelolaan konten tampilan toko.",
         "noMatches": "Tidak ditemukan halaman"
+      }
+    },
+    "workOrders": {
+      "designOrder": "Pesanan desain",
+      "inventoryOrder": "Pesanan inventaris",
+      "manageDesign": "Kelola desain",
+      "amount": "Jumlah",
+      "totalQuantity": "Jumlah total",
+      "total": "Total",
+      "producing": "Sedang diproduksi",
+      "start": "Mulai",
+      "complete": "Selesai",
+      "readyForDelivery": "Tandai siap dikirim",
+      "createShipment": "Buat pengiriman",
+      "submitPayment": "Kirim pembayaran",
+      "fulfillments": "Pengiriman",
+      "noFulfillments": "Belum ada pengiriman yang tercatat.",
+      "payments": "Pembayaran",
+      "noPayments": "Belum ada pembayaran yang dikirim.",
+      "delivered": "Telah dikirim",
+      "paymentSubmitted": "Pembayaran telah dikirim",
+      "summary": "Ringkasan",
+      "type": "Jenis",
+      "designStatus": "Status desain",
+      "priority": "Prioritas",
+      "targetDate": "Tanggal target",
+      "estimatedCost": "Perkiraan biaya",
+      "materials": "Bahan",
+      "moodboard": "Moodboard",
+      "media": "Media",
+      "orderStatus": "Status",
+      "sample": "Contoh",
+      "yes": "Ya",
+      "no": "Tidak",
+      "orderDate": "Tanggal pemesanan",
+      "expectedDelivery": "Perkiraan pengiriman",
+      "stockLocation": "Lokasi stok",
+      "designDetails": "Detail desain",
+      "openDesignManager": "Buka manajer desain",
+      "noDesign": "Tidak ada desain yang terhubung ke pesanan ini.",
+      "activity": {
+        "title": "Aktivitas",
+        "placed": "Pesanan diterima",
+        "accepted": "Produksi diterima",
+        "started": "Produksi dimulai",
+        "finished": "Ditandai selesai",
+        "completed": "Produksi selesai"
+      }
+    },
+    "stripeConnect": {
+      "heading": "JYT Stripe Connect",
+      "payoutsPending": "pencairan tertunda",
+      "badge": {
+        "active": "Aktif",
+        "pending": "Pengaturan belum lengkap"
+      },
+      "description": {
+        "default": "Lewati pengisian kunci API. Hubungkan akun Stripe melalui JYT untuk menerima pembayaran lebih cepat, dengan pencairan dan pengembalian dana yang ditangani secara otomatis.",
+        "active": "Pembayaran dijalankan melalui Stripe Connect JYT. Ini adalah sumber Stripe aktif Anda — kunci API yang dimasukkan secara manual di bawah hanya digunakan sebagai cadangan."
+      },
+      "actions": {
+        "connect": "Hubungkan dengan Stripe",
+        "resume": "Lanjutkan pengaturan",
+        "manage": "Perbarui detail"
+      },
+      "toast": {
+        "startFailed": "Gagal memulai onboarding Stripe"
+      }
+    }
+  },
+  "shippingOptionTypes": {
+    "domain": "Jenis Opsi Pengiriman",
+    "subtitle": "Kelola opsi pengiriman Anda ke dalam jenis-jenisnya.",
+    "create": {
+      "header": "Buat Jenis Opsi Pengiriman",
+      "hint": "Buat jenis opsi pengiriman baru untuk mengkategorikan opsi pengiriman Anda.",
+      "successToast": "Jenis opsi pengiriman {{label}} berhasil dibuat."
+    },
+    "edit": {
+      "header": "Ubah Jenis Opsi Pengiriman",
+      "successToast": "Jenis opsi pengiriman {{label}} berhasil diperbarui."
+    },
+    "delete": {
+      "confirmation": "Anda akan menghapus jenis opsi pengiriman \"{{label}}\". Tindakan ini tidak dapat dibatalkan.",
+      "successToast": "Jenis opsi pengiriman \"{{label}}\" berhasil dihapus."
+    },
+    "fields": {
+      "label": "Label",
+      "code": "Kode",
+      "description": "Deskripsi"
+    }
+  },
+  "refundReasons": {
+    "domain": "Alasan Pengembalian Dana",
+    "subtitle": "Kelola alasan penerbitan pengembalian dana.",
+    "calloutHint": "Kelola alasan untuk mengkategorikan pengembalian dana.",
+    "editReason": "Edit Alasan Pengembalian Dana",
+    "create": {
+      "header": "Tambahkan Alasan Pengembalian Dana",
+      "subtitle": "Tentukan alasan paling umum untuk pengembalian dana.",
+      "hint": "Buat alasan pengembalian dana baru untuk mengkategorikan pengembalian dana.",
+      "successToast": "Alasan pengembalian dana {{label}} berhasil dibuat."
+    },
+    "edit": {
+      "header": "Edit Alasan Pengembalian Dana",
+      "subtitle": "Edit nilai alasan pengembalian dana.",
+      "successToast": "Alasan pengembalian dana {{label}} berhasil diperbarui."
+    },
+    "delete": {
+      "confirmation": "Anda akan menghapus alasan pengembalian dana \"{{label}}\". Tindakan ini tidak dapat dibatalkan.",
+      "successToast": "Alasan pengembalian dana berhasil dihapus."
+    },
+    "fields": {
+      "label": {
+        "label": "Label",
+        "placeholder": "Ungkapan itikad baik"
+      },
+      "code": {
+        "label": "Kode",
+        "placeholder": "ungkapan_itikad_baik"
+      },
+      "description": {
+        "label": "Deskripsi",
+        "placeholder": "Pelanggan memiliki pengalaman berbelanja yang buruk"
+      }
+    }
+  },
+  "views": {
+    "save": "Simpan",
+    "saveAsNew": "Simpan sebagai tampilan baru",
+    "updateDefaultForEveryone": "Perbarui tampilan bawaan untuk semua orang",
+    "updateViewName": "Perbarui tampilan",
+    "prompts": {
+      "updateDefault": {
+        "title": "Perbarui tampilan bawaan",
+        "description": "Ini akan memperbarui tampilan bawaan untuk semua pengguna. Yakin?",
+        "confirmText": "Perbarui untuk semua orang",
+        "cancelText": "Batal"
+      },
+      "updateView": {
+        "title": "Perbarui tampilan",
+        "description": "Yakin ingin memperbarui \"{{name}}\"?",
+        "confirmText": "Perbarui",
+        "cancelText": "Batal"
       }
     }
   }

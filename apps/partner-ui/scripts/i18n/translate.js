@@ -20,6 +20,10 @@
  *                                immediate children of the section. Result is
  *                                deep-merged into the target file, leaving
  *                                other children untouched.
+ *     --missing-only             Translate ONLY leaf keys present in en.json but
+ *                                absent from the target locale; deep-merge the
+ *                                result. Never re-sends or overwrites existing
+ *                                translations. Best for propagating new UI keys.
  *     --resume                   Skip sections already translated (values != en.json).
  *     --force                    Re-translate every section even if already translated.
  *     --dry-run                  Log what would be done without calling the API.
@@ -140,6 +144,61 @@ function collectLeafValues(obj, prefix = "") {
   return out
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+// Does a dotted leaf path already resolve in `obj`? Used to detect which keys
+// are missing from a target locale so --missing-only translates ONLY those.
+function hasLeaf(obj, dottedPath) {
+  const parts = dottedPath.split(".")
+  let cur = obj
+  for (const p of parts) {
+    if (cur && typeof cur === "object" && p in cur) cur = cur[p]
+    else return false
+  }
+  return true
+}
+
+function setLeaf(obj, dottedPath, value) {
+  const parts = dottedPath.split(".")
+  let cur = obj
+  for (let i = 0; i < parts.length - 1; i++) {
+    const p = parts[i]
+    if (!cur[p] || typeof cur[p] !== "object") cur[p] = {}
+    cur = cur[p]
+  }
+  cur[parts[parts.length - 1]] = value
+}
+
+// Build a minimal nested payload of ONLY the leaf paths present in the English
+// section but absent from the target section. Never includes already-translated
+// keys, so existing translations are never sent to the model or overwritten.
+function buildMissingPayload(enSection, targetSection) {
+  const out = {}
+  let count = 0
+  for (const [p, v] of collectLeafValues(enSection)) {
+    if (!hasLeaf(targetSection || {}, p)) {
+      setLeaf(out, p, v)
+      count++
+    }
+  }
+  return { payload: out, count }
+}
+
+// Deep-merge `src` into `target` in place (objects recurse; leaves overwrite).
+// Used to graft freshly-translated missing keys onto the existing locale file
+// without disturbing sibling sub-trees.
+function deepMerge(target, src) {
+  for (const [k, v] of Object.entries(src)) {
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      if (!target[k] || typeof target[k] !== "object") target[k] = {}
+      deepMerge(target[k], v)
+    } else {
+      target[k] = v
+    }
+  }
+  return target
+}
+
 function placeholderTokens(str) {
   if (typeof str !== "string") return []
   const tokens = new Set()
@@ -204,25 +263,41 @@ function buildPrompt(languageName, sectionName, sectionJson) {
   ].join("\n")
 }
 
-async function callOpenAICompatible({ url, apiKey, model, prompt, providerLabel, extraHeaders = {} }) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      ...extraHeaders,
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.2,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: "You output only valid JSON. No prose." },
-        { role: "user", content: prompt },
-      ],
-    }),
-  })
-  if (!res.ok) {
+async function callOpenAICompatible({ url, apiKey, model, prompt, providerLabel, extraHeaders = {}, maxRetries = 5 }) {
+  let res
+  for (let attempt = 0; ; attempt++) {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        ...extraHeaders,
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.2,
+        // Large missing-only payloads (e.g. a whole untranslated section) can
+        // produce thousands of output tokens; the provider default truncates
+        // them → invalid JSON / key-parity failure. Give the response headroom.
+        max_tokens: 8192,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: "You output only valid JSON. No prose." },
+          { role: "user", content: prompt },
+        ],
+      }),
+    })
+    if (res.ok) break
+    // Rate-limited (429) or transient server error (5xx): back off and retry.
+    // The free OpenRouter tier is aggressively rate-limited, so this keeps a
+    // 30-locale run alive instead of failing whole sections.
+    const retryable = res.status === 429 || res.status >= 500
+    if (retryable && attempt < maxRetries) {
+      const wait = Math.min(60000, 3000 * 2 ** attempt)
+      console.error(`      ${providerLabel} ${res.status} — retry ${attempt + 1}/${maxRetries} in ${Math.round(wait / 1000)}s`)
+      await sleep(wait)
+      continue
+    }
     const text = await res.text()
     throw new Error(`${providerLabel} ${res.status}: ${text.slice(0, 400)}`)
   }
@@ -367,7 +442,21 @@ async function main() {
 
   const skipTranslated = args.flags.has("resume") && !args.flags.has("force")
 
+  // --missing-only: translate ONLY leaf keys present in en.json but absent from
+  // the target locale, deep-merging results. Existing translations are never
+  // re-sent or overwritten. Ideal for propagating newly-added UI keys.
+  const missingOnly = args.flags.has("missing-only")
+  if (missingOnly && subsectionKeys) {
+    console.error("--missing-only and --subsection are mutually exclusive.")
+    process.exit(1)
+  }
+
   const todo = sections.filter((s) => {
+    if (missingOnly) {
+      const { count } = buildMissingPayload(en[s], target[s])
+      if (count === 0) return false
+      return true
+    }
     if (args.flags.has("force")) return true
     // When --subsection is in play, --resume compares only the targeted
     // sub-trees; if ANY selected sub-tree is missing or equal to English,
@@ -407,17 +496,27 @@ async function main() {
   const runOne = async (sectionName) => {
     const start = Date.now()
 
-    // When --subsection is set, translate only the selected children and
-    // deep-merge the result into target[sectionName] to preserve existing
-    // translations of siblings.
-    const payload = subsectionKeys
-      ? Object.fromEntries(subsectionKeys.map((k) => [k, en[sectionName][k]]))
-      : en[sectionName]
-    const promptLabel = subsectionKeys
-      ? `${sectionName}.{${subsectionKeys.join(",")}}`
-      : sectionName
+    // Build the payload for this section. --missing-only sends just the absent
+    // leaves; --subsection sends selected children; default sends the whole
+    // section.
+    let payload
+    let promptLabel
+    let missingCount = 0
+    if (missingOnly) {
+      const r = buildMissingPayload(en[sectionName], target[sectionName])
+      payload = r.payload
+      missingCount = r.count
+      promptLabel = `${sectionName} (+${missingCount})`
+    } else if (subsectionKeys) {
+      payload = Object.fromEntries(subsectionKeys.map((k) => [k, en[sectionName][k]]))
+      promptLabel = `${sectionName}.{${subsectionKeys.join(",")}}`
+    } else {
+      payload = en[sectionName]
+      promptLabel = sectionName
+    }
 
-    const prompt = buildPrompt(languageName, promptLabel, payload)
+    // Model prompt references the real section name (not the count-annotated label).
+    const prompt = buildPrompt(languageName, sectionName, payload)
 
     let translated
     try {
@@ -429,7 +528,10 @@ async function main() {
       return
     }
 
-    if (subsectionKeys) {
+    if (missingOnly) {
+      // Deep-merge only the newly-translated missing keys; siblings untouched.
+      target[sectionName] = deepMerge(target[sectionName] || {}, translated)
+    } else if (subsectionKeys) {
       target[sectionName] = { ...(target[sectionName] || {}), ...translated }
     } else {
       target[sectionName] = translated

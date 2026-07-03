@@ -55,7 +55,9 @@
     "excludesTaxTooltip": "Prețurile din această coloană sunt fără taxe.",
     "noMoreData": "Nu mai sunt date",
     "items_one": "{{count}} articol",
-    "items_other": "{{count}} articole"
+    "items_other": "{{count}} articole",
+    "areYouSureDescription": "Sunteți pe cale să ștergeți {{entity}} „{{title}}”. Această acțiune nu poate fi anulată.",
+    "noRecordsMessageFiltered": "Nu există înregistrări care să corespundă filtrelor"
   },
   "json": {
     "header": "JSON",
@@ -137,7 +139,9 @@
     "hide": "Ascunde",
     "export": "Export",
     "import": "Import",
-    "cannotUndo": "Această acțiune nu poate fi anulată"
+    "cannotUndo": "Această acțiune nu poate fi anulată",
+    "editVariantImages": "Editați imaginile variantei",
+    "editImages": "Editați imaginile"
   },
   "operators": {
     "in": "În"
@@ -251,7 +255,25 @@
       },
       "main": {
         "store": "Magazin",
-        "storeSettings": "Memorează setările"
+        "storeSettings": "Memorează setările",
+        "home": "Acasă",
+        "designs": "Designuri",
+        "productionRuns": "Serii de producție",
+        "tasks": "Sarcini",
+        "paymentSubmissions": "Trimiteri de plată",
+        "inventoryOrders": "Comenzi de inventar",
+        "sharedFolders": "Dosare partajate",
+        "products": "Produse",
+        "categories": "Categorii",
+        "collections": "Colecții",
+        "productTypes": "Tipuri",
+        "stock": "Stoc",
+        "orders": "Comenzi",
+        "customers": "Clienți",
+        "webStore": "Magazin online",
+        "content": "Conținut",
+        "theme": "Temă",
+        "analytics": "Analitice"
       },
       "settings": {
         "header": "Setări",
@@ -363,7 +385,8 @@
       "sameAsShipping": "La fel ca adresa de livrare"
     },
     "contactHeading": "Contact",
-    "locationHeading": "Locaţie"
+    "locationHeading": "Locaţie",
+    "title": "Adrese"
   },
   "email": {
     "editHeader": "Editați e-mailul",
@@ -521,7 +544,14 @@
       "deleteWarning_one": "Sunteți pe cale să ștergeți {{count}} imagine. ",
       "deleteWarning_other": "Sunteți pe cale să ștergeți {{count}} imagini. ",
       "deleteWarningWithThumbnail_one": "Sunteți pe cale să ștergeți {{count}} imaginea inclusiv miniatura. ",
-      "deleteWarningWithThumbnail_other": "Sunteți pe cale să ștergeți {{count}} imagini, inclusiv miniatura. "
+      "deleteWarningWithThumbnail_other": "Sunteți pe cale să ștergeți {{count}} imagini, inclusiv miniatura. ",
+      "manageImageVariants": "Gestionează variantele asociate",
+      "fileTooLarge": "Unul sau mai multe fișiere depășesc dimensiunea maximă permisă de {{size}}: {{name}}",
+      "variantImages": "Imagini ale variantelor",
+      "showAvailableImages": "Afișează imaginile disponibile",
+      "availableImages": "Selectează imagini",
+      "selectToAdd": "Adaugă imagini produsului la variantă. Pentru a adăuga imagini noi, adăugați-le mai întâi produsului.",
+      "removeSelected": "Elimină selecția"
     },
     "discountableHint": "Dacă nu este bifată, reducerile nu vor fi aplicate acestui produs.",
     "noSalesChannels": "Nu este disponibil în niciun canal de vânzare",
@@ -608,6 +638,10 @@
       },
       "hs_code": {
         "label": "Cod HS"
+      },
+      "shipping_profile": {
+        "label": "Profil de livrare",
+        "hint": "Asociază produsul cu un profil de livrare"
       }
     },
     "variant": {
@@ -695,7 +729,50 @@
       }
     },
     "variantCount_one": "{{count}} variantă",
-    "variantCount_other": "{{count}} variante"
+    "variantCount_other": "{{count}} variante",
+    "variantMedia": {
+      "label": "Media variantei",
+      "manageVariants": "Gestionează variantele",
+      "addToMultipleVariants": "Adaugă la mai multe variante",
+      "manageVariantsDescription": "Gestionează variantele asociate pentru această imagine",
+      "successToast": "Variantele imaginii au fost actualizate cu succes.",
+      "emptyState": {
+        "header": "Nicio media încă",
+        "description": "Adaugă media variantei pentru a o afișa în magazinul tău online.",
+        "action": "Adaugă media"
+      }
+    },
+    "columns": {
+      "product_display": "Produs",
+      "variants_count": "Variante",
+      "sales_channels_display": "Canale de vânzare",
+      "collection": "Colecție",
+      "status": "Stare",
+      "thumbnail": "Miniatură",
+      "title": "Titlu",
+      "handle": "Identificator",
+      "created_at": "Creat",
+      "updated_at": "Actualizat"
+    },
+    "prices": {
+      "edit": {
+        "successToast": "Prețurile au fost actualizate cu succes."
+      }
+    },
+    "shippingProfile": {
+      "header": "Configurare livrare",
+      "edit": {
+        "header": "Configurare livrare",
+        "toasts": {
+          "success": "Profilul de livrare pentru {{title}} a fost actualizat cu succes."
+        }
+      },
+      "create": {
+        "errors": {
+          "required": "Profilul de livrare este obligatoriu."
+        }
+      }
+    }
   },
   "collections": {
     "domain": "Colecții",
@@ -849,7 +926,10 @@
       "disablePrompt_other": "Sunteți pe cale să dezactivați {{count}} niveluri de locație. Această acțiune nu poate fi anulată.",
       "disabledToggleTooltip": "Nu se poate dezactiva: ștergeți cantitatea primită și/sau rezervată înainte de dezactivare.",
       "successToast": "Nivelurile de inventar au fost actualizate cu succes."
-    }
+    },
+    "manageLocationQuantity": "Gestionează cantitatea pentru locație",
+    "quantityAcrossLocations": "{{quantity}} în {{locations}} locații",
+    "levelDeleted": "Nivelul de inventar a fost șters cu succes."
   },
   "giftCards": {
     "domain": "Carduri cadou",
@@ -917,7 +997,28 @@
     },
     "registered": "Înregistrat",
     "guest": "Oaspete",
-    "hasAccount": "Are cont"
+    "hasAccount": "Are cont",
+    "addresses": {
+      "title": "Adrese",
+      "fields": {
+        "addressName": "Numele adresei",
+        "address1": "Adresa 1",
+        "address2": "Adresa 2",
+        "city": "Oraș",
+        "province": "Județ",
+        "postalCode": "Cod poștal",
+        "country": "Țară",
+        "phone": "Telefon",
+        "company": "Companie",
+        "countryCode": "Codul țării",
+        "provinceCode": "Codul județului"
+      },
+      "create": {
+        "header": "Creează adresă",
+        "hint": "Creați o nouă adresă pentru client.",
+        "successToast": "Adresa a fost creată cu succes."
+      }
+    }
   },
   "customerGroups": {
     "domain": "Grupuri de clienți",
@@ -999,7 +1100,8 @@
       "itemSubtotal": "Subtotal articol",
       "shippingSubtotal": "Subtotal de livrare",
       "discountSubtotal": "Subtotal reducere",
-      "taxTotal": "Total impozit"
+      "taxTotal": "Total impozit",
+      "totalAfterDiscount": "Total după reducere"
     },
     "transfer": {
       "title": "Transferați proprietatea",
@@ -1040,7 +1142,8 @@
       "createRefundWrongQuantity": "Cantitatea ar trebui să fie un număr între 1 și {{number}}",
       "refundAmount": "Restituire {{ amount }}",
       "paymentLink": "Copiați linkul de plată pentru {{ amount }}",
-      "selectPaymentToRefund": "Selectați plata pentru rambursare"
+      "selectPaymentToRefund": "Selectați plata pentru rambursare",
+      "totalStoreCreditRefunds": "Restituirile totale în credit magazin"
     },
     "edits": {
       "title": "Editați comanda",
@@ -1154,7 +1257,8 @@
       "panel": {
         "title": "Returul a fost inițiat",
         "description": "Există o cerere de returnare deschisă care trebuie completată"
-      }
+      },
+      "estDifference": "Diferență estimată"
     },
     "claims": {
       "create": "Creați revendicare",
@@ -1220,7 +1324,10 @@
       "panel": {
         "title": "Schimbul a fost inițiat",
         "description": "Există o cerere de schimb deschisă care trebuie completată"
-      }
+      },
+      "carryOverPromotion": "Păstrează promoțiile",
+      "carryOverPromotionHint": "Aplică promoțiile comenzii la articolele schimbate",
+      "carryOverPromotionTooltip": "Doar promoțiile de tip fix cu alocare EACH și cele de tip procentual cu alocare EACH sau ACROSS pot fi păstrate pentru articolele outbound schimbate."
     },
     "reservations": {
       "allocatedLabel": "Alocat",
@@ -1236,7 +1343,8 @@
       "consistsOf": "Consta din {{num}}x articole de inventar",
       "requires": "Necesită {{num}} pe variantă",
       "toast": {
-        "created": "Articole alocate cu succes"
+        "created": "Articole alocate cu succes",
+        "error": "Alocarea următoarelor articole a eșuat: {{items}}"
       },
       "error": {
         "quantityNotAllocated": "Sunt articole nealocate."
@@ -1248,7 +1356,9 @@
       "addTracking": "Adăugați numărul de urmărire",
       "sendNotification": "Trimite o notificare",
       "sendNotificationHint": "Notificați clientul despre această expediere.",
-      "toastCreated": "Expedierea a fost creată cu succes."
+      "toastCreated": "Expedierea a fost creată cu succes.",
+      "trackingUrl": "URL de urmărire",
+      "labelUrl": "URL etichetă"
     },
     "fulfillment": {
       "cancelWarning": "Sunteți pe cale să anulați o realizare. ",
@@ -1273,7 +1383,9 @@
       "error": {
         "wrongQuantity": "Un singur articol este disponibil pentru îndeplinire",
         "noItems": "Nu există elemente de îndeplinit.",
-        "wrongQuantity_other": "Cantitatea ar trebui să fie un număr între 1 și {{number}}"
+        "wrongQuantity_other": "Cantitatea ar trebui să fie un număr între 1 și {{number}}",
+        "noShippingOption": "Opțiunea de livrare este obligatorie",
+        "noLocation": "Locația este obligatorie"
       },
       "status": {
         "notFulfilled": "Neîmplinit",
@@ -1292,11 +1404,15 @@
         "created": "Implementare creată cu succes",
         "canceled": "Îndeplinirea a fost anulată",
         "fulfillmentShipped": "Nu se poate anula o livrare deja expediată",
-        "fulfillmentDelivered": "Realizare marcată ca livrată cu succes"
+        "fulfillmentDelivered": "Realizare marcată ca livrată cu succes",
+        "fulfillmentPickedUp": "Livrarea a fost marcată ca ridicată cu succes"
       },
       "trackingLabel": "Urmărire",
       "shippingFromLabel": "Livrare de la",
-      "itemsLabel": "Articole"
+      "itemsLabel": "Articole",
+      "differentOptionSelected": "Opțiunea de livrare selectată este diferită de cea aleasă de client.",
+      "disabledItemTooltip": "Opțiunea de livrare selectată nu permite livrarea acestui articol",
+      "markAsPickedUp": "Marchează ca ridicat"
     },
     "refund": {
       "title": "Creați rambursare",
@@ -1397,6 +1513,31 @@
       "displayId": "ID afișat",
       "refundableAmount": "Sumă rambursabilă",
       "returnableQuantity": "Cantitate returnabilă"
+    },
+    "giftCardsStoreCreditLines": "Carduri cadou și linii de credit",
+    "creditLines": {
+      "title": "Linii de credit",
+      "total": "Suma tuturor liniilor de credit",
+      "creditOrDebit": "Credit / Debit",
+      "createCreditLine": "Creează o linie de credit",
+      "createCreditLineSuccess": "Linia de credit a fost creată cu succes",
+      "createCreditLineError": "Eroare la crearea liniei de credit",
+      "createCreditLineDescription": "Creează o linie de credit pentru suma {{amount}}",
+      "operation": "Operațiune",
+      "credit": "Credit",
+      "creditDescription": "Adaugă o sumă pozitivă la comandă",
+      "debit": "Debit",
+      "debitDescription": "Scade o sumă negativă din comandă"
+    },
+    "balanceSettlement": {
+      "title": "Regularizare sold",
+      "settlementType": "Tipul regularizării",
+      "settlementTypes": {
+        "paymentMethod": "Metodă de plată",
+        "paymentMethodDescription": "Restituie suma către metoda de plată",
+        "creditLine": "Credit magazin",
+        "creditLineDescription": "Restituie suma ca credit magazin"
+      }
     }
   },
   "draftOrders": {
@@ -1445,7 +1586,10 @@
   "stockLocations": {
     "domain": "Locații și transport",
     "list": {
-      "description": "Gestionați locațiile de stoc ale magazinului dvs. și opțiunile de livrare."
+      "description": "Gestionați locațiile de stoc ale magazinului dvs. și opțiunile de livrare.",
+      "noRecordsMessage": "Niciun înregistrare",
+      "noRecordsMessageEmpty": "Nu s-au găsit locații",
+      "noRecordsMessageFiltered": "Nu s-au găsit locații care să corespundă filtrelor"
     },
     "create": {
       "header": "Creați locație stoc",
@@ -1458,7 +1602,8 @@
       "successToast": "Locaţie {{name}} a fost actualizat cu succes."
     },
     "delete": {
-      "confirmation": "Sunteți pe cale să ștergeți locația stocului {{name}}. "
+      "confirmation": "Sunteți pe cale să ștergeți locația stocului {{name}}. ",
+      "successToast": "Locația „{{name}}” a fost ștearsă cu succes."
     },
     "fulfillmentProviders": {
       "header": "Furnizori de servicii",
@@ -1491,6 +1636,10 @@
       "shippingProfiles": {
         "label": "Profiluri de expediere",
         "description": "Grupați produsele după cerințele de expediere"
+      },
+      "shippingOptionTypes": {
+        "label": "Tipuri de opțiuni de livrare",
+        "description": "Grupați opțiunile de livrare după tip"
       }
     },
     "salesChannels": {
@@ -1499,7 +1648,8 @@
       "connectedTo": "Conectat la {{count}} de {{total}} canale de vânzare",
       "noChannels": "Locația nu este conectată la niciun canal de vânzare.",
       "action": "Conectați canalele de vânzare",
-      "successToast": "Canalele de vânzare au fost actualizate cu succes."
+      "successToast": "Canalele de vânzare au fost actualizate cu succes.",
+      "hint": "Gestionați canalele de vânzare conectate la această locație."
     },
     "shippingOptions": {
       "create": {
@@ -1519,7 +1669,13 @@
           "details": "Detalii",
           "prices": "Preturi"
         },
-        "action": "Creați opțiunea"
+        "action": "Creați opțiunea",
+        "pickup": {
+          "header": "Creați o opțiune de ridicare pentru {{zone}}",
+          "hint": "Creați o nouă opțiune de ridicare pentru a defini modul în care produsele sunt ridicate din această locație.",
+          "label": "Opțiuni de ridicare",
+          "successToast": "Opțiunea de ridicare {{name}} a fost creată cu succes."
+        }
       },
       "delete": {
         "confirmation": "Sunteți pe cale să ștergeți opțiunea de expediere {{name}}. ",
@@ -1573,7 +1729,9 @@
           "shipping_one": "{{count}} opțiunea de livrare",
           "shipping_other": "{{count}} opțiuni de expediere",
           "returns_one": "{{count}} opțiunea de returnare",
-          "returns_other": "{{count}} opțiuni de returnare"
+          "returns_other": "{{count}} opțiuni de returnare",
+          "pickup_one": "{{count}} opțiune de ridicare",
+          "pickup_other": "{{count}} opțiuni de ridicare"
         },
         "priceType": {
           "label": "Tip de preț",
@@ -1594,7 +1752,8 @@
         },
         "provider": "Furnizor de îndeplinire",
         "profile": "Profil de livrare",
-        "fulfillmentOption": "Opțiune de îndeplinire"
+        "fulfillmentOption": "Opțiune de îndeplinire",
+        "type": "Tipul opțiunii de livrare"
       }
     },
     "serviceZones": {
@@ -1622,6 +1781,11 @@
       "fields": {
         "noRecords": "Nu există zone de servicii pentru a adăuga opțiuni de expediere.",
         "tip": "O zonă de serviciu este o colecție de zone sau zone geografice. "
+      }
+    },
+    "pickupOptions": {
+      "edit": {
+        "header": "Editați opțiunea de ridicare"
       }
     }
   },
@@ -1656,7 +1820,9 @@
       "hint": "Creați o nouă regiune fiscală pentru a defini cotele de impozitare pentru o anumită țară.",
       "errors": {
         "rateIsRequired": "Cota de impozitare este necesară la crearea unei cote implicite de impozitare.",
-        "nameIsRequired": "Numele este necesar la crearea unei rate de impozitare implicite."
+        "nameIsRequired": "Numele este necesar la crearea unei rate de impozitare implicite.",
+        "missingProvider": "Furnizorul este obligatoriu la crearea unei regiuni fiscale.",
+        "missingCountry": "Țara este obligatorie la crearea unei regiuni fiscale."
       },
       "successToast": "Regiunea fiscală a fost creată cu succes."
     },
@@ -1800,7 +1966,8 @@
           "productCollection": "Colecții de produse",
           "productTag": "Etichete de produs",
           "productType": "Tipuri de produse",
-          "customerGroup": "Grupuri de clienți"
+          "customerGroup": "Grupuri de clienți",
+          "shippingOption": "Opțiuni de livrare"
         },
         "operators": {
           "in": "în",
@@ -1812,14 +1979,16 @@
           "productCollection": "Căutați colecții de produse",
           "productTag": "Căutați etichete de produse",
           "productType": "Căutați tipuri de produse",
-          "customerGroup": "Căutați grupuri de clienți"
+          "customerGroup": "Căutați grupuri de clienți",
+          "shippingOption": "Căutați opțiuni de livrare"
         },
         "tags": {
           "product": "Produs",
           "productCollection": "Colecția de produse",
           "productTag": "Eticheta produsului",
           "productType": "Tip de produs",
-          "customerGroup": "Grup de clienți"
+          "customerGroup": "Grup de clienți",
+          "shippingOption": "Opțiune de livrare"
         },
         "modal": {
           "header": "Adăugați ținte"
@@ -1875,7 +2044,16 @@
       "noDefaultRate": {
         "label": "Fără rată implicită",
         "tooltip": "Această regiune fiscală nu are o rată de impozitare implicită. "
-      }
+      },
+      "taxProvider": "Furnizor fiscal"
+    },
+    "edit": {
+      "header": "Editare regiune fiscală",
+      "hint": "Editați detaliile regiunii fiscale.",
+      "successToast": "Regiunea fiscală a fost actualizată cu succes."
+    },
+    "provider": {
+      "header": "Furnizor fiscal"
     }
   },
   "promotions": {
@@ -1907,13 +2085,29 @@
         },
         "target-rules": {
           "title": "La ce articole se va aplica promoția?",
-          "description": "Promoția se va aplica articolelor care îndeplinesc următoarele condiții."
+          "description": "Promoția se va aplica articolelor care îndeplinesc următoarele condiții.",
+          "order": {
+            "title": "La ce produse se va aplica promoția?",
+            "description": "Promoția se va aplica produselor care îndeplinesc următoarele condiții."
+          },
+          "shipping_methods": {
+            "title": "La ce metode de livrare se va aplica promoția?",
+            "description": "Promoția se va aplica metodelor de livrare care îndeplinesc următoarele condiții."
+          },
+          "items": {
+            "title": "La ce produse se va aplica promoția?",
+            "description": "Promoția se va aplica produselor care îndeplinesc următoarele condiții."
+          }
         },
         "buy-rules": {
           "title": "Ce trebuie să fie în coș pentru a debloca promoția?",
           "description": "Dacă aceste condiții se potrivesc, activăm promovarea pe articolele țintă."
         }
-      }
+      },
+      "allocationTooltip": "Fiecare aplică limita de cantitate pe element, în timp ce „O singură dată” aplică limita de cantitate întregului coș",
+      "taxInclusive": "Inclusiv taxe",
+      "usageLimit": "Limită de utilizare",
+      "usage": "Utilizare"
     },
     "tooltips": {
       "campaignType": "Codul monedei trebuie selectat în promoție pentru a seta un buget de cheltuieli."
@@ -2021,6 +2215,10 @@
         "across": {
           "title": "Peste tot",
           "description": "Aplică valoarea articolelor"
+        },
+        "once": {
+          "title": "O singură dată",
+          "description": "Aplică valoarea unui număr limitat de produse"
         }
       },
       "code": {
@@ -2028,7 +2226,8 @@
         "description": "Codul pe care clienții dumneavoastră îl vor introduce în timpul plății."
       },
       "value": {
-        "title": "Valoarea de promovare"
+        "title": "Valoarea de promovare",
+        "invalid": "Valoare promoțională nevalidă"
       },
       "value_type": {
         "fixed": {
@@ -2039,6 +2238,14 @@
           "title": "Valoarea de promovare",
           "description": "Procentul de reducere a sumei. "
         }
+      },
+      "taxInclusive": {
+        "title": "Include promoția taxele?",
+        "description": "Activați acest câmp pentru a aplica promoția după taxe"
+      },
+      "limit": {
+        "title": "Limită de utilizare",
+        "description": "Numărul maxim de ori în care poate fi folosită această promoție în toate comenzile. Lăsați necompletat pentru utilizare nelimitată."
       }
     },
     "deleteWarning": "Sunteți pe cale să ștergeți promoția {{code}}. ",
@@ -2094,7 +2301,8 @@
       "budget_limit": "Limită bugetară",
       "campaign_id": {
         "hint": "În această listă sunt afișate numai campaniile cu același cod de monedă ca și promoția."
-      }
+      },
+      "totalUsedByAttribute": "Total utilizat"
     },
     "budget": {
       "create": {
@@ -2106,7 +2314,12 @@
         "type": "Tip",
         "currency": "Valută",
         "limit": "Limită",
-        "used": "Folosit"
+        "used": "Folosit",
+        "budgetAttribute": "Limită de utilizare pe",
+        "budgetAttributeTooltip": "Definiți de câte ori poate fi folosită promoția de fiecare client sau adresă de email.",
+        "totalUsedByAttribute": "Limită buget pe: {{attribute}}",
+        "totalUsedByAttributeCustomerId": "Limită buget pe client",
+        "totalUsedByAttributeEmail": "Limită buget pe email"
       },
       "type": {
         "spend": {
@@ -2116,10 +2329,20 @@
         "usage": {
           "title": "Utilizare",
           "description": "Stabiliți o limită de câte ori poate fi utilizată promoția."
+        },
+        "useByAttribute": {
+          "title": "Utilizare după atribut (ID client, email etc.)",
+          "titleCustomerId": "Utilizare pe client",
+          "titleEmail": "Utilizare pe email",
+          "description": "Stabiliți o limită pentru numărul de utilizări ale promoției de către o valoare specifică a atributului."
         }
       },
       "edit": {
         "header": "Editați bugetul campaniei"
+      },
+      "attribute": {
+        "customer_id": "client",
+        "customer_email": "email"
       }
     },
     "promotions": {
@@ -2248,7 +2471,10 @@
     "manageYourProfileDetails": "Gestionați detaliile profilului dvs.",
     "fields": {
       "languageLabel": "Limbă",
-      "usageInsightsLabel": "Informații despre utilizare"
+      "usageInsightsLabel": "Informații despre utilizare",
+      "onboardingLabel": "Inițiere",
+      "onboardingCompleted": "Finalizat",
+      "onboardingNotCompleted": "Nefinalizat"
     },
     "edit": {
       "header": "Editați profilul",
@@ -2318,10 +2544,19 @@
       "update": "Magazinul a fost actualizat cu succes",
       "currenciesUpdated": "Monede au fost actualizate cu succes",
       "currenciesRemoved": "S-au eliminat cu succes monedele din magazin",
-      "updatedTaxInclusivitySuccessfully": "Prețul cu taxe incluse a fost actualizat cu succes"
+      "updatedTaxInclusivitySuccessfully": "Prețul cu taxe incluse a fost actualizat cu succes",
+      "localesUpdated": "Localizările au fost actualizate cu succes",
+      "localesRemoved": "Localizările au fost eliminate cu succes din magazin"
     },
     "removeCurrencyWarning_one": "Sunteți pe cale să eliminați {{count}} moneda din magazinul dvs. ",
-    "removeCurrencyWarning_other": "Sunteți pe cale să eliminați {{count}} monede din magazinul dvs. "
+    "removeCurrencyWarning_other": "Sunteți pe cale să eliminați {{count}} monede din magazinul dvs. ",
+    "defaultLocale": "Localizare implicită",
+    "defaultSalesChannel": "Canal de vânzare implicit",
+    "defaultLocation": "Locație implicită",
+    "locales": "Localizări",
+    "removeLocaleWarning_one": "Sunteți pe cale să eliminați {{count}} localizare din magazinul dvs. Orice traducere care folosește această localizare va fi eliminată.",
+    "removeLocaleWarning_other": "Sunteți pe cale să eliminați {{count}} localizări din magazinul dvs. Orice traducere care folosește aceste localizări va fi eliminată.",
+    "localeAlreadyAdded": "Localizarea a fost deja adăugată în magazinul dvs."
   },
   "regions": {
     "domain": "Regiunile",
@@ -2475,7 +2710,17 @@
       }
     },
     "removeProductsWarning_one": "Sunteți pe cale să eliminați {{count}} produs de la {{sales_channel}}.",
-    "removeProductsWarning_other": "Sunteți pe cale să eliminați {{count}} produse de la {{sales_channel}}."
+    "removeProductsWarning_other": "Sunteți pe cale să eliminați {{count}} produse de la {{sales_channel}}.",
+    "list": {
+      "empty": {
+        "heading": "Nu s-au găsit canale de vânzare",
+        "description": "Odată ce un canal de vânzare a fost creat, acesta va apărea aici."
+      },
+      "filtered": {
+        "heading": "Niciun rezultat",
+        "description": "Niciun canal de vânzare nu corespunde criteriilor actuale de filtrare."
+      }
+    }
   },
   "apiKeyManagement": {
     "domain": {
@@ -2756,7 +3001,11 @@
     "added": "Adăugat",
     "removed": "Îndepărtat",
     "from": "Din",
-    "to": "La"
+    "to": "La",
+    "beaware": "Atenție",
+    "loading": "Se încarcă",
+    "selectValue": "Selectați o valoare",
+    "selectValues": "Selectați valori"
   },
   "fields": {
     "amount": "Cantitate",
@@ -2914,7 +3163,14 @@
     "startDate": "Data de începere",
     "endDate": "Data de încheiere",
     "draft": "Proiect",
-    "values": "Valori"
+    "values": "Valori",
+    "reference": "Referință",
+    "reference_id": "ID-ul referinței",
+    "enabledInStore": "Activat în magazin",
+    "isReturn": "Este retur",
+    "promotionCode": "Cod promoțional",
+    "serviceZone": "Zonă de serviciu",
+    "creditTotal": "Total linii de credit"
   },
   "dateTime": {
     "years_one": "An",
@@ -3050,7 +3306,8 @@
         "description": "Acesta va apărea în profilul dvs. de partener și în magazinul online. Puteți modifica această imagine ulterior.",
         "clickToChange": "Faceți clic pentru a schimba",
         "clickToUpload": "Faceți clic pentru a încărca sau trageți și plasați",
-        "fileTypes": "SVG, PNG, JPG (MAX. 5 MB)"
+        "fileTypes": "SVG, PNG, JPG (MAX. 5 MB)",
+        "currentLogo": "Logo actual"
       },
       "team": {
         "heading": "Adăugați membrii echipei dvs.",
@@ -3070,10 +3327,14 @@
         "stepCount": "Pasul {{current}} din {{total}}",
         "back": "Înapoi",
         "continue": "Continuă",
-        "complete": "Finalizează configurarea"
+        "complete": "Finalizează configurarea",
+        "skipShort": "Sari"
       },
       "errors": {
         "unknown": "A apărut o eroare necunoscută"
+      },
+      "toast": {
+        "completed": "Inițializarea finalizată"
       }
     },
     "plan": {
@@ -3387,6 +3648,14 @@
         "copySuccessDescription": "\"{{title}}\" copiat ca ciornă.",
         "copyFailed": "Eșec la copierea produsului",
         "somethingWrong": "A apărut o problemă"
+      },
+      "whatsNew": {
+        "heading": "Ce este nou",
+        "dismiss": "Ignoră",
+        "defaultCta": "Vezi detalii",
+        "previous": "Actualizare anterioară",
+        "next": "Actualizare următoare",
+        "goToUpdate": "Mergi la actualizarea {{index}}"
       }
     },
     "sharedFolders": {
@@ -3448,6 +3717,150 @@
         "noPagesTitle": "Nicio pagină încă",
         "noPagesMessage": "Creați paginile dvs. implicite pentru a începe cu conținutul vitrinei.",
         "noMatches": "Nu s-au găsit pagini"
+      }
+    },
+    "workOrders": {
+      "designOrder": "Comandă de design",
+      "inventoryOrder": "Comandă de inventar",
+      "manageDesign": "Gestionează designul",
+      "amount": "Sumă",
+      "totalQuantity": "Cantitate totală",
+      "total": "Total",
+      "producing": "În producție",
+      "start": "Pornește",
+      "complete": "Finalizează",
+      "readyForDelivery": "Marchează ca gata pentru livrare",
+      "createShipment": "Creează expedierea",
+      "submitPayment": "Trimite plata",
+      "fulfillments": "Livrări",
+      "noFulfillments": "Nu există încă livrări înregistrate.",
+      "payments": "Plăți",
+      "noPayments": "Nu există încă plăți trimise.",
+      "delivered": "Livrare efectuată",
+      "paymentSubmitted": "Plată trimisă",
+      "summary": "Rezumat",
+      "type": "Tip",
+      "designStatus": "Stare design",
+      "priority": "Prioritate",
+      "targetDate": "Dată țintă",
+      "estimatedCost": "Cost estimat",
+      "materials": "Materiale",
+      "moodboard": "Moodboard",
+      "media": "Media",
+      "orderStatus": "Stare",
+      "sample": "Eșantion",
+      "yes": "Da",
+      "no": "Nu",
+      "orderDate": "Dată comandă",
+      "expectedDelivery": "Livrare așteptată",
+      "stockLocation": "Locație stoc",
+      "designDetails": "Detalii design",
+      "openDesignManager": "Deschide managerul de design",
+      "noDesign": "Niciun design asociat acestei comenzi.",
+      "activity": {
+        "title": "Activitate",
+        "placed": "Comandă plasată",
+        "accepted": "Execuție acceptată",
+        "started": "Producția a început",
+        "finished": "Marcaj finalizat",
+        "completed": "Execuție finalizată"
+      }
+    },
+    "stripeConnect": {
+      "heading": "JYT Stripe Connect",
+      "payoutsPending": "plăți în așteptare",
+      "badge": {
+        "active": "Activ",
+        "pending": "Configurare incompletă"
+      },
+      "description": {
+        "default": "Sari introducerea cheilor API. Conectează un cont Stripe prin JYT pentru a primi plăți mai rapid, cu plăți și rambursări gestionate automat.",
+        "active": "Plățile trec prin Stripe Connect al JYT. Aceasta este sursa ta live Stripe — orice chei introduse manual mai jos sunt folosite doar ca rezervă."
+      },
+      "actions": {
+        "connect": "Conectează-te cu Stripe",
+        "resume": "Finalizează configurarea",
+        "manage": "Actualizează detaliile"
+      },
+      "toast": {
+        "startFailed": "Nu s-a putut iniția procesul de inițializare Stripe"
+      }
+    }
+  },
+  "shippingOptionTypes": {
+    "domain": "Tipuri de opțiuni de livrare",
+    "subtitle": "Organizați opțiunile de livrare în tipuri.",
+    "create": {
+      "header": "Creați un tip de opțiune de livrare",
+      "hint": "Creați un nou tip de opțiune de livrare pentru a categoriza opțiunile de livrare.",
+      "successToast": "Tipul de opțiune de livrare {{label}} a fost creat cu succes."
+    },
+    "edit": {
+      "header": "Editați tipul de opțiune de livrare",
+      "successToast": "Tipul de opțiune de livrare {{label}} a fost actualizat cu succes."
+    },
+    "delete": {
+      "confirmation": "Sunteți pe cale să ștergeți tipul de opțiune de livrare „{{label}}”. Această acțiune nu poate fi anulată.",
+      "successToast": "Tipul de opțiune de livrare „{{label}}” a fost șters cu succes."
+    },
+    "fields": {
+      "label": "Etichetă",
+      "code": "Cod",
+      "description": "Descriere"
+    }
+  },
+  "refundReasons": {
+    "domain": "Motivele rambursărilor",
+    "subtitle": "Gestionați motivele pentru emiterea rambursărilor.",
+    "calloutHint": "Gestionați motivele pentru a categoriza rambursările.",
+    "editReason": "Editați motivul rambursării",
+    "create": {
+      "header": "Adăugați motivul rambursării",
+      "subtitle": "Specificați motivele cele mai frecvente pentru rambursări.",
+      "hint": "Creați un nou motiv de rambursare pentru a categoriza rambursările.",
+      "successToast": "Motivul de rambursare {{label}} a fost creat cu succes."
+    },
+    "edit": {
+      "header": "Editați motivul rambursării",
+      "subtitle": "Editați valoarea motivului de rambursare.",
+      "successToast": "Motivul de rambursare {{label}} a fost actualizat cu succes."
+    },
+    "delete": {
+      "confirmation": "Sunteți pe cale să ștergeți motivul de rambursare „{{label}}”. Această acțiune nu poate fi anulată.",
+      "successToast": "Motivul de rambursare a fost șters cu succes."
+    },
+    "fields": {
+      "label": {
+        "label": "Etichetă",
+        "placeholder": "Gestul de bunăvoință"
+      },
+      "code": {
+        "label": "Cod",
+        "placeholder": "gestul_de_bunavointa"
+      },
+      "description": {
+        "label": "Descriere",
+        "placeholder": "Clientul a avut o experiență negativă de cumpărături"
+      }
+    }
+  },
+  "views": {
+    "save": "Salvează",
+    "saveAsNew": "Salvează ca vizualizare nouă",
+    "updateDefaultForEveryone": "Actualizează vizualizarea implicită pentru toți",
+    "updateViewName": "Actualizează vizualizarea",
+    "prompts": {
+      "updateDefault": {
+        "title": "Actualizează vizualizarea implicită",
+        "description": "Această acțiune va actualiza vizualizarea implicită pentru toți utilizatorii. Sigur dorești această modificare?",
+        "confirmText": "Actualizează pentru toți",
+        "cancelText": "Anulează"
+      },
+      "updateView": {
+        "title": "Actualizează vizualizarea",
+        "description": "Sigur dorești să actualizezi „{{name}}”?",
+        "confirmText": "Actualizează",
+        "cancelText": "Anulează"
       }
     }
   }
