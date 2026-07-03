@@ -28,6 +28,9 @@ const bodySchema = z.object({
   }).partial().optional(),
   preferred_courier_id: z.union([z.string(), z.number()]).optional(),
   delivered_quantities: z.record(z.string(), z.number()).optional(),
+  // Requested carrier pickup date ("YYYY-MM-DD"). Optional — omit to let
+  // Shiprocket pick the earliest slot.
+  pickup_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export async function POST(req: AuthenticatedMedusaRequest, res: MedusaResponse) {
@@ -58,6 +61,7 @@ export async function POST(req: AuthenticatedMedusaRequest, res: MedusaResponse)
       dimensionsCm: parsed.data.dimensions_cm as any,
       preferredCourierId: parsed.data.preferred_courier_id,
       deliveredQuantities: parsed.data.delivered_quantities,
+      pickupDate: parsed.data.pickup_date,
     },
     throwOnError: false,
   });

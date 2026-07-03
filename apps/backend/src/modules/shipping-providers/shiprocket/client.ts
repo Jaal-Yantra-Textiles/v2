@@ -494,9 +494,16 @@ export class ShiprocketClient implements ShippingProviderClient {
     if (!shipmentId) {
       throw new Error("Shiprocket schedulePickup requires ref.provider_refs.shipment_id")
     }
+    // Include the chosen pickup date when given — Shiprocket expects
+    // `pickup_date` as an array of "YYYY-MM-DD". Omitting it lets Shiprocket
+    // pick the earliest slot (previous behaviour).
+    const pickupBody: Record<string, any> = { shipment_id: [shipmentId] }
+    if (input.pickup_date) {
+      pickupBody.pickup_date = [String(input.pickup_date)]
+    }
     const json = await this.request<any>(`/courier/generate/pickup`, {
       method: "POST",
-      body: JSON.stringify({ shipment_id: [shipmentId] }),
+      body: JSON.stringify(pickupBody),
     })
     return {
       scheduled_date: json?.response?.pickup_scheduled_date,

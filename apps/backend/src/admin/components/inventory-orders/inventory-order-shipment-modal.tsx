@@ -32,6 +32,7 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
   const [breadth, setBreadth] = useState("");
   const [height, setHeight] = useState("");
   const [courier, setCourier] = useState("");
+  const [pickupDate, setPickupDate] = useState("");
   const [rates, setRates] = useState<ShiprocketRateOption[] | null>(null);
 
   const { mutateAsync, isPending } = useCreateInventoryOrderShipment(inventoryOrder.id);
@@ -72,6 +73,7 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
         ...(weight ? { weight_grams: Number(weight) } : {}),
         ...(dims ? { dimensions_cm: dims } : {}),
         ...(courier ? { preferred_courier_id: courier } : {}),
+        ...(pickupDate ? { pickup_date: pickupDate } : {}),
       },
       {
         onSuccess: (data) => {
@@ -166,6 +168,18 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
                 placeholder="Courier ID (optional) — or click Get rates"
               />
             )}
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label size="small" htmlFor="pickup_date">Pickup date</Label>
+            <Input
+              id="pickup_date"
+              type="date"
+              value={pickupDate}
+              onChange={(e) => setPickupDate(e.target.value)}
+            />
+            <Text size="xsmall" className="text-ui-fg-subtle">
+              Optional — leave blank to let the courier pick the earliest slot.
+            </Text>
           </div>
         </Drawer.Body>
         <Drawer.Footer>

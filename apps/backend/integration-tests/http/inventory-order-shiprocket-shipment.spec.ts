@@ -59,6 +59,7 @@ setupSharedTestSuite(() => {
     await createAdminUser(container);
     headers = await getAuthHeaders(api);
     shiprocketStubState.lastAdhocBody = undefined;
+    shiprocketStubState.lastPickupBody = undefined;
 
     const item = await api.post(
       "/admin/inventory-items",
@@ -150,6 +151,38 @@ setupSharedTestSuite(() => {
       expect(Array.isArray(body.order_items)).toBe(true);
       expect(body.order_items[0].sku).toBe("OTH-TAN-BLA-001");
       expect(body.order_items[0].units).toBe(3);
+    });
+
+    it("schedules the carrier pickup for the requested date", async () => {
+      const id = await createShippableOrder();
+
+      const res = await api.post(
+        `/admin/inventory-orders/${id}/shipment`,
+        { pickup_date: "2026-07-05" },
+        headers
+      );
+      expect(res.status).toBe(200);
+
+      // The pickup was scheduled for the requested date and the result is
+      // surfaced on the shipment.
+      const pickupBody = shiprocketStubState.lastPickupBody;
+      expect(pickupBody).toBeTruthy();
+      expect(pickupBody.pickup_date).toEqual(["2026-07-05"]);
+      expect(res.data.shipment.pickup?.scheduled_date).toBe("2026-07-05 10:00:00");
+    });
+
+    it("does not schedule a pickup when no date is given", async () => {
+      const id = await createShippableOrder();
+
+      const res = await api.post(
+        `/admin/inventory-orders/${id}/shipment`,
+        { weight_grams: 500 },
+        headers
+      );
+      expect(res.status).toBe(200);
+      // No pickup date → no pickup scheduling call (Shiprocket auto-slots).
+      expect(shiprocketStubState.lastPickupBody).toBeUndefined();
+      expect(res.data.shipment.pickup).toBeUndefined();
     });
   });
 });

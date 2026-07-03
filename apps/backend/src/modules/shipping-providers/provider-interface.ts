@@ -106,6 +106,8 @@ export type ShipmentResult = {
   tracking_url?: string
   label_url?: string
   provider_refs?: Record<string, any>
+  /** Set when a carrier pickup was scheduled alongside the shipment. */
+  pickup?: { scheduled_date?: string; token?: string }
   raw?: any
 }
 
