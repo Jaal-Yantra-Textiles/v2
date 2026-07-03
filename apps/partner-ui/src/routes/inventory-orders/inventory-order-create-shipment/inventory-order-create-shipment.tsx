@@ -1,10 +1,14 @@
 import { useState } from "react"
-import { Button, Heading, Input, Label, Text, toast } from "@medusajs/ui"
+import { Button, Heading, Input, Label, Select, Text, toast } from "@medusajs/ui"
 import { useQueryClient } from "@tanstack/react-query"
 
 import { RouteDrawer, useRouteModal } from "../../../components/modals"
 import { ordersQueryKeys } from "../../../hooks/api/orders"
-import { useCreatePartnerInventoryOrderShipment } from "../../../hooks/api/partner-inventory-orders"
+import {
+  useCreatePartnerInventoryOrderShipment,
+  usePartnerInventoryOrderShiprocketRates,
+  type PartnerShiprocketRateOption,
+} from "../../../hooks/api/partner-inventory-orders"
 import { useInventoryActionTarget } from "../../../hooks/use-inventory-action-target"
 
 export const InventoryOrderCreateShipment = () => {
@@ -31,30 +35,54 @@ const InventoryOrderCreateShipmentContent = () => {
   const [length, setLength] = useState("")
   const [breadth, setBreadth] = useState("")
   const [height, setHeight] = useState("")
+  const [courier, setCourier] = useState("")
+  const [rates, setRates] = useState<PartnerShiprocketRateOption[] | null>(null)
 
   const { mutateAsync, isPending } =
     useCreatePartnerInventoryOrderShipment(id || "")
+  const { mutateAsync: fetchRates, isPending: isFetchingRates } =
+    usePartnerInventoryOrderShiprocketRates(id || "")
+
+  // Mirrors the admin shipment modal: L/B/H are sent as dimensions_cm so the
+  // real package size reaches the courier (else it defaults to 10×10×10).
+  const dims = () =>
+    length || breadth || height
+      ? {
+          ...(length ? { length: Number(length) } : {}),
+          ...(breadth ? { breadth: Number(breadth) } : {}),
+          ...(height ? { height: Number(height) } : {}),
+        }
+      : undefined
+
+  const handleGetRates = async () => {
+    if (!id) return
+    try {
+      const res = await fetchRates({
+        ...(weight ? { weight_grams: Number(weight) } : {}),
+        ...(length ? { length: Number(length) } : {}),
+        ...(breadth ? { breadth: Number(breadth) } : {}),
+        ...(height ? { height: Number(height) } : {}),
+      })
+      setRates(res.rates || [])
+      const recommended =
+        res.rates?.find((r) => r.is_recommended) || res.rates?.[0]
+      if (recommended) setCourier(String(recommended.courier_id))
+      if (!res.rates?.length) toast.info("No couriers available for this route.")
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to fetch courier rates")
+    }
+  }
 
   const handleConfirm = async () => {
     if (!id) {
       return
     }
 
-    // Mirrors the admin shipment modal: L/B/H are sent as dimensions_cm so the
-    // real package size reaches the courier (else it defaults to 10×10×10).
-    const dims =
-      length || breadth || height
-        ? {
-            ...(length ? { length: Number(length) } : {}),
-            ...(breadth ? { breadth: Number(breadth) } : {}),
-            ...(height ? { height: Number(height) } : {}),
-          }
-        : undefined
-
     await mutateAsync(
       {
         ...(weight ? { weight_grams: Number(weight) } : {}),
-        ...(dims ? { dimensions_cm: dims } : {}),
+        ...(dims() ? { dimensions_cm: dims() } : {}),
+        ...(courier ? { preferred_courier_id: courier } : {}),
       },
       {
         onSuccess: (data) => {
@@ -128,6 +156,47 @@ const InventoryOrderCreateShipmentContent = () => {
               onChange={(e) => setHeight(e.target.value)}
             />
           </div>
+        </div>
+        <div className="flex flex-col gap-y-1">
+          <div className="flex items-center justify-between">
+            <Label size="small" htmlFor="courier">
+              Courier
+            </Label>
+            <Button
+              variant="transparent"
+              size="small"
+              type="button"
+              onClick={handleGetRates}
+              isLoading={isFetchingRates}
+              disabled={!id}
+            >
+              Get rates
+            </Button>
+          </div>
+          {rates && rates.length > 0 ? (
+            <Select value={courier} onValueChange={setCourier}>
+              <Select.Trigger id="courier">
+                <Select.Value placeholder="Select a courier" />
+              </Select.Trigger>
+              <Select.Content>
+                {rates.map((r) => (
+                  <Select.Item
+                    key={String(r.courier_id)}
+                    value={String(r.courier_id)}
+                  >
+                    {r.courier_name} — ₹{r.amount}
+                    {r.estimated_days ? ` · ${r.estimated_days}d` : ""}
+                    {r.is_recommended ? " · recommended" : ""}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
+          ) : (
+            <Text size="xsmall" className="text-ui-fg-subtle">
+              Optional — click “Get rates” to choose a courier, or leave it for
+              Shiprocket to auto-assign.
+            </Text>
+          )}
         </div>
         {!id && (
           <Text size="small" className="text-ui-fg-subtle">
