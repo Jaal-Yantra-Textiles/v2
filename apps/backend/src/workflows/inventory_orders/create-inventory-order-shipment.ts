@@ -53,6 +53,12 @@ export type CreateInventoryOrderShipmentInput = {
   deliveredQuantities?: Record<string, number>
   /** Acting user's email recorded on a freshly-registered pickup (#427). */
   actingEmail?: string
+  /**
+   * Requested carrier pickup date ("YYYY-MM-DD"). When set, a pickup is
+   * scheduled for that date after the shipment is created; otherwise Shiprocket
+   * picks the earliest slot.
+   */
+  pickupDate?: string
 }
 
 export async function createInventoryOrderShipment(
@@ -188,6 +194,25 @@ export async function createInventoryOrderShipment(
   })
   const result = await provider.createShipment(shipmentInput)
 
+  // Schedule the carrier pickup for the requested date (best-effort — the
+  // shipment already exists; a scheduling hiccup must not fail the whole call).
+  let pickup: { scheduled_date?: string; token?: string } | undefined
+  if (input.pickupDate && provider.schedulePickup) {
+    try {
+      const scheduled = await provider.schedulePickup({
+        pickup_location_name: pickupLocationName,
+        ref: { awb: result.awb, provider_refs: result.provider_refs },
+        pickup_date: input.pickupDate,
+      })
+      pickup = {
+        scheduled_date: scheduled.scheduled_date,
+        token: scheduled.token,
+      }
+    } catch {
+      // non-fatal — operator can reschedule from the carrier dashboard
+    }
+  }
+
   // Persist carrier refs onto the inventory order, replacing the free-text
   // tracking number with the real AWB. Spread the existing metadata so the
   // whole blob isn't clobbered (Medusa replaces metadata wholesale).
@@ -204,11 +229,12 @@ export async function createInventoryOrderShipment(
         label_url: result.label_url,
         provider_refs: result.provider_refs,
         created_at: new Date().toISOString(),
+        ...(pickup ? { pickup } : {}),
       },
     },
   })
 
-  return result
+  return { ...result, ...(pickup ? { pickup } : {}) }
 }
 
 const createInventoryOrderShipmentStep = createStep(

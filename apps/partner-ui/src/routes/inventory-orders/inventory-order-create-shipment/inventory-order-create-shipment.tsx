@@ -36,6 +36,7 @@ const InventoryOrderCreateShipmentContent = () => {
   const [breadth, setBreadth] = useState("")
   const [height, setHeight] = useState("")
   const [courier, setCourier] = useState("")
+  const [pickupDate, setPickupDate] = useState("")
   const [rates, setRates] = useState<PartnerShiprocketRateOption[] | null>(null)
 
   const { mutateAsync, isPending } =
@@ -83,6 +84,7 @@ const InventoryOrderCreateShipmentContent = () => {
         ...(weight ? { weight_grams: Number(weight) } : {}),
         ...(dims() ? { dimensions_cm: dims() } : {}),
         ...(courier ? { preferred_courier_id: courier } : {}),
+        ...(pickupDate ? { pickup_date: pickupDate } : {}),
       },
       {
         onSuccess: (data) => {
@@ -197,6 +199,20 @@ const InventoryOrderCreateShipmentContent = () => {
               Shiprocket to auto-assign.
             </Text>
           )}
+        </div>
+        <div className="flex flex-col gap-y-1">
+          <Label size="small" htmlFor="pickup_date">
+            Pickup date
+          </Label>
+          <Input
+            id="pickup_date"
+            type="date"
+            value={pickupDate}
+            onChange={(e) => setPickupDate(e.target.value)}
+          />
+          <Text size="xsmall" className="text-ui-fg-subtle">
+            Optional — leave blank to let the courier pick the earliest slot.
+          </Text>
         </div>
         {!id && (
           <Text size="small" className="text-ui-fg-subtle">

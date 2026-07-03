@@ -220,6 +220,8 @@ export interface CreateInventoryOrderShipmentPayload {
   dimensions_cm?: { length?: number; breadth?: number; height?: number };
   preferred_courier_id?: string | number;
   delivered_quantities?: Record<string, number>;
+  /** Requested carrier pickup date ("YYYY-MM-DD"). */
+  pickup_date?: string;
 }
 
 export interface CreateInventoryOrderShipmentResponse {
