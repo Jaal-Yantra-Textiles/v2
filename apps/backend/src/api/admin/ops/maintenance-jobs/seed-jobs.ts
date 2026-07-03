@@ -126,29 +126,50 @@ export function resolveEmailTemplateSpecs(setParam?: string): {
 export type EmailTemplateSeedPlan = {
   total: number
   toCreate: EmailTemplateSpec[]
+  /** existing keys that WILL be overwritten (only when overwrite is on). */
+  toUpdate: EmailTemplateSpec[]
+  /** existing keys left as-is (skip-existing; the default). */
   existingKeys: string[]
 }
 
+export type EmailTemplateSeedOptions = {
+  /** overwrite existing templates from the spec instead of skipping them. */
+  overwrite?: boolean
+  /** scope the whole run to a single template_key (ignore all others). */
+  only?: string
+}
+
 /**
- * PURE: partition specs into create-vs-skip given the set of `template_key`s
- * already present. Exported for unit testing so the dry-run/apply decision is
- * verifiable without booting the DB.
+ * PURE: partition specs into create / update / skip given the set of
+ * `template_key`s already present. Default = skip-existing (create only). With
+ * `overwrite`, existing keys go to `toUpdate` instead of being skipped; with
+ * `only`, every spec whose key differs is ignored entirely. Exported for unit
+ * testing so the dry-run/apply decision is verifiable without booting the DB.
  */
 export function planEmailTemplateSeed(
   specs: EmailTemplateSpec[],
-  existing: Set<string> | string[]
+  existing: Set<string> | string[],
+  opts: EmailTemplateSeedOptions = {}
 ): EmailTemplateSeedPlan {
   const existingSet = existing instanceof Set ? existing : new Set(existing)
   const toCreate: EmailTemplateSpec[] = []
+  const toUpdate: EmailTemplateSpec[] = []
   const existingKeys: string[] = []
   for (const spec of specs) {
+    if (opts.only && spec.template_key !== opts.only) continue
     if (existingSet.has(spec.template_key)) {
-      existingKeys.push(spec.template_key)
+      if (opts.overwrite) toUpdate.push(spec)
+      else existingKeys.push(spec.template_key)
     } else {
       toCreate.push(spec)
     }
   }
-  return { total: specs.length, toCreate, existingKeys }
+  return {
+    total: toCreate.length + toUpdate.length + existingKeys.length,
+    toCreate,
+    toUpdate,
+    existingKeys,
+  }
 }
 
 /**
@@ -162,18 +183,32 @@ export function buildEmailTemplateSeedResult(
   setLabel: string
 ): MaintenanceJobResult {
   const verb = dry_run ? "Would create" : "Created"
-  const changes: MaintenanceChange[] = plan.toCreate.map((spec) => ({
-    entity: "email_template",
-    id: spec.template_key,
-    field: "template_key",
-    before: null,
-    after: spec.name ?? spec.template_key,
-  }))
-  const summary = `${verb} ${plan.toCreate.length} of ${plan.total} ${setLabel}; ${plan.existingKeys.length} already exist`
+  const toUpdate = plan.toUpdate ?? []
+  const changes: MaintenanceChange[] = [
+    ...plan.toCreate.map((spec) => ({
+      entity: "email_template",
+      id: spec.template_key,
+      field: "template_key",
+      before: null,
+      after: spec.name ?? spec.template_key,
+    })),
+    ...toUpdate.map((spec) => ({
+      entity: "email_template",
+      id: spec.template_key,
+      field: "content",
+      before: "(existing)",
+      after: spec.name ?? spec.template_key,
+    })),
+  ]
+  // Keep the original wording when there's nothing to overwrite (backward
+  // compatible); append the update clause only when overwrite produced updates.
+  const updateVerb = dry_run ? "would update" : "updated"
+  const updateClause = toUpdate.length ? `; ${updateVerb} ${toUpdate.length}` : ""
+  const summary = `${verb} ${plan.toCreate.length} of ${plan.total} ${setLabel}; ${plan.existingKeys.length} already exist${updateClause}`
   return {
     job_id: jobId,
     dry_run,
-    applied: !dry_run && plan.toCreate.length > 0,
+    applied: !dry_run && plan.toCreate.length + toUpdate.length > 0,
     summary,
     changes,
   }
@@ -183,18 +218,35 @@ export const seedEmailTemplatesJob: MaintenanceJob = {
   id: "seed-email-templates",
   label: "Seed email templates",
   description:
-    "Seed the reference email templates into a fresh / empty admin from the console — no shell or `medusa exec` needed (#457). Wraps the idempotent email-template seed scripts. Pick a set with the `set` param (core, additional, reengagement, partner, cart-abandoned, tour, visual-flow-lifecycle) or leave it blank / 'all' to seed every set. Dry-run reports exactly which template_keys WOULD be created vs already exist (writes nothing); apply creates ONLY the missing ones (skip-existing by template_key). Safe to re-run — never overwrites an admin-edited template.",
+    "Seed the reference email templates into a fresh / empty admin from the console — no shell or `medusa exec` needed (#457). Wraps the idempotent email-template seed scripts. Pick a set with the `set` param (core, additional, reengagement, partner, cart-abandoned, tour, visual-flow-lifecycle) or leave it blank / 'all' to seed every set. By default apply creates ONLY missing templates (skip-existing, never clobbers an admin-edited template). To push a REDESIGNED template live, pass overwrite=true — existing templates are updated from the spec; scope it with `only=<template_key>` (e.g. only=blog-subscriber) so you don't touch anything else. Dry-run always writes nothing.",
   params: [
     {
       name: "set",
       type: "string",
       required: false,
-      description: `Which template set to seed: ${EMAIL_TEMPLATE_SET_KEYS.join(", ")}, or "all" (default). Idempotent: only missing template_keys are created; dry-run writes nothing.`,
+      description: `Which template set to seed: ${EMAIL_TEMPLATE_SET_KEYS.join(", ")}, or "all" (default).`,
+    },
+    {
+      name: "overwrite",
+      type: "boolean",
+      required: false,
+      description: "Update existing templates from the spec instead of skipping them (default false). Use to push a redesigned template live.",
+    },
+    {
+      name: "only",
+      type: "string",
+      required: false,
+      description: "Scope the run to a single template_key (e.g. blog-subscriber) so overwrite touches nothing else.",
     },
   ],
   run: async (container, { dry_run, params }) => {
     const setParam =
       params?.set != null ? String(params.set) : undefined
+    const overwrite = params?.overwrite === true || params?.overwrite === "true"
+    const only =
+      params?.only != null && String(params.only).trim()
+        ? String(params.only).trim()
+        : undefined
 
     let resolved: { setKeys: string[]; specs: EmailTemplateSpec[] }
     try {
@@ -209,22 +261,31 @@ export const seedEmailTemplatesJob: MaintenanceJob = {
     const svc: any = container.resolve(EMAIL_TEMPLATES_MODULE)
     // Existence check spans active AND inactive rows (broader than the seeds'
     // getTemplateByKey, which is active-only) so we never create a duplicate
-    // template_key for a deactivated row.
+    // template_key for a deactivated row. `id` is needed to update on overwrite.
     const existingRows = await svc.listEmailTemplates(
       {},
-      { select: ["template_key"], take: 100000 }
+      { select: ["id", "template_key"], take: 100000 }
     )
     const existing = new Set<string>(
       (existingRows ?? [])
         .map((r: any) => r?.template_key)
         .filter((k: unknown): k is string => typeof k === "string" && k.length > 0)
     )
+    const idByKey = new Map<string, string>(
+      (existingRows ?? [])
+        .filter((r: any) => r?.id && r?.template_key)
+        .map((r: any) => [r.template_key as string, r.id as string])
+    )
 
-    const plan = planEmailTemplateSeed(resolved.specs, existing)
+    const plan = planEmailTemplateSeed(resolved.specs, existing, { overwrite, only })
 
     if (!dry_run) {
       for (const spec of plan.toCreate) {
         await svc.createEmailTemplates([spec])
+      }
+      for (const spec of plan.toUpdate) {
+        const id = idByKey.get(spec.template_key)
+        if (id) await svc.updateEmailTemplates({ id, ...spec })
       }
     }
 
