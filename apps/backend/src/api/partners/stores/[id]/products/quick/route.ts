@@ -5,6 +5,7 @@ import {
   createProductsWorkflow,
 } from "@medusajs/medusa/core-flows"
 import { validatePartnerStoreAccess } from "../../../../helpers"
+import { fanoutVariantPrices } from "../../../../../../workflows/fx/fanout-variant-prices"
 
 /**
  * POST /partners/stores/:id/products/quick
@@ -118,6 +119,13 @@ export const POST = async (
   })
 
   const product = result[0] as any
+
+  // FX fanout — auto-convert the single price into the store's other
+  // supported currencies. Idempotent + never throws.
+  await fanoutVariantPrices(req.scope, {
+    storeId: store.id,
+    variantIds: (product?.variants || []).map((v: any) => v.id),
+  })
 
   // Seed stock at the store's default location (if set and the user asked for it).
   if (

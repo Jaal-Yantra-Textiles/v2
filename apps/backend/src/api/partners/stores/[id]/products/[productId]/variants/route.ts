@@ -7,6 +7,7 @@ import {
   scopeAndAggregateVariantInventory,
   validatePartnerStoreAccess,
 } from "../../../../../helpers"
+import { fanoutVariantPrices } from "../../../../../../../workflows/fx/fanout-variant-prices"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -80,6 +81,15 @@ export const POST = async (
   // the partner-ui's inventory detail page 404s on this item.
   if (variant?.id) {
     await ensureInventoryLevelsForVariants(req.scope, store, [variant.id])
+  }
+
+  // FX fanout — auto-convert the new variant's prices into the store's other
+  // supported currencies. Idempotent + never throws.
+  if (variant?.id) {
+    await fanoutVariantPrices(req.scope, {
+      storeId: store.id,
+      variantIds: [variant.id],
+    })
   }
 
   res.status(201).json({ variant })

@@ -670,6 +670,11 @@
         "label": "HS code"
       }
     },
+    "prices": {
+      "edit": {
+        "successToast": "Prices were successfully updated"
+      }
+    },
     "variant": {
       "edit": {
         "header": "Edit Variant",
