@@ -26,6 +26,13 @@ export type InventoryOrderLineForShipment = {
   quantity?: number | null
   price?: number | null
   metadata?: Record<string, any> | null
+  // #817 denormalized identity on the line (self-describing colour variants).
+  color?: string | null
+  material_name?: string | null
+  // The linked inventory_item's real SKU, resolved by the caller. This is the
+  // stable, unique identity the carrier manifest should key on — the line
+  // itself has no sku column.
+  sku?: string | null
 }
 
 export type InventoryOrderForShipment = {
@@ -54,7 +61,32 @@ export type BuildInventoryShipmentOpts = {
 
 const lineName = (l: InventoryOrderLineForShipment): string => {
   const m = l.metadata || {}
-  return (m.title || m.name || m.description || m.sku || "Inventory item") as string
+  const base = (m.title ||
+    m.name ||
+    m.description ||
+    l.material_name ||
+    m.sku ||
+    l.sku ||
+    "Inventory item") as string
+  // Append the colour so colour variants of one material are distinguishable on
+  // the manifest (and don't collapse to the same effective SKU). Skip it when
+  // the base already embeds the colour (material_name often does, e.g.
+  // "Tangaliya Weave — midnight blue"). (#817)
+  const color = l.color ? String(l.color).trim() : ""
+  if (!color || base.toLowerCase().includes(color.toLowerCase())) return base
+  return `${base} — ${color}`
+}
+
+/**
+ * The line's effective carrier SKU: the resolved inventory_item SKU → an
+ * explicit metadata.sku → undefined (the client then falls back to the name,
+ * which carries material + colour so it stays distinct). The #817 model keeps
+ * colour at the inventory_item grain, so these SKUs are already unique per
+ * colour; any genuine repeat is merged by `buildShiprocketOrderItems`. (#817)
+ */
+const lineSku = (l: InventoryOrderLineForShipment): string | undefined => {
+  const explicit = l.sku || l.metadata?.sku
+  return explicit ? String(explicit) : undefined
 }
 
 /** Canonical destination-address fields Shiprocket's adhoc order needs. */
@@ -139,7 +171,7 @@ export function buildInventoryOrderShipmentInput(
       const quantity = Number(delivered ?? l.quantity) || 0
       return {
         name: lineName(l),
-        sku: (l.metadata?.sku as string) || undefined,
+        sku: lineSku(l),
         quantity,
         unit_price: Number(l.price) || 0,
       }

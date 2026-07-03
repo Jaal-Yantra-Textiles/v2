@@ -1,4 +1,4 @@
-import { ShiprocketClient } from "../client"
+import { ShiprocketClient, buildShiprocketOrderItems } from "../client"
 
 /**
  * #404 PR-B — ShiprocketClient.createShipment sequences create-adhoc-order →
@@ -76,5 +76,48 @@ describe("ShiprocketClient.createShipment (#404 PR-B)", () => {
       sr_order_id: 222,
       courier_company_id: 5,
     })
+  })
+})
+
+describe("buildShiprocketOrderItems (dedupe repeated SKUs)", () => {
+  it("merges rows sharing a SKU, summing units (Shiprocket rejects repeats)", () => {
+    const rows = buildShiprocketOrderItems([
+      { name: "Linen — Red", sku: "LIN-1", quantity: 3, unit_price: 50 },
+      { name: "Linen — Blue", sku: "LIN-1", quantity: 2, unit_price: 50 },
+    ])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].sku).toBe("LIN-1")
+    expect(rows[0].units).toBe(5)
+    expect(rows[0].name).toBe("Linen — Red") // first row's name kept
+  })
+
+  it("falls back to the item name as SKU and merges name collisions", () => {
+    const rows = buildShiprocketOrderItems([
+      { name: "Handloom Cotton", quantity: 4, unit_price: 80 },
+      { name: "Handloom Cotton", quantity: 1, unit_price: 80 },
+    ])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].sku).toBe("Handloom Cotton")
+    expect(rows[0].units).toBe(5)
+  })
+
+  it("keeps distinct SKUs separate and preserves order", () => {
+    const rows = buildShiprocketOrderItems([
+      { name: "A", sku: "A-1", quantity: 1, unit_price: 10 },
+      { name: "B", sku: "B-1", quantity: 2, unit_price: 20 },
+      { name: "A again", sku: "A-1", quantity: 3, unit_price: 10 },
+    ])
+    expect(rows.map((r) => r.sku)).toEqual(["A-1", "B-1"])
+    expect(rows[0].units).toBe(4)
+    expect(rows[1].units).toBe(2)
+  })
+
+  it("carries hsn/tax through and defaults them", () => {
+    const rows = buildShiprocketOrderItems([
+      { name: "X", sku: "X-1", quantity: 1, unit_price: 5, hsn: "5208", tax: 5 },
+      { name: "Y", sku: "Y-1", quantity: 1, unit_price: 5 },
+    ])
+    expect(rows[0]).toMatchObject({ hsn: "5208", tax: 5 })
+    expect(rows[1]).toMatchObject({ hsn: "", tax: "" })
   })
 })

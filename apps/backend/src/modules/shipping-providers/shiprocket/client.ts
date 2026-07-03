@@ -18,6 +18,7 @@ import {
   RegisterPickupLocationInput,
   SchedulePickupInput,
   SchedulePickupResult,
+  ShipmentItem,
   ShipmentRef,
   ShipmentResult,
   ShippingProviderClient,
@@ -163,6 +164,54 @@ export function normalizePickupLocation(r: any): PickupLocation {
     pincode: r?.pin_code,
     raw: r,
   }
+}
+
+/** A Shiprocket adhoc-order `order_items[]` row. */
+export type ShiprocketOrderItem = {
+  name: string
+  sku: string
+  units: number
+  selling_price: number
+  hsn: string
+  tax: number | string
+}
+
+/**
+ * Build Shiprocket `order_items[]` from shipment items, aggregating rows that
+ * share an effective SKU.
+ *
+ * Shiprocket's `/orders/create/adhoc` rejects a payload with a repeated SKU
+ * ("SKU cannot be repeated"). Our lines can collide on SKU legitimately —
+ * e.g. #817 colour variants of one material, or blank-SKU lines that fall back
+ * to the same product name. We merge same-SKU rows (summing `units`) so each
+ * SKU appears once; per-item declared value stays consistent because the order
+ * `sub_total` is sent separately from the line prices. Blank SKUs fall back to
+ * the item name (mirroring the single-item mapping). Order is preserved.
+ *
+ * Pure & exported for unit testing.
+ */
+export function buildShiprocketOrderItems(
+  items: ShipmentItem[]
+): ShiprocketOrderItem[] {
+  const bySku = new Map<string, ShiprocketOrderItem>()
+  for (const i of items) {
+    const sku = (i.sku && String(i.sku).trim()) || i.name
+    const units = Number(i.quantity) || 0
+    const existing = bySku.get(sku)
+    if (existing) {
+      existing.units += units
+    } else {
+      bySku.set(sku, {
+        name: i.name,
+        sku,
+        units,
+        selling_price: i.unit_price,
+        hsn: i.hsn || "",
+        tax: i.tax ?? "",
+      })
+    }
+  }
+  return Array.from(bySku.values())
 }
 
 /** Shiprocket numeric shipment_status_id → coarse scan_type. */
@@ -334,14 +383,10 @@ export class ShiprocketClient implements ShippingProviderClient {
       billing_email: input.to.email || "",
       billing_phone: input.to.phone,
       shipping_is_billing: true,
-      order_items: input.items.map((i) => ({
-        name: i.name,
-        sku: i.sku || i.name,
-        units: i.quantity,
-        selling_price: i.unit_price,
-        hsn: i.hsn || "",
-        tax: i.tax ?? "",
-      })),
+      // Aggregate same-SKU lines — Shiprocket rejects a repeated SKU (#817
+      // colour variants / blank-SKU name collisions would otherwise 400 with
+      // "SKU cannot be repeated").
+      order_items: buildShiprocketOrderItems(input.items),
       payment_method: input.payment_mode === "cod" ? "COD" : "Prepaid",
       sub_total: subTotal,
       length: input.dimensions_cm?.length || 10,
