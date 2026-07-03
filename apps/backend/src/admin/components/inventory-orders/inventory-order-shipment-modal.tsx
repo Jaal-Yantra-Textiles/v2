@@ -2,7 +2,9 @@ import { useState } from "react";
 import { Drawer, Button, Input, Label, Select, Text, toast } from "@medusajs/ui";
 import {
   AdminInventoryOrder,
+  ShiprocketRateOption,
   useCreateInventoryOrderShipment,
+  useInventoryOrderShiprocketRates,
 } from "../../hooks/api/inventory-orders";
 import { useStockLocations } from "../../hooks/api/stock_location";
 
@@ -30,9 +32,29 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
   const [breadth, setBreadth] = useState("");
   const [height, setHeight] = useState("");
   const [courier, setCourier] = useState("");
+  const [rates, setRates] = useState<ShiprocketRateOption[] | null>(null);
 
   const { mutateAsync, isPending } = useCreateInventoryOrderShipment(inventoryOrder.id);
+  const { mutateAsync: fetchRates, isPending: isFetchingRates } =
+    useInventoryOrderShiprocketRates(inventoryOrder.id);
   const { stock_locations = [] } = useStockLocations({ limit: 100 });
+
+  const handleGetRates = async () => {
+    try {
+      const res = await fetchRates({
+        ...(weight ? { weight_grams: Number(weight) } : {}),
+        ...(length ? { length: Number(length) } : {}),
+        ...(breadth ? { breadth: Number(breadth) } : {}),
+        ...(height ? { height: Number(height) } : {}),
+      });
+      setRates(res.rates || []);
+      const recommended = res.rates?.find((r) => r.is_recommended) || res.rates?.[0];
+      if (recommended) setCourier(String(recommended.courier_id));
+      if (!res.rates?.length) toast.info("No couriers available for this route.");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to fetch courier rates");
+    }
+  };
 
   const handleSubmit = async () => {
     const dims =
@@ -109,8 +131,41 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
             </div>
           </div>
           <div className="flex flex-col gap-1">
-            <Label size="small" htmlFor="courier">Preferred courier ID</Label>
-            <Input id="courier" value={courier} onChange={(e) => setCourier(e.target.value)} placeholder="(optional)" />
+            <div className="flex items-center justify-between">
+              <Label size="small" htmlFor="courier">Courier</Label>
+              <Button
+                variant="transparent"
+                size="small"
+                type="button"
+                onClick={handleGetRates}
+                isLoading={isFetchingRates}
+              >
+                Get rates
+              </Button>
+            </div>
+            {rates && rates.length > 0 ? (
+              <Select value={courier} onValueChange={setCourier}>
+                <Select.Trigger id="courier">
+                  <Select.Value placeholder="Select a courier" />
+                </Select.Trigger>
+                <Select.Content>
+                  {rates.map((r) => (
+                    <Select.Item key={String(r.courier_id)} value={String(r.courier_id)}>
+                      {r.courier_name} — ₹{r.amount}
+                      {r.estimated_days ? ` · ${r.estimated_days}d` : ""}
+                      {r.is_recommended ? " · recommended" : ""}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select>
+            ) : (
+              <Input
+                id="courier"
+                value={courier}
+                onChange={(e) => setCourier(e.target.value)}
+                placeholder="Courier ID (optional) — or click Get rates"
+              />
+            )}
           </div>
         </Drawer.Body>
         <Drawer.Footer>

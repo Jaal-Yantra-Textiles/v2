@@ -247,6 +247,63 @@ export const useCreateInventoryOrderShipment = (
   });
 };
 
+export type ShiprocketRateOption = {
+  courier_id: number | string;
+  courier_name: string;
+  amount: number;
+  currency_code: string;
+  estimated_days?: number;
+  cod_charges?: number;
+  is_recommended?: boolean;
+};
+
+export type InventoryOrderShiprocketRatesResponse = {
+  origin_pincode: string;
+  destination_pincode: string;
+  weight_grams: number;
+  cod: boolean;
+  rates: ShiprocketRateOption[];
+};
+
+export type ShiprocketRatesParams = {
+  weight_grams?: number;
+  length?: number;
+  breadth?: number;
+  height?: number;
+};
+
+const ratesQuery = (params: ShiprocketRatesParams): string => {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v != null && Number.isFinite(Number(v)) && Number(v) > 0) qs.set(k, String(v));
+  }
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+};
+
+/**
+ * On-demand Shiprocket courier rates for an inventory order (#641-inv). A
+ * mutation so the modal can fetch when the operator clicks "Get rates" and pass
+ * the current weight/dimensions, without a query key/enabled dance.
+ */
+export const useInventoryOrderShiprocketRates = (
+  id: string,
+  options?: UseMutationOptions<
+    InventoryOrderShiprocketRatesResponse,
+    FetchError,
+    ShiprocketRatesParams
+  >,
+) => {
+  return useMutation({
+    mutationFn: async (params: ShiprocketRatesParams) =>
+      sdk.client.fetch<InventoryOrderShiprocketRatesResponse>(
+        `/admin/inventory-orders/${id}/shiprocket-rates${ratesQuery(params)}`,
+        { method: "GET" },
+      ),
+    ...options,
+  });
+};
+
 export const useCreateInventoryOrderTasks = (
   id: string,
   options?: UseMutationOptions<any, FetchError, { type: string; template_names: string[]; dependency_type?: string }>,

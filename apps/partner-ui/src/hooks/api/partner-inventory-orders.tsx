@@ -254,6 +254,59 @@ export const useCreatePartnerInventoryOrderShipment = (
   })
 }
 
+// #641-inv — on-demand Shiprocket courier rates for the order.
+export type PartnerShiprocketRateOption = {
+  courier_id: number | string
+  courier_name: string
+  amount: number
+  currency_code: string
+  estimated_days?: number
+  cod_charges?: number
+  is_recommended?: boolean
+}
+
+export type PartnerShiprocketRatesResponse = {
+  origin_pincode: string
+  destination_pincode: string
+  weight_grams: number
+  cod: boolean
+  rates: PartnerShiprocketRateOption[]
+}
+
+export type PartnerShiprocketRatesParams = {
+  weight_grams?: number
+  length?: number
+  breadth?: number
+  height?: number
+}
+
+const partnerRatesQuery = (params: PartnerShiprocketRatesParams): string => {
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v != null && Number.isFinite(Number(v)) && Number(v) > 0) qs.set(k, String(v))
+  }
+  const s = qs.toString()
+  return s ? `?${s}` : ""
+}
+
+export const usePartnerInventoryOrderShiprocketRates = (
+  orderId: string,
+  options?: UseMutationOptions<
+    PartnerShiprocketRatesResponse,
+    FetchError,
+    PartnerShiprocketRatesParams
+  >
+) => {
+  return useMutation({
+    mutationFn: async (params: PartnerShiprocketRatesParams) =>
+      sdk.client.fetch<PartnerShiprocketRatesResponse>(
+        `/partners/inventory-orders/${orderId}/shiprocket-rates${partnerRatesQuery(params)}`,
+        { method: "GET" }
+      ),
+    ...options,
+  })
+}
+
 export const useSubmitPartnerInventoryOrderPayment = (
   orderId: string,
   options?: UseMutationOptions<
