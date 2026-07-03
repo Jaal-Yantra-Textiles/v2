@@ -122,6 +122,8 @@ import { MedusaError, ContainerRegistrationKeys, Modules } from "@medusajs/frame
 import { PartnerCreateProductReq } from "./validators"
 import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { getPartnerFromAuthContext } from "../helpers"
+import { PARTNER_MODULE } from "../../../modules/partner"
+import { PARTNER_ONBOARDING_PROFILE_MODULE } from "../../../modules/partner-onboarding-profile"
 
 export const POST = async (
   req: AuthenticatedMedusaRequest,
@@ -151,10 +153,25 @@ export const POST = async (
     )
   }
 
+  // #859 S2 (#861) — artisan proposal flow. A `core_channel_listing` partner
+  // doesn't publish directly: their product enters as `proposed` (native
+  // ProductStatus) bound only to their own channel, and an admin publishes it
+  // to cross-list onto the core cicilabel.com channel (via the cross-list
+  // subscriber). Other selling modes keep the existing behaviour.
+  const onboardingService: any = req.scope.resolve(
+    PARTNER_ONBOARDING_PROFILE_MODULE
+  )
+  const profile = await onboardingService
+    .findByPartner(partner.id)
+    .catch(() => null)
+  const isCoreChannelListing = profile?.selling_mode === "core_channel_listing"
+
   // Ensure product is associated to the store's default sales channel
   const productInput = {
     ...body.product,
     title: body.product.title || "",
+    // Proposal override wins over any client-supplied status for artisans.
+    ...(isCoreChannelListing ? { status: "proposed" as const } : {}),
     sales_channels: [
       {
         id: store.default_sales_channel_id,
@@ -170,8 +187,18 @@ export const POST = async (
 
   const created = result?.[0]
 
+  // Record product → owning partner so the cross-list subscriber can resolve
+  // ownership cleanly on publish (see links/partner-product.ts).
+  if (isCoreChannelListing && created?.id) {
+    const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
+    await remoteLink.create({
+      [PARTNER_MODULE]: { partner_id: partner.id },
+      [Modules.PRODUCT]: { product_id: created.id },
+    })
+  }
+
   return res.status(201).json({
-    message: "Product created",
+    message: isCoreChannelListing ? "Product proposed" : "Product created",
     partner_id: partner.id,
     store_id: store.id,
     product: created,
