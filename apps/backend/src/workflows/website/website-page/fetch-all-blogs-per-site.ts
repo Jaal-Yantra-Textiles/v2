@@ -42,7 +42,9 @@ export const fetchAllBlogsPerSiteStep = createStep(
     // Build query filters for database-level filtering
     const pageFilters: any = {
       website_id: website.id,
-      page_type: "Blog",
+      // Newsletters are surfaced in the blog feed too (a sent newsletter is
+      // published like a blog post so recipients can read it on the website).
+      page_type: { $in: ["Blog", "Newsletter"] },
       status: "Published"
     };
 

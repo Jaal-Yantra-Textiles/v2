@@ -86,7 +86,11 @@ export const findWebsitePagePerDomainStep = createStep(
       (p) =>
         p.slug === input.pageSlug &&
         p.status === "Published" &&
-        (input.exclude ? p.page_type !== input.exclude : p.page_type === "Blog")
+        // Newsletter pages are publicly readable like Blogs, so an emailed
+        // newsletter link (/blog/:slug) resolves instead of 404-ing.
+        (input.exclude
+          ? p.page_type !== input.exclude
+          : p.page_type === "Blog" || p.page_type === "Newsletter")
     );
 
     if (!page) {
