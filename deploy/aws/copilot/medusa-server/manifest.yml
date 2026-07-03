@@ -116,6 +116,13 @@ secrets:
   OPENAI_API_KEY: /jyt/prod/OPENAI_API_KEY
   OPENROUTER_API_KEY: /jyt/prod/OPENROUTER_API_KEY
   PARTNER_CORS: /jyt/prod/PARTNER_CORS
+  # Go-live switch for partner email verification (native Medusa 2.16+ flow).
+  # "true" = a partner's login returns verification_required until they confirm
+  # their email via /verify-email. Non-secret, but env-specific so it's sourced
+  # from SSM (read at boot — a redeploy is required after flipping the value).
+  # Also run the `seed-email-templates` Data Plumbing job so the
+  # partner-email-verification template exists. See PR #858.
+  PARTNER_EMAIL_VERIFICATION: /jyt/prod/PARTNER_EMAIL_VERIFICATION
   # PayU OneAPI (OAuth) — used by the MCP create_payment_link write tool.
   PAYU_CLIENT_ID: /jyt/prod/PAYU_CLIENT_ID
   PAYU_CLIENT_SECRET: /jyt/prod/PAYU_CLIENT_SECRET
