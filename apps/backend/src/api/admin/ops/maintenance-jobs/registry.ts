@@ -72,6 +72,7 @@ import {
 import { seedEmailTemplatesJob } from "./seed-jobs"
 import { replayFxFanoutJob } from "./fanout-fx-job"
 import { backfillStoreCurrenciesJob } from "./backfill-store-currencies-job"
+import { backfillPartnerEmailVerifiedJob } from "./backfill-partner-email-verified-job"
 import {
   sweepAiPlatformsByCategory,
   AI_ROLES,
@@ -5270,6 +5271,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   reconcileInventoryMirrorJob,
   replayFxFanoutJob,
   backfillStoreCurrenciesJob,
+  backfillPartnerEmailVerifiedJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
