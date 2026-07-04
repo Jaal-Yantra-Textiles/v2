@@ -212,7 +212,11 @@ export async function POST(
             const { result: shipResult, errors: shipErrors } = await createInventoryOrderShipmentWorkflow(req.scope).run({
                 input: {
                     orderId,
-                    pickupStockLocationId: pickup_stock_location_id || normalizedStockLocationId,
+                    // Only an EXPLICIT pickup override goes through. The old
+                    // `|| stock_location_id` fallback passed the completion's
+                    // receiving (destination) location as the pickup; the
+                    // workflow now derives the order's from_location itself.
+                    pickupStockLocationId: pickup_stock_location_id,
                     weightGrams: weight_grams,
                     dimensionsCm: dimensions_cm as any,
                     preferredCourierId: preferred_courier_id,

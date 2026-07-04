@@ -7,10 +7,11 @@ import {
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
+import { FULLFILLED_ORDERS_MODULE } from "../../modules/fullfilled_orders"
 import InventoryOrdersStockLocationsLink from "../../links/inventory-orders-stock-locations"
 import { resolveShippingProvider } from "../../modules/shipping-providers/resolver"
 import {
-  chooseRegisteredPickup,
+  SHIPROCKET_PICKUP_METADATA_KEY,
   registerShiprocketPickup,
 } from "../../modules/shipping-providers/pickup-locations"
 import { resolvePlatformTaxIdForCountry } from "../../modules/shipping-providers/seller-tax-id"
@@ -32,12 +33,13 @@ import {
  * shipment; the legacy free-text `partner_tracking_number` path is untouched
  * otherwise.
  *
- * Pickup bootstrap: when a source stock location is given, ensure it's a
- * registered carrier pickup via `registerShiprocketPickup` (lists first, then
- * registers from the location's address — handles the "first time, no pickup
- * yet" case). Otherwise fall back to any registered pickup. A clean
- * MedusaError (not a 500) is thrown when no pickup can be resolved so the UI
- * shows an actionable message.
+ * Pickup bootstrap: the explicit pickup input or the order's from_location is
+ * ensured to be a registered carrier pickup via `registerShiprocketPickup`
+ * (metadata warehouse key used as-is when present; else lists first, then
+ * registers from the location's address). There is NO fallback to another
+ * registered pickup — all parties share one Shiprocket account, so that would
+ * ship from someone else's warehouse. A clean MedusaError (not a 500) is
+ * thrown when no pickup can be resolved so the UI shows an actionable message.
  */
 
 export type CreateInventoryOrderShipmentInput = {
@@ -79,15 +81,74 @@ export async function createInventoryOrderShipment(
     )
   }
 
-  // Pickup: register/confirm from the source stock location when provided
-  // (idempotent — lists then registers, recording the nickname on the
-  // location's metadata so later shipments skip it).
+  // The order's from/to stock-location links drive both ends of the shipment:
+  // from_location is the pickup (ship-from), to_location the destination.
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+  let toLocation: any = null
+  let fromLocation: any = null
+  try {
+    const { data: links } = await query.graph({
+      entity: (InventoryOrdersStockLocationsLink as any).entryPoint,
+      fields: [
+        "to_location",
+        "from_location",
+        "stock_location.id",
+        "stock_location.name",
+        "stock_location.metadata",
+        "stock_location.address.*",
+      ],
+      filters: { inventory_orders_id: order.id },
+    })
+    toLocation = (links || []).find((l: any) => l?.to_location)?.stock_location || null
+    fromLocation = (links || []).find((l: any) => l?.from_location)?.stock_location || null
+  } catch {
+    // best-effort — the guards below produce the actionable errors
+  }
+
+  // Pickup = the shipment's true source, never a guess. Priority: explicit
+  // input → the order's own from_location. There is deliberately NO
+  // any-registered-pickup fallback: all partners share one Shiprocket account,
+  // so "first registered pickup" is some OTHER party's warehouse — that
+  // fallback is how a partner's shipment got assigned to the wrong warehouse.
+  // A from_location whose metadata already carries the Shiprocket warehouse
+  // key (shiprocket_pickup_location) is used as-is; otherwise it's registered
+  // on the fly (idempotent — the nickname is recorded back on the location's
+  // metadata). If neither works this is a 400 with the reason, not a silent
+  // wrong-origin shipment. The rates flow (shiprocket-rates.ts) already quotes
+  // from the from_location, so quoted origin and real origin agree.
   let pickupLocationName: string | undefined
+  const pickupStockLocationId = input.pickupStockLocationId || fromLocation?.id
   if (input.pickupStockLocationId) {
     const reg = await registerShiprocketPickup(container, input.pickupStockLocationId, {
       email: input.actingEmail,
     })
     pickupLocationName = reg.name
+  } else if (fromLocation) {
+    const recordedNickname = (fromLocation.metadata as any)?.[
+      SHIPROCKET_PICKUP_METADATA_KEY
+    ] as string | undefined
+    if (recordedNickname) {
+      // Already registered — the metadata key is the carrier-side warehouse id.
+      pickupLocationName = recordedNickname
+    } else {
+      try {
+        const reg = await registerShiprocketPickup(container, fromLocation.id, {
+          email: input.actingEmail,
+        })
+        pickupLocationName = reg.name
+      } catch (e: any) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `The order's source location "${fromLocation.name || fromLocation.id}" could not be registered as a carrier pickup: ${e?.message}. Complete its address (phone + pincode) or register it as a Shiprocket pickup, then retry.`
+        )
+      }
+    }
+  }
+  if (!pickupLocationName) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "The order has no source stock location to pick up from. Set the order's from-location (or pass an explicit pickup location) before generating a shipment."
+    )
   }
 
   const provider = await resolveShippingProvider(container, carrier)
@@ -98,38 +159,12 @@ export async function createInventoryOrderShipment(
     )
   }
 
-  if (!pickupLocationName && provider.listPickupLocations) {
-    try {
-      pickupLocationName = chooseRegisteredPickup(await provider.listPickupLocations())?.name
-    } catch {
-      // best-effort — the guard below produces the actionable error
-    }
-  }
-  if (!pickupLocationName) {
-    throw new MedusaError(
-      MedusaError.Types.INVALID_DATA,
-      "No carrier pickup location is configured. Register a pickup for the order's source stock location (or any carrier pickup) before generating a shipment."
-    )
-  }
-
   // Destination (ship-to) address: the order's linked `to_location` stock
   // location is the physical destination and carries a complete structured
   // address; the free-form `shipping_address` JSON is often just
   // `{ city, country_code }`. Fill from the to-location, letting any explicit
   // shipping_address field win, so Shiprocket's required billing fields are
   // populated (#772 — "The billing address field is required").
-  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
-  let toLocation: any = null
-  try {
-    const { data: links } = await query.graph({
-      entity: (InventoryOrdersStockLocationsLink as any).entryPoint,
-      fields: ["to_location", "stock_location.name", "stock_location.address.*"],
-      filters: { inventory_orders_id: order.id },
-    })
-    toLocation = (links || []).find((l: any) => l?.to_location)?.stock_location || null
-  } catch {
-    // best-effort — the guard below produces the actionable error
-  }
 
   const destinationAddress = resolveInventoryDestinationAddress(
     (order as any)?.shipping_address,
@@ -213,9 +248,47 @@ export async function createInventoryOrderShipment(
     }
   }
 
-  // Persist carrier refs onto the inventory order, replacing the free-text
-  // tracking number with the real AWB. Spread the existing metadata so the
-  // whole blob isn't clobbered (Medusa replaces metadata wholesale).
+  // Persist the shipment as a first-class record linked to the order, so
+  // multiple consignments coexist, the resolved pickup identity is auditable,
+  // and both admin/partner UIs can list shipments. Best-effort: the carrier
+  // shipment already exists, so a persistence hiccup must not fail the call.
+  let shipmentRecordId: string | undefined
+  try {
+    const fulfilledOrdersService: any = container.resolve(FULLFILLED_ORDERS_MODULE)
+    const record = await fulfilledOrdersService.createInventoryShipments({
+      carrier,
+      awb: result.awb ?? null,
+      tracking_number: result.tracking_number ?? null,
+      tracking_url: result.tracking_url ?? null,
+      label_url: result.label_url ?? null,
+      pickup_location_name: pickupLocationName,
+      pickup_stock_location_id: pickupStockLocationId ?? null,
+      pickup_scheduled_date: pickup?.scheduled_date ?? input.pickupDate ?? null,
+      status: pickup ? "pickup_scheduled" : "created",
+      weight_grams: input.weightGrams ?? null,
+      dimensions_cm: input.dimensionsCm ?? null,
+      provider_refs: result.provider_refs ?? null,
+    })
+    shipmentRecordId = record.id
+    const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+    await remoteLink.create([
+      {
+        [ORDER_INVENTORY_MODULE]: { inventory_orders_id: order.id },
+        [FULLFILLED_ORDERS_MODULE]: { inventory_shipment_id: record.id },
+      },
+    ])
+  } catch (e) {
+    const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.error(
+      `Failed to persist inventory_shipment record for order ${order.id} (AWB ${result.awb}):`,
+      e as Error
+    )
+  }
+
+  // Metadata mirror kept for back-compat readers (older UI surfaces read
+  // metadata.shipment; free-text tracking number becomes the real AWB). Spread
+  // the existing metadata so the whole blob isn't clobbered (Medusa replaces
+  // metadata wholesale).
   await inventoryOrderService.updateInventoryOrders({
     id: order.id,
     metadata: {
@@ -228,6 +301,8 @@ export async function createInventoryOrderShipment(
         tracking_url: result.tracking_url,
         label_url: result.label_url,
         provider_refs: result.provider_refs,
+        pickup_location_name: pickupLocationName,
+        ...(shipmentRecordId ? { shipment_id: shipmentRecordId } : {}),
         created_at: new Date().toISOString(),
         ...(pickup ? { pickup } : {}),
       },

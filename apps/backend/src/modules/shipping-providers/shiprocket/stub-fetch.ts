@@ -26,7 +26,11 @@ const json = (body: any, status = 200) =>
  * exact payload the client would send to Shiprocket (billing address, order_items
  * SKUs, L/B/H) end-to-end. Reset it in a test's `beforeEach` when needed.
  */
-export const shiprocketStubState: { lastAdhocBody?: any; lastPickupBody?: any } = {}
+export const shiprocketStubState: {
+  lastAdhocBody?: any
+  lastPickupBody?: any
+  lastAddPickupBody?: any
+} = {}
 
 const parseBody = (init: any): any => {
   try {
@@ -75,6 +79,14 @@ export function createShiprocketStubFetch(): FetchLike {
           pickup_token_number: 555,
         },
       })
+    }
+
+    // Pickup registration — must precede the list match below ("addpickup"
+    // would otherwise 404). Captures the body so specs can assert the pickup
+    // the shipment flow registered (from_location fix).
+    if (url.endsWith("/settings/company/addpickup")) {
+      shiprocketStubState.lastAddPickupBody = parseBody(init)
+      return json({ success: true, address: { id: 2 } })
     }
 
     if (url.includes("/settings/company/pickup")) {

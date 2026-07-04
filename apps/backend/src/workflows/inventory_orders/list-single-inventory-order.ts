@@ -65,10 +65,29 @@ export const listSingleInventoryOrderStep = createStep(
       }
     });
 
+    // Carrier shipments (#772 follow-up) — first-class rows linked to the
+    // order; newest first so the UI leads with the active consignment.
+    let shipments: any[] = [];
+    try {
+      const { data: shipmentRows } = await query.graph({
+        entity: "inventory_orders",
+        fields: ["id", "inventory_shipments.*"],
+        filters: { id: input.id },
+      });
+      shipments = ((shipmentRows?.[0] as any)?.inventory_shipments || [])
+        .filter(Boolean)
+        .sort((a: any, b: any) =>
+          String(b?.created_at || "").localeCompare(String(a?.created_at || ""))
+        );
+    } catch {
+      // best-effort — an order without the link simply has no shipments
+    }
+
     const augmented = {
       ...order,
       from_stock_location,
       to_stock_location,
+      shipments,
     };
 
     return new StepResponse(augmented as any, order?.id);

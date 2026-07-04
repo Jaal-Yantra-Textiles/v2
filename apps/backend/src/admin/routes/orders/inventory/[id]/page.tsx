@@ -7,6 +7,7 @@ import InventoryOrderLinesSection from "../../../../components/inventory-orders/
 import InventoryOrderStockLocation from "../../../../components/inventory-orders/inventory-order-stock-location";
 import { InventoryOrderTasksSection } from "../../../../components/inventory-orders/inventory-order-tasks-section";
 import { InventoryOrderPaymentsSection } from "../../../../components/inventory-orders/inventory-order-payments-section";
+import { InventoryOrderShipmentsSection } from "../../../../components/inventory-orders/inventory-order-shipments-section";
 import { InventoryOrderFeedbacksSection } from "../../../../components/inventory-orders/inventory-order-feedbacks-section";
 import { inventoryOrderLoader } from "./loader";
 import InventoryOrderIDSection from "../../../../components/inventory-orders/inventory-order-general-orderId";
@@ -43,6 +44,7 @@ const InventoryOrderDetailPage = () => {
        <InventoryOrderLinesSection inventoryOrder={inventoryOrder} />
        <InventoryOrderTasksSection inventoryOrder={inventoryOrder}/>
        <InventoryOrderStockLocation inventoryOrder={inventoryOrder}/>
+       <InventoryOrderShipmentsSection inventoryOrder={inventoryOrder}/>
        <InventoryOrderPaymentsSection inventoryOrder={inventoryOrder}/>
       </TwoColumnPage.Sidebar>
     </TwoColumnPage>

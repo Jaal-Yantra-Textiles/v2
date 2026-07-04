@@ -181,7 +181,10 @@ export async function GET(
             "order.id",
             // #342 — submitted payments (payment↔inventory_order link), for the
             // Payments section on the unified order detail.
-            "internal_payments.*"
+            "internal_payments.*",
+            // Carrier shipments (#772 follow-up) — first-class rows so the
+            // partner sees AWB/label/pickup details after creating a shipment.
+            "inventory_shipments.*"
         ],
         filters: {
             id: orderId
@@ -279,6 +282,16 @@ export async function GET(
             })()
         })),
         stock_locations: order.stock_locations,
+        // Carrier shipments, newest first (#772 follow-up).
+        shipments: (() => {
+            const raw = (order as any).inventory_shipments
+            const arr = !raw ? [] : Array.isArray(raw) ? raw : [raw]
+            return arr
+                .filter(Boolean)
+                .sort((a: any, b: any) =>
+                    String(b.created_at || "").localeCompare(String(a.created_at || ""))
+                )
+        })(),
         // #342 — submitted payments for the Payments section (newest first).
         payments: (() => {
             const raw = (order as any).internal_payments

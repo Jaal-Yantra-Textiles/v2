@@ -1,12 +1,10 @@
 import Line_fulfillment from "./models/line_fulfillment";
+import InventoryShipment from "./models/inventory_shipment";
 import { MedusaService } from "@medusajs/framework/utils";
-// Import your models here, e.g.:
-// import MyModel from "./models/MyModel";
 
 class Fullfilled_ordersService extends MedusaService({
   Line_fulfillment,
-  // Register your models here, e.g.:
-  // MyModel,
+  InventoryShipment,
 }) {
   constructor() {
     super(...arguments)

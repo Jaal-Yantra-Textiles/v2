@@ -128,3 +128,88 @@ export const InventoryPaymentsSection = ({
     </Container>
   )
 }
+
+/**
+ * Shipments section for an inventory work-order (#772 follow-up) — lists the
+ * carrier shipments the partner generated (AWB · carrier · pickup · label),
+ * reading the first-class shipment rows the detail endpoint now returns.
+ */
+export const InventoryShipmentsSection = ({
+  shipments,
+}: {
+  shipments: Array<Record<string, any>>
+}) => {
+  const { t } = useTranslation()
+  const { getFullDate } = useDate()
+
+  return (
+    <Container className="divide-y p-0">
+      <div className="px-6 py-4">
+        <Heading level="h2">{t("partner.workOrders.shipments")}</Heading>
+      </div>
+      {shipments.length === 0 ? (
+        <div className="px-6 py-4">
+          <Text size="small" className="text-ui-fg-subtle">
+            {t("partner.workOrders.noShipments")}
+          </Text>
+        </div>
+      ) : (
+        shipments.map((s, idx) => {
+          const awb = s.awb || s.tracking_number
+          return (
+            <div key={String(s.id ?? idx)} className="flex items-center justify-between px-6 py-4">
+              <div className="min-w-0">
+                {awb &&
+                  (s.tracking_url ? (
+                    <a
+                      href={s.tracking_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-ui-fg-interactive hover:text-ui-fg-interactive-hover"
+                    >
+                      <Text size="small" weight="plus">
+                        AWB {awb}
+                      </Text>
+                    </a>
+                  ) : (
+                    <Text size="small" weight="plus">
+                      AWB {awb}
+                    </Text>
+                  ))}
+                <Text size="xsmall" className="text-ui-fg-subtle capitalize">
+                  {String(s.carrier || "")}
+                  {s.pickup_location_name
+                    ? ` · ${t("partner.workOrders.pickupFrom")}: ${s.pickup_location_name}`
+                    : ""}
+                  {s.created_at
+                    ? ` · ${getFullDate({ date: s.created_at, includeTime: true })}`
+                    : ""}
+                </Text>
+              </div>
+              <div className="flex items-center gap-x-3">
+                {s.label_url && (
+                  <a
+                    href={s.label_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-ui-fg-interactive hover:text-ui-fg-interactive-hover"
+                  >
+                    <Text size="xsmall">{t("partner.workOrders.trackingLabel")}</Text>
+                  </a>
+                )}
+                {s.status && (
+                  <StatusBadge
+                    color={getStatusBadgeColor(String(s.status))}
+                    className="text-nowrap"
+                  >
+                    {String(s.status).replace(/_/g, " ")}
+                  </StatusBadge>
+                )}
+              </div>
+            </div>
+          )
+        })
+      )}
+    </Container>
+  )
+}

@@ -9,6 +9,7 @@ import { CollatedDesignRuns } from "../../../components/work-orders/collated-des
 import {
   InventoryFulfillmentsSection,
   InventoryPaymentsSection,
+  InventoryShipmentsSection,
 } from "../../../components/work-orders/inventory-order-sections"
 import { ProductionRunCard } from "../../../components/work-orders/production-run-card"
 import { WorkOrderActivitySection } from "../../../components/work-orders/work-order-activity-section"
@@ -213,6 +214,9 @@ export const OrderDetail = () => {
                 />
                 <InventoryFulfillmentsSection
                   orderLines={(inventoryOrder.order_lines ?? []) as Array<Record<string, any>>}
+                />
+                <InventoryShipmentsSection
+                  shipments={((inventoryOrder as any).shipments ?? []) as Array<Record<string, any>>}
                 />
               </>
             )}

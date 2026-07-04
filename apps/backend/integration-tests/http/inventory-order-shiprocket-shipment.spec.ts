@@ -60,6 +60,7 @@ setupSharedTestSuite(() => {
     headers = await getAuthHeaders(api);
     shiprocketStubState.lastAdhocBody = undefined;
     shiprocketStubState.lastPickupBody = undefined;
+    shiprocketStubState.lastAddPickupBody = undefined;
 
     const item = await api.post(
       "/admin/inventory-items",
@@ -76,9 +77,21 @@ setupSharedTestSuite(() => {
     );
     toLocationId = toLoc.data.stock_location.id;
 
+    // The source must be registerable as a carrier pickup (phone + pincode) —
+    // there is no fallback to another party's warehouse anymore.
     const fromLoc = await api.post(
       "/admin/stock-locations",
-      { name: "Jaipur Source" },
+      {
+        name: "Jaipur Source",
+        address: {
+          address_1: "2 Block Print Bazaar",
+          city: "Jaipur",
+          province: "RJ",
+          postal_code: "302001",
+          country_code: "in",
+          phone: "9998887771",
+        },
+      },
       headers
     );
     fromLocationId = fromLoc.data.stock_location.id;
@@ -183,6 +196,163 @@ setupSharedTestSuite(() => {
       // No pickup date → no pickup scheduling call (Shiprocket auto-slots).
       expect(shiprocketStubState.lastPickupBody).toBeUndefined();
       expect(res.data.shipment.pickup).toBeUndefined();
+    });
+  });
+
+  describe("pickup derivation + shipment persistence (#772 follow-up)", () => {
+    it("ships from the order's from_location and persists a first-class shipment record", async () => {
+      // A from-location with a complete address is registerable as a pickup —
+      // the shipment must originate THERE, not at whatever pickup happens to
+      // be first on the shared Shiprocket account (the wrong-warehouse bug).
+      const fromLoc = await api.post(
+        "/admin/stock-locations",
+        {
+          name: "Partner Loom Shed",
+          address: {
+            address_1: "4 Weaver Lane",
+            city: "Bhuj",
+            province: "GJ",
+            postal_code: "370001",
+            country_code: "in",
+            phone: "7776665554",
+          },
+        },
+        headers
+      );
+      const registerableFromId = fromLoc.data.stock_location.id;
+      const nickname = `warehouse-${registerableFromId.slice(-8)}`;
+
+      const order = await api.post(
+        "/admin/inventory-orders",
+        {
+          order_lines: [
+            { inventory_item_id: inventoryItemId, quantity: 2, price: 100 },
+          ],
+          quantity: 2,
+          total_price: 200,
+          status: "Ready for Delivery",
+          expected_delivery_date: new Date().toISOString(),
+          order_date: new Date().toISOString(),
+          shipping_address: {},
+          stock_location_id: toLocationId,
+          from_stock_location_id: registerableFromId,
+        },
+        headers
+      );
+      const id = order.data.inventoryOrder.id;
+
+      const res = await api.post(
+        `/admin/inventory-orders/${id}/shipment`,
+        { weight_grams: 500 },
+        headers
+      );
+      expect(res.status).toBe(200);
+
+      // The from-location was auto-registered as the carrier pickup…
+      const addBody = shiprocketStubState.lastAddPickupBody;
+      expect(addBody).toBeTruthy();
+      expect(addBody.pickup_location).toBe(nickname);
+      expect(addBody.pin_code).toBe("370001");
+      // …and the shipment was created against it (not warehouse-primary).
+      expect(shiprocketStubState.lastAdhocBody.pickup_location).toBe(nickname);
+
+      // The shipment is now a queryable record on the order.
+      const detail = await api.get(`/admin/inventory-orders/${id}`, headers);
+      const shipments = detail.data.inventoryOrder.shipments;
+      expect(Array.isArray(shipments)).toBe(true);
+      expect(shipments.length).toBe(1);
+      expect(shipments[0].carrier).toBe("shiprocket");
+      expect(shipments[0].awb).toBe("STUBAWB123");
+      expect(shipments[0].pickup_location_name).toBe(nickname);
+      expect(shipments[0].pickup_stock_location_id).toBe(registerableFromId);
+      expect(shipments[0].status).toBe("created");
+    });
+
+    it("uses the warehouse key already recorded on the from_location's metadata without re-registering", async () => {
+      // A location that carries the Shiprocket nickname in its metadata (the
+      // admin registered it earlier) ships against that key directly — even
+      // with no address on file, and with zero addpickup calls.
+      const fromLoc = await api.post(
+        "/admin/stock-locations",
+        {
+          name: "Pre-registered Shed",
+          metadata: { shiprocket_pickup_location: "warehouse-primary" },
+        },
+        headers
+      );
+      const preRegisteredId = fromLoc.data.stock_location.id;
+
+      const order = await api.post(
+        "/admin/inventory-orders",
+        {
+          order_lines: [
+            { inventory_item_id: inventoryItemId, quantity: 1, price: 100 },
+          ],
+          quantity: 1,
+          total_price: 100,
+          status: "Ready for Delivery",
+          expected_delivery_date: new Date().toISOString(),
+          order_date: new Date().toISOString(),
+          shipping_address: {},
+          stock_location_id: toLocationId,
+          from_stock_location_id: preRegisteredId,
+        },
+        headers
+      );
+      const id = order.data.inventoryOrder.id;
+
+      const res = await api.post(
+        `/admin/inventory-orders/${id}/shipment`,
+        { weight_grams: 500 },
+        headers
+      );
+      expect(res.status).toBe(200);
+      expect(shiprocketStubState.lastAddPickupBody).toBeUndefined();
+      expect(shiprocketStubState.lastAdhocBody.pickup_location).toBe(
+        "warehouse-primary"
+      );
+
+      const detail = await api.get(`/admin/inventory-orders/${id}`, headers);
+      const shipments = detail.data.inventoryOrder.shipments;
+      expect(shipments.length).toBe(1);
+      expect(shipments[0].pickup_location_name).toBe("warehouse-primary");
+      expect(shipments[0].pickup_stock_location_id).toBe(preRegisteredId);
+    });
+
+    it("rejects the shipment when the from_location cannot be registered — never ships from another party's warehouse", async () => {
+      const bareLoc = await api.post(
+        "/admin/stock-locations",
+        { name: "Bare Shed" },
+        headers
+      );
+      const order = await api.post(
+        "/admin/inventory-orders",
+        {
+          order_lines: [
+            { inventory_item_id: inventoryItemId, quantity: 1, price: 100 },
+          ],
+          quantity: 1,
+          total_price: 100,
+          status: "Ready for Delivery",
+          expected_delivery_date: new Date().toISOString(),
+          order_date: new Date().toISOString(),
+          shipping_address: {},
+          stock_location_id: toLocationId,
+          from_stock_location_id: bareLoc.data.stock_location.id,
+        },
+        headers
+      );
+      const id = order.data.inventoryOrder.id;
+
+      const res = await api
+        .post(`/admin/inventory-orders/${id}/shipment`, { weight_grams: 500 }, headers)
+        .catch((e: any) => e.response);
+      expect(res.status).toBe(400);
+      expect(res.data.message).toMatch(/could not be registered as a carrier pickup/);
+      // Nothing shipped, nothing persisted.
+      expect(shiprocketStubState.lastAdhocBody).toBeUndefined();
+      const detail = await api.get(`/admin/inventory-orders/${id}`, headers);
+      expect(detail.data.inventoryOrder.shipments).toEqual([]);
     });
   });
 });
