@@ -652,6 +652,26 @@ safely, decide model (Claude via existing infra?), wire a minimal
 chat panel that emits structured edits.
 **Effort:** 2-3 days for v1; ties into #7 (theme editor work).
 
+#### 38. AI tech-pack moodboard — seed Excalidraw from a photo
+
+**Status: captured 2026-07-04 (GitHub #892).**
+Upload a photo (sketch or garment) at design creation and auto-generate a
+tech-pack-grade moodboard inside the Excalidraw canvas: front/back flats,
+measurement callouts (values from `design_size_set`/`design_specification`),
+circular zoom-detail lenses (necklines, embroidery), and a colorway/swatch
+board — as editable Excalidraw elements grouped into frames. Then grow it
+conversationally: "show front and back necklines with measurements", "zoom
+the cuff detail". Reference artifact: internal tech pack SS26–CR–TP-08.
+Composes shipped pieces — the moodboard IS Excalidraw (`design.moodboard`),
+the Fashion Library shape/croquis/pattern factories, the imagegen workflow
+(already takes `reference_images`), the BiRefNet segment route, and the
+vision-extraction stack. The gap: nothing seeds the canvas today.
+**First step:** slice S1 — pure `build-moodboard-scene.ts` frame builders
+(flats / measurements / zoom lenses / colorways), unit-tested against an
+SS26–CR–TP-08-shaped fixture, no UI.
+**Effort:** S1 ~1 day; S2 backend workflow + routes ~1-2 days; S3 admin UI
+(Playwright-gated) ~1-2 days; partner entry later.
+
 #### 16. Ad planning + conversion tracking for partner products
 
 We have the `ad_planning` module and `track_conversion` endpoints
@@ -1012,6 +1032,29 @@ implement one interface; then build the P1 "Design Order → Convert to
 > - COD "capture" = capture-on-delivery remittance (P4), not pre-auth — confirm.
 > - Per-entity action scope — design + inventory-order + core order (P2), or
 >   start order-only?
+
+#### 37. Post-production goods movement — run output relocates between locations
+
+**Status: captured 2026-07-04 (GitHub #891).**
+A partner produces a design/garment in a production run; the output often needs
+to MOVE — to another partner or a JYT warehouse for finishing / embroidery /
+QC — and from there either stay in stock or continue to the customer. Today
+"where the produced goods are" is implicit: run completion stocks finished
+goods at the producing partner's resolved location
+(`stockFinishedGoodsStep` / `resolvePartnerLocationStep` in
+`workflows/production-runs/partner-run-steps.ts`) and nothing can relocate
+them; reservations + fulfillment ship-from assume that location forever. No
+transfer primitive exists anywhere — the only location→location carrier
+mechanism is the inventory-order path (#888 `inventory_shipment` +
+from/to link + tracking webhook), which is the machinery to reuse. Extends
+#31's P3 "model internal transfers as shipments"; shares the webhook routing
+seam with GitHub #886.
+**First step:** slice S1 — record the stocked-at location id explicitly at run
+completion (pure audit, no behavior change) + backfill DP job; then a
+`goods_transfer` model + create-transfer workflow mirroring
+`create-inventory-order-shipment`.
+**Effort:** S1 ~half day; S2 (transfer + shipment + webhook routing) ~2-3 days;
+inventory move + customer-leg correctness ~2 days more.
 
 #### 32. Visual-flow + WhatsApp token reliability (post-incident, vflow 401)
 
