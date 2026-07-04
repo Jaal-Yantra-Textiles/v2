@@ -670,6 +670,14 @@ export default defineMiddlewares({
       middlewares: [],
     },
     {
+      // Carrier tracking pushes (Shiprocket — #888). Gated by
+      // SHIPPING_WEBHOOK_SECRET (custom header configured in the carrier
+      // dashboard; Shiprocket has no HMAC), JSON body parsed normally.
+      matcher: "/webhooks/shipping/track",
+      method: "POST",
+      middlewares: [],
+    },
+    {
       // PayU posts application/x-www-form-urlencoded; preserve the raw body so
       // the route can parse it (and the reverse-hash uses the exact fields).
       matcher: "/webhooks/payu/link",

@@ -24,7 +24,22 @@ const InventoryShipment = model.define("inventory_shipment", {
   pickup_stock_location_id: model.text().nullable(),
   // Carrier-confirmed pickup date (YYYY-MM-DD), when one was scheduled.
   pickup_scheduled_date: model.text().nullable(),
-  status: model.enum(["created", "pickup_scheduled", "cancelled"]).default("created"),
+  // Lifecycle: created → pickup_scheduled → picked_up → in_transit →
+  // out_for_delivery → delivered. `rto` (return-to-origin) can occur from any
+  // in-flight state; `cancelled` is terminal. The post-pickup values are fed by
+  // the carrier tracking webhook (#888) — never set at creation time.
+  status: model
+    .enum([
+      "created",
+      "pickup_scheduled",
+      "picked_up",
+      "in_transit",
+      "out_for_delivery",
+      "delivered",
+      "rto",
+      "cancelled",
+    ])
+    .default("created"),
   weight_grams: model.float().nullable(),
   dimensions_cm: model.json().nullable(),
   provider_refs: model.json().nullable(),

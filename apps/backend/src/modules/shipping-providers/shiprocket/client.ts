@@ -215,7 +215,7 @@ export function buildShiprocketOrderItems(
 }
 
 /** Shiprocket numeric shipment_status_id → coarse scan_type. */
-function scanTypeForStatus(id?: number): string {
+export function scanTypeForStatus(id?: number): string {
   switch (id) {
     case 7:
       return "delivered"
@@ -230,6 +230,32 @@ function scanTypeForStatus(id?: number): string {
       return "created"
     default:
       return "in_transit"
+  }
+}
+
+/**
+ * Normalize a Shiprocket webhook push payload into a `TrackingResult` (#888).
+ * Pure and exported so the inbound webhook route can parse without carrier
+ * credentials (the class method delegates here). Shiprocket pushes carry two
+ * parallel status pairs (`current_status`/`shipment_status`) that aren't always
+ * in sync — prefer `current_status`, key the coarse scan_type off
+ * `shipment_status_id`.
+ */
+export function normalizeShiprocketWebhook(payload: any): TrackingResult {
+  const events: TrackingEvent[] = (payload?.scans || []).map((s: any) => ({
+    timestamp: s.date,
+    status: s.status || s["sr-status-label"] || "",
+    location: s.location || "",
+    scan_type: scanTypeForStatus(Number(payload?.shipment_status_id)),
+  }))
+  return {
+    carrier: "shiprocket",
+    awb: payload?.awb || "",
+    current_status: payload?.current_status || payload?.shipment_status || "",
+    current_status_code: payload?.shipment_status_id,
+    estimated_delivery: payload?.etd || null,
+    events,
+    raw: payload,
   }
 }
 
@@ -591,21 +617,7 @@ export class ShiprocketClient implements ShippingProviderClient {
 
   /** Normalize the Shiprocket webhook push payload (P2). */
   normalizeWebhook(payload: any): TrackingResult {
-    const events: TrackingEvent[] = (payload?.scans || []).map((s: any) => ({
-      timestamp: s.date,
-      status: s.status || s["sr-status-label"] || "",
-      location: s.location || "",
-      scan_type: scanTypeForStatus(Number(payload?.shipment_status_id)),
-    }))
-    return {
-      carrier: this.carrier,
-      awb: payload?.awb || "",
-      current_status: payload?.current_status || payload?.shipment_status || "",
-      current_status_code: payload?.shipment_status_id,
-      estimated_delivery: payload?.etd || null,
-      events,
-      raw: payload,
-    }
+    return normalizeShiprocketWebhook(payload)
   }
 
   private normalizeTracking(data: any): TrackingResult {
