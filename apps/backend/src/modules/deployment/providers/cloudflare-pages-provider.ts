@@ -15,16 +15,18 @@
  */
 
 import type {
+  AddDomainOptions,
   CreateProjectInput,
   HostingCredentials,
   HostingDeployment,
   HostingDomain,
+  HostingDomainStatus,
   HostingEnvVar,
   HostingProject,
   HostingProvider,
   TriggerDeploymentInput,
 } from "./types"
-import { sanitizeProjectName } from "./types"
+import { cnameInstruction, isApexDomain, sanitizeProjectName } from "./types"
 
 const CF_API_BASE = "https://api.cloudflare.com/client/v4"
 
@@ -143,7 +145,14 @@ export class CloudflarePagesProvider implements HostingProvider {
     )
   }
 
-  async addDomain(projectName: string, domain: string): Promise<HostingDomain> {
+  async addDomain(
+    projectName: string,
+    domain: string,
+    _opts?: AddDomainOptions
+  ): Promise<HostingDomain> {
+    // Cloudflare Pages has no per-domain redirect primitive (www↔apex redirects
+    // are done with Bulk Redirects / a _redirects file), so `opts.redirect` is
+    // intentionally ignored here — the caller attaches both hosts instead.
     try {
       const result = await this.cf<{ name: string; status?: string }>(
         `${this.base()}/${projectName}/domains`,
@@ -156,6 +165,66 @@ export class CloudflarePagesProvider implements HostingProvider {
       return { name: result.name, verified: result.status === "active", verification: [] }
     } catch (e: any) {
       return { name: domain, verified: false, verification: [], error: e.message }
+    }
+  }
+
+  async removeDomain(projectName: string, domain: string): Promise<void> {
+    const res = await fetch(`${this.base()}/${projectName}/domains/${domain}`, {
+      method: "DELETE",
+      headers: this.headers(),
+    })
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`Cloudflare Pages removeDomain failed (${res.status}): ${await res.text()}`)
+    }
+  }
+
+  private async getDomainStatus(
+    projectName: string,
+    domain: string
+  ): Promise<{ status?: string } | null> {
+    try {
+      return await this.cf<{ name: string; status?: string }>(
+        `${this.base()}/${projectName}/domains/${domain}`,
+        { method: "GET" },
+        "getDomainStatus"
+      )
+    } catch {
+      return null
+    }
+  }
+
+  async verifyDomain(projectName: string, domain: string): Promise<HostingDomain> {
+    // PATCH re-triggers Pages' domain validation; the returned status reflects
+    // whether the CNAME now resolves.
+    try {
+      const result = await this.cf<{ name: string; status?: string }>(
+        `${this.base()}/${projectName}/domains/${domain}`,
+        { method: "PATCH", body: JSON.stringify({}) },
+        "verifyDomain"
+      )
+      return { name: result.name, verified: result.status === "active", verification: [] }
+    } catch {
+      const status = await this.getDomainStatus(projectName, domain)
+      return { name: domain, verified: status?.status === "active", verification: [] }
+    }
+  }
+
+  async describeDomain(projectName: string, domain: string): Promise<HostingDomainStatus> {
+    const status = await this.getDomainStatus(projectName, domain)
+    const active = status?.status === "active"
+    const target = `${projectName}.pages.dev`
+    // Pages needs a CNAME even at the apex (CNAME flattening) — but a partner
+    // apex must live in a Cloudflare zone for that to work; we still surface the
+    // CNAME instruction as the required record.
+    const dnsRecords = isApexDomain(domain)
+      ? [{ type: "CNAME", host: "@", value: target }]
+      : [cnameInstruction(domain, target)]
+    return {
+      name: domain,
+      verified: active,
+      misconfigured: !active,
+      configuredBy: active ? "CNAME" : null,
+      dnsRecords,
     }
   }
 

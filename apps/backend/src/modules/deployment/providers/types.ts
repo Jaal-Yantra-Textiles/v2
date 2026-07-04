@@ -67,6 +67,33 @@ export type HostingDomain = {
   error?: string
 }
 
+export type AddDomainOptions = {
+  /** Attach this host as a permanent redirect to another (Vercel www↔apex pairing). */
+  redirect?: string
+  redirectStatusCode?: 301 | 302 | 307 | 308
+}
+
+/** A DNS record the partner must create on their own registrar for a partner-owned domain. */
+export type DnsRecordInstruction = { type: string; host: string; value: string }
+
+/**
+ * Everything the partner UI needs to render a custom-domain status card — the
+ * shape is uniform, but how each provider fills it differs:
+ *   - Vercel: `dnsRecords` come from the live per-domain recommendation
+ *     (A → recommendedIPv4 for apex, CNAME → recommendedCNAME for subdomains);
+ *     `misconfigured`/`configuredBy` from getDomainConfig.
+ *   - Cloudflare Pages: a single CNAME → `<project>.pages.dev`; `verified`
+ *     reflects the Pages domain `status`.
+ */
+export type HostingDomainStatus = {
+  name: string
+  verified?: boolean
+  misconfigured: boolean
+  configuredBy?: string | null
+  verification?: HostingDomainVerification[]
+  dnsRecords: DnsRecordInstruction[]
+}
+
 export type TriggerDeploymentInput = {
   projectName: string
   gitRepo: string
@@ -84,9 +111,16 @@ export interface HostingProvider {
 
   createProject(input: CreateProjectInput): Promise<HostingProject>
   setEnvVars(projectId: string, envVars: HostingEnvVar[]): Promise<void>
-  addDomain(projectId: string, domain: string): Promise<HostingDomain>
   triggerDeployment(input: TriggerDeploymentInput): Promise<HostingDeployment>
   getProject(projectId: string): Promise<HostingProject>
+
+  // ── Custom domain lifecycle (provider-specific DNS/verification) ──────────
+  addDomain(projectId: string, domain: string, opts?: AddDomainOptions): Promise<HostingDomain>
+  removeDomain(projectId: string, domain: string): Promise<void>
+  /** Re-check ownership/attachment. */
+  verifyDomain(projectId: string, domain: string): Promise<HostingDomain>
+  /** Live status + the DNS records the partner must publish for this domain. */
+  describeDomain(projectId: string, domain: string): Promise<HostingDomainStatus>
 
   /**
    * The CNAME target a storefront subdomain should point at in Cloudflare DNS
@@ -112,4 +146,28 @@ export function sanitizeProjectName(name: string): string {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 58)
+}
+
+/** "example.com" → true; "shop.example.com" / "www.example.com" → false. */
+export function isApexDomain(domain: string): boolean {
+  return domain.split(".").length === 2
+}
+
+/** The record host label a partner enters at their registrar ("@" for apex, else the subdomain part). */
+export function dnsHostLabel(domain: string): string {
+  if (isApexDomain(domain)) return "@"
+  const parts = domain.split(".")
+  return parts.slice(0, parts.length - 2).join(".")
+}
+
+/**
+ * Build the CNAME instruction a partner must add for a subdomain pointing at a
+ * provider origin. Apex domains can't CNAME — callers handle those separately
+ * (Vercel A record; Cloudflare Pages requires the domain in a CF zone).
+ */
+export function cnameInstruction(
+  domain: string,
+  target: string
+): DnsRecordInstruction {
+  return { type: "CNAME", host: dnsHostLabel(domain), value: target }
 }

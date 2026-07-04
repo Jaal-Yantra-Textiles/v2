@@ -634,6 +634,48 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
   }
 
   /**
+   * Upsert a CNAME for `fullDomain` → `target` in our Cloudflare zone,
+   * provider-agnostic. Used for storefront subdomains that live in a zone we
+   * control when the target isn't Vercel's recommendation (e.g. Cloudflare
+   * Pages → `<project>.pages.dev`). Vercel partners keep using
+   * `applyRecommendedDns` for its per-project recommendation.
+   */
+  async ensureCname(
+    fullDomain: string,
+    target: string
+  ): Promise<ApplyRecommendedDnsResult> {
+    if (!this.isCloudflareConfigured()) {
+      return { action: "skipped", reason: "Cloudflare not configured" }
+    }
+    try {
+      const existing = await this.listDnsRecords({ name: fullDomain, type: "CNAME" })
+      if (existing.length > 0) {
+        const record = existing[0]
+        if (record.content === target) {
+          return { action: "exists", type: "CNAME", name: fullDomain, content: target, record }
+        }
+        const updated = await this.updateDnsRecord(record.id, {
+          name: fullDomain,
+          content: target,
+          type: "CNAME",
+          proxied: false,
+        })
+        return { action: "updated", type: "CNAME", name: fullDomain, content: target, record: updated }
+      }
+      const created = await this.createDnsRecord({
+        name: fullDomain,
+        content: target,
+        type: "CNAME",
+        proxied: false,
+      })
+      return { action: "created", type: "CNAME", name: fullDomain, content: target, record: created }
+    } catch (e: any) {
+      this.log("error", `ensureCname failed for ${fullDomain}`, { error: e.message })
+      return { action: "failed", type: "CNAME", name: fullDomain, content: target, error: e.message }
+    }
+  }
+
+  /**
    * Create all DNS verification records that Vercel requires for domain verification.
    * Typically a TXT record like `_vercel.example.com` with a verification value.
    */

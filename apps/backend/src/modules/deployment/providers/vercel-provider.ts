@@ -6,16 +6,26 @@
  */
 
 import type {
+  AddDomainOptions,
   CreateProjectInput,
+  DnsRecordInstruction,
   HostingCredentials,
   HostingDeployment,
   HostingDomain,
+  HostingDomainStatus,
   HostingEnvVar,
   HostingProject,
   HostingProvider,
   TriggerDeploymentInput,
 } from "./types"
-import { sanitizeProjectName } from "./types"
+import { cnameInstruction, isApexDomain, sanitizeProjectName } from "./types"
+
+type VercelDomainConfig = {
+  configuredBy: string | null
+  misconfigured: boolean
+  recommendedCNAME?: Array<{ rank: number; value: string }>
+  recommendedIPv4?: Array<{ rank: number; value: string[] }>
+}
 
 const VERCEL_API_BASE = "https://api.vercel.com"
 const VERCEL_DEFAULT_CNAME = "cname.vercel-dns.com"
@@ -83,10 +93,19 @@ export class VercelHostingProvider implements HostingProvider {
     }
   }
 
-  async addDomain(projectId: string, domain: string): Promise<HostingDomain> {
+  async addDomain(
+    projectId: string,
+    domain: string,
+    opts?: AddDomainOptions
+  ): Promise<HostingDomain> {
+    const body: Record<string, any> = { name: domain }
+    if (opts?.redirect) {
+      body.redirect = opts.redirect
+      body.redirectStatusCode = opts.redirectStatusCode ?? 308
+    }
     const res = await fetch(
       `${VERCEL_API_BASE}/v10/projects/${projectId}/domains${this.teamQuery()}`,
-      { method: "POST", headers: this.headers(), body: JSON.stringify({ name: domain }) }
+      { method: "POST", headers: this.headers(), body: JSON.stringify(body) }
     )
     if (!res.ok) {
       throw new Error(`Vercel addDomain failed (${res.status}): ${await res.text()}`)
@@ -97,6 +116,64 @@ export class VercelHostingProvider implements HostingProvider {
       verification?: Array<{ type: string; domain: string; value: string; reason?: string }>
     }
     return { name: d.name, verified: d.verified, verification: d.verification }
+  }
+
+  async removeDomain(projectId: string, domain: string): Promise<void> {
+    const res = await fetch(
+      `${VERCEL_API_BASE}/v9/projects/${projectId}/domains/${domain}${this.teamQuery()}`,
+      { method: "DELETE", headers: this.headers() }
+    )
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`Vercel removeDomain failed (${res.status}): ${await res.text()}`)
+    }
+  }
+
+  async verifyDomain(projectId: string, domain: string): Promise<HostingDomain> {
+    const res = await fetch(
+      `${VERCEL_API_BASE}/v9/projects/${projectId}/domains/${domain}/verify${this.teamQuery()}`,
+      { method: "POST", headers: this.headers() }
+    )
+    if (!res.ok) {
+      throw new Error(`Vercel verifyDomain failed (${res.status}): ${await res.text()}`)
+    }
+    const d = (await res.json()) as {
+      name: string
+      verified: boolean
+      verification?: Array<{ type: string; domain: string; value: string; reason?: string }>
+    }
+    return { name: d.name, verified: d.verified, verification: d.verification }
+  }
+
+  private async getDomainConfig(domain: string): Promise<VercelDomainConfig | null> {
+    try {
+      const res = await fetch(
+        `${VERCEL_API_BASE}/v6/domains/${domain}/config${this.teamQuery()}`,
+        { method: "GET", headers: this.headers() }
+      )
+      if (!res.ok) return null
+      return (await res.json()) as VercelDomainConfig
+    } catch {
+      return null
+    }
+  }
+
+  async describeDomain(_projectId: string, domain: string): Promise<HostingDomainStatus> {
+    const config = await this.getDomainConfig(domain)
+    const dnsRecords: DnsRecordInstruction[] = []
+    if (isApexDomain(domain)) {
+      // Apex can't CNAME — Vercel serves apexes via an A record.
+      const ipv4 = config?.recommendedIPv4?.[0]?.value?.[0] || "76.76.21.21"
+      dnsRecords.push({ type: "A", host: "@", value: ipv4 })
+    } else {
+      const cname = config?.recommendedCNAME?.[0]?.value || "cname.vercel-dns.com"
+      dnsRecords.push(cnameInstruction(domain, cname))
+    }
+    return {
+      name: domain,
+      misconfigured: config?.misconfigured ?? true,
+      configuredBy: config?.configuredBy ?? null,
+      dnsRecords,
+    }
   }
 
   async triggerDeployment(input: TriggerDeploymentInput): Promise<HostingDeployment> {

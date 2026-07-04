@@ -6,43 +6,24 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../../../helpers"
 import { DEPLOYMENT_MODULE } from "../../../../../modules/deployment"
 import type DeploymentService from "../../../../../modules/deployment/service"
-import type { VercelDomainConfig } from "../../../../../modules/deployment/service"
+import { resolveHostingProviderForPartner } from "../../../../../modules/deployment/providers/resolve-partner-provider"
 import updatePartnerWorkflow from "../../../../../workflows/partners/update-partner"
-import { getStorefrontRefs } from "../../helpers"
-
-function isApexDomain(domain: string): boolean {
-  return domain.split(".").length === 2
-}
-
-function buildDnsRecords(
-  domain: string,
-  config: VercelDomainConfig | null
-): Array<{ type: string; host: string; value: string }> {
-  if (isApexDomain(domain)) {
-    const ipv4 = config?.recommendedIPv4?.[0]?.value?.[0] || "76.76.21.21"
-    return [{ type: "A", host: "@", value: ipv4 }]
-  }
-  const cname = config?.recommendedCNAME?.[0]?.value || "cname.vercel-dns.com"
-  const parts = domain.split(".")
-  const host = parts.slice(0, parts.length - 2).join(".")
-  return [{ type: "CNAME", host, value: cname }]
-}
 
 /**
  * POST /partners/storefront/domain/verify
  *
- * Re-checks Vercel domain ownership AND — when the domain lives inside
- * the Cloudflare zone we control — pushes whatever DNS Vercel currently
- * recommends so the domain self-heals without operator intervention.
+ * Re-checks domain ownership with the partner's hosting provider AND — for
+ * Vercel partners whose domain lives inside the Cloudflare zone we control —
+ * pushes whatever DNS Vercel currently recommends so the domain self-heals
+ * without operator intervention.
  *
- * Apply-step behaviour:
- *   - Always attempts applyRecommendedDns(domain). The deployment service
- *     skips/fails gracefully when CF isn't configured or the domain isn't
- *     in our zone, so partner-owned domains (shop.example.com) fall
- *     through to the existing "return instructions" path unharmed.
- *   - Re-verifies with Vercel after applying so the response reflects the
- *     post-apply state (DNS propagation can still cause this to remain
- *     false for a few minutes).
+ * Provider dispatch:
+ *   - `provider.verifyDomain` re-checks attachment (Vercel verify / Pages
+ *     re-validate).
+ *   - `provider.describeDomain` returns the current DNS instructions + status.
+ *   - The Cloudflare-zone auto-apply is Vercel-recommendation-specific, so it
+ *     only runs for Vercel partners; other providers skip it gracefully
+ *     (partner-owned domains outside our zone were always a no-op anyway).
  */
 export const POST = async (
   req: AuthenticatedMedusaRequest,
@@ -56,25 +37,28 @@ export const POST = async (
     )
   }
 
-  const vercelProjectId = getStorefrontRefs(partner).vercelProjectId
+  const { providerName, provider, projectRef } =
+    await resolveHostingProviderForPartner(partner, req.scope)
   const customDomain = partner.metadata?.custom_domain as string | undefined
 
-  if (!vercelProjectId || !customDomain) {
+  if (!projectRef || !customDomain) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
       "No custom domain configured"
     )
   }
 
-  const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
+  // Vercel-only: apply Vercel's recommended DNS via Cloudflare. No-op for
+  // domains outside our zone; skipped entirely for non-Vercel providers.
+  let applied: any = null
+  if (providerName === "vercel") {
+    const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
+    applied = await deployment.applyRecommendedDns(customDomain)
+  }
 
-  // Apply Vercel's recommended DNS via Cloudflare. No-op for domains
-  // outside our zone — they'll get the instructions in dns_records below.
-  const applied = await deployment.applyRecommendedDns(customDomain)
-
-  // Verify after applying so a successful CF write can flip verified=true
-  // in the same call (subject to Vercel's propagation window).
-  const result = await deployment.verifyDomain(vercelProjectId, customDomain)
+  // Verify after applying so a successful CF write can flip verified=true in
+  // the same call (subject to the provider's propagation window).
+  const result = await provider.verifyDomain(projectRef, customDomain)
 
   if (result.verified) {
     await updatePartnerWorkflow(req.scope).run({
@@ -90,20 +74,17 @@ export const POST = async (
     })
   }
 
-  let config: VercelDomainConfig | null = null
-  try {
-    config = await deployment.getDomainConfig(customDomain)
-  } catch {
-    // non-critical
-  }
+  const status = await provider
+    .describeDomain(projectRef, customDomain)
+    .catch(() => null)
 
   res.json({
     domain: customDomain,
     verified: result.verified,
     verification: result.verification || null,
-    misconfigured: config?.misconfigured ?? true,
-    configured_by: config?.configuredBy ?? null,
+    misconfigured: status?.misconfigured ?? true,
+    configured_by: status?.configuredBy ?? null,
     applied,
-    dns_records: buildDnsRecords(customDomain, config),
+    dns_records: status?.dnsRecords ?? [],
   })
 }

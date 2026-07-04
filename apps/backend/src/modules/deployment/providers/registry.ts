@@ -102,3 +102,5 @@ export function hostingProviderForAccount(
 
 export { VercelHostingProvider } from "./vercel-provider"
 export { CloudflarePagesProvider } from "./cloudflare-pages-provider"
+// NOTE: resolveHostingProviderForPartner lives in ./resolve-partner-provider —
+// import it from there directly to avoid a registry↔resolver import cycle.

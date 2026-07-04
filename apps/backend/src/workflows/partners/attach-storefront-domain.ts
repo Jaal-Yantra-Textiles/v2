@@ -7,11 +7,10 @@ import {
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
 
-import { DEPLOYMENT_MODULE } from "../../modules/deployment"
-import type DeploymentService from "../../modules/deployment/service"
 import { WEBSITE_MODULE } from "../../modules/website"
 import type WebsiteService from "../../modules/website/service"
 import { PARTNER_MODULE } from "../../modules/partner"
+import { resolveHostingProviderForPartner } from "../../modules/deployment/providers/resolve-partner-provider"
 
 /**
  * Roadmap #17 (issue #346) — a partner's custom domain should work in both
@@ -46,33 +45,44 @@ export function deriveDomainPair(domain: string): DomainPair {
 
 export type AttachStorefrontDomainInput = {
   partner_id: string
-  vercel_project_id: string
+  /** @deprecated kept for callers; the provider + project ref are now resolved from the partner. */
+  vercel_project_id?: string
   website_id: string | null
   domain: string
   prev_metadata: Record<string, any>
 }
 
-/** Is this Vercel error just "the domain is already on this project"? */
+/** Is this provider error just "the domain is already on this project"? */
 const isAlreadyAttached = (message: string) =>
   /already in use by (one of )?your|domain_already_in_use|already exists/i.test(message)
 
-type VercelPairComp = { project_id: string; created: string[] }
-const addVercelDomainPairStep = createStep(
-  "asd-add-vercel-domain-pair",
+type ProviderPairComp = { partner_id: string; created: string[] }
+const addProviderDomainPairStep = createStep(
+  "asd-add-provider-domain-pair",
   async (
-    input: { vercel_project_id: string; pair: DomainPair },
+    input: { partner_id: string; pair: DomainPair },
     { container }
   ) => {
-    const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
+    // Resolve which provider this partner's storefront is on (Vercel today,
+    // Cloudflare Pages for new partners) and drive its own domain methods.
+    const partnerService: any = container.resolve(PARTNER_MODULE)
+    const partner = await partnerService.retrievePartner(input.partner_id)
+    const { provider, projectRef } = await resolveHostingProviderForPartner(
+      partner,
+      container
+    )
+    if (!projectRef) {
+      throw new Error(
+        "Storefront has no project reference — cannot attach a custom domain"
+      )
+    }
+
     const created: string[] = []
     let verified = false
     let verification: any = null
 
     try {
-      const res = await deployment.addDomain(
-        input.vercel_project_id,
-        input.pair.primary
-      )
+      const res = await provider.addDomain(projectRef, input.pair.primary)
       verified = !!res.verified
       verification = res.verification || null
       created.push(input.pair.primary)
@@ -83,11 +93,12 @@ const addVercelDomainPairStep = createStep(
 
     if (input.pair.counterpart) {
       try {
-        await deployment.addDomain(
-          input.vercel_project_id,
-          input.pair.counterpart,
-          { redirect: input.pair.primary, redirectStatusCode: 308 }
-        )
+        // Vercel honours the redirect; Cloudflare Pages ignores it and attaches
+        // the counterpart as a plain custom domain (see provider impl).
+        await provider.addDomain(projectRef, input.pair.counterpart, {
+          redirect: input.pair.primary,
+          redirectStatusCode: 308,
+        })
         created.push(input.pair.counterpart)
       } catch (e: any) {
         // The twin is best-effort: it may be parked on another project or
@@ -103,17 +114,24 @@ const addVercelDomainPairStep = createStep(
 
     return new StepResponse<
       { verified: boolean; verification: any; created: string[] },
-      VercelPairComp
+      ProviderPairComp
     >(
       { verified, verification, created },
-      { project_id: input.vercel_project_id, created }
+      { partner_id: input.partner_id, created }
     )
   },
-  async (comp: VercelPairComp | undefined, { container }) => {
+  async (comp: ProviderPairComp | undefined, { container }) => {
     if (!comp?.created?.length) return
-    const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
+    const partnerService: any = container.resolve(PARTNER_MODULE)
+    const partner = await partnerService.retrievePartner(comp.partner_id).catch(() => null)
+    if (!partner) return
+    const { provider, projectRef } = await resolveHostingProviderForPartner(
+      partner,
+      container
+    ).catch(() => ({ provider: null as any, projectRef: null }))
+    if (!provider || !projectRef) return
     for (const d of comp.created) {
-      await deployment.removeDomain(comp.project_id, d).catch(() => {})
+      await provider.removeDomain(projectRef, d).catch(() => {})
     }
   }
 )
@@ -128,12 +146,18 @@ const addVercelDomainPairStep = createStep(
 const setBaseUrlEnvStep = createStep(
   "asd-set-base-url-env",
   async (
-    input: { vercel_project_id: string; primary: string },
+    input: { partner_id: string; primary: string },
     { container }
   ) => {
-    const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
+    const partnerService: any = container.resolve(PARTNER_MODULE)
+    const partner = await partnerService.retrievePartner(input.partner_id)
+    const { provider, projectRef } = await resolveHostingProviderForPartner(
+      partner,
+      container
+    )
+    if (!projectRef) return new StepResponse({ set: false })
     try {
-      await deployment.setEnvironmentVariables(input.vercel_project_id, [
+      await provider.setEnvVars(projectRef, [
         {
           key: "NEXT_PUBLIC_BASE_URL",
           value: `https://${input.primary}`,
@@ -236,23 +260,23 @@ export const attachStorefrontDomainWorkflow = createWorkflow(
   (input: AttachStorefrontDomainInput) => {
     const pair = transform({ input }, (d) => deriveDomainPair(d.input.domain))
 
-    const vercelInput = transform({ input, pair }, (d) => ({
-      vercel_project_id: d.input.vercel_project_id,
+    const pairInput = transform({ input, pair }, (d) => ({
+      partner_id: d.input.partner_id,
       pair: d.pair,
     }))
-    const vercel = addVercelDomainPairStep(vercelInput)
+    const attached = addProviderDomainPairStep(pairInput)
 
     const envInput = transform({ input, pair }, (d) => ({
-      vercel_project_id: d.input.vercel_project_id,
+      partner_id: d.input.partner_id,
       primary: d.pair.primary,
     }))
     setBaseUrlEnvStep(envInput)
 
-    const metaInput = transform({ input, pair, vercel }, (d) => ({
+    const metaInput = transform({ input, pair, attached }, (d) => ({
       partner_id: d.input.partner_id,
       prev_metadata: d.input.prev_metadata,
       domain: d.pair.primary,
-      verified: d.vercel.verified,
+      verified: d.attached.verified,
     }))
     updatePartnerDomainMetadataStep(metaInput)
 
@@ -262,11 +286,11 @@ export const attachStorefrontDomainWorkflow = createWorkflow(
     }))
     const aliases = registerWebsiteAliasesStep(aliasInput)
 
-    const result = transform({ pair, vercel, aliases }, (d) => ({
+    const result = transform({ pair, attached, aliases }, (d) => ({
       primary: d.pair.primary,
       counterpart: d.pair.counterpart,
-      verified: d.vercel.verified,
-      verification: d.vercel.verification,
+      verified: d.attached.verified,
+      verification: d.attached.verification,
       created_aliases: d.aliases.created,
     }))
 

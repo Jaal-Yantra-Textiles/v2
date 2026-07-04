@@ -1,4 +1,13 @@
-import { sanitizeProjectName } from "../providers/types"
+import {
+  sanitizeProjectName,
+  isApexDomain,
+  dnsHostLabel,
+  cnameInstruction,
+} from "../providers/types"
+import {
+  partnerHostingProviderName,
+  partnerProjectRef,
+} from "../providers/resolve-partner-provider"
 import {
   createHostingProvider,
   hostingProviderForAccount,
@@ -85,6 +94,49 @@ describe("dnsTarget", () => {
     expect(p.dnsTarget({ id: "shop", name: "shop", originHost: "custom.pages.dev" })).toBe(
       "custom.pages.dev"
     )
+  })
+})
+
+describe("DNS instruction helpers", () => {
+  it("isApexDomain distinguishes apex from subdomains", () => {
+    expect(isApexDomain("example.com")).toBe(true)
+    expect(isApexDomain("shop.example.com")).toBe(false)
+    expect(isApexDomain("www.example.com")).toBe(false)
+  })
+  it("dnsHostLabel yields @ for apex, else the subdomain part", () => {
+    expect(dnsHostLabel("example.com")).toBe("@")
+    expect(dnsHostLabel("shop.example.com")).toBe("shop")
+    expect(dnsHostLabel("a.b.example.com")).toBe("a.b")
+  })
+  it("cnameInstruction builds a CNAME record for the host label", () => {
+    expect(cnameInstruction("shop.example.com", "foo.pages.dev")).toEqual({
+      type: "CNAME",
+      host: "shop",
+      value: "foo.pages.dev",
+    })
+  })
+})
+
+describe("resolve-partner-provider selection (pure)", () => {
+  it("defaults to vercel for pre-#884 partners, honours hosting_provider when set", () => {
+    expect(partnerHostingProviderName({})).toBe("vercel")
+    expect(partnerHostingProviderName({ vercel_project_id: "prj_1" })).toBe("vercel")
+    expect(partnerHostingProviderName({ hosting_provider: "cloudflare" })).toBe("cloudflare")
+    expect(partnerHostingProviderName({ metadata: { hosting_provider: "render" } })).toBe("render")
+    expect(partnerHostingProviderName({ hosting_provider: "bogus" })).toBe("vercel")
+  })
+  it("picks the project id for Vercel and the project name for Cloudflare Pages", () => {
+    const partner = {
+      vercel_project_id: "prj_abc",
+      vercel_project_name: "storefront-acme",
+    }
+    expect(partnerProjectRef(partner, "vercel")).toBe("prj_abc")
+    expect(partnerProjectRef(partner, "cloudflare")).toBe("storefront-acme")
+  })
+  it("falls back to metadata for legacy records", () => {
+    expect(
+      partnerProjectRef({ metadata: { vercel_project_id: "prj_meta" } }, "vercel")
+    ).toBe("prj_meta")
   })
 })
 

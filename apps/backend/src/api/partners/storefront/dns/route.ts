@@ -6,21 +6,23 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../../helpers"
 import { DEPLOYMENT_MODULE } from "../../../../modules/deployment"
 import type DeploymentService from "../../../../modules/deployment/service"
+import { resolveHostingProviderForPartner } from "../../../../modules/deployment/providers/resolve-partner-provider"
 import { getStorefrontRefs } from "../helpers"
 
 /**
  * POST /partners/storefront/dns
  *
- * Re-reads Vercel's currently-recommended DNS for a partner-owned domain
- * and pushes it into Cloudflare. Defaults to the partner's primary
- * `storefront_domain` (e.g. uniquepashmina.cicilabel.com), or accepts a
- * `domain` in the body to target a custom domain. Idempotent — safe to
- * call when a partner sees "Update your DNS" instructions from Vercel
- * because we shipped a generic CNAME before Vercel had a project-specific
- * target ready (e.g. dc034fcb6b63fdce.vercel-dns-017.com).
+ * Re-applies the correct DNS for a partner's storefront subdomain that lives
+ * inside a Cloudflare zone we control. Defaults to the partner's primary
+ * `storefront_domain`, or accepts a `domain` in the body. Idempotent.
  *
- * Skipped/failed apply does not error the response — the body always
- * carries the apply result so the caller can decide what to surface.
+ * Provider dispatch:
+ *   - Vercel → `applyRecommendedDns` pushes Vercel's per-project
+ *     recommendation (e.g. `dc034fcb6b63fdce.vercel-dns-017.com`).
+ *   - Cloudflare Pages → upsert a CNAME to `<project>.pages.dev`.
+ *
+ * Skipped/failed apply does not error the response — the body always carries
+ * the apply result so the caller can decide what to surface.
  */
 export const POST = async (
   req: AuthenticatedMedusaRequest,
@@ -45,29 +47,48 @@ export const POST = async (
     )
   }
 
+  const { providerName, provider, projectRef } =
+    await resolveHostingProviderForPartner(partner, req.scope)
   const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
-  const applied = await deployment.applyRecommendedDns(domain)
 
-  // Best-effort: fetch domain config so the caller can show the recommendation
-  // alongside what was actually applied.
-  let recommendation: Awaited<
-    ReturnType<DeploymentService["getDomainConfig"]>
-  > | null = null
-  try {
-    recommendation = await deployment.getDomainConfig(domain)
-  } catch {
-    // non-critical
+  if (providerName === "vercel") {
+    const applied = await deployment.applyRecommendedDns(domain)
+
+    let recommendation: Awaited<
+      ReturnType<DeploymentService["getDomainConfig"]>
+    > | null = null
+    try {
+      recommendation = await deployment.getDomainConfig(domain)
+    } catch {
+      // non-critical
+    }
+
+    return res.json({
+      domain,
+      provider: providerName,
+      applied,
+      recommendation: recommendation
+        ? {
+            misconfigured: recommendation.misconfigured,
+            recommended_cname: recommendation.recommendedCNAME?.[0]?.value ?? null,
+            recommended_ipv4: recommendation.recommendedIPv4?.[0]?.value?.[0] ?? null,
+          }
+        : null,
+    })
   }
 
-  res.json({
+  // Non-Vercel providers (Cloudflare Pages today): the origin is a stable
+  // CNAME target derived from the project, so upsert that directly.
+  const target = provider.dnsTarget({
+    id: projectRef || domain,
+    name: projectRef || domain,
+  })
+  const applied = await deployment.ensureCname(domain, target)
+
+  return res.json({
     domain,
+    provider: providerName,
     applied,
-    recommendation: recommendation
-      ? {
-          misconfigured: recommendation.misconfigured,
-          recommended_cname: recommendation.recommendedCNAME?.[0]?.value ?? null,
-          recommended_ipv4: recommendation.recommendedIPv4?.[0]?.value?.[0] ?? null,
-        }
-      : null,
+    recommendation: { misconfigured: applied.action === "failed", recommended_cname: target, recommended_ipv4: null },
   })
 }
