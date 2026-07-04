@@ -129,17 +129,24 @@ export const GET = async(
     // work-status (best-effort), mirroring the design-order detail + admin order
     // routes. `unified_order_status.partner_status` is a custom link sidecar the
     // inventory-order workflow doesn't expand, so resolve it via query.graph and
-    // attach. A graph hiccup just leaves the field off (plain rendering).
+    // attach. The same call also pulls the first-class inventory_shipments rows
+    // (#888 S4) so the admin detail can surface them. A graph hiccup just leaves
+    // both fields off (plain rendering).
     try {
       const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY)
       const { data } = await query.graph({
         entity: "inventory_orders",
-        fields: ["id", "order.id", "order.unified_order_status.partner_status"],
+        fields: ["id", "order.id", "order.unified_order_status.partner_status", "inventory_shipments.*"],
         filters: { id },
       })
       const link = data?.[0]
       if (link && inventoryOrder) {
         ;(inventoryOrder as any).unified_order_status = link.order?.unified_order_status ?? null
+        ;(inventoryOrder as any).shipments = (() => {
+          const raw = (link as any).inventory_shipments
+          const arr = !raw ? [] : Array.isArray(raw) ? raw : [raw]
+          return arr.filter(Boolean).sort((a: any, b: any) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+        })()
       }
     } catch {
       // leave as-is; the UI falls back to plain rendering

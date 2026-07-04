@@ -291,6 +291,10 @@ export async function GET(
                 .sort((a: any, b: any) =>
                     String(b.created_at || "").localeCompare(String(a.created_at || ""))
                 )
+                // last_webhook is the raw carrier payload kept for admin debugging (#888) — never ship it to the partner.
+                .map((s: any) =>
+                    ({ ...s, metadata: s?.metadata ? { ...s.metadata, last_webhook: undefined } : s?.metadata })
+                )
         })(),
         // #342 — submitted payments for the Payments section (newest first).
         payments: (() => {

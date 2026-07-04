@@ -3438,6 +3438,8 @@
       "noShipments": "No shipments created yet.",
       "pickupFrom": "Pickup",
       "trackingLabel": "Label",
+      "upcomingPickup": "Upcoming pickup",
+      "trackingHistory": "Tracking history",
       "payments": "Payments",
       "noPayments": "No payments submitted yet.",
       "delivered": "Delivered",
