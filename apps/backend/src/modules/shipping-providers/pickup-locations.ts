@@ -145,9 +145,16 @@ export async function registerShiprocketPickup(
   if (!existing) {
     const addr = loc.address || {}
     if (!addr.phone || !addr.postal_code) {
+      const missing = [
+        !addr.phone ? "phone" : null,
+        !addr.postal_code ? "postal code" : null,
+      ]
+        .filter(Boolean)
+        .join(" and ")
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        `Stock location ${locationId} is missing a phone or postal code required to register a Shiprocket pickup`
+        `Stock location ${locationId} is missing the ${missing} required to register a Shiprocket pickup (would register as "${nickname}"). ` +
+          `If this location is already registered on Shiprocket under a different name, record that exact pickup name in the location's metadata key "${SHIPROCKET_PICKUP_METADATA_KEY}" instead.`
       )
     }
     addedShippable =

@@ -272,12 +272,18 @@ export type ShiprocketRatesParams = {
   length?: number;
   breadth?: number;
   height?: number;
+  /** Explicit ship-from override, mirroring the shipment payload's field. */
+  pickup_stock_location_id?: string;
 };
 
 const ratesQuery = (params: ShiprocketRatesParams): string => {
   const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
+  const { pickup_stock_location_id, ...numeric } = params;
+  for (const [k, v] of Object.entries(numeric)) {
     if (v != null && Number.isFinite(Number(v)) && Number(v) > 0) qs.set(k, String(v));
+  }
+  if (pickup_stock_location_id) {
+    qs.set("pickup_stock_location_id", pickup_stock_location_id);
   }
   const s = qs.toString();
   return s ? `?${s}` : "";

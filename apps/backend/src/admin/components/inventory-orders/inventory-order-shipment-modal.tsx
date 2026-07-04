@@ -43,6 +43,7 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
   const handleGetRates = async () => {
     try {
       const res = await fetchRates({
+        ...(pickup ? { pickup_stock_location_id: pickup } : {}),
         ...(weight ? { weight_grams: Number(weight) } : {}),
         ...(length ? { length: Number(length) } : {}),
         ...(breadth ? { breadth: Number(breadth) } : {}),

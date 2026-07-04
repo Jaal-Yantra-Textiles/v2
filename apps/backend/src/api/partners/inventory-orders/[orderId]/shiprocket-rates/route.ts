@@ -4,9 +4,10 @@
  *
  * List Shiprocket courier options (rate / ETA / recommended) for the order's
  * stock-movement shipment, so the partner can CHOOSE a courier before creating
- * the shipment (else Shiprocket auto-assigns). Origin = the from-location's
- * registered pickup pincode; destination = the to-location pincode. Optional
- * `?weight_grams=&length=&breadth=&height=` refine the quote.
+ * the shipment (else Shiprocket auto-assigns). Origin = the order's
+ * from-location (its registered pickup's pincode, else its own address
+ * pincode — never another party's warehouse); destination = the to-location
+ * pincode. Optional `?weight_grams=&length=&breadth=&height=` refine the quote.
  *
  * The acting partner must own the order (IDOR guard, #778 C1).
  */

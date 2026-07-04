@@ -77,6 +77,7 @@ import { backfillPartnerEmailVerifiedJob } from "./backfill-partner-email-verifi
 import { enableStripeConnectEurRegionsJob } from "./enable-stripe-connect-eur-regions-job"
 import { suppressBouncedSubscribersJob } from "./suppress-bounced-subscribers-job"
 import { backfillAudienceEntriesJob } from "./backfill-audience-entries-job"
+import { repairInventoryOrderSourceJob } from "./repair-inventory-order-source-job"
 import {
   sweepAiPlatformsByCategory,
   AI_ROLES,
@@ -5347,6 +5348,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   enableStripeConnectEurRegionsJob,
   suppressBouncedSubscribersJob,
   backfillAudienceEntriesJob,
+  repairInventoryOrderSourceJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>

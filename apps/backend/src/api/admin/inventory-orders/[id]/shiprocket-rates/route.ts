@@ -5,7 +5,9 @@
  * order's stock-movement shipment, so the admin can pick a courier before
  * creating the shipment. Mirrors the partner route; origin = from-location
  * pickup, destination = to-location. Optional
- * `?weight_grams=&length=&breadth=&height=` refine the quote.
+ * `?weight_grams=&length=&breadth=&height=` refine the quote;
+ * `?pickup_stock_location_id=` quotes from an explicitly chosen ship-from
+ * location (matching the shipment modal's pickup override).
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { getShiprocketRatesForInventoryOrder } from "../../../../../workflows/inventory_orders/shiprocket-rates";
@@ -24,8 +26,15 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const dimensionsCm =
     length || breadth || height ? { length, breadth, height } : undefined;
 
+  const pickupStockLocationId =
+    typeof req.query.pickup_stock_location_id === "string" &&
+    req.query.pickup_stock_location_id
+      ? req.query.pickup_stock_location_id
+      : undefined;
+
   const result = await getShiprocketRatesForInventoryOrder(req.scope, {
     orderId,
+    pickupStockLocationId,
     weightGrams: num(req.query.weight_grams),
     dimensionsCm,
   });

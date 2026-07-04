@@ -25,6 +25,10 @@ import {
   buildMaterialLookupByInventoryId,
   type MaterialInfo,
 } from "../../modules/inventory_orders/lib/create-helpers";
+import {
+  repointInventoryOrderFromLink,
+  restoreInventoryOrderFromLink,
+} from "./lib/repoint-from-location";
 
 
 // Types
@@ -50,10 +54,32 @@ export type UpdateInventoryOrderInput = {
     total_price: number;
     quantity: number;
     shipping_address: any;
+    /** Repoints the order↔stock-location from-link (ship-from), not a column. */
+    from_stock_location_id: string;
     // ...other updatable fields
   }>;
   order_lines: UpdateInventoryOrderLineInput[];
 };
+
+/**
+ * Link-only aliases accepted by the route validator that must never reach
+ * `updateInventoryOrders` as columns — the from/to locations live on the
+ * inventory-orders↔stock-locations LINK (extraColumns from_location /
+ * to_location), not on the inventory_orders table.
+ */
+const LINK_ONLY_UPDATE_FIELDS = [
+  "from_stock_location_id",
+  "to_stock_location_id",
+  "stock_location_id",
+] as const;
+
+export function stripLinkOnlyUpdateFields(
+  data: Record<string, any> | undefined | null
+): Record<string, any> {
+  const rest = { ...(data || {}) };
+  for (const k of LINK_ONLY_UPDATE_FIELDS) delete rest[k];
+  return rest;
+}
 
 // Step 1: Fetch original order, enforce the status transition, and decide whether
 // this update must post stock (#778 M1/C2 — admin marking Delivered).
@@ -266,6 +292,46 @@ export const updateOrderLinesStep = createStep(
   }
 );
 
+// Step 3b: Repoint the order's FROM-location link (#772 follow-up — an order
+// created against the wrong/deleted source location could not be corrected:
+// the shipment + rates flows refuse to guess an origin, so a mispicked
+// from_location stranded the order). Dismisses the existing from-link (if any)
+// and creates one pointing at the requested location. No-op when the link
+// already points there.
+export const repointInventoryOrderFromLocationStep = createStep(
+  "repoint-inventory-order-from-location-step",
+  async (
+    input: { order_id: string; from_stock_location_id: string },
+    { container }
+  ) => {
+    const { repointed, prevId } = await repointInventoryOrderFromLink(
+      container,
+      input.order_id,
+      input.from_stock_location_id
+    );
+    if (!repointed) {
+      return new StepResponse({ repointed: false }, null);
+    }
+    return new StepResponse(
+      { repointed: true, prevId },
+      { order_id: input.order_id, newId: input.from_stock_location_id, prevId }
+    );
+  },
+  // Compensation: remove the new from-link and restore the previous one.
+  async (
+    comp: { order_id: string; newId: string; prevId?: string | null } | null,
+    { container }
+  ) => {
+    if (!comp) return;
+    await restoreInventoryOrderFromLink(
+      container,
+      comp.order_id,
+      comp.newId,
+      comp.prevId
+    );
+  }
+);
+
 // Step 4: Load the delivery context (orderlines + their inventory items/locations +
 // the order's destination + prior deliveries) needed to post stock when an admin
 // marks an order Delivered (#778 C2 admin-half). Reused on every update; the
@@ -348,8 +414,25 @@ export const updateInventoryOrderWorkflow = createWorkflow(
   },
   (input: UpdateInventoryOrderInput) => {
     const original = fetchOriginalOrderStep({ id: input.id, data: input.data });
-    const updatedOrder = updateInventoryOrderStep({ id: input.id, data: input.data });
+    // Link-only aliases (from/to location) are handled by the repoint step —
+    // they are NOT columns and must not reach the field update.
+    const columnData = transform({ input }, ({ input }) =>
+      stripLinkOnlyUpdateFields(input.data as any)
+    );
+    const updatedOrder = updateInventoryOrderStep({ id: input.id, data: columnData });
     const updatedOrderlines = updateOrderLinesStep({ order_id: input.id, order_lines: input.order_lines });
+
+    // Repoint the ship-from link when the update carries one (mispicked or
+    // deleted source location — #772 follow-up).
+    when(input, (i) => Boolean((i.data as any)?.from_stock_location_id)).then(() => {
+      repointInventoryOrderFromLocationStep({
+        order_id: input.id,
+        from_stock_location_id: transform(
+          { input },
+          ({ input }) => (input.data as any).from_stock_location_id as string
+        ) as unknown as string,
+      });
+    });
 
     // #778 C2 admin-half — when this update delivers the order, post the remaining
     // stock per line (ordered − already delivered) to the destination location,

@@ -9,7 +9,6 @@ import type {
   Dimensions,
   RateOption,
 } from "../../modules/shipping-providers/provider-interface"
-import { pickRatesPickup } from "../orders/shiprocket-rates"
 import InventoryOrdersStockLocationsLink from "../../links/inventory-orders-stock-locations"
 import {
   DEFAULT_INVENTORY_SHIPMENT_WEIGHT_GRAMS,
@@ -23,14 +22,26 @@ import {
  * shipment so admin/partner can CHOOSE a courier before generating the label,
  * instead of Shiprocket auto-assigning one.
  *
- * Origin = the registered pickup for the order's `from_location` (mirrors the
- * shipment flow's pickup resolution). Destination = the `to_location`'s pincode
- * (the same structured address the shipment ships to, #864/#772). The chosen
- * `courier_id` then threads into the shipment via `preferredCourierId`.
+ * Origin = the order's `from_location` (mirrors the shipment flow's pickup
+ * resolution, 740a2b240): the location's recorded pickup nickname → that
+ * registered pickup's pincode, else the location's own address pincode (what
+ * an on-the-fly registration would use). There is deliberately NO
+ * any-registered-pickup fallback — all parties share one Shiprocket account,
+ * so "first shippable pickup" is some OTHER party's warehouse and the quote
+ * would disagree with the real shipment origin. Destination = the
+ * `to_location`'s pincode (the same structured address the shipment ships to,
+ * #864/#772). The chosen `courier_id` then threads into the shipment via
+ * `preferredCourierId`.
  */
 
 export type InventoryOrderRatesInput = {
   orderId: string
+  /**
+   * Explicit ship-from override (mirrors the shipment input's
+   * `pickupStockLocationId`) so the quote matches a pickup the operator picked
+   * in the modal — e.g. when the order's linked from_location was deleted.
+   */
+  pickupStockLocationId?: string
   weightGrams?: number
   dimensionsCm?: Dimensions | { length?: number; breadth?: number; height?: number }
 }
@@ -75,7 +86,20 @@ export async function getShiprocketRatesForInventoryOrder(
     filters: { inventory_orders_id: order.id },
   })
   const toLocation = (links || []).find((l: any) => l?.to_location)?.stock_location || null
-  const fromLocation = (links || []).find((l: any) => l?.from_location)?.stock_location || null
+  let fromLocation =
+    (links || []).find((l: any) => l?.from_location)?.stock_location || null
+
+  // Explicit ship-from override wins over the linked from_location (same
+  // precedence as the shipment flow), so the quoted origin matches the pickup
+  // the operator actually selected.
+  if (input.pickupStockLocationId) {
+    const { data: locs } = await query.graph({
+      entity: "stock_location",
+      fields: ["id", "name", "metadata", "address.*"],
+      filters: { id: input.pickupStockLocationId },
+    })
+    fromLocation = locs?.[0] || fromLocation
+  }
 
   // Destination pincode: the to-location address (explicit shipping_address wins).
   const destinationAddress = resolveInventoryDestinationAddress(
@@ -92,25 +116,37 @@ export async function getShiprocketRatesForInventoryOrder(
   }
 
   const provider = await resolveShippingProvider(container, "shiprocket")
-  if (!provider.getRates || !provider.listPickupLocations) {
+  if (!provider.getRates) {
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
       "Shiprocket provider does not support rate quotes"
     )
   }
 
-  // Origin pincode: the registered pickup matching the from-location's nickname,
-  // else the shippable-first pickup (same heuristic the shipment flow uses).
+  // Origin pincode: the order's from_location, never another warehouse. A
+  // recorded pickup nickname resolves to THAT registered pickup's pincode
+  // (exact match only); otherwise the location's own address pincode — the
+  // same one an on-the-fly pickup registration would use at shipment time.
   const fromNickname = (fromLocation?.metadata as any)?.[
     SHIPROCKET_PICKUP_METADATA_KEY
-  ]
-  const pickups = await provider.listPickupLocations()
-  const pickup = pickRatesPickup(pickups, fromNickname)
-  const originPincode = String(pickup?.pincode || "").trim()
+  ] as string | undefined
+  let originPincode = ""
+  if (fromNickname && provider.listPickupLocations) {
+    const pickups = await provider.listPickupLocations()
+    const match = (pickups || []).find((p) => p.name === fromNickname)
+    originPincode = String(match?.pincode || "").trim()
+  }
+  if (!originPincode) {
+    originPincode = String(
+      (fromLocation?.address as any)?.postal_code || ""
+    ).trim()
+  }
   if (!originPincode) {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
-      "No Shiprocket pickup location with a pincode is configured. Register a pickup for the source stock location before requesting courier rates."
+      `The order's source location ${
+        fromLocation?.name ? `"${fromLocation.name}" ` : ""
+      }has no pincode to quote pickup rates from. Set a complete address on the source stock location (or register it as a Shiprocket pickup), then retry.`
     )
   }
 
