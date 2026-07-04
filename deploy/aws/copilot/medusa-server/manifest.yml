@@ -156,6 +156,10 @@ secrets:
   S3_REGION: /jyt/prod/S3_REGION
   S3_SECRET_ACCESS_KEY: /jyt/prod/S3_SECRET_ACCESS_KEY
   SENTRY_DSN: /jyt/prod/SENTRY_DSN
+  # #888 — gates POST /webhooks/shipping/track (carrier tracking pushes;
+  # Shiprocket has no HMAC, it replays a dashboard-configured header). Unset →
+  # endpoint runs open with a warning.
+  SHIPPING_WEBHOOK_SECRET: /jyt/prod/SHIPPING_WEBHOOK_SECRET
   # Shiprocket fulfillment provider (#436). The env-gated block in
   # medusa-config.prod.ts registers the provider whenever SHIPROCKET_EMAIL is
   # set — that alone surfaces it in Fulfillment Providers. The actual Shiprocket
