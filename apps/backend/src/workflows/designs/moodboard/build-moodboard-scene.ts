@@ -420,14 +420,301 @@ export function buildHeaderFlatsFrame(
   return { elements, files }
 }
 
-// ── DELEGATED (see draft task): mirror buildHeaderFlatsFrame ─────────────────────
-// buildMeasurementFrame(input, rng, originX)  — Page 2: flats + dimension callout
-//     arrows (type:"arrow") with a bound/adjacent text per sizeSet.measurements entry,
-//     via formatMeasurement(); suggested keys rendered at opacity 50.
-// buildZoomLensFrame(input, rng, originX)     — Page 3: ellipse "lens" per region with
-//     an arrow to a spec-note text (region.note).
-// buildColorwayFrame(input, rng, originX)     — Page 5: a rectangle chip per colorway
-//     (backgroundColor: hex_code) with name + thread_ref text under it.
+// ── Frame builders (mirror buildHeaderFlatsFrame) ───────────────────────────────
+
+/**
+ * Page 2 — measurement callouts. One row per `sizeSet.measurements` entry: a short
+ * right-pointing arrow + a `formatMeasurement()` text label. Vision-suggested keys
+ * (listed in `sizeSet.suggested`) render dimmed (opacity 50).
+ */
+export function buildMeasurementFrame(
+  input: TechPackSceneInput,
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    {
+      type: "frame",
+      id: frameId,
+      x: originX,
+      y: 0,
+      width: FRAME.width,
+      height: FRAME.height,
+      name: "2 · Measurements",
+    },
+    rng
+  )
+
+  const elements: ExcalidrawElement[] = [frame]
+  const files: Record<string, ExcalidrawFile> = {}
+
+  if (!input.sizeSet) {
+    elements.push(
+      makeElement(
+        {
+          type: "text",
+          x: originX + FRAME.pad,
+          y: FRAME.pad,
+          width: 300,
+          height: 24,
+          text: "No measurements",
+          fontSize: 18,
+        },
+        rng,
+        frameId
+      )
+    )
+    return { elements, files }
+  }
+
+  const { measurements, unit, suggested } = input.sizeSet
+  const suggestedSet = new Set(suggested ?? [])
+  const rowGap = 40
+  const arrowW = 60
+  const labelX = originX + FRAME.pad + arrowW + 16
+
+  Object.entries(measurements).forEach(([key, value], i) => {
+    const rowY = FRAME.pad + i * rowGap
+    elements.push(
+      makeElement(
+        {
+          type: "arrow",
+          x: originX + FRAME.pad,
+          y: rowY,
+          width: arrowW,
+          height: 0,
+          points: [
+            [0, 0],
+            [arrowW, 0],
+          ],
+        },
+        rng,
+        frameId
+      )
+    )
+    elements.push(
+      makeElement(
+        {
+          type: "text",
+          x: labelX,
+          y: rowY - 12,
+          width: 420,
+          height: 24,
+          text: formatMeasurement(key, value, unit),
+          fontSize: 16,
+          opacity: suggestedSet.has(key) ? 50 : 100,
+        },
+        rng,
+        frameId
+      )
+    )
+  })
+
+  return { elements, files }
+}
+
+/**
+ * Page 3 — zoom-lens detail callouts. Per region: an ellipse "lens" with an arrow to a
+ * text showing `region.label` (and `region.note` on the next line when present).
+ */
+export function buildZoomLensFrame(
+  input: TechPackSceneInput,
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    {
+      type: "frame",
+      id: frameId,
+      x: originX,
+      y: 0,
+      width: FRAME.width,
+      height: FRAME.height,
+      name: "3 · Zoom details",
+    },
+    rng
+  )
+
+  const elements: ExcalidrawElement[] = [frame]
+  const files: Record<string, ExcalidrawFile> = {}
+
+  const regions = input.regions ?? []
+  if (regions.length === 0) {
+    elements.push(
+      makeElement(
+        {
+          type: "text",
+          x: originX + FRAME.pad,
+          y: FRAME.pad,
+          width: 300,
+          height: 24,
+          text: "No detail regions",
+          fontSize: 18,
+        },
+        rng,
+        frameId
+      )
+    )
+    return { elements, files }
+  }
+
+  const lensW = 160
+  const lensH = 160
+  const rowGap = 220
+  const textX = originX + FRAME.pad + lensW + 80
+
+  regions.forEach((region, i) => {
+    const rowY = FRAME.pad + i * rowGap
+    elements.push(
+      makeElement(
+        {
+          type: "ellipse",
+          x: originX + FRAME.pad,
+          y: rowY,
+          width: lensW,
+          height: lensH,
+          strokeColor: "#1e1e1e",
+          backgroundColor: "transparent",
+          fillStyle: "solid",
+        },
+        rng,
+        frameId
+      )
+    )
+    elements.push(
+      makeElement(
+        {
+          type: "arrow",
+          x: originX + FRAME.pad + lensW,
+          y: rowY + lensH / 2,
+          width: 80,
+          height: 0,
+          points: [
+            [0, 0],
+            [80, 0],
+          ],
+        },
+        rng,
+        frameId
+      )
+    )
+    const noteLines = [region.label, region.note].filter(Boolean) as string[]
+    elements.push(
+      makeElement(
+        {
+          type: "text",
+          x: textX,
+          y: rowY + lensH / 2 - 12,
+          width: 360,
+          height: noteLines.length * 22,
+          text: noteLines.join("\n"),
+          fontSize: 16,
+          lineHeight: 1.35,
+        },
+        rng,
+        frameId
+      )
+    )
+  })
+
+  return { elements, files }
+}
+
+/**
+ * Page 5 — colorway chips. Per colorway: a solid rectangle chip filled with
+ * `hex_code`, the colorway `name` under it, and a `Thread <ref>` line when
+ * `thread_ref` is present. Chips laid out left-to-right.
+ */
+export function buildColorwayFrame(
+  input: TechPackSceneInput,
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    {
+      type: "frame",
+      id: frameId,
+      x: originX,
+      y: 0,
+      width: FRAME.width,
+      height: FRAME.height,
+      name: "5 · Colorways",
+    },
+    rng
+  )
+
+  const elements: ExcalidrawElement[] = [frame]
+  const files: Record<string, ExcalidrawFile> = {}
+
+  const colorways = input.colorways ?? []
+  if (colorways.length === 0) {
+    elements.push(
+      makeElement(
+        {
+          type: "text",
+          x: originX + FRAME.pad,
+          y: FRAME.pad,
+          width: 300,
+          height: 24,
+          text: "No colorways",
+          fontSize: 18,
+        },
+        rng,
+        frameId
+      )
+    )
+    return { elements, files }
+  }
+
+  const chipW = 120
+  const chipH = 120
+  const colGap = 60
+
+  colorways.forEach((colorway, i) => {
+    const chipX = originX + FRAME.pad + i * (chipW + colGap)
+    const chipY = FRAME.pad
+    elements.push(
+      makeElement(
+        {
+          type: "rectangle",
+          x: chipX,
+          y: chipY,
+          width: chipW,
+          height: chipH,
+          backgroundColor: colorway.hex_code,
+          fillStyle: "solid",
+          strokeColor: "#1e1e1e",
+        },
+        rng,
+        frameId
+      )
+    )
+    const nameLines = [colorway.name, colorway.thread_ref && `Thread ${colorway.thread_ref}`].filter(
+      Boolean
+    ) as string[]
+    elements.push(
+      makeElement(
+        {
+          type: "text",
+          x: chipX,
+          y: chipY + chipH + 12,
+          width: chipW,
+          height: nameLines.length * 22,
+          text: nameLines.join("\n"),
+          fontSize: 14,
+          lineHeight: 1.35,
+        },
+        rng,
+        frameId
+      )
+    )
+  })
+
+  return { elements, files }
+}
 
 // ── Scene assembler ──────────────────────────────────────────────────────────────
 
@@ -442,8 +729,9 @@ export function buildMoodboardScene(input: TechPackSceneInput): MoodboardScene {
     r: SceneRng,
     x: number
   ) => FrameResult)[] = [buildHeaderFlatsFrame]
-  // NOTE: append buildMeasurementFrame / buildZoomLensFrame / buildColorwayFrame here
-  // once implemented (guard each on the data it needs — sizeSet, regions, colorways).
+  if (input.sizeSet) builders.push(buildMeasurementFrame)
+  if (input.regions?.length) builders.push(buildZoomLensFrame)
+  if (input.colorways?.length) builders.push(buildColorwayFrame)
 
   const elements: ExcalidrawElement[] = []
   let files: Record<string, ExcalidrawFile> = {}
