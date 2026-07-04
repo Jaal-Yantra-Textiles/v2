@@ -61,10 +61,18 @@ export function GoogleBusinessPanel({
   platform: AdminSocialPlatform
 }) {
   const apiConfig = (platform.api_config || {}) as Record<string, any>
+  // The admin API redacts `*_encrypted` blobs and raw tokens out of responses,
+  // exposing a `*_present` hint instead (api/admin/social-platforms/secrets.ts).
+  // Detect connection via that hint first — checking `access_token_encrypted`
+  // alone made a genuinely-connected platform read "Not connected" and left the
+  // bindings drawers disabled. Keep the raw fields as reveal-mode/legacy fallbacks.
   const isConnected = !!(
+    apiConfig.access_token_present ||
+    apiConfig.refresh_token_present ||
     apiConfig.access_token_encrypted ||
     apiConfig.access_token ||
-    apiConfig.refresh_token_encrypted
+    apiConfig.refresh_token_encrypted ||
+    apiConfig.refresh_token
   )
 
   const hasAdsBinding = useGoogleBindings(platform.id, "ads").count > 0
