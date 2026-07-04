@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Drawer, Button, Input, Label, Select, Text, toast } from "@medusajs/ui";
+import { Drawer, Button, DatePicker, Input, Label, Select, Text, toast } from "@medusajs/ui";
+
 import {
   AdminInventoryOrder,
   ShiprocketRateOption,
@@ -7,6 +8,12 @@ import {
   useInventoryOrderShiprocketRates,
 } from "../../hooks/api/inventory-orders";
 import { useStockLocations } from "../../hooks/api/stock_location";
+
+/** DatePicker works in Date objects; the API wants "YYYY-MM-DD" (local). */
+const toYMD = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`
 
 type Props = {
   inventoryOrder: AdminInventoryOrder;
@@ -172,11 +179,10 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
           </div>
           <div className="flex flex-col gap-1">
             <Label size="small" htmlFor="pickup_date">Pickup date</Label>
-            <Input
+            <DatePicker
               id="pickup_date"
-              type="date"
-              value={pickupDate}
-              onChange={(e) => setPickupDate(e.target.value)}
+              value={pickupDate ? new Date(`${pickupDate}T00:00:00`) : null}
+              onChange={(d) => setPickupDate(d ? toYMD(d) : "")}
             />
             <Text size="xsmall" className="text-ui-fg-subtle">
               Optional — leave blank to let the courier pick the earliest slot.

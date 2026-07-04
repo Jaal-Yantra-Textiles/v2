@@ -125,4 +125,48 @@ describe("planSourceRepair", () => {
     expect(blocker).toBeUndefined()
     expect(changes).toHaveLength(1)
   })
+
+  it("syncs a stale unified-order metadata mirror alongside the link", () => {
+    const { changes } = planSourceRepair({
+      ...base,
+      unified: { id: "order_u1", fromInMetadata: "sloc_wrong" },
+    })
+    expect(changes).toHaveLength(2)
+    const mirror = changes.find(
+      (c) => c.field === "metadata.from_stock_location_id"
+    )!
+    expect(mirror.entity).toBe("order")
+    expect(mirror.id).toBe("order_u1")
+    expect(mirror.before).toBe("sloc_wrong")
+    expect(mirror.after).toBe("sloc_right")
+  })
+
+  it("converges the mirror even when the link is already correct (re-run after partial apply)", () => {
+    const { changes } = planSourceRepair({
+      ...base,
+      currentFromId: "sloc_right",
+      unified: { id: "order_u1", fromInMetadata: "sloc_wrong" },
+    })
+    expect(changes).toHaveLength(1)
+    expect(changes[0].field).toBe("metadata.from_stock_location_id")
+  })
+
+  it("leaves an already-synced mirror alone", () => {
+    const { changes } = planSourceRepair({
+      ...base,
+      currentFromId: "sloc_right",
+      unified: { id: "order_u1", fromInMetadata: "sloc_right" },
+    })
+    expect(changes).toEqual([])
+  })
+
+  it("handles a mirror with no recorded from (null) as stale", () => {
+    const { changes } = planSourceRepair({
+      ...base,
+      currentFromId: "sloc_right",
+      unified: { id: "order_u1", fromInMetadata: null },
+    })
+    expect(changes).toHaveLength(1)
+    expect(changes[0].before).toBeNull()
+  })
 })

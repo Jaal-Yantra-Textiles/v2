@@ -1,4 +1,8 @@
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import {
+  ContainerRegistrationKeys,
+  MedusaError,
+  Modules,
+} from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 
 import { ORDER_INVENTORY_MODULE } from "../../../../modules/inventory_orders"
@@ -45,6 +49,16 @@ export type SourceRepairPlanInput = {
   /** The order's metadata.shipment blob (or null/undefined when absent). */
   shipment: Record<string, unknown> | null | undefined
   clearStaleShipment: boolean
+  /**
+   * The unified core-order mirror (order↔inventory_order link, #342), when
+   * one exists. Its `metadata.from_stock_location_id` is a display mirror
+   * written at dual-write time and goes stale when the link is repointed —
+   * the partner UI reads it.
+   */
+  unified?: {
+    id: string
+    fromInMetadata: string | null
+  } | null
 }
 
 /**
@@ -71,6 +85,19 @@ export function planSourceRepair(
       id: input.orderId,
       field: "from_stock_location (link)",
       before: input.currentFromId,
+      after: input.targetFromId,
+    })
+  }
+
+  // Keep the unified-order display mirror in step with the link. Compared
+  // against the TARGET (not the current link) so a re-run after a partial
+  // apply still converges the mirror.
+  if (input.unified && input.unified.fromInMetadata !== input.targetFromId) {
+    changes.push({
+      entity: "order",
+      id: input.unified.id,
+      field: "metadata.from_stock_location_id",
+      before: input.unified.fromInMetadata,
       after: input.targetFromId,
     })
   }
@@ -171,6 +198,26 @@ export const repairInventoryOrderSourceJob: MaintenanceJob = {
       ((links || []) as any[]).find((l) => l?.to_location)?.stock_location_id ??
       null
 
+    // The unified core-order mirror (forward accessor `inventory_orders.order`
+    // on the #342 link) carries a display copy of from_stock_location_id in
+    // its metadata — the partner UI reads it, so the repair must sync it.
+    let unifiedOrder: { id: string; metadata: Record<string, any> | null } | null =
+      null
+    try {
+      const { data: withOrder } = await query.graph({
+        entity: "inventory_orders",
+        fields: ["order.id", "order.metadata"],
+        filters: { id: order_id },
+      })
+      const raw = withOrder?.[0]?.order
+      const unified = Array.isArray(raw) ? raw[0] : raw
+      if (unified?.id) {
+        unifiedOrder = { id: unified.id, metadata: unified.metadata ?? null }
+      }
+    } catch {
+      // No unified mirror (pre-#342 order) — nothing to sync.
+    }
+
     const plan = planSourceRepair({
       orderId: order_id,
       currentFromId,
@@ -178,6 +225,13 @@ export const repairInventoryOrderSourceJob: MaintenanceJob = {
       toLocationId,
       shipment: (order.metadata as any)?.shipment ?? null,
       clearStaleShipment: clear_stale_shipment,
+      unified: unifiedOrder
+        ? {
+            id: unifiedOrder.id,
+            fromInMetadata:
+              (unifiedOrder.metadata as any)?.from_stock_location_id ?? null,
+          }
+        : null,
     })
     if (plan.blocker) {
       throw new MedusaError(MedusaError.Types.NOT_ALLOWED, plan.blocker)
@@ -200,6 +254,26 @@ export const repairInventoryOrderSourceJob: MaintenanceJob = {
           id: order_id,
           metadata: { shipment: null },
         })
+      }
+      if (
+        unifiedOrder &&
+        plan.changes.some(
+          (c) => c.field === "metadata.from_stock_location_id"
+        )
+      ) {
+        // The ORDER module's updateOrders REPLACES metadata wholesale (unlike
+        // the inventory-order service's key-wise merge) — read-then-merge so
+        // the unification keys (legacy_id, …) survive.
+        const orderService: any = container.resolve(Modules.ORDER)
+        await orderService.updateOrders([
+          {
+            id: unifiedOrder.id,
+            metadata: {
+              ...(unifiedOrder.metadata || {}),
+              from_stock_location_id: from_stock_location_id,
+            },
+          },
+        ])
       }
     }
 

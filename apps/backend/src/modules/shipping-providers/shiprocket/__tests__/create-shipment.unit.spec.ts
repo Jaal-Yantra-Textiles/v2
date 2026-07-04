@@ -77,6 +77,148 @@ describe("ShiprocketClient.createShipment (#404 PR-B)", () => {
       courier_company_id: 5,
     })
   })
+
+  it("re-creates under a suffixed channel id when the AWB assign hits a cancelled carrier order", async () => {
+    // Shiprocket dedupes adhoc orders on the channel order_id FOREVER — a
+    // cancelled carrier order squats on the id, the create returns that dead
+    // record, and assign/awb 500s "order is in cancelled state". The client
+    // must retry once under `<reference>-R<suffix>`.
+    const real = global.fetch?.bind(globalThis)
+    const createBodies: any[] = []
+    let assignCalls = 0
+    fetchSpy = jest
+      .spyOn(global, "fetch" as any)
+      .mockImplementation(async (input: any, init: any = {}) => {
+        const url = String(input)
+        const make = (body: any, status = 200) =>
+          ({
+            ok: status >= 200 && status < 300,
+            status,
+            json: async () => body,
+            text: async () => JSON.stringify(body),
+          }) as any
+        if (!url.includes("shiprocket.in")) return real?.(input, init)
+        if (url.endsWith("/orders/create/adhoc")) {
+          const body = JSON.parse(init.body)
+          createBodies.push(body)
+          // First create resolves to the CANCELLED existing order; the
+          // suffixed retry gets a fresh shipment.
+          return createBodies.length === 1
+            ? make({ shipment_id: 111, order_id: 222 })
+            : make({ shipment_id: 333, order_id: 444 })
+        }
+        if (url.endsWith("/courier/assign/awb")) {
+          assignCalls++
+          if (assignCalls === 1)
+            return make(
+              { message: "order is in cancelled state.", status_code: 500 },
+              500
+            )
+          return make({
+            response: {
+              data: {
+                awb_code: "AWB999",
+                courier_company_id: 7,
+                courier_name: "Retry Courier",
+              },
+            },
+          })
+        }
+        if (url.endsWith("/courier/generate/label"))
+          return make({ label_url: "https://shiprocket/label2.pdf" })
+        return make({}, 404)
+      })
+
+    const client = new ShiprocketClient({
+      email: "x@y.com",
+      password: "p",
+      token: "injected-token",
+      pickup_location: "warehouse-abc",
+    })
+
+    const result = await client.createShipment({
+      reference_id: "inv_order_CANCELLED1",
+      payment_mode: "prepaid",
+      pickup_location_name: "warehouse-abc",
+      to: {
+        name: "Asha Rao",
+        phone: "+919800000000",
+        address_1: "12 MG Road",
+        city: "Bengaluru",
+        state: "KA",
+        pincode: "560001",
+        country: "IN",
+      },
+      items: [{ name: "Saree", quantity: 1, unit_price: 250 }],
+      weight_grams: 500,
+      sub_total: 250,
+    })
+
+    // Two creates: the original reference, then the suffixed retry.
+    expect(createBodies).toHaveLength(2)
+    expect(createBodies[0].order_id).toBe("inv_order_CANCELLED1")
+    expect(createBodies[1].order_id).toMatch(/^inv_order_CANCELLED1-R[a-z0-9]+$/)
+    expect(assignCalls).toBe(2)
+    // The result reflects the FRESH carrier order, not the cancelled one.
+    expect(result.awb).toBe("AWB999")
+    expect(result.provider_refs).toMatchObject({
+      shipment_id: 333,
+      sr_order_id: 444,
+    })
+  })
+
+  it("does not retry on a non-cancelled assign failure", async () => {
+    const real = global.fetch?.bind(globalThis)
+    let createCalls = 0
+    fetchSpy = jest
+      .spyOn(global, "fetch" as any)
+      .mockImplementation(async (input: any, init: any = {}) => {
+        const url = String(input)
+        const make = (body: any, status = 200) =>
+          ({
+            ok: status >= 200 && status < 300,
+            status,
+            json: async () => body,
+            text: async () => JSON.stringify(body),
+          }) as any
+        if (!url.includes("shiprocket.in")) return real?.(input, init)
+        if (url.endsWith("/orders/create/adhoc")) {
+          createCalls++
+          return make({ shipment_id: 111, order_id: 222 })
+        }
+        if (url.endsWith("/courier/assign/awb"))
+          return make({ message: "no couriers serviceable", status_code: 422 }, 422)
+        return make({}, 404)
+      })
+
+    const client = new ShiprocketClient({
+      email: "x@y.com",
+      password: "p",
+      token: "injected-token",
+      pickup_location: "warehouse-abc",
+    })
+
+    await expect(
+      client.createShipment({
+        reference_id: "inv_order_OTHERFAIL",
+        payment_mode: "prepaid",
+        pickup_location_name: "warehouse-abc",
+        to: {
+          name: "Asha Rao",
+          phone: "+919800000000",
+          address_1: "12 MG Road",
+          city: "Bengaluru",
+          state: "KA",
+          pincode: "560001",
+          country: "IN",
+        },
+        items: [{ name: "Saree", quantity: 1, unit_price: 250 }],
+        weight_grams: 500,
+        sub_total: 250,
+      })
+    ).rejects.toThrow(/no couriers serviceable/)
+    expect(createCalls).toBe(1)
+  })
 })
 
 describe("buildShiprocketOrderItems (dedupe repeated SKUs)", () => {

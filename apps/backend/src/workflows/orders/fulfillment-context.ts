@@ -63,7 +63,17 @@ export async function resolvePlainFulfillmentContext(
  */
 export async function ensureOrderFulfillment(
   container: MedusaContainer,
-  orderId: string
+  orderId: string,
+  opts?: {
+    /**
+     * Stock location the fulfillment ships from (#772 core-order half). The
+     * manual shipping option is still resolved for provider plumbing, but a
+     * caller that knows the true ship-from (the partner label route passes
+     * the partner's own location) records IT on the fulfillment instead of
+     * whatever location the manual option happens to sit on.
+     */
+    locationId?: string
+  }
 ): Promise<string> {
   const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
 
@@ -114,7 +124,7 @@ export async function ensureOrderFulfillment(
       order_id: orderId,
       items,
       shipping_option_id: shippingOptionId,
-      location_id: locationId,
+      location_id: opts?.locationId ?? locationId,
       no_notification: true,
     } as any,
   })

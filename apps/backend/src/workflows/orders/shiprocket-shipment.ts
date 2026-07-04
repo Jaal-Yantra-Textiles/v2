@@ -14,6 +14,7 @@ import type {
 import {
   SHIPROCKET_PICKUP_METADATA_KEY,
   chooseRegisteredPickup,
+  registerShiprocketPickup,
 } from "../../modules/shipping-providers/pickup-locations"
 import { resolveSellerTaxIdForOrder } from "../../modules/shipping-providers/seller-tax-id"
 
@@ -112,6 +113,16 @@ export type CreateShiprocketShipmentInput = {
   orderId: string
   fulfillmentId: string
   pickupLocationName?: string
+  /**
+   * Explicit ship-from stock location (#772 core-order half — partner label
+   * flow). Registered/confirmed as a carrier pickup on the fly (idempotent);
+   * when set, the any-registered-pickup fallback below is NEVER used — a
+   * partner's label must not ship from another party's warehouse on the
+   * shared Shiprocket account.
+   */
+  pickupStockLocationId?: string
+  /** Acting user's email recorded on a freshly-registered pickup (#427). */
+  actingEmail?: string
   weightGrams?: number
   dimensionsCm?: Dimensions
   preferredCourierId?: string | number
@@ -156,9 +167,26 @@ export async function createShiprocketShipmentForFulfillment(
     )
   }
 
-  // Pickup nickname: explicit → the fulfillment's stock-location Shiprocket
-  // nickname → (client default).
+  // Pickup nickname: explicit name → explicit ship-from stock location
+  // (registered on the fly, no fallback past it) → the fulfillment's
+  // stock-location Shiprocket nickname → (registered-pickup fallback, #638).
   let pickupLocationName = input.pickupLocationName
+  if (!pickupLocationName && input.pickupStockLocationId) {
+    try {
+      const reg = await registerShiprocketPickup(
+        container,
+        input.pickupStockLocationId,
+        { email: input.actingEmail }
+      )
+      pickupLocationName = reg.name
+    } catch (e: any) {
+      // A clean 400 with the reason — never a silent wrong-origin shipment.
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `The ship-from location ${input.pickupStockLocationId} could not be used as a carrier pickup: ${e?.message}`
+      )
+    }
+  }
   if (!pickupLocationName && fulfillment.location_id) {
     const { data: locs } = await query.graph({
       entity: "stock_location",
@@ -182,8 +210,13 @@ export async function createShiprocketShipmentForFulfillment(
   // nickname resolves a pickup, ship from a registered Shiprocket pickup (prefer
   // a shippable one). This is what makes Generate-Label work for converted
   // design orders whose fulfillment landed on a non-registered stock location.
-  // (#638)
-  if (!pickupLocationName && provider.listPickupLocations) {
+  // (#638) — ADMIN flows only: an explicit pickupStockLocationId (partner label
+  // flow) must never fall through to another party's warehouse.
+  if (
+    !pickupLocationName &&
+    !input.pickupStockLocationId &&
+    provider.listPickupLocations
+  ) {
     try {
       const registered = await provider.listPickupLocations()
       pickupLocationName = chooseRegisteredPickup(registered)?.name

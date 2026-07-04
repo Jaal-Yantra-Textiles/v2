@@ -395,28 +395,54 @@ export class ShiprocketClient implements ShippingProviderClient {
       weight: Math.max(0.01, input.weight_grams / 1000),
     }
 
-    const created = await this.request<any>(`/orders/create/adhoc`, {
-      method: "POST",
-      body: JSON.stringify(createBody),
-    })
+    const createAdhoc = async (channelOrderId: string) => {
+      const res = await this.request<any>(`/orders/create/adhoc`, {
+        method: "POST",
+        body: JSON.stringify({ ...createBody, order_id: channelOrderId }),
+      })
+      if (!res?.shipment_id) {
+        throw new Error(
+          `Shiprocket order created but returned no shipment_id: ${JSON.stringify(res)}`
+        )
+      }
+      return res
+    }
+    const assignAwb = async (shipmentIdToAssign: any) => {
+      const assignBody: Record<string, any> = {
+        shipment_id: [shipmentIdToAssign],
+      }
+      if (input.preferred_courier_id) {
+        assignBody.courier_id = input.preferred_courier_id
+      }
+      return this.request<any>(`/courier/assign/awb`, {
+        method: "POST",
+        body: JSON.stringify(assignBody),
+      })
+    }
+
+    let created = await createAdhoc(String(createBody.order_id))
+
+    // 2) Assign an AWB (force a courier if the caller picked one). Shiprocket
+    // dedupes adhoc orders on the channel `order_id`: a reference whose earlier
+    // shipment attempt was CANCELLED carrier-side maps back to that cancelled
+    // record, and the assign fails with "order is in cancelled state". Retry
+    // ONCE under a fresh suffixed channel id so a legitimate re-ship of the
+    // same platform order gets a new carrier order instead of a dead end.
+    let assigned: any
+    try {
+      assigned = await assignAwb(created.shipment_id)
+    } catch (e: any) {
+      const cancelled =
+        e instanceof ShiprocketApiError && /cancell?ed state/i.test(e.message)
+      if (!cancelled) throw e
+      created = await createAdhoc(
+        `${input.reference_id}-R${Date.now().toString(36)}`
+      )
+      assigned = await assignAwb(created.shipment_id)
+    }
 
     const srOrderId = created?.order_id
     const shipmentId = created?.shipment_id
-    if (!shipmentId) {
-      throw new Error(
-        `Shiprocket order created but returned no shipment_id: ${JSON.stringify(created)}`
-      )
-    }
-
-    // 2) Assign an AWB (force a courier if the caller picked one).
-    const assignBody: Record<string, any> = { shipment_id: [shipmentId] }
-    if (input.preferred_courier_id) {
-      assignBody.courier_id = input.preferred_courier_id
-    }
-    const assigned = await this.request<any>(`/courier/assign/awb`, {
-      method: "POST",
-      body: JSON.stringify(assignBody),
-    })
     const awbData = assigned?.response?.data || {}
     const awb = awbData.awb_code || ""
 

@@ -19,7 +19,9 @@ import {
   Tooltip,
   toast,
   usePrompt,
+  DatePicker,
 } from "@medusajs/ui"
+
 import { format } from "date-fns"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -43,6 +45,12 @@ import { formatProvider } from "../../../../../lib/format-provider"
 import { getLocaleAmount } from "../../../../../lib/money-amount-helpers"
 import { FulfillmentSetType } from "../../../../locations/common/constants"
 import { FulfillmentTrackingTimeline } from "./fulfillment-tracking-timeline"
+
+/** DatePicker works in Date objects; the API wants "YYYY-MM-DD" (local). */
+const toYMD = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`
 
 type OrderFulfillmentSectionProps = {
   order: AdminOrder
@@ -637,11 +645,10 @@ const Fulfillment = ({
             <div className="grid grid-cols-2 gap-x-4">
               <div>
                 <Label size="xsmall">Pickup Date</Label>
-                <Input
-                  type="date"
-                  value={pickupDate}
-                  onChange={(e) => setPickupDate(e.target.value)}
+                <DatePicker
                   size="small"
+                  value={pickupDate ? new Date(`${pickupDate}T00:00:00`) : null}
+                  onChange={(d) => setPickupDate(d ? toYMD(d) : "")}
                 />
               </div>
               <div>

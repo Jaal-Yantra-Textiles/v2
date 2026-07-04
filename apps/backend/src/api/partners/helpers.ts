@@ -1,6 +1,7 @@
 import { MedusaContainer } from "@medusajs/framework"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import partnerOrderLink from "../../links/partner-order"
+import { pickPartnerShipFromLocation } from "./lib/ship-from-location"
 
 export const refetchPartner = async (
     partnerId: string,
@@ -165,6 +166,48 @@ export const tryGetPartnerSalesChannelId = async (
         return { partner, store, salesChannelId: null }
     }
     return { partner, store, salesChannelId: store.default_sales_channel_id }
+}
+
+/**
+ * Resolve the stock location a partner ships their CORE orders from (#772
+ * core-order half): the locations linked to the partner's default sales
+ * channel, picked by `pickPartnerShipFromLocation` (registered-pickup
+ * nickname → registerable address → first). Returns null when the partner
+ * has no store/channel or no linked location — callers turn that into an
+ * actionable 400 rather than shipping from someone else's warehouse.
+ */
+export const resolvePartnerShipFromLocation = async (
+    authContext: { actor_id?: string | null } | undefined,
+    container: MedusaContainer,
+): Promise<{ partner: any; locationId: string | null }> => {
+    const { partner, salesChannelId } = await tryGetPartnerSalesChannelId(
+        authContext,
+        container,
+    )
+    if (!salesChannelId) return { partner, locationId: null }
+
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+    const { data: channels } = await query.graph({
+        entity: "sales_channels",
+        fields: [
+            "stock_locations.id",
+            "stock_locations.metadata",
+            "stock_locations.address.phone",
+            "stock_locations.address.postal_code",
+        ],
+        filters: { id: salesChannelId },
+    })
+    const candidates = ((channels?.[0]?.stock_locations || []) as any[]).map(
+        (loc) => ({
+            id: loc?.id,
+            pickup_nickname:
+                (loc?.metadata as any)?.shiprocket_pickup_location ?? null,
+            phone: loc?.address?.phone ?? null,
+            postal_code: loc?.address?.postal_code ?? null,
+        }),
+    )
+    const picked = pickPartnerShipFromLocation(candidates)
+    return { partner, locationId: picked?.id ?? null }
 }
 
 export const validatePartnerEntityOwnership = async (

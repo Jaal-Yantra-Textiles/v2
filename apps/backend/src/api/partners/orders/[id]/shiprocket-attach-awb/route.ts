@@ -1,6 +1,9 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
-import { validatePartnerOrderOwnership } from "../../../helpers"
+import {
+  resolvePartnerShipFromLocation,
+  validatePartnerOrderOwnership,
+} from "../../../helpers"
 import { ensureOrderFulfillment } from "../../../../../workflows/orders/fulfillment-context"
 import { attachExistingShiprocketAwb } from "../../../../../workflows/orders/shiprocket-attach-awb"
 
@@ -25,7 +28,20 @@ export const POST = async (
 
   const { awb } = Body.parse((req.body as Record<string, unknown>) ?? {})
 
-  const fulfillmentId = await ensureOrderFulfillment(req.scope, orderId)
+  // Record the partner's own location on a freshly-created fulfillment so a
+  // later pickup-schedule reads the right warehouse (#772 core-order half).
+  // Best-effort: attaching an externally-shipped AWB must not fail on a
+  // partner without a linked location.
+  const { locationId } = await resolvePartnerShipFromLocation(
+    req.auth_context,
+    req.scope
+  )
+
+  const fulfillmentId = await ensureOrderFulfillment(
+    req.scope,
+    orderId,
+    locationId ? { locationId } : undefined
+  )
   const result = await attachExistingShiprocketAwb(req.scope, {
     orderId,
     fulfillmentId,

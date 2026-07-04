@@ -87,7 +87,9 @@ export async function POST(req: AuthenticatedMedusaRequest, res: MedusaResponse)
     if (type === MedusaError.Types.NOT_FOUND) return res.status(404).json({ message: err.message });
     if (type === MedusaError.Types.NOT_ALLOWED) return res.status(403).json({ message: err.message });
     if (type === MedusaError.Types.INVALID_DATA) return res.status(400).json({ message: err.message });
-    return res.status(400).json({ message: err?.message || "Shipment creation failed", errors });
+    // Message only — the raw workflow error array carries stack traces
+    // (server paths, node_modules frames) that must not reach clients.
+    return res.status(400).json({ message: err?.message || "Shipment creation failed" });
   }
 
   return res.status(200).json({ shipment: result });
