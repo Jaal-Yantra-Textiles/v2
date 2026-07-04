@@ -200,8 +200,18 @@ function CredentialsSection({
   apiConfig: Record<string, any>
 }) {
   const hasClientId = !!apiConfig.client_id
-  const hasClientSecret = !!apiConfig.client_secret_encrypted
-  const hasDeveloperToken = !!apiConfig.developer_token_encrypted
+  // Redacted responses expose `*_present` instead of the `*_encrypted` blob
+  // (see api/admin/social-platforms/secrets.ts) — check it first.
+  const hasClientSecret = !!(
+    apiConfig.client_secret_present ||
+    apiConfig.client_secret_encrypted ||
+    apiConfig.client_secret
+  )
+  const hasDeveloperToken = !!(
+    apiConfig.developer_token_present ||
+    apiConfig.developer_token_encrypted ||
+    apiConfig.developer_token
+  )
 
   return (
     <CommonSection

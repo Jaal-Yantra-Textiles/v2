@@ -206,15 +206,17 @@ export const SocialPlatformGeneralSection = ({ platform }: { platform: AdminSoci
       },
       {
         label: "Access Token",
-        value: (apiConfig.access_token_encrypted || apiConfig.access_token) ? "Configured" : "Not set",
+        // Redacted responses expose `*_present` instead of the raw secret /
+        // `*_encrypted` blob (api/admin/social-platforms/secrets.ts).
+        value: (apiConfig.access_token_present || apiConfig.access_token_encrypted || apiConfig.access_token) ? "Configured" : "Not set",
       },
       {
         label: "App Secret",
-        value: (apiConfig.app_secret_encrypted || apiConfig.app_secret) ? "Configured" : "Not set",
+        value: (apiConfig.app_secret_present || apiConfig.app_secret_encrypted || apiConfig.app_secret) ? "Configured" : "Not set",
       },
       {
         label: "Webhook Verify Token",
-        value: (apiConfig.webhook_verify_token_encrypted || apiConfig.webhook_verify_token) ? "Configured" : "Not set",
+        value: (apiConfig.webhook_verify_token_present || apiConfig.webhook_verify_token_encrypted || apiConfig.webhook_verify_token) ? "Configured" : "Not set",
       }
     );
   } else if (isSms && apiConfig) {

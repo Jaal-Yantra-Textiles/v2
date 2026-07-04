@@ -30,8 +30,20 @@ export const GoogleCredentialsForm = ({
   const apiConfig = (platform.api_config || {}) as Record<string, any>
   const { mutateAsync, isPending } = useUpdateSocialPlatform(platform.id)
 
-  const hasClientSecret = !!apiConfig.client_secret_encrypted
-  const hasDeveloperToken = !!apiConfig.developer_token_encrypted
+  // The admin API redacts `*_encrypted` blobs out of responses and signals a
+  // saved secret with a `*_present` hint (see api/admin/social-platforms/secrets.ts).
+  // Check that first; keep `*_encrypted`/plaintext as fallbacks for reveal-mode
+  // and any unredacted legacy row.
+  const hasClientSecret = !!(
+    apiConfig.client_secret_present ||
+    apiConfig.client_secret_encrypted ||
+    apiConfig.client_secret
+  )
+  const hasDeveloperToken = !!(
+    apiConfig.developer_token_present ||
+    apiConfig.developer_token_encrypted ||
+    apiConfig.developer_token
+  )
 
   const form = useForm<CredentialsFormData>({
     resolver: zodResolver(credentialsSchema),
