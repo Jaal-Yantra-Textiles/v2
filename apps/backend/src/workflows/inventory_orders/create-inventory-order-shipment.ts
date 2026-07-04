@@ -4,8 +4,10 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import type { MedusaContainer } from "@medusajs/framework/types"
+import type { IEventBusModuleService } from "@medusajs/types"
+import { INVENTORY_SHIPMENT_STATUS_CHANGED_EVENT } from "./sync-inventory-shipment-tracking"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import { FULLFILLED_ORDERS_MODULE } from "../../modules/fullfilled_orders"
 import InventoryOrdersStockLocationsLink from "../../links/inventory-orders-stock-locations"
@@ -277,6 +279,29 @@ export async function createInventoryOrderShipment(
         [FULLFILLED_ORDERS_MODULE]: { inventory_shipment_id: record.id },
       },
     ])
+    // A pickup was scheduled at creation, so the shipment is born past the
+    // webhook's created→pickup_scheduled transition — emit the shipment
+    // status-changed event ourselves so the #888 pickup WhatsApp flow tells
+    // the partner a courier is coming, regardless of who created the shipment.
+    if (pickup) {
+      try {
+        const eventBus = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService
+        await eventBus.emit({
+          name: INVENTORY_SHIPMENT_STATUS_CHANGED_EVENT,
+          data: {
+            id: record.id,
+            awb: result.awb ?? null,
+            carrier,
+            previous_status: "created",
+            status: "pickup_scheduled",
+            order_id: order.id,
+            pickup_scheduled_date: pickup.scheduled_date ?? input.pickupDate ?? null,
+          },
+        })
+      } catch {
+        /* best-effort — shipment creation must not fail on event emit */
+      }
+    }
   } catch (e) {
     const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
     logger.error(

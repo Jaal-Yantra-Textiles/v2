@@ -14,6 +14,7 @@ export const getStatusBadgeColor = (
   switch (s) {
     case "complete":
     case "completed":
+    case "delivered":
     case "finish":
     case "finished":
     case "fulfilled":
@@ -27,6 +28,8 @@ export const getStatusBadgeColor = (
     case "started":
     case "processing":
     case "proposed":
+    case "pickup_scheduled":
+    case "out_for_delivery":
       return "orange"
 
     case "awaiting_review":
@@ -34,6 +37,8 @@ export const getStatusBadgeColor = (
     case "technical_review":
     case "under_review":
     case "sent_to_partner":
+    case "picked_up":
+    case "in_transit":
       return "blue"
 
     case "approved":
@@ -44,6 +49,7 @@ export const getStatusBadgeColor = (
     case "canceled":
     case "cancelled":
     case "rejected":
+    case "rto":
       return "red"
 
     case "incoming":

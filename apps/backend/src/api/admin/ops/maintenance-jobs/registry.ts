@@ -64,6 +64,7 @@ import {
 import { VISUAL_FLOWS_MODULE } from "../../../../modules/visual_flows"
 import { FLOW_DEF as IDEAS_EMAIL_FLOW_DEF } from "../../../../scripts/seed-marketing-daily-ideas-email-flow"
 import { FLOW_DEF as INVENTORY_ORDER_STATUS_FLOW_DEF } from "../../../../scripts/seed-inventory-order-status-flow"
+import { FLOW_DEF as INVENTORY_SHIPMENT_PICKUP_FLOW_DEF } from "../../../../scripts/seed-inventory-shipment-pickup-flow"
 import { FLOW_DEF as ARTISAN_PRODUCT_APPROVAL_FLOW_DEF } from "../../../../scripts/seed-artisan-product-approval-flow"
 import { ALL_WHATSAPP_TEMPLATES } from "../../../../scripts/whatsapp-templates/all-templates"
 import {
@@ -4251,6 +4252,70 @@ export const installInventoryOrderStatusFlowJob: MaintenanceJob = {
 }
 
 // ---------------------------------------------------------------------------
+// install-inventory-shipment-pickup-flow (#888 S3) — LOAD the inventory
+// shipment pickup WhatsApp visual flow from the Data Plumbing console. Same
+// FLOW_DEF as the CLI seed (single source of truth). Idempotent — refuses to
+// overwrite; created as a DRAFT (inert until the operator approves the
+// template and flips draft→active).
+// ---------------------------------------------------------------------------
+
+export const installInventoryShipmentPickupFlowJob: MaintenanceJob = {
+  id: "install-inventory-shipment-pickup-flow",
+  label: "Install inventory-shipment pickup visual flow",
+  description:
+    "Load/create the 'Partner WhatsApp — Inventory Shipment Pickup' visual flow into the system from the console — no shell or seed script needed (#888 S3). The flow listens to the inventory-shipment status-changed event (fired by the carrier tracking webhook and at shipment creation when a pickup is scheduled) and sends the partner a WhatsApp pickup notification (pickup scheduled with date / picked up) via the generic jyt_inventory_shipment_pickup_v1 template. Dry-run previews the flow it would create (or reports it already exists); apply creates it idempotently as a DRAFT. It stays inert until you approve the template and flip the flow draft→active. Re-running never overwrites an existing flow.",
+  params: [],
+  run: async (container, { dry_run }) => {
+    const service: any = container.resolve(VISUAL_FLOWS_MODULE)
+    const flowName = INVENTORY_SHIPMENT_PICKUP_FLOW_DEF.name
+    const eventTrigger =
+      INVENTORY_SHIPMENT_PICKUP_FLOW_DEF.trigger_config?.event_types?.[0] ?? "event"
+    const nodeCount =
+      INVENTORY_SHIPMENT_PICKUP_FLOW_DEF.canvas_state?.nodes?.length ?? 0
+
+    const [existing] = await service.listVisualFlows({ name: flowName })
+    if (existing) {
+      return summarizeEventFlowInstall({
+        jobId: installInventoryShipmentPickupFlowJob.id,
+        dry_run,
+        flowName,
+        eventTrigger,
+        nodeCount,
+        existingId: existing.id,
+        createdId: null,
+      })
+    }
+
+    let createdId: string | null = null
+    if (!dry_run) {
+      const flow = await service.createCompleteFlow({
+        flow: {
+          name: INVENTORY_SHIPMENT_PICKUP_FLOW_DEF.name,
+          description: INVENTORY_SHIPMENT_PICKUP_FLOW_DEF.description,
+          status: INVENTORY_SHIPMENT_PICKUP_FLOW_DEF.status,
+          trigger_type: INVENTORY_SHIPMENT_PICKUP_FLOW_DEF.trigger_type,
+          trigger_config: INVENTORY_SHIPMENT_PICKUP_FLOW_DEF.trigger_config,
+          canvas_state: INVENTORY_SHIPMENT_PICKUP_FLOW_DEF.canvas_state,
+        },
+        operations: INVENTORY_SHIPMENT_PICKUP_FLOW_DEF.operations,
+        connections: INVENTORY_SHIPMENT_PICKUP_FLOW_DEF.connections,
+      })
+      createdId = flow?.id ?? null
+    }
+
+    return summarizeEventFlowInstall({
+      jobId: installInventoryShipmentPickupFlowJob.id,
+      dry_run,
+      flowName,
+      eventTrigger,
+      nodeCount,
+      existingId: null,
+      createdId,
+    })
+  },
+}
+
+// ---------------------------------------------------------------------------
 // install-artisan-product-approval-flow (#859 S2 / #861) — LOAD the artisan
 // product review EMAIL flow from the Data Plumbing console. The flow listens to
 // partner_product.approved / .rejected → reads product + owning partner →
@@ -5332,6 +5397,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   runMarketingIdeasEmailJob,
   installMarketingIdeasEmailFlowJob,
   installInventoryOrderStatusFlowJob,
+  installInventoryShipmentPickupFlowJob,
   installArtisanProductApprovalFlowJob,
   syncWhatsAppTemplatesJob,
   generateWinbackTargetsJob,

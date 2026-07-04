@@ -1,4 +1,5 @@
 import { Container, Heading, StatusBadge, Text } from "@medusajs/ui"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { useDate } from "../../hooks/use-date"
@@ -130,6 +131,120 @@ export const InventoryPaymentsSection = ({
 }
 
 /**
+ * #888 — Upcoming-pickup card for an inventory work-order. Surfaces shipments
+ * with a scheduled pickup (status 'pickup_scheduled' + pickup_scheduled_date) so
+ * the partner sees "a courier is coming" at a glance: date, pickup location, AWB.
+ */
+export const InventoryUpcomingPickupCard = ({
+  shipments,
+}: {
+  shipments: Array<Record<string, any>>
+}) => {
+  const { t } = useTranslation()
+  const { getFullDate } = useDate()
+
+  const upcoming = shipments.filter(
+    (s) =>
+      String(s?.status || "").toLowerCase() === "pickup_scheduled" &&
+      !!s?.pickup_scheduled_date
+  )
+
+  if (upcoming.length === 0) return null
+
+  return (
+    <Container className="divide-y p-0">
+      <div className="px-6 py-4">
+        <Heading level="h2">{t("partner.workOrders.upcomingPickup")}</Heading>
+      </div>
+      {upcoming.map((s, idx) => {
+        const awb = s.awb || s.tracking_number
+        return (
+          <div
+            key={String(s.id ?? idx)}
+            className="flex items-center justify-between px-6 py-4"
+          >
+            <div className="min-w-0">
+              <Text size="small" weight="plus">
+                {/* pickup_scheduled_date is date-only (YYYY-MM-DD) — no time part */}
+                {getFullDate({ date: s.pickup_scheduled_date })}
+              </Text>
+              {s.pickup_location_name && (
+                <Text size="xsmall" className="text-ui-fg-subtle">
+                  {t("partner.workOrders.pickupFrom")}: {s.pickup_location_name}
+                </Text>
+              )}
+              {awb &&
+                (s.tracking_url ? (
+                  <a
+                    href={s.tracking_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-ui-fg-interactive hover:text-ui-fg-interactive-hover"
+                  >
+                    <Text size="xsmall">AWB {awb}</Text>
+                  </a>
+                ) : (
+                  <Text size="xsmall">AWB {awb}</Text>
+                ))}
+            </div>
+          </div>
+        )
+      })}
+    </Container>
+  )
+}
+
+/**
+ * #888 — Per-shipment tracking timeline fed by the carrier webhook. Renders a
+ * compact toggle; expanded shows events newest-first. Never renders
+ * metadata.last_webhook (the raw carrier payload).
+ */
+const ShipmentTrackingHistory = ({
+  shipment,
+}: {
+  shipment: Record<string, any>
+}) => {
+  const { t } = useTranslation()
+  const { getFullDate } = useDate()
+  const [open, setOpen] = useState(false)
+
+  const events = (() => {
+    const raw = shipment?.metadata?.tracking_events
+    if (!raw || !Array.isArray(raw)) return [] as any[]
+    return raw.slice(0, 50)
+  })()
+
+  if (events.length === 0) return null
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="text-ui-fg-interactive hover:text-ui-fg-interactive-hover"
+      >
+        <Text size="xsmall">
+          {t("partner.workOrders.trackingHistory")} ({events.length})
+        </Text>
+      </button>
+      {open && (
+        <div className="mt-1 flex flex-col gap-y-0.5">
+          {[...events].reverse().map((ev, i) => (
+            <Text key={i} size="xsmall" className="text-ui-fg-subtle">
+              {String(ev?.status || "")}
+              {ev?.received_at
+                ? ` · ${getFullDate({ date: ev.received_at, includeTime: true })}`
+                : ""}
+              {ev?.location ? ` · ${ev.location}` : ""}
+            </Text>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
  * Shipments section for an inventory work-order (#772 follow-up) — lists the
  * carrier shipments the partner generated (AWB · carrier · pickup · label),
  * reading the first-class shipment rows the detail endpoint now returns.
@@ -185,6 +300,7 @@ export const InventoryShipmentsSection = ({
                     ? ` · ${getFullDate({ date: s.created_at, includeTime: true })}`
                     : ""}
                 </Text>
+                <ShipmentTrackingHistory shipment={s} />
               </div>
               <div className="flex items-center gap-x-3">
                 {s.label_url && (
