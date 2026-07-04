@@ -217,7 +217,13 @@ export const config: SubscriberConfig = {
     // generic "updated" above which also fires on metadata-only writes. Prefer
     // this as the trigger for partner inventory-order notification flows (#771).
     "inventory_orders.inventory-order.status-changed",
-    
+    // Shipment-level milestone from the carrier tracking webhook (#888):
+    // pickup_scheduled → picked_up → in_transit → out_for_delivery →
+    // delivered / rto. Fires only on a real forward transition (webhook
+    // retries are deduped); payload: {id, awb, carrier, previous_status,
+    // status, order_id, pickup_scheduled_date}.
+    "inventory_orders.inventory-shipment.status-changed",
+
     // Partners
     "partner.partner.created",
     "partner.partner.updated",
