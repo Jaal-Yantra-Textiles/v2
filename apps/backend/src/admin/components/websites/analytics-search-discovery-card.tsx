@@ -87,8 +87,8 @@ export const AnalyticsSearchDiscoveryCard = ({ websiteId, days }: Props) => {
   const loading = statusLoading || gscLoading
   const notBound = status && !status.bound
   const boundNoSync = gsc && gsc.bound && !gsc.synced
-  const hasData = gsc && gsc.bound && gsc.synced && gsc.total.clicks > 0
-  const empty = gsc && gsc.bound && gsc.synced && gsc.total.clicks === 0
+  const hasData = gsc && gsc.bound && gsc.synced && (gsc.total.clicks > 0 || gsc.total.impressions > 0 || gsc.top_queries.length > 0)
+  const empty = gsc && gsc.bound && gsc.synced && !hasData
 
   if (loading) {
     return (
