@@ -49,10 +49,10 @@ setupSharedTestSuite(({ api, getContainer }) => {
       })
 
       // Create the GSC site row (as if a sync had run)
-      const [site] = await socials.createGoogleSearchConsoleSites({
+      const { data: site } = await socials.createGoogleSearchConsoleSites({
         site_url: `sc-domain:${domain}`,
         platform_id: platformId,
-        binding_id: (await socials.listSocialPlatformBindings({ service: "search-console", platform_id: platformId }))[0].id,
+        binding_id: (await socials.listSocialPlatformBindings({ service: "search-console", platform_id: platformId })).data[0].id,
         sync_status: "synced",
         permission_level: "siteOwner",
         last_synced_at: new Date(),
