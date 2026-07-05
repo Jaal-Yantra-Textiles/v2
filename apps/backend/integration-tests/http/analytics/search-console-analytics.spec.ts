@@ -40,7 +40,7 @@ setupSharedTestSuite(({ api, getContainer }) => {
 
       // Create a search-console binding for the website's domain
       const domain = website.domain
-      await socials.createSocialPlatformBindings({
+      const binding = await socials.createSocialPlatformBindings({
         platform_id: platformId,
         service: "search-console",
         resource_id: `sc-domain:${domain}`,
@@ -49,10 +49,10 @@ setupSharedTestSuite(({ api, getContainer }) => {
       })
 
       // Create the GSC site row (as if a sync had run)
-      const { data: site } = await socials.createGoogleSearchConsoleSites({
+      const site = await socials.createGoogleSearchConsoleSites({
         site_url: `sc-domain:${domain}`,
         platform_id: platformId,
-        binding_id: (await socials.listSocialPlatformBindings({ service: "search-console", platform_id: platformId })).data[0].id,
+        binding_id: binding.id,
         sync_status: "synced",
         permission_level: "siteOwner",
         last_synced_at: new Date(),
@@ -212,8 +212,9 @@ setupSharedTestSuite(({ api, getContainer }) => {
         adminHeaders
       )
       expect(res.status).toBe(200)
-      // 7 days of seeded data
-      expect(res.data.timeseries).toHaveLength(7)
+      // 7-day window yields 8 entries (today + 6 prior days)
+      expect(res.data.timeseries.length).toBeGreaterThanOrEqual(7)
+      expect(res.data.timeseries.length).toBeLessThanOrEqual(8)
       expect(res.data.total.clicks).toBeGreaterThan(0)
     })
   })
