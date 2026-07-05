@@ -97,6 +97,11 @@ secrets:
   DELHIVERY_API_TOKEN: /jyt/prod/DELHIVERY_API_TOKEN
   ENCRYPTION_KEY: /jyt/prod/ENCRYPTION_KEY
   ENCRYPTION_KEY_VERSION: /jyt/prod/ENCRYPTION_KEY_VERSION
+  # Etsy OAuth (medusa-plugin-etsy-sync). Without these, the connect URL is built
+  # with an empty client_id and falls back to the localhost redirect_uri.
+  ETSY_KEYSTRING: /jyt/prod/ETSY_KEYSTRING
+  ETSY_REDIRECT_URI: /jyt/prod/ETSY_REDIRECT_URI
+  ETSY_SHARED_SECRET: /jyt/prod/ETSY_SHARED_SECRET
   FACEBOOK_CLIENT_ID: /jyt/prod/FACEBOOK_CLIENT_ID
   FACEBOOK_CLIENT_SECRET: /jyt/prod/FACEBOOK_CLIENT_SECRET
   FACEBOOK_REDIRECT_URI: /jyt/prod/FACEBOOK_REDIRECT_URI
