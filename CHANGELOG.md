@@ -1,3 +1,10 @@
+## [13.47.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.47.0...v13.47.1) (2026-07-05)
+
+
+### Bug Fixes
+
+* **socials:** GBM reads "Not connected" + bindings drawers disabled after secret redaction ([a26be07](https://github.com/Jaal-Yantra-Textiles/v2/commit/a26be07a4fbc547612c084b5734394b36c95bc22))
+
 # [13.47.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.46.0...v13.47.0) (2026-07-04)
 
 
