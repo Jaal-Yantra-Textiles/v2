@@ -17,3 +17,4 @@ API references, platform-specific details, status reports, and troubleshooting g
 - **[X / Twitter](/docs/reference/x-twitter/implementation-status)** - Implementation status, integration analysis, hashtags
 - **[UI Components](/docs/reference/ui-components/file-modal-enhancement)** - File modal, partner filter views
 - **[Status & Phases](/docs/reference/status/production-status)** - Production status, phase completions, unified workflow
+- **[UCP](/docs/reference/ucp/overview)** - Universal Commerce Protocol API for AI agent integration
