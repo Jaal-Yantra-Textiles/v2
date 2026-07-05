@@ -21,6 +21,13 @@ import { OpsMaintenanceRunSchema, OpsMaintenanceRunsQuerySchema, OpsMaintenanceB
 import { getPersonResourceDefinition } from "./admin/persons/resources/registry";
 import { AdminGetOrdersOrderParams } from "@medusajs/medusa/api/admin/orders/validators";
 import { retrieveTransformQueryConfig as retrieveOrderTransformQueryConfig } from "@medusajs/medusa/api/admin/orders/query-config";
+import {
+  CreateUcpCheckoutSessionSchema,
+  UpdateUcpCheckoutSessionSchema,
+  CompleteUcpCheckoutSessionSchema,
+  CatalogSearchSchema,
+  CatalogLookupSchema,
+} from "./ucp/validators";
 
 // Helper function to wrap Zod schemas for compatibility with validateAndTransformBody.
 // Historically this wrapped with z.preprocess((obj) => obj, schema) — under Zod v3
@@ -5179,6 +5186,113 @@ export default defineMiddlewares({
       matcher: "/admin/messaging/:conversationId/delete",
       method: "DELETE",
       middlewares: [],
+    },
+    // =====================================================
+    // UCP (Universal Commerce Protocol) routes
+    // =====================================================
+
+    // --- .well-known/ucp route alias ---
+    // Medusa's file-based router ignores directories starting with ".", so the
+    // actual /.well-known/ucp route is registered here as a middleware entry.
+    {
+      matcher: "/.well-known/ucp",
+      method: "GET",
+      middlewares: [
+        (req: MedusaRequest, res: MedusaResponse) => {
+          const proto = (req.protocol || "http").split(",")[0].trim()
+          const host = req.get("host")
+          const baseUrl = process.env.STORE_MCP_LOOPBACK_URL?.replace(/\/$/, "") || `${proto}://${host}`
+          const storefrontUrl = process.env.STOREFRONT_URL || baseUrl
+          const UCP_VERSION = "2026-01-11"
+          res.json({
+            ucp: {
+              version: UCP_VERSION,
+              services: {
+                "dev.ucp.shopping": [{ version: UCP_VERSION, transport: "rest", endpoint: `${baseUrl}/ucp` }],
+              },
+              capabilities: {
+                "dev.ucp.shopping.catalog.search": [{ version: UCP_VERSION }],
+                "dev.ucp.shopping.catalog.lookup": [{ version: UCP_VERSION }],
+                "dev.ucp.shopping.checkout": [{ version: UCP_VERSION }],
+                "dev.ucp.shopping.cart": [{ version: UCP_VERSION }],
+                "dev.ucp.shopping.order": [{ version: UCP_VERSION }],
+                "dev.ucp.shopping.fulfillment": [{ version: UCP_VERSION }],
+                "dev.ucp.shopping.discount": [{ version: UCP_VERSION }],
+              },
+              payment_handlers: [
+                {
+                  id: "payu",
+                  name: "dev.jyt.payu",
+                  version: UCP_VERSION,
+                  config: { description: "PayU — INR payments (cards, UPI, netbanking)", currencies: ["inr"] },
+                },
+                {
+                  id: "stripe",
+                  name: "dev.jyt.stripe",
+                  version: UCP_VERSION,
+                  config: { description: "Stripe — non-INR payments (cards, Apple/Google Pay)", currencies: ["usd","eur","gbp","aud","cad","sgd","aed"] },
+                },
+              ],
+            },
+            store: { name: process.env.STORE_NAME || "JYT Store", url: storefrontUrl },
+          })
+        },
+      ],
+    },
+
+    // --- UCP validation middleware ---
+    // Validates UCP-Agent and Request-Id headers on all /ucp/* routes.
+    {
+      matcher: "/ucp/*",
+      middlewares: [
+        (req: MedusaRequest, res: MedusaResponse, next: any) => {
+          const ucpAgent = req.headers["ucp-agent"]
+          if (!ucpAgent) {
+            res.status(400).json({
+              ucp: { version: "2026-01-11", status: "error" },
+              messages: [{ type: "error", code: "missing_ucp_agent", content: "Missing UCP-Agent header for platform identification", severity: "unrecoverable" }],
+            })
+            return
+          }
+          const requestId = req.headers["request-id"]
+          if (!requestId) {
+            res.status(400).json({
+              ucp: { version: "2026-01-11", status: "error" },
+              messages: [{ type: "error", code: "missing_request_id", content: "Request-Id header is required for UCP requests", severity: "unrecoverable" }],
+            })
+            return
+          }
+          res.set("Request-Id", requestId as string)
+          next()
+        },
+      ],
+    },
+
+    // --- UCP Zod body validation ---
+    {
+      matcher: "/ucp/checkout-sessions",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateUcpCheckoutSessionSchema))],
+    },
+    {
+      matcher: "/ucp/checkout-sessions/:id",
+      method: "PUT",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateUcpCheckoutSessionSchema))],
+    },
+    {
+      matcher: "/ucp/checkout-sessions/:id/complete",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CompleteUcpCheckoutSessionSchema))],
+    },
+    {
+      matcher: "/ucp/catalog/search",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CatalogSearchSchema))],
+    },
+    {
+      matcher: "/ucp/catalog/lookup",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CatalogLookupSchema))],
     },
   ],
   errorHandler: ((
