@@ -1406,6 +1406,36 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/analytics/reports/get-outbound-links.ts"
   },
+  "get-search-console-analytics": {
+    "fields": [
+      {
+        "name": "website_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.website_id }}"
+      },
+      {
+        "name": "days",
+        "type": "number",
+        "required": false,
+        "placeholder": "0"
+      },
+      {
+        "name": "from",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.from }}"
+      },
+      {
+        "name": "to",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.to }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/analytics/reports/get-search-console-analytics.ts"
+  },
   "get-session-pages": {
     "fields": [
       {
@@ -3555,14 +3585,14 @@
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.carrier }}",
-        "description": "Generate a real carrier shipment (forward → AWB → label) for a partner inventory-order completion and persist the carrier refs onto the inventory order (#772). Opt-in: invoked only when the partner asked to generate a shipment; the legacy free-text `partner_tracking_number` path is untouched otherwise. Pickup bootstrap: when a source stock location is given, ensure it's a registered carrier pickup via `registerShiprocketPickup` (lists first, then registers from the location's address — handles the \"first time, no pickup yet\" case). Otherwise fall back to any registered pickup. A clean MedusaError (not a 500) is thrown when no pickup can be resolved so the UI shows an actionable message. / export type CreateInventoryOrderShipmentInput = { orderId: string /** Defaults to \"shiprocket\"."
+        "description": "Generate a real carrier shipment (forward → AWB → label) for a partner inventory-order completion and persist the carrier refs onto the inventory order (#772). Opt-in: invoked only when the partner asked to generate a shipment; the legacy free-text `partner_tracking_number` path is untouched otherwise. Pickup bootstrap: the explicit pickup input or the order's from_location is ensured to be a registered carrier pickup via `registerShiprocketPickup` (metadata warehouse key used as-is when present; else lists first, then registers from the location's address). There is NO fallback to another registered pickup — all parties share one Shiprocket account, so that would ship from someone else's warehouse. A clean MedusaError (not a 500) is thrown when no pickup can be resolved so the UI shows an actionable message. / export type CreateInventoryOrderShipmentInput = { orderId: string /** Defaults to \"shiprocket\"."
       },
       {
         "name": "pickupStockLocationId",
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.pickupStockLocationId }}",
-        "description": "Generate a real carrier shipment (forward → AWB → label) for a partner inventory-order completion and persist the carrier refs onto the inventory order (#772). Opt-in: invoked only when the partner asked to generate a shipment; the legacy free-text `partner_tracking_number` path is untouched otherwise. Pickup bootstrap: when a source stock location is given, ensure it's a registered carrier pickup via `registerShiprocketPickup` (lists first, then registers from the location's address — handles the \"first time, no pickup yet\" case). Otherwise fall back to any registered pickup. A clean MedusaError (not a 500) is thrown when no pickup can be resolved so the UI shows an actionable message. / export type CreateInventoryOrderShipmentInput = { orderId: string /** Defaults to \"shiprocket\". */ carrier?: string /** Source stock location to ship from; auto-registered as a pickup if new."
+        "description": "Generate a real carrier shipment (forward → AWB → label) for a partner inventory-order completion and persist the carrier refs onto the inventory order (#772). Opt-in: invoked only when the partner asked to generate a shipment; the legacy free-text `partner_tracking_number` path is untouched otherwise. Pickup bootstrap: the explicit pickup input or the order's from_location is ensured to be a registered carrier pickup via `registerShiprocketPickup` (metadata warehouse key used as-is when present; else lists first, then registers from the location's address). There is NO fallback to another registered pickup — all parties share one Shiprocket account, so that would ship from someone else's warehouse. A clean MedusaError (not a 500) is thrown when no pickup can be resolved so the UI shows an actionable message. / export type CreateInventoryOrderShipmentInput = { orderId: string /** Defaults to \"shiprocket\". */ carrier?: string /** Source stock location to ship from; auto-registered as a pickup if new."
       },
       {
         "name": "weightGrams",
@@ -3587,14 +3617,21 @@
         "type": "object",
         "required": false,
         "placeholder": "{}",
-        "description": "Generate a real carrier shipment (forward → AWB → label) for a partner inventory-order completion and persist the carrier refs onto the inventory order (#772). Opt-in: invoked only when the partner asked to generate a shipment; the legacy free-text `partner_tracking_number` path is untouched otherwise. Pickup bootstrap: when a source stock location is given, ensure it's a registered carrier pickup via `registerShiprocketPickup` (lists first, then registers from the location's address — handles the \"first time, no pickup yet\" case). Otherwise fall back to any registered pickup. A clean MedusaError (not a 500) is thrown when no pickup can be resolved so the UI shows an actionable message. / export type CreateInventoryOrderShipmentInput = { orderId: string /** Defaults to \"shiprocket\". */ carrier?: string /** Source stock location to ship from; auto-registered as a pickup if new. */ pickupStockLocationId?: string weightGrams?: number dimensionsCm?: Dimensions preferredCourierId?: string | number /** Delivered quantities keyed by order_line_id (restricts shipment items)."
+        "description": "Generate a real carrier shipment (forward → AWB → label) for a partner inventory-order completion and persist the carrier refs onto the inventory order (#772). Opt-in: invoked only when the partner asked to generate a shipment; the legacy free-text `partner_tracking_number` path is untouched otherwise. Pickup bootstrap: the explicit pickup input or the order's from_location is ensured to be a registered carrier pickup via `registerShiprocketPickup` (metadata warehouse key used as-is when present; else lists first, then registers from the location's address). There is NO fallback to another registered pickup — all parties share one Shiprocket account, so that would ship from someone else's warehouse. A clean MedusaError (not a 500) is thrown when no pickup can be resolved so the UI shows an actionable message. / export type CreateInventoryOrderShipmentInput = { orderId: string /** Defaults to \"shiprocket\". */ carrier?: string /** Source stock location to ship from; auto-registered as a pickup if new. */ pickupStockLocationId?: string weightGrams?: number dimensionsCm?: Dimensions preferredCourierId?: string | number /** Delivered quantities keyed by order_line_id (restricts shipment items)."
       },
       {
         "name": "actingEmail",
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.actingEmail }}",
-        "description": "Generate a real carrier shipment (forward → AWB → label) for a partner inventory-order completion and persist the carrier refs onto the inventory order (#772). Opt-in: invoked only when the partner asked to generate a shipment; the legacy free-text `partner_tracking_number` path is untouched otherwise. Pickup bootstrap: when a source stock location is given, ensure it's a registered carrier pickup via `registerShiprocketPickup` (lists first, then registers from the location's address — handles the \"first time, no pickup yet\" case). Otherwise fall back to any registered pickup. A clean MedusaError (not a 500) is thrown when no pickup can be resolved so the UI shows an actionable message. / export type CreateInventoryOrderShipmentInput = { orderId: string /** Defaults to \"shiprocket\". */ carrier?: string /** Source stock location to ship from; auto-registered as a pickup if new. */ pickupStockLocationId?: string weightGrams?: number dimensionsCm?: Dimensions preferredCourierId?: string | number /** Delivered quantities keyed by order_line_id (restricts shipment items). */ deliveredQuantities?: Record<string, number> /** Acting user's email recorded on a freshly-registered pickup (#427)."
+        "description": "Generate a real carrier shipment (forward → AWB → label) for a partner inventory-order completion and persist the carrier refs onto the inventory order (#772). Opt-in: invoked only when the partner asked to generate a shipment; the legacy free-text `partner_tracking_number` path is untouched otherwise. Pickup bootstrap: the explicit pickup input or the order's from_location is ensured to be a registered carrier pickup via `registerShiprocketPickup` (metadata warehouse key used as-is when present; else lists first, then registers from the location's address). There is NO fallback to another registered pickup — all parties share one Shiprocket account, so that would ship from someone else's warehouse. A clean MedusaError (not a 500) is thrown when no pickup can be resolved so the UI shows an actionable message. / export type CreateInventoryOrderShipmentInput = { orderId: string /** Defaults to \"shiprocket\". */ carrier?: string /** Source stock location to ship from; auto-registered as a pickup if new. */ pickupStockLocationId?: string weightGrams?: number dimensionsCm?: Dimensions preferredCourierId?: string | number /** Delivered quantities keyed by order_line_id (restricts shipment items). */ deliveredQuantities?: Record<string, number> /** Acting user's email recorded on a freshly-registered pickup (#427)."
+      },
+      {
+        "name": "pickupDate",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.pickupDate }}",
+        "description": "Generate a real carrier shipment (forward → AWB → label) for a partner inventory-order completion and persist the carrier refs onto the inventory order (#772). Opt-in: invoked only when the partner asked to generate a shipment; the legacy free-text `partner_tracking_number` path is untouched otherwise. Pickup bootstrap: the explicit pickup input or the order's from_location is ensured to be a registered carrier pickup via `registerShiprocketPickup` (metadata warehouse key used as-is when present; else lists first, then registers from the location's address). There is NO fallback to another registered pickup — all parties share one Shiprocket account, so that would ship from someone else's warehouse. A clean MedusaError (not a 500) is thrown when no pickup can be resolved so the UI shows an actionable message. / export type CreateInventoryOrderShipmentInput = { orderId: string /** Defaults to \"shiprocket\". */ carrier?: string /** Source stock location to ship from; auto-registered as a pickup if new. */ pickupStockLocationId?: string weightGrams?: number dimensionsCm?: Dimensions preferredCourierId?: string | number /** Delivered quantities keyed by order_line_id (restricts shipment items). */ deliveredQuantities?: Record<string, number> /** Acting user's email recorded on a freshly-registered pickup (#427). */ actingEmail?: string /** Requested carrier pickup date (\"YYYY-MM-DD\"). When set, a pickup is scheduled for that date after the shipment is created; otherwise Shiprocket picks the earliest slot."
       }
     ],
     "source": "custom_ts",
@@ -3673,6 +3710,19 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/inventory_orders/get-inventory-order-tasks.ts"
   },
+  "sync-inventory-shipment-tracking": {
+    "fields": [
+      {
+        "name": "tracking",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.tracking }}",
+        "description": "Shipment-level counterpart of the order status-changed event (#888). Fired only on a real shipment status transition (webhook retries are deduped by the forward-only guard), so visual flows can notify partners about pickup / transit milestones without listening to raw carrier payloads. / export const INVENTORY_SHIPMENT_STATUS_CHANGED_EVENT = \"inventory_orders.inventory-shipment.status-changed\" export type SyncInventoryShipmentTrackingInput = { /** Normalized carrier push (from `normalizeShiprocketWebhook` or a future carrier)."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/inventory_orders/sync-inventory-shipment-tracking.ts"
+  },
   "update-inventory-order-task": {
     "fields": [
       {
@@ -3734,6 +3784,12 @@
         "type": "id",
         "required": true,
         "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "expectedCurrentStatus",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.expectedCurrentStatus }}"
       }
     ],
     "source": "custom_ts",
@@ -4651,8 +4707,9 @@
       {
         "name": "vercel_project_id",
         "type": "id",
-        "required": true,
-        "placeholder": "{{ $last.vercel_project_id }}"
+        "required": false,
+        "placeholder": "{{ $last.vercel_project_id }}",
+        "description": "Roadmap #17 (issue #346) — a partner's custom domain should work in both its www and apex forms. The submitted host is the canonical one; the counterpart is attached to the same Vercel project as a permanent redirect, and BOTH are registered as `website_domain` aliases so the storefront's host-based website lookup resolves either form (the gap that left sharlho.com showing the generic \"Store\" template). / export type DomainPair = { /** The host the partner asked for — canonical, serves traffic. */ primary: string /** The www/apex twin — redirects to primary. Null for deeper subdomains. */ counterpart: string | null } /** apex → www twin; www → apex twin; anything deeper (shop.example.com) has no twin. Assumes an already-cleaned lowercase host. / export function deriveDomainPair(domain: string): DomainPair { const parts = domain.split(\".\") if (parts[0] === \"www\" && parts.length === 3) { return { primary: domain, counterpart: parts.slice(1).join(\".\") } } if (parts.length === 2) { return { primary: domain, counterpart: `www.${domain}` } } return { primary: domain, counterpart: null } } export type AttachStorefrontDomainInput = { partner_id: string /** @deprecated kept for callers; the provider + project ref are now resolved from the partner."
       },
       {
         "name": "website_id",
@@ -5469,6 +5526,12 @@
         "type": "id",
         "required": false,
         "placeholder": "{{ $last.sub_partner_id }}"
+      },
+      {
+        "name": "skip_unified_projection",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false"
       }
     ],
     "source": "custom_ts",
@@ -5787,6 +5850,24 @@
     ],
     "source": "inferred",
     "sourceFile": "src/workflows/raw-materials/list-raw-material-category.ts"
+  },
+  "resolve-group-color-inventory-items": {
+    "fields": [
+      {
+        "name": "lines",
+        "type": "array",
+        "required": true,
+        "placeholder": "{{ $last.lines }}"
+      },
+      {
+        "name": "stock_location_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.stock_location_id }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/raw_material_groups/resolve-group-color-items.ts"
   },
   "propagate-region-to-partners": {
     "fields": [

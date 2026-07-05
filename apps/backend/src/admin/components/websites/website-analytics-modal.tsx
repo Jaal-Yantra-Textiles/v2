@@ -29,6 +29,7 @@ import { AnalyticsEntryExitPagesCard } from "./analytics-entry-exit-pages-card";
 import { AnalyticsOutboundLinksCard } from "./analytics-outbound-links-card";
 import { AnalyticsSessionsCard } from "./analytics-sessions-card";
 import { AnalyticsVisitorsTimeseriesCard } from "./analytics-visitors-timeseries-card";
+import { AnalyticsSearchDiscoveryCard } from "./analytics-search-discovery-card";
 
 function getSourceIcon(source: string) {
   const s = source.toLowerCase();
@@ -455,6 +456,10 @@ export const WebsiteAnalyticsModal = () => {
                     </Container>
                   )}
                 </div>
+              )}
+
+              {id && (
+                <AnalyticsSearchDiscoveryCard websiteId={id} days={currentDays} />
               )}
 
               {countriesData.length > 0 && (

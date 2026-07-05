@@ -322,6 +322,56 @@ export const useAnalyticsBreakdown = (
 };
 
 // Hook to fetch analytics events
+// ── Google Search Console rollup (#894) ──────────────────────────────────
+
+export interface GSCMetricBucket {
+  clicks: number;
+  impressions: number;
+  ctr: number | null;
+  position: number | null;
+}
+
+export interface GSCTimeseriesPoint extends GSCMetricBucket {
+  date: string;
+}
+
+export interface GSCQueryRow extends GSCMetricBucket {
+  query: string;
+}
+
+export interface GSCPageRow extends GSCMetricBucket {
+  page: string;
+}
+
+export interface SearchConsoleRollupResponse {
+  bound: boolean;
+  synced: boolean;
+  binding?: {
+    resource_id: string;
+    matched_via: string;
+  } | null;
+  total: GSCMetricBucket;
+  timeseries: GSCTimeseriesPoint[];
+  top_queries: GSCQueryRow[];
+  top_pages: GSCPageRow[];
+}
+
+export const useWebsiteSearchConsoleRollup = (
+  websiteId: string,
+  days: number = 30
+) => {
+  return useQuery({
+    queryKey: ["search-console-rollup", websiteId, days],
+    queryFn: async () => {
+      const res = await sdk.client.fetch<SearchConsoleRollupResponse>(
+        `/admin/websites/${websiteId}/analytics/search-console?days=${days}`
+      );
+      return res as SearchConsoleRollupResponse;
+    },
+    enabled: !!websiteId,
+  });
+};
+
 export const useAnalyticsEvents = (websiteId: string, filters?: Record<string, any>) => {
   const queryParams = new URLSearchParams({
     website_id: websiteId,
