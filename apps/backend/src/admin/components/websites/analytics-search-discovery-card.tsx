@@ -87,8 +87,7 @@ export const AnalyticsSearchDiscoveryCard = ({ websiteId, days }: Props) => {
   const loading = statusLoading || gscLoading
   const notBound = status && !status.bound
   const boundNoSync = gsc && gsc.bound && !gsc.synced
-  const hasData = gsc && gsc.bound && gsc.synced && gsc.total.clicks > 0
-  const empty = gsc && gsc.bound && gsc.synced && gsc.total.clicks === 0
+  const showFullCard = gsc && gsc.bound && gsc.synced
 
   if (loading) {
     return (
@@ -157,31 +156,7 @@ export const AnalyticsSearchDiscoveryCard = ({ websiteId, days }: Props) => {
     )
   }
 
-  if (empty) {
-    return (
-      <Container className="p-0 overflow-hidden rounded-lg border border-ui-border-base bg-ui-bg-base">
-        <div className="p-4 border-b border-ui-border-base flex items-center justify-between">
-          <div className="flex items-center gap-x-2">
-            <MagnifyingGlass className="text-ui-fg-subtle" />
-            <Heading level="h3" className="text-sm font-medium">Search / Discovery</Heading>
-          </div>
-          <div className="flex items-center gap-x-2">
-            {gsc?.binding && (
-              <Text size="xsmall" className="text-ui-fg-subtle font-mono">
-                {gsc.binding.resource_id}
-              </Text>
-            )}
-            <SyncButton websiteId={websiteId} />
-          </div>
-        </div>
-        <div className="p-6 flex items-center justify-center">
-          <Text className="text-ui-fg-muted text-sm">No search data in this period.</Text>
-        </div>
-      </Container>
-    )
-  }
-
-  if (!gsc) return null
+  if (!showFullCard) return null
 
   const chartData = gsc.timeseries.map((d) => ({
     date: d.date.slice(5),
