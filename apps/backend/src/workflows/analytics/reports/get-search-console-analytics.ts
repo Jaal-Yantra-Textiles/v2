@@ -1,5 +1,6 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import type { Logger } from "@medusajs/types"
 import { SOCIALS_MODULE } from "../../../modules/socials"
 import { resolveSearchConsoleBindingForWebsite } from "../../../lib/search-console-resolver"
 
@@ -50,7 +51,7 @@ export const getSearchConsoleAnalyticsStep = createStep(
     input: GetSearchConsoleAnalyticsInput,
     { container }
   ): Promise<StepResponse<SearchConsoleAnalyticsOutput>> => {
-    const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
 
     const endDate = input.to ? new Date(input.to) : new Date()
     const startDate = input.from
