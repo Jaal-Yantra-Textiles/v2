@@ -14,6 +14,7 @@ import {
 } from "./fashion-croquis"
 import { sdk } from "../../lib/config"
 import { FabricPreviewTab } from "./fabric-preview-tab"
+import { RedesignTab } from "./redesign-tab"
 
 interface FashionPanelProps {
   excalidrawAPI: any | null
@@ -22,7 +23,7 @@ interface FashionPanelProps {
   initialTab?: string
 }
 
-type Tab = "figures" | "garments" | "patterns" | "pinterest" | "fabric"
+type Tab = "figures" | "garments" | "patterns" | "pinterest" | "fabric" | "redesign"
 
 type PinterestPin = {
   id: string
@@ -362,6 +363,7 @@ export function FashionPanel({ excalidrawAPI, getCanvasCenter, onClose, initialT
     { key: "patterns", label: "Patterns" },
     { key: "pinterest", label: "Pinterest" },
     { key: "fabric",   label: "Fabric" },
+    { key: "redesign", label: "Redesign" },
   ]
 
   return (
@@ -619,6 +621,14 @@ export function FashionPanel({ excalidrawAPI, getCanvasCenter, onClose, initialT
         {/* ── FABRIC PREVIEW TAB ────────────────────────────────────── */}
         {tab === "fabric" && (
           <FabricPreviewTab
+            excalidrawAPI={excalidrawAPI}
+            getCanvasCenter={getCanvasCenter}
+          />
+        )}
+
+        {/* ── REDESIGN TAB ──────────────────────────────────────────── */}
+        {tab === "redesign" && (
+          <RedesignTab
             excalidrawAPI={excalidrawAPI}
             getCanvasCenter={getCanvasCenter}
           />

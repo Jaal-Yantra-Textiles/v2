@@ -820,6 +820,33 @@ export const useDeleteConstructionDetail = (designId: string) => {
   });
 };
 
+// ── Redesign (#892) — Nano-Banana structure-preserving restyle ────────────────
+export interface RedesignPayload {
+  image_url?: string;
+  image_base64?: string;
+  prompt: string;
+}
+
+export interface RedesignResponse {
+  redesign: {
+    image_url: string;
+    provider: string;
+    model: string;
+    prompt: string;
+  };
+}
+
+/** Generate exploratory restyle renders from an input flat/photo. Does not mutate the design. */
+export const useRedesignDesign = (designId: string) => {
+  return useMutation({
+    mutationFn: async (payload: RedesignPayload) =>
+      sdk.client.fetch<RedesignResponse>(
+        `/admin/designs/${designId}/redesign`,
+        { method: "POST", body: payload }
+      ),
+  });
+};
+
 export interface NotifyDesignCustomerResponse {
   message: string
   design_id: string
