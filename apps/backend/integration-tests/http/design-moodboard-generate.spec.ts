@@ -194,5 +194,30 @@ setupSharedTestSuite(() => {
         .catch((e: any) => e.response)
       expect(res.status).toBe(404)
     })
+
+    it("400s for a design missing measurements + construction details", async () => {
+      const designService: any = getContainer().resolve(DESIGN_MODULE)
+      // A bare design: no size set, no Construction specs → not generatable.
+      const bare = await designService.createDesigns({
+        name: "Bare Concept",
+        description: "concept with no specs yet",
+        design_type: "Original",
+        status: "Conceptual",
+        priority: "Low",
+        color_palette: [{ name: "Indigo", hex_code: "#2e3a59" }],
+      })
+
+      const res = await api
+        .post(`/admin/designs/${bare.id}/moodboard/generate`, {}, headers)
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(res.data.message).toMatch(/size set/)
+      expect(res.data.message).toMatch(/Construction specification/)
+
+      // And nothing was persisted onto the bare design.
+      const fetched = await designService.retrieveDesign(bare.id)
+      expect(fetched.moodboard ?? null).toBeNull()
+    })
   })
 })

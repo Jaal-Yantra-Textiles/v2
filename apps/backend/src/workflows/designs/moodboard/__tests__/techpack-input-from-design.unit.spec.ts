@@ -7,7 +7,10 @@
  * Run:
  *   TEST_TYPE=unit npx jest --testPathPattern="techpack-input-from-design"
  */
-import { buildTechPackInputFromDesign } from "../techpack-input-from-design"
+import {
+  assessTechPackCompleteness,
+  buildTechPackInputFromDesign,
+} from "../techpack-input-from-design"
 import { buildMoodboardScene } from "../build-moodboard-scene"
 
 describe("buildTechPackInputFromDesign", () => {
@@ -115,5 +118,51 @@ describe("buildTechPackInputFromDesign", () => {
     expect(minimal.details).toBeUndefined()
     // And the scene builder accepts it.
     expect(() => buildMoodboardScene(minimal)).not.toThrow()
+  })
+})
+
+describe("assessTechPackCompleteness", () => {
+  it("passes a design that has both a size set and a construction detail", () => {
+    const input = buildTechPackInputFromDesign({
+      name: "Complete",
+      size_sets: [{ size_label: "M", measurements: { chest: 50 } }],
+      specifications: [
+        { title: "Dart", category: "Construction", metadata: { technique: "dart" } },
+      ],
+    })
+    expect(assessTechPackCompleteness(input)).toEqual({ ok: true, missing: [] })
+  })
+
+  it("flags a bare design as missing both required sections", () => {
+    const input = buildTechPackInputFromDesign({ name: "Bare" })
+    const result = assessTechPackCompleteness(input)
+    expect(result.ok).toBe(false)
+    expect(result.missing).toHaveLength(2)
+    expect(result.missing.join(" ")).toMatch(/size set/)
+    expect(result.missing.join(" ")).toMatch(/Construction specification/)
+  })
+
+  it("flags a design that has measurements but no construction detail", () => {
+    const input = buildTechPackInputFromDesign({
+      name: "Measures only",
+      size_sets: [{ size_label: "M", measurements: { chest: 50 } }],
+      // colorways present but that doesn't satisfy the bar
+      color_palette: [{ name: "Indigo", hex_code: "#2e3a59" }],
+    })
+    const result = assessTechPackCompleteness(input)
+    expect(result.ok).toBe(false)
+    expect(result.missing).toHaveLength(1)
+    expect(result.missing[0]).toMatch(/Construction specification/)
+  })
+
+  it("does not count a Construction spec that declares no technique", () => {
+    const input = buildTechPackInputFromDesign({
+      name: "Spec without technique",
+      size_sets: [{ size_label: "M", measurements: { chest: 50 } }],
+      specifications: [{ title: "General note", category: "Construction", metadata: {} }],
+    })
+    const result = assessTechPackCompleteness(input)
+    expect(result.ok).toBe(false)
+    expect(result.missing[0]).toMatch(/Construction specification/)
   })
 })

@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import updateDesignWorkflow from "../../../../../../workflows/designs/update-design"
 import { buildMoodboardScene } from "../../../../../../workflows/designs/moodboard/build-moodboard-scene"
 import {
+  assessTechPackCompleteness,
   buildTechPackInputFromDesign,
   type DesignForTechPack,
 } from "../../../../../../workflows/designs/moodboard/techpack-input-from-design"
@@ -52,6 +53,19 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const input = buildTechPackInputFromDesign(
     design as unknown as DesignForTechPack
   )
+
+  // Don't generate a hollow tech-pack: a design needs measurements + at least one
+  // construction detail before a scene is worth building (#892).
+  const completeness = assessTechPackCompleteness(input)
+  if (!completeness.ok) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `Design "${design.name ?? designId}" is missing ${completeness.missing.join(
+        " and "
+      )}. Add these to the design before generating a tech-pack.`
+    )
+  }
+
   const scene = buildMoodboardScene(input)
 
   const { errors } = await updateDesignWorkflow(req.scope).run({

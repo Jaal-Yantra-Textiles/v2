@@ -80,6 +80,35 @@ function specToDetail(
   }
 }
 
+/** Result of a completeness check: whether a design can generate a real tech-pack. */
+export interface TechPackCompleteness {
+  ok: boolean
+  /** Human-readable descriptions of the required sections that are absent. */
+  missing: string[]
+}
+
+/**
+ * Gates generation: a design yields a meaningful tech-pack only when it carries the
+ * substance of one — measurements (a size set) AND at least one construction detail
+ * (a Construction spec that keys a technique). Colorways/flats are recommended but not
+ * required. Runs on the already-mapped input, so `details` here has already dropped any
+ * Construction specs that declared no technique. (#892)
+ */
+export function assessTechPackCompleteness(
+  input: TechPackSceneInput
+): TechPackCompleteness {
+  const missing: string[] = []
+  if (!input.sizeSet) {
+    missing.push("a size set (for the measurements page)")
+  }
+  if (!input.details?.length) {
+    missing.push(
+      "at least one Construction specification with a technique (for the construction-details page)"
+    )
+  }
+  return { ok: missing.length === 0, missing }
+}
+
 export function buildTechPackInputFromDesign(
   design: DesignForTechPack
 ): TechPackSceneInput {
