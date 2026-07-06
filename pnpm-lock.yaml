@@ -20,6 +20,8 @@ overrides:
   zod: ^4.2.0
   '@types/node': ^20.12.11
 
+packageExtensionsChecksum: sha256-2YcfnAUdOzF3n8T0U19ZdaZJZ6Nyri94uHUVKR9SkMo=
+
 importers:
 
   .:
@@ -22819,9 +22821,11 @@ snapshots:
       '@freesewing/plugin-mirror': 4.10.0(@freesewing/core@4.10.0)
       '@freesewing/plugin-round': 4.10.0(@freesewing/core@4.10.0)
       '@freesewing/plugin-sprinkle': 4.10.0(@freesewing/core@4.10.0)
+      '@freesewing/plugin-transform': 4.10.0(@freesewing/core@4.10.0)
 
   '@freesewing/core@4.10.0':
     dependencies:
+      '@freesewing/config': 4.10.0
       '@freesewing/core-plugins': 4.10.0(@freesewing/core@4.10.0)
       bezier-js: 6.1.4
       hooks: 0.3.2
@@ -22834,10 +22838,13 @@ snapshots:
     dependencies:
       '@freesewing/core': 4.10.0
 
-  '@freesewing/models@4.10.0': {}
+  '@freesewing/models@4.10.0':
+    dependencies:
+      '@freesewing/config': 4.10.0
 
   '@freesewing/plugin-annotations@4.10.0(@freesewing/core@4.10.0)':
     dependencies:
+      '@freesewing/config': 4.10.0
       '@freesewing/core': 4.10.0
 
   '@freesewing/plugin-bin-pack@4.10.0(@freesewing/core@4.10.0)':
