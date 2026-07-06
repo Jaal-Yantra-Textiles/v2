@@ -231,6 +231,42 @@ export const useUpdateDesign = (
   });
 };
 
+/** Response of POST /admin/designs/:id/moodboard/generate — the freshly-built scene. */
+export interface GenerateMoodboardResponse {
+  moodboard: {
+    type: "excalidraw";
+    version: number;
+    source: string;
+    elements: any[];
+    appState: Record<string, any>;
+    files: Record<string, any>;
+  };
+}
+
+/**
+ * Seeds/regenerates the design's moodboard with a deterministic AI tech-pack scene
+ * (#892): header/flats/size-set/colorways from the design's own fields + Construction
+ * specs → construction details. REPLACES any existing moodboard.
+ */
+export const useGenerateMoodboard = (
+  id: string,
+  options?: UseMutationOptions<GenerateMoodboardResponse, FetchError, void>,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      sdk.client.fetch<GenerateMoodboardResponse>(
+        `/admin/designs/${id}/moodboard/generate`,
+        { method: "POST" },
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
+    },
+    ...options,
+  });
+};
+
 export const useDeleteDesign = (
   id: string,
   options?: UseMutationOptions<AdminDesign, FetchError, void>,

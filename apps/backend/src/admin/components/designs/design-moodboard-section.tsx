@@ -2,11 +2,11 @@
 import { Excalidraw } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { useState, useCallback } from "react";
-import { Route, useNavigate, useParams } from "react-router-dom";
-import { useDesign } from "../../hooks/api/designs";
+import { useNavigate, useParams } from "react-router-dom";
+import { useDesign, useGenerateMoodboard } from "../../hooks/api/designs";
 import { RouteNonFocusModal } from "../modal/route-non-focus";
 import { useMoodboard } from "../../hooks/use-moodboard";
-import { Button } from "@medusajs/ui";
+import { Button, toast } from "@medusajs/ui";
 import { FashionPanel } from "./fashion-panel";
 
 export function DesignMoodboardSection() {
@@ -33,11 +33,53 @@ export function DesignMoodboardSection() {
     handleSave,
     handleCloseSave,
     handleExcalidrawChange,
-    saveExcalidrawState
   } = useMoodboard({
     designId: id,
     onClose
   });
+
+  const { mutate: generateMoodboard, isPending: isGenerating } =
+    useGenerateMoodboard(id);
+
+  // Regenerate the tech-pack from the design's structured data (header/flats/
+  // size-set/colorways + Construction specs). Persists server-side AND loads the
+  // fresh scene straight into the canvas so it's editable immediately.
+  const handleGenerate = useCallback(() => {
+    const api = excalidrawAPIRef.current;
+    if (!api) return;
+    const proceed = window.confirm(
+      "Generate the tech-pack from this design's specs? This replaces the current moodboard."
+    );
+    if (!proceed) return;
+
+    toast.loading("Generating tech-pack…");
+    generateMoodboard(undefined, {
+      onSuccess: ({ moodboard }) => {
+        const files = moodboard.files ?? {};
+        const fileList = Object.entries(files).map(
+          ([fid, f]: [string, any]) => ({
+            id: fid,
+            dataURL: f.dataURL,
+            mimeType: f.mimeType || "image/png",
+            created: f.created || Date.now(),
+            lastRetrieved: Date.now(),
+          })
+        );
+        if (fileList.length) api.addFiles(fileList as any);
+        api.updateScene({
+          elements: moodboard.elements,
+          appState: { ...moodboard.appState, collaborators: new Map() },
+        });
+        api.scrollToContent(moodboard.elements, { fitToContent: true });
+        toast.dismiss();
+        toast.success("Tech-pack generated");
+      },
+      onError: (err: any) => {
+        toast.dismiss();
+        toast.error(err?.message || "Failed to generate tech-pack");
+      },
+    });
+  }, [generateMoodboard, excalidrawAPIRef]);
 
   // Track when an image element is selected on the canvas
   const handleSelectionChange = useCallback(() => {
@@ -81,6 +123,18 @@ export function DesignMoodboardSection() {
       <RouteNonFocusModal.Header onClick={handleCloseSave}>
         <div className="flex items-center justify-end w-full">
           <div className="flex items-end justify-end gap-x-2">
+            <Button
+              variant="secondary"
+              size="base"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleGenerate();
+              }}
+              disabled={isGenerating || isSaving}
+              isLoading={isGenerating}
+            >
+              Generate tech-pack
+            </Button>
             <Button
               variant="primary"
               size="base"
