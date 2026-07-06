@@ -6,10 +6,8 @@ import {
   perspectiveTransformPoints,
 } from "./fashion-shapes"
 import {
-  CrquisType,
   PatternPiece,
   PATTERN_PIECES,
-  createCrquisElements,
   createPatternPieceElement,
 } from "./fashion-croquis"
 import { sdk } from "../../lib/config"
@@ -24,7 +22,7 @@ interface FashionPanelProps {
   initialTab?: string
 }
 
-type Tab = "figures" | "garments" | "patterns" | "pinterest" | "fabric" | "redesign" | "outline"
+type Tab = "garments" | "patterns" | "pinterest" | "fabric" | "redesign" | "outline"
 
 type PinterestPin = {
   id: string
@@ -116,44 +114,6 @@ function ShapeThumbnail({
 }
 
 // ---------------------------------------------------------------------------
-// Croquis thumbnail (Figures tab)
-// ---------------------------------------------------------------------------
-function CrquisCard({
-  type,
-  selected,
-  onClick,
-}: {
-  type: CrquisType
-  selected: boolean
-  onClick: () => void
-}) {
-  const label = type === "female" ? "Female" : "Male"
-  const emoji = type === "female" ? "♀" : "♂"
-  const color = type === "female" ? "#f5c5a3" : "#c8a882"
-
-  return (
-    <button
-      onClick={onClick}
-      title={label}
-      className={`flex flex-col items-center gap-1.5 p-2 rounded border transition-all ${
-        selected
-          ? "border-ui-fg-interactive bg-ui-bg-highlight"
-          : "border-ui-border-base hover:border-ui-border-strong hover:bg-ui-bg-subtle"
-      }`}
-    >
-      {/* Simple body silhouette preview */}
-      <svg width="36" height="80" viewBox="0 0 36 80">
-        <ellipse cx="18" cy="6" rx="6" ry="6" fill={color} stroke="#c0b0a8" strokeWidth="0.8"/>
-        <rect x={type === "female" ? "10" : "8"} y="12" width={type === "female" ? "16" : "20"} height="30" rx="4" fill={color} stroke="#c0b0a8" strokeWidth="0.8"/>
-        <rect x="11" y="42" width="5" height="36" rx="2" fill={color} stroke="#c0b0a8" strokeWidth="0.8"/>
-        <rect x="20" y="42" width="5" height="36" rx="2" fill={color} stroke="#c0b0a8" strokeWidth="0.8"/>
-      </svg>
-      <span className="text-xs font-medium text-ui-fg-base">{emoji} {label}</span>
-    </button>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Pattern piece thumbnail (Cut Patterns tab)
 // ---------------------------------------------------------------------------
 function PatternCard({
@@ -203,10 +163,7 @@ function PatternCard({
 // Main panel
 // ---------------------------------------------------------------------------
 export function FashionPanel({ excalidrawAPI, getCanvasCenter, onClose, initialTab }: FashionPanelProps) {
-  const [tab, setTab] = useState<Tab>((initialTab as Tab) || "figures")
-
-  // Figures tab state
-  const [selectedFigure, setSelectedFigure] = useState<CrquisType>("female")
+  const [tab, setTab] = useState<Tab>((initialTab as Tab) || "garments")
 
   // Garments tab state
   const [garmentCategory, setGarmentCategory] = useState<"body" | "garment">("garment")
@@ -226,18 +183,6 @@ export function FashionPanel({ excalidrawAPI, getCanvasCenter, onClose, initialT
   const filteredShapes = FASHION_SHAPES.filter(s => s.category === garmentCategory)
 
   // ── Insert handlers ──────────────────────────────────────────────────────
-
-  function handleInsertFigure() {
-    if (!excalidrawAPI) return
-    const center = getCanvasCenter()
-    const { fileId, dataUrl, element } = createCrquisElements(
-      { type: selectedFigure },
-      center.x,
-      center.y,
-      1
-    )
-    addImageToCanvas(excalidrawAPI, fileId, dataUrl, element)
-  }
 
   function handleInsertShape() {
     if (!excalidrawAPI || !selectedShape) return
@@ -359,7 +304,6 @@ export function FashionPanel({ excalidrawAPI, getCanvasCenter, onClose, initialT
   // ── Render ───────────────────────────────────────────────────────────────
 
   const tabLabels: { key: Tab; label: string }[] = [
-    { key: "figures",  label: "Figures"  },
     { key: "garments", label: "Garments" },
     { key: "patterns", label: "Patterns" },
     { key: "pinterest", label: "Pinterest" },
@@ -401,34 +345,6 @@ export function FashionPanel({ excalidrawAPI, getCanvasCenter, onClose, initialT
 
       {/* Body */}
       <div className="p-3 flex flex-col gap-3 overflow-y-auto" style={{ maxHeight: 440 }}>
-
-        {/* ── FIGURES TAB ──────────────────────────────────────────────── */}
-        {tab === "figures" && (
-          <>
-            <p className="text-xs text-ui-fg-subtle leading-snug">
-              Insert a 9-head fashion croquis as a guide layer. Draw garments on top using the Garments tab or Excalidraw tools.
-            </p>
-
-            {/* Figure selector */}
-            <div className="flex gap-3 justify-center py-1">
-              {(["female", "male"] as const).map(type => (
-                <CrquisCard
-                  key={type}
-                  type={type}
-                  selected={selectedFigure === type}
-                  onClick={() => setSelectedFigure(type)}
-                />
-              ))}
-            </div>
-
-            <button
-              onClick={handleInsertFigure}
-              className="w-full py-2 text-sm font-medium rounded bg-ui-bg-interactive text-ui-fg-on-inverted hover:opacity-90 transition-colors"
-            >
-              Insert {selectedFigure === "female" ? "Female" : "Male"} Figure
-            </button>
-          </>
-        )}
 
         {/* ── GARMENTS TAB ─────────────────────────────────────────────── */}
         {tab === "garments" && (

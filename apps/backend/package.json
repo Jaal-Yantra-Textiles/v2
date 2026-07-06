@@ -33,7 +33,10 @@
     "seed:plans": "ts-node src/scripts/seed-plans.ts",
     "specs:store": "medusa exec ./src/scripts/specs/store-specs-in-db.ts",
     "specs:store:direct": "npx tsx src/scripts/specs/store-specs-in-db.ts",
-    "check:prod-config": "node ./scripts/check-prod-config-parity.mjs"
+    "check:prod-config": "node ./scripts/check-prod-config-parity.mjs",
+    "e2e:seed": "medusa exec ../../e2e/helpers/e2e-seed.ts",
+    "e2e:test": "playwright test --config=../../e2e/playwright.config.ts",
+    "e2e": "pnpm e2e:seed && pnpm e2e:test"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.1.17",
@@ -196,6 +199,7 @@
   },
   "devDependencies": {
     "@medusajs/test-utils": "2.17.1",
+    "@playwright/test": "^1.61.1",
     "@swc/core": "1.7.28",
     "@swc/jest": "^0.2.36",
     "@types/jest": "^29.5.13",

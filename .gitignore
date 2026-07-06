@@ -106,3 +106,6 @@ node_modules 2/
 # Local env overrides pulled by `vercel env pull` etc.
 **/.env.local
 **/.env.*.local
+.e2e-seed.json
+test-results/
+apps/backend/test-results/
