@@ -729,6 +729,97 @@ export const useRemoveDesignComponent = (designId: string) => {
   });
 };
 
+// ── Construction details (#892) ──────────────────────────────────────────────
+// A construction detail is a DesignSpecification (category "Construction") whose
+// metadata holds { technique, params, fabricRules } — the source the tech-pack
+// generator reads for the construction-details frame.
+
+export interface ConstructionDetail {
+  id: string;
+  title: string;
+  category: string;
+  details?: string | null;
+  special_instructions?: string | null;
+  metadata?: {
+    technique?: string;
+    params?: Record<string, number>;
+    fabricRules?: string[];
+    [k: string]: any;
+  } | null;
+}
+
+export interface ConstructionDetailPayload {
+  technique: string;
+  label?: string;
+  params?: Record<string, number>;
+  fabricRules?: string[];
+  note?: string;
+}
+
+const constructionDetailsKey = (designId: string) =>
+  ["designs", designId, "construction-details"] as const;
+
+export const useConstructionDetails = (designId: string) => {
+  const { data, ...rest } = useQuery({
+    queryKey: constructionDetailsKey(designId),
+    queryFn: () =>
+      sdk.client.fetch<{ construction_details: ConstructionDetail[]; count: number }>(
+        `/admin/designs/${designId}/construction-details`
+      ),
+    enabled: !!designId,
+  });
+  return {
+    construction_details: data?.construction_details || [],
+    count: data?.count || 0,
+    ...rest,
+  };
+};
+
+export const useCreateConstructionDetail = (designId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: ConstructionDetailPayload) =>
+      sdk.client.fetch<{ construction_detail: ConstructionDetail }>(
+        `/admin/designs/${designId}/construction-details`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: constructionDetailsKey(designId) });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) });
+    },
+  });
+};
+
+export const useUpdateConstructionDetail = (designId: string, detailId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Partial<ConstructionDetailPayload>) =>
+      sdk.client.fetch<{ construction_detail: ConstructionDetail }>(
+        `/admin/designs/${designId}/construction-details/${detailId}`,
+        { method: "PATCH", body: payload }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: constructionDetailsKey(designId) });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) });
+    },
+  });
+};
+
+export const useDeleteConstructionDetail = (designId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (detailId: string) =>
+      sdk.client.fetch(
+        `/admin/designs/${designId}/construction-details/${detailId}`,
+        { method: "DELETE" }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: constructionDetailsKey(designId) });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) });
+    },
+  });
+};
+
 export interface NotifyDesignCustomerResponse {
   message: string
   design_id: string
