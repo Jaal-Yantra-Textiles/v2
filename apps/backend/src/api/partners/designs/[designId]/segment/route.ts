@@ -46,7 +46,7 @@ export const POST = async (
 
   // Validate input before touching quota or fal (400 on bad input).
   const parsed = parseSegmentInput(req.validatedBody)
-  const model = req.validatedBody?.model || "General Use (Light)"
+  const model = req.validatedBody?.model || "General Use (Heavy)"
 
   const aiUsage = req.scope.resolve(
     AI_USAGE_MODULE

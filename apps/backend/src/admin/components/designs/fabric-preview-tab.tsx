@@ -258,7 +258,7 @@ export function FabricPreviewTab({
         `/admin/designs/${designId}/segment`,
         {
           method: "POST",
-          body: { image_base64: base64, model: "General Use (Light)" },
+          body: { image_base64: base64, model: "General Use (Heavy)" },
         }
       )
 
