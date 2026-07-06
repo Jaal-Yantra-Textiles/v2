@@ -4,10 +4,10 @@ import {
   resolveRedesignCredentials,
   DEFAULT_REDESIGN_MODEL,
 } from "../../../../../mastra/services/redesign-credentials"
+import { runRedesignEngine } from "./redesign-engines"
 import {
   RedesignBodySchema,
   buildRedesignPrompt,
-  fileToDataUrl,
   resolveImageInput,
   MOCK_REDESIGN_IMAGE,
 } from "./redesign-support"
@@ -52,60 +52,37 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (!creds) {
     throw new MedusaError(
       MedusaError.Types.UNEXPECTED_STATE,
-      "No redesign provider configured. Add an OpenRouter platform with role=ai_redesign in Settings → External Platforms, or set OPENROUTER_API_KEY."
+      "No redesign provider configured. Add an OpenRouter (or Google) platform with role=ai_redesign in Settings → External Platforms, or set OPENROUTER_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY."
     )
   }
 
   const image = resolveImageInput(body)
 
-  const { createOpenRouter } = await import("@openrouter/ai-sdk-provider")
-  const { generateText } = await import("ai")
-  const openrouter = createOpenRouter({ apiKey: creds.apiKey })
-
   logger.info(
-    `[Redesign] Nano-Banana (${creds.model}, key from ${creds.source}) on design ${req.params.id}: "${body.prompt.slice(0, 60)}…"`
+    `[Redesign] ${creds.engine} (${creds.model}, key from ${creds.source}) on design ${req.params.id}: "${body.prompt.slice(0, 60)}…"`
   )
 
-  let result: any
+  let imageDataUrl: string
   try {
-    result = await generateText({
-      model: openrouter(creds.model),
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: fullPrompt },
-            { type: "image", image },
-          ],
-        },
-      ],
+    imageDataUrl = await runRedesignEngine(creds.engine, {
+      apiKey: creds.apiKey,
+      model: creds.model,
+      prompt: fullPrompt,
+      image,
     })
   } catch (err: any) {
-    logger.error(`[Redesign] Gemini call failed: ${err?.message || err}`)
+    logger.error(`[Redesign] ${creds.engine} call failed: ${err?.message || err}`)
     throw new MedusaError(
       MedusaError.Types.UNEXPECTED_STATE,
       `Redesign generation failed: ${err?.message || "unknown error"}`
     )
   }
 
-  const file = (result.files || []).find((f: any) =>
-    f.mediaType?.startsWith("image/")
-  )
-  if (!file) {
-    logger.error(
-      `[Redesign] No image in response (text: ${String(result.text).slice(0, 120)})`
-    )
-    throw new MedusaError(
-      MedusaError.Types.UNEXPECTED_STATE,
-      "Nano-Banana returned no image. Try a more specific prompt or a clearer input image."
-    )
-  }
-
-  logger.info(`[Redesign] Success — design ${req.params.id}`)
+  logger.info(`[Redesign] Success — design ${req.params.id} via ${creds.engine}`)
   return res.status(200).json({
     redesign: {
-      image_url: fileToDataUrl(file),
-      provider: "openrouter",
+      image_url: imageDataUrl,
+      provider: creds.engine,
       model: creds.model,
       prompt: fullPrompt,
     },
