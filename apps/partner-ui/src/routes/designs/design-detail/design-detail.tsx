@@ -240,8 +240,28 @@ export const DesignDetail = () => {
   const notesValue = (design as any)?.designer_notes || metadata?.notes
   // Specs — can be in metadata.specs or as a top-level field
   const specsValue = metadata?.specs
-  // Sizes — stored as `custom_sizes` column (e.g. { "S": { chest: 0, length: 0 }, "M": { ... } })
+  // Sizes — prefer the normalized `size_sets` relation
+  // ({ size_label, measurements }); fall back to the legacy `custom_sizes` map
+  // ({ "S": { chest, length }, ... }). The design that comes with an order carries
+  // its sizes on `size_sets`, so this is what the partner needs to see.
+  const sizeSets = (design as any)?.size_sets as
+    | Array<{ size_label?: string; measurements?: any }>
+    | undefined
   const customSizes = (design as any)?.custom_sizes as Record<string, any> | undefined
+  const sizes = useMemo<Array<{ label: string; measurements: any }>>(() => {
+    if (Array.isArray(sizeSets) && sizeSets.length > 0) {
+      return sizeSets
+        .filter((s) => s?.size_label)
+        .map((s) => ({ label: String(s.size_label), measurements: s?.measurements }))
+    }
+    if (customSizes && typeof customSizes === "object") {
+      return Object.entries(customSizes).map(([label, measurements]) => ({
+        label,
+        measurements,
+      }))
+    }
+    return []
+  }, [sizeSets, customSizes])
   // Color palette
   const colorPalette = (design as any)?.color_palette as any[] | Record<string, any> | undefined
   // Description
@@ -393,14 +413,18 @@ export const DesignDetail = () => {
                 </div>
               </div>
             )}
-            {customSizes && typeof customSizes === "object" && Object.keys(customSizes).length > 0 && (
+            {sizes.length > 0 && (
               <div className="px-6 py-4">
-                <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-2">Sizes</Text>
-                <div className="flex flex-col gap-y-2">
-                  {Object.entries(customSizes).map(([sizeName, measurements]) => (
-                    <div key={sizeName} className="flex items-start gap-x-3">
+                <div className="flex items-center gap-x-2 mb-2">
+                  <Text size="xsmall" weight="plus" className="text-ui-fg-base">Sizes</Text>
+                  <Badge size="2xsmall" color="blue">{sizes.length}</Badge>
+                </div>
+                {/* Highlighted so the sizes that come with this design stand out to the partner. */}
+                <div className="flex flex-col gap-y-2 rounded-lg bg-ui-bg-highlight p-3">
+                  {sizes.map(({ label, measurements }) => (
+                    <div key={label} className="flex items-start gap-x-3">
                       <Badge size="2xsmall" color="blue" className="mt-0.5 shrink-0">
-                        {sizeName}
+                        {label}
                       </Badge>
                       {measurements && typeof measurements === "object" ? (
                         <div className="flex flex-wrap gap-x-3 gap-y-1">
@@ -410,11 +434,11 @@ export const DesignDetail = () => {
                             </Text>
                           ))}
                         </div>
-                      ) : (
+                      ) : measurements != null ? (
                         <Text size="xsmall" className="text-ui-fg-subtle">
                           {String(measurements)}
                         </Text>
-                      )}
+                      ) : null}
                     </div>
                   ))}
                 </div>

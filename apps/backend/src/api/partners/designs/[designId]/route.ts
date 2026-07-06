@@ -162,9 +162,12 @@ export const GET = async (
     return res.status(404).json({ error: "Design not found for this partner" })
   }
 
-  // Use admin single-design workflow to fetch the full design shape
+  // Use admin single-design workflow to fetch the full design shape.
+  // Expand the `size_sets` (and `colors`) relations — a bare `["*"]` returns only
+  // scalar columns, so the design manager never saw the design's sizes. Mirrors
+  // the list + PUT routes, which already request these.
   const { result: workflowDesign } = await listSingleDesignsWorkflow(req.scope).run({
-    input: { id: designId, fields: ["*"] },
+    input: { id: designId, fields: ["*", "colors.*", "size_sets.*"] },
   })
 
   const partner_phase: "redo" | null = null
