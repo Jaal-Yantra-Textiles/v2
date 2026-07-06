@@ -4,7 +4,7 @@ import {
   resolveRedesignCredentials,
   DEFAULT_REDESIGN_MODEL,
 } from "../../../../../mastra/services/redesign-credentials"
-import { runRedesignEngine } from "./redesign-engines"
+import { runRedesignEngine, RedesignEngineError } from "./redesign-engines"
 import {
   RedesignBodySchema,
   buildRedesignPrompt,
@@ -50,10 +50,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const creds = await resolveRedesignCredentials(req.scope)
   if (!creds) {
-    throw new MedusaError(
-      MedusaError.Types.UNEXPECTED_STATE,
-      "No redesign provider configured. Add an OpenRouter (or Google) platform with role=ai_redesign in Settings → External Platforms, or set OPENROUTER_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY."
-    )
+    // Controlled 503 (not a thrown 500) so the actionable message reaches the UI —
+    // Medusa's error handler scrubs the body of any 500-level error.
+    return res.status(503).json({
+      code: "no_provider",
+      message:
+        "No redesign provider configured. Add an OpenRouter (or Google) platform with role=ai_redesign in Settings → External Platforms, or set OPENROUTER_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY.",
+    })
   }
 
   const image = resolveImageInput(body)
@@ -71,11 +74,17 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       image,
     })
   } catch (err: any) {
-    logger.error(`[Redesign] ${creds.engine} call failed: ${err?.message || err}`)
-    throw new MedusaError(
-      MedusaError.Types.UNEXPECTED_STATE,
-      `Redesign generation failed: ${err?.message || "unknown error"}`
+    const status = err instanceof RedesignEngineError ? err.status : 502
+    const code = err instanceof RedesignEngineError ? err.kind : "provider"
+    const message =
+      err instanceof RedesignEngineError
+        ? err.message
+        : `Redesign failed unexpectedly: ${String(err?.message || err).slice(0, 160)}`
+    logger.error(
+      `[Redesign] ${creds.engine} failed [${code}] on design ${req.params.id}: ${err?.message || err}`
     )
+    // Controlled response so the classified message survives (500s get scrubbed).
+    return res.status(status).json({ code, message })
   }
 
   logger.info(`[Redesign] Success — design ${req.params.id} via ${creds.engine}`)
