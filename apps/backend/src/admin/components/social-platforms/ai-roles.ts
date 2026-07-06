@@ -41,6 +41,10 @@ export const KNOWN_AI_ROLES: KnownAiRole[] = [
     value: "ai_image_extraction",
     label: "Inventory image → items (vision extraction)",
   },
+  {
+    value: "ai_redesign",
+    label: "Moodboard Redesign — Nano-Banana (gemini-2.5-flash-image)",
+  },
 ]
 
 /** Sentinel form value selected when the operator wants a free-form role. */

@@ -64,6 +64,11 @@ export type AiRole =
   // falls back to the auto-rotating OpenRouter free vision model. Previously
   // hardcoded to OPENROUTER_API_KEY which made the feature go dark when unset.
   | "ai_image_extraction"
+  // Moodboard "Redesign" — Nano-Banana (gemini-2.5-flash-image) (#892).
+  // Resolved by resolveRedesignCredentials: honours provider_type=openrouter
+  // (google/gemini-2.5-flash-image) or a hand-tagged google platform; falls
+  // back to OPENROUTER_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY env vars.
+  | "ai_redesign"
   // String escape hatch so callers can use ad-hoc roles without
   // bumping this union every time.
   | (string & {})
@@ -703,4 +708,5 @@ export const AI_ROLES: AiRole[] = [
   "ai_digest_summary",
   "ai_newsletter_drafter",
   "ai_image_extraction",
+  "ai_redesign",
 ]
