@@ -181,6 +181,22 @@ export async function findStorefrontBySalesChannel(
 }
 
 /**
+ * Resolve the storefront that owns a given publishable key token. Maps a
+ * caller-supplied `x-publishable-api-key` back to its partner/core store so
+ * requests can be scoped dynamically (name, domain, region) to that storefront.
+ */
+export async function findStorefrontByKey(
+  container: any,
+  token: string | null | undefined
+): Promise<StorefrontInfo | null> {
+  if (!token) {
+    return null
+  }
+  const all = await listStorefronts(container)
+  return all.find((s) => s.publishable_key === token) ?? null
+}
+
+/**
  * Resolve a single storefront. Matches (in order): partner handle, exact domain,
  * store id, default sales-channel id, store name, the first domain label as a
  * handle, then the platform core store via "default"/"main" or the apex domain.

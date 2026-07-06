@@ -21,6 +21,7 @@ setupSharedTestSuite(() => {
     let regionId: string
     let variantId: string
     let productId: string
+    let salesChannelId: string
 
     beforeEach(async () => {
       const container = getContainer()
@@ -43,7 +44,7 @@ setupSharedTestSuite(() => {
       // Link stock location to the default sales channel
       const storeService: any = container.resolve(Modules.STORE)
       const store = (await storeService.listStores({}))?.[0]
-      const salesChannelId = store?.default_sales_channel_id
+      salesChannelId = store?.default_sales_channel_id
 
       try {
         const remoteLink: any = container.resolve("link")
@@ -95,7 +96,7 @@ setupSharedTestSuite(() => {
 
         expect(res.status).toBe(200)
         expect(res.data.ucp).toBeDefined()
-        expect(res.data.ucp.version).toBe("2026-01-11")
+        expect(res.data.ucp.version).toBe("2026-04-08")
         expect(res.data.ucp.services["dev.ucp.shopping"]).toBeDefined()
         expect(res.data.ucp.services["dev.ucp.shopping"][0].transport).toBe("rest")
         expect(res.data.ucp.services["dev.ucp.shopping"][0].endpoint).toContain("/ucp")
@@ -140,22 +141,21 @@ setupSharedTestSuite(() => {
         expect(status).toBe(400)
       })
 
-      it("rejects POST /ucp/checkout-sessions without Request-Id header", async () => {
-        let status = 0
-        try {
-          await api.post("/ucp/checkout-sessions", {
-            line_items: [{ item: { id: variantId }, quantity: 1 }],
-          }, {
-            headers: {
-              "Content-Type": "application/json",
-              "UCP-Agent": "profile=\"https://agent.example/profile\"",
-              "x-publishable-api-key": publishableKey,
-            },
-          })
-        } catch (e: any) {
-          status = e?.response?.status ?? 0
-        }
-        expect(status).toBe(400)
+      it("accepts requests without a Request-Id header (spec does not mandate it)", async () => {
+        // UCP treats Request-Id as correlation, not authorization. When the caller
+        // omits it, the server mints one and echoes it back rather than rejecting.
+        const res = await api.post("/ucp/checkout-sessions", {
+          line_items: [{ item: { id: variantId }, quantity: 1 }],
+          context: { region_id: regionId },
+        }, {
+          headers: {
+            "Content-Type": "application/json",
+            "UCP-Agent": "profile=\"https://agent.example/profile\"",
+            "x-publishable-api-key": publishableKey,
+          },
+        })
+        expect(res.status).toBe(201)
+        expect(res.headers["request-id"]).toBeDefined()
       })
     })
 
@@ -174,7 +174,7 @@ setupSharedTestSuite(() => {
         expect(res.status).toBe(201)
         expect(res.data.id).toBeDefined()
         expect(res.data.ucp).toBeDefined()
-        expect(res.data.ucp.version).toBe("2026-01-11")
+        expect(res.data.ucp.version).toBe("2026-04-08")
         expect(res.data.status).toBe("incomplete")
         expect(res.data.line_items).toHaveLength(1)
         expect(res.data.line_items[0].quantity).toBe(2)
@@ -398,6 +398,12 @@ setupSharedTestSuite(() => {
         expect(p.title).toBeDefined()
         expect(p.handle).toBeDefined()
         expect(Array.isArray(p.variants)).toBe(true)
+        // Spec: description is a Description object, categories are {value} objects.
+        expect(typeof p.description).toBe("object")
+        expect(p.description.plain).toBeDefined()
+        expect(Array.isArray(p.categories)).toBe(true)
+        // Spec: pagination envelope.
+        expect(typeof res.data.pagination?.has_next_page).toBe("boolean")
       })
     })
 
@@ -414,6 +420,59 @@ setupSharedTestSuite(() => {
         expect(res.status).toBe(200)
         expect(res.data.products).toHaveLength(1)
         expect(res.data.products[0].id).toBe(productId)
+      })
+
+      it("prices in minor units, uppercase currency, with a region context", async () => {
+        // Seeded product is USD 499 (major). UCP wants integer minor units → 49900.
+        const res = await api.post("/ucp/catalog/lookup", {
+          ids: [productId],
+          context: { region_id: regionId },
+        }, ucpHeaders())
+
+        expect(res.status).toBe(200)
+        const v = res.data.products[0].variants[0]
+        expect(v.price).toEqual({ amount: 49900, currency: "USD" })
+        expect(v.description.plain).toBeDefined()
+        expect(res.data.products[0].price_range.min.currency).toBe("USD")
+      })
+
+      it("exposes every merchant currency with dynamic exponents (USD×100, JPY×1)", async () => {
+        // JPY has 0 minor-unit digits, so 500 JPY stays 500 (not ×100) — proves the
+        // exponent is resolved per-currency, not hardcoded.
+        const product = await api.post(
+          "/admin/products",
+          {
+            title: `UCP MultiCcy ${Date.now()}`,
+            status: "published",
+            sales_channels: [{ id: salesChannelId }],
+            options: [{ title: "Size", values: ["M"] }],
+            variants: [
+              {
+                title: "M",
+                options: { Size: "M" },
+                prices: [
+                  { amount: 499, currency_code: "usd" },
+                  { amount: 500, currency_code: "jpy" },
+                ],
+                manage_inventory: false,
+              },
+            ],
+          },
+          adminHeaders
+        )
+
+        const res = await api.post("/ucp/catalog/lookup", {
+          ids: [product.data.product.id],
+        }, ucpHeaders())
+
+        expect(res.status).toBe(200)
+        const prices = res.data.products[0].variants[0].prices
+        expect(prices).toEqual(
+          expect.arrayContaining([
+            { amount: 49900, currency: "USD" },
+            { amount: 500, currency: "JPY" },
+          ])
+        )
       })
     })
 

@@ -1,5 +1,5 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { resolveBaseUrl, resolvePublicUrl } from "../../ucp/lib/context"
+import { resolveBaseUrl, resolveStorefrontUrl } from "../../ucp/lib/context"
 import { UCP_VERSION } from "../../ucp/lib/formatter"
 
 /**
@@ -14,7 +14,8 @@ import { UCP_VERSION } from "../../ucp/lib/formatter"
  */
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const baseUrl = resolveBaseUrl(req)
-  const storefrontUrl = resolvePublicUrl(req)
+  const callerKey = (req.headers["x-publishable-api-key"] as string) || undefined
+  const storefrontUrl = await resolveStorefrontUrl(req.scope, req, callerKey)
 
   const paymentHandlers = [
     {
