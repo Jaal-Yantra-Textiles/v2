@@ -35,6 +35,111 @@ const TECHNIQUES: { value: string; label: string; paramHint: string }[] = [
   { value: "embroidery", label: "Embroidery", paramHint: "motif = 6" },
 ]
 
+// Ready-made construction details for common garment features. Selecting one
+// pre-fills the form so the same detail isn't re-authored from scratch each time.
+// All techniques below must exist in TECHNIQUES / the backend SUPPORTED_TECHNIQUES.
+type ConstructionSample = {
+  value: string
+  label: string
+  technique: string
+  detailLabel: string
+  params?: Record<string, number>
+  fabricRules?: string[]
+  note?: string
+}
+
+const SAMPLES: ConstructionSample[] = [
+  {
+    value: "waist-dart",
+    label: "Waist dart",
+    technique: "dart",
+    detailLabel: "Waist dart",
+    params: { intake: 0.6 },
+    fabricRules: ["press toward centre front", "taper to nothing at apex"],
+    note: "Backstitch at waist seam, leave apex un-backstitched",
+  },
+  {
+    value: "bust-dart",
+    label: "Bust dart",
+    technique: "dart",
+    detailLabel: "Bust dart",
+    params: { intake: 0.5 },
+    fabricRules: ["press downward", "end 2.5 cm short of apex"],
+  },
+  {
+    value: "knife-pleat-skirt",
+    label: "Knife pleats (skirt)",
+    technique: "knife-pleat",
+    detailLabel: "Knife pleats",
+    params: { count: 6 },
+    fabricRules: ["all pleats face one direction", "press sharp, edge-stitch top 8 cm"],
+  },
+  {
+    value: "box-pleat-center",
+    label: "Centre box pleat",
+    technique: "box-pleat",
+    detailLabel: "Centre box pleat",
+    params: { count: 1 },
+    fabricRules: ["centre on CF", "tack at waist"],
+  },
+  {
+    value: "gathered-sleeve-head",
+    label: "Gathered sleeve head",
+    technique: "gathers",
+    detailLabel: "Sleeve-head gathers",
+    params: { ratio: 1.4 },
+    fabricRules: ["two rows of ease stitching", "distribute fullness between notches"],
+  },
+  {
+    value: "gathered-skirt-waist",
+    label: "Gathered skirt waist",
+    technique: "gathers",
+    detailLabel: "Waist gathers",
+    params: { ratio: 2 },
+    fabricRules: ["gather evenly to waistband length"],
+  },
+  {
+    value: "pin-tucks-bodice",
+    label: "Pin tucks (bodice)",
+    technique: "tucks",
+    detailLabel: "Pin tucks",
+    params: { count: 5 },
+    fabricRules: ["6 mm spacing", "press to one side"],
+  },
+  {
+    value: "double-topstitch-hem",
+    label: "Double topstitch hem",
+    technique: "topstitch",
+    detailLabel: "Double topstitch",
+    params: { rows: 2 },
+    fabricRules: ["6 mm row spacing", "matching thread"],
+  },
+  {
+    value: "edge-topstitch",
+    label: "Edge topstitch",
+    technique: "topstitch",
+    detailLabel: "Edge topstitch",
+    params: { rows: 1 },
+    fabricRules: ["1.5 mm from edge"],
+  },
+  {
+    value: "back-yoke",
+    label: "Back yoke",
+    technique: "yoke",
+    detailLabel: "Back yoke",
+    params: { drop: 0.4 },
+    fabricRules: ["burrito method", "understitch yoke seam"],
+  },
+  {
+    value: "chain-embroidery",
+    label: "Chain-stitch embroidery",
+    technique: "embroidery",
+    detailLabel: "Chain-stitch motif",
+    params: { motif: 6 },
+    fabricRules: ["stabilise reverse before stitching"],
+  },
+]
+
 /** Parse a textarea of `key = value` lines into a numeric param map (non-numeric dropped). */
 function parseParams(text: string): Record<string, number> {
   const out: Record<string, number> = {}
@@ -121,14 +226,32 @@ const AddDetailModal = ({ designId }: { designId: string }) => {
   const [rulesText, setRulesText] = useState("")
   const [note, setNote] = useState("")
 
+  const [sample, setSample] = useState<string>("")
+
   const { mutateAsync: create, isPending } = useCreateConstructionDetail(designId)
 
   const reset = () => {
+    setSample("")
     setTechnique("")
     setLabel("")
     setParamsText("")
     setRulesText("")
     setNote("")
+  }
+
+  const applySample = (value: string) => {
+    setSample(value)
+    const s = SAMPLES.find((x) => x.value === value)
+    if (!s) return
+    setTechnique(s.technique)
+    setLabel(s.detailLabel)
+    setParamsText(
+      s.params
+        ? Object.entries(s.params).map(([k, v]) => `${k} = ${v}`).join("\n")
+        : ""
+    )
+    setRulesText((s.fabricRules ?? []).join("\n"))
+    setNote(s.note ?? "")
   }
 
   const handleSubmit = async () => {
@@ -182,6 +305,25 @@ const AddDetailModal = ({ designId }: { designId: string }) => {
                 <Heading level="h2">Add construction detail</Heading>
                 <Text size="small" className="text-ui-fg-subtle">
                   Feeds the tech-pack's construction-details frame.
+                </Text>
+              </div>
+
+              <div className="flex flex-col gap-y-2">
+                <Label>Start from a sample <span className="text-ui-fg-muted">(optional)</span></Label>
+                <Select value={sample} onValueChange={applySample}>
+                  <Select.Trigger>
+                    <Select.Value placeholder="Pick a common detail to pre-fill" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {SAMPLES.map((s) => (
+                      <Select.Item key={s.value} value={s.value}>
+                        {s.label}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
+                <Text size="xsmall" className="text-ui-fg-muted">
+                  Fills the fields below — tweak anything before adding.
                 </Text>
               </div>
 

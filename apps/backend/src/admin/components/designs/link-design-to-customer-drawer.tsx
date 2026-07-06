@@ -7,6 +7,7 @@ import {
   Checkbox,
   Badge,
   StatusBadge,
+  Skeleton,
   toast,
 } from "@medusajs/ui"
 import { useDesigns, useLinkDesignsToCustomer } from "../../hooks/api/designs"
@@ -111,7 +112,17 @@ export const LinkDesignToCustomerDrawer = ({
           </div>
 
           {isLoading ? (
-            <Text className="text-ui-fg-subtle">Loading designs...</Text>
+            <div className="divide-y">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-x-3 py-3 px-2">
+                  <Skeleton className="h-4 w-4 rounded" />
+                  <div className="flex-1">
+                    <Skeleton className="h-4 w-2/3" />
+                    <Skeleton className="h-3 w-1/3 mt-2" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : availableDesigns.length === 0 ? (
             <Text className="text-ui-fg-subtle">No unlinked designs found.</Text>
           ) : (

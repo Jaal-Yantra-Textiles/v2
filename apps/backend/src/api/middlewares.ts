@@ -3348,6 +3348,13 @@ export default defineMiddlewares({
       ],
     },
     {
+      matcher: "/admin/customers/:id/designs",
+      method: "DELETE",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(LinkDesignsToCustomerSchema)),
+      ],
+    },
+    {
       matcher: "/admin/customers/:id/design-order",
       method: "POST",
       middlewares: [
