@@ -62,6 +62,26 @@ export interface TechPackRegion {
   note?: string
 }
 
+/**
+ * A construction detail — the "detail = triple" object from E1: a named technique
+ * whose geometry is *derived* from fabric-set `params`, plus the `fabricRules`
+ * (interface / clip / press / grade) that make it sewable. Rendered as a native,
+ * editable Excalidraw line-drawing (not raster); the full object rides along on the
+ * label element's `customData` so downstream tools can round-trip it.
+ */
+export interface TechPackDetail {
+  /** Renderer key, e.g. "dart" | "knife-pleat" | "gathers". */
+  technique: string
+  /** Human label, e.g. "Waist dart" or "Sleeve-head gathers". */
+  label: string
+  /** Fabric-derived geometry params (intake, count, ratio, depth…). */
+  params?: Record<string, number>
+  /** Sewing rules — interface / clip / press / grade notes. */
+  fabricRules?: string[]
+  /** Optional spec note shown under the glyph. */
+  note?: string
+}
+
 export interface TechPackSceneInput {
   design: TechPackHeader
   garment_type: string
@@ -69,6 +89,8 @@ export interface TechPackSceneInput {
   sizeSet?: TechPackSizeSet
   colorways?: TechPackColorway[]
   regions?: TechPackRegion[]
+  /** Construction details → the "4 · Construction details" frame. */
+  details?: TechPackDetail[]
   /** Optional stable seed so ids/nonces are reproducible across builds. Default 1. */
   seed?: number
 }
@@ -152,6 +174,9 @@ export interface ExcalidrawElement {
   endArrowhead?: string | null
   // frame-only
   name?: string
+  // any element — opaque app data (e.g. a construction detail's technique/params).
+  // Only serialized when present, so elements that omit it stay byte-identical.
+  customData?: Record<string, unknown>
 }
 
 // ── Deterministic element factory ───────────────────────────────────────────────
@@ -251,6 +276,10 @@ export function makeElement(
   }
   if (skel.type === "frame") {
     base.name = skel.name ?? "Frame"
+  }
+  // Only attach when provided — keeps elements that don't use it byte-identical.
+  if (skel.customData !== undefined) {
+    base.customData = skel.customData
   }
   return base
 }
@@ -716,6 +745,259 @@ export function buildColorwayFrame(
   return { elements, files }
 }
 
+// ── Construction-detail glyphs (parametric, native Excalidraw lines) ─────────────
+//
+// Each renderer maps fabric-derived params to polylines in a local glyphW × glyphH box
+// (origin top-left). We emit them as native `line` elements so the detail stays editable
+// in Excalidraw — never a raster glyph. Geometry mirrors the batch-1 construction-symbol
+// vocabulary (dart = wedge, pleats = periodic folds, gathers = length-ratio loops…).
+// Unknown techniques fall back to a labelled box so the detail-object is never dropped.
+
+type DetailPolyline = { points: [number, number][]; dashed?: boolean }
+type DetailRenderer = (
+  params: Record<string, number>,
+  w: number,
+  h: number
+) => DetailPolyline[]
+
+const clampInt = (v: number, lo: number, hi: number) =>
+  Math.max(lo, Math.min(hi, Math.round(v)))
+
+export const DETAIL_RENDERERS: Record<string, DetailRenderer> = {
+  // Wedge converging to a point; centre fold dashed. `intake` (0..1) widens the base.
+  dart: (p, w, h) => {
+    const cx = w / 2
+    const half = w * 0.28 * Math.max(0.2, Math.min(1, p.intake ?? 0.5))
+    const apexY = h * 0.14
+    const baseY = h * 0.9
+    return [
+      { points: [[cx - half, baseY], [cx, apexY]] },
+      { points: [[cx + half, baseY], [cx, apexY]] },
+      { points: [[cx - half, baseY], [cx + half, baseY]] },
+      { points: [[cx, baseY], [cx, apexY]], dashed: true },
+    ]
+  },
+  // Parallel one-direction folds + top fold-catches. `count` sets the fold count.
+  "knife-pleat": (p, w, h) => {
+    const n = clampInt(p.count ?? 4, 2, 7)
+    const top = h * 0.12,
+      bot = h * 0.9
+    const x0 = w * 0.16,
+      step = (w * 0.68) / (n - 1)
+    const out: DetailPolyline[] = []
+    for (let i = 0; i < n; i++) {
+      const x = x0 + i * step
+      out.push({ points: [[x, top], [x, bot]] })
+      out.push({ points: [[x - step * 0.5, top], [x, top]] })
+    }
+    return out
+  },
+  // Folds facing away from a centre line (a mirrored pair of knife pleats).
+  "box-pleat": (_p, w, h) => {
+    const cx = w / 2,
+      d = w * 0.2
+    const top = h * 0.12,
+      bot = h * 0.9
+    return [
+      { points: [[cx, top], [cx, bot]] },
+      { points: [[cx - d, top], [cx - d, bot]] },
+      { points: [[cx + d, top], [cx + d, bot]] },
+      { points: [[cx - d, top], [cx, top]] },
+      { points: [[cx + d, top], [cx, top]] },
+    ]
+  },
+  // Seam baseline with fabric ruched onto it. `ratio` (>1) sets the loop count.
+  gathers: (p, w, h) => {
+    const n = clampInt(3 + Math.max(1, p.ratio ?? 2) * 2, 5, 11)
+    const y = h * 0.7,
+      x0 = w * 0.1,
+      x1 = w * 0.9,
+      step = (x1 - x0) / n
+    const out: DetailPolyline[] = [{ points: [[x0, y], [x1, y]] }]
+    for (let i = 0; i < n; i++) {
+      const x = x0 + i * step
+      out.push({
+        points: [
+          [x, y],
+          [x + step * 0.25, y - h * 0.32],
+          [x + step * 0.75, y - h * 0.32],
+          [x + step, y],
+        ],
+      })
+    }
+    return out
+  },
+  // Parallel fold lines with catch ticks. `count` sets the tuck count.
+  tucks: (p, w, h) => {
+    const n = clampInt(p.count ?? 4, 2, 6)
+    const top = h * 0.14,
+      bot = h * 0.86
+    const x0 = w * 0.2,
+      step = (w * 0.6) / (n - 1)
+    const out: DetailPolyline[] = []
+    for (let i = 0; i < n; i++) {
+      const x = x0 + i * step
+      out.push({ points: [[x, top], [x, bot]] })
+      out.push({ points: [[x, top], [x + w * 0.05, top]] })
+      out.push({ points: [[x, bot], [x + w * 0.05, bot]] })
+    }
+    return out
+  },
+  // Edge line + parallel dashed stitch rows. `rows` sets the stitch-row count.
+  topstitch: (p, w, h) => {
+    const rows = clampInt(p.rows ?? 2, 1, 3)
+    const x0 = w * 0.12,
+      x1 = w * 0.88
+    const out: DetailPolyline[] = [{ points: [[x0, h * 0.3], [x1, h * 0.3]] }]
+    for (let i = 0; i < rows; i++) {
+      const y = h * 0.42 + i * h * 0.14
+      out.push({ points: [[x0, y], [x1, y]], dashed: true })
+    }
+    return out
+  },
+}
+
+/**
+ * "4 · Construction details" — one glyph per detail, laid out in a grid. Each glyph is
+ * a native, editable line-drawing derived from the detail's fabric-set params; the full
+ * detail-object (technique + params + fabricRules) rides on the label element's
+ * `customData` so downstream tooling can round-trip it. Mirrors buildColorwayFrame.
+ */
+export function buildConstructionDetailsFrame(
+  input: TechPackSceneInput,
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    {
+      type: "frame",
+      id: frameId,
+      x: originX,
+      y: 0,
+      width: FRAME.width,
+      height: FRAME.height,
+      name: "4 · Construction details",
+    },
+    rng
+  )
+
+  const elements: ExcalidrawElement[] = [frame]
+  const files: Record<string, ExcalidrawFile> = {}
+
+  const details = input.details ?? []
+  if (details.length === 0) {
+    elements.push(
+      makeElement(
+        {
+          type: "text",
+          x: originX + FRAME.pad,
+          y: FRAME.pad,
+          width: 300,
+          height: 24,
+          text: "No construction details",
+          fontSize: 18,
+        },
+        rng,
+        frameId
+      )
+    )
+    return { elements, files }
+  }
+
+  const cols = 4
+  const glyphW = 180
+  const glyphH = 140
+  const colGap = 60
+  const cellW = glyphW + colGap
+  const cellH = glyphH + 12 + 44 + 70 // glyph + gap + label band + row gap
+
+  details.forEach((detail, i) => {
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    const cellX = originX + FRAME.pad + col * cellW
+    const cellY = FRAME.pad + row * cellH
+
+    const renderer = DETAIL_RENDERERS[detail.technique]
+    if (renderer) {
+      for (const pl of renderer(detail.params ?? {}, glyphW, glyphH)) {
+        const xs = pl.points.map((pt) => pt[0])
+        const ys = pl.points.map((pt) => pt[1])
+        const minX = Math.min(...xs)
+        const minY = Math.min(...ys)
+        elements.push(
+          makeElement(
+            {
+              type: "line",
+              x: cellX + minX,
+              y: cellY + minY,
+              width: Math.max(...xs) - minX,
+              height: Math.max(...ys) - minY,
+              points: pl.points.map(
+                (pt) => [pt[0] - minX, pt[1] - minY] as [number, number]
+              ),
+              strokeColor: "#3f454c",
+              strokeWidth: 2,
+              strokeStyle: pl.dashed ? "dashed" : "solid",
+              customData: {
+                kind: "construction-glyph",
+                technique: detail.technique,
+              },
+            },
+            rng,
+            frameId
+          )
+        )
+      }
+    } else {
+      // Unknown technique — labelled placeholder box so the detail is never dropped.
+      elements.push(
+        makeElement(
+          {
+            type: "rectangle",
+            x: cellX,
+            y: cellY,
+            width: glyphW,
+            height: glyphH,
+            strokeColor: "#c0c6cc",
+            strokeStyle: "dashed",
+          },
+          rng,
+          frameId
+        )
+      )
+    }
+
+    // Label = the detail-object anchor (carries the full construction detail).
+    const labelLines = [detail.label, detail.note].filter(Boolean) as string[]
+    elements.push(
+      makeElement(
+        {
+          type: "text",
+          x: cellX,
+          y: cellY + glyphH + 12,
+          width: glyphW,
+          height: labelLines.length * 22,
+          text: labelLines.join("\n"),
+          fontSize: 14,
+          lineHeight: 1.35,
+          customData: {
+            kind: "construction-detail",
+            technique: detail.technique,
+            label: detail.label,
+            ...(detail.params ? { params: detail.params } : {}),
+            ...(detail.fabricRules ? { fabricRules: detail.fabricRules } : {}),
+          },
+        },
+        rng,
+        frameId
+      )
+    )
+  })
+
+  return { elements, files }
+}
+
 // ── Scene assembler ──────────────────────────────────────────────────────────────
 
 /**
@@ -731,6 +1013,7 @@ export function buildMoodboardScene(input: TechPackSceneInput): MoodboardScene {
   ) => FrameResult)[] = [buildHeaderFlatsFrame]
   if (input.sizeSet) builders.push(buildMeasurementFrame)
   if (input.regions?.length) builders.push(buildZoomLensFrame)
+  if (input.details?.length) builders.push(buildConstructionDetailsFrame)
   if (input.colorways?.length) builders.push(buildColorwayFrame)
 
   const elements: ExcalidrawElement[] = []
