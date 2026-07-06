@@ -2,17 +2,17 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import {
   OutlineBodySchema,
-  buildPotraceParams,
+  buildTracerOptions,
   svgToDataUrl,
   parseSvgDimensions,
   MOCK_OUTLINE_SVG,
 } from "./outline-support"
-import { resolveImageBuffer, runPotrace, OutlineEngineError } from "./outline-engine"
+import { resolveImageBuffer, runTracer, OutlineEngineError } from "./outline-engine"
 
 /**
  * POST /admin/designs/:id/outline
  *
- * Vectorize a raster flat/cutout into an editable SVG outline (#892) via potrace.
+ * Vectorize a raster flat/cutout into an editable SVG outline (#892) via imagetracerjs.
  * This is the deterministic, sewable-spec companion to the exploratory /redesign
  * render: pair it with /segment (feed the mask_url + black_on_white:false) for a
  * clean silhouette regardless of garment color. Returns SVG markup + a data URL;
@@ -32,7 +32,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     )
   }
   const body = parsed.data
-  const params = buildPotraceParams(body)
+  const options = buildTracerOptions(body)
 
   // In integration tests, skip the raster work but exercise all wiring around it.
   if (process.env.TEST_TYPE) {
@@ -49,13 +49,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   logger.info(
-    `[Outline] potrace ${body.mode} on design ${req.params.id} (threshold=${body.threshold}, black_on_white=${body.black_on_white})`
+    `[Outline] imagetracerjs ${body.mode} on design ${req.params.id} (numberofcolors=${options.numberofcolors})`
   )
 
   let svg: string
   try {
     const buffer = await resolveImageBuffer(body)
-    svg = await runPotrace(buffer, body.mode, params)
+    svg = await runTracer(buffer, options)
   } catch (err: any) {
     const status = err instanceof OutlineEngineError ? err.status : 502
     const code = err instanceof OutlineEngineError ? err.kind : "provider"

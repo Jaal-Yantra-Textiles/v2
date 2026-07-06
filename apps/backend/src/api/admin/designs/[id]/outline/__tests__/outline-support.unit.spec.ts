@@ -1,6 +1,6 @@
 import {
   OutlineBodySchema,
-  buildPotraceParams,
+  buildTracerOptions,
   decodeImageBase64,
   svgToDataUrl,
   parseSvgDimensions,
@@ -40,35 +40,32 @@ describe("#892 /outline — pure helpers", () => {
     })
   })
 
-  describe("buildPotraceParams", () => {
+  describe("buildTracerOptions", () => {
     const base = OutlineBodySchema.parse({ image_url: "https://x/y.png" })
 
-    it("omits threshold when auto (-1) and includes shared options", () => {
-      const p = buildPotraceParams(base)
-      expect(p).not.toHaveProperty("threshold")
-      expect(p).toMatchObject({
-        turdSize: 2,
-        optTolerance: 0.2,
-        blackOnWhite: true,
-        color: "black",
-        background: "transparent",
-      })
-      expect(p).not.toHaveProperty("steps")
+    it("quantizes to 2 colours in outline mode and maps despeckle/tolerance", () => {
+      const p = buildTracerOptions(base)
+      expect(p.numberofcolors).toBe(2)
+      expect(p.pathomit).toBe(2) // turd_size default
+      expect(p.ltres).toBeCloseTo(1.0) // opt_tolerance 0.2 * 5
+      expect(p.qtres).toBeCloseTo(1.0)
+      expect(p.linefilter).toBe(true)
     })
 
-    it("pins threshold when the caller sets one", () => {
-      const p = buildPotraceParams({ ...base, threshold: 128 })
-      expect(p.threshold).toBe(128)
+    it("uses `steps` colours in posterize mode", () => {
+      const p = buildTracerOptions({ ...base, mode: "posterize", steps: 4 })
+      expect(p.numberofcolors).toBe(4)
     })
 
-    it("adds steps only in posterize mode", () => {
-      const p = buildPotraceParams({ ...base, mode: "posterize", steps: 4 })
-      expect(p.steps).toBe(4)
+    it("maps a larger turd_size to pathomit", () => {
+      const p = buildTracerOptions({ ...base, turd_size: 20 })
+      expect(p.pathomit).toBe(20)
     })
 
-    it("passes black_on_white:false through (mask input)", () => {
-      const p = buildPotraceParams({ ...base, black_on_white: false })
-      expect(p.blackOnWhite).toBe(false)
+    it("scales opt_tolerance into ltres/qtres", () => {
+      const p = buildTracerOptions({ ...base, opt_tolerance: 0.4 })
+      expect(p.ltres).toBeCloseTo(2.0)
+      expect(p.qtres).toBeCloseTo(2.0)
     })
   })
 

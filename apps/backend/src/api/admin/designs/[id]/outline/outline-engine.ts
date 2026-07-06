@@ -1,10 +1,11 @@
 import { decodeImageBase64 } from "./outline-support"
 
 /**
- * potrace engine for the #892 /outline route. Isolated from the pure helpers because
- * it touches the network (fetching image_url) and the potrace lib. All failures are
- * normalized to OutlineEngineError { kind, status } so the route can return a
- * controlled, readable response (Medusa scrubs the body of any 500-level error).
+ * Vectorization engine for the #892 /outline route. Isolated from the pure helpers
+ * because it touches the network (fetching image_url), sharp (raster decode), and
+ * imagetracerjs (Unlicense — no GPL exposure). All failures are normalized to
+ * OutlineEngineError { kind, status } so the route can return a controlled, readable
+ * response (Medusa scrubs the body of any 500-level error).
  */
 
 export type OutlineErrorKind =
@@ -88,42 +89,61 @@ export async function resolveImageBuffer(body: {
   return buffer
 }
 
-/**
- * Trace a raster Buffer into SVG markup via potrace. `mode` selects the callable
- * (`trace` = single silhouette, `posterize` = layered fills); `params` is the
- * potrace options object from buildPotraceParams(). Resolves to the SVG string.
- */
-export async function runPotrace(
-  buffer: Buffer,
-  mode: "outline" | "posterize",
-  params: Record<string, unknown>
-): Promise<string> {
-  const mod: any = await import("potrace")
-  const potrace = mod?.default ?? mod
-  const fn = mode === "posterize" ? potrace.posterize : potrace.trace
+/** Decode a raster Buffer (PNG/JPEG/WebP/…) into ImageData-shaped RGBA pixels via sharp. */
+async function decodeToImageData(
+  buffer: Buffer
+): Promise<{ width: number; height: number; data: Buffer }> {
+  const sharp = (await import("sharp")).default
+  const { data, info } = await sharp(buffer)
+    .ensureAlpha() // imagetracerjs needs 4 channels (RGBA)
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+  return { width: info.width, height: info.height, data }
+}
 
-  const svg = await new Promise<string>((resolve, reject) => {
-    fn(buffer, params, (err: any, out: string) => {
-      if (err) {
-        reject(
-          new OutlineEngineError(
-            "provider",
-            `Vectorization failed: ${String(err?.message || err).slice(0, 160)}`,
-            502
-          )
-        )
-        return
-      }
-      resolve(out)
-    })
-  })
+/**
+ * Trace a raster Buffer into SVG markup via imagetracerjs. `options` is the tracer
+ * options object from buildTracerOptions() (mode is already baked in as numberofcolors).
+ * Resolves to the SVG string.
+ */
+export async function runTracer(
+  buffer: Buffer,
+  options: Record<string, unknown>
+): Promise<string> {
+  let imageData: { width: number; height: number; data: Buffer }
+  try {
+    imageData = await decodeToImageData(buffer)
+  } catch (err: any) {
+    throw new OutlineEngineError(
+      "bad_input",
+      `Couldn't decode the input image: ${String(err?.message || err).slice(0, 120)}`,
+      400
+    )
+  }
+
+  const mod: any = await import("imagetracerjs")
+  const ImageTracer = mod?.default ?? mod
+
+  let svg: string
+  try {
+    svg = ImageTracer.imagedataToSVG(
+      { width: imageData.width, height: imageData.height, data: imageData.data },
+      options
+    )
+  } catch (err: any) {
+    throw new OutlineEngineError(
+      "provider",
+      `Vectorization failed: ${String(err?.message || err).slice(0, 160)}`,
+      502
+    )
+  }
 
   // A blank/mono input traces to an SVG with no <path> — surface that as a clear 422
   // instead of handing back an empty outline.
   if (!svg || !/<path\b/.test(svg)) {
     throw new OutlineEngineError(
       "no_trace",
-      "Nothing to trace — the image had no distinct foreground. Try a cutout/mask, or set a threshold.",
+      "Nothing to trace — the image had no distinct foreground. Try a cutout/mask.",
       422
     )
   }

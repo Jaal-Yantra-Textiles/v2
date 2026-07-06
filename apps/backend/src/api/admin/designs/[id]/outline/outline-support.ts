@@ -1,13 +1,14 @@
 import { z } from "@medusajs/framework/zod"
 
 /**
- * Pure helpers for the #892 /outline route (potrace vectorization).
- * DI-free + network-free so they unit-test without a container, fal, or potrace.
+ * Pure helpers for the #892 /outline route (imagetracerjs vectorization).
+ * DI-free + network-free so they unit-test without a container, sharp, or the tracer.
  *
  * The route turns a raster flat/cutout (or, ideally, a /segment mask) into an
  * editable SVG outline — the sewable-spec companion to the exploratory /redesign
- * render. potrace traces dark regions as foreground by default (`black_on_white`);
- * a segmentation mask (white foreground on black) should pass `black_on_white:false`.
+ * render. imagetracerjs (Unlicense/public-domain — no GPL exposure, unlike potrace)
+ * colour-quantizes then traces: "outline" mode quantizes to 2 colours for a clean
+ * silhouette, "posterize" keeps `steps` tonal layers.
  */
 
 export const OutlineBodySchema = z
@@ -36,23 +37,26 @@ export const OutlineBodySchema = z
 
 export type OutlineBody = z.infer<typeof OutlineBodySchema>
 
-/** Map the validated body onto a potrace options object (shared + mode-specific). */
-export function buildPotraceParams(body: OutlineBody): Record<string, unknown> {
-  const shared: Record<string, unknown> = {
-    turdSize: body.turd_size,
-    optTolerance: body.opt_tolerance,
-    blackOnWhite: body.black_on_white,
-    color: body.color,
-    background: body.background,
+/**
+ * Map the validated body onto an imagetracerjs options object. The route body stays
+ * potrace-shaped for API stability; here we translate to the tracer's vocabulary:
+ *   - mode        → numberofcolors (2 = silhouette, `steps` = posterized layers)
+ *   - turd_size   → pathomit       (drop paths shorter than this — despeckle)
+ *   - opt_tolerance → ltres/qtres  (straight/curve error thresholds; higher = smoother)
+ * `threshold`, `black_on_white`, `color`, `background` remain accepted for
+ * compatibility but don't drive the colour quantizer (kept minimal on purpose).
+ */
+export function buildTracerOptions(body: OutlineBody): Record<string, unknown> {
+  const tol = Math.max(0.01, body.opt_tolerance * 5) // 0.2 (default) → 1.0 (tracer default)
+  return {
+    numberofcolors: body.mode === "posterize" ? body.steps : 2,
+    colorquantcycles: 1,
+    pathomit: body.turd_size,
+    ltres: tol,
+    qtres: tol,
+    linefilter: true,
+    scale: 1,
   }
-  // -1 means "let potrace pick" — only pin a threshold when the caller set one.
-  if (body.threshold >= 0) {
-    shared.threshold = body.threshold
-  }
-  if (body.mode === "posterize") {
-    return { ...shared, steps: body.steps }
-  }
-  return shared
 }
 
 /**
