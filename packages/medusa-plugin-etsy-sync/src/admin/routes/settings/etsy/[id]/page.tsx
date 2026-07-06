@@ -1,12 +1,15 @@
 import {
   Button,
   Container,
+  DropdownMenu,
   Heading,
+  IconButton,
   Label,
   StatusBadge,
   Text,
   Toaster,
 } from "@medusajs/ui"
+import { EllipsisHorizontal, ArrowPath, ArrowUpRightOnBox } from "@medusajs/icons"
 import { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { etsyApi } from "../../../../lib/api"
@@ -43,9 +46,13 @@ const EtsySyncDetailPage = () => {
   const handleRetry = async () => {
     if (!record) return
     setRetrying(true)
+    setError(null)
     try {
-      await etsyApi.retrySync(record.id)
-      navigate("/settings/etsy", { replace: true })
+      const res: any = await etsyApi.retrySync(record.id)
+      // Reflect the re-synced state in place rather than bouncing back to the list.
+      const updated = await etsyApi.getSync(record.id).catch(() => null)
+      if (updated) setRecord((updated as any).sync || updated)
+      else if (res?.sync) setRecord(res.sync)
     } catch (err: any) {
       setError(err.message || "Retry failed")
     } finally {
@@ -90,9 +97,37 @@ const EtsySyncDetailPage = () => {
             <Heading level="h1">Sync record</Heading>
             <Text className="text-ui-fg-subtle font-mono text-xs">{record.id}</Text>
           </div>
-          <StatusBadge color={STATUS_COLORS[record.status] || "grey"}>
-            {record.status}
-          </StatusBadge>
+          <div className="flex items-center gap-3">
+            <StatusBadge color={STATUS_COLORS[record.status] || "grey"}>
+              {record.status}
+            </StatusBadge>
+            <DropdownMenu>
+              <DropdownMenu.Trigger asChild>
+                <IconButton size="small" variant="transparent" disabled={retrying}>
+                  <EllipsisHorizontal />
+                </IconButton>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content align="end">
+                <DropdownMenu.Item
+                  className="gap-x-2"
+                  onClick={handleRetry}
+                  disabled={retrying}
+                >
+                  <ArrowPath className="text-ui-fg-subtle" />
+                  {retrying ? "Re-syncing…" : "Re-sync product"}
+                </DropdownMenu.Item>
+                {record.listing_url && (
+                  <DropdownMenu.Item
+                    className="gap-x-2"
+                    onClick={() => window.open(record.listing_url!, "_blank")}
+                  >
+                    <ArrowUpRightOnBox className="text-ui-fg-subtle" />
+                    Open on Etsy
+                  </DropdownMenu.Item>
+                )}
+              </DropdownMenu.Content>
+            </DropdownMenu>
+          </div>
         </div>
 
         <div className="px-6 py-4 grid grid-cols-2 gap-4">
@@ -107,17 +142,6 @@ const EtsySyncDetailPage = () => {
           />
         </div>
 
-        {record.listing_url && (
-          <div className="px-6 py-4">
-            <Button
-              size="small"
-              variant="secondary"
-              onClick={() => window.open(record.listing_url!, "_blank")}
-            >
-              View on Etsy
-            </Button>
-          </div>
-        )}
       </Container>
 
       {warnings.length > 0 && (
@@ -134,15 +158,6 @@ const EtsySyncDetailPage = () => {
           </div>
         </Container>
       )}
-
-      <div className="flex items-center gap-2">
-        <Button size="small" variant="secondary" onClick={() => navigate("/settings/etsy")}>
-          Back
-        </Button>
-        <Button size="small" isLoading={retrying} onClick={handleRetry}>
-          Re-sync product
-        </Button>
-      </div>
 
       <Toaster />
     </div>

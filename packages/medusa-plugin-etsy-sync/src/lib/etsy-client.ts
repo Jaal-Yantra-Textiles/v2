@@ -205,6 +205,14 @@ export class EtsyClient {
     }
   }
 
+  /**
+   * Fetch an absolute Etsy API URL (e.g. the `resource_url` handed to us by a
+   * webhook delivery). Sends x-api-key + Bearer like any scoped request.
+   */
+  async fetchResource<T = any>(accessToken: string, url: string): Promise<T> {
+    return this.requestJson<T>(url, { method: "GET", accessToken })
+  }
+
   async ping(): Promise<boolean> {
     try {
       await this.requestJson<any>(`${API_BASE}/application/openapi-ping`, {
@@ -551,8 +559,21 @@ export class EtsyClient {
       }
 
       if (!res.ok) {
-        const msg =
-          body?.error || body?.message || `Etsy API error ${res.status}`
+        // Etsy returns 4xx detail in a few shapes: `{ error }`, `{ error, error_description }`,
+        // `{ message }`, an `{ errors: [...] }` array, or occasionally a bare string.
+        // Surface whatever is there so a 400 is never opaque ("Etsy API error 400").
+        const detail =
+          body?.error_description ||
+          body?.error ||
+          body?.message ||
+          (Array.isArray(body?.errors)
+            ? body.errors.map((e: any) => e?.message || e?.error || e).join("; ")
+            : undefined) ||
+          (typeof body === "string" && body ? body : undefined) ||
+          (body && typeof body === "object" ? JSON.stringify(body) : undefined)
+        const msg = detail
+          ? `Etsy API ${res.status}: ${detail}`
+          : `Etsy API error ${res.status}`
         throw new EtsyApiError(msg, res.status, body)
       }
 

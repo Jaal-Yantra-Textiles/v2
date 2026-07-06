@@ -21,5 +21,7 @@ export const POST = async (req: MedusaRequest<BulkSyncBody>, res: MedusaResponse
     input: { product_ids },
   })
 
-  res.json({ result })
+  // The workflow runs the per-product sync in the background; we return the
+  // batch id immediately so the client can poll GET /admin/etsy/sync/bulk/:id.
+  res.status(202).json({ batch_id: (result as any).batch_id, status: "processing" })
 }
