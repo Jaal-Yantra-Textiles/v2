@@ -15,6 +15,7 @@ import {
 import { sdk } from "../../lib/config"
 import { FabricPreviewTab } from "./fabric-preview-tab"
 import { RedesignTab } from "./redesign-tab"
+import { OutlineTab } from "./outline-tab"
 
 interface FashionPanelProps {
   excalidrawAPI: any | null
@@ -23,7 +24,7 @@ interface FashionPanelProps {
   initialTab?: string
 }
 
-type Tab = "figures" | "garments" | "patterns" | "pinterest" | "fabric" | "redesign"
+type Tab = "figures" | "garments" | "patterns" | "pinterest" | "fabric" | "redesign" | "outline"
 
 type PinterestPin = {
   id: string
@@ -364,6 +365,7 @@ export function FashionPanel({ excalidrawAPI, getCanvasCenter, onClose, initialT
     { key: "pinterest", label: "Pinterest" },
     { key: "fabric",   label: "Fabric" },
     { key: "redesign", label: "Redesign" },
+    { key: "outline",  label: "Outline" },
   ]
 
   return (
@@ -629,6 +631,14 @@ export function FashionPanel({ excalidrawAPI, getCanvasCenter, onClose, initialT
         {/* ── REDESIGN TAB ──────────────────────────────────────────── */}
         {tab === "redesign" && (
           <RedesignTab
+            excalidrawAPI={excalidrawAPI}
+            getCanvasCenter={getCanvasCenter}
+          />
+        )}
+
+        {/* ── OUTLINE TAB ───────────────────────────────────────────── */}
+        {tab === "outline" && (
+          <OutlineTab
             excalidrawAPI={excalidrawAPI}
             getCanvasCenter={getCanvasCenter}
           />

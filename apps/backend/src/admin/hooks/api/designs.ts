@@ -847,6 +847,41 @@ export const useRedesignDesign = (designId: string) => {
   });
 };
 
+// ── Outline (#892) — potrace vectorization → editable sewable outline ─────────
+export interface OutlinePayload {
+  image_url?: string;
+  image_base64?: string;
+  mode?: "outline" | "posterize";
+  threshold?: number;
+  turd_size?: number;
+  opt_tolerance?: number;
+  black_on_white?: boolean;
+  steps?: number;
+  color?: string;
+  background?: string;
+}
+
+export interface OutlineResponse {
+  outline: {
+    svg: string;
+    image_url: string;
+    mode: "outline" | "posterize";
+    width: number | null;
+    height: number | null;
+  };
+}
+
+/** Vectorize an input flat/cutout into an editable SVG outline. Does not mutate the design. */
+export const useOutlineDesign = (designId: string) => {
+  return useMutation({
+    mutationFn: async (payload: OutlinePayload) =>
+      sdk.client.fetch<OutlineResponse>(
+        `/admin/designs/${designId}/outline`,
+        { method: "POST", body: payload }
+      ),
+  });
+};
+
 export interface NotifyDesignCustomerResponse {
   message: string
   design_id: string
