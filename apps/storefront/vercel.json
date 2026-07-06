@@ -1,4 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "corepack enable && pnpm install --frozen-lockfile"
+  "installCommand": "pnpm install --no-frozen-lockfile --filter @jyt/storefront..."
 }
