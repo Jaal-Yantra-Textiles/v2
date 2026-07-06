@@ -3,6 +3,8 @@ import EtsySyncAccount from "./models/etsy-sync-account"
 import EtsySyncRecord from "./models/etsy-sync-record"
 import EtsySyncSettings from "./models/etsy-sync-settings"
 import EtsySyncBatch from "./models/etsy-sync-batch"
+import EtsyWebhookEvent from "./models/etsy-webhook-event"
+import EtsyOrder from "./models/etsy-order"
 import { EtsyClient } from "../../lib/etsy-client"
 import { EtsyPluginOptions, ShopInfo, TokenData } from "../../lib/types"
 
@@ -74,6 +76,8 @@ function resolveEtsyOptions(options?: ModuleOptions): ModuleOptions {
       process.env.ETSY_SCOPE ??
       readOption(options, "scope") ??
       "listings_r listings_w listings_d shops_r",
+    webhookSecret:
+      process.env.ETSY_WEBHOOK_SECRET ?? readOption(options, "webhookSecret") ?? "",
   } as ModuleOptions
 }
 
@@ -82,6 +86,8 @@ class EtsySyncService extends MedusaService({
   EtsySyncRecord,
   EtsySyncSettings,
   EtsySyncBatch,
+  EtsyWebhookEvent,
+  EtsyOrder,
 }) {
   protected options_: ModuleOptions
   protected client_: EtsyClient | null = null

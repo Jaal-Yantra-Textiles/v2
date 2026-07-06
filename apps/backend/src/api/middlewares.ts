@@ -701,6 +701,14 @@ export default defineMiddlewares({
       bodyParser: { preserveRawBody: true },
     },
     {
+      // Etsy order webhooks (medusa-plugin-etsy-sync). Raw body is required to
+      // verify the Svix HMAC-SHA256 signature against ETSY_WEBHOOK_SECRET.
+      matcher: "/webhooks/etsy",
+      method: "POST",
+      middlewares: [],
+      bodyParser: { preserveRawBody: true },
+    },
+    {
       matcher: "/webhooks/meta-ads/leadgen",
       method: "GET",
       middlewares: [],

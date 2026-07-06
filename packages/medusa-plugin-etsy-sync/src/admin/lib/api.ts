@@ -32,11 +32,24 @@ export const etsyApi = {
     sdk.client.fetch("/admin/etsy/auth/disconnect", { method: "POST" }),
   syncProduct: (id: string) =>
     sdk.client.fetch(`/admin/etsy/sync/product/${id}`, { method: "POST" }),
+  productStatus: (id: string) =>
+    sdk.client.fetch<{
+      connected: boolean
+      synced: boolean
+      latest: any | null
+    }>(`/admin/etsy/status/product/${id}`),
   syncBulk: (product_ids: string[]) =>
-    sdk.client.fetch("/admin/etsy/sync/bulk", {
-      method: "POST",
-      body: { product_ids },
-    }),
+    sdk.client.fetch<{ batch_id: string; status: string }>(
+      "/admin/etsy/sync/bulk",
+      {
+        method: "POST",
+        body: { product_ids },
+      }
+    ),
+  bulkStatus: (batchId: string) =>
+    sdk.client.fetch<{ batch: any; progress: any }>(
+      `/admin/etsy/sync/bulk/${batchId}`
+    ),
   listSyncs: (opts: { take?: number; skip?: number; status?: string } = {}) => {
     const query: Record<string, string> = {}
     if (opts.take !== undefined) query.take = String(opts.take)

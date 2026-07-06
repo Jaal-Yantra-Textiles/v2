@@ -299,5 +299,34 @@ describe("EtsyClient", () => {
         /expired or invalid/
       )
     })
+
+    it("surfaces the Etsy detail (status + message) so a 400 is never opaque", async () => {
+      const fetchMock = mockFetch(
+        { error: "taxonomy_id: must be a valid taxonomy node" },
+        { status: 400 }
+      )
+      global.fetch = fetchMock as any
+
+      await expect(
+        client.createDraftListing("tok.abc", "999", {
+          quantity: 1,
+          title: "x",
+          description: "",
+          price: 1,
+          who_made: "i_did",
+          when_made: "made_to_order",
+          taxonomy_id: 1,
+        })
+      ).rejects.toThrow(/Etsy API 400: taxonomy_id/)
+    })
+
+    it("falls back to the JSON body when there is no error/message field", async () => {
+      const fetchMock = mockFetch({ detail: "something odd" }, { status: 400 })
+      global.fetch = fetchMock as any
+
+      await expect(
+        client.getListingsByShop("tok.abc", "999")
+      ).rejects.toThrow(/something odd/)
+    })
   })
 })

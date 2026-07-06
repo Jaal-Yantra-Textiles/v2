@@ -20,6 +20,17 @@ import {
 
 export const SYNC_PRODUCT_TO_ETSY = "etsy-sync-product"
 
+/**
+ * A draft Etsy listing has no public `url` (Etsy only mints one once the listing
+ * is active). So the admin has "no link to the draft". Fall back to the Shop
+ * Manager edit URL, which the authenticated shop owner can open directly.
+ */
+const listingDisplayUrl = (listing: ListingResponse): string | null => {
+  if (listing.url) return listing.url
+  if (!listing.listing_id) return null
+  return `https://www.etsy.com/your/shops/me/tools/listings/${listing.listing_id}`
+}
+
 export type SyncProductToEtsyInput = {
   product_id: string
 }
@@ -28,6 +39,7 @@ type ResolvedConfig = {
   account_id: string
   shop_id: string
   access_token: string
+  currency: string | null
   settings: any
 }
 
@@ -42,6 +54,7 @@ type PreparedProduct = {
 
 type SyncResult = {
   listing: ListingResponse
+  listing_url: string | null
   uploaded_images: UploadedImage[]
   published: boolean
   warnings: string[]
@@ -59,6 +72,7 @@ const resolveEtsyConfigStep = createStep(
       account_id: account.id,
       shop_id: account.shop_id,
       access_token: account.access_token,
+      currency: account.currency ?? null,
       settings,
     })
   }
@@ -69,7 +83,7 @@ const resolveEtsyConfigStep = createStep(
 const prepareProductStep = createStep(
   "etsy-prepare-product-step",
   async (
-    input: { product_id: string; settings: any },
+    input: { product_id: string; settings: any; currency: string | null },
     { container }
   ): Promise<StepResponse<PreparedProduct>> => {
     const query = container.resolve(
@@ -126,12 +140,23 @@ const prepareProductStep = createStep(
       variants.length ? 0 : 1
     ) || 1
 
-    // Min price across variant prices (Medusa stores amounts in minor units)
-    const priceAmounts = variants
-      .flatMap((v) => v.prices || [])
+    // Etsy prices the listing in the shop's own currency. Medusa v2 stores the
+    // money amount as a whole decimal in the price's own currency (e.g. 120.00
+    // means 120.00 EUR — NOT minor units), so we pass it through as-is. Dividing
+    // by 100 here is what produced the wrong "1.20" draft price.
+    const shopCurrency = (input.currency || "").toLowerCase()
+    const allPrices = variants.flatMap((v) => v.prices || [])
+    // Prefer prices already in the shop currency; fall back to every price only
+    // if none match (so a mis-currency listing still gets a sane, non-zero price).
+    const currencyPrices = shopCurrency
+      ? allPrices.filter(
+          (p) => String(p.currency_code || "").toLowerCase() === shopCurrency
+        )
+      : allPrices
+    const priceAmounts = (currencyPrices.length ? currencyPrices : allPrices)
       .map((p) => Number(p.amount))
       .filter((a) => a > 0)
-    const minPrice = priceAmounts.length ? Math.min(...priceAmounts) / 100 : 0
+    const minPrice = priceAmounts.length ? Math.min(...priceAmounts) : 0
 
     const tags = (product.tags || [])
       .map((t: any) => t.value)
@@ -259,6 +284,7 @@ const syncListingStep = createStep(
     return new StepResponse(
       {
         listing,
+        listing_url: listingDisplayUrl(listing),
         uploaded_images,
         published,
         warnings,
@@ -297,7 +323,7 @@ const persistSyncResultStep = createStep(
       product_id: prepared.product_id,
       account_id: config.account_id,
       listing_id: result.listing.listing_id,
-      listing_url: result.listing.url ?? null,
+      listing_url: result.listing_url,
       listing_state: result.listing.state,
       action: prepared.existing_listing_id ? "update" : "create",
       status,
@@ -326,11 +352,17 @@ const persistSyncResultStep = createStep(
         [ETSY_SYNC_MODULE]: { etsy_sync_account_id: config.account_id },
         data: {
           etsy_listing_id: result.listing.listing_id,
-          etsy_url: result.listing.url ?? null,
+          etsy_url: result.listing_url,
           sync_status: "synced",
           last_synced_at: new Date(),
           sync_error: result.warnings.length ? result.warnings.join(" | ") : null,
-          metadata: { published: result.published, state: result.listing.state },
+          metadata: {
+            published: result.published,
+            state: result.listing.state,
+            // Medusa status at last sync — the subscriber compares against this
+            // so an unrelated product edit doesn't trigger a redundant re-sync.
+            product_status: prepared.product_status,
+          },
         },
       },
     ])
@@ -349,6 +381,7 @@ export const syncProductToEtsyWorkflow = createWorkflow(
       transform({ input, config }, (data) => ({
         product_id: data.input.product_id,
         settings: data.config.settings,
+        currency: data.config.currency,
       }))
     )
 
@@ -369,7 +402,7 @@ export const syncProductToEtsyWorkflow = createWorkflow(
 
     return new WorkflowResponse({
       listing_id: result.listing.listing_id,
-      listing_url: result.listing.url,
+      listing_url: result.listing_url,
       published: result.published,
       state: result.listing.state,
       warnings: result.warnings,
