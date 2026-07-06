@@ -6,9 +6,20 @@ import { AUDIENCE_MODULE } from "../../../../modules/audience"
 import {
   buildAudienceEntries,
   summarizeEntries,
+  planAudienceEntryWrites,
   type SourceRecord,
 } from "../../../../modules/audience/build-entries"
 import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./registry"
+
+/** Split a list into fixed-size batches so a huge audience never becomes one
+ * unbounded INSERT/UPDATE (keeps query size + memory bounded at scale). */
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}
+
+const WRITE_BATCH = 500
 
 /**
  * #457 / #881 — materialize the unified audience.
@@ -19,7 +30,10 @@ import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./
  * seeds the source `audience_group` definitions.
  *
  * Dry-run reports the composition (counts by source/tag/type) without writing;
- * apply upserts the entries. Idempotent — re-running refreshes in place.
+ * apply upserts the entries. Idempotent AND convergent — writes are batched and
+ * change-detected (only rows whose content actually differs are updated), so a
+ * settled audience makes a re-run a near-instant no-op instead of re-writing
+ * every row one-at-a-time (the old "keeps running / never converges" behaviour).
  */
 
 const SOURCE_GROUPS: Array<{ key: string; label: string }> = [
@@ -47,7 +61,7 @@ export const backfillAudienceEntriesJob: MaintenanceJob = {
     const persons: any[] = await personService
       .listPeople(
         {},
-        { relations: ["subscribed"], select: ["id", "email", "first_name", "last_name", "metadata", "state", "created_at"] }
+        { relations: ["subscribed"], select: ["id", "email", "first_name", "last_name", "metadata", "state", "created_at"], take: null }
       )
       .catch(() => [])
     for (const p of persons) {
@@ -67,7 +81,7 @@ export const backfillAudienceEntriesJob: MaintenanceJob = {
 
     // Customers.
     const customers: any[] = await customerService
-      .listCustomers({}, { select: ["id", "email", "first_name", "last_name", "metadata", "created_at"] })
+      .listCustomers({}, { select: ["id", "email", "first_name", "last_name", "metadata", "created_at"], take: null })
       .catch(() => [])
     for (const c of customers) {
       if (!c.email) continue
@@ -86,7 +100,7 @@ export const backfillAudienceEntriesJob: MaintenanceJob = {
     const leads: any[] = await socialsService
       .listLeads(
         { status: { $nin: ["archived", "lost", "unqualified"] } },
-        { select: ["id", "email", "first_name", "last_name", "full_name", "metadata", "created_at"] }
+        { select: ["id", "email", "first_name", "last_name", "full_name", "metadata", "created_at"], take: null }
       )
       .catch(() => [])
     for (const l of leads) {
@@ -105,60 +119,65 @@ export const backfillAudienceEntriesJob: MaintenanceJob = {
     const drafts = buildAudienceEntries(records)
     const summary = summarizeEntries(drafts)
 
-    // Aggregate changes (one row per source bucket — keeps the audit readable).
-    const changes: MaintenanceChange[] = Object.entries(summary.bySource).map(
-      ([source, count]) => ({ entity: "audience_entry", id: source, field: "count", after: count })
-    )
+    // Read what's already persisted (all columns we compare on) and diff against
+    // the freshly-built drafts. The plan is computed for BOTH dry-run and apply,
+    // so a preview predicts exactly what the apply will write. Change-detection
+    // here is what makes a re-run converge instead of re-writing every row.
+    const existing: any[] = await audienceService
+      .listAudienceEntries(
+        {},
+        {
+          select: ["id", "email", "member_type", "member_id", "first_name", "last_name", "source", "groups", "tags", "mailable"],
+          take: null,
+        }
+      )
+      .catch(() => [])
+
+    const plan = planAudienceEntryWrites(drafts, existing)
+
+    // Missing source-group definitions (seeded only on apply).
+    const existingGroups: any[] = await audienceService.listAudienceGroups({}).catch(() => [])
+    const groupKeys = new Set(existingGroups.map((g) => g.key))
+    const newGroups = SOURCE_GROUPS.filter((g) => !groupKeys.has(g.key)).map((g) => ({
+      key: g.key,
+      label: g.label,
+      kind: "source",
+    }))
 
     if (!dry_run) {
-      // Seed source group definitions (upsert by key).
-      const existingGroups: any[] = await audienceService.listAudienceGroups({}).catch(() => [])
-      const groupKeys = new Set(existingGroups.map((g) => g.key))
-      const newGroups = SOURCE_GROUPS.filter((g) => !groupKeys.has(g.key)).map((g) => ({
-        key: g.key,
-        label: g.label,
-        kind: "source",
-      }))
       if (newGroups.length) await audienceService.createAudienceGroups(newGroups)
-
-      // Upsert entries by email.
-      const existing: any[] = await audienceService
-        .listAudienceEntries({}, { select: ["id", "email"], take: 100000 })
-        .catch(() => [])
-      const idByEmail = new Map(existing.map((e) => [e.email, e.id]))
-
-      const toCreate: any[] = []
-      const toUpdate: any[] = []
-      for (const d of drafts) {
-        const row = {
-          email: d.email,
-          member_type: d.member_type,
-          member_id: d.member_id,
-          first_name: d.first_name,
-          last_name: d.last_name,
-          source: d.source,
-          groups: d.groups,
-          tags: d.tags,
-          mailable: d.mailable,
-        }
-        const id = idByEmail.get(d.email)
-        if (id) toUpdate.push({ id, ...row })
-        else toCreate.push(row)
+      // Batched writes — one call per chunk instead of a per-row await loop.
+      for (const batch of chunk(plan.toCreate, WRITE_BATCH)) {
+        await audienceService.createAudienceEntries(batch)
       }
-      if (toCreate.length) await audienceService.createAudienceEntries(toCreate)
-      for (const u of toUpdate) await audienceService.updateAudienceEntries(u)
+      for (const batch of chunk(plan.toUpdate, WRITE_BATCH)) {
+        await audienceService.updateAudienceEntries(batch)
+      }
     }
 
+    // Aggregate, audit-readable changes: what the write plan does + composition.
+    const changes: MaintenanceChange[] = [
+      { entity: "audience_entry", id: "created", field: "count", after: plan.toCreate.length },
+      { entity: "audience_entry", id: "updated", field: "count", after: plan.toUpdate.length },
+      { entity: "audience_entry", id: "unchanged", field: "count", after: plan.unchanged },
+      { entity: "audience_group", id: "seeded", field: "count", after: newGroups.length },
+      ...Object.entries(summary.bySource).map(
+        ([source, count]): MaintenanceChange => ({ entity: "audience_entry", id: `source:${source}`, field: "count", after: count })
+      ),
+    ]
+
+    const writes = plan.toCreate.length + plan.toUpdate.length + newGroups.length
     const verb = dry_run ? "Would materialize" : "Materialized"
     return {
       job_id: backfillAudienceEntriesJob.id,
       dry_run,
-      applied: !dry_run && drafts.length > 0,
+      // Only "applied" when we actually wrote something — a settled audience
+      // re-run reports applied=false (no-op), which is the convergence signal.
+      applied: !dry_run && writes > 0,
       summary:
         `${verb} ${summary.total} audience entries (${summary.mailable} mailable) — ` +
-        Object.entries(summary.bySource)
-          .map(([s, n]) => `${s}:${n}`)
-          .join(", "),
+        `${plan.toCreate.length} new, ${plan.toUpdate.length} updated, ${plan.unchanged} unchanged` +
+        (newGroups.length ? `, ${newGroups.length} group(s) seeded` : ""),
       changes,
     }
   },
