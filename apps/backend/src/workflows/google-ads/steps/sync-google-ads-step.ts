@@ -406,6 +406,37 @@ async function pullCidData(
   )
   const customerRow = extractFirstRow(customerRes.data)?.customer ?? {}
 
+  // Manager (MCC) accounts have NO campaigns/metrics — every metric query against
+  // one returns 400 (QueryError.REQUESTED_METRICS_FOR_MANAGER). Detect it from the
+  // (metric-free) customer query and skip the metric pulls entirely, so binding an
+  // MCC records the account cleanly instead of 400-looping. Bind a child client
+  // CID to get campaign data.
+  const isManager = customerRow.manager === true || customerRow.manager === "true"
+  if (isManager) {
+    logger?.info?.(
+      `[google-ads] cid=${cid} is a manager (MCC) account — skipping campaign/metric pulls (managers have no metrics; bind a child CID for campaign data)`
+    )
+    return {
+      customer: {
+        resource_name: `customers/${cid}`,
+        descriptive_name: customerRow.descriptiveName ?? null,
+        currency_code: customerRow.currencyCode ?? null,
+        time_zone: customerRow.timeZone ?? null,
+        manager: true,
+        test_account: customerRow.testAccount ?? false,
+      },
+      campaigns: [],
+      adGroups: [],
+      ads: [],
+      insights: {
+        campaign: [],
+        ad_group: [],
+        campaign_by_device: [],
+        ad_group_by_device: [],
+      },
+    }
+  }
+
   const campaignsRes = await withGoogleRetry(
     () =>
       axios.post(
@@ -444,9 +475,7 @@ async function pullCidData(
     } catch (e: any) {
       // Don't fail the whole sync over creative pull — log + continue.
       logger?.warn?.(
-        `[google-ads] ad_group_ad pull failed for cid=${cid}: ${
-          e.response?.data?.error?.message || e.message
-        }`
+        `[google-ads] ad_group_ad pull failed for cid=${cid}: ${googleErrorMessage(e)}`
       )
     }
   }
@@ -531,7 +560,7 @@ async function pullDailyInsights(
     logger?.warn?.(
       `[google-ads] daily insights pull failed for cid=${cid} level=${level}${
         breakdown ? " breakdown=" + breakdown : ""
-      }: ${e.response?.data?.error?.message || e.message}`
+      }: ${googleErrorMessage(e)}`
     )
     return []
   }
@@ -549,6 +578,24 @@ function extractAllRows(data: any): any[] {
 
 function extractFirstRow(data: any): any {
   return extractAllRows(data)[0] ?? null
+}
+
+/**
+ * Unwrap a Google Ads error body to the `{ error: { message, details } }` object.
+ * `googleAds:searchStream` returns its ERROR body as an ARRAY (`[{ error: … }]`),
+ * not the plain object the unary endpoints return — so `data.error` is undefined
+ * for exactly the streaming calls this step makes, and every 400/403 reason gets
+ * silently dropped. Handle both shapes.
+ */
+export function googleErrorRoot(raw: any): any {
+  if (Array.isArray(raw)) return raw.find((c: any) => c?.error) ?? raw[0] ?? null
+  return raw ?? null
+}
+
+/** Best-effort human message from a Google Ads axios error (array-shape aware). */
+function googleErrorMessage(e: any): string {
+  const root = googleErrorRoot(e?.response?.data)
+  return root?.error?.message || e?.message || "Unknown Google Ads error"
 }
 
 async function upsertCustomer(
@@ -1010,12 +1057,14 @@ async function upsertInsights(
  * Test-access dev tokens (the latter looks IDENTICAL to a missing-cid
  * error unless we explicitly call it out).
  */
-function formatGoogleAdsError(
+export function formatGoogleAdsError(
   e: any,
   ctx: { hasLoginCid: boolean }
 ): string {
   const status: number | undefined = e?.response?.status
-  const data: any = e?.response?.data
+  // searchStream returns its error body as an array (`[{ error: … }]`) — unwrap
+  // to the error object so 400/403 reasons aren't silently dropped.
+  const data: any = googleErrorRoot(e?.response?.data)
 
   // Google's normal failure shape — extract the first specific error code.
   let specificCode: string | null = null
@@ -1050,7 +1099,13 @@ function formatGoogleAdsError(
   const code = specificCode || ""
   let hint: string | null = null
 
-  if (
+  if (code.includes("REQUESTED_METRICS_FOR_MANAGER")) {
+    hint =
+      "this CID is a manager (MCC) account — manager accounts have no campaign metrics, so metric queries always 400. Bind a child client-account CID instead of the manager. (The sync now auto-skips metric pulls for manager accounts, so this should not recur.)"
+  } else if (status === 400 && code.startsWith("queryError")) {
+    hint =
+      "GAQL query rejected (400) — a requested field/metric is invalid for this account or Google Ads API v24. See the error message above for the offending field."
+  } else if (
     code.includes("DEVELOPER_TOKEN_NOT_APPROVED") ||
     code.includes("DEVELOPER_TOKEN_PROHIBITED") ||
     code.includes("DEVELOPER_TOKEN_NEEDS_APPROVAL")
