@@ -8,6 +8,9 @@ import type EncryptionService from "../../../../modules/encryption/service"
 import type { EncryptedData } from "../../../../modules/encryption"
 import { parseResendEvent } from "../../../../modules/email_suppression/provider-parsers"
 import { suppressEmail } from "../../../../modules/email_suppression/suppress-core"
+import { parseResendEngagement } from "../../../../modules/email_engagement/provider-parsers"
+import { recordEngagement } from "../../../../modules/email_engagement/engagement-core"
+import { bridgeOutreachEngagement } from "../../../../modules/marketing/bridge-engagement"
 
 /**
  * POST /webhooks/resend/email-events
@@ -92,10 +95,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 async function processResendDeliveryEvent(scope: any, payload: any): Promise<void> {
   const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
   const items = parseResendEvent(payload)
-  if (!items.length) {
+  const engagement = parseResendEngagement(payload)
+  if (!items.length && !engagement.length) {
     logger.info(`[Resend Events] Ignoring event type: ${payload?.type}`)
     return
   }
+  // Suppression events (email.bounced / email.complained).
   for (const item of items) {
     const outcome = await suppressEmail(scope, {
       email: item.email,
@@ -107,6 +112,27 @@ async function processResendDeliveryEvent(scope: any, payload: any): Promise<voi
     })
     logger.info(
       `[Resend Events] ${item.reason} ${item.email} → suppressed=${outcome.suppressed} (p:${outcome.persons} c:${outcome.customers} l:${outcome.leads})${outcome.duplicate ? " [dup]" : ""}`
+    )
+  }
+  // Engagement events (email.delivered / email.opened / email.clicked) — fold
+  // into the ledger and (Option C) feed any matching marketing_outreach row.
+  for (const ev of engagement) {
+    const outcome = await recordEngagement(scope, {
+      email: ev.email,
+      type: ev.type,
+      provider: "resend",
+      event_id: ev.event_id,
+      event_at: ev.event_at,
+      message_id: ev.message_id,
+      raw: payload,
+    })
+    const bridged = await bridgeOutreachEngagement(scope, {
+      type: ev.type,
+      message_id: ev.message_id,
+      event_at: ev.event_at,
+    }).catch(() => ({ matched: 0, changed: 0 }))
+    logger.info(
+      `[Resend Events] engagement ${ev.type} ${ev.email} → recorded=${outcome.recorded}${outcome.duplicate ? " [dup]" : ""}${bridged.changed ? ` [outreach:${bridged.changed}]` : ""}`
     )
   }
 }

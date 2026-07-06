@@ -5,6 +5,8 @@ import { PERSON_MODULE } from "../../../../modules/person"
 import PersonService from "../../../../modules/person/service"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import SocialsService from "../../../../modules/socials/service"
+import { EMAIL_ENGAGEMENT_MODULE } from "../../../../modules/email_engagement"
+import { classifyEngagement } from "../../../../modules/email_engagement/classifier"
 import { ICustomerModuleService } from "@medusajs/framework/types"
 
 export const getSubscribersStepId = "get-subscribers"
@@ -115,6 +117,31 @@ export const getSubscribersStep = createStep(
               last_name: lead.last_name || lead.full_name?.split(" ").slice(1).join(" ") || "",
             })
           }
+        }
+      }
+
+      // Soft engagement exclusion (#881): drop `dormant` addresses from BULK
+      // sends — computed LIVE from the engagement ledger so a freshly-cold
+      // contact is honored without waiting on the recompute job. The
+      // person/customer/lead rows are untouched (they stay in the audience +
+      // still get transactional / win-back mail), so we never lose sight of
+      // who's dormant vs active.
+      const emails = Array.from(uniqueSubscribers.keys())
+      if (emails.length) {
+        const engagementService: any = container.resolve(EMAIL_ENGAGEMENT_MODULE)
+        const engagementRows: any[] = await engagementService
+          .listEmailEngagements({ email: emails }, { take: null })
+          .catch(() => [])
+        const now = new Date()
+        let dropped = 0
+        for (const row of engagementRows) {
+          if (classifyEngagement(row, { now }).bulk_suppressed) {
+            if (uniqueSubscribers.delete(String(row.email).toLowerCase())) dropped++
+          }
+        }
+        if (dropped) {
+          const logger: any = container.resolve("logger")
+          logger?.info?.(`[get-subscribers] dropped ${dropped} dormant address(es) from bulk send`)
         }
       }
 

@@ -3,6 +3,9 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import { parseMailjetEvents } from "../../../../modules/email_suppression/provider-parsers"
 import { suppressEmail } from "../../../../modules/email_suppression/suppress-core"
+import { parseMailjetEngagement } from "../../../../modules/email_engagement/provider-parsers"
+import { recordEngagement } from "../../../../modules/email_engagement/engagement-core"
+import { bridgeOutreachEngagement } from "../../../../modules/marketing/bridge-engagement"
 
 /**
  * POST /webhooks/mailjet/events
@@ -33,21 +36,28 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const body = req.body as any
   const items = parseMailjetEvents(body)
+  const engagement = parseMailjetEngagement(body)
 
   // Ack immediately; process async (Mailjet retries on non-2xx).
   res.status(200).send("OK")
 
-  processMailjetEvents(req.scope, body, items).catch((error) => {
+  processMailjetEvents(req.scope, body, items, engagement).catch((error) => {
     logger.error("[Mailjet Events] Failed to process events:", error as Error)
   })
 }
 
-async function processMailjetEvents(scope: any, body: any, items: any[]): Promise<void> {
+async function processMailjetEvents(
+  scope: any,
+  body: any,
+  items: any[],
+  engagement: any[]
+): Promise<void> {
   const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
-  if (!items.length) {
+  if (!items.length && !engagement.length) {
     logger.info("[Mailjet Events] No actionable events in payload")
     return
   }
+  // Suppression events (bounce/blocked/spam/unsub) — take the recipient off the list.
   for (const item of items) {
     const outcome = await suppressEmail(scope, {
       email: item.email,
@@ -59,6 +69,27 @@ async function processMailjetEvents(scope: any, body: any, items: any[]): Promis
     })
     logger.info(
       `[Mailjet Events] ${item.reason} ${item.email} → suppressed=${outcome.suppressed} (p:${outcome.persons} c:${outcome.customers} l:${outcome.leads})${outcome.duplicate ? " [dup]" : ""}`
+    )
+  }
+  // Engagement events (sent→delivered / open / click) — fold into the ledger
+  // and (Option C) feed any matching marketing_outreach campaign row.
+  for (const ev of engagement) {
+    const outcome = await recordEngagement(scope, {
+      email: ev.email,
+      type: ev.type,
+      provider: "mailjet",
+      event_id: ev.event_id,
+      event_at: ev.event_at,
+      message_id: ev.message_id,
+      raw: ev,
+    })
+    const bridged = await bridgeOutreachEngagement(scope, {
+      type: ev.type,
+      message_id: ev.message_id,
+      event_at: ev.event_at,
+    }).catch(() => ({ matched: 0, changed: 0 }))
+    logger.info(
+      `[Mailjet Events] engagement ${ev.type} ${ev.email} → recorded=${outcome.recorded}${outcome.duplicate ? " [dup]" : ""}${bridged.changed ? ` [outreach:${bridged.changed}]` : ""}`
     )
   }
 }

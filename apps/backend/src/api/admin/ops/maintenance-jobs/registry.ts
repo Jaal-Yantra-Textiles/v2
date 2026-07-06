@@ -78,6 +78,8 @@ import { backfillPartnerEmailVerifiedJob } from "./backfill-partner-email-verifi
 import { enableStripeConnectEurRegionsJob } from "./enable-stripe-connect-eur-regions-job"
 import { suppressBouncedSubscribersJob } from "./suppress-bounced-subscribers-job"
 import { backfillAudienceEntriesJob } from "./backfill-audience-entries-job"
+import { recomputeEmailEngagementStatusJob } from "./recompute-email-engagement-status-job"
+import { generateNewsletterWinbackTargetsJob } from "./generate-newsletter-winback-targets-job"
 import { repairInventoryOrderSourceJob } from "./repair-inventory-order-source-job"
 import {
   sweepAiPlatformsByCategory,
@@ -5414,6 +5416,8 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   enableStripeConnectEurRegionsJob,
   suppressBouncedSubscribersJob,
   backfillAudienceEntriesJob,
+  recomputeEmailEngagementStatusJob,
+  generateNewsletterWinbackTargetsJob,
   repairInventoryOrderSourceJob,
 ]
 
