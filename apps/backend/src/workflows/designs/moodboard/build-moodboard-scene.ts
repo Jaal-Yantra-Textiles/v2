@@ -855,6 +855,47 @@ export const DETAIL_RENDERERS: Record<string, DetailRenderer> = {
     }
     return out
   },
+  // Shoulder panel with a dashed (curved) yoke seam. `drop` (0..1) lowers the seam.
+  yoke: (p, w, h) => {
+    const drop = Math.max(0.1, Math.min(1, p.drop ?? 0.5))
+    const lx = w * 0.16,
+      rx = w * 0.84
+    const top = h * 0.18,
+      bot = h * 0.9
+    const seamY = h * 0.3 + h * 0.32 * drop
+    const seam: [number, number][] = []
+    const n = 8
+    for (let i = 0; i <= n; i++) {
+      const t = i / n
+      seam.push([lx + (rx - lx) * t, seamY + Math.sin(t * Math.PI) * h * 0.08])
+    }
+    return [
+      { points: [[lx, top], [rx, top], [rx, bot], [lx, bot], [lx, top]] },
+      { points: seam, dashed: true },
+    ]
+  },
+  // Dashed placement ring + a small radial motif. `motif` sets the petal count.
+  embroidery: (p, w, h) => {
+    const cx = w / 2,
+      cy = h * 0.5,
+      rx = w * 0.36,
+      ry = h * 0.34
+    const ring: [number, number][] = []
+    const seg = 28
+    for (let i = 0; i <= seg; i++) {
+      const a = (i / seg) * Math.PI * 2
+      ring.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry])
+    }
+    const out: DetailPolyline[] = [{ points: ring, dashed: true }]
+    const petals = clampInt(p.motif ?? 5, 3, 8)
+    for (let i = 0; i < petals; i++) {
+      const a = (i / petals) * Math.PI * 2
+      out.push({
+        points: [[cx, cy], [cx + Math.cos(a) * w * 0.09, cy + Math.sin(a) * h * 0.1]],
+      })
+    }
+    return out
+  },
 }
 
 /**

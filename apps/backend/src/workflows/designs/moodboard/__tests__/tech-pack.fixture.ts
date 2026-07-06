@@ -71,6 +71,18 @@ export const SS26_CR_TP08: TechPackSceneInput = {
       params: { rows: 2 },
       note: "6 mm from edge",
     },
+    {
+      technique: "yoke",
+      label: "Back yoke",
+      params: { drop: 0.4 },
+      fabricRules: ["double-layer", "understitch seam"],
+    },
+    {
+      technique: "embroidery",
+      label: "Neckline embroidery",
+      params: { motif: 6 },
+      note: "flower motif, 2–2.5 cm",
+    },
   ],
   colorways: [
     { name: "Natural / Indigo", hex_code: "#2e3a59", thread_ref: "K-7" },

@@ -38,11 +38,18 @@ describe("buildMoodboardScene", () => {
     const detailAnchors = scene.elements.filter(
       (e) => (e.customData as { kind?: string })?.kind === "construction-detail"
     )
-    expect(detailAnchors).toHaveLength(4)
+    expect(detailAnchors).toHaveLength(6)
     const techniques = detailAnchors.map(
       (e) => (e.customData as { technique?: string }).technique
     )
-    expect(techniques).toEqual(["gathers", "dart", "knife-pleat", "topstitch"])
+    expect(techniques).toEqual([
+      "gathers",
+      "dart",
+      "knife-pleat",
+      "topstitch",
+      "yoke",
+      "embroidery",
+    ])
     // The dart carries its fabric-derived intake param and sewing rules.
     const dart = detailAnchors.find(
       (e) => (e.customData as { technique?: string }).technique === "dart"
