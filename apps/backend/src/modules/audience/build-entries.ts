@@ -100,6 +100,123 @@ export function buildAudienceEntries(
   return out
 }
 
+/** The persisted columns of one audience_entry (no id / timestamps). */
+export type AudienceEntryRow = {
+  email: string
+  member_type: MemberType
+  member_id: string
+  first_name: string | null
+  last_name: string | null
+  source: string
+  groups: string[]
+  tags: string[]
+  mailable: boolean
+}
+
+/** An already-persisted entry as read back from the DB (id + comparable cols). */
+export type ExistingAudienceEntry = {
+  id: string
+  email: string
+  member_type?: string | null
+  member_id?: string | null
+  first_name?: string | null
+  last_name?: string | null
+  source?: string | null
+  groups?: string[] | null
+  tags?: string[] | null
+  mailable?: boolean | null
+}
+
+export type AudienceEntryWritePlan = {
+  toCreate: AudienceEntryRow[]
+  toUpdate: Array<{ id: string } & AudienceEntryRow>
+  /** Emails whose persisted content already matches the draft — skipped. */
+  unchanged: number
+}
+
+/** PURE: the persisted-column projection of a draft. */
+export function audienceEntryRow(d: AudienceEntryDraft): AudienceEntryRow {
+  return {
+    email: d.email,
+    member_type: d.member_type,
+    member_id: d.member_id,
+    first_name: d.first_name,
+    last_name: d.last_name,
+    source: d.source,
+    groups: d.groups,
+    tags: d.tags,
+    mailable: d.mailable,
+  }
+}
+
+/** Order-independent canonical form of the comparable fields (arrays sorted). */
+function entrySignature(e: {
+  member_type?: string | null
+  member_id?: string | null
+  first_name?: string | null
+  last_name?: string | null
+  source?: string | null
+  groups?: string[] | null
+  tags?: string[] | null
+  mailable?: boolean | null
+}): string {
+  const arr = (v?: string[] | null) => (Array.isArray(v) ? [...v].map(String).sort() : [])
+  return JSON.stringify({
+    member_type: e.member_type ?? null,
+    member_id: e.member_id ?? null,
+    first_name: e.first_name ?? null,
+    last_name: e.last_name ?? null,
+    source: e.source ?? null,
+    groups: arr(e.groups),
+    tags: arr(e.tags),
+    // model default is true — treat null/undefined as true so a freshly
+    // classified mailable=true draft matches an existing row that defaulted.
+    mailable: e.mailable ?? true,
+  })
+}
+
+/**
+ * PURE: split freshly-built drafts against what's already persisted into
+ * create / update / unchanged buckets. Change-detection is the load-bearing
+ * part — WITHOUT it every re-run re-UPDATEs every existing row (the #457/#881
+ * "keeps running / never converges" bug). An entry only lands in `toUpdate`
+ * when a comparable field actually differs; identical rows are skipped, so a
+ * settled audience makes the job a near-instant no-op.
+ *
+ * Dedup is by lowercased email — draft emails are already lowercased by
+ * buildAudienceEntries, and persisted emails are stored lowercased.
+ */
+export function planAudienceEntryWrites(
+  drafts: AudienceEntryDraft[],
+  existing: ExistingAudienceEntry[]
+): AudienceEntryWritePlan {
+  const byEmail = new Map<string, ExistingAudienceEntry>()
+  for (const e of existing ?? []) {
+    const email = String(e?.email ?? "").trim().toLowerCase()
+    if (email) byEmail.set(email, e)
+  }
+
+  const toCreate: AudienceEntryRow[] = []
+  const toUpdate: Array<{ id: string } & AudienceEntryRow> = []
+  let unchanged = 0
+
+  for (const d of drafts ?? []) {
+    const row = audienceEntryRow(d)
+    const ex = byEmail.get(d.email)
+    if (!ex) {
+      toCreate.push(row)
+      continue
+    }
+    if (entrySignature(row) === entrySignature(ex)) {
+      unchanged++
+      continue
+    }
+    toUpdate.push({ id: ex.id, ...row })
+  }
+
+  return { toCreate, toUpdate, unchanged }
+}
+
 /** PURE: composition summary for the "who's in here" dashboard. */
 export function summarizeEntries(entries: AudienceEntryDraft[]) {
   const bySource: Record<string, number> = {}
