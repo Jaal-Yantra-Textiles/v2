@@ -92,20 +92,44 @@ export const CompleteUcpCheckoutSessionSchema = z.object({
   buyer: UcpBuyerSchema.optional(),
 })
 
+// UCP catalog context — buyer signals for localization/pricing (spec
+// types/context.json). `passthrough` keeps forward-compat with signals the spec
+// may add; the extra region_id/country_code are direct Medusa hints we accept.
+const UcpCatalogContextSchema = z.object({
+  address_country: z.string().optional(),
+  address_region: z.string().optional(),
+  postal_code: z.string().optional(),
+  currency: z.string().optional(),
+  language: z.string().optional(),
+  intent: z.string().optional(),
+  region_id: z.string().optional(),
+  country_code: z.string().min(2).optional(),
+}).passthrough().optional()
+
 export const CatalogSearchSchema = z.object({
   query: z.string().optional(),
   filters: z.object({
+    // Spec: categories (array of category `value`s, OR logic) + price (minor units).
+    categories: z.array(z.string()).optional(),
+    price: z.object({
+      min: z.number().int().min(0).optional(),
+      max: z.number().int().min(0).optional(),
+    }).optional(),
+    // Legacy / direct hints (back-compat).
     category: z.string().optional(),
     collection: z.string().optional(),
     min_price: z.number().optional(),
     max_price: z.number().optional(),
-  }).optional(),
+  }).passthrough().optional(),
+  context: UcpCatalogContextSchema,
   pagination: z.object({
     limit: z.number().int().positive().max(100).optional().default(20),
     offset: z.number().int().min(0).optional().default(0),
+    cursor: z.string().optional(),
   }).optional(),
 })
 
 export const CatalogLookupSchema = z.object({
   ids: z.array(z.string()).min(1),
+  context: UcpCatalogContextSchema,
 })

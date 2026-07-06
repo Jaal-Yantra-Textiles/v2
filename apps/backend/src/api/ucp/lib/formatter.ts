@@ -11,7 +11,7 @@ import { buildUcpFulfillment } from "./fulfillment"
 import { listShippingOptionsSafe } from "./shipping-options"
 import { paymentNextAction } from "./payment-next-action"
 
-export const UCP_VERSION = "2026-01-11"
+export const UCP_VERSION = "2026-04-08"
 
 export type UcpFormatterContext = {
   storeName: string
@@ -35,6 +35,21 @@ function ucpEnvelope(ctx: UcpFormatterContext, cartMetadata?: Record<string, unk
       "dev.ucp.shopping.order": [{ version: UCP_VERSION }],
       "dev.ucp.shopping.fulfillment": [{ version: UCP_VERSION }],
       "dev.ucp.shopping.discount": [{ version: UCP_VERSION }],
+    },
+  }
+}
+
+/**
+ * Response envelope for stateless catalog endpoints (no cart context). Per the
+ * UCP REST binding, the envelope carries `version` + advertised `capabilities`.
+ */
+export function catalogEnvelope() {
+  return {
+    version: UCP_VERSION,
+    status: "success" as const,
+    capabilities: {
+      "dev.ucp.shopping.catalog.search": [{ version: UCP_VERSION }],
+      "dev.ucp.shopping.catalog.lookup": [{ version: UCP_VERSION }],
     },
   }
 }
@@ -218,19 +233,94 @@ export async function formatUcpCheckoutSession(
 // Product
 // =====================================================
 
-export function formatUcpProduct(product: any) {
+/**
+ * ISO 4217 minor-unit exponent for a currency, resolved dynamically via Intl
+ * (no hardcoded table): USD→2, JPY→0, KWD→3, etc. Falls back to 2 for unknown
+ * codes. Medusa stores amounts in MAJOR units (e.g. 100.00), UCP wants integer
+ * minor units, so every amount is scaled by 10^exponent.
+ */
+function currencyExponent(currency: string): number {
+  try {
+    return (
+      new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: currency.toUpperCase(),
+      }).resolvedOptions().maximumFractionDigits ?? 2
+    )
+  } catch {
+    return 2
+  }
+}
+
+/** UCP Price: integer minor units + uppercase ISO 4217 currency (^[A-Z]{3}$). */
+function ucpPrice(majorAmount: number | string, currency: string | undefined) {
+  const cur = currency || "usd"
+  const major = Number(majorAmount) || 0
+  return {
+    amount: Math.round(major * Math.pow(10, currencyExponent(cur))),
+    currency: cur.toUpperCase(),
+  }
+}
+
+/**
+ * All non-price-list money amounts on a Medusa variant, one per currency,
+ * deduped and converted to UCP minor-unit prices. This is the dynamic
+ * multi-currency view — whatever currencies the merchant has priced in Medusa.
+ */
+function variantPrices(v: any): { amount: number; currency: string }[] {
+  const seen = new Set<string>()
+  const out: { amount: number; currency: string }[] = []
+  for (const p of v.prices || []) {
+    // Skip price-list (sale/override) rows — base prices only for the catalog.
+    if (p.price_list_id) continue
+    const code = p.currency_code
+    if (!code || seen.has(code)) continue
+    seen.add(code)
+    out.push(ucpPrice(p.amount ?? p.raw_amount?.value ?? 0, code))
+  }
+  return out
+}
+
+export type ProductFormatOptions = {
+  storefrontUrl?: string
+  /** Presentment currency (uppercase ISO 4217) to select variant.price from. */
+  currency?: string
+}
+
+export function formatUcpProduct(product: any, opts: ProductFormatOptions = {}) {
+  const { storefrontUrl, currency: wanted } = opts
+  const wantedUpper = wanted?.toUpperCase()
+
   const variants = (product.variants || []).map((v: any) => {
-    const price = v.prices?.[0] || v.calculated_price || null
-    const priceAmount = price ? (price.amount ?? price.calculated_amount ?? 0) : null
-    const priceCurrency = price?.currency_code || "usd"
+    const prices = variantPrices(v)
+
+    // Selling price: region-calculated price wins (tax/price-list aware), else
+    // the priced entry in the requested/presentment currency, else first.
+    const calc = v.calculated_price
+    const calculated = calc?.calculated_amount != null
+      ? ucpPrice(calc.calculated_amount, calc.currency_code)
+      : null
+    const byCurrency = wantedUpper
+      ? prices.find((p) => p.currency === wantedUpper)
+      : undefined
+    const price = calculated || byCurrency || prices[0] || null
+
+    // Strikethrough / list price when the calculated original differs.
+    const listPrice = calc?.original_amount != null && calc.original_amount !== calc.calculated_amount
+      ? ucpPrice(calc.original_amount, calc.currency_code)
+      : undefined
 
     return {
       id: v.id,
       title: v.title || "",
+      // Spec: variant.description is required and MUST be an object with ≥1
+      // format. Medusa variants carry none, so mirror the title.
+      description: { plain: v.title || product.title || "" },
       sku: v.sku || null,
-      price: priceAmount != null
-        ? { amount: priceAmount, currency: priceCurrency }
-        : null,
+      price,
+      ...(listPrice ? { list_price: listPrice } : {}),
+      // Extension: every currency the merchant prices this variant in.
+      ...(prices.length ? { prices } : {}),
       availability: {
         available: v.inventory_quantity != null ? v.inventory_quantity > 0 : true,
         status: v.inventory_quantity != null
@@ -240,23 +330,43 @@ export function formatUcpProduct(product: any) {
     }
   })
 
-  const variantPrices = variants.map((v: any) => v.price?.amount).filter((p: any) => p != null)
-  const priceRange = variantPrices.length > 0
+  // Price range in the presentment currency (fall back to whatever price[0] is).
+  const priced = variants.filter((v: any) => v.price != null)
+  const rangeCurrency = wantedUpper && priced.some((v: any) => v.price.currency === wantedUpper)
+    ? wantedUpper
+    : priced[0]?.price?.currency
+  const inRange = priced
+    .map((v: any) =>
+      v.price.currency === rangeCurrency
+        ? v.price.amount
+        : v.prices?.find((p: any) => p.currency === rangeCurrency)?.amount
+    )
+    .filter((a: any) => a != null) as number[]
+  const priceRange = inRange.length > 0
     ? {
-        min: { amount: Math.min(...variantPrices), currency: variants[0]?.price?.currency || "usd" },
-        max: { amount: Math.max(...variantPrices), currency: variants[0]?.price?.currency || "usd" },
+        min: { amount: Math.min(...inRange), currency: rangeCurrency },
+        max: { amount: Math.max(...inRange), currency: rangeCurrency },
       }
     : null
 
   const media = (product.images || []).map((img: any) => ({ url: img.url, type: "image" as const }))
-  if (product.thumbnail) media.unshift({ url: product.thumbnail, type: "image" as const })
+  if (product.thumbnail && !media.some((m: any) => m.url === product.thumbnail)) {
+    media.unshift({ url: product.thumbnail, type: "image" as const })
+  }
+
+  const handle = product.handle || ""
 
   return {
     id: product.id,
     title: product.title || "",
-    description: product.description || "",
-    handle: product.handle || "",
-    categories: (product.categories || []).map((c: any) => c.name),
+    // Spec: description is a Description object ({ plain|html|markdown }), not a string.
+    description: { plain: product.description || "" },
+    handle,
+    ...(storefrontUrl && handle ? { url: `${storefrontUrl}/products/${handle}` } : {}),
+    // Spec: categories are Category objects keyed by `value`, not bare strings.
+    categories: (product.categories || [])
+      .map((c: any) => (c?.name ? { value: c.name } : null))
+      .filter(Boolean),
     price_range: priceRange,
     variants,
     media,

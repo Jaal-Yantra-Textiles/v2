@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   defineMiddlewares,
   MedusaErrorHandlerFunction,
@@ -28,6 +29,7 @@ import {
   CatalogSearchSchema,
   CatalogLookupSchema,
 } from "./ucp/validators";
+import { resolveStorefrontUrl } from "./ucp/lib/context";
 
 // Helper function to wrap Zod schemas for compatibility with validateAndTransformBody.
 // Historically this wrapped with z.preprocess((obj) => obj, schema) — under Zod v3
@@ -5206,12 +5208,16 @@ export default defineMiddlewares({
       matcher: "/.well-known/ucp",
       method: "GET",
       middlewares: [
-        (req: MedusaRequest, res: MedusaResponse) => {
+        async (req: MedusaRequest, res: MedusaResponse) => {
           const proto = (req.protocol || "http").split(",")[0].trim()
           const host = req.get("host")
           const baseUrl = process.env.STORE_MCP_LOOPBACK_URL?.replace(/\/$/, "") || `${proto}://${host}`
-          const storefrontUrl = process.env.STOREFRONT_URL || baseUrl
-          const UCP_VERSION = "2026-01-11"
+          // Buyer-facing store URL is the storefront's own domain (a partner
+          // domain when scoped by publishable key, else the core store's
+          // cicilabel.com) — not the API host. Env/host fallback.
+          const callerKey = (req.headers["x-publishable-api-key"] as string) || undefined
+          const storefrontUrl = await resolveStorefrontUrl(req.scope, req, callerKey)
+          const UCP_VERSION = "2026-04-08"
           res.json({
             ucp: {
               version: UCP_VERSION,
@@ -5257,20 +5263,17 @@ export default defineMiddlewares({
           const ucpAgent = req.headers["ucp-agent"]
           if (!ucpAgent) {
             res.status(400).json({
-              ucp: { version: "2026-01-11", status: "error" },
+              ucp: { version: "2026-04-08", status: "error" },
               messages: [{ type: "error", code: "missing_ucp_agent", content: "Missing UCP-Agent header for platform identification", severity: "unrecoverable" }],
             })
             return
           }
-          const requestId = req.headers["request-id"]
-          if (!requestId) {
-            res.status(400).json({
-              ucp: { version: "2026-01-11", status: "error" },
-              messages: [{ type: "error", code: "missing_request_id", content: "Request-Id header is required for UCP requests", severity: "unrecoverable" }],
-            })
-            return
-          }
-          res.set("Request-Id", requestId as string)
+          // Request-Id is for correlation, not authorization — the UCP spec does
+          // not mandate it. Echo the caller's when present, else mint one, so
+          // conformant agents that omit it aren't rejected.
+          const requestId =
+            (req.headers["request-id"] as string) || randomUUID()
+          res.set("Request-Id", requestId)
           next()
         },
       ],
