@@ -68,7 +68,7 @@
     "@freesewing/titan": "4.10.0",
     "@hookform/error-message": "^2.0.1",
     "@hookform/resolvers": "^5.0.1",
-    "@jytextiles/medusa-plugin-etsy-sync": "0.1.0",
+    "@jytextiles/medusa-plugin-etsy-sync": "0.1.2",
     "@mastra/core": "latest",
     "@mastra/evals": "latest",
     "@mastra/loggers": "latest",
