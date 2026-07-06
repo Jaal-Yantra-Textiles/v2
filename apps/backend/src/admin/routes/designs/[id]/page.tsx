@@ -10,6 +10,7 @@ import { DesignConsumptionLogsSection } from "../../../components/designs/design
 import { DesignAttributesSection } from "../../../components/designs/design-attributes-section";
 import { DesignProductionRunsSummary } from "../../../components/designs/design-production-runs-summary";
 import { DesignComponentsSection } from "../../../components/designs/design-components-section";
+import { DesignConstructionSection } from "../../../components/designs/design-construction-section";
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton";
 import { TwoColumnPage } from "../../../components/pages/two-column-pages";
 import { Toaster } from "@medusajs/ui";
@@ -80,6 +81,7 @@ const DesignDetailPage = () => {
           <DesignMediaFolderSection design={design} />
           <DesignMediaSection design={design} />
           <DesignComponentsSection design={design} />
+          <DesignConstructionSection design={design} />
         </TwoColumnPage.Sidebar>  
         </TwoColumnPage>
     </>

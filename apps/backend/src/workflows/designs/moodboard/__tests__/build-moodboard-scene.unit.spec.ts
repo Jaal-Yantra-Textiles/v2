@@ -22,15 +22,55 @@ describe("buildMoodboardScene", () => {
     expect(scene.version).toBe(2)
   })
 
-  it("builds 4 frames with the expected names", () => {
+  it("builds 5 frames with the expected names", () => {
     const frames = scene.elements.filter((e) => e.type === "frame")
-    expect(frames).toHaveLength(4)
+    expect(frames).toHaveLength(5)
     expect(frames.map((f) => f.name)).toEqual([
       "1 · Header & Flats",
       "2 · Measurements",
       "3 · Zoom details",
+      "4 · Construction details",
       "5 · Colorways",
     ])
+  })
+
+  it("emits a construction-detail object (with params + fabricRules) per detail", () => {
+    const detailAnchors = scene.elements.filter(
+      (e) => (e.customData as { kind?: string })?.kind === "construction-detail"
+    )
+    expect(detailAnchors).toHaveLength(6)
+    const techniques = detailAnchors.map(
+      (e) => (e.customData as { technique?: string }).technique
+    )
+    expect(techniques).toEqual([
+      "gathers",
+      "dart",
+      "knife-pleat",
+      "topstitch",
+      "yoke",
+      "embroidery",
+    ])
+    // The dart carries its fabric-derived intake param and sewing rules.
+    const dart = detailAnchors.find(
+      (e) => (e.customData as { technique?: string }).technique === "dart"
+    )
+    expect((dart?.customData as { params?: Record<string, number> }).params).toEqual({
+      intake: 0.6,
+    })
+    expect(
+      (dart?.customData as { fabricRules?: string[] }).fabricRules
+    ).toContain("clip at apex")
+  })
+
+  it("renders each known technique as native, editable line elements", () => {
+    const glyphLines = scene.elements.filter(
+      (e) =>
+        e.type === "line" &&
+        (e.customData as { kind?: string })?.kind === "construction-glyph"
+    )
+    expect(glyphLines.length).toBeGreaterThan(0)
+    // topstitch requests dashed stitch rows — at least one glyph line is dashed.
+    expect(glyphLines.some((e) => e.strokeStyle === "dashed")).toBe(true)
   })
 
   it("attaches every non-frame element to a frame (no orphans)", () => {

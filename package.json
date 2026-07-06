@@ -67,6 +67,28 @@
       "zod": "^4.2.0",
       "@types/node": "^20.12.11"
     },
+    "packageExtensions": {
+      "@freesewing/core": {
+        "dependencies": {
+          "@freesewing/config": "4.10.0"
+        }
+      },
+      "@freesewing/core-plugins": {
+        "dependencies": {
+          "@freesewing/plugin-transform": "4.10.0"
+        }
+      },
+      "@freesewing/models": {
+        "dependencies": {
+          "@freesewing/config": "4.10.0"
+        }
+      },
+      "@freesewing/plugin-annotations": {
+        "dependencies": {
+          "@freesewing/config": "4.10.0"
+        }
+      }
+    },
     "onlyBuiltDependencies": [
       "@medusajs/telemetry",
       "@parcel/watcher",

@@ -231,6 +231,42 @@ export const useUpdateDesign = (
   });
 };
 
+/** Response of POST /admin/designs/:id/moodboard/generate — the freshly-built scene. */
+export interface GenerateMoodboardResponse {
+  moodboard: {
+    type: "excalidraw";
+    version: number;
+    source: string;
+    elements: any[];
+    appState: Record<string, any>;
+    files: Record<string, any>;
+  };
+}
+
+/**
+ * Seeds/regenerates the design's moodboard with a deterministic AI tech-pack scene
+ * (#892): header/flats/size-set/colorways from the design's own fields + Construction
+ * specs → construction details. REPLACES any existing moodboard.
+ */
+export const useGenerateMoodboard = (
+  id: string,
+  options?: UseMutationOptions<GenerateMoodboardResponse, FetchError, void>,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      sdk.client.fetch<GenerateMoodboardResponse>(
+        `/admin/designs/${id}/moodboard/generate`,
+        { method: "POST" },
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
+    },
+    ...options,
+  });
+};
+
 export const useDeleteDesign = (
   id: string,
   options?: UseMutationOptions<AdminDesign, FetchError, void>,
@@ -690,6 +726,159 @@ export const useRemoveDesignComponent = (designId: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: designComponentsKey(designId) });
     },
+  });
+};
+
+// ── Construction details (#892) ──────────────────────────────────────────────
+// A construction detail is a DesignSpecification (category "Construction") whose
+// metadata holds { technique, params, fabricRules } — the source the tech-pack
+// generator reads for the construction-details frame.
+
+export interface ConstructionDetail {
+  id: string;
+  title: string;
+  category: string;
+  details?: string | null;
+  special_instructions?: string | null;
+  metadata?: {
+    technique?: string;
+    params?: Record<string, number>;
+    fabricRules?: string[];
+    [k: string]: any;
+  } | null;
+}
+
+export interface ConstructionDetailPayload {
+  technique: string;
+  label?: string;
+  params?: Record<string, number>;
+  fabricRules?: string[];
+  note?: string;
+}
+
+const constructionDetailsKey = (designId: string) =>
+  ["designs", designId, "construction-details"] as const;
+
+export const useConstructionDetails = (designId: string) => {
+  const { data, ...rest } = useQuery({
+    queryKey: constructionDetailsKey(designId),
+    queryFn: () =>
+      sdk.client.fetch<{ construction_details: ConstructionDetail[]; count: number }>(
+        `/admin/designs/${designId}/construction-details`
+      ),
+    enabled: !!designId,
+  });
+  return {
+    construction_details: data?.construction_details || [],
+    count: data?.count || 0,
+    ...rest,
+  };
+};
+
+export const useCreateConstructionDetail = (designId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: ConstructionDetailPayload) =>
+      sdk.client.fetch<{ construction_detail: ConstructionDetail }>(
+        `/admin/designs/${designId}/construction-details`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: constructionDetailsKey(designId) });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) });
+    },
+  });
+};
+
+export const useUpdateConstructionDetail = (designId: string, detailId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Partial<ConstructionDetailPayload>) =>
+      sdk.client.fetch<{ construction_detail: ConstructionDetail }>(
+        `/admin/designs/${designId}/construction-details/${detailId}`,
+        { method: "PATCH", body: payload }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: constructionDetailsKey(designId) });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) });
+    },
+  });
+};
+
+export const useDeleteConstructionDetail = (designId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (detailId: string) =>
+      sdk.client.fetch(
+        `/admin/designs/${designId}/construction-details/${detailId}`,
+        { method: "DELETE" }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: constructionDetailsKey(designId) });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) });
+    },
+  });
+};
+
+// ── Redesign (#892) — Nano-Banana structure-preserving restyle ────────────────
+export interface RedesignPayload {
+  image_url?: string;
+  image_base64?: string;
+  prompt: string;
+}
+
+export interface RedesignResponse {
+  redesign: {
+    image_url: string;
+    provider: string;
+    model: string;
+    prompt: string;
+  };
+}
+
+/** Generate exploratory restyle renders from an input flat/photo. Does not mutate the design. */
+export const useRedesignDesign = (designId: string) => {
+  return useMutation({
+    mutationFn: async (payload: RedesignPayload) =>
+      sdk.client.fetch<RedesignResponse>(
+        `/admin/designs/${designId}/redesign`,
+        { method: "POST", body: payload }
+      ),
+  });
+};
+
+// ── Outline (#892) — potrace vectorization → editable sewable outline ─────────
+export interface OutlinePayload {
+  image_url?: string;
+  image_base64?: string;
+  mode?: "outline" | "posterize";
+  threshold?: number;
+  turd_size?: number;
+  opt_tolerance?: number;
+  black_on_white?: boolean;
+  steps?: number;
+  color?: string;
+  background?: string;
+}
+
+export interface OutlineResponse {
+  outline: {
+    svg: string;
+    image_url: string;
+    mode: "outline" | "posterize";
+    width: number | null;
+    height: number | null;
+  };
+}
+
+/** Vectorize an input flat/cutout into an editable SVG outline. Does not mutate the design. */
+export const useOutlineDesign = (designId: string) => {
+  return useMutation({
+    mutationFn: async (payload: OutlinePayload) =>
+      sdk.client.fetch<OutlineResponse>(
+        `/admin/designs/${designId}/outline`,
+        { method: "POST", body: payload }
+      ),
   });
 };
 

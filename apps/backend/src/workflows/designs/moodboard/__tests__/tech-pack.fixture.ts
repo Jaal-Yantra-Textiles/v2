@@ -45,6 +45,45 @@ export const SS26_CR_TP08: TechPackSceneInput = {
       note: "flower emb 3.5 cm wide",
     },
   ],
+  details: [
+    {
+      technique: "gathers",
+      label: "Sleeve-head gathers",
+      params: { ratio: 1.6 },
+      fabricRules: ["ease onto armhole", "press toward sleeve"],
+      note: "1.6× ease",
+    },
+    {
+      technique: "dart",
+      label: "Waist dart",
+      params: { intake: 0.6 },
+      fabricRules: ["press toward CF", "clip at apex"],
+    },
+    {
+      technique: "knife-pleat",
+      label: "Hem knife pleats",
+      params: { count: 5 },
+      fabricRules: ["press all one direction"],
+    },
+    {
+      technique: "topstitch",
+      label: "Collar topstitch",
+      params: { rows: 2 },
+      note: "6 mm from edge",
+    },
+    {
+      technique: "yoke",
+      label: "Back yoke",
+      params: { drop: 0.4 },
+      fabricRules: ["double-layer", "understitch seam"],
+    },
+    {
+      technique: "embroidery",
+      label: "Neckline embroidery",
+      params: { motif: 6 },
+      note: "flower motif, 2–2.5 cm",
+    },
+  ],
   colorways: [
     { name: "Natural / Indigo", hex_code: "#2e3a59", thread_ref: "K-7" },
     { name: "Natural / Madder", hex_code: "#a83232", thread_ref: "K-10" },

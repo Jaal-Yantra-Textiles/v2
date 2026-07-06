@@ -67,7 +67,7 @@ export const POST = async (
   const result = await fal.subscribe("fal-ai/birefnet/v2", {
     input: {
       image_url: resolvedImageUrl,
-      model: model || "General Use (Light)",
+      model: model || "General Use (Heavy)",
       operating_resolution: "1024x1024",
       output_format: "png",
       output_mask: true,

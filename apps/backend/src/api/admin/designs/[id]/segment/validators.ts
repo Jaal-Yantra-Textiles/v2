@@ -12,7 +12,7 @@ export const SegmentImageSchema = z.object({
       "Portrait",
       "Matting",
     ])
-    .default("General Use (Light)"),
+    .default("General Use (Heavy)"),
 })
 
 export type SegmentImageReq = z.infer<typeof SegmentImageSchema>
