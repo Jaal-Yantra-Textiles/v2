@@ -1,16 +1,17 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
-import { Container, Text, Badge, StatusBadge, Skeleton, Heading, toast, Checkbox, CommandBar, Button } from "@medusajs/ui"
+import { Container, Text, Badge, StatusBadge, Skeleton, Heading, toast, Checkbox, CommandBar, Button, usePrompt } from "@medusajs/ui"
 import { DetailWidgetProps } from "@medusajs/framework/types"
 import { useState, useMemo, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { ActionMenu } from "../components/common/action-menu"
-import { BellAlert, PencilSquare, Plus, Link as LinkIcon, ShoppingBag, SquareTwoStack } from "@medusajs/icons"
+import { BellAlert, PencilSquare, Plus, Link as LinkIcon, ShoppingBag, SquareTwoStack, XMarkMini } from "@medusajs/icons"
 import {
   useDesigns,
   useNotifyDesignCustomer,
   usePreviewDesignOrder,
   useCreateDesignOrder,
   useCustomerOrderedDesigns,
+  useUnlinkDesignsFromCustomer,
   DesignEstimatePreview,
 } from "../hooks/api/designs"
 import { LinkDesignToCustomerDrawer } from "../components/designs/link-design-to-customer-drawer"
@@ -32,13 +33,17 @@ type Customer = { id: string }
 
 const DesignRow = ({
   design,
+  customerId,
   selected,
   onToggle,
 }: {
   design: any
+  customerId: string
   selected: boolean
   onToggle: (id: string) => void
 }) => {
+  const prompt = usePrompt()
+
   const { mutate: notifyCustomer, isPending: isNotifying } = useNotifyDesignCustomer(design.id, {
     onSuccess: () => {
       toast.success("Notification sent", {
@@ -51,6 +56,30 @@ const DesignRow = ({
       })
     },
   })
+
+  const { mutate: unlinkDesign, isPending: isUnlinking } = useUnlinkDesignsFromCustomer(customerId, {
+    onSuccess: () => {
+      toast.success("Design unlinked", {
+        description: `"${design.name}" is no longer linked to this customer.`,
+      })
+    },
+    onError: (err: any) => {
+      toast.error("Failed to unlink design", {
+        description: err?.message || "An unexpected error occurred.",
+      })
+    },
+  })
+
+  const handleUnlink = async () => {
+    const confirmed = await prompt({
+      title: "Unlink design",
+      description: `Remove the link between "${design.name}" and this customer? The design itself will not be deleted.`,
+      confirmText: "Unlink",
+      cancelText: "Cancel",
+    })
+    if (!confirmed) return
+    unlinkDesign({ design_ids: [design.id] })
+  }
 
   const actionGroups = [
     {
@@ -70,6 +99,16 @@ const DesignRow = ({
           icon: <BellAlert />,
           onClick: () => notifyCustomer(),
           disabled: isNotifying,
+        },
+      ],
+    },
+    {
+      actions: [
+        {
+          label: isUnlinking ? "Unlinking…" : "Unlink from Customer",
+          icon: <XMarkMini />,
+          onClick: handleUnlink,
+          disabled: isUnlinking,
         },
       ],
     },
@@ -386,6 +425,7 @@ const CustomerDesignsWidget = ({ data }: DetailWidgetProps<Customer>) => {
                 <DesignRow
                   key={design.id}
                   design={design}
+                  customerId={data.id}
                   selected={!!selectedRows[design.id]}
                   onToggle={toggleRow}
                 />

@@ -964,6 +964,34 @@ export const useLinkDesignsToCustomer = (
   })
 }
 
+export interface UnlinkDesignsFromCustomerResponse {
+  unlinked: number
+}
+
+export const useUnlinkDesignsFromCustomer = (
+  customerId: string,
+  options?: UseMutationOptions<
+    UnlinkDesignsFromCustomerResponse,
+    FetchError,
+    LinkDesignsToCustomerPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    ...options,
+    mutationFn: async (payload: LinkDesignsToCustomerPayload) =>
+      sdk.client.fetch<UnlinkDesignsFromCustomerResponse>(
+        `/admin/customers/${customerId}/designs`,
+        { method: "DELETE", body: payload }
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: ["customer-ordered-designs", customerId] })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+  })
+}
+
 // ─── Create Draft Order from Designs ────────────────────────────────────────
 
 export interface CreateDesignOrderPayload {

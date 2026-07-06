@@ -24,3 +24,22 @@ export const POST = async (
 
   res.json({ linked: design_ids.length })
 }
+
+export const DELETE = async (
+  req: MedusaRequest<LinkDesignsBody>,
+  res: MedusaResponse
+) => {
+  const { id: customer_id } = req.params
+  const { design_ids } = req.validatedBody as LinkDesignsBody
+
+  const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
+
+  const links = design_ids.map((design_id) => ({
+    [DESIGN_MODULE]: { design_id },
+    [Modules.CUSTOMER]: { customer_id },
+  }))
+
+  await remoteLink.dismiss(links)
+
+  res.json({ unlinked: design_ids.length })
+}
