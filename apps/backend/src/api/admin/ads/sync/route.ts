@@ -12,6 +12,9 @@ type SyncBody = {
   include_insights?: boolean
   include_breakdowns?: boolean
   window_days?: number
+  /** Explicit range (YYYY-MM-DD). start_date overrides window_days — full backfill. */
+  start_date?: string
+  end_date?: string
 }
 
 /**
@@ -42,6 +45,8 @@ export const POST = async (req: MedusaRequest<SyncBody>, res: MedusaResponse) =>
         include_insights: body.include_insights,
         include_breakdowns: body.include_breakdowns,
         window_days: body.window_days,
+        start_date: body.start_date,
+        end_date: body.end_date,
       },
     })
     return res.status(200).json({ platform: "google" as const, result })
