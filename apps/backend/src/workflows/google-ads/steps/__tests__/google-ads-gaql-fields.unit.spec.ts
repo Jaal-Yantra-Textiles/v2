@@ -1,6 +1,8 @@
 import {
   AGGREGATE_METRICS_FIELDS,
   CAMPAIGN_DATES_QUERY,
+  buildAssetGroupAggregateQuery,
+  buildAssetGroupInsightsQuery,
   buildCampaignAggregateQuery,
   buildDailyInsightsQuery,
   buildDateClause,
@@ -166,5 +168,38 @@ describe("google-ads rollups derived from stored insights", () => {
       conversions: 0,
       cost_micros: 0,
     })
+  })
+})
+
+describe("google-ads PMax asset_group queries (#925)", () => {
+  const DATE_CLAUSE = "segments.date BETWEEN '2026-06-01' AND '2026-07-01'"
+
+  it("selects FROM asset_group with the shared metric fields", () => {
+    const q = buildAssetGroupAggregateQuery(DATE_CLAUSE)
+    expect(q).toContain("FROM asset_group")
+    expect(q).toContain("asset_group.id")
+    expect(q).toContain("asset_group.campaign")
+    expect(q).toContain("metrics.cost_micros")
+    expect(q).toContain(DATE_CLAUSE)
+  })
+
+  it("asset_group daily insights add segments.date", () => {
+    const q = buildAssetGroupInsightsQuery(DATE_CLAUSE)
+    expect(q).toContain("FROM asset_group")
+    expect(q).toContain("segments.date")
+    expect(q).toContain("metrics.cost_per_conversion")
+  })
+
+  it("uses v24 TrueView metric names, never the removed ones", () => {
+    const queries = [
+      buildAssetGroupAggregateQuery(DATE_CLAUSE),
+      buildAssetGroupInsightsQuery(DATE_CLAUSE),
+    ]
+    for (const q of queries) {
+      expect(q).toContain("metrics.trueview_average_cpv")
+      for (const removed of ["metrics.average_cpv", "metrics.video_views", "metrics.video_view_rate"]) {
+        expect(q).not.toMatch(new RegExp(`${removed}\\b`))
+      }
+    }
   })
 })

@@ -192,6 +192,40 @@ function buildAdAggregateQuery(dateClause: string): string {
   `.replace(/\s+/g, " ").trim()
 }
 
+// PerformanceMax campaigns serve via asset_group (no ad_group / ad_group_ad). Pull
+// asset-group aggregates with the same shared metric fields + date window; results
+// are folded into the ad_group storage tagged PERFORMANCE_MAX_ASSET_GROUP.
+export function buildAssetGroupAggregateQuery(dateClause: string): string {
+  return `
+    SELECT
+      asset_group.id,
+      asset_group.resource_name,
+      asset_group.name,
+      asset_group.status,
+      asset_group.campaign,
+      ${AGGREGATE_METRICS_FIELDS.join(",\n      ")}
+    FROM asset_group
+    WHERE ${dateClause}
+  `.replace(/\s+/g, " ").trim()
+}
+
+// Daily asset-group insights (per-day rows via segments.date). Video quartiles are
+// omitted here (not reliably selectable FROM asset_group); the base metric fields
+// + cost_per_conversion mirror the ad_group daily query.
+export function buildAssetGroupInsightsQuery(dateClause: string): string {
+  return `
+    SELECT
+      asset_group.id,
+      asset_group.resource_name,
+      asset_group.campaign,
+      segments.date,
+      ${AGGREGATE_METRICS_FIELDS.join(",\n      ")},
+      metrics.cost_per_conversion
+    FROM asset_group
+    WHERE ${dateClause}
+  `.replace(/\s+/g, " ").trim()
+}
+
 // Daily insights — adds `segments.date` so each row is a per-day snapshot.
 // Video quartiles included here; if the account doesn't return them, GAQL
 // just omits the fields rather than failing the whole query.
@@ -632,6 +666,78 @@ async function pullCidData(
         opts.dateClause,
         "device"
       )
+    }
+  }
+
+  // PerformanceMax asset groups (#925). PMax campaigns have no ad_group/ad_group_ad,
+  // so for accounts with a PMax campaign we pull FROM asset_group and fold the rows
+  // into the ad_group storage (aggregate -> adGroups; daily -> insights.ad_group),
+  // tagged PERFORMANCE_MAX_ASSET_GROUP. Non-PMax accounts skip this entirely.
+  const hasPmax = campaigns.some(
+    (r: any) =>
+      (r.campaign?.advertisingChannelType ??
+        r.campaign?.advertising_channel_type) === "PERFORMANCE_MAX"
+  )
+  if (hasPmax) {
+    try {
+      const agRes = await withGoogleRetry(
+        () =>
+          axios.post(
+            `${ADS_API_BASE}/customers/${cid}/googleAds:searchStream`,
+            { query: buildAssetGroupAggregateQuery(opts.dateClause) },
+            { headers }
+          ),
+        { label: `ads.assetGroups(${cid})`, logger, maxAttempts: 3 }
+      )
+      for (const row of extractAllRows(agRes.data)) {
+        const ag = row.assetGroup || row.asset_group || {}
+        if (!ag.id) continue
+        // Map into the ad_group row shape upsertAdGroups expects.
+        adGroups.push({
+          adGroup: {
+            id: ag.id,
+            resourceName: ag.resourceName ?? ag.resource_name ?? null,
+            name: ag.name ?? null,
+            status: ag.status ?? null,
+            type: "PERFORMANCE_MAX_ASSET_GROUP",
+            campaign: ag.campaign ?? null,
+          },
+          metrics: row.metrics || {},
+        })
+      }
+    } catch (e: any) {
+      logger?.warn?.(
+        `[google-ads] asset_group pull failed for cid=${cid}: ${googleErrorMessage(e)}`
+      )
+    }
+
+    if (opts.includeInsights) {
+      try {
+        const agiRes = await withGoogleRetry(
+          () =>
+            axios.post(
+              `${ADS_API_BASE}/customers/${cid}/googleAds:searchStream`,
+              { query: buildAssetGroupInsightsQuery(opts.dateClause) },
+              { headers }
+            ),
+          { label: `ads.insights.asset_group(${cid})`, logger, maxAttempts: 3 }
+        )
+        for (const row of extractAllRows(agiRes.data)) {
+          const agId = row.assetGroup?.id ?? row.asset_group?.id
+          if (!agId) continue
+          // Stored at level=ad_group keyed by the asset_group id (now an ad_group
+          // row after upsertAdGroups). Shape mirrors an ad_group daily row.
+          insights.ad_group.push({
+            adGroup: { id: agId },
+            segments: row.segments,
+            metrics: row.metrics,
+          })
+        }
+      } catch (e: any) {
+        logger?.warn?.(
+          `[google-ads] asset_group insights pull failed for cid=${cid}: ${googleErrorMessage(e)}`
+        )
+      }
     }
   }
 
