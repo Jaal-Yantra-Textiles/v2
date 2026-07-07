@@ -30,13 +30,17 @@ export async function GET(
     ],
   })
   const design = (data || [])[0] as any
+  const breakdown = design?.cost_breakdown ?? null
 
   res.status(200).json({
     design_id: designId,
     estimated_cost: design?.estimated_cost ?? null,
     material_cost: design?.material_cost ?? null,
     production_cost: design?.production_cost ?? null,
-    cost_breakdown: design?.cost_breakdown ?? null,
+    // JYT platform commission (10% of material) — persisted inside the
+    // breakdown by the partner recalc route; surfaced at top level for the UI.
+    platform_fee: breakdown?.platform_fee ?? null,
+    cost_breakdown: breakdown,
     cost_currency: design?.cost_currency ?? null,
   })
 }

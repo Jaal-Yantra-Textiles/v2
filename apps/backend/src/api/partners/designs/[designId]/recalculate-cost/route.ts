@@ -8,10 +8,20 @@
  * @module API/Partners/Designs/RecalculateCost
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
-import { estimateDesignCostWorkflow } from "../../../../../workflows/designs/estimate-design-cost"
+import { MedusaError } from "@medusajs/framework/utils"
+import {
+  estimateDesignCostWorkflow,
+  DEFAULT_PLATFORM_FEE_PERCENT,
+} from "../../../../../workflows/designs/estimate-design-cost"
 import { DESIGN_MODULE } from "../../../../../modules/designs"
 import { assertPartnerOwnsDesign } from "../../helpers"
 
+/**
+ * Optional body: `{ production_cost?: number }` — the partner's own production
+ * cost per finished unit. When supplied it overrides the derived estimate (the
+ * 30%-of-material fallback), and a JYT platform fee (10% of material) is folded
+ * into the total as a `platform_fee` line.
+ */
 export async function POST(
   req: AuthenticatedMedusaRequest & { params: { designId: string } },
   res: MedusaResponse
@@ -19,8 +29,27 @@ export async function POST(
   const { designId } = req.params
   await assertPartnerOwnsDesign(req, designId)
 
+  // Partner-entered per-unit production cost (optional). Reject anything that
+  // isn't a finite, non-negative number so a typo can't poison the estimate.
+  const rawProductionCost = (req.body as any)?.production_cost
+  let productionCostOverride: number | undefined
+  if (rawProductionCost != null) {
+    const parsed = Number(rawProductionCost)
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "production_cost must be a non-negative number"
+      )
+    }
+    productionCostOverride = parsed
+  }
+
   const { result, errors } = await estimateDesignCostWorkflow(req.scope).run({
-    input: { design_id: designId },
+    input: {
+      design_id: designId,
+      production_cost_override: productionCostOverride ?? null,
+      platform_fee_percent: DEFAULT_PLATFORM_FEE_PERCENT,
+    },
   })
   if (errors && errors.length > 0) {
     return res
@@ -40,6 +69,10 @@ export async function POST(
       cost_breakdown: {
         items: result.breakdown?.materials ?? [],
         production_percent: result.breakdown?.production_percent,
+        platform_fee: result.platform_fee,
+        platform_fee_percent: result.breakdown?.platform_fee_percent,
+        production_cost_source:
+          productionCostOverride != null ? "partner_entered" : "estimated",
         confidence: result.confidence,
         calculated_at: new Date().toISOString(),
         source: "partner_recalculate",
