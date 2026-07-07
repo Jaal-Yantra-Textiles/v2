@@ -5,6 +5,7 @@ import {
   buildDailyInsightsQuery,
   buildDateClause,
   resolveSyncDateRange,
+  sumBaseInsightRows,
 } from "../sync-google-ads-step"
 
 /**
@@ -114,5 +115,56 @@ describe("google-ads sync date range", () => {
     expect(r.start).toBe("2026-06-07")
     expect(r.end).toBe("2026-07-07")
     expect(buildDateClause(r)).not.toContain("OR")
+  })
+})
+
+describe("google-ads rollups derived from stored insights", () => {
+  it("sums base rows across all dates (paused-campaign history is preserved)", () => {
+    const rows = [
+      { date: "2026-04-16", impressions: 100, clicks: 10, conversions: 1, cost_micros: 5_000_000, device: null, network: null },
+      { date: "2026-04-17", impressions: 200, clicks: 20, conversions: 0, cost_micros: 7_000_000, device: null, network: null },
+    ]
+    expect(sumBaseInsightRows(rows)).toEqual({
+      impressions: 300,
+      clicks: 30,
+      conversions: 1,
+      cost_micros: 12_000_000,
+    })
+  })
+
+  it("skips device/network breakdown rows so they aren't double-counted", () => {
+    const rows = [
+      { impressions: 100, clicks: 10, conversions: 1, cost_micros: 5_000_000, device: null, network: null },
+      { impressions: 40, clicks: 4, conversions: 0, cost_micros: 2_000_000, device: "MOBILE", network: null },
+      { impressions: 60, clicks: 6, conversions: 1, cost_micros: 3_000_000, device: "DESKTOP", network: null },
+    ]
+    // only the base row counts
+    expect(sumBaseInsightRows(rows)).toEqual({
+      impressions: 100,
+      clicks: 10,
+      conversions: 1,
+      cost_micros: 5_000_000,
+    })
+  })
+
+  it("coerces string metrics and treats missing as 0", () => {
+    const rows = [
+      { impressions: "150", clicks: "5", cost_micros: "1000000", device: null, network: null },
+    ]
+    expect(sumBaseInsightRows(rows)).toEqual({
+      impressions: 150,
+      clicks: 5,
+      conversions: 0,
+      cost_micros: 1_000_000,
+    })
+  })
+
+  it("returns all-zero for an empty set", () => {
+    expect(sumBaseInsightRows([])).toEqual({
+      impressions: 0,
+      clicks: 0,
+      conversions: 0,
+      cost_micros: 0,
+    })
   })
 })

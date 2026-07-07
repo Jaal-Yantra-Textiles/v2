@@ -412,6 +412,29 @@ export const syncGoogleAdsStep = createStep(
               breakdown: "device",
             })
           }
+
+          // Rollup columns on campaign/ad_group/ad are DERIVED from the full
+          // stored daily-insights history, not the current window's aggregate —
+          // otherwise a routine short-window sync would collapse a paused
+          // entity's historical totals to ~0. Insights are append-only, so this
+          // sums every base daily row we have on record.
+          await recomputeRollupsFromInsights(
+            socials,
+            "campaign",
+            [...campaignRowsByCampaignId.values()]
+          )
+          await recomputeRollupsFromInsights(
+            socials,
+            "ad_group",
+            [...adGroupRowsByAdGroupId.values()]
+          )
+          if (includeAds) {
+            await recomputeRollupsFromInsights(
+              socials,
+              "ad",
+              [...adRowsByAdId.values()]
+            )
+          }
         }
       } catch (e: any) {
         const msg = formatGoogleAdsError(e, { hasLoginCid: !!t.login_customer_id })
@@ -1133,6 +1156,83 @@ async function upsertInsights(
   }
 
   return synced
+}
+
+/**
+ * Sum the BASE daily-insight rows (device == null && network == null) into a
+ * rollup. Device/network-breakdown rows are skipped so they aren't double-counted
+ * against the base series. Pure + exported for unit testing.
+ */
+export function sumBaseInsightRows(rows: any[]): {
+  impressions: number
+  clicks: number
+  conversions: number
+  cost_micros: number
+} {
+  const total = { impressions: 0, clicks: 0, conversions: 0, cost_micros: 0 }
+  for (const r of rows) {
+    // Only the base (un-segmented) series — breakdown rows carry device/network.
+    if (r?.device != null || r?.network != null) continue
+    total.impressions += numericMetric(r?.impressions)
+    total.clicks += numericMetric(r?.clicks)
+    total.conversions += numericMetric(r?.conversions)
+    total.cost_micros += numericMetric(r?.cost_micros)
+  }
+  return total
+}
+
+/**
+ * Recompute the rollup metric columns on campaign / ad_group / ad rows from the
+ * FULL stored daily-insights history for the given entity row ids. Entities with
+ * no stored base insight rows are left untouched (their window aggregate stands).
+ */
+async function recomputeRollupsFromInsights(
+  socials: any,
+  level: "campaign" | "ad_group" | "ad",
+  entityRowIds: string[]
+): Promise<void> {
+  if (entityRowIds.length === 0) return
+  const col =
+    level === "campaign"
+      ? "campaign_id"
+      : level === "ad_group"
+        ? "ad_group_id"
+        : "ad_id"
+
+  // One list for all entities at this level; group base rows by entity row id.
+  const rows = await socials.listGoogleAdsInsights({
+    level,
+    [col]: entityRowIds,
+  })
+
+  const byEntity = new Map<string, any[]>()
+  for (const r of rows) {
+    const id = r?.[col]
+    if (!id) continue
+    const bucket = byEntity.get(id)
+    if (bucket) bucket.push(r)
+    else byEntity.set(id, [r])
+  }
+
+  const updates: Array<{ selector: { id: string }; data: Record<string, number> }> =
+    []
+  for (const [id, entityRows] of byEntity) {
+    // Skip entities with no BASE rows — nothing to derive, keep existing rollup.
+    const hasBase = entityRows.some(
+      (r) => r?.device == null && r?.network == null
+    )
+    if (!hasBase) continue
+    updates.push({ selector: { id }, data: sumBaseInsightRows(entityRows) })
+  }
+  if (updates.length === 0) return
+
+  const updateFn =
+    level === "campaign"
+      ? "updateGoogleAdsCampaigns"
+      : level === "ad_group"
+        ? "updateGoogleAdsAdGroups"
+        : "updateGoogleAdsAds"
+  await socials[updateFn](updates)
 }
 
 /**
