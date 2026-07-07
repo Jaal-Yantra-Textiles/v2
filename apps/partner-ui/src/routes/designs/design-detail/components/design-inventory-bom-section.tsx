@@ -84,7 +84,9 @@ export const DesignInventoryBomSection = ({ design }: Props) => {
           </Text>
         </div>
         {isOwner && (
-          <Link to="add-inventory">
+          // Absolute so "Add material" works from the nested in-order manager
+          // too (the nested route has no add-inventory child).
+          <Link to={`/designs/${design.id}/add-inventory`}>
             <Button size="small" variant="secondary">
               <Plus />
               Add material

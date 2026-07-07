@@ -3462,6 +3462,7 @@
       "stockLocation": "Stock location",
       "designDetails": "Design details",
       "openDesignManager": "Open design manager",
+      "backToOrder": "Back to order",
       "noDesign": "No design linked to this order.",
       "activity": {
         "title": "Activity",
