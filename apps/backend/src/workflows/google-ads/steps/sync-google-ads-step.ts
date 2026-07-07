@@ -45,21 +45,25 @@ const CUSTOMER_QUERY =
 // GAQL won't let us combine `LIMIT` with `WHERE segments.date BETWEEN` for
 // metric queries, so we use `DURING LAST_N_DAYS`-style constants computed from
 // the runtime window.
-const AGGREGATE_METRICS_FIELDS = [
+export const AGGREGATE_METRICS_FIELDS = [
   "metrics.impressions",
   "metrics.clicks",
   "metrics.ctr",
   "metrics.average_cpc",
   "metrics.average_cpm",
-  "metrics.average_cpv",
+  // v24 renamed the video CPV/view metrics to the TrueView-namespaced fields;
+  // the old metrics.average_cpv / video_views / video_view_rate now 400 with
+  // queryError:UNRECOGNIZED_FIELD. DB columns keep their old names — only the
+  // GAQL selectors and the response keys read in the mappers change.
+  "metrics.trueview_average_cpv",
   "metrics.cost_micros",
   "metrics.conversions",
   "metrics.conversions_value",
   "metrics.all_conversions",
   "metrics.all_conversions_value",
   "metrics.view_through_conversions",
-  "metrics.video_views",
-  "metrics.video_view_rate",
+  "metrics.video_trueview_views",
+  "metrics.video_trueview_view_rate",
   "metrics.engagements",
   "metrics.engagement_rate",
   "metrics.interactions",
@@ -76,7 +80,7 @@ const VIDEO_QUARTILE_FIELDS = [
   "metrics.video_quartile_p100_rate",
 ]
 
-function buildCampaignAggregateQuery(windowDays: number): string {
+export function buildCampaignAggregateQuery(windowDays: number): string {
   return `
     SELECT
       campaign.id,
@@ -86,14 +90,19 @@ function buildCampaignAggregateQuery(windowDays: number): string {
       campaign.serving_status,
       campaign.advertising_channel_type,
       campaign.bidding_strategy_type,
-      campaign.start_date,
-      campaign.end_date,
       campaign_budget.amount_micros,
       ${AGGREGATE_METRICS_FIELDS.join(",\n      ")}
     FROM campaign
     WHERE segments.date DURING LAST_${windowDays}_DAYS
   `.replace(/\s+/g, " ").trim()
 }
+
+// campaign.start_date / end_date are resource attributes that are NOT selectable
+// together with segments.date (the metric/date-segmented query above 400s with
+// UNRECOGNIZED_FIELD). Pull them in a separate metric-free query and merge onto
+// the aggregate rows by campaign id.
+export const CAMPAIGN_DATES_QUERY =
+  "SELECT campaign.id, campaign.start_date, campaign.end_date FROM campaign"
 
 function buildAdGroupAggregateQuery(windowDays: number): string {
   return `
@@ -141,7 +150,7 @@ function buildAdAggregateQuery(windowDays: number): string {
 // Daily insights — adds `segments.date` so each row is a per-day snapshot.
 // Video quartiles included here; if the account doesn't return them, GAQL
 // just omits the fields rather than failing the whole query.
-function buildDailyInsightsQuery(
+export function buildDailyInsightsQuery(
   level: "campaign" | "ad_group" | "ad",
   windowDays: number,
   breakdown?: "device" | "network"
@@ -447,6 +456,38 @@ async function pullCidData(
     { label: `ads.campaigns(${cid})`, logger, maxAttempts: 3 }
   )
   const campaigns = extractAllRows(campaignsRes.data)
+
+  // Merge campaign start/end dates (fetched metric-free — see CAMPAIGN_DATES_QUERY).
+  try {
+    const datesRes = await withGoogleRetry(
+      () =>
+        axios.post(
+          `${ADS_API_BASE}/customers/${cid}/googleAds:searchStream`,
+          { query: CAMPAIGN_DATES_QUERY },
+          { headers }
+        ),
+      { label: `ads.campaignDates(${cid})`, logger, maxAttempts: 3 }
+    )
+    const datesById = new Map<string, any>()
+    for (const row of extractAllRows(datesRes.data)) {
+      const id = String(row.campaign?.id ?? "")
+      if (id) datesById.set(id, row.campaign)
+    }
+    for (const row of campaigns) {
+      const dates = datesById.get(String(row.campaign?.id ?? ""))
+      if (dates && row.campaign) {
+        row.campaign.startDate = dates.startDate ?? dates.start_date ?? null
+        row.campaign.endDate = dates.endDate ?? dates.end_date ?? null
+      }
+    }
+  } catch (e: any) {
+    // Non-fatal — dates are nice-to-have; keep the metrics we already pulled.
+    logger?.warn?.(
+      `[google-ads] campaign dates pull failed for cid=${cid}: ${
+        e.response?.data?.error?.message || e.message
+      }`
+    )
+  }
 
   const adGroupsRes = await withGoogleRetry(
     () =>
@@ -962,7 +1003,7 @@ async function upsertInsights(
         metrics.averageCpm ?? metrics.average_cpm
       ),
       average_cpv_micros: numericMetric(
-        metrics.averageCpv ?? metrics.average_cpv
+        metrics.trueviewAverageCpv ?? metrics.trueview_average_cpv
       ),
       conversions: floatMetric(metrics.conversions) ?? 0,
       conversions_value: floatMetric(
@@ -981,10 +1022,10 @@ async function upsertInsights(
         metrics.costPerConversion ?? metrics.cost_per_conversion
       ),
       video_views: numericMetric(
-        metrics.videoViews ?? metrics.video_views
+        metrics.videoTrueviewViews ?? metrics.video_trueview_views
       ),
       video_view_rate: floatMetric(
-        metrics.videoViewRate ?? metrics.video_view_rate
+        metrics.videoTrueviewViewRate ?? metrics.video_trueview_view_rate
       ),
       video_quartile_p25_rate: floatMetric(
         metrics.videoQuartileP25Rate ?? metrics.video_quartile_p25_rate
