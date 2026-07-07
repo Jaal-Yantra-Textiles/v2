@@ -15,6 +15,9 @@ import {
 import { ProductionRunCard } from "../../../components/work-orders/production-run-card"
 import { WorkOrderActivitySection } from "../../../components/work-orders/work-order-activity-section"
 import { WorkOrderSummarySection } from "../../../components/work-orders/work-order-summary-section"
+import { DesignInventoryBomSection } from "../../designs/design-detail/components/design-inventory-bom-section"
+import { DesignSizeSetsSection } from "../../designs/design-detail/components/design-size-sets-section"
+import { DesignCostSection } from "../../designs/design-detail/components/design-cost-section"
 import { ordersQueryKeys, useOrder, useOrderPreview } from "../../../hooks/api/orders"
 import { usePartnerConsumptionLogs } from "../../../hooks/api/partner-consumption-logs"
 import { usePartnerDesign } from "../../../hooks/api/partner-designs"
@@ -185,7 +188,17 @@ export const OrderDetail = () => {
             {kind === "design" &&
               !(order as any)?.metadata?.collated_design_order &&
               design && (
-                <WorkOrderSummarySection kind="design" design={design} designId={designId} />
+                <>
+                  <WorkOrderSummarySection kind="design" design={design} designId={designId} />
+                  {/* Sizes (size_sets or legacy custom_sizes) + BOM inventory
+                      with thumbnails — parity with the collated design view (#1, #3). */}
+                  <DesignSizeSetsSection design={design} />
+                  <DesignInventoryBomSection design={design} />
+                  {/* Cost estimate only for partner-owned designs (#5). */}
+                  {!!(design as any)?.owner_partner_id && (
+                    <DesignCostSection design={design} />
+                  )}
+                </>
               )}
             {kind === "design" &&
               !(order as any)?.metadata?.collated_design_order &&
