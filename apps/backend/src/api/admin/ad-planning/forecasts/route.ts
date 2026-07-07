@@ -63,46 +63,93 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const adPlanningService = req.scope.resolve(AD_PLANNING_MODULE);
   const socialsService = req.scope.resolve(SOCIALS_MODULE);
 
-  // Get campaign details
-  const campaigns = await socialsService.listAdCampaigns({
+  // Resolve the campaign against Meta first, then Google Ads — the forecast
+  // history + spend source differ by network:
+  //   - Meta:   first-party Conversion rows + the campaign's flat daily_budget
+  //   - Google: real per-day spend/conversions/revenue from stored GoogleAdsInsights
+  type HistPoint = {
+    date: Date;
+    spend: number;
+    conversions: number;
+    revenue: number;
+    impressions?: number;
+    clicks?: number;
+  };
+  let adSource: "meta" | "google";
+  let historicalData: HistPoint[];
+
+  const metaCampaigns = await socialsService.listAdCampaigns({
     id: data.ad_campaign_id,
   });
 
-  if (campaigns.length === 0) {
-    res.status(404).json({ error: "Campaign not found" });
-    return;
-  }
+  if (metaCampaigns.length > 0) {
+    adSource = "meta";
+    const campaign = metaCampaigns[0];
 
-  const campaign = campaigns[0];
+    const conversions = await adPlanningService.listConversions({
+      ad_campaign_id: data.ad_campaign_id,
+    });
 
-  // Get historical conversions for this campaign
-  const conversions = await adPlanningService.listConversions({
-    ad_campaign_id: data.ad_campaign_id,
-  });
-
-  // Build historical data points
-  const dailyData: Record<string, { spend: number; conversions: number; revenue: number }> = {};
-
-  for (const conv of conversions) {
-    const dateKey = new Date(conv.converted_at).toISOString().split("T")[0];
-    if (!dailyData[dateKey]) {
-      dailyData[dateKey] = { spend: 0, conversions: 0, revenue: 0 };
+    const dailyData: Record<string, { spend: number; conversions: number; revenue: number }> = {};
+    for (const conv of conversions) {
+      const dateKey = new Date(conv.converted_at).toISOString().split("T")[0];
+      if (!dailyData[dateKey]) {
+        dailyData[dateKey] = { spend: 0, conversions: 0, revenue: 0 };
+      }
+      dailyData[dateKey].conversions++;
+      dailyData[dateKey].revenue += Number(conv.conversion_value) || 0;
     }
-    dailyData[dateKey].conversions++;
-    dailyData[dateKey].revenue += Number(conv.conversion_value) || 0;
+
+    const dailySpend = Number(campaign.daily_budget) || data.daily_budget;
+    historicalData = Object.entries(dailyData)
+      .map(([dateStr, d]) => ({
+        date: new Date(dateStr),
+        spend: dailySpend,
+        conversions: d.conversions,
+        revenue: d.revenue,
+      }))
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+  } else {
+    const googleCampaigns = await socialsService.listGoogleAdsCampaigns({
+      id: data.ad_campaign_id,
+    });
+    if (googleCampaigns.length === 0) {
+      res.status(404).json({ error: "Campaign not found" });
+      return;
+    }
+    adSource = "google";
+
+    // Real historical spend/performance from stored daily insights (base rows
+    // only — device/network breakdown rows would double-count).
+    const gInsights = await socialsService.listGoogleAdsInsights({
+      level: "campaign",
+      campaign_id: data.ad_campaign_id,
+    });
+    const dailyData: Record<string, { spend: number; conversions: number; revenue: number; impressions: number; clicks: number }> = {};
+    for (const ins of gInsights) {
+      if (ins.device != null || ins.network != null) continue;
+      const dateKey = ins.date as string;
+      if (!dateKey) continue;
+      if (!dailyData[dateKey]) {
+        dailyData[dateKey] = { spend: 0, conversions: 0, revenue: 0, impressions: 0, clicks: 0 };
+      }
+      dailyData[dateKey].spend += Number(ins.cost_micros) / 1_000_000;
+      dailyData[dateKey].conversions += Number(ins.conversions) || 0;
+      dailyData[dateKey].revenue += Number(ins.conversions_value) || 0;
+      dailyData[dateKey].impressions += Number(ins.impressions) || 0;
+      dailyData[dateKey].clicks += Number(ins.clicks) || 0;
+    }
+    historicalData = Object.entries(dailyData)
+      .map(([dateStr, d]) => ({
+        date: new Date(dateStr),
+        spend: d.spend,
+        conversions: d.conversions,
+        revenue: d.revenue,
+        impressions: d.impressions,
+        clicks: d.clicks,
+      }))
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
   }
-
-  // Add spend data from campaign
-  const dailySpend = Number(campaign.daily_budget) || data.daily_budget;
-
-  const historicalData = Object.entries(dailyData)
-    .map(([dateStr, data]) => ({
-      date: new Date(dateStr),
-      spend: dailySpend,
-      conversions: data.conversions,
-      revenue: data.revenue,
-    }))
-    .sort((a, b) => a.date.getTime() - b.date.getTime());
 
   // Generate forecast
   const forecastData = generateForecast(
@@ -159,6 +206,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         forecast_period_end: new Date(Date.now() + data.forecast_days * 24 * 60 * 60 * 1000).toISOString(),
         forecast_days: data.forecast_days,
         model_type: "linear_trend_seasonal",
+        ad_source: adSource,
         confidence_level: confidenceLevel,
         daily_forecasts: forecastData,
         budget_recommendation: budgetRec,

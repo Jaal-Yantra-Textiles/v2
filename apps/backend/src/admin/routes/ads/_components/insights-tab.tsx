@@ -1,9 +1,10 @@
 import {
+  Button,
   Container,
   DataTable,
   type DataTablePaginationState,
+  DatePicker,
   Heading,
-  Input,
   Select,
   Text,
   useDataTable,
@@ -56,6 +57,24 @@ const daysAgo = (n: number) => {
   d.setDate(d.getDate() - n)
   return d.toISOString().slice(0, 10)
 }
+
+// The URL stores dates as YYYY-MM-DD strings; DatePicker works with Date objects.
+// Format/parse at LOCAL midnight so the calendar day never shifts across the UTC
+// boundary (toISOString would drift a day in +/- timezones).
+const parseYmd = (s?: string): Date | null => {
+  if (!s) return null
+  const [y, m, d] = s.split("-").map(Number)
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d)
+}
+const fmtYmd = (d: Date | null): string | undefined => {
+  if (!d) return undefined
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+const startOfYear = () => `${new Date().getFullYear()}-01-01`
 
 export const InsightsTab = ({ platformId, kind }: Props) => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -124,6 +143,17 @@ export const InsightsTab = ({ platformId, kind }: Props) => {
       if (value) next.set(key, value)
       else next.delete(key)
       if (key !== "ins_page") next.delete("ins_page")
+      setSearchParams(next, { replace: true })
+    },
+    [searchParams, setSearchParams]
+  )
+
+  const applyPreset = useCallback(
+    (from: string, to: string) => {
+      const next = new URLSearchParams(searchParams)
+      next.set("from", from)
+      next.set("to", to)
+      next.delete("ins_page")
       setSearchParams(next, { replace: true })
     },
     [searchParams, setSearchParams]
@@ -286,23 +316,54 @@ export const InsightsTab = ({ platformId, kind }: Props) => {
         <Text size="small" className="text-ui-fg-subtle whitespace-nowrap">
           From:
         </Text>
-        <Input
-          type="date"
+        <DatePicker
           size="small"
-          value={fromDate}
-          onChange={(e) => updateParam("from", e.target.value)}
-          className="w-[160px]"
+          value={parseYmd(fromDate)}
+          maxValue={parseYmd(toDate) ?? undefined}
+          onChange={(d) => updateParam("from", fmtYmd(d))}
+          className="w-[170px]"
         />
         <Text size="small" className="text-ui-fg-subtle whitespace-nowrap">
           To:
         </Text>
-        <Input
-          type="date"
+        <DatePicker
           size="small"
-          value={toDate}
-          onChange={(e) => updateParam("to", e.target.value)}
-          className="w-[160px]"
+          value={parseYmd(toDate)}
+          minValue={parseYmd(fromDate) ?? undefined}
+          onChange={(d) => updateParam("to", fmtYmd(d))}
+          className="w-[170px]"
         />
+
+        <div className="flex items-center gap-1">
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={() => applyPreset(daysAgo(7), today())}
+          >
+            7d
+          </Button>
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={() => applyPreset(daysAgo(30), today())}
+          >
+            30d
+          </Button>
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={() => applyPreset(daysAgo(90), today())}
+          >
+            90d
+          </Button>
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={() => applyPreset(startOfYear(), today())}
+          >
+            YTD
+          </Button>
+        </div>
       </div>
 
       <div className="px-6 py-6">

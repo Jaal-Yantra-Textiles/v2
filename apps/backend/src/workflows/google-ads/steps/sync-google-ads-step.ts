@@ -192,6 +192,40 @@ function buildAdAggregateQuery(dateClause: string): string {
   `.replace(/\s+/g, " ").trim()
 }
 
+// PerformanceMax campaigns serve via asset_group (no ad_group / ad_group_ad). Pull
+// asset-group aggregates with the same shared metric fields + date window; results
+// are folded into the ad_group storage tagged PERFORMANCE_MAX_ASSET_GROUP.
+export function buildAssetGroupAggregateQuery(dateClause: string): string {
+  return `
+    SELECT
+      asset_group.id,
+      asset_group.resource_name,
+      asset_group.name,
+      asset_group.status,
+      asset_group.campaign,
+      ${AGGREGATE_METRICS_FIELDS.join(",\n      ")}
+    FROM asset_group
+    WHERE ${dateClause}
+  `.replace(/\s+/g, " ").trim()
+}
+
+// Daily asset-group insights (per-day rows via segments.date). Video quartiles are
+// omitted here (not reliably selectable FROM asset_group); the base metric fields
+// + cost_per_conversion mirror the ad_group daily query.
+export function buildAssetGroupInsightsQuery(dateClause: string): string {
+  return `
+    SELECT
+      asset_group.id,
+      asset_group.resource_name,
+      asset_group.campaign,
+      segments.date,
+      ${AGGREGATE_METRICS_FIELDS.join(",\n      ")},
+      metrics.cost_per_conversion
+    FROM asset_group
+    WHERE ${dateClause}
+  `.replace(/\s+/g, " ").trim()
+}
+
 // Daily insights — adds `segments.date` so each row is a per-day snapshot.
 // Video quartiles included here; if the account doesn't return them, GAQL
 // just omits the fields rather than failing the whole query.
@@ -412,6 +446,29 @@ export const syncGoogleAdsStep = createStep(
               breakdown: "device",
             })
           }
+
+          // Rollup columns on campaign/ad_group/ad are DERIVED from the full
+          // stored daily-insights history, not the current window's aggregate —
+          // otherwise a routine short-window sync would collapse a paused
+          // entity's historical totals to ~0. Insights are append-only, so this
+          // sums every base daily row we have on record.
+          await recomputeRollupsFromInsights(
+            socials,
+            "campaign",
+            [...campaignRowsByCampaignId.values()]
+          )
+          await recomputeRollupsFromInsights(
+            socials,
+            "ad_group",
+            [...adGroupRowsByAdGroupId.values()]
+          )
+          if (includeAds) {
+            await recomputeRollupsFromInsights(
+              socials,
+              "ad",
+              [...adRowsByAdId.values()]
+            )
+          }
         }
       } catch (e: any) {
         const msg = formatGoogleAdsError(e, { hasLoginCid: !!t.login_customer_id })
@@ -609,6 +666,78 @@ async function pullCidData(
         opts.dateClause,
         "device"
       )
+    }
+  }
+
+  // PerformanceMax asset groups (#925). PMax campaigns have no ad_group/ad_group_ad,
+  // so for accounts with a PMax campaign we pull FROM asset_group and fold the rows
+  // into the ad_group storage (aggregate -> adGroups; daily -> insights.ad_group),
+  // tagged PERFORMANCE_MAX_ASSET_GROUP. Non-PMax accounts skip this entirely.
+  const hasPmax = campaigns.some(
+    (r: any) =>
+      (r.campaign?.advertisingChannelType ??
+        r.campaign?.advertising_channel_type) === "PERFORMANCE_MAX"
+  )
+  if (hasPmax) {
+    try {
+      const agRes = await withGoogleRetry(
+        () =>
+          axios.post(
+            `${ADS_API_BASE}/customers/${cid}/googleAds:searchStream`,
+            { query: buildAssetGroupAggregateQuery(opts.dateClause) },
+            { headers }
+          ),
+        { label: `ads.assetGroups(${cid})`, logger, maxAttempts: 3 }
+      )
+      for (const row of extractAllRows(agRes.data)) {
+        const ag = row.assetGroup || row.asset_group || {}
+        if (!ag.id) continue
+        // Map into the ad_group row shape upsertAdGroups expects.
+        adGroups.push({
+          adGroup: {
+            id: ag.id,
+            resourceName: ag.resourceName ?? ag.resource_name ?? null,
+            name: ag.name ?? null,
+            status: ag.status ?? null,
+            type: "PERFORMANCE_MAX_ASSET_GROUP",
+            campaign: ag.campaign ?? null,
+          },
+          metrics: row.metrics || {},
+        })
+      }
+    } catch (e: any) {
+      logger?.warn?.(
+        `[google-ads] asset_group pull failed for cid=${cid}: ${googleErrorMessage(e)}`
+      )
+    }
+
+    if (opts.includeInsights) {
+      try {
+        const agiRes = await withGoogleRetry(
+          () =>
+            axios.post(
+              `${ADS_API_BASE}/customers/${cid}/googleAds:searchStream`,
+              { query: buildAssetGroupInsightsQuery(opts.dateClause) },
+              { headers }
+            ),
+          { label: `ads.insights.asset_group(${cid})`, logger, maxAttempts: 3 }
+        )
+        for (const row of extractAllRows(agiRes.data)) {
+          const agId = row.assetGroup?.id ?? row.asset_group?.id
+          if (!agId) continue
+          // Stored at level=ad_group keyed by the asset_group id (now an ad_group
+          // row after upsertAdGroups). Shape mirrors an ad_group daily row.
+          insights.ad_group.push({
+            adGroup: { id: agId },
+            segments: row.segments,
+            metrics: row.metrics,
+          })
+        }
+      } catch (e: any) {
+        logger?.warn?.(
+          `[google-ads] asset_group insights pull failed for cid=${cid}: ${googleErrorMessage(e)}`
+        )
+      }
     }
   }
 
@@ -1133,6 +1262,83 @@ async function upsertInsights(
   }
 
   return synced
+}
+
+/**
+ * Sum the BASE daily-insight rows (device == null && network == null) into a
+ * rollup. Device/network-breakdown rows are skipped so they aren't double-counted
+ * against the base series. Pure + exported for unit testing.
+ */
+export function sumBaseInsightRows(rows: any[]): {
+  impressions: number
+  clicks: number
+  conversions: number
+  cost_micros: number
+} {
+  const total = { impressions: 0, clicks: 0, conversions: 0, cost_micros: 0 }
+  for (const r of rows) {
+    // Only the base (un-segmented) series — breakdown rows carry device/network.
+    if (r?.device != null || r?.network != null) continue
+    total.impressions += numericMetric(r?.impressions)
+    total.clicks += numericMetric(r?.clicks)
+    total.conversions += numericMetric(r?.conversions)
+    total.cost_micros += numericMetric(r?.cost_micros)
+  }
+  return total
+}
+
+/**
+ * Recompute the rollup metric columns on campaign / ad_group / ad rows from the
+ * FULL stored daily-insights history for the given entity row ids. Entities with
+ * no stored base insight rows are left untouched (their window aggregate stands).
+ */
+async function recomputeRollupsFromInsights(
+  socials: any,
+  level: "campaign" | "ad_group" | "ad",
+  entityRowIds: string[]
+): Promise<void> {
+  if (entityRowIds.length === 0) return
+  const col =
+    level === "campaign"
+      ? "campaign_id"
+      : level === "ad_group"
+        ? "ad_group_id"
+        : "ad_id"
+
+  // One list for all entities at this level; group base rows by entity row id.
+  const rows = await socials.listGoogleAdsInsights({
+    level,
+    [col]: entityRowIds,
+  })
+
+  const byEntity = new Map<string, any[]>()
+  for (const r of rows) {
+    const id = r?.[col]
+    if (!id) continue
+    const bucket = byEntity.get(id)
+    if (bucket) bucket.push(r)
+    else byEntity.set(id, [r])
+  }
+
+  const updates: Array<{ selector: { id: string }; data: Record<string, number> }> =
+    []
+  for (const [id, entityRows] of byEntity) {
+    // Skip entities with no BASE rows — nothing to derive, keep existing rollup.
+    const hasBase = entityRows.some(
+      (r) => r?.device == null && r?.network == null
+    )
+    if (!hasBase) continue
+    updates.push({ selector: { id }, data: sumBaseInsightRows(entityRows) })
+  }
+  if (updates.length === 0) return
+
+  const updateFn =
+    level === "campaign"
+      ? "updateGoogleAdsCampaigns"
+      : level === "ad_group"
+        ? "updateGoogleAdsAdGroups"
+        : "updateGoogleAdsAds"
+  await socials[updateFn](updates)
 }
 
 /**
