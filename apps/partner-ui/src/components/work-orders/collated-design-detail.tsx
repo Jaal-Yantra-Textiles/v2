@@ -11,6 +11,7 @@ import { usePartnerDesign } from "../../hooks/api/partner-designs"
 import { usePartnerProductionRun } from "../../hooks/api/partner-production-runs"
 import { DesignCostSection } from "../../routes/designs/design-detail/components/design-cost-section"
 import { DesignInventoryBomSection } from "../../routes/designs/design-detail/components/design-inventory-bom-section"
+import { DesignSizeSetsSection } from "../../routes/designs/design-detail/components/design-size-sets-section"
 import { ProductionRunCard } from "./production-run-card"
 
 /**
@@ -155,10 +156,13 @@ export const DesignSpecs = ({ design }: { design: any }) => {
         )}
       </Container>
 
-      {/* Full BOM + cost breakdown — the design "specs" the operator asked to
-          keep under the order form. Each self-fetches off the design id. */}
+      {/* Sizes (size_sets or legacy custom_sizes) + full BOM. The design
+          "specs" the operator asked to keep under the order form. */}
+      <DesignSizeSetsSection design={design} />
       <DesignInventoryBomSection design={design} />
-      <DesignCostSection design={design} />
+      {/* Cost estimate only matters for partner-owned designs — hide it for
+          JYT-owned work-orders (#5). */}
+      {!!design?.owner_partner_id && <DesignCostSection design={design} />}
     </>
   )
 }
