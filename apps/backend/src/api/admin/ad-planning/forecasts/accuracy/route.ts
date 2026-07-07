@@ -64,20 +64,53 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const periodStart = forecastMetadata?.forecast_period_start ? new Date(forecastMetadata.forecast_period_start) : forecast.forecast_date;
     const periodEnd = forecastMetadata?.forecast_period_end ? new Date(forecastMetadata.forecast_period_end) : new Date(forecast.forecast_date.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-    // Get actual conversions for this period and campaign
-    const conversions = await adPlanningService.listConversions({
-      ad_campaign_id: forecast.ad_campaign_id,
-      converted_at: {
-        $gte: periodStart,
-        $lte: periodEnd,
-      },
-    });
+    // Actuals differ by network. Google-sourced forecasts (tagged at generation
+    // time) pull real per-day revenue/spend/conversions from stored
+    // GoogleAdsInsights; everything else uses first-party Conversion rows.
+    const adSource =
+      (forecastMetadata as Record<string, any> | null)?.ad_source === "google"
+        ? "google"
+        : "meta";
 
-    // Aggregate actual revenue by day
     const actualByDay: Record<string, number> = {};
-    for (const conv of conversions) {
-      const dateKey = new Date(conv.converted_at).toISOString().split("T")[0];
-      actualByDay[dateKey] = (actualByDay[dateKey] || 0) + (Number(conv.conversion_value) || 0);
+    let actualSpend = 0;
+    let actualConversionsCount = 0;
+
+    if (adSource === "google" && socialsService && forecast.ad_campaign_id) {
+      const startYmd = periodStart.toISOString().split("T")[0];
+      const endYmd = periodEnd.toISOString().split("T")[0];
+      let gInsights: any[] = [];
+      try {
+        gInsights = await socialsService.listGoogleAdsInsights({
+          level: "campaign",
+          campaign_id: forecast.ad_campaign_id,
+        });
+      } catch {
+        gInsights = [];
+      }
+      for (const ins of gInsights) {
+        if (ins.device != null || ins.network != null) continue; // base rows only
+        const dateKey = ins.date as string;
+        if (!dateKey || dateKey < startYmd || dateKey > endYmd) continue;
+        actualByDay[dateKey] =
+          (actualByDay[dateKey] || 0) + (Number(ins.conversions_value) || 0);
+        actualSpend += Number(ins.cost_micros) / 1_000_000;
+        actualConversionsCount += Number(ins.conversions) || 0;
+      }
+    } else {
+      const conversions = await adPlanningService.listConversions({
+        ad_campaign_id: forecast.ad_campaign_id,
+        converted_at: {
+          $gte: periodStart,
+          $lte: periodEnd,
+        },
+      });
+      for (const conv of conversions) {
+        const dateKey = new Date(conv.converted_at).toISOString().split("T")[0];
+        actualByDay[dateKey] =
+          (actualByDay[dateKey] || 0) + (Number(conv.conversion_value) || 0);
+      }
+      actualConversionsCount = conversions.length;
     }
 
     const actuals = Object.entries(actualByDay).map(([date, revenue]) => ({
@@ -104,9 +137,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       totalAccuracy += accuracy.accuracy;
       count++;
 
-      // Pull actual spend from AdInsights if available
-      let actualSpend = 0;
-      if (socialsService && forecast.ad_campaign_id) {
+      // Google spend was already summed from insights above. For Meta/default,
+      // pull actual spend from AdInsights (falling back to a budget × days est.).
+      if (adSource !== "google" && socialsService && forecast.ad_campaign_id) {
         try {
           const insights = await socialsService.listAdInsights({
             ad_campaign_id: forecast.ad_campaign_id,
@@ -125,7 +158,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       await adPlanningService.updateBudgetForecasts({
         id: forecast.id,
         actual_spend: actualSpend,
-        actual_conversions: conversions.length,
+        actual_conversions: actualConversionsCount,
         actual_revenue: Object.values(actualByDay).reduce((a, b) => a + b, 0),
         forecast_error_percent: 100 - accuracy.accuracy,
         is_actual_recorded: true,
