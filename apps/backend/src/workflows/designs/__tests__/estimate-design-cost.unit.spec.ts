@@ -144,6 +144,81 @@ describe("computeCostBreakdown", () => {
     })
   })
 
+  describe("partner production-cost override", () => {
+    it("uses the partner-entered production cost over the 30% default", () => {
+      const result = computeCostBreakdown({
+        ...base,
+        adminEstimate: null,
+        materials: orderHistoryMaterials, // material = 25 → default would be 7.5
+        productionCostOverride: 40,
+      })
+      expect(result.production_cost).toBe(40)
+      expect(result.total_estimated).toBe(65) // 25 + 40
+    })
+
+    it("beats even an actual completed-run cost (partner typed it)", () => {
+      const result = computeCostBreakdown({
+        ...base,
+        adminEstimate: 35,
+        materials: orderHistoryMaterials,
+        actualProductionCost: 50, // would otherwise win
+        productionCostOverride: 12,
+      })
+      expect(result.production_cost).toBe(12)
+      expect(result.total_estimated).toBe(37) // 25 + 12
+    })
+
+    it("respects an explicit override of 0 (no production cost)", () => {
+      const result = computeCostBreakdown({
+        ...base,
+        adminEstimate: null,
+        materials: orderHistoryMaterials,
+        productionCostOverride: 0,
+      })
+      expect(result.production_cost).toBe(0)
+      expect(result.total_estimated).toBe(25) // material only
+    })
+  })
+
+  describe("platform fee", () => {
+    it("defaults to 0 and leaves the total unchanged when opted out", () => {
+      const result = computeCostBreakdown({
+        ...base,
+        adminEstimate: 35,
+        materials: orderHistoryMaterials,
+      })
+      expect(result.platform_fee).toBe(0)
+      expect(result.total_estimated).toBe(35)
+    })
+
+    it("charges 10% of material cost as a separate line, added to the total", () => {
+      const result = computeCostBreakdown({
+        ...base,
+        adminEstimate: null,
+        materials: orderHistoryMaterials, // material = 25, default prod = 7.5
+        platformFeePercent: 10,
+      })
+      expect(result.material_cost).toBe(25)
+      expect(result.production_cost).toBe(7.5)
+      expect(result.platform_fee).toBe(2.5) // 10% of 25
+      expect(result.total_estimated).toBe(35) // 25 + 7.5 + 2.5
+      expect(result.breakdown.platform_fee_percent).toBe(10)
+    })
+
+    it("combines a partner override with the platform fee", () => {
+      const result = computeCostBreakdown({
+        ...base,
+        adminEstimate: null,
+        materials: orderHistoryMaterials, // material = 25
+        productionCostOverride: 40,
+        platformFeePercent: 10,
+      })
+      expect(result.production_cost).toBe(40)
+      expect(result.platform_fee).toBe(2.5)
+      expect(result.total_estimated).toBe(67.5) // 25 + 40 + 2.5
+    })
+  })
+
   describe("confidence levels", () => {
     it("returns guesstimate when no real data", () => {
       const result = computeCostBreakdown({

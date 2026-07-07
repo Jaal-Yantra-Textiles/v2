@@ -22,17 +22,32 @@ export type MaterialCostItem = {
 type EstimateCostInput = {
   design_id: string;
   inventory_item_ids?: string[];
+  /**
+   * Partner-entered production cost per finished unit. When provided it is the
+   * authoritative production figure — it overrides every derived estimate
+   * (including the DEFAULT_PRODUCTION_PERCENT fallback). Partner recalc route.
+   */
+  production_cost_override?: number | null;
+  /**
+   * JYT platform commission as a percentage of material cost. Opt-in per
+   * caller — defaults to 0 so store/admin/draft-order flows are unaffected;
+   * only the partner recalc route passes DEFAULT_PLATFORM_FEE_PERCENT.
+   */
+  platform_fee_percent?: number;
 };
 
 export type EstimateCostOutput = {
   design_id: string;
   material_cost: number;
   production_cost: number;
+  /** JYT platform commission (materialCost × platform_fee_percent). 0 when opted out. */
+  platform_fee: number;
   total_estimated: number;
   confidence: ConfidenceLevel;
   breakdown: {
     materials: MaterialCostItem[];
     production_percent: number;
+    platform_fee_percent: number;
   };
   similar_designs?: Array<{
     id: string;
@@ -43,6 +58,10 @@ export type EstimateCostOutput = {
 
 // Default production overhead as percentage of material cost
 const DEFAULT_PRODUCTION_PERCENT = 30;
+
+// Default JYT platform commission on partner production work, as a percentage
+// of material cost. Only applied when a caller opts in (partner recalc route).
+export const DEFAULT_PLATFORM_FEE_PERCENT = 10;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -101,15 +120,30 @@ export function computeCostBreakdown(input: {
    * residual. #456
    */
   actualProductionCost?: number | null;
+  /**
+   * Partner-entered production cost per finished unit. Highest precedence — a
+   * value the partner typed is authoritative, so it beats even a completed
+   * run's actual cost. A value of 0 is respected (explicitly "no production
+   * cost"); only null/undefined falls through to the derived waterfall.
+   */
+  productionCostOverride?: number | null;
+  /** JYT platform commission as a percentage of material cost. Default 0. */
+  platformFeePercent?: number;
 }): EstimateCostOutput {
   const materialCost = input.materials.reduce((sum, m) => sum + m.cost * m.quantity, 0);
   const { adminEstimate, similarDesigns } = input;
+  const platformFeePercent = input.platformFeePercent ?? 0;
 
   let productionCost: number;
   let productionPercent: number;
   let productionIsEstimated = true;
 
-  if (input.actualProductionCost != null && input.actualProductionCost > 0) {
+  if (input.productionCostOverride != null && input.productionCostOverride >= 0) {
+    // Partner typed their production cost — authoritative, wins over everything.
+    productionCost = input.productionCostOverride;
+    productionPercent = materialCost > 0 ? (productionCost / materialCost) * 100 : 0;
+    productionIsEstimated = false;
+  } else if (input.actualProductionCost != null && input.actualProductionCost > 0) {
     // A real, partner-submitted production cost from a completed run wins.
     productionCost = input.actualProductionCost;
     productionPercent = materialCost > 0 ? (productionCost / materialCost) * 100 : 0;
@@ -133,7 +167,9 @@ export function computeCostBreakdown(input: {
     productionPercent = DEFAULT_PRODUCTION_PERCENT;
   }
 
-  const totalEstimated = materialCost + productionCost;
+  // JYT platform commission — charged on material cost only (product decision).
+  const platformFee = round2(materialCost * (platformFeePercent / 100));
+  const totalEstimated = materialCost + productionCost + platformFee;
 
   const hasAnyRealData = input.materials.some(
     (m) =>
@@ -156,11 +192,13 @@ export function computeCostBreakdown(input: {
     design_id: input.designId,
     material_cost: round2(materialCost),
     production_cost: round2(productionCost),
+    platform_fee: platformFee,
     total_estimated: round2(totalEstimated),
     confidence,
     breakdown: {
       materials: input.materials,
       production_percent: Math.round(productionPercent),
+      platform_fee_percent: platformFeePercent,
     },
     similar_designs: similarDesigns.length > 0 ? similarDesigns : undefined,
   };
@@ -513,13 +551,20 @@ const calculateTotalCostStep = createStep(
     hasExactMaterialCosts: boolean;
     similarDesigns: Array<{ id: string; name: string; estimated_cost: number }>;
     actualProductionCostPerUnit?: number | null;
+    productionCostOverride?: number | null;
+    platformFeePercent?: number;
   }) => {
     const design = input.design;
+    const platformFeePercent = input.platformFeePercent ?? 0;
+    const hasOverride =
+      input.productionCostOverride != null && input.productionCostOverride >= 0;
 
-    // If a sample run has already calculated costs, use the stored breakdown
-    // This is more accurate than re-estimating from scratch
+    // If a sample run has already calculated costs, use the stored breakdown —
+    // it's more accurate than re-estimating. Skipped when the partner supplied
+    // an explicit override (a typed value is authoritative even over samples).
     const costBreakdown = design.cost_breakdown as any;
     if (
+      !hasOverride &&
       costBreakdown?.source === "sample_consumption" &&
       design.material_cost != null &&
       design.production_cost != null
@@ -527,12 +572,17 @@ const calculateTotalCostStep = createStep(
       const materialCost = Number(design.material_cost) || 0;
       const productionCost = Number(design.production_cost) || 0;
       const serviceCostTotal = Number(costBreakdown.service_cost_total) || 0;
-      const totalEstimated = Number(design.estimated_cost) || (materialCost + productionCost);
+      // Platform fee is charged on material cost (opt-in per caller).
+      const platformFee = round2(materialCost * (platformFeePercent / 100));
+      const baseTotal =
+        Number(design.estimated_cost) || (materialCost + productionCost);
+      const totalEstimated = baseTotal + platformFee;
 
       return new StepResponse({
         design_id: design.id,
         material_cost: round2(materialCost),
         production_cost: round2(productionCost),
+        platform_fee: platformFee,
         total_estimated: round2(totalEstimated),
         confidence: "exact" as ConfidenceLevel,
         breakdown: {
@@ -540,6 +590,7 @@ const calculateTotalCostStep = createStep(
           production_percent: materialCost > 0
             ? Math.round((productionCost / materialCost) * 100)
             : 0,
+          platform_fee_percent: platformFeePercent,
           service_costs: costBreakdown.service_costs,
           service_cost_total: serviceCostTotal > 0 ? round2(serviceCostTotal) : undefined,
           source: "sample_consumption",
@@ -547,7 +598,7 @@ const calculateTotalCostStep = createStep(
       } as EstimateCostOutput);
     }
 
-    // No sample data — estimate from scratch
+    // No sample data (or a partner override) — estimate from scratch.
     const result = computeCostBreakdown({
       designId: design.id,
       adminEstimate: design.estimated_cost ? Number(design.estimated_cost) : null,
@@ -555,6 +606,8 @@ const calculateTotalCostStep = createStep(
       hasExactMaterialCosts: input.hasExactMaterialCosts,
       similarDesigns: input.similarDesigns,
       actualProductionCost: input.actualProductionCostPerUnit ?? null,
+      productionCostOverride: input.productionCostOverride ?? null,
+      platformFeePercent,
     });
     return new StepResponse(result);
   }
@@ -598,6 +651,9 @@ export const estimateDesignCostWorkflow = createWorkflow(
       }>,
       actualProductionCostPerUnit:
         actualCostResult.actualProductionCostPerUnit as unknown as number | null,
+      productionCostOverride:
+        input.production_cost_override as unknown as number | null,
+      platformFeePercent: input.platform_fee_percent as unknown as number,
     });
 
     return new WorkflowResponse(result);
