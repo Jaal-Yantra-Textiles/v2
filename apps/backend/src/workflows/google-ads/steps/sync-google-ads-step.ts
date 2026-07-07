@@ -22,8 +22,16 @@ export type SyncGoogleAdsInput = {
   include_insights?: boolean
   /** Also pull device-breakdown insights at campaign + ad_group. Default false. */
   include_breakdowns?: boolean
-  /** Window for aggregate metrics + daily insights. Default 30. Min 1, max 365. */
+  /**
+   * Lookback window in days for aggregates + daily insights. Default 30, max
+   * ~10y. Ignored when `start_date` is given. Implemented as `segments.date
+   * BETWEEN` (NOT the `LAST_N_DAYS` literal, which only allows 7/14/30).
+   */
   window_days?: number
+  /** Explicit range start (YYYY-MM-DD). Overrides window_days — use for full backfill. */
+  start_date?: string
+  /** Explicit range end (YYYY-MM-DD). Defaults to today. */
+  end_date?: string
 }
 
 export type SyncGoogleAdsOutput = {
@@ -42,9 +50,9 @@ const CUSTOMER_QUERY =
   "SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.time_zone, customer.manager, customer.test_account FROM customer LIMIT 1"
 
 // Enriched aggregate metrics for the rolled-up rows on campaign / ad_group / ad.
-// GAQL won't let us combine `LIMIT` with `WHERE segments.date BETWEEN` for
-// metric queries, so we use `DURING LAST_N_DAYS`-style constants computed from
-// the runtime window.
+// Date-scoped via an explicit `segments.date BETWEEN 'start' AND 'end'` clause
+// (see resolveSyncDateRange) so any lookback works — the `LAST_N_DAYS` literal
+// these once used only accepts 7/14/30.
 export const AGGREGATE_METRICS_FIELDS = [
   "metrics.impressions",
   "metrics.clicks",
@@ -80,7 +88,44 @@ const VIDEO_QUARTILE_FIELDS = [
   "metrics.video_quartile_p100_rate",
 ]
 
-export function buildCampaignAggregateQuery(windowDays: number): string {
+// GAQL's `LAST_N_DAYS` literal only accepts 7 / 14 / 30 — anything else 400s.
+// To support arbitrary lookbacks (incl. a full historical backfill) we build an
+// explicit `segments.date BETWEEN 'start' AND 'end'` clause. ~10y cap keeps a
+// stray window_days from producing an unbounded query; Google returns only the
+// dates it actually retains within the range.
+const MAX_WINDOW_DAYS = 3650
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+// Only accept well-formed YYYY-MM-DD — these values are interpolated straight
+// into GAQL, so an unvalidated string would be an injection vector.
+function safeISODate(v: string | undefined | null): string | undefined {
+  return typeof v === "string" && ISO_DATE.test(v) ? v : undefined
+}
+
+function toISODate(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+export function resolveSyncDateRange(
+  input: { window_days?: number; start_date?: string; end_date?: string },
+  now: Date = new Date()
+): { start: string; end: string } {
+  const end = safeISODate(input.end_date) ?? toISODate(now)
+  const explicitStart = safeISODate(input.start_date)
+  if (explicitStart) {
+    return { start: explicitStart, end }
+  }
+  const days = Math.min(Math.max(input.window_days ?? 30, 1), MAX_WINDOW_DAYS)
+  const startDate = new Date(now)
+  startDate.setUTCDate(startDate.getUTCDate() - days)
+  return { start: toISODate(startDate), end }
+}
+
+export function buildDateClause(range: { start: string; end: string }): string {
+  return `segments.date BETWEEN '${range.start}' AND '${range.end}'`
+}
+
+export function buildCampaignAggregateQuery(dateClause: string): string {
   return `
     SELECT
       campaign.id,
@@ -93,7 +138,7 @@ export function buildCampaignAggregateQuery(windowDays: number): string {
       campaign_budget.amount_micros,
       ${AGGREGATE_METRICS_FIELDS.join(",\n      ")}
     FROM campaign
-    WHERE segments.date DURING LAST_${windowDays}_DAYS
+    WHERE ${dateClause}
   `.replace(/\s+/g, " ").trim()
 }
 
@@ -104,7 +149,7 @@ export function buildCampaignAggregateQuery(windowDays: number): string {
 export const CAMPAIGN_DATES_QUERY =
   "SELECT campaign.id, campaign.start_date, campaign.end_date FROM campaign"
 
-function buildAdGroupAggregateQuery(windowDays: number): string {
+function buildAdGroupAggregateQuery(dateClause: string): string {
   return `
     SELECT
       ad_group.id,
@@ -115,14 +160,14 @@ function buildAdGroupAggregateQuery(windowDays: number): string {
       ad_group.campaign,
       ${AGGREGATE_METRICS_FIELDS.join(",\n      ")}
     FROM ad_group
-    WHERE segments.date DURING LAST_${windowDays}_DAYS
+    WHERE ${dateClause}
   `.replace(/\s+/g, " ").trim()
 }
 
 // ad_group_ad rolls the placement (status, resource_name) and the creative
 // (ad_group_ad.ad.*) together. We flatten the most-useful creative fields per
 // ad type — RSAs use the asset arrays, image/video ads use the static fields.
-function buildAdAggregateQuery(windowDays: number): string {
+function buildAdAggregateQuery(dateClause: string): string {
   return `
     SELECT
       ad_group_ad.ad.id,
@@ -143,7 +188,7 @@ function buildAdAggregateQuery(windowDays: number): string {
       ad_group_ad.ad_group,
       ${AGGREGATE_METRICS_FIELDS.join(",\n      ")}
     FROM ad_group_ad
-    WHERE segments.date DURING LAST_${windowDays}_DAYS
+    WHERE ${dateClause}
   `.replace(/\s+/g, " ").trim()
 }
 
@@ -152,7 +197,7 @@ function buildAdAggregateQuery(windowDays: number): string {
 // just omits the fields rather than failing the whole query.
 export function buildDailyInsightsQuery(
   level: "campaign" | "ad_group" | "ad",
-  windowDays: number,
+  dateClause: string,
   breakdown?: "device" | "network"
 ): string {
   const entityFields =
@@ -186,7 +231,7 @@ export function buildDailyInsightsQuery(
       ${VIDEO_QUARTILE_FIELDS.join(",\n      ")},
       metrics.cost_per_conversion
     FROM ${from}
-    WHERE segments.date DURING LAST_${windowDays}_DAYS
+    WHERE ${dateClause}
   `.replace(/\s+/g, " ").trim()
 }
 
@@ -216,7 +261,11 @@ export const syncGoogleAdsStep = createStep(
     const includeAds = input.include_ads !== false
     const includeInsights = input.include_insights !== false
     const includeBreakdowns = input.include_breakdowns === true
-    const windowDays = Math.min(Math.max(input.window_days ?? 30, 1), 365)
+    const dateRange = resolveSyncDateRange(input)
+    const dateClause = buildDateClause(dateRange)
+    logger?.info?.(
+      `[google-ads] sync window ${dateRange.start} → ${dateRange.end} for platform=${input.platform_id}`
+    )
 
     const developerToken = await readDeveloperToken(
       input.platform_id,
@@ -288,7 +337,7 @@ export const syncGoogleAdsStep = createStep(
           t.customer_id,
           headers,
           logger,
-          { includeAds, includeInsights, includeBreakdowns, windowDays }
+          { includeAds, includeInsights, includeBreakdowns, dateClause }
         )
 
         const customerRow = await upsertCustomer(socials, {
@@ -395,7 +444,8 @@ type PullOpts = {
   includeAds: boolean
   includeInsights: boolean
   includeBreakdowns: boolean
-  windowDays: number
+  /** Pre-built `segments.date BETWEEN …` clause shared by every metric query. */
+  dateClause: string
 }
 
 async function pullCidData(
@@ -450,7 +500,7 @@ async function pullCidData(
     () =>
       axios.post(
         `${ADS_API_BASE}/customers/${cid}/googleAds:searchStream`,
-        { query: buildCampaignAggregateQuery(opts.windowDays) },
+        { query: buildCampaignAggregateQuery(opts.dateClause) },
         { headers }
       ),
     { label: `ads.campaigns(${cid})`, logger, maxAttempts: 3 }
@@ -493,7 +543,7 @@ async function pullCidData(
     () =>
       axios.post(
         `${ADS_API_BASE}/customers/${cid}/googleAds:searchStream`,
-        { query: buildAdGroupAggregateQuery(opts.windowDays) },
+        { query: buildAdGroupAggregateQuery(opts.dateClause) },
         { headers }
       ),
     { label: `ads.adGroups(${cid})`, logger, maxAttempts: 3 }
@@ -507,7 +557,7 @@ async function pullCidData(
         () =>
           axios.post(
             `${ADS_API_BASE}/customers/${cid}/googleAds:searchStream`,
-            { query: buildAdAggregateQuery(opts.windowDays) },
+            { query: buildAdAggregateQuery(opts.dateClause) },
             { headers }
           ),
         { label: `ads.ads(${cid})`, logger, maxAttempts: 3 }
@@ -533,14 +583,14 @@ async function pullCidData(
       headers,
       logger,
       "campaign",
-      opts.windowDays
+      opts.dateClause
     )
     insights.ad_group = await pullDailyInsights(
       cid,
       headers,
       logger,
       "ad_group",
-      opts.windowDays
+      opts.dateClause
     )
     if (opts.includeBreakdowns) {
       insights.campaign_by_device = await pullDailyInsights(
@@ -548,7 +598,7 @@ async function pullCidData(
         headers,
         logger,
         "campaign",
-        opts.windowDays,
+        opts.dateClause,
         "device"
       )
       insights.ad_group_by_device = await pullDailyInsights(
@@ -556,7 +606,7 @@ async function pullCidData(
         headers,
         logger,
         "ad_group",
-        opts.windowDays,
+        opts.dateClause,
         "device"
       )
     }
@@ -583,7 +633,7 @@ async function pullDailyInsights(
   headers: Record<string, string>,
   logger: Logger | undefined,
   level: "campaign" | "ad_group" | "ad",
-  windowDays: number,
+  dateClause: string,
   breakdown?: "device" | "network"
 ): Promise<any[]> {
   try {
@@ -591,7 +641,7 @@ async function pullDailyInsights(
       () =>
         axios.post(
           `${ADS_API_BASE}/customers/${cid}/googleAds:searchStream`,
-          { query: buildDailyInsightsQuery(level, windowDays, breakdown) },
+          { query: buildDailyInsightsQuery(level, dateClause, breakdown) },
           { headers }
         ),
       { label: `ads.insights.${level}${breakdown ? "." + breakdown : ""}(${cid})`, logger, maxAttempts: 3 }

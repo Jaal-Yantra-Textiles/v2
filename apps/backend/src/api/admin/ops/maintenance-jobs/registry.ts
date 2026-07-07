@@ -81,6 +81,7 @@ import { backfillAudienceEntriesJob } from "./backfill-audience-entries-job"
 import { recomputeEmailEngagementStatusJob } from "./recompute-email-engagement-status-job"
 import { generateNewsletterWinbackTargetsJob } from "./generate-newsletter-winback-targets-job"
 import { repairInventoryOrderSourceJob } from "./repair-inventory-order-source-job"
+import { backfillGoogleAdsHistoryJob } from "./backfill-google-ads-history-job"
 import {
   sweepAiPlatformsByCategory,
   AI_ROLES,
@@ -5419,6 +5420,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recomputeEmailEngagementStatusJob,
   generateNewsletterWinbackTargetsJob,
   repairInventoryOrderSourceJob,
+  backfillGoogleAdsHistoryJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>

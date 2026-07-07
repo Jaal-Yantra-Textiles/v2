@@ -20,8 +20,12 @@ export type SyncGoogleAdsWorkflowInput = {
   include_insights?: boolean
   /** Also pull device-breakdown insights. Default false. */
   include_breakdowns?: boolean
-  /** Window in days for aggregates + daily insights. Default 30. */
+  /** Window in days for aggregates + daily insights. Default 30, max ~10y. */
   window_days?: number
+  /** Explicit range start (YYYY-MM-DD). Overrides window_days — full backfill. */
+  start_date?: string
+  /** Explicit range end (YYYY-MM-DD). Defaults to today. */
+  end_date?: string
 }
 
 export const syncGoogleAdsWorkflowId = "sync-google-ads-workflow"
@@ -51,6 +55,8 @@ export const syncGoogleAdsWorkflow = createWorkflow(
         include_insights: input.include_insights,
         include_breakdowns: input.include_breakdowns,
         window_days: input.window_days,
+        start_date: input.start_date,
+        end_date: input.end_date,
       })
     )
 
