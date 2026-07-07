@@ -70,7 +70,10 @@ export const DesignOwnerActionsSection = ({ design }: Props) => {
         </Text>
       </div>
       <div className="flex items-center gap-x-2">
-        <Link to="production-run-create">
+        {/* Absolute so this owner-mutation flow works whether the manager is
+            standalone (/designs/:id) or nested under an order — the nested route
+            has no production-run-create child. */}
+        <Link to={`/designs/${design.id}/production-run-create`}>
           <Button
             size="small"
             variant={hasActiveRun ? "secondary" : "primary"}

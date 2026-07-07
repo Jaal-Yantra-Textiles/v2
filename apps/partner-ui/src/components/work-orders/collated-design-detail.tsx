@@ -75,9 +75,11 @@ export const DesignSpecs = ({ design }: { design: any }) => {
       <Container className="divide-y p-0">
         <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <Heading level="h2">{t("partner.workOrders.summary")}</Heading>
-          {/* Escape hatch to the full design-management surface. */}
+          {/* Open the FULL design manager nested in this order (relative →
+              /orders/:id/design-details/:designId), keeping the partner in the
+              Orders context instead of jumping to /designs/:id. */}
           <Button size="small" variant="secondary" asChild>
-            <Link to={`/designs/${design.id}`}>
+            <Link to={`design-details/${design.id}`}>
               {t("partner.workOrders.openDesignManager")}
               <ArrowUpRightOnBox />
             </Link>
