@@ -1,13 +1,18 @@
-import { Badge, Button, Container, Heading, StatusBadge, Text, Tooltip, createDataTableColumnHelper } from "@medusajs/ui"
+import { Badge, Button, Container, Heading, StatusBadge, Text, Tooltip, clx, createDataTableColumnHelper } from "@medusajs/ui"
 import { keepPreviousData } from "@tanstack/react-query"
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
 import { Filter } from "../../../components/table/data-table"
 import { _DataTable } from "../../../components/table/data-table/data-table"
-import { usePartnerDesigns, PartnerDesign } from "../../../hooks/api/partner-designs"
+import {
+  usePartnerDesigns,
+  PartnerDesign,
+  DesignBucket,
+  DesignBucketFacets,
+} from "../../../hooks/api/partner-designs"
 import { useDataTable } from "../../../hooks/use-data-table"
 import { useQueryParams } from "../../../hooks/use-query-params"
 import { getStatusBadgeColor } from "../../../lib/status-badge"
@@ -16,14 +21,15 @@ const columnHelper = createDataTableColumnHelper<PartnerDesign>()
 
 const PAGE_SIZE = 20
 
-const PARTNER_STATUS_OPTIONS = [
-  { label: "Incoming", value: "incoming" },
-  { label: "Assigned", value: "assigned" },
-  { label: "In Progress", value: "in_progress" },
-  { label: "Awaiting Review", value: "awaiting_review" },
-  { label: "Finished", value: "finished" },
-  { label: "Completed", value: "completed" },
-  { label: "Cancelled", value: "cancelled" },
+// #6 — action-oriented work tabs. A single, visible lens over the same
+// partner-scoped set (replacing the buried source + work-status filter
+// dropdowns). Server filters + counts each bucket (see partner designs route).
+const WORK_BUCKETS: Array<{ value: DesignBucket; label: string }> = [
+  { value: "incoming", label: "Incoming" },
+  { value: "in_progress", label: "In progress" },
+  { value: "yours", label: "Yours" },
+  { value: "completed", label: "Completed" },
+  { value: "all", label: "All" },
 ]
 
 const DESIGN_STATUS_OPTIONS = [
@@ -37,10 +43,6 @@ const DESIGN_STATUS_OPTIONS = [
   { label: "On Hold", value: "On_Hold" },
   { label: "Commerce Ready", value: "Commerce_Ready" },
 ]
-
-// Partner statuses excluded from the default view — show active work only
-const EXCLUDED_PARTNER_STATUSES = ["completed", "cancelled"]
-const EXCLUDED_DESIGN_STATUSES = ["Rejected"]
 
 function relativeDate(dateStr: string | undefined | null): string {
   if (!dateStr) return "-"
@@ -97,85 +99,98 @@ function formatTargetDate(dateStr: string | undefined | null): {
   return { label: formatted, color: "grey" }
 }
 
+/**
+ * #6 — the work tab bar. Each tab is an action-oriented lens (Incoming / In
+ * progress / Yours / Completed / All) with a live count from the server facets,
+ * so the boundary between assigned-and-waiting, active, owned, and done work is
+ * visible at a glance. Clicking a tab sets `?bucket=` and resets pagination.
+ * Wraps on mobile.
+ */
+const WorkBucketTabs = ({
+  active,
+  facets,
+}: {
+  active: DesignBucket
+  facets?: DesignBucketFacets
+}) => {
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const select = (bucket: DesignBucket) => {
+    const next = new URLSearchParams(searchParams)
+    if (bucket === "all") {
+      next.delete("bucket")
+    } else {
+      next.set("bucket", bucket)
+    }
+    // A different lens invalidates the current page.
+    next.delete("offset")
+    setSearchParams(next)
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1 px-4 py-2">
+      {WORK_BUCKETS.map(({ value, label }) => {
+        const isActive = active === value
+        const n = facets?.[value]
+        return (
+          <button
+            key={value}
+            type="button"
+            onClick={() => select(value)}
+            className={clx(
+              "transition-fg flex items-center gap-x-1.5 rounded-md px-3 py-1.5 text-sm outline-none",
+              isActive
+                ? "bg-ui-bg-base shadow-elevation-card-rest text-ui-fg-base"
+                : "text-ui-fg-subtle hover:bg-ui-bg-subtle-hover"
+            )}
+          >
+            <span className="font-medium">{label}</span>
+            {typeof n === "number" && (
+              <Badge size="2xsmall" color={isActive ? "blue" : "grey"}>
+                {n}
+              </Badge>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export const DesignList = () => {
   const { t } = useTranslation()
-  const raw = useQueryParams(["offset", "q", "status", "partner_status", "order", "source"])
+  const raw = useQueryParams(["offset", "q", "status", "bucket", "order"])
   const offset = raw.offset ? Number(raw.offset) : 0
   const q = raw.q?.trim() || ""
   const statusFilter = raw.status?.trim() || ""
-  const partnerStatusFilter = raw.partner_status?.trim() || ""
-  // "owned" = created by this partner (owner_partner_id set); "assigned" = admin-assigned.
-  const sourceFilter = raw.source?.trim() || ""
+  const bucket = ((raw.bucket?.trim() as DesignBucket) || "all") as DesignBucket
   // No client-side default sort — preserve the server order (designs come
   // back newest-assigned/created first). Only sort when the user picks one.
   const order = raw.order?.trim() || ""
 
-  const { designs, count = 0, isPending, isError, error } = usePartnerDesigns(
+  // Server now owns bucket + status + free-text filtering AND pagination, so a
+  // partner's "incoming" work is complete across all pages (was previously
+  // filtered client-side over just the current page). facets carry the
+  // per-bucket counts for the tab badges.
+  const { designs, count = 0, facets, isPending, isError, error } = usePartnerDesigns(
     {
       limit: PAGE_SIZE,
       offset,
       status: statusFilter || undefined,
+      q: q || undefined,
+      bucket,
     },
     {
       placeholderData: keepPreviousData,
     }
   )
 
-  const filteredData = useMemo(() => {
-    const text = q.toLowerCase()
-    let data = (designs || []).filter((row) => {
-      const id = String(row.id || "").toLowerCase()
-      const name = String(row.name || "").toLowerCase()
-      const status = String(row.status || "").toLowerCase()
-      const partnerStatus = String(row?.partner_info?.partner_status || "").toLowerCase()
-      const isOwned = !!(row as any)?.owner_partner_id
-
-      // Source filter (owned vs assigned)
-      if (sourceFilter === "owned" && !isOwned) {
-        return false
-      }
-      if (sourceFilter === "assigned" && isOwned) {
-        return false
-      }
-
-      // Partner status filter
-      if (partnerStatusFilter) {
-        if (partnerStatus !== partnerStatusFilter.toLowerCase()) {
-          return false
-        }
-      } else {
-        // Default: exclude completed and cancelled
-        if (EXCLUDED_PARTNER_STATUSES.includes(partnerStatus)) {
-          return false
-        }
-      }
-
-      // Design status filter
-      if (statusFilter) {
-        if (status !== statusFilter.toLowerCase()) {
-          return false
-        }
-      } else if (EXCLUDED_DESIGN_STATUSES.includes(row.status)) {
-        return false
-      }
-
-      if (!text) {
-        return true
-      }
-
-      return (
-        id.includes(text) ||
-        name.includes(text) ||
-        status.includes(text) ||
-        partnerStatus.includes(text)
-      )
-    })
-
-    // Sort. Only when the user explicitly picks an order — otherwise
-    // preserve the server order, which already returns designs
-    // newest-assigned/created first (a re-sort by updated_at here would
-    // push a freshly assigned design down, since assignment doesn't bump
-    // the design's updated_at).
+  // Filtering (bucket/status/q) + pagination now happen server-side. The only
+  // remaining client step is an optional explicit sort of the current page —
+  // applied just when the user picks an order, otherwise the server order
+  // (newest-assigned/created first) is preserved.
+  const sortedDesigns = useMemo(() => {
+    let data = designs || []
     if (order) {
       const sortKey = order.startsWith("-") ? order.slice(1) : order
       const desc = order.startsWith("-")
@@ -194,27 +209,13 @@ export const DesignList = () => {
         return desc ? -cmp : cmp
       })
     }
-
     return data
-  }, [designs, order, partnerStatusFilter, q, statusFilter, sourceFilter])
+  }, [designs, order])
 
+  // Source + work-status are now the work tabs (WorkBucketTabs); only the
+  // design-status filter remains in the filter menu.
   const filters = useMemo<Filter[]>(
     () => [
-      {
-        type: "select",
-        key: "source",
-        label: "Source",
-        options: [
-          { label: "Created by you", value: "owned" },
-          { label: "Assigned by admin", value: "assigned" },
-        ],
-      },
-      {
-        type: "select",
-        key: "partner_status",
-        label: "Work Status",
-        options: PARTNER_STATUS_OPTIONS,
-      },
       {
         type: "select",
         key: "status",
@@ -336,12 +337,13 @@ export const DesignList = () => {
     [t]
   )
 
-  // Use filtered count for pagination (client-side filtering)
+  // Server-driven pagination: `data` is the current page, `count` is the
+  // bucket total (across all pages).
   const { table } = useDataTable({
-    data: filteredData,
+    data: sortedDesigns,
     columns,
     enablePagination: true,
-    count: filteredData.length,
+    count,
     pageSize: PAGE_SIZE,
   })
 
@@ -371,13 +373,7 @@ export const DesignList = () => {
           <div>
             <Heading>Designs</Heading>
             <span className="text-ui-fg-subtle text-xs">
-              {partnerStatusFilter || statusFilter
-                ? `Filtered: ${[
-                    partnerStatusFilter ? `work status = ${partnerStatusFilter.replace(/_/g, " ")}` : "",
-                    statusFilter ? `design status = ${statusFilter.replace(/_/g, " ")}` : "",
-                  ].filter(Boolean).join(", ")}`
-                : "Showing active designs. Use filters to see completed or cancelled."
-              }
+              Pick a tab to see incoming, in-progress, your own, or completed work.
             </span>
           </div>
           <Link to="/designs/create">
@@ -386,12 +382,15 @@ export const DesignList = () => {
             </Button>
           </Link>
         </div>
+        {/* #6 — action tabs: the clear boundary between assigned-and-waiting,
+            active, owned, and finished work. */}
+        <WorkBucketTabs active={bucket} facets={facets} />
         <_DataTable
           columns={columns}
           table={table}
           pagination
           navigateTo={(row) => `/designs/${row.original.id}`}
-          count={filteredData.length}
+          count={count}
           isLoading={isPending}
           pageSize={PAGE_SIZE}
           filters={filters}
@@ -403,7 +402,7 @@ export const DesignList = () => {
           search
           queryObject={raw}
           noRecords={{
-            message: "No active designs. Use filters to see completed or cancelled designs.",
+            message: "No designs in this tab. Try another tab or clear the search.",
           }}
         />
       </Container>

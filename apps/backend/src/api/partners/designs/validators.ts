@@ -8,6 +8,12 @@ export const listDesignsQuerySchema = z.object({
   // partner designs list has no DB index for it, so it's matched in-app
   // over the full partner-scoped set (see ./list-filters). #484.
   q: z.string().optional(),
+  // #6 — the partner "work" tab: an action-oriented lens over the same set.
+  // Maps to partner_status buckets (incoming/in_progress/completed) or
+  // ownership (yours = owner_partner_id). Filtered + counted in-app.
+  bucket: z
+    .enum(["all", "incoming", "in_progress", "completed", "yours"])
+    .optional(),
 })
 
 export type ListDesignsQuery = z.infer<typeof listDesignsQuerySchema>
