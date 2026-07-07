@@ -116,7 +116,7 @@ export async function GET(
   req: AuthenticatedMedusaRequest<ListDesignsQuery>,
   res: MedusaResponse
 ) {
-  const { limit = 20, offset = 0, status, q } = req.validatedQuery as ListDesignsQuery
+  const { limit = 20, offset = 0, status, q, bucket } = req.validatedQuery as ListDesignsQuery
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
@@ -333,9 +333,10 @@ export async function GET(
   // Apply status + free-text (`q`) filtering, THEN paginate, over the full
   // partner-scoped set. count = total matched (pre-pagination) so the UI
   // pager is correct. Pure + unit-tested in ./list-filters.
-  const { items: designs, count } = applyDesignListFilters(mappedDesigns, {
+  const { items: designs, count, facets } = applyDesignListFilters(mappedDesigns, {
     q,
     status,
+    bucket,
     offset,
     limit,
   })
@@ -343,6 +344,9 @@ export async function GET(
   res.status(200).json({
     designs,
     count,
+    // #6 — per-bucket counts for the partner work tabs (accurate across all
+    // pages, computed over the full q+status set before the active bucket).
+    facets,
     limit,
     offset,
   })

@@ -35,15 +35,24 @@ export type PartnerDesign = Record<string, any> & {
   inventory_items?: Array<Record<string, any>>
 }
 
+/** #6 — the partner "work" tab buckets (server-side lens over the same set). */
+export type DesignBucket = "all" | "incoming" | "in_progress" | "completed" | "yours"
+
+export type DesignBucketFacets = Record<DesignBucket, number>
+
 export type ListPartnerDesignsParams = {
   limit?: number
   offset?: number
   status?: string
+  q?: string
+  bucket?: DesignBucket
 }
 
 export type PartnerDesignListResponse = {
   designs: PartnerDesign[]
   count: number
+  /** #6 — per-bucket counts (accurate across all pages) for the work tabs. */
+  facets?: DesignBucketFacets
   limit: number
   offset: number
 }
