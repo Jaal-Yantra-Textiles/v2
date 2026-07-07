@@ -5,6 +5,7 @@ import {
   Heading,
   IconButton,
   Label,
+  Skeleton,
   StatusBadge,
   Text,
   Toaster,
@@ -63,7 +64,7 @@ const EtsySyncDetailPage = () => {
   if (loading) {
     return (
       <Container className="p-6">
-        <Text>Loading…</Text>
+        <Skeleton className="h-7 w-12 rounded-md" />
       </Container>
     )
   }
