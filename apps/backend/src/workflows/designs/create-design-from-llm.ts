@@ -10,6 +10,10 @@ import DesignService from "../../modules/designs/service";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { sendNotificationsStep } from "@medusajs/medusa/core-flows";
 import { mastra } from "../../mastra";
+import {
+  convertColorPaletteToColors,
+  convertCustomSizesToSizeSets,
+} from "./helpers/size-set-utils";
 
 // Input type for the generate design step
 export type GenerateDesignFromLLMInput = {
@@ -98,7 +102,15 @@ export const createDesignFromDataStep = createStep(
   "create-design-from-data-step",
   async (input: Record<string, any>, { container }) => {
     const designService: DesignService = container.resolve(DESIGN_MODULE);
-    
+
+    // Normalize the LLM's loose `custom_sizes` / `color_palette` into the
+    // structured `size_sets` / `colors` relations — same as the manual
+    // `create-design` path. Without this, AI-generated designs only ever
+    // carried `custom_sizes` and their `size_sets` relation stayed empty, so
+    // the design manager's Sizes section had nothing to show.
+    const normalizedSizeSets = convertCustomSizesToSizeSets(input.custom_sizes);
+    const normalizedColors = convertColorPaletteToColors(input.color_palette);
+
     // Process the input data to match the design model
     const designData = {
       name: input.name,
@@ -108,15 +120,27 @@ export const createDesignFromDataStep = createStep(
       status: input.status,
       priority: input.priority,
       target_completion_date: input.target_completion_date ? new Date(input.target_completion_date) : null,
-      custom_sizes: input.custom_sizes,
-      color_palette: input.color_palette,
+      custom_sizes: normalizedSizeSets ? null : input.custom_sizes,
+      color_palette: normalizedColors ? null : input.color_palette,
       tags: input.tags,
       estimated_cost: input.estimated_cost,
       designer_notes: input.designer_notes,
       metadata: input.metadata
     };
-    
+
     const design = await designService.createDesigns(designData);
+
+    if (normalizedColors?.length) {
+      await designService.createDesignColors(
+        normalizedColors.map((c) => ({ design_id: design.id, ...c }))
+      );
+    }
+    if (normalizedSizeSets?.length) {
+      await designService.createDesignSizeSets(
+        normalizedSizeSets.map((s) => ({ design_id: design.id, ...s }))
+      );
+    }
+
     return new StepResponse(design, design.id);
   },
   // Compensation function to handle rollback
