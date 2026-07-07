@@ -106,7 +106,7 @@ const DesignOrderRow = ({ run, muted }: { run: any; muted?: boolean }) => {
     <Link
       to={to}
       className={clx(
-        "flex items-center justify-between px-6 py-4 transition-colors hover:bg-ui-bg-base-hover",
+        "flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between transition-colors hover:bg-ui-bg-base-hover",
         { "opacity-75": muted }
       )}
     >

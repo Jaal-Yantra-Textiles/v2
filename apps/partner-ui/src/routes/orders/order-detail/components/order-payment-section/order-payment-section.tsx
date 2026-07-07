@@ -65,7 +65,7 @@ const Header = ({ order }: { order: HttpTypes.AdminOrder }) => {
   const { label, color } = getOrderPaymentStatus(t, order.payment_status)
 
   return (
-    <div className="flex items-center justify-between px-6 py-4">
+    <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
       <Heading level="h2">{t("orders.payment.title")}</Heading>
 
       <StatusBadge color={color} className="text-nowrap">
@@ -247,7 +247,7 @@ const Payment = ({
         />
       </div>
       {showCapture && (
-        <div className="bg-ui-bg-subtle flex items-center justify-between px-6 py-4">
+        <div className="bg-ui-bg-subtle flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-x-2">
             <ArrowDownRightMini className="text-ui-fg-muted shrink-0" />
             <Text size="small" leading="compact">

@@ -55,7 +55,7 @@ export const OrderGeneralSection = ({ order }: OrderGeneralSectionProps) => {
   }
 
   return (
-    <Container className="flex items-center justify-between px-6 py-4">
+    <Container className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <div className="flex items-center gap-x-1">
           <Heading>#{order.display_id}</Heading>

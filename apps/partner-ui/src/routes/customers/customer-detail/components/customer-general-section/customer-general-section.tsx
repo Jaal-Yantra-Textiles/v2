@@ -70,7 +70,7 @@ export const CustomerGeneralSection = ({
 
   return (
     <Container className="divide-y p-0">
-      <div className="flex items-center justify-between px-6 py-4">
+      <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <Heading>{customer.email}</Heading>
         <div className="flex items-center gap-x-2">
           <StatusBadge color={statusColor}>{statusText}</StatusBadge>

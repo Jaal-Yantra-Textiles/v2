@@ -382,7 +382,7 @@ export const DataTable = <TData,>({
         translations={toolbarTranslations}
         filterBarContent={filterBarContent}
       >
-        <div className="flex w-full items-center justify-between gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-x-4">
             {shouldRenderHeading && (
               <div>
@@ -402,7 +402,7 @@ export const DataTable = <TData,>({
               />
             )}
           </div>
-          <div className="flex items-center gap-x-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {showFilterMenu && <UiDataTable.FilterMenu />}
             {enableSorting && <UiDataTable.SortingMenu />}
             {enableSearch && (
