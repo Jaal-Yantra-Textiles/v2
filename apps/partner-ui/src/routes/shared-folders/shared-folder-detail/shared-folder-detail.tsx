@@ -237,7 +237,7 @@ export const SharedFolderDetail = () => {
       <div className="flex flex-col gap-y-4">
         {/* Header */}
         <Container className="divide-y p-0">
-          <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <Heading>{folder.name}</Heading>
               {folder.description && (
@@ -312,7 +312,7 @@ export const SharedFolderDetail = () => {
 
         {/* Media Grid */}
         <Container className="divide-y p-0">
-          <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <Heading level="h2">Files</Heading>
             {mediaFiles.length > 0 && (
               <Text size="small" className="text-ui-fg-muted">

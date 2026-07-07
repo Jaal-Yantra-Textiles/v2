@@ -46,7 +46,7 @@ export const ReturnReasonListTable = () => {
 
   return (
     <Container className="divide-y px-0 py-0">
-      <div className="flex items-center justify-between px-6 py-4">
+      <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <Heading>{t("returnReasons.domain")}</Heading>
           <Text className="text-ui-fg-subtle" size="small">

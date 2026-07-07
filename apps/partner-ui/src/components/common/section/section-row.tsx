@@ -13,9 +13,10 @@ export const SectionRow = ({ title, value, actions }: SectionRowProps) => {
   return (
     <div
       className={clx(
-        `text-ui-fg-subtle grid w-full grid-cols-2 items-center gap-4 px-6 py-4`,
+        // Stack title over value on mobile; restore the 2-col key/value grid at sm+.
+        `text-ui-fg-subtle grid w-full grid-cols-1 items-start gap-1 px-6 py-4 sm:grid-cols-2 sm:items-center sm:gap-4`,
         {
-          "grid-cols-[1fr_1fr_28px]": !!actions,
+          "sm:grid-cols-[1fr_1fr_28px]": !!actions,
         }
       )}
     >

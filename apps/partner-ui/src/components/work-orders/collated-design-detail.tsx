@@ -73,7 +73,7 @@ export const DesignSpecs = ({ design }: { design: any }) => {
   return (
     <>
       <Container className="divide-y p-0">
-        <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <Heading level="h2">{t("partner.workOrders.summary")}</Heading>
           {/* Escape hatch to the full design-management surface. */}
           <Button size="small" variant="secondary" asChild>

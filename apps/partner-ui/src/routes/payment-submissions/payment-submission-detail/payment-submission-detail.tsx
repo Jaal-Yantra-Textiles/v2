@@ -57,7 +57,7 @@ export const PaymentSubmissionDetail = () => {
       <div className="flex flex-col gap-y-4">
         {/* Header */}
         <Container className="divide-y p-0">
-          <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <Heading>
                 Submission {submission.id.slice(0, 8)}...

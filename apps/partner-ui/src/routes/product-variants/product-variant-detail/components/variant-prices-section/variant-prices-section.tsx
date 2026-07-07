@@ -29,7 +29,7 @@ export function VariantPricesSection({ variant }: VariantPricesSectionProps) {
 
   return (
     <Container className="flex flex-col divide-y p-0">
-      <div className="flex items-center justify-between px-6 py-4">
+      <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <Heading level="h2">{t("labels.prices")}</Heading>
         <ActionMenu
           groups={[
@@ -60,7 +60,7 @@ export function VariantPricesSection({ variant }: VariantPricesSectionProps) {
         )
       })}
       {hasPrices && (
-        <div className="txt-small text-ui-fg-subtle flex items-center justify-between px-6 py-4">
+        <div className="txt-small text-ui-fg-subtle flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <span className="font-medium">
             {t("products.variant.pricesPagination", {
               total: prices.length,

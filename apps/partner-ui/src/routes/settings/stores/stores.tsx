@@ -152,7 +152,7 @@ const StorefrontSection = () => {
   if (!status.provisioned) {
     return (
       <Container className="divide-y p-0">
-        <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <Heading level="h2">Storefront</Heading>
             <Text size="small" className="text-ui-fg-subtle">
@@ -190,7 +190,7 @@ const StorefrontSection = () => {
 
   return (
     <Container className="divide-y p-0">
-      <div className="flex items-center justify-between px-6 py-4">
+      <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-x-2">
           <Heading level="h2">Storefront</Heading>
           {hasError ? (
@@ -439,7 +439,7 @@ const CustomDomainSection = () => {
 
   return (
     <Container className="divide-y p-0">
-      <div className="flex items-center justify-between px-6 py-4">
+      <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <Heading level="h2">Custom Domain</Heading>
           <Text size="small" className="text-ui-fg-subtle">
@@ -640,7 +640,7 @@ export const SettingsStores = () => {
     <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet>
       {/* Store General Section */}
       <Container className="divide-y p-0">
-        <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <Heading>Store</Heading>
             <Text className="text-ui-fg-subtle" size="small">
@@ -768,7 +768,7 @@ export const SettingsStores = () => {
       {/* Currencies Section */}
       {store && currencies.length > 0 && (
         <Container className="divide-y p-0">
-          <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <Heading level="h2">Currencies</Heading>
               <Text className="text-ui-fg-subtle" size="small">

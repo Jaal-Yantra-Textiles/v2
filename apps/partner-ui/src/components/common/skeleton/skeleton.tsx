@@ -118,7 +118,7 @@ export const GeneralSectionSkeleton = ({
 
   return (
     <Container className="divide-y p-0" aria-hidden>
-      <div className="flex items-center justify-between px-6 py-4">
+      <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <HeadingSkeleton characters={16} />
         <IconButtonSkeleton />
       </div>
@@ -184,7 +184,7 @@ export const TableSkeleton = ({
       })}
     >
       {hasToolbar && (
-        <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           {filters && <Skeleton className="h-7 w-full max-w-[135px]" />}
           {(search || orderBy) && (
             <div className="flex items-center gap-x-2">
@@ -207,7 +207,7 @@ export const TableSkeleton = ({
 export const TableSectionSkeleton = (props: TableSkeletonProps) => {
   return (
     <Container className="divide-y p-0" aria-hidden>
-      <div className="flex items-center justify-between px-6 py-4" aria-hidden>
+      <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between" aria-hidden>
         <HeadingSkeleton level="h2" characters={16} />
         <IconButtonSkeleton />
       </div>
@@ -219,7 +219,7 @@ export const TableSectionSkeleton = (props: TableSkeletonProps) => {
 export const JsonViewSectionSkeleton = () => {
   return (
     <Container className="divide-y p-0" aria-hidden>
-      <div className="flex items-center justify-between px-6 py-4" aria-hidden>
+      <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between" aria-hidden>
         <div aria-hidden className="flex items-center gap-x-4">
           <HeadingSkeleton level="h2" characters={16} />
           <Skeleton className="h-5 w-12 rounded-md" />

@@ -32,7 +32,7 @@ export const WorkflowExecutionGeneralSection = ({
 
   return (
     <Container className="divide-y p-0">
-      <div className="flex items-center justify-between px-6 py-4">
+      <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-x-0.5">
           <Heading>{cleanId}</Heading>
           <Copy content={cleanId} className="text-ui-fg-muted" />

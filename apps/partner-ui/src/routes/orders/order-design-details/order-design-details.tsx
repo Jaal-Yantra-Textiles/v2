@@ -73,7 +73,7 @@ export const OrderDesignDetails = () => {
       <TwoColumnPage.Main>
         {/* General + link to the full design-management surface */}
         <Container className="divide-y p-0">
-          <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <Heading level="h2">{design.name || t("partner.workOrders.designDetails")}</Heading>
             <Button size="small" variant="secondary" asChild>
               <Link to={`/designs/${design.id}`}>

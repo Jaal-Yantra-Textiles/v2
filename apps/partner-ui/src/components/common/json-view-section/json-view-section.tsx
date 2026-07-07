@@ -27,7 +27,7 @@ export const JsonViewSection = ({ data }: JsonViewSectionProps) => {
   const numberOfKeys = Object.keys(data).length
 
   return (
-    <Container className="flex items-center justify-between px-6 py-4">
+    <Container className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-x-4">
         <Heading level="h2">{t("json.header")}</Heading>
         <Badge size="2xsmall" rounded="full">
@@ -50,7 +50,7 @@ export const JsonViewSection = ({ data }: JsonViewSectionProps) => {
           dir="ltr"
           className="bg-ui-contrast-bg-base text-ui-code-fg-subtle !shadow-elevation-commandbar overflow-hidden border border-none max-md:inset-x-2 max-md:max-w-[calc(100%-16px)]"
         >
-          <div className="bg-ui-code-bg-base flex items-center justify-between px-6 py-4">
+          <div className="bg-ui-code-bg-base flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-x-4">
               <Drawer.Title asChild>
                 <Heading className="text-ui-contrast-fg-primary">

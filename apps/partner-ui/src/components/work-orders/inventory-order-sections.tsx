@@ -58,7 +58,7 @@ export const InventoryFulfillmentsSection = ({
         </div>
       ) : (
         events.map((e) => (
-          <div key={e.id} className="flex items-center justify-between px-6 py-4">
+          <div key={e.id} className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <Text size="small" weight="plus" className="truncate">
                 {e.title}
@@ -108,7 +108,7 @@ export const InventoryPaymentsSection = ({
         </div>
       ) : (
         payments.map((p, idx) => (
-          <div key={String(p.id ?? idx)} className="flex items-center justify-between px-6 py-4">
+          <div key={String(p.id ?? idx)} className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <Text size="small" weight="plus">
                 {money(Number(p.amount) || 0)}
@@ -161,7 +161,7 @@ export const InventoryUpcomingPickupCard = ({
         return (
           <div
             key={String(s.id ?? idx)}
-            className="flex items-center justify-between px-6 py-4"
+            className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="min-w-0">
               <Text size="small" weight="plus">
@@ -272,7 +272,7 @@ export const InventoryShipmentsSection = ({
         shipments.map((s, idx) => {
           const awb = s.awb || s.tracking_number
           return (
-            <div key={String(s.id ?? idx)} className="flex items-center justify-between px-6 py-4">
+            <div key={String(s.id ?? idx)} className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 {awb &&
                   (s.tracking_url ? (
