@@ -19,6 +19,22 @@ const API_BASE = "https://api.etsy.com/v3"
 const AUTH_URL = "https://www.etsy.com/oauth/connect"
 const TOKEN_URL = "https://api.etsy.com/v3/public/oauth/token"
 
+/**
+ * Etsy's return-policy resource has no name — only accepts_returns /
+ * accepts_exchanges / return_deadline. Build a readable label from those terms
+ * so a policy renders as e.g. "Returns in 30 days + exchanges" instead of blank.
+ */
+export function describeReturnPolicy(p: any): string {
+  const parts: string[] = []
+  if (p?.accepts_returns) {
+    parts.push(p.return_deadline ? `Returns in ${p.return_deadline} days` : "Returns")
+  }
+  if (p?.accepts_exchanges) {
+    parts.push("exchanges")
+  }
+  return parts.length ? parts.join(" + ") : "No returns or exchanges"
+}
+
 export class EtsyApiError extends Error {
   status: number
   body: any
@@ -389,7 +405,10 @@ export class EtsyClient {
     )
     return (data.results ?? []).map((p: any) => ({
       return_policy_id: String(p.return_policy_id),
-      name: p.name,
+      // Etsy return policies have NO name field — only accepts_returns /
+      // accepts_exchanges / return_deadline. Derive a human label so the
+      // Sync-defaults select doesn't render blank (→ "Not set").
+      name: p.name ?? describeReturnPolicy(p),
       raw: p,
     }))
   }
