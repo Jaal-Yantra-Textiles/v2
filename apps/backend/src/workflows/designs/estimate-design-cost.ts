@@ -16,7 +16,9 @@ export type MaterialCostItem = {
   name: string;
   cost: number;
   quantity: number;
-  cost_source: "order_history" | "unit_cost" | "component_design" | "consumption_log" | "estimated";
+  cost_source: "order_history" | "unit_cost" | "component_design" | "consumption_log" | "estimated" | "default";
+  /** Per-material commission (line cost × platform_fee_percent). Set when a fee applies. */
+  commission?: number;
 };
 
 type EstimateCostInput = {
@@ -34,6 +36,12 @@ type EstimateCostInput = {
    * only the partner recalc route passes DEFAULT_PLATFORM_FEE_PERCENT.
    */
   platform_fee_percent?: number;
+  /**
+   * Fallback per-unit cost for a material with no resolved cost. Opt-in per
+   * caller — defaults to 0 (off) so store/admin/draft-order flows are
+   * unaffected; the partner recalc route passes DEFAULT_MATERIAL_COST.
+   */
+  default_material_cost?: number;
 };
 
 export type EstimateCostOutput = {
@@ -62,6 +70,11 @@ const DEFAULT_PRODUCTION_PERCENT = 30;
 // Default JYT platform commission on partner production work, as a percentage
 // of material cost. Only applied when a caller opts in (partner recalc route).
 export const DEFAULT_PLATFORM_FEE_PERCENT = 10;
+
+// Fallback per-material cost (INR) when a BOM material has no resolved price
+// (no order history, no unit_cost, no consumption log). Only applied when a
+// caller opts in (partner recalc route) via default_material_cost.
+export const DEFAULT_MATERIAL_COST = 600;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -129,10 +142,25 @@ export function computeCostBreakdown(input: {
   productionCostOverride?: number | null;
   /** JYT platform commission as a percentage of material cost. Default 0. */
   platformFeePercent?: number;
+  /** Fallback per-unit cost for a material with no resolved cost. Default 0 (off). */
+  defaultMaterialCost?: number;
 }): EstimateCostOutput {
-  const materialCost = input.materials.reduce((sum, m) => sum + m.cost * m.quantity, 0);
   const { adminEstimate, similarDesigns } = input;
   const platformFeePercent = input.platformFeePercent ?? 0;
+  const defaultMaterialCost = input.defaultMaterialCost ?? 0;
+
+  // Resolve each BOM material: fall back to defaultMaterialCost when it has no
+  // resolved price, and attach the per-material commission (its share of the
+  // platform fee). The resolved list — not the raw input — drives material cost
+  // and the persisted breakdown.
+  const materials: MaterialCostItem[] = input.materials.map((m) => {
+    const useDefault = (!m.cost || m.cost <= 0) && defaultMaterialCost > 0;
+    const cost = useDefault ? defaultMaterialCost : m.cost;
+    const cost_source = useDefault ? "default" : m.cost_source;
+    const commission = round2(cost * m.quantity * (platformFeePercent / 100));
+    return { ...m, cost, cost_source, commission };
+  });
+  const materialCost = materials.reduce((sum, m) => sum + m.cost * m.quantity, 0);
 
   let productionCost: number;
   let productionPercent: number;
@@ -167,11 +195,14 @@ export function computeCostBreakdown(input: {
     productionPercent = DEFAULT_PRODUCTION_PERCENT;
   }
 
-  // JYT platform commission — charged on material cost only (product decision).
-  const platformFee = round2(materialCost * (platformFeePercent / 100));
+  // JYT platform commission — the sum of the per-material commissions (each is
+  // that line's share of the fee), which equals materialCost × fee%.
+  const platformFee = round2(
+    materials.reduce((sum, m) => sum + (m.commission ?? 0), 0)
+  );
   const totalEstimated = materialCost + productionCost + platformFee;
 
-  const hasAnyRealData = input.materials.some(
+  const hasAnyRealData = materials.some(
     (m) =>
       m.cost_source === "order_history" ||
       m.cost_source === "unit_cost" ||
@@ -196,7 +227,7 @@ export function computeCostBreakdown(input: {
     total_estimated: round2(totalEstimated),
     confidence,
     breakdown: {
-      materials: input.materials,
+      materials,
       production_percent: Math.round(productionPercent),
       platform_fee_percent: platformFeePercent,
     },
@@ -553,6 +584,7 @@ const calculateTotalCostStep = createStep(
     actualProductionCostPerUnit?: number | null;
     productionCostOverride?: number | null;
     platformFeePercent?: number;
+    defaultMaterialCost?: number;
   }) => {
     const design = input.design;
     const platformFeePercent = input.platformFeePercent ?? 0;
@@ -608,6 +640,7 @@ const calculateTotalCostStep = createStep(
       actualProductionCost: input.actualProductionCostPerUnit ?? null,
       productionCostOverride: input.productionCostOverride ?? null,
       platformFeePercent,
+      defaultMaterialCost: input.defaultMaterialCost ?? 0,
     });
     return new StepResponse(result);
   }
@@ -654,6 +687,7 @@ export const estimateDesignCostWorkflow = createWorkflow(
       productionCostOverride:
         input.production_cost_override as unknown as number | null,
       platformFeePercent: input.platform_fee_percent as unknown as number,
+      defaultMaterialCost: input.default_material_cost as unknown as number,
     });
 
     return new WorkflowResponse(result);

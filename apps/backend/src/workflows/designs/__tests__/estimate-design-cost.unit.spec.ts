@@ -219,6 +219,50 @@ describe("computeCostBreakdown", () => {
     })
   })
 
+  describe("per-material commission + default material cost", () => {
+    it("attaches a per-material commission that sums to the platform fee", () => {
+      const result = computeCostBreakdown({
+        ...base,
+        adminEstimate: null,
+        materials: orderHistoryMaterials, // cotton 10×2=20, thread 5×1=5
+        platformFeePercent: 10,
+      })
+      const items = result.breakdown.materials
+      expect(items[0].commission).toBe(2) // 20 × 10%
+      expect(items[1].commission).toBe(0.5) // 5 × 10%
+      expect(result.platform_fee).toBe(2.5) // sum of per-line commissions
+    })
+
+    it("defaults a material with no cost to defaultMaterialCost (600)", () => {
+      const materials: MaterialCostItem[] = [
+        { name: "Unknown fabric", cost: 0, quantity: 2, cost_source: "estimated" },
+      ]
+      const result = computeCostBreakdown({
+        ...base,
+        adminEstimate: null,
+        materials,
+        defaultMaterialCost: 600,
+        platformFeePercent: 10,
+      })
+      const item = result.breakdown.materials[0]
+      expect(item.cost).toBe(600)
+      expect(item.cost_source).toBe("default")
+      expect(item.commission).toBe(120) // 600×2 × 10%
+      expect(result.material_cost).toBe(1200)
+      expect(result.platform_fee).toBe(120)
+    })
+
+    it("leaves an unset material at 0 when no default is opted in", () => {
+      const materials: MaterialCostItem[] = [
+        { name: "Unknown fabric", cost: 0, quantity: 2, cost_source: "estimated" },
+      ]
+      const result = computeCostBreakdown({ ...base, adminEstimate: null, materials })
+      expect(result.material_cost).toBe(0)
+      expect(result.breakdown.materials[0].cost).toBe(0)
+      expect(result.breakdown.materials[0].cost_source).toBe("estimated")
+    })
+  })
+
   describe("confidence levels", () => {
     it("returns guesstimate when no real data", () => {
       const result = computeCostBreakdown({

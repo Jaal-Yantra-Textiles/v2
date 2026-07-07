@@ -12,6 +12,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 import {
   estimateDesignCostWorkflow,
   DEFAULT_PLATFORM_FEE_PERCENT,
+  DEFAULT_MATERIAL_COST,
 } from "../../../../../workflows/designs/estimate-design-cost"
 import { DESIGN_MODULE } from "../../../../../modules/designs"
 import { assertPartnerOwnsDesign } from "../../helpers"
@@ -49,6 +50,7 @@ export async function POST(
       design_id: designId,
       production_cost_override: productionCostOverride ?? null,
       platform_fee_percent: DEFAULT_PLATFORM_FEE_PERCENT,
+      default_material_cost: DEFAULT_MATERIAL_COST,
     },
   })
   if (errors && errors.length > 0) {
