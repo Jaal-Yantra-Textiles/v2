@@ -45,6 +45,10 @@ export const KNOWN_AI_ROLES: KnownAiRole[] = [
     value: "ai_redesign",
     label: "Moodboard Redesign — Nano-Banana (gemini-2.5-flash-image)",
   },
+  {
+    value: "ai_theme_editor",
+    label: "Theme Editor — LLM chat (#339)",
+  },
 ]
 
 /** Sentinel form value selected when the operator wants a free-form role. */
