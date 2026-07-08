@@ -1,3 +1,10 @@
+# [13.50.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.49.0...v13.50.0) (2026-07-08)
+
+
+### Features
+
+* **theme-editor:** LLM chat with propose-then-apply UX ([#339](https://github.com/Jaal-Yantra-Textiles/v2/issues/339)) ([#948](https://github.com/Jaal-Yantra-Textiles/v2/issues/948)) ([283d554](https://github.com/Jaal-Yantra-Textiles/v2/commit/283d554871bb33d01942e44ca9b28d44c9d6f74c))
+
 # [13.49.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.48.0...v13.49.0) (2026-07-07)
 
 
