@@ -1,0 +1,84 @@
+{
+  "name": "@jytextiles/medusa-plugin-faire-store-sync",
+  "version": "0.2.0",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "description": "Medusa v2 plugin to bidirectionally sync Medusa products, inventory and orders with a Faire brand account via the Faire External Platform API (OAuth 2.0).",
+  "keywords": [
+    "medusa-v2",
+    "medusa-plugin-integration",
+    "medusa-plugin-other",
+    "faire",
+    "medusa",
+    "plugin"
+  ],
+  "license": "MIT",
+  "author": "Jaal Yantra Textiles",
+  "homepage": "https://github.com/Jaal-Yantra-Textiles/v2/tree/main/packages/medusa-plugin-faire-store-sync#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jaal-Yantra-Textiles/v2.git",
+    "directory": "packages/medusa-plugin-faire-store-sync"
+  },
+  "bugs": {
+    "url": "https://github.com/Jaal-Yantra-Textiles/v2/issues"
+  },
+  "scripts": {
+    "build": "medusa plugin:build",
+    "dev": "medusa plugin:develop",
+    "db:generate": "medusa plugin:db:generate",
+    "test": "jest"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./workflows": "./.medusa/server/src/workflows/index.js",
+    "./.medusa/server/src/modules/*": "./.medusa/server/src/modules/*/index.js",
+    "./providers/*": "./.medusa/server/src/providers/*/index.js",
+    "./admin": {
+      "import": "./.medusa/server/src/admin/index.mjs",
+      "require": "./.medusa/server/src/admin/index.js",
+      "default": "./.medusa/server/src/admin/index.js"
+    },
+    "./*": "./.medusa/server/src/*.js"
+  },
+  "files": [
+    "src",
+    ".medusa",
+    "scripts"
+  ],
+  "devDependencies": {
+    "@medusajs/admin-sdk": "2.17.2",
+    "@medusajs/cli": "2.17.2",
+    "@medusajs/dashboard": "2.17.2",
+    "@medusajs/framework": "2.17.2",
+    "@medusajs/medusa": "2.17.2",
+    "@medusajs/test-utils": "2.17.2",
+    "@medusajs/ui": "4.1.19",
+    "@medusajs/icons": "2.17.2",
+    "@medusajs/types": "2.17.2",
+    "@swc/core": "1.5.7",
+    "@swc/jest": "0.2.37",
+    "@types/jest": "29.5.14",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.3.2",
+    "@types/react-dom": "^18.2.25",
+    "jest": "29.7.0",
+    "typescript": "5.6.3"
+  },
+  "peerDependencies": {
+    "@medusajs/admin-sdk": "2.17.2",
+    "@medusajs/cli": "2.17.2",
+    "@medusajs/dashboard": "2.17.2",
+    "@medusajs/framework": "2.17.2",
+    "@medusajs/medusa": "2.17.2",
+    "@medusajs/test-utils": "2.17.2",
+    "@medusajs/ui": "4.1.19",
+    "@medusajs/icons": "2.17.2",
+    "@medusajs/types": "2.17.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "6.30.4"
+  }
+}
