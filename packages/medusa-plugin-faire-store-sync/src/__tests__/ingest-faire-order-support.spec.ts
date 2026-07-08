@@ -1,12 +1,13 @@
-import { mapFaireOrderToOrder, faireMoneyCents } from "../workflows/ingest-faire-order-support"
+import { mapFaireOrderToOrder, faireMoney } from "../workflows/ingest-faire-order-support"
 
-describe("faireMoneyCents", () => {
-  it("passes through finite integers", () => {
-    expect(faireMoneyCents(2500)).toBe(2500)
+describe("faireMoney", () => {
+  it("converts integer cents to decimal major units", () => {
+    expect(faireMoney(2500)).toBe(25)
+    expect(faireMoney(4999)).toBe(49.99)
   })
   it("coerces undefined/NaN to 0", () => {
-    expect(faireMoneyCents(undefined)).toBe(0)
-    expect(faireMoneyCents(NaN)).toBe(0)
+    expect(faireMoney(undefined)).toBe(0)
+    expect(faireMoney(NaN)).toBe(0)
   })
 })
 
@@ -42,7 +43,7 @@ describe("mapFaireOrderToOrder", () => {
 
     expect(mapped.order_token).toBe("o_123")
     expect(mapped.currency_code).toBe("usd")
-    expect(mapped.total).toBe(4999)
+    expect(mapped.total).toBe(49.99)
     expect(mapped.buyer_name).toBe("Ada Lovelace")
     expect(mapped.email).toBe("faire+o_123@marketplace.invalid")
     expect(mapped.shipping_address.country_code).toBe("gb")
@@ -50,7 +51,7 @@ describe("mapFaireOrderToOrder", () => {
     expect(mapped.items[0]).toMatchObject({
       title: "Cushion",
       quantity: 2,
-      unit_price: 1250,
+      unit_price: 12.5,
     })
     expect(mapped.items[0].metadata).toMatchObject({
       faire_order_token: "o_123",

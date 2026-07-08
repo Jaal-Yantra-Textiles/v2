@@ -1,9 +1,14 @@
 // Pure mapping from a Faire order → the pieces createOrderWorkflow needs.
 // Kept side-effect-free so it can be unit-tested without a container.
 
-export const faireMoneyCents = (cents?: number): number => {
+// Faire sends money as integer minor units in *_cents fields (2-decimal
+// currencies). Medusa v2 order line-item unit_price and payment-collection
+// amounts are decimal MAJOR units (e.g. 49.99, not 4999) — same contract the
+// sibling Etsy plugin honours via etsyMoney(). Divide by 100 so orders are not
+// created at 100× the real total.
+export const faireMoney = (cents?: number): number => {
   const n = Number(cents)
-  return Number.isFinite(n) ? n : 0
+  return Number.isFinite(n) ? n / 100 : 0
 }
 
 const splitName = (name?: string): { first: string; last: string } => {
@@ -54,7 +59,7 @@ export function mapFaireOrderToOrder(order: any): MappedFaireOrder {
     return {
       title: String(it?.product_name ?? it?.name ?? it?.title ?? "Faire item").slice(0, 250),
       quantity: Math.max(1, Number(it?.quantity ?? it?.qty) || 1),
-      unit_price: unitCents,
+      unit_price: faireMoney(unitCents),
       metadata: {
         faire_order_token: orderToken,
         faire_item_id: it?.id != null ? String(it.id) : null,
@@ -84,7 +89,7 @@ export function mapFaireOrderToOrder(order: any): MappedFaireOrder {
     email,
     buyer_name: buyerName || null,
     currency_code: currency,
-    total: faireMoneyCents(order?.total_cents ?? order?.grand_total_cents),
+    total: faireMoney(order?.total_cents ?? order?.grand_total_cents),
     shipping_address,
     items: mappedItems,
   }

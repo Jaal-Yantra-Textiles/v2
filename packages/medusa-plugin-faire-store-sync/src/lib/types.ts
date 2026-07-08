@@ -33,8 +33,10 @@ export interface BrandInfo {
 }
 
 /**
- * Faire returns money as integer cents in the brand's currency. We keep cents
- * end-to-end (never divide by 100) and only convert for display.
+ * Faire returns money as integer cents in the brand's currency. Keep cents for
+ * transport/storage, but convert to decimal major units (cents / 100) at the
+ * boundary where amounts enter Medusa order/payment workflows — see
+ * faireMoney() in ingest-faire-order-support.ts.
  */
 export interface FaireMoney {
   amount_cents: number
