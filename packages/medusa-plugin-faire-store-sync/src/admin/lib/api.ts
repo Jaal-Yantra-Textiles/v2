@@ -1,0 +1,88 @@
+import Medusa from "@medusajs/js-sdk"
+
+export const sdk = new Medusa({
+  baseUrl: "/",
+  auth: {
+    type: "session",
+  },
+})
+
+export const faireApi = {
+  status: () =>
+    sdk.client.fetch<{
+      connected: boolean
+      account: any | null
+      settings: any
+      readiness: {
+        connected: boolean
+        brand: boolean
+        wholesale_pricing: boolean
+        shipping_policy: boolean
+        ready_to_publish: boolean
+      }
+    }>("/admin/faire/status"),
+  getSettings: () =>
+    sdk.client.fetch<Record<string, any>>("/admin/faire/settings"),
+  saveSettings: (settings: Record<string, any>) =>
+    sdk.client.fetch("/admin/faire/settings", {
+      method: "POST",
+      body: settings,
+    }),
+  authorize: () =>
+    sdk.client.fetch<{ authorization_url: string; state: string }>(
+      "/admin/faire/auth/authorize"
+    ),
+  callback: (code: string, state: string) =>
+    sdk.client.fetch("/admin/faire/auth/callback", {
+      method: "POST",
+      body: { code, state },
+    }),
+  disconnect: () =>
+    sdk.client.fetch("/admin/faire/auth/disconnect", { method: "POST" }),
+  syncProduct: (id: string) =>
+    sdk.client.fetch(`/admin/faire/sync/product/${id}`, { method: "POST" }),
+  productStatus: (id: string) =>
+    sdk.client.fetch<{
+      connected: boolean
+      synced: boolean
+      latest: any | null
+    }>(`/admin/faire/status/product/${id}`),
+  syncBulk: (product_ids: string[]) =>
+    sdk.client.fetch<{ batch_id: string; status: string }>(
+      "/admin/faire/sync/bulk",
+      {
+        method: "POST",
+        body: { product_ids },
+      }
+    ),
+  bulkStatus: (batchId: string) =>
+    sdk.client.fetch<{ batch: any; progress: any }>(
+      `/admin/faire/sync/bulk/${batchId}`
+    ),
+  ingestOrders: (limit?: number) =>
+    sdk.client.fetch<{ batch_id: string; status: string }>(
+      "/admin/faire/ingest/orders",
+      { method: "POST", body: limit != null ? { limit } : {} }
+    ),
+  ingestStatus: (batchId: string) =>
+    sdk.client.fetch<{ batch: any; progress: any }>(
+      `/admin/faire/ingest/orders/${batchId}`
+    ),
+  listSyncs: (opts: { take?: number; skip?: number; status?: string } = {}) => {
+    const query: Record<string, string> = {}
+    if (opts.take !== undefined) query.take = String(opts.take)
+    if (opts.skip !== undefined) query.skip = String(opts.skip)
+    if (opts.status) query.status = opts.status
+    return sdk.client.fetch("/admin/faire/syncs", { query })
+  },
+  getSync: (id: string) => sdk.client.fetch(`/admin/faire/syncs/${id}`),
+  retrySync: (id: string) =>
+    sdk.client.fetch(`/admin/faire/syncs/${id}`, { method: "POST" }),
+  brand: () => sdk.client.fetch("/admin/faire/brand"),
+  products: (opts: { limit?: number; page?: number } = {}) => {
+    const query: Record<string, string> = {}
+    if (opts.limit !== undefined) query.limit = String(opts.limit)
+    if (opts.page !== undefined) query.page = String(opts.page)
+    return sdk.client.fetch("/admin/faire/products", { query })
+  },
+}
