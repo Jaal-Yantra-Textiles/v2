@@ -423,3 +423,79 @@ export const useInventoryWithRawMaterials = (
   
   return { ...data, ...rest };
 };
+
+// Page size used when auto-paginating the raw-materials catalog. The endpoint
+// loads the full set server-side then slices, so this only bounds the number
+// of round-trips — 200 keeps payload sizes modest while capping fetches at
+// ~ceil(count/200) for very large catalogs.
+const RAW_MATERIALS_FETCH_ALL_PAGE_SIZE = 200
+
+// Fetch-all variant: pages through /admin/inventory-items/raw-materials until
+// the true `count` is reached, eliminating the silent truncation a single
+// `limit:1000` page introduced once the catalog grows past it. Returns a shape
+// matching the single-page hook so callers (order-lines pickers) can swap in
+// unchanged. #947
+export const useAllInventoryWithRawMaterials = (
+  baseQuery?: Record<string, any>,
+  options?: Omit<
+    UseQueryOptions<
+      InventoryWithRawMaterialsResponse,
+      FetchError,
+      InventoryWithRawMaterialsResponse,
+      QueryKey
+    >,
+    "queryKey" | "queryFn"
+  >
+) => {
+  const query = { ...(baseQuery ?? {}) }
+  delete query.limit
+  delete query.offset
+
+  const { data, ...rest } = useQuery<
+    InventoryWithRawMaterialsResponse,
+    FetchError,
+    InventoryWithRawMaterialsResponse,
+    QueryKey
+  >({
+    queryKey: [
+      ...inventoryItemsRawMaterialQueryKeys.lists(),
+      "all",
+      query,
+    ],
+    queryFn: async () => {
+      const accumulated: InventoryItem[] = []
+      let offset = 0
+      // Upper bound on iterations to guard against a misbehaving endpoint.
+      const maxPages = 500
+      for (let page = 0; page < maxPages; page++) {
+        const res = await sdk.client.fetch<InventoryWithRawMaterialsResponse>(
+          `/admin/inventory-items/raw-materials`,
+          {
+            method: "GET",
+            query: {
+              ...query,
+              limit: RAW_MATERIALS_FETCH_ALL_PAGE_SIZE,
+              offset,
+            },
+          }
+        )
+        const batch = res.inventory_items ?? []
+        accumulated.push(...batch)
+        const total = res.count ?? accumulated.length
+        offset += batch.length
+        if (batch.length === 0 || offset >= total) {
+          break
+        }
+      }
+      return {
+        inventory_items: accumulated,
+        count: accumulated.length,
+        offset: 0,
+        limit: accumulated.length,
+      }
+    },
+    ...options,
+  })
+
+  return { ...data, ...rest }
+};

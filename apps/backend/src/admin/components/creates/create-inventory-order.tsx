@@ -9,7 +9,7 @@ import { KeyboundForm } from "../utilitites/key-bound-form";
 import { Form } from "../common/form";
 import { useState, useEffect } from "react";
 import { useStockLocations } from "../../hooks/api/stock_location";
-import { useInventoryWithRawMaterials } from "../../hooks/api/raw-materials";
+import { useAllInventoryWithRawMaterials } from "../../hooks/api/raw-materials";
 import { InventoryOrderLinesGrid } from "./inventory-order-lines-grid";
 import { AddMaterialGroupControl } from "../inventory-orders/add-material-group-control";
 
@@ -110,16 +110,17 @@ export const CreateInventoryOrderComponent = () => {
   }, [tab]);
 
   const { stock_locations = [] } = useStockLocations();
-  // Load a generous page of the catalog once and filter the item picker purely
-  // client-side (see inventory-order-lines-grid). Server-side `q` search was
-  // dropped on purpose: changing the query key on every keystroke re-fetched,
-  // churned the grid's option/column state and REMOUNTED the picker cell mid-
-  // type — which blurred the input, closed the dropdown and wiped the query
-  // (the "search flickers / closes on the earlier value" flakiness). A single
-  // large fetch + local narrowing is stable and covers our catalog size.
-  const { inventory_items = [], isLoading } = useInventoryWithRawMaterials({
-    limit: 1000,
-  });
+  // Load the full catalog once (paginated to the true `count`) and filter the
+  // item picker purely client-side (see inventory-order-lines-grid). A single
+  // fixed-limit page used to silently truncate once the catalog grew past it
+  // (#947); the fetch-all hook pages until the endpoint's true count is
+  // reached. Server-side `q` search remains dropped on purpose: changing the
+  // query key on every keystroke re-fetched, churned the grid's option/column
+  // state and REMOUNTED the picker cell mid-type — which blurred the input,
+  // closed the dropdown and wiped the query (the "search flickers / closes on
+  // the earlier value" flakiness). A single large fetch + local narrowing is
+  // stable and covers our catalog size.
+  const { inventory_items = [], isLoading } = useAllInventoryWithRawMaterials();
 
   // Use Field Array for order lines
   const { fields, append, remove } = useFieldArray({

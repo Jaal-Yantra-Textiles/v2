@@ -71,6 +71,56 @@ export const useRawMaterialGroups = (query?: {
       }>("/admin/raw-material-groups", { query: query as any }),
   })
 
+// Page size for auto-paginating the groups list. Groups are far fewer than
+// inventory items, but raising a flat limit only defers the truncation —
+// paging to the true `count` removes it entirely. #947
+const RAW_MATERIAL_GROUPS_FETCH_ALL_PAGE_SIZE = 100
+
+// Fetch-all variant: pages through /admin/raw-material-groups until the true
+// `count` is reached, so the order-lines "Add material groups" picker never
+// silently drops groups beyond a flat limit. Returns the same `{ data, ... }`
+// shape as useRawMaterialGroups for a drop-in swap. #947
+export const useAllRawMaterialGroups = (query?: {
+  q?: string
+  status?: string
+}) =>
+  useQuery({
+    queryKey: groupKeys.list({ ...query, all: true }),
+    queryFn: async () => {
+      const baseQuery: Record<string, any> = { ...(query ?? {}) }
+      const accumulated: RawMaterialGroup[] = []
+      let offset = 0
+      const maxPages = 100
+      for (let page = 0; page < maxPages; page++) {
+        const res = await sdk.client.fetch<{
+          raw_material_groups: RawMaterialGroup[]
+          count: number
+          offset: number
+          limit: number
+        }>("/admin/raw-material-groups", {
+          query: {
+            ...baseQuery,
+            limit: RAW_MATERIAL_GROUPS_FETCH_ALL_PAGE_SIZE,
+            offset,
+          } as any,
+        })
+        const batch = res.raw_material_groups ?? []
+        accumulated.push(...batch)
+        const total = res.count ?? accumulated.length
+        offset += batch.length
+        if (batch.length === 0 || offset >= total) {
+          break
+        }
+      }
+      return {
+        raw_material_groups: accumulated,
+        count: accumulated.length,
+        offset: 0,
+        limit: accumulated.length,
+      }
+    },
+  })
+
 export const useRawMaterialGroup = (id?: string) =>
   useQuery({
     queryKey: groupKeys.detail(id!),
