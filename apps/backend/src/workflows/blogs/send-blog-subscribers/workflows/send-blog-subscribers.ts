@@ -84,8 +84,8 @@ export const sendBlogSubscribersWorkflow = createWorkflow(
           channel: "feed",
           template: "admin-ui",
           data: {
-            title: "Blog Subscription",
-            description: `Failed to send blog "${data.blogData.title}" to subscribers.`,
+            title: "Blog broadcast failed",
+            description: `“${data.blogData.title}” could not be sent to subscribers. Check the workflow logs and retry.`,
           },
         },
       ]
@@ -132,8 +132,8 @@ export const sendBlogSubscribersWorkflow = createWorkflow(
           channel: "feed",
           template: "admin-ui",
           data: {
-            title: "Blog Subscription",
-            description: `Successfully sent blog "${data.blogData.title}" to ${data.sendingSummary.sentCount} subscribers.${queuedMsg}`,
+            title: "Blog broadcast sent",
+            description: `“${data.blogData.title}” was sent to ${data.sendingSummary.sentCount} subscriber${data.sendingSummary.sentCount === 1 ? "" : "s"}.${queuedMsg}`,
           },
         },
       ]
