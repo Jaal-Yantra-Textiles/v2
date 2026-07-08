@@ -13,7 +13,10 @@ import { ingestFaireOrderWorkflow } from "./ingest-faire-order"
 export const INGEST_FAIRE_ORDERS_BULK = "faire-ingest-orders-bulk"
 
 export type IngestFaireOrdersBulkInput = {
-  // When omitted, pulls all available orders from Faire (paged).
+  // When omitted, pulls all changed orders since the last successful sync
+  // (incremental). Set to force a full backfill from a specific ISO timestamp,
+  // or `null` to backfill everything.
+  updated_at_min?: string | null
   limit?: number
 }
 
@@ -62,17 +65,28 @@ const openBatchStep = createStep(
 const processBatchStep = createStep(
   "faire-ingest-orders-process-batch-step",
   async (
-    input: { batch_id: string; limit?: number },
+    input: { batch_id: string; updated_at_min?: string | null; limit?: number },
     { container }
   ): Promise<StepResponse<{ synced: number; failed: number }>> => {
     const service: FaireSyncService = container.resolve(FAIRE_SYNC_MODULE)
     const account = await service.ensureFreshToken()
     const client = service.getClient()
 
+    // Resolve the incremental window. Precedence:
+    //   explicit input > persisted high-water mark > full backfill (undefined).
+    let updatedAtMin: string | undefined
+    if (input.updated_at_min !== undefined) {
+      updatedAtMin = input.updated_at_min ?? undefined
+    } else {
+      const last = await service.getLastOrderSyncAt()
+      updatedAtMin = last ? last.toISOString() : undefined
+    }
+
     let synced = 0
     let failed = 0
     let total = 0
     let delay = BASE_DELAY_MS
+    let highWater: Date | null = null
     const errors: Record<string, string> = {}
 
     const persistProgress = async () => {
@@ -88,13 +102,17 @@ const processBatchStep = createStep(
     }
 
     try {
-      let page = 1
+      let page: string | undefined
       let stop = false
       while (!stop) {
-        const { results } = await client.listOrders(account.access_token, {
-          limit: PAGE_SIZE,
-          page,
-        })
+        const { results, next_page } = await client.listOrders(
+          account.access_token,
+          {
+            limit: PAGE_SIZE,
+            page,
+            updated_at_min: updatedAtMin,
+          }
+        )
         if (!results.length) break
         total += results.length
 
@@ -125,14 +143,21 @@ const processBatchStep = createStep(
         if (input.limit != null && total >= input.limit) {
           stop = true
         }
-        // Stop if the last page was short (no more pages).
-        if (results.length < PAGE_SIZE) {
+        // Cursor pagination — stop when Faire returns no next cursor.
+        if (!next_page) {
           stop = true
         }
-        page++
+        page = next_page
       }
+      highWater = new Date()
     } catch (err: any) {
       errors["__fetch__"] = err?.message || "Failed to list Faire orders"
+    }
+
+    // Advance the incremental cursor only if this run fetched anything and
+    // didn't hard-fail at the listing step.
+    if (highWater && total > 0) {
+      await service.setLastOrderSyncAt(highWater).catch(() => {})
     }
 
     await service.updateFaireSyncBatches({
@@ -159,6 +184,7 @@ export const ingestFaireOrdersBulkWorkflow = createWorkflow(
     processBatchStep(
       transform({ input, opened }, (data) => ({
         batch_id: data.opened.batch_id,
+        updated_at_min: data.input.updated_at_min,
         limit: data.input.limit,
       }))
     ).config({ async: true, backgroundExecution: true })

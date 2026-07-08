@@ -20,6 +20,8 @@ const FaireSyncSettings = model.define("faire_sync_settings", {
   auto_publish: model.boolean().default(false),
   follow_product_status: model.boolean().default(true),
   pending_oauth: model.json().nullable(),
+  // High-water mark for incremental order polling (Faire polls, not webhooks).
+  last_order_sync_at: model.dateTime().nullable(),
 })
 
 export default FaireSyncSettings

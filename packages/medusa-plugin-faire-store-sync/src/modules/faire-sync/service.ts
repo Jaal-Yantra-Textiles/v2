@@ -49,7 +49,12 @@ function toMedusaError(err: any): MedusaError {
 }
 
 function resolveFaireOptions(options?: ModuleOptions): ModuleOptions {
+  const authMode =
+    (process.env.FAIRE_AUTH_MODE as ModuleOptions["authMode"]) ??
+    readOption(options, "authMode") ??
+    "oauth"
   return {
+    authMode: authMode === "apiKey" ? "apiKey" : "oauth",
     clientId: process.env.FAIRE_CLIENT_ID ?? readOption(options, "clientId") ?? "",
     clientSecret:
       process.env.FAIRE_CLIENT_SECRET ?? readOption(options, "clientSecret") ?? "",
@@ -61,8 +66,8 @@ function resolveFaireOptions(options?: ModuleOptions): ModuleOptions {
     authUrl: process.env.FAIRE_AUTH_URL ?? readOption(options, "authUrl"),
     tokenUrl: process.env.FAIRE_TOKEN_URL ?? readOption(options, "tokenUrl"),
     scope: process.env.FAIRE_SCOPE ?? readOption(options, "scope") ?? "",
-    webhookSecret:
-      process.env.FAIRE_WEBHOOK_SECRET ?? readOption(options, "webhookSecret") ?? "",
+    accessToken:
+      process.env.FAIRE_ACCESS_TOKEN ?? readOption(options, "accessToken") ?? "",
   } as ModuleOptions
 }
 
@@ -188,7 +193,27 @@ class FaireSyncService extends MedusaService({
     return this.updateFaireSyncSettings({ id: settings.id, ...data } as any)
   }
 
+  /**
+   * High-water mark for incremental order polling. Returns the last successful
+   * sync timestamp, or null if orders have never been polled (full backfill).
+   */
+  async getLastOrderSyncAt(): Promise<Date | null> {
+    const settings = await this.getSettings()
+    const v = (settings as any).last_order_sync_at
+    return v ? new Date(v) : null
+  }
+
+  async setLastOrderSyncAt(at: Date): Promise<void> {
+    await this.updateSettings({ last_order_sync_at: at })
+  }
+
   async startOAuth(): Promise<{ authorization_url: string; state: string }> {
+    if (this.options_.authMode === "apiKey") {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "Faire is configured in API-key mode — use /admin/faire/auth/api-key to connect, not OAuth."
+      )
+    }
     try {
       const state = crypto.randomUUID()
       await this.updateSettings({
@@ -202,6 +227,37 @@ class FaireSyncService extends MedusaService({
         authorization_url: client.getAuthorizationUrl(state),
         state,
       }
+    } catch (err) {
+      throw toMedusaError(err)
+    }
+  }
+
+  /**
+   * API-key (single-merchant) connection. Fetches the brand profile using the
+   * supplied access token and persists the account. No OAuth round-trip.
+   */
+  async connectWithApiKey(accessToken: string) {
+    if (!accessToken) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "A Faire access token is required."
+      )
+    }
+    try {
+      const client = this.getClient()
+      const brand = await client.getBrand(accessToken)
+      const token: TokenData = {
+        access_token: accessToken,
+        token_type: "Bearer",
+        retrieved_at: Date.now(),
+      }
+      const account = await this.saveAccount(token, brand)
+      await this.updateSettings({
+        account_id: account.id,
+        default_brand_id: brand.brand_id,
+        pending_oauth: null,
+      })
+      return { account, brand }
     } catch (err) {
       throw toMedusaError(err)
     }

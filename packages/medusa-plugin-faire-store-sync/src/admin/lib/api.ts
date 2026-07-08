@@ -37,6 +37,11 @@ export const faireApi = {
       method: "POST",
       body: { code, state },
     }),
+  connectApiKey: (access_token: string) =>
+    sdk.client.fetch("/admin/faire/auth/api-key", {
+      method: "POST",
+      body: { access_token },
+    }),
   disconnect: () =>
     sdk.client.fetch("/admin/faire/auth/disconnect", { method: "POST" }),
   syncProduct: (id: string) =>
@@ -79,10 +84,11 @@ export const faireApi = {
   retrySync: (id: string) =>
     sdk.client.fetch(`/admin/faire/syncs/${id}`, { method: "POST" }),
   brand: () => sdk.client.fetch("/admin/faire/brand"),
-  products: (opts: { limit?: number; page?: number } = {}) => {
+  products: (opts: { limit?: number; page?: string; updated_at_min?: string } = {}) => {
     const query: Record<string, string> = {}
     if (opts.limit !== undefined) query.limit = String(opts.limit)
     if (opts.page !== undefined) query.page = String(opts.page)
+    if (opts.updated_at_min !== undefined) query.updated_at_min = opts.updated_at_min
     return sdk.client.fetch("/admin/faire/products", { query })
   },
 }

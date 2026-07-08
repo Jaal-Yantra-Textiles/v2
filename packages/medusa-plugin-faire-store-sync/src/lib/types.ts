@@ -1,19 +1,39 @@
+/**
+ * Faire exposes TWO auth models (verified against Faire's own
+ * Faire-for-WooCommerce plugin + 3 production OAuth integrations):
+ *
+ *  - "oauth"   — multi-merchant OAuth app. Requests send
+ *                `X-FAIRE-OAUTH-ACCESS-TOKEN` AND `X-FAIRE-APP-CREDENTIALS`
+ *                (base64(applicationId:applicationSecret)). Token exchange is
+ *                NON-RFC-6749 (see exchangeCodeForToken).
+ *  - "apiKey"  — single-merchant API key. Requests send
+ *                `X-FAIRE-ACCESS-TOKEN`. No OAuth dance at all.
+ *
+ * The plugin supports both; pick via FAIRE_AUTH_MODE / options.authMode.
+ */
+export type FaireAuthMode = "oauth" | "apiKey"
+
 export interface FairePluginOptions {
-  clientId: string
-  clientSecret: string
-  redirectUri: string
+  authMode?: FaireAuthMode
+  // OAuth app credentials (required when authMode === "oauth")
+  clientId?: string
+  clientSecret?: string
+  redirectUri?: string
+  scope?: string
+  // API-key mode (required when authMode === "apiKey")
+  accessToken?: string
+  // Shared
   apiBase?: string
   authUrl?: string
   tokenUrl?: string
-  scope?: string
-  webhookSecret?: string
 }
 
-export const DEFAULT_API_BASE = "https://www.faire.com/api/v2"
-export const DEFAULT_AUTH_URL = "https://www.faire.com/oauth/authorize"
-export const DEFAULT_TOKEN_URL = "https://www.faire.com/oauth/token"
-// Faire OAuth currently exposes no granular scopes; the parameter is kept for
-// forward-compat and to match the OAuth2 authorize URL shape.
+export const DEFAULT_API_BASE = "https://faire.com/external-api/v2"
+export const DEFAULT_AUTH_URL = "https://faire.com/oauth2/authorize"
+export const DEFAULT_TOKEN_URL = "https://www.faire.com/api/external-api-oauth2/token"
+// Faire OAuth scopes are coarse tokens like READ_ORDERS, WRITE_PRODUCTS. The
+// authorize URL expects a space-joined `scope` param; left empty the app's
+// default scopes apply.
 export const DEFAULT_SCOPE = ""
 
 export interface TokenData {
@@ -95,6 +115,15 @@ export interface InventoryLevel {
   raw?: Record<string, any>
 }
 
+/**
+ * Payload for `PATCH /product-inventory/by-skus`. Faire ingests an array of
+ * per-SKU overrides; each row carries the SKU and the new on-hand count.
+ */
+export interface InventoryOverrideBySku {
+  sku: string
+  current_count: number
+}
+
 export interface FaireOrder {
   order_token: string
   state?: string
@@ -108,10 +137,4 @@ export interface PreparedProduct {
   product: ProductResponse
   published: boolean
   warnings: string[]
-}
-
-export interface WebhookRegistration {
-  webhook_token?: string
-  url: string
-  events: string[]
 }

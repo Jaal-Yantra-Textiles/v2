@@ -1,14 +1,14 @@
-import crypto from "crypto"
 import {
   DEFAULT_API_BASE,
   DEFAULT_AUTH_URL,
   DEFAULT_TOKEN_URL,
   FairePluginOptions,
+  FaireAuthMode,
   BrandInfo,
   CreateProductInput,
   UpdateProductInput,
   ProductResponse,
-  InventoryLevel,
+  InventoryOverrideBySku,
   FaireOrder,
   TokenData,
 } from "./types"
@@ -27,18 +27,27 @@ export class FaireApiError extends Error {
 /**
  * Faire External Platform API v2 client.
  *
- * Auth model:
- *  - OAuth 2.0 authorization-code flow (no PKCE; Faire does not use PKCE).
- *  - Scoped requests send `Authorization: Bearer <access_token>`.
- *  - Faire's API-key mode (`X-FAIRE-ACCESS-TOKEN`) is not used here because the
- *    plugin connects a brand account via OAuth redirect.
+ * Verified against Faire's OWN Faire-for-WooCommerce plugin
+ * (plugins.svn.wordpress.org/faire-for-woocommerce) and 3 production OAuth
+ * integrations. Key differences from a presumed OAuth2/REST surface:
  *
- * NOTE: Faire's developer portal is access-gated. Endpoint paths, payload
- * shapes and the webhook signature scheme below reflect the publicly documented
- * v2 surface and standard OAuth2 conventions; adjust via options / env if your
- * Faire app uses a different base or signing scheme.
+ *  ARCHITECTURE — Faire is POLLING, not webhooks. There is NO inbound webhook
+ *  registration. Orders/products are pulled via `GET /orders` / `GET /products`
+ *  with cursor pagination + `updated_at_min`. Inventory is PUSHED via
+ *  `PATCH /product-inventory/by-skus` (not pulled).
+ *
+ *  AUTH — two modes:
+ *   - oauth:  `X-FAIRE-OAUTH-ACCESS-TOKEN: <token>`
+ *             `X-FAIRE-APP-CREDENTIALS: base64(applicationId:applicationSecret)`
+ *   - apiKey: `X-FAIRE-ACCESS-TOKEN: <token>`
+ *  Neither uses `Authorization: Bearer`. Token exchange is non-RFC-6749
+ *  (custom field names, JSON body, grant_type="AUTHORIZATION_CODE").
+ *
+ *  BASE — `https://faire.com/external-api/v2` (bare faire.com, NOT www/api).
+ *  BRAND — `GET /brands/profile` (NOT /brand).
  */
 export class FaireClient {
+  private authMode: FaireAuthMode
   private clientId: string
   private clientSecret: string
   private redirectUri: string
@@ -46,50 +55,70 @@ export class FaireClient {
   private authUrl: string
   private tokenUrl: string
   private scope: string
+  private apiKey: string
 
-  constructor(opts: FairePluginOptions) {
-    this.clientId = opts.clientId
-    this.clientSecret = opts.clientSecret
-    this.redirectUri = opts.redirectUri
+  constructor(opts: FairePluginOptions = {}) {
+    this.authMode = opts.authMode ?? "oauth"
+    this.clientId = opts.clientId ?? ""
+    this.clientSecret = opts.clientSecret ?? ""
+    this.redirectUri =
+      opts.redirectUri ??
+      "http://localhost:9000/app/settings/oauth/faire/callback"
     this.apiBase = opts.apiBase || DEFAULT_API_BASE
     this.authUrl = opts.authUrl || DEFAULT_AUTH_URL
     this.tokenUrl = opts.tokenUrl || DEFAULT_TOKEN_URL
     this.scope = opts.scope ?? ""
+    this.apiKey = opts.accessToken ?? ""
   }
 
   get redirectUriValue(): string {
     return this.redirectUri
   }
 
+  get authModeValue(): FaireAuthMode {
+    return this.authMode
+  }
+
   // ── OAuth ───────────────────────────────────────────────────────────────
 
   /**
-   * Build the Faire OAuth authorize URL. The caller must persist `state`
-   * (keyed by it) for the callback verification.
+   * Build the Faire OAuth authorize URL.
+   *
+   * Faire's authorize endpoint takes `applicationId` (NOT client_id),
+   * `redirectUrl` (NOT redirect_uri) and a space-joined `scope`. `state` is
+   * round-tripped for CSRF protection.
    */
   getAuthorizationUrl(state: string): string {
     const params = new URLSearchParams({
-      response_type: "code",
-      client_id: this.clientId,
-      redirect_uri: this.redirectUri,
+      applicationId: this.clientId,
+      redirectUrl: this.redirectUri,
       state,
     })
     if (this.scope) params.set("scope", this.scope)
     return `${this.authUrl}?${params.toString()}`
   }
 
+  /**
+   * Exchange an authorization code for an access token.
+   *
+   * Faire's token endpoint is NON-RFC-6749: it expects a JSON body with the
+   * field names below (NOT client_id/client_secret/redirect_uri), posts to
+   * `/api/external-api-oauth2/token`, and returns
+   * `{ application_token, access_token, ... }`.
+   */
   async exchangeCodeForToken(code: string): Promise<TokenData> {
-    const body = new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: this.clientId,
-      client_secret: this.clientSecret,
-      redirect_uri: this.redirectUri,
-      code,
-    })
+    const body = {
+      application_token: this.clientId,
+      application_secret: this.clientSecret,
+      authorization_code: code,
+      grant_type: "AUTHORIZATION_CODE",
+      redirect_url: this.redirectUri,
+      scope: this.scope ? this.scope.split(/\s+/) : [],
+    }
     const data = await this.requestJson<any>(this.tokenUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString(),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
       auth: false,
     })
     return {
@@ -102,16 +131,16 @@ export class FaireClient {
   }
 
   async refreshAccessToken(refresh_token: string): Promise<TokenData> {
-    const body = new URLSearchParams({
-      grant_type: "refresh_token",
-      client_id: this.clientId,
-      client_secret: this.clientSecret,
+    const body = {
+      application_token: this.clientId,
+      application_secret: this.clientSecret,
       refresh_token,
-    })
+      grant_type: "REFRESH_TOKEN",
+    }
     const data = await this.requestJson<any>(this.tokenUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString(),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
       auth: false,
     })
     return {
@@ -125,13 +154,13 @@ export class FaireClient {
 
   /**
    * Resolve the brand the access token belongs to. Faire exposes the current
-   * brand via GET /api/v2/brand. Falls back gracefully if the shape differs.
+   * brand via `GET /brands/profile`.
    */
   async getBrand(accessToken: string): Promise<BrandInfo> {
-    const data = await this.requestJson<any>(`${this.apiBase}/brand`, {
-      method: "GET",
-      accessToken,
-    })
+    const data = await this.requestJson<any>(
+      `${this.apiBase}/brands/profile`,
+      { method: "GET", accessToken }
+    )
     const brand =
       data && typeof data === "object" && (data.brand_id || data.id)
         ? data
@@ -154,7 +183,7 @@ export class FaireClient {
     return this.requestJson<T>(url, { method: "GET", accessToken })
   }
 
-  // ── Products ────────────────────────────────────────────────────────────
+  // ── Products (POLL) ─────────────────────────────────────────────────────
 
   async createProduct(
     accessToken: string,
@@ -197,13 +226,24 @@ export class FaireClient {
     return this.mapProduct(data?.product ?? data)
   }
 
+  /**
+   * Poll products. Faire paginates with a cursor (`page` param is a cursor
+   * returned by the previous response, NOT a 1-based index) and supports
+   * `updated_at_min` for incremental sync. Pass the last cursor + a high-water
+   * `updated_at_min` ISO timestamp to fetch only changed products.
+   */
   async listProducts(
     accessToken: string,
-    opts: { limit?: number; page?: number } = {}
-  ): Promise<{ count: number; results: ProductResponse[] }> {
+    opts: { limit?: number; page?: string; updated_at_min?: string } = {}
+  ): Promise<{
+    count: number
+    results: ProductResponse[]
+    next_page?: string
+  }> {
     const params = new URLSearchParams()
     params.set("limit", String(opts.limit ?? 100))
     if (opts.page != null) params.set("page", String(opts.page))
+    if (opts.updated_at_min) params.set("updated_at_min", opts.updated_at_min)
     const data = await this.requestJson<any>(
       `${this.apiBase}/products?${params.toString()}`,
       { method: "GET", accessToken }
@@ -211,51 +251,56 @@ export class FaireClient {
     const results = (data.products ?? data.results ?? []).map((p: any) =>
       this.mapProduct(p)
     )
-    return { count: data.count ?? results.length, results }
+    return {
+      count: data.count ?? results.length,
+      results,
+      next_page: data.next_page ?? data.pagination?.next_page,
+    }
   }
 
-  // ── Inventory ───────────────────────────────────────────────────────────
+  // ── Inventory (PUSH — was inverted) ──────────────────────────────────────
 
-  async getInventory(
-    accessToken: string,
-    productToken?: string
-  ): Promise<InventoryLevel[]> {
-    const params = new URLSearchParams()
-    if (productToken) params.set("product_token", productToken)
-    const data = await this.requestJson<any>(
-      `${this.apiBase}/inventory?${params.toString()}`,
-      { method: "GET", accessToken }
-    )
-    const rows = data.inventory ?? data.results ?? []
-    return (Array.isArray(rows) ? rows : []).map((r: any) => ({
-      sku: String(r.sku ?? r.variant_id ?? ""),
-      product_token: r.product_token ? String(r.product_token) : undefined,
-      current_count: Number(r.current_count ?? r.inventory_count ?? 0),
-      raw: r,
-    }))
-  }
-
+  /**
+   * Push inventory overrides to Faire by SKU.
+   *
+   * Faire does NOT expose a `GET /inventory` you can poll for remote counts —
+   * inventory is write-only: `PATCH /product-inventory/by-skus` with an array
+   * of `{ sku, current_count }` rows. (A `by-product-variant-ids` variant
+   * exists for id-keyed overrides.)
+   */
   async updateInventory(
     accessToken: string,
-    levels: Array<{ sku: string; current_count: number }>
+    overrides: InventoryOverrideBySku[]
   ): Promise<any> {
-    return this.requestJson<any>(`${this.apiBase}/inventory`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ inventory: levels }),
-      accessToken,
-    })
+    return this.requestJson<any>(
+      `${this.apiBase}/product-inventory/by-skus`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inventories: overrides }),
+        accessToken,
+      }
+    )
   }
 
-  // ── Orders ──────────────────────────────────────────────────────────────
+  // ── Orders (POLL) ───────────────────────────────────────────────────────
 
+  /**
+   * Poll orders. Cursor-paginated via `page`; `updated_at_min` enables
+   * incremental sync from a persisted last-sync high-water mark.
+   */
   async listOrders(
     accessToken: string,
-    opts: { limit?: number; page?: number } = {}
-  ): Promise<{ count: number; results: FaireOrder[] }> {
+    opts: { limit?: number; page?: string; updated_at_min?: string } = {}
+  ): Promise<{
+    count: number
+    results: FaireOrder[]
+    next_page?: string
+  }> {
     const params = new URLSearchParams()
     params.set("limit", String(opts.limit ?? 100))
     if (opts.page != null) params.set("page", String(opts.page))
+    if (opts.updated_at_min) params.set("updated_at_min", opts.updated_at_min)
     const data = await this.requestJson<any>(
       `${this.apiBase}/orders?${params.toString()}`,
       { method: "GET", accessToken }
@@ -263,7 +308,11 @@ export class FaireClient {
     const results = (data.orders ?? data.results ?? []).map((o: any) =>
       this.mapOrder(o)
     )
-    return { count: data.count ?? results.length, results }
+    return {
+      count: data.count ?? results.length,
+      results,
+      next_page: data.next_page ?? data.pagination?.next_page,
+    }
   }
 
   async getOrder(accessToken: string, orderToken: string): Promise<FaireOrder> {
@@ -272,6 +321,46 @@ export class FaireClient {
       { method: "GET", accessToken }
     )
     return this.mapOrder(data?.order ?? data)
+  }
+
+  /**
+   * Accept/update an order (Faire's "processing" transition).
+   * `PUT /orders/{id}/processing`.
+   */
+  async setOrderProcessing(
+    accessToken: string,
+    orderToken: string,
+    payload: Record<string, any> = {}
+  ): Promise<any> {
+    return this.requestJson<any>(
+      `${this.apiBase}/orders/${orderToken}/processing`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        accessToken,
+      }
+    )
+  }
+
+  /**
+   * Post tracking/shipment info to an order.
+   * `POST /orders/{id}/shipments`.
+   */
+  async createOrderShipment(
+    accessToken: string,
+    orderToken: string,
+    shipment: Record<string, any>
+  ): Promise<any> {
+    return this.requestJson<any>(
+      `${this.apiBase}/orders/${orderToken}/shipments`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(shipment),
+        accessToken,
+      }
+    )
   }
 
   async setOrderItemAvailability(
@@ -288,20 +377,6 @@ export class FaireClient {
         accessToken,
       }
     )
-  }
-
-  // ── Webhooks ────────────────────────────────────────────────────────────
-
-  async registerWebhook(
-    accessToken: string,
-    payload: { url: string; events: string[] }
-  ): Promise<any> {
-    return this.requestJson<any>(`${this.apiBase}/webhooks`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      accessToken,
-    })
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────
@@ -348,6 +423,28 @@ export class FaireClient {
     }
   }
 
+  // ── Auth header assembly ────────────────────────────────────────────────
+
+  /**
+   * Build the Faire auth headers for an access token according to the active
+   * auth mode. This is the crux of issue #952 §2 — never `Bearer`.
+   */
+  private authHeaders(accessToken: string): Record<string, string> {
+    if (this.authMode === "apiKey") {
+      return { "X-FAIRE-ACCESS-TOKEN": accessToken || this.apiKey }
+    }
+    const headers: Record<string, string> = {
+      "X-FAIRE-OAUTH-ACCESS-TOKEN": accessToken,
+    }
+    if (this.clientId && this.clientSecret) {
+      const credentials = Buffer.from(
+        `${this.clientId}:${this.clientSecret}`
+      ).toString("base64")
+      headers["X-FAIRE-APP-CREDENTIALS"] = credentials
+    }
+    return headers
+  }
+
   // ── Low-level request with rate-limit handling ──────────────────────────
 
   private async requestJson<T>(
@@ -364,8 +461,8 @@ export class FaireClient {
       Accept: "application/json",
       ...(init.headers || {}),
     }
-    if (init.accessToken) {
-      headers["Authorization"] = `Bearer ${init.accessToken}`
+    if (init.auth !== false && init.accessToken) {
+      Object.assign(headers, this.authHeaders(init.accessToken))
     }
 
     let attempt = 0

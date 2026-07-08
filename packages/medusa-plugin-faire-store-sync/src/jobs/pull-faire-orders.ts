@@ -4,9 +4,12 @@ import FaireSyncService from "../modules/faire-sync/service"
 import { ingestFaireOrdersBulkWorkflow } from "../workflows/ingest-faire-orders-bulk"
 
 /**
- * Scheduled pull of new Faire orders. Runs the bulk order-ingestion workflow
- * (a long-running background workflow) so new wholesale orders placed on Faire
- * are mirrored into Medusa without a seller having to trigger it manually.
+ * Scheduled incremental pull of Faire orders.
+ *
+ * Faire is POLLING, not webhooks — there is no inbound delivery. This job runs
+ * the bulk order-ingestion workflow, which fetches only orders changed since
+ * the persisted `last_order_sync_at` high-water mark (cursor-based). Cadence is
+ * every 5 minutes (Faire's own WooCommerce plugin polls on a similar interval).
  *
  * Disable by setting FAIRE_AUTO_INGEST_ORDERS=false.
  */
@@ -26,5 +29,5 @@ export default async function pullFaireOrdersJob(container: MedusaContainer) {
 
 export const config = {
   name: "faire-pull-orders",
-  schedule: "*/30 * * * *", // every 30 minutes
+  schedule: "*/5 * * * *", // every 5 minutes (polling model)
 }
