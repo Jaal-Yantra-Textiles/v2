@@ -1,7 +1,6 @@
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { SubscriberBatch, EmailSendingResult, SendingSummary } from "../types"
 import { Modules } from "@medusajs/framework/utils"
-import { convertTipTapToHtml } from "../utils/tiptap-to-html"
 import { sendMailjetBulk, BulkEmailEntry } from "../../../../modules/mailjet/bulk"
 import { INotificationModuleService } from "@medusajs/types"
 import { EMAIL_PROVIDER_MANAGER_MODULE } from "../../../../modules/email-provider-manager"
@@ -9,88 +8,14 @@ import EmailProviderManagerService from "../../../../modules/email-provider-mana
 import { EMAIL_TEMPLATES_MODULE } from "../../../../modules/email_templates"
 import EmailTemplatesService from "../../../../modules/email_templates/service"
 import * as Handlebars from "handlebars"
+import {
+  buildEmailData,
+  convertContentToHtml,
+} from "../utils/build-email-data"
 
 export const processAllBatchesStepId = "process-all-batches"
 
 const BLOG_TEMPLATE_KEY = "blog-subscriber"
-
-/**
- * Converts blog content to HTML, handling TipTap JSON and plain text formats.
- */
-function convertContentToHtml(content: any): string {
-  if (typeof content === "object") {
-    return convertTipTapToHtml(content)
-  }
-
-  if (typeof content === "string") {
-    if (content.includes('"type":"doc"') || content.startsWith("{")) {
-      try {
-        return convertTipTapToHtml(JSON.parse(content))
-      } catch {
-        return convertTipTapToHtml(content)
-      }
-    }
-    return content
-  }
-
-  return String(content || "")
-}
-
-/**
- * Builds the email data payload for a subscriber.
- */
-function buildEmailData(
-  subscriber: { id: string; email: string; first_name?: string; last_name?: string },
-  blogData: any,
-  htmlContent: string,
-  emailConfig: { subject: string; customMessage?: string }
-) {
-  const frontend = process.env.FRONTEND_URL || "https://jaalyantra.com"
-  // UTM tagging so newsletter/blog traffic is attributable in analytics.
-  // Campaign defaults to the post slug when available for per-post attribution.
-  const campaign = (blogData?.slug || "blog_broadcast").toString()
-  const UTM = `utm_source=newsletter&utm_medium=email&utm_campaign=${encodeURIComponent(campaign)}`
-  const withUtm = (u: string) => (u ? `${u}${u.includes("?") ? "&" : "?"}${UTM}` : u)
-
-  return {
-    blog_title: blogData.title,
-    blog_content: htmlContent,
-    blog_url: withUtm(`${frontend}${blogData.url}`),
-    blog_created_at: blogData.created_at,
-    blog_updated_at: blogData.updated_at,
-    blog_tags: blogData.tags || [],
-    first_name: subscriber.first_name || "",
-    last_name: subscriber.last_name || "",
-    email: subscriber.email,
-    subscriber_id: subscriber.id,
-    subject: emailConfig.subject,
-    custom_message: emailConfig.customMessage || "",
-    // Carry the email alongside the (ambiguous person|customer|lead) id so the
-    // unsubscribe endpoint suppresses by email even when the id can't resolve.
-    unsubscribe_url: `${frontend}/unsubscribe?id=${encodeURIComponent(
-      subscriber.id
-    )}&email=${encodeURIComponent(subscriber.email)}`,
-    website_url: withUtm(frontend),
-    // Two doors: buy finished pieces on cicilabel.com; design & produce on jaalyantra.com.
-    shop_url: withUtm("https://cicilabel.com"),
-    create_url: withUtm("https://jaalyantra.com"),
-    current_year: new Date().getFullYear().toString(),
-    blog: {
-      title: blogData.title,
-      content: htmlContent,
-      url: `${process.env.FRONTEND_URL || ""}${blogData.url}`,
-      created_at: blogData.created_at,
-      updated_at: blogData.updated_at,
-      tags: blogData.tags || [],
-    },
-    person: {
-      first_name: subscriber.first_name || "",
-      last_name: subscriber.last_name || "",
-      email: subscriber.email,
-      id: subscriber.id,
-    },
-  }
-}
 
 // Register Handlebars helpers once
 let helpersRegistered = false
