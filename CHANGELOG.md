@@ -1,3 +1,25 @@
+# [13.49.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.48.0...v13.49.0) (2026-07-07)
+
+
+### Bug Fixes
+
+* **google-ads:** correct v24 GAQL field names (UNRECOGNIZED_FIELD) ([#921](https://github.com/Jaal-Yantra-Textiles/v2/issues/921)) ([91a72d4](https://github.com/Jaal-Yantra-Textiles/v2/commit/91a72d4dac5256bea9357c77fb1d79ea1b2ef885)), closes [#918](https://github.com/Jaal-Yantra-Textiles/v2/issues/918)
+* **google-ads:** date-range sync via BETWEEN — any window / full history ([#923](https://github.com/Jaal-Yantra-Textiles/v2/issues/923)) ([6ae593a](https://github.com/Jaal-Yantra-Textiles/v2/commit/6ae593a3837e7c266827ea8276a6aaf0aca9edef))
+* **designs:** populate size_sets on AI-created designs + backfill legacy custom_sizes ([#929](https://github.com/Jaal-Yantra-Textiles/v2/issues/929)) ([e6964a3](https://github.com/Jaal-Yantra-Textiles/v2/commit/e6964a310dda1b7c5f7fb724e3ae5ec77d965ac9))
+* **etsy:** return-policy label + settings as its own route; consume plugin [@latest](https://github.com/latest) ([#926](https://github.com/Jaal-Yantra-Textiles/v2/issues/926)) ([a2f1b14](https://github.com/Jaal-Yantra-Textiles/v2/commit/a2f1b14cb05588d34204e02eebc52ee8513befad))
+
+
+### Features
+
+* **partner:** action-oriented work tabs on the Design list ([#6](https://github.com/Jaal-Yantra-Textiles/v2/issues/6)) ([#932](https://github.com/Jaal-Yantra-Textiles/v2/issues/932)) ([d599c75](https://github.com/Jaal-Yantra-Textiles/v2/commit/d599c75aedd6c49449c6bf582005db4db0ba0693))
+* **google-ads:** durable insights + PMax asset-groups + ad-planning bridge + base-currency ([#933](https://github.com/Jaal-Yantra-Textiles/v2/issues/933)) ([e34298c](https://github.com/Jaal-Yantra-Textiles/v2/commit/e34298cdf2bc47ba35769e9b7f4d3ec2539cf496)), closes [#925](https://github.com/Jaal-Yantra-Textiles/v2/issues/925)
+* **partner-ui:** mobile-responsive section headers, key/value rows & table toolbar ([#930](https://github.com/Jaal-Yantra-Textiles/v2/issues/930)) ([283dfae](https://github.com/Jaal-Yantra-Textiles/v2/commit/283dfae2bdd1e91f38b8f2c55aacb6069a876d6b))
+* **partner-designs:** partner-entered production cost + 10% JYT platform fee ([#922](https://github.com/Jaal-Yantra-Textiles/v2/issues/922)) ([ec8498d](https://github.com/Jaal-Yantra-Textiles/v2/commit/ec8498d6541c0807c1d0d1147610ea8fb426b099))
+* **design-cost:** per-material commission + 600 INR default material cost ([#927](https://github.com/Jaal-Yantra-Textiles/v2/issues/927)) ([7067a41](https://github.com/Jaal-Yantra-Textiles/v2/commit/7067a4121345856d379e686e149f1690da956c7f)), closes [#922](https://github.com/Jaal-Yantra-Textiles/v2/issues/922)
+* **partner-ui:** production-cost input + platform-fee line on design cost panel ([#924](https://github.com/Jaal-Yantra-Textiles/v2/issues/924)) ([6246927](https://github.com/Jaal-Yantra-Textiles/v2/commit/62469270d6380039646fd4d6a8cd99f7d41b37bb)), closes [#922](https://github.com/Jaal-Yantra-Textiles/v2/issues/922)
+* **partner-ui:** render the FULL design manager nested inside the order ([#931](https://github.com/Jaal-Yantra-Textiles/v2/issues/931)) ([2371d08](https://github.com/Jaal-Yantra-Textiles/v2/commit/2371d08db771f43611998b601f51a06b3e9263f8))
+* **partner-ui:** surface design sizes + BOM on order, gate cost to owner ([#928](https://github.com/Jaal-Yantra-Textiles/v2/issues/928)) ([023ae7b](https://github.com/Jaal-Yantra-Textiles/v2/commit/023ae7b309db9b4a16d21090c587daadab710d31)), closes [#1](https://github.com/Jaal-Yantra-Textiles/v2/issues/1) [#3](https://github.com/Jaal-Yantra-Textiles/v2/issues/3) [#5](https://github.com/Jaal-Yantra-Textiles/v2/issues/5)
+
 # [13.48.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.47.1...v13.48.0) (2026-07-07)
 
 

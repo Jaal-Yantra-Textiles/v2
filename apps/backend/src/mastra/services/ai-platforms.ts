@@ -69,6 +69,11 @@ export type AiRole =
   // (google/gemini-2.5-flash-image) or a hand-tagged google platform; falls
   // back to OPENROUTER_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY env vars.
   | "ai_redesign"
+  // LLM chat in the theme editor (#339). Resolves the theme-edit provider
+  // from the admin-configured External Platform; falls back to the
+  // auto-rotating OpenRouter free models. The model emits scoped theme
+  // patches via a tool — see safe-patch-schema.ts for the token allowlist.
+  | "ai_theme_editor"
   // String escape hatch so callers can use ad-hoc roles without
   // bumping this union every time.
   | (string & {})

@@ -11,7 +11,7 @@ import {
   IconButton,
   Badge,
 } from "@medusajs/ui"
-import { ArrowPath, Plus, Trash } from "@medusajs/icons"
+import { ArrowPath, Plus, Trash, Sparkles } from "@medusajs/icons"
 
 import {
   RouteFocusModal,
@@ -25,6 +25,7 @@ import { Skeleton } from "../../../components/common/skeleton"
 import { ImageUploadField } from "../../../components/common/image-upload-field"
 import { useStorefrontStatus } from "../../../hooks/api/storefront"
 import { useProducts } from "../../../hooks/api/products"
+import { ThemeChatPanel } from "./components/theme-chat-panel"
 
 const SOCIAL_PLATFORMS = [
   "Facebook",
@@ -220,6 +221,7 @@ const ThemeEditorInner = () => {
   const formRef = useRef<WebsiteTheme>({})
   const initializedRef = useRef(false)
   const [activeSection, setActiveSection] = useState<ThemeSection>("hero")
+  const [chatOpen, setChatOpen] = useState(false)
   const [iframeReady, setIframeReady] = useState(false)
   const iframeReadyRef = useRef(false)
   const [iframePath, setIframePath] = useState("/")
@@ -355,6 +357,27 @@ const ThemeEditorInner = () => {
     [sendPreview, debouncedSave]
   )
 
+  // Apply a theme patch from the LLM chat panel. Each section in the
+  // patch is shallow-merged into the current form (matching updateForm's
+  // semantics), preview is pushed to the iframe, and a debounced save
+  // fires. Multiple sections in one patch are applied atomically.
+  const applyChatPatch = useCallback(
+    (patch: Record<string, Record<string, unknown>>) => {
+      const current = formRef.current
+      let newForm = { ...current }
+      for (const [section, data] of Object.entries(patch)) {
+        if (!data || typeof data !== "object") continue
+        const merged = { ...(current[section as keyof WebsiteTheme] as any), ...data }
+        newForm = { ...newForm, [section]: merged }
+        sendPreview(section, merged)
+      }
+      formRef.current = newForm
+      setForm(newForm)
+      debouncedSave(newForm)
+    },
+    [sendPreview, debouncedSave]
+  )
+
   const handleSave = async () => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     try {
@@ -481,6 +504,15 @@ const ThemeEditorInner = () => {
           </Badge>
         </div>
         <div className="flex items-center gap-x-2">
+          <Tooltip content="AI Theme Assistant">
+            <IconButton
+              variant={chatOpen ? "transparent" : "transparent"}
+              size="small"
+              onClick={() => setChatOpen((v) => !v)}
+            >
+              <Sparkles />
+            </IconButton>
+          </Tooltip>
           <Tooltip content="Refresh preview">
             <IconButton
               variant="transparent"
@@ -498,7 +530,8 @@ const ThemeEditorInner = () => {
 
       <RouteFocusModal.Body className="p-0 h-[calc(100vh-120px)]">
         <div className="flex h-full overflow-hidden">
-        {/* Section tabs */}
+        {/* Section tabs — hidden when chat is open to save space */}
+        {!chatOpen && (
         <div className="w-[180px] border-r border-ui-border-base bg-ui-bg-subtle overflow-y-auto shrink-0">
           {([
             {
@@ -553,6 +586,7 @@ const ThemeEditorInner = () => {
             </div>
           ))}
         </div>
+        )}
 
         {/* Preview iframe + inline preview overlay */}
         <div className="flex-1 bg-ui-bg-subtle p-3 relative">
@@ -575,7 +609,8 @@ const ThemeEditorInner = () => {
           )}
         </div>
 
-        {/* Property panel */}
+        {/* Property panel — hidden when chat is open */}
+        {!chatOpen && (
         <div className="w-[300px] border-l border-ui-border-base overflow-y-auto bg-ui-bg-base shrink-0">
           <div className="p-4 pb-16">
             {activeSection === "branding" && (
@@ -620,6 +655,14 @@ const ThemeEditorInner = () => {
             )}
           </div>
         </div>
+        )}
+
+        {/* AI Theme Assistant chat panel (#339) */}
+        <ThemeChatPanel
+          open={chatOpen}
+          onClose={() => setChatOpen(false)}
+          onApplyPatch={applyChatPatch}
+        />
       </div>
     </RouteFocusModal.Body>
     </>
