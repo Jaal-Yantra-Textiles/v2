@@ -69,7 +69,7 @@
     "@hookform/error-message": "^2.0.1",
     "@hookform/resolvers": "^5.0.1",
     "@jytextiles/medusa-plugin-etsy-sync": "latest",
-    "@jytextiles/medusa-plugin-faire-store-sync": "file:.yalc/@jytextiles/medusa-plugin-faire-store-sync",
+    "@jytextiles/medusa-plugin-faire-store-sync": "latest",
     "@mastra/core": "latest",
     "@mastra/evals": "latest",
     "@mastra/loggers": "latest",
