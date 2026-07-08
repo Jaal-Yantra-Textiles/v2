@@ -66,7 +66,10 @@ jobs:
         run: pnpm test
 
       - name: Upgrade npm for OIDC trusted publishing
-        run: npm install -g npm@latest
+        # Pinned: npm 12.0.0 (2026-07-08) broke provenance publishing with
+        # "Cannot find module 'sigstore'". 11.18.0 is the last known-good that
+        # bundles sigstore for OIDC trusted publishing. Revisit when 12.x fixes it.
+        run: npm install -g npm@11.18.0
 
       - name: Publish to npm via OIDC (only if version changed)
         run: |
