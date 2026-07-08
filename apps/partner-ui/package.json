@@ -50,6 +50,8 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@hookform/error-message": "^2.0.1",
     "@hookform/resolvers": "3.4.2",
+    "@ai-sdk/react": "^2.0.194",
+    "ai": "^5.0.52",
     "@medusajs/admin-shared": "2.14.2",
     "@medusajs/icons": "2.14.2",
     "@medusajs/js-sdk": "2.14.2",

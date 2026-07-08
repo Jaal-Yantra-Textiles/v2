@@ -116,6 +116,7 @@ import { pinDesignGroupSchema, updateDesignGroupSchema } from "./admin/designs/[
 import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]/subs/route";
 import { subscriptionSchema } from "./web/website/[domain]/validators";
 import { websiteThemeSchema } from "./partners/storefront/website/theme/validators";
+import { ThemeChatSchema } from "./partners/storefront/website/theme/chat/validators";
 import { createPlanSchema, updatePlanSchema, createSubscriptionSchema } from "./admin/partner-plans/validators";
 import { subscribeSchema as partnerSubscribeSchema } from "./partners/subscription/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
@@ -1900,6 +1901,16 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(websiteThemeSchema)),
+      ],
+    },
+    // Partner Storefront Website Theme Chat (#339)
+    {
+      matcher: "/partners/storefront/website/theme/chat",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(ThemeChatSchema)),
       ],
     },
     // Partner Subscription
