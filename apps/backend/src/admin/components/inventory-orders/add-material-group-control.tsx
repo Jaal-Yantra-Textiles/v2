@@ -10,7 +10,7 @@ import {
   toast,
 } from "@medusajs/ui"
 import { sdk } from "../../lib/config"
-import { useRawMaterialGroups } from "../../hooks/api/raw-material-groups"
+import { useAllRawMaterialGroups } from "../../hooks/api/raw-material-groups"
 import type { RawMaterialGroup } from "../../hooks/api/raw-material-groups"
 import {
   expandGroupsToBatchLines,
@@ -51,7 +51,9 @@ export const AddMaterialGroupControl = ({
   onAdd,
   disabled,
 }: AddMaterialGroupControlProps) => {
-  const { data, isLoading } = useRawMaterialGroups({ limit: 100 })
+  // Fetch every group (paginated to the true `count`) so the picker never
+  // silently drops groups beyond a flat limit (#947).
+  const { data, isLoading } = useAllRawMaterialGroups()
   const groups = data?.raw_material_groups ?? []
 
   const [open, setOpen] = useState(false)

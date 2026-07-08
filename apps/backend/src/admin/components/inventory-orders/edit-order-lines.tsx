@@ -5,7 +5,7 @@ import { Button, Heading, Text, toast } from "@medusajs/ui";
 import { useRouteModal } from "../modal/use-route-modal";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { KeyboundForm } from "../utilitites/key-bound-form";
-import { useInventoryWithRawMaterials } from "../../hooks/api/raw-materials";
+import { useAllInventoryWithRawMaterials } from "../../hooks/api/raw-materials";
 import { InventoryOrderLinesGrid } from "../creates/inventory-order-lines-grid";
 import { AddMaterialGroupControl } from "./add-material-group-control";
 import { AdminInventoryOrder } from "../../hooks/api/inventory-orders";
@@ -71,12 +71,12 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
     resolver: zodResolver(editOrderLinesSchema),
   });
 
-  // Single large fetch + client-side narrowing in the picker (see
-  // create-inventory-order for why server-side `q` search was dropped: the
-  // per-keystroke refetch remounted the picker cell and made search flaky).
-  const { inventory_items = [], isLoading } = useInventoryWithRawMaterials({
-    limit: 1000,
-  });
+  // Full-catalog fetch (paginated to the true `count`) + client-side narrowing
+  // in the picker (see create-inventory-order for why server-side `q` search
+  // was dropped: the per-keystroke refetch remounted the picker cell and made
+  // search flaky). The fetch-all hook pages until the endpoint's true count is
+  // reached so a large catalog no longer silently truncates (#947).
+  const { inventory_items = [], isLoading } = useAllInventoryWithRawMaterials();
 
   // Use Field Array for order lines.
   // keyName MUST NOT be the default "id": react-hook-form overwrites the row's
