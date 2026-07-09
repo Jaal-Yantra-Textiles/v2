@@ -361,7 +361,15 @@ const BulkOperations = ({ connected }: { connected: boolean }) => {
             onChange={(e) => setProductIds(e.target.value)}
             disabled={!connected || pushMutation.isPending}
           />
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              size="small"
+              variant="secondary"
+              disabled={!connected}
+              onClick={() => navigate("/settings/faire/bulk")}
+            >
+              Select products
+            </Button>
             <Button
               size="small"
               onClick={handlePush}
