@@ -28,7 +28,11 @@ export interface FairePluginOptions {
   tokenUrl?: string
 }
 
-export const DEFAULT_API_BASE = "https://faire.com/external-api/v2"
+// MUST be the canonical www host. Bare `faire.com` 301-redirects to www, and a
+// 301 on a POST/PUT strips the request body (fetch/curl replay it without the
+// payload) — so writes (createProduct/updateProduct) silently no-op'd, coming
+// back as if they were `GET /products` (a product LIST). Verified live 2026-07-09.
+export const DEFAULT_API_BASE = "https://www.faire.com/external-api/v2"
 export const DEFAULT_AUTH_URL = "https://faire.com/oauth2/authorize"
 export const DEFAULT_TOKEN_URL = "https://www.faire.com/api/external-api-oauth2/token"
 // Faire OAuth scopes are coarse tokens like READ_ORDERS, WRITE_PRODUCTS. The
@@ -69,27 +73,59 @@ export interface ProductImage {
   url: string
 }
 
+/**
+ * Faire External API v2 create/update product contract (verified live
+ * 2026-07-09 against `POST https://www.faire.com/external-api/v2/products`).
+ *
+ * Money is `amount_minor` (integer minor units = cents) + `currency`. Each
+ * variant price is scoped to a geo (`country` ISO-2 OR a `country_group` enum
+ * like EUROPEAN_UNION). `taxonomy_type.id` (a `tt_…` id from GET /products/types)
+ * and per-entity `idempotence_token`s are REQUIRED — omitting either 400s.
+ */
+export type FaireLifecycleState = "DRAFT" | "PUBLISHED"
+
+export interface FaireGeoConstraint {
+  country?: string
+  country_group?: string
+}
+
+export interface FaireMoneyMinor {
+  amount_minor: number
+  currency: string
+}
+
+export interface FaireVariantPrice {
+  geo_constraint: FaireGeoConstraint
+  wholesale_price: FaireMoneyMinor
+  retail_price: FaireMoneyMinor
+}
+
+export interface FaireVariantOption {
+  name: string
+  value: string
+}
+
 export interface ProductVariantInput {
   sku: string
-  name?: string
-  wholesale_price_cents?: number
-  retail_price_cents?: number
-  inventory_count?: number
+  name: string
+  idempotence_token: string
+  options?: FaireVariantOption[]
+  available_quantity?: number
+  prices?: FaireVariantPrice[]
   images?: ProductImage[]
 }
 
 export interface CreateProductInput {
-  brand_id: string
   name: string
+  idempotence_token: string
+  lifecycle_state: FaireLifecycleState
+  taxonomy_type: { id: string }
   description?: string
-  wholesale_price_cents?: number
-  retail_price_cents?: number
-  images?: ProductImage[]
-  variants?: ProductVariantInput[]
-  tags?: string[]
-  shipping?: Record<string, any>
-  metadata?: Record<string, any>
   short_description?: string
+  variants: ProductVariantInput[]
+  images?: ProductImage[]
+  unit_multiplier?: number
+  minimum_order_quantity?: number
 }
 
 export type UpdateProductInput = Partial<CreateProductInput>
@@ -101,8 +137,6 @@ export interface ProductResponse {
   description?: string
   state?: ProductState
   url?: string
-  wholesale_price_cents?: number
-  retail_price_cents?: number
   variants?: any[]
   images?: ProductImage[]
   raw: Record<string, any>

@@ -30,7 +30,7 @@ describe("FaireClient — issue #952 corrections", () => {
   it("uses the verified base / auth / token URLs by default", () => {
     const c = new FaireClient({})
     // defaults are exported from types and consumed verbatim
-    expect(DEFAULT_API_BASE).toBe("https://faire.com/external-api/v2")
+    expect(DEFAULT_API_BASE).toBe("https://www.faire.com/external-api/v2")
     expect(DEFAULT_AUTH_URL).toBe("https://faire.com/oauth2/authorize")
     expect(DEFAULT_TOKEN_URL).toBe("https://www.faire.com/api/external-api-oauth2/token")
   })
