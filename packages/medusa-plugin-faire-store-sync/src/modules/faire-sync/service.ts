@@ -92,7 +92,15 @@ class FaireSyncService extends MedusaService({
     this.options_ = resolveFaireOptions(options)
   }
 
-  getClient(): FaireClient {
+  /**
+   * Build a Faire client. Pass `authModeOverride` (e.g. an account's `auth_mode`)
+   * to force the auth header for that connection type; without it, the plugin's
+   * configured default is used (cached).
+   */
+  getClient(authModeOverride?: "oauth" | "apiKey"): FaireClient {
+    if (authModeOverride) {
+      return new FaireClient({ ...this.options_, authMode: authModeOverride })
+    }
     if (!this.client_) {
       this.client_ = new FaireClient(this.options_)
     }
@@ -128,7 +136,11 @@ class FaireSyncService extends MedusaService({
     }
   }
 
-  async saveAccount(token: TokenData, brand: BrandInfo) {
+  async saveAccount(
+    token: TokenData,
+    brand: BrandInfo,
+    authMode: "oauth" | "apiKey" = "oauth"
+  ) {
     const existing = await this.getActiveAccount()
     const expiresAt =
       token.expires_in != null
@@ -139,6 +151,7 @@ class FaireSyncService extends MedusaService({
       brand_name: brand.brand_name,
       currency: brand.currency ?? null,
       country: brand.country ?? null,
+      auth_mode: authMode,
       access_token: encryptSecret(token.access_token),
       refresh_token: encryptSecret(token.refresh_token ?? null),
       token_expires_at: expiresAt,
@@ -163,8 +176,9 @@ class FaireSyncService extends MedusaService({
     // Best-effort: a failed revoke must not block local disconnect.
     try {
       const accessToken = decryptSecret((account as any).access_token)
-      if (accessToken && this.options_.authMode !== "apiKey") {
-        await this.getClient().revokeToken(accessToken)
+      // Only OAuth tokens are revocable; a brand-issued API key is not.
+      if (accessToken && (account as any).auth_mode !== "apiKey") {
+        await this.getClient("oauth").revokeToken(accessToken)
       }
     } catch (err: any) {
       // eslint-disable-next-line no-console
@@ -254,12 +268,8 @@ class FaireSyncService extends MedusaService({
   }
 
   async startOAuth(): Promise<{ authorization_url: string; state: string }> {
-    if (this.options_.authMode === "apiKey") {
-      throw new MedusaError(
-        MedusaError.Types.INVALID_DATA,
-        "Faire is configured in API-key mode — use /admin/faire/auth/api-key to connect, not OAuth."
-      )
-    }
+    // Both connection types are available per-account, so OAuth is always
+    // offered here; the API-key path is a separate entry point.
     try {
       const state = crypto.randomUUID()
       await this.updateSettings({
@@ -268,7 +278,7 @@ class FaireSyncService extends MedusaService({
           created_at: Date.now(),
         },
       })
-      const client = this.getClient()
+      const client = this.getClient("oauth")
       return {
         authorization_url: client.getAuthorizationUrl(state),
         state,
@@ -290,14 +300,16 @@ class FaireSyncService extends MedusaService({
       )
     }
     try {
-      const client = this.getClient()
+      // Force API-key auth (X-FAIRE-ACCESS-TOKEN) for this connection regardless
+      // of the plugin's default mode, and persist it so later API calls use it.
+      const client = this.getClient("apiKey")
       const brand = await client.getBrand(accessToken)
       const token: TokenData = {
         access_token: accessToken,
         token_type: "Bearer",
         retrieved_at: Date.now(),
       }
-      const account = await this.saveAccount(token, brand)
+      const account = await this.saveAccount(token, brand, "apiKey")
       await this.updateSettings({
         account_id: account.id,
         default_brand_id: brand.brand_id,
@@ -323,7 +335,7 @@ class FaireSyncService extends MedusaService({
       const client = this.getClient()
       token = await client.exchangeCodeForToken(code)
       const brand = await client.getBrand(token.access_token)
-      const account = await this.saveAccount(token, brand)
+      const account = await this.saveAccount(token, brand, "oauth")
       await this.updateSettings({
         account_id: account.id,
         default_brand_id: brand.brand_id,

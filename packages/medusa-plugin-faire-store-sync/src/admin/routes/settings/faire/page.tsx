@@ -1,5 +1,5 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { BuildingStorefront } from "@medusajs/icons"
+import { BuildingStorefront, ChevronDownMini } from "@medusajs/icons"
 import {
   Alert,
   Button,
@@ -7,7 +7,10 @@ import {
   DataTable,
   DataTableFilteringState,
   DataTablePaginationState,
+  Drawer,
+  DropdownMenu,
   Heading,
+  Input,
   Label,
   Skeleton,
   StatusBadge,
@@ -53,6 +56,8 @@ const FaireSettingsPage = () => {
     pageSize: PAGE_SIZE,
   })
   const [filtering, setFiltering] = useState<DataTableFilteringState>({})
+  const [apiKeyOpen, setApiKeyOpen] = useState(false)
+  const [apiKey, setApiKey] = useState("")
 
   // ── Queries ───────────────────────────────────────────────────────────────
   const statusQuery = useQuery({
@@ -87,6 +92,20 @@ const FaireSettingsPage = () => {
     },
     onError: (err: any) =>
       toast.error("Failed to start Faire authorization", {
+        description: err.message,
+      }),
+  })
+
+  const apiKeyMutation = useMutation({
+    mutationFn: () => faireApi.connectApiKey(apiKey.trim()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: STATUS_KEY })
+      setApiKeyOpen(false)
+      setApiKey("")
+      toast.success("Connected to Faire with API key")
+    },
+    onError: (err: any) =>
+      toast.error("Failed to connect with API key", {
         description: err.message,
       }),
   })
@@ -211,13 +230,22 @@ const FaireSettingsPage = () => {
               </Button>
             </div>
           ) : (
-            <Button
-              size="small"
-              onClick={() => connectMutation.mutate()}
-              isLoading={connectMutation.isPending}
-            >
-              Connect Faire
-            </Button>
+            <DropdownMenu>
+              <DropdownMenu.Trigger asChild>
+                <Button size="small" isLoading={connectMutation.isPending}>
+                  Connect Faire
+                  <ChevronDownMini />
+                </Button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content>
+                <DropdownMenu.Item onClick={() => connectMutation.mutate()}>
+                  Connect with OAuth
+                </DropdownMenu.Item>
+                <DropdownMenu.Item onClick={() => setApiKeyOpen(true)}>
+                  Connect with API key (private)
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu>
           )}
         </div>
         {connected && status?.account && (
@@ -263,6 +291,48 @@ const FaireSettingsPage = () => {
           <DataTable.Pagination />
         </DataTable>
       </Container>
+
+      {/* API-key connect (private integrations) */}
+      <Drawer open={apiKeyOpen} onOpenChange={setApiKeyOpen}>
+        <Drawer.Content>
+          <Drawer.Header>
+            <Drawer.Title>Connect with API key</Drawer.Title>
+          </Drawer.Header>
+          <Drawer.Body className="flex flex-col gap-y-3">
+            <Text className="text-ui-fg-subtle" size="small">
+              For private / unpublished Faire integrations, paste the API key
+              your Faire brand issued for this app. This connects without OAuth.
+            </Text>
+            <div className="flex flex-col gap-y-1">
+              <Label size="small">Faire API key</Label>
+              <Input
+                type="password"
+                placeholder="Paste the Faire API key…"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+          </Drawer.Body>
+          <Drawer.Footer>
+            <Button
+              variant="secondary"
+              size="small"
+              onClick={() => setApiKeyOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="small"
+              onClick={() => apiKeyMutation.mutate()}
+              isLoading={apiKeyMutation.isPending}
+              disabled={!apiKey.trim()}
+            >
+              Connect
+            </Button>
+          </Drawer.Footer>
+        </Drawer.Content>
+      </Drawer>
 
       <Toaster />
     </div>
