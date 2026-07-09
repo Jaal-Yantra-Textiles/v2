@@ -130,6 +130,30 @@ export class FaireClient {
     }
   }
 
+  /**
+   * Revoke an OAuth access token on Faire's side.
+   *
+   * Faire allows only ONE active OAuth token per (app, brand); without revoking,
+   * a reconnect fails with 400 "Application is already installed via an active
+   * OAuth access token". Non-RFC-6749 body (matches the token endpoint), posted
+   * to `/api/external-api-oauth2/revoke`, no auth header.
+   */
+  async revokeToken(accessToken: string): Promise<void> {
+    if (!accessToken) return
+    const revokeUrl = this.tokenUrl.replace(/\/token$/, "/revoke")
+    const body = {
+      application_token: this.clientId,
+      application_secret: this.clientSecret,
+      access_token_o_auth: accessToken,
+    }
+    await this.requestJson<any>(revokeUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      auth: false,
+    })
+  }
+
   async refreshAccessToken(refresh_token: string): Promise<TokenData> {
     const body = {
       application_token: this.clientId,

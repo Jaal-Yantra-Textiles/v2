@@ -8,6 +8,7 @@ import {
   Heading,
   Input,
   Skeleton,
+  StatusBadge,
   Text,
   Toaster,
   toast,
@@ -131,6 +132,28 @@ const FaireBulkPage = () => {
       toast.error("Failed to start bulk sync", { description: err.message }),
   })
 
+  // ── Pull Faire orders into Medusa (the other bulk operation) ───────────────
+  const [pullBatch, setPullBatch] = useState<string | null>(null)
+  const pullMutation = useMutation({
+    mutationFn: () => faireApi.ingestOrders(),
+    onSuccess: (res: any) => {
+      setPullBatch(res.batch_id)
+      toast.success("Faire order pull started", {
+        description: "Running in the background. Polling progress…",
+      })
+    },
+    onError: (err: any) =>
+      toast.error("Failed to start order pull", { description: err.message }),
+  })
+  const pullStatus = useQuery({
+    queryKey: ["faire", "ingest", pullBatch],
+    enabled: !!pullBatch,
+    refetchInterval: (q) =>
+      (q.state.data as any)?.progress?.finished ? false : 3000,
+    queryFn: () => faireApi.ingestStatus(pullBatch!),
+  })
+  const pullProgress = (pullStatus.data as any)?.progress
+
   const columns = useBulkProductColumns()
 
   const commands = useMemo(
@@ -251,6 +274,38 @@ const FaireBulkPage = () => {
           <DataTable.Pagination />
         </DataTable>
       </RouteFocusModal.Body>
+      <RouteFocusModal.Footer>
+        <div className="flex w-full items-center justify-between gap-x-3">
+          <div className="flex items-center gap-x-3">
+            <Text size="small" className="text-ui-fg-subtle">
+              Pull Faire orders into Medusa (idempotent)
+            </Text>
+            {pullBatch && pullProgress && (
+              <StatusBadge
+                color={
+                  pullProgress.finished
+                    ? (pullStatus.data as any)?.batch?.status === "failed"
+                      ? "red"
+                      : "green"
+                    : "orange"
+                }
+              >
+                Pull: {pullProgress.done}/{pullProgress.total || "?"} (
+                {pullProgress.pct}%)
+              </StatusBadge>
+            )}
+          </div>
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={() => pullMutation.mutate()}
+            disabled={!connected || pullMutation.isPending}
+            isLoading={pullMutation.isPending}
+          >
+            Pull orders
+          </Button>
+        </div>
+      </RouteFocusModal.Footer>
       <Toaster />
     </RouteFocusModal>
   )

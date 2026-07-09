@@ -6,6 +6,7 @@ import FaireSyncBatch from "./models/faire-sync-batch"
 import FaireWebhookEvent from "./models/faire-webhook-event"
 import FaireOrder from "./models/faire-order"
 import { FaireClient } from "../../lib/faire-client"
+import { encryptSecret, decryptSecret } from "../../lib/crypto"
 import { FairePluginOptions, BrandInfo, TokenData } from "../../lib/types"
 
 type ModuleOptions = FairePluginOptions & Record<string, any>
@@ -31,6 +32,12 @@ function toMedusaError(err: any): MedusaError {
     return new MedusaError(
       MedusaError.Types.INVALID_DATA,
       "Faire authorization expired or was already used. Please reconnect."
+    )
+  }
+  if (/already installed/i.test(message)) {
+    return new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      "This Faire app already has an active connection. Disconnect it here first, or uninstall the app from your Faire account (Settings → Apps), then connect again."
     )
   }
   if (/brand/i.test(message) && /(no|not|own)/i.test(message)) {
@@ -105,6 +112,24 @@ class FaireSyncService extends MedusaService({
     return account ?? null
   }
 
+  /**
+   * Return a shallow copy of an account with its at-rest secrets decrypted, for
+   * use when calling the Faire API. Tokens are stored encrypted (AES-256-GCM);
+   * callers that make API requests must go through this / `ensureFreshToken`.
+   */
+  private withDecryptedTokens<T extends { access_token?: any; refresh_token?: any }>(
+    account: T | null
+  ): T | null {
+    if (!account) return account
+    return {
+      ...account,
+      access_token: decryptSecret(account.access_token),
+      refresh_token: account.refresh_token
+        ? decryptSecret(account.refresh_token)
+        : account.refresh_token,
+    }
+  }
+
   async saveAccount(token: TokenData, brand: BrandInfo) {
     const existing = await this.getActiveAccount()
     const expiresAt =
@@ -116,8 +141,8 @@ class FaireSyncService extends MedusaService({
       brand_name: brand.brand_name,
       currency: brand.currency ?? null,
       country: brand.country ?? null,
-      access_token: token.access_token,
-      refresh_token: token.refresh_token ?? null,
+      access_token: encryptSecret(token.access_token),
+      refresh_token: encryptSecret(token.refresh_token ?? null),
       token_expires_at: expiresAt,
       brand_info: brand.raw,
       is_active: true,
@@ -134,6 +159,22 @@ class FaireSyncService extends MedusaService({
   async disconnect() {
     const account = await this.getActiveAccount()
     if (!account) return
+    // Revoke on Faire's side FIRST. Faire allows only one active OAuth token per
+    // (app, brand); if we only clear locally, a later reconnect fails with 400
+    // "Application is already installed via an active OAuth access token".
+    // Best-effort: a failed revoke must not block local disconnect.
+    try {
+      const accessToken = decryptSecret((account as any).access_token)
+      if (accessToken && this.options_.authMode !== "apiKey") {
+        await this.getClient().revokeToken(accessToken)
+      }
+    } catch (err: any) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        "[faire-sync] Faire token revoke failed on disconnect (clearing locally anyway):",
+        err?.message
+      )
+    }
     await this.updateFaireSyncAccounts({
       id: account.id,
       is_active: false,
@@ -142,6 +183,11 @@ class FaireSyncService extends MedusaService({
     } as any)
   }
 
+  /**
+   * Resolve an account whose access/refresh tokens are DECRYPTED and non-expired,
+   * refreshing against Faire if needed. All Faire API callers must use this — the
+   * tokens are stored encrypted at rest, so a raw account row is unusable.
+   */
   async ensureFreshToken(account?: any) {
     const acct = account ?? (await this.getActiveAccount())
     if (!acct) {
@@ -151,15 +197,16 @@ class FaireSyncService extends MedusaService({
       )
     }
     if (!acct.token_expires_at) {
-      return acct
+      return this.withDecryptedTokens(acct)
     }
     const now = Date.now()
     const expiresAt = new Date(acct.token_expires_at).getTime()
     const fiveMinutes = 5 * 60 * 1000
     if (expiresAt - now > fiveMinutes) {
-      return acct
+      return this.withDecryptedTokens(acct)
     }
-    if (!acct.refresh_token) {
+    const refreshToken = acct.refresh_token ? decryptSecret(acct.refresh_token) : ""
+    if (!refreshToken) {
       throw new MedusaError(
         MedusaError.Types.NOT_ALLOWED,
         "Faire access token has expired. Please reconnect your Faire account."
@@ -167,16 +214,17 @@ class FaireSyncService extends MedusaService({
     }
     try {
       const client = this.getClient()
-      const token = await client.refreshAccessToken(acct.refresh_token)
-      return this.updateFaireSyncAccounts({
+      const token = await client.refreshAccessToken(refreshToken)
+      const updated = await this.updateFaireSyncAccounts({
         id: acct.id,
-        access_token: token.access_token,
-        refresh_token: token.refresh_token ?? acct.refresh_token,
+        access_token: encryptSecret(token.access_token),
+        refresh_token: encryptSecret(token.refresh_token ?? refreshToken),
         token_expires_at:
           token.expires_in != null
             ? new Date(token.retrieved_at + token.expires_in * 1000)
             : null,
       } as any)
+      return this.withDecryptedTokens(updated)
     } catch (err) {
       throw toMedusaError(err)
     }
