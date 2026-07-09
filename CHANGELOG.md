@@ -1,3 +1,17 @@
+# [13.51.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.50.0...v13.51.0) (2026-07-09)
+
+
+### Bug Fixes
+
+* **#946:** blog-email variant parity — shared payload for test-send + production ([#953](https://github.com/Jaal-Yantra-Textiles/v2/issues/953)) ([14ec3cd](https://github.com/Jaal-Yantra-Textiles/v2/commit/14ec3cd70e94353126d1537141328a638e711464)), closes [#946](https://github.com/Jaal-Yantra-Textiles/v2/issues/946) [#946](https://github.com/Jaal-Yantra-Textiles/v2/issues/946) [#946](https://github.com/Jaal-Yantra-Textiles/v2/issues/946)
+* **inventory-orders:** fetch-all picker catalog to remove limit truncation ([#947](https://github.com/Jaal-Yantra-Textiles/v2/issues/947)) ([#951](https://github.com/Jaal-Yantra-Textiles/v2/issues/951)) ([de8c11f](https://github.com/Jaal-Yantra-Textiles/v2/commit/de8c11fe4e8cf25437569f3b4deb481ee17dfe6d))
+* **ci:** pin npm@11.18.0 for plugin publish — npm 12 breaks provenance ([#955](https://github.com/Jaal-Yantra-Textiles/v2/issues/955)) ([3ceac2d](https://github.com/Jaal-Yantra-Textiles/v2/commit/3ceac2d1202eedc23457cac13e7db6880e7d350f))
+
+
+### Features
+
+* **faire:** bidirectional Faire store sync plugin ([#937](https://github.com/Jaal-Yantra-Textiles/v2/issues/937)) ([#950](https://github.com/Jaal-Yantra-Textiles/v2/issues/950)) ([addc9d7](https://github.com/Jaal-Yantra-Textiles/v2/commit/addc9d731798cf910349b24655ad2fba4221d12d)), closes [#948](https://github.com/Jaal-Yantra-Textiles/v2/issues/948) [#952](https://github.com/Jaal-Yantra-Textiles/v2/issues/952) [#952](https://github.com/Jaal-Yantra-Textiles/v2/issues/952)
+
 # [13.50.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.49.0...v13.50.0) (2026-07-08)
 
 
