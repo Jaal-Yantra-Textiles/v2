@@ -1,3 +1,42 @@
+# [13.52.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.51.0...v13.52.0) (2026-07-09)
+
+
+### Bug Fixes
+
+* **faire:** revoke on disconnect, encrypt tokens at rest, bulk ops in modal ([#937](https://github.com/Jaal-Yantra-Textiles/v2/issues/937)) ([#966](https://github.com/Jaal-Yantra-Textiles/v2/issues/966)) ([cb74358](https://github.com/Jaal-Yantra-Textiles/v2/commit/cb74358a3fba943ff697cca1d622b22b04a5c1ab))
+* **faire:** robust OAuth code exchange on login callback ([#937](https://github.com/Jaal-Yantra-Textiles/v2/issues/937)) ([#960](https://github.com/Jaal-Yantra-Textiles/v2/issues/960)) ([4f5e965](https://github.com/Jaal-Yantra-Textiles/v2/commit/4f5e9658f1159988fd0b0d5bf5d89032a29eeea6))
+* **faire:** self-heal dropped OAuth + drop dead webhook model — 0.2.4 ([#937](https://github.com/Jaal-Yantra-Textiles/v2/issues/937)) ([#967](https://github.com/Jaal-Yantra-Textiles/v2/issues/967)) ([aed4762](https://github.com/Jaal-Yantra-Textiles/v2/commit/aed4762b4496616ddf185a5b8b20d88021cb24ba)), closes [#957](https://github.com/Jaal-Yantra-Textiles/v2/issues/957)
+
+
+### Features
+
+* **faire:** bulk products page for Faire store sync ([#937](https://github.com/Jaal-Yantra-Textiles/v2/issues/937)) ([#961](https://github.com/Jaal-Yantra-Textiles/v2/issues/961)) ([84e1e43](https://github.com/Jaal-Yantra-Textiles/v2/commit/84e1e43a7bd0109e83d1edfec7d5513d197cae34))
+* **faire:** per-account auth mode + API-key connect UI — 0.2.5 ([#937](https://github.com/Jaal-Yantra-Textiles/v2/issues/937)) ([#968](https://github.com/Jaal-Yantra-Textiles/v2/issues/968)) ([78af889](https://github.com/Jaal-Yantra-Textiles/v2/commit/78af8897976f01bae4c2bd569bbe0d269a8b2b25))
+
+
+### BREAKING CHANGES
+
+* **faire:** stored connections.
+
+- Model: add `auth_mode` ('oauth' | 'apiKey', default 'oauth') to
+  faire_sync_account + migration. The client's auth header (X-FAIRE-OAUTH-
+  ACCESS-TOKEN vs X-FAIRE-ACCESS-TOKEN) is now driven per-account, not by a
+  global env, so both connection types coexist.
+- Service: getClient(authModeOverride?) builds a client for a given mode;
+  saveAccount persists the mode; connectWithApiKey forces apiKey + stores it;
+  completeOAuth stores oauth; disconnect only revokes OAuth tokens (API keys
+  aren't revocable); startOAuth no longer gated on a global mode.
+- Workflows: product-sync + bulk-order-pull build the client from the account's
+  auth_mode.
+- Admin UI: the Connect button is now a DropdownMenu — "Connect with OAuth" and
+  "Connect with API key (private)"; the API-key option opens a Drawer to paste
+  the key (wired to the existing /admin/faire/auth/api-key route).
+
+15/15 unit tests pass; full plugin build (incl. admin) compiles clean.
+
+Co-authored-by: Saransh Sharma <Saransh Sharma>
+Co-authored-by: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
 # [13.51.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.50.0...v13.51.0) (2026-07-09)
 
 
