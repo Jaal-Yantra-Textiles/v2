@@ -190,6 +190,13 @@ const FaireSettingsPage = () => {
               <Button
                 size="small"
                 variant="secondary"
+                onClick={() => navigate("/settings/faire/bulk")}
+              >
+                Bulk sync
+              </Button>
+              <Button
+                size="small"
+                variant="secondary"
                 onClick={() => navigate("/settings/faire/settings")}
               >
                 Sync settings
@@ -230,9 +237,6 @@ const FaireSettingsPage = () => {
         )}
       </Container>
 
-      {/* Bulk operations */}
-      <BulkOperations connected={connected} />
-
       {/* Recent syncs */}
       <Container className="divide-y p-0">
         <DataTable instance={table}>
@@ -269,175 +273,6 @@ const InfoField = ({ label, value }: { label: string; value: string }) => (
   <div className="flex flex-col gap-1">
     <Label>{label}</Label>
     <Text>{value}</Text>
-  </div>
-)
-
-/**
- * Bulk operations card: push many products to Faire, and pull Faire orders into
- * Medusa. Both run as long-running background workflows; progress is polled.
- */
-const BulkOperations = ({ connected }: { connected: boolean }) => {
-  const [productIds, setProductIds] = useState("")
-  const [pushBatch, setPushBatch] = useState<string | null>(null)
-  const [pullBatch, setPullBatch] = useState<string | null>(null)
-
-  const pushMutation = useMutation({
-    mutationFn: (ids: string[]) => faireApi.syncBulk(ids),
-    onSuccess: (res: any) => {
-      setPushBatch(res.batch_id)
-      toast.success("Bulk product sync started", {
-        description: "Running in the background. Polling progress…",
-      })
-    },
-    onError: (err: any) =>
-      toast.error("Failed to start bulk sync", { description: err.message }),
-  })
-
-  const pullMutation = useMutation({
-    mutationFn: () => faireApi.ingestOrders(),
-    onSuccess: (res: any) => {
-      setPullBatch(res.batch_id)
-      toast.success("Faire order pull started", {
-        description: "Running in the background. Polling progress…",
-      })
-    },
-    onError: (err: any) =>
-      toast.error("Failed to start order pull", { description: err.message }),
-  })
-
-  // Poll both batches until finished.
-  const pushStatus = useQuery({
-    queryKey: ["faire", "bulk", pushBatch],
-    enabled: !!pushBatch,
-    refetchInterval: (q) =>
-      (q.state.data as any)?.progress?.finished ? false : 3000,
-    queryFn: () => faireApi.bulkStatus(pushBatch!),
-  })
-  const pullStatus = useQuery({
-    queryKey: ["faire", "ingest", pullBatch],
-    enabled: !!pullBatch,
-    refetchInterval: (q) =>
-      (q.state.data as any)?.progress?.finished ? false : 3000,
-    queryFn: () => faireApi.ingestStatus(pullBatch!),
-  })
-
-  const pushProgress = (pushStatus.data as any)?.progress
-  const pullProgress = (pullStatus.data as any)?.progress
-
-  const handlePush = () => {
-    const ids = productIds
-      .split(/[\s,]+/)
-      .map((s) => s.trim())
-      .filter(Boolean)
-    if (!ids.length) {
-      toast.error("Enter at least one product id")
-      return
-    }
-    pushMutation.mutate(ids)
-  }
-
-  return (
-    <Container className="divide-y p-0">
-      <div className="px-6 py-4">
-        <Heading>Bulk operations</Heading>
-        <Text className="text-ui-fg-subtle" size="small">
-          Push many products to Faire, or pull wholesale orders from Faire into
-          Medusa. Both run as long-running background workflows.
-        </Text>
-      </div>
-      <div className="px-6 py-4 flex flex-col gap-6">
-        {/* Push products */}
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <Label>Push products to Faire</Label>
-            <Text className="text-ui-fg-subtle" size="small">
-              Comma- or line-separated Medusa product IDs.
-            </Text>
-          </div>
-          <textarea
-            className="border-ui-border-base rounded-lg border px-3 py-2 text-sm min-h-[72px]"
-            placeholder="prod_01..., prod_02..."
-            value={productIds}
-            onChange={(e) => setProductIds(e.target.value)}
-            disabled={!connected || pushMutation.isPending}
-          />
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              size="small"
-              variant="secondary"
-              disabled={!connected}
-              onClick={() => navigate("/settings/faire/bulk")}
-            >
-              Select products
-            </Button>
-            <Button
-              size="small"
-              onClick={handlePush}
-              disabled={!connected || pushMutation.isPending}
-              isLoading={pushMutation.isPending}
-            >
-              Start bulk push
-            </Button>
-            {pushBatch && pushProgress && (
-              <BulkProgress
-                label="Push"
-                progress={pushProgress}
-                status={(pushStatus.data as any)?.batch?.status}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Pull orders */}
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <Label>Pull Faire orders into Medusa</Label>
-            <Text className="text-ui-fg-subtle" size="small">
-              Ingests all available Faire orders as Medusa orders (idempotent).
-            </Text>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button
-              size="small"
-              variant="secondary"
-              onClick={() => pullMutation.mutate()}
-              disabled={!connected || pullMutation.isPending}
-              isLoading={pullMutation.isPending}
-            >
-              Start order pull
-            </Button>
-            {pullBatch && pullProgress && (
-              <BulkProgress
-                label="Pull"
-                progress={pullProgress}
-                status={(pullStatus.data as any)?.batch?.status}
-              />
-            )}
-          </div>
-        </div>
-      </div>
-    </Container>
-  )
-}
-
-const BulkProgress = ({
-  label,
-  progress,
-  status,
-}: {
-  label: string
-  progress: { total: number; done: number; pct: number; finished: boolean }
-  status?: string
-}) => (
-  <div className="flex items-center gap-3">
-    <StatusBadge color={progress.finished ? (status === "failed" ? "red" : "green") : "orange"}>
-      {label}: {progress.done}/{progress.total || "?"} ({progress.pct}%)
-    </StatusBadge>
-    {progress.finished && (
-      <Text className="text-ui-fg-subtle" size="small">
-        {status === "failed" ? "Completed with errors" : "Done"}
-      </Text>
-    )}
   </div>
 )
 
