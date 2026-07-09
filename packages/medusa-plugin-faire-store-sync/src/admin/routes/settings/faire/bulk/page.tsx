@@ -1,11 +1,10 @@
 import {
+  Badge,
   Button,
-  Container,
   DataTable,
   DataTableFilteringState,
   DataTablePaginationState,
   DataTableRowSelectionState,
-  FocusModal,
   Heading,
   Input,
   Skeleton,
@@ -20,21 +19,31 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query"
-import { useEffect, useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
-import { faireApi } from "../../../../lib/api"
+import { useMemo, useState } from "react"
+import { faireApi, sdk } from "../../../../lib/api"
+import { RouteFocusModal } from "../../../../components/route-focus-modal"
 import {
   BulkProduct,
   useBulkProductColumns,
 } from "./use-bulk-product-columns"
 
-const PAGE_SIZE = 12
-const STATUS_KEY = ["faire", "status"]
+const PAGE_SIZE = 20
+const PRODUCT_FIELDS = "id,title,status,thumbnail,handle,created_at,updated_at"
+// Safety cap for "select all matching" — a runaway catalog shouldn't queue an
+// unbounded batch. If the match set exceeds this, we sync the first N and warn.
+const SELECT_ALL_CAP = 2000
+
+type ProductListResult = { products: BulkProduct[]; count: number }
+
+// Reuse the Medusa admin SDK's product list instead of a bespoke fetch wrapper.
+const listProducts = (query: Record<string, string | number | undefined>) =>
+  sdk.admin.product.list({
+    fields: PRODUCT_FIELDS,
+    ...query,
+  }) as unknown as Promise<ProductListResult>
 
 const FaireBulkPage = () => {
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [open, setOpen] = useState(true)
 
   const [pagination, setPagination] = useState<DataTablePaginationState>({
     pageIndex: 0,
@@ -43,53 +52,80 @@ const FaireBulkPage = () => {
   const [filtering, setFiltering] = useState<DataTableFilteringState>({})
   const [search, setSearch] = useState("")
   const [rowSelection, setRowSelection] = useState<DataTableRowSelectionState>({})
+  // When true, the action targets every product matching the current search /
+  // filter across all pages — not just the rows selected on screen.
+  const [selectAllMatching, setSelectAllMatching] = useState(false)
+
+  const statusFilter = (filtering.status as any)?.[0] as string | undefined
 
   const statusQuery = useQuery({
-    queryKey: STATUS_KEY,
+    queryKey: ["faire", "status"],
     queryFn: () => faireApi.status() as Promise<any>,
   })
   const connected = !!statusQuery.data?.connected
 
   const productsQuery = useQuery({
-    queryKey: ["faire", "bulk-products", pagination, filtering, search],
+    queryKey: ["faire", "bulk-products", pagination, statusFilter, search],
     placeholderData: keepPreviousData,
-    queryFn: async () => {
-      const statusFilter = (filtering.status as any)?.[0] as string | undefined
-      const res = await faireApi.listProducts({
+    queryFn: () =>
+      listProducts({
         limit: pagination.pageSize,
         offset: pagination.pageIndex * pagination.pageSize,
         q: search || undefined,
         status: statusFilter,
         order: "-created_at",
-      })
-      return {
-        products: (res as any).products || [],
-        count: (res as any).count || 0,
-      }
-    },
+      }),
   })
 
   const products = productsQuery.data?.products ?? []
   const count = productsQuery.data?.count ?? 0
 
-  // Selection is keyed by product id. Track selected ids in a Set for the
-  // command actions (the DataTable command bar's "select all" toggles across
-  // all pages via the rowSelection state).
   const selectedIds = useMemo(
     () => Object.keys(rowSelection).filter((id) => rowSelection[id]),
     [rowSelection]
   )
-  const allOnPageSelected =
-    products.length > 0 && products.every((p) => rowSelection[p.id])
+  const targetCount = selectAllMatching ? count : selectedIds.length
+
+  // Resolve the id set to sync: either the explicit selection, or every product
+  // matching the current query (paged out, capped).
+  const resolveTargetIds = async (): Promise<string[]> => {
+    if (!selectAllMatching) return selectedIds
+    const ids: string[] = []
+    let offset = 0
+    while (ids.length < count && ids.length < SELECT_ALL_CAP) {
+      const res = await listProducts({
+        limit: 200,
+        offset,
+        q: search || undefined,
+        status: statusFilter,
+        order: "-created_at",
+      })
+      const batch = res.products ?? []
+      if (!batch.length) break
+      ids.push(...batch.map((p) => p.id))
+      offset += batch.length
+    }
+    return ids.slice(0, SELECT_ALL_CAP)
+  }
 
   const pushMutation = useMutation({
-    mutationFn: (ids: string[]) => faireApi.syncBulk(ids),
-    onSuccess: (res: any) => {
+    mutationFn: async () => {
+      const ids = await resolveTargetIds()
+      if (!ids.length) throw new Error("No products to sync")
+      const res = await faireApi.syncBulk(ids)
+      return { res, queued: ids.length }
+    },
+    onSuccess: ({ res, queued }: any) => {
       toast.success("Bulk product sync started", {
-        description: `Queued ${selectedIds.length} product(s). Batch ${res.batch_id}.`,
+        description:
+          `Queued ${queued} product(s). Batch ${res.batch_id}.` +
+          (selectAllMatching && count > SELECT_ALL_CAP
+            ? ` Capped at ${SELECT_ALL_CAP} — run again for the rest.`
+            : ""),
       })
       queryClient.invalidateQueries({ queryKey: ["faire", "syncs"] })
-      setOpen(false)
+      setRowSelection({})
+      setSelectAllMatching(false)
     },
     onError: (err: any) =>
       toast.error("Failed to start bulk sync", { description: err.message }),
@@ -100,135 +136,128 @@ const FaireBulkPage = () => {
   const commands = useMemo(
     () => [
       {
-        label: "Push to Faire",
+        label: connected ? "Push to Faire" : "Connect Faire first",
         shortcut: "p",
-        action: (selection: DataTableRowSelectionState) => {
-          const ids = Object.keys(selection).filter((id) => selection[id])
-          if (!ids.length) {
-            toast.error("Select at least one product")
+        action: () => {
+          if (!connected) {
+            toast.error("Faire is not connected")
             return
           }
-          pushMutation.mutate(ids)
+          pushMutation.mutate()
         },
       },
       {
         label: "Clear selection",
         shortcut: "c",
-        action: () => setRowSelection({}),
+        action: () => {
+          setRowSelection({})
+          setSelectAllMatching(false)
+        },
       },
     ],
-    [pushMutation]
+    [connected, pushMutation]
   )
 
   const table = useDataTable({
-    data: products as BulkProduct[],
+    data: products,
     columns,
     rowCount: count,
-    getRowId: (row: BulkProduct) => row.id,
+    getRowId: (row) => row.id,
     isLoading: productsQuery.isLoading,
     commands,
     rowSelection: {
       state: rowSelection,
-      onRowSelectionChange: setRowSelection,
+      onRowSelectionChange: (updater) => {
+        setSelectAllMatching(false)
+        setRowSelection(updater)
+      },
     },
-    pagination: {
-      state: pagination,
-      onPaginationChange: setPagination,
-    },
-    filtering: {
-      state: filtering,
-      onFilteringChange: setFiltering,
-    },
-    search: {
-      state: search,
-      onSearchChange: setSearch,
-    },
+    pagination: { state: pagination, onPaginationChange: setPagination },
+    filtering: { state: filtering, onFilteringChange: setFiltering },
+    search: { state: search, onSearchChange: setSearch },
   })
 
-  // When the modal closes, return to the Faire settings page.
-  useEffect(() => {
-    if (!open) navigate("/settings/faire", { replace: true })
-  }, [open, navigate])
-
   return (
-    <FocusModal open={open} onOpenChange={setOpen}>
-      <FocusModal.Content className="flex flex-col">
-        <FocusModal.Header className="border-b">
-          <div className="flex flex-col">
-            <Heading>Select products to push to Faire</Heading>
-            <Text className="text-ui-fg-subtle" size="small">
-              Use the command bar to push the selection to Faire as a background
-              bulk sync.
-            </Text>
-          </div>
-        </FocusModal.Header>
-        <FocusModal.Body className="flex flex-1 flex-col overflow-hidden p-0">
-          {!connected && (
-            <div className="px-6 pt-4">
-              <Text className="text-ui-fg-subtle" size="small">
-                Faire is not connected — selections can be made but pushing is
-                disabled.
-              </Text>
+    <RouteFocusModal prev="/settings/faire">
+      <RouteFocusModal.Header>
+        <div className="flex flex-col">
+          <Heading>Bulk sync products to Faire</Heading>
+          <Text className="text-ui-fg-subtle" size="small">
+            Select products (or all matching) and push them to Faire as a
+            background sync via the command bar.
+          </Text>
+        </div>
+      </RouteFocusModal.Header>
+      <RouteFocusModal.Body className="flex flex-1 flex-col overflow-hidden p-0">
+        <DataTable instance={table}>
+          <DataTable.Toolbar className="flex flex-col gap-y-3 border-b px-6 py-4">
+            <div className="flex flex-col gap-y-2 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-x-2">
+                <Input
+                  type="search"
+                  placeholder="Search products…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full md:w-72"
+                />
+                {!connected && (
+                  <Badge color="orange" size="2xsmall">
+                    Not connected
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-x-2">
+                <Button
+                  size="small"
+                  variant="secondary"
+                  onClick={() => productsQuery.refetch()}
+                  isLoading={productsQuery.isFetching}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  size="small"
+                  variant={selectAllMatching ? "primary" : "secondary"}
+                  disabled={!count}
+                  onClick={() => {
+                    setRowSelection({})
+                    setSelectAllMatching((v) => !v)
+                  }}
+                >
+                  {selectAllMatching
+                    ? `All ${count} selected`
+                    : `Select all ${count}`}
+                </Button>
+              </div>
             </div>
+            {targetCount > 0 && (
+              <Text size="small" className="text-ui-fg-subtle">
+                {selectAllMatching
+                  ? `All ${count} matching product(s) will be synced`
+                  : `${targetCount} product(s) selected`}
+                {pushMutation.isPending ? " — queuing…" : ""}
+              </Text>
+            )}
+          </DataTable.Toolbar>
+          {productsQuery.isLoading ? (
+            <div className="flex flex-col gap-3 p-6">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
+          ) : (
+            <DataTable.Table />
           )}
-          <Container className="m-6 flex flex-1 flex-col overflow-hidden p-0">
-            <DataTable instance={table}>
-              <DataTable.Toolbar className="flex flex-col gap-y-4 px-6 py-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-x-2">
-                  <Input
-                    type="search"
-                    placeholder="Search products…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full md:w-64"
-                  />
-                </div>
-                <div className="flex items-center gap-x-2">
-                  <Button
-                    size="small"
-                    variant="secondary"
-                    onClick={() => productsQuery.refetch()}
-                    isLoading={productsQuery.isFetching}
-                  >
-                    Refresh
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="secondary"
-                    disabled={!products.length}
-                    onClick={() => {
-                      const next = { ...rowSelection }
-                      products.forEach((p: any) => {
-                        next[p.id] = !allOnPageSelected
-                      })
-                      setRowSelection(next)
-                    }}
-                  >
-                    {allOnPageSelected ? "Deselect page" : "Select page"}
-                  </Button>
-                </div>
-              </DataTable.Toolbar>
-              {productsQuery.isLoading ? (
-                <div className="flex flex-col gap-3 p-6">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <Skeleton key={i} className="h-10 w-full" />
-                  ))}
-                </div>
-              ) : (
-                <DataTable.Table />
-              )}
-              <DataTable.Pagination />
-            </DataTable>
-          </Container>
-        </FocusModal.Body>
-      </FocusModal.Content>
+          <DataTable.Pagination />
+        </DataTable>
+      </RouteFocusModal.Body>
       <Toaster />
-    </FocusModal>
+    </RouteFocusModal>
   )
 }
 
 export const handle = {
-  breadcrumb: () => "Bulk push",
+  breadcrumb: () => "Bulk sync",
 }
 
 export default FaireBulkPage

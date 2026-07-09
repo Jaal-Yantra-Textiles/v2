@@ -84,24 +84,6 @@ export const faireApi = {
   retrySync: (id: string) =>
     sdk.client.fetch(`/admin/faire/syncs/${id}`, { method: "POST" }),
   brand: () => sdk.client.fetch("/admin/faire/brand"),
-  listProducts: (opts: {
-    limit?: number
-    offset?: number
-    q?: string
-    status?: string
-    order?: string
-  } = {}) => {
-    const query: Record<string, string> = { fields: "id,title,status,thumbnail,handle,created_at,updated_at" }
-    if (opts.limit !== undefined) query.limit = String(opts.limit)
-    if (opts.offset !== undefined) query.offset = String(opts.offset)
-    if (opts.q) query.q = opts.q
-    if (opts.status) query.status = opts.status
-    if (opts.order) query.order = opts.order
-    return sdk.client.fetch<{ products: any[]; count: number }>(
-      "/admin/products",
-      { query }
-    )
-  },
   products: (opts: { limit?: number; page?: string; updated_at_min?: string } = {}) => {
     const query: Record<string, string> = {}
     if (opts.limit !== undefined) query.limit = String(opts.limit)
