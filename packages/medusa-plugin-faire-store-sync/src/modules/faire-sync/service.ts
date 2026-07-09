@@ -3,7 +3,6 @@ import FaireSyncAccount from "./models/faire-sync-account"
 import FaireSyncRecord from "./models/faire-sync-record"
 import FaireSyncSettings from "./models/faire-sync-settings"
 import FaireSyncBatch from "./models/faire-sync-batch"
-import FaireWebhookEvent from "./models/faire-webhook-event"
 import FaireOrder from "./models/faire-order"
 import { FaireClient } from "../../lib/faire-client"
 import { encryptSecret, decryptSecret } from "../../lib/crypto"
@@ -83,7 +82,6 @@ class FaireSyncService extends MedusaService({
   FaireSyncRecord,
   FaireSyncSettings,
   FaireSyncBatch,
-  FaireWebhookEvent,
   FaireOrder,
 }) {
   protected options_: ModuleOptions
@@ -320,9 +318,10 @@ class FaireSyncService extends MedusaService({
         "Invalid or expired OAuth state. Please start the Faire connection again."
       )
     }
+    let token: TokenData | undefined
     try {
       const client = this.getClient()
-      const token = await client.exchangeCodeForToken(code)
+      token = await client.exchangeCodeForToken(code)
       const brand = await client.getBrand(token.access_token)
       const account = await this.saveAccount(token, brand)
       await this.updateSettings({
@@ -332,6 +331,17 @@ class FaireSyncService extends MedusaService({
       })
       return { account, brand }
     } catch (err) {
+      // Self-heal a dropped OAuth so the next attempt starts clean:
+      //  1. clear the pending state (otherwise it sticks and confuses retries), and
+      //  2. if the code exchange succeeded but a later step failed, REVOKE the
+      //     just-obtained token — otherwise Faire keeps the app "installed via an
+      //     active OAuth access token" and every reconnect fails with that 400.
+      await this.updateSettings({ pending_oauth: null }).catch(() => {})
+      if (token?.access_token) {
+        await this.getClient()
+          .revokeToken(token.access_token)
+          .catch(() => {})
+      }
       throw toMedusaError(err)
     }
   }
