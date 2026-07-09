@@ -105,8 +105,8 @@ secrets:
   ETSY_WEBHOOK_SECRET: /jyt/prod/ETSY_WEBHOOK_SECRET
   # Faire OAuth (medusa-plugin-faire-store-sync). Without these, the connect URL is
   # built with an empty applicationId and falls back to the localhost redirect_uri.
-  FAIRE_CLIENT_ID: /jyt/prod/FAIRE_CLIENT_ID
-  FAIRE_CLIENT_SECRET: /jyt/prod/FAIRE_CLIENT_SECRET
+  FAIRE_APP_ID: /jyt/prod/FAIRE_APP_ID
+  FAIRE_APP_SECRET: /jyt/prod/FAIRE_APP_SECRET
   FAIRE_REDIRECT_URI: /jyt/prod/FAIRE_REDIRECT_URI
   FACEBOOK_CLIENT_ID: /jyt/prod/FACEBOOK_CLIENT_ID
   FACEBOOK_CLIENT_SECRET: /jyt/prod/FACEBOOK_CLIENT_SECRET

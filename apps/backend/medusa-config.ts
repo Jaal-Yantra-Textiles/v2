@@ -99,12 +99,11 @@ module.exports = defineConfig({
     {
       resolve: "@jytextiles/medusa-plugin-faire-store-sync",
       options: {
-        clientId: process.env.FAIRE_CLIENT_ID ?? "",
-        clientSecret: process.env.FAIRE_CLIENT_SECRET ?? "",
+        clientId: process.env.FAIRE_APP_ID ?? "",
+        clientSecret: process.env.FAIRE_APP_SECRET ?? "",
         redirectUri:
           process.env.FAIRE_REDIRECT_URI ??
           "http://localhost:9000/app/settings/oauth/faire/callback",
-        webhookSecret: process.env.FAIRE_WEBHOOK_SECRET ?? "",
       },
     },
   ],

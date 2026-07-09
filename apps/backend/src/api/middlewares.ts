@@ -712,16 +712,6 @@ export default defineMiddlewares({
       bodyParser: { preserveRawBody: true },
     },
     {
-      // Faire webhooks (medusa-plugin-faire-store-sync). Raw body is required to
-      // verify the HMAC-SHA256 signature against FAIRE_WEBHOOK_SECRET; without
-      // preserveRawBody the route falls back to JSON.stringify(req.body), whose
-      // bytes won't match Faire's payload and every delivery is rejected.
-      matcher: "/webhooks/faire",
-      method: "POST",
-      middlewares: [],
-      bodyParser: { preserveRawBody: true },
-    },
-    {
       matcher: "/webhooks/meta-ads/leadgen",
       method: "GET",
       middlewares: [],
