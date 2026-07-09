@@ -512,12 +512,33 @@ export class FaireClient {
   }
 
   private mapOrder(data: any): FaireOrder {
+    // ExternalOrderV2 has no top-level currency/total/buyer — money is per-item
+    // ExternalMoneyV2 (`price.amount_minor`+`currency`) and the buyer is
+    // `customer { first_name, last_name }`. Derive them; keep `raw` for the
+    // ingest mapper which reads the full shape. Verified live 2026-07-09.
+    const items: any[] = Array.isArray(data.items) ? data.items : []
+    const firstCur = items
+      .map((it) => it?.price?.currency)
+      .find((c) => typeof c === "string" && c)
+    const totalCents = items.reduce(
+      (sum, it) =>
+        sum +
+        Number(it?.price?.amount_minor ?? it?.price_cents ?? 0) *
+          Math.max(1, Number(it?.quantity) || 1),
+      0
+    )
+    const buyer =
+      [data.customer?.first_name, data.customer?.last_name]
+        .filter(Boolean)
+        .join(" ") ||
+      data.address?.name ||
+      undefined
     return {
       order_token: String(data.order_token ?? data.id ?? data.token),
       state: data.state ?? data.status,
-      currency: data.currency ?? data.currency_code,
-      total_cents: data.total_cents ?? data.grand_total_cents,
-      buyer_name: data.buyer_name ?? data.customer?.name,
+      currency: firstCur ?? data.currency ?? data.currency_code,
+      total_cents: items.length ? totalCents : data.total_cents ?? data.grand_total_cents,
+      buyer_name: buyer,
       raw: data,
     }
   }
