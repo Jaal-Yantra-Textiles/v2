@@ -55,9 +55,9 @@ function resolveFaireOptions(options?: ModuleOptions): ModuleOptions {
     "oauth"
   return {
     authMode: authMode === "apiKey" ? "apiKey" : "oauth",
-    clientId: process.env.FAIRE_CLIENT_ID ?? readOption(options, "clientId") ?? "",
+    clientId: process.env.FAIRE_APP_ID ?? readOption(options, "clientId") ?? "",
     clientSecret:
-      process.env.FAIRE_CLIENT_SECRET ?? readOption(options, "clientSecret") ?? "",
+      process.env.FAIRE_APP_SECRET ?? readOption(options, "clientSecret") ?? "",
     redirectUri:
       process.env.FAIRE_REDIRECT_URI ??
       readOption(options, "redirectUri") ??

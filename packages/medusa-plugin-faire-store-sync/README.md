@@ -62,16 +62,15 @@ module.exports = defineConfig({
     {
       resolve: "@jytextiles/medusa-plugin-faire-store-sync",
       options: {
-        clientId: process.env.FAIRE_CLIENT_ID,
-        clientSecret: process.env.FAIRE_CLIENT_SECRET,
+        clientId: process.env.FAIRE_APP_ID,
+        clientSecret: process.env.FAIRE_APP_SECRET,
         redirectUri:
           process.env.FAIRE_REDIRECT_URI ??
           "http://localhost:9000/app/settings/oauth/faire/callback",
-        webhookSecret: process.env.FAIRE_WEBHOOK_SECRET,
         // Optional overrides (defaults shown):
-        // apiBase: "https://www.faire.com/api/v2",
-        // authUrl: "https://www.faire.com/oauth/authorize",
-        // tokenUrl: "https://www.faire.com/oauth/token",
+        // apiBase: "https://faire.com/external-api/v2",
+        // authUrl: "https://faire.com/oauth2/authorize",
+        // tokenUrl: "https://www.faire.com/api/external-api-oauth2/token",
       },
     },
   ],
@@ -83,10 +82,9 @@ environment variables (env takes precedence):
 
 | Option          | Env var               | Required | Description                                                        |
 | --------------- | --------------------- | -------- | ------------------------------------------------------------------ |
-| `clientId`      | `FAIRE_CLIENT_ID`     | yes      | Your Faire app's client id.                                        |
-| `clientSecret`  | `FAIRE_CLIENT_SECRET` | yes      | Your Faire app's client secret.                                    |
+| `clientId`      | `FAIRE_APP_ID`        | yes      | Your Faire app's application id.                                    |
+| `clientSecret`  | `FAIRE_APP_SECRET`    | yes      | Your Faire app's application secret.                                |
 | `redirectUri`   | `FAIRE_REDIRECT_URI`  | no       | OAuth callback URL. Must match your Faire app's registered redirect. |
-| `webhookSecret` | `FAIRE_WEBHOOK_SECRET`| no       | Signing secret for verifying inbound Faire webhooks.               |
 | `apiBase`       | `FAIRE_API_BASE`      | no       | Override the Faire API base URL (e.g. for sandbox).                |
 | `authUrl`       | `FAIRE_AUTH_URL`      | no       | Override the OAuth authorize URL.                                  |
 | `tokenUrl`      | `FAIRE_TOKEN_URL`     | no       | Override the OAuth token URL.                                      |
@@ -97,29 +95,6 @@ created:
 ```bash
 npx medusa db:migrate
 ```
-
-### Webhook raw body
-
-The host app's `src/api/middlewares.ts` must preserve the raw request body for
-the Faire webhook path so the signature can be verified:
-
-```ts
-import { defineMiddlewares } from "@medusajs/framework/http"
-
-export default defineMiddlewares({
-  routes: [
-    {
-      matcher: "/webhooks/faire",
-      method: "POST",
-      middlewares: [/* preserveRawBody — see your Medusa version's helper */],
-    },
-  ],
-})
-```
-
-Register the webhook URL (`https://your-host/webhooks/faire`) and copy the
-signing secret into `FAIRE_WEBHOOK_SECRET` when you create the webhook via the
-Faire API.
 
 ### Optional behavior flags
 
@@ -157,7 +132,6 @@ Faire API.
 | GET/POST | `/admin/faire/syncs/:id`          | Fetch / retry a sync record                        |
 | GET    | `/admin/faire/brand`               | The connected Faire brand                          |
 | GET    | `/admin/faire/products`            | Products already on Faire                          |
-| POST   | `/webhooks/faire`                  | Inbound Faire webhook receiver                     |
 
 ## Development
 
