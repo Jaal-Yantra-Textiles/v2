@@ -46,6 +46,11 @@ secrets:
   CLOUDFLARE_ZONE_ID: /jyt/prod/CLOUDFLARE_ZONE_ID
   DATABASE_URL: /jyt/prod/DATABASE_URL
   DELHIVERY_API_TOKEN: /jyt/prod/DELHIVERY_API_TOKEN
+  # DHL Express — international carrier (calculated live rates). Presence of
+  # DHL_API_KEY registers the dhl-express fulfillment provider (medusa-config.prod.ts).
+  DHL_ACCOUNT_NUMBER: /jyt/prod/DHL_ACCOUNT_NUMBER
+  DHL_API_KEY: /jyt/prod/DHL_API_KEY
+  DHL_API_SECRET: /jyt/prod/DHL_API_SECRET
   ENCRYPTION_KEY: /jyt/prod/ENCRYPTION_KEY
   ENCRYPTION_KEY_VERSION: /jyt/prod/ENCRYPTION_KEY_VERSION
   # Etsy OAuth (medusa-plugin-etsy-sync) — sync jobs run on the worker.
