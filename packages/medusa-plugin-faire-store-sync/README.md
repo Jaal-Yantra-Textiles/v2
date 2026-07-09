@@ -2,17 +2,13 @@
 
 A [Medusa v2](https://medusajs.com) plugin that **bidirectionally** syncs your
 Medusa products, inventory and orders with a [Faire](https://www.faire.com)
-brand account via the [Faire External Platform API](https://developer.faire.com)
+brand account via the [Faire External Platform API v2](https://developer.faire.com)
 (OAuth 2.0). It handles the OAuth connect flow, product push (create/update +
-inventory), bulk product sync, bulk order ingestion, and inbound Faire webhooks
-for order/inventory/product events.
+inventory), bulk product sync, and scheduled order ingestion. Faire is
+**polling-based** — it exposes no inbound webhooks — so orders are pulled on a
+schedule using a cursor.
 
-> ⚠️ **Note on API specifics.** Faire's developer portal is access-gated, so
-> this plugin's endpoint paths, payload shapes and webhook signature scheme
-> reflect the publicly documented v2 surface and standard OAuth2 conventions.
-> If your Faire app uses a different base URL, token header, or signing scheme,
-> override via the options/env vars below — the client is intentionally
-> permissive. Verify against your Faire app's documentation before going live.
+
 
 ## Features
 
@@ -21,18 +17,23 @@ for order/inventory/product events.
   applicable.
 - **Product → Faire sync** — create/update Faire products, push variant
   inventory, upload images via URL (single or bulk).
-- **Faire → Medusa order ingestion** — bulk-pull Faire orders and create
-  matching Medusa orders (idempotent, payment marked captured).
+- **Bulk products page** — a searchable/selectable table of your catalog
+  (**Settings → Faire → Bulk**) to push many products to Faire in one job.
+- **Faire → Medusa order ingestion** — pull Faire orders and create matching
+  Medusa orders (idempotent, payment marked captured).
+- **Scheduled order polling** — Faire has no webhooks, so orders are pulled on a
+  schedule (**every 5 minutes** by default) using a cursor-based high-water mark
+  (`last_order_sync_at`), fetching only orders changed since the previous run.
+- **Status-follow subscriber** — when a synced product's Medusa status actually
+  changes (e.g. draft → published), the linked Faire product is re-synced
+  automatically. This is an internal Medusa event, hard-guarded to respect
+  Faire's rate limits (only already-linked products, only on real status change).
 - **Readiness checks** — surfaces what's missing (brand, wholesale-pricing
   strategy, shipping policy) before publishing.
 - **Sync records** — every sync is tracked per product with status and the
   remote Faire product token.
 - **Long-running bulk workflows** — both bulk product push and bulk order pull
   run as background workflows (`backgroundExecution`) with a pollable batch id.
-- **Event-driven** — inbound Faire webhooks (order placed/canceled/shipped,
-  inventory updated, product updated) are verified, recorded idempotently and
-  re-emitted as Medusa events; `product.updated` re-syncs linked products when
-  their status actually changes.
 
 ## Requirements
 
@@ -109,10 +110,11 @@ npx medusa db:migrate
 1. In the Admin, go to **Settings → Faire** and click **Connect** to authorize
    your Faire brand.
 2. Configure sync settings (brand, wholesale markup %, shipping policy).
-3. From a product page, use the **Faire Sync** widget to sync the product, or
-   sync in bulk from the Faire settings page (Bulk operations card).
-4. Pull Faire orders into Medusa with the **Start order pull** button (also runs
-   on a 30-minute schedule).
+3. From a product page, use the **Faire Sync** widget to sync a single product,
+   or open the **Bulk products** page (**Settings → Faire → Bulk**) to select
+   many products from a searchable table and push them in one background job.
+4. Pull Faire orders into Medusa with the **Start order pull** button (orders
+   also pull automatically **every 5 minutes**).
 
 ### Admin API routes
 
