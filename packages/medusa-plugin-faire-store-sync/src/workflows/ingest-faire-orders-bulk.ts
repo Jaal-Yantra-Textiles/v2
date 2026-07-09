@@ -70,7 +70,7 @@ const processBatchStep = createStep(
   ): Promise<StepResponse<{ synced: number; failed: number }>> => {
     const service: FaireSyncService = container.resolve(FAIRE_SYNC_MODULE)
     const account = await service.ensureFreshToken()
-    const client = service.getClient()
+    const client = service.getClient((account as any).auth_mode)
 
     // Resolve the incremental window. Precedence:
     //   explicit input > persisted high-water mark > full backfill (undefined).

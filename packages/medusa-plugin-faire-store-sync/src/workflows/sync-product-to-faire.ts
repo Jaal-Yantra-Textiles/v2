@@ -26,6 +26,7 @@ type ResolvedConfig = {
   account_id: string
   brand_id: string
   access_token: string
+  auth_mode: "oauth" | "apiKey"
   currency: string | null
   settings: any
 }
@@ -66,6 +67,7 @@ const resolveFaireConfigStep = createStep(
       account_id: account.id,
       brand_id: account.brand_id,
       access_token: account.access_token,
+      auth_mode: (account.auth_mode as "oauth" | "apiKey") ?? "oauth",
       currency: account.currency ?? null,
       settings,
     })
@@ -211,7 +213,7 @@ const syncProductStep = createStep(
     { container }
   ): Promise<StepResponse<SyncResult>> => {
     const service: FaireSyncService = container.resolve(FAIRE_SYNC_MODULE)
-    const client = service.getClient()
+    const client = service.getClient(input.config.auth_mode)
     const { access_token, settings } = input.config
     const { product_input, existing_product_token, product_status } =
       input.prepared
