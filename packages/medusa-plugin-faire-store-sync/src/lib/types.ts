@@ -150,12 +150,17 @@ export interface InventoryLevel {
 }
 
 /**
- * Payload for `PATCH /product-inventory/by-skus`. Faire ingests an array of
- * per-SKU overrides; each row carries the SKU and the new on-hand count.
+ * Payload row for `PATCH /product-inventory/by-skus`. Faire ingests an array
+ * under `inventories`; each row carries the SKU and the new on-hand count.
+ * The writable quantity field is `on_hand_quantity` (integer) — verified live
+ * 2026-07-09 against the docs (there is NO `current_count`/`available_quantity`
+ * on this endpoint; those belong to other inventory endpoints). `product_variant_id`
+ * is optional — Faire resolves the row by SKU when it's omitted.
  */
 export interface InventoryOverrideBySku {
   sku: string
-  current_count: number
+  on_hand_quantity: number
+  product_variant_id?: string
 }
 
 export interface FaireOrder {

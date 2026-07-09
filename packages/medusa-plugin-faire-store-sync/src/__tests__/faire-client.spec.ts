@@ -94,21 +94,43 @@ describe("FaireClient — issue #952 corrections", () => {
 
   it("pushes inventory via PATCH /product-inventory/by-skus (not GET /inventory)", async () => {
     const c = new FaireClient(oauthOpts)
-    await c.updateInventory("t", [{ sku: "S1", current_count: 7 }])
+    await c.updateInventory("t", [{ sku: "S1", on_hand_quantity: 7 }])
     expect(lastInit.method).toBe("PATCH")
     expect(lastUrl).toBe(`${DEFAULT_API_BASE}/product-inventory/by-skus`)
     expect(JSON.parse(lastInit.body)).toEqual({
-      inventories: [{ sku: "S1", current_count: 7 }],
+      inventories: [{ sku: "S1", on_hand_quantity: 7 }],
     })
   })
 
-  it("lists orders with cursor page + updated_at_min", async () => {
+  it("lists orders with numeric page + updated_at_min", async () => {
     const c = new FaireClient(oauthOpts)
-    await c.listOrders("t", { page: "cursor-xyz", updated_at_min: "2026-01-01T00:00:00Z" })
+    await c.listOrders("t", { page: "2", updated_at_min: "2026-01-01T00:00:00Z" })
     const url = new URL(lastUrl)
     expect(url.pathname).toBe("/external-api/v2/orders")
-    expect(url.searchParams.get("page")).toBe("cursor-xyz")
+    expect(url.searchParams.get("page")).toBe("2")
     expect(url.searchParams.get("updated_at_min")).toBe("2026-01-01T00:00:00Z")
+  })
+
+  it("derives next_page from numeric page (Faire returns no cursor)", async () => {
+    const c = new FaireClient(oauthOpts)
+    const page = (rows: number) => ({
+      ok: true,
+      status: 200,
+      headers: new Map(),
+      text: async () =>
+        JSON.stringify({
+          page: undefined,
+          orders: Array.from({ length: rows }, (_, i) => ({ id: `bo_${i}` })),
+        }),
+    })
+    // A full page (rows === limit) → there may be more → next_page = current+1.
+    fetchMock.mockImplementationOnce(async () => page(2) as any)
+    const full = await c.listOrders("t", { limit: 2, page: "1" })
+    expect(full.next_page).toBe("2")
+    // A short page → last page → no next_page.
+    fetchMock.mockImplementationOnce(async () => page(1) as any)
+    const short = await c.listOrders("t", { limit: 2, page: "2" })
+    expect(short.next_page).toBeUndefined()
   })
 
   it("posts order processing (PUT) and shipments (POST) on the right paths", async () => {

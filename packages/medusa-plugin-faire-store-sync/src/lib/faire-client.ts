@@ -289,10 +289,15 @@ export class FaireClient {
     const results = (data.products ?? data.results ?? []).map((p: any) =>
       this.mapProduct(p)
     )
+    // Numeric 1-indexed `page`, no `next_page` cursor (see listOrders).
+    const limit = opts.limit ?? 100
+    const currentPage = Number(opts.page ?? data.page ?? 1)
+    const next_page =
+      results.length >= limit ? String(currentPage + 1) : undefined
     return {
       count: data.count ?? results.length,
       results,
-      next_page: data.next_page ?? data.pagination?.next_page,
+      next_page,
     }
   }
 
@@ -301,10 +306,11 @@ export class FaireClient {
   /**
    * Push inventory overrides to Faire by SKU.
    *
-   * Faire does NOT expose a `GET /inventory` you can poll for remote counts —
-   * inventory is write-only: `PATCH /product-inventory/by-skus` with an array
-   * of `{ sku, current_count }` rows. (A `by-product-variant-ids` variant
-   * exists for id-keyed overrides.)
+   * Inventory push is write-only: `PATCH /product-inventory/by-skus` with an
+   * array under `inventories`, each row `{ sku, on_hand_quantity }` (verified
+   * live 2026-07-09 — the writable field is `on_hand_quantity`, NOT
+   * `current_count`/`available_quantity`). A `by-product-variant-ids` variant
+   * exists for id-keyed overrides.
    */
   async updateInventory(
     accessToken: string,
@@ -346,10 +352,17 @@ export class FaireClient {
     const results = (data.orders ?? data.results ?? []).map((o: any) =>
       this.mapOrder(o)
     )
+    // Faire v2 paginates by a numeric 1-indexed `page` and returns NO
+    // `next_page` cursor (verified live 2026-07-09). A full page (rows ===
+    // limit) implies there may be another; a short/empty page is the last.
+    const limit = opts.limit ?? 100
+    const currentPage = Number(opts.page ?? data.page ?? 1)
+    const next_page =
+      results.length >= limit ? String(currentPage + 1) : undefined
     return {
       count: data.count ?? results.length,
       results,
-      next_page: data.next_page ?? data.pagination?.next_page,
+      next_page,
     }
   }
 

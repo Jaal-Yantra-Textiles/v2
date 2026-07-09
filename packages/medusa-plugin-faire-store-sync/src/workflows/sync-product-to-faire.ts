@@ -340,7 +340,7 @@ const syncProductStep = createStep(
       try {
         const levels = product_input.variants.map((v) => ({
           sku: v.sku,
-          current_count: v.available_quantity ?? 0,
+          on_hand_quantity: v.available_quantity ?? 0,
         }))
         await client.updateInventory(access_token, levels)
       } catch (err: any) {
