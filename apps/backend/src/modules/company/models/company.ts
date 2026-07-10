@@ -22,6 +22,12 @@ const Company = model.define("companies", {
     "Suspended"
   ]).default("Active"),
   founded_date: model.dateTime().nullable(),
+
+  cap_table_id: model.text().nullable(),
+  investor_dashboard_enabled: model.boolean().default(false),
+  industry: model.text().nullable(),
+  description: model.text().nullable(),
+
   metadata: model.json().nullable(),
 });
 
