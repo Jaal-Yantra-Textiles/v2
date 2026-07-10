@@ -59,13 +59,17 @@ export const UserMenu = () => {
           </DropdownMenu.Item>
           <DropdownMenu.Separator />
           <DropdownMenu.Item asChild>
-            <Link to="https://docs.medusajs.com" target="_blank">
+            <Link to="https://docs.jaalyantra.com" target="_blank" rel="noreferrer">
               <BookOpen className="text-ui-fg-subtle me-2" />
               {t("app.menus.user.documentation")}
             </Link>
           </DropdownMenu.Item>
           <DropdownMenu.Item asChild>
-            <Link to="https://medusajs.com/changelog/" target="_blank">
+            <Link
+              to="https://github.com/Jaal-Yantra-Textiles/v2/releases"
+              target="_blank"
+              rel="noreferrer"
+            >
               <TimelineVertical className="text-ui-fg-subtle me-2" />
               {t("app.menus.user.changelog")}
             </Link>

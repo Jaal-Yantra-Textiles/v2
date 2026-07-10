@@ -162,9 +162,9 @@ const Header = () => {
             </div>
             <DropdownMenu.Separator />
             <DropdownMenu.Item className="gap-x-2" asChild>
-              <Link to="/settings/store">
+              <Link to="/settings/profile">
                 <BuildingStorefront className="text-ui-fg-subtle" />
-                {t("app.nav.main.storeSettings")}
+                {t("app.nav.settings.header")}
               </Link>
             </DropdownMenu.Item>
             <DropdownMenu.Separator />

@@ -1,39 +1,18 @@
 import {
   Badge,
-  Button,
   Container,
-  FocusModal,
+  DataTable,
   Heading,
-  Input,
-  Label,
-  Select,
   Skeleton,
-  Table,
   Text,
-  toast,
+  useDataTable,
 } from "@medusajs/ui"
-import { useState } from "react"
-import { Controller, useForm } from "react-hook-form"
+import { ArrowUpRightOnBox, DocumentText, PencilSquare } from "@medusajs/icons"
+import { ActionMenu } from "../common/action-menu"
 import {
-  useAddDocument,
   useCompanyDocuments,
-  useUpdateCompanyCompliance,
+  type AdminDocument,
 } from "../../hooks/api/investor-financials-admin"
-import { useFileUpload } from "../../hooks/api/upload"
-
-const DOCUMENT_TYPES = [
-  "kyc",
-  "sha",
-  "term_sheet",
-  "subscription_agreement",
-  "share_certificate",
-  "financial_statement",
-  "pitch_deck",
-  "legal",
-  "other",
-] as const
-
-const COMPANY_STATUSES = ["Active", "Inactive", "Pending", "Suspended"] as const
 
 const statusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
   switch (s) {
@@ -49,189 +28,57 @@ const statusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
   }
 }
 
-// ---- Edit compliance fields ------------------------------------------------
-
-const EditComplianceModal = ({
-  companyId,
-  company,
-}: {
-  companyId: string
-  company: any
-}) => {
-  const [open, setOpen] = useState(false)
-  const form = useForm({
-    defaultValues: {
-      registration_number: company?.registration_number ?? "",
-      tax_id: company?.tax_id ?? "",
-      status: company?.status ?? "Active",
-      industry: company?.industry ?? "",
-    },
-  })
-  const { mutateAsync, isPending } = useUpdateCompanyCompliance(companyId, {
-    onSuccess: () => {
-      toast.success("Compliance details updated")
-      setOpen(false)
-    },
-    onError: (e) => toast.error(e?.message || "Failed to update"),
-  })
-  const onSubmit = form.handleSubmit(async (v) =>
-    mutateAsync({
-      registration_number: v.registration_number || null,
-      tax_id: v.tax_id || null,
-      status: v.status as any,
-      industry: v.industry || null,
-    })
-  )
-  return (
-    <FocusModal open={open} onOpenChange={setOpen}>
-      <FocusModal.Trigger asChild>
-        <Button size="small" variant="secondary">Edit details</Button>
-      </FocusModal.Trigger>
-      <FocusModal.Content>
-        <FocusModal.Header>
-          <Button size="small" isLoading={isPending} onClick={onSubmit}>Save</Button>
-        </FocusModal.Header>
-        <FocusModal.Body className="flex flex-col items-center py-8">
-          <form onSubmit={onSubmit} className="flex w-full max-w-lg flex-col gap-y-6">
-            <Heading level="h2">Compliance details</Heading>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-y-2">
-                <Label size="small" weight="plus">Registration number</Label>
-                <Input {...form.register("registration_number")} />
-              </div>
-              <div className="flex flex-col gap-y-2">
-                <Label size="small" weight="plus">Tax ID</Label>
-                <Input {...form.register("tax_id")} />
-              </div>
-              <div className="flex flex-col gap-y-2">
-                <Label size="small" weight="plus">Status</Label>
-                <Controller control={form.control} name="status" render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <Select.Trigger><Select.Value /></Select.Trigger>
-                    <Select.Content>
-                      {COMPANY_STATUSES.map((t) => <Select.Item key={t} value={t}>{t}</Select.Item>)}
-                    </Select.Content>
-                  </Select>
-                )} />
-              </div>
-              <div className="flex flex-col gap-y-2">
-                <Label size="small" weight="plus">Industry</Label>
-                <Input {...form.register("industry")} />
-              </div>
-            </div>
-          </form>
-        </FocusModal.Body>
-      </FocusModal.Content>
-    </FocusModal>
-  )
-}
-
-// ---- Add document ----------------------------------------------------------
-
-const AddDocumentModal = ({ companyId }: { companyId: string }) => {
-  const [open, setOpen] = useState(false)
-  const [file, setFile] = useState<File | null>(null)
-  const form = useForm({
-    defaultValues: {
-      title: "",
-      document_type: "kyc",
-      visibility: "investor",
-    },
-  })
-  const { mutateAsync: uploadFile, isPending: isUploading } = useFileUpload()
-  const { mutateAsync, isPending } = useAddDocument(companyId, {
-    onSuccess: () => {
-      toast.success("Document added")
-      form.reset()
-      setFile(null)
-      setOpen(false)
-    },
-    onError: (e) => toast.error(e?.message || "Failed to add document"),
-  })
-  const onSubmit = form.handleSubmit(async (v) => {
-    if (!file) {
-      toast.error("Choose a file to upload")
-      return
-    }
-    // Upload via the inbuilt media API, then record the document with the
-    // returned URL/key.
-    const uploaded = await uploadFile({ files: [file] } as any)
-    const uploadedFile = uploaded?.files?.[0]
-    if (!uploadedFile?.url) {
-      toast.error("Upload failed")
-      return
-    }
-    return mutateAsync({
-      title: v.title || file.name,
-      document_type: v.document_type,
-      file_key: (uploadedFile as any).id ?? uploadedFile.url,
-      file_url: uploadedFile.url,
-      file_name: file.name,
-      mime_type: file.type || null,
-      file_size: file.size ?? null,
-      visibility: v.visibility,
-    })
+const DocumentsTable = ({ documents }: { documents: AdminDocument[] }) => {
+  const table = useDataTable({
+    data: documents,
+    columns: [
+      { header: "Title", accessorKey: "title" },
+      {
+        header: "Type",
+        accessorKey: "document_type",
+        cell: ({ row }: any) => <Badge>{row.original.document_type ?? "other"}</Badge>,
+      },
+      {
+        header: "Visibility",
+        accessorKey: "visibility",
+        cell: ({ row }: any) => (
+          <Badge color={row.original.visibility === "public" ? "green" : "grey"}>
+            {row.original.visibility ?? "investor"}
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }: any) => (
+          <div className="flex justify-end">
+            <ActionMenu
+              groups={[
+                {
+                  actions: [
+                    {
+                      icon: <ArrowUpRightOnBox />,
+                      label: row.original.file_url ? "Open file" : "No file",
+                      disabled: !row.original.file_url,
+                      onClick: () =>
+                        row.original.file_url &&
+                        window.open(row.original.file_url, "_blank", "noopener"),
+                    },
+                  ],
+                },
+              ]}
+            />
+          </div>
+        ),
+      },
+    ],
   })
   return (
-    <FocusModal open={open} onOpenChange={setOpen}>
-      <FocusModal.Trigger asChild>
-        <Button size="small" variant="secondary">Add document</Button>
-      </FocusModal.Trigger>
-      <FocusModal.Content>
-        <FocusModal.Header>
-          <Button size="small" isLoading={isPending || isUploading} onClick={onSubmit}>Add</Button>
-        </FocusModal.Header>
-        <FocusModal.Body className="flex flex-col items-center py-8">
-          <form onSubmit={onSubmit} className="flex w-full max-w-lg flex-col gap-y-6">
-            <Heading level="h2">Add a document</Heading>
-            <div className="flex flex-col gap-y-2">
-              <Label size="small" weight="plus">Title</Label>
-              <Input placeholder="Shareholders Agreement 2026" {...form.register("title", { required: true })} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-y-2">
-                <Label size="small" weight="plus">Type</Label>
-                <Controller control={form.control} name="document_type" render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <Select.Trigger><Select.Value /></Select.Trigger>
-                    <Select.Content>
-                      {DOCUMENT_TYPES.map((t) => <Select.Item key={t} value={t}>{t}</Select.Item>)}
-                    </Select.Content>
-                  </Select>
-                )} />
-              </div>
-              <div className="flex flex-col gap-y-2">
-                <Label size="small" weight="plus">Visibility</Label>
-                <Controller control={form.control} name="visibility" render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <Select.Trigger><Select.Value /></Select.Trigger>
-                    <Select.Content>
-                      {["private", "investor", "public"].map((t) => <Select.Item key={t} value={t}>{t}</Select.Item>)}
-                    </Select.Content>
-                  </Select>
-                )} />
-              </div>
-            </div>
-            <div className="flex flex-col gap-y-2">
-              <Label size="small" weight="plus">File</Label>
-              <Input
-                type="file"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              />
-              {file && (
-                <Text size="small" className="text-ui-fg-subtle">
-                  {file.name}
-                </Text>
-              )}
-            </div>
-          </form>
-        </FocusModal.Body>
-      </FocusModal.Content>
-    </FocusModal>
+    <DataTable instance={table}>
+      <DataTable.Table />
+    </DataTable>
   )
 }
-
-// ---- Section ---------------------------------------------------------------
 
 export const ComplianceSection = ({
   companyId,
@@ -256,7 +103,16 @@ export const ComplianceSection = ({
           <Heading level="h2">Compliance</Heading>
           {company?.status && <Badge color={statusColor(company.status)}>{company.status}</Badge>}
         </div>
-        <EditComplianceModal companyId={companyId} company={company} />
+        <ActionMenu
+          groups={[
+            {
+              actions: [
+                { icon: <PencilSquare />, label: "Edit details", to: "edit-details" },
+                { icon: <DocumentText />, label: "Add document", to: "add-document" },
+              ],
+            },
+          ]}
+        />
       </div>
 
       {/* Reg / tax fields */}
@@ -269,48 +125,22 @@ export const ComplianceSection = ({
         ))}
       </div>
 
-      {/* Document vault */}
-      <div className="flex flex-col gap-y-2 px-6 py-5">
-        <div className="flex items-center justify-between">
+      {/* Document vault (full width) */}
+      <div>
+        <div className="px-6 pb-3 pt-5">
           <Text weight="plus">Document vault</Text>
-          <AddDocumentModal companyId={companyId} />
         </div>
         {isPending ? (
-          <div className="flex flex-col gap-y-2">
+          <div className="flex flex-col gap-y-2 px-6 pb-5">
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
           </div>
         ) : documents.length === 0 ? (
-          <Text size="small" className="text-ui-fg-subtle">No documents yet.</Text>
+          <div className="px-6 pb-5">
+            <Text size="small" className="text-ui-fg-subtle">No documents yet.</Text>
+          </div>
         ) : (
-          <Table>
-            <Table.Header>
-              <Table.Row>
-                <Table.HeaderCell>Title</Table.HeaderCell>
-                <Table.HeaderCell>Type</Table.HeaderCell>
-                <Table.HeaderCell>Visibility</Table.HeaderCell>
-                <Table.HeaderCell>Link</Table.HeaderCell>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {documents.map((d) => (
-                <Table.Row key={d.id}>
-                  <Table.Cell>{d.title}</Table.Cell>
-                  <Table.Cell><Badge>{d.document_type ?? "other"}</Badge></Table.Cell>
-                  <Table.Cell>{d.visibility ?? "investor"}</Table.Cell>
-                  <Table.Cell>
-                    {d.file_url ? (
-                      <a href={d.file_url} target="_blank" rel="noreferrer" className="text-ui-fg-interactive">
-                        Open
-                      </a>
-                    ) : (
-                      "—"
-                    )}
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table>
+          <DocumentsTable documents={documents} />
         )}
       </div>
     </Container>

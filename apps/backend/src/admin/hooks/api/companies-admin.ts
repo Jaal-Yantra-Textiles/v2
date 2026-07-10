@@ -48,9 +48,22 @@ export type CompanyInvestor = {
   name: string
   email?: string
   investor_type?: string
+  pipeline_id?: string
   pipeline_stage?: string
   pipeline_status?: string
 }
+
+export const PIPELINE_STAGES = [
+  "lead",
+  "contacted",
+  "interested",
+  "due_diligence",
+  "term_sheet",
+  "committed",
+  "onboarded",
+  "closed",
+  "passed",
+] as const
 
 export type CompanyInvestorsResponse = {
   investors: CompanyInvestor[]
@@ -173,6 +186,32 @@ export const useCompanyInvestors = (
   })
 
   return { ...data, ...rest }
+}
+
+export const useUpdatePipelineStage = (
+  companyId: string,
+  options?: UseMutationOptions<
+    { pipeline: unknown },
+    FetchError,
+    { pipelineId: string; stage?: string; status?: string }
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    ...options,
+    mutationFn: ({ pipelineId, stage, status }) =>
+      sdk.client.fetch(
+        `/admin/companies/${companyId}/investors/${pipelineId}`,
+        { method: "POST", body: { stage, status } }
+      ),
+    onSuccess: (...args: any[]) => {
+      queryClient.invalidateQueries({
+        queryKey: ["admin-company-investors", companyId],
+      })
+      ;(options?.onSuccess as any)?.(...args)
+    },
+  })
 }
 
 export const useInviteInvestorToCompany = (

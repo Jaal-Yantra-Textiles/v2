@@ -1,0 +1,72 @@
+name: Deploy Investor UI to Cloudflare Workers
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'apps/investor-ui/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/deploy-investor-ui.yml'
+  workflow_dispatch:
+
+env:
+  # Opt into Node.js 24 for JS-based actions (Node 20 runtime is deprecated on
+  # GHA runners), matching deploy-analytics.yml.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+# `id-token: write` enables GitHub OIDC. Cloudflare's wrangler-action does not
+# yet consume GitHub OIDC directly (it authenticates with an API token), but we
+# request the token so an OIDC trust flow can be wired later without editing
+# permissions. Auth today is via the CLOUDFLARE_API_TOKEN secret below.
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy-investor-ui:
+    name: Build and Deploy Investor UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        # Scope the install to the investor-ui workspace + its deps only. A full
+        # install compiles the backend's isolated-vm from source (Node 22+),
+        # which is unnecessary for this pure-frontend build. Mirrors
+        # deploy-analytics.yml.
+        run: pnpm install --frozen-lockfile --filter @jyt/investor-ui...
+
+      - name: Build SPA
+        working-directory: apps/investor-ui
+        env:
+          # Compile-time globals baked into the bundle. Set these as repo
+          # Variables (Settings → Secrets and variables → Actions → Variables)
+          # or they fall back to the production defaults below.
+          VITE_MEDUSA_BACKEND_URL: ${{ vars.INVESTOR_UI_BACKEND_URL || 'https://v3.jaalyantra.com' }}
+          VITE_MEDUSA_BASE: ${{ vars.INVESTOR_UI_BASE || '/' }}
+        run: pnpm run build:preview
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          # Same names as apps/backend/.env — add them as GitHub repo secrets
+          # (Settings → Secrets and variables → Actions). CF_WORKERS_SECRET is a
+          # cfat… Workers-deploy API token; CF_ACCOUNT_ID is the account id.
+          apiToken: ${{ secrets.CF_WORKERS_SECRET }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          workingDirectory: apps/investor-ui
+          command: deploy

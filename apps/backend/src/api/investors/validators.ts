@@ -132,7 +132,7 @@ export const pipelineSchema = z.object({
   company_id: z.string(),
   stage: z.enum([
     "lead", "contacted", "interested", "due_diligence",
-    "term_sheet", "committed", "closed", "passed",
+    "term_sheet", "committed", "onboarded", "closed", "passed",
   ]).optional(),
   status: z.enum(["active", "won", "lost", "on_hold"]).optional(),
   target_amount: z.number().nullable().optional(),

@@ -1,23 +1,18 @@
 import {
   Badge,
-  Button,
   Container,
-  FocusModal,
+  DataTable,
   Heading,
-  Input,
-  Label,
   Skeleton,
-  Table,
   Text,
-  toast,
+  useDataTable,
 } from "@medusajs/ui"
-import { useState } from "react"
-import { useForm } from "react-hook-form"
+import { CreditCard, CurrencyDollar } from "@medusajs/icons"
+import { Outlet } from "react-router-dom"
+import { ActionMenu } from "../../components/common/action-menu/action-menu"
 import {
   useDeals,
   useMyParticipations,
-  useParticipate,
-  type Deal,
   type Participation,
 } from "../../hooks/api/investments"
 
@@ -38,62 +33,53 @@ const statusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
   }
 }
 
-const ParticipateModal = ({ deal }: { deal: Deal }) => {
-  const [open, setOpen] = useState(false)
-  const form = useForm({ defaultValues: { amount: "" } })
-  const ccy = deal.cap_table?.currency_code
-  const { mutateAsync, isPending } = useParticipate(deal.id, {
-    onSuccess: () => {
-      toast.success("Participation submitted — awaiting approval")
-      form.reset()
-      setOpen(false)
-    },
-    onError: (e: any) => toast.error(e?.message || "Failed to participate"),
-  })
-  const onSubmit = form.handleSubmit(async (v) => {
-    const amount = Number(v.amount)
-    if (!amount || amount <= 0) {
-      toast.error("Enter an amount")
-      return
-    }
-    return mutateAsync({ amount })
-  })
-  return (
-    <FocusModal open={open} onOpenChange={setOpen}>
-      <FocusModal.Trigger asChild>
-        <Button size="small" variant="primary">Participate</Button>
-      </FocusModal.Trigger>
-      <FocusModal.Content>
-        <FocusModal.Header>
-          <Button size="small" isLoading={isPending} onClick={onSubmit}>Submit</Button>
-        </FocusModal.Header>
-        <FocusModal.Body className="flex flex-col items-center py-8">
-          <form onSubmit={onSubmit} className="flex w-full max-w-md flex-col gap-y-6">
-            <div className="flex flex-col gap-y-1">
-              <Heading level="h2">Participate in {deal.name}</Heading>
-              <Text size="small" className="text-ui-fg-subtle">
-                {deal.cap_table?.name}
-                {deal.price_per_share
-                  ? ` · ${money(deal.price_per_share, ccy)} / share`
-                  : ""}
-              </Text>
-            </div>
-            <div className="flex flex-col gap-y-2">
-              <Label size="small" weight="plus">Amount {ccy ? `(${ccy})` : ""}</Label>
-              <Input type="number" placeholder="50000" {...form.register("amount", { required: true })} />
-              <Text size="small" className="text-ui-fg-subtle">
-                We'll confirm your allocation and send a payment link.
-              </Text>
-            </div>
-          </form>
-        </FocusModal.Body>
-      </FocusModal.Content>
-    </FocusModal>
-  )
-}
-
 const DealsCard = () => {
   const { deals, isPending } = useDeals()
+
+  const table = useDataTable({
+    data: deals,
+    columns: [
+      { header: "Deal", accessorKey: "name" },
+      {
+        header: "Type",
+        accessorKey: "round_type",
+        cell: ({ row }: any) => <Badge size="2xsmall">{row.original.round_type ?? "round"}</Badge>,
+      },
+      {
+        header: "Company",
+        accessorKey: "cap_table",
+        cell: ({ row }: any) => row.original.cap_table?.name ?? "—",
+      },
+      {
+        header: "Target",
+        accessorKey: "target_amount",
+        cell: ({ row }: any) =>
+          money(row.original.target_amount, row.original.cap_table?.currency_code),
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }: any) => (
+          <div className="flex justify-end">
+            <ActionMenu
+              groups={[
+                {
+                  actions: [
+                    {
+                      icon: <CurrencyDollar />,
+                      label: "Participate",
+                      to: `participate/${row.original.id}`,
+                    },
+                  ],
+                },
+              ]}
+            />
+          </div>
+        ),
+      },
+    ],
+  })
+
   return (
     <Container className="divide-y p-0">
       <div className="px-6 py-4">
@@ -111,23 +97,9 @@ const DealsCard = () => {
         ) : deals.length === 0 ? (
           <Text size="small" className="text-ui-fg-subtle">No open deals right now.</Text>
         ) : (
-          <div className="flex flex-col gap-y-3">
-            {deals.map((d) => (
-              <div key={d.id} className="flex items-center justify-between rounded-lg border p-4">
-                <div className="flex flex-col gap-y-0.5">
-                  <div className="flex items-center gap-x-2">
-                    <Text weight="plus">{d.name}</Text>
-                    <Badge size="2xsmall">{d.round_type ?? "round"}</Badge>
-                  </div>
-                  <Text size="small" className="text-ui-fg-subtle">
-                    {d.cap_table?.name ?? "—"} · Target{" "}
-                    {money(d.target_amount, d.cap_table?.currency_code)}
-                  </Text>
-                </div>
-                <ParticipateModal deal={d} />
-              </div>
-            ))}
-          </div>
+          <DataTable instance={table}>
+            <DataTable.Table />
+          </DataTable>
         )}
       </div>
     </Container>
@@ -140,6 +112,70 @@ const payLink = (p: Participation): string | undefined =>
 
 const MyParticipationsCard = () => {
   const { participations, isPending } = useMyParticipations()
+
+  const table = useDataTable({
+    data: participations,
+    columns: [
+      {
+        header: "Deal",
+        accessorKey: "funding_round",
+        cell: ({ row }: any) => row.original.funding_round?.name ?? "—",
+      },
+      {
+        header: "Company",
+        accessorKey: "cap_table",
+        cell: ({ row }: any) => row.original.cap_table?.name ?? "—",
+      },
+      {
+        header: "Amount",
+        accessorKey: "total_invested",
+        cell: ({ row }: any) => money(row.original.total_invested),
+      },
+      {
+        header: "Status",
+        accessorKey: "status",
+        cell: ({ row }: any) => (
+          <Badge color={statusColor(row.original.status)}>
+            {row.original.status ?? "unpaid"}
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }: any) => {
+          const p = row.original as Participation
+          const link = payLink(p)
+          if (p.status === "fully_paid") {
+            return (
+              <div className="flex justify-end">
+                <Text size="small" className="text-ui-fg-subtle">Paid</Text>
+              </div>
+            )
+          }
+          return (
+            <div className="flex justify-end">
+              <ActionMenu
+                groups={[
+                  {
+                    actions: [
+                      {
+                        icon: <CreditCard />,
+                        label: link ? "Pay now" : "Awaiting approval",
+                        disabled: !link,
+                        onClick: () => link && window.open(link, "_blank", "noopener"),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            </div>
+          )
+        },
+      },
+    ],
+  })
+
   return (
     <Container className="divide-y p-0">
       <div className="px-6 py-4">
@@ -155,43 +191,9 @@ const MyParticipationsCard = () => {
             You haven't participated in any deals yet.
           </Text>
         ) : (
-          <Table>
-            <Table.Header>
-              <Table.Row>
-                <Table.HeaderCell>Deal</Table.HeaderCell>
-                <Table.HeaderCell>Company</Table.HeaderCell>
-                <Table.HeaderCell>Amount</Table.HeaderCell>
-                <Table.HeaderCell>Status</Table.HeaderCell>
-                <Table.HeaderCell>Payment</Table.HeaderCell>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {participations.map((p) => {
-                const link = payLink(p)
-                return (
-                  <Table.Row key={p.id}>
-                    <Table.Cell>{p.funding_round?.name ?? "—"}</Table.Cell>
-                    <Table.Cell>{p.cap_table?.name ?? "—"}</Table.Cell>
-                    <Table.Cell>{money(p.total_invested)}</Table.Cell>
-                    <Table.Cell>
-                      <Badge color={statusColor(p.status)}>{p.status ?? "unpaid"}</Badge>
-                    </Table.Cell>
-                    <Table.Cell>
-                      {p.status === "fully_paid" ? (
-                        <Text size="small" className="text-ui-fg-subtle">Paid</Text>
-                      ) : link ? (
-                        <a href={link} target="_blank" rel="noreferrer">
-                          <Button size="small" variant="secondary">Pay now</Button>
-                        </a>
-                      ) : (
-                        <Text size="small" className="text-ui-fg-subtle">Awaiting approval</Text>
-                      )}
-                    </Table.Cell>
-                  </Table.Row>
-                )
-              })}
-            </Table.Body>
-          </Table>
+          <DataTable instance={table}>
+            <DataTable.Table />
+          </DataTable>
         )}
       </div>
     </Container>
@@ -203,6 +205,8 @@ export const Finances = () => {
     <div className="flex w-full flex-col gap-y-4 px-4 py-6 md:px-6">
       <DealsCard />
       <MyParticipationsCard />
+      {/* Route-modal outlet: /finances/participate/:dealId renders here. */}
+      <Outlet />
     </div>
   )
 }

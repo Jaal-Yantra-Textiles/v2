@@ -44,6 +44,12 @@ export function getRouteMap({
               path: "/finances",
               errorElement: <ErrorBoundary />,
               lazy: () => import("../../routes/finances"),
+              children: [
+                {
+                  path: "participate/:dealId",
+                  lazy: () => import("../../routes/finances/participate"),
+                },
+              ],
             },
             {
               path: "/compliance",

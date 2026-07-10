@@ -35,6 +35,7 @@ export type AdminFundingRound = {
 
 export type AdminStake = {
   id: string
+  investor_id?: string | null
   number_of_shares?: number | null
   total_invested?: number | null
   ownership_percentage?: number | null

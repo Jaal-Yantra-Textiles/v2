@@ -17,6 +17,7 @@ const Pipeline = model.define("investor_pipeline", {
     "due_diligence",
     "term_sheet",
     "committed",
+    "onboarded",
     "closed",
     "passed",
   ]).default("lead"),

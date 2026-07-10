@@ -111,6 +111,9 @@ export const useRecordPayment = (
       }),
     onSuccess: (...args: any[]) => {
       queryClient.invalidateQueries({ queryKey: financeQueryKeys.payments(companyId) })
+      // Financial summary tiles are derived from the cap table too — refresh it
+      // so valuation/rollups reflect the new ledger entry immediately.
+      queryClient.invalidateQueries({ queryKey: ["admin-company-cap-tables", companyId] })
       ;(options?.onSuccess as any)?.(...args)
     },
   })

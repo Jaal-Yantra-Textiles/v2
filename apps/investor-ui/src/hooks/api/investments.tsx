@@ -37,9 +37,71 @@ export type Participation = {
   }>
 }
 
+export type CapTableStake = {
+  id: string
+  investor_id?: string | null
+  total_invested?: number | null
+  number_of_shares?: number | null
+  status?: string
+  is_me?: boolean
+  investor?: { id?: string; name?: string } | null
+  funding_round?: { name?: string } | null
+  share_class?: { name?: string } | null
+}
+
+export type InvestorCapTable = {
+  id: string
+  name: string
+  company_id?: string
+  currency_code?: string | null
+  total_shares_authorized?: number | null
+  pre_money_valuation?: number | null
+  post_money_valuation?: number | null
+  share_classes?: Array<{ id: string; name: string; class_type?: string }>
+  funding_rounds?: Array<{ id: string; name: string; status?: string; round_type?: string }>
+  stakes?: CapTableStake[]
+}
+
 export const investmentsQueryKeys = {
   deals: ["investor-deals"] as const,
   participations: ["investor-participations"] as const,
+  capTable: ["investor-cap-table"] as const,
+}
+
+export type InvestorDocument = {
+  id: string
+  title: string
+  description?: string | null
+  document_type?: string
+  file_url?: string | null
+  file_name?: string | null
+  visibility?: string
+  company_id?: string
+  created_at?: string
+}
+
+export const useMyDocuments = () => {
+  const { data, ...rest } = useQuery({
+    queryFn: () =>
+      sdk.client.fetch<{ documents: InvestorDocument[]; count: number }>(
+        "/investors/me/documents",
+        { method: "GET" }
+      ),
+    queryKey: ["investor-documents"] as const,
+  })
+  return { documents: data?.documents ?? [], count: data?.count ?? 0, ...rest }
+}
+
+export const useMyCapTable = () => {
+  const { data, ...rest } = useQuery({
+    queryFn: () =>
+      sdk.client.fetch<{ cap_tables: InvestorCapTable[]; count: number }>(
+        "/investors/me/cap-table",
+        { method: "GET" }
+      ),
+    queryKey: investmentsQueryKeys.capTable,
+  })
+  return { capTables: data?.cap_tables ?? [], count: data?.count ?? 0, ...rest }
 }
 
 export const useDeals = () => {
