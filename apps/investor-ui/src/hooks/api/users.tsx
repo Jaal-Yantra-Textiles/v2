@@ -28,7 +28,13 @@ export const useMe = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.user.me(query),
+    // Investor UI: the "current user" is the authenticated investor.
+    queryFn: async () => {
+      const { investor } = await sdk.client.fetch<{
+        investor: HttpTypes.AdminUser
+      }>("/investors/me")
+      return { user: investor } as HttpTypes.AdminUserResponse
+    },
     queryKey: usersQueryKeys.me(query),
     ...options,
   })

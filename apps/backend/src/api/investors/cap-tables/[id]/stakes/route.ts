@@ -28,8 +28,11 @@ export const GET = async (
 ) => {
   await requireInvestor(req.auth_context, req.scope)
   const service: InvestorService = req.scope.resolve(INVESTOR_MODULE)
-  const items = await service.listStakes(
-    { cap_table_id: req.params.id } as any
+  const limit = req.query.limit ? Number(req.query.limit) : 50
+  const offset = req.query.offset ? Number(req.query.offset) : 0
+  const [items, count] = await service.listAndCountStakes(
+    { cap_table_id: req.params.id } as any,
+    { skip: offset, take: limit }
   )
-  res.json({ stakes: items, count: items.length })
+  res.json({ stakes: items, count, limit, offset })
 }

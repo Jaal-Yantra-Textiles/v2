@@ -851,6 +851,22 @@ export default defineMiddlewares({
         validateAndTransformBody(wrapSchema(investorSchema)),
       ],
     },
+    // Admin invite route (main Medusa admin). Auth is auto-applied to /admin/*.
+    {
+      matcher: "/admin/investors",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(investorSchema))],
+    },
+    {
+      matcher: "/admin/companies",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(companySchema))],
+    },
+    {
+      matcher: "/admin/companies/:id/investors",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(investorSchema))],
+    },
     {
       matcher: "/investors/me",
       method: "GET",

@@ -24,6 +24,13 @@ const COMMON_EMAIL_TEMPLATES = [
     from: "partners@jaalyantra.com",
   },
   {
+    name: "Admin Investor Created",
+    template_key: "investor-created-from-admin",
+    subject: "You're invited to your investor portal at Jaal Yantra Textiles",
+    html_content: "<div>Hi {{investor_name}}, your investor account is ready. Sign in at {{login_url}} using your email and this temporary password: {{temp_password}}</div>",
+    from: "investors@jaalyantra.com",
+  },
+  {
     name: "Design Production Started",
     template_key: "design-production-started",
     subject: "Production started for {{design_name}}",
