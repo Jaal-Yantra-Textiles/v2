@@ -84,6 +84,10 @@ export const faireApi = {
   retrySync: (id: string) =>
     sdk.client.fetch(`/admin/faire/syncs/${id}`, { method: "POST" }),
   brand: () => sdk.client.fetch("/admin/faire/brand"),
+  taxonomy: () =>
+    sdk.client.fetch<{ taxonomy: Array<{ id: string; name: string }> }>(
+      "/admin/faire/taxonomy"
+    ),
   products: (opts: { limit?: number; page?: string; updated_at_min?: string } = {}) => {
     const query: Record<string, string> = {}
     if (opts.limit !== undefined) query.limit = String(opts.limit)

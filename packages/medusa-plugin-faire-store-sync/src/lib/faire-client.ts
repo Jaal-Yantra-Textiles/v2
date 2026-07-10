@@ -478,6 +478,33 @@ export class FaireClient {
    * 2026-07-09; the `limit` param is ignored). Cached per client.
    */
   private taxonomyTypesCache: Array<{ id: string; name: string }> | null = null
+  /**
+   * Fetch the full taxonomy types list from Faire (cached per client instance).
+   * Returns `[{ id, name }, …]` sorted by name or `[]` on error.
+   */
+  async getTaxonomyTypes(
+    accessToken: string
+  ): Promise<Array<{ id: string; name: string }>> {
+    if (!this.taxonomyTypesCache) {
+      try {
+        const data = await this.requestJson<any>(
+          `${this.apiBase}/products/types`,
+          { method: "GET", accessToken }
+        )
+        this.taxonomyTypesCache = (
+          data.taxonomy_types ??
+          data.product_types ??
+          data.types ??
+          data.results ??
+          []
+        ).map((t: any) => ({ id: String(t.id), name: String(t.name ?? "") }))
+      } catch {
+        this.taxonomyTypesCache = []
+      }
+    }
+    return this.taxonomyTypesCache
+  }
+
   async resolveTaxonomyTypeId(
     accessToken: string,
     nameOrId: string
