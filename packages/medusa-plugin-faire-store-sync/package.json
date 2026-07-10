@@ -1,6 +1,6 @@
 {
   "name": "@jytextiles/medusa-plugin-faire-store-sync",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"

@@ -253,6 +253,13 @@ class FaireSyncService extends MedusaService({
     return this.updateFaireSyncSettings({ id: settings.id, ...data } as any)
   }
 
+  async getTaxonomyTypes(): Promise<Array<{ id: string; name: string }>> {
+    const account = await this.getActiveAccount()
+    if (!account) return []
+    const client = this.getClient(account.auth_mode as "oauth" | "apiKey")
+    return client.getTaxonomyTypes(account.access_token)
+  }
+
   /**
    * High-water mark for incremental order polling. Returns the last successful
    * sync timestamp, or null if orders have never been polled (full backfill).

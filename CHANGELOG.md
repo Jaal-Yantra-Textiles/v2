@@ -1,3 +1,17 @@
+## [13.52.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.52.1...v13.52.2) (2026-07-10)
+
+
+### Bug Fixes
+
+* **faire:** MedusaError in sync, taxonomy picker, shipping field, readiness fixes ([#972](https://github.com/Jaal-Yantra-Textiles/v2/issues/972)) ([282c77a](https://github.com/Jaal-Yantra-Textiles/v2/commit/282c77a8bf43dcebf75640dc978dda7599bf9360))
+
+## [13.52.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.52.0...v13.52.1) (2026-07-10)
+
+
+### Bug Fixes
+
+* **faire:** v2 payload + taxonomy + inventory + pagination + order-ingest — 0.2.6 ([#937](https://github.com/Jaal-Yantra-Textiles/v2/issues/937)) ([302f041](https://github.com/Jaal-Yantra-Textiles/v2/commit/302f041248fb4d37d19afe82f825cec2b750779a))
+
 # [13.52.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.51.0...v13.52.0) (2026-07-09)
 
 
