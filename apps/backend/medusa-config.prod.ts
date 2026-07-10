@@ -545,5 +545,8 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/platform-tax-identity",
   },
+  {
+    resolve: "./src/modules/investor",
+  },
 ],
 });
