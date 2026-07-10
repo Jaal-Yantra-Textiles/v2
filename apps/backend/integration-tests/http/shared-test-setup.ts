@@ -4,6 +4,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 // Shared test environment instance
 let sharedApi: AxiosInstance | null = null;
 let sharedGetContainer: any = null;
+let sharedDbUtils: any = null;
 
 const attachHttpLogging = (api: AxiosInstance) => {
   if (!(api as any).__httpLoggingAttached && api?.interceptors?.response) {
@@ -33,16 +34,19 @@ const attachHttpLogging = (api: AxiosInstance) => {
  * Shared test environment setup
  * This must be called synchronously at the top level of test files
  */
-export function setupSharedTestSuite(testSuite: (env: { api: AxiosInstance; getContainer: any }) => void) {
+export function setupSharedTestSuite(
+  testSuite: (env: { api: AxiosInstance; getContainer: any; dbUtils: any }) => void
+) {
   return medusaIntegrationTestRunner({
-    testSuite: ({ api, getContainer }) => {
+    testSuite: ({ api, getContainer, dbUtils }) => {
       // Store the environment for reuse
       attachHttpLogging(api);
       sharedApi = api;
       sharedGetContainer = getContainer;
-      
+      sharedDbUtils = dbUtils;
+
       // Run the test suite
-      testSuite({ api, getContainer });
+      testSuite({ api, getContainer, dbUtils });
     }
   });
 }
@@ -56,6 +60,6 @@ export function getSharedTestEnv() {
     throw new Error("Shared test environment not initialized. Make sure setupSharedTestSuite was called first.");
   }
 
-  return { api: sharedApi, getContainer: sharedGetContainer };
+  return { api: sharedApi, getContainer: sharedGetContainer, dbUtils: sharedDbUtils };
 }
 

@@ -125,5 +125,23 @@ setupSharedTestSuite(() => {
         )
       ).rejects.toMatchObject({ response: { status: 400 } })
     })
+
+    it("enforces partner ownership on the fulfillment-label alias route too (#835)", async () => {
+      const { api } = getSharedTestEnv()
+      const unique = Date.now() + 1
+
+      const owner = await createPartner(unique)
+      const intruder = await createPartner(unique + 1)
+      const order = await createOrder(unique)
+      await linkPartnerOrder(owner.partnerId, order.id)
+
+      await expect(
+        api.post(
+          `/partners/orders/${order.id}/fulfillment-label`,
+          {},
+          { headers: intruder.headers }
+        )
+      ).rejects.toMatchObject({ response: { status: 400 } })
+    })
   })
 })

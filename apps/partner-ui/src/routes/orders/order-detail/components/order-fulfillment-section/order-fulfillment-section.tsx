@@ -14,6 +14,7 @@ import {
   Heading,
   Input,
   Label,
+  Select,
   StatusBadge,
   Text,
   Tooltip,
@@ -337,6 +338,7 @@ const Fulfillment = ({
 
   // Shiprocket carrier actions (#639) — partner parity with admin Design-Orders.
   // Available only while the fulfillment has no waybill yet and isn't canceled.
+  const [selectedCarrier, setSelectedCarrier] = useState<string>("shiprocket")
   const [showAttachAwb, setShowAttachAwb] = useState(false)
   const [awbInput, setAwbInput] = useState("")
 
@@ -354,13 +356,15 @@ const Fulfillment = ({
 
   const handleGenerateShiprocketLabel = async () => {
     try {
-      const res = await generateShiprocketLabel(undefined)
+      const res = await generateShiprocketLabel({ carrier: selectedCarrier })
       const awb = res?.shiprocket_label?.awb || res?.shiprocket_label?.tracking_number
       toast.success(
-        awb ? `Shiprocket label generated — AWB ${awb}` : "Shiprocket label generated"
+        awb
+          ? `${selectedCarrier === "delhivery" ? "Delhivery" : "Shiprocket"} label generated — AWB ${awb}`
+          : `${selectedCarrier === "delhivery" ? "Delhivery" : "Shiprocket"} label generated`
       )
     } catch (e: any) {
-      toast.error(e?.message || "Failed to generate Shiprocket label")
+      toast.error(e?.message || "Failed to generate label")
     }
   }
 
@@ -731,6 +735,18 @@ const Fulfillment = ({
         <div className="bg-ui-bg-subtle flex items-center justify-end gap-x-2 rounded-b-xl px-4 py-4">
           {showShiprocketCarrierActions && (
             <>
+              <Select
+                value={selectedCarrier}
+                onValueChange={setSelectedCarrier}
+              >
+                <Select.Trigger className="w-36">
+                  <Select.Value />
+                </Select.Trigger>
+                <Select.Content>
+                  <Select.Item value="shiprocket">Shiprocket</Select.Item>
+                  <Select.Item value="delhivery">Delhivery</Select.Item>
+                </Select.Content>
+              </Select>
               <Button
                 onClick={() => setShowAttachAwb(true)}
                 variant="secondary"
@@ -742,7 +758,7 @@ const Fulfillment = ({
                 variant="secondary"
                 isLoading={isGeneratingLabel}
               >
-                Generate Shiprocket Label
+                {selectedCarrier === "delhivery" ? "Generate Delhivery Label" : "Generate Shiprocket Label"}
               </Button>
             </>
           )}

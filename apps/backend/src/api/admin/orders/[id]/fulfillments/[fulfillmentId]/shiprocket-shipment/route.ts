@@ -16,6 +16,7 @@ import { createShiprocketShipmentForFulfillment } from "../../../../../../../wor
  */
 const Body = z.object({
   pickup_location_name: z.string().optional(),
+  carrier: z.string().optional(),
   weight_grams: z.coerce.number().positive().optional(),
   dimensions_cm: z
     .object({
@@ -33,6 +34,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const result = await createShiprocketShipmentForFulfillment(req.scope, {
     orderId: req.params.id,
     fulfillmentId: req.params.fulfillmentId,
+    carrier: body.carrier,
     pickupLocationName: body.pickup_location_name,
     weightGrams: body.weight_grams,
     dimensionsCm: body.dimensions_cm,

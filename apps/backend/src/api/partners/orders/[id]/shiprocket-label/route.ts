@@ -31,7 +31,10 @@ export const POST = async (
   const orderId = req.params.id
   await validatePartnerOrderOwnership(req.auth_context, orderId, req.scope)
 
-  const body = (req.body || {}) as { preferred_courier_id?: string | number }
+  const body = (req.body || {}) as {
+    carrier?: string
+    preferred_courier_id?: string | number
+  }
   const preferredCourierId =
     body.preferred_courier_id != null && body.preferred_courier_id !== ""
       ? body.preferred_courier_id
@@ -54,6 +57,7 @@ export const POST = async (
   const shipment = await createShiprocketShipmentForFulfillment(req.scope, {
     orderId,
     fulfillmentId,
+    carrier: body.carrier,
     pickupStockLocationId: locationId,
     actingEmail: partner?.admins?.[0]?.email,
     preferredCourierId,

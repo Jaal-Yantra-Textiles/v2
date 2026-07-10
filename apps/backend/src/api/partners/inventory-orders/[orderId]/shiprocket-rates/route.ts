@@ -41,8 +41,13 @@ export async function GET(req: AuthenticatedMedusaRequest, res: MedusaResponse) 
   const dimensionsCm =
     length || breadth || height ? { length, breadth, height } : undefined;
 
+  const carrierRaw = req.query.carrier;
+  const carrier =
+    typeof carrierRaw === "string" && carrierRaw ? carrierRaw : undefined;
+
   const result = await getShiprocketRatesForInventoryOrder(req.scope, {
     orderId,
+    carrier,
     weightGrams: num(req.query.weight_grams),
     dimensionsCm,
   });

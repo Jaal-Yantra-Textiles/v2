@@ -24,33 +24,34 @@ export type GenerateShiprocketLabelResponse = {
   }
 }
 
-export type GenerateShiprocketLabelVariables =
-  | { preferred_courier_id?: string | number }
-  | undefined
+export type GenerateShiprocketLabelVariables = {
+  preferred_courier_id?: string | number
+  carrier?: string
+}
 
 /**
  * Generate a Shiprocket label for one of the partner's own orders (create
- * fulfillment → shipment → AWB). Optionally passes a chosen courier (#641).
+ * fulfillment → shipment → AWB). Optionally passes a chosen courier (#641)
+ * and the carrier (defaults to "shiprocket" on the backend).
  */
 export const useGenerateShiprocketLabel = (
   orderId: string,
   options?: UseMutationOptions<
     GenerateShiprocketLabelResponse,
     FetchError,
-    GenerateShiprocketLabelVariables
+    GenerateShiprocketLabelVariables | undefined
   >
 ) => {
   return useMutation({
-    mutationFn: (variables?: GenerateShiprocketLabelVariables) =>
-      sdk.client.fetch<GenerateShiprocketLabelResponse>(
+    mutationFn: (variables?: GenerateShiprocketLabelVariables) => {
+      const body: Record<string, any> = {}
+      if (variables?.preferred_courier_id) body.preferred_courier_id = variables.preferred_courier_id
+      if (variables?.carrier) body.carrier = variables.carrier
+      return sdk.client.fetch<GenerateShiprocketLabelResponse>(
         `/partners/orders/${orderId}/shiprocket-label`,
-        {
-          method: "POST",
-          body: variables?.preferred_courier_id
-            ? { preferred_courier_id: variables.preferred_courier_id }
-            : {},
-        }
-      ),
+        { method: "POST", body }
+      )
+    },
     onSuccess: (data: any, variables: any, context: any) => {
       queryClient.invalidateQueries({ queryKey: ordersQueryKeys.all })
       options?.onSuccess?.(data, variables, context)
@@ -58,6 +59,24 @@ export const useGenerateShiprocketLabel = (
     ...options,
   })
 }
+
+// ── Carrier-neutral aliases (P4) ──────────────────────────────────────────────
+
+export type GenerateFulfillmentLabelVariables = GenerateShiprocketLabelVariables
+export type GenerateFulfillmentLabelResponse = GenerateShiprocketLabelResponse
+
+/**
+ * Carrier-neutral alias for `useGenerateShiprocketLabel`. Defaults carrier to
+ * `"shiprocket"` when omitted on the backend.
+ */
+export const useGenerateFulfillmentLabel = (
+  orderId: string,
+  options?: UseMutationOptions<
+    GenerateFulfillmentLabelResponse,
+    FetchError,
+    GenerateFulfillmentLabelVariables | undefined
+  >
+) => useGenerateShiprocketLabel(orderId, options)
 
 export type AttachShiprocketAwbResponse = {
   shiprocket_awb: {

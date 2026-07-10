@@ -16,7 +16,7 @@ jest.setTimeout(60000);
  * body, so we can assert the exact payload the client would send.
  */
 setupSharedTestSuite(() => {
-  const { api, getContainer } = getSharedTestEnv();
+  const { api, getContainer, dbUtils } = getSharedTestEnv();
 
   let headers: any;
   let inventoryItemId: string;
@@ -26,6 +26,7 @@ setupSharedTestSuite(() => {
   let prevEmail: string | undefined;
   let prevPassword: string | undefined;
   let prevStub: string | undefined;
+  let prevDelhiveryToken: string | undefined;
 
   const TO_ADDRESS = {
     address_1: "9 Mill Rd",
@@ -40,9 +41,11 @@ setupSharedTestSuite(() => {
     prevEmail = process.env.SHIPROCKET_EMAIL;
     prevPassword = process.env.SHIPROCKET_PASSWORD;
     prevStub = process.env.SHIPROCKET_STUB;
+    prevDelhiveryToken = process.env.DELHIVERY_API_TOKEN;
     process.env.SHIPROCKET_EMAIL = "test@shiprocket.example";
     process.env.SHIPROCKET_PASSWORD = "secret";
     process.env.SHIPROCKET_STUB = "1";
+    process.env.DELHIVERY_API_TOKEN = "test-delhivery-token";
   });
 
   afterAll(() => {
@@ -52,6 +55,8 @@ setupSharedTestSuite(() => {
     else process.env.SHIPROCKET_PASSWORD = prevPassword;
     if (prevStub === undefined) delete process.env.SHIPROCKET_STUB;
     else process.env.SHIPROCKET_STUB = prevStub;
+    if (prevDelhiveryToken === undefined) delete process.env.DELHIVERY_API_TOKEN;
+    else process.env.DELHIVERY_API_TOKEN = prevDelhiveryToken;
   });
 
   beforeEach(async () => {
@@ -352,6 +357,56 @@ setupSharedTestSuite(() => {
         .catch((e: any) => e.response);
       expect(res.status).toBe(400);
       expect(res.data.message).toMatch(/has no pincode to quote pickup rates from/);
+    });
+
+    it("accepts ?carrier=shiprocket query param", async () => {
+      const id = await createShippableOrder();
+      const res = await api.get(
+        `/admin/inventory-orders/${id}/shiprocket-rates?carrier=shiprocket`,
+        headers
+      );
+      expect(res.status).toBe(200);
+      expect(res.data.origin_pincode).toBe("302001");
+      expect(Array.isArray(res.data.rates)).toBe(true);
+    });
+
+    it("rejects ?carrier=delhivery (no courier picker for Delhivery)", async () => {
+      const id = await createShippableOrder();
+      const res = await api.get(
+        `/admin/inventory-orders/${id}/shiprocket-rates?carrier=delhivery`,
+        { ...headers, validateStatus: () => true }
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("responds on the carrier-neutral fulfillment-rates alias route (#835)", async () => {
+      const id = await createShippableOrder();
+      const res = await api.get(
+        `/admin/inventory-orders/${id}/fulfillment-rates`,
+        headers
+      );
+      expect(res.status).toBe(200);
+      expect(res.data.origin_pincode).toBe("302001");
+      expect(Array.isArray(res.data.rates)).toBe(true);
+    });
+
+    it("fulfillment-rates alias honours ?carrier=shiprocket", async () => {
+      const id = await createShippableOrder();
+      const res = await api.get(
+        `/admin/inventory-orders/${id}/fulfillment-rates?carrier=shiprocket`,
+        headers
+      );
+      expect(res.status).toBe(200);
+      expect(res.data.rates.length).toBeGreaterThan(0);
+    });
+
+    it("fulfillment-rates alias rejects ?carrier=delhivery (no courier picker)", async () => {
+      const id = await createShippableOrder();
+      const res = await api.get(
+        `/admin/inventory-orders/${id}/fulfillment-rates?carrier=delhivery`,
+        { ...headers, validateStatus: () => true }
+      );
+      expect(res.status).toBe(400);
     });
   });
 
