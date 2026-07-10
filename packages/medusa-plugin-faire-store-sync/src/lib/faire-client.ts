@@ -82,11 +82,24 @@ export class FaireClient {
   // ── OAuth ───────────────────────────────────────────────────────────────
 
   /**
+   * Normalise the configured scope into a list of individual scope tokens.
+   *
+   * `FAIRE_SCOPE` may be authored comma- OR space-separated (e.g.
+   * "READ_PRODUCTS WRITE_PRODUCTS" or "READ_PRODUCTS,WRITE_PRODUCTS"); split on
+   * either so each Faire scope enum is a distinct element. Passing the whole
+   * joined string as a single value makes Faire's authorize reject it with
+   * `scope.contains(null)` (it comma-splits, sees one unknown enum → null).
+   */
+  private scopeList(): string[] {
+    return this.scope ? this.scope.split(/[\s,]+/).filter(Boolean) : []
+  }
+
+  /**
    * Build the Faire OAuth authorize URL.
    *
    * Faire's authorize endpoint takes `applicationId` (NOT client_id),
-   * `redirectUrl` (NOT redirect_uri) and a space-joined `scope`. `state` is
-   * round-tripped for CSRF protection.
+   * `redirectUrl` (NOT redirect_uri) and a COMMA-joined `scope` (Faire splits
+   * the scope param on commas). `state` is round-tripped for CSRF protection.
    */
   getAuthorizationUrl(state: string): string {
     const params = new URLSearchParams({
@@ -94,7 +107,8 @@ export class FaireClient {
       redirectUrl: this.redirectUri,
       state,
     })
-    if (this.scope) params.set("scope", this.scope)
+    const scopes = this.scopeList()
+    if (scopes.length) params.set("scope", scopes.join(","))
     return `${this.authUrl}?${params.toString()}`
   }
 
@@ -113,7 +127,7 @@ export class FaireClient {
       authorization_code: code,
       grant_type: "AUTHORIZATION_CODE",
       redirect_url: this.redirectUri,
-      scope: this.scope ? this.scope.split(/\s+/) : [],
+      scope: this.scopeList(),
     }
     const data = await this.requestJson<any>(this.tokenUrl, {
       method: "POST",
@@ -275,10 +289,15 @@ export class FaireClient {
     const results = (data.products ?? data.results ?? []).map((p: any) =>
       this.mapProduct(p)
     )
+    // Numeric 1-indexed `page`, no `next_page` cursor (see listOrders).
+    const limit = opts.limit ?? 100
+    const currentPage = Number(opts.page ?? data.page ?? 1)
+    const next_page =
+      results.length >= limit ? String(currentPage + 1) : undefined
     return {
       count: data.count ?? results.length,
       results,
-      next_page: data.next_page ?? data.pagination?.next_page,
+      next_page,
     }
   }
 
@@ -287,10 +306,11 @@ export class FaireClient {
   /**
    * Push inventory overrides to Faire by SKU.
    *
-   * Faire does NOT expose a `GET /inventory` you can poll for remote counts —
-   * inventory is write-only: `PATCH /product-inventory/by-skus` with an array
-   * of `{ sku, current_count }` rows. (A `by-product-variant-ids` variant
-   * exists for id-keyed overrides.)
+   * Inventory push is write-only: `PATCH /product-inventory/by-skus` with an
+   * array under `inventories`, each row `{ sku, on_hand_quantity }` (verified
+   * live 2026-07-09 — the writable field is `on_hand_quantity`, NOT
+   * `current_count`/`available_quantity`). A `by-product-variant-ids` variant
+   * exists for id-keyed overrides.
    */
   async updateInventory(
     accessToken: string,
@@ -332,10 +352,17 @@ export class FaireClient {
     const results = (data.orders ?? data.results ?? []).map((o: any) =>
       this.mapOrder(o)
     )
+    // Faire v2 paginates by a numeric 1-indexed `page` and returns NO
+    // `next_page` cursor (verified live 2026-07-09). A full page (rows ===
+    // limit) implies there may be another; a short/empty page is the last.
+    const limit = opts.limit ?? 100
+    const currentPage = Number(opts.page ?? data.page ?? 1)
+    const next_page =
+      results.length >= limit ? String(currentPage + 1) : undefined
     return {
       count: data.count ?? results.length,
       results,
-      next_page: data.next_page ?? data.pagination?.next_page,
+      next_page,
     }
   }
 
@@ -421,28 +448,97 @@ export class FaireClient {
   }
 
   private mapProduct(data: any): ProductResponse {
+    // v2 returns `id` (p_…) + `lifecycle_state` (DRAFT|PUBLISHED). Normalise
+    // lifecycle_state → the internal `state` used downstream for publish gating.
+    const lifecycle = data.lifecycle_state ?? data.state
+    const state =
+      lifecycle === "PUBLISHED" || data.state === "active"
+        ? "active"
+        : lifecycle === "DRAFT" || data.state === "draft"
+          ? "draft"
+          : data.state
     return {
       product_token: String(data.product_token ?? data.id ?? data.token),
       brand_id: data.brand_id != null ? String(data.brand_id) : undefined,
       name: data.name,
       description: data.description,
-      state: data.state,
+      state,
       url: data.url,
-      wholesale_price_cents: data.wholesale_price_cents,
-      retail_price_cents: data.retail_price_cents,
       variants: data.variants,
       images: data.images,
       raw: data,
     }
   }
 
+  /**
+   * Resolve a Faire taxonomy_type id (`tt_…`) from a category name (or pass a
+   * `tt_…` id straight through). Faire create REQUIRES `taxonomy_type.id`;
+   * `GET /products/types` returns all ~3k `{ id, name }` rows under the
+   * `taxonomy_types` key in a single unpaginated response (verified live
+   * 2026-07-09; the `limit` param is ignored). Cached per client.
+   */
+  private taxonomyTypesCache: Array<{ id: string; name: string }> | null = null
+  async resolveTaxonomyTypeId(
+    accessToken: string,
+    nameOrId: string
+  ): Promise<string | null> {
+    if (!nameOrId) return null
+    if (/^tt_/.test(nameOrId)) return nameOrId
+    if (!this.taxonomyTypesCache) {
+      const data = await this.requestJson<any>(
+        `${this.apiBase}/products/types`,
+        { method: "GET", accessToken }
+      )
+      this.taxonomyTypesCache = (
+        data.taxonomy_types ??
+        data.product_types ??
+        data.types ??
+        data.results ??
+        []
+      ).map((t: any) => ({ id: String(t.id), name: String(t.name ?? "") }))
+    }
+    const needle = nameOrId.trim().toLowerCase()
+    const list = this.taxonomyTypesCache ?? []
+    const exact = list.find((t) => t.name.toLowerCase() === needle)
+    if (exact) return exact.id
+    // Prefer a whole-word match (needle as its own token) over a loose
+    // substring — otherwise "Dress" would resolve to "Address Book" (contains
+    // "ad-dress"). Fall back to substring only if no word-boundary hit.
+    const wordRe = new RegExp(`\\b${needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`)
+    const word = list.find((t) => wordRe.test(t.name.toLowerCase()))
+    if (word) return word.id
+    const partial = list.find((t) => t.name.toLowerCase().includes(needle))
+    return partial?.id ?? null
+  }
+
   private mapOrder(data: any): FaireOrder {
+    // ExternalOrderV2 has no top-level currency/total/buyer — money is per-item
+    // ExternalMoneyV2 (`price.amount_minor`+`currency`) and the buyer is
+    // `customer { first_name, last_name }`. Derive them; keep `raw` for the
+    // ingest mapper which reads the full shape. Verified live 2026-07-09.
+    const items: any[] = Array.isArray(data.items) ? data.items : []
+    const firstCur = items
+      .map((it) => it?.price?.currency)
+      .find((c) => typeof c === "string" && c)
+    const totalCents = items.reduce(
+      (sum, it) =>
+        sum +
+        Number(it?.price?.amount_minor ?? it?.price_cents ?? 0) *
+          Math.max(1, Number(it?.quantity) || 1),
+      0
+    )
+    const buyer =
+      [data.customer?.first_name, data.customer?.last_name]
+        .filter(Boolean)
+        .join(" ") ||
+      data.address?.name ||
+      undefined
     return {
       order_token: String(data.order_token ?? data.id ?? data.token),
       state: data.state ?? data.status,
-      currency: data.currency ?? data.currency_code,
-      total_cents: data.total_cents ?? data.grand_total_cents,
-      buyer_name: data.buyer_name ?? data.customer?.name,
+      currency: firstCur ?? data.currency ?? data.currency_code,
+      total_cents: items.length ? totalCents : data.total_cents ?? data.grand_total_cents,
+      buyer_name: buyer,
       raw: data,
     }
   }

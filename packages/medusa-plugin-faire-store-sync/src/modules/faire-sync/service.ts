@@ -324,15 +324,23 @@ class FaireSyncService extends MedusaService({
   async completeOAuth(code: string, state: string) {
     const settings = await this.getSettings()
     const pending: any = settings.pending_oauth
+    // eslint-disable-next-line no-console
+    console.info(
+      `[faire-sync] completeOAuth: received code=${code ? code.slice(0, 6) + "…" : "<none>"} ` +
+        `state=${state ? state.slice(0, 8) + "…" : "<none>"} ` +
+        `pending=${pending ? "state:" + String(pending.state).slice(0, 8) + "…" : "<none>"} ` +
+        `match=${!!pending && pending.state === state}`
+    )
     if (!pending || pending.state !== state) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        "Invalid or expired OAuth state. Please start the Faire connection again."
+        `Invalid or expired OAuth state (received "${state}", ` +
+          `pending ${pending ? `"${pending.state}"` : "<none>"}). Please start the Faire connection again.`
       )
     }
     let token: TokenData | undefined
     try {
-      const client = this.getClient()
+      const client = this.getClient("oauth")
       token = await client.exchangeCodeForToken(code)
       const brand = await client.getBrand(token.access_token)
       const account = await this.saveAccount(token, brand, "oauth")
@@ -343,6 +351,12 @@ class FaireSyncService extends MedusaService({
       })
       return { account, brand }
     } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(
+        "[faire-sync] completeOAuth failed during exchange/brand/save:",
+        (err as any)?.message || err,
+        (err as any)?.body ? `| faire body: ${JSON.stringify((err as any).body)}` : ""
+      )
       // Self-heal a dropped OAuth so the next attempt starts clean:
       //  1. clear the pending state (otherwise it sticks and confuses retries), and
       //  2. if the code exchange succeeded but a later step failed, REVOKE the
