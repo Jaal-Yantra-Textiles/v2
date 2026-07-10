@@ -48,7 +48,12 @@ jobs:
         # install compiles the backend's isolated-vm from source (Node 22+),
         # which is unnecessary for this pure-frontend build. Mirrors
         # deploy-analytics.yml.
-        run: pnpm install --frozen-lockfile --filter @jyt/investor-ui...
+        #
+        # --no-frozen-lockfile: investor-ui is a workspace member that builds
+        # from hoisted deps and isn't captured in the committed pnpm-lock.yaml,
+        # so a frozen install fails with ERR_PNPM_OUTDATED_LOCKFILE. Resolving
+        # fresh here is safe for a deploy-only job.
+        run: pnpm install --no-frozen-lockfile --filter @jyt/investor-ui...
 
       - name: Build SPA
         working-directory: apps/investor-ui
