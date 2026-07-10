@@ -2,6 +2,7 @@ import {
   Button,
   Drawer,
   Heading,
+  Input,
   Label,
   Select,
   Skeleton,
@@ -154,8 +155,7 @@ const FaireSyncSettingsDrawer = () => {
                 </div>
                 <div className="grid grid-cols-1 gap-4">
                   <Field label="Brand ID">
-                    <input
-                      className="border-ui-border-base rounded-lg border px-3 py-2 text-sm"
+                    <Input
                       value={String(form.default_brand_id ?? "")}
                       onChange={(e) =>
                         setForm({ ...form, default_brand_id: e.target.value || null })
@@ -166,9 +166,8 @@ const FaireSyncSettingsDrawer = () => {
                   </Field>
                   <Field label="Wholesale markup % (off retail)">
                     <Tooltip content="Wholesale price = retail × (100 − markup%) / 100. E.g. 50 → half of retail.">
-                      <input
+                      <Input
                         type="number"
-                        className="border-ui-border-base rounded-lg border px-3 py-2 text-sm"
                         value={String(form.default_wholesale_markup_percent ?? "")}
                         onChange={(e) =>
                           setForm({
@@ -184,9 +183,8 @@ const FaireSyncSettingsDrawer = () => {
                     </Tooltip>
                   </Field>
                   <Field label="Default min order quantity">
-                    <input
+                    <Input
                       type="number"
-                      className="border-ui-border-base rounded-lg border px-3 py-2 text-sm"
                       value={String(form.default_min_order_quantity ?? 1)}
                       onChange={(e) =>
                         setForm({
@@ -200,9 +198,8 @@ const FaireSyncSettingsDrawer = () => {
                     />
                   </Field>
                   <Field label="Default lead time (days)">
-                    <input
+                    <Input
                       type="number"
-                      className="border-ui-border-base rounded-lg border px-3 py-2 text-sm"
                       value={String(form.default_lead_time_days ?? "")}
                       onChange={(e) =>
                         setForm({
@@ -227,8 +224,7 @@ const FaireSyncSettingsDrawer = () => {
                     />
                   </Field>
                   <Field label="Shipping policy ID">
-                    <input
-                      className="border-ui-border-base rounded-lg border px-3 py-2 text-sm"
+                    <Input
                       value={String(form.default_shipping_policy_id ?? "")}
                       onChange={(e) =>
                         setForm({ ...form, default_shipping_policy_id: e.target.value || null })
