@@ -66,6 +66,69 @@ describe("mapFaireOrderToOrder", () => {
     expect(mapped.items).toEqual([])
   })
 
+  it("maps a real ExternalOrderV2 (customer/address/item.price, no top-level total)", () => {
+    const order = {
+      id: "bo_bxdmjbwxid",
+      state: "NEW",
+      customer: { first_name: "John", last_name: "Smith" },
+      address: {
+        name: "John Smith",
+        company_name: "Faire Wholesale, Inc",
+        address1: "41 King Street West",
+        address2: "3rd Floor",
+        city: "Kitchener",
+        state: "Ontario",
+        state_code: "ON",
+        postal_code: "N2G 1A1",
+        country: "Canada",
+        country_code: "CAN",
+        phone_number: "555-123-4567",
+      },
+      items: [
+        {
+          id: "oi_bq425ju5vh",
+          product_id: "p_fccaefnahr",
+          variant_id: "po_3745tjzrpc",
+          sku: "goldenretriever",
+          quantity: 2,
+          product_name: "Golden Dog",
+          price: { amount_minor: 4999, currency: "USD" },
+        },
+      ],
+      payout_costs: { total_payout: { amount_minor: 8000, currency: "USD" } },
+    }
+
+    const mapped = mapFaireOrderToOrder(order)
+
+    expect(mapped.order_token).toBe("bo_bxdmjbwxid")
+    expect(mapped.currency_code).toBe("usd")
+    // no order-level total → sum of line values: 49.99 × 2
+    expect(mapped.total).toBe(99.98)
+    expect(mapped.buyer_name).toBe("John Smith")
+    expect(mapped.shipping_address).toMatchObject({
+      first_name: "John",
+      last_name: "Smith",
+      company: "Faire Wholesale, Inc",
+      address_1: "41 King Street West",
+      address_2: "3rd Floor",
+      city: "Kitchener",
+      province: "ON",
+      postal_code: "N2G 1A1",
+      country_code: "ca", // ISO-3 CAN → ISO-2 ca
+      phone: "555-123-4567",
+    })
+    expect(mapped.items[0]).toMatchObject({
+      title: "Golden Dog",
+      quantity: 2,
+      unit_price: 49.99,
+    })
+    expect(mapped.items[0].metadata).toMatchObject({
+      faire_product_token: "p_fccaefnahr",
+      faire_variant_id: "po_3745tjzrpc",
+      faire_sku: "goldenretriever",
+    })
+  })
+
   it("uses buyer email when provided", () => {
     const mapped = mapFaireOrderToOrder({
       order_token: "o_2",

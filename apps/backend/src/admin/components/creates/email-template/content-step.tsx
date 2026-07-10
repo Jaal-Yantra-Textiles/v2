@@ -1,4 +1,6 @@
-import { Heading, Input, Text, Textarea, Badge } from "@medusajs/ui";
+import { Heading, Input, Text, Badge } from "@medusajs/ui";
+import Editor from "@monaco-editor/react";
+import { useDarkMode } from "../../../hooks/use-dark-mode";
 import { Control, useFieldArray } from "react-hook-form";
 import {  XMark } from "@medusajs/icons";
 import { VariablesModal } from "./variables-modal";
@@ -20,6 +22,7 @@ interface ContentStepProps {
   onInsertVariable: (variableName: string) => void;
 }
 export const ContentStep = ({ control, variables, onInsertVariable }: ContentStepProps) => {
+  const isDarkMode = useDarkMode();
   const { fields, append, remove } = useFieldArray({
     control,
     name: "variables",
@@ -87,12 +90,31 @@ export const ContentStep = ({ control, variables, onInsertVariable }: ContentSte
                     <Form.Item>
                       <Form.Label>HTML Content</Form.Label>
                       <Form.Control>
-                        <Textarea 
-                          {...field} 
-                          placeholder="<h1>Welcome {'{'}{'{'} user_name {'}'}{'}'} !</h1><p>Thank you for joining {'{'}{'{'} company_name {'}'}{'}'} ...</p>"
-                          rows={12}
-                          className="font-mono text-sm"
-                        />
+                        <div className="overflow-hidden rounded-md border border-ui-border-base">
+                          <Editor
+                            height="360px"
+                            defaultLanguage="html"
+                            language="html"
+                            value={field.value ?? ""}
+                            onChange={(value) => field.onChange(value ?? "")}
+                            theme={isDarkMode ? "vs-dark" : "vs-light"}
+                            options={{
+                              minimap: { enabled: false },
+                              fontSize: 13,
+                              lineNumbers: "on",
+                              scrollBeyondLastLine: false,
+                              automaticLayout: true,
+                              tabSize: 2,
+                              wordWrap: "on",
+                              padding: { top: 12, bottom: 12 },
+                              formatOnPaste: true,
+                              suggestOnTriggerCharacters: true,
+                              quickSuggestions: true,
+                              folding: true,
+                              bracketPairColorization: { enabled: true },
+                            }}
+                          />
+                        </div>
                       </Form.Control>
                       <Form.ErrorMessage />
                     </Form.Item>

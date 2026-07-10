@@ -1,10 +1,12 @@
-import { Text, Button, Heading, ProgressTabs, Textarea, Input } from "@medusajs/ui";
+import { Text, Button, Heading, ProgressTabs, Input } from "@medusajs/ui";
 import { useState, useCallback } from 'react';
+import Editor from "@monaco-editor/react";
 import { AdminEmailTemplate, useUpdateEmailTemplate } from "../../hooks/api/email-templates";
 import { useParams } from "react-router-dom";
 import { toast } from "@medusajs/ui";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { VariablesModal } from "../creates/email-template/variables-modal";
+import { useDarkMode } from "../../hooks/use-dark-mode";
 import { useForm } from "react-hook-form";
 import { useFieldArray } from "react-hook-form";
 import { X } from "lucide-react";
@@ -71,6 +73,7 @@ export function EmailTemplateEditorSection({
   const [activeTab, setActiveTab] = useState("content");
   const [isSaving, setIsSaving] = useState(false);
   const { id } = useParams<{ id: string }>();
+  const isDarkMode = useDarkMode();
   
   const updateEmailTemplate = useUpdateEmailTemplate(emailTemplate.id || id!);
 
@@ -112,8 +115,10 @@ export function EmailTemplateEditorSection({
       const value = variable.value || getSampleValue(key);
       
       if (key) {
-        const regex = new RegExp(`\\{${key}\\}`, 'g');
-        previewContent = previewContent.replace(regex, value);
+        // Substitute both {{key}} and {key} forms (templates use {{key}})
+        previewContent = previewContent
+          .replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g'), value)
+          .replace(new RegExp(`\\{${key}\\}`, 'g'), value);
       }
     });
 
@@ -241,12 +246,31 @@ export function EmailTemplateEditorSection({
 
                 <div>
                   <Text weight="plus" size="small" className="mb-2">HTML Content</Text>
-                  <Textarea
-                    value={htmlContent}
-                    onChange={(e) => setHtmlContent(e.target.value)}
-                    placeholder="<h1>Welcome {{user_name}}!</h1><p>Thank you for joining {{company_name}} ...</p>"
-                    rows={12}
-                  />
+                  <div className="overflow-hidden rounded-md border border-ui-border-base">
+                    <Editor
+                      height="360px"
+                      defaultLanguage="html"
+                      language="html"
+                      value={htmlContent}
+                      onChange={(value) => setHtmlContent(value ?? "")}
+                      theme={isDarkMode ? "vs-dark" : "vs-light"}
+                      options={{
+                        minimap: { enabled: false },
+                        fontSize: 13,
+                        lineNumbers: "on",
+                        scrollBeyondLastLine: false,
+                        automaticLayout: true,
+                        tabSize: 2,
+                        wordWrap: "on",
+                        padding: { top: 12, bottom: 12 },
+                        formatOnPaste: true,
+                        suggestOnTriggerCharacters: true,
+                        quickSuggestions: true,
+                        folding: true,
+                        bracketPairColorization: { enabled: true },
+                      }}
+                    />
+                  </div>
                   <Text className="text-sm text-ui-fg-subtle mt-1">Use {'{{'}variable_name{'}'} for dynamic content</Text>
                 </div>
               </div>

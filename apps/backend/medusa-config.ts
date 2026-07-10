@@ -33,6 +33,10 @@ module.exports = defineConfig({
             process.env.PARTNER_EMAIL_VERIFICATION === "true"
               ? [{ entity_type: "email", auth_provider: "emailpass" }]
               : [],
+          investor:
+            process.env.INVESTOR_EMAIL_VERIFICATION === "true"
+              ? [{ entity_type: "email", auth_provider: "emailpass" }]
+              : [],
         },
       } as any),
     },
@@ -187,6 +191,9 @@ module.exports = defineConfig({
     },
     {
       resolve: "./src/modules/platform-tax-identity",
+    },
+    {
+      resolve: "./src/modules/investor",
     },
 
     // Production-ready modules

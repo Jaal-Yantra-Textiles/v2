@@ -2,7 +2,9 @@ import {
   Button,
   Drawer,
   Heading,
+  Input,
   Label,
+  Select,
   Skeleton,
   StatusBadge,
   Switch,
@@ -18,6 +20,7 @@ import { useNavigate } from "react-router-dom"
 import { faireApi } from "../../../../lib/api"
 
 const STATUS_KEY = ["faire", "status"]
+const TAXONOMY_KEY = ["faire", "taxonomy"]
 const PARENT = "/settings/faire"
 
 // Radix Select can't use an empty-string item value, so "Not set" uses this
@@ -54,6 +57,7 @@ type Status = {
     brand: boolean
     wholesale_pricing: boolean
     shipping_policy: boolean
+    taxonomy: boolean
     ready_to_publish: boolean
   }
 }
@@ -79,6 +83,14 @@ const FaireSyncSettingsDrawer = () => {
   })
   const status = statusQuery.data
   const connected = !!status?.connected
+
+  const taxonomyQuery = useQuery({
+    queryKey: TAXONOMY_KEY,
+    queryFn: async () =>
+      ((await faireApi.taxonomy().catch(() => ({ taxonomy: [] }))) as any)
+        .taxonomy || [],
+  })
+  const taxonomy = taxonomyQuery.data ?? []
 
   useEffect(() => {
     if (status?.settings) setForm(status.settings)
@@ -128,6 +140,7 @@ const FaireSyncSettingsDrawer = () => {
                   <ChecklistItem ok={status?.readiness.brand} label="Brand configured" />
                   <ChecklistItem ok={status?.readiness.wholesale_pricing} label="Wholesale pricing" />
                   <ChecklistItem ok={status?.readiness.shipping_policy} label="Shipping policy" />
+                  <ChecklistItem ok={status?.readiness.taxonomy} label="Default category" />
                 </div>
               </div>
 
@@ -142,8 +155,7 @@ const FaireSyncSettingsDrawer = () => {
                 </div>
                 <div className="grid grid-cols-1 gap-4">
                   <Field label="Brand ID">
-                    <input
-                      className="border-ui-border-base rounded-lg border px-3 py-2 text-sm"
+                    <Input
                       value={String(form.default_brand_id ?? "")}
                       onChange={(e) =>
                         setForm({ ...form, default_brand_id: e.target.value || null })
@@ -154,9 +166,8 @@ const FaireSyncSettingsDrawer = () => {
                   </Field>
                   <Field label="Wholesale markup % (off retail)">
                     <Tooltip content="Wholesale price = retail × (100 − markup%) / 100. E.g. 50 → half of retail.">
-                      <input
+                      <Input
                         type="number"
-                        className="border-ui-border-base rounded-lg border px-3 py-2 text-sm"
                         value={String(form.default_wholesale_markup_percent ?? "")}
                         onChange={(e) =>
                           setForm({
@@ -172,9 +183,8 @@ const FaireSyncSettingsDrawer = () => {
                     </Tooltip>
                   </Field>
                   <Field label="Default min order quantity">
-                    <input
+                    <Input
                       type="number"
-                      className="border-ui-border-base rounded-lg border px-3 py-2 text-sm"
                       value={String(form.default_min_order_quantity ?? 1)}
                       onChange={(e) =>
                         setForm({
@@ -188,9 +198,8 @@ const FaireSyncSettingsDrawer = () => {
                     />
                   </Field>
                   <Field label="Default lead time (days)">
-                    <input
+                    <Input
                       type="number"
-                      className="border-ui-border-base rounded-lg border px-3 py-2 text-sm"
                       value={String(form.default_lead_time_days ?? "")}
                       onChange={(e) =>
                         setForm({
@@ -204,15 +213,24 @@ const FaireSyncSettingsDrawer = () => {
                       placeholder="e.g. 14"
                     />
                   </Field>
-                  <Field label="Default category">
-                    <input
-                      className="border-ui-border-base rounded-lg border px-3 py-2 text-sm"
+                  <Field label="Default category (taxonomy)">
+                    <SelectField
                       value={String(form.default_category ?? "")}
-                      onChange={(e) =>
-                        setForm({ ...form, default_category: e.target.value || null })
+                      onValueChange={(v) =>
+                        setForm({ ...form, default_category: v || null })
                       }
                       disabled={!connected}
-                      placeholder="e.g. Home Decor"
+                      options={taxonomy.map((t: any) => ({ value: t.id, label: t.name }))}
+                    />
+                  </Field>
+                  <Field label="Shipping policy ID">
+                    <Input
+                      value={String(form.default_shipping_policy_id ?? "")}
+                      onChange={(e) =>
+                        setForm({ ...form, default_shipping_policy_id: e.target.value || null })
+                      }
+                      disabled={!connected}
+                      placeholder="sp_..."
                     />
                   </Field>
                   <Field label="Follow product status">
@@ -263,6 +281,37 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
     <Label>{label}</Label>
     {children}
   </div>
+)
+
+const SelectField = ({
+  value,
+  onValueChange,
+  options,
+  disabled,
+}: {
+  value: string
+  onValueChange: (v: string) => void
+  options: { value: string; label: string }[]
+  disabled?: boolean
+}) => (
+  <Select
+    value={value ? value : NONE}
+    onValueChange={(v) => onValueChange(v === NONE ? "" : v)}
+    disabled={disabled}
+    size="small"
+  >
+    <Select.Trigger>
+      <Select.Value placeholder="Not set" />
+    </Select.Trigger>
+    <Select.Content>
+      <Select.Item value={NONE}>Not set</Select.Item>
+      {options.map((o) => (
+        <Select.Item key={o.value} value={o.value}>
+          {o.label}
+        </Select.Item>
+      ))}
+    </Select.Content>
+  </Select>
 )
 
 const ChecklistItem = ({ ok, label }: { ok?: boolean; label: string }) => (

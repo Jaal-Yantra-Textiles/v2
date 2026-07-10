@@ -2,6 +2,7 @@ packages:
   - "apps/analytics"
   - "apps/backend"
   - "apps/partner-ui"
+  - "apps/investor-ui"
   - "apps/media-gallery"
   - "apps/storefront-starter"
   - "apps/storefront"

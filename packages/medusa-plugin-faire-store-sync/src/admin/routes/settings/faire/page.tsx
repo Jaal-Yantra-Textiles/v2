@@ -1,5 +1,5 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { BuildingStorefront } from "@medusajs/icons"
+import { BuildingStorefront, ChevronDownMini } from "@medusajs/icons"
 import {
   Alert,
   Button,
@@ -7,7 +7,10 @@ import {
   DataTable,
   DataTableFilteringState,
   DataTablePaginationState,
+  Drawer,
+  DropdownMenu,
   Heading,
+  Input,
   Label,
   Skeleton,
   StatusBadge,
@@ -53,6 +56,8 @@ const FaireSettingsPage = () => {
     pageSize: PAGE_SIZE,
   })
   const [filtering, setFiltering] = useState<DataTableFilteringState>({})
+  const [apiKeyOpen, setApiKeyOpen] = useState(false)
+  const [apiKey, setApiKey] = useState("")
 
   // ── Queries ───────────────────────────────────────────────────────────────
   const statusQuery = useQuery({
@@ -87,6 +92,20 @@ const FaireSettingsPage = () => {
     },
     onError: (err: any) =>
       toast.error("Failed to start Faire authorization", {
+        description: err.message,
+      }),
+  })
+
+  const apiKeyMutation = useMutation({
+    mutationFn: () => faireApi.connectApiKey(apiKey.trim()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: STATUS_KEY })
+      setApiKeyOpen(false)
+      setApiKey("")
+      toast.success("Connected to Faire with API key")
+    },
+    onError: (err: any) =>
+      toast.error("Failed to connect with API key", {
         description: err.message,
       }),
   })
@@ -190,6 +209,13 @@ const FaireSettingsPage = () => {
               <Button
                 size="small"
                 variant="secondary"
+                onClick={() => navigate("/settings/faire/bulk")}
+              >
+                Bulk sync
+              </Button>
+              <Button
+                size="small"
+                variant="secondary"
                 onClick={() => navigate("/settings/faire/settings")}
               >
                 Sync settings
@@ -204,13 +230,22 @@ const FaireSettingsPage = () => {
               </Button>
             </div>
           ) : (
-            <Button
-              size="small"
-              onClick={() => connectMutation.mutate()}
-              isLoading={connectMutation.isPending}
-            >
-              Connect Faire
-            </Button>
+            <DropdownMenu>
+              <DropdownMenu.Trigger asChild>
+                <Button size="small" isLoading={connectMutation.isPending}>
+                  Connect Faire
+                  <ChevronDownMini />
+                </Button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content>
+                <DropdownMenu.Item onClick={() => connectMutation.mutate()}>
+                  Connect with OAuth
+                </DropdownMenu.Item>
+                <DropdownMenu.Item onClick={() => setApiKeyOpen(true)}>
+                  Connect with API key (private)
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu>
           )}
         </div>
         {connected && status?.account && (
@@ -229,9 +264,6 @@ const FaireSettingsPage = () => {
           </div>
         )}
       </Container>
-
-      {/* Bulk operations */}
-      <BulkOperations connected={connected} />
 
       {/* Recent syncs */}
       <Container className="divide-y p-0">
@@ -260,6 +292,48 @@ const FaireSettingsPage = () => {
         </DataTable>
       </Container>
 
+      {/* API-key connect (private integrations) */}
+      <Drawer open={apiKeyOpen} onOpenChange={setApiKeyOpen}>
+        <Drawer.Content>
+          <Drawer.Header>
+            <Drawer.Title>Connect with API key</Drawer.Title>
+          </Drawer.Header>
+          <Drawer.Body className="flex flex-col gap-y-3">
+            <Text className="text-ui-fg-subtle" size="small">
+              For private / unpublished Faire integrations, paste the API key
+              your Faire brand issued for this app. This connects without OAuth.
+            </Text>
+            <div className="flex flex-col gap-y-1">
+              <Label size="small">Faire API key</Label>
+              <Input
+                type="password"
+                placeholder="Paste the Faire API key…"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+          </Drawer.Body>
+          <Drawer.Footer>
+            <Button
+              variant="secondary"
+              size="small"
+              onClick={() => setApiKeyOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="small"
+              onClick={() => apiKeyMutation.mutate()}
+              isLoading={apiKeyMutation.isPending}
+              disabled={!apiKey.trim()}
+            >
+              Connect
+            </Button>
+          </Drawer.Footer>
+        </Drawer.Content>
+      </Drawer>
+
       <Toaster />
     </div>
   )
@@ -269,175 +343,6 @@ const InfoField = ({ label, value }: { label: string; value: string }) => (
   <div className="flex flex-col gap-1">
     <Label>{label}</Label>
     <Text>{value}</Text>
-  </div>
-)
-
-/**
- * Bulk operations card: push many products to Faire, and pull Faire orders into
- * Medusa. Both run as long-running background workflows; progress is polled.
- */
-const BulkOperations = ({ connected }: { connected: boolean }) => {
-  const [productIds, setProductIds] = useState("")
-  const [pushBatch, setPushBatch] = useState<string | null>(null)
-  const [pullBatch, setPullBatch] = useState<string | null>(null)
-
-  const pushMutation = useMutation({
-    mutationFn: (ids: string[]) => faireApi.syncBulk(ids),
-    onSuccess: (res: any) => {
-      setPushBatch(res.batch_id)
-      toast.success("Bulk product sync started", {
-        description: "Running in the background. Polling progress…",
-      })
-    },
-    onError: (err: any) =>
-      toast.error("Failed to start bulk sync", { description: err.message }),
-  })
-
-  const pullMutation = useMutation({
-    mutationFn: () => faireApi.ingestOrders(),
-    onSuccess: (res: any) => {
-      setPullBatch(res.batch_id)
-      toast.success("Faire order pull started", {
-        description: "Running in the background. Polling progress…",
-      })
-    },
-    onError: (err: any) =>
-      toast.error("Failed to start order pull", { description: err.message }),
-  })
-
-  // Poll both batches until finished.
-  const pushStatus = useQuery({
-    queryKey: ["faire", "bulk", pushBatch],
-    enabled: !!pushBatch,
-    refetchInterval: (q) =>
-      (q.state.data as any)?.progress?.finished ? false : 3000,
-    queryFn: () => faireApi.bulkStatus(pushBatch!),
-  })
-  const pullStatus = useQuery({
-    queryKey: ["faire", "ingest", pullBatch],
-    enabled: !!pullBatch,
-    refetchInterval: (q) =>
-      (q.state.data as any)?.progress?.finished ? false : 3000,
-    queryFn: () => faireApi.ingestStatus(pullBatch!),
-  })
-
-  const pushProgress = (pushStatus.data as any)?.progress
-  const pullProgress = (pullStatus.data as any)?.progress
-
-  const handlePush = () => {
-    const ids = productIds
-      .split(/[\s,]+/)
-      .map((s) => s.trim())
-      .filter(Boolean)
-    if (!ids.length) {
-      toast.error("Enter at least one product id")
-      return
-    }
-    pushMutation.mutate(ids)
-  }
-
-  return (
-    <Container className="divide-y p-0">
-      <div className="px-6 py-4">
-        <Heading>Bulk operations</Heading>
-        <Text className="text-ui-fg-subtle" size="small">
-          Push many products to Faire, or pull wholesale orders from Faire into
-          Medusa. Both run as long-running background workflows.
-        </Text>
-      </div>
-      <div className="px-6 py-4 flex flex-col gap-6">
-        {/* Push products */}
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <Label>Push products to Faire</Label>
-            <Text className="text-ui-fg-subtle" size="small">
-              Comma- or line-separated Medusa product IDs.
-            </Text>
-          </div>
-          <textarea
-            className="border-ui-border-base rounded-lg border px-3 py-2 text-sm min-h-[72px]"
-            placeholder="prod_01..., prod_02..."
-            value={productIds}
-            onChange={(e) => setProductIds(e.target.value)}
-            disabled={!connected || pushMutation.isPending}
-          />
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              size="small"
-              variant="secondary"
-              disabled={!connected}
-              onClick={() => navigate("/settings/faire/bulk")}
-            >
-              Select products
-            </Button>
-            <Button
-              size="small"
-              onClick={handlePush}
-              disabled={!connected || pushMutation.isPending}
-              isLoading={pushMutation.isPending}
-            >
-              Start bulk push
-            </Button>
-            {pushBatch && pushProgress && (
-              <BulkProgress
-                label="Push"
-                progress={pushProgress}
-                status={(pushStatus.data as any)?.batch?.status}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Pull orders */}
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <Label>Pull Faire orders into Medusa</Label>
-            <Text className="text-ui-fg-subtle" size="small">
-              Ingests all available Faire orders as Medusa orders (idempotent).
-            </Text>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button
-              size="small"
-              variant="secondary"
-              onClick={() => pullMutation.mutate()}
-              disabled={!connected || pullMutation.isPending}
-              isLoading={pullMutation.isPending}
-            >
-              Start order pull
-            </Button>
-            {pullBatch && pullProgress && (
-              <BulkProgress
-                label="Pull"
-                progress={pullProgress}
-                status={(pullStatus.data as any)?.batch?.status}
-              />
-            )}
-          </div>
-        </div>
-      </div>
-    </Container>
-  )
-}
-
-const BulkProgress = ({
-  label,
-  progress,
-  status,
-}: {
-  label: string
-  progress: { total: number; done: number; pct: number; finished: boolean }
-  status?: string
-}) => (
-  <div className="flex items-center gap-3">
-    <StatusBadge color={progress.finished ? (status === "failed" ? "red" : "green") : "orange"}>
-      {label}: {progress.done}/{progress.total || "?"} ({progress.pct}%)
-    </StatusBadge>
-    {progress.finished && (
-      <Text className="text-ui-fg-subtle" size="small">
-        {status === "failed" ? "Completed with errors" : "Done"}
-      </Text>
-    )}
   </div>
 )
 
