@@ -101,8 +101,11 @@
     "@medusajs/ui-preset": "2.17.2",
     "@types/qrcode": "^1.5.5",
     "@typescript/native-preview": "^7.0.0-dev.20260423.1",
+    "@vitejs/plugin-react": "5.1.2",
     "eslint": "8",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vite": "5.4.21",
+    "vite-plugin-inspect": "0.8.7"
   },
   "packageManager": "yarn@3.2.1"
 }

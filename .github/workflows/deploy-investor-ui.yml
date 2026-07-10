@@ -63,7 +63,11 @@ jobs:
           # or they fall back to the production defaults below.
           VITE_MEDUSA_BACKEND_URL: ${{ vars.INVESTOR_UI_BACKEND_URL || 'https://v3.jaalyantra.com' }}
           VITE_MEDUSA_BASE: ${{ vars.INVESTOR_UI_BASE || '/' }}
-        run: pnpm run build:preview
+        # Invoke vite via pnpm exec (resolves from the scoped install's local
+        # .bin) rather than the build:preview script, which hardcodes the root
+        # hoist path ../../node_modules/.bin/vite that a scoped CI install
+        # doesn't populate.
+        run: pnpm exec vite build
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
