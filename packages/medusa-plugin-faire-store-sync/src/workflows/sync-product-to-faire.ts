@@ -6,7 +6,7 @@ import {
   WorkflowData,
   transform,
 } from "@medusajs/framework/workflows-sdk"
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import type { Link } from "@medusajs/modules-sdk"
 import type { RemoteQueryFunction } from "@medusajs/types"
 import { FAIRE_SYNC_MODULE } from "../modules/faire-sync"
@@ -145,7 +145,10 @@ const prepareProductStep = createStep(
 
     const product: any = products?.[0]
     if (!product) {
-      throw new Error(`Product ${input.product_id} not found`)
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Product ${input.product_id} not found`
+      )
     }
 
     // Resolve existing Faire product (from link)
@@ -247,7 +250,8 @@ const prepareProductStep = createStep(
       String(categoryHint)
     )
     if (!taxonomyTypeId) {
-      throw new Error(
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
         "Faire requires a product category (taxonomy_type). Set a Faire " +
           "category in sync settings (default_category) or on the product " +
           "(metadata.faire_taxonomy_type_id — a `tt_…` id or a category name)."

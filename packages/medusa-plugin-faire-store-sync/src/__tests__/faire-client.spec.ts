@@ -15,6 +15,15 @@ const fetchMock = jest.fn(async (url: string, init: any) => {
   } as any
 })
 
+// Shared taxonomy types fixture (matches the shape Faire returns).
+const taxonomyTypes = [
+  { id: "tt_1", name: "Apparel" },
+  { id: "tt_2", name: "Accessories" },
+  { id: "tt_3", name: "Home & Living" },
+  { id: "tt_4", name: "Dresses" },
+  { id: "tt_5", name: "Address Book" },
+]
+
 ;(global as any).fetch = fetchMock
 
 const oauthOpts = {
@@ -156,5 +165,103 @@ describe("FaireClient — issue #952 corrections", () => {
       name: "FaireApiError",
       status: 401,
     })
+  })
+})
+
+describe("FaireClient.resolveTaxonomyTypeId", () => {
+  beforeEach(() => {
+    fetchMock.mockClear()
+    // Reset the cache on each test by creating a fresh client.
+  })
+
+  it("passes a tt_ id straight through without an API call", async () => {
+    const c = new FaireClient(oauthOpts)
+    const result = await c.resolveTaxonomyTypeId("tok", "tt_abc123")
+    expect(result).toBe("tt_abc123")
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("returns null for empty / falsy input", async () => {
+    const c = new FaireClient(oauthOpts)
+    await expect(c.resolveTaxonomyTypeId("tok", "")).resolves.toBeNull()
+    await expect(c.resolveTaxonomyTypeId("tok", "")).resolves.toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("fetches taxonomy types on first call, caches, and resolves by exact name", async () => {
+    fetchMock.mockImplementationOnce(async () => ({
+      ok: true,
+      status: 200,
+      headers: new Map(),
+      text: async () => JSON.stringify({ taxonomy_types: taxonomyTypes }),
+    } as any))
+    const c = new FaireClient(oauthOpts)
+    const result = await c.resolveTaxonomyTypeId("tok", "Dresses")
+    expect(result).toBe("tt_4")
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const callUrl = fetchMock.mock.calls[0][0] as string
+    expect(callUrl).toContain("/products/types")
+
+    // Second call uses the cache — no additional fetch.
+    const cached = await c.resolveTaxonomyTypeId("tok", "Accessories")
+    expect(cached).toBe("tt_2")
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("prefers whole-word match over loose substring (Dress vs Address Book)", async () => {
+    fetchMock.mockImplementationOnce(async () => ({
+      ok: true,
+      status: 200,
+      headers: new Map(),
+      text: async () => JSON.stringify({ taxonomy_types: taxonomyTypes }),
+    } as any))
+    const c = new FaireClient(oauthOpts)
+    // "Dress" should match "Dresses" (word-boundary) not "Address Book".
+    const result = await c.resolveTaxonomyTypeId("tok", "Dress")
+    expect(result).toBe("tt_4")
+  })
+
+  it("falls back to substring match when whole-word finds nothing", async () => {
+    fetchMock.mockImplementationOnce(async () => ({
+      ok: true,
+      status: 200,
+      headers: new Map(),
+      text: async () => JSON.stringify({ taxonomy_types: taxonomyTypes }),
+    } as any))
+    const c = new FaireClient(oauthOpts)
+    // "ccessori" is not a whole word but a substring of "Accessories".
+    const result = await c.resolveTaxonomyTypeId("tok", "ccessori")
+    expect(result).toBe("tt_2")
+  })
+
+  it("returns null when no taxonomy type matches — the condition that triggers the MedusaError", async () => {
+    fetchMock.mockImplementationOnce(async () => ({
+      ok: true,
+      status: 200,
+      headers: new Map(),
+      text: async () => JSON.stringify({ taxonomy_types: taxonomyTypes }),
+    } as any))
+    const c = new FaireClient(oauthOpts)
+    const result = await c.resolveTaxonomyTypeId("tok", "NonExistentCategory")
+    expect(result).toBeNull()
+  })
+
+  it("handles alternate response shapes (product_types / types / results)", async () => {
+    for (const key of ["product_types", "types", "results"]) {
+      fetchMock.mockImplementationOnce(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Map(),
+        text: async () => JSON.stringify({ [key]: taxonomyTypes }),
+      } as any))
+    }
+    const c = new FaireClient(oauthOpts)
+    // Each call should reset the cache because we used a fresh client.
+    const c1 = new FaireClient(oauthOpts)
+    expect(await c1.resolveTaxonomyTypeId("tok", "Apparel")).toBe("tt_1")
+    const c2 = new FaireClient(oauthOpts)
+    expect(await c2.resolveTaxonomyTypeId("tok", "Accessories")).toBe("tt_2")
+    const c3 = new FaireClient(oauthOpts)
+    expect(await c3.resolveTaxonomyTypeId("tok", "Home & Living")).toBe("tt_3")
   })
 })
