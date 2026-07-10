@@ -83,6 +83,7 @@ import { generateNewsletterWinbackTargetsJob } from "./generate-newsletter-winba
 import { repairInventoryOrderSourceJob } from "./repair-inventory-order-source-job"
 import { backfillGoogleAdsHistoryJob } from "./backfill-google-ads-history-job"
 import { backfillDesignSizeSetsJob } from "./backfill-design-size-sets-job"
+import { backfillPartnerShippingOptionsJob } from "./backfill-partner-shipping-options-job"
 import {
   sweepAiPlatformsByCategory,
   AI_ROLES,
@@ -5423,6 +5424,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   repairInventoryOrderSourceJob,
   backfillGoogleAdsHistoryJob,
   backfillDesignSizeSetsJob,
+  backfillPartnerShippingOptionsJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
