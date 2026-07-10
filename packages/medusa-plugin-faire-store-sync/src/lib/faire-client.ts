@@ -502,7 +502,7 @@ export class FaireClient {
         this.taxonomyTypesCache = []
       }
     }
-    return this.taxonomyTypesCache
+    return this.taxonomyTypesCache ?? []
   }
 
   async resolveTaxonomyTypeId(
