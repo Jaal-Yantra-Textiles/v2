@@ -14,6 +14,7 @@ import { emailTemplatesData } from "../../../../scripts/seed-email-templates"
 import { additionalEmailTemplates } from "../../../../scripts/seed-additional-email-templates"
 import { reengagementEmailTemplates } from "../../../../scripts/seed-reengagement-email-templates"
 import { partnerEmailTemplates } from "../../../../scripts/seed-partner-email-templates"
+import { investorEmailTemplates } from "../../../../scripts/seed-investor-email-templates"
 import { TEMPLATE_DEFINITION as cartAbandonedTemplate } from "../../../../scripts/seed-cart-abandoned-email"
 import { tourEmailTemplate } from "../../../../scripts/seed-tour-email-template"
 import { visualFlowLifecycleTemplates } from "../../../../scripts/seed-visual-flow-lifecycle-email-templates"
@@ -65,6 +66,11 @@ export const EMAIL_TEMPLATE_SETS: Array<{
     key: "partner",
     label: "partner/admin templates",
     specs: partnerEmailTemplates as EmailTemplateSpec[],
+  },
+  {
+    key: "investor",
+    label: "investor templates",
+    specs: investorEmailTemplates as EmailTemplateSpec[],
   },
   {
     key: "cart-abandoned",

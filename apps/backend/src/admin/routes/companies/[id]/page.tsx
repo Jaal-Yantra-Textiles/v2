@@ -2,6 +2,7 @@ import {
   Badge,
   Button,
   Container,
+  DataTable,
   FocusModal,
   Heading,
   Input,
@@ -11,18 +12,22 @@ import {
   Table,
   Text,
   toast,
+  useDataTable,
 } from "@medusajs/ui"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "@medusajs/framework/zod"
 import { useState } from "react"
-import { useParams } from "react-router-dom"
+import { UIMatch, useParams } from "react-router-dom"
 import {
   useCompany,
   useCompanyInvestors,
   useInviteInvestorToCompany,
   type InviteInvestorToCompanyPayload,
 } from "../../../hooks/api/companies-admin"
+import { CapTableSection } from "../../../components/companies/cap-table-section"
+import { FinancialsSection } from "../../../components/companies/financials-section"
+import { ComplianceSection } from "../../../components/companies/compliance-section"
 
 const INVESTOR_TYPES = ["individual", "entity", "fund"] as const
 
@@ -183,7 +188,32 @@ const InviteInvestorModal = ({ companyId }: { companyId: string }) => {
 const CompanyDetailPage = () => {
   const { id } = useParams()
   const { company, isPending: companyLoading } = useCompany(id!)
-  const { investors = [], isPending: investorsLoading } = useCompanyInvestors(id!)
+  const { investors = [] } = useCompanyInvestors(id!)
+  const investorsTable = useDataTable({
+    data: investors,
+    columns: [
+      {
+        header: "Name",
+        accessorKey: "name",
+      },
+      {
+        header: "Type",
+        accessorKey: "investor_type",
+        cell: ({ row }) => (
+          <Badge>{row.original.investor_type}</Badge>
+        ),
+      },
+      {
+        header: "Email",
+        accessorKey: "email",
+      },
+      {
+        header: "pipeline_stage",
+        accessorKey: "pipeline_stage",
+      }
+    ],
+    
+  })
 
   return (
     <div className="flex flex-col gap-y-4">
@@ -228,43 +258,23 @@ const CompanyDetailPage = () => {
           <Heading level="h2">Investors</Heading>
           <InviteInvestorModal companyId={id!} />
         </div>
-        <div className="px-6 py-4">
-          {investorsLoading ? (
-            <div className="flex flex-col gap-y-2">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </div>
-          ) : investors.length === 0 ? (
-            <Text size="small" className="text-ui-fg-subtle">
-              No investors yet.
-            </Text>
-          ) : (
-            <Table>
-              <Table.Header>
-                <Table.Row>
-                  <Table.HeaderCell>Name</Table.HeaderCell>
-                  <Table.HeaderCell>Email</Table.HeaderCell>
-                  <Table.HeaderCell>Stage</Table.HeaderCell>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {investors.map((inv) => (
-                  <Table.Row key={inv.id}>
-                    <Table.Cell>{inv.name}</Table.Cell>
-                    <Table.Cell>{inv.email ?? "—"}</Table.Cell>
-                    <Table.Cell>
-                      <Badge>{inv.pipeline_stage ?? "lead"}</Badge>
-                    </Table.Cell>
-                  </Table.Row>
-                ))}
-              </Table.Body>
-            </Table>
-          )}
-        </div>
+        <DataTable instance={investorsTable}>
+                  <DataTable.Table />
+        </DataTable>
       </Container>
+
+      <CapTableSection companyId={id!} />
+      <FinancialsSection companyId={id!} />
+      <ComplianceSection companyId={id!} company={company} />
     </div>
   )
 }
+
+export const handle = {
+  breadcrumb: (match: UIMatch<{ id: string }>) => {
+    const { id } = match.params;
+    return `${id}`;
+  },
+};
 
 export default CompanyDetailPage

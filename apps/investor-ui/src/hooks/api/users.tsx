@@ -11,6 +11,11 @@ import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
 import { queryKeysFactory } from "../../lib/query-key-factory"
 
+// Investor UI: the "current user" is the authenticated investor. All hooks here
+// talk to the investor-scoped API (/investors/me) — NOT the admin user API. The
+// gutted-dashboard admin user hooks (useUser/useUsers/useUpdateUser/…) were
+// removed: an investor actor has no admin access, so those calls only 401/403.
+
 const USERS_QUERY_KEY = "users" as const
 const usersQueryKeys = {
   ...queryKeysFactory(USERS_QUERY_KEY),
@@ -28,7 +33,6 @@ export const useMe = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    // Investor UI: the "current user" is the authenticated investor.
     queryFn: async () => {
       const { investor } = await sdk.client.fetch<{
         investor: HttpTypes.AdminUser
@@ -45,91 +49,24 @@ export const useMe = (
   }
 }
 
-export const useUser = (
-  id: string,
-  query?: HttpTypes.AdminUserParams,
-  options?: Omit<
-    UseQueryOptions<
-      HttpTypes.AdminUserResponse,
-      FetchError,
-      HttpTypes.AdminUserResponse,
-      QueryKey
-    >,
-    "queryFn" | "queryKey"
-  >
-) => {
-  const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.user.retrieve(id, query),
-    queryKey: usersQueryKeys.detail(id),
-    ...options,
-  })
-
-  return { ...data, ...rest }
-}
-
-export const useUsers = (
-  query?: HttpTypes.AdminUserListParams,
-  options?: Omit<
-    UseQueryOptions<
-      HttpTypes.AdminUserListResponse,
-      FetchError,
-      HttpTypes.AdminUserListResponse,
-      QueryKey
-    >,
-    "queryFn" | "queryKey"
-  >
-) => {
-  const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.user.list(query),
-    queryKey: usersQueryKeys.list(query),
-    ...options,
-  })
-
-  return { ...data, ...rest }
-}
-
-export const useUpdateUser = (
-  id: string,
-  query?: HttpTypes.AdminUserParams,
+// Update the authenticated investor (POST /investors/me). Used by onboarding
+// and profile edits. Accepts any subset of the investor update schema —
+// notably `metadata` (where onboarding answers live). Invalidates the me query.
+export const useUpdateMe = (
   options?: UseMutationOptions<
-    HttpTypes.AdminUserResponse,
+    { investor: Record<string, any> },
     FetchError,
-    HttpTypes.AdminUpdateUser,
-    QueryKey
+    Record<string, any>
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.user.update(id, payload, query),
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ investor: Record<string, any> }>("/investors/me", {
+        method: "POST",
+        body: payload,
+      }),
     onSuccess: (data, variables, context) => {
-      queryClient.invalidateQueries({ queryKey: usersQueryKeys.detail(id) })
-      queryClient.invalidateQueries({ queryKey: usersQueryKeys.lists() })
-
-      // We invalidate the me query in case the user updates their own profile
       queryClient.invalidateQueries({ queryKey: usersQueryKeys.me() })
-
-      options?.onSuccess?.(data, variables, context)
-    },
-    ...options,
-  })
-}
-
-export const useDeleteUser = (
-  id: string,
-  options?: UseMutationOptions<
-    HttpTypes.AdminUserDeleteResponse,
-    FetchError,
-    void
-  >
-) => {
-  return useMutation({
-    mutationFn: () => sdk.admin.user.delete(id),
-    onSuccess: (data, variables, context) => {
-      queryClient.invalidateQueries({ queryKey: usersQueryKeys.detail(id) })
-      queryClient.invalidateQueries({ queryKey: usersQueryKeys.lists() })
-
-      // We invalidate the me query in case the user updates their own profile
-      queryClient.invalidateQueries({ queryKey: usersQueryKeys.me() })
-
       options?.onSuccess?.(data, variables, context)
     },
     ...options,

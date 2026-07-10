@@ -25,6 +25,33 @@ class InvestorService extends MedusaService({
   constructor() {
     super(...arguments)
   }
+
+  // --- query.graph aliases -------------------------------------------------
+  // Remote query (query.graph) addresses an entity by its `model.define()`
+  // name — investor_pipeline / investor_document / investor_payment — and so
+  // resolves the module's `list<DefineName>` / `listAndCount<DefineName>`
+  // method. Our MedusaService keys are the shorter Pipeline/Document/Payment,
+  // which only generate listPipelines/listDocuments/listPayments. Bridge the
+  // names here so `query.graph({ entity: "investor_pipeline" })` (and friends)
+  // resolve instead of throwing `Method "listInvestorPipelines" does not exist`.
+  async listInvestorPipelines(...args: any[]) {
+    return (this as any).listPipelines(...args)
+  }
+  async listAndCountInvestorPipelines(...args: any[]) {
+    return (this as any).listAndCountPipelines(...args)
+  }
+  async listInvestorDocuments(...args: any[]) {
+    return (this as any).listDocuments(...args)
+  }
+  async listAndCountInvestorDocuments(...args: any[]) {
+    return (this as any).listAndCountDocuments(...args)
+  }
+  async listInvestorPayments(...args: any[]) {
+    return (this as any).listPayments(...args)
+  }
+  async listAndCountInvestorPayments(...args: any[]) {
+    return (this as any).listAndCountPayments(...args)
+  }
 }
 
 export default InvestorService

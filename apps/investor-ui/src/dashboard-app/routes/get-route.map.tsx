@@ -30,6 +30,31 @@ export function getRouteMap({
               errorElement: <ErrorBoundary />,
               lazy: () => import("../../routes/home"),
             },
+            {
+              path: "/onboarding",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/onboarding"),
+            },
+            {
+              path: "/cap-table",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/cap-table"),
+            },
+            {
+              path: "/finances",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/finances"),
+            },
+            {
+              path: "/compliance",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/compliance"),
+            },
+            {
+              path: "/projections",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/projections"),
+            },
             ...coreRoutes,
           ],
         },

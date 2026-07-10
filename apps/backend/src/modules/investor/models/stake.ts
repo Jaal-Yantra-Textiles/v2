@@ -16,12 +16,10 @@ const Stake = model.define("stake", {
   }),
   share_class: model.belongsTo(() => ShareClass, {
     mappedBy: "stakes",
-    optional: true,
-  }),
+  }).nullable(),
   funding_round: model.belongsTo(() => FundingRound, {
     mappedBy: "stakes",
-    optional: true,
-  }),
+  }).nullable(),
 
   number_of_shares: model.bigNumber(),
   share_price: model.bigNumber().nullable(),

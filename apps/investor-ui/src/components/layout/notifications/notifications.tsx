@@ -10,7 +10,6 @@ import { TFunction } from "i18next"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { notificationQueryKeys, useNotifications } from "../../../hooks/api"
-import { sdk } from "../../../lib/client"
 import { FilePreview } from "../../common/file-preview"
 import { InfiniteList } from "../../common/infinite-list"
 
@@ -89,11 +88,14 @@ export const Notifications = () => {
           >
             responseKey="notifications"
             queryKey={notificationQueryKeys.all}
-            queryFn={(params) =>
-              sdk.admin.notification.list({
-                ...params,
-                channel: "feed",
-              })
+            // investor-ui: admin API disabled (was sdk.admin.notification.list) — avoids 401→logout
+            queryFn={async () =>
+              ({
+                notifications: [],
+                count: 0,
+                offset: 0,
+                limit: 0,
+              }) as unknown as HttpTypes.AdminNotificationListResponse
             }
             queryOptions={{ enabled: open }}
             renderEmpty={() => <NotificationsEmptyState t={t} />}

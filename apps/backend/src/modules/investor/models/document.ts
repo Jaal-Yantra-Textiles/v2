@@ -7,12 +7,10 @@ const Document = model.define("investor_document", {
 
   cap_table: model.belongsTo(() => CapTable, {
     mappedBy: "documents",
-    optional: true,
-  }),
+  }).nullable(),
   call_for_shares: model.belongsTo(() => CallForShares, {
     mappedBy: "documents",
-    optional: true,
-  }),
+  }).nullable(),
 
   investor_id: model.text().nullable(),
   company_id: model.text().searchable(),

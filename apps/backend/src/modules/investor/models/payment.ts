@@ -7,12 +7,10 @@ const Payment = model.define("investor_payment", {
 
   stake: model.belongsTo(() => Stake, {
     mappedBy: "payments",
-    optional: true,
-  }),
+  }).nullable(),
   call_for_shares: model.belongsTo(() => CallForShares, {
     mappedBy: "payments",
-    optional: true,
-  }),
+  }).nullable(),
 
   investor_id: model.text().searchable(),
   company_id: model.text().searchable(),

@@ -1,7 +1,5 @@
 import { Avatar, Text } from "@medusajs/ui"
 import { Link } from "react-router-dom"
-import { useUser } from "../../../hooks/api/users"
-import { useCustomer } from "../../../hooks/api/customers"
 
 type UserLinkProps = {
   id: string
@@ -35,24 +33,10 @@ export const UserLink = ({
   )
 }
 
-export const By = ({ id }: { id: string }) => {
-  const isUser = id.startsWith("user_")
-  const isCustomer = id.startsWith("cus_")
-
-  // Hooks must run unconditionally (Rules of Hooks); the `enabled` flags
-  // already prevent fetching for the branch that does not apply.
-  const { user } = useUser(id, undefined, { enabled: isUser }) // todo: extend to support customers
-  const { customer } = useCustomer(id, undefined, { enabled: isCustomer })
-
-  if (!isUser && !isCustomer) {
-    return null
-  }
-
-  const actor = isUser ? user : customer
-
-  if (!actor) {
-    return null
-  }
-
-  return <UserLink {...actor} />
+// Investor UI has no admin user/customer API access, so an actor id can't be
+// resolved to a name here. Render nothing rather than call an admin endpoint
+// (which 401s → clears the token → logout). Kept as a no-op so existing
+// references still type-check.
+export const By = (_props: { id: string }) => {
+  return null
 }

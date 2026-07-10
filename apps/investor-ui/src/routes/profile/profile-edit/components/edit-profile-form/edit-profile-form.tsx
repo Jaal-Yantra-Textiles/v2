@@ -8,7 +8,7 @@ import { HttpTypes } from "@medusajs/types"
 import { Form } from "../../../../../components/common/form"
 import { RouteDrawer, useRouteModal } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
-import { useUpdateUser } from "../../../../../hooks/api/users"
+import { useUpdateMe } from "../../../../../hooks/api/users"
 import { languages } from "../../../../../i18n/languages"
 import { useDocumentDirection } from "../../../../../hooks/use-document-direction"
 
@@ -28,10 +28,15 @@ export const EditProfileForm = ({ user }: EditProfileProps) => {
   const { t, i18n } = useTranslation()
   const { handleSuccess } = useRouteModal()
   const direction = useDocumentDirection()
+  // The investor is stored with a single `name`; the gutted dashboard's form
+  // still has first/last inputs, so split on load and re-join on save.
+  const [initialFirst, ...initialRest] = ((user as any).name ?? "")
+    .trim()
+    .split(/\s+/)
   const form = useForm<zod.infer<typeof EditProfileSchema>>({
     defaultValues: {
-      first_name: user.first_name ?? "",
-      last_name: user.last_name ?? "",
+      first_name: user.first_name ?? initialFirst ?? "",
+      last_name: user.last_name ?? initialRest.join(" ") ?? "",
       language: i18n.language,
       // usage_insights: usageInsights,
     },
@@ -46,14 +51,15 @@ export const EditProfileForm = ({ user }: EditProfileProps) => {
     a.display_name.localeCompare(b.display_name)
   )
 
-  const { mutateAsync, isPending } = useUpdateUser(user.id!)
+  const { mutateAsync, isPending } = useUpdateMe()
 
   const handleSubmit = form.handleSubmit(async (values) => {
+    const name = [values.first_name, values.last_name]
+      .filter(Boolean)
+      .join(" ")
+      .trim()
     await mutateAsync(
-      {
-        first_name: values.first_name,
-        last_name: values.last_name,
-      },
+      { name: name || undefined },
       {
         onError: (error) => {
           toast.error(error.message)

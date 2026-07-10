@@ -7,7 +7,6 @@ import {
   useMutation,
   useQuery,
 } from "@tanstack/react-query"
-import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
 import { queryKeysFactory, TQueryKey } from "../../lib/query-key-factory"
 
@@ -43,7 +42,9 @@ export const useRbacRole = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.rbacRole.retrieve(id, query),
+    // investor-ui: admin API disabled (was sdk.admin.rbacRole.retrieve) — avoids 401→logout
+    queryFn: async () =>
+      ({} as unknown as HttpTypes.AdminRbacRoleResponse),
     queryKey: rbacRolesQueryKeys.detail(id, query),
     ...options,
   })
@@ -64,7 +65,14 @@ export const useRbacRoles = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.rbacRole.list(query),
+    // investor-ui: admin API disabled (was sdk.admin.rbacRole.list) — avoids 401→logout
+    queryFn: async () =>
+      ({
+        rbac_roles: [],
+        count: 0,
+        offset: 0,
+        limit: 0,
+      } as unknown as HttpTypes.AdminRbacRoleListResponse),
     queryKey: rbacRolesQueryKeys.list(query),
     ...options,
   })
@@ -86,7 +94,14 @@ export const useRbacRolePolicies = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.rbacRole.listPolicies(roleId, query),
+    // investor-ui: admin API disabled (was sdk.admin.rbacRole.listPolicies) — avoids 401→logout
+    queryFn: async () =>
+      ({
+        rbac_policies: [],
+        count: 0,
+        offset: 0,
+        limit: 0,
+      } as unknown as HttpTypes.AdminRbacPolicyListResponse),
     queryKey: rbacRolesQueryKeys.policies(roleId, query),
     ...options,
   })
@@ -108,7 +123,14 @@ export const useRbacRoleUsers = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.rbacRole.listUsers(roleId, query),
+    // investor-ui: admin API disabled (was sdk.admin.rbacRole.listUsers) — avoids 401→logout
+    queryFn: async () =>
+      ({
+        users: [],
+        count: 0,
+        offset: 0,
+        limit: 0,
+      } as unknown as HttpTypes.AdminRbacRoleUserListResponse),
     queryKey: rbacRolesQueryKeys.users(roleId, query),
     ...options,
   })
@@ -124,7 +146,8 @@ export const useCreateRbacRole = (
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.rbacRole.create(payload),
+    // investor-ui: admin API disabled (was sdk.admin.rbacRole.create) — avoids 401→logout
+    mutationFn: async () => ({} as unknown as HttpTypes.AdminRbacRoleResponse),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: rbacRolesQueryKeys.lists() })
 
@@ -143,7 +166,8 @@ export const useUpdateRbacRole = (
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.rbacRole.update(id, payload),
+    // investor-ui: admin API disabled (was sdk.admin.rbacRole.update) — avoids 401→logout
+    mutationFn: async () => ({} as unknown as HttpTypes.AdminRbacRoleResponse),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: rbacRolesQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: rbacRolesQueryKeys.detail(id) })
@@ -163,7 +187,9 @@ export const useDeleteRbacRole = (
   >
 ) => {
   return useMutation({
-    mutationFn: () => sdk.admin.rbacRole.delete(id),
+    // investor-ui: admin API disabled (was sdk.admin.rbacRole.delete) — avoids 401→logout
+    mutationFn: async () =>
+      ({} as unknown as HttpTypes.AdminRbacRoleDeleteResponse),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: rbacRolesQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: rbacRolesQueryKeys.detail(id) })
@@ -182,7 +208,9 @@ export const useDeleteRbacRoleLazy = (
   >
 ) => {
   return useMutation({
-    mutationFn: (id: string) => sdk.admin.rbacRole.delete(id),
+    // investor-ui: admin API disabled (was sdk.admin.rbacRole.delete) — avoids 401→logout
+    mutationFn: async () =>
+      ({} as unknown as HttpTypes.AdminRbacRoleDeleteResponse),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: rbacRolesQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: rbacRolesQueryKeys.details() })
@@ -202,7 +230,9 @@ export const useAddRbacRolePolicies = (
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.rbacRole.addPolicies(roleId, payload),
+    // investor-ui: admin API disabled (was sdk.admin.rbacRole.addPolicies) — avoids 401→logout
+    mutationFn: async () =>
+      ({} as unknown as HttpTypes.AdminRbacPolicyListResponse),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: rbacRolesQueryKeys.policies(roleId),
@@ -225,8 +255,9 @@ export const useAddRbacRolePoliciesById = (
   >
 ) => {
   return useMutation({
-    mutationFn: ({ roleId, policies }) =>
-      sdk.admin.rbacRole.addPolicies(roleId, { policies }),
+    // investor-ui: admin API disabled (was sdk.admin.rbacRole.addPolicies) — avoids 401→logout
+    mutationFn: async () =>
+      ({} as unknown as HttpTypes.AdminRbacPolicyListResponse),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: rbacRolesQueryKeys.policies(variables.roleId),
@@ -244,7 +275,7 @@ export const useAddRbacRolePoliciesById = (
 
 export const useRemoveRbacRolePolicy = (
   roleId: string,
-  policyId: string,
+  _policyId: string,
   options?: UseMutationOptions<
     HttpTypes.AdminRbacPolicyDeleteResponse,
     FetchError,
@@ -252,7 +283,9 @@ export const useRemoveRbacRolePolicy = (
   >
 ) => {
   return useMutation({
-    mutationFn: () => sdk.admin.rbacRole.removePolicy(roleId, policyId),
+    // investor-ui: admin API disabled (was sdk.admin.rbacRole.removePolicy) — avoids 401→logout
+    mutationFn: async () =>
+      ({} as unknown as HttpTypes.AdminRbacPolicyDeleteResponse),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: rbacRolesQueryKeys.policies(roleId),
@@ -276,7 +309,9 @@ export const useAddRbacRoleUsers = (
   >
 ) => {
   return useMutation({
-    mutationFn: (users) => sdk.admin.rbacRole.addUsers(roleId, { users }),
+    // investor-ui: admin API disabled (was sdk.admin.rbacRole.addUsers) — avoids 401→logout
+    mutationFn: async () =>
+      ({} as unknown as HttpTypes.AdminRbacRoleUsersResponse),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: rbacRolesQueryKeys.users(roleId),
@@ -301,7 +336,9 @@ export const useRemoveRbacRoleUsers = (
   >
 ) => {
   return useMutation({
-    mutationFn: (users) => sdk.admin.rbacRole.removeUsers(roleId, { users }),
+    // investor-ui: admin API disabled (was sdk.admin.rbacRole.removeUsers) — avoids 401→logout
+    mutationFn: async () =>
+      ({} as unknown as HttpTypes.AdminRbacRoleUsersDeleteResponse),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: rbacRolesQueryKeys.users(roleId),
@@ -336,7 +373,9 @@ export const useMePermissions = (
   >
 ) => {
   return useQuery({
-    queryFn: () => sdk.admin.rbacRole.mePermissions(),
+    // investor-ui: admin API disabled (was sdk.admin.rbacRole.mePermissions) — avoids 401→logout
+    queryFn: async () =>
+      ({} as unknown as HttpTypes.AdminRbacMePermissionsResponse),
     queryKey: mePermissionsQueryKey,
     staleTime: 5 * 60 * 1000,
     ...options,
@@ -363,7 +402,14 @@ export const useRbacAssignableRoles = (
   >
 ) => {
   return useQuery({
-    queryFn: () => sdk.admin.rbacRole.listAssignable(query),
+    // investor-ui: admin API disabled (was sdk.admin.rbacRole.listAssignable) — avoids 401→logout
+    queryFn: async () =>
+      ({
+        rbac_roles: [],
+        count: 0,
+        offset: 0,
+        limit: 0,
+      } as unknown as HttpTypes.AdminRbacAssignableRolesListResponse),
     queryKey: [...ASSIGNABLE_ROLES_QUERY_KEY, query],
     staleTime: 5 * 60 * 1000,
     ...options,

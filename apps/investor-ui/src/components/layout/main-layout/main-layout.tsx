@@ -1,16 +1,14 @@
 import {
-  Buildings,
   BuildingStorefront,
+  ChartBar,
+  ChartPie,
   CogSixTooth,
   CurrencyDollar,
   EllipsisHorizontal,
   MagnifyingGlass,
   OpenRectArrowOut,
-  ReceiptPercent,
-  ShoppingCart,
+  ShieldCheck,
   SquaresPlus,
-  Tag,
-  Users,
 } from "@medusajs/icons"
 import { CORE_LAYOUT_IDS } from "@medusajs/admin-shared"
 import { Avatar, clx, Divider, DropdownMenu, Text } from "@medusajs/ui"
@@ -179,8 +177,13 @@ const Header = () => {
 }
 
 const useCoreRoutes = (): Omit<INavItem, "pathname">[] => {
-  // Investor UI shell — no core nav yet; investor routes added incrementally.
-  return []
+  // Investor UI primary nav. Each points at a top-level investor route.
+  return [
+    { icon: <ChartPie />, label: "Cap table", to: "/cap-table" },
+    { icon: <CurrencyDollar />, label: "Finances", to: "/finances" },
+    { icon: <ShieldCheck />, label: "Compliances", to: "/compliance" },
+    { icon: <ChartBar />, label: "Projections", to: "/projections" },
+  ]
 }
 
 const Searchbar = () => {

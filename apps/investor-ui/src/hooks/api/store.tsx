@@ -8,7 +8,6 @@ import {
 
 import { FetchError } from "@medusajs/js-sdk"
 import { HttpTypes } from "@medusajs/types"
-import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
 import { queryKeysFactory } from "../../lib/query-key-factory"
 
@@ -16,20 +15,22 @@ const STORE_QUERY_KEY = "store" as const
 export const storeQueryKeys = queryKeysFactory(STORE_QUERY_KEY)
 
 /**
- * Workaround to keep the V1 version of retrieving the store.
+ * Investor UI has no admin `store` access. Calling `sdk.admin.store.list` here
+ * returns 401 → the JS SDK clears the shared JWT (`investor_ui_auth_token`) →
+ * the next `/investors/me` is unauthenticated → ProtectedRoute logs the
+ * investor out. Since `useStore` runs on every shell mount, that 401 was the
+ * root cause of the "logged in then bounced to /login" loop. We return a
+ * static shell store instead of touching the admin API.
  */
 export async function retrieveActiveStore(
-  query?: HttpTypes.AdminStoreParams
+  _query?: HttpTypes.AdminStoreParams
 ): Promise<HttpTypes.AdminStoreResponse> {
-  const response = await sdk.admin.store.list(query)
-
-  const activeStore = response.stores?.[0]
-
-  if (!activeStore) {
-    throw new FetchError("No active store found", "Not Found", 404)
-  }
-
-  return { store: activeStore }
+  return {
+    store: {
+      id: "investor_portal",
+      name: "Investor Portal",
+    },
+  } as unknown as HttpTypes.AdminStoreResponse
 }
 
 export const useStore = (
@@ -57,7 +58,7 @@ export const useStore = (
 }
 
 export const useUpdateStore = (
-  id: string,
+  _id: string,
   options?: MutationOptions<
     HttpTypes.AdminStoreResponse,
     FetchError,
@@ -65,7 +66,8 @@ export const useUpdateStore = (
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.store.update(id, payload),
+    // investor-ui: admin API disabled (was sdk.admin.store.update) — avoids 401→logout
+    mutationFn: async () => ({} as unknown as HttpTypes.AdminStoreResponse),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: storeQueryKeys.details() })
 

@@ -7,7 +7,6 @@ import {
   useMutation,
   useQuery,
 } from "@tanstack/react-query"
-import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
 import { queryKeysFactory } from "../../lib/query-key-factory"
 
@@ -28,7 +27,9 @@ export const useInvite = (
 ) => {
   const { data, ...rest } = useQuery({
     queryKey: invitesQueryKeys.detail(id),
-    queryFn: async () => sdk.admin.invite.retrieve(id),
+    // investor-ui: admin API disabled (was sdk.admin.invite.retrieve) — avoids 401→logout
+    queryFn: async () =>
+      ({} as unknown as HttpTypes.AdminInviteResponse),
     ...options,
   })
 
@@ -48,7 +49,14 @@ export const useInvites = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.invite.list(query),
+    // investor-ui: admin API disabled (was sdk.admin.invite.list) — avoids 401→logout
+    queryFn: async () =>
+      ({
+        invites: [],
+        count: 0,
+        offset: 0,
+        limit: 0,
+      } as unknown as HttpTypes.AdminInviteListResponse),
     queryKey: invitesQueryKeys.list(query),
     ...options,
   })
@@ -64,7 +72,8 @@ export const useCreateInvite = (
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => sdk.admin.invite.create(payload),
+    // investor-ui: admin API disabled (was sdk.admin.invite.create) — avoids 401→logout
+    mutationFn: async () => ({} as unknown as HttpTypes.AdminInviteResponse),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: invitesQueryKeys.lists() })
       options?.onSuccess?.(data, variables, context)
@@ -78,7 +87,8 @@ export const useResendInvite = (
   options?: UseMutationOptions<HttpTypes.AdminInviteResponse, FetchError, void>
 ) => {
   return useMutation({
-    mutationFn: () => sdk.admin.invite.resend(id),
+    // investor-ui: admin API disabled (was sdk.admin.invite.resend) — avoids 401→logout
+    mutationFn: async () => ({} as unknown as HttpTypes.AdminInviteResponse),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: invitesQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: invitesQueryKeys.detail(id) })
@@ -97,7 +107,9 @@ export const useDeleteInvite = (
   >
 ) => {
   return useMutation({
-    mutationFn: () => sdk.admin.invite.delete(id),
+    // investor-ui: admin API disabled (was sdk.admin.invite.delete) — avoids 401→logout
+    mutationFn: async () =>
+      ({} as unknown as HttpTypes.AdminInviteDeleteResponse),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: invitesQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: invitesQueryKeys.detail(id) })
@@ -108,7 +120,7 @@ export const useDeleteInvite = (
 }
 
 export const useAcceptInvite = (
-  inviteToken: string,
+  _inviteToken: string,
   options?: UseMutationOptions<
     HttpTypes.AdminAcceptInviteResponse,
     FetchError,
@@ -116,17 +128,9 @@ export const useAcceptInvite = (
   >
 ) => {
   return useMutation({
-    mutationFn: (payload) => {
-      const { auth_token, ...rest } = payload
-
-      return sdk.admin.invite.accept(
-        { invite_token: inviteToken, ...rest },
-        {},
-        {
-          Authorization: `Bearer ${auth_token}`,
-        }
-      )
-    },
+    // investor-ui: admin API disabled (was sdk.admin.invite.accept) — avoids 401→logout
+    mutationFn: async () =>
+      ({} as unknown as HttpTypes.AdminAcceptInviteResponse),
     onSuccess: (data, variables, context) => {
       options?.onSuccess?.(data, variables, context)
     },

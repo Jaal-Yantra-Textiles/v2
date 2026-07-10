@@ -318,4 +318,8 @@ export const config = defineRouteConfig({
   icon: BuildingStorefront,
 })
 
+
+export const handle = {
+  breadcrumb: () => "Companies",
+};
 export default CompaniesPage

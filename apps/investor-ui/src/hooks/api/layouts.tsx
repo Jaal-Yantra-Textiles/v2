@@ -8,7 +8,6 @@ import {
   UseQueryOptions,
 } from "@tanstack/react-query"
 
-import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
 import { queryKeysFactory, TQueryKey } from "../../lib/query-key-factory"
 
@@ -47,7 +46,14 @@ export const useLayoutConfigurations = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.layouts.listConfigurations(query),
+    // investor-ui: admin API disabled (was sdk.admin.layouts.listConfigurations) — avoids 401→logout
+    queryFn: async () =>
+      ({
+        layout_configurations: [],
+        count: 0,
+        offset: 0,
+        limit: 0,
+      } as unknown as HttpTypes.AdminLayoutConfigurationListResponse),
     queryKey: layoutsQueryKeys.configurations(query),
     ...options,
   })
@@ -82,7 +88,9 @@ export const useLayoutConfiguration = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: () => sdk.admin.layouts.retrieveConfiguration(zone),
+    // investor-ui: admin API disabled (was sdk.admin.layouts.retrieveConfiguration) — avoids 401→logout
+    queryFn: async () =>
+      ({} as unknown as HttpTypes.AdminLayoutConfigurationResponse),
     queryKey: layoutsQueryKeys.configuration(zone),
     ...options,
   })
@@ -99,8 +107,9 @@ export const useSetLayoutConfiguration = (
   >
 ) => {
   return useMutation({
-    mutationFn: (payload: HttpTypes.AdminSetLayoutConfiguration) =>
-      sdk.admin.layouts.setConfiguration(zone, payload),
+    // investor-ui: admin API disabled (was sdk.admin.layouts.setConfiguration) — avoids 401→logout
+    mutationFn: async (_payload: HttpTypes.AdminSetLayoutConfiguration) =>
+      ({} as unknown as HttpTypes.AdminLayoutConfigurationResponse),
     ...options,
     onSuccess: async (data, variables, context) => {
       await queryClient.invalidateQueries({
