@@ -70,12 +70,12 @@ jobs:
         run: pnpm exec vite build
 
       - name: Deploy to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
-        with:
-          # Same names as apps/backend/.env — add them as GitHub repo secrets
-          # (Settings → Secrets and variables → Actions). CF_WORKERS_SECRET is a
-          # cfat… Workers-deploy API token; CF_ACCOUNT_ID is the account id.
-          apiToken: ${{ secrets.CF_WORKERS_SECRET }}
-          accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          workingDirectory: apps/investor-ui
-          command: deploy
+        # Deploy with the wrangler installed by the pnpm scoped install rather
+        # than cloudflare/wrangler-action (which npm-installs wrangler and trips
+        # the repo's husky `prepare` script). Secrets use the same names as
+        # apps/backend/.env — add them as GitHub repo secrets.
+        working-directory: apps/investor-ui
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_WORKERS_SECRET }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: pnpm exec wrangler deploy
