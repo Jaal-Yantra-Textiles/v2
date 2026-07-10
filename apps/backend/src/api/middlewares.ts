@@ -105,6 +105,7 @@ import { AdminPostDesignInventoryReq, AdminDeleteDesignInventoryReq } from "./ad
 import { AdminPostConsumptionLogReq, AdminPostCommitConsumptionReq } from "./admin/designs/[id]/consumption-logs/validators";
 import { AdminCreateEnergyRateReq, AdminUpdateEnergyRateReq } from "./admin/energy-rates/validators";
 import { partnerSchema, partnerUpdateSchema } from "./partners/validators";
+import { investorSchema, investorUpdateSchema, capTableSchema, capTableUpdateSchema, shareClassSchema, stakeSchema, fundingRoundSchema, pipelineSchema, callForSharesSchema, paymentSchema, documentSchema, companySchema, companyUpdateSchema, investorAdminSchema } from "./investors/validators";
 import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { updatePartnerMeSchema } from "./partners/me/validators";
 import { onboardingProfileUpdateSchema } from "./partners/onboarding-profile/validators";
@@ -825,6 +826,162 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"], { allowUnregistered: true, }),
         validateAndTransformBody(wrapSchema(partnerSchema)),
+      ],
+    },
+
+    // ─── Investor routes ───────────────────────────────────────────
+    {
+      matcher: "/investors*",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"], { allowUnregistered: true }),
+      ],
+    },
+    {
+      matcher: "/investors*",
+      method: "GET",
+      middlewares: [applyLocale],
+    },
+    {
+      matcher: "/investors",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"], { allowUnregistered: true }),
+        validateAndTransformBody(wrapSchema(investorSchema)),
+      ],
+    },
+    {
+      matcher: "/investors/me",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/investors/me",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(investorUpdateSchema)),
+      ],
+    },
+    {
+      matcher: "/investors/cap-tables",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(capTableSchema)),
+      ],
+    },
+    {
+      matcher: "/investors/cap-tables/:id",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(capTableUpdateSchema)),
+      ],
+    },
+    {
+      matcher: "/investors/cap-tables/:id/share-classes",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(shareClassSchema)),
+      ],
+    },
+    {
+      matcher: "/investors/cap-tables/:id/stakes",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(stakeSchema)),
+      ],
+    },
+    {
+      matcher: "/investors/cap-tables/:id/funding-rounds",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(fundingRoundSchema)),
+      ],
+    },
+    {
+      matcher: "/investors/cap-tables/:id/calls-for-shares",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(callForSharesSchema)),
+      ],
+    },
+    {
+      matcher: "/investors/stakes/:id/payments",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(paymentSchema)),
+      ],
+    },
+    {
+      matcher: "/investors/cap-tables/:id/documents",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(documentSchema)),
+      ],
+    },
+    {
+      matcher: "/investors/pipeline",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(pipelineSchema)),
+      ],
+    },
+    {
+      matcher: "/investors/companies",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(companySchema)),
+      ],
+    },
+    {
+      matcher: "/investors/companies/:id",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(companyUpdateSchema)),
+      ],
+    },
+    {
+      matcher: "/investors/admins",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/investors/admins",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(investorAdminSchema)),
       ],
     },
 
