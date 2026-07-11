@@ -124,6 +124,26 @@ const findEmailpassIdentity = async (
   return (identities || []).find((pi: any) => pi.provider === "emailpass")
 }
 
+// The register step either resets an existing emailpass identity or creates a
+// new one; each path compensates differently, so its compensation payload is a
+// discriminated union. Pin both StepResponse generics to these explicit types
+// so TS unifies the two return branches (otherwise the invoke fn's inferred
+// type collapses and every downstream `.authIdentityId` reference breaks).
+type RegisterAuthOutput = {
+  // Always resolved: `reg.id` on create, the existing identity's
+  // `auth_identity_id` on reset (a provider identity always has one).
+  authIdentityId: string
+  tempPassword: string
+  reused: boolean
+}
+type RegisterAuthCompensate =
+  | {
+      mode: "reset"
+      providerIdentityId: string
+      previousProviderMetadata: Record<string, unknown>
+    }
+  | { mode: "create"; authIdentityId: string }
+
 const registerInvestorAdminAuthStep = createStep(
   "register-investor-admin-auth-step",
   async (input: { email: string; tempPassword?: string }, { container }) => {
@@ -144,10 +164,10 @@ const registerInvestorAdminAuthStep = createStep(
         id: existing.id,
         provider_metadata: { ...previousProviderMetadata, password: passwordHash },
       } as any)
-      return new StepResponse(
+      return new StepResponse<RegisterAuthOutput, RegisterAuthCompensate>(
         { authIdentityId: existing.auth_identity_id, tempPassword: plainPassword, reused: true },
         {
-          mode: "reset" as const,
+          mode: "reset",
           providerIdentityId: existing.id,
           previousProviderMetadata,
         }
@@ -163,12 +183,12 @@ const registerInvestorAdminAuthStep = createStep(
         },
       ],
     })
-    return new StepResponse(
+    return new StepResponse<RegisterAuthOutput, RegisterAuthCompensate>(
       { authIdentityId: reg.id, tempPassword: plainPassword, reused: false },
-      { mode: "create" as const, authIdentityId: reg.id }
+      { mode: "create", authIdentityId: reg.id }
     )
   },
-  async (rollback, { container }) => {
+  async (rollback: RegisterAuthCompensate | undefined, { container }) => {
     if (!rollback) return
     const authModule = container.resolve(Modules.AUTH) as IAuthModuleService
     if (rollback.mode === "reset" && rollback.providerIdentityId) {
