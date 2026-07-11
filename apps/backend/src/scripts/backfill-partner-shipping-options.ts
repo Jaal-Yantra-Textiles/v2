@@ -67,7 +67,7 @@ const DEFAULT_MANUAL_PRICES: Record<string, number> = {
   idr: 450000,
 }
 
-const enabledRule = { attribute: "enabled_in_store", value: '"true"', operator: "eq" }
+const enabledRule = { attribute: "enabled_in_store", value: "true", operator: "eq" }
 const notReturnRule = { attribute: "is_return", value: "false", operator: "eq" }
 
 type OptionSpec = {

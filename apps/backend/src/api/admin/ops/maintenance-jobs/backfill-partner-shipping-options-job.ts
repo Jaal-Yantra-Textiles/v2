@@ -61,7 +61,7 @@ export const INTL_MANUAL_RATES: Record<string, { base: number; freeAbove: number
   idr: { base: 550000, freeAbove: 5000000 },
 }
 
-const enabledRule = { attribute: "enabled_in_store", value: '"true"', operator: "eq" as const }
+const enabledRule = { attribute: "enabled_in_store", value: "true", operator: "eq" as const }
 const notReturnRule = { attribute: "is_return", value: "false", operator: "eq" as const }
 
 const backfillParamsSchema = z.object({

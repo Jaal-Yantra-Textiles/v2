@@ -198,6 +198,41 @@ export const useCreateFundingRound = (
   })
 }
 
+export type ProvisionStakePayload = {
+  // Existing investor OR a new individual created inline.
+  investor_id?: string
+  investor?: { name: string; email?: string; investor_type?: "individual" | "entity" | "fund" }
+  number_of_shares: number
+  share_price?: number | null
+  total_invested?: number | null
+  share_class_id?: string
+  status?: "active" | "fully_paid" | "partially_paid" | "unpaid" | "cancelled"
+  certificate_number?: string
+}
+
+// Manual share provision — allocate a stake directly (bypassing the deal →
+// payment flow), optionally creating a bare individual investor inline.
+export const useProvisionStake = (
+  capTableId: string,
+  companyId: string,
+  options?: UseMutationOptions<{ stake: AdminStake }, FetchError, ProvisionStakePayload>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    ...options,
+    mutationFn: (payload) =>
+      sdk.client.fetch(`/admin/cap-tables/${capTableId}/stakes`, {
+        method: "POST",
+        body: payload,
+      }),
+    onSuccess: (...args: any[]) => {
+      queryClient.invalidateQueries({ queryKey: capTablesQueryKeys.companyList(companyId) })
+      queryClient.invalidateQueries({ queryKey: capTablesQueryKeys.detail(capTableId) })
+      ;(options?.onSuccess as any)?.(...args)
+    },
+  })
+}
+
 // ---- Deals & participations ------------------------------------------------
 
 export type AdminParticipation = {

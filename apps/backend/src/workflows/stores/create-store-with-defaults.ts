@@ -496,7 +496,7 @@ const autoLinkFulfillmentProvidersStep = createStep(
                     code: "standard",
                   },
                   rules: [
-                    { attribute: "enabled_in_store", value: '"true"', operator: "eq" },
+                    { attribute: "enabled_in_store", value: "true", operator: "eq" },
                     { attribute: "is_return", value: "false", operator: "eq" },
                   ],
                 }],
@@ -516,7 +516,7 @@ const autoLinkFulfillmentProvidersStep = createStep(
                     code: "return",
                   },
                   rules: [
-                    { attribute: "enabled_in_store", value: '"true"', operator: "eq" },
+                    { attribute: "enabled_in_store", value: "true", operator: "eq" },
                     { attribute: "is_return", value: "true", operator: "eq" },
                   ],
                 }],
@@ -577,7 +577,7 @@ const autoLinkFulfillmentProvidersStep = createStep(
                     },
                   ],
                   rules: [
-                    { attribute: "enabled_in_store", value: '"true"', operator: "eq" },
+                    { attribute: "enabled_in_store", value: "true", operator: "eq" },
                     { attribute: "is_return", value: "false", operator: "eq" },
                   ],
                 }],
@@ -603,7 +603,7 @@ const autoLinkFulfillmentProvidersStep = createStep(
                     },
                   ],
                   rules: [
-                    { attribute: "enabled_in_store", value: '"true"', operator: "eq" },
+                    { attribute: "enabled_in_store", value: "true", operator: "eq" },
                     { attribute: "is_return", value: "true", operator: "eq" },
                   ],
                 }],
@@ -614,6 +614,126 @@ const autoLinkFulfillmentProvidersStep = createStep(
               `[create-store] Created shipping options for ${countryLabel} ` +
               `(${isDelhivery ? "calculated/Delhivery" : "flat tiered/manual"})`
             )
+
+            // --- International coverage (mirrors the #954 DP backfill) --------
+            // Add an "International" zone covering every OTHER region's countries
+            // so a new storefront can sell cross-border out of the box — a manual
+            // flat option (+ DHL Express when the carrier is enabled), not just
+            // its own domestic country. Best-effort: never fails provisioning.
+            try {
+              const regionQuery = container.resolve(
+                ContainerRegistrationKeys.QUERY
+              ) as Omit<RemoteQueryFunction, symbol>
+              const { data: regions } = await regionQuery.graph({
+                entity: "region",
+                fields: ["id", "currency_code", "countries.iso_2"],
+              })
+              const intlCountries = new Set<string>()
+              const intlCurrencies = new Set<string>()
+              for (const r of (regions || []) as any[]) {
+                for (const c of r.countries || []) {
+                  const cc = (c.iso_2 || "").toLowerCase()
+                  if (cc && cc !== countryLower) intlCountries.add(cc)
+                }
+                if (r.currency_code) intlCurrencies.add(r.currency_code.toLowerCase())
+              }
+
+              if (intlCountries.size) {
+                const intlGeoZones = [...intlCountries].sort().map((cc) => ({
+                  country_code: cc,
+                  type: "country" as const,
+                }))
+                const createdZone = await fulfillmentService.createServiceZones({
+                  name: `International Zone (${suffix})`,
+                  fulfillment_set_id: shippingSet.id,
+                  geo_zones: intlGeoZones,
+                })
+                const intlZone = Array.isArray(createdZone) ? createdZone[0] : createdZone
+
+                // Real flat manual rates (major units) with a free-above tier —
+                // editable placeholders; `usd` is the fallback for unlisted ccys.
+                const INTL_RATES: Record<string, { base: number; freeAbove: number }> = {
+                  usd: { base: 39, freeAbove: 350 },
+                  eur: { base: 35, freeAbove: 300 },
+                  gbp: { base: 30, freeAbove: 275 },
+                  aud: { base: 55, freeAbove: 450 },
+                  cad: { base: 50, freeAbove: 400 },
+                  inr: { base: 3200, freeAbove: 25000 },
+                  idr: { base: 550000, freeAbove: 5000000 },
+                }
+                const intlPrices: Array<{
+                  currency_code: string
+                  amount: number
+                  rules?: Array<{ attribute: string; operator: "gte"; value: number }>
+                }> = []
+                for (const cur of intlCurrencies) {
+                  const rate = INTL_RATES[cur] ?? INTL_RATES["usd"]
+                  intlPrices.push({ currency_code: cur, amount: rate.base })
+                  intlPrices.push({
+                    currency_code: cur,
+                    amount: 0,
+                    rules: [{ attribute: "item_total", operator: "gte", value: rate.freeAbove }],
+                  })
+                }
+
+                const dhlEnabled = enabledIds.includes("dhl-express_dhl-express")
+
+                await createShippingOptionsWorkflow(container).run({
+                  input: [
+                    {
+                      name: `International Shipping (${suffix})`,
+                      price_type: "flat",
+                      provider_id: "manual_manual",
+                      service_zone_id: intlZone.id,
+                      shipping_profile_id: profileId,
+                      type: {
+                        label: "International",
+                        description: "International shipping (self-managed / manual)",
+                        code: `international-standard-${suffix}`,
+                      },
+                      prices: intlPrices,
+                      rules: [
+                        { attribute: "enabled_in_store", value: "true", operator: "eq" },
+                        { attribute: "is_return", value: "false", operator: "eq" },
+                      ],
+                    },
+                  ] as any,
+                })
+
+                if (dhlEnabled) {
+                  await createShippingOptionsWorkflow(container).run({
+                    input: [
+                      {
+                        name: `DHL Express Worldwide (${suffix})`,
+                        price_type: "calculated",
+                        provider_id: "dhl-express_dhl-express",
+                        service_zone_id: intlZone.id,
+                        shipping_profile_id: profileId,
+                        type: {
+                          label: "DHL Express",
+                          description: "DHL Express Worldwide — live rates",
+                          code: `dhl-express-worldwide-${suffix}`,
+                        },
+                        data: { product_code: "P" },
+                        rules: [
+                          { attribute: "enabled_in_store", value: "true", operator: "eq" },
+                          { attribute: "is_return", value: "false", operator: "eq" },
+                        ],
+                      },
+                    ] as any,
+                  })
+                }
+
+                console.log(
+                  `[create-store] Created International zone (${intlCountries.size} countries) ` +
+                    `+ manual${dhlEnabled ? " + DHL" : ""} option(s)`
+                )
+              }
+            } catch (intlErr: any) {
+              console.error(
+                `[create-store] Failed to create international shipping: ${intlErr.message}`
+              )
+            }
           }
         } catch (shippingErr: any) {
           console.error(`[create-store] Failed to create shipping options: ${shippingErr.message}`)

@@ -9,7 +9,7 @@ import {
   toast,
   useDataTable,
 } from "@medusajs/ui"
-import { CurrencyDollar, DocumentText, Plus, RocketLaunch } from "@medusajs/icons"
+import { CurrencyDollar, DocumentText, Plus, RocketLaunch, Users } from "@medusajs/icons"
 import { useMemo } from "react"
 import { Link } from "react-router-dom"
 import { ActionMenu } from "../common/action-menu"
@@ -300,6 +300,7 @@ export const CapTableSection = ({ companyId }: { companyId: string }) => {
               groups={[
                 {
                   actions: [
+                    { icon: <Users />, label: "Provision shares (manual)", to: "provision-stake" },
                     { icon: <Plus />, label: "Add share class", to: "add-share-class" },
                     { icon: <Plus />, label: "Add funding round", to: "add-round" },
                     { icon: <DocumentText />, label: "Add document", to: "add-document" },

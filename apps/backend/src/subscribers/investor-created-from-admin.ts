@@ -33,7 +33,7 @@ export default async function investorCreatedFromAdminHandler({
       to: data.email,
       investor_name: investorName,
       temp_password: data.temp_password,
-      login_url: process.env.INVESTOR_UI_URL || "https://investor.jaalyantra.com",
+      login_url: process.env.INVESTOR_UI_URL || "https://invest.jaalyantra.com",
     },
   })
 }
