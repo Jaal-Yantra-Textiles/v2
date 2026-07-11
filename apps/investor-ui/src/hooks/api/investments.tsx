@@ -113,12 +113,15 @@ export type ConvertibleValue = {
 
 export type MyConvertible = {
   id: string
-  instrument_type?: "safe" | "convertible_note"
+  instrument_type?: "safe" | "convertible_note" | "ccps"
   principal_amount?: number | null
   currency_code?: string | null
   valuation_cap?: number | null
   discount_rate?: number | null
   safe_type?: "post_money" | "pre_money"
+  // CCPS-only preference terms.
+  num_shares?: number | null
+  liquidation_preference_multiple?: number | null
   status?: string
   investment_date?: string | null
   conversion_date?: string | null

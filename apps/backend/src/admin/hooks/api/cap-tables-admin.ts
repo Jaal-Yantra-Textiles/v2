@@ -23,7 +23,7 @@ export type AdminFundingRound = {
   id: string
   name: string
   round_type?: string
-  instrument_type?: "equity" | "safe" | "convertible_note"
+  instrument_type?: "equity" | "safe" | "convertible_note" | "ccps"
   status?: string
   target_amount?: number | null
   raised_amount?: number | null
@@ -88,7 +88,7 @@ export type CreateShareClassPayload = {
 export type CreateFundingRoundPayload = {
   name: string
   round_type?: string
-  instrument_type?: "equity" | "safe" | "convertible_note"
+  instrument_type?: "equity" | "safe" | "convertible_note" | "ccps"
   status?: string
   target_amount?: number | null
   pre_money_valuation?: number | null
@@ -261,17 +261,29 @@ export type AdminParticipation = {
   payments?: Array<{ id: string; amount?: number | null; status?: string; metadata?: Record<string, any> | null }>
 }
 
+export type ConvertibleInstrument = "safe" | "convertible_note" | "ccps"
+
 export type AdminConvertible = {
   id: string
   investor_id?: string | null
-  instrument_type?: "safe" | "convertible_note"
+  instrument_type?: ConvertibleInstrument
   principal_amount?: number | null
   currency_code?: string | null
   valuation_cap?: number | null
   discount_rate?: number | null
   safe_type?: "post_money" | "pre_money"
+  // CCPS-only preference terms.
+  num_shares?: number | null
+  liquidation_preference_multiple?: number | null
+  dividend_rate?: number | null
+  conversion_ratio?: number | null
+  // Convertible-note-only.
+  interest_rate?: number | null
+  maturity_date?: string | null
   status?: string
   investment_date?: string | null
+  conversion_shares?: number | null
+  conversion_price_per_share?: number | null
   metadata?: Record<string, any> | null
   investor?: { id: string; name?: string; email?: string } | null
   payments?: Array<{ id: string; amount?: number | null; status?: string }>
@@ -287,14 +299,34 @@ export type AdminConvertible = {
 export type ProvisionConvertiblePayload = {
   investor_id?: string
   investor?: { name: string; email?: string; investor_type?: "individual" | "entity" | "fund" }
-  instrument_type?: "safe" | "convertible_note"
+  instrument_type?: ConvertibleInstrument
   principal_amount: number
   valuation_cap?: number | null
   discount_rate?: number | null
   safe_type?: "post_money" | "pre_money"
+  num_shares?: number | null
+  liquidation_preference_multiple?: number | null
+  dividend_rate?: number | null
+  conversion_ratio?: number | null
+  interest_rate?: number | null
+  maturity_date?: string | null
   investment_date?: string | null
   status?: "outstanding" | "converted" | "redeemed" | "cancelled" | "expired"
   notes?: string | null
+}
+
+export type ConvertConvertiblePayload = {
+  target?: "equity" | "ccps"
+  round_price_per_share?: number | null
+  fully_diluted_shares?: number | null
+  funding_round_id?: string | null
+  share_class_id?: string | null
+  shares?: number | null
+  price_per_share?: number | null
+  conversion_date?: string | null
+  liquidation_preference_multiple?: number | null
+  dividend_rate?: number | null
+  conversion_ratio?: number | null
 }
 
 export const convertiblesQueryKey = (capTableId: string) =>
@@ -354,6 +386,32 @@ export const useApproveConvertible = (
     onSuccess: (...args: any[]) => {
       queryClient.invalidateQueries({ queryKey: convertiblesQueryKey(capTableId) })
       queryClient.invalidateQueries({ queryKey: ["admin-round-participations"] })
+      ;(options?.onSuccess as any)?.(...args)
+    },
+  })
+}
+
+// Convert an outstanding convertible into equity (a stake) or CCPS shares.
+export const useConvertConvertible = (
+  capTableId: string,
+  options?: UseMutationOptions<
+    { target: "equity" | "ccps"; stake?: AdminStake; convertible?: AdminConvertible },
+    FetchError,
+    { convertibleId: string; payload: ConvertConvertiblePayload }
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    ...options,
+    mutationFn: ({ convertibleId, payload }) =>
+      sdk.client.fetch(`/admin/convertibles/${convertibleId}/convert`, {
+        method: "POST",
+        body: payload,
+      }),
+    onSuccess: (...args: any[]) => {
+      queryClient.invalidateQueries({ queryKey: convertiblesQueryKey(capTableId) })
+      queryClient.invalidateQueries({ queryKey: capTablesQueryKeys.detail(capTableId) })
+      queryClient.invalidateQueries({ queryKey: ["admin-company-cap-tables"] })
       ;(options?.onSuccess as any)?.(...args)
     },
   })

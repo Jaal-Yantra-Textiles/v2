@@ -15,6 +15,7 @@ const ShareClass = model.define("share_class", {
     "preferred",
     "convertible_note",
     "safe",
+    "ccps", // Compulsorily Convertible Preference Shares (India / iSAFE)
     "warrant",
     "option",
   ]).default("common"),

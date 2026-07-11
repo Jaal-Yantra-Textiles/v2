@@ -31,7 +31,12 @@ const Convertible = model.define("convertible", {
   // stake models; resolve separately when needed.
   funding_round_id: model.text().nullable(),
 
-  instrument_type: model.enum(["safe", "convertible_note"]).default("safe"),
+  // `ccps` = Compulsorily Convertible Preference Shares (the Indian iSAFE legal
+  // wrapper): unlike a US SAFE, shares ARE issued now (`num_shares`) and the
+  // holder gets preference terms, but the SAFE-style cap/discount economics and
+  // the "converts to equity later" lifecycle are identical — so it rides the
+  // same instrument rather than a separate model.
+  instrument_type: model.enum(["safe", "convertible_note", "ccps"]).default("safe"),
 
   // The cash invested — the one certain number.
   principal_amount: model.bigNumber(),
@@ -43,6 +48,13 @@ const Convertible = model.define("convertible", {
   safe_type: model.enum(["post_money", "pre_money"]).default("post_money"),
   mfn: model.boolean().default(false),
   pro_rata: model.boolean().default(false),
+
+  // CCPS-only terms (null for a plain SAFE / note). Preference shares are
+  // allotted at investment, so they carry a share count + preference economics.
+  num_shares: model.bigNumber().nullable(),
+  liquidation_preference_multiple: model.number().nullable(), // e.g. 1 = 1x
+  dividend_rate: model.number().nullable(), // 0..1 annual (often nil for iSAFE)
+  conversion_ratio: model.number().nullable(), // e.g. 1 = 1:1 mandatory
 
   // Convertible-note-only terms.
   interest_rate: model.number().nullable(), // 0..1 annual

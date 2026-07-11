@@ -21,11 +21,13 @@ const FundingRound = model.define("funding_round", {
     "debt",
     "grant",
     "safe",
+    "ccps",
   ]).default("seed"),
 
   // What participating in this round issues. `equity` → a Stake (shares);
-  // `safe` / `convertible_note` → a Convertible (money now, equity later).
-  instrument_type: model.enum(["equity", "safe", "convertible_note"]).default("equity"),
+  // `safe` / `convertible_note` / `ccps` → a Convertible (money now, equity
+  // later; `ccps` also allots preference shares up front).
+  instrument_type: model.enum(["equity", "safe", "convertible_note", "ccps"]).default("equity"),
 
   status: model.enum(["planned", "open", "closing", "closed", "cancelled"]).default("planned"),
 
