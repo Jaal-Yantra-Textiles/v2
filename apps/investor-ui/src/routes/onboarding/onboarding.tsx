@@ -7,10 +7,9 @@ import {
   clx,
   toast,
 } from "@medusajs/ui"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { RouteFocusModal } from "../../components/modals"
-import { useRouteModal } from "../../components/modals/route-modal-provider/use-route-modal"
 import { useMe, useUpdateMe } from "../../hooks/api/users"
 
 export type InvestorOnboarding = {
@@ -46,12 +45,7 @@ const OnboardingInner = ({
   metadata?: Record<string, any> | null
 }) => {
   const navigate = useNavigate()
-  const { setCloseOnEscape } = useRouteModal()
   const existing: InvestorOnboarding = metadata?.onboarding ?? {}
-
-  useEffect(() => {
-    setCloseOnEscape(false)
-  }, [setCloseOnEscape])
 
   const [ticketSize, setTicketSize] = useState<string>(existing.ticket_size ?? "")
   const [interests, setInterests] = useState<string[]>(existing.interests ?? [])
