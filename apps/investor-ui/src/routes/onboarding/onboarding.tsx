@@ -46,7 +46,12 @@ const OnboardingInner = ({
   metadata?: Record<string, any> | null
 }) => {
   const navigate = useNavigate()
+  const { setCloseOnEscape } = useRouteModal()
   const existing: InvestorOnboarding = metadata?.onboarding ?? {}
+
+  useEffect(() => {
+    setCloseOnEscape(false)
+  }, [setCloseOnEscape])
 
   const [ticketSize, setTicketSize] = useState<string>(existing.ticket_size ?? "")
   const [interests, setInterests] = useState<string[]>(existing.interests ?? [])
