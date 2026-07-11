@@ -30,9 +30,14 @@ type FormValues = {
   number_of_shares: string
   share_price: string
   total_invested: string
+  share_class_id: string
+  funding_round_id: string
   status: (typeof STATUSES)[number]
   certificate_number: string
 }
+
+// Sentinel for "no share class / round" — Select can't hold an empty string value.
+const NONE = "__none__"
 
 const ProvisionStakeForm = ({ companyId }: { companyId: string }) => {
   const { cap_tables = [] } = useCompanyCapTables(companyId)
@@ -51,10 +56,15 @@ const ProvisionStakeForm = ({ companyId }: { companyId: string }) => {
       number_of_shares: "",
       share_price: "",
       total_invested: "",
+      share_class_id: NONE,
+      funding_round_id: NONE,
       status: "fully_paid",
       certificate_number: "",
     },
   })
+
+  const shareClasses = capTable?.share_classes ?? []
+  const fundingRounds = capTable?.funding_rounds ?? []
 
   const mode = form.watch("mode")
   const shares = form.watch("number_of_shares")
@@ -100,6 +110,8 @@ const ProvisionStakeForm = ({ companyId }: { companyId: string }) => {
       number_of_shares: numShares,
       share_price: v.share_price ? Number(v.share_price) : undefined,
       total_invested: totalInvested,
+      share_class_id: v.share_class_id !== NONE ? v.share_class_id : undefined,
+      funding_round_id: v.funding_round_id !== NONE ? v.funding_round_id : undefined,
       status: v.status,
       certificate_number: v.certificate_number || undefined,
     })
@@ -225,6 +237,58 @@ const ProvisionStakeForm = ({ companyId }: { companyId: string }) => {
             {...(autoInvested ? {} : form.register("total_invested"))}
           />
         </div>
+
+        {/* Classify the holding: which share class (e.g. a SAFE) and which
+            round it came from. Optional — leave as "None" for an untagged
+            provision. Only render when the cap table actually has classes/rounds. */}
+        {(shareClasses.length > 0 || fundingRounds.length > 0) && (
+          <div className="grid grid-cols-2 gap-4">
+            {shareClasses.length > 0 && (
+              <div className="flex flex-col gap-y-2">
+                <Label size="small" weight="plus">Share class</Label>
+                <Controller
+                  control={form.control}
+                  name="share_class_id"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <Select.Trigger><Select.Value /></Select.Trigger>
+                      <Select.Content>
+                        <Select.Item value={NONE}>None</Select.Item>
+                        {shareClasses.map((sc) => (
+                          <Select.Item key={sc.id} value={sc.id}>
+                            {sc.name}{sc.class_type ? ` · ${sc.class_type}` : ""}
+                          </Select.Item>
+                        ))}
+                      </Select.Content>
+                    </Select>
+                  )}
+                />
+              </div>
+            )}
+            {fundingRounds.length > 0 && (
+              <div className="flex flex-col gap-y-2">
+                <Label size="small" weight="plus">Funding round</Label>
+                <Controller
+                  control={form.control}
+                  name="funding_round_id"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <Select.Trigger><Select.Value /></Select.Trigger>
+                      <Select.Content>
+                        <Select.Item value={NONE}>None</Select.Item>
+                        {fundingRounds.map((fr) => (
+                          <Select.Item key={fr.id} value={fr.id}>
+                            {fr.name}{fr.round_type ? ` · ${fr.round_type}` : ""}
+                          </Select.Item>
+                        ))}
+                      </Select.Content>
+                    </Select>
+                  )}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-y-2">

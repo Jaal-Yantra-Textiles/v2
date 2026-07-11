@@ -34,6 +34,8 @@ export { generatePartnerDeeplinkOperation } from "./generate-partner-deeplink"
 export { partnerAnalyticsDigestOperation } from "./partner-analytics-digest"
 export { marketingDailyIdeasEmailOperation } from "./marketing-daily-ideas-email"
 export { waitForEventOperation } from "./wait-for-event"
+export { gmvProjectionOperation } from "./gmv-projection"
+export { adsEfficiencyOperation } from "./ads-efficiency"
 
 // Import all operations and register them
 import { operationRegistry } from "./types"
@@ -68,6 +70,8 @@ import { generatePartnerDeeplinkOperation } from "./generate-partner-deeplink"
 import { partnerAnalyticsDigestOperation } from "./partner-analytics-digest"
 import { marketingDailyIdeasEmailOperation } from "./marketing-daily-ideas-email"
 import { waitForEventOperation } from "./wait-for-event"
+import { gmvProjectionOperation } from "./gmv-projection"
+import { adsEfficiencyOperation } from "./ads-efficiency"
 
 // Register all built-in operations
 export function registerBuiltInOperations(): void {
@@ -113,6 +117,8 @@ export function registerBuiltInOperations(): void {
   operationRegistry.register(cartRecoveryStatsOperation)
   operationRegistry.register(resolveCartRecoveryUrlsOperation)
   operationRegistry.register(partnerAnalyticsDigestOperation)
+  operationRegistry.register(gmvProjectionOperation)
+  operationRegistry.register(adsEfficiencyOperation)
 }
 
 // Auto-register on import

@@ -206,6 +206,7 @@ export type ProvisionStakePayload = {
   share_price?: number | null
   total_invested?: number | null
   share_class_id?: string
+  funding_round_id?: string
   status?: "active" | "fully_paid" | "partially_paid" | "unpaid" | "cancelled"
   certificate_number?: string
 }
