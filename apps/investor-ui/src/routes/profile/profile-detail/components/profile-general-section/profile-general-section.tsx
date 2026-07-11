@@ -3,6 +3,7 @@ import { HttpTypes } from "@medusajs/types"
 import { Container, Heading, Text } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
 import { ActionMenu } from "../../../../../components/common/action-menu"
+import { getFormattedCountry } from "../../../../../lib/addresses"
 import { languages } from "../../../../../i18n/languages"
 
 type ProfileGeneralSectionProps = {
@@ -62,6 +63,16 @@ export const ProfileGeneralSection = ({ user }: ProfileGeneralSectionProps) => {
             ?.display_name || "-"}
         </Text>
       </div>
+      {(user as any).country_code && (
+        <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
+          <Text size="small" leading="compact" weight="plus">
+            {t("profile.fields.country")}
+          </Text>
+          <Text size="small" leading="compact">
+            {getFormattedCountry((user as any).country_code)}
+          </Text>
+        </div>
+      )}
       {/* TODO: Do we want to implement usage insights in V2? */}
       {/* <div className="grid grid-cols-2 items-center px-6 py-4">
         <Text size="small" leading="compact" weight="plus">
