@@ -29,11 +29,13 @@ export function getRouteMap({
               path: "/",
               errorElement: <ErrorBoundary />,
               lazy: () => import("../../routes/home"),
-            },
-            {
-              path: "/onboarding",
-              errorElement: <ErrorBoundary />,
-              lazy: () => import("../../routes/onboarding"),
+              children: [
+                {
+                  path: "onboarding",
+                  errorElement: <ErrorBoundary />,
+                  lazy: () => import("../../routes/onboarding"),
+                },
+              ],
             },
             {
               path: "/cap-table",
