@@ -23,8 +23,17 @@ export const SettingsLayout = () => {
 }
 
 const useSettingRoutes = (): INavItem[] => {
-  // Investor UI shell — settings nav blanked; add investor settings incrementally.
-  return []
+  const { t } = useTranslation()
+
+  return useMemo(
+    () => [
+      {
+        label: t("verification.domain"),
+        to: "/settings/verification",
+      },
+    ],
+    [t]
+  )
 }
 
 const useDeveloperRoutes = (): INavItem[] => {

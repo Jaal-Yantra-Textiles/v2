@@ -37,6 +37,10 @@ export const investorUpdateSchema = z.object({
   phone: z.string().nullable().optional(),
   wallet_address: z.string().nullable().optional(),
   bank_account_ref: z.string().nullable().optional(),
+  pan_number: z.string().nullable().optional(),
+  aadhar_number: z.string().nullable().optional(),
+  international_id_number: z.string().nullable().optional(),
+  id_type: z.enum(["pan", "aadhar", "international"]).nullable().optional(),
   metadata: z.record(z.string(), z.any()).nullable().optional(),
 })
 
