@@ -6,6 +6,7 @@ import * as zod from "zod"
 
 import { HttpTypes } from "@medusajs/types"
 import { Form } from "../../../../../components/common/form"
+import { CountrySelect } from "../../../../../components/inputs/country-select"
 import { RouteDrawer, useRouteModal } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useUpdateMe } from "../../../../../hooks/api/users"
@@ -21,6 +22,7 @@ const EditProfileSchema = zod.object({
   first_name: zod.string().optional(),
   last_name: zod.string().optional(),
   language: zod.string(),
+  country_code: zod.string().optional(),
   // usage_insights: zod.boolean(),
 })
 
@@ -38,6 +40,7 @@ export const EditProfileForm = ({ user }: EditProfileProps) => {
       first_name: user.first_name ?? initialFirst ?? "",
       last_name: user.last_name ?? initialRest.join(" ") ?? "",
       language: i18n.language,
+      country_code: (user as any).country_code ?? "",
       // usage_insights: usageInsights,
     },
     resolver: zodResolver(EditProfileSchema),
@@ -58,15 +61,17 @@ export const EditProfileForm = ({ user }: EditProfileProps) => {
       .filter(Boolean)
       .join(" ")
       .trim()
-    await mutateAsync(
-      { name: name || undefined },
-      {
-        onError: (error) => {
-          toast.error(error.message)
-          return
-        },
-      }
-    )
+    const payload: Record<string, any> = { name: name || undefined }
+    if (values.country_code) {
+      payload.country_code = values.country_code
+    }
+
+    await mutateAsync(payload, {
+      onError: (error) => {
+        toast.error(error.message)
+        return
+      },
+    })
 
     await changeLanguage(values.language)
 
@@ -107,6 +112,27 @@ export const EditProfileForm = ({ user }: EditProfileProps) => {
                 )}
               />
             </div>
+            <Form.Field
+              control={form.control}
+              name="country_code"
+              render={({ field: { ref, ...field } }) => (
+                <Form.Item>
+                  <div>
+                    <Form.Label>{t("profile.fields.country")}</Form.Label>
+                    <Form.Hint>{t("profile.edit.countryHint")}</Form.Hint>
+                  </div>
+                  <Form.Control>
+                    <CountrySelect
+                      {...field}
+                      ref={ref}
+                      value={field.value ?? ""}
+                      onChange={(val) => field.onChange(val || "")}
+                    />
+                  </Form.Control>
+                  <Form.ErrorMessage />
+                </Form.Item>
+              )}
+            />
             <Form.Field
               control={form.control}
               name="language"
