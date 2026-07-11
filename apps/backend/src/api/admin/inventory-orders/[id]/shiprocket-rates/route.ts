@@ -26,6 +26,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const dimensionsCm =
     length || breadth || height ? { length, breadth, height } : undefined;
 
+  const carrierRaw = req.query.carrier;
+  const carrier =
+    typeof carrierRaw === "string" && carrierRaw ? carrierRaw : undefined;
+
   const pickupStockLocationId =
     typeof req.query.pickup_stock_location_id === "string" &&
     req.query.pickup_stock_location_id
@@ -34,6 +38,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const result = await getShiprocketRatesForInventoryOrder(req.scope, {
     orderId,
+    carrier,
     pickupStockLocationId,
     weightGrams: num(req.query.weight_grams),
     dimensionsCm,

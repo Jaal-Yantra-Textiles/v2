@@ -276,6 +276,7 @@ export type PartnerShiprocketRatesResponse = {
 }
 
 export type PartnerShiprocketRatesParams = {
+  carrier?: string
   weight_grams?: number
   length?: number
   breadth?: number

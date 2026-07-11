@@ -36,6 +36,8 @@ import {
 
 export type InventoryOrderRatesInput = {
   orderId: string
+  /** Defaults to "shiprocket". */
+  carrier?: string
   /**
    * Explicit ship-from override (mirrors the shipment input's
    * `pickupStockLocationId`) so the quote matches a pickup the operator picked
@@ -115,11 +117,12 @@ export async function getShiprocketRatesForInventoryOrder(
     )
   }
 
-  const provider = await resolveShippingProvider(container, "shiprocket")
-  if (!provider.getRates) {
+  const carrier = input.carrier || "shiprocket"
+  const provider = await resolveShippingProvider(container, carrier)
+  if (!provider.getRates || !provider.listPickupLocations) {
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
-      "Shiprocket provider does not support rate quotes"
+      `${carrier} provider does not support rate quotes`
     )
   }
 

@@ -273,6 +273,31 @@ setupSharedTestSuite(() => {
       )
     })
 
+    it("accepts carrier in the request body (carrier-neutral)", async () => {
+      await api.post(
+        `/admin/stock-locations/${locationId}`,
+        {
+          address: {
+            address_1: "1 Loom St",
+            city: "Surendranagar",
+            province: "GJ",
+            postal_code: "363035",
+            country_code: "IN",
+            phone: "9990001112",
+          },
+        },
+        adminHeaders
+      )
+
+      const res = await api.post(
+        `/partners/orders/${orderId}/shiprocket-label`,
+        { carrier: "shiprocket" },
+        { headers: partnerHeaders }
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.shiprocket_label.awb).toBe("STUBAWB123")
+    })
+
     it("400s when the partner's location cannot be registered — never ships from another party's warehouse", async () => {
       // Fixture location has NO phone → registration must fail loudly instead
       // of falling back to the shared account's first registered pickup.

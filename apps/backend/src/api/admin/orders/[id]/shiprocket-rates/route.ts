@@ -14,11 +14,15 @@ import { getShiprocketRatesForOrder } from "../../../../../workflows/orders/ship
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const orderId = req.params.id
+  const carrierRaw = req.query.carrier
+  const carrier =
+    typeof carrierRaw === "string" && carrierRaw ? carrierRaw : undefined
   const weightRaw = req.query.weight_grams
   const weightGrams = weightRaw != null ? Number(weightRaw) : undefined
 
   const result = await getShiprocketRatesForOrder(req.scope, {
     orderId,
+    carrier,
     weightGrams:
       weightGrams != null && Number.isFinite(weightGrams) && weightGrams > 0
         ? weightGrams

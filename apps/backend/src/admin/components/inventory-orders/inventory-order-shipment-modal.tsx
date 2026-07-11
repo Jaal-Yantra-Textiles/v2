@@ -33,6 +33,7 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
   // leave from is the natural default; the user can still pick another.
   const orderFromLocationId =
     (inventoryOrder as any).from_stock_location?.id ?? "";
+  const [carrier, setCarrier] = useState("shiprocket");
   const [pickup, setPickup] = useState(orderFromLocationId);
   const [weight, setWeight] = useState("");
   const [length, setLength] = useState("");
@@ -77,6 +78,7 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
 
     await mutateAsync(
       {
+        carrier,
         ...(pickup ? { pickup_stock_location_id: pickup } : {}),
         ...(weight ? { weight_grams: Number(weight) } : {}),
         ...(dims ? { dimensions_cm: dims } : {}),
@@ -123,6 +125,18 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
             </Select>
           </div>
           <div className="flex flex-col gap-1">
+            <Label size="small" htmlFor="carrier">Carrier</Label>
+            <Select value={carrier} onValueChange={(v) => { setCarrier(v); setRates(null); setCourier(""); }}>
+              <Select.Trigger id="carrier">
+                <Select.Value placeholder="Select carrier" />
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Item value="shiprocket">Shiprocket</Select.Item>
+                <Select.Item value="delhivery">Delhivery</Select.Item>
+              </Select.Content>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
             <Label size="small" htmlFor="weight">Weight (grams)</Label>
             <Input id="weight" type="number" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="500" />
           </div>
@@ -140,43 +154,45 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
               <Input id="height" type="number" value={height} onChange={(e) => setHeight(e.target.value)} />
             </div>
           </div>
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between">
-              <Label size="small" htmlFor="courier">Courier</Label>
-              <Button
-                variant="transparent"
-                size="small"
-                type="button"
-                onClick={handleGetRates}
-                isLoading={isFetchingRates}
-              >
-                Get rates
-              </Button>
+          {carrier === "shiprocket" && (
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between">
+                <Label size="small" htmlFor="courier">Courier</Label>
+                <Button
+                  variant="transparent"
+                  size="small"
+                  type="button"
+                  onClick={handleGetRates}
+                  isLoading={isFetchingRates}
+                >
+                  Get rates
+                </Button>
+              </div>
+              {rates && rates.length > 0 ? (
+                <Select value={courier} onValueChange={setCourier}>
+                  <Select.Trigger id="courier">
+                    <Select.Value placeholder="Select a courier" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {rates.map((r) => (
+                      <Select.Item key={String(r.courier_id)} value={String(r.courier_id)}>
+                        {r.courier_name} — ₹{r.amount}
+                        {r.estimated_days ? ` · ${r.estimated_days}d` : ""}
+                        {r.is_recommended ? " · recommended" : ""}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
+              ) : (
+                <Input
+                  id="courier"
+                  value={courier}
+                  onChange={(e) => setCourier(e.target.value)}
+                  placeholder="Courier ID (optional) — or click Get rates"
+                />
+              )}
             </div>
-            {rates && rates.length > 0 ? (
-              <Select value={courier} onValueChange={setCourier}>
-                <Select.Trigger id="courier">
-                  <Select.Value placeholder="Select a courier" />
-                </Select.Trigger>
-                <Select.Content>
-                  {rates.map((r) => (
-                    <Select.Item key={String(r.courier_id)} value={String(r.courier_id)}>
-                      {r.courier_name} — ₹{r.amount}
-                      {r.estimated_days ? ` · ${r.estimated_days}d` : ""}
-                      {r.is_recommended ? " · recommended" : ""}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select>
-            ) : (
-              <Input
-                id="courier"
-                value={courier}
-                onChange={(e) => setCourier(e.target.value)}
-                placeholder="Courier ID (optional) — or click Get rates"
-              />
-            )}
-          </div>
+          )}
           <div className="flex flex-col gap-1">
             <Label size="small" htmlFor="pickup_date">Pickup date</Label>
             <DatePicker

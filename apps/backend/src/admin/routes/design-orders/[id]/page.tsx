@@ -292,6 +292,7 @@ const OrderSection = ({
   const [attachOpen, setAttachOpen] = useState(false)
   const [awbValue, setAwbValue] = useState("")
   const [courierOpen, setCourierOpen] = useState(false)
+  const [selectedCarrier, setSelectedCarrier] = useState<string>("shiprocket")
   const [selectedCourierId, setSelectedCourierId] = useState<
     string | number | null
   >(null)
@@ -329,9 +330,11 @@ const OrderSection = ({
     data: ratesData,
     isLoading: isLoadingRates,
     error: ratesError,
-  } = useShiprocketRates(order?.id ?? "", {
-    enabled: courierOpen && !!order?.id,
-  })
+  } = useShiprocketRates(
+    order?.id ?? "",
+    { carrier: selectedCarrier === "shiprocket" ? undefined : selectedCarrier },
+    { enabled: courierOpen && !!order?.id }
+  )
 
   const handleConvert = async (paymentMode: "prepaid" | "cod") => {
     const confirmed = await prompt({
@@ -396,9 +399,7 @@ const OrderSection = ({
 
   const handleGenerateLabel = async (preferredCourierId?: string | number) => {
     await genLabel(
-      preferredCourierId != null
-        ? { preferred_courier_id: preferredCourierId }
-        : undefined,
+      { carrier: selectedCarrier, ...(preferredCourierId != null ? { preferred_courier_id: preferredCourierId } : {}) },
       {
         onSuccess: (res) => {
           setLabelUrl(res.shiprocket_label?.label_url || null)
@@ -459,7 +460,7 @@ const OrderSection = ({
                       disabled: isLabeling,
                     },
                     {
-                      label: isLabeling ? "Generating…" : "Generate Label (auto)",
+                      label: isLabeling ? "Generating…" : `Generate Label (auto · ${selectedCarrier})`,
                       icon: <HandTruck />,
                       onClick: () => handleGenerateLabel(),
                       disabled: isLabeling,
@@ -538,18 +539,49 @@ const OrderSection = ({
               Close
             </Button>
           </div>
-          {isLoadingRates && (
+          <div className="mb-3">
+            <Text size="xsmall" className="text-ui-fg-subtle mb-1">
+              Carrier
+            </Text>
+            <Select value={selectedCarrier} onValueChange={setSelectedCarrier}>
+              <Select.Trigger>
+                <Select.Value />
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Item value="shiprocket">Shiprocket</Select.Item>
+                <Select.Item value="delhivery">Delhivery</Select.Item>
+              </Select.Content>
+            </Select>
+          </div>
+          {selectedCarrier === "shiprocket" && isLoadingRates && (
             <div className="flex flex-col gap-y-2">
               <Skeleton className="h-12 w-full" />
               <Skeleton className="h-12 w-full" />
             </div>
           )}
-          {ratesError && (
+          {selectedCarrier === "shiprocket" && ratesError && (
             <Text size="small" className="text-ui-fg-error">
               {(ratesError as any)?.message || "Couldn't load courier rates."}
             </Text>
           )}
-          {!isLoadingRates && !ratesError && ratesData && (
+          {selectedCarrier === "delhivery" && (
+            <div className="flex flex-col gap-y-2">
+              <Text size="small" className="text-ui-fg-subtle">
+                Delhivery doesn't require a courier picker. Generate the label directly.
+              </Text>
+              <div className="flex items-center gap-x-2 pt-1">
+                <Button
+                  variant="primary"
+                  size="small"
+                  isLoading={isLabeling}
+                  onClick={() => handleGenerateLabel()}
+                >
+                  Generate Label
+                </Button>
+              </div>
+            </div>
+          )}
+          {selectedCarrier === "shiprocket" && !isLoadingRates && !ratesError && ratesData && (
             <div className="flex flex-col gap-y-2">
               {ratesData.rates.length === 0 && (
                 <Text size="small" className="text-ui-fg-subtle">

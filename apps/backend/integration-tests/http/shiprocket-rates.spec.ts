@@ -27,7 +27,7 @@ jest.setTimeout(120 * 1000)
  */
 
 setupSharedTestSuite(() => {
-  const { api, getContainer } = getSharedTestEnv()
+  const { api, getContainer, dbUtils } = getSharedTestEnv()
 
   describe("Admin API - Shiprocket courier rates (#641)", () => {
     let adminHeaders: { headers: Record<string, string> }
@@ -38,6 +38,7 @@ setupSharedTestSuite(() => {
     let prevEmail: string | undefined
     let prevPassword: string | undefined
     let prevStub: string | undefined
+    let prevDelhiveryToken: string | undefined
 
     const buildDesignOrderId = async (): Promise<string> => {
       const cartRes = await api.post(
@@ -82,8 +83,10 @@ setupSharedTestSuite(() => {
       prevEmail = process.env.SHIPROCKET_EMAIL
       prevPassword = process.env.SHIPROCKET_PASSWORD
       prevStub = process.env.SHIPROCKET_STUB
+      prevDelhiveryToken = process.env.DELHIVERY_API_TOKEN
       process.env.SHIPROCKET_EMAIL = "test@shiprocket.example"
       process.env.SHIPROCKET_PASSWORD = "secret"
+      process.env.DELHIVERY_API_TOKEN = "test-delhivery-token"
       // Make the resolver inject the canned Shiprocket transport (no real API).
       process.env.SHIPROCKET_STUB = "1"
 
@@ -147,6 +150,8 @@ setupSharedTestSuite(() => {
       else process.env.SHIPROCKET_PASSWORD = prevPassword
       if (prevStub === undefined) delete process.env.SHIPROCKET_STUB
       else process.env.SHIPROCKET_STUB = prevStub
+      if (prevDelhiveryToken === undefined) delete process.env.DELHIVERY_API_TOKEN
+      else process.env.DELHIVERY_API_TOKEN = prevDelhiveryToken
     })
 
     it("returns the courier list (recommended flag) and honours a weight override", async () => {
@@ -154,6 +159,9 @@ setupSharedTestSuite(() => {
       // beforeAll). The Shiprocket transport is stubbed via SHIPROCKET_STUB, so
       // the rates route uses canned data instead of the real API.
       orderId = await buildDesignOrderId()
+
+      // Snapshot the DB so subsequent tests in this describe share the order
+      await dbUtils.snapshot()
 
       // ── default weight ────────────────────────────────────────────────
       const res = await api.get(
@@ -182,6 +190,56 @@ setupSharedTestSuite(() => {
       )
       expect(res2.status).toBe(200)
       expect(res2.data.weight_grams).toBe(1500)
+    })
+
+    it("accepts an explicit carrier query param (shiprocket)", async () => {
+      const res = await api.get(
+        `/admin/orders/${orderId}/shiprocket-rates?carrier=shiprocket`,
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(Array.isArray(res.data.rates)).toBe(true)
+      expect(res.data.rates.length).toBe(2)
+    })
+
+    it("rejects carrier=delhivery (no courier picker for Delhivery)", async () => {
+      const res = await api.get(
+        `/admin/orders/${orderId}/shiprocket-rates?carrier=delhivery`,
+        { ...adminHeaders, validateStatus: () => true }
+      )
+      // Delhivery does not implement listPickupLocations, so the rates
+      // workflow returns NOT_ALLOWED (400). The UI must not call this
+      // endpoint for Delhivery — the carrier picker is gated on
+      // `carrier === "shiprocket"`.
+      expect(res.status).toBe(400)
+    })
+
+    it("responds on the carrier-neutral fulfillment-rates alias route (#835)", async () => {
+      const res = await api.get(
+        `/admin/orders/${orderId}/fulfillment-rates`,
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.origin_pincode).toBe("302001")
+      expect(Array.isArray(res.data.rates)).toBe(true)
+      expect(res.data.rates.length).toBe(2)
+    })
+
+    it("carrier-neutral fulfillment-rates alias honours ?carrier=shiprocket", async () => {
+      const res = await api.get(
+        `/admin/orders/${orderId}/fulfillment-rates?carrier=shiprocket`,
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(Array.isArray(res.data.rates)).toBe(true)
+    })
+
+    it("carrier-neutral fulfillment-rates alias rejects ?carrier=delhivery (no courier picker)", async () => {
+      const res = await api.get(
+        `/admin/orders/${orderId}/fulfillment-rates?carrier=delhivery`,
+        { ...adminHeaders, validateStatus: () => true }
+      )
+      expect(res.status).toBe(400)
     })
   })
 })

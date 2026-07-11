@@ -38,6 +38,7 @@ const InventoryOrderCreateShipmentContent = () => {
   const { inventoryOrderId: id, unifiedOrderId } = useInventoryActionTarget()
   const { handleSuccess } = useRouteModal()
   const queryClient = useQueryClient()
+  const [carrier, setCarrier] = useState("shiprocket")
   const [weight, setWeight] = useState("")
   const [length, setLength] = useState("")
   const [breadth, setBreadth] = useState("")
@@ -66,6 +67,7 @@ const InventoryOrderCreateShipmentContent = () => {
     if (!id) return
     try {
       const res = await fetchRates({
+        carrier,
         ...(weight ? { weight_grams: Number(weight) } : {}),
         ...(length ? { length: Number(length) } : {}),
         ...(breadth ? { breadth: Number(breadth) } : {}),
@@ -88,6 +90,7 @@ const InventoryOrderCreateShipmentContent = () => {
 
     await mutateAsync(
       {
+        carrier,
         ...(weight ? { weight_grams: Number(weight) } : {}),
         ...(dims() ? { dimensions_cm: dims() } : {}),
         ...(courier ? { preferred_courier_id: courier } : {}),
@@ -119,6 +122,20 @@ const InventoryOrderCreateShipmentContent = () => {
           registered pickup. Weight and dimensions are optional — leave them
           blank to use the order's defaults.
         </Text>
+        <div className="flex flex-col gap-y-1">
+          <Label size="small" htmlFor="carrier">
+            Carrier
+          </Label>
+          <Select value={carrier} onValueChange={(v) => { setCarrier(v); setRates(null); setCourier(""); }}>
+            <Select.Trigger id="carrier">
+              <Select.Value placeholder="Select carrier" />
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="shiprocket">Shiprocket</Select.Item>
+              <Select.Item value="delhivery">Delhivery</Select.Item>
+            </Select.Content>
+          </Select>
+        </div>
         <div className="flex flex-col gap-y-1">
           <Label size="small" htmlFor="weight">
             Weight (grams)
@@ -166,47 +183,49 @@ const InventoryOrderCreateShipmentContent = () => {
             />
           </div>
         </div>
-        <div className="flex flex-col gap-y-1">
-          <div className="flex items-center justify-between">
-            <Label size="small" htmlFor="courier">
-              Courier
-            </Label>
-            <Button
-              variant="transparent"
-              size="small"
-              type="button"
-              onClick={handleGetRates}
-              isLoading={isFetchingRates}
-              disabled={!id}
-            >
-              Get rates
-            </Button>
+        {carrier === "shiprocket" && (
+          <div className="flex flex-col gap-y-1">
+            <div className="flex items-center justify-between">
+              <Label size="small" htmlFor="courier">
+                Courier
+              </Label>
+              <Button
+                variant="transparent"
+                size="small"
+                type="button"
+                onClick={handleGetRates}
+                isLoading={isFetchingRates}
+                disabled={!id}
+              >
+                Get rates
+              </Button>
+            </div>
+            {rates && rates.length > 0 ? (
+              <Select value={courier} onValueChange={setCourier}>
+                <Select.Trigger id="courier">
+                  <Select.Value placeholder="Select a courier" />
+                </Select.Trigger>
+                <Select.Content>
+                  {rates.map((r) => (
+                    <Select.Item
+                      key={String(r.courier_id)}
+                      value={String(r.courier_id)}
+                    >
+                      {r.courier_name} — ₹{r.amount}
+                      {r.estimated_days ? ` · ${r.estimated_days}d` : ""}
+                      {r.is_recommended ? " · recommended" : ""}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select>
+            ) : (
+              <Text size="xsmall" className="text-ui-fg-subtle">
+                Optional — click “Get rates” to choose a courier, or leave it for
+                Shiprocket to auto-assign.
+              </Text>
+            )}
           </div>
-          {rates && rates.length > 0 ? (
-            <Select value={courier} onValueChange={setCourier}>
-              <Select.Trigger id="courier">
-                <Select.Value placeholder="Select a courier" />
-              </Select.Trigger>
-              <Select.Content>
-                {rates.map((r) => (
-                  <Select.Item
-                    key={String(r.courier_id)}
-                    value={String(r.courier_id)}
-                  >
-                    {r.courier_name} — ₹{r.amount}
-                    {r.estimated_days ? ` · ${r.estimated_days}d` : ""}
-                    {r.is_recommended ? " · recommended" : ""}
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select>
-          ) : (
-            <Text size="xsmall" className="text-ui-fg-subtle">
-              Optional — click “Get rates” to choose a courier, or leave it for
-              Shiprocket to auto-assign.
-            </Text>
-          )}
-        </div>
+        )}
         <div className="flex flex-col gap-y-1">
           <Label size="small" htmlFor="pickup_date">
             Pickup date

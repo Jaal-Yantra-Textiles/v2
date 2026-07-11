@@ -112,6 +112,8 @@ export function buildCreateShipmentInput(
 export type CreateShiprocketShipmentInput = {
   orderId: string
   fulfillmentId: string
+  /** Defaults to "shiprocket". */
+  carrier?: string
   pickupLocationName?: string
   /**
    * Explicit ship-from stock location (#772 core-order half — partner label
@@ -198,11 +200,12 @@ export async function createShiprocketShipmentForFulfillment(
     ]
   }
 
-  const provider = await resolveShippingProvider(container, "shiprocket")
+  const carrier = input.carrier || "shiprocket"
+  const provider = await resolveShippingProvider(container, carrier)
   if (!provider.createShipment) {
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
-      "Shiprocket provider does not support shipment creation"
+      `${carrier} provider does not support shipment creation`
     )
   }
 
@@ -229,7 +232,7 @@ export async function createShiprocketShipmentForFulfillment(
     // A clean MedusaError (not a raw 500) so the UI shows an actionable toast. (#638)
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
-      "No Shiprocket pickup location is configured. Register a pickup location for the order's stock location (or any Shiprocket pickup) before generating a label."
+      `No ${carrier} pickup location is configured. Register a pickup location for the order's stock location (or any ${carrier} pickup) before generating a label.`
     )
   }
 
@@ -253,7 +256,7 @@ export async function createShiprocketShipmentForFulfillment(
   await fulfillmentModule.updateFulfillment(input.fulfillmentId, {
     data: {
       ...(fulfillment.data || {}),
-      carrier: "shiprocket",
+      carrier,
       waybill: result.awb,
       tracking_number: result.tracking_number,
       tracking_url: result.tracking_url,

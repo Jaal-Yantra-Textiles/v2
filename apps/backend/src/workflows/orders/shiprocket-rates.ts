@@ -41,6 +41,8 @@ export function pickRatesPickup(
 
 export type ShiprocketRatesInput = {
   orderId: string
+  /** Defaults to "shiprocket". */
+  carrier?: string
   weightGrams?: number
 }
 
@@ -103,11 +105,12 @@ export async function getShiprocketRatesForOrder(
     ]
   }
 
-  const provider = await resolveShippingProvider(container, "shiprocket")
+  const carrier = input.carrier || "shiprocket"
+  const provider = await resolveShippingProvider(container, carrier)
   if (!provider.getRates || !provider.listPickupLocations) {
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
-      "Shiprocket provider does not support rate quotes"
+      `${carrier} provider does not support rate quotes`
     )
   }
 
@@ -117,7 +120,7 @@ export async function getShiprocketRatesForOrder(
   if (!originPincode) {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
-      "No Shiprocket pickup location with a pincode is configured. Register a pickup location before requesting courier rates."
+      `No ${carrier} pickup location with a pincode is configured. Register a pickup location before requesting courier rates.`
     )
   }
 
