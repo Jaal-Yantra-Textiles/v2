@@ -193,11 +193,6 @@ const OnboardingInner = ({
 export const Onboarding = () => {
   const { user, isPending } = useMe()
   const metadata = (user as any)?.metadata ?? null
-  const { setCloseOnEscape } = useRouteModal()
-
-  useEffect(() => {
-    setCloseOnEscape(false)
-  }, [setCloseOnEscape])
 
   return (
     <RouteFocusModal prev="/">
