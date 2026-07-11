@@ -26,7 +26,7 @@ const maskId = (value: string | null | undefined): string => {
 export const VerificationSection = ({ investor }: VerificationSectionProps) => {
   const { t } = useTranslation()
 
-  const isIndia = investor.country_code === "IN"
+  const isIndia = investor.country_code?.toUpperCase() === "IN"
   const hasPan = !!investor.pan_number
   const hasAadhar = !!investor.aadhar_number
   const hasInternational = !!investor.international_id_number

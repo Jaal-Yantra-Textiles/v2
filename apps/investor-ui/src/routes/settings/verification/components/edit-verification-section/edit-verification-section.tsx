@@ -31,7 +31,7 @@ export const EditVerificationSection = ({
   const { t } = useTranslation()
   const { handleSuccess } = useRouteModal()
 
-  const isIndia = investor.country_code === "IN"
+  const isIndia = investor.country_code?.toUpperCase() === "IN"
 
   const EditVerificationSchema = zod.object({
     pan_number: isIndia
