@@ -165,7 +165,12 @@ const registerInvestorAdminAuthStep = createStep(
         provider_metadata: { ...previousProviderMetadata, password: passwordHash },
       } as any)
       return new StepResponse<RegisterAuthOutput, RegisterAuthCompensate>(
-        { authIdentityId: existing.auth_identity_id, tempPassword: plainPassword, reused: true },
+        {
+          // A provider identity always carries its auth_identity_id.
+          authIdentityId: existing.auth_identity_id as string,
+          tempPassword: plainPassword,
+          reused: true,
+        },
         {
           mode: "reset",
           providerIdentityId: existing.id,
