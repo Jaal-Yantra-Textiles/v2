@@ -72,6 +72,7 @@ import {
   type SyncTemplateResult,
 } from "../../../../scripts/whatsapp-templates/meta-template-sync"
 import { seedEmailTemplatesJob } from "./seed-jobs"
+import { seedInvestorPanelsJob } from "./seed-investor-panels-job"
 import { replayFxFanoutJob } from "./fanout-fx-job"
 import { backfillStoreCurrenciesJob } from "./backfill-store-currencies-job"
 import { backfillPartnerEmailVerifiedJob } from "./backfill-partner-email-verified-job"
@@ -5427,6 +5428,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillDesignSizeSetsJob,
   backfillPartnerShippingOptionsJob,
   repairShippingOptionStoreVisibilityJob,
+  seedInvestorPanelsJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
