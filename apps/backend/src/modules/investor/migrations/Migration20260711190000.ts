@@ -11,6 +11,7 @@ export class Migration20260711190000 extends Migration {
       "category" text check ("category" in ('partnership', 'tech_stack', 'marketing', 'operations', 'salaries', 'other')) not null default 'other',
       "name" text not null,
       "amount" numeric not null,
+      "raw_amount" jsonb not null,
       "currency_code" text not null default 'INR',
       "recurrence" text check ("recurrence" in ('one_time', 'monthly', 'annual')) not null default 'monthly',
       "incurred_date" timestamptz null,
