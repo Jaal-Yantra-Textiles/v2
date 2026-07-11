@@ -63,7 +63,7 @@ export const EditProfileForm = ({ user }: EditProfileProps) => {
       .trim()
     const payload: Record<string, any> = { name: name || undefined }
     if (values.country_code) {
-      payload.country_code = values.country_code
+      payload.country_code = values.country_code.toUpperCase()
     }
 
     await mutateAsync(payload, {
