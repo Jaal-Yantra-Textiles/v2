@@ -1,6 +1,6 @@
 import { Badge, Container, Heading, Skeleton, Text } from "@medusajs/ui"
-import { useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useMemo, useEffect } from "react"
+import { Outlet, useNavigate } from "react-router-dom"
 import { useMe } from "../../hooks/api/users"
 import type { InvestorOnboarding } from "../onboarding/onboarding"
 
@@ -90,7 +90,25 @@ export const Home = () => {
 
   const investor = (user ?? {}) as Record<string, any>
   const onboarding: InvestorOnboarding = investor?.metadata?.onboarding ?? {}
-  const needsOnboarding = !isPending && !!user && !onboarding.completed
+
+  const userId = (user as any)?.id
+  const storageKey = useMemo(
+    () => (userId ? `investor_onboarding_${userId}` : null),
+    [userId]
+  )
+
+  const onboardingSkipped = useMemo(() => {
+    if (!storageKey) return false
+    try {
+      const raw = localStorage.getItem(storageKey)
+      return raw ? JSON.parse(raw)?.skipped === true : false
+    } catch {
+      return false
+    }
+  }, [storageKey])
+
+  const needsOnboarding =
+    !isPending && !!user && !onboarding.completed && !onboardingSkipped
 
   // First-run: open the onboarding focus-modal over the dashboard.
   useEffect(() => {
@@ -103,5 +121,10 @@ export const Home = () => {
     return <HomeSkeleton />
   }
 
-  return <DashboardHome investor={investor} />
+  return (
+    <>
+      <DashboardHome investor={investor} />
+      <Outlet />
+    </>
+  )
 }

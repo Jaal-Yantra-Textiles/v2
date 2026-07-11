@@ -8,8 +8,7 @@ import {
   toast,
 } from "@medusajs/ui"
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
-import { RouteFocusModal } from "../../components/modals"
+import { RouteFocusModal, useRouteModal } from "../../components/modals"
 import { useMe, useUpdateMe } from "../../hooks/api/users"
 
 export type InvestorOnboarding = {
@@ -39,12 +38,16 @@ const INTERESTS = [
   "Growth Stage",
 ]
 
+const getUserId = (user: any): string | null => user?.id ?? null
+
 const OnboardingInner = ({
   metadata,
+  userId,
 }: {
   metadata?: Record<string, any> | null
+  userId: string | null
 }) => {
-  const navigate = useNavigate()
+  const { handleSuccess } = useRouteModal()
   const existing: InvestorOnboarding = metadata?.onboarding ?? {}
 
   const [ticketSize, setTicketSize] = useState<string>(existing.ticket_size ?? "")
@@ -56,7 +59,7 @@ const OnboardingInner = ({
   const { mutateAsync, isPending } = useUpdateMe({
     onSuccess: () => {
       toast.success("Welcome aboard — your preferences are saved.")
-      navigate("/", { replace: true })
+      handleSuccess("/")
     },
     onError: (err: any) => {
       toast.error(err?.message || "Could not save your preferences")
@@ -69,6 +72,20 @@ const OnboardingInner = ({
         ? prev.filter((i) => i !== interest)
         : [...prev, interest]
     )
+  }
+
+  const handleSkip = () => {
+    if (userId) {
+      try {
+        localStorage.setItem(
+          `investor_onboarding_${userId}`,
+          JSON.stringify({ skipped: true, skipped_at: new Date().toISOString() })
+        )
+      } catch {
+        // non-blocking
+      }
+    }
+    handleSuccess("/")
   }
 
   const canSubmit = ticketSize !== "" && interests.length > 0 && !isPending
@@ -168,7 +185,10 @@ const OnboardingInner = ({
             <Switch checked={newsletter} onCheckedChange={setNewsletter} />
           </div>
 
-          <div className="flex items-center justify-end gap-x-3">
+          <div className="flex items-center justify-between gap-x-3">
+            <Button variant="secondary" onClick={handleSkip}>
+              Skip for now
+            </Button>
             <Button
               variant="primary"
               onClick={handleSubmit}
@@ -187,10 +207,11 @@ const OnboardingInner = ({
 export const Onboarding = () => {
   const { user, isPending } = useMe()
   const metadata = (user as any)?.metadata ?? null
+  const userId = getUserId(user)
 
   return (
-    <RouteFocusModal prev="/">
-      {!isPending && <OnboardingInner metadata={metadata} />}
+    <RouteFocusModal>
+      {!isPending && <OnboardingInner metadata={metadata} userId={userId} />}
     </RouteFocusModal>
   )
 }
