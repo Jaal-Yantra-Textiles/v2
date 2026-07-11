@@ -38,6 +38,11 @@ export function getRouteMap({
               ],
             },
             {
+              path: "/companies/:companyId",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/companies/[companyId]"),
+            },
+            {
               path: "/cap-table",
               errorElement: <ErrorBoundary />,
               lazy: () => import("../../routes/cap-table"),

@@ -33,7 +33,7 @@ const statusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
   }
 }
 
-const DealsCard = () => {
+const DealsTable = () => {
   const { deals, isPending } = useDeals()
 
   const table = useDataTable({
@@ -80,28 +80,49 @@ const DealsCard = () => {
     ],
   })
 
+  if (isPending) {
+    return (
+      <Container className="divide-y p-0">
+        <div className="px-6 py-4">
+          <Heading level="h2">Open deals</Heading>
+        </div>
+        <div className="flex flex-col gap-y-2 px-6 py-5">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      </Container>
+    )
+  }
+
+  if (deals.length === 0) {
+    return (
+      <Container className="divide-y p-0">
+        <div className="px-6 py-4">
+          <Heading level="h2">Open deals</Heading>
+          <Text size="small" className="text-ui-fg-subtle mt-1">
+            Live rounds from the companies you're following.
+          </Text>
+        </div>
+        <div className="px-6 py-5">
+          <Text size="small" className="text-ui-fg-subtle">No open deals right now.</Text>
+        </div>
+      </Container>
+    )
+  }
+
   return (
     <Container className="divide-y p-0">
-      <div className="px-6 py-4">
-        <Heading level="h2">Open deals</Heading>
-        <Text size="small" className="text-ui-fg-subtle mt-1">
-          Live rounds from the companies you're following.
-        </Text>
-      </div>
-      <div className="px-6 py-5">
-        {isPending ? (
-          <div className="flex flex-col gap-y-2">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
+      <DataTable instance={table}>
+        <DataTable.Toolbar className="flex items-center justify-between px-6 py-4">
+          <div>
+            <Heading level="h2">Open deals</Heading>
+            <Text size="small" className="text-ui-fg-subtle mt-1">
+              Live rounds from the companies you're following.
+            </Text>
           </div>
-        ) : deals.length === 0 ? (
-          <Text size="small" className="text-ui-fg-subtle">No open deals right now.</Text>
-        ) : (
-          <DataTable instance={table}>
-            <DataTable.Table />
-          </DataTable>
-        )}
-      </div>
+        </DataTable.Toolbar>
+        <DataTable.Table />
+      </DataTable>
     </Container>
   )
 }
@@ -110,7 +131,7 @@ const payLink = (p: Participation): string | undefined =>
   p.payments?.find((pm) => pm.metadata?.payu_payment_link)?.metadata
     ?.payu_payment_link as string | undefined
 
-const MyParticipationsCard = () => {
+const MyParticipationsTable = () => {
   const { participations, isPending } = useMyParticipations()
 
   const table = useDataTable({
@@ -176,36 +197,58 @@ const MyParticipationsCard = () => {
     ],
   })
 
-  return (
-    <Container className="divide-y p-0">
-      <div className="px-6 py-4">
-        <Heading level="h2">My participations</Heading>
-      </div>
-      <div className="px-6 py-5">
-        {isPending ? (
-          <div className="flex flex-col gap-y-2">
-            <Skeleton className="h-10 w-full" />
-          </div>
-        ) : participations.length === 0 ? (
+  if (isPending) {
+    return (
+      <Container className="divide-y p-0">
+        <div className="px-6 py-4">
+          <Heading level="h2">My participations</Heading>
+        </div>
+        <div className="px-6 py-5">
+          <Skeleton className="h-10 w-full" />
+        </div>
+      </Container>
+    )
+  }
+
+  if (participations.length === 0) {
+    return (
+      <Container className="divide-y p-0">
+        <div className="px-6 py-4">
+          <Heading level="h2">My participations</Heading>
+        </div>
+        <div className="px-6 py-5">
           <Text size="small" className="text-ui-fg-subtle">
             You haven't participated in any deals yet.
           </Text>
-        ) : (
-          <DataTable instance={table}>
-            <DataTable.Table />
-          </DataTable>
-        )}
-      </div>
+        </div>
+      </Container>
+    )
+  }
+
+  return (
+    <Container className="divide-y p-0">
+      <DataTable instance={table}>
+        <DataTable.Toolbar className="flex items-center justify-between px-6 py-4">
+          <Heading level="h2">My participations</Heading>
+        </DataTable.Toolbar>
+        <DataTable.Table />
+      </DataTable>
     </Container>
   )
 }
 
 export const Finances = () => {
   return (
-    <div className="flex w-full flex-col gap-y-4 px-4 py-6 md:px-6">
-      <DealsCard />
-      <MyParticipationsCard />
-      {/* Route-modal outlet: /finances/participate/:dealId renders here. */}
+    <div className="flex flex-col gap-y-3">
+      <div>
+        <Heading level="h1">Finances</Heading>
+        <Text size="small" className="text-ui-fg-subtle mt-1">
+          Deals, investments, and payment activity
+        </Text>
+      </div>
+
+      <DealsTable />
+      <MyParticipationsTable />
       <Outlet />
     </div>
   )

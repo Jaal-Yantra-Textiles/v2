@@ -1,7 +1,17 @@
-import { Badge, Container, Heading, Skeleton, Text } from "@medusajs/ui"
+import {
+  Badge,
+  Container,
+  Heading,
+  Skeleton,
+  Text,
+} from "@medusajs/ui"
+import { Buildings, CurrencyDollar, Handshake, PencilSquare } from "@medusajs/icons"
 import { useMemo, useEffect } from "react"
-import { Outlet, useNavigate } from "react-router-dom"
+import { Outlet, useNavigate, Link } from "react-router-dom"
 import { useMe } from "../../hooks/api/users"
+import { useMyCapTable, useDeals } from "../../hooks/api/investments"
+import { useMyProjections } from "../../hooks/api/projections"
+import { SingleColumnPage } from "../../components/layout/pages"
 import type { InvestorOnboarding } from "../onboarding/onboarding"
 
 const TICKET_SIZE_LABELS: Record<string, string> = {
@@ -12,74 +22,243 @@ const TICKET_SIZE_LABELS: Record<string, string> = {
   over_1m: "$1M+",
 }
 
+const money = (v?: number | null, ccy?: string) =>
+  v == null ? "—" : `${ccy ?? ""}${new Intl.NumberFormat().format(Number(v))}`
+
+const num = (v?: number | null) =>
+  v == null ? "—" : new Intl.NumberFormat().format(Number(v))
+
+interface CompanySummary {
+  id: string
+  name: string
+  totalInvested: number
+  totalShares: number
+  dealCount: number
+}
+
+const StatCard = ({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string
+}) => (
+  <Container className="p-0">
+    <div className="flex items-center gap-x-3 px-6 py-4">
+      <div className="text-ui-fg-subtle">{icon}</div>
+      <div>
+        <Text size="small" className="text-ui-fg-subtle">{label}</Text>
+        <Text weight="plus" className="mt-0.5">{value}</Text>
+      </div>
+    </div>
+  </Container>
+)
+
+const CompanyRow = ({
+  name,
+  totalInvested,
+  totalShares,
+  dealCount,
+  companyId,
+}: CompanySummary & { companyId: string }) => (
+  <Link
+    to={`/companies/${companyId}`}
+    className="flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-ui-bg-base-hover"
+  >
+    <div className="flex items-center gap-x-3">
+      <Buildings className="text-ui-fg-muted" />
+      <div>
+        <Text weight="plus">{name}</Text>
+        <Text size="small" className="text-ui-fg-subtle">
+          {num(totalShares)} shares · {dealCount} deal{dealCount !== 1 ? "s" : ""}
+        </Text>
+      </div>
+    </div>
+    <Text weight="plus">{money(totalInvested)}</Text>
+  </Link>
+)
+
 const DashboardHome = ({ investor }: { investor: Record<string, any> }) => {
+  const navigate = useNavigate()
   const onboarding: InvestorOnboarding = investor?.metadata?.onboarding ?? {}
+  const onboardingCompleted = onboarding.completed === true
+
+  const { capTables, isPending: ctPending } = useMyCapTable()
+  const { deals, isPending: dealsPending } = useDeals()
+  const { portfolio, isPending: posPending } = useMyProjections()
+
+  const companies = useMemo(() => {
+    const seen = new Map<string, CompanySummary>()
+    for (const ct of capTables) {
+      const cid = ct.company_id ?? ct.id
+      const existing = seen.get(cid)
+      const totalInvested = ct.stakes?.reduce((s, st) => s + Number(st.total_invested ?? 0), 0) ?? 0
+      const totalShares = ct.stakes?.reduce((s, st) => s + Number(st.number_of_shares ?? 0), 0) ?? 0
+      if (existing) {
+        seen.set(cid, {
+          ...existing,
+          totalInvested: existing.totalInvested + totalInvested,
+          totalShares: existing.totalShares + totalShares,
+        })
+      } else {
+        seen.set(cid, {
+          id: cid,
+          name: ct.name,
+          totalInvested,
+          totalShares,
+          dealCount: 0,
+        })
+      }
+    }
+    for (const d of deals) {
+      const cid = d.cap_table?.company_id
+      if (cid && seen.has(cid)) {
+        const existing = seen.get(cid)!
+        seen.set(cid, { ...existing, dealCount: existing.dealCount + 1 })
+      }
+    }
+    return Array.from(seen.values())
+  }, [capTables, deals])
+
+  const pending = ctPending || dealsPending || posPending
+
+  const openDeals = deals.filter((d) => d.status !== "closed" && d.status !== "cancelled")
+  const totalInvested = portfolio?.total_invested ?? 0
 
   return (
-    <div className="flex w-full flex-col gap-y-4 px-4 py-6 md:px-6">
+    <>
       <Container className="p-0">
-        <div className="px-6 py-5">
-          <Heading level="h1">Welcome, {investor?.name ?? "Investor"}</Heading>
-          <Text className="text-ui-fg-subtle mt-1">
-            Here's your investor overview.
-          </Text>
+        <div className="flex items-center justify-between px-6 py-5">
+          <div>
+            <Heading level="h1">Welcome, {investor?.name ?? "Investor"}</Heading>
+            <Text className="text-ui-fg-subtle mt-1">
+              Here's your portfolio summary.
+            </Text>
+          </div>
+          {onboardingCompleted && (
+            <button
+              type="button"
+              onClick={() => navigate("/onboarding")}
+              className="flex items-center gap-x-1.5 text-ui-fg-interactive hover:text-ui-fg-interactive-hover txt-compact-small-plus"
+            >
+              <PencilSquare className="h-4 w-4" />
+              Edit preferences
+            </button>
+          )}
         </div>
       </Container>
 
-      <Container className="p-0">
-        <div className="border-b px-6 py-4">
-          <Heading level="h2">Your preferences</Heading>
+      {pending ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Skeleton className="h-20 rounded-lg" />
+          <Skeleton className="h-20 rounded-lg" />
+          <Skeleton className="h-20 rounded-lg" />
         </div>
-        <div className="flex flex-col gap-y-4 px-6 py-5">
-          <div className="flex items-center gap-x-2">
-            <Text weight="plus" className="w-40">
-              Ticket size
-            </Text>
-            <Text className="text-ui-fg-subtle">
-              {onboarding.ticket_size
-                ? TICKET_SIZE_LABELS[onboarding.ticket_size] ??
-                  onboarding.ticket_size
-                : "—"}
-            </Text>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <StatCard icon={<CurrencyDollar />} label="Total invested" value={money(totalInvested)} />
+          <StatCard icon={<Buildings />} label="Companies" value={num(companies.length)} />
+          <StatCard icon={<Handshake />} label="Open deals" value={num(openDeals.length)} />
+        </div>
+      )}
+
+      {!onboardingCompleted && (
+        <Container className="p-0">
+          <div className="flex items-center justify-between px-6 py-4">
+            <div>
+              <Heading level="h2">Your preferences</Heading>
+              <Text size="small" className="text-ui-fg-subtle mt-1">
+                Tell us your investment preferences to tailor your experience.
+              </Text>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate("/onboarding")}
+              className="txt-compact-small-plus text-ui-fg-interactive hover:text-ui-fg-interactive-hover"
+            >
+              Set preferences
+            </button>
           </div>
-          <div className="flex items-start gap-x-2">
-            <Text weight="plus" className="w-40 shrink-0">
-              Interests
-            </Text>
-            <div className="flex flex-wrap gap-1.5">
-              {onboarding.interests?.length ? (
-                onboarding.interests.map((i) => <Badge key={i}>{i}</Badge>)
-              ) : (
-                <Text className="text-ui-fg-subtle">—</Text>
-              )}
+          <div className="flex flex-col gap-y-4 px-6 pb-4">
+            <div className="flex items-center gap-x-2">
+              <Text weight="plus" className="w-40">Ticket size</Text>
+              <Text className="text-ui-fg-subtle">
+                {onboarding.ticket_size
+                  ? TICKET_SIZE_LABELS[onboarding.ticket_size] ?? onboarding.ticket_size
+                  : "—"}
+              </Text>
+            </div>
+            <div className="flex items-start gap-x-2">
+              <Text weight="plus" className="w-40 shrink-0">Interests</Text>
+              <div className="flex flex-wrap gap-1.5">
+                {onboarding.interests?.length ? (
+                  onboarding.interests.map((i) => <Badge key={i}>{i}</Badge>)
+                ) : (
+                  <Text className="text-ui-fg-subtle">—</Text>
+                )}
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-x-2">
-            <Text weight="plus" className="w-40">
-              Quarterly letters
-            </Text>
-            <Badge color={onboarding.newsletter_quarterly ? "green" : "grey"}>
-              {onboarding.newsletter_quarterly ? "Subscribed" : "Not subscribed"}
-            </Badge>
-          </div>
-        </div>
-      </Container>
+        </Container>
+      )}
 
-      <Container className="p-0">
-        <div className="px-6 py-8 text-center">
-          <Text className="text-ui-fg-subtle">
-            Your holdings, cap-table stakes and company updates will appear here
-            as they're published.
-          </Text>
-        </div>
-      </Container>
-    </div>
+      {companies.length > 0 && (
+        <Container className="divide-y p-0">
+          <div className="px-6 py-4">
+            <Heading level="h2">Your companies</Heading>
+            <Text size="small" className="text-ui-fg-subtle mt-1">
+              Companies you've invested in or are following.
+            </Text>
+          </div>
+          <div className="flex flex-col gap-y-1 px-4 pb-4 pt-2">
+            {companies.map((c) => (
+              <CompanyRow key={c.id} {...c} companyId={c.id} />
+            ))}
+          </div>
+        </Container>
+      )}
+
+      {openDeals.length > 0 && (
+        <Container className="divide-y p-0">
+          <div className="px-6 py-4">
+            <Heading level="h2">Open deals</Heading>
+            <Text size="small" className="text-ui-fg-subtle mt-1">
+              Active funding rounds you can participate in.
+            </Text>
+          </div>
+          <div className="flex flex-col gap-y-1 px-4 pb-4 pt-2">
+            {openDeals.map((d) => (
+              <Link
+                key={d.id}
+                to={`/finances/participate/${d.id}`}
+                className="flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-ui-bg-base-hover"
+              >
+                <div>
+                  <Text weight="plus">{d.name}</Text>
+                  <Text size="small" className="text-ui-fg-subtle">
+                    {d.cap_table?.name ?? d.round_type ?? "Round"} · {money(d.target_amount)} target
+                  </Text>
+                </div>
+                <Badge size="small" color="green">Open</Badge>
+              </Link>
+            ))}
+          </div>
+        </Container>
+      )}
+    </>
   )
 }
 
 const HomeSkeleton = () => (
-  <div className="flex w-full flex-col gap-y-4 px-4 py-6 md:px-6">
+  <div className="flex flex-col gap-y-3">
     <Skeleton className="h-24 w-full rounded-lg" />
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <Skeleton className="h-20 rounded-lg" />
+      <Skeleton className="h-20 rounded-lg" />
+      <Skeleton className="h-20 rounded-lg" />
+    </div>
     <Skeleton className="h-48 w-full rounded-lg" />
   </div>
 )
@@ -110,7 +289,6 @@ export const Home = () => {
   const needsOnboarding =
     !isPending && !!user && !onboarding.completed && !onboardingSkipped
 
-  // First-run: open the onboarding focus-modal over the dashboard.
   useEffect(() => {
     if (needsOnboarding) {
       navigate("/onboarding", { replace: true })
@@ -122,9 +300,8 @@ export const Home = () => {
   }
 
   return (
-    <>
+    <SingleColumnPage widgets={{ before: [], after: [] }}>
       <DashboardHome investor={investor} />
-      <Outlet />
-    </>
+    </SingleColumnPage>
   )
 }
