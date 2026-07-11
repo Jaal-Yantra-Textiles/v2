@@ -1,5 +1,4 @@
 import {
-  BuildingStorefront,
   ChartBar,
   ChartPie,
   CogSixTooth,
@@ -151,19 +150,13 @@ const Header = () => {
                 >
                   {name}
                 </Text>
-                <Text
-                  size="xsmall"
-                  leading="compact"
-                  className="text-ui-fg-subtle"
-                >
-                  {t("app.nav.main.store")}
-                </Text>
+
               </div>
             </div>
             <DropdownMenu.Separator />
             <DropdownMenu.Item className="gap-x-2" asChild>
-              <Link to="/settings/profile">
-                <BuildingStorefront className="text-ui-fg-subtle" />
+              <Link to="/">
+                <ChartPie className="text-ui-fg-subtle" />
                 {t("app.nav.settings.header")}
               </Link>
             </DropdownMenu.Item>
