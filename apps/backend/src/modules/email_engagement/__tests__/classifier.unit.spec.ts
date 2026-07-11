@@ -9,8 +9,19 @@ const daysAgo = (d: number) =>
   new Date(NOW.getTime() - d * 24 * 60 * 60 * 1000).toISOString()
 
 describe("classifier — classifyEngagement", () => {
-  it("unknown when too little data (< minDataDelivered)", () => {
+  it("unknown when too little data (< minDataDelivered) AND no opens", () => {
     expect(classifyEngagement({ delivered_count: 2, opens_count: 0 }, { now: NOW }).status).toBe("unknown")
+  })
+
+  it("engaged (not unknown) when opened, even with thin/zero delivered count", () => {
+    // An open proves delivery + interest — e.g. Mailjet reports opens but no
+    // `sent` events, so delivered_count stays low. Must not fall to `unknown`.
+    const c = classifyEngagement(
+      { delivered_count: 0, opens_count: 1, delivered_since_last_open: 0 },
+      { now: NOW }
+    )
+    expect(c.status).toBe("engaged")
+    expect(c.bulk_suppressed).toBe(false)
   })
 
   it("engaged when recently opened (short cold streak)", () => {
