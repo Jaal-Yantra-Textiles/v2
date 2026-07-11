@@ -1,6 +1,7 @@
 import { model } from "@medusajs/framework/utils"
 import Stake from "./stake"
 import CallForShares from "./call-for-shares"
+import Convertible from "./convertible"
 
 const Payment = model.define("investor_payment", {
   id: model.id().primaryKey(),
@@ -9,6 +10,9 @@ const Payment = model.define("investor_payment", {
     mappedBy: "payments",
   }).nullable(),
   call_for_shares: model.belongsTo(() => CallForShares, {
+    mappedBy: "payments",
+  }).nullable(),
+  convertible: model.belongsTo(() => Convertible, {
     mappedBy: "payments",
   }).nullable(),
 
@@ -23,6 +27,7 @@ const Payment = model.define("investor_payment", {
     "capital_call",
     "top_up",
     "transfer_fee",
+    "convertible",
     "other",
   ]).default("subscription"),
 

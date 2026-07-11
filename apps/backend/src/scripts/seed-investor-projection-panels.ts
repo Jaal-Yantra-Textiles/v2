@@ -70,6 +70,87 @@ const PANELS = [
     operation_type: "ads_efficiency",
     operation_options: { last_days: 30, base_currency: "INR" },
   },
+
+  // --- Traction / financial roll-ups (all-time; DB-backed via aggregate_data) ---
+  {
+    name: "Total products",
+    type: "metric",
+    x: 0, y: 6, width: 3, height: 2,
+    operation_type: "aggregate_data",
+    operation_options: { entity: "product", fields: ["id"], aggregate: { fn: "count" } },
+  },
+  {
+    name: "Total orders",
+    type: "metric",
+    x: 3, y: 6, width: 3, height: 2,
+    operation_type: "aggregate_data",
+    operation_options: { entity: "order", fields: ["id"], aggregate: { fn: "count" } },
+  },
+  {
+    name: "Partner production runs",
+    type: "metric",
+    x: 6, y: 6, width: 3, height: 2,
+    operation_type: "aggregate_data",
+    operation_options: { entity: "production_runs", fields: ["id"], aggregate: { fn: "count" } },
+  },
+  {
+    name: "Inventory orders value",
+    type: "metric",
+    x: 9, y: 6, width: 3, height: 2,
+    operation_type: "aggregate_data",
+    operation_options: {
+      entity: "inventory_orders",
+      fields: ["total_price"],
+      aggregate: { fn: "sum", field: "total_price" },
+    },
+  },
+  {
+    name: "Commissions accrued",
+    type: "metric",
+    x: 0, y: 8, width: 6, height: 2,
+    operation_type: "aggregate_data",
+    operation_options: {
+      entity: "partner_fee",
+      fields: ["fee_amount"],
+      filters: { status: "accrued" },
+      aggregate: { fn: "sum", field: "fee_amount" },
+    },
+  },
+
+  // --- Forward projections (derived run-rates, not stored) ---
+  {
+    name: "Commission projection",
+    type: "metric",
+    x: 6, y: 8, width: 6, height: 2,
+    operation_type: "commission_projection",
+    operation_options: { currency: "INR", commission_bps: 200, window_days: 90 },
+  },
+
+  // --- Company expenses (cost side shown to investors) ---
+  {
+    name: "Partnership cost / mo",
+    type: "metric",
+    x: 0, y: 10, width: 6, height: 2,
+    operation_type: "aggregate_data",
+    operation_options: {
+      entity: "company_expense",
+      fields: ["amount"],
+      filters: { category: "partnership", recurrence: "monthly", status: "active" },
+      aggregate: { fn: "sum", field: "amount" },
+    },
+  },
+  {
+    name: "Tech stack / mo",
+    type: "metric",
+    x: 6, y: 10, width: 6, height: 2,
+    operation_type: "aggregate_data",
+    operation_options: {
+      entity: "company_expense",
+      fields: ["amount"],
+      filters: { category: "tech_stack", recurrence: "monthly", status: "active" },
+      aggregate: { fn: "sum", field: "amount" },
+    },
+  },
 ]
 
 export default async function seedInvestorProjectionPanels({ container }: ExecArgs) {

@@ -5,11 +5,11 @@ import {
   Skeleton,
   Text,
 } from "@medusajs/ui"
-import { Buildings, CurrencyDollar, RocketLaunch, PencilSquare } from "@medusajs/icons"
+import { Buildings, CurrencyDollar, RocketLaunch, PencilSquare, DocumentText } from "@medusajs/icons"
 import { useMemo, useEffect } from "react"
 import { Outlet, useNavigate, Link } from "react-router-dom"
 import { useMe } from "../../hooks/api/users"
-import { useMyCapTable, useDeals } from "../../hooks/api/investments"
+import { useMyCapTable, useDeals, useMyConvertibles, isSafeDeal } from "../../hooks/api/investments"
 import { useMyProjections } from "../../hooks/api/projections"
 import { SingleColumnPage } from "../../components/layout/pages"
 import type { InvestorOnboarding } from "../onboarding/onboarding"
@@ -88,6 +88,7 @@ const DashboardHome = ({ investor }: { investor: Record<string, any> }) => {
   const { capTables, isPending: ctPending } = useMyCapTable()
   const { deals, isPending: dealsPending } = useDeals()
   const { portfolio, isPending: posPending } = useMyProjections()
+  const { summary: safeSummary, count: safeCount, isPending: safesPending } = useMyConvertibles()
 
   const companies = useMemo(() => {
     const seen = new Map<string, CompanySummary>()
@@ -122,10 +123,11 @@ const DashboardHome = ({ investor }: { investor: Record<string, any> }) => {
     return Array.from(seen.values())
   }, [capTables, deals])
 
-  const pending = ctPending || dealsPending || posPending
+  const pending = ctPending || dealsPending || posPending || safesPending
 
   const openDeals = deals.filter((d) => d.status !== "closed" && d.status !== "cancelled")
   const totalInvested = portfolio?.total_invested ?? 0
+  const hasSafes = safeCount > 0
 
   return (
     <>
@@ -157,10 +159,19 @@ const DashboardHome = ({ investor }: { investor: Record<string, any> }) => {
           <Skeleton className="h-20 rounded-lg" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className={`grid grid-cols-1 gap-3 ${hasSafes ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
           <StatCard icon={<CurrencyDollar />} label="Total invested" value={money(totalInvested)} />
           <StatCard icon={<Buildings />} label="Companies" value={num(companies.length)} />
           <StatCard icon={<RocketLaunch />} label="Open deals" value={num(openDeals.length)} />
+          {hasSafes && (
+            <Link to="/cap-table" className="block">
+              <StatCard
+                icon={<DocumentText />}
+                label={`SAFEs (${safeCount})`}
+                value={money(safeSummary.total_implied_value)}
+              />
+            </Link>
+          )}
         </div>
       )}
 
@@ -236,7 +247,10 @@ const DashboardHome = ({ investor }: { investor: Record<string, any> }) => {
                 className="flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-ui-bg-base-hover"
               >
                 <div>
-                  <Text weight="plus">{d.name}</Text>
+                  <Text weight="plus" className="flex items-center gap-x-2">
+                    {d.name}
+                    {isSafeDeal(d) && <Badge size="2xsmall" color="purple">SAFE</Badge>}
+                  </Text>
                   <Text size="small" className="text-ui-fg-subtle">
                     {d.cap_table?.name ?? d.round_type ?? "Round"} · {money(d.target_amount)} target
                   </Text>

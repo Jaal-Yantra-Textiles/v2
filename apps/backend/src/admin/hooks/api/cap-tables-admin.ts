@@ -23,12 +23,16 @@ export type AdminFundingRound = {
   id: string
   name: string
   round_type?: string
+  instrument_type?: "equity" | "safe" | "convertible_note"
   status?: string
   target_amount?: number | null
   raised_amount?: number | null
   pre_money_valuation?: number | null
   post_money_valuation?: number | null
   price_per_share?: number | null
+  valuation_cap?: number | null
+  discount_rate?: number | null
+  safe_type?: "post_money" | "pre_money" | null
   open_date?: string | null
   close_date?: string | null
 }
@@ -84,10 +88,14 @@ export type CreateShareClassPayload = {
 export type CreateFundingRoundPayload = {
   name: string
   round_type?: string
+  instrument_type?: "equity" | "safe" | "convertible_note"
   status?: string
   target_amount?: number | null
   pre_money_valuation?: number | null
   price_per_share?: number | null
+  valuation_cap?: number | null
+  discount_rate?: number | null
+  safe_type?: "post_money" | "pre_money" | null
 }
 
 // ---- Query keys ------------------------------------------------------------
@@ -174,6 +182,9 @@ export const useCreateShareClass = (
       }),
     onSuccess: (...args: any[]) => {
       queryClient.invalidateQueries({ queryKey: capTablesQueryKeys.detail(capTableId) })
+      // The company-page section renders from the companyList query, not detail —
+      // invalidate the whole family so it re-fetches too.
+      queryClient.invalidateQueries({ queryKey: ["admin-company-cap-tables"] })
       ;(options?.onSuccess as any)?.(...args)
     },
   })
@@ -193,6 +204,7 @@ export const useCreateFundingRound = (
       }),
     onSuccess: (...args: any[]) => {
       queryClient.invalidateQueries({ queryKey: capTablesQueryKeys.detail(capTableId) })
+      queryClient.invalidateQueries({ queryKey: ["admin-company-cap-tables"] })
       ;(options?.onSuccess as any)?.(...args)
     },
   })
@@ -238,6 +250,8 @@ export const useProvisionStake = (
 
 export type AdminParticipation = {
   id: string
+  // "stake" (equity) or "convertible" (SAFE / note) — set by the participations route.
+  type?: "stake" | "convertible"
   investor_id?: string | null
   number_of_shares?: number | null
   total_invested?: number | null
@@ -245,6 +259,104 @@ export type AdminParticipation = {
   metadata?: Record<string, any> | null
   investor?: { id: string; name?: string; email?: string } | null
   payments?: Array<{ id: string; amount?: number | null; status?: string; metadata?: Record<string, any> | null }>
+}
+
+export type AdminConvertible = {
+  id: string
+  investor_id?: string | null
+  instrument_type?: "safe" | "convertible_note"
+  principal_amount?: number | null
+  currency_code?: string | null
+  valuation_cap?: number | null
+  discount_rate?: number | null
+  safe_type?: "post_money" | "pre_money"
+  status?: string
+  investment_date?: string | null
+  metadata?: Record<string, any> | null
+  investor?: { id: string; name?: string; email?: string } | null
+  payments?: Array<{ id: string; amount?: number | null; status?: string }>
+  value?: {
+    principal: number
+    implied_ownership_pct: number | null
+    implied_value: number | null
+    multiple: number | null
+    basis: string
+  }
+}
+
+export type ProvisionConvertiblePayload = {
+  investor_id?: string
+  investor?: { name: string; email?: string; investor_type?: "individual" | "entity" | "fund" }
+  instrument_type?: "safe" | "convertible_note"
+  principal_amount: number
+  valuation_cap?: number | null
+  discount_rate?: number | null
+  safe_type?: "post_money" | "pre_money"
+  investment_date?: string | null
+  status?: "outstanding" | "converted" | "redeemed" | "cancelled" | "expired"
+  notes?: string | null
+}
+
+export const convertiblesQueryKey = (capTableId: string) =>
+  ["admin-cap-table-convertibles", capTableId] as const
+
+export const useCapTableConvertibles = (
+  capTableId: string,
+  options?: Omit<
+    UseQueryOptions<{ convertibles: AdminConvertible[]; count: number }, FetchError, { convertibles: AdminConvertible[]; count: number }, QueryKey>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: () =>
+      sdk.client.fetch<{ convertibles: AdminConvertible[]; count: number }>(
+        `/admin/cap-tables/${capTableId}/convertibles`,
+        { method: "GET" }
+      ),
+    queryKey: convertiblesQueryKey(capTableId),
+    ...options,
+  })
+  return { ...data, ...rest }
+}
+
+// Manual SAFE provision — record a (possibly historical) SAFE for an existing
+// investor (or a new individual inline). Mirrors useProvisionStake.
+export const useProvisionConvertible = (
+  capTableId: string,
+  options?: UseMutationOptions<{ convertible: AdminConvertible }, FetchError, ProvisionConvertiblePayload>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    ...options,
+    mutationFn: (payload) =>
+      sdk.client.fetch(`/admin/cap-tables/${capTableId}/convertibles`, {
+        method: "POST",
+        body: payload,
+      }),
+    onSuccess: (...args: any[]) => {
+      queryClient.invalidateQueries({ queryKey: convertiblesQueryKey(capTableId) })
+      queryClient.invalidateQueries({ queryKey: capTablesQueryKeys.detail(capTableId) })
+      queryClient.invalidateQueries({ queryKey: ["admin-company-cap-tables"] })
+      ;(options?.onSuccess as any)?.(...args)
+    },
+  })
+}
+
+export const useApproveConvertible = (
+  capTableId: string,
+  options?: UseMutationOptions<{ payment_id: string; payment_link: string | null }, FetchError, string>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    ...options,
+    mutationFn: (convertibleId: string) =>
+      sdk.client.fetch(`/admin/convertibles/${convertibleId}/approve`, { method: "POST" }),
+    onSuccess: (...args: any[]) => {
+      queryClient.invalidateQueries({ queryKey: convertiblesQueryKey(capTableId) })
+      queryClient.invalidateQueries({ queryKey: ["admin-round-participations"] })
+      ;(options?.onSuccess as any)?.(...args)
+    },
+  })
 }
 
 export const roundParticipationsQueryKey = (roundId: string) =>
@@ -261,6 +373,7 @@ export const usePublishRound = (
       sdk.client.fetch(`/admin/funding-rounds/${roundId}/publish`, { method: "POST" }),
     onSuccess: (...args: any[]) => {
       queryClient.invalidateQueries({ queryKey: capTablesQueryKeys.detail(capTableId) })
+      queryClient.invalidateQueries({ queryKey: ["admin-company-cap-tables"] })
       ;(options?.onSuccess as any)?.(...args)
     },
   })

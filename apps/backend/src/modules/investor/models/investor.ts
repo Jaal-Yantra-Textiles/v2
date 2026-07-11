@@ -1,6 +1,7 @@
 import { model } from "@medusajs/framework/utils"
 import InvestorAdmin from "./investor-admin"
 import Stake from "./stake"
+import Convertible from "./convertible"
 import Pipeline from "./pipeline"
 
 const Investor = model.define("investor", {
@@ -30,6 +31,7 @@ const Investor = model.define("investor", {
 
   admins: model.hasMany(() => InvestorAdmin),
   stakes: model.hasMany(() => Stake),
+  convertibles: model.hasMany(() => Convertible),
   pipeline: model.hasMany(() => Pipeline),
 
   metadata: model.json().nullable(),

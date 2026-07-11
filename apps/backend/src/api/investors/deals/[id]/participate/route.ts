@@ -18,7 +18,18 @@ export const POST = async (
   const { data } = await query.graph({
     entity: "funding_round",
     filters: { id: req.params.id },
-    fields: ["id", "cap_table_id", "price_per_share", "status"],
+    fields: [
+      "id",
+      "cap_table_id",
+      "price_per_share",
+      "status",
+      "round_type",
+      "instrument_type",
+      "valuation_cap",
+      "discount_rate",
+      "safe_type",
+      "cap_table.currency_code",
+    ],
   })
   const round = data?.[0] as any
   if (!round) {
@@ -31,6 +42,30 @@ export const POST = async (
   const amount = Number((req.body as any)?.amount ?? 0)
   if (!amount || amount <= 0) {
     throw new MedusaError(MedusaError.Types.INVALID_DATA, "A positive amount is required")
+  }
+
+  // SAFE / convertible round → issue a Convertible (no shares yet), not a Stake.
+  const isConvertible =
+    round.instrument_type === "safe" ||
+    round.instrument_type === "convertible_note" ||
+    round.round_type === "safe"
+  if (isConvertible) {
+    const created = await service.createConvertibles({
+      investor_id: investor.id,
+      cap_table_id: round.cap_table_id,
+      funding_round_id: round.id,
+      instrument_type:
+        round.instrument_type === "convertible_note" ? "convertible_note" : "safe",
+      principal_amount: amount,
+      currency_code: round.cap_table?.currency_code ?? null,
+      valuation_cap: round.valuation_cap ?? null,
+      discount_rate: round.discount_rate ?? null,
+      safe_type: round.safe_type ?? "post_money",
+      investment_date: new Date(),
+      status: "outstanding",
+    } as any)
+
+    return res.status(201).json({ convertible: created })
   }
 
   const pricePerShare = Number(round.price_per_share ?? 0)

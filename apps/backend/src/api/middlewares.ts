@@ -885,6 +885,15 @@ export default defineMiddlewares({
       ],
     },
     {
+      // #969 follow-up — the investor's SAFEs / convertible notes with value.
+      matcher: "/investors/me/convertibles",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"]),
+      ],
+    },
+    {
       matcher: "/investors/cap-tables",
       method: "POST",
       middlewares: [
