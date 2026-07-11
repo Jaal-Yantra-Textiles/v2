@@ -65,8 +65,8 @@ export const useUpdateMe = (
         method: "POST",
         body: payload,
       }),
-    onSuccess: (data, variables, context) => {
-      queryClient.invalidateQueries({ queryKey: usersQueryKeys.me() })
+    onSuccess: async (data, variables, context) => {
+      await queryClient.refetchQueries({ queryKey: usersQueryKeys.me() })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,
