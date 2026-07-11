@@ -3,6 +3,7 @@ import { useLoaderData, useParams } from "react-router-dom"
 import { TwoColumnPageSkeleton } from "../../../components/common/skeleton"
 import { TwoColumnPage } from "../../../components/layout/pages"
 import { useProduct } from "../../../hooks/api/products"
+import { ProductArtisanSection } from "./components/product-artisan-section"
 import { ProductAttributeSection } from "./components/product-attribute-section"
 import { ProductGeneralSection } from "./components/product-general-section"
 import { ProductReviewBanner } from "./components/product-review-banner/product-review-banner"
@@ -71,6 +72,7 @@ export const ProductDetail = () => {
         <ProductMediaSection product={product} />
         <ProductOptionSection product={product} />
         <ProductVariantSection product={product} />
+        <ProductArtisanSection product={product} />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
         <ProductSalesChannelSection product={product} />

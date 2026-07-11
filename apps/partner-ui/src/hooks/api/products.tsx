@@ -22,6 +22,20 @@ export const variantsQueryKeys = queryKeysFactory(VARIANTS_QUERY_KEY)
 const OPTIONS_QUERY_KEY = "product_options" as const
 export const optionsQueryKeys = queryKeysFactory(OPTIONS_QUERY_KEY)
 
+const ARTISAN_DETAIL_QUERY_KEY = "artisan_product_detail" as const
+export const artisanDetailQueryKeys = queryKeysFactory(ARTISAN_DETAIL_QUERY_KEY)
+
+// #859 S3 (#862): the partner-editable made-to-order / maker-story detail.
+export type ArtisanProductDetail = {
+  id?: string
+  product_id?: string
+  made_to_order?: boolean | null
+  lead_time_days?: number | null
+  lead_time_label?: string | null
+  min_order_quantity?: number | null
+  maker_story?: string | null
+} | null
+
 export const useCreateProductOption = (
   productId: string,
   options?: UseMutationOptions<any, FetchError, any>
@@ -645,6 +659,61 @@ export const useBatchVariantImages = (
         queryKey: variantsQueryKeys.detail(variantId),
       })
 
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+// #859 S3 (#862): read the artisan made-to-order / maker-story detail for one
+// of the partner's own products.
+export const useArtisanProductDetail = (
+  productId: string,
+  options?: Omit<
+    UseQueryOptions<
+      { artisan_detail: ArtisanProductDetail },
+      FetchError,
+      { artisan_detail: ArtisanProductDetail },
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: artisanDetailQueryKeys.detail(productId),
+    queryFn: () =>
+      sdk.client.fetch<{ artisan_detail: ArtisanProductDetail }>(
+        `/partners/products/${productId}/artisan-detail`,
+        { method: "GET" }
+      ),
+    ...options,
+  })
+
+  return { ...data, ...rest }
+}
+
+// #859 S3 (#862): upsert the artisan made-to-order / maker-story detail.
+export const useUpsertArtisanProductDetail = (
+  productId: string,
+  options?: UseMutationOptions<
+    { artisan_detail: ArtisanProductDetail },
+    FetchError,
+    NonNullable<ArtisanProductDetail>
+  >
+) => {
+  return useMutation({
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ artisan_detail: ArtisanProductDetail }>(
+        `/partners/products/${productId}/artisan-detail`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: async (data, variables, context) => {
+      await queryClient.invalidateQueries({
+        queryKey: artisanDetailQueryKeys.detail(productId),
+      })
+      await queryClient.invalidateQueries({
+        queryKey: productsQueryKeys.detail(productId),
+      })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,
