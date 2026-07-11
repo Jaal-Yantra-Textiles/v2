@@ -31,7 +31,8 @@ const ROUND_TYPES = [
 const INSTRUMENTS = [
   { value: "equity", label: "Priced equity (shares)" },
   { value: "safe", label: "SAFE (converts later)" },
-  { value: "convertible_note", label: "Convertible note" },
+  { value: "convertible_note", label: "Convertible note / loan" },
+  { value: "ccps", label: "CCPS (iSAFE — preference shares)" },
 ] as const
 
 const AddRoundForm = ({ companyId }: { companyId: string }) => {
@@ -41,7 +42,7 @@ const AddRoundForm = ({ companyId }: { companyId: string }) => {
   const form = useForm({
     defaultValues: {
       name: "",
-      instrument_type: "equity" as "equity" | "safe" | "convertible_note",
+      instrument_type: "equity" as "equity" | "safe" | "convertible_note" | "ccps",
       round_type: "seed",
       target_amount: "",
       pre_money_valuation: "",
@@ -52,7 +53,11 @@ const AddRoundForm = ({ companyId }: { companyId: string }) => {
     },
   })
   const instrument = form.watch("instrument_type")
-  const isSafe = instrument === "safe" || instrument === "convertible_note"
+  // SAFE, note and CCPS all use the cap/discount economics and convert later.
+  const isSafe =
+    instrument === "safe" ||
+    instrument === "convertible_note" ||
+    instrument === "ccps"
   const { mutateAsync, isPending } = useCreateFundingRound(capTable?.id ?? "", {
     onSuccess: () => {
       toast.success("Funding round created")
@@ -65,13 +70,17 @@ const AddRoundForm = ({ companyId }: { companyId: string }) => {
       toast.error("Create a cap table first")
       return
     }
-    const safe = v.instrument_type === "safe" || v.instrument_type === "convertible_note"
+    const safe =
+      v.instrument_type === "safe" ||
+      v.instrument_type === "convertible_note" ||
+      v.instrument_type === "ccps"
     return mutateAsync({
       name: v.name,
       instrument_type: v.instrument_type,
-      // A SAFE/convertible round is tagged round_type "safe" so it reads clearly
-      // in the cap table; equity rounds keep the chosen stage.
-      round_type: safe ? "safe" : v.round_type,
+      // A SAFE/convertible/CCPS round is tagged by its instrument so it reads
+      // clearly in the cap table; equity rounds keep the chosen stage.
+      round_type:
+        v.instrument_type === "ccps" ? "ccps" : safe ? "safe" : v.round_type,
       status: "planned",
       target_amount: v.target_amount ? Number(v.target_amount) : null,
       pre_money_valuation:
@@ -115,8 +124,10 @@ const AddRoundForm = ({ companyId }: { companyId: string }) => {
             )}
           />
           <Text size="xsmall" className="text-ui-fg-muted">
-            {isSafe
-              ? "Participants invest now and receive a SAFE — equity is issued when it converts at a priced round."
+            {instrument === "ccps"
+              ? "Participants invest now and are allotted preference shares (CCPS) that mandatorily convert to equity at a priced round."
+              : isSafe
+              ? "Participants invest now and receive a SAFE/note — equity is issued when it converts at a priced round."
               : "Participants are allocated shares at the round price."}
           </Text>
         </div>

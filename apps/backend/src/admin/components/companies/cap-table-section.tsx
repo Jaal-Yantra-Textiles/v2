@@ -9,7 +9,7 @@ import {
   toast,
   useDataTable,
 } from "@medusajs/ui"
-import { CurrencyDollar, DocumentText, Plus, RocketLaunch, Users } from "@medusajs/icons"
+import { ArrowPath, CurrencyDollar, DocumentText, Plus, RocketLaunch, Users } from "@medusajs/icons"
 import { useMemo } from "react"
 import { Link } from "react-router-dom"
 import { ActionMenu } from "../common/action-menu"
@@ -231,9 +231,13 @@ const FundingRoundsTable = ({ capTable }: { capTable: AdminCapTable }) => {
         header: "Type",
         accessorKey: "round_type",
         cell: ({ row }: any) => {
+          const it = row.original.instrument_type
+          if (it === "ccps" || row.original.round_type === "ccps") {
+            return <Badge size="2xsmall" color="blue">CCPS</Badge>
+          }
           const isSafe =
-            row.original.instrument_type === "safe" ||
-            row.original.instrument_type === "convertible_note" ||
+            it === "safe" ||
+            it === "convertible_note" ||
             row.original.round_type === "safe"
           return isSafe ? (
             <Badge size="2xsmall" color="purple">SAFE</Badge>
@@ -313,11 +317,15 @@ const ConvertiblesTable = ({ capTable }: { capTable: AdminCapTable }) => {
       {
         header: "Instrument",
         accessorKey: "instrument_type",
-        cell: ({ row }: any) => (
-          <Badge size="2xsmall" color="purple">
-            {row.original.instrument_type === "convertible_note" ? "Note" : "SAFE"}
-          </Badge>
-        ),
+        cell: ({ row }: any) => {
+          const it = row.original.instrument_type
+          if (it === "ccps") return <Badge size="2xsmall" color="blue">CCPS</Badge>
+          return (
+            <Badge size="2xsmall" color="purple">
+              {it === "convertible_note" ? "Loan" : "SAFE"}
+            </Badge>
+          )
+        },
       },
       {
         header: "Principal",
@@ -354,6 +362,7 @@ const ConvertiblesTable = ({ capTable }: { capTable: AdminCapTable }) => {
         cell: ({ row }: any) => {
           const c = row.original as AdminConvertible
           const approved = !!c.metadata?.approved
+          const isOutstanding = (c.status ?? "outstanding") === "outstanding"
           return (
             <div className="flex justify-end">
               <ActionMenu
@@ -365,6 +374,15 @@ const ConvertiblesTable = ({ capTable }: { capTable: AdminCapTable }) => {
                         label: "Approve (generate pay link)",
                         disabled: approved,
                         onClick: () => approve(c.id),
+                      },
+                      {
+                        icon: <ArrowPath />,
+                        label:
+                          c.instrument_type === "convertible_note"
+                            ? "Convert (loan → CCPS/equity)"
+                            : "Convert to equity/CCPS",
+                        disabled: !isOutstanding,
+                        to: `convert-convertible?convertible_id=${c.id}`,
                       },
                     ],
                   },

@@ -75,7 +75,7 @@ export const shareClassSchema = z.object({
   cap_table_id: z.string().optional(),
   name: z.string(),
   class_type: z.enum([
-    "common", "preferred", "convertible_note", "safe", "warrant", "option",
+    "common", "preferred", "convertible_note", "safe", "ccps", "warrant", "option",
   ]).optional(),
   authorized_shares: z.number().nullable().optional(),
   issued_shares: z.number().nullable().optional(),
@@ -112,7 +112,7 @@ export const convertibleSchema = z.object({
   investor_id: z.string().optional(),
   cap_table_id: z.string().optional(),
   funding_round_id: z.string().nullable().optional(),
-  instrument_type: z.enum(["safe", "convertible_note"]).optional(),
+  instrument_type: z.enum(["safe", "convertible_note", "ccps"]).optional(),
   principal_amount: z.number().positive(),
   currency_code: z.string().nullable().optional(),
   valuation_cap: z.number().positive().nullable().optional(),
@@ -120,6 +120,11 @@ export const convertibleSchema = z.object({
   safe_type: z.enum(["post_money", "pre_money"]).optional(),
   mfn: z.boolean().optional(),
   pro_rata: z.boolean().optional(),
+  // CCPS (iSAFE) preference terms.
+  num_shares: z.number().nonnegative().nullable().optional(),
+  liquidation_preference_multiple: z.number().min(0).nullable().optional(),
+  dividend_rate: z.number().min(0).max(1).nullable().optional(),
+  conversion_ratio: z.number().positive().nullable().optional(),
   interest_rate: z.number().min(0).max(1).nullable().optional(),
   maturity_date: z.string().datetime().nullable().optional(),
   investment_date: z.string().datetime().nullable().optional(),
@@ -130,6 +135,25 @@ export const convertibleSchema = z.object({
 })
 
 export const convertibleUpdateSchema = convertibleSchema.partial()
+
+// Convert an outstanding convertible into equity (a stake) or CCPS preference
+// shares. All pricing inputs optional — the engine derives from cap/discount.
+export const convertConvertibleSchema = z.object({
+  target: z.enum(["equity", "ccps"]).optional().default("equity"),
+  // The priced round the convertible converts at.
+  round_price_per_share: z.number().positive().nullable().optional(),
+  fully_diluted_shares: z.number().positive().nullable().optional(),
+  funding_round_id: z.string().nullable().optional(),
+  share_class_id: z.string().nullable().optional(),
+  // Explicit overrides.
+  shares: z.number().positive().nullable().optional(),
+  price_per_share: z.number().positive().nullable().optional(),
+  conversion_date: z.string().datetime().nullable().optional(),
+  // CCPS target preference terms.
+  liquidation_preference_multiple: z.number().min(0).nullable().optional(),
+  dividend_rate: z.number().min(0).max(1).nullable().optional(),
+  conversion_ratio: z.number().positive().nullable().optional(),
+})
 
 export const companyExpenseSchema = z.object({
   company_id: z.string().nullable().optional(),
@@ -152,9 +176,9 @@ export const fundingRoundSchema = z.object({
   name: z.string(),
   round_type: z.enum([
     "pre_seed", "seed", "series_a", "series_b", "series_c",
-    "series_d_plus", "bridge", "debt", "grant", "safe",
+    "series_d_plus", "bridge", "debt", "grant", "safe", "ccps",
   ]).optional(),
-  instrument_type: z.enum(["equity", "safe", "convertible_note"]).optional(),
+  instrument_type: z.enum(["equity", "safe", "convertible_note", "ccps"]).optional(),
   status: z.enum([
     "planned", "open", "closing", "closed", "cancelled",
   ]).optional(),

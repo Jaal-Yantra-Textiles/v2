@@ -29,6 +29,7 @@ export const POST = async (
       "discount_rate",
       "safe_type",
       "cap_table.currency_code",
+      "metadata",
     ],
   })
   const round = data?.[0] as any
@@ -44,18 +45,39 @@ export const POST = async (
     throw new MedusaError(MedusaError.Types.INVALID_DATA, "A positive amount is required")
   }
 
-  // SAFE / convertible round → issue a Convertible (no shares yet), not a Stake.
+  // SAFE / convertible / CCPS round → issue a Convertible instrument, not a
+  // Stake. A CCPS (iSAFE) additionally allots preference shares up front, so we
+  // record `num_shares` + a default 1x liquidation preference; the cap/discount
+  // conversion economics are shared with the SAFE path.
+  const isCcps = round.instrument_type === "ccps"
   const isConvertible =
+    isCcps ||
     round.instrument_type === "safe" ||
     round.instrument_type === "convertible_note" ||
-    round.round_type === "safe"
+    round.round_type === "safe" ||
+    round.round_type === "ccps"
   if (isConvertible) {
+    const instrument_type = isCcps
+      ? "ccps"
+      : round.instrument_type === "convertible_note"
+      ? "convertible_note"
+      : "safe"
+
+    const pps = Number(round.price_per_share ?? 0)
+    const ccpsExtras = isCcps
+      ? {
+          num_shares: pps > 0 ? Math.round(amount / pps) : null,
+          liquidation_preference_multiple:
+            Number(round.metadata?.liquidation_preference_multiple ?? 1),
+          conversion_ratio: Number(round.metadata?.conversion_ratio ?? 1),
+        }
+      : {}
+
     const created = await service.createConvertibles({
       investor_id: investor.id,
       cap_table_id: round.cap_table_id,
       funding_round_id: round.id,
-      instrument_type:
-        round.instrument_type === "convertible_note" ? "convertible_note" : "safe",
+      instrument_type,
       principal_amount: amount,
       currency_code: round.cap_table?.currency_code ?? null,
       valuation_cap: round.valuation_cap ?? null,
@@ -63,6 +85,7 @@ export const POST = async (
       safe_type: round.safe_type ?? "post_money",
       investment_date: new Date(),
       status: "outstanding",
+      ...ccpsExtras,
     } as any)
 
     return res.status(201).json({ convertible: created })

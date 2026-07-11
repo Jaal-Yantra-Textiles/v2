@@ -23,7 +23,7 @@ type FormValues = {
   new_name: string
   new_email: string
   new_type: "individual" | "entity" | "fund"
-  instrument_type: "safe" | "convertible_note"
+  instrument_type: "safe" | "convertible_note" | "ccps"
   principal_amount: string
   valuation_cap: string
   discount_rate: string
@@ -31,6 +31,14 @@ type FormValues = {
   investment_date: string
   status: "outstanding" | "converted" | "redeemed" | "cancelled" | "expired"
   notes: string
+  // CCPS-only preference terms.
+  num_shares: string
+  liquidation_preference_multiple: string
+  dividend_rate: string
+  conversion_ratio: string
+  // Convertible-note (loan) terms.
+  interest_rate: string
+  maturity_date: string
 }
 
 // Record a (possibly historical) SAFE / convertible for an existing investor —
@@ -56,10 +64,19 @@ const AddSafeForm = ({ companyId }: { companyId: string }) => {
       safe_type: "post_money",
       investment_date: "",
       status: "outstanding",
+      num_shares: "",
+      liquidation_preference_multiple: "1",
+      dividend_rate: "",
+      conversion_ratio: "1",
+      interest_rate: "",
+      maturity_date: "",
     },
   })
 
   const mode = form.watch("mode")
+  const instrument = form.watch("instrument_type")
+  const isCcps = instrument === "ccps"
+  const isNote = instrument === "convertible_note"
   const ccy = capTable?.currency_code
 
   const { mutateAsync, isPending } = useProvisionConvertible(capTable?.id ?? "", {
@@ -94,6 +111,26 @@ const AddSafeForm = ({ companyId }: { companyId: string }) => {
         : null,
       status: v.status,
       notes: v.notes || null,
+      // CCPS preference terms (only sent for a CCPS instrument).
+      ...(v.instrument_type === "ccps"
+        ? {
+            num_shares: v.num_shares ? Number(v.num_shares) : null,
+            liquidation_preference_multiple: v.liquidation_preference_multiple
+              ? Number(v.liquidation_preference_multiple)
+              : null,
+            dividend_rate: v.dividend_rate ? Number(v.dividend_rate) / 100 : null,
+            conversion_ratio: v.conversion_ratio ? Number(v.conversion_ratio) : null,
+          }
+        : {}),
+      // Loan/note terms.
+      ...(v.instrument_type === "convertible_note"
+        ? {
+            interest_rate: v.interest_rate ? Number(v.interest_rate) / 100 : null,
+            maturity_date: v.maturity_date
+              ? new Date(v.maturity_date).toISOString()
+              : null,
+          }
+        : {}),
     })
   })
 
@@ -111,9 +148,10 @@ const AddSafeForm = ({ companyId }: { companyId: string }) => {
           </Text>
         )}
         <Text size="small" className="text-ui-fg-subtle">
-          Record a SAFE or convertible note directly — no shares are issued. Use
-          for an investor who already invested via SAFE. Value (implied ownership
-          + current value) is derived against the cap table valuation.
+          Record a SAFE, convertible note/loan, or CCPS directly. A SAFE/note
+          issues no shares yet; a CCPS allots preference shares now. Value
+          (implied ownership + current value) is derived against the cap table
+          valuation.
         </Text>
 
         {/* Investor: existing or new */}
@@ -199,7 +237,8 @@ const AddSafeForm = ({ companyId }: { companyId: string }) => {
                   <Select.Trigger><Select.Value /></Select.Trigger>
                   <Select.Content>
                     <Select.Item value="safe">SAFE</Select.Item>
-                    <Select.Item value="convertible_note">Convertible note</Select.Item>
+                    <Select.Item value="convertible_note">Convertible note / loan</Select.Item>
+                    <Select.Item value="ccps">CCPS (iSAFE — preference shares)</Select.Item>
                   </Select.Content>
                 </Select>
               )}
@@ -241,6 +280,51 @@ const AddSafeForm = ({ companyId }: { companyId: string }) => {
             <Input type="date" {...form.register("investment_date")} />
           </div>
         </div>
+
+        {isCcps && (
+          <div className="grid grid-cols-2 gap-4 rounded-lg border border-ui-border-strong p-3">
+            <div className="col-span-2">
+              <Text size="xsmall" className="text-ui-fg-muted">
+                CCPS (India iSAFE) — preference shares are allotted now, with a
+                liquidation-preference floor and a mandatory conversion to equity later.
+              </Text>
+            </div>
+            <div className="flex flex-col gap-y-2">
+              <Label size="small" weight="plus">Shares allotted</Label>
+              <Input type="number" min="0" step="1" placeholder="1000" {...form.register("num_shares")} />
+            </div>
+            <div className="flex flex-col gap-y-2">
+              <Label size="small" weight="plus">Liq. preference (x)</Label>
+              <Input type="number" min="0" step="any" placeholder="1" {...form.register("liquidation_preference_multiple")} />
+            </div>
+            <div className="flex flex-col gap-y-2">
+              <Label size="small" weight="plus">Dividend (%)</Label>
+              <Input type="number" min="0" max="100" placeholder="0" {...form.register("dividend_rate")} />
+            </div>
+            <div className="flex flex-col gap-y-2">
+              <Label size="small" weight="plus">Conversion ratio</Label>
+              <Input type="number" min="0" step="any" placeholder="1" {...form.register("conversion_ratio")} />
+            </div>
+          </div>
+        )}
+
+        {isNote && (
+          <div className="grid grid-cols-2 gap-4 rounded-lg border border-ui-border-strong p-3">
+            <div className="col-span-2">
+              <Text size="xsmall" className="text-ui-fg-muted">
+                Loan / convertible note — accrues interest until it converts or matures.
+              </Text>
+            </div>
+            <div className="flex flex-col gap-y-2">
+              <Label size="small" weight="plus">Interest (% p.a.)</Label>
+              <Input type="number" min="0" max="100" step="any" placeholder="8" {...form.register("interest_rate")} />
+            </div>
+            <div className="flex flex-col gap-y-2">
+              <Label size="small" weight="plus">Maturity date</Label>
+              <Input type="date" {...form.register("maturity_date")} />
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col gap-y-2">
           <Label size="small" weight="plus">Status</Label>

@@ -206,16 +206,32 @@ const SafesSection = ({
       {
         header: "Instrument",
         accessorKey: "instrument_type",
-        cell: ({ row }: any) => (
-          <span className="flex items-center gap-x-2">
-            {row.original.instrument_type === "convertible_note" ? "Convertible note" : "SAFE"}
-            {row.original.safe_type === "pre_money" ? (
-              <Badge size="2xsmall" color="grey">pre-money</Badge>
-            ) : (
-              <Badge size="2xsmall" color="grey">post-money</Badge>
-            )}
-          </span>
-        ),
+        cell: ({ row }: any) => {
+          const it = row.original.instrument_type
+          const label =
+            it === "ccps" ? "CCPS" : it === "convertible_note" ? "Loan / note" : "SAFE"
+          return (
+            <span className="flex items-center gap-x-2">
+              {it === "ccps" && (
+                <Badge size="2xsmall" color="blue">CCPS</Badge>
+              )}
+              {label}
+              {row.original.safe_type === "pre_money" ? (
+                <Badge size="2xsmall" color="grey">pre-money</Badge>
+              ) : (
+                <Badge size="2xsmall" color="grey">post-money</Badge>
+              )}
+            </span>
+          )
+        },
+      },
+      {
+        header: "Shares",
+        accessorKey: "num_shares",
+        cell: ({ row }: any) =>
+          row.original.instrument_type === "ccps"
+            ? num(row.original.num_shares)
+            : "—",
       },
       {
         header: "Company",
@@ -262,9 +278,9 @@ const SafesSection = ({
   return (
     <Container className="divide-y p-0">
       <div className="px-6 py-4">
-        <Heading level="h2">SAFEs &amp; Convertibles</Heading>
+        <Heading level="h2">SAFEs, Convertibles &amp; CCPS</Heading>
         <Text size="small" className="text-ui-fg-subtle mt-1">
-          Money invested now that converts to equity later — no shares are issued yet, so value is implied against the company valuation.
+          Money invested now that converts to equity later. A SAFE/note issues no shares yet; a CCPS allots preference shares up front (with a liquidation-preference floor). Value is implied against the company valuation.
         </Text>
       </div>
 
