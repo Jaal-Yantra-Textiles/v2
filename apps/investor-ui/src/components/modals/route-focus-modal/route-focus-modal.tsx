@@ -14,6 +14,7 @@ type RouteFocusModalProps = PropsWithChildren<{
 const Root = ({ prev = "..", children }: RouteFocusModalProps) => {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
+  const [closeOnEscape, setCloseOnEscape] = useState(true)
   const [stackedModalOpen, onStackedModalOpen] = useState(false)
 
   const to: string | Partial<Path> | number =
@@ -35,6 +36,7 @@ const Root = ({ prev = "..", children }: RouteFocusModalProps) => {
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
+      if (!closeOnEscape) return
       document.body.style.pointerEvents = "auto"
       if (typeof to === "number") {
         navigate(to)
@@ -49,7 +51,7 @@ const Root = ({ prev = "..", children }: RouteFocusModalProps) => {
 
   return (
     <FocusModal open={open} onOpenChange={handleOpenChange}>
-      <RouteModalProvider prev={to}>
+      <RouteModalProvider prev={to} __closeOnEscape={closeOnEscape} __setCloseOnEscape={setCloseOnEscape}>
         <StackedModalProvider onOpenChange={onStackedModalOpen}>
           <Content stackedModalOpen={stackedModalOpen}>{children}</Content>
         </StackedModalProvider>
