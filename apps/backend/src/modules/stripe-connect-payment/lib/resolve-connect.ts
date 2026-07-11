@@ -1,7 +1,18 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { parseFeePercent } from "./fee"
+import partnerRegionLink from "../../../links/partner-region"
 
+/**
+ * The provider id that stores a partner's connected-account config AND is the
+ * standard (platform-keys) Stripe checkout provider. Dual role — see #838.
+ */
 export const CONNECT_CONFIG_PROVIDER_ID = "pp_stripe_stripe"
+
+/** The standard Stripe checkout provider (platform keys). Alias for clarity. */
+export const STANDARD_STRIPE_PROVIDER_ID = "pp_stripe_stripe"
+
+/** The Stripe Connect checkout provider (routes into the merchant's account). */
+export const CONNECT_CHECKOUT_PROVIDER_ID = "pp_stripe-connect_stripe-connect"
 
 export type ResolvedPartnerConnect = {
   partner_id: string
@@ -89,3 +100,74 @@ export const connectContext = (
         connect_fee_percent: resolved.fee_percent,
       }
     : {}
+
+/**
+ * Whether the partner that OWNS a given region has an active Stripe Connect
+ * account (onboarded + charges enabled).
+ *
+ * Drives the buyer-facing `/store/payment-providers` override (#985): the single
+ * "Stripe" a shopper sees is chosen by the *owning partner's* Connect status,
+ * NOT the region's currency. This is what fixes an India partner's EU-region
+ * storefront surfacing Stripe Connect — India partners are never Connect-onboarded
+ * (`isStripeConnectEligible` is EUR-only, #838), so this returns false for them
+ * and the standard platform-Stripe provider is shown instead.
+ *
+ * Region → owning partner via the `partner_region` link. A region with no owning
+ * partner (the core store) → false → standard Stripe. Best-effort: any lookup
+ * failure resolves to false (safe default — never surface Connect on a doubt).
+ */
+export const resolvePartnerConnectedByRegion = async (
+  scope: any,
+  regionId: string | undefined
+): Promise<boolean> => {
+  if (!regionId) return false
+
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: links } = await query
+    .graph({
+      entity: partnerRegionLink.entryPoint,
+      filters: { region_id: regionId },
+      fields: ["partner_id"],
+    })
+    .catch(() => ({ data: [] }))
+
+  const partnerId = links?.[0]?.partner_id
+  if (!partnerId) return false
+
+  try {
+    const configService = scope.resolve("partner_payment_config")
+    const configs = await configService.listPartnerPaymentConfigs({
+      partner_id: partnerId,
+      provider_id: CONNECT_CONFIG_PROVIDER_ID,
+      is_active: true,
+    })
+    const config = configs?.[0]
+    return !!(config?.connect_account_id && config?.connect_charges_enabled)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * PURE: collapse the two Stripe providers into a single buyer-facing "Stripe",
+ * choosing which one to keep by the owning partner's Connect status. Non-Stripe
+ * providers pass through untouched, order preserved. Exported for unit testing.
+ *
+ *   • connected  → keep Connect provider, drop standard
+ *   • not         → keep standard provider, drop Connect
+ *
+ * The loser is only dropped when the intended winner is actually present, so a
+ * region that happens to have only one of the two Stripe providers is never
+ * left with zero Stripe options.
+ */
+export const dedupeStripeProviders = <T extends { id?: string | null }>(
+  providers: T[],
+  connected: boolean
+): T[] => {
+  const winner = connected ? CONNECT_CHECKOUT_PROVIDER_ID : STANDARD_STRIPE_PROVIDER_ID
+  const loser = connected ? STANDARD_STRIPE_PROVIDER_ID : CONNECT_CHECKOUT_PROVIDER_ID
+  const list = providers || []
+  const hasWinner = list.some((p) => p?.id === winner)
+  if (!hasWinner) return list
+  return list.filter((p) => p?.id !== loser)
+}

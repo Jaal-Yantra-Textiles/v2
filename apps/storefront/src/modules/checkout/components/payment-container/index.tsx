@@ -6,7 +6,7 @@ import Radio from "@modules/common/components/radio"
 
 import { isManual } from "@lib/constants"
 import SkeletonCardDetails from "@modules/skeletons/components/skeleton-card-details"
-import { CardElement } from "@stripe/react-stripe-js"
+import { CardElement, PaymentElement } from "@stripe/react-stripe-js"
 import { StripeCardElementOptions } from "@stripe/stripe-js"
 import PaymentTest from "../payment-test"
 import { StripeContext } from "../payment-wrapper/stripe-wrapper"
@@ -117,6 +117,56 @@ export const StripeCardContainer = ({
                   e.brand && e.brand.charAt(0).toUpperCase() + e.brand.slice(1)
                 )
                 setError(e.error?.message || null)
+                setCardComplete(e.complete)
+              }}
+            />
+          </div>
+        ) : (
+          <SkeletonCardDetails />
+        ))}
+    </PaymentContainer>
+  )
+}
+
+/**
+ * Stripe container backed by the **PaymentElement** (instead of the card-only
+ * CardElement). PaymentElement renders every method Stripe enables on the
+ * PaymentIntent — the backend sets `automatic_payment_methods: { enabled: true }`,
+ * so cards, SEPA, iDEAL, Bancontact, etc. surface automatically per the region's
+ * currency + the (connected) account's capabilities (#985). Completion is
+ * reported via `onChange.complete`; validation errors surface at confirm time
+ * (see payment-button), so there's no per-field error here.
+ */
+export const StripePaymentElementContainer = ({
+  paymentProviderId,
+  selectedPaymentOptionId,
+  paymentInfoMap,
+  disabled = false,
+  setError,
+  setCardComplete,
+}: Omit<PaymentContainerProps, "children"> & {
+  setError: (error: string | null) => void
+  setCardComplete: (complete: boolean) => void
+}) => {
+  const stripeReady = useContext(StripeContext)
+
+  return (
+    <PaymentContainer
+      paymentProviderId={paymentProviderId}
+      selectedPaymentOptionId={selectedPaymentOptionId}
+      paymentInfoMap={paymentInfoMap}
+      disabled={disabled}
+    >
+      {selectedPaymentOptionId === paymentProviderId &&
+        (stripeReady ? (
+          <div className="my-4 transition-all duration-150 ease-in-out">
+            <Text className="txt-medium-plus text-ui-fg-base mb-1">
+              Enter your payment details:
+            </Text>
+            <PaymentElement
+              options={{ layout: "tabs" }}
+              onChange={(e) => {
+                setError(null)
                 setCardComplete(e.complete)
               }}
             />

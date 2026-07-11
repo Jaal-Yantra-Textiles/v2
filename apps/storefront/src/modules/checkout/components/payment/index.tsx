@@ -2,12 +2,12 @@
 
 import { RadioGroup } from "@headlessui/react"
 import { isPayU, isStripeLike, paymentInfoMap } from "@lib/constants"
-import { initiatePaymentSession } from "@lib/data/cart"
+import { initiatePaymentSession, placeOrder } from "@lib/data/cart"
 import { CheckCircleSolid, CreditCard } from "@medusajs/icons"
 import { Button, Container, Heading, Text, clx } from "@medusajs/ui"
 import ErrorMessage from "@modules/checkout/components/error-message"
 import PaymentContainer, {
-  StripeCardContainer,
+  StripePaymentElementContainer,
 } from "@modules/checkout/components/payment-container"
 import Divider from "@modules/common/components/divider"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
@@ -26,7 +26,9 @@ const Payment = ({
 
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [cardBrand, setCardBrand] = useState<string | null>(null)
+  // PaymentElement doesn't report a card brand pre-confirm (unlike CardElement);
+  // the field stays null and the summary shows the generic "Another step" copy.
+  const [cardBrand] = useState<string | null>(null)
   const [cardComplete, setCardComplete] = useState(false)
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(
     activeSession?.provider_id ?? ""
@@ -114,6 +116,23 @@ const Payment = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentError, isOpen])
 
+  // Stripe PaymentElement redirect return (#985): redirect-based methods
+  // (iDEAL, Bancontact, some SEPA) send the shopper to Stripe and back to our
+  // `return_url` (the checkout page) with `?redirect_status=...&payment_intent=...`.
+  // On a successful return we finalise the order (placeOrder reads the cart from
+  // cookie → completes → redirects to the confirmation page). Cards/wallets
+  // complete in-page via `redirect: "if_required"` and never hit this path.
+  useEffect(() => {
+    const redirectStatus = searchParams.get("redirect_status")
+    if (!redirectStatus) return
+    if (redirectStatus === "succeeded") {
+      placeOrder().catch((err: any) => setError(err?.message ?? "Payment failed"))
+    } else {
+      setError("Payment was not completed. Please try again.")
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
     <div className="bg-white">
       <div className="flex flex-row items-center justify-between mb-6">
@@ -153,11 +172,10 @@ const Payment = ({
                 {availablePaymentMethods.map((paymentMethod) => (
                   <div key={paymentMethod.id}>
                     {isStripeLike(paymentMethod.id) ? (
-                      <StripeCardContainer
+                      <StripePaymentElementContainer
                         paymentProviderId={paymentMethod.id}
                         selectedPaymentOptionId={selectedPaymentMethod}
                         paymentInfoMap={paymentInfoMap}
-                        setCardBrand={setCardBrand}
                         setError={setError}
                         setCardComplete={setCardComplete}
                       />

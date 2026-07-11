@@ -12,7 +12,13 @@ export const paymentInfoMap: Record<
 > = {
   
   pp_stripe_stripe: {
-    title: "Credit card",
+    title: "Stripe",
+    icon: <CreditCard />,
+  },
+  // Single buyer-facing "Stripe" — Connect (merchant-direct) + standard resolve
+  // per the owning partner's onboarding status; the buyer never sees the split (#985).
+  "pp_stripe-connect_stripe-connect": {
+    title: "Stripe",
     icon: <CreditCard />,
   },
   "pp_medusa-payments_default": {
@@ -41,10 +47,15 @@ export const paymentInfoMap: Record<
   },
 }
 
-// This only checks if it is native stripe or medusa payments for card payments, it ignores the other stripe-based providers
+// This checks if it is native stripe, medusa payments, or the Stripe Connect
+// provider (the single buyer-facing "Stripe" — #985). It ignores the
+// method-specific stripe-based providers (ideal/bancontact), which are handled
+// separately.
 export const isStripeLike = (providerId?: string) => {
   return (
-    providerId?.startsWith("pp_stripe_") || providerId?.startsWith("pp_medusa-")
+    providerId?.startsWith("pp_stripe_") ||
+    providerId?.startsWith("pp_medusa-") ||
+    providerId === "pp_stripe-connect_stripe-connect"
   )
 }
 

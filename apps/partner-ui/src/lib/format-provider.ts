@@ -8,6 +8,16 @@
  * @returns A formatted string
  */
 export const formatProvider = (id: string) => {
+  // Both Stripe providers surface to buyers/partners as a single "Stripe".
+  // `pp_stripe_stripe` (standard) and `pp_stripe-connect_stripe-connect`
+  // (Connect) are one payment method chosen by the partner's onboarding status
+  // (#985) — the Connect-vs-standard split is an implementation detail nobody
+  // configuring a region should have to reason about. Targeted so payu /
+  // fulfillment / tax providers keep their "Name (TYPE)" format.
+  if (id === "pp_stripe_stripe" || id === "pp_stripe-connect_stripe-connect") {
+    return "Stripe"
+  }
+
   const [_, name, type] = id.split("_")
   return (
     name
