@@ -16,8 +16,11 @@ import { ActionMenu } from "../common/action-menu"
 import { OwnershipDonut, type DonutSegment } from "./ownership-donut"
 import {
   useCompanyCapTables,
+  useCapTableConvertibles,
+  useApproveConvertible,
   usePublishRound,
   type AdminCapTable,
+  type AdminConvertible,
   type AdminFundingRound,
   type AdminStake,
 } from "../../hooks/api/cap-tables-admin"
@@ -227,7 +230,17 @@ const FundingRoundsTable = ({ capTable }: { capTable: AdminCapTable }) => {
       {
         header: "Type",
         accessorKey: "round_type",
-        cell: ({ row }: any) => row.original.round_type ?? "—",
+        cell: ({ row }: any) => {
+          const isSafe =
+            row.original.instrument_type === "safe" ||
+            row.original.instrument_type === "convertible_note" ||
+            row.original.round_type === "safe"
+          return isSafe ? (
+            <Badge size="2xsmall" color="purple">SAFE</Badge>
+          ) : (
+            row.original.round_type ?? "—"
+          )
+        },
       },
       {
         header: "Status",
@@ -252,6 +265,119 @@ const FundingRoundsTable = ({ capTable }: { capTable: AdminCapTable }) => {
       },
     ],
   })
+  return (
+    <DataTable instance={table}>
+      <DataTable.Table />
+    </DataTable>
+  )
+}
+
+const pct = (v?: number | null) =>
+  v == null ? "—" : `${(Number(v) * 100).toFixed(2)}%`
+
+const convertibleStatusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
+  switch (s) {
+    case "outstanding":
+      return "green"
+    case "converted":
+      return "grey"
+    case "redeemed":
+      return "orange"
+    case "cancelled":
+    case "expired":
+      return "red"
+    default:
+      return "grey"
+  }
+}
+
+const ConvertiblesTable = ({ capTable }: { capTable: AdminCapTable }) => {
+  const ccy = capTable.currency_code
+  const { convertibles = [], isPending } = useCapTableConvertibles(capTable.id)
+  const { mutate: approve } = useApproveConvertible(capTable.id, {
+    onSuccess: (r) =>
+      toast.success(
+        r?.payment_link ? "Approved — PayU link generated" : "Approved — pending payment"
+      ),
+    onError: (e) => toast.error(e?.message || "Approve failed"),
+  })
+
+  const table = useDataTable({
+    data: convertibles,
+    columns: [
+      {
+        header: "Investor",
+        accessorKey: "investor",
+        cell: ({ row }: any) => row.original.investor?.name ?? row.original.investor_id ?? "—",
+      },
+      {
+        header: "Instrument",
+        accessorKey: "instrument_type",
+        cell: ({ row }: any) => (
+          <Badge size="2xsmall" color="purple">
+            {row.original.instrument_type === "convertible_note" ? "Note" : "SAFE"}
+          </Badge>
+        ),
+      },
+      {
+        header: "Principal",
+        accessorKey: "principal_amount",
+        cell: ({ row }: any) => money(row.original.value?.principal ?? row.original.principal_amount, ccy),
+      },
+      {
+        header: "Cap",
+        accessorKey: "valuation_cap",
+        cell: ({ row }: any) => money(row.original.valuation_cap, ccy),
+      },
+      {
+        header: "Implied own.",
+        id: "implied_own",
+        cell: ({ row }: any) => pct(row.original.value?.implied_ownership_pct),
+      },
+      {
+        header: "Implied value",
+        id: "implied_value",
+        cell: ({ row }: any) => money(row.original.value?.implied_value, ccy),
+      },
+      {
+        header: "Status",
+        accessorKey: "status",
+        cell: ({ row }: any) => (
+          <Badge color={convertibleStatusColor(row.original.status)}>
+            {row.original.status ?? "outstanding"}
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }: any) => {
+          const c = row.original as AdminConvertible
+          const approved = !!c.metadata?.approved
+          return (
+            <div className="flex justify-end">
+              <ActionMenu
+                groups={[
+                  {
+                    actions: [
+                      {
+                        icon: <CurrencyDollar />,
+                        label: "Approve (generate pay link)",
+                        disabled: approved,
+                        onClick: () => approve(c.id),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            </div>
+          )
+        },
+      },
+    ],
+  })
+
+  if (isPending) return <Skeleton className="mx-6 mb-5 h-16" />
   return (
     <DataTable instance={table}>
       <DataTable.Table />
@@ -301,6 +427,7 @@ export const CapTableSection = ({ companyId }: { companyId: string }) => {
                 {
                   actions: [
                     { icon: <Users />, label: "Provision shares (manual)", to: "provision-stake" },
+                    { icon: <DocumentText />, label: "Record SAFE (manual)", to: "add-safe" },
                     { icon: <Plus />, label: "Add share class", to: "add-share-class" },
                     { icon: <Plus />, label: "Add funding round", to: "add-round" },
                     { icon: <DocumentText />, label: "Add document", to: "add-document" },
@@ -352,6 +479,12 @@ export const CapTableSection = ({ companyId }: { companyId: string }) => {
           >
             <FundingRoundsTable capTable={capTable} />
           </FullWidthBlock>
+          <div>
+            <div className="px-6 pb-3 pt-5">
+              <Text weight="plus">SAFEs &amp; convertibles</Text>
+            </div>
+            <ConvertiblesTable capTable={capTable} />
+          </div>
         </>
       )}
     </Container>

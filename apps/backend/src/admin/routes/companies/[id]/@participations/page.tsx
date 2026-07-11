@@ -13,6 +13,7 @@ import { RouteFocusModal } from "../../../../components/modal/route-focus-modal"
 import { ActionMenu } from "../../../../components/common/action-menu"
 import {
   useApproveParticipation,
+  useApproveConvertible,
   useMarkParticipationPaid,
   useRoundParticipations,
   type AdminParticipation,
@@ -43,14 +44,21 @@ const ParticipationsTable = ({
   roundId: string
   participations: AdminParticipation[]
 }) => {
+  const approveToast = (r: any) =>
+    toast.success(
+      r?.payment_link
+        ? "Approved — PayU link generated"
+        : "Approved — pending payment (PayU not configured)"
+    )
+  const approveErr = (e: any) => toast.error(e?.message || "Approve failed")
   const { mutateAsync: approve } = useApproveParticipation(roundId, {
-    onSuccess: (r) =>
-      toast.success(
-        r?.payment_link
-          ? "Approved — PayU link generated"
-          : "Approved — pending payment (PayU not configured)"
-      ),
-    onError: (e) => toast.error(e?.message || "Approve failed"),
+    onSuccess: approveToast,
+    onError: approveErr,
+  })
+  // SAFE participants approve through the convertible route (same PayU rail).
+  const { mutateAsync: approveConvertible } = useApproveConvertible("", {
+    onSuccess: approveToast,
+    onError: approveErr,
   })
   const { mutateAsync: markPaid } = useMarkParticipationPaid(roundId, {
     onSuccess: () => toast.success("Marked as paid"),
@@ -65,6 +73,16 @@ const ParticipationsTable = ({
         accessorKey: "investor",
         cell: ({ row }: any) =>
           row.original.investor?.name ?? row.original.investor_id ?? "—",
+      },
+      {
+        header: "Type",
+        id: "type",
+        cell: ({ row }: any) =>
+          row.original.type === "convertible" ? (
+            <Badge size="2xsmall" color="purple">SAFE</Badge>
+          ) : (
+            <Badge size="2xsmall" color="grey">Equity</Badge>
+          ),
       },
       {
         header: "Amount",
@@ -102,6 +120,7 @@ const ParticipationsTable = ({
         cell: ({ row }: any) => {
           const p = row.original as AdminParticipation
           const approved = !!p.metadata?.approved
+          const isConvertible = p.type === "convertible"
           return (
             <div className="flex justify-end">
               <ActionMenu
@@ -112,12 +131,14 @@ const ParticipationsTable = ({
                         icon: <Check />,
                         label: "Approve (generate pay link)",
                         disabled: approved,
-                        onClick: () => approve(p.id),
+                        onClick: () =>
+                          isConvertible ? approveConvertible(p.id) : approve(p.id),
                       },
+                      // Mark-paid uses the stake ledger; only equity stakes support it.
                       {
                         icon: <CurrencyDollar />,
                         label: "Mark paid",
-                        disabled: p.status === "fully_paid",
+                        disabled: isConvertible || p.status === "fully_paid",
                         onClick: () => markPaid(p.id),
                       },
                     ],

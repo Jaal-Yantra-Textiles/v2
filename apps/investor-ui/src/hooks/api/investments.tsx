@@ -13,14 +13,23 @@ export type Deal = {
   id: string
   name: string
   round_type?: string
+  instrument_type?: "equity" | "safe" | "convertible_note"
   status?: string
   target_amount?: number | null
   raised_amount?: number | null
   price_per_share?: number | null
   pre_money_valuation?: number | null
+  valuation_cap?: number | null
+  discount_rate?: number | null
+  safe_type?: "post_money" | "pre_money" | null
   close_date?: string | null
   cap_table?: { company_id?: string; name?: string; currency_code?: string | null } | null
 }
+
+export const isSafeDeal = (d: Deal) =>
+  d.instrument_type === "safe" ||
+  d.instrument_type === "convertible_note" ||
+  d.round_type === "safe"
 
 export type Participation = {
   id: string
@@ -92,6 +101,66 @@ export const useMyDocuments = () => {
   return { documents: data?.documents ?? [], count: data?.count ?? 0, ...rest }
 }
 
+// --- SAFEs / convertibles (money in now, equity later — no shares yet) --------
+
+export type ConvertibleValue = {
+  principal: number
+  implied_ownership_pct: number | null
+  implied_value: number | null
+  multiple: number | null
+  basis: string
+}
+
+export type MyConvertible = {
+  id: string
+  instrument_type?: "safe" | "convertible_note"
+  principal_amount?: number | null
+  currency_code?: string | null
+  valuation_cap?: number | null
+  discount_rate?: number | null
+  safe_type?: "post_money" | "pre_money"
+  status?: string
+  investment_date?: string | null
+  conversion_date?: string | null
+  cap_table?: {
+    id?: string
+    name?: string
+    company_id?: string
+    post_money_valuation?: number | null
+    currency_code?: string | null
+  } | null
+  payments?: Array<{ id: string; amount?: number | null; status?: string; paid_date?: string | null }>
+  value: ConvertibleValue
+}
+
+export type ConvertibleSummary = {
+  total_principal: number
+  total_implied_value: number
+  outstanding_count: number
+}
+
+export const useMyConvertibles = () => {
+  const { data, ...rest } = useQuery({
+    queryFn: () =>
+      sdk.client.fetch<{
+        convertibles: MyConvertible[]
+        count: number
+        summary: ConvertibleSummary
+      }>("/investors/me/convertibles", { method: "GET" }),
+    queryKey: ["investor-convertibles"] as const,
+  })
+  return {
+    convertibles: data?.convertibles ?? [],
+    count: data?.count ?? 0,
+    summary: data?.summary ?? {
+      total_principal: 0,
+      total_implied_value: 0,
+      outstanding_count: 0,
+    },
+    ...rest,
+  }
+}
+
 export const useMyCapTable = () => {
   const { data, ...rest } = useQuery({
     queryFn: () =>
@@ -129,18 +198,27 @@ export const useMyParticipations = () => {
 
 export const useParticipate = (
   dealId: string,
-  options?: UseMutationOptions<{ stake: any }, FetchError, { amount: number }>
+  options?: UseMutationOptions<
+    { stake?: any; convertible?: any },
+    FetchError,
+    { amount: number }
+  >
 ) => {
   return useMutation({
     mutationFn: (payload) =>
-      sdk.client.fetch<{ stake: any }>(`/investors/deals/${dealId}/participate`, {
-        method: "POST",
-        body: payload,
-      }),
+      sdk.client.fetch<{ stake?: any; convertible?: any }>(
+        `/investors/deals/${dealId}/participate`,
+        {
+          method: "POST",
+          body: payload,
+        }
+      ),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: investmentsQueryKeys.deals })
       queryClient.invalidateQueries({ queryKey: investmentsQueryKeys.participations })
-      options?.onSuccess?.(data, variables, context)
+      queryClient.invalidateQueries({ queryKey: investmentsQueryKeys.capTable })
+      queryClient.invalidateQueries({ queryKey: ["investor-convertibles"] })
+      ;(options?.onSuccess as any)?.(data, variables, context)
     },
     ...options,
   })

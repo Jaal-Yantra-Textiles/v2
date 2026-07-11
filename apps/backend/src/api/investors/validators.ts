@@ -107,13 +107,54 @@ export const stakeSchema = z.object({
   ]).optional(),
 })
 
+// Convertible instrument (SAFE / note) — #969 follow-up.
+export const convertibleSchema = z.object({
+  investor_id: z.string().optional(),
+  cap_table_id: z.string().optional(),
+  funding_round_id: z.string().nullable().optional(),
+  instrument_type: z.enum(["safe", "convertible_note"]).optional(),
+  principal_amount: z.number().positive(),
+  currency_code: z.string().nullable().optional(),
+  valuation_cap: z.number().positive().nullable().optional(),
+  discount_rate: z.number().min(0).max(1).nullable().optional(),
+  safe_type: z.enum(["post_money", "pre_money"]).optional(),
+  mfn: z.boolean().optional(),
+  pro_rata: z.boolean().optional(),
+  interest_rate: z.number().min(0).max(1).nullable().optional(),
+  maturity_date: z.string().datetime().nullable().optional(),
+  investment_date: z.string().datetime().nullable().optional(),
+  status: z
+    .enum(["outstanding", "converted", "redeemed", "cancelled", "expired"])
+    .optional(),
+  notes: z.string().nullable().optional(),
+})
+
+export const convertibleUpdateSchema = convertibleSchema.partial()
+
+export const companyExpenseSchema = z.object({
+  company_id: z.string().nullable().optional(),
+  category: z
+    .enum(["partnership", "tech_stack", "marketing", "operations", "salaries", "other"])
+    .optional(),
+  name: z.string().min(1),
+  amount: z.number().nonnegative(),
+  currency_code: z.string().optional(),
+  recurrence: z.enum(["one_time", "monthly", "annual"]).optional(),
+  incurred_date: z.string().datetime().nullable().optional(),
+  status: z.enum(["active", "ended"]).optional(),
+  notes: z.string().nullable().optional(),
+})
+
+export const companyExpenseUpdateSchema = companyExpenseSchema.partial()
+
 export const fundingRoundSchema = z.object({
   cap_table_id: z.string().optional(),
   name: z.string(),
   round_type: z.enum([
     "pre_seed", "seed", "series_a", "series_b", "series_c",
-    "series_d_plus", "bridge", "debt", "grant",
+    "series_d_plus", "bridge", "debt", "grant", "safe",
   ]).optional(),
+  instrument_type: z.enum(["equity", "safe", "convertible_note"]).optional(),
   status: z.enum([
     "planned", "open", "closing", "closed", "cancelled",
   ]).optional(),
@@ -123,6 +164,9 @@ export const fundingRoundSchema = z.object({
   post_money_valuation: z.number().nullable().optional(),
   price_per_share: z.number().nullable().optional(),
   shares_offered: z.number().nullable().optional(),
+  valuation_cap: z.number().nullable().optional(),
+  discount_rate: z.number().min(0).max(1).nullable().optional(),
+  safe_type: z.enum(["post_money", "pre_money"]).nullable().optional(),
   open_date: z.string().datetime().nullable().optional(),
   close_date: z.string().datetime().nullable().optional(),
   lead_investor: z.string().nullable().optional(),
@@ -166,12 +210,13 @@ export const callForSharesSchema = z.object({
 export const paymentSchema = z.object({
   stake_id: z.string().optional(),
   call_for_shares_id: z.string().optional(),
+  convertible_id: z.string().optional(),
   investor_id: z.string().optional(),
-  company_id: z.string(),
+  company_id: z.string().optional(),
   amount: z.number(),
   currency_code: z.string().min(3).max(3).optional(),
   payment_type: z.enum([
-    "subscription", "capital_call", "top_up", "transfer_fee", "other",
+    "subscription", "capital_call", "top_up", "transfer_fee", "convertible", "other",
   ]).optional(),
   status: z.enum([
     "pending", "in_progress", "completed", "failed", "refunded", "cancelled",
