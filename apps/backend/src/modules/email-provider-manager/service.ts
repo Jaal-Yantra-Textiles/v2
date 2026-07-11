@@ -23,6 +23,17 @@ class EmailProviderManagerService extends MedusaService({ EmailUsage, EmailQueue
     { id: "resend", daily_limit: parseInt(process.env.RESEND_DAILY_LIMIT || "100", 10) },
   ]
 
+  // Fairness floor: when there's enough volume, bring every configured provider
+  // up to this many sends/day (capped by its own daily_limit) BEFORE piling the
+  // rest onto whichever has the most room. Without it, the greedy "fill largest
+  // remaining first" strategy dumps small/medium batches entirely on Mailjet and
+  // never touches Resend — wasting Resend's ~100/day free allowance. 70 keeps a
+  // safe margin under Resend's 100 cap. Override with EMAIL_MIN_PER_PROVIDER_PER_DAY.
+  private minPerProviderPerDay: number = parseInt(
+    process.env.EMAIL_MIN_PER_PROVIDER_PER_DAY || "70",
+    10
+  )
+
   /**
    * Get today's date string in YYYY-MM-DD format
    */
@@ -91,31 +102,52 @@ class EmailProviderManagerService extends MedusaService({ EmailUsage, EmailQueue
    */
   async distributeEmails(emails: string[]): Promise<DistributionResult> {
     const capacities = await this.getRemainingCapacity()
-    const allocations: ProviderAllocation[] = []
+
+    // Consume emails from a single running pointer across both phases so the
+    // overflow always stays the contiguous tail of the input.
     let emailIndex = 0
-
-    // Sort by remaining capacity descending — fill the provider with more room first
-    capacities.sort((a, b) => b.remaining - a.remaining)
-
-    for (const cap of capacities) {
-      if (emailIndex >= emails.length) break
-      if (cap.remaining <= 0) continue
-
-      const count = Math.min(cap.remaining, emails.length - emailIndex)
-      const assignedEmails = emails.slice(emailIndex, emailIndex + count)
-
-      allocations.push({
-        provider: cap.provider,
-        emails: assignedEmails,
-      })
-
-      emailIndex += count
+    const alloc = new Map<string, string[]>()
+    const remaining = new Map(capacities.map((c) => [c.provider, c.remaining]))
+    const take = (provider: string, n: number) => {
+      if (n <= 0) return
+      const slice = emails.slice(emailIndex, emailIndex + n)
+      alloc.set(provider, [...(alloc.get(provider) || []), ...slice])
+      remaining.set(provider, (remaining.get(provider) || 0) - n)
+      emailIndex += n
     }
 
+    // Phase 1 — fairness floor: top every provider up to minPerProviderPerDay
+    // (capped by its daily_limit and today's usage), least-used first, so each
+    // configured service actually sends and its daily allowance isn't wasted.
+    const byUsedAsc = [...capacities].sort((a, b) => a.used - b.used)
+    for (const cap of byUsedAsc) {
+      if (emailIndex >= emails.length) break
+      const floor = Math.min(this.minPerProviderPerDay, cap.limit)
+      const deficit = Math.max(0, floor - cap.used)
+      take(
+        cap.provider,
+        Math.min(deficit, remaining.get(cap.provider) || 0, emails.length - emailIndex)
+      )
+    }
+
+    // Phase 2 — capacity fill: distribute the rest to the provider with the most
+    // room left first.
+    const byRemainingDesc = [...capacities].sort(
+      (a, b) => (remaining.get(b.provider) || 0) - (remaining.get(a.provider) || 0)
+    )
+    for (const cap of byRemainingDesc) {
+      if (emailIndex >= emails.length) break
+      const rem = remaining.get(cap.provider) || 0
+      if (rem <= 0) continue
+      take(cap.provider, Math.min(rem, emails.length - emailIndex))
+    }
+
+    const allocations: ProviderAllocation[] = capacities
+      .map((c) => ({ provider: c.provider, emails: alloc.get(c.provider) || [] }))
+      .filter((a) => a.emails.length > 0)
+
     // Anything beyond capacity is overflow — to be queued for the next day
-    const overflow = emailIndex < emails.length
-      ? emails.slice(emailIndex)
-      : []
+    const overflow = emailIndex < emails.length ? emails.slice(emailIndex) : []
 
     return { allocations, overflow }
   }

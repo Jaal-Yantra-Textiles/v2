@@ -63,15 +63,16 @@ setupSharedTestSuite(() => {
       // Should have allocations for both providers
       expect(allocations.length).toBe(2)
 
-      // Mailjet gets first 200 (higher capacity, sorted first)
+      // Fairness floor (70) tops up each provider first, then Mailjet (more room)
+      // takes the remainder: resend 70, mailjet 70 + 110 = 180.
       const mailjetAlloc = allocations.find((a) => a.provider === "mailjet")
       expect(mailjetAlloc).toBeDefined()
-      expect(mailjetAlloc.emails.length).toBe(200)
+      expect(mailjetAlloc.emails.length).toBe(180)
 
-      // Resend gets remaining 50
+      // Resend gets at least the daily floor
       const resendAlloc = allocations.find((a) => a.provider === "resend")
       expect(resendAlloc).toBeDefined()
-      expect(resendAlloc.emails.length).toBe(50)
+      expect(resendAlloc.emails.length).toBe(70)
 
       // All emails should be accounted for
       const totalAllocated =
@@ -79,28 +80,27 @@ setupSharedTestSuite(() => {
       expect(totalAllocated).toBe(250)
     })
 
-    it("should distribute only to mailjet when under 200 emails", async () => {
+    it("should give every provider at least the daily floor before filling", async () => {
       const { getContainer } = getSharedTestEnv()
       const container = getContainer()
       const providerManager = container.resolve("email_provider_manager")
 
-      // Generate 150 test emails - fits within mailjet alone
+      // 150 emails — enough to floor both providers (70 each) and still fill.
       const emails = Array.from({ length: 150 }, (_, i) => `small${i}@example.com`)
 
       const { allocations, overflow } = await providerManager.distributeEmails(emails)
 
       expect(overflow).toHaveLength(0)
 
-      // Mailjet has highest capacity (200), should get all 150
+      // Resend is floored to 70 instead of being starved to 0.
+      const resendAlloc = allocations.find((a) => a.provider === "resend")
+      expect(resendAlloc).toBeDefined()
+      expect(resendAlloc.emails.length).toBe(70)
+
+      // Mailjet floors to 70 then takes the remaining 10 → 80.
       const mailjetAlloc = allocations.find((a) => a.provider === "mailjet")
       expect(mailjetAlloc).toBeDefined()
-      expect(mailjetAlloc.emails.length).toBe(150)
-
-      // Resend should either not appear or have 0 emails
-      const resendAlloc = allocations.find((a) => a.provider === "resend")
-      if (resendAlloc) {
-        expect(resendAlloc.emails.length).toBe(0)
-      }
+      expect(mailjetAlloc.emails.length).toBe(80)
     })
 
     it("should return overflow when total exceeds 300 emails", async () => {
