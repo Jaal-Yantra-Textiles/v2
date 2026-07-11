@@ -15,6 +15,7 @@ export default async function partnerCreatedFromAdminHandler({
 
   // Fetch partner to get display name
   let partnerName = "Partner"
+  let preferredLanguage: string | undefined
   try {
     const result = await query.graph({
       entity: "partners",
@@ -29,12 +30,28 @@ export default async function partnerCreatedFromAdminHandler({
     // Fallback to default if query fails
   }
 
+  // Fetch partner admin to get preferred language
+  try {
+    const result = await query.graph({
+      entity: "partner_admin",
+      fields: ["preferred_language"],
+      filters: { id: data.partner_admin_id },
+    })
+    const admins = result.data || []
+    if (admins.length && admins[0].preferred_language) {
+      preferredLanguage = admins[0].preferred_language
+    }
+  } catch (e) {
+    // Fallback to English if query fails
+  }
+
   // Send the onboarding email using the workflow
   await sendAdminPartnerCreationEmail(container).run({
     input: {
       to: data.email,
       partner_name: partnerName,
       temp_password: data.temp_password,
+      locale: preferredLanguage,
     },
   })
 }

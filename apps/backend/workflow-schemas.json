@@ -2088,6 +2088,27 @@
         "type": "array",
         "required": false,
         "placeholder": "{{ $last.inventory_item_ids }}"
+      },
+      {
+        "name": "production_cost_override",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.production_cost_override }}",
+        "description": "Per-material commission (line cost × platform_fee_percent). Set when a fee applies. */ commission?: number; }; type EstimateCostInput = { design_id: string; inventory_item_ids?: string[]; /** Partner-entered production cost per finished unit. When provided it is the authoritative production figure — it overrides every derived estimate (including the DEFAULT_PRODUCTION_PERCENT fallback). Partner recalc route."
+      },
+      {
+        "name": "platform_fee_percent",
+        "type": "number",
+        "required": false,
+        "placeholder": "0",
+        "description": "Per-material commission (line cost × platform_fee_percent). Set when a fee applies. */ commission?: number; }; type EstimateCostInput = { design_id: string; inventory_item_ids?: string[]; /** Partner-entered production cost per finished unit. When provided it is the authoritative production figure — it overrides every derived estimate (including the DEFAULT_PRODUCTION_PERCENT fallback). Partner recalc route. / production_cost_override?: number | null; /** JYT platform commission as a percentage of material cost. Opt-in per caller — defaults to 0 so store/admin/draft-order flows are unaffected; only the partner recalc route passes DEFAULT_PLATFORM_FEE_PERCENT."
+      },
+      {
+        "name": "default_material_cost",
+        "type": "number",
+        "required": false,
+        "placeholder": "0",
+        "description": "Per-material commission (line cost × platform_fee_percent). Set when a fee applies. */ commission?: number; }; type EstimateCostInput = { design_id: string; inventory_item_ids?: string[]; /** Partner-entered production cost per finished unit. When provided it is the authoritative production figure — it overrides every derived estimate (including the DEFAULT_PRODUCTION_PERCENT fallback). Partner recalc route. / production_cost_override?: number | null; /** JYT platform commission as a percentage of material cost. Opt-in per caller — defaults to 0 so store/admin/draft-order flows are unaffected; only the partner recalc route passes DEFAULT_PLATFORM_FEE_PERCENT. / platform_fee_percent?: number; /** Fallback per-unit cost for a material with no resolved cost. Opt-in per caller — defaults to 0 (off) so store/admin/draft-order flows are unaffected; the partner recalc route passes DEFAULT_MATERIAL_COST."
       }
     ],
     "source": "custom_ts",
@@ -3794,6 +3815,42 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/inventory_orders/update-inventory-order.ts"
+  },
+  "create-investor-admin": {
+    "fields": [
+      {
+        "name": "authIdentityId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.authIdentityId }}"
+      },
+      {
+        "name": "tempPassword",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.tempPassword }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/investor/create-investor-admin.ts"
+  },
+  "create-investor-admin-with-registration": {
+    "fields": [
+      {
+        "name": "authIdentityId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.authIdentityId }}"
+      },
+      {
+        "name": "tempPassword",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.tempPassword }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/investor/create-investor-admin.ts"
   },
   "generate-ideas-email": {
     "fields": [

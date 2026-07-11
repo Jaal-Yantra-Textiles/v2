@@ -14,6 +14,7 @@ const EmailTemplate = model.define("email_template", {
   variables: model.json().nullable(),
   is_active: model.boolean().default(true),
   template_type: model.text().default("general"),
+  locale: model.text().default("en"),
 })
 
 export default EmailTemplate
