@@ -1,12 +1,14 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import {
   Badge,
+  Button,
   Container,
   DataTable,
   type DataTablePaginationState,
   Heading,
   StatusBadge,
   Text,
+  clx,
   useDataTable,
 } from "@medusajs/ui"
 import { createColumnHelper } from "@tanstack/react-table"
@@ -70,9 +72,22 @@ const formatDateTime = (iso: string | null): string => {
   }
 }
 
+// The two win-back campaigns land under distinct `campaign` values:
+//   churn re-engagement → "winback"  (generate-winback-targets)
+//   newsletter engagement → "newsletter-winback" (generate-newsletter-winback-targets, #881)
+// The outreach list filters campaign by exact match, so the UI has to pick one.
+const CAMPAIGNS = [
+  { value: "winback", label: "Churn" },
+  { value: "newsletter-winback", label: "Newsletter" },
+] as const
+
 const WinbacksView = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const pageFromUrl = parseInt(searchParams.get("w_page") || "1", 10)
+  const campaignParam = searchParams.get("w_camp") || "winback"
+  const campaign = CAMPAIGNS.some((c) => c.value === campaignParam)
+    ? campaignParam
+    : "winback"
 
   const pagination: DataTablePaginationState = {
     pageIndex: Math.max(0, pageFromUrl - 1),
@@ -82,7 +97,7 @@ const WinbacksView = () => {
   const offset = pagination.pageIndex * pagination.pageSize
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["marketing", "winbacks", pagination],
+    queryKey: ["marketing", "winbacks", campaign, pagination],
     queryFn: async () => {
       const res = await sdk.client.fetch<{
         outreach: MarketingOutreach[]
@@ -91,7 +106,7 @@ const WinbacksView = () => {
         limit: number
       }>("/admin/marketing/outreach", {
         query: {
-          campaign: "winback",
+          campaign,
           limit: pagination.pageSize,
           offset,
         },
@@ -100,6 +115,18 @@ const WinbacksView = () => {
     },
     placeholderData: (prev) => prev,
   })
+
+  const handleCampaignChange = useCallback(
+    (next: string) => {
+      const params = new URLSearchParams(searchParams)
+      if (next !== "winback") params.set("w_camp", next)
+      else params.delete("w_camp")
+      // Switching campaigns resets pagination.
+      params.delete("w_page")
+      setSearchParams(params, { replace: true })
+    },
+    [searchParams, setSearchParams]
+  )
 
   const handlePaginationChange = useCallback(
     (newPagination: DataTablePaginationState) => {
@@ -179,7 +206,7 @@ const WinbacksView = () => {
   return (
     <Container className="divide-y p-0">
       <DataTable instance={table}>
-        <DataTable.Toolbar className="flex flex-col md:flex-row justify-between gap-y-4 w-full px-6 py-4">
+        <DataTable.Toolbar className="flex flex-col md:flex-row md:items-center justify-between gap-y-4 w-full px-6 py-4">
           <div>
             <Heading>Winbacks</Heading>
             <Text className="text-ui-fg-subtle" size="small">
@@ -191,6 +218,21 @@ const WinbacksView = () => {
                 = provider bounce flags are unreliable — verify manually.
               </span>
             </Text>
+          </div>
+          <div className="flex items-center gap-x-1 rounded-lg bg-ui-bg-subtle p-1">
+            {CAMPAIGNS.map((c) => (
+              <Button
+                key={c.value}
+                size="small"
+                variant="transparent"
+                onClick={() => handleCampaignChange(c.value)}
+                className={clx(
+                  campaign === c.value && "bg-ui-bg-base shadow-borders-base"
+                )}
+              >
+                {c.label}
+              </Button>
+            ))}
           </div>
         </DataTable.Toolbar>
         <DataTable.Table />

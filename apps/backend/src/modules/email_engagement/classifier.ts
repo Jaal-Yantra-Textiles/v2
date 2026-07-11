@@ -6,8 +6,10 @@
  *
  * Policy (soft exclusion — see #3): only `dormant` is bulk-suppressed. `cooling`
  * is the pre-dormant win-back target; `never_opened` / `engaged` / `unknown`
- * still get mailed. Deliberately conservative: too little data → `unknown`, and
- * any open/click keeps someone out of `dormant`.
+ * still get mailed. Any open/click proves delivery + interest, so an engaged
+ * contact is judged on their cold streak regardless of how many `delivered`
+ * events we recorded (a provider may report opens but not deliveries). Only a
+ * contact with NO opens AND too few deliveries to judge is `unknown`.
  */
 
 export type EngagementStatus =
@@ -95,28 +97,32 @@ export function classifyEngagement(
     reason,
   })
 
-  // Too little signal to judge — never suppress on thin data.
-  if (delivered < th.minDataDelivered) {
-    return wrap("unknown", `only ${delivered} delivered (< ${th.minDataDelivered})`)
-  }
-
   const everEngaged = opens > 0 || clicks > 0
   const oldEnough = span >= th.dormantMinSpanDays
 
-  if (!everEngaged) {
-    // Never opened anything.
-    if (delivered >= th.dormantColdStreak && oldEnough) {
-      return wrap("dormant", `never opened in ${delivered} deliveries over ${Math.round(span)}d`)
+  // An open or click PROVES the message was delivered and the contact is real —
+  // so we always have enough signal to judge them, regardless of how many
+  // `delivered` webhooks we happened to record. This matters when a provider
+  // (e.g. Mailjet without its `sent` trigger) reports opens but not deliveries:
+  // without this, an engaged opener would fall through to `unknown`. Judge on
+  // the cold streak since their last open.
+  if (everEngaged) {
+    if (cold >= th.dormantColdStreak && oldEnough) {
+      return wrap("dormant", `${cold} deliveries since last open over ${Math.round(span)}d`)
     }
-    return wrap("never_opened", `opens=0 after ${delivered} deliveries (${Math.round(span)}d)`)
+    if (cold >= th.coolingColdStreak) {
+      return wrap("cooling", `${cold} deliveries since last open`)
+    }
+    return wrap("engaged", `recent open/click (cold streak ${cold})`)
   }
 
-  // Engaged at some point — judge on the cold streak since last open.
-  if (cold >= th.dormantColdStreak && oldEnough) {
-    return wrap("dormant", `${cold} deliveries since last open over ${Math.round(span)}d`)
+  // Never opened/clicked — now we DO need enough delivery signal to judge,
+  // otherwise there's nothing to go on. Thin data → unknown (never suppressed).
+  if (delivered < th.minDataDelivered) {
+    return wrap("unknown", `only ${delivered} delivered (< ${th.minDataDelivered}), no opens`)
   }
-  if (cold >= th.coolingColdStreak) {
-    return wrap("cooling", `${cold} deliveries since last open`)
+  if (delivered >= th.dormantColdStreak && oldEnough) {
+    return wrap("dormant", `never opened in ${delivered} deliveries over ${Math.round(span)}d`)
   }
-  return wrap("engaged", `recent open/click (cold streak ${cold})`)
+  return wrap("never_opened", `opens=0 after ${delivered} deliveries (${Math.round(span)}d)`)
 }
