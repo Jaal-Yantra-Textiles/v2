@@ -42,13 +42,10 @@ const stakeStatusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
   }
 }
 
-const StakesTable = ({
-  stakes,
-  ccy,
-}: {
-  stakes: CapTableStake[]
-  ccy?: string | null
-}) => {
+const CapTableList = ({ capTables }: { capTables: InvestorCapTable[] }) => {
+  const stakes = capTables.flatMap((ct) => ct.stakes ?? [])
+  const ccy = capTables[0]?.currency_code
+
   const table = useDataTable({
     data: stakes,
     columns: [
@@ -64,6 +61,14 @@ const StakesTable = ({
           ) : (
             row.original.investor?.name ?? "—"
           ),
+      },
+      {
+        header: "Cap Table",
+        accessorKey: "cap_table_name",
+        cell: ({ row }: any) => {
+          const ct = capTables.find((c) => c.id === row.original.cap_table_id)
+          return ct?.name ?? "—"
+        },
       },
       {
         header: "Round",
@@ -91,14 +96,17 @@ const StakesTable = ({
       },
     ],
   })
+
   return (
-    <DataTable instance={table}>
-      <DataTable.Table />
-    </DataTable>
+    <Container className="divide-y p-0">
+      <DataTable instance={table}>
+        <DataTable.Table />
+      </DataTable>
+    </Container>
   )
 }
 
-const CapTableCard = ({ capTable }: { capTable: InvestorCapTable }) => {
+const CapTableSection = ({ capTable }: { capTable: InvestorCapTable }) => {
   const stakes = capTable.stakes ?? []
   const ccy = capTable.currency_code
 
@@ -154,13 +162,6 @@ const CapTableCard = ({ capTable }: { capTable: InvestorCapTable }) => {
           </div>
         </div>
       </div>
-
-      {stakes.length > 0 && (
-        <div className="flex flex-col gap-y-2 px-6 py-5">
-          <Text weight="plus">Stakes</Text>
-          <StakesTable stakes={stakes} ccy={ccy} />
-        </div>
-      )}
     </Container>
   )
 }
@@ -170,7 +171,7 @@ export const Component = () => {
 
   if (isPending) {
     return (
-      <div className="flex w-full flex-col gap-y-4 px-4 py-6 md:px-6">
+      <div className="flex flex-col gap-y-3">
         <Container className="p-6">
           <Skeleton className="h-48 w-full" />
         </Container>
@@ -179,9 +180,15 @@ export const Component = () => {
   }
 
   return (
-    <div className="flex w-full flex-col gap-y-4 px-4 py-6 md:px-6">
+    <div className="flex flex-col gap-y-3">
+      <div>
+        <Heading level="h1">Cap Table</Heading>
+        <Text size="small" className="text-ui-fg-subtle mt-1">
+          Ownership overview across all companies
+        </Text>
+      </div>
+
       {capTables.length === 0 ? (
-        // Show the chart shell by default even before the investor participates.
         <Container className="divide-y p-0">
           <div className="px-6 py-4">
             <Heading level="h2">Cap table</Heading>
@@ -194,7 +201,14 @@ export const Component = () => {
           </div>
         </Container>
       ) : (
-        capTables.map((ct) => <CapTableCard key={ct.id} capTable={ct} />)
+        capTables.map((ct) => <CapTableSection key={ct.id} capTable={ct} />)
+      )}
+
+      {capTables.length > 0 && capTables.some((ct) => (ct.stakes ?? []).length > 0) && (
+        <div className="flex flex-col gap-y-3">
+          <Heading level="h2">All Stakes</Heading>
+          <CapTableList capTables={capTables} />
+        </div>
       )}
     </div>
   )
