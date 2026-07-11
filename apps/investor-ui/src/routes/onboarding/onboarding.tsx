@@ -7,9 +7,10 @@ import {
   clx,
   toast,
 } from "@medusajs/ui"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { RouteFocusModal } from "../../components/modals"
+import { useRouteModal } from "../../components/modals/route-modal-provider/use-route-modal"
 import { useMe, useUpdateMe } from "../../hooks/api/users"
 
 export type InvestorOnboarding = {
@@ -184,6 +185,11 @@ const OnboardingInner = ({
 export const Onboarding = () => {
   const { user, isPending } = useMe()
   const metadata = (user as any)?.metadata ?? null
+  const { setCloseOnEscape } = useRouteModal()
+
+  useEffect(() => {
+    setCloseOnEscape(false)
+  }, [setCloseOnEscape])
 
   return (
     <RouteFocusModal prev="/">
