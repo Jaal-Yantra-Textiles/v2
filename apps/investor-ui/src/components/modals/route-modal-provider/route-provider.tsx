@@ -4,16 +4,22 @@ import { RouteModalProviderContext } from "./route-modal-context"
 
 type RouteModalProviderProps = PropsWithChildren<{
   prev: string | Partial<Path> | number
+  __closeOnEscape?: boolean
+  __setCloseOnEscape?: React.Dispatch<React.SetStateAction<boolean>>
 }>
 
 export const RouteModalProvider = ({
   prev,
+  __closeOnEscape,
+  __setCloseOnEscape,
   children,
 }: RouteModalProviderProps) => {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const [closeOnEscape, setCloseOnEscape] = useState(true)
+  const [localCloseOnEscape, localSetCloseOnEscape] = useState(true)
+  const closeOnEscape = __closeOnEscape ?? localCloseOnEscape
+  const setCloseOnEscape = __setCloseOnEscape ?? localSetCloseOnEscape
 
   const handleSuccess = useCallback(
     (path?: string) => {
