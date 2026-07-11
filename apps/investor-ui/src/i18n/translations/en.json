@@ -3212,7 +3212,7 @@
   },
   "login": {
     "forgotPassword": "Forgot password? - <0>Reset</0>",
-    "title": "Welcome to Medusa",
+    "title": "Welcome to Invest App",
     "hint": "Sign in to access the account area",
     "mfa": {
       "title": "Two-factor authentication",
@@ -3230,7 +3230,7 @@
     }
   },
   "invite": {
-    "title": "Welcome to Medusa",
+    "title": "Welcome to Invest App",
     "hint": "Create your account below",
     "backToLogin": "Back to login",
     "createAccount": "Create account",
