@@ -5,7 +5,7 @@ import {
   Skeleton,
   Text,
 } from "@medusajs/ui"
-import { Buildings, CurrencyDollar, Handshake, PencilSquare } from "@medusajs/icons"
+import { Buildings, CurrencyDollar, RocketLaunch, PencilSquare } from "@medusajs/icons"
 import { useMemo, useEffect } from "react"
 import { Outlet, useNavigate, Link } from "react-router-dom"
 import { useMe } from "../../hooks/api/users"
@@ -160,7 +160,7 @@ const DashboardHome = ({ investor }: { investor: Record<string, any> }) => {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <StatCard icon={<CurrencyDollar />} label="Total invested" value={money(totalInvested)} />
           <StatCard icon={<Buildings />} label="Companies" value={num(companies.length)} />
-          <StatCard icon={<Handshake />} label="Open deals" value={num(openDeals.length)} />
+          <StatCard icon={<RocketLaunch />} label="Open deals" value={num(openDeals.length)} />
         </div>
       )}
 
