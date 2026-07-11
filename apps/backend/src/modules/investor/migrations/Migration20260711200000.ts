@@ -9,6 +9,7 @@ export class Migration20260711200000 extends Migration {
   async up(): Promise<void> {
     this.addSql(`alter table if exists "funding_round" add column if not exists "instrument_type" text check ("instrument_type" in ('equity', 'safe', 'convertible_note')) not null default 'equity';`);
     this.addSql(`alter table if exists "funding_round" add column if not exists "valuation_cap" numeric null;`);
+    this.addSql(`alter table if exists "funding_round" add column if not exists "raw_valuation_cap" jsonb null;`);
     this.addSql(`alter table if exists "funding_round" add column if not exists "discount_rate" real null;`);
     this.addSql(`alter table if exists "funding_round" add column if not exists "safe_type" text check ("safe_type" in ('post_money', 'pre_money')) null;`);
 
