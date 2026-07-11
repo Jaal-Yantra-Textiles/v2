@@ -17,7 +17,7 @@ export const faireApi = {
         connected: boolean
         brand: boolean
         wholesale_pricing: boolean
-        shipping_policy: boolean
+        taxonomy: boolean
         ready_to_publish: boolean
       }
     }>("/admin/faire/status"),
