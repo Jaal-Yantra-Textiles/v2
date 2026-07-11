@@ -207,7 +207,7 @@ import { ListIdentitiesQuerySchema } from "./admin/users/identities/validators";
 import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-items/raw-materials/validators";
 import { BulkImportSchema } from "./admin/inventory-items/bulk-import/validators";
 import { PartnerCreateStoreReq } from "./partners/stores/validators";
-import { PartnerCreateProductReq } from "./partners/products/validators";
+import { PartnerCreateProductReq, PartnerArtisanProductDetailReq } from "./partners/products/validators";
 import {
   PartnerCreateRegionReq,
   PartnerUpdateRegionReq,
@@ -1175,6 +1175,25 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      // #859 S3 (#862): read the artisan made-to-order/maker-story detail.
+      matcher: "/partners/products/:id/artisan-detail",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      // #859 S3 (#862): upsert the artisan made-to-order/maker-story detail.
+      matcher: "/partners/products/:id/artisan-detail",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerArtisanProductDetailReq)),
       ],
     },
 

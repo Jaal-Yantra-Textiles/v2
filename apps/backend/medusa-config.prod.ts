@@ -504,6 +504,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/partner-onboarding-profile",
     },
     {
+      resolve: "./src/modules/artisan-product-detail",
+    },
+    {
       resolve: "./src/modules/partner_billing",
     },
     {
