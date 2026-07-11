@@ -29,6 +29,12 @@ const Investor = model.define("investor", {
   wallet_address: model.text().nullable(),
   bank_account_ref: model.text().nullable(),
 
+  // KYC / identity verification
+  pan_number: model.text().nullable(),
+  aadhar_number: model.text().nullable(),
+  international_id_number: model.text().nullable(),
+  id_type: model.enum(["pan", "aadhar", "international"]).nullable(),
+
   admins: model.hasMany(() => InvestorAdmin),
   stakes: model.hasMany(() => Stake),
   convertibles: model.hasMany(() => Convertible),

@@ -100,6 +100,17 @@ export function getRouteMap({
                 },
               ],
             },
+            {
+              path: "verification",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/settings/verification"),
+              children: [
+                {
+                  path: "edit",
+                  lazy: () => import("../../routes/settings/verification/edit"),
+                },
+              ],
+            },
             ...settingsRoutes.flatMap((r) => r?.children || []),
           ],
         },

@@ -2663,6 +2663,27 @@
       "edit": "Profiles changes saved"
     }
   },
+  "verification": {
+    "domain": "Verification",
+    "description": "Manage your identity verification documents.",
+    "noData": "No verification documents provided yet.",
+    "panCard": "PAN Card",
+    "panHint": "10-character alphanumeric PAN (e.g., ABCDE1234F)",
+    "aadharCard": "Aadhar Card",
+    "aadharHint": "12-digit Aadhar number",
+    "internationalId": "International ID / Passport",
+    "internationalIdHint": "Passport number or government-issued ID",
+    "internationalIdPlaceholder": "Enter ID number",
+    "provided": "Provided",
+    "validation": {
+      "panFormat": "Invalid PAN format. Expected format: ABCDE1234F",
+      "aadharFormat": "Invalid Aadhar format. Must be 12 digits",
+      "required": "This field is required"
+    },
+    "toast": {
+      "update": "Verification details saved"
+    }
+  },
   "users": {
     "domain": "Users",
     "editUser": "Edit User",
