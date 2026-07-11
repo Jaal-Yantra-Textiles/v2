@@ -2,6 +2,7 @@ export interface SendNotificationEmailInput {
   to: string
   template: string
   data?: Record<string, any>
+  locale?: string
 }
 
 export interface EmailTemplateData {
