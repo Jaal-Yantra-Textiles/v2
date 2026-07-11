@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Pre-push checks & balances (installed via `git config core.hooksPath` — see the
+# root package.json "prepare" script; runs on `pnpm install`).
+#
+# Catches the cheap-but-costly-in-CI failures locally BEFORE they reach `main`:
+#   1. package checksum   — pnpm-lock.yaml must be in sync with every package.json
+#                           (`--frozen-lockfile`, exactly what CI/Docker use)
+#   2. prod config parity — every custom module in medusa-config.ts must also be
+#                           registered in medusa-config.prod.ts (the Docker build
+#                           swaps in the prod config, so a gap is a prod-only crash)
+#
+# The heavyweight prod-config BUILD check is intentionally NOT run here (it is
+# slow and arch-sensitive — a Mac/ARM pass can still be an x86/CI fail). It runs
+# in CI (test-and-release.yml `prod-build` job) on the same x86 Node 22 as ECS,
+# and locally on demand via `pnpm check:prod-build`. When you touch backend deps,
+# the Dockerfile, or medusa-config*, run it before pushing.
+#
+# Bypass in an emergency with `git push --no-verify`.
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+echo "▶ pre-push: package checksum (pnpm --frozen-lockfile)…"
+if ! pnpm install --frozen-lockfile --config.confirmModulesPurge=false >/dev/null 2>&1; then
+  echo "✗ pnpm-lock.yaml is out of sync with package.json (would fail CI's frozen install)."
+  echo "  Fix: run 'pnpm install' and commit the updated pnpm-lock.yaml."
+  exit 1
+fi
+echo "  ✓ lockfile in sync"
+
+echo "▶ pre-push: medusa dev/prod config parity…"
+if ! pnpm --filter @jyt/backend check:prod-config; then
+  echo "✗ medusa-config.prod.ts is missing a module registered in medusa-config.ts."
+  exit 1
+fi
+
+# Nudge (non-blocking) to run the full prod build when build-affecting files changed.
+range="origin/main...HEAD"
+if git rev-parse origin/main >/dev/null 2>&1 && \
+   git diff --name-only "$range" 2>/dev/null | grep -qE '^(apps/backend/(src/|medusa-config|package.json|Dockerfile)|package.json|pnpm-lock.yaml)'; then
+  echo "ℹ backend deps/config/Dockerfile changed — CI will build with the prod config."
+  echo "  To catch a prod-only build break now, run: pnpm check:prod-build"
+fi
+
+echo "✓ pre-push checks passed"

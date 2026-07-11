@@ -38,7 +38,11 @@ RUN cp apps/backend/medusa-config.prod.ts apps/backend/medusa-config.ts
 RUN pnpm install --frozen-lockfile
 
 # Root build proxies to `pnpm --filter @jyt/backend build`, which runs from
-# apps/backend and produces apps/backend/.medusa/server.
+# apps/backend and produces apps/backend/.medusa/server. The workflow-schema
+# scan (build:schemas) + tsc type-resolution (resolve:aliases) push Node past
+# its ~2GB default old-space heap on this project, so raise the limit to avoid
+# a `JavaScript heap out of memory` (SIGABRT, exit 134) build crash.
+ENV NODE_OPTIONS="--max-old-space-size=6144"
 RUN pnpm run build
 
 # -----------------------------------------------------------------------------

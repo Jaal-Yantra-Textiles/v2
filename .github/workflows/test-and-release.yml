@@ -26,6 +26,35 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  # Prod-parity build gate — mirrors what the ECS Dockerfile does (build the
+  # backend against medusa-config.prod.ts) on the SAME x86 Node 22 runner, so a
+  # build that is green locally with the dev config (or on a dev's ARM machine)
+  # but RED in the prod build is caught here, on a PR, instead of only after a
+  # push-to-main when the "Deploy to AWS ECS" image build fails. Fast (no Docker
+  # image push, no DB). This is the check that would have caught the 2026-07-11
+  # prod-only build break (dev-config build passed; prod-config build failed).
+  prod-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - name: Install dependencies (frozen — package checksum)
+        run: pnpm install --frozen-lockfile
+      # The backend loads the etsy workspace plugin from its built .medusa output;
+      # medusa build can't resolve it unless it's built first.
+      - name: Build workspace plugins
+        run: pnpm --filter "@jytextiles/medusa-plugin-etsy-sync" build
+      - name: Config dev/prod parity
+        run: pnpm --filter @jyt/backend check:prod-config
+      - name: Prod-config build (mirror ECS Dockerfile)
+        run: pnpm --filter @jyt/backend check:prod-build
+
   test:
     runs-on: ubuntu-latest
 

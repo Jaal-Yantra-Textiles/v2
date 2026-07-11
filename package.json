@@ -17,6 +17,10 @@
   "scripts": {
     "dev": "pnpm --filter @jyt/backend dev",
     "build": "pnpm --filter @jyt/backend build",
+    "prepare": "git config core.hooksPath scripts/git-hooks || true",
+    "check:prod-config": "pnpm --filter @jyt/backend check:prod-config",
+    "check:prod-build": "pnpm --filter @jyt/backend check:prod-build",
+    "check:predeploy": "pnpm install --frozen-lockfile && pnpm run check:prod-config && pnpm run check:prod-build",
     "start": "pnpm --filter @jyt/backend start",
     "seed": "pnpm --filter @jyt/backend seed",
     "test:integration:http": "pnpm --filter @jyt/backend test:integration:http",
