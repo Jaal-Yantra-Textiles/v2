@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Alert, Button, Heading, Hint, Input, Text, toast } from "@medusajs/ui"
+import { Alert, Button, Heading, Hint, Input, Select, Text, toast } from "@medusajs/ui"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { Trans, useTranslation } from "react-i18next"
@@ -12,6 +12,8 @@ import {
   useResendPartnerVerification,
   useSignInWithEmailPass,
 } from "../../hooks/api"
+import { i18n } from "../../components/utilities/i18n"
+import { languages } from "../../i18n/languages"
 import { isFetchError } from "../../lib/is-fetch-error"
 import { useExtension } from "../../providers/extension-provider"
 
@@ -250,6 +252,25 @@ export const Login = () => {
           >
             Sign up
           </Link>
+
+          <div className="flex w-full flex-col items-center gap-y-1">
+            <div className="h-px w-full border-b border-dotted" />
+            <Select
+              value={i18n.language}
+              onValueChange={(value) => i18n.changeLanguage(value)}
+            >
+              <Select.Trigger className="w-full">
+                <Select.Value />
+              </Select.Trigger>
+              <Select.Content>
+                {languages.map((lang) => (
+                  <Select.Item key={lang.code} value={lang.code}>
+                    {lang.display_name}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
+          </div>
         </div>
       </div>
     </div>
