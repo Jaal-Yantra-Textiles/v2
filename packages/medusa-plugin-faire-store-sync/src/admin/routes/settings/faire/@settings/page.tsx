@@ -31,7 +31,6 @@ const cleanSettings = (form: any) => {
   const out: any = { ...form }
   for (const key of [
     "default_brand_id",
-    "default_shipping_policy_id",
     "default_category",
   ]) {
     if (!out[key] || out[key] === NONE) out[key] = null
@@ -56,7 +55,6 @@ type Status = {
     connected: boolean
     brand: boolean
     wholesale_pricing: boolean
-    shipping_policy: boolean
     taxonomy: boolean
     ready_to_publish: boolean
   }
@@ -139,7 +137,6 @@ const FaireSyncSettingsDrawer = () => {
                   <ChecklistItem ok={status?.readiness.connected} label="Faire connected" />
                   <ChecklistItem ok={status?.readiness.brand} label="Brand configured" />
                   <ChecklistItem ok={status?.readiness.wholesale_pricing} label="Wholesale pricing" />
-                  <ChecklistItem ok={status?.readiness.shipping_policy} label="Shipping policy" />
                   <ChecklistItem ok={status?.readiness.taxonomy} label="Default category" />
                 </div>
               </div>
@@ -213,25 +210,17 @@ const FaireSyncSettingsDrawer = () => {
                       placeholder="e.g. 14"
                     />
                   </Field>
-                  <Field label="Default category (taxonomy)">
-                    <SelectField
-                      value={String(form.default_category ?? "")}
-                      onValueChange={(v) =>
-                        setForm({ ...form, default_category: v || null })
-                      }
-                      disabled={!connected}
-                      options={taxonomy.map((t: any) => ({ value: t.id, label: t.name }))}
-                    />
-                  </Field>
-                  <Field label="Shipping policy ID">
-                    <Input
-                      value={String(form.default_shipping_policy_id ?? "")}
-                      onChange={(e) =>
-                        setForm({ ...form, default_shipping_policy_id: e.target.value || null })
-                      }
-                      disabled={!connected}
-                      placeholder="sp_..."
-                    />
+                  <Field label="Fallback category (taxonomy)">
+                    <Tooltip content="Faire requires a category per product. Resolution order: product metadata → the product's Type (matched by name) → this fallback. Set the product Type or pick a category on the product page for accuracy.">
+                      <SelectField
+                        value={String(form.default_category ?? "")}
+                        onValueChange={(v) =>
+                          setForm({ ...form, default_category: v || null })
+                        }
+                        disabled={!connected}
+                        options={taxonomy.map((t: any) => ({ value: t.id, label: t.name }))}
+                      />
+                    </Tooltip>
                   </Field>
                   <Field label="Follow product status">
                     <Tooltip content="If on, published Medusa products are published on Faire; draft products sync as drafts.">

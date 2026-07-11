@@ -131,6 +131,7 @@ const prepareProductStep = createStep(
         "description",
         "status",
         "metadata",
+        "type.value",
         "tags.*",
         "variants.*",
         "variants.prices.*",
@@ -238,11 +239,16 @@ const prepareProductStep = createStep(
 
     // Resolve taxonomy_type.id — REQUIRED by Faire create. Priority:
     //   product.metadata.faire_taxonomy_type_id (tt_… or a category name)
+    //   → product.metadata.faire_category (name)
+    //   → product.type.value (the native Medusa Product Type, matched by name)
     //   → settings.default_category (id or name) → error.
+    // Product Type is the natural per-product carrier; the product widget lets an
+    // operator pin an exact `tt_…` id in metadata when the type name is ambiguous.
     const client = service.getClient(input.auth_mode)
     const categoryHint =
       metadata.faire_taxonomy_type_id ||
       metadata.faire_category ||
+      product.type?.value ||
       settings.default_category ||
       ""
     const taxonomyTypeId = await client.resolveTaxonomyTypeId(
@@ -252,9 +258,9 @@ const prepareProductStep = createStep(
     if (!taxonomyTypeId) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        "Faire requires a product category (taxonomy_type). Set a Faire " +
-          "category in sync settings (default_category) or on the product " +
-          "(metadata.faire_taxonomy_type_id — a `tt_…` id or a category name)."
+        "Faire requires a product category (taxonomy_type). Set the product's " +
+          "Type to a Faire category name, pick one from the Faire panel on the " +
+          "product page, or set a fallback category in Faire sync settings."
       )
     }
 
