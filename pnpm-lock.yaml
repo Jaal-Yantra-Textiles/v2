@@ -151,10 +151,10 @@ importers:
         version: 5.2.2(react-hook-form@7.71.2(react@18.3.1))
       '@jytextiles/medusa-plugin-etsy-sync':
         specifier: latest
-        version: 0.1.4(@medusajs/admin-sdk@2.17.2)(@medusajs/cli@2.17.2(@types/node@20.19.34))(@medusajs/dashboard@2.17.2(@emotion/is-prop-valid@1.4.0)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(typescript@5.9.3))(@medusajs/framework@2.17.2(@medusajs/cli@2.17.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.2.0))(@medusajs/icons@2.17.2(react@18.3.1))(@medusajs/medusa@2.17.2)(@medusajs/test-utils@2.17.2)(@medusajs/types@2.17.2(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)))(@medusajs/ui@4.1.19(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
+        version: 0.1.5(@medusajs/admin-sdk@2.17.2)(@medusajs/cli@2.17.2(@types/node@20.19.34))(@medusajs/dashboard@2.17.2(@emotion/is-prop-valid@1.4.0)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(typescript@5.9.3))(@medusajs/framework@2.17.2(@medusajs/cli@2.17.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.2.0))(@medusajs/icons@2.17.2(react@18.3.1))(@medusajs/medusa@2.17.2)(@medusajs/test-utils@2.17.2)(@medusajs/types@2.17.2(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)))(@medusajs/ui@4.1.19(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
       '@jytextiles/medusa-plugin-faire-store-sync':
         specifier: latest
-        version: 0.2.12(@medusajs/admin-sdk@2.17.2)(@medusajs/cli@2.17.2(@types/node@20.19.34))(@medusajs/dashboard@2.17.2(@emotion/is-prop-valid@1.4.0)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(typescript@5.9.3))(@medusajs/framework@2.17.2(@medusajs/cli@2.17.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.2.0))(@medusajs/icons@2.17.2(react@18.3.1))(@medusajs/medusa@2.17.2)(@medusajs/test-utils@2.17.2)(@medusajs/types@2.17.2(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)))(@medusajs/ui@4.1.19(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
+        version: 0.2.13(@medusajs/admin-sdk@2.17.2)(@medusajs/cli@2.17.2(@types/node@20.19.34))(@medusajs/dashboard@2.17.2(@emotion/is-prop-valid@1.4.0)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(typescript@5.9.3))(@medusajs/framework@2.17.2(@medusajs/cli@2.17.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.2.0))(@medusajs/icons@2.17.2(react@18.3.1))(@medusajs/medusa@2.17.2)(@medusajs/test-utils@2.17.2)(@medusajs/types@2.17.2(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)))(@medusajs/ui@4.1.19(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
       '@mastra/core':
         specifier: latest
         version: 1.50.1(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(ai@5.0.138(zod@4.2.0))(express@5.2.1)(rxjs@7.8.2)(zod@4.2.0)
@@ -4699,8 +4699,8 @@ packages:
     peerDependencies:
       tslib: '2'
 
-  '@jytextiles/medusa-plugin-etsy-sync@0.1.4':
-    resolution: {integrity: sha512-hxA9QAtnsfRDgPbOPJk3Mva89XFrgvlrWKY1YF6qDbbGidWHpphGe8r++cKG4wiw1V5QtYjjKxvFxxheUG3SxA==}
+  '@jytextiles/medusa-plugin-etsy-sync@0.1.5':
+    resolution: {integrity: sha512-Coes47JCF+lJAjhhjmU1HXRiHm2E2ri0Wd2Vl8vTqJfgoJcuSqMLynUEy37WN8m9FqvmDrtlOJITYViTOrng6g==}
     peerDependencies:
       '@medusajs/admin-sdk': 2.17.2
       '@medusajs/cli': 2.17.2
@@ -4715,8 +4715,8 @@ packages:
       react-dom: ^18.3.1
       react-router-dom: 6.30.3
 
-  '@jytextiles/medusa-plugin-faire-store-sync@0.2.12':
-    resolution: {integrity: sha512-eJs1hItxlCy65q1mBuX4tGob2hucu2VJO/f6yAMYd50x2NDdr3RAAOdfNOndSidORTIIf+q63zBRf3tXzADq4w==}
+  '@jytextiles/medusa-plugin-faire-store-sync@0.2.13':
+    resolution: {integrity: sha512-tMkFgUTedJ4pp3Z+Q7I3w7XLbUkECUpeKja7+RQsS880jCF9SwvhxeJBWyfbwKg25kgJcIt0R2eH9Lo9z5Vysg==}
     peerDependencies:
       '@medusajs/admin-sdk': 2.17.2
       '@medusajs/cli': 2.17.2
@@ -25296,7 +25296,7 @@ snapshots:
       '@jsonjoy.com/codegen': 17.67.0(tslib@2.8.1)
       tslib: 2.8.1
 
-  '@jytextiles/medusa-plugin-etsy-sync@0.1.4(@medusajs/admin-sdk@2.17.2)(@medusajs/cli@2.17.2(@types/node@20.19.34))(@medusajs/dashboard@2.17.2(@emotion/is-prop-valid@1.4.0)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(typescript@5.9.3))(@medusajs/framework@2.17.2(@medusajs/cli@2.17.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.2.0))(@medusajs/icons@2.17.2(react@18.3.1))(@medusajs/medusa@2.17.2)(@medusajs/test-utils@2.17.2)(@medusajs/types@2.17.2(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)))(@medusajs/ui@4.1.19(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)':
+  '@jytextiles/medusa-plugin-etsy-sync@0.1.5(@medusajs/admin-sdk@2.17.2)(@medusajs/cli@2.17.2(@types/node@20.19.34))(@medusajs/dashboard@2.17.2(@emotion/is-prop-valid@1.4.0)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(typescript@5.9.3))(@medusajs/framework@2.17.2(@medusajs/cli@2.17.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.2.0))(@medusajs/icons@2.17.2(react@18.3.1))(@medusajs/medusa@2.17.2)(@medusajs/test-utils@2.17.2)(@medusajs/types@2.17.2(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)))(@medusajs/ui@4.1.19(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@medusajs/admin-sdk': 2.17.2
       '@medusajs/cli': 2.17.2(@types/node@20.19.34)
@@ -25311,7 +25311,7 @@ snapshots:
       react-dom: 18.3.1(react@18.3.1)
       react-router-dom: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
 
-  '@jytextiles/medusa-plugin-faire-store-sync@0.2.12(@medusajs/admin-sdk@2.17.2)(@medusajs/cli@2.17.2(@types/node@20.19.34))(@medusajs/dashboard@2.17.2(@emotion/is-prop-valid@1.4.0)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(typescript@5.9.3))(@medusajs/framework@2.17.2(@medusajs/cli@2.17.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.2.0))(@medusajs/icons@2.17.2(react@18.3.1))(@medusajs/medusa@2.17.2)(@medusajs/test-utils@2.17.2)(@medusajs/types@2.17.2(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)))(@medusajs/ui@4.1.19(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)':
+  '@jytextiles/medusa-plugin-faire-store-sync@0.2.13(@medusajs/admin-sdk@2.17.2)(@medusajs/cli@2.17.2(@types/node@20.19.34))(@medusajs/dashboard@2.17.2(@emotion/is-prop-valid@1.4.0)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(typescript@5.9.3))(@medusajs/framework@2.17.2(@medusajs/cli@2.17.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.2.0))(@medusajs/icons@2.17.2(react@18.3.1))(@medusajs/medusa@2.17.2)(@medusajs/test-utils@2.17.2)(@medusajs/types@2.17.2(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)))(@medusajs/ui@4.1.19(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@medusajs/admin-sdk': 2.17.2
       '@medusajs/cli': 2.17.2(@types/node@20.19.34)
