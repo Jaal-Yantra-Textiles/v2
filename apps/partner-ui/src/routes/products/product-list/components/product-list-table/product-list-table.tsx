@@ -1,5 +1,6 @@
 import { Link as LinkIcon, PencilSquare, Trash } from "@medusajs/icons"
 import { Button, Container, Heading, toast, usePrompt } from "@medusajs/ui"
+import copy from "copy-to-clipboard"
 import { keepPreviousData } from "@tanstack/react-query"
 import { createColumnHelper } from "@tanstack/react-table"
 import { useMemo } from "react"
@@ -128,10 +129,17 @@ const ProductActions = ({ product }: { product: HttpTypes.AdminProduct }) => {
   const handleSharePreview = async () => {
     try {
       const { url } = await getPreviewLink()
-      await navigator.clipboard.writeText(url)
-      toast.success("Private preview link copied", {
-        description: "A shareable, non-discoverable link is on your clipboard.",
-      })
+      // `copy-to-clipboard` is synchronous (execCommand) so it works even though
+      // we're past the original click's user-gesture window (async fetch above),
+      // which navigator.clipboard.writeText rejects on Safari/WebKit.
+      const copied = copy(url)
+      if (copied) {
+        toast.success("Private preview link copied", {
+          description: "A shareable, non-discoverable link is on your clipboard.",
+        })
+      } else {
+        toast.info("Private preview link", { description: url })
+      }
     } catch (e) {
       toast.error("Couldn't create preview link", {
         description: e instanceof Error ? e.message : String(e),

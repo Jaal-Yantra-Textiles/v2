@@ -9,11 +9,21 @@ import { signPreviewToken } from "../../../../store/products/preview/lib/token"
 
 const LINK_ENTRY = partnerProductLink.entryPoint
 
+/** Core storefront base (cicilabel.com) — where artisan products list + preview.
+ * `STORE_URL` is the canonical core-storefront env (FRONTEND_URL is the separate
+ * CREATE/brand site, jaalyantra.com — using it produced the wrong domain). */
+const CORE_STOREFRONT_URL = process.env.STORE_URL || "https://cicilabel.com"
+
 /**
  * Return a private, shareable review link for an artisan's (unpublished)
  * product (#859). The product lists on the core cicilabel.com channel, so the
- * preview lives on the core storefront (`FRONTEND_URL`) under the token-gated
+ * preview lives on the core storefront under the token-gated
  * `/products/preview/:token` route — not discoverable in any listing/sitemap.
+ *
+ * The path is intentionally country-less: the storefront middleware redirects it
+ * to the store's own default region (`/{country}/products/preview/:token`), so
+ * we don't hard-code a country (the partner's region country could be one the
+ * core store doesn't even serve).
  *
  * @route GET /partners/products/:id/preview-link
  */
@@ -55,41 +65,14 @@ export const GET = async (
     throw new MedusaError(MedusaError.Types.NOT_FOUND, `Product ${productId} not found`)
   }
 
-  // Resolve a country code for the region-prefixed storefront URL from the
-  // partner's store region (falls back to a sensible default).
-  let countryCode = "de"
-  try {
-    const { data: partners = [] } = await query.graph({
-      entity: "partners",
-      fields: ["id", "stores.default_region_id"],
-      filters: { id: partner.id },
-    })
-    const regionId = partners?.[0]?.stores?.find(
-      (s: any) => s?.default_region_id
-    )?.default_region_id
-    if (regionId) {
-      const { data: regions = [] } = await query.graph({
-        entity: "region",
-        fields: ["id", "countries.iso_2"],
-        filters: { id: regionId },
-      })
-      const iso = regions?.[0]?.countries?.[0]?.iso_2
-      if (iso) {
-        countryCode = iso
-      }
-    }
-  } catch {
-    // keep the default country code
-  }
-
   const token = signPreviewToken(productId)
-  const base = (process.env.FRONTEND_URL || "").replace(/\/$/, "")
-  const path = `/${countryCode}/products/preview/${token}`
+  const base = CORE_STOREFRONT_URL.replace(/\/$/, "")
+  const path = `/products/preview/${token}`
 
   res.json({
     token,
     path,
-    url: base ? `${base}${path}` : path,
+    url: `${base}${path}`,
     status: product.status,
   })
 }

@@ -1,6 +1,7 @@
 import { Link as LinkIcon, PencilSquare, Trash } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
 import { Container, Heading, StatusBadge, toast, usePrompt } from "@medusajs/ui"
+import copy from "copy-to-clipboard"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 
@@ -48,10 +49,16 @@ export const ProductGeneralSection = ({
   const handleSharePreview = async () => {
     try {
       const { url } = await getPreviewLink()
-      await navigator.clipboard.writeText(url)
-      toast.success("Private preview link copied", {
-        description: "A shareable, non-discoverable link is on your clipboard.",
-      })
+      // Synchronous copy (execCommand) — works past the click's gesture window,
+      // unlike navigator.clipboard.writeText which Safari/WebKit rejects here.
+      const copied = copy(url)
+      if (copied) {
+        toast.success("Private preview link copied", {
+          description: "A shareable, non-discoverable link is on your clipboard.",
+        })
+      } else {
+        toast.info("Private preview link", { description: url })
+      }
     } catch (e) {
       toast.error("Couldn't create preview link", {
         description: e instanceof Error ? e.message : String(e),
