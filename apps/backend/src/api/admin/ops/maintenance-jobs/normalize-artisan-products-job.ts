@@ -129,13 +129,44 @@ export const normalizeArtisanProductsJob: MaintenanceJob = {
       }
     }
 
-    // 3. Products in those channels (+ status).
-    const { data: products = [] } = await query.graph({
-      entity: "product",
-      fields: ["id", "title", "status", "sales_channels.id"],
-      filters: { sales_channels: { id: channelIds } } as any,
-      pagination: { take: limit },
+    // 3. Products in those channels (+ status). Query from the sales_channel
+    // side: `sales_channels` is a module link on product, so it can be expanded
+    // in `fields` but NOT used in `filters` (MikroORM has no such property →
+    // "Trying to query by not existing property Product.sales_channels"). The
+    // channel entity, by contrast, has a filterable `products` relation. We also
+    // keep each product's originating channel so we can resolve its owner
+    // directly from `channelToPartner`.
+    const { data: channelsWithProducts = [] } = await query.graph({
+      entity: "sales_channel",
+      fields: ["id", "products.id", "products.title", "products.status"],
+      filters: { id: channelIds } as any,
     })
+
+    // Flatten to unique products, tagging each with its owning partner, and cap
+    // the total scanned at `limit`.
+    const seen = new Set<string>()
+    const products: Array<{
+      id: string
+      title?: string
+      status?: string
+      partnerId: string
+    }> = []
+    for (const ch of channelsWithProducts as any[]) {
+      const partnerId = channelToPartner.get(ch.id)
+      if (!partnerId) continue
+      for (const prod of ch.products || []) {
+        if (!prod?.id || seen.has(prod.id)) continue
+        seen.add(prod.id)
+        products.push({
+          id: prod.id,
+          title: prod.title,
+          status: prod.status,
+          partnerId,
+        })
+        if (products.length >= limit) break
+      }
+      if (products.length >= limit) break
+    }
 
     // 4. Existing ownership links → already went through the real flow.
     const { data: existingLinks = [] } = await query.graph({
@@ -146,14 +177,11 @@ export const normalizeArtisanProductsJob: MaintenanceJob = {
       (existingLinks as any[]).map((l) => l.product_id)
     )
 
-    for (const prod of products as any[]) {
+    for (const prod of products) {
       if (prod.status !== "published") continue
       if (linkedProductIds.has(prod.id)) continue
 
-      const channelId = (prod.sales_channels || [])
-        .map((c: any) => c.id)
-        .find((id: string) => channelToPartner.has(id))
-      const partnerId = channelId ? channelToPartner.get(channelId) : undefined
+      const partnerId = prod.partnerId
       if (!partnerId) continue
 
       const change: MaintenanceChange = {
