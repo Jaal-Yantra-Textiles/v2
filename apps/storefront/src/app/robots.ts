@@ -16,6 +16,8 @@ export default function robots(): MetadataRoute.Robots {
           "/*/account",
           "/*/account/*",
           "/*/order/*",
+          // #859 — private artisan product review links (unpublished, noindex).
+          "/*/products/preview/*",
         ],
       },
     ],
