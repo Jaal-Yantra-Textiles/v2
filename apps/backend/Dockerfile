@@ -28,14 +28,25 @@ ENV VITE_MEDUSA_BACKEND_URL=${VITE_MEDUSA_BACKEND_URL}
 ENV VITE_MEDIA_GALLERY_BASE_URL=${VITE_MEDIA_GALLERY_BASE_URL}
 ENV VITE_STOREFRONT_URL=${VITE_STOREFRONT_URL}
 
-# Copy the entire workspace. pnpm-workspace.yaml references apps/* and pnpm
-# expects those manifests to exist. .dockerignore trims node_modules/.medusa/etc.
+# --- dependency layer (cached on the lockfile alone) -------------------------
+# `pnpm fetch` populates the virtual store from pnpm-lock.yaml ONLY, so this
+# layer — the slow part (download + extract every dependency) — is reused across
+# every commit that doesn't change the lockfile. Previously `COPY . .` ran
+# BEFORE install, so ANY source edit busted the install layer and pnpm
+# re-downloaded everything on every build. .npmrc carries the shamefully-hoist
+# config Medusa's phantom deps need.
+COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+RUN pnpm fetch
+
+# Now bring in the full workspace. .dockerignore trims node_modules/.medusa/etc.
 COPY . .
 
 # Use the production Medusa config for the build.
 RUN cp apps/backend/medusa-config.prod.ts apps/backend/medusa-config.ts
 
-RUN pnpm install --frozen-lockfile
+# --offline: resolve entirely from the store `pnpm fetch` populated — no network,
+# so this stays fast even when the layer re-runs on a source change.
+RUN pnpm install --frozen-lockfile --offline
 
 # Root build proxies to `pnpm --filter @jyt/backend build`, which runs from
 # apps/backend and produces apps/backend/.medusa/server. The workflow-schema
