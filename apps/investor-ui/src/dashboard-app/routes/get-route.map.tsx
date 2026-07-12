@@ -43,6 +43,17 @@ export function getRouteMap({
               lazy: () => import("../../routes/companies/[companyId]"),
             },
             {
+              path: "/company",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/company"),
+              children: [
+                {
+                  path: "invite",
+                  lazy: () => import("../../routes/company/invite"),
+                },
+              ],
+            },
+            {
               path: "/cap-table",
               errorElement: <ErrorBoundary />,
               lazy: () => import("../../routes/cap-table"),

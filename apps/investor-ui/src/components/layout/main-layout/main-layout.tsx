@@ -1,4 +1,5 @@
 import {
+  Buildings,
   ChartBar,
   ChartPie,
   CogSixTooth,
@@ -172,6 +173,7 @@ const Header = () => {
 const useCoreRoutes = (): Omit<INavItem, "pathname">[] => {
   // Investor UI primary nav. Each points at a top-level investor route.
   return [
+    { icon: <Buildings />, label: "Company", to: "/company" },
     { icon: <ChartPie />, label: "Cap table", to: "/cap-table" },
     { icon: <CurrencyDollar />, label: "Finances", to: "/finances" },
     { icon: <ShieldCheck />, label: "Compliances", to: "/compliance" },
