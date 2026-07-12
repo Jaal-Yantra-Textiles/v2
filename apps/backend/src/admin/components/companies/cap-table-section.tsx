@@ -9,7 +9,7 @@ import {
   toast,
   useDataTable,
 } from "@medusajs/ui"
-import { ArrowPath, CurrencyDollar, DocumentText, Plus, RocketLaunch, Users } from "@medusajs/icons"
+import { ArrowPath, CurrencyDollar, DocumentText, PencilSquare, Plus, RocketLaunch, Users } from "@medusajs/icons"
 import { useMemo } from "react"
 import { Link } from "react-router-dom"
 import { ActionMenu } from "../common/action-menu"
@@ -43,11 +43,19 @@ const stakeStatusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
     case "unpaid":
       return "orange"
     case "cancelled":
+    case "rejected":
       return "red"
+    case "not_followed_up":
+      return "grey"
     default:
       return "grey"
   }
 }
+
+// A participation is "absorbed" into the capital table only once it's fully
+// paid. Committed money and share count exclude parked/declined stakes.
+const ABSORBED_STATUSES = new Set(["fully_paid"])
+const EXCLUDED_STATUSES = new Set(["rejected", "not_followed_up", "cancelled"])
 
 const roundStatusColor = (status?: string): "green" | "orange" | "grey" | "red" => {
   switch (status) {
@@ -69,18 +77,30 @@ const OwnershipPanel = ({ capTable }: { capTable: AdminCapTable }) => {
   const stakes = capTable.stakes ?? []
   const ccy = capTable.currency_code
 
-  const { segments, totalCommitted, totalPaid } = useMemo(() => {
-    const paidStatuses = new Set(["fully_paid", "active", "partially_paid"])
-    const segs: DonutSegment[] = stakes.map((s) => ({
+  const { segments, totalCommitted, totalPaid, absorbedCount } = useMemo(() => {
+    // Capital table = fully absorbed (paid) stakes only. The ownership donut
+    // reflects who actually holds paid-up equity, not who merely committed.
+    const absorbed = stakes.filter((s) => ABSORBED_STATUSES.has(s.status ?? ""))
+    const segs: DonutSegment[] = absorbed.map((s) => ({
       label: s.investor?.name ?? "Investor",
       value: stakeValue(s),
-      highlight: s.status === "fully_paid",
+      highlight: true,
     }))
-    const committed = stakes.reduce((sum, s) => sum + Number(s.total_invested ?? 0), 0)
-    const paid = stakes
-      .filter((s) => paidStatuses.has(s.status ?? ""))
+    // Committed = still-live pipeline (excludes declined / not-followed-up /
+    // cancelled), so it reads as "money we expect to raise".
+    const committed = stakes
+      .filter((s) => !EXCLUDED_STATUSES.has(s.status ?? ""))
       .reduce((sum, s) => sum + Number(s.total_invested ?? 0), 0)
-    return { segments: segs, totalCommitted: committed, totalPaid: paid }
+    const paid = absorbed.reduce(
+      (sum, s) => sum + Number(s.total_invested ?? 0),
+      0
+    )
+    return {
+      segments: segs,
+      totalCommitted: committed,
+      totalPaid: paid,
+      absorbedCount: absorbed.length,
+    }
   }, [stakes])
 
   return (
@@ -107,8 +127,8 @@ const OwnershipPanel = ({ capTable }: { capTable: AdminCapTable }) => {
           <Text weight="plus" className="mt-1">{num(capTable.total_shares_authorized)}</Text>
         </div>
         <div className="rounded-lg border p-3">
-          <Text size="small" className="text-ui-fg-subtle">Investors</Text>
-          <Text weight="plus" className="mt-1">{stakes.length}</Text>
+          <Text size="small" className="text-ui-fg-subtle">Holders (paid)</Text>
+          <Text weight="plus" className="mt-1">{absorbedCount}</Text>
         </div>
       </div>
     </div>
@@ -208,6 +228,14 @@ const DealActions = ({
                 label: "Publish round",
                 disabled: !canPublish,
                 onClick: () => publish(round.id),
+              },
+              {
+                icon: <PencilSquare />,
+                label: "Edit target amount",
+                // Locked once a participant onboards (server enforces too).
+                disabled:
+                  round.status === "closed" || round.status === "cancelled",
+                to: `edit-round-target?round_id=${round.id}`,
               },
               {
                 icon: <CurrencyDollar />,

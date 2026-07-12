@@ -1,6 +1,54 @@
 # Multi-account storefront hosting provisioning (Vercel / Cloudflare Pages / Render / Netlify)
 
-Status: **in progress** — slice 1 built (2026-07-04). Branch `feat/839-unsubscribe-bounce-webhooks`.
+Status: **S1–S3 + S5(Netlify/Render) + admin CRUD + partner-agnostic routes done**
+(2026-07-12, branch `feat/storefront-hosting-rotation-s3`). S1/S2 previously merged.
+
+## What shipped 2026-07-12 (this branch)
+
+- **S3 rotation wiring** — `provisionStorefrontWorkflow` is now provider-agnostic:
+  it selects a `deployment_account` via `decideProvisionTarget` (least-loaded of
+  the preferred provider → spill to any provider → legacy env fallback), runs
+  create/env/domain/DNS/deploy through the resolved `HostingProvider`, stamps the
+  new partner columns, and increments `project_count` (with compensating
+  rollback). **Default provider for new partners = Cloudflare Pages** (override
+  via `DEFAULT_HOSTING_PROVIDER` or `partner.hosting_provider`).
+- **New partner columns** (`Migration20260712150000`): `hosting_provider`,
+  `deployment_account_id`, `deployment_project_id`, `deployment_project_name`.
+  Applied locally. vercel_* columns kept in sync for Vercel partners.
+- **S5 adapters**: `netlify-provider.ts` + `render-provider.ts` implement
+  `HostingProvider` (repo-linked create, env, custom domain, deploy, dnsTarget →
+  `*.netlify.app` / `*.onrender.com`). Registered in `registry.ts`.
+  `HostingCredentials.extra` carries provider-specific ids (Netlify
+  `github_installation_id`/`account_id`, Render `owner_id`, …) decrypted from
+  api_config.
+- **Cloudflare Workers: NOT built (decision).** Repo→Worker linking is
+  dashboard-only in CF's API (open gap, workers-sdk#12058); only build-trigger/
+  env/deploy/custom-domain are API-driven. **Cloudflare Pages** (already built,
+  `POST /accounts/{id}/pages/projects`) is the Cloudflare hosting path.
+- **S4 admin CRUD**: `/admin/deployment-accounts` (+ `/:id`) — create (token
+  AES-encrypted at rest via encryption module → `api_config.token_encrypted`,
+  redacted with `token_present`), list (capacity surfaced), update (cutoff via
+  `status:"full"`, round-up via `cutoff_max`), delete. Validators + middleware
+  wired. **Admin React UI DONE**: `src/admin/routes/settings/deployment-accounts/
+  page.tsx` (Settings → "Storefront Hosting") — list Table + create FocusModal +
+  edit Drawer + row actions (cutoff toggle / delete), provider-specific config
+  fields, token `_present` badge, capacity/at-cap display. Hooks in
+  `src/admin/hooks/api/deployment-accounts.ts`.
+- **Provider-agnostic partner routes**: `GET/DELETE /partners/storefront` and the
+  provision dup-check now dispatch through `resolveHostingProviderForPartner`
+  (status/teardown work for CF/Netlify/Render partners, not just Vercel). DELETE
+  decrements the account's `project_count`.
+- **partner-ui**: `settings/stores` surfaces the hosting provider; provision/
+  status/custom-domain + DNS-records/verify flow already existed.
+- Tests: `account-selector` (12) + `hosting-providers` (43 total) green.
+
+**Next**: admin React UI for deployment-accounts; backfill existing Vercel
+partners to a Vercel env-account row; configure a Cloudflare Pages + Netlify
+`deployment_account` with real `cutoff_max`; live provision smoke-test.
+
+---
+
+Status (historical): **in progress** — slice 1 built (2026-07-04).
 
 ## Goal
 

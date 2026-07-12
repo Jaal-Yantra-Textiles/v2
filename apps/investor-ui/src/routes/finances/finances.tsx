@@ -10,6 +10,7 @@ import {
 import { CreditCard, CurrencyDollar } from "@medusajs/icons"
 import { Outlet } from "react-router-dom"
 import { ActionMenu } from "../../components/common/action-menu/action-menu"
+import { useIsViewOnly } from "../../hooks/api/companies"
 import {
   useDeals,
   useMyParticipations,
@@ -27,7 +28,10 @@ const statusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
     case "partially_paid":
       return "orange"
     case "cancelled":
+    case "rejected":
       return "red"
+    case "not_followed_up":
+      return "grey"
     default:
       return "grey"
   }
@@ -35,6 +39,7 @@ const statusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
 
 const DealsTable = () => {
   const { deals, isPending } = useDeals()
+  const isViewOnly = useIsViewOnly()
 
   const table = useDataTable({
     data: deals,
@@ -59,23 +64,30 @@ const DealsTable = () => {
       {
         id: "actions",
         header: "",
-        cell: ({ row }: any) => (
-          <div className="flex justify-end">
-            <ActionMenu
-              groups={[
-                {
-                  actions: [
-                    {
-                      icon: <CurrencyDollar />,
-                      label: "Participate",
-                      to: `participate/${row.original.id}`,
-                    },
-                  ],
-                },
-              ]}
-            />
-          </div>
-        ),
+        cell: ({ row }: any) =>
+          isViewOnly ? (
+            <div className="flex justify-end">
+              <Text size="xsmall" className="text-ui-fg-muted">
+                View-only
+              </Text>
+            </div>
+          ) : (
+            <div className="flex justify-end">
+              <ActionMenu
+                groups={[
+                  {
+                    actions: [
+                      {
+                        icon: <CurrencyDollar />,
+                        label: "Participate",
+                        to: `participate/${row.original.id}`,
+                      },
+                    ],
+                  },
+                ]}
+              />
+            </div>
+          ),
       },
     ],
   })

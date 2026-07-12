@@ -46,7 +46,10 @@ const stakeStatusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
     case "unpaid":
       return "orange"
     case "cancelled":
+    case "rejected":
       return "red"
+    case "not_followed_up":
+      return "grey"
     default:
       return "grey"
   }
@@ -67,20 +70,31 @@ const CapTableSection = ({
   const stakes = capTable?.stakes ?? []
   const ccy = capTable?.currency_code
 
-  const { segments, myInvested, totalRaised } = useMemo(() => {
-    const paid = new Set(["fully_paid", "active", "partially_paid"])
-    const segs: DonutSegment[] = stakes.map((s) => ({
+  const { segments, myInvested, totalRaised, visibleStakes } = useMemo(() => {
+    // The cap table reflects only fully absorbed (fully_paid) stakes — matches
+    // the admin. Pending/rejected/not-followed-up don't move ownership; declined
+    // ones are hidden from the list entirely.
+    const excluded = new Set(["rejected", "not_followed_up", "cancelled"])
+    const absorbed = stakes.filter((s) => s.status === "fully_paid")
+    const segs: DonutSegment[] = absorbed.map((s) => ({
       label: s.is_me ? `${s.investor?.name ?? "You"} (You)` : s.investor?.name ?? "Investor",
       value: stakeValue(s),
       highlight: s.is_me,
     }))
-    const mine = stakes
+    const mine = absorbed
       .filter((s) => s.is_me)
       .reduce((sum, s) => sum + Number(s.total_invested ?? 0), 0)
-    const raised = stakes
-      .filter((s) => paid.has(s.status ?? ""))
-      .reduce((sum, s) => sum + Number(s.total_invested ?? 0), 0)
-    return { segments: segs, myInvested: mine, totalRaised: raised }
+    const raised = absorbed.reduce(
+      (sum, s) => sum + Number(s.total_invested ?? 0),
+      0
+    )
+    const visible = stakes.filter((s) => !excluded.has(s.status ?? ""))
+    return {
+      segments: segs,
+      myInvested: mine,
+      totalRaised: raised,
+      visibleStakes: visible,
+    }
   }, [stakes])
 
   if (!capTable) return null
@@ -120,8 +134,8 @@ const CapTableSection = ({
         </div>
       </div>
 
-      {stakes.length > 0 && (
-        <StakesSection stakes={stakes} ccy={ccy} />
+      {visibleStakes.length > 0 && (
+        <StakesSection stakes={visibleStakes} ccy={ccy} />
       )}
     </Container>
   )
@@ -193,21 +207,8 @@ const DealsSection = ({ companyId }: { companyId: string }) => {
     (d: Deal) => d.cap_table?.company_id === companyId
   )
 
-  if (isPending) {
-    return (
-      <Container className="divide-y p-0">
-        <div className="px-6 py-4">
-          <Heading level="h2">Deals</Heading>
-        </div>
-        <div className="px-6 py-5">
-          <Skeleton className="h-10 w-full" />
-        </div>
-      </Container>
-    )
-  }
-
-  if (companyDeals.length === 0) return null
-
+  // Hooks must run unconditionally and in a stable order — keep useDataTable
+  // above the isPending/empty early returns (React #310 otherwise).
   const table = useDataTable({
     data: companyDeals,
     columns: [
@@ -256,6 +257,21 @@ const DealsSection = ({ companyId }: { companyId: string }) => {
     ],
   })
 
+  if (isPending) {
+    return (
+      <Container className="divide-y p-0">
+        <div className="px-6 py-4">
+          <Heading level="h2">Deals</Heading>
+        </div>
+        <div className="px-6 py-5">
+          <Skeleton className="h-10 w-full" />
+        </div>
+      </Container>
+    )
+  }
+
+  if (companyDeals.length === 0) return null
+
   return (
     <Container className="divide-y p-0">
       <DataTable instance={table}>
@@ -274,17 +290,7 @@ const DocumentsSection = ({ companyId }: { companyId: string }) => {
     (d: InvestorDocument) => d.company_id === companyId
   )
 
-  if (isPending) {
-    return (
-      <Container className="divide-y p-0">
-        <div className="px-6 py-4"><Heading level="h2">Documents</Heading></div>
-        <div className="px-6 py-5"><Skeleton className="h-10 w-full" /></div>
-      </Container>
-    )
-  }
-
-  if (companyDocs.length === 0) return null
-
+  // useDataTable must run unconditionally, before the early returns (React #310).
   const table = useDataTable({
     data: companyDocs,
     columns: [
@@ -330,6 +336,17 @@ const DocumentsSection = ({ companyId }: { companyId: string }) => {
       },
     ],
   })
+
+  if (isPending) {
+    return (
+      <Container className="divide-y p-0">
+        <div className="px-6 py-4"><Heading level="h2">Documents</Heading></div>
+        <div className="px-6 py-5"><Skeleton className="h-10 w-full" /></div>
+      </Container>
+    )
+  }
+
+  if (companyDocs.length === 0) return null
 
   return (
     <Container className="divide-y p-0">

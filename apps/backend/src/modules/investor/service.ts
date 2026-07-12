@@ -11,6 +11,7 @@ import Pipeline from "./models/pipeline"
 import CallForShares from "./models/call-for-shares"
 import Payment from "./models/payment"
 import Document from "./models/document"
+import Referral from "./models/referral"
 
 class InvestorService extends MedusaService({
   Investor,
@@ -25,6 +26,7 @@ class InvestorService extends MedusaService({
   CallForShares,
   Payment,
   Document,
+  Referral,
 }) {
   constructor() {
     super(...arguments)

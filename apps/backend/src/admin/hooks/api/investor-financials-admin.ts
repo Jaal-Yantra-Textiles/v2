@@ -66,6 +66,7 @@ export type UpdateCompanyCompliancePayload = {
   status?: "Active" | "Inactive" | "Pending" | "Suspended"
   founded_date?: string | null
   industry?: string | null
+  metadata?: Record<string, any> | null
 }
 
 // ---- Query keys ------------------------------------------------------------

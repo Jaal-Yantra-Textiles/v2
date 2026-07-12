@@ -27,6 +27,10 @@ export type UpdatePartnerInput = {
     storefront_repo: string | null
     storefront_root_dir: string | null
     storefront_branch: string | null
+    hosting_provider: string | null
+    deployment_account_id: string | null
+    deployment_project_id: string | null
+    deployment_project_name: string | null
   }>
 }
 

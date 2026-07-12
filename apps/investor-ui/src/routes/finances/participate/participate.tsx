@@ -5,6 +5,7 @@ import { useNavigate, useParams } from "react-router-dom"
 import { Combobox } from "../../../components/inputs/combobox"
 import { RouteFocusModal, useRouteModal } from "../../../components/modals"
 import { useDeals, useParticipate, isSafeDeal, type Deal } from "../../../hooks/api/investments"
+import { useIsViewOnly } from "../../../hooks/api/companies"
 
 const money = (v?: number | null, ccy?: string | null) =>
   v == null ? "—" : `${ccy ? ccy + " " : ""}${new Intl.NumberFormat().format(Number(v))}`
@@ -18,6 +19,7 @@ const ParticipateForm = ({
 }) => {
   const { handleSuccess } = useRouteModal()
   const navigate = useNavigate()
+  const isViewOnly = useIsViewOnly()
   const form = useForm({ defaultValues: { amount: "" } })
   // The deal can be preselected from the route (deep link from a deals table)
   // or picked in-drawer via the Combobox below.
@@ -48,6 +50,10 @@ const ParticipateForm = ({
     onError: (e: any) => toast.error(e?.message || "Failed to participate"),
   })
   const onSubmit = form.handleSubmit(async (v) => {
+    if (isViewOnly) {
+      toast.error("Your account is view-only and can't participate in deals")
+      return
+    }
     if (!selectedId) {
       toast.error("Select a deal to participate in")
       return
@@ -72,7 +78,7 @@ const ParticipateForm = ({
           <RouteFocusModal.Close asChild>
             <Button size="small" variant="secondary">Cancel</Button>
           </RouteFocusModal.Close>
-          <Button size="small" type="submit" isLoading={isPending} disabled={!deal}>Submit</Button>
+          <Button size="small" type="submit" isLoading={isPending} disabled={!deal || isViewOnly}>Submit</Button>
         </div>
       </RouteFocusModal.Header>
       <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-auto py-8">

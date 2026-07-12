@@ -3,6 +3,7 @@ import {
   isFull,
   isEligible,
   selectDeploymentAccount,
+  decideProvisionTarget,
   type DeploymentAccountRow,
 } from "../account-selector"
 
@@ -70,5 +71,55 @@ describe("deployment account-selector — selection", () => {
       acct({ id: "hi", project_count: 2, cutoff_max: 20, priority: 5 }),
     ])
     expect(pick?.id).toBe("hi")
+  })
+})
+
+describe("decideProvisionTarget — rotation + env fallback", () => {
+  it("prefers a least-loaded account of the preferred provider", () => {
+    const t = decideProvisionTarget(
+      [
+        acct({ id: "cf1", provider: "cloudflare", project_count: 4, cutoff_max: 10 }),
+        acct({ id: "cf2", provider: "cloudflare", project_count: 1, cutoff_max: 10 }),
+        acct({ id: "v1", provider: "vercel", project_count: 0, cutoff_max: 10 }),
+      ],
+      { preferredProvider: "cloudflare", envProviders: ["vercel"] }
+    )
+    expect(t).toEqual({ kind: "account", accountId: "cf2", provider: "cloudflare" })
+  })
+
+  it("spills to another provider's account when the preferred pool is full", () => {
+    const t = decideProvisionTarget(
+      [
+        acct({ id: "cf1", provider: "cloudflare", project_count: 10, cutoff_max: 10 }),
+        acct({ id: "nl1", provider: "netlify", project_count: 2, cutoff_max: 10 }),
+      ],
+      { preferredProvider: "cloudflare", envProviders: [] }
+    )
+    expect(t).toEqual({ kind: "account", accountId: "nl1", provider: "netlify" })
+  })
+
+  it("falls back to the preferred env provider when no accounts exist", () => {
+    const t = decideProvisionTarget([], {
+      preferredProvider: "cloudflare",
+      envProviders: ["vercel", "cloudflare"],
+    })
+    expect(t).toEqual({ kind: "env", provider: "cloudflare" })
+  })
+
+  it("falls back to the first env provider when preferred has no env creds", () => {
+    const t = decideProvisionTarget([], {
+      preferredProvider: "cloudflare",
+      envProviders: ["vercel"],
+    })
+    expect(t).toEqual({ kind: "env", provider: "vercel" })
+  })
+
+  it("returns null when no accounts and no env providers (capacity exhausted)", () => {
+    expect(
+      decideProvisionTarget(
+        [acct({ id: "cf1", provider: "cloudflare", project_count: 10, cutoff_max: 10 })],
+        { preferredProvider: "cloudflare", envProviders: [] }
+      )
+    ).toBeNull()
   })
 })

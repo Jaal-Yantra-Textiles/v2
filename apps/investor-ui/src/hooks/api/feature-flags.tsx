@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query"
-import { sdk } from "../../lib/client"
 
 export type FeatureFlags = {
   view_configurations?: boolean
@@ -8,20 +7,16 @@ export type FeatureFlags = {
   [key: string]: boolean | undefined
 }
 
+// Investor UI is NOT an admin actor. The inherited dashboard hook fetched
+// /admin/feature-flags, which CORS-fails from the portal origin (invest.*) and,
+// worse, an admin 401 would clear the shared JWT. The portal uses none of these
+// admin-only flags (rbac / view_configurations / translation), so resolve them
+// statically (all off) with no network call — mirrors the other stubbed admin
+// hooks (invites / store / rbac-roles).
 export const useFeatureFlags = () => {
   return useQuery<FeatureFlags>({
-    queryKey: ["admin", "feature-flags"],
-    queryFn: async () => {
-      const response = await sdk.client.fetch<{ feature_flags: FeatureFlags }>(
-        "/admin/feature-flags",
-        {
-          method: "GET",
-        }
-      )
-
-      return response.feature_flags
-    },
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    queryKey: ["investor", "feature-flags"],
+    queryFn: async () => ({}),
+    staleTime: Infinity,
   })
 }

@@ -4,11 +4,11 @@ name: Deploy to AWS ECS
 # Replaces the old Railway pipeline (deploy-to-railway.yml.disabled).
 #
 # Sequence per run:
-#   1. Build a Docker image, push to GHCR (sha-<hash> + :latest)
-#   2. Mirror the same image to ECR
-#   3. Run DB migrations as a gated one-off ECS task (fails the deploy on error)
-#   4. `copilot svc deploy` for medusa-server + medusa-worker (parallel)
-#   5. Poll /health on the public ALB until green (or fail)
+#   1. Build a Docker image ONCE, push to GHCR + ECR (sha-<hash>, +:latest on main)
+#   2. Run DB migrations as a gated one-off ECS task — auto-skipped when no
+#      schema/link/module/config paths changed (fails the deploy on error)
+#   3. `copilot svc deploy` for medusa-server + medusa-worker (parallel)
+#   4. Poll /health on the public ALB until green (or fail)
 
 on:
   push:
@@ -36,6 +36,14 @@ on:
         description: "Also deploy medusa-server + medusa-worker (push-to-main always does this)"
         type: boolean
         default: false
+      force_migrate:
+        # The migrate job normally auto-skips when a push touched no schema-
+        # affecting paths (migrations/links/modules/medusa-config). Set this to
+        # force the migration task to run regardless — e.g. to re-sync module
+        # links after a manual change, or when in doubt.
+        description: "Force the DB migration task to run even if no schema paths changed"
+        type: boolean
+        default: false
 
 # Serialize deploys on the same branch — but don't cancel a deploy
 # mid-flight; if you push twice in quick succession, the second waits.
@@ -60,15 +68,21 @@ permissions:
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────
-  # 1. Build & push image to GHCR. Same image serves server and worker.
-  #    The :latest tag is what our ECS task definitions reference;
-  #    sha-<hash> is the auditable, immutable tag.
+  # 1. Build the image ONCE and push it straight to BOTH GHCR and ECR in the
+  #    same buildx step. (Previously a separate "mirror-to-ECR" job re-pulled
+  #    the multi-GB image to the runner and re-pushed it — ~4 min of pure
+  #    overhead. buildx pushes to multiple registries from one build.)
+  #    The :latest tag (main only) is what the ECS task definitions reference;
+  #    sha-<hash> is the auditable, immutable tag used by run-migrations.sh /
+  #    run-backfill.sh. On branch dispatches only the sha tag is pushed — never
+  #    :latest — so ECS never silently pulls unmerged code.
   # ─────────────────────────────────────────────────────────────────────────
   build-and-push:
     name: Build & Push Image
     runs-on: ubuntu-latest
     outputs:
       ghcr_image: ${{ steps.image-vars.outputs.ghcr_image }}
+      ecr_image: ${{ steps.image-vars.outputs.ecr_image }}
       image_tag: ${{ steps.image-vars.outputs.image_tag }}
       image_ref: ${{ steps.image-vars.outputs.ghcr_image }}:${{ steps.image-vars.outputs.image_tag }}
     steps:
@@ -76,17 +90,15 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Compute image vars (lowercase)
-        id: image-vars
-        run: |
-          # GHCR + Docker require lowercase image names; the org is mixed case.
-          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          # Use the long commit SHA as the immutable tag; we never want :latest
-          # in a task definition because it would change under our feet.
-          {
-            echo "ghcr_image=ghcr.io/${REPO_LC}"
-            echo "image_tag=sha-${{ github.sha }}"
-          } >> "$GITHUB_OUTPUT"
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/jyt-github-actions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -95,11 +107,31 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute image vars (lowercase)
+        id: image-vars
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          # GHCR + Docker require lowercase image names; the org is mixed case.
+          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          # Use the long commit SHA as the immutable tag; we never want :latest
+          # in a task definition because it would change under our feet.
+          {
+            echo "ghcr_image=ghcr.io/${REPO_LC}"
+            echo "ecr_image=${ECR_REGISTRY}/${ECR_REPOSITORY}"
+            echo "image_tag=sha-${{ github.sha }}"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Compute image metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.image-vars.outputs.ghcr_image }}
+          # Both registries get the same tag rules. :latest is added only on the
+          # default branch (main); sha-<hash> is always added. So a branch
+          # dispatch pushes ONLY the sha tag to both registries — never :latest.
+          images: |
+            ${{ steps.image-vars.outputs.ghcr_image }}
+            ${{ steps.image-vars.outputs.ecr_image }}
           # Priority forces the sha tag to be the primary one (metadata-action's
           # default priorities are raw=200 > sha=100, which would otherwise make
           # outputs.version="latest" on the default branch).
@@ -107,7 +139,7 @@ jobs:
             type=sha,format=long,prefix=sha-,priority=1000
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
+      - name: Build and push (GHCR + ECR)
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -146,104 +178,86 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ─────────────────────────────────────────────────────────────────────────
-  # 2. Mirror the image to ECR (one-shot) so both services can deploy from it.
-  #    ECR keeps `:latest` + the same `sha-<hash>` tag for traceability.
-  # ─────────────────────────────────────────────────────────────────────────
-  mirror-to-ecr:
-    name: Mirror Image → ECR
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    outputs:
-      ecr_image: ${{ steps.mirror.outputs.ecr_image }}
-    steps:
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/jyt-github-actions
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Log in to GHCR (pull only)
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.GHCR_REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Log in to ECR
-        id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Pull from GHCR + push to ECR
-        id: mirror
-        env:
-          GHCR_IMAGE: ${{ needs.build-and-push.outputs.ghcr_image }}
-          GHCR_TAG: ${{ needs.build-and-push.outputs.image_tag }}
-          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
-        run: |
-          set -euo pipefail
-          # ECS task definitions reference the sha tag (immutable). :latest
-          # is kept as a convenience tag for ad-hoc pulls only.
-          SRC="${GHCR_IMAGE}:${GHCR_TAG}"
-          DST_SHA="${ECR_REGISTRY}/${ECR_REPOSITORY}:${GHCR_TAG}"
-          DST_LATEST="${ECR_REGISTRY}/${ECR_REPOSITORY}:latest"
-
-          docker pull "$SRC"
-          docker tag  "$SRC" "$DST_SHA"
-          docker push "$DST_SHA"
-
-          # Only move :latest forward when this build is a push to main.
-          # A branch dispatch must NOT rewrite :latest, because the
-          # medusa-server + medusa-worker task definitions reference
-          # :latest, and ECS would pull the branch image on the next
-          # task replacement (autoscale, host drain, etc.) — silently
-          # deploying unmerged code.
-          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
-            docker tag  "$SRC" "$DST_LATEST"
-            docker push "$DST_LATEST"
-            echo "Tagged ECR :latest"
-          else
-            echo "Skipping :latest tag (ref=${GITHUB_REF}); only sha-tag was pushed."
-          fi
-
-          echo "ecr_image=${DST_SHA}" >> "$GITHUB_OUTPUT"
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # 3. Run DB migrations as a gated one-off ECS task on the freshly-built
+  # 2. Run DB migrations as a gated one-off ECS task on the freshly-built
   #    image, BEFORE rolling the services. The server/worker containers no
   #    longer migrate on boot (see apps/backend/Dockerfile), so this step owns
   #    the schema. A migration failure fails the deploy here — the old tasks
   #    keep serving and the services are never rolled onto un-migrated schema.
+  #
+  #    Booting the framework for a one-off migration costs ~3 min, so we SKIP it
+  #    when the push touched no schema-affecting paths (migrations / links /
+  #    modules / medusa-config). Anything ambiguous (no base sha, base not
+  #    fetched, force_migrate) runs to be safe. A pure route/workflow/admin/UI/
+  #    email-template change skips the boot entirely.
   # ─────────────────────────────────────────────────────────────────────────
   migrate:
     name: Migrate DB
     runs-on: ubuntu-latest
-    needs: [build-and-push, mirror-to-ecr]
+    needs: [build-and-push]
     # Same gate as the deploy jobs: only migrate when we're actually deploying
     # services (push to main, or an explicit deploy_services dispatch).
     if: github.event_name == 'push' || inputs.deploy_services == true
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so we can diff against the pushed-from sha.
+          fetch-depth: 0
+
+      - name: Decide whether migrations are needed
+        id: gate
+        run: |
+          set -euo pipefail
+          # Manual force always runs.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force_migrate }}" = "true" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; echo "→ force_migrate"; exit 0
+          fi
+          BEFORE="${{ github.event.before }}"
+          # No usable base sha (first push / force-push / dispatch) → run to be safe.
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; echo "→ no base sha, running"; exit 0
+          fi
+          if ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; echo "→ base sha not fetched, running"; exit 0
+          fi
+          CHANGED=$(git diff --name-only "$BEFORE" "${{ github.sha }}" -- apps/backend || true)
+          # Schema-affecting: any migration file, module links, module definitions,
+          # or the medusa config (module registration / links live in code, not
+          # only in migration files — --execute-all-links must run for those too).
+          NEED=$(echo "$CHANGED" | grep -E '(/migrations/)|(^apps/backend/src/links/)|(^apps/backend/src/modules/)|(medusa-config(\.prod)?\.ts$)' || true)
+          if [ -n "$NEED" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "→ schema paths changed:"; echo "$NEED"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "→ no schema/link/module/config changes — skipping migration boot"
+          fi
 
       - name: Configure AWS credentials (OIDC)
+        if: steps.gate.outputs.run == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/jyt-github-actions
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Run migrations (gated one-off task)
+        if: steps.gate.outputs.run == 'true'
         env:
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
         run: ./deploy/aws/scripts/run-migrations.sh
 
+      - name: Skipped
+        if: steps.gate.outputs.run != 'true'
+        run: echo "Migration task skipped — no schema-affecting changes in this push."
+
   # ─────────────────────────────────────────────────────────────────────────
-  # 4. Deploy server + worker in parallel via Copilot. Each deploy is its
+  # 3. Deploy server + worker in parallel via Copilot. Each deploy is its
   #    own job so a worker-only or server-only failure is visible separately.
   #    Both wait on `migrate` so services never roll onto un-migrated schema.
   # ─────────────────────────────────────────────────────────────────────────
   deploy-server:
     name: Deploy medusa-server
     runs-on: ubuntu-latest
-    needs: [build-and-push, mirror-to-ecr, migrate]
+    needs: [build-and-push, migrate]
     # Push to main always deploys. Manual dispatch only deploys when
     # the operator explicitly checked `deploy_services`. Branch
     # dispatches default to build-only so they don't roll the prod
@@ -281,7 +295,7 @@ jobs:
   deploy-worker:
     name: Deploy medusa-worker
     runs-on: ubuntu-latest
-    needs: [build-and-push, mirror-to-ecr, migrate]
+    needs: [build-and-push, migrate]
     # See deploy-server above for the rationale.
     if: github.event_name == 'push' || inputs.deploy_services == true
     steps:
@@ -308,7 +322,7 @@ jobs:
             --tag "${{ needs.build-and-push.outputs.image_tag }}"
 
   # ─────────────────────────────────────────────────────────────────────────
-  # 5. Health-check the public endpoint after both deploys are done.
+  # 4. Health-check the public endpoint after both deploys are done.
   # ─────────────────────────────────────────────────────────────────────────
   health-check:
     name: Health Check — v3.jaalyantra.com

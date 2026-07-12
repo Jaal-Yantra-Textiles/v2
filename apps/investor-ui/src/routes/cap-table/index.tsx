@@ -42,14 +42,23 @@ const stakeStatusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
     case "unpaid":
       return "orange"
     case "cancelled":
+    case "rejected":
       return "red"
+    case "not_followed_up":
+      return "grey"
     default:
       return "grey"
   }
 }
 
+// The cap table reflects only fully absorbed (fully_paid) stakes — matches the
+// admin. Declined / not-followed-up / cancelled are hidden from the list.
+const CAP_EXCLUDED_STATUSES = new Set(["rejected", "not_followed_up", "cancelled"])
+
 const CapTableList = ({ capTables }: { capTables: InvestorCapTable[] }) => {
-  const stakes = capTables.flatMap((ct) => ct.stakes ?? [])
+  const stakes = capTables
+    .flatMap((ct) => ct.stakes ?? [])
+    .filter((s) => !CAP_EXCLUDED_STATUSES.has(s.status ?? ""))
   const ccy = capTables[0]?.currency_code
 
   const table = useDataTable({
@@ -112,23 +121,33 @@ const CapTableList = ({ capTables }: { capTables: InvestorCapTable[] }) => {
   )
 }
 
-const CapTableSection = ({ capTable }: { capTable: InvestorCapTable }) => {
+const CapTableSection = ({
+  capTable,
+  outstandingPrincipal = 0,
+}: {
+  capTable: InvestorCapTable
+  // Your outstanding convertible/loan/SAFE principal on this cap table — not yet
+  // equity, so it's not in "Your investment" but worth nudging so ₹0 isn't scary.
+  outstandingPrincipal?: number
+}) => {
   const stakes = capTable.stakes ?? []
   const ccy = capTable.currency_code
 
   const { segments, myInvested, totalRaised } = useMemo(() => {
-    const paid = new Set(["fully_paid", "active", "partially_paid"])
-    const segs: DonutSegment[] = stakes.map((s) => ({
+    // Only fully absorbed (fully_paid) stakes are on the cap table.
+    const absorbed = stakes.filter((s) => s.status === "fully_paid")
+    const segs: DonutSegment[] = absorbed.map((s) => ({
       label: s.is_me ? `${s.investor?.name ?? "You"} (You)` : s.investor?.name ?? "Investor",
       value: stakeValue(s),
       highlight: s.is_me,
     }))
-    const mine = stakes
+    const mine = absorbed
       .filter((s) => s.is_me)
       .reduce((sum, s) => sum + Number(s.total_invested ?? 0), 0)
-    const raised = stakes
-      .filter((s) => paid.has(s.status ?? ""))
-      .reduce((sum, s) => sum + Number(s.total_invested ?? 0), 0)
+    const raised = absorbed.reduce(
+      (sum, s) => sum + Number(s.total_invested ?? 0),
+      0
+    )
     return { segments: segs, myInvested: mine, totalRaised: raised }
   }, [stakes])
 
@@ -151,6 +170,12 @@ const CapTableSection = ({ capTable }: { capTable: InvestorCapTable }) => {
           <div className="rounded-lg border p-3">
             <Text size="small" className="text-ui-fg-subtle">Your investment</Text>
             <Text weight="plus" className="mt-1">{money(myInvested, ccy)}</Text>
+            {outstandingPrincipal > 0 && (
+              <Text size="xsmall" className="text-ui-fg-muted mt-1">
+                + {money(outstandingPrincipal, ccy)} in an outstanding loan/SAFE —
+                converts to equity later (see below)
+              </Text>
+            )}
           </div>
           <div className="rounded-lg border p-3">
             <Text size="small" className="text-ui-fg-subtle">Total raised</Text>
@@ -314,6 +339,21 @@ export const Component = () => {
   const { capTables, isPending } = useMyCapTable()
   const { convertibles, summary, isPending: safesPending } = useMyConvertibles()
 
+  // Your outstanding (not-yet-converted) convertible principal, grouped by cap
+  // table — feeds the "Your investment" nudge so a ₹0 equity tile still tells
+  // the investor their loan/SAFE money is accounted for.
+  const outstandingByCt = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const c of convertibles) {
+      if ((c as any).status !== "outstanding") continue
+      const cid = c.cap_table?.id ?? (c as any).cap_table_id
+      if (!cid) continue
+      const principal = Number((c as any).principal_amount ?? c.value?.principal ?? 0)
+      m.set(cid, (m.get(cid) ?? 0) + principal)
+    }
+    return m
+  }, [convertibles])
+
   if (isPending) {
     return (
       <div className="flex flex-col gap-y-3">
@@ -346,7 +386,13 @@ export const Component = () => {
           </div>
         </Container>
       ) : (
-        capTables.map((ct) => <CapTableSection key={ct.id} capTable={ct} />)
+        capTables.map((ct) => (
+          <CapTableSection
+            key={ct.id}
+            capTable={ct}
+            outstandingPrincipal={outstandingByCt.get(ct.id) ?? 0}
+          />
+        ))
       )}
 
       {capTables.length > 0 && capTables.some((ct) => (ct.stakes ?? []).length > 0) && (

@@ -67,9 +67,17 @@ describe("createHostingProvider", () => {
     expect(p).toBeInstanceOf(CloudflarePagesProvider)
     expect(p.provider).toBe("cloudflare")
   })
-  it("throws for not-yet-implemented providers (S5)", () => {
-    expect(() => createHostingProvider("render", { token: "t" })).toThrow(/not implemented/)
-    expect(() => createHostingProvider("netlify", { token: "t" })).toThrow(/not implemented/)
+  it("builds Netlify + Render providers (S5)", () => {
+    expect(
+      createHostingProvider("netlify", { token: "t", accountId: "a", extra: { github_installation_id: "1" } })
+        .provider
+    ).toBe("netlify")
+    expect(
+      createHostingProvider("render", { token: "t", extra: { owner_id: "tea_1" } }).provider
+    ).toBe("render")
+  })
+  it("throws for an unknown provider", () => {
+    expect(() => createHostingProvider("fly" as any, { token: "t" })).toThrow(/Unknown hosting provider/)
   })
 })
 
@@ -147,5 +155,79 @@ describe("hostingProviderForAccount", () => {
       decryptor
     )
     expect(p).toBeInstanceOf(CloudflarePagesProvider)
+  })
+})
+
+// ─── S5 providers: Netlify + Render ──────────────────────────────────────────
+
+import { NetlifyProvider } from "../providers/netlify-provider"
+import { RenderProvider } from "../providers/render-provider"
+
+describe("resolveAccountCredentials — extra passthrough (S5)", () => {
+  it("carries provider-specific non-secret config into `extra`", () => {
+    const creds = resolveAccountCredentials(
+      {
+        token_encrypted: enc("nf-tok"),
+        account_id: "acct_1",
+        github_installation_id: "999",
+        github_repo_id: 12345,
+        region: "oregon",
+      } as DeploymentApiConfig,
+      decryptor
+    )
+    expect(creds.token).toBe("nf-tok")
+    expect(creds.accountId).toBe("acct_1")
+    expect(creds.extra).toEqual({
+      github_installation_id: "999",
+      github_repo_id: "12345",
+      region: "oregon",
+    })
+  })
+})
+
+describe("NetlifyProvider", () => {
+  const p = new NetlifyProvider({
+    token: "nf",
+    accountId: "acct_1",
+    extra: { github_installation_id: "42" },
+  })
+  it("has provider name netlify", () => expect(p.provider).toBe("netlify"))
+  it("dnsTarget prefers originHost, else <name>.netlify.app", () => {
+    expect(p.dnsTarget({ id: "s1", name: "Storefront ACME" })).toBe("storefront-acme.netlify.app")
+    expect(p.dnsTarget({ id: "s1", name: "x", originHost: "custom.netlify.app" })).toBe(
+      "custom.netlify.app"
+    )
+  })
+  it("requires a token", () => {
+    expect(() => new NetlifyProvider({ token: "" } as any)).toThrow(/requires a token/)
+  })
+  it("createProject requires github_installation_id", async () => {
+    const noInstall = new NetlifyProvider({ token: "nf", accountId: "a" })
+    await expect(
+      noInstall.createProject({ name: "s", gitRepo: "o/r" })
+    ).rejects.toThrow(/github_installation_id/)
+  })
+  it("is built by createHostingProvider('netlify')", () => {
+    expect(createHostingProvider("netlify", { token: "t", accountId: "a", extra: { github_installation_id: "1" } }))
+      .toBeInstanceOf(NetlifyProvider)
+  })
+})
+
+describe("RenderProvider", () => {
+  const p = new RenderProvider({ token: "rd", extra: { owner_id: "tea_1" } })
+  it("has provider name render", () => expect(p.provider).toBe("render"))
+  it("dnsTarget prefers originHost, else <name>.onrender.com", () => {
+    expect(p.dnsTarget({ id: "s1", name: "Shop One" })).toBe("shop-one.onrender.com")
+    expect(p.dnsTarget({ id: "s1", name: "x", originHost: "svc.onrender.com" })).toBe(
+      "svc.onrender.com"
+    )
+  })
+  it("createProject requires owner_id", async () => {
+    const noOwner = new RenderProvider({ token: "rd" })
+    await expect(noOwner.createProject({ name: "s", gitRepo: "o/r" })).rejects.toThrow(/owner_id/)
+  })
+  it("is built by createHostingProvider('render')", () => {
+    expect(createHostingProvider("render", { token: "t", extra: { owner_id: "tea_1" } }))
+      .toBeInstanceOf(RenderProvider)
   })
 })

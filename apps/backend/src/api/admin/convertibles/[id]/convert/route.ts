@@ -101,7 +101,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(201).json({ target: "ccps", convertible: ccps, conversion })
   }
 
-  // SAFE / note / loan → priced equity: mint a Stake.
+  // SAFE / note / loan → priced equity: mint a Stake. The capital was already
+  // collected when the convertible was funded, so the shares are paid-up on
+  // conversion — mark fully_paid so the stake lands on the cap table / counts as
+  // invested (an "active" stake would be hidden by the fully_paid-only gate).
   const stake: any = await service.createStakes({
     investor_id: convertible.investor_id,
     cap_table_id: convertible.cap_table_id,
@@ -111,7 +114,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     share_price: conversion.conversion_price_per_share,
     total_invested: principal,
     issue_date: when,
-    status: "active",
+    status: "fully_paid",
     metadata: { converted_from: convertible.id },
   } as any)
 

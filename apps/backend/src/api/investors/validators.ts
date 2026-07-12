@@ -108,6 +108,7 @@ export const stakeSchema = z.object({
   issue_date: z.string().datetime().optional(),
   status: z.enum([
     "active", "fully_paid", "partially_paid", "unpaid", "cancelled",
+    "rejected", "not_followed_up",
   ]).optional(),
 })
 
@@ -317,4 +318,18 @@ export const companyUpdateSchema = z.object({
   investor_dashboard_enabled: z.boolean().nullable().optional(),
   status: z.enum(["Active", "Inactive", "Pending", "Suspended"]).optional(),
   cap_table_id: z.string().nullable().optional(),
+  // Investor-facing profile (tagline, github_url, pitch_deck_url, links[],
+  // highlights[]) lives in metadata; the admin "Investor profile" editor writes
+  // it and the investor portal Company page reads it.
+  metadata: z.record(z.string(), z.any()).nullable().optional(),
+})
+
+// An investor referring a friend / other investor into the portal. `view_only`
+// invitees can browse but not participate; `investor` can commit to deals.
+export const referralCreateSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  note: z.string().max(1000).nullable().optional(),
+  access_level: z.enum(["view_only", "investor"]).default("investor"),
+  company_id: z.string().nullable().optional(),
 })

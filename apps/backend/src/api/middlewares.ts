@@ -125,6 +125,7 @@ import { createStoreSchema } from "./admin/stores/validators";
 import { UpdateInventoryOrderTask } from "./admin/inventory-orders/[id]/tasks/[taskId]/validators";
 import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/test/route";
 import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema, ConnectWhatsAppSchema } from "./admin/social-platforms/validators";
+import { CreateDeploymentAccountSchema, UpdateDeploymentAccountSchema, ListDeploymentAccountsQuerySchema } from "./admin/deployment-accounts/validators";
 import { StoreAiSearchSchema } from "./store/ai/search/validators";
 import { StoreAiChatSchema } from "./store/ai/chat/validators";
 import { StoreGenerateAiImageReqSchema } from "./store/ai/imagegen/validators";
@@ -3950,6 +3951,23 @@ export default defineMiddlewares({
       matcher: "/admin/social-platforms",
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(listSocialPlatformsQuerySchema), {})],
+    },
+
+    // ── Deployment accounts (rotatable storefront hosting accounts, #884 S4) ──
+    {
+      matcher: "/admin/deployment-accounts",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateDeploymentAccountSchema))],
+    },
+    {
+      matcher: "/admin/deployment-accounts",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ListDeploymentAccountsQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/deployment-accounts/:id",
+      method: ["POST", "PUT"],
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateDeploymentAccountSchema))],
     },
     {
       matcher: "/admin/social-posts",
