@@ -41,7 +41,19 @@ Close.displayName = "StackedDrawer.Close"
 const Header = Drawer.Header
 Header.displayName = "StackedDrawer.Header"
 
-const Body = Drawer.Body
+// Make the body scroll instead of overflowing the fixed-height drawer (see
+// RouteDrawer.Body for the rationale): `min-h-0` lets the flex child shrink,
+// `overflow-y-auto` scrolls tall content — otherwise it clips on mobile.
+const Body = forwardRef<
+  HTMLDivElement,
+  ComponentPropsWithoutRef<typeof Drawer.Body>
+>(({ className, ...props }, ref) => (
+  <Drawer.Body
+    ref={ref}
+    className={clx("min-h-0 overflow-y-auto", className)}
+    {...props}
+  />
+))
 Body.displayName = "StackedDrawer.Body"
 
 const Trigger = Drawer.Trigger
