@@ -3,6 +3,35 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { requireInvestor } from "../../../helpers"
 import { INVESTOR_MODULE } from "../../../../../modules/investor"
 import type InvestorService from "../../../../../modules/investor/service"
+import {
+  generateInvestorAgreementWorkflow,
+  type GenerateInvestorAgreementInput,
+} from "../../../../../workflows/investor/generate-investor-agreement"
+
+// Generate + email the subscription agreement for a fresh participation. Runs
+// after the Stake/Convertible is created; failures (e.g. missing template) are
+// logged but never fail the participation itself — mirrors the invite-email
+// pattern where the record is created even if the email step throws.
+async function issueAgreement(
+  req: AuthenticatedMedusaRequest,
+  input: GenerateInvestorAgreementInput
+): Promise<{ response_id: string; agreement_url: string } | null> {
+  try {
+    const { result } = await generateInvestorAgreementWorkflow(req.scope).run({
+      input,
+    })
+    return {
+      response_id: (result as any)?.response_id,
+      agreement_url: (result as any)?.agreement_url,
+    }
+  } catch (e) {
+    const logger = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger.error(
+      `[participate] failed to issue investor agreement: ${(e as Error).message}`
+    )
+    return null
+  }
+}
 
 // POST /investors/deals/:id/participate — the investor commits an amount to an
 // open funding round. Creates a Stake in `unpaid` status (a pending
@@ -88,7 +117,30 @@ export const POST = async (
       ...ccpsExtras,
     } as any)
 
-    return res.status(201).json({ convertible: created })
+    const label =
+      instrument_type === "ccps"
+        ? "CCPS Subscription Agreement"
+        : instrument_type === "convertible_note"
+        ? "Convertible Note Agreement"
+        : "SAFE Agreement"
+    const agreement = await issueAgreement(req, {
+      investor_id: investor.id,
+      funding_round_id: round.id,
+      cap_table_id: round.cap_table_id,
+      instrument_group: isCcps ? "ccps" : "safe",
+      instrument_label: label,
+      amount,
+      currency_code: round.cap_table?.currency_code ?? null,
+      number_of_shares: isCcps ? (ccpsExtras as any).num_shares ?? null : null,
+      share_price: pps || null,
+      principal: amount,
+      valuation_cap: round.valuation_cap ?? null,
+      discount_rate: round.discount_rate ?? null,
+      safe_type: round.safe_type ?? "post_money",
+      convertible_id: (created as any)?.id ?? null,
+    })
+
+    return res.status(201).json({ convertible: created, agreement })
   }
 
   const pricePerShare = Number(round.price_per_share ?? 0)
@@ -107,5 +159,18 @@ export const POST = async (
     status: "unpaid",
   } as any)
 
-  res.status(201).json({ stake: created })
+  const agreement = await issueAgreement(req, {
+    investor_id: investor.id,
+    funding_round_id: round.id,
+    cap_table_id: round.cap_table_id,
+    instrument_group: "equity",
+    instrument_label: "Equity Subscription Agreement",
+    amount,
+    currency_code: round.cap_table?.currency_code ?? null,
+    number_of_shares: shares,
+    share_price: pricePerShare || null,
+    stake_id: (created as any)?.id ?? null,
+  })
+
+  res.status(201).json({ stake: created, agreement })
 }

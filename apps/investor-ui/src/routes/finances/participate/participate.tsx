@@ -1,7 +1,7 @@
 import { Button, Heading, Input, Label, Text, toast } from "@medusajs/ui"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
-import { useParams } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
 import { Combobox } from "../../../components/inputs/combobox"
 import { RouteFocusModal, useRouteModal } from "../../../components/modals"
 import { useDeals, useParticipate, isSafeDeal, type Deal } from "../../../hooks/api/investments"
@@ -18,6 +18,7 @@ const ParticipateForm = ({
   initialDealId?: string
 }) => {
   const { handleSuccess } = useRouteModal()
+  const navigate = useNavigate()
   const isViewOnly = useIsViewOnly()
   const form = useForm({ defaultValues: { amount: "" } })
   // The deal can be preselected from the route (deep link from a deals table)
@@ -30,7 +31,15 @@ const ParticipateForm = ({
   const isSafe = deal ? isSafeDeal(deal) : false
   // Keyed by the currently-selected deal; the mutationFn reads the latest id.
   const { mutateAsync, isPending } = useParticipate(selectedId, {
-    onSuccess: () => {
+    onSuccess: (data) => {
+      const responseId = data?.agreement?.response_id
+      if (responseId) {
+        // Take the investor straight to their subscription agreement to review
+        // & sign. Replaces the modal in history so Back returns to /finances.
+        toast.success("Commitment submitted — review & sign your agreement")
+        navigate(`/agreements/${responseId}`, { replace: true })
+        return
+      }
       toast.success(
         isSafe
           ? "SAFE commitment submitted — awaiting approval"

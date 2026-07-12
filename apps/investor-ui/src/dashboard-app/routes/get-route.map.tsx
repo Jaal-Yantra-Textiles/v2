@@ -75,6 +75,16 @@ export function getRouteMap({
               lazy: () => import("../../routes/compliance"),
             },
             {
+              path: "/agreements",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/agreements"),
+            },
+            {
+              path: "/agreements/:id",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/agreements/[id]"),
+            },
+            {
               path: "/projections",
               errorElement: <ErrorBoundary />,
               lazy: () => import("../../routes/projections"),
