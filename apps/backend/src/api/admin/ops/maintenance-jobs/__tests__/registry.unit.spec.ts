@@ -61,6 +61,13 @@ describe("ops/maintenance-jobs registry (#457)", () => {
       expect(job?.params.some((p) => p.name === "partner_cost_estimate" && !p.required)).toBe(true)
       expect(job?.params.some((p) => p.name === "cost_type" && !p.required)).toBe(true)
     })
+
+    it("registers the link-artisan-detail-rows job with optional product_id + limit params (#859)", () => {
+      const job = getMaintenanceJob("link-artisan-detail-rows")
+      expect(job).toBeDefined()
+      expect(job?.params.some((p) => p.name === "product_id" && !p.required)).toBe(true)
+      expect(job?.params.some((p) => p.name === "limit" && !p.required)).toBe(true)
+    })
   })
 
   describe("interpretRunCost (#456 per-unit × qty trap)", () => {
