@@ -29,7 +29,11 @@ const PREVIEW_FIELDS = [
   "*collection",
   "*type",
   "+metadata",
-  "artisan_detail.*",
+  // The product-side alias is the linked model's name, `artisan_product_detail`
+  // — NOT `artisan_detail`. defineLink's `field` option does not rename this
+  // direction, so requesting `artisan_detail.*` silently returns nothing and the
+  // maker story never hydrates (#859). Verified via query.graph probe.
+  "artisan_product_detail.*",
 ]
 
 /**

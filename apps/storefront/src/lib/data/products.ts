@@ -71,7 +71,7 @@ export const listProducts = async ({
           // relations on Design, so populating them here throws
           // "Entity 'Design' does not have property 'persons'".
           fields:
-            "*variants.calculated_price,+variants.inventory_quantity,*variants.images,+metadata,+tags,+artisan_detail.*,+designs.*, +designs.partners.*, +designs.tasks.*, +designs.inventory_items.raw_materials.*, +designs.inventory_items.raw_materials.material_type.*",
+            "*variants.calculated_price,+variants.inventory_quantity,*variants.images,+metadata,+tags,+artisan_product_detail.*,+designs.*, +designs.partners.*, +designs.tasks.*, +designs.inventory_items.raw_materials.*, +designs.inventory_items.raw_materials.material_type.*",
           ...queryParams,
         },
         headers,

@@ -1,23 +1,25 @@
 import partnerProductLink from "../links/partner-product"
 
 /**
- * Enrich store products with the owning partner's name as `artisan_detail.maker_name`
- * (#859) so the storefront can render "Made by <partner>" on the maker-story block.
+ * Enrich store products with the owning partner's name as
+ * `artisan_product_detail.maker_name` (#859) so the storefront can render
+ * "Made by <partner>" on the maker-story block.
  *
  * The maker is the partner that owns the product via the partner↔product link;
- * the name isn't on the product or the artisan_detail row, so we resolve it here
- * and graft it onto the response object (not a real DB field). Only products
- * that already carry an `artisan_detail` are touched, and it's just two batched
- * graph queries for the whole page, so it's cheap and a no-op for non-artisan
- * catalogs.
+ * the name isn't on the product or the artisan detail row, so we resolve it here
+ * and graft it onto the response object (not a real DB field). The relation is
+ * keyed by the linked model's name, `artisan_product_detail` (NOT
+ * `artisan_detail` — defineLink's `field` option doesn't rename this side).
+ * Only products that already carry that relation are touched, and it's just two
+ * batched graph queries for the whole page, so it's cheap and a no-op for
+ * non-artisan catalogs.
  *
  * Mutates the passed products in place (and returns them for convenience).
  */
-export async function attachMakerNames<T extends { id?: string; artisan_detail?: any }>(
-  products: T[],
-  query: any
-): Promise<T[]> {
-  const targets = products.filter((p) => p?.id && p.artisan_detail)
+export async function attachMakerNames<
+  T extends { id?: string; artisan_product_detail?: any }
+>(products: T[], query: any): Promise<T[]> {
+  const targets = products.filter((p) => p?.id && p.artisan_product_detail)
   if (!targets.length) return products
 
   const productIds = targets.map((p) => p.id as string)
@@ -49,8 +51,12 @@ export async function attachMakerNames<T extends { id?: string; artisan_detail?:
   for (const p of targets) {
     const partnerId = productToPartner.get(p.id as string)
     const name = partnerId ? partnerName.get(partnerId) : undefined
-    if (name && p.artisan_detail && typeof p.artisan_detail === "object") {
-      p.artisan_detail.maker_name = name
+    if (
+      name &&
+      p.artisan_product_detail &&
+      typeof p.artisan_product_detail === "object"
+    ) {
+      p.artisan_product_detail.maker_name = name
     }
   }
 

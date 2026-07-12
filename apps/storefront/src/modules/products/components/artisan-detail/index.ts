@@ -2,8 +2,10 @@ import { HttpTypes } from "@medusajs/types"
 
 // #859 S3 (#862): the artisan "made-to-order & maker story" detail, linked to a
 // product on the backend and hydrated onto the store product via
-// `fields=+artisan_detail.*`. Not part of the core StoreProduct type, so we
-// read it defensively.
+// `fields=+artisan_product_detail.*`. The query.graph alias is the linked
+// model's name (`artisan_product_detail`) — NOT `artisan_detail`; the link's
+// `field` option does not rename the product-side relation. Not part of the
+// core StoreProduct type, so we read it defensively.
 export type ArtisanDetail = {
   made_to_order?: boolean | null
   lead_time_days?: number | null
@@ -17,7 +19,8 @@ export type ArtisanDetail = {
 export function getArtisanDetail(
   product?: HttpTypes.StoreProduct | null
 ): ArtisanDetail | null {
-  const detail = (product as any)?.artisan_detail
+  const detail =
+    (product as any)?.artisan_product_detail ?? (product as any)?.artisan_detail
   if (!detail || typeof detail !== "object") return null
   return detail as ArtisanDetail
 }

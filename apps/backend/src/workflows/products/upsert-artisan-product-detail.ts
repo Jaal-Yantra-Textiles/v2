@@ -40,13 +40,15 @@ const upsertArtisanProductDetailStep = createStep(
 
     const existing = await service.findByProduct(input.product_id)
 
+    let detail: any
+    let compensation: UpsertCompensation
     if (existing) {
-      const updated = await service.updateArtisanProductDetails({
+      detail = await service.updateArtisanProductDetails({
         id: existing.id,
         ...input.data,
       })
       // Return the prior values so a failed downstream step can restore them.
-      const compensation: UpsertCompensation = {
+      compensation = {
         created: false,
         id: existing.id,
         prev: {
@@ -57,27 +59,33 @@ const upsertArtisanProductDetailStep = createStep(
           maker_story: existing.maker_story,
         },
       }
-      return new StepResponse(updated, compensation)
+    } else {
+      detail = await service.createArtisanProductDetails({
+        product_id: input.product_id,
+        ...input.data,
+      })
+      compensation = {
+        created: true,
+        id: detail.id,
+        product_id: input.product_id,
+      }
     }
 
-    const created = await service.createArtisanProductDetails({
-      product_id: input.product_id,
-      ...input.data,
-    })
-
+    // Ensure the product ↔ detail link on BOTH paths (idempotent). Previously
+    // the link was created only on the first-create branch, so a row whose link
+    // never persisted (e.g. link-migration lag when the row was first written)
+    // stayed unlinked forever — readable by the module via its `product_id`
+    // column, but invisible to `query.graph`, so the storefront preview/PDP
+    // silently dropped the maker story (#859). Re-creating an existing link is a
+    // no-op, so this safely self-heals such rows on the next save.
     await link.create({
       [Modules.PRODUCT]: { product_id: input.product_id },
       [ARTISAN_PRODUCT_DETAIL_MODULE]: {
-        artisan_product_detail_id: created.id,
+        artisan_product_detail_id: detail.id,
       },
     })
 
-    const compensation: UpsertCompensation = {
-      created: true,
-      id: created.id,
-      product_id: input.product_id,
-    }
-    return new StepResponse(created, compensation)
+    return new StepResponse(detail, compensation)
   },
   async (compensation: UpsertCompensation | undefined, { container }) => {
     if (!compensation) return
