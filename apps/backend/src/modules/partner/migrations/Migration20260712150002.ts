@@ -14,7 +14,7 @@ import { Migration } from "@medusajs/framework/mikro-orm/migrations";
  * Hand-written idempotent ALTER (add-column-if-not-exists) because `partner`
  * already exists on live DBs (the create-if-not-exists migration hazard).
  */
-export class Migration20260712150000 extends Migration {
+export class Migration20260712150002 extends Migration {
 
   override async up(): Promise<void> {
     this.addSql(`alter table if exists "partner" add column if not exists "hosting_provider" text null;`);

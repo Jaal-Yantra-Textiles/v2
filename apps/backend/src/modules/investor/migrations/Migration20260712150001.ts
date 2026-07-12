@@ -3,7 +3,7 @@ import { Migration } from '@mikro-orm/migrations';
 // Investor referrals — #969 follow-up. Lets an investor invite a friend / other
 // investor into the portal. Onboarding stays invite-only, so a referral is a
 // lead the team follows up on. Idempotent create-table (safe to re-run on boot).
-export class Migration20260712150000 extends Migration {
+export class Migration20260712150001 extends Migration {
 
   async up(): Promise<void> {
     this.addSql(`
