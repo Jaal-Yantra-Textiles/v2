@@ -16,16 +16,19 @@ const PREVIEW_FIELDS = [
   "*variants",
   "*variants.calculated_price",
   "*variants.options",
-  "*variants.images",
+  "variants.images.*",
   "*options",
   "*options.values",
-  "*images",
+  // Relation expansion is `images.*`, NOT `*images` — the `*<relation>` form
+  // silently fails to expand the product images (returns no `images` key), so
+  // the gallery came back empty. Match the syntax used everywhere else.
+  "images.*",
   "*tags",
   "*categories",
   "*collection",
   "*type",
   "+metadata",
-  "*artisan_detail",
+  "artisan_detail.*",
 ]
 
 /**
