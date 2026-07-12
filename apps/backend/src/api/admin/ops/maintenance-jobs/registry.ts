@@ -63,6 +63,7 @@ import {
 } from "../../marketing/marketing-summary-lib"
 import { VISUAL_FLOWS_MODULE } from "../../../../modules/visual_flows"
 import { FLOW_DEF as IDEAS_EMAIL_FLOW_DEF } from "../../../../scripts/seed-marketing-daily-ideas-email-flow"
+import { FLOW_DEF as WINBACK_AUDIENCE_REFRESH_FLOW_DEF } from "../../../../scripts/seed-winback-audience-refresh-flow"
 import { FLOW_DEF as INVENTORY_ORDER_STATUS_FLOW_DEF } from "../../../../scripts/seed-inventory-order-status-flow"
 import { FLOW_DEF as INVENTORY_SHIPMENT_PICKUP_FLOW_DEF } from "../../../../scripts/seed-inventory-shipment-pickup-flow"
 import { FLOW_DEF as ARTISAN_PRODUCT_APPROVAL_FLOW_DEF } from "../../../../scripts/seed-artisan-product-approval-flow"
@@ -4150,6 +4151,70 @@ export const installMarketingIdeasEmailFlowJob: MaintenanceJob = {
 }
 
 // ---------------------------------------------------------------------------
+// install-winback-audience-refresh-flow (#450/#916) — LOAD the weekly scheduled
+// visual flow that refreshes the winback audiences, replacing the two manual
+// Data-Plumbing runs. Graph: schedule (0 2 * * 1) → run_maintenance_job
+// generate-newsletter-winback-targets → run_maintenance_job generate-winback-
+// targets → log. Seeded ACTIVE (per the install decision) so the scheduler picks
+// it up; the underlying jobs are idempotent. Idempotent install — refuses to
+// overwrite an existing flow.
+// ---------------------------------------------------------------------------
+
+export const installWinbackAudienceRefreshFlowJob: MaintenanceJob = {
+  id: "install-winback-audience-refresh-flow",
+  label: "Install winback audience-refresh visual flow",
+  description:
+    "Load/create the 'Winback Audience Refresh — Weekly' visual flow from the console — no shell or seed script needed (#450/#916). The flow runs the newsletter + churn winback-target jobs weekly (Mondays 02:00 UTC ≈ 07:30 IST) via the run_maintenance_job op, replacing the two manual Data-Plumbing runs. Dry-run previews the flow it would create (or reports it already exists); apply creates it idempotently as ACTIVE — the every-minute scheduler then runs it on the next cron tick (the underlying jobs are idempotent, so a re-run only adds newly-qualifying contacts). Retime or disable from the canvas. Re-running never overwrites an existing flow.",
+  params: [],
+  run: async (container, { dry_run }) => {
+    const service: any = container.resolve(VISUAL_FLOWS_MODULE)
+    const flowName = WINBACK_AUDIENCE_REFRESH_FLOW_DEF.name
+    const cron = WINBACK_AUDIENCE_REFRESH_FLOW_DEF.trigger_config?.cron ?? ""
+    const nodeCount = WINBACK_AUDIENCE_REFRESH_FLOW_DEF.canvas_state?.nodes?.length ?? 0
+
+    const [existing] = await service.listVisualFlows({ name: flowName })
+    if (existing) {
+      return summarizeFlowInstall({
+        jobId: installWinbackAudienceRefreshFlowJob.id,
+        dry_run,
+        flowName,
+        cron,
+        nodeCount,
+        existingId: existing.id,
+        createdId: null,
+      })
+    }
+
+    let createdId: string | null = null
+    if (!dry_run) {
+      const flow = await service.createCompleteFlow({
+        flow: {
+          name: WINBACK_AUDIENCE_REFRESH_FLOW_DEF.name,
+          description: WINBACK_AUDIENCE_REFRESH_FLOW_DEF.description,
+          status: WINBACK_AUDIENCE_REFRESH_FLOW_DEF.status,
+          trigger_type: WINBACK_AUDIENCE_REFRESH_FLOW_DEF.trigger_type,
+          trigger_config: WINBACK_AUDIENCE_REFRESH_FLOW_DEF.trigger_config,
+          canvas_state: WINBACK_AUDIENCE_REFRESH_FLOW_DEF.canvas_state,
+        },
+        operations: WINBACK_AUDIENCE_REFRESH_FLOW_DEF.operations,
+        connections: WINBACK_AUDIENCE_REFRESH_FLOW_DEF.connections,
+      })
+      createdId = flow?.id ?? null
+    }
+
+    return summarizeFlowInstall({
+      jobId: installWinbackAudienceRefreshFlowJob.id,
+      dry_run,
+      flowName,
+      cron,
+      nodeCount,
+      existingId: null,
+      createdId,
+    })
+  },
+}
+
+// ---------------------------------------------------------------------------
 // install-inventory-order-status-flow (#771) — LOAD the partner WhatsApp
 // inventory-order status notification flow from the Data Plumbing console,
 // instead of shelling in to run the seed script. The flow listens to the #776
@@ -5403,6 +5468,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   syncMarketingOutreachEngagementJob,
   runMarketingIdeasEmailJob,
   installMarketingIdeasEmailFlowJob,
+  installWinbackAudienceRefreshFlowJob,
   installInventoryOrderStatusFlowJob,
   installInventoryShipmentPickupFlowJob,
   installArtisanProductApprovalFlowJob,
