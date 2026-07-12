@@ -72,6 +72,8 @@ const geoForCurrency = (
       return { country: "GB" }
     case "USD":
       return { country: "US" }
+    case "INR":
+      return { country: "IN" }
     case "CAD":
       return { country: "CA" }
     case "AUD":
@@ -234,13 +236,61 @@ const prepareProductStep = createStep(
       return Number.isFinite(available) ? Math.max(0, available) : 0
     }
 
+    const wholesaleFrom = (retailMinor: number): number =>
+      markupPercent > 0
+        ? Math.round((retailMinor * (100 - markupPercent)) / 100)
+        : retailMinor
+
+    // Faire prices are geo-scoped and a variant may carry several — one per
+    // currency the product is priced in. Emit a price for EVERY currency present
+    // (INR → India, USD → US, EUR → the EU group, etc.) so buyers in each region
+    // see their own currency, and fall back to the chosen/default currency +
+    // geo (EUR by default) when the product has no multi-currency prices.
+    const buildPrices = (variantPrices: any[]) => {
+      const byCurrency = new Map<string, any>()
+      for (const p of variantPrices || []) {
+        const c = String(p.currency_code || "").toUpperCase()
+        if (!c) continue
+        // First price row per currency wins (Medusa may hold several tiers).
+        if (!byCurrency.has(c)) byCurrency.set(c, p)
+      }
+
+      const rows: {
+        geo_constraint: { country?: string; country_group?: string }
+        wholesale_price: { amount_minor: number; currency: string }
+        retail_price: { amount_minor: number; currency: string }
+      }[] = []
+      for (const [c, p] of byCurrency) {
+        const retailMinor = toMinor(p.amount)
+        if (retailMinor <= 0) continue
+        // The explicit metadata override only applies to the brand's primary
+        // currency; every other currency is scoped by its natural geo.
+        const geo =
+          c === currency ? geoConstraint : geoForCurrency(c, input.country)
+        rows.push({
+          geo_constraint: geo,
+          wholesale_price: { amount_minor: wholesaleFrom(retailMinor), currency: c },
+          retail_price: { amount_minor: retailMinor, currency: c },
+        })
+      }
+
+      // Guarantee at least the chosen-currency price so a create never ships a
+      // variant with no price at all.
+      if (!rows.length) {
+        const retail = pickPrice(variantPrices || [])
+        const retailMinor = retail ? toMinor(retail.amount) : 0
+        if (retailMinor > 0) {
+          rows.push({
+            geo_constraint: geoConstraint,
+            wholesale_price: { amount_minor: wholesaleFrom(retailMinor), currency },
+            retail_price: { amount_minor: retailMinor, currency },
+          })
+        }
+      }
+      return rows.length ? rows : undefined
+    }
+
     const buildVariant = (v: any, idx: number) => {
-      const retail = pickPrice(v.prices || [])
-      const retailMinor = retail ? toMinor(retail.amount) : 0
-      const wholesaleMinor =
-        markupPercent > 0
-          ? Math.round((retailMinor * (100 - markupPercent)) / 100)
-          : retailMinor
       const sku = v.sku || v.id
       const options =
         (v.options || [])
@@ -255,16 +305,7 @@ const prepareProductStep = createStep(
         idempotence_token: `${product.id}:${v.id || sku}`,
         options: options.length ? options : undefined,
         available_quantity: variantQuantity(v),
-        prices:
-          retailMinor > 0
-            ? [
-                {
-                  geo_constraint: geoConstraint,
-                  wholesale_price: { amount_minor: wholesaleMinor, currency },
-                  retail_price: { amount_minor: retailMinor, currency },
-                },
-              ]
-            : undefined,
+        prices: buildPrices(v.prices || []),
       }
     }
 

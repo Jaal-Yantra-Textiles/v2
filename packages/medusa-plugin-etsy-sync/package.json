@@ -1,6 +1,6 @@
 {
   "name": "@jytextiles/medusa-plugin-etsy-sync",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
