@@ -164,6 +164,81 @@ export const useMyConvertibles = () => {
   }
 }
 
+// --- subscription agreements (issued at participate time) ---------------------
+
+export type AgreementListItem = {
+  id: string
+  status: "sent" | "viewed" | "agreed" | "disagreed" | "expired"
+  agreed?: boolean | null
+  sent_at?: string
+  responded_at?: string | null
+  agreement_id?: string
+  deal_name?: string | null
+  company_name?: string | null
+  instrument_label?: string | null
+  amount_formatted?: string | null
+}
+
+export type AgreementDetail = AgreementListItem & {
+  viewed_at?: string | null
+  title?: string
+  subject?: string
+  content?: string
+}
+
+export const agreementQueryKeys = {
+  list: ["investor-agreements"] as const,
+  detail: (id: string) => ["investor-agreement", id] as const,
+}
+
+export const useMyAgreements = () => {
+  const { data, ...rest } = useQuery({
+    queryFn: () =>
+      sdk.client.fetch<{ agreements: AgreementListItem[]; count: number }>(
+        "/investors/me/agreements",
+        { method: "GET" }
+      ),
+    queryKey: agreementQueryKeys.list,
+  })
+  return { agreements: data?.agreements ?? [], count: data?.count ?? 0, ...rest }
+}
+
+export const useAgreement = (id?: string) => {
+  const { data, ...rest } = useQuery({
+    queryFn: () =>
+      sdk.client.fetch<{ agreement: AgreementDetail }>(
+        `/investors/me/agreements/${id}`,
+        { method: "GET" }
+      ),
+    queryKey: agreementQueryKeys.detail(id || ""),
+    enabled: !!id,
+  })
+  return { agreement: data?.agreement, ...rest }
+}
+
+export const useSignAgreement = (
+  id: string,
+  options?: UseMutationOptions<
+    { agreement: AgreementDetail },
+    FetchError,
+    { agreed: boolean; notes?: string }
+  >
+) => {
+  return useMutation({
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ agreement: AgreementDetail }>(
+        `/investors/me/agreements/${id}/sign`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: agreementQueryKeys.list })
+      queryClient.invalidateQueries({ queryKey: agreementQueryKeys.detail(id) })
+      ;(options?.onSuccess as any)?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
 export const useMyCapTable = () => {
   const { data, ...rest } = useQuery({
     queryFn: () =>
@@ -199,17 +274,20 @@ export const useMyParticipations = () => {
   return { participations: data?.participations ?? [], count: data?.count ?? 0, ...rest }
 }
 
+export type ParticipateResult = {
+  stake?: any
+  convertible?: any
+  // Present when a subscription agreement was generated for the participation.
+  agreement?: { response_id: string; agreement_url: string } | null
+}
+
 export const useParticipate = (
   dealId: string,
-  options?: UseMutationOptions<
-    { stake?: any; convertible?: any },
-    FetchError,
-    { amount: number }
-  >
+  options?: UseMutationOptions<ParticipateResult, FetchError, { amount: number }>
 ) => {
   return useMutation({
     mutationFn: (payload) =>
-      sdk.client.fetch<{ stake?: any; convertible?: any }>(
+      sdk.client.fetch<ParticipateResult>(
         `/investors/deals/${dealId}/participate`,
         {
           method: "POST",

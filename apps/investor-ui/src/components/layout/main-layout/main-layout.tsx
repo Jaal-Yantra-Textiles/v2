@@ -3,6 +3,7 @@ import {
   ChartPie,
   CogSixTooth,
   CurrencyDollar,
+  DocumentText,
   EllipsisHorizontal,
   MagnifyingGlass,
   OpenRectArrowOut,
@@ -174,6 +175,7 @@ const useCoreRoutes = (): Omit<INavItem, "pathname">[] => {
   return [
     { icon: <ChartPie />, label: "Cap table", to: "/cap-table" },
     { icon: <CurrencyDollar />, label: "Finances", to: "/finances" },
+    { icon: <DocumentText />, label: "Agreements", to: "/agreements" },
     { icon: <ShieldCheck />, label: "Compliances", to: "/compliance" },
     { icon: <ChartBar />, label: "Projections", to: "/projections" },
   ]
