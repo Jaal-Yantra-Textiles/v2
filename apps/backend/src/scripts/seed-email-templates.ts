@@ -225,11 +225,16 @@ export const emailTemplatesData = [
             </p>
           </div>
 
-          <!-- Sign-off -->
-          <div style="padding: 28px 36px 8px 36px;">
-            <p style="margin: 0; font-size: 15px; line-height: 1.7; color: #6b6a73;">
-              Warmly,<br>
-              <span style="color:#16151b; font-weight:600;">The Jaal Yantra studio</span> &nbsp;&#129525;
+          <!-- Sign-off: Saransh from JYT -->
+          <div style="padding: 26px 36px 8px 36px; border-top: 1px solid #ece9e3;">
+            <p style="margin: 0 0 8px 0; font-size: 13px; color: #8a8880;">
+              Sent by
+            </p>
+            <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #33323a;">
+              Hey, it's <strong style="color:#16151b;">Saransh</strong> from JYT
+            </p>
+            <p style="margin: 4px 0 0 0; font-size: 13px; line-height: 1.5; color: #8a8880;">
+              {{custom_message}}
             </p>
           </div>
 
