@@ -281,6 +281,20 @@ const prepareProductStep = createStep(
           }
     )
 
+    // Faire requires `unit_multiplier` — the number of individual units in one
+    // sellable unit (e.g. a case of 6) — as a positive integer, or it rejects
+    // the create with 400 "unit multiplier is mandatory…". Default to 1 (sold
+    // individually); allow a per-product override via metadata.
+    const toPositiveInt = (v: any): number | null => {
+      const n = Math.floor(Number(v))
+      return Number.isFinite(n) && n > 0 ? n : null
+    }
+    const unit_multiplier = toPositiveInt(metadata.faire_unit_multiplier) ?? 1
+    const minimum_order_quantity =
+      toPositiveInt(metadata.faire_min_order_quantity) ??
+      toPositiveInt(settings.default_min_order_quantity) ??
+      1
+
     const product_input: CreateProductInput = {
       name: (product.title || "Untitled Product").slice(0, 140),
       idempotence_token: product.id,
@@ -291,6 +305,8 @@ const prepareProductStep = createStep(
         typeof metadata.faire_short_description === "string"
           ? metadata.faire_short_description
           : undefined,
+      unit_multiplier,
+      minimum_order_quantity,
       images,
       variants: builtVariants,
     }

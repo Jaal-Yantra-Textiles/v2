@@ -10,6 +10,11 @@ export default async function refreshFaireTokenJob(container: MedusaContainer) {
   if (!account) {
     return
   }
+  // API-key connections have no OAuth token to refresh — skip entirely so the
+  // cron never drives Faire's token endpoint (which 400s for non-OAuth creds).
+  if ((account as any).auth_mode === "apiKey") {
+    return
+  }
   try {
     await service.ensureFreshToken(account)
   } catch (err: any) {

@@ -209,20 +209,26 @@ const FaireSettingsPage = () => {
           {connected ? (
             <div className="flex items-center gap-3">
               <StatusBadge color="green">Connected</StatusBadge>
-              <Button
-                size="small"
-                variant="secondary"
-                onClick={() => navigate("/settings/faire/bulk")}
-              >
-                Bulk sync
-              </Button>
-              <Button
-                size="small"
-                variant="secondary"
-                onClick={() => navigate("/settings/faire/settings")}
-              >
-                Sync settings
-              </Button>
+              <DropdownMenu>
+                <DropdownMenu.Trigger asChild>
+                  <Button size="small" variant="secondary">
+                    Sync
+                    <ChevronDownMini />
+                  </Button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content>
+                  <DropdownMenu.Item
+                    onClick={() => navigate("/settings/faire/bulk")}
+                  >
+                    Bulk sync
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    onClick={() => navigate("/settings/faire/settings")}
+                  >
+                    Sync settings
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu>
               <Button
                 size="small"
                 variant="danger"
