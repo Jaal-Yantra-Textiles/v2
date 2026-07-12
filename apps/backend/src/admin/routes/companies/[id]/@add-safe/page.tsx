@@ -135,13 +135,13 @@ const AddSafeForm = ({ companyId }: { companyId: string }) => {
   })
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-1 flex-col">
+    <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
       <RouteDrawer.Header>
         <RouteDrawer.Title asChild>
           <Heading>Record SAFE (manual)</Heading>
         </RouteDrawer.Title>
       </RouteDrawer.Header>
-      <RouteDrawer.Body className="flex flex-1 flex-col gap-y-6 overflow-auto">
+      <RouteDrawer.Body className="flex flex-1 flex-col gap-y-6 overflow-y-auto">
         {!capTable && (
           <Text size="small" className="text-ui-fg-error">
             This company has no cap table yet — create one first.

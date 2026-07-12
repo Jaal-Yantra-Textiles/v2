@@ -52,7 +52,7 @@ const AddShareClassForm = ({ companyId }: { companyId: string }) => {
   })
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-1 flex-col">
+    <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
       <RouteDrawer.Header>
         <RouteDrawer.Title asChild>
           <Heading>Add share class</Heading>
