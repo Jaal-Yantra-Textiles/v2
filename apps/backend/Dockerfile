@@ -15,6 +15,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN corepack enable && corepack prepare pnpm@10.30.2 --activate
 
+# Docker's BuildKit has no TTY, so pnpm aborts when it needs to purge a stale
+# node_modules dir (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY). CI=true is
+# pnpm's own documented fix — it auto-confirms the purge non-interactively.
+ENV CI=true
+
 WORKDIR /app
 
 # Build-time env for the admin (Vite) bundle. Vite inlines these at compile
@@ -68,6 +73,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@10.30.2 --activate
+
+# Docker's BuildKit has no TTY, so pnpm aborts when it needs to purge a stale
+# node_modules dir (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY). CI=true is
+# pnpm's own documented fix — it auto-confirms the purge non-interactively.
+ENV CI=true
 
 WORKDIR /app
 
