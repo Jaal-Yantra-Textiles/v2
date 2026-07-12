@@ -11,6 +11,7 @@ import { Outlet, useNavigate, Link } from "react-router-dom"
 import { useMe } from "../../hooks/api/users"
 import { useMyCapTable, useDeals, useMyConvertibles, isSafeDeal } from "../../hooks/api/investments"
 import { useMyProjections } from "../../hooks/api/projections"
+import { useIsViewOnly } from "../../hooks/api/companies"
 import { SingleColumnPage } from "../../components/layout/pages"
 import type { InvestorOnboarding } from "../onboarding/onboarding"
 
@@ -82,6 +83,7 @@ const CompanyRow = ({
 
 const DashboardHome = ({ investor }: { investor: Record<string, any> }) => {
   const navigate = useNavigate()
+  const isViewOnly = useIsViewOnly()
   const onboarding: InvestorOnboarding = investor?.metadata?.onboarding ?? {}
   const onboardingCompleted = onboarding.completed === true
 
@@ -236,28 +238,46 @@ const DashboardHome = ({ investor }: { investor: Record<string, any> }) => {
           <div className="px-6 py-4">
             <Heading level="h2">Open deals</Heading>
             <Text size="small" className="text-ui-fg-subtle mt-1">
-              Active funding rounds you can participate in.
+              {isViewOnly
+                ? "Active funding rounds. Your account is view-only."
+                : "Active funding rounds you can participate in."}
             </Text>
           </div>
           <div className="flex flex-col gap-y-1 px-4 pb-4 pt-2">
-            {openDeals.map((d) => (
-              <Link
-                key={d.id}
-                to={`/finances/participate/${d.id}`}
-                className="flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-ui-bg-base-hover"
-              >
-                <div>
-                  <Text weight="plus" className="flex items-center gap-x-2">
-                    {d.name}
-                    {isSafeDeal(d) && <Badge size="2xsmall" color="purple">SAFE</Badge>}
-                  </Text>
-                  <Text size="small" className="text-ui-fg-subtle">
-                    {d.cap_table?.name ?? d.round_type ?? "Round"} · {money(d.target_amount)} target
-                  </Text>
+            {openDeals.map((d) => {
+              const inner = (
+                <>
+                  <div>
+                    <Text weight="plus" className="flex items-center gap-x-2">
+                      {d.name}
+                      {isSafeDeal(d) && <Badge size="2xsmall" color="purple">SAFE</Badge>}
+                    </Text>
+                    <Text size="small" className="text-ui-fg-subtle">
+                      {d.cap_table?.name ?? d.round_type ?? "Round"} · {money(d.target_amount)} target
+                    </Text>
+                  </div>
+                  <Badge size="small" color="green">Open</Badge>
+                </>
+              )
+              // View-only investors see the deals but can't open the
+              // participate flow — render a static row, not a link.
+              return isViewOnly ? (
+                <div
+                  key={d.id}
+                  className="flex items-center justify-between rounded-lg border px-4 py-3"
+                >
+                  {inner}
                 </div>
-                <Badge size="small" color="green">Open</Badge>
-              </Link>
-            ))}
+              ) : (
+                <Link
+                  key={d.id}
+                  to={`/finances/participate/${d.id}`}
+                  className="flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-ui-bg-base-hover"
+                >
+                  {inner}
+                </Link>
+              )
+            })}
           </div>
         </Container>
       )}
