@@ -3350,6 +3350,11 @@ export default defineMiddlewares({
       matcher: "/admin/partners/:id/whatsapp-verify",
       method: "DELETE",
     },
+    // Admin partner email verification bypass
+    {
+      matcher: "/admin/partners/:id/bypass-email-verification",
+      method: "POST",
+    },
     {
       matcher: "/admin/persons/partner",
       method: "GET",
