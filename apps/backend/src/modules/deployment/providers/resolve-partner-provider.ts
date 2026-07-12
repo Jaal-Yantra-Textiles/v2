@@ -93,11 +93,37 @@ function envCredentials(providerName: HostingProviderName): HostingCredentials {
       return { token, accountId }
     }
     default:
+      // Netlify/Render have no legacy env-single-account path — they always run
+      // via a deployment_account. Reaching here means the partner has no account.
       throw new MedusaError(
         MedusaError.Types.NOT_ALLOWED,
-        `Hosting provider "${providerName}" has no env credentials (not implemented until S5)`
+        `Hosting provider "${providerName}" requires a deployment account (no env-single-account fallback)`
       )
   }
+}
+
+/**
+ * Build a HostingProvider for a provider name + (optional) deployment_account.
+ * The single credential-resolution seam used by both the per-partner resolver
+ * and the provision workflow (S3):
+ *   - accountId set → decrypt that account's token (multi-account rotation path)
+ *   - accountId null → legacy env-single-account creds (pre-#884 behaviour)
+ */
+export async function buildHostingProvider(
+  providerName: HostingProviderName,
+  accountId: string | null,
+  container: MedusaContainer
+): Promise<HostingProvider> {
+  let creds: HostingCredentials
+  if (accountId) {
+    const deployment = container.resolve(DEPLOYMENT_MODULE) as DeploymentService
+    const account = await deployment.retrieveDeploymentAccount(accountId)
+    const encryption = container.resolve(ENCRYPTION_MODULE) as EncryptionService
+    creds = resolveAccountCredentials((account as any)?.api_config, encryption)
+  } else {
+    creds = envCredentials(providerName)
+  }
+  return createHostingProvider(providerName, creds)
 }
 
 export async function resolveHostingProviderForPartner(
@@ -111,16 +137,6 @@ export async function resolveHostingProviderForPartner(
     partner?.metadata?.deployment_account_id ??
     null) as string | null
 
-  let creds: HostingCredentials
-  if (accountId) {
-    const deployment = container.resolve(DEPLOYMENT_MODULE) as DeploymentService
-    const account = await deployment.retrieveDeploymentAccount(accountId)
-    const encryption = container.resolve(ENCRYPTION_MODULE) as EncryptionService
-    creds = resolveAccountCredentials((account as any)?.api_config, encryption)
-  } else {
-    creds = envCredentials(providerName)
-  }
-
-  const provider = createHostingProvider(providerName, creds)
+  const provider = await buildHostingProvider(providerName, accountId, container)
   return { providerName, provider, projectRef, accountId }
 }

@@ -47,6 +47,17 @@ const Partner = model.define("partner", {
     storefront_root_dir: model.text().nullable(),
     storefront_branch: model.text().nullable(),
 
+    // Multi-provider hosting (#884 S3). Which provider/account a partner's
+    // storefront was provisioned onto, and the provider-agnostic project ref.
+    // `hosting_provider` null → treat as legacy "vercel" (see resolve-partner-
+    // provider.ts). `deployment_account_id` null → legacy env-single-account
+    // path. `deployment_project_id/name` supersede the vercel_* columns; the
+    // vercel_* columns are kept for backwards-compat reads of pre-#884 records.
+    hosting_provider: model.text().nullable(),
+    deployment_account_id: model.text().nullable(),
+    deployment_project_id: model.text().nullable(),
+    deployment_project_name: model.text().nullable(),
+
     // Relationships
     admins: model.hasMany(() => PartnerAdmin),
 

@@ -3,6 +3,10 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../helpers"
 import { WEBSITE_MODULE } from "../../../modules/website"
 import WebsiteService from "../../../modules/website/service"
+import {
+  partnerHostingProviderName,
+  partnerProjectRef,
+} from "../../../modules/deployment/providers/resolve-partner-provider"
 
 /**
  * Storefront identifiers live on dedicated partner columns now
@@ -18,25 +22,33 @@ export type StorefrontRefs = {
   storefrontDomain: string | null
   vercelLastDeploymentId: string | null
   storefrontProvisionedAt: string | null
+  // Provider-agnostic (#884 S3): which provider + the ref to address it by.
+  providerName: "vercel" | "cloudflare" | "render" | "netlify"
+  projectRef: string | null
 }
 
-export const getStorefrontRefs = (partner: any): StorefrontRefs => ({
-  vercelProjectId:
-    partner?.vercel_project_id ?? partner?.metadata?.vercel_project_id ?? null,
-  vercelProjectName:
-    partner?.vercel_project_name ??
-    partner?.metadata?.vercel_project_name ??
-    null,
-  storefrontDomain:
-    partner?.storefront_domain ?? partner?.metadata?.storefront_domain ?? null,
-  vercelLastDeploymentId:
-    partner?.vercel_last_deployment_id ??
-    partner?.metadata?.vercel_last_deployment_id ??
-    null,
-  // No column for this one — stays metadata-only.
-  storefrontProvisionedAt:
-    partner?.metadata?.storefront_provisioned_at ?? null,
-})
+export const getStorefrontRefs = (partner: any): StorefrontRefs => {
+  const providerName = partnerHostingProviderName(partner)
+  return {
+    vercelProjectId:
+      partner?.vercel_project_id ?? partner?.metadata?.vercel_project_id ?? null,
+    vercelProjectName:
+      partner?.vercel_project_name ??
+      partner?.metadata?.vercel_project_name ??
+      null,
+    storefrontDomain:
+      partner?.storefront_domain ?? partner?.metadata?.storefront_domain ?? null,
+    vercelLastDeploymentId:
+      partner?.vercel_last_deployment_id ??
+      partner?.metadata?.vercel_last_deployment_id ??
+      null,
+    // No column for this one — stays metadata-only.
+    storefrontProvisionedAt:
+      partner?.metadata?.storefront_provisioned_at ?? null,
+    providerName,
+    projectRef: partnerProjectRef(partner, providerName),
+  }
+}
 
 /**
  * Gets the partner's website.

@@ -41,6 +41,21 @@ function formatDate(dateStr: string | number | null | undefined): string {
   })
 }
 
+function hostingProviderLabel(provider: string | undefined): string {
+  switch (provider) {
+    case "vercel":
+      return "Vercel"
+    case "cloudflare":
+      return "Cloudflare Pages"
+    case "netlify":
+      return "Netlify"
+    case "render":
+      return "Render"
+    default:
+      return "—"
+  }
+}
+
 function statusColor(
   status: string | undefined
 ): "green" | "orange" | "grey" | "red" {
@@ -279,6 +294,11 @@ const StorefrontSection = () => {
               <Text size="small">—</Text>
             )}
           </div>
+
+          <Text size="small" className="text-ui-fg-subtle">
+            Hosting
+          </Text>
+          <Text size="small">{hostingProviderLabel(status.provider)}</Text>
 
           <Text size="small" className="text-ui-fg-subtle">
             Enabled
