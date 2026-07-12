@@ -322,6 +322,43 @@ export class EtsyClient {
 
   // ── Listing images (multipart binary upload) ───────────────────────────
 
+  /**
+   * List the images currently on a listing. Used as a pre-flight before a
+   * re-sync: Etsy *appends* on upload and caps a listing at 20 images, so we
+   * must know what's already there before pushing more.
+   */
+  async getListingImages(
+    accessToken: string,
+    shopId: string,
+    listingId: string
+  ): Promise<Array<{ listing_image_id: string; rank: number }>> {
+    const data = await this.requestJson<any>(
+      `${API_BASE}/application/shops/${shopId}/listings/${listingId}/images`,
+      { method: "GET", accessToken }
+    )
+    return (data.results ?? []).map((im: any) => ({
+      listing_image_id: String(im.listing_image_id),
+      rank: Number(im.rank ?? 0),
+    }))
+  }
+
+  /**
+   * Delete a single image from a listing. Used to clear a listing's photos on a
+   * re-sync before re-uploading, so images are replaced rather than appended
+   * (Etsy never overwrites on upload and caps a listing at 20 images).
+   */
+  async deleteListingImage(
+    accessToken: string,
+    shopId: string,
+    listingId: string,
+    listingImageId: string
+  ): Promise<void> {
+    await this.requestJson<any>(
+      `${API_BASE}/application/shops/${shopId}/listings/${listingId}/images/${listingImageId}`,
+      { method: "DELETE", accessToken }
+    )
+  }
+
   async uploadListingImage(
     accessToken: string,
     shopId: string,

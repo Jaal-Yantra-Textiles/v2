@@ -221,33 +221,102 @@ const syncListingStep = createStep(
     const warnings: string[] = []
     let listing: ListingResponse
 
+    // ── Pre-flight: inspect the live listing before mutating it ────────────
+    // On a re-sync the listing already exists on Etsy. Read its current state
+    // and image count FIRST so we don't blindly re-run work that would fail or
+    // duplicate — the classic symptom is re-uploading the same photos onto a
+    // listing that already has the max 20 images (Etsy appends, it never
+    // replaces on upload) and getting "Listings are only allowed 20 images".
+    const ETSY_MAX_IMAGES = 20
+    let existingImages: Array<{ listing_image_id: string; rank: number }> = []
+    let imagesUnreadable = false
+    let listingMissing = false
     if (existing_listing_id) {
+      try {
+        const current = await client.getListing(access_token, existing_listing_id)
+        if (current?.state) {
+          warnings.push(`Listing is currently "${current.state}" on Etsy before this update.`)
+        }
+      } catch (err: any) {
+        // 404 → the listing was deleted on Etsy; fall back to a fresh create.
+        listingMissing = true
+        warnings.push(`Existing listing not found on Etsy (${err?.message || "gone"}); creating a new one.`)
+      }
+      if (!listingMissing) {
+        try {
+          existingImages = await client.getListingImages(access_token, shop_id, existing_listing_id)
+        } catch {
+          // Can't read images — flag it so we don't risk busting the 20-image cap.
+          imagesUnreadable = true
+        }
+      }
+    }
+    let existingImageCount = existingImages.length
+
+    const isUpdate = Boolean(existing_listing_id) && !listingMissing
+    if (isUpdate) {
       listing = await client.updateListing(
         access_token,
         shop_id,
-        existing_listing_id,
+        existing_listing_id!,
         listing_input
       )
     } else {
       listing = await client.createDraftListing(access_token, shop_id, listing_input)
     }
 
-    // Upload images (Etsy requires >=1 image to publish)
+    // Upload images (Etsy requires >=1 image to publish). Etsy *appends* on
+    // upload — it never overwrites — and caps a listing at 20 images, so a naive
+    // re-sync duplicates photos and eventually trips "only allowed 20 images".
+    // Fix: on an update, remove the listing's current images FIRST, then upload
+    // the product's images fresh. Only clear when we actually have replacements
+    // to put back, so a product with no images never strips a live listing bare.
     const uploaded_images: UploadedImage[] = []
-    for (let i = 0; i < image_urls.length; i++) {
-      try {
-        const { buffer, filename } = await EtsyClient.fetchImageBuffer(image_urls[i])
-        const img = await client.uploadListingImage(
-          access_token,
-          shop_id,
-          listing.listing_id,
-          buffer,
-          filename,
-          { rank: i + 1 }
-        )
-        uploaded_images.push(img)
-      } catch (err: any) {
-        warnings.push(`Image ${i + 1} upload failed: ${err.message}`)
+    const toUpload = image_urls.slice(0, ETSY_MAX_IMAGES)
+
+    if (isUpdate && existingImages.length > 0 && toUpload.length > 0) {
+      for (const im of existingImages) {
+        try {
+          await client.deleteListingImage(
+            access_token,
+            shop_id,
+            listing.listing_id,
+            im.listing_image_id
+          )
+        } catch (err: any) {
+          warnings.push(`Could not remove old image ${im.listing_image_id}: ${err.message}`)
+        }
+      }
+      existingImageCount = 0
+    } else if (isUpdate && imagesUnreadable && toUpload.length > 0) {
+      // We couldn't read the listing's images, so we can't safely clear them.
+      // Skip upload rather than risk appending past the 20-image cap.
+      warnings.push(
+        "Skipped image upload: couldn't read the listing's current images to replace them safely."
+      )
+    }
+
+    const shouldUpload =
+      toUpload.length > 0 && !(isUpdate && imagesUnreadable)
+    if (shouldUpload) {
+      for (let i = 0; i < toUpload.length; i++) {
+        try {
+          const { buffer, filename } = await EtsyClient.fetchImageBuffer(toUpload[i])
+          const img = await client.uploadListingImage(
+            access_token,
+            shop_id,
+            listing.listing_id,
+            buffer,
+            filename,
+            { rank: i + 1 }
+          )
+          uploaded_images.push(img)
+        } catch (err: any) {
+          warnings.push(`Image ${i + 1} upload failed: ${err.message}`)
+        }
+      }
+      if (image_urls.length > ETSY_MAX_IMAGES) {
+        warnings.push(`Only the first ${ETSY_MAX_IMAGES} images were uploaded (Etsy limit).`)
       }
     }
 
@@ -255,9 +324,12 @@ const syncListingStep = createStep(
     const shouldPublish =
       settings.follow_product_status !== false && product_status === "published"
 
+    // A listing is publishable if it has images either freshly uploaded now or
+    // already living on Etsy from a prior sync.
+    const hasImages = uploaded_images.length > 0 || existingImageCount > 0
     const isPhysical = listing_input.type !== "download"
     const canPublish =
-      uploaded_images.length > 0 &&
+      hasImages &&
       (!isPhysical ||
         (listing_input.shipping_profile_id &&
           listing_input.return_policy_id &&
