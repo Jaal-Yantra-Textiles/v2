@@ -71,3 +71,58 @@ export function selectDeploymentAccount(
 
   return pool[0]
 }
+
+/**
+ * The provisioning target for a NEW storefront: which account (multi-account
+ * rotation) or which env-single-account provider (legacy fallback) to place it
+ * on. PURE — the workflow feeds it the DB accounts + which providers have env
+ * creds configured, and gets back a decision (or null → capacity exhausted).
+ */
+export type ProvisionTarget =
+  | { kind: "account"; accountId: string; provider: DeploymentProvider }
+  | { kind: "env"; provider: DeploymentProvider }
+
+export type DecideProvisionOptions = {
+  /** Provider to prefer for new partners (default target, e.g. "cloudflare"). */
+  preferredProvider?: DeploymentProvider
+  /** Providers that have legacy env-single-account creds configured. */
+  envProviders?: DeploymentProvider[]
+}
+
+/**
+ * Decide where a new storefront provisions:
+ *   1. A rotatable account of the PREFERRED provider (least-loaded under cap).
+ *   2. Else any rotatable account of ANY provider (cross-provider fallback so a
+ *      full Cloudflare pool spills onto Netlify/Render, etc.).
+ *   3. Else the legacy env account — preferred provider if it has env creds,
+ *      otherwise the first configured env provider (keeps pre-#884 deploys
+ *      working with zero accounts configured).
+ * Returns null when nothing is eligible (caller alerts: add / round-up an account).
+ */
+export function decideProvisionTarget(
+  accounts: DeploymentAccountRow[],
+  opts: DecideProvisionOptions = {}
+): ProvisionTarget | null {
+  const preferred = opts.preferredProvider
+  const envProviders = opts.envProviders ?? []
+
+  // 1. preferred-provider account
+  if (preferred) {
+    const acct = selectDeploymentAccount(accounts, { provider: preferred })
+    if (acct) return { kind: "account", accountId: acct.id, provider: acct.provider }
+  }
+
+  // 2. any-provider account (cross-provider spillover)
+  const anyAcct = selectDeploymentAccount(accounts)
+  if (anyAcct) return { kind: "account", accountId: anyAcct.id, provider: anyAcct.provider }
+
+  // 3. legacy env fallback
+  if (preferred && envProviders.includes(preferred)) {
+    return { kind: "env", provider: preferred }
+  }
+  if (envProviders.length) {
+    return { kind: "env", provider: envProviders[0] }
+  }
+
+  return null
+}

@@ -77,6 +77,7 @@ import { seedInvestorPanelsJob } from "./seed-investor-panels-job"
 import { replayFxFanoutJob } from "./fanout-fx-job"
 import { backfillStoreCurrenciesJob } from "./backfill-store-currencies-job"
 import { backfillPartnerEmailVerifiedJob } from "./backfill-partner-email-verified-job"
+import { backfillPartnerHostingProviderJob } from "./backfill-partner-hosting-provider-job"
 import { enableStripeConnectEurRegionsJob } from "./enable-stripe-connect-eur-regions-job"
 import { suppressBouncedSubscribersJob } from "./suppress-bounced-subscribers-job"
 import { backfillAudienceEntriesJob } from "./backfill-audience-entries-job"
@@ -5484,6 +5485,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   replayFxFanoutJob,
   backfillStoreCurrenciesJob,
   backfillPartnerEmailVerifiedJob,
+  backfillPartnerHostingProviderJob,
   enableStripeConnectEurRegionsJob,
   suppressBouncedSubscribersJob,
   backfillAudienceEntriesJob,

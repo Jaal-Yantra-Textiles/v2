@@ -12,9 +12,13 @@ import { queryKeysFactory } from "../../lib/query-key-factory"
 const STOREFRONT_QUERY_KEY = "partner_storefront" as const
 export const storefrontQueryKeys = queryKeysFactory(STOREFRONT_QUERY_KEY)
 
+export type HostingProvider = "vercel" | "cloudflare" | "render" | "netlify"
+
 export interface StorefrontStatus {
   provisioned: boolean
   message?: string
+  /** Which hosting provider the storefront lives on (#884). */
+  provider?: HostingProvider
   project?: {
     id: string
     name: string

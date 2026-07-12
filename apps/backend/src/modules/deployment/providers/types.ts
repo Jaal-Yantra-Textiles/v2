@@ -17,12 +17,21 @@ export type HostingProviderName = "vercel" | "cloudflare" | "render" | "netlify"
 
 /** Per-account credentials, decrypted at runtime from `deployment_account.api_config`. */
 export type HostingCredentials = {
-  /** API token (Vercel token / Cloudflare API token). */
+  /** API token (Vercel token / Cloudflare API token / Netlify PAT / Render key). */
   token: string
   /** Vercel team id (optional — personal accounts omit it). */
   teamId?: string
   /** Cloudflare/Render account id (the URL-scoping id). */
   accountId?: string
+  /**
+   * Provider-specific non-secret config carried through from api_config so each
+   * adapter can read what it needs without widening the core shape:
+   *   - Netlify: `account_slug`, `github_installation_id`
+   *   - Render:  `owner_id`
+   *   - Cloudflare (Pages/Workers): `zone_id`
+   * Populated from every api_config key that isn't a token/team/account field.
+   */
+  extra?: Record<string, string>
 }
 
 export type CreateProjectInput = {
@@ -96,6 +105,10 @@ export type HostingDomainStatus = {
 
 export type TriggerDeploymentInput = {
   projectName: string
+  /** The provider project id (Netlify site id / Render service id). Providers
+   * that address deploys by id use this; name-addressed providers (Vercel,
+   * Cloudflare Pages) use `projectName`. */
+  projectId?: string
   gitRepo: string
   ref?: string
 }
