@@ -132,13 +132,20 @@ export const normalizeArtisanProductsJob: MaintenanceJob = {
     // 3. Products in those channels (+ status). Query from the sales_channel
     // side: `sales_channels` is a module link on product, so it can be expanded
     // in `fields` but NOT used in `filters` (MikroORM has no such property →
-    // "Trying to query by not existing property Product.sales_channels"). The
-    // channel entity, by contrast, has a filterable `products` relation. We also
+    // "Trying to query by not existing property Product.sales_channels"). Pivot
+    // through the channel's `products_link.product` (the link graph exposes
+    // products under `products_link`, NOT a direct `products` relation — see
+    // list-store-products.ts / backfill-classify-products-tax-class.ts). We also
     // keep each product's originating channel so we can resolve its owner
     // directly from `channelToPartner`.
     const { data: channelsWithProducts = [] } = await query.graph({
       entity: "sales_channel",
-      fields: ["id", "products.id", "products.title", "products.status"],
+      fields: [
+        "id",
+        "products_link.product.id",
+        "products_link.product.title",
+        "products_link.product.status",
+      ],
       filters: { id: channelIds } as any,
     })
 
@@ -154,7 +161,8 @@ export const normalizeArtisanProductsJob: MaintenanceJob = {
     for (const ch of channelsWithProducts as any[]) {
       const partnerId = channelToPartner.get(ch.id)
       if (!partnerId) continue
-      for (const prod of ch.products || []) {
+      for (const link of ch.products_link || []) {
+        const prod = link?.product
         if (!prod?.id || seen.has(prod.id)) continue
         seen.add(prod.id)
         products.push({
