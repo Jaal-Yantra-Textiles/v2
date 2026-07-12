@@ -39,6 +39,11 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    outputs:
+      # Consumed by refloat-lockfile below. `published` is 'true' only when this
+      # run actually pushed a NEW version to npm (not a no-op re-run).
+      published: ${{ steps.publish.outputs.published }}
+      version: ${{ steps.publish.outputs.version }}
     defaults:
       run:
         working-directory: packages/medusa-plugin-faire-store-sync
@@ -72,12 +77,98 @@ jobs:
         run: npm install -g npm@11.18.0
 
       - name: Publish to npm via OIDC (only if version changed)
+        id: publish
         run: |
           NAME=$(node -p "require('./package.json').name")
           VERSION=$(node -p "require('./package.json').version")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           if npm view "${NAME}@${VERSION}" version >/dev/null 2>&1; then
             echo "::notice::${NAME}@${VERSION} is already published — skipping (bump the version to release)."
+            echo "published=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           echo "Publishing ${NAME}@${VERSION} via trusted publishing…"
           npm publish --access public
+          echo "published=true" >> "$GITHUB_OUTPUT"
+
+  # After a real publish, refloat the backend's pnpm-lock.yaml to the new version
+  # and commit it to main. The backend depends on this plugin at `latest`, but a
+  # frozen lockfile keeps prod pinned to the OLD version until the lock entry is
+  # bumped — this was the manual `pnpm update … --latest` + commit step. The
+  # lockfile push to main auto-triggers deploy-to-aws (which watches pnpm-lock.yaml),
+  # so the full chain bump → publish → refloat → deploy is hands-off.
+  refloat-lockfile:
+    needs: publish
+    if: needs.publish.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      # Serialize with any other lockfile-refloat pusher (e.g. the etsy plugin)
+      # so two publishes can't race a push to main.
+      group: refloat-lockfile-main
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          # Use the default GITHUB_TOKEN — same token semantic-release pushes with.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Wait for npm to propagate the new version
+        env:
+          VERSION: ${{ needs.publish.outputs.version }}
+        run: |
+          NAME="@jytextiles/medusa-plugin-faire-store-sync"
+          for i in $(seq 1 30); do
+            if [ "$(npm view "${NAME}@${VERSION}" version 2>/dev/null)" = "${VERSION}" ]; then
+              echo "npm has ${NAME}@${VERSION}."
+              exit 0
+            fi
+            echo "Waiting for ${NAME}@${VERSION} on npm… (${i}/30)"
+            sleep 10
+          done
+          echo "::error::${NAME}@${VERSION} did not appear on npm within 5 minutes."
+          exit 1
+
+      - name: Refloat backend lockfile to the new version
+        id: refloat
+        env:
+          VERSION: ${{ needs.publish.outputs.version }}
+        run: |
+          NAME="@jytextiles/medusa-plugin-faire-store-sync"
+          # --latest ignores the existing lock and pulls the newest published
+          # version; --lockfile-only avoids a full install. The backend spec is
+          # already `latest`, so package.json shouldn't change — restore it
+          # defensively and stage ONLY the lockfile.
+          pnpm --filter @jyt/backend update "${NAME}" --latest --lockfile-only
+          git checkout -- apps/backend/package.json 2>/dev/null || true
+          if git diff --quiet -- pnpm-lock.yaml; then
+            echo "::notice::Lockfile already resolves ${NAME}@${VERSION} — nothing to commit."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit lockfile bump to main
+        if: steps.refloat.outputs.changed == 'true'
+        env:
+          VERSION: ${{ needs.publish.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pnpm-lock.yaml
+          git commit -m "chore(faire): refloat backend lockfile to faire-store-sync@${VERSION}" \
+            -m "Automated by publish-faire-plugin.yml so prod (deploy-to-aws watches pnpm-lock.yaml) picks up the new version."
+          # Rebase onto any concurrent main pushes, then push.
+          git pull --rebase origin main
+          git push origin HEAD:main
