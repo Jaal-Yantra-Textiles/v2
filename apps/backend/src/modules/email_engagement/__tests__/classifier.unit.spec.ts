@@ -60,6 +60,34 @@ describe("classifier — classifyEngagement", () => {
     expect(c.bulk_suppressed).toBe(false)
   })
 
+  it("cooling via time-based fallback: opener with NO delivery cold streak but a stale last open", () => {
+    // Provider reports opens but not `delivered` (cold streak can't accrue).
+    // The stale last_open_at (>= coolingIdleDays) must still tip to cooling so
+    // the newsletter win-back audience isn't permanently empty.
+    const c = classifyEngagement(
+      { delivered_count: 0, opens_count: 3, delivered_since_last_open: 0, last_open_at: daysAgo(40) },
+      { now: NOW }
+    )
+    expect(c.status).toBe("cooling")
+    expect(c.bulk_suppressed).toBe(false)
+  })
+
+  it("engaged (not cooling) when the last open is recent, even with no cold streak", () => {
+    const c = classifyEngagement(
+      { delivered_count: 0, opens_count: 3, delivered_since_last_open: 0, last_open_at: daysAgo(5) },
+      { now: NOW }
+    )
+    expect(c.status).toBe("engaged")
+  })
+
+  it("clicker with no last_open_at is not mis-flagged as cooling", () => {
+    const c = classifyEngagement(
+      { delivered_count: 0, opens_count: 0, clicks_count: 2, delivered_since_last_open: 0 },
+      { now: NOW }
+    )
+    expect(c.status).toBe("engaged")
+  })
+
   it("never_opened when opens=0 but not yet enough deliveries/time for dormant", () => {
     const c = classifyEngagement(
       { delivered_count: 4, opens_count: 0, delivered_since_last_open: 4, first_delivered_at: daysAgo(120) },

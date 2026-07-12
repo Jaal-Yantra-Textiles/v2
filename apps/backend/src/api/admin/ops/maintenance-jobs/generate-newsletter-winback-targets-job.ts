@@ -61,6 +61,13 @@ export const generateNewsletterWinbackTargetsJob: MaintenanceJob = {
       required: false,
       description: "Min first-delivery age (days) before `dormant` applies. Default 30.",
     },
+    {
+      name: "cooling_idle_days",
+      type: "number",
+      required: false,
+      description:
+        "Time-based fallback: an opener whose last open is at least this many days old counts as `cooling` even without a delivery cold streak (covers providers that report opens but not deliveries). Default 30.",
+    },
   ],
   run: async (container, { dry_run, params }): Promise<MaintenanceJobResult> => {
     const engagement: any = container.resolve(EMAIL_ENGAGEMENT_MODULE)
@@ -71,6 +78,7 @@ export const generateNewsletterWinbackTargetsJob: MaintenanceJob = {
       coolingColdStreak: numParam(params.cooling_cold_streak, DEFAULT_ENGAGEMENT_THRESHOLDS.coolingColdStreak),
       dormantColdStreak: numParam(params.dormant_cold_streak, DEFAULT_ENGAGEMENT_THRESHOLDS.dormantColdStreak),
       dormantMinSpanDays: numParam(params.dormant_min_span_days, DEFAULT_ENGAGEMENT_THRESHOLDS.dormantMinSpanDays),
+      coolingIdleDays: numParam(params.cooling_idle_days, DEFAULT_ENGAGEMENT_THRESHOLDS.coolingIdleDays),
     }
 
     // Engagement rows (read-only), classified live so a stale stored status
