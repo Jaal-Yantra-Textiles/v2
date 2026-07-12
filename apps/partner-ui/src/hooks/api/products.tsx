@@ -692,6 +692,30 @@ export const useArtisanProductDetail = (
   return { ...data, ...rest }
 }
 
+// #859: a private, shareable review link for one of the partner's own products.
+// The product lists on the core storefront under a token-gated, non-discoverable
+// `/products/preview/:token` route — safe to share before/around publishing.
+export type ProductPreviewLink = {
+  token: string
+  path: string
+  url: string
+  status: string
+}
+
+export const useProductPreviewLink = (
+  productId: string,
+  options?: UseMutationOptions<ProductPreviewLink, FetchError, void>
+) => {
+  return useMutation({
+    mutationFn: () =>
+      sdk.client.fetch<ProductPreviewLink>(
+        `/partners/products/${productId}/preview-link`,
+        { method: "GET" }
+      ),
+    ...options,
+  })
+}
+
 // #859 S3 (#862): upsert the artisan made-to-order / maker-story detail.
 export const useUpsertArtisanProductDetail = (
   productId: string,
