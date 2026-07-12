@@ -83,6 +83,8 @@ export const faireApi = {
   getSync: (id: string) => sdk.client.fetch(`/admin/faire/syncs/${id}`),
   retrySync: (id: string) =>
     sdk.client.fetch(`/admin/faire/syncs/${id}`, { method: "POST" }),
+  deleteSync: (id: string) =>
+    sdk.client.fetch(`/admin/faire/syncs/${id}`, { method: "DELETE" }),
   brand: () => sdk.client.fetch("/admin/faire/brand"),
   taxonomy: (opts: { q?: string; limit?: number; ids?: string[] } = {}) => {
     const query: Record<string, string> = {}

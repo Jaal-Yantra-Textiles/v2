@@ -61,6 +61,8 @@ export const etsyApi = {
     sdk.client.fetch(`/admin/etsy/syncs/${id}`),
   retrySync: (id: string) =>
     sdk.client.fetch(`/admin/etsy/syncs/${id}`, { method: "POST" }),
+  deleteSync: (id: string) =>
+    sdk.client.fetch(`/admin/etsy/syncs/${id}`, { method: "DELETE" }),
   shippingProfiles: () =>
     sdk.client.fetch("/admin/etsy/shipping-profiles"),
   returnPolicies: () =>
