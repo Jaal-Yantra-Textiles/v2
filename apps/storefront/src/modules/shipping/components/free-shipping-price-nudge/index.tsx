@@ -10,6 +10,7 @@ import {
 } from "@medusajs/types"
 import { Button, clx } from "@medusajs/ui"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { StoreFreeShippingPrice } from "types/global"
 
@@ -81,6 +82,16 @@ export default function ShippingPriceNudge({
   cart: StoreCart
   shippingOptions: StoreCartShippingOption[]
 }) {
+  const pathname = usePathname()
+
+  // #859 — the private artisan product preview renders inside the shared (main)
+  // layout, which mounts this nudge for any session that carries a cart cookie
+  // (e.g. a cart created earlier in that browser). A shipping upsell is noise on
+  // a "review before it goes live" link, so suppress it on the preview route.
+  if (pathname?.includes("/products/preview/")) {
+    return
+  }
+
   if (!cart || !shippingOptions?.length) {
     return
   }
