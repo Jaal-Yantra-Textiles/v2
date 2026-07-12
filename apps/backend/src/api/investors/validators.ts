@@ -108,6 +108,7 @@ export const stakeSchema = z.object({
   issue_date: z.string().datetime().optional(),
   status: z.enum([
     "active", "fully_paid", "partially_paid", "unpaid", "cancelled",
+    "rejected", "not_followed_up",
   ]).optional(),
 })
 

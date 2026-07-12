@@ -7,7 +7,7 @@ import {
   toast,
   useDataTable,
 } from "@medusajs/ui"
-import { Check, CurrencyDollar } from "@medusajs/icons"
+import { ArrowPath, Check, Clock, CurrencyDollar, XMark } from "@medusajs/icons"
 import { useSearchParams } from "react-router-dom"
 import { RouteFocusModal } from "../../../../components/modal/route-focus-modal"
 import { ActionMenu } from "../../../../components/common/action-menu"
@@ -16,6 +16,7 @@ import {
   useApproveConvertible,
   useMarkParticipationPaid,
   useRoundParticipations,
+  useSetParticipationStatus,
   type AdminParticipation,
 } from "../../../../hooks/api/cap-tables-admin"
 
@@ -31,11 +32,16 @@ const statusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
     case "unpaid":
       return "orange"
     case "cancelled":
+    case "rejected":
       return "red"
+    case "not_followed_up":
+      return "grey"
     default:
       return "grey"
   }
 }
+
+const statusLabel = (s?: string) => (s ? s.replace(/_/g, " ") : "unpaid")
 
 const ParticipationsTable = ({
   roundId,
@@ -62,6 +68,10 @@ const ParticipationsTable = ({
   })
   const { mutateAsync: markPaid } = useMarkParticipationPaid(roundId, {
     onSuccess: () => toast.success("Marked as paid"),
+    onError: (e) => toast.error(e?.message || "Failed"),
+  })
+  const { mutateAsync: setStatus } = useSetParticipationStatus(roundId, {
+    onSuccess: (r) => toast.success(`Moved to "${statusLabel(r?.status)}"`),
     onError: (e) => toast.error(e?.message || "Failed"),
   })
 
@@ -94,7 +104,7 @@ const ParticipationsTable = ({
         accessorKey: "status",
         cell: ({ row }: any) => (
           <Badge color={statusColor(row.original.status)}>
-            {row.original.status ?? "unpaid"}
+            {statusLabel(row.original.status)}
           </Badge>
         ),
       },
@@ -121,6 +131,8 @@ const ParticipationsTable = ({
           const p = row.original as AdminParticipation
           const approved = !!p.metadata?.approved
           const isConvertible = p.type === "convertible"
+          const isParked =
+            p.status === "rejected" || p.status === "not_followed_up"
           return (
             <div className="flex justify-end">
               <ActionMenu
@@ -130,7 +142,7 @@ const ParticipationsTable = ({
                       {
                         icon: <Check />,
                         label: "Approve (generate pay link)",
-                        disabled: approved,
+                        disabled: approved || isParked,
                         onClick: () =>
                           isConvertible ? approveConvertible(p.id) : approve(p.id),
                       },
@@ -138,10 +150,44 @@ const ParticipationsTable = ({
                       {
                         icon: <CurrencyDollar />,
                         label: "Mark paid",
-                        disabled: isConvertible || p.status === "fully_paid",
+                        disabled:
+                          isConvertible || isParked || p.status === "fully_paid",
                         onClick: () => markPaid(p.id),
                       },
                     ],
+                  },
+                  // Lifecycle states (equity only, like mark-paid). Excluded from
+                  // the cap table until fully_paid.
+                  {
+                    actions: isParked
+                      ? [
+                          {
+                            icon: <ArrowPath />,
+                            label: "Reopen (back to unpaid)",
+                            disabled: isConvertible,
+                            onClick: () =>
+                              setStatus({ stakeId: p.id, status: "unpaid" }),
+                          },
+                        ]
+                      : [
+                          {
+                            icon: <XMark />,
+                            label: "Reject",
+                            disabled: isConvertible || p.status === "fully_paid",
+                            onClick: () =>
+                              setStatus({ stakeId: p.id, status: "rejected" }),
+                          },
+                          {
+                            icon: <Clock />,
+                            label: "Not followed up",
+                            disabled: isConvertible || p.status === "fully_paid",
+                            onClick: () =>
+                              setStatus({
+                                stakeId: p.id,
+                                status: "not_followed_up",
+                              }),
+                          },
+                        ],
                   },
                 ]}
               />

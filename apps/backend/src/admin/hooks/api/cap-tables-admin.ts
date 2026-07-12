@@ -437,6 +437,32 @@ export const usePublishRound = (
   })
 }
 
+// Revise a round's target amount. Server-side guard: only permitted while no
+// participant has onboarded on the round (else it 400s).
+export const useUpdateRoundTarget = (
+  capTableId: string,
+  options?: UseMutationOptions<
+    { funding_round: AdminFundingRound },
+    FetchError,
+    { roundId: string; target_amount: number | null }
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    ...options,
+    mutationFn: ({ roundId, target_amount }) =>
+      sdk.client.fetch(`/admin/funding-rounds/${roundId}`, {
+        method: "POST",
+        body: { target_amount },
+      }),
+    onSuccess: (...args: any[]) => {
+      queryClient.invalidateQueries({ queryKey: capTablesQueryKeys.detail(capTableId) })
+      queryClient.invalidateQueries({ queryKey: ["admin-company-cap-tables"] })
+      ;(options?.onSuccess as any)?.(...args)
+    },
+  })
+}
+
 export const useRoundParticipations = (
   roundId: string,
   options?: Omit<
@@ -483,6 +509,36 @@ export const useMarkParticipationPaid = (
     ...options,
     mutationFn: (stakeId: string) =>
       sdk.client.fetch(`/admin/stakes/${stakeId}/mark-paid`, { method: "POST" }),
+    onSuccess: (...args: any[]) => {
+      queryClient.invalidateQueries({ queryKey: roundParticipationsQueryKey(roundId) })
+      queryClient.invalidateQueries({ queryKey: ["admin-cap-table"] })
+      queryClient.invalidateQueries({ queryKey: ["admin-company-cap-tables"] })
+      ;(options?.onSuccess as any)?.(...args)
+    },
+  })
+}
+
+// Move an equity participation to a non-payment lifecycle state: reject it,
+// park it as not-followed-up, or reopen it back to unpaid. Excluded from the
+// cap table until (and unless) it becomes fully_paid.
+export type ParticipationLifecycleStatus = "rejected" | "not_followed_up" | "unpaid"
+
+export const useSetParticipationStatus = (
+  roundId: string,
+  options?: UseMutationOptions<
+    { ok: boolean; status: string },
+    FetchError,
+    { stakeId: string; status: ParticipationLifecycleStatus }
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    ...options,
+    mutationFn: ({ stakeId, status }) =>
+      sdk.client.fetch(`/admin/stakes/${stakeId}/set-status`, {
+        method: "POST",
+        body: { status },
+      }),
     onSuccess: (...args: any[]) => {
       queryClient.invalidateQueries({ queryKey: roundParticipationsQueryKey(roundId) })
       queryClient.invalidateQueries({ queryKey: ["admin-cap-table"] })

@@ -27,7 +27,10 @@ const statusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
     case "partially_paid":
       return "orange"
     case "cancelled":
+    case "rejected":
       return "red"
+    case "not_followed_up":
+      return "grey"
     default:
       return "grey"
   }
