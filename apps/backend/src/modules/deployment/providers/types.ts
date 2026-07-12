@@ -126,6 +126,13 @@ export interface HostingProvider {
   setEnvVars(projectId: string, envVars: HostingEnvVar[]): Promise<void>
   triggerDeployment(input: TriggerDeploymentInput): Promise<HostingDeployment>
   getProject(projectId: string): Promise<HostingProject>
+  /**
+   * Delete the project/site on the provider (teardown). Optional: only adapters
+   * whose API supports project deletion implement it. `DELETE
+   * /partners/storefront` calls it when present, else reports "remove it in the
+   * provider dashboard". Treat a missing project (404) as already-deleted.
+   */
+  deleteProject?(projectId: string): Promise<void>
 
   // ── Custom domain lifecycle (provider-specific DNS/verification) ──────────
   addDomain(projectId: string, domain: string, opts?: AddDomainOptions): Promise<HostingDomain>

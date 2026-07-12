@@ -222,4 +222,15 @@ export class NetlifyProvider implements HostingProvider {
     const site = await this.nf<NetlifySite>(`${NETLIFY_API}/sites/${siteId}`, { method: "GET" }, "getProject")
     return { id: site.id, name: site.name, originHost: this.originFromSite(site) }
   }
+
+  /** Delete the Netlify site (teardown). A 404 means it's already gone. */
+  async deleteProject(siteId: string): Promise<void> {
+    const res = await fetch(`${NETLIFY_API}/sites/${siteId}`, {
+      method: "DELETE",
+      headers: this.headers(),
+    })
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`Netlify deleteProject failed (${res.status}): ${await res.text().catch(() => res.statusText)}`)
+    }
+  }
 }

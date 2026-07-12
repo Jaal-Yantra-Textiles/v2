@@ -213,11 +213,12 @@ export const DELETE = async (
         results.domain = { action: "failed", error: e.message }
       }
     }
-    // deleteProject isn't on the HostingProvider interface (Vercel service has
-    // it); guard for providers that expose it.
-    const anyProvider = provider as any
-    if (typeof anyProvider.deleteProject === "function") {
-      await anyProvider.deleteProject(projectRef)
+    // deleteProject is an optional HostingProvider method (#345); every current
+    // adapter (Vercel/Cloudflare Pages/Netlify/Render) implements it, so this
+    // path fully tears down the project via the resolved account's creds. The
+    // legacy branch stays as a fallback for env-only Vercel setups.
+    if (typeof provider.deleteProject === "function") {
+      await provider.deleteProject(projectRef)
       results.project = { action: "deleted" }
     } else if (refs.providerName === "vercel" && deployment.isVercelConfigured()) {
       await deployment.deleteProject(projectRef)

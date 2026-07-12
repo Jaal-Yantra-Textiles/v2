@@ -252,4 +252,15 @@ export class RenderProvider implements HostingProvider {
     const svc = await this.rd<RenderService>(`${RENDER_API}/services/${serviceId}`, { method: "GET" }, "getProject")
     return { id: svc.id, name: svc.name, originHost: this.originFromService(svc) }
   }
+
+  /** Delete the Render service (teardown). A 404 means it's already gone. */
+  async deleteProject(serviceId: string): Promise<void> {
+    const res = await fetch(`${RENDER_API}/services/${serviceId}`, {
+      method: "DELETE",
+      headers: this.headers(),
+    })
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`Render deleteProject failed (${res.status}): ${await res.text().catch(() => res.statusText)}`)
+    }
+  }
 }

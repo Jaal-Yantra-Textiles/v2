@@ -231,3 +231,56 @@ describe("RenderProvider", () => {
       .toBeInstanceOf(RenderProvider)
   })
 })
+
+// #345 teardown: every adapter can delete its project/site via the provider API,
+// so `DELETE /partners/storefront` fully auto-cleans (no dashboard step). A 404
+// is treated as already-deleted; any other non-2xx throws.
+describe("deleteProject (teardown)", () => {
+  const realFetch = global.fetch
+  let calls: Array<{ url: string; method?: string }>
+  const mockFetch = (status: number) => {
+    calls = []
+    global.fetch = ((url: any, init: any) => {
+      calls.push({ url: String(url), method: init?.method })
+      return Promise.resolve({
+        ok: status >= 200 && status < 300,
+        status,
+        text: () => Promise.resolve(status >= 400 ? "boom" : ""),
+      } as any)
+    }) as any
+  }
+  afterEach(() => {
+    global.fetch = realFetch
+  })
+
+  const providers = (): Array<[string, { deleteProject?: (id: string) => Promise<void> }]> => [
+    ["vercel", new VercelHostingProvider({ token: "v", teamId: "team_1" })],
+    ["cloudflare", new CloudflarePagesProvider({ token: "c", accountId: "acct_1" })],
+    ["netlify", new NetlifyProvider({ token: "n", accountId: "a", extra: { github_installation_id: "1" } })],
+    ["render", new RenderProvider({ token: "r", extra: { owner_id: "tea_1" } })],
+  ]
+
+  it("issues a DELETE and resolves on 200", async () => {
+    for (const [name, p] of providers()) {
+      mockFetch(200)
+      await expect(p.deleteProject!("proj_1")).resolves.toBeUndefined()
+      expect(calls[0]?.method).toBe("DELETE")
+      expect(calls[0]?.url).toContain("proj_1")
+      expect(name).toBeTruthy()
+    }
+  })
+
+  it("treats 404 as already-deleted (no throw)", async () => {
+    for (const [, p] of providers()) {
+      mockFetch(404)
+      await expect(p.deleteProject!("proj_1")).resolves.toBeUndefined()
+    }
+  })
+
+  it("throws on other failures (e.g. 500)", async () => {
+    for (const [, p] of providers()) {
+      mockFetch(500)
+      await expect(p.deleteProject!("proj_1")).rejects.toThrow(/deleteProject failed \(500\)/)
+    }
+  })
+})
