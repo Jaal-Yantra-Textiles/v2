@@ -10,6 +10,8 @@ export type ArtisanDetail = {
   lead_time_label?: string | null
   min_order_quantity?: number | null
   maker_story?: string | null
+  // Grafted server-side from the owning partner's name (#859) — not a DB field.
+  maker_name?: string | null
 }
 
 export function getArtisanDetail(

@@ -6,6 +6,7 @@ import {
   isPresent,
 } from "@medusajs/framework/utils"
 import { verifyPreviewToken } from "../lib/token"
+import { attachMakerNames } from "../../../../../lib/attach-maker-names"
 
 // Field set mirrors the storefront's listProducts() so ProductTemplate renders
 // identically — minus anything published-only. Prices are resolved via the
@@ -92,6 +93,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       "Product not found"
     )
   }
+
+  // Graft the owning partner's name onto artisan_detail for the "Made by …" block.
+  await attachMakerNames([product], query)
 
   res.json({ product })
 }

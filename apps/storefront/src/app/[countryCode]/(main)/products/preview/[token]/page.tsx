@@ -37,14 +37,7 @@ export default async function ProductPreviewPage(props: Props) {
     notFound()
   }
 
-  // Artisan products created via quick/AI flows often carry only a `thumbnail`
-  // and no `images[]` relation — the gallery renders `images`, so fall back to
-  // the thumbnail so the preview isn't photo-less.
-  const images: HttpTypes.StoreProductImage[] = product.images?.length
-    ? product.images
-    : product.thumbnail
-      ? [{ id: "thumbnail", url: product.thumbnail } as HttpTypes.StoreProductImage]
-      : []
+  const images: HttpTypes.StoreProductImage[] = product.images ?? []
 
   return (
     <>
