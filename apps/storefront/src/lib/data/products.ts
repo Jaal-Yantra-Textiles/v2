@@ -71,7 +71,7 @@ export const listProducts = async ({
           // relations on Design, so populating them here throws
           // "Entity 'Design' does not have property 'persons'".
           fields:
-            "*variants.calculated_price,+variants.inventory_quantity,*variants.images,+metadata,+tags,+designs.*, +designs.partners.*, +designs.tasks.*, +designs.inventory_items.raw_materials.*, +designs.inventory_items.raw_materials.material_type.*",
+            "*variants.calculated_price,+variants.inventory_quantity,*variants.images,+metadata,+tags,+artisan_detail.*,+designs.*, +designs.partners.*, +designs.tasks.*, +designs.inventory_items.raw_materials.*, +designs.inventory_items.raw_materials.material_type.*",
           ...queryParams,
         },
         headers,
@@ -91,6 +91,37 @@ export const listProducts = async ({
         queryParams,
       }
     })
+}
+
+/**
+ * #859 — fetch a single UNPUBLISHED artisan product for a private review page
+ * via a signed share token. Hits the token-gated backend preview endpoint
+ * (NOT `/store/products`, which is published-only). Returns null on an invalid
+ * token or missing product so the caller can `notFound()`.
+ */
+export const retrievePreviewProduct = async ({
+  token,
+  countryCode,
+}: {
+  token: string
+  countryCode: string
+}): Promise<HttpTypes.StoreProduct | null> => {
+  const region = await getRegion(countryCode)
+  const headers = { ...(await getAuthHeaders()) }
+
+  return sdk.client
+    .fetch<{ product: HttpTypes.StoreProduct }>(
+      `/store/products/preview/${encodeURIComponent(token)}`,
+      {
+        method: "GET",
+        query: { region_id: region?.id },
+        headers,
+        // Never cache a preview — the artisan is actively editing it.
+        cache: "no-store",
+      }
+    )
+    .then(({ product }) => product ?? null)
+    .catch(() => null)
 }
 
 /**

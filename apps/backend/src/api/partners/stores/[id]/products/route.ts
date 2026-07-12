@@ -6,6 +6,10 @@ import {
 } from "../../../helpers"
 import listStoreProductsWorkflow from "../../../../../workflows/partner/list-store-products"
 import { fanoutVariantPrices } from "../../../../../workflows/fx/fanout-variant-prices"
+import {
+  isCoreChannelListingPartner,
+  recordArtisanProposal,
+} from "../../../products/lib/artisan-proposal"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -40,7 +44,7 @@ export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  const { store } = await validatePartnerStoreAccess(
+  const { partner, store } = await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
     req.scope
@@ -53,6 +57,20 @@ export const POST = async (
     body.sales_channels = [{ id: store.default_sales_channel_id }]
   }
 
+  // #859 S2 (#861) — artisan proposal gate. A `core_channel_listing` partner
+  // (Airbnb-style seller) never publishes directly: their products enter as
+  // `proposed` and an admin verifies/approves before publish + cross-list.
+  // This is the route the partner-ui actually calls, so the gate must live
+  // here (not only on the legacy `POST /partners/products`).
+  const isCoreChannelListing = await isCoreChannelListingPartner(
+    req.scope,
+    partner.id
+  )
+  if (isCoreChannelListing) {
+    // Proposal override wins over any client-supplied status.
+    body.status = "proposed"
+  }
+
   const { result } = await createProductsWorkflow(req.scope).run({
     input: {
       products: [body] as any,
@@ -60,6 +78,12 @@ export const POST = async (
   })
 
   const product = result[0]
+
+  // Record ownership link + emit `partner_product.proposed` so the admin-review
+  // widget, notifications and visual flows can resolve the owning partner.
+  if (isCoreChannelListing && product?.id) {
+    await recordArtisanProposal(req.scope, partner.id, product.id)
+  }
 
   // Auto-seed inventory_level rows at the partner's stock location(s) for
   // any managed-inventory variants on the new product. Without this, the

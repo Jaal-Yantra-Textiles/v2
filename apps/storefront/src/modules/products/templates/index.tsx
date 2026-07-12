@@ -12,6 +12,9 @@ import SkeletonRelatedProducts from "@modules/skeletons/templates/skeleton-relat
 import { notFound } from "next/navigation"
 import ProductActionsWrapper from "./product-actions-wrapper"
 import SizeGuide from "@modules/products/components/size-guide"
+import MakerStory from "@modules/products/components/artisan-detail/maker-story"
+import MadeToOrderNotice from "@modules/products/components/artisan-detail/made-to-order-notice"
+import { getArtisanDetail } from "@modules/products/components/artisan-detail"
 import { HttpTypes } from "@medusajs/types"
 import { Text } from "@medusajs/ui"
 import { StoreDesign } from "../../../types/product-design"
@@ -100,6 +103,7 @@ const ProductTemplate = async ({
       >
         <div className="flex flex-col small:sticky small:top-48 small:py-0 small:max-w-[300px] w-full py-8 gap-y-6">
           <ProductInfo product={product} />
+          <MakerStory product={product} />
           <div className="hidden small:block">
             <DesignInfo
               design={design}
@@ -135,6 +139,7 @@ const ProductTemplate = async ({
           >
 
             <ProductActionsWrapper id={product.id} region={region} />
+            <MadeToOrderNotice detail={getArtisanDetail(product)} className="mt-4" />
             <div className="mt-4 flex items-center gap-x-2">
               <Text className="txt-medium">Size Guide</Text>
               <SizeGuide />

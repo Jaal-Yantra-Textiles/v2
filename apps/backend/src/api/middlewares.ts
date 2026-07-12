@@ -1188,6 +1188,15 @@ export default defineMiddlewares({
       ],
     },
     {
+      // #859: private shareable review link for an artisan's unpublished product.
+      matcher: "/partners/products/:id/preview-link",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       // #859 S3 (#862): read the artisan made-to-order/maker-story detail.
       matcher: "/partners/products/:id/artisan-detail",
       method: "GET",
