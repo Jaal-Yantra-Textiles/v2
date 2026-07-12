@@ -121,7 +121,15 @@ const CapTableList = ({ capTables }: { capTables: InvestorCapTable[] }) => {
   )
 }
 
-const CapTableSection = ({ capTable }: { capTable: InvestorCapTable }) => {
+const CapTableSection = ({
+  capTable,
+  outstandingPrincipal = 0,
+}: {
+  capTable: InvestorCapTable
+  // Your outstanding convertible/loan/SAFE principal on this cap table — not yet
+  // equity, so it's not in "Your investment" but worth nudging so ₹0 isn't scary.
+  outstandingPrincipal?: number
+}) => {
   const stakes = capTable.stakes ?? []
   const ccy = capTable.currency_code
 
@@ -162,6 +170,12 @@ const CapTableSection = ({ capTable }: { capTable: InvestorCapTable }) => {
           <div className="rounded-lg border p-3">
             <Text size="small" className="text-ui-fg-subtle">Your investment</Text>
             <Text weight="plus" className="mt-1">{money(myInvested, ccy)}</Text>
+            {outstandingPrincipal > 0 && (
+              <Text size="xsmall" className="text-ui-fg-muted mt-1">
+                + {money(outstandingPrincipal, ccy)} in an outstanding loan/SAFE —
+                converts to equity later (see below)
+              </Text>
+            )}
           </div>
           <div className="rounded-lg border p-3">
             <Text size="small" className="text-ui-fg-subtle">Total raised</Text>
@@ -325,6 +339,21 @@ export const Component = () => {
   const { capTables, isPending } = useMyCapTable()
   const { convertibles, summary, isPending: safesPending } = useMyConvertibles()
 
+  // Your outstanding (not-yet-converted) convertible principal, grouped by cap
+  // table — feeds the "Your investment" nudge so a ₹0 equity tile still tells
+  // the investor their loan/SAFE money is accounted for.
+  const outstandingByCt = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const c of convertibles) {
+      if ((c as any).status !== "outstanding") continue
+      const cid = c.cap_table?.id ?? (c as any).cap_table_id
+      if (!cid) continue
+      const principal = Number((c as any).principal_amount ?? c.value?.principal ?? 0)
+      m.set(cid, (m.get(cid) ?? 0) + principal)
+    }
+    return m
+  }, [convertibles])
+
   if (isPending) {
     return (
       <div className="flex flex-col gap-y-3">
@@ -357,7 +386,13 @@ export const Component = () => {
           </div>
         </Container>
       ) : (
-        capTables.map((ct) => <CapTableSection key={ct.id} capTable={ct} />)
+        capTables.map((ct) => (
+          <CapTableSection
+            key={ct.id}
+            capTable={ct}
+            outstandingPrincipal={outstandingByCt.get(ct.id) ?? 0}
+          />
+        ))
       )}
 
       {capTables.length > 0 && capTables.some((ct) => (ct.stakes ?? []).length > 0) && (
