@@ -8,13 +8,12 @@ import ArtisanProductDetailModule from "../modules/artisan-product-detail"
 //
 // ⚠️ The product-side query.graph alias is the linked MODEL name,
 // `artisan_product_detail` — request `+artisan_product_detail.*` on the store
-// product query. The `field: "artisan_detail"` option below does NOT rename
-// this side; requesting `artisan_detail.*` silently returns nothing (this bit
-// #859 — the maker story never hydrated). Verified via query.graph probe.
+// product query, NOT `artisan_detail.*` (which silently returns nothing; this
+// bit #859 — the maker story never hydrated). A `field` option does not rename
+// this side, so we don't set one. Verified via query.graph probe.
 export default defineLink(
   ProductModule.linkable.product,
   {
     linkable: ArtisanProductDetailModule.linkable.artisanProductDetail,
-    field: "artisan_detail",
   }
 )
