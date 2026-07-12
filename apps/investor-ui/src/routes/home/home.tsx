@@ -97,8 +97,11 @@ const DashboardHome = ({ investor }: { investor: Record<string, any> }) => {
     for (const ct of capTables) {
       const cid = ct.company_id ?? ct.id
       const existing = seen.get(cid)
-      const totalInvested = ct.stakes?.reduce((s, st) => s + Number(st.total_invested ?? 0), 0) ?? 0
-      const totalShares = ct.stakes?.reduce((s, st) => s + Number(st.number_of_shares ?? 0), 0) ?? 0
+      // Only fully_paid (absorbed) stakes count — consistent with the cap table
+      // and projections. Not-followed-up / rejected / pending contribute nothing.
+      const paidStakes = (ct.stakes ?? []).filter((st) => st.status === "fully_paid")
+      const totalInvested = paidStakes.reduce((s, st) => s + Number(st.total_invested ?? 0), 0)
+      const totalShares = paidStakes.reduce((s, st) => s + Number(st.number_of_shares ?? 0), 0)
       if (existing) {
         seen.set(cid, {
           ...existing,
