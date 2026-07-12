@@ -6,8 +6,9 @@ name: Deploy to AWS ECS
 # Sequence per run:
 #   1. Build a Docker image, push to GHCR (sha-<hash> + :latest)
 #   2. Mirror the same image to ECR
-#   3. `copilot svc deploy` for medusa-server + medusa-worker (parallel)
-#   4. Poll /health on the public ALB until green (or fail)
+#   3. Run DB migrations as a gated one-off ECS task (fails the deploy on error)
+#   4. `copilot svc deploy` for medusa-server + medusa-worker (parallel)
+#   5. Poll /health on the public ALB until green (or fail)
 
 on:
   push:
@@ -207,13 +208,42 @@ jobs:
           echo "ecr_image=${DST_SHA}" >> "$GITHUB_OUTPUT"
 
   # ─────────────────────────────────────────────────────────────────────────
-  # 3. Deploy server + worker in parallel via Copilot. Each deploy is its
+  # 3. Run DB migrations as a gated one-off ECS task on the freshly-built
+  #    image, BEFORE rolling the services. The server/worker containers no
+  #    longer migrate on boot (see apps/backend/Dockerfile), so this step owns
+  #    the schema. A migration failure fails the deploy here — the old tasks
+  #    keep serving and the services are never rolled onto un-migrated schema.
+  # ─────────────────────────────────────────────────────────────────────────
+  migrate:
+    name: Migrate DB
+    runs-on: ubuntu-latest
+    needs: [build-and-push, mirror-to-ecr]
+    # Same gate as the deploy jobs: only migrate when we're actually deploying
+    # services (push to main, or an explicit deploy_services dispatch).
+    if: github.event_name == 'push' || inputs.deploy_services == true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/jyt-github-actions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run migrations (gated one-off task)
+        env:
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+        run: ./deploy/aws/scripts/run-migrations.sh
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 4. Deploy server + worker in parallel via Copilot. Each deploy is its
   #    own job so a worker-only or server-only failure is visible separately.
+  #    Both wait on `migrate` so services never roll onto un-migrated schema.
   # ─────────────────────────────────────────────────────────────────────────
   deploy-server:
     name: Deploy medusa-server
     runs-on: ubuntu-latest
-    needs: [build-and-push, mirror-to-ecr]
+    needs: [build-and-push, mirror-to-ecr, migrate]
     # Push to main always deploys. Manual dispatch only deploys when
     # the operator explicitly checked `deploy_services`. Branch
     # dispatches default to build-only so they don't roll the prod
@@ -251,7 +281,7 @@ jobs:
   deploy-worker:
     name: Deploy medusa-worker
     runs-on: ubuntu-latest
-    needs: [build-and-push, mirror-to-ecr]
+    needs: [build-and-push, mirror-to-ecr, migrate]
     # See deploy-server above for the rationale.
     if: github.event_name == 'push' || inputs.deploy_services == true
     steps:
@@ -278,7 +308,7 @@ jobs:
             --tag "${{ needs.build-and-push.outputs.image_tag }}"
 
   # ─────────────────────────────────────────────────────────────────────────
-  # 4. Health-check the public endpoint after both deploys are done.
+  # 5. Health-check the public endpoint after both deploys are done.
   # ─────────────────────────────────────────────────────────────────────────
   health-check:
     name: Health Check — v3.jaalyantra.com

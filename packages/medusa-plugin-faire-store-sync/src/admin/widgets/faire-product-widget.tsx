@@ -15,11 +15,16 @@ import {
   toast,
 } from "@medusajs/ui"
 import { DetailWidgetProps, AdminProduct } from "@medusajs/framework/types"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useMemo, useState } from "react"
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
+import { useEffect, useState } from "react"
 import { faireApi, sdk } from "../lib/api"
 
-const MAX_RENDERED = 60
+const PICKER_LIMIT = 50
 
 const badgeColor = (status?: string): "green" | "red" | "orange" | "grey" => {
   switch (status) {
@@ -102,28 +107,60 @@ const FaireProductWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
 
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerSearch, setPickerSearch] = useState("")
+  // Debounce the typed query so each keystroke doesn't fire a request; the
+  // backend searches its cached taxonomy and returns only matches.
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(pickerSearch.trim()), 250)
+    return () => clearTimeout(t)
+  }, [pickerSearch])
+
   // Local echo of the saved pin so the panel updates instantly (the parent
   // product page's `data.metadata` only refreshes on its own refetch).
-  const [pinnedOverride, setPinnedOverride] = useState<string | null | undefined>(
-    undefined
-  )
+  const [pinnedOverride, setPinnedOverride] = useState<
+    { id: string | null; name: string | null } | undefined
+  >(undefined)
 
+  // Search results — server-side filtered + sliced (Faire has no search API, so
+  // the backend caches the full ~3k list and filters there). keepPreviousData
+  // avoids a flash of "loading" between keystrokes.
   const taxonomyQuery = useQuery({
-    queryKey: ["faire", "taxonomy"],
+    queryKey: ["faire", "taxonomy", "search", debouncedSearch],
     enabled: pickerOpen,
-    queryFn: async () => (await faireApi.taxonomy()).taxonomy ?? [],
+    placeholderData: keepPreviousData,
+    queryFn: async () =>
+      faireApi.taxonomy({
+        q: debouncedSearch || undefined,
+        limit: PICKER_LIMIT,
+      }),
   })
-  const taxonomy = taxonomyQuery.data ?? []
+  const results = taxonomyQuery.data?.taxonomy ?? []
+  const matchCount = taxonomyQuery.data?.count ?? 0
 
   const pinnedId: string | undefined =
     pinnedOverride !== undefined
-      ? pinnedOverride ?? undefined
+      ? pinnedOverride.id ?? undefined
       : metadata.faire_taxonomy_type_id
-  const pinnedName = useMemo(() => {
-    if (!pinnedId) return undefined
-    if (!/^tt_/.test(String(pinnedId))) return String(pinnedId)
-    return taxonomy.find((t: any) => t.id === pinnedId)?.name
-  }, [pinnedId, taxonomy])
+  const pinnedNameFromMeta: string | undefined =
+    pinnedOverride !== undefined
+      ? pinnedOverride.name ?? undefined
+      : metadata.faire_taxonomy_type_name
+
+  // Resolve the name of an already-pinned `tt_…` id when it wasn't stored
+  // alongside (legacy pins) — a targeted `ids` lookup, not the whole list.
+  const pinnedResolveQuery = useQuery({
+    queryKey: ["faire", "taxonomy", "resolve", pinnedId],
+    enabled: !!pinnedId && !pinnedNameFromMeta && /^tt_/.test(String(pinnedId)),
+    queryFn: async () =>
+      (await faireApi.taxonomy({ ids: [pinnedId!] })).taxonomy,
+  })
+  const pinnedName =
+    pinnedNameFromMeta ??
+    (pinnedId && /^tt_/.test(String(pinnedId))
+      ? pinnedResolveQuery.data?.[0]?.name
+      : pinnedId
+        ? String(pinnedId)
+        : undefined)
 
   // What the sync will actually use as the category source, for display.
   const resolvedSource = pinnedId
@@ -134,25 +171,21 @@ const FaireProductWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
         ? { label: productType, from: "type" as const }
         : { label: "Account fallback", from: "fallback" as const }
 
-  const filteredTaxonomy = useMemo(() => {
-    const q = pickerSearch.trim().toLowerCase()
-    const list = q
-      ? taxonomy.filter((t: any) => t.name.toLowerCase().includes(q))
-      : taxonomy
-    return list.slice(0, MAX_RENDERED)
-  }, [taxonomy, pickerSearch])
-
   const saveCategory = useMutation({
-    mutationFn: (value: string | null) =>
+    mutationFn: (choice: { id: string; name: string } | null) =>
       sdk.admin.product.update(data.id, {
-        metadata: { ...metadata, faire_taxonomy_type_id: value },
+        metadata: {
+          ...metadata,
+          faire_taxonomy_type_id: choice?.id ?? null,
+          faire_taxonomy_type_name: choice?.name ?? null,
+        },
       }),
-    onSuccess: (_res, value) => {
-      setPinnedOverride(value)
+    onSuccess: (_res, choice) => {
+      setPinnedOverride({ id: choice?.id ?? null, name: choice?.name ?? null })
       queryClient.invalidateQueries({ queryKey: ["product", data.id] })
       setPickerOpen(false)
       setPickerSearch("")
-      toast.success(value ? "Faire category set" : "Faire category cleared")
+      toast.success(choice ? "Faire category set" : "Faire category cleared")
     },
     onError: (err: any) =>
       toast.error("Failed to save category", { description: err?.message }),
@@ -299,16 +332,18 @@ const FaireProductWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
                 <Text size="small" className="text-ui-fg-subtle px-1 py-2">
                   Loading categories…
                 </Text>
-              ) : filteredTaxonomy.length === 0 ? (
+              ) : results.length === 0 ? (
                 <Text size="small" className="text-ui-fg-subtle px-1 py-2">
-                  No categories match “{pickerSearch}”.
+                  {debouncedSearch
+                    ? `No categories match “${debouncedSearch}”.`
+                    : "No categories available."}
                 </Text>
               ) : (
-                filteredTaxonomy.map((t: any) => (
+                results.map((t) => (
                   <button
                     key={t.id}
                     type="button"
-                    onClick={() => saveCategory.mutate(t.id)}
+                    onClick={() => saveCategory.mutate(t)}
                     disabled={saveCategory.isPending}
                     className={clx(
                       "flex items-center justify-between rounded-md px-3 py-2 text-left text-sm",
@@ -325,13 +360,12 @@ const FaireProductWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
                   </button>
                 ))
               )}
-              {!taxonomyQuery.isLoading &&
-                taxonomy.length > filteredTaxonomy.length && (
-                  <Text size="xsmall" className="text-ui-fg-muted px-1 py-1">
-                    Showing {filteredTaxonomy.length} of {taxonomy.length} — refine
-                    your search to narrow down.
-                  </Text>
-                )}
+              {!taxonomyQuery.isLoading && matchCount > results.length && (
+                <Text size="xsmall" className="text-ui-fg-muted px-1 py-1">
+                  Showing {results.length} of {matchCount} matches — refine your
+                  search to narrow down.
+                </Text>
+              )}
             </div>
           </Drawer.Body>
           <Drawer.Footer>

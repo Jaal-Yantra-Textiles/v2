@@ -75,6 +75,11 @@ RUN pnpm install --prod --ignore-workspace --ignore-scripts
 
 EXPOSE 9000
 
-# Server runs predeploy:force (db:migrate --execute-all-links) before starting.
-# Worker skips migrations — the server owns the schema.
-CMD ["sh", "-c", "if [ \"${MEDUSA_WORKER_MODE}\" = \"worker\" ]; then pnpm run start; else pnpm predeploy:force && pnpm run start; fi"]
+# Both roles just start — neither migrates inline. Migrations are run as a
+# separate, gated one-off ECS task by the deploy workflow
+# (deploy/aws/scripts/run-migrations.sh) BEFORE the services roll, so a slow
+# migration no longer blocks server boot / the /health check.
+#
+# Escape hatch: set RUN_MIGRATIONS_ON_BOOT=1 to restore the old inline behavior
+# (e.g. for a local/standalone run with no separate migration step).
+CMD ["sh", "-c", "if [ \"${RUN_MIGRATIONS_ON_BOOT}\" = \"1\" ] && [ \"${MEDUSA_WORKER_MODE}\" != \"worker\" ]; then pnpm predeploy:force; fi; pnpm run start"]
