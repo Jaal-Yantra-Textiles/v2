@@ -8,8 +8,9 @@ import {
   StatusBadge,
   Text,
   Toaster,
+  usePrompt,
 } from "@medusajs/ui"
-import { EllipsisHorizontal, ArrowPath, ArrowUpRightOnBox } from "@medusajs/icons"
+import { EllipsisHorizontal, ArrowPath, ArrowUpRightOnBox, Trash } from "@medusajs/icons"
 import { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { faireApi } from "../../../../lib/api"
@@ -29,9 +30,11 @@ const STATUS_COLORS: Record<string, "green" | "red" | "orange" | "grey"> = {
 const FaireSyncDetailPage = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const prompt = usePrompt()
   const [record, setRecord] = useState<FaireSyncRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [retrying, setRetrying] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -61,6 +64,30 @@ const FaireSyncDetailPage = () => {
     }
   }
 
+  const handleDelete = async () => {
+    if (!record) return
+    const confirmed = await prompt({
+      title: "Remove from Faire?",
+      description:
+        "Faire has no hard-delete API, so this unpublishes the product (sets it back to draft, hidden from buyers) and unlinks it from the product. Re-sync to publish it again, or delete it permanently from the Faire brand portal.",
+      confirmText: "Remove",
+      cancelText: "Cancel",
+    })
+    if (!confirmed) return
+    setDeleting(true)
+    setError(null)
+    try {
+      await faireApi.deleteSync(record.id)
+      const updated = await faireApi.getSync(record.id).catch(() => null)
+      if (updated) setRecord((updated as any).sync || updated)
+      navigate(PARENT)
+    } catch (err: any) {
+      setError(err.message || "Remove failed")
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const warnings: string[] = record?.error_message
     ? record.error_message.split(" | ")
     : []
@@ -80,7 +107,7 @@ const FaireSyncDetailPage = () => {
           <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenu.Trigger asChild>
-                <IconButton size="small" variant="transparent" disabled={retrying}>
+                <IconButton size="small" variant="transparent" disabled={retrying || deleting}>
                   <EllipsisHorizontal />
                 </IconButton>
               </DropdownMenu.Trigger>
@@ -102,6 +129,15 @@ const FaireSyncDetailPage = () => {
                     Open on Faire
                   </DropdownMenu.Item>
                 )}
+                <DropdownMenu.Separator />
+                <DropdownMenu.Item
+                  className="gap-x-2 text-ui-fg-error"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                >
+                  <Trash className="text-ui-fg-error" />
+                  {deleting ? "Removing…" : "Remove from Faire"}
+                </DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu>
           </div>

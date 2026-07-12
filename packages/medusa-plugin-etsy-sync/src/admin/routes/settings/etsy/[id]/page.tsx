@@ -9,8 +9,9 @@ import {
   StatusBadge,
   Text,
   Toaster,
+  usePrompt,
 } from "@medusajs/ui"
-import { EllipsisHorizontal, ArrowPath, ArrowUpRightOnBox } from "@medusajs/icons"
+import { EllipsisHorizontal, ArrowPath, ArrowUpRightOnBox, Trash } from "@medusajs/icons"
 import { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { etsyApi } from "../../../../lib/api"
@@ -27,9 +28,11 @@ const STATUS_COLORS: Record<string, "green" | "red" | "orange" | "grey"> = {
 const EtsySyncDetailPage = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const prompt = usePrompt()
   const [record, setRecord] = useState<EtsySyncRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [retrying, setRetrying] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -58,6 +61,31 @@ const EtsySyncDetailPage = () => {
       setError(err.message || "Retry failed")
     } finally {
       setRetrying(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!record) return
+    const confirmed = await prompt({
+      title: "Delete from Etsy?",
+      description:
+        "This removes the listing from Etsy and unlinks it from the product. This can't be undone — you'd have to re-sync to recreate it.",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+    })
+    if (!confirmed) return
+    setDeleting(true)
+    setError(null)
+    try {
+      await etsyApi.deleteSync(record.id)
+      // Reflect the removal in place, then return to the list.
+      const updated = await etsyApi.getSync(record.id).catch(() => null)
+      if (updated) setRecord((updated as any).sync || updated)
+      navigate("/settings/etsy")
+    } catch (err: any) {
+      setError(err.message || "Delete failed")
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -104,7 +132,7 @@ const EtsySyncDetailPage = () => {
             </StatusBadge>
             <DropdownMenu>
               <DropdownMenu.Trigger asChild>
-                <IconButton size="small" variant="transparent" disabled={retrying}>
+                <IconButton size="small" variant="transparent" disabled={retrying || deleting}>
                   <EllipsisHorizontal />
                 </IconButton>
               </DropdownMenu.Trigger>
@@ -126,6 +154,15 @@ const EtsySyncDetailPage = () => {
                     Open on Etsy
                   </DropdownMenu.Item>
                 )}
+                <DropdownMenu.Separator />
+                <DropdownMenu.Item
+                  className="gap-x-2 text-ui-fg-error"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                >
+                  <Trash className="text-ui-fg-error" />
+                  {deleting ? "Deleting…" : "Delete from Etsy"}
+                </DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu>
           </div>
