@@ -137,7 +137,11 @@ const prepareProductStep = createStep(
         "variants.prices.*",
         "variants.options.*",
         "variants.options.option.*",
+        "variants.manage_inventory",
         "variants.inventory_items.*",
+        // Real stock lives on the inventory item's per-location levels; the
+        // variant has no `inventory_quantity` column in a plain query.graph.
+        "variants.inventory_items.inventory.location_levels.*",
         "images.*",
         "variants.sku",
       ],
@@ -199,6 +203,37 @@ const prepareProductStep = createStep(
       prices[0] ??
       null
 
+    // Available quantity for Faire. Medusa v2 has no `variant.inventory_quantity`
+    // column in a plain query.graph — the old code read that undefined field so
+    // EVERY variant published to Faire as available_quantity 0 (sold out). Compute
+    // it from the inventory item location levels (available = stocked − reserved),
+    // matching Medusa's own `min(floor(itemAvailable / required_quantity))` rule.
+    const variantQuantity = (v: any): number => {
+      // manage_inventory === false → Medusa treats the variant as always in
+      // stock, so there are no levels to read. Publish a healthy default (Faire
+      // needs a number) that operators can override per product.
+      if (v?.manage_inventory === false) {
+        const d = Number(metadata.faire_default_available_quantity)
+        return Number.isFinite(d) && d >= 0 ? Math.floor(d) : 100
+      }
+      const items: any[] = v?.inventory_items || []
+      if (!items.length) return 0
+      let available = Infinity
+      for (const link of items) {
+        // Tolerate both the pivot shape ({ inventory: {...} }) and a flattened one.
+        const inv = link?.inventory ?? link
+        const levels: any[] = inv?.location_levels || []
+        const itemAvailable = levels.reduce((sum: number, lvl: any) => {
+          const stocked = Number(lvl?.stocked_quantity ?? 0)
+          const reserved = Number(lvl?.reserved_quantity ?? 0)
+          return sum + Math.max(0, stocked - reserved)
+        }, 0)
+        const required = Number(link?.required_quantity ?? 1) || 1
+        available = Math.min(available, Math.floor(itemAvailable / required))
+      }
+      return Number.isFinite(available) ? Math.max(0, available) : 0
+    }
+
     const buildVariant = (v: any, idx: number) => {
       const retail = pickPrice(v.prices || [])
       const retailMinor = retail ? toMinor(retail.amount) : 0
@@ -219,7 +254,7 @@ const prepareProductStep = createStep(
         name: v.title || sku,
         idempotence_token: `${product.id}:${v.id || sku}`,
         options: options.length ? options : undefined,
-        available_quantity: Number(v.inventory_quantity) || 0,
+        available_quantity: variantQuantity(v),
         prices:
           retailMinor > 0
             ? [
