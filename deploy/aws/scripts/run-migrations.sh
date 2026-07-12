@@ -147,11 +147,33 @@ while true; do
 done
 
 # ── Print the migration logs, then propagate the container exit code ───────
+# CloudWatch creates/flushes the stream a few seconds after the task stops, so
+# poll for it before reading (get-log-events is reliable for a finished stream;
+# `logs tail` raced and returned nothing when queried immediately after STOP).
 STREAM="copilot/${CONTAINER_NAME}/${TASK_ID}"
 echo
 echo "── Migration logs ──────────────────────────────────────────────"
-aws logs tail "$LOG_GROUP" --log-stream-name-prefix "$STREAM" \
-  --since 1h --region "$AWS_REGION" 2>/dev/null || echo "(logs unavailable)"
+LOGS_PRINTED=0
+for _ in $(seq 1 15); do
+  if aws logs describe-log-streams \
+      --log-group-name "$LOG_GROUP" \
+      --log-stream-name-prefix "$STREAM" \
+      --region "$AWS_REGION" \
+      --query "logStreams[?logStreamName=='$STREAM'] | length(@)" \
+      --output text 2>/dev/null | grep -q "^1$"; then
+    aws logs get-log-events \
+      --log-group-name "$LOG_GROUP" \
+      --log-stream-name "$STREAM" \
+      --region "$AWS_REGION" \
+      --start-from-head --limit 500 \
+      --query 'events[*].message' --output text 2>/dev/null \
+      | tr '\t' '\n'
+    LOGS_PRINTED=1
+    break
+  fi
+  sleep 3
+done
+[ "$LOGS_PRINTED" = "1" ] || echo "(logs stream not available yet — see the console link above)"
 echo "────────────────────────────────────────────────────────────────"
 echo
 
