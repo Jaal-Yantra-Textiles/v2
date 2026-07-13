@@ -1,0 +1,17 @@
+[Unit]
+Description=Handloom Hyperbee P2P seeder (announces the weaver core on Hyperswarm)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/handloom/jyt/scripts/handloom-scrape/hyperbee-slice
+Environment=P2P_STORE=/opt/handloom/p2p-store
+# re-ingests any new state files on each (re)start, then seeds forever
+ExecStart=/usr/bin/node seed_p2p.mjs
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

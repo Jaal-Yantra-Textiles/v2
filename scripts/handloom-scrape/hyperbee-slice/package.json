@@ -9,6 +9,7 @@
     "corestore": "^7.11.0",
     "hyperbee": "^2.27.3",
     "hypercore": "^11.33.5",
+    "hyperswarm": "^4.17.0",
     "random-access-memory": "^6.2.1"
   }
 }

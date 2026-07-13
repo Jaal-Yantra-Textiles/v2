@@ -1,0 +1,58 @@
+#cloud-config
+# Oracle Cloud Always-Free provisioning for the handloom census crawler + P2P seeder.
+# Target shape: VM.Standard.A1.Flex — 1 OCPU / 6 GB (stays inside the June-2026
+# Always-Free caps: 1,500 compute-h + 9,000 GB-h/mo). Ubuntu 22.04 (arm64).
+#
+# BEFORE launching, replace the two placeholders below:
+#   __REPO_URL__       e.g. https://<GH_DEPLOY_TOKEN>@github.com/<org>/jyt.git
+#   __CENSUS_USER__ / __CENSUS_PASS__  (in /etc/handloom/crawl.env)
+
+package_update: true
+packages:
+  - git
+  - curl
+  - build-essential
+  - python3
+  - python3-venv
+  - python3-pip
+
+write_files:
+  - path: /etc/handloom/crawl.env
+    permissions: "0600"
+    owner: root:root
+    content: |
+      CENSUS_USERNAME=__CENSUS_USER__
+      CENSUS_PASSWORD=__CENSUS_PASS__
+      # one state every GAP seconds, PARALLEL at a time, DELAY between requests
+      GAP=7200
+      PARALLEL=1
+      DELAY=0.3
+
+runcmd:
+  # --- Node.js 20 (arm64 prebuilds cover sodium/udx-native) ---
+  - curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+  - apt-get install -y nodejs
+  # --- fetch the repo (private → token in the URL) ---
+  - mkdir -p /opt/handloom && chown -R ubuntu:ubuntu /opt/handloom
+  - sudo -u ubuntu git clone --depth 1 __REPO_URL__ /opt/handloom/jyt
+  # --- python venv for the crawler ---
+  - sudo -u ubuntu python3 -m venv /opt/handloom/venv
+  - sudo -u ubuntu /opt/handloom/venv/bin/pip install --quiet httpx typer
+  # --- node deps for the Hyperbee P2P seeder ---
+  - cd /opt/handloom/jyt/scripts/handloom-scrape/hyperbee-slice && sudo -u ubuntu npm install --no-audit --no-fund && sudo -u ubuntu npm install --no-audit --no-fund hyperswarm
+  # --- systemd units ---
+  - cp /opt/handloom/jyt/scripts/handloom-scrape/deploy/systemd/handloom-crawl.service /etc/systemd/system/
+  - cp /opt/handloom/jyt/scripts/handloom-scrape/deploy/systemd/handloom-seed.service /etc/systemd/system/
+  - systemctl daemon-reload
+  # start crawling immediately; start the seeder too (it idles until data exists)
+  - systemctl enable --now handloom-crawl.service
+  - systemctl enable --now handloom-seed.service
+
+final_message: |
+  handloom crawler ready.
+  1) edit /etc/handloom/crawl.env with real CENSUS creds, then:
+       systemctl restart handloom-crawl
+  2) progress:   tail -f /opt/handloom/jyt/scripts/handloom-scrape/data/live/*.log
+     status:     cat  /opt/handloom/jyt/scripts/handloom-scrape/data/live/_orchestrator_status.json
+  3) P2P key for the Medusa reader:
+       cat /opt/handloom/jyt/scripts/handloom-scrape/hyperbee-slice/PUBLIC_KEY.txt
