@@ -121,6 +121,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/persontype",
     },
     {
+      resolve: "./src/modules/personproperty",
+    },
+    {
       resolve: "./src/modules/inventory_orders",
     },
     {
