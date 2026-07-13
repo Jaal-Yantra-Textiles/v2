@@ -34,7 +34,8 @@ class WeaverRecord(BaseModel):
     education: Optional[str] = None
     religion: Optional[str] = None
     social_group: Optional[str] = None
-    mobile: Optional[str] = None
+    mobile: Optional[str] = None          # real number (stored privately)
+    mobile_masked: Optional[str] = None   # portal's public mask, e.g. 91XXXXXXXXXX
     aadhaar_issued: Optional[bool] = None
 
     latitude: Optional[float] = None
@@ -58,6 +59,7 @@ class WeaverRecord(BaseModel):
     # Loom details
     own_looms: Optional[bool] = None
     total_looms_owned: Optional[int] = None
+    total_looms_worked: Optional[int] = None  # operated but not owned
     pit_loom_count: Optional[int] = 0
     frame_loom_count: Optional[int] = 0
     loin_loom_count: Optional[int] = 0
@@ -92,6 +94,24 @@ class WeaverRecord(BaseModel):
 def parse_value(cell) -> str:
     text = cell.get_text(strip=True)
     return text
+
+
+def _extract_mobile(html: str) -> tuple[Optional[str], Optional[str]]:
+    """Return (real, masked) mobile.
+
+    The portal renders a masked mobile and keeps the real number in an adjacent
+    HTML comment: `<!-- <td...>8295880181</td> --> <td...>91XXXXXXXXXX</td>`.
+    """
+    m = re.search(
+        r'Mobile no</td>\s*<!--\s*<td[^>]*>([0-9Xx]+)</td>\s*-->\s*<td[^>]*>([0-9Xx]+)</td>',
+        html,
+    )
+    if m:
+        return m.group(1), m.group(2)
+    m2 = re.search(r'Mobile no</td>\s*<td[^>]*>([0-9Xx]+)</td>', html)
+    if m2:
+        return None, m2.group(1)
+    return None, None
 
 
 def clean_phone(phone: str) -> Optional[str]:
@@ -155,9 +175,13 @@ def parse_weaver_page(html: str, census_id: int) -> Optional[WeaverRecord]:
     record.education = td_pairs.get("1.6")
     record.aadhaar_issued = _parse_bool(td_pairs.get("1.8"))
 
-    raw_phone = td_pairs.get("1.9") or ""
-    if raw_phone and raw_phone not in ('', '91XXXXXXXXXX'):
-        record.mobile = clean_phone(raw_phone)
+    # The portal masks the mobile in the rendered cell (e.g. "91XXXXXXXXXX")
+    # and keeps the real number in an adjacent HTML comment. We store the real
+    # number privately and the mask for public display (status quo preserved).
+    real_mobile, masked_mobile = _extract_mobile(html)
+    if real_mobile:
+        record.mobile = clean_phone(real_mobile)
+    record.mobile_masked = masked_mobile or (td_pairs.get("1.9") or None)
 
     # Section 2: Address
     record.rural_urban = td_pairs.get("2.1")
@@ -250,55 +274,56 @@ def _parse_yarn_consumption(td_pairs: dict) -> dict:
 
 
 def _parse_loom_details(soup: BeautifulSoup, record: WeaverRecord):
-    loom_tables = soup.find_all('table')
-    for table in loom_tables:
-        header = table.find_previous(['h4', 'h5'])
-        if header and 'loom' not in header.get_text(strip=True).lower():
+    """Parse the loom table (section 5.1).
+
+    Live layout (a category cell rowspans, so column count is 6 or 7):
+      [category?] | Type | Code | Own(Yes/No) | No.Owned | No.Working | No.Idle
+    We key off the trailing 4 columns [own, owned, working, idle] rather than
+    fixed indices, and categorise from the row's leading text.
+    """
+    total_owned = 0
+    total_worked = 0
+    found = False
+
+    for tr in soup.find_all('tr'):
+        texts = [c.get_text(strip=True) for c in tr.find_all(['td', 'th'])]
+        if len(texts) < 5:
             continue
-        rows = table.find_all('tr')
-        for row in rows:
-            cells = row.find_all(['td', 'th'])
-            texts = [c.get_text(strip=True) for c in cells]
+        own, owned_s, working_s, idle_s = texts[-4:]
+        if own.strip().lower() not in ('yes', 'no'):
+            continue
+        owned = _parse_int(owned_s)
+        working = _parse_int(working_s)
+        if owned is None or working is None:
+            continue  # trailing cells aren't the loom count triplet
+        label = " ".join(texts[:-4]).lower()
+        if 'loom' not in label:
+            continue
 
-            if not texts:
-                continue
+        found = True
+        total_owned += owned
+        total_worked += working
+        if 'pit' in label:
+            record.pit_loom_count = (record.pit_loom_count or 0) + owned
+        elif 'frame' in label:
+            record.frame_loom_count = (record.frame_loom_count or 0) + owned
+        elif 'loin' in label:
+            record.loin_loom_count = (record.loin_loom_count or 0) + owned
+        else:
+            record.other_loom_count = (record.other_loom_count or 0) + owned
 
-            combined = " ".join(texts).lower()
+    if found:
+        record.total_looms_owned = total_owned
+        record.total_looms_worked = total_worked
+        record.own_looms = total_owned > 0
 
-            # Check for "own looms" row
-            if 'pit loom with' in combined or 'other pit looms' in combined:
-                if len(texts) >= 5:
-                    owns = texts[3].lower()
-                    count = _parse_int(texts[4])
-                    if owns == 'yes':
-                        record.total_looms_owned = (record.total_looms_owned or 0) + (count or 0)
-                        record.pit_loom_count = (record.pit_loom_count or 0) + (count or 0)
-            elif 'frame loom with' in combined or 'other frame looms' in combined:
-                if len(texts) >= 5:
-                    owns = texts[3].lower()
-                    count = _parse_int(texts[4])
-                    if owns == 'yes':
-                        record.total_looms_owned = (record.total_looms_owned or 0) + (count or 0)
-                        record.frame_loom_count = (record.frame_loom_count or 0) + (count or 0)
-            elif 'loin looms' in combined:
-                if len(texts) >= 5:
-                    owns = texts[3].lower()
-                    count = _parse_int(texts[4])
-                    if owns == 'yes':
-                        record.total_looms_owned = (record.total_looms_owned or 0) + (count or 0)
-                        record.loin_loom_count = (record.loin_loom_count or 0) + (count or 0)
-            elif combined == 'others' or combined.startswith('others\t'):
-                if len(texts) >= 5:
-                    owns = texts[3].lower()
-                    count = _parse_int(texts[4])
-                    if owns == 'yes':
-                        record.total_looms_owned = (record.total_looms_owned or 0) + (count or 0)
-                        record.other_loom_count = (record.other_loom_count or 0) + (count or 0)
-
-    if record.total_looms_owned and record.total_looms_owned > 0:
-        record.own_looms = True
-    elif record.total_looms_owned == 0:
-        record.own_looms = False
+    # Fallback from household type when the table is absent/ambiguous.
+    if record.own_looms is None and record.household_type:
+        ht = record.household_type.lower()
+        if "don" in ht and "own loom" in ht:      # "Don't own looms ..."
+            record.own_looms = False
+        elif "own loom" in ht:
+            record.own_looms = True
 
 
 def _parse_input_sources(soup: BeautifulSoup, record: WeaverRecord):

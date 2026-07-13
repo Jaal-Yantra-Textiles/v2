@@ -178,12 +178,16 @@ async def import_persons(
     created = 0
     errors = 0
 
-    headers = {
-        "Content-Type": "application/json",
-        "x-api-key": api_key,
-    }
-    if not api_key.startswith("Bearer "):
-        headers["Authorization"] = f"Bearer {api_key}"
+    headers = {"Content-Type": "application/json"}
+    # Medusa admin API keys are SECRET keys (sk_...) and authenticate via HTTP
+    # Basic auth — the key is the username, password is empty. Bearer/x-api-key
+    # are rejected with 401. A raw JWT (from an admin session) still uses Bearer.
+    auth = None
+    token = api_key[len("Bearer ") :] if api_key.startswith("Bearer ") else api_key
+    if token.startswith("sk_") or token.startswith("pk_"):
+        auth = httpx.BasicAuth(token, "")
+    elif token:
+        headers["Authorization"] = f"Bearer {token}"
 
     console.print(f"[dim]API calls per record:[/dim]")
     console.print(f"[dim]  1. POST /admin/persons (basic fields + addresses + public_metadata)[/dim]")
@@ -191,7 +195,7 @@ async def import_persons(
     console.print(f"[dim]  3. POST /admin/persons/{{id}}/tags (inferred tags, if any)[/dim]")
     console.print()
 
-    async with httpx.AsyncClient(timeout=60.0, headers=headers) as client:
+    async with httpx.AsyncClient(timeout=60.0, headers=headers, auth=auth) as client:
         for record, person in zip(records, persons):
             name = f"{person['first_name']} {person['last_name']}"
 
