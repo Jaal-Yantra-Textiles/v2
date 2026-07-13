@@ -39,8 +39,14 @@ def _creds() -> tuple[str, str]:
     user, pw = os.environ.get("CENSUS_USERNAME"), os.environ.get("CENSUS_PASSWORD")
     if user and pw:
         return user, pw
-    env = Path(__file__).resolve().parents[2] / "apps" / "backend" / ".env"
-    if env.exists():
+    # walk up to find apps/backend/.env (robust to how deep this file lives)
+    env = None
+    for parent in Path(__file__).resolve().parents:
+        cand = parent / "apps" / "backend" / ".env"
+        if cand.exists():
+            env = cand
+            break
+    if env and env.exists():
         for line in env.read_text().splitlines():
             if line.startswith("CENSUS_USERNAME="):
                 user = line.split("=", 1)[1].strip()
