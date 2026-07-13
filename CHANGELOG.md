@@ -1,3 +1,47 @@
+# [13.54.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.53.0...v13.54.0) (2026-07-13)
+
+
+### Bug Fixes
+
+* **faire:** compute real variant availability from inventory levels (0.2.11) ([a103033](https://github.com/Jaal-Yantra-Textiles/v2/commit/a103033be90877290549ac09be368449b001260c))
+* **faire:** decrypt token for taxonomy picker + automate release lockfile refloat ([521d51a](https://github.com/Jaal-Yantra-Textiles/v2/commit/521d51a9af2ca72b1b520bae40d16da96262e3d4))
+* **investor-ui:** hooks-order crash on company page, paid-only cap table, drop admin feature-flags call ([43c5090](https://github.com/Jaal-Yantra-Textiles/v2/commit/43c5090a4e4b32794bd3ec32c881717a2b69c193)), closes [#310](https://github.com/Jaal-Yantra-Textiles/v2/issues/310)
+* **#859:** maker story never hydrated — wrong query.graph alias + unlinked rows ([51e499f](https://github.com/Jaal-Yantra-Textiles/v2/commit/51e499f64c6954c2c664d83de361b27f12b0f66b)), closes [#859](https://github.com/Jaal-Yantra-Textiles/v2/issues/859)
+* **#859:** normalize-artisan DP job 500 — query products via sales_channel side ([1a417f0](https://github.com/Jaal-Yantra-Textiles/v2/commit/1a417f036c205b64392ac6c5dca8a4fb9cd0c6a3)), closes [#859](https://github.com/Jaal-Yantra-Textiles/v2/issues/859)
+* **#859:** normalize-artisan found 0 products — pivot via products_link.product ([4ab36a1](https://github.com/Jaal-Yantra-Textiles/v2/commit/4ab36a1408e60d3833da5464f43c775f6945f0a4)), closes [#859](https://github.com/Jaal-Yantra-Textiles/v2/issues/859)
+* **faire:** only push inventory for real SKUs, not Medusa-id fallbacks (0.2.12) ([2e64a8c](https://github.com/Jaal-Yantra-Textiles/v2/commit/2e64a8cff8f8d9199011decf6cdbfb7827f72c8a))
+* **admin:** pin drawer footers in company cap-table forms ([c257d58](https://github.com/Jaal-Yantra-Textiles/v2/commit/c257d58d7c1401f3e68a5f9aad9374903b0f475d))
+* **etsy,faire:** pre-flight listing image replace + Faire multi-geo prices ([#1021](https://github.com/Jaal-Yantra-Textiles/v2/issues/1021)) ([c374399](https://github.com/Jaal-Yantra-Textiles/v2/commit/c37439995260bb05b4018db1521507ca3664be33))
+* **#859:** preview route used *images (broken) → images.* — photos + maker story now hydrate ([9e7c380](https://github.com/Jaal-Yantra-Textiles/v2/commit/9e7c3806655fbc3110bda3625a1feca260fedd35)), closes [#859](https://github.com/Jaal-Yantra-Textiles/v2/issues/859)
+* **#859:** preview shows thumbnail when product has no images[] relation ([bd01c93](https://github.com/Jaal-Yantra-Textiles/v2/commit/bd01c930192cec99ed23be1e9437e694971c2eb5)), closes [#859](https://github.com/Jaal-Yantra-Textiles/v2/issues/859)
+* **#859:** preview-link uses core storefront domain + countryless path + robust copy ([3f707f7](https://github.com/Jaal-Yantra-Textiles/v2/commit/3f707f76d2b94310b1d8da7d359a59f0971f8b71)), closes [#859](https://github.com/Jaal-Yantra-Textiles/v2/issues/859)
+* **investor-ui:** scrollable drawer bodies + in-drawer deal picker ([03644cf](https://github.com/Jaal-Yantra-Textiles/v2/commit/03644cf7f4f550fd6431a6d05fddb50e246b99eb))
+* **faire:** send unit_multiplier on product create; decouple prod migrations ([#1013](https://github.com/Jaal-Yantra-Textiles/v2/issues/1013)) ([5dc7e5b](https://github.com/Jaal-Yantra-Textiles/v2/commit/5dc7e5be89eaf0fb6d5e2fe3334aa49c5540a650))
+* **deploy:** set CI=true in Dockerfile so pnpm can purge stale node_modules ([8c50d0d](https://github.com/Jaal-Yantra-Textiles/v2/commit/8c50d0d124166b877acf178d170887a50bbb0aa4))
+* **#859:** suppress free-shipping nudge on the private product preview ([9a6a249](https://github.com/Jaal-Yantra-Textiles/v2/commit/9a6a24993d43fcc23bd99beef6cd579ca3b28de2)), closes [#859](https://github.com/Jaal-Yantra-Textiles/v2/issues/859)
+* **email:** time-based cooling fallback so newsletter winback isn't empty ([e08550f](https://github.com/Jaal-Yantra-Textiles/v2/commit/e08550f50accc009813842ed644da8f313fdbdc2))
+* **migrations:** unique names for the two 20260712150000 migrations (hosting_provider missing in prod) ([#1023](https://github.com/Jaal-Yantra-Textiles/v2/issues/1023)) ([05a2cdb](https://github.com/Jaal-Yantra-Textiles/v2/commit/05a2cdb01871dc14bcd18a8e5f63caf431b79f37)), closes [#884](https://github.com/Jaal-Yantra-Textiles/v2/issues/884)
+
+
+### Features
+
+* **#859:** "Share private preview" action in partner products menu ([dca8e78](https://github.com/Jaal-Yantra-Textiles/v2/commit/dca8e78b4b2564e1d50524018f609ad4b58df14f)), closes [#859](https://github.com/Jaal-Yantra-Textiles/v2/issues/859)
+* **#859:** "Share private preview" in product detail action menu ([9f4c48d](https://github.com/Jaal-Yantra-Textiles/v2/commit/9f4c48dc544606fdde88b06492b3aefd44b515e0)), closes [#859](https://github.com/Jaal-Yantra-Textiles/v2/issues/859)
+* **blog-email:** add Saransh from JYT sign-off to blog subscriber template ([7cb2b36](https://github.com/Jaal-Yantra-Textiles/v2/commit/7cb2b36f34e6713e3d1ab3e9bb5b0680c464ba6d))
+* **#859:** artisan proposal gate on store route + private preview page ([#1025](https://github.com/Jaal-Yantra-Textiles/v2/issues/1025)) ([152051b](https://github.com/Jaal-Yantra-Textiles/v2/commit/152051b63fd8750e997f8c6b0b9ed8de95a31986)), closes [#859](https://github.com/Jaal-Yantra-Textiles/v2/issues/859)
+* **partner:** auto-bypass email verification on partner creation ([#1020](https://github.com/Jaal-Yantra-Textiles/v2/issues/1020)) ([1d3499f](https://github.com/Jaal-Yantra-Textiles/v2/commit/1d3499f102a35247e9cc703b688ef46a340d4013))
+* **investor:** company/platform overview page + investor referrals + view-only access ([6769003](https://github.com/Jaal-Yantra-Textiles/v2/commit/6769003496f4e8b6440f8a24037d90b875e81f40))
+* **investor:** count outstanding convertible principal as invested + make invested consistent across tabs ([748f42a](https://github.com/Jaal-Yantra-Textiles/v2/commit/748f42a07566b9377c616bebed22384f99964047))
+* **etsy,faire:** delete/remove a synced listing from the sync detail page ([#1022](https://github.com/Jaal-Yantra-Textiles/v2/issues/1022)) ([c1fa29d](https://github.com/Jaal-Yantra-Textiles/v2/commit/c1fa29d37f45df69e8da909be4ebbed19bc9ab68))
+* **#345:** deleteProject on all hosting adapters — storefront teardown fully auto-cleans ([b795eb4](https://github.com/Jaal-Yantra-Textiles/v2/commit/b795eb461792289d8d34c369f9dad04124dded2c)), closes [#345](https://github.com/Jaal-Yantra-Textiles/v2/issues/345)
+* **investor:** gate home "Open deals" participate link for view-only investors ([1364307](https://github.com/Jaal-Yantra-Textiles/v2/commit/1364307b8b58fbcf1f43e19c33ed092094e6e9f3))
+* **#859:** inline maker-story block "Made by <partner>" + revert thumbnail hack ([d2c6da3](https://github.com/Jaal-Yantra-Textiles/v2/commit/d2c6da347d209aab45c230efd9110faa0ef17bfa)), closes [#859](https://github.com/Jaal-Yantra-Textiles/v2/issues/859)
+* **hosting:** multi-provider storefront provisioning with account rotation ([#884](https://github.com/Jaal-Yantra-Textiles/v2/issues/884)) ([#1019](https://github.com/Jaal-Yantra-Textiles/v2/issues/1019)) ([6ce6cc9](https://github.com/Jaal-Yantra-Textiles/v2/commit/6ce6cc91037b1ff5b67f78b8cf94a716f5187197))
+* **investor:** outstanding-loan nudge on cap table + mint converted equity as fully_paid ([b22a170](https://github.com/Jaal-Yantra-Textiles/v2/commit/b22a1707ba8b8bb19ee1d8a49a74835019fb9ee8))
+* **investor:** participation reject/not-followed-up states + paid-only cap table + editable round target ([91a4b8a](https://github.com/Jaal-Yantra-Textiles/v2/commit/91a4b8a39daf526c8b53c06c2a8e92e5b5045dc6))
+* **winback:** scheduled visual flow to refresh winback audiences ([96aa551](https://github.com/Jaal-Yantra-Textiles/v2/commit/96aa55108169853464d449aab68e340943ef454f))
+* **investor:** subscription agreement e-sign on participate ([#969](https://github.com/Jaal-Yantra-Textiles/v2/issues/969)) ([#1014](https://github.com/Jaal-Yantra-Textiles/v2/issues/1014)) ([8d87d41](https://github.com/Jaal-Yantra-Textiles/v2/commit/8d87d418567a71a648fd3139422e667b913db6af))
+
 # [13.53.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.52.2...v13.53.0) (2026-07-12)
 
 
