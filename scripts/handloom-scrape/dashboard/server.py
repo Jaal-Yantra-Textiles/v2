@@ -152,7 +152,7 @@ function renderTable() {{
         tr = document.createElement('tr');
         tr.className = `hover:bg-gray-100 ${{bg}}`;
         tr.innerHTML = `
-            <td class="px-2 py-1 text-xs font-mono"><a href="javascript:void(0)" onclick='showDetail({JSON.stringify(r).replace(/'/g,"&#39;")})' class="text-blue-600 hover:underline">${{r.census_id}}</a></td>
+            <td class="px-2 py-1 text-xs font-mono"><a href="javascript:void(0)" onclick='showDetail(${{JSON.stringify(r).replace(/'/g,"&#39;")}})' class="text-blue-600 hover:underline">${{r.census_id}}</a></td>
             <td class="px-2 py-1">${{esc(name)}}</td>
             <td class="px-2 py-1 text-xs">${{esc(state)}}</td>
             <td class="px-2 py-1 text-xs">${{esc(district)}}</td>

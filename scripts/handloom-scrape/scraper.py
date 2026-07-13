@@ -92,14 +92,13 @@ class SessionManager:
         self.cookies: dict = {}
         self._lock = asyncio.Lock()
 
-    async def ensure_session(self, client: AsyncClient) -> bool:
+    async def ensure_session(self, client: AsyncClient, force: bool = False) -> bool:
         async with self._lock:
-            if self._check_session_valid(client):
+            if not force and self.cookies:
                 return True
+            # force re-login (session expired) or first login
+            self.cookies = {}
             return await self._login(client)
-
-    def _check_session_valid(self, client: AsyncClient) -> bool:
-        return bool(self.cookies)
 
     async def _login(self, client: AsyncClient) -> bool:
         login_data = {
@@ -144,8 +143,12 @@ async def fetch_weaver(
                     timeout=30.0,
                 )
 
-                if resp.status_code == 302:
-                    await session.ensure_session(client)
+                # Session expired: portal redirects (or 302s) to the login page.
+                # Force a re-login and retry rather than silently parsing the
+                # login HTML into an empty record.
+                if resp.status_code == 302 or "login" in resp.url.path.lower():
+                    await session.ensure_session(client, force=True)
+                    await asyncio.sleep(RETRY_DELAY * (attempt + 1))
                     continue
 
                 if resp.status_code != 200:
@@ -348,7 +351,7 @@ def resume(
     username: str = typer.Option("", "--username", "-u", envvar="CENSUS_USERNAME"),
     password: str = typer.Option("", "--password", "-p", envvar="CENSUS_PASSWORD"),
 ):
-    run.callback(
+    run(
         start=15000, end=3850000, output=output, concurrent=concurrent,
         username=username, password=password, resume=True, stats_only=False, limit=0,
     )

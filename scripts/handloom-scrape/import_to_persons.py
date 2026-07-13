@@ -230,7 +230,7 @@ def validate(
     data: str = typer.Option("./data", "--data", "-d", help="Scrape data directory"),
 ):
     """Validate approved records without importing."""
-    run.callback(data=data, api_url="", api_key="", dry_run=True, max_records=0)
+    run(data=data, api_url="", api_key="", dry_run=True, max_records=0)
 
 
 if __name__ == "__main__":
