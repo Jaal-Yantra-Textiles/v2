@@ -44,7 +44,7 @@ def get_app(data_dir: Path):
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=["http://127.0.0.1"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -459,7 +459,7 @@ def serve(
     reload: bool = typer.Option(False, "--reload", help="Auto-reload on changes"),
 ):
     app = get_app(Path(data))
-    uvicorn.run(app, host="0.0.0.0", port=port, reload=reload)
+    uvicorn.run(app, host="127.0.0.1", port=port, reload=reload)
 
 
 if __name__ == "__main__":

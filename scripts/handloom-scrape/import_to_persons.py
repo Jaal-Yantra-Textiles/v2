@@ -44,19 +44,30 @@ def load_approved_records(data_dir: Path) -> list[dict]:
 
 
 def map_weaver_to_person(weaver: dict) -> dict:
-    """Map census weaver record to Person API payload."""
+    """Map census weaver record to Person API payload.
+
+    The POST /admin/persons schema (personSchema) only accepts:
+      first_name*, last_name*, email*, addresses[], state, public_metadata
+      (* = required)
+
+    contact_details and tags must be created via separate endpoints
+    after the person record exists.
+    """
     name = (weaver.get("name") or "").strip()
     name_parts = name.split(" ", 1)
     first_name = name_parts[0] if name_parts else name
     last_name = name_parts[1] if len(name_parts) > 1 else ""
 
+    census_id = weaver.get("census_id")
+
     person = {
         "first_name": first_name,
         "last_name": last_name,
+        "email": f"weaver.{census_id}@handloom.gov.in",
         "state": "Onboarding",
         "public_metadata": {
             "source": "census_portal",
-            "census_id": weaver.get("census_id"),
+            "census_id": census_id,
             "survey_date": weaver.get("survey_date"),
             "age": weaver.get("age"),
             "gender": weaver.get("gender"),
@@ -117,14 +128,17 @@ def map_weaver_to_person(weaver: dict) -> dict:
     if addresses:
         person["addresses"] = addresses
 
-    contact_details = []
+    return person
+
+
+def build_contact_payload(weaver: dict) -> Optional[dict]:
     phone = weaver.get("mobile")
     if phone and phone != "91XXXXXXXXXX":
-        contact_details.append({"phone_number": phone, "type": "mobile"})
+        return {"phone_number": phone, "type": "mobile"}
+    return None
 
-    if contact_details:
-        person["contact_details"] = contact_details
 
+def build_tag_payloads(weaver: dict) -> list[dict]:
     tags = []
     if weaver.get("own_looms") is True:
         tags.append({"name": "loom-owner"})
@@ -140,16 +154,13 @@ def map_weaver_to_person(weaver: dict) -> dict:
         tags.append({"name": weaver["gender"].lower()})
     if weaver.get("state"):
         tags.append({"name": f"state-{weaver['state'].lower().replace(' ', '-')}"})
-
-    if tags:
-        person["tags"] = tags
-
-    return person
+    return tags
 
 
 async def import_persons(
     api_url: str,
     api_key: str,
+    records: list[dict],
     persons: list[dict],
     dry_run: bool = False,
 ) -> tuple[int, int]:
@@ -163,21 +174,64 @@ async def import_persons(
     if not api_key.startswith("Bearer "):
         headers["Authorization"] = f"Bearer {api_key}"
 
+    console.print(f"[dim]API calls per record:[/dim]")
+    console.print(f"[dim]  1. POST /admin/persons (basic fields + addresses + public_metadata)[/dim]")
+    console.print(f"[dim]  2. POST /admin/persons/{{id}}/contacts (phone, if available)[/dim]")
+    console.print(f"[dim]  3. POST /admin/persons/{{id}}/tags (inferred tags, if any)[/dim]")
+    console.print()
+
     async with httpx.AsyncClient(timeout=60.0, headers=headers) as client:
-        for i, person in enumerate(persons):
+        for record, person in zip(records, persons):
+            name = f"{person['first_name']} {person['last_name']}"
+
             if dry_run:
-                console.print(f"[dim]DRY RUN: Would create person {person['first_name']} {person['last_name']}[/dim]")
+                console.print(f"[dim]DRY RUN: {name} → email={person['email']}, "
+                              f"addr={len(person.get('addresses', []))}, "
+                              f"contact={bool(build_contact_payload(record))}, "
+                              f"tags={len(build_tag_payloads(record))}[/dim]")
                 continue
 
             try:
+                # Step 1: Create person
                 resp = await client.post(f"{api_url}/admin/persons", json=person)
-                if resp.status_code in (200, 201):
-                    created += 1
-                else:
-                    console.print(f"[red]Error creating person: {resp.status_code} {resp.text[:200]}[/red]")
+                if resp.status_code not in (200, 201):
+                    console.print(f"[red]Error creating {name}: {resp.status_code} {resp.text[:200]}[/red]")
                     errors += 1
+                    continue
+
+                person_id = resp.json().get("person", {}).get("id")
+                if not person_id:
+                    console.print(f"[red]No person ID returned for {name}, response: {resp.text[:200]}[/red]")
+                    errors += 1
+                    continue
+
+                # Step 2: Create contact detail (phone)
+                contact = build_contact_payload(record)
+                if contact:
+                    cr = await client.post(
+                        f"{api_url}/admin/persons/{person_id}/contacts",
+                        json=contact,
+                    )
+                    if cr.status_code not in (200, 201):
+                        console.print(f"[yellow]Warn: contact failed for {name}: {cr.status_code}[/yellow]")
+
+                # Step 3: Create tags
+                tags = build_tag_payloads(record)
+                for tag in tags:
+                    tr = await client.post(
+                        f"{api_url}/admin/persons/{person_id}/tags",
+                        json=tag,
+                    )
+                    if tr.status_code not in (200, 201):
+                        if tr.status_code == 422:
+                            pass  # tag may already exist
+                        else:
+                            console.print(f"[yellow]Warn: tag '{tag['name']}' failed for {name}: {tr.status_code}[/yellow]")
+
+                created += 1
+
             except httpx.RequestError as e:
-                console.print(f"[red]Request failed: {e}[/red]")
+                console.print(f"[red]Request failed for {name}: {e}[/red]")
                 errors += 1
 
     return created, errors
@@ -213,7 +267,7 @@ def run(
 
     import asyncio
 
-    created, errors = asyncio.run(import_persons(api_url, api_key, persons, dry_run))
+    created, errors = asyncio.run(import_persons(api_url, api_key, records, persons, dry_run))
 
     table = Table(title="Import Results")
     table.add_column("Metric", style="cyan")
