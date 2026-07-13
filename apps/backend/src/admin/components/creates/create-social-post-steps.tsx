@@ -186,9 +186,15 @@ export const CreateSocialPostSteps = () => {
 
     // Single post mode submission
     const payload: any = {
-      ...data,
-      caption: data.message,
+      name: data.name,
+      platform_id: data.platform_id,
+      platform_name: data.platform_name,
+      message: data.message,
+      link: data.link,
       media_urls: data.media_urls,
+      post_type: data.post_type,
+      caption: data.message,
+      scheduled_at: data.scheduled_at,
       metadata: {
         ...(data.page_id ? { page_id: data.page_id } : {}),
         ...(data.ig_user_id ? { ig_user_id: data.ig_user_id } : {}),
