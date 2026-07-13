@@ -56,7 +56,13 @@ def map_weaver_to_person(weaver: dict) -> dict:
     name = (weaver.get("name") or "").strip()
     name_parts = name.split(" ", 1)
     first_name = name_parts[0] if name_parts else name
-    last_name = name_parts[1] if len(name_parts) > 1 else ""
+    # personSchema requires first_name.min(1); a nameless record can't be a valid
+    # Person, so reject it here (caller skips it) rather than 422 at the API.
+    if not first_name:
+        raise ValueError("record has no usable name")
+    # personSchema requires last_name.min(1); single-word names (common for
+    # rural weavers) have no surname, so fall back to a filterable placeholder.
+    last_name = name_parts[1] if len(name_parts) > 1 else "(not provided)"
 
     census_id = weaver.get("census_id")
 
@@ -138,22 +144,27 @@ def build_contact_payload(weaver: dict) -> Optional[dict]:
     return None
 
 
-def build_tag_payloads(weaver: dict) -> list[dict]:
+def build_tag_payloads(weaver: dict) -> list[str]:
+    """Return the tag names for a weaver.
+
+    POST /admin/persons/{id}/tags (tagSchema) expects `{ "name": [str, ...] }`
+    — a single request with an array of names, NOT one request per tag.
+    """
     tags = []
     if weaver.get("own_looms") is True:
-        tags.append({"name": "loom-owner"})
+        tags.append("loom-owner")
     if weaver.get("own_looms") is False:
-        tags.append({"name": "contract-weaver"})
+        tags.append("contract-weaver")
     if weaver.get("natural_dye_used"):
-        tags.append({"name": "natural-dye"})
+        tags.append("natural-dye")
     if weaver.get("social_group"):
-        tags.append({"name": weaver["social_group"].lower().replace(" ", "-")})
+        tags.append(weaver["social_group"].lower().replace(" ", "-"))
     if weaver.get("religion"):
-        tags.append({"name": weaver["religion"].lower().replace(" ", "-")})
+        tags.append(weaver["religion"].lower().replace(" ", "-"))
     if weaver.get("gender"):
-        tags.append({"name": weaver["gender"].lower()})
+        tags.append(weaver["gender"].lower())
     if weaver.get("state"):
-        tags.append({"name": f"state-{weaver['state'].lower().replace(' ', '-')}"})
+        tags.append(f"state-{weaver['state'].lower().replace(' ', '-')}")
     return tags
 
 
@@ -215,18 +226,15 @@ async def import_persons(
                     if cr.status_code not in (200, 201):
                         console.print(f"[yellow]Warn: contact failed for {name}: {cr.status_code}[/yellow]")
 
-                # Step 3: Create tags
+                # Step 3: Create tags — one request with an array of names
                 tags = build_tag_payloads(record)
-                for tag in tags:
+                if tags:
                     tr = await client.post(
                         f"{api_url}/admin/persons/{person_id}/tags",
-                        json=tag,
+                        json={"name": tags},
                     )
                     if tr.status_code not in (200, 201):
-                        if tr.status_code == 422:
-                            pass  # tag may already exist
-                        else:
-                            console.print(f"[yellow]Warn: tag '{tag['name']}' failed for {name}: {tr.status_code}[/yellow]")
+                        console.print(f"[yellow]Warn: tags {tags} failed for {name}: {tr.status_code} {tr.text[:150]}[/yellow]")
 
                 created += 1
 
@@ -256,10 +264,14 @@ def run(
     console.print(f"  API URL: {api_url}")
     console.print(f"  Dry Run: {dry_run}")
 
+    # Keep record<->person pairs aligned: import_persons zips them to attach the
+    # right contacts/tags, so a skipped mapping must drop BOTH, not just the person.
+    mapped_records = []
     persons = []
     for r in records:
         try:
             persons.append(map_weaver_to_person(r))
+            mapped_records.append(r)
         except Exception as e:
             console.print(f"[red]Error mapping record {r.get('census_id')}: {e}[/red]")
 
@@ -267,7 +279,7 @@ def run(
 
     import asyncio
 
-    created, errors = asyncio.run(import_persons(api_url, api_key, records, persons, dry_run))
+    created, errors = asyncio.run(import_persons(api_url, api_key, mapped_records, persons, dry_run))
 
     table = Table(title="Import Results")
     table.add_column("Metric", style="cyan")

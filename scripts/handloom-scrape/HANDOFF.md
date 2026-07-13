@@ -64,14 +64,14 @@ python scripts/handloom-scrape/dashboard/server.py --data ./data --port 8080
 #    Browse, search, and click ✓ ! ✗ to approve/flag/reject records
 #    Export approved records as CSV via the button in the header
 
-# 7. Validate the import payload shape (no API calls made)
-python scripts/handloom-scrape/import_to_persons.py --data ./data --dry-run --max 5
+# 7. Validate the import payload shape (no API calls made; `run` subcommand is required)
+python scripts/handloom-scrape/import_to_persons.py run --data ./data --dry-run --max 5
 
-# 8. Import a tiny batch to test against the live API
-python scripts/handloom-scrape/import_to_persons.py --data ./data --max 5
+# 8. If payload is valid, import a tiny batch to test the live API
+python scripts/handloom-scrape/import_to_persons.py run --data ./data --max 5
 
 # 9. Import all approved records
-python scripts/handloom-scrape/import_to_persons.py --data ./data
+python scripts/handloom-scrape/import_to_persons.py run --data ./data
 ```
 
 ## Files
@@ -83,41 +83,45 @@ All under `scripts/handloom-scrape/`.
 | `scraper.py` | Async scraper — commands: `run`, `resume`, `stats` |
 | `parser.py` | HTML → WeaverRecord with 50+ extracted fields |
 | `dashboard/server.py` | FastAPI + Tailwind verification UI |
-| `import_to_persons.py` | Approved records → Medusa Persons API |
+| `import_to_persons.py` | Approved records → Medusa Persons API — commands: `run`, `validate` |
 | `.env.example` | Credential template |
 | `HANDOFF.md` | This file |
 
 ## How the import works (3-step per record)
 
-The Medusa `personSchema` only accepts: `first_name`, `last_name`, `email`, `addresses[]`, `public_metadata`. It does NOT accept nested `contact_details` or `tags`.
+The Medusa `personSchema` only accepts: `first_name`, `last_name`, `email`, `addresses[]`, `state`, `public_metadata`. It does NOT accept nested `contact_details` or `tags` — those are stripped, so they must be created via their own endpoints.
 
-So each record is created in three API calls:
+Each record is created in up to three API calls:
 
 ```
 1. POST /admin/persons
    Body: { first_name, last_name, email: "weaver.{census_id}@handloom.gov.in",
-           addresses: [...], public_metadata: {...} }
-   → Returns person { id: "..." }
+           addresses: [...], state: "Onboarding", public_metadata: {...} }
+   → Returns { person: { id: "..." } }
 
-2. POST /admin/persons/{id}/contacts
-   Body: { phone_number: "...", type: "mobile" }
-   → Adds phone number (if weaver has one)
+2. POST /admin/persons/{id}/contacts        (only if the weaver has a phone)
+   Body: { type: "mobile", phone_number: "..." }
 
-3. POST /admin/persons/{id}/tags  (once per tag)
-   Body: { name: "loom-owner" }
-   → Adds inferred tags (state, gender, loom ownership, etc.)
+3. POST /admin/persons/{id}/tags            (single request, array of names)
+   Body: { name: ["loom-owner", "female", "state-assam", ...] }
+   → tagSchema is { name: string[] } — one request, NOT one per tag
 ```
+
+**Names:** `personSchema` requires both `first_name` and `last_name` (`min(1)`).
+Single-word names (common for rural weavers) get a placeholder surname
+`(not provided)`; records with no usable name are skipped, not sent. The importer
+keeps record↔person pairs aligned so skipped rows don't misattribute contacts/tags.
 
 ## Error recovery guide
 
 | Scenario | What to do |
 |----------|-----------|
 | Scraper fails on login | Check CENSUS_USERNAME/PASSWORD. Log in manually at tricorniotec.com to verify. If the portal login form changed, update `_login()` in `scraper.py`. |
-| Scraper gets 302 on a batch | Auto re-login should handle it. If it loops, kill and restart with `--resume`. |
+| Scraper redirected to login mid-run | The session expired; the scraper force re-logins on a login redirect and retries. If it loops, kill and restart with `resume`. |
 | Scraper interrupted (Ctrl+C, crash) | `python scraper.py resume` — picks up from last checkpoint |
-| Some IDs fail to scrape | Failed IDs go to `data/failures/*.json`. They are NOT retried automatically. To retry, extract failed IDs and re-scrape just those: `python scraper.py run --start MIN --end MAX`. |
-| Import gets 422 on tag | Tag may already exist (duplicate). Safe to ignore — logged as yellow warning. |
-| Import gets 400 on person | Likely a schema validation error. Check the response body and adjust `map_weaver_to_person()` in `import_to_persons.py`. |
+| Some IDs fail to scrape | Failed IDs go to `data/failures/*.json`. They are NOT retried automatically. To retry, extract failed IDs and re-scrape just that range: `python scraper.py run --start MIN --end MAX`. |
+| Import gets 400/422 on tags | A real schema error — the tag body must be `{ name: [".."] }` (an array of names). Check the response body; do NOT ignore it. |
+| Import gets 400 on person | Schema validation error (e.g. empty name, bad email, `state` not in the enum). Check the response body and adjust `map_weaver_to_person()`. |
 
 ## PII warning
 
@@ -126,4 +130,4 @@ This pipeline handles ~3.5M people's names, phone numbers, Aadhaar flags, family
 - Dashboard binds to **127.0.0.1 only** — never expose it
 - Do not commit `data/` directory or any raw JSONL files
 - Destroy `data/` directory after import completes
-- The dashboard server.py contains CORS locked to loopback — do not loosen it
+- The dashboard `server.py` has CORS locked to loopback — do not loosen it
