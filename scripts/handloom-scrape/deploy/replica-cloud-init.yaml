@@ -1,0 +1,55 @@
+#cloud-config
+# Oracle Always-Free provisioning for a BLIND P2P MIRROR peer — a durability
+# replica of the handloom weaver cores. It joins the same Hyperswarm and mirrors
+# every core by key WITHOUT the encryption key, so it holds the sensitive core as
+# ciphertext it cannot read. If the crawler VM dies, the data survives here.
+#
+# Second free VM.Standard.E2.1.Micro (x86); no census creds, no encryption key.
+#
+# BEFORE launching, replace:
+#   __REPO_URL__            e.g. https://github.com/Jaal-Yantra-Textiles/v2.git
+#   __PUBLIC_CORE_KEY__     from the seeder's PUBLIC_KEY.txt  (public:    …)
+#   __SENSITIVE_CORE_KEY__  from the seeder's PUBLIC_KEY.txt  (sensitive: …)
+
+package_update: true
+packages:
+  - git
+  - curl
+  - build-essential
+
+write_files:
+  - path: /etc/handloom/replica.env
+    permissions: "0644"
+    owner: root:root
+    content: |
+      # shareable core keys (NOT the encryption key — this peer cannot decrypt PII)
+      PUBLIC_CORE_KEY=__PUBLIC_CORE_KEY__
+      SENSITIVE_CORE_KEY=__SENSITIVE_CORE_KEY__
+      # EXTRA_CORE_KEYS=  # add a photo Hyperdrive key here later, comma-separated
+
+runcmd:
+  # 2GB swap (1GB box)
+  - fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+  - chmod 600 /swapfile
+  - mkswap /swapfile
+  - swapon /swapfile
+  - sh -c 'echo "/swapfile none swap sw 0 0" >> /etc/fstab'
+  # Node.js 20 (arm64/x64 prebuilds cover sodium/udx-native)
+  - curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+  - apt-get install -y nodejs
+  # fetch the repo (public) — pin to the same branch as the crawler
+  - mkdir -p /opt/handloom && chown -R ubuntu:ubuntu /opt/handloom
+  - sudo -u ubuntu git clone --depth 1 --branch feat/handloom-scrape-fixes-1028 __REPO_URL__ /opt/handloom/jyt
+  # node deps for the mirror (corestore/hyperswarm/b4a) + hyperswarm
+  - cd /opt/handloom/jyt/scripts/handloom-scrape/hyperbee-slice && sudo -u ubuntu npm install --no-audit --no-fund && sudo -u ubuntu npm install --no-audit --no-fund hyperswarm
+  # systemd unit
+  - cp /opt/handloom/jyt/scripts/handloom-scrape/deploy/systemd/handloom-replica.service /etc/systemd/system/
+  - systemctl daemon-reload
+  - systemctl enable --now handloom-replica.service
+
+final_message: |
+  handloom BLIND MIRROR ready.
+  status:   systemctl status handloom-replica
+  progress: journalctl -u handloom-replica -f      # "mirror blocks (have/known): …"
+  It downloads + persists every core block but cannot read the sensitive core
+  (no encryption key here). Losing the crawler VM no longer loses the data.
