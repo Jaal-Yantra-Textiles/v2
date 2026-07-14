@@ -112,7 +112,10 @@ const RefinementList = ({ sortBy, collections, tags, 'data-testid': dataTestId }
           <Drawer.Trigger asChild>
             <Button variant="secondary" className="w-full">Filters</Button>
           </Drawer.Trigger>
-          <Drawer.Content className="max-h-[85vh] overflow-hidden">
+          <Drawer.Content
+            className="max-h-[85vh] overflow-hidden z-[100]"
+            overlayProps={{ className: "z-[100]" }}
+          >
             <Drawer.Header>
               <Drawer.Title>Filters</Drawer.Title>
             </Drawer.Header>
