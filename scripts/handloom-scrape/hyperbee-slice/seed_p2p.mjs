@@ -23,6 +23,7 @@ import b4a from "b4a";
 import { randomBytes } from "node:crypto";
 import { brotliCompressSync, brotliDecompressSync } from "node:zlib";
 import { readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
 import assert from "node:assert";
 
 const DATA_DIR = "../data/live";
@@ -33,13 +34,22 @@ const MIN_CELL = 5;                       // k-anonymity: suppress aggregate cel
 const SENSITIVE = ["mobile", "name", "head_of_household", "latitude", "longitude",
   "house_no", "pin_code", "monthly_income", "handloom_income", "aadhaar_issued", "profile_photo_url"];
 
-const band = (v, step) => (v == null ? null : `${Math.floor(v / step) * step}-${Math.floor(v / step) * step + step - 1}`);
+// DPDP-2023 special-category dims — kept SEPARATE from the public core entirely:
+// stripped from public records AND from public aggregates. They live ONLY in the
+// encrypted sensitive core (per-record + key-holder-only aggregates).
+const SPECIAL_CATEGORY = ["social_group", "religion"];
+
+const band = (v, step) => {
+  const n = Number(v);
+  return v == null || Number.isNaN(n) ? null
+    : `${Math.floor(n / step) * step}-${Math.floor(n / step) * step + step - 1}`;
+};
 
 function splitRecord(r) {
   const sensitive = {};
-  for (const f of SENSITIVE) if (r[f] != null) sensitive[f] = r[f];
+  for (const f of [...SENSITIVE, ...SPECIAL_CATEGORY]) if (r[f] != null) sensitive[f] = r[f];
   const pub = { ...r };
-  for (const f of SENSITIVE) delete pub[f];
+  for (const f of [...SENSITIVE, ...SPECIAL_CATEGORY]) delete pub[f];
   // coarsen the sensitive-but-aggregatable dims into public bands (no exact values)
   pub.age_band = band(r.age, 10);
   pub.income_band = band(r.handloom_income, 5000);
@@ -47,22 +57,49 @@ function splitRecord(r) {
   return { pub, sensitive };
 }
 
-// aggregate counters accumulated in-memory, written once (idempotent per run)
-function bumpAll(agg, r) {
-  const inc = (k) => agg.set(k, (agg.get(k) || 0) + 1);
-  const add = (k, n) => agg.set(k, (agg.get(k) || 0) + (n || 0));
-  inc(`state/${r.state}`);
-  inc(`district/${r.state}|${r.district}`);
-  if (r.social_group) inc(`social_group/${r.social_group}`);
-  if (r.gender) inc(`gender/${r.gender}`);
-  if (r.religion) inc(`religion/${r.religion}`);
-  inc(`natural_dye/${!!r.natural_dye_used}`);
+// PUBLIC aggregates (agg) exclude special-category dims; those go into sensAgg,
+// which is written ONLY to the encrypted sensitive core (key-holder analytics).
+function bumpAll(agg, sensAgg, r) {
+  const inc = (m, k) => m.set(k, (m.get(k) || 0) + 1);
+  const add = (m, k, n) => m.set(k, (m.get(k) || 0) + (n || 0));
+  inc(agg, `state/${r.state}`);
+  inc(agg, `district/${r.state}|${r.district}`);
+  if (r.gender) inc(agg, `gender/${r.gender}`);
+  inc(agg, `natural_dye/${!!r.natural_dye_used}`);
   for (const ch of ["local_market", "master_weaver", "cooperative", "ecommerce"])
-    if (r[`sells_${ch}`]) inc(`sales/${ch}`);
-  for (const t of ["pit", "frame", "loin", "other"]) add(`loom_type/${t}`, r[`${t}_loom_count`]);
-  add(`total/looms_owned`, r.total_looms_owned);
-  add(`total/weavers`, 1);
-  return agg;
+    if (r[`sells_${ch}`]) inc(agg, `sales/${ch}`);
+  for (const t of ["pit", "frame", "loin", "other"]) add(agg, `loom_type/${t}`, r[`${t}_loom_count`]);
+  add(agg, `total/looms_owned`, r.total_looms_owned);
+  add(agg, `total/weavers`, 1);
+  // special-category → encrypted aggregates only
+  if (r.social_group) inc(sensAgg, `social_group/${r.social_group}`);
+  if (r.religion) inc(sensAgg, `religion/${r.religion}`);
+}
+
+// recursively yield every .jsonl under dir (top-level state files + ids/ chunks)
+function walkJsonl(dir) {
+  const out = [];
+  if (!existsSync(dir)) return out;
+  for (const ent of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, ent.name);
+    if (ent.isDirectory()) out.push(...walkJsonl(p));
+    else if (ent.name.endsWith(".jsonl")) out.push(p);
+  }
+  return out;
+}
+
+// census_id -> real profile photo url, harvested by the list (2nd) pass
+function loadPhotos() {
+  const map = new Map();
+  const dir = join(DATA_DIR, "photos");
+  if (!existsSync(dir)) return map;
+  for (const f of readdirSync(dir).filter((x) => x.endsWith(".csv"))) {
+    for (const line of readFileSync(join(dir, f), "utf8").split("\n").slice(1)) {
+      const i = line.indexOf(",");
+      if (i > 0) map.set(line.slice(0, i).trim(), line.slice(i + 1).trim());
+    }
+  }
+  return map;
 }
 
 async function ingest() {
@@ -84,21 +121,26 @@ async function ingest() {
   const pubRec = pub.sub("rec", { valueEncoding: "binary" });
   const pubAgg = pub.sub("agg", { valueEncoding: "utf-8" });
   const sensRec = sens.sub("rec", { valueEncoding: "binary" });
+  const sensAggBee = sens.sub("agg", { valueEncoding: "utf-8" });
 
-  const agg = new Map();
+  const photos = loadPhotos();             // census_id -> real photo url (sensitive)
+  const agg = new Map(), sensAgg = new Map();
   let n = 0;
-  for (const file of (existsSync(DATA_DIR) ? readdirSync(DATA_DIR).filter((f) => f.endsWith(".jsonl")) : [])) {
-    for (const line of readFileSync(`${DATA_DIR}/${file}`, "utf8").split("\n")) {
+  for (const file of walkJsonl(DATA_DIR)) {
+    for (const line of readFileSync(file, "utf8").split("\n")) {
       if (!line.trim()) continue;
       const r = JSON.parse(line);
+      if (r.profile_photo_url == null && photos.has(String(r.census_id)))
+        r.profile_photo_url = photos.get(String(r.census_id));   // join the 2nd-pass photo
       const { pub: pubRow, sensitive } = splitRecord(r);
       await pubRec.put(String(r.census_id), brotliCompressSync(Buffer.from(JSON.stringify(pubRow))));
       await sensRec.put(String(r.census_id), brotliCompressSync(Buffer.from(JSON.stringify(sensitive))));
-      bumpAll(agg, r);
+      bumpAll(agg, sensAgg, r);
       n++;
     }
   }
   for (const [k, v] of agg) await pubAgg.put(k, String(v));
+  for (const [k, v] of sensAgg) await sensAggBee.put(k, String(v));   // encrypted-core only
 
   return { store, pubCore, sensCore, pub, sens, encryptionKey, n };
 }
@@ -112,6 +154,17 @@ export async function readStats(pub, { minCell = MIN_CELL } = {}) {
     const count = Number(value);
     (dims[dim] ??= {})[label] = dim === "total" || dim === "loom_type" ? count
       : count < minCell ? null : count;              // suppress small cells (re-identification risk)
+  }
+  return dims;
+}
+
+// ── key-holder-only analytics over the encrypted special-category aggregates ──
+export async function readSensitiveStats(sens, { minCell = MIN_CELL } = {}) {
+  const dims = {};
+  for await (const { key, value } of sens.sub("agg", { valueEncoding: "utf-8" }).createReadStream()) {
+    const [dim, ...rest] = key.split("/");
+    const count = Number(value);
+    (dims[dim] ??= {})[rest.join("/")] = count < minCell ? null : count;   // suppress small cells
   }
   return dims;
 }
@@ -136,14 +189,20 @@ if (mode === "test") {
   // 1. public records carry NO sensitive fields
   const one = JSON.parse(brotliDecompressSync((await pub.sub("rec", { valueEncoding: "binary" }).get("2904500")).value).toString());
   ok("public record has NO real mobile/name/lat/long/income", SENSITIVE.every((f) => !(f in one)));
+  ok("public record has NO social_group / religion (special-category)", SPECIAL_CATEGORY.every((f) => !(f in one)));
   ok("public record keeps masked + coarsened bands", one.mobile_masked === "91XXXXXXXXXX" && !!one.age_band && !!one.income_band);
 
   // 4. analytics = aggregates, k-anonymity applied (read while the store is open)
   const stats = await readStats(pub, { minCell: 5 });
   ok("aggregate weaver total == ingested count", stats.total.weavers === n);
-  ok("aggregates cover loom types + social groups + sales channels", !!stats.loom_type && !!stats.social_group && !!stats.sales);
+  ok("public aggregates cover loom types + sales channels", !!stats.loom_type && !!stats.sales);
+  ok("public aggregates EXCLUDE social_group + religion", !stats.social_group && !stats.religion);
+  const sensStats = await readSensitiveStats(sens, { minCell: 5 });
+  ok("special-category aggregates live ONLY in the encrypted core", !!sensStats.social_group && !!sensStats.religion);
   console.log(`\n  public analytics (k-anon minCell=5):`);
-  console.log("   ", JSON.stringify({ total: stats.total, social_group: stats.social_group, loom_type: stats.loom_type, sales: stats.sales }));
+  console.log("   ", JSON.stringify({ total: stats.total, loom_type: stats.loom_type, sales: stats.sales }));
+  console.log(`  key-holder-only (encrypted) special-category:`);
+  console.log("   ", JSON.stringify({ social_group: sensStats.social_group, religion: sensStats.religion }));
   console.log();
 
   // 2. sensitive core is UNREADABLE without the key

@@ -8,8 +8,9 @@ Type=simple
 User=ubuntu
 WorkingDirectory=/opt/handloom/jyt/scripts/handloom-scrape/deploy
 EnvironmentFile=/etc/handloom/crawl.env
-# venv python; args come from crawl.env (GAP / PARALLEL / DELAY)
-ExecStart=/opt/handloom/venv/bin/python orchestrate.py --gap ${GAP} --parallel ${PARALLEL} --delay ${DELAY}
+# venv python; args come from crawl.env (START / END / CHUNK / CONCURRENCY / DELAY)
+# two-pass: harvest_photos --all, then chunked crawl_ids --range START..END
+ExecStart=/opt/handloom/venv/bin/python orchestrate.py --start ${START} --end ${END} --chunk ${CHUNK} --concurrency ${CONCURRENCY} --delay ${DELAY}
 Restart=on-failure
 RestartSec=30
 # be a good citizen even if the box is shared
