@@ -102,7 +102,9 @@ function loadPhotos() {
   return map;
 }
 
-async function ingest() {
+// open (or reopen) the dual cores — separated so seed mode can re-ingest the
+// growing crawl output on an interval without reopening the Corestore.
+async function openStores() {
   const encHex = process.env.HANDLOOM_ENCRYPTION_KEY || (() => {
     const k = randomBytes(32).toString("hex");
     writeFileSync("./ENCRYPTION_KEY.txt", k + "\n");
@@ -118,6 +120,12 @@ async function ingest() {
 
   const pub = new Hyperbee(pubCore, { keyEncoding: "utf-8", valueEncoding: "binary" });
   const sens = new Hyperbee(sensCore, { keyEncoding: "utf-8", valueEncoding: "binary" });
+  return { store, pubCore, sensCore, pub, sens, encryptionKey };
+}
+
+// idempotent: (re)reads every jsonl under DATA_DIR and upserts by census_id, so
+// calling it repeatedly as the detail sweep grows just appends the new records.
+async function ingestFiles(pub, sens) {
   const pubRec = pub.sub("rec", { valueEncoding: "binary" });
   const pubAgg = pub.sub("agg", { valueEncoding: "utf-8" });
   const sensRec = sens.sub("rec", { valueEncoding: "binary" });
@@ -141,8 +149,13 @@ async function ingest() {
   }
   for (const [k, v] of agg) await pubAgg.put(k, String(v));
   for (const [k, v] of sensAgg) await sensAggBee.put(k, String(v));   // encrypted-core only
+  return n;
+}
 
-  return { store, pubCore, sensCore, pub, sens, encryptionKey, n };
+async function ingest() {
+  const s = await openStores();
+  const n = await ingestFiles(s.pub, s.sens);
+  return { ...s, n };
 }
 
 // ── public analytics feed: read agg/* with k-anonymity suppression ──────────
@@ -230,7 +243,7 @@ if (mode === "test") {
   process.exit(0);
 }
 
-const { store, pubCore, sensCore, n } = await ingest();
+const { store, pubCore, sensCore, pub, sens, n } = await ingest();
 writeFileSync("./PUBLIC_KEY.txt", `public:    ${pubCore.key.toString("hex")}\nsensitive: ${sensCore.key.toString("hex")}\n`);
 console.log(`ingested ${n} records.\n  PUBLIC core key (share freely): ${pubCore.key.toString("hex")}\n  SENSITIVE core key (needs encryptionKey to read): ${sensCore.key.toString("hex")}`);
 if (mode === "once") { await store.close(); process.exit(0); }
@@ -241,3 +254,21 @@ swarm.on("connection", (conn) => store.replicate(conn));
 await swarm.join(pubCore.discoveryKey, { server: true, client: false }).flushed();
 await swarm.join(sensCore.discoveryKey, { server: true, client: false }).flushed();
 console.log("seeding both cores on Hyperswarm — public is readable by anyone; sensitive stays opaque without the key.");
+
+// Re-ingest the growing crawl output so the cores (and any replica peers) stay
+// fresh without a service restart. Idempotent upsert by census_id; skipped while
+// a prior pass is still running to avoid overlap.
+const REINGEST_MS = Number(process.env.REINGEST_MS || 15 * 60 * 1000);
+let reingesting = false;
+setInterval(async () => {
+  if (reingesting) return;
+  reingesting = true;
+  try {
+    const m = await ingestFiles(pub, sens);
+    console.log(`[${new Date().toISOString()}] re-ingest: ${m} records now in cores (public core length=${pubCore.length})`);
+  } catch (e) {
+    console.error("re-ingest error:", e.message);
+  } finally {
+    reingesting = false;
+  }
+}, REINGEST_MS);
