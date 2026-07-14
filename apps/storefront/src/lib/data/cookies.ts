@@ -87,3 +87,41 @@ export const removeCartId = async () => {
     maxAge: -1,
   })
 }
+
+/**
+ * Reads first-touch tracking cookies set by the middleware. Returns an
+ * object with all available attribution fields — any field not yet
+ * captured is omitted from the result.
+ *
+ * Used by cart stamping (addToCart) so the backend can join carts →
+ * campaigns → orders for ad-planning attribution.
+ */
+export const getTrackingCookies = async (): Promise<
+  Record<string, string>
+> => {
+  try {
+    const cookies = await nextCookies()
+    const keys = [
+      "jyt_utm_source",
+      "jyt_utm_medium",
+      "jyt_utm_campaign",
+      "jyt_utm_term",
+      "jyt_utm_content",
+      "jyt_gclid",
+      "jyt_fbclid",
+      "jyt_ref",
+      "jyt_referrer",
+      "jyt_landing_page",
+    ]
+    const result: Record<string, string> = {}
+    for (const key of keys) {
+      const value = cookies.get(key)?.value
+      if (value) {
+        result[key.replace("jyt_", "")] = value
+      }
+    }
+    return result
+  } catch {
+    return {}
+  }
+}

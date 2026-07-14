@@ -5,6 +5,85 @@ const BACKEND_URL = process.env.MEDUSA_BACKEND_URL
 const PUBLISHABLE_API_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
 const DEFAULT_REGION = process.env.NEXT_PUBLIC_DEFAULT_REGION || "us"
 
+/**
+ * Tracking params to capture from the URL query string. Stored as
+ * first-party cookies with a `jyt_` prefix so server-side code (cart
+ * stamping, server actions) can read them via `next/headers`.
+ *
+ * First-touch model: cookies are only written when they don't already
+ * exist — the initial ad click / UTM link that brought the visitor in
+ * is preserved even if they navigate to other pages.
+ */
+const TRACKING_PARAMS = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_term",
+  "utm_content",
+  "gclid",
+  "fbclid",
+  "ref",
+] as const
+
+const TRACKING_COOKIE_MAX_AGE = 60 * 60 * 24 * 30 // 30 days
+
+/**
+ * Captures first-touch attribution params from the URL query string and
+ * the `Referer` header, setting them as cookies on the response if they
+ * aren't already present. Runs on every request that passes the matcher.
+ *
+ * Mutates the response's cookie set in-place — returns nothing.
+ */
+function captureTrackingParams(
+  request: NextRequest,
+  response: NextResponse,
+) {
+  const searchParams = request.nextUrl.searchParams
+  const existingCookies = request.cookies
+
+  for (const param of TRACKING_PARAMS) {
+    const cookieName = `jyt_${param}`
+    const value = searchParams.get(param)
+
+    if (value && !existingCookies.get(cookieName)) {
+      response.cookies.set(cookieName, value, {
+        maxAge: TRACKING_COOKIE_MAX_AGE,
+        path: "/",
+        sameSite: "lax",
+      })
+    }
+  }
+
+  // HTTP referrer — only set if we don't already have one captured.
+  // The `Referer` header is more reliable than `document.referrer` for
+  // server-side attribution (it's set by the browser, not spoofable by
+  // client JS) and survives ad-blockers that block the analytics script.
+  const httpReferrer = request.headers.get("referer")
+  if (
+    httpReferrer &&
+    !existingCookies.get("jyt_referrer")
+  ) {
+    response.cookies.set("jyt_referrer", httpReferrer, {
+      maxAge: TRACKING_COOKIE_MAX_AGE,
+      path: "/",
+      sameSite: "lax",
+    })
+  }
+
+  // Landing page — the first page the visitor landed on. Only set once
+  // per cookie lifetime so it always reflects the entry point, not
+  // subsequent navigations.
+  if (!existingCookies.get("jyt_landing_page")) {
+    const landingPath =
+      request.nextUrl.pathname + (request.nextUrl.search || "")
+    response.cookies.set("jyt_landing_page", landingPath, {
+      maxAge: TRACKING_COOKIE_MAX_AGE,
+      path: "/",
+      sameSite: "lax",
+    })
+  }
+}
+
 const regionMapCache = {
   regionMap: new Map<string, HttpTypes.StoreRegion>(),
   regionMapUpdated: Date.now(),
@@ -161,6 +240,10 @@ export async function middleware(request: NextRequest) {
     } else {
       console.log(`[Middleware] → NextResponse.next() (cache id already set)`)
     }
+
+    // Capture first-touch UTM / referrer / landing-page cookies.
+    captureTrackingParams(request, next)
+
     return next
   }
 
@@ -188,6 +271,10 @@ export async function middleware(request: NextRequest) {
     redirectUrl = `${request.nextUrl.origin}/${countryCode}${redirectPath}${queryString}`
     response = NextResponse.redirect(`${redirectUrl}`, 307)
     console.log(`[Middleware] → Redirecting to ${redirectUrl}`)
+
+    // Capture first-touch UTM / referrer / landing-page cookies on the
+    // redirect response so they're set before the page even renders.
+    captureTrackingParams(request, response)
   } else if (!urlHasCountryCode && !countryCode) {
     console.log(`[Middleware] → 500: No valid regions`)
     // Handle case where no valid country code exists (empty regions)
