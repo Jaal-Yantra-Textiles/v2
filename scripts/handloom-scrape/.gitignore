@@ -1,0 +1,13 @@
+# Real weaver PII from live crawls + any generated fixtures — never commit
+data/
+
+# Python
+__pycache__/
+*.pyc
+.venv-test/
+.venv/
+
+# Hyperbee proof workspace
+hyperbee-slice/node_modules/
+# transient Corestore dirs the proofs create + clean up
+hyperbee-slice/_*/

@@ -93,10 +93,16 @@ module.exports = defineConfig({
   modules: [
     // Custom app modules
     {
+      resolve: "./src/modules/census",
+    },
+    {
       resolve: "./src/modules/person",
     },
     {
       resolve: "./src/modules/persontype",
+    },
+    {
+      resolve: "./src/modules/personproperty",
     },
     {
       resolve: "./src/modules/inventory_orders",

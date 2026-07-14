@@ -1,0 +1,20 @@
+[Unit]
+Description=Handloom P2P blind mirror (durability replica of the weaver cores)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/handloom/jyt/scripts/handloom-scrape/hyperbee-slice
+Environment=P2P_STORE=/opt/handloom/replica-store
+# PUBLIC_CORE_KEY / SENSITIVE_CORE_KEY (shareable core keys — NOT the encryption key).
+# Optional EXTRA_CORE_KEYS=<hex>,... to also mirror a future photo Hyperdrive.
+EnvironmentFile=/etc/handloom/replica.env
+ExecStart=/usr/bin/node replicate_peer.mjs
+Restart=on-failure
+RestartSec=30
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

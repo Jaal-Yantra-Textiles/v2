@@ -1,0 +1,32 @@
+# One state per line (uppercase). Order = crawl order.
+# ⚠️ VERIFY these match the portal's own names — enumerate once from
+#   https://tricorniotec.com/webapp/ministry/districts/<STATE>
+# and correct any that return 0 districts (spelling/spacing/UT names vary).
+ANDHRA PRADESH
+ARUNACHAL PRADESH
+ASSAM
+BIHAR
+CHHATTISGARH
+DELHI
+GOA
+GUJARAT
+HARYANA
+HIMACHAL PRADESH
+JHARKHAND
+KARNATAKA
+KERALA
+MADHYA PRADESH
+MAHARASHTRA
+MANIPUR
+MEGHALAYA
+MIZORAM
+NAGALAND
+ODISHA
+PUNJAB
+RAJASTHAN
+SIKKIM
+TAMIL NADU
+TELANGANA
+TRIPURA
+UTTAR PRADESH
+WEST BENGAL
