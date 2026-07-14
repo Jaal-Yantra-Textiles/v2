@@ -1,0 +1,5 @@
+node_modules/
+census-reader-store/
+.test-store/
+*.log
+package-lock.json

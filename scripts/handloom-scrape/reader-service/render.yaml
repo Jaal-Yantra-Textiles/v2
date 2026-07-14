@@ -1,0 +1,29 @@
+# Render blueprint for the handloom census edge reader.
+#
+# Deploy: push to a repo Render watches, then "New → Blueprint" and pick this file
+# (or paste the settings into a manual Web Service). Once live, point Medusa at it:
+#   CENSUS_READER_URL=https://handloom-census-reader.onrender.com
+#
+# Notes:
+# - A persistent disk keeps the Corestore between restarts so it doesn't re-pull
+#   the whole core on every cold start. On Render's free tier (no disk, spins down
+#   on idle) it re-replicates on wake — fine while the core is small.
+# - The public core key is non-secret ("share freely"); it's the default in
+#   server.mjs, so CENSUS_PUBLIC_CORE_KEY is optional (set it to override).
+services:
+  - type: web
+    name: handloom-census-reader
+    runtime: node
+    rootDir: scripts/handloom-scrape/reader-service
+    plan: starter            # needs to stay warm to hold the swarm peer; free tier sleeps on idle
+    buildCommand: npm install
+    startCommand: node server.mjs
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: CENSUS_PUBLIC_CORE_KEY
+        value: 5709e2edba5a83ca3711d84c049217f202c6101f2554b2c54f41498ba5ff35da
+    disk:
+      name: census-store
+      mountPath: /opt/render/project/src/scripts/handloom-scrape/reader-service/census-reader-store
+      sizeGB: 1

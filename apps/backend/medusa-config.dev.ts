@@ -71,6 +71,9 @@ module.exports = defineConfig({
   modules: [
     // Custom app modules
     {
+      resolve: "./src/modules/census",
+    },
+    {
       resolve: "./src/modules/person",
     },
     {

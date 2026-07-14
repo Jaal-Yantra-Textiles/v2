@@ -70,6 +70,14 @@ variables:
   # (the cross-list subscriber runs on the WORKER — set there too). Non-secret.
   # Unset → falls back to the nondeterministic is_default storefront pick.
   CORE_SALES_CHANNEL_ID: sc_01JNQG1YX5549246DFCKKFTE0W
+  # #1031 — serve /web/census/* by PROXYING to the standalone edge reader on
+  # Render (which holds the Hyperswarm peer and replicates the PUBLIC core by key,
+  # read-only/PII-free). Proxy mode keeps the native hypercore stack + swarm OUT
+  # of Fargate entirely — Medusa just fetches over HTTPS. The reader was verified
+  # to peer the OCI seeder from Render, so Fargate never needs to hole-punch.
+  # (Alternative: drop this and set CENSUS_P2P_ENABLED=true to peer in-process —
+  #  viable since these tasks run in PUBLIC subnets, but the proxy is simpler.)
+  CENSUS_READER_URL: https://handloom-census-reader.onrender.com
 
 # Secrets: rotating values come from Secrets Manager.
 # Non-rotating config (CORS, URLs, etc.) comes from SSM Parameter Store — listed
