@@ -22,7 +22,7 @@ import Hyperbee from "hyperbee";
 import b4a from "b4a";
 import { randomBytes } from "node:crypto";
 import { brotliCompressSync, brotliDecompressSync } from "node:zlib";
-import { readFileSync, readdirSync, writeFileSync, existsSync, createReadStream } from "node:fs";
+import { readdirSync, writeFileSync, existsSync, createReadStream, openSync, fstatSync, readSync, closeSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { join } from "node:path";
 import assert from "node:assert";
@@ -58,23 +58,29 @@ function splitRecord(r) {
   return { pub, sensitive };
 }
 
-// PUBLIC aggregates (agg) exclude special-category dims; those go into sensAgg,
-// which is written ONLY to the encrypted sensitive core (key-holder analytics).
-function bumpAll(agg, sensAgg, r) {
-  const inc = (m, k) => m.set(k, (m.get(k) || 0) + 1);
-  const add = (m, k, n) => m.set(k, (m.get(k) || 0) + (n || 0));
-  inc(agg, `state/${r.state}`);
-  inc(agg, `district/${r.state}|${r.district}`);
-  if (r.gender) inc(agg, `gender/${r.gender}`);
-  inc(agg, `natural_dye/${!!r.natural_dye_used}`);
+// Accumulate one record's aggregate increments into `m` (key -> delta), for a
+// single core. PUBLIC core (sens=false) gets the general dims; the SENSITIVE
+// core (sens=true) gets ONLY the DPDP special-category dims (social_group /
+// religion), which never touch the public core. Deltas are folded into the
+// core's stored agg counts under an atomic batch — so counts stay exact under
+// incremental (append-only) ingest instead of being recomputed from scratch.
+function bumpInto(m, r, sens) {
+  const inc = (k) => m.set(k, (m.get(k) || 0) + 1);
+  const add = (k, n) => m.set(k, (m.get(k) || 0) + (n || 0));
+  if (sens) {
+    if (r.social_group) inc(`social_group/${r.social_group}`);
+    if (r.religion) inc(`religion/${r.religion}`);
+    return;
+  }
+  inc(`state/${r.state}`);
+  inc(`district/${r.state}|${r.district}`);
+  if (r.gender) inc(`gender/${r.gender}`);
+  inc(`natural_dye/${!!r.natural_dye_used}`);
   for (const ch of ["local_market", "master_weaver", "cooperative", "ecommerce"])
-    if (r[`sells_${ch}`]) inc(agg, `sales/${ch}`);
-  for (const t of ["pit", "frame", "loin", "other"]) add(agg, `loom_type/${t}`, r[`${t}_loom_count`]);
-  add(agg, `total/looms_owned`, r.total_looms_owned);
-  add(agg, `total/weavers`, 1);
-  // special-category → encrypted aggregates only
-  if (r.social_group) inc(sensAgg, `social_group/${r.social_group}`);
-  if (r.religion) inc(sensAgg, `religion/${r.religion}`);
+    if (r[`sells_${ch}`]) inc(`sales/${ch}`);
+  for (const t of ["pit", "frame", "loin", "other"]) add(`loom_type/${t}`, r[`${t}_loom_count`]);
+  add(`total/looms_owned`, r.total_looms_owned);
+  add(`total/weavers`, 1);
 }
 
 // recursively yield every .jsonl under dir (top-level state files + ids/ chunks)
@@ -108,12 +114,45 @@ async function loadPhotosFor(needed) {
   return map;
 }
 
-// stream a jsonl file's records (avoids readFileSync().split on large chunks)
-async function* readRecords(file) {
-  const rl = createInterface({ input: createReadStream(file), crlfDelay: Infinity });
-  for await (const line of rl) {
-    if (line.trim()) yield JSON.parse(line);
+// Hyperbee sub() keys are `<name>\0<key>` (default 1-byte separator). We build the
+// same bytes by hand so a single ROOT-bee batch can write rec/agg/meta keys
+// ATOMICALLY (one flush) while existing sub() readers still find them.
+const SEP = Buffer.from([0]);
+const subKey = (name, k) => Buffer.concat([Buffer.from(name), SEP, Buffer.from(String(k))]);
+
+// Read only the NEW tail of a jsonl file (bytes [startOffset, size)), returning
+// the complete records found and the byte offset of the last full line consumed.
+// The crawler appends whole "json\n" lines, so a torn final line (mid-append) is
+// simply not consumed this cycle — it's picked up once its newline lands. This is
+// what makes ingest incremental: each cycle touches only the delta, never the
+// whole (growing) corpus, so memory + CPU stay flat as the sweep reaches millions.
+function readDelta(file, startOffset) {
+  const fd = openSync(file, "r");
+  try {
+    const size = fstatSync(fd).size;
+    if (size <= startOffset) return { records: [], endOffset: startOffset };
+    const buf = Buffer.allocUnsafe(size - startOffset);
+    readSync(fd, buf, 0, buf.length, startOffset);
+    const text = buf.toString("utf-8");
+    const lastNl = text.lastIndexOf("\n");
+    if (lastNl < 0) return { records: [], endOffset: startOffset };   // no complete new line yet
+    const consumed = text.slice(0, lastNl + 1);
+    const records = [];
+    for (const line of consumed.split("\n")) {
+      const t = line.trim();
+      if (!t) continue;
+      try { records.push(JSON.parse(t)); } catch { /* torn/corrupt line — skip, don't crash */ }
+    }
+    return { records, endOffset: startOffset + Buffer.byteLength(consumed, "utf-8") };
+  } finally {
+    closeSync(fd);
   }
+}
+
+// per-file ingest cursor (bytes already ingested into THIS core), stored in-core.
+async function getOffset(bee, file) {
+  const n = await bee.sub("meta", { valueEncoding: "utf-8" }).get("off/" + file);
+  return n ? Number(n.value) : 0;
 }
 
 // open (or reopen) the dual cores — separated so seed mode can re-ingest the
@@ -137,46 +176,93 @@ async function openStores() {
   return { store, pubCore, sensCore, pub, sens, encryptionKey };
 }
 
-// idempotent: (re)reads every jsonl under DATA_DIR and upserts by census_id, so
-// calling it repeatedly as the detail sweep grows just appends the new records.
-async function ingestFiles(pub, sens) {
+// Ingest one file's NEW tail into ONE core, atomically. Reads only bytes past
+// this core's stored cursor, then commits {new records + agg increments + the
+// advanced cursor} in a single Hyperbee batch. Atomicity is why counts stay
+// exact under crashes: either the whole delta lands (records + agg + cursor) or
+// none of it does, so we never double-count on restart and never skip records.
+// Each core carries its OWN cursor, so if one core's batch fails to flush the
+// other's records aren't stranded — the lagging core simply re-reads its delta.
+async function ingestCore(bee, file, sens) {
+  const off = await getOffset(bee, file);
+  const { records, endOffset } = readDelta(file, off);
+  if (records.length === 0) {
+    if (endOffset !== off) await bee.sub("meta", { valueEncoding: "utf-8" }).put("off/" + file, String(endOffset));
+    return 0;
+  }
+
+  // profile photos are SENSITIVE (encrypted core only) — the public core never
+  // needs them, so only join photos for the sensitive pass, and only for the
+  // delta's ids (bounded — this is what killed the old all-ids OOM).
+  let photos = new Map();
+  if (sens) {
+    const need = new Set();
+    for (const r of records) if (r.profile_photo_url == null) need.add(String(r.census_id));
+    photos = await loadPhotosFor(need);
+  }
+
+  const recPuts = [];              // [census_id, brotli(row)]
+  const delta = new Map();         // agg key -> increment
+  for (const r of records) {
+    if (sens && r.profile_photo_url == null && photos.has(String(r.census_id)))
+      r.profile_photo_url = photos.get(String(r.census_id));
+    const { pub: pubRow, sensitive } = splitRecord(r);
+    recPuts.push([String(r.census_id), brotliCompressSync(Buffer.from(JSON.stringify(sens ? sensitive : pubRow)))]);
+    bumpInto(delta, r, sens);
+  }
+
+  // read current agg totals BEFORE opening the batch (single writer → no race),
+  // fold in this delta, then commit records + new totals + cursor in one flush.
+  const aggSub = bee.sub("agg", { valueEncoding: "utf-8" });
+  const newAgg = new Map();
+  for (const [k, incr] of delta) {
+    const cur = await aggSub.get(k);
+    newAgg.set(k, (cur ? Number(cur.value) : 0) + incr);
+  }
+  const batch = bee.batch({ keyEncoding: "binary", valueEncoding: "binary" });
+  for (const [id, val] of recPuts) await batch.put(subKey("rec", id), val);
+  for (const [k, v] of newAgg) await batch.put(subKey("agg", k), Buffer.from(String(v)));
+  await batch.put(subKey("meta", "off/" + file), Buffer.from(String(endOffset)));
+  await batch.flush();
+  return records.length;
+}
+
+// One incremental pass over every jsonl under DATA_DIR (sealed chunks skip in O(1)
+// once their cursor == size; only the growing chunk does real work).
+async function ingestNew(pub, sens) {
   const files = walkJsonl(DATA_DIR);
-  if (files.length === 0) return 0;        // no detail records yet — skip (photos alone aren't records)
-
-  const pubRec = pub.sub("rec", { valueEncoding: "binary" });
-  const pubAgg = pub.sub("agg", { valueEncoding: "utf-8" });
-  const sensRec = sens.sub("rec", { valueEncoding: "binary" });
-  const sensAggBee = sens.sub("agg", { valueEncoding: "utf-8" });
-
-  // pass 1 (streamed): which census_ids need a photo joined
-  const needPhoto = new Set();
-  for (const file of files)
-    for await (const r of readRecords(file))
-      if (r.profile_photo_url == null) needPhoto.add(String(r.census_id));
-  const photos = await loadPhotosFor(needPhoto);   // bounded to needPhoto, streamed
-
-  // pass 2 (streamed): upsert every record by census_id
-  const agg = new Map(), sensAgg = new Map();
+  if (files.length === 0) return 0;        // no detail records yet — photos alone aren't records
   let n = 0;
   for (const file of files) {
-    for await (const r of readRecords(file)) {
-      if (r.profile_photo_url == null && photos.has(String(r.census_id)))
-        r.profile_photo_url = photos.get(String(r.census_id));   // join the 2nd-pass photo
-      const { pub: pubRow, sensitive } = splitRecord(r);
-      await pubRec.put(String(r.census_id), brotliCompressSync(Buffer.from(JSON.stringify(pubRow))));
-      await sensRec.put(String(r.census_id), brotliCompressSync(Buffer.from(JSON.stringify(sensitive))));
-      bumpAll(agg, sensAgg, r);
-      n++;
-    }
+    n += await ingestCore(pub, file, false);
+    await ingestCore(sens, file, true);
   }
-  for (const [k, v] of agg) await pubAgg.put(k, String(v));
-  for (const [k, v] of sensAgg) await sensAggBee.put(k, String(v));   // encrypted-core only
   return n;
+}
+
+// One-time migration from the old full-recompute seeder: its agg keys hold whole
+// counts, which would double up once we start FOLDING deltas. Clear them so the
+// first incremental pass rebuilds agg from cursor 0 exactly once; thereafter every
+// restart resumes from stored cursors with no rebuild.
+async function migrateIfNeeded(pub, sens) {
+  const VER = "inc-v1";
+  const meta = pub.sub("meta", { valueEncoding: "utf-8" });
+  const cur = await meta.get("ingest-version");
+  if (cur && cur.value === VER) return false;
+  for (const bee of [pub, sens]) {
+    const aggSub = bee.sub("agg", { valueEncoding: "utf-8" });
+    const keys = [];
+    for await (const { key } of aggSub.createReadStream()) keys.push(key);
+    for (const k of keys) await aggSub.del(k);
+  }
+  await meta.put("ingest-version", VER);
+  return true;
 }
 
 async function ingest() {
   const s = await openStores();
-  const n = await ingestFiles(s.pub, s.sens);
+  await migrateIfNeeded(s.pub, s.sens);
+  const n = await ingestNew(s.pub, s.sens);
   return { ...s, n };
 }
 
@@ -292,17 +378,19 @@ if (process.env.REPL_PORT) {
     console.log(`direct replication listening on :${process.env.REPL_PORT}`));
 }
 
-// Re-ingest the growing crawl output so the cores (and any replica peers) stay
-// fresh without a service restart. Idempotent upsert by census_id; skipped while
-// a prior pass is still running to avoid overlap.
+// Incrementally ingest the growing crawl output so the cores (and any replica
+// peers) stay fresh without a restart. Each tick touches only the NEW bytes since
+// the last tick (per-file cursor), so cost is O(delta) — flat as the sweep grows
+// to millions, instead of the old O(all) re-read + re-put that OOM'd the 1GB box.
+// Skipped while a prior pass runs to avoid overlap.
 const REINGEST_MS = Number(process.env.REINGEST_MS || 15 * 60 * 1000);
 let reingesting = false;
 setInterval(async () => {
   if (reingesting) return;
   reingesting = true;
   try {
-    const m = await ingestFiles(pub, sens);
-    console.log(`[${new Date().toISOString()}] re-ingest: ${m} records now in cores (public core length=${pubCore.length})`);
+    const m = await ingestNew(pub, sens);
+    console.log(`[${new Date().toISOString()}] incremental ingest: +${m} new records (public core length=${pubCore.length})`);
   } catch (e) {
     console.error("re-ingest error:", e.message);
   } finally {
