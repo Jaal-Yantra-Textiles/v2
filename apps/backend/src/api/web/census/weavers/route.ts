@@ -14,8 +14,8 @@ const FILTERABLE = [
 ] as const
 
 /**
- * GET /store/census/weavers?state=HARYANA&gender=Female&limit=20&offset=0
- * Paginated masked (PII-free) weaver records from the P2P public core.
+ * GET /web/census/weavers?state=HARYANA&gender=Female&limit=20&offset=0
+ * Public (/web/* is CORS-only) paginated masked (PII-free) weaver records.
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const census = req.scope.resolve(CENSUS_MODULE) as CensusModuleService

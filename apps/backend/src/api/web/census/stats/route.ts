@@ -4,7 +4,7 @@ import { CENSUS_MODULE } from "../../../../modules/census"
 import type CensusModuleService from "../../../../modules/census/service"
 
 /**
- * GET /store/census/stats
+ * GET /web/census/stats  (public — /web/* is CORS-only, no publishable key)
  * Public handloom-census analytics: pre-computed aggregates from the P2P public
  * core, k-anonymity suppressed (cells below the threshold return null). No PII,
  * no per-record scan. Special-category dims (social_group/religion) are never here.

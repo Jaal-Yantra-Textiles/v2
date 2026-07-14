@@ -70,6 +70,13 @@ variables:
   # (the cross-list subscriber runs on the WORKER — set there too). Non-secret.
   # Unset → falls back to the nondeterministic is_default storefront pick.
   CORE_SALES_CHANNEL_ID: sc_01JNQG1YX5549246DFCKKFTE0W
+  # #1031 — enables the embedded handloom-census P2P reader: a Hyperswarm peer
+  # replicates the PUBLIC core by key (read-only, no encryption key → no PII) to
+  # serve /web/census/*. SERVER-ONLY (the worker doesn't serve HTTP, so it must
+  # not also peer — deliberately absent from the worker manifest). Non-secret.
+  # Native deps are optionalDependencies + the loader is try/catch, so prod boots
+  # fine even if Fargate can't reach the swarm — the endpoint just returns 503.
+  CENSUS_P2P_ENABLED: "true"
 
 # Secrets: rotating values come from Secrets Manager.
 # Non-rotating config (CORS, URLs, etc.) comes from SSM Parameter Store — listed
