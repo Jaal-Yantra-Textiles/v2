@@ -275,6 +275,11 @@ import { WebSaveTourItinerarySchema } from "./web/tour-visits/[token]/validators
 import { LinkDesignsToCustomerSchema } from "./admin/customers/[id]/designs/validators";
 import { CreateDesignOrderSchema } from "./admin/customers/[id]/design-order/validators";
 import { listAbandonedCartsQuerySchema } from "./admin/abandoned-carts/validators";
+import {
+  CreatePersonPropertySchema,
+  UpdatePersonPropertySchema,
+} from "./admin/person-properties/validators";
+import { VerifyWeaverSchema } from "./web/census/verify/validators";
 
 /**
  * In-process per-IP rate limiter for public token-resolution routes.
@@ -2954,6 +2959,23 @@ export default defineMiddlewares({
       matcher: "/admin/persons/:id",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(UpdatePersonSchema))],
+    },
+    // person_property CRUD (module-service backed; swappable Postgres/Hyperbee DAL)
+    {
+      matcher: "/admin/person-properties",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreatePersonPropertySchema))],
+    },
+    {
+      matcher: "/admin/person-properties/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdatePersonPropertySchema))],
+    },
+    // #1038 weaver verify against the census public core
+    {
+      matcher: "/web/census/verify",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(VerifyWeaverSchema))],
     },
     {
       matcher: "/admin/persons/:id/resources/:resource",
