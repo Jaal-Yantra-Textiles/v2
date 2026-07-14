@@ -40,7 +40,11 @@ const cores = keys.map((hex) => store.get({ key: b4a.from(hex, "hex") }));
 await Promise.all(cores.map((c) => c.ready()));
 
 const swarm = new Hyperswarm();
-swarm.on("connection", (conn) => store.replicate(conn));   // Corestore-level: mirrors every core
+swarm.on("connection", (conn, info) => {
+  store.replicate(conn);                                    // Corestore-level: mirrors every core
+  console.log(`[${new Date().toISOString()}] peer connected — ${swarm.connections.size} active`);
+  conn.on("close", () => console.log(`[${new Date().toISOString()}] peer disconnected — ${swarm.connections.size} active`));
+});
 
 for (const core of cores) {
   const done = core.findingPeers();
@@ -57,7 +61,7 @@ for (const core of cores) {
 const report = () => {
   const parts = cores.map((c, i) =>
     `${["public", "sensitive", "extra"][i] || "core" + i}=${c.contiguousLength}/${c.length}`);
-  console.log(`[${new Date().toISOString()}] mirror blocks (have/known): ${parts.join("  ")}`);
+  console.log(`[${new Date().toISOString()}] peers=${swarm.connections.size}  mirror blocks (have/known): ${parts.join("  ")}`);
 };
 setInterval(report, 5 * 60 * 1000);
 await new Promise((r) => setTimeout(r, 3000));
