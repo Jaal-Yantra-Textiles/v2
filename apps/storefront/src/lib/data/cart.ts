@@ -10,6 +10,7 @@ import {
   getCacheOptions,
   getCacheTag,
   getCartId,
+  getTrackingCookies,
   removeCartId,
   setCartId,
 } from "./cookies"
@@ -141,21 +142,36 @@ export async function addToCart({
     ...(await getAuthHeaders()),
   }
 
-  // Stamp visitor_id on cart metadata exactly once, before adding the
-  // line item. We only write when the cart doesn't already carry one
-  // so a returning visitor on a different device doesn't clobber the
-  // original signal source. Failure is non-fatal — never block the
-  // add-to-cart on this best-effort enrichment.
-  if (visitorId && !(cart.metadata as Record<string, unknown> | null)?.visitor_id) {
+  // Stamp visitor_id + first-touch attribution on cart metadata exactly
+  // once, before adding the line item. We only write when the cart doesn't
+  // already carry one so a returning visitor on a different device doesn't
+  // clobber the original signal source. Failure is non-fatal — never
+  // block the add-to-cart on this best-effort enrichment.
+  const existingMeta = (cart.metadata ?? {}) as Record<string, unknown>
+  const hasVisitorId = !!existingMeta.visitor_id
+  const tracking = await getTrackingCookies()
+  const trackingKeys = Object.keys(tracking)
+  const hasTracking = trackingKeys.some((k) => !existingMeta[k])
+
+  if ((visitorId && !hasVisitorId) || (hasTracking && trackingKeys.length > 0)) {
     try {
+      const enriched: Record<string, unknown> = { ...existingMeta }
+      if (visitorId && !hasVisitorId) {
+        enriched.visitor_id = visitorId
+      }
+      for (const [key, value] of Object.entries(tracking)) {
+        if (existingMeta[key] === undefined) {
+          enriched[key] = value
+        }
+      }
       await sdk.store.cart.update(
         cart.id,
-        { metadata: { ...(cart.metadata ?? {}), visitor_id: visitorId } },
+        { metadata: enriched },
         {},
         headers,
       )
     } catch (e) {
-      console.warn("[addToCart] visitor_id stamp failed", e)
+      console.warn("[addToCart] metadata stamp failed", e)
     }
   }
 
