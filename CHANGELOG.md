@@ -1,3 +1,15 @@
+# [13.55.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.54.0...v13.55.0) (2026-07-14)
+
+
+### Bug Fixes
+
+* **social-posts:** prevent unrecognized fields error by whitelisting payload fields ([#1032](https://github.com/Jaal-Yantra-Textiles/v2/issues/1032)) ([8afdb52](https://github.com/Jaal-Yantra-Textiles/v2/commit/8afdb52c046f33f6de17e55c2da934bd461c92f5))
+
+
+### Features
+
+* **handloom-scrape:** weaver data import pipeline from Census Portal ([#1029](https://github.com/Jaal-Yantra-Textiles/v2/issues/1029)) ([13c2b03](https://github.com/Jaal-Yantra-Textiles/v2/commit/13c2b03db2c81ef2c532d3f881025d66a49dc50d)), closes [#1028](https://github.com/Jaal-Yantra-Textiles/v2/issues/1028) [#350](https://github.com/Jaal-Yantra-Textiles/v2/issues/350) [#1028](https://github.com/Jaal-Yantra-Textiles/v2/issues/1028)
+
 # [13.54.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.53.0...v13.54.0) (2026-07-13)
 
 
