@@ -25,100 +25,98 @@ const SIZE_DATA: SizeRow[] = [
 function MeasurementDiagram() {
   return (
     <svg
-      viewBox="0 0 200 360"
-      className="w-full h-auto max-h-[420px]"
+      viewBox="0 0 280 340"
+      className="w-full h-auto"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
+      aria-label="Garment measurement guide"
     >
       <defs>
-        <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id="garmentFill" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="var(--ui-bg-subtle)" />
           <stop offset="100%" stopColor="var(--ui-bg-base)" />
         </linearGradient>
       </defs>
 
-      <ellipse cx="100" cy="42" rx="32" ry="40" stroke="var(--ui-border-base)" strokeWidth="2.5" fill="url(#bodyGrad)" />
-
       <path
-        d="M 72 78 L 52 96 L 44 150 L 38 210 L 52 212 L 58 160 L 64 120 L 72 100 Z"
+        d="M 100 24 L 80 38 L 58 52 L 62 66 L 70 62 L 70 70 L 50 78 L 40 110 L 34 152 L 34 280 L 34 300 L 246 300 L 246 280 L 246 152 L 240 110 L 230 78 L 210 70 L 210 62 L 218 66 L 222 52 L 200 38 L 180 24 L 160 28 Q 140 36 120 28 Z"
         stroke="var(--ui-border-base)"
-        strokeWidth="2.5"
-        fill="url(#bodyGrad)"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M 128 78 L 148 96 L 156 150 L 162 210 L 148 212 L 142 160 L 136 120 L 128 100 Z"
-        stroke="var(--ui-border-base)"
-        strokeWidth="2.5"
-        fill="url(#bodyGrad)"
+        strokeWidth="2"
+        fill="url(#garmentFill)"
         strokeLinejoin="round"
       />
 
       <path
-        d="M 64 95 Q 100 88 136 95 L 136 108 L 142 130 L 148 168 L 140 172 L 136 140 L 136 132 Q 100 140 64 132 L 64 140 L 60 172 L 52 168 L 58 130 L 64 108 Z"
+        d="M 120 28 Q 140 42 160 28"
         stroke="var(--ui-border-base)"
-        strokeWidth="2.5"
-        fill="url(#bodyGrad)"
-        strokeLinejoin="round"
+        strokeWidth="1.5"
+        fill="none"
       />
 
-      <path
-        d="M 72 168 Q 60 210 64 275 Q 72 330 78 350 L 92 350 L 96 310 L 100 250 L 104 310 L 108 350 L 122 350 Q 128 330 136 275 Q 140 210 128 168 Z"
-        stroke="var(--ui-border-base)"
-        strokeWidth="2.5"
-        fill="url(#bodyGrad)"
-        strokeLinejoin="round"
-      />
+      <line x1="140" y1="30" x2="140" y2="300" stroke="var(--ui-border-base)" strokeWidth="1" strokeDasharray="3 4" opacity="0.4" />
+
+      <line x1="62" y1="66" x2="218" y2="66" stroke="var(--ui-border-base)" strokeWidth="1" strokeDasharray="2 3" opacity="0.3" />
+      <line x1="70" y1="70" x2="210" y2="70" stroke="var(--ui-border-base)" strokeWidth="1" opacity="0.3" />
 
       <g>
-        <line
-          x1="28" y1="130" x2="172" y2="130"
-          stroke="var(--ui-fg-subtle)"
-          strokeWidth="1.5"
-          strokeDasharray="5 3"
-        />
-        <line x1="22" y1="126" x2="28" y2="130" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
-        <line x1="22" y1="134" x2="28" y2="130" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
-        <line x1="172" y1="130" x2="178" y2="126" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
-        <line x1="172" y1="130" x2="178" y2="134" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
-        <rect x="4" y="118" width="44" height="22" rx="3" fill="var(--ui-bg-base)" stroke="var(--ui-border-base)" strokeWidth="1" />
-        <text x="26" y="133" textAnchor="middle" fontSize="11" fill="var(--ui-fg-base)" className="font-medium">
+        <line x1="14" y1="92" x2="266" y2="92" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
+        <line x1="14" y1="86" x2="14" y2="98" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
+        <line x1="266" y1="86" x2="266" y2="98" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
+        <line x1="34" y1="92" x2="40" y2="86" stroke="var(--ui-fg-subtle)" strokeWidth="1" />
+        <line x1="40" y1="92" x2="34" y2="98" stroke="var(--ui-fg-subtle)" strokeWidth="1" />
+        <line x1="246" y1="92" x2="240" y2="86" stroke="var(--ui-fg-subtle)" strokeWidth="1" />
+        <line x1="240" y1="92" x2="246" y2="98" stroke="var(--ui-fg-subtle)" strokeWidth="1" />
+        <rect x="2" y="76" width="56" height="20" rx="3" fill="var(--ui-bg-base)" stroke="var(--ui-border-base)" strokeWidth="1" />
+        <text x="30" y="90" textAnchor="middle" fontSize="11" fill="var(--ui-fg-base)" className="font-medium">
           Chest
         </text>
       </g>
 
       <g>
-        <line
-          x1="28" y1="168" x2="172" y2="168"
-          stroke="var(--ui-fg-subtle)"
-          strokeWidth="1.5"
-          strokeDasharray="5 3"
-        />
-        <line x1="22" y1="164" x2="28" y2="168" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
-        <line x1="22" y1="172" x2="28" y2="168" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
-        <line x1="172" y1="168" x2="178" y2="164" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
-        <line x1="172" y1="168" x2="178" y2="172" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
-        <rect x="4" y="156" width="44" height="22" rx="3" fill="var(--ui-bg-base)" stroke="var(--ui-border-base)" strokeWidth="1" />
-        <text x="26" y="171" textAnchor="middle" fontSize="11" fill="var(--ui-fg-base)" className="font-medium">
+        <line x1="14" y1="140" x2="266" y2="140" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
+        <line x1="14" y1="134" x2="14" y2="146" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
+        <line x1="266" y1="134" x2="266" y2="146" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
+        <line x1="34" y1="140" x2="40" y2="134" stroke="var(--ui-fg-subtle)" strokeWidth="1" />
+        <line x1="40" y1="140" x2="34" y2="146" stroke="var(--ui-fg-subtle)" strokeWidth="1" />
+        <line x1="246" y1="140" x2="240" y2="134" stroke="var(--ui-fg-subtle)" strokeWidth="1" />
+        <line x1="240" y1="140" x2="246" y2="146" stroke="var(--ui-fg-subtle)" strokeWidth="1" />
+        <rect x="2" y="124" width="56" height="20" rx="3" fill="var(--ui-bg-base)" stroke="var(--ui-border-base)" strokeWidth="1" />
+        <text x="30" y="138" textAnchor="middle" fontSize="11" fill="var(--ui-fg-base)" className="font-medium">
           Waist
         </text>
       </g>
 
       <g>
-        <line
-          x1="28" y1="210" x2="172" y2="210"
-          stroke="var(--ui-fg-subtle)"
-          strokeWidth="1.5"
-          strokeDasharray="5 3"
-        />
-        <line x1="22" y1="206" x2="28" y2="210" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
-        <line x1="22" y1="214" x2="28" y2="210" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
-        <line x1="172" y1="210" x2="178" y2="206" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
-        <line x1="172" y1="210" x2="178" y2="214" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
-        <rect x="2" y="198" width="48" height="22" rx="3" fill="var(--ui-bg-base)" stroke="var(--ui-border-base)" strokeWidth="1" />
-        <text x="26" y="213" textAnchor="middle" fontSize="11" fill="var(--ui-fg-base)" className="font-medium">
+        <line x1="14" y1="196" x2="266" y2="196" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
+        <line x1="14" y1="190" x2="14" y2="202" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
+        <line x1="266" y1="190" x2="266" y2="202" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
+        <line x1="34" y1="196" x2="40" y2="190" stroke="var(--ui-fg-subtle)" strokeWidth="1" />
+        <line x1="40" y1="196" x2="34" y2="202" stroke="var(--ui-fg-subtle)" strokeWidth="1" />
+        <line x1="246" y1="196" x2="240" y2="190" stroke="var(--ui-fg-subtle)" strokeWidth="1" />
+        <line x1="240" y1="196" x2="246" y2="202" stroke="var(--ui-fg-subtle)" strokeWidth="1" />
+        <rect x="0" y="180" width="60" height="20" rx="3" fill="var(--ui-bg-base)" stroke="var(--ui-border-base)" strokeWidth="1" />
+        <text x="30" y="194" textAnchor="middle" fontSize="11" fill="var(--ui-fg-base)" className="font-medium">
           Hips
         </text>
+      </g>
+
+      <g>
+        <line x1="270" y1="24" x2="270" y2="300" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
+        <line x1="264" y1="24" x2="276" y2="24" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
+        <line x1="264" y1="300" x2="276" y2="300" stroke="var(--ui-fg-subtle)" strokeWidth="1.5" />
+        <line x1="270" y1="28" x2="264" y2="34" stroke="var(--ui-fg-subtle)" strokeWidth="1" />
+        <line x1="270" y1="28" x2="276" y2="34" stroke="var(--ui-fg-subtle)" strokeWidth="1" />
+        <rect x="248" y="152" width="48" height="20" rx="3" fill="var(--ui-bg-base)" stroke="var(--ui-border-base)" strokeWidth="1" />
+        <text x="272" y="166" textAnchor="middle" fontSize="11" fill="var(--ui-fg-base)" className="font-medium">
+          Length
+        </text>
+      </g>
+
+      <path d="M 100 24 Q 104 20 106 24 M 108 24 Q 112 20 114 24 M 116 24 Q 120 20 122 24 M 124 24 Q 128 20 130 24" stroke="var(--ui-border-base)" strokeWidth="1.5" fill="none" opacity="0.5" />
+      <path d="M 150 24 Q 154 20 156 24 M 158 24 Q 162 20 164 24 M 166 24 Q 170 20 172 24 M 174 24 Q 178 20 180 24" stroke="var(--ui-border-base)" strokeWidth="1.5" fill="none" opacity="0.5" />
+
+      <g opacity="0.3">
+        <path d="M 70 62 L 62 66 L 58 52 L 70 62 Z M 210 62 L 218 66 L 222 52 L 210 62 Z" stroke="var(--ui-border-base)" strokeWidth="1" fill="none" />
       </g>
     </svg>
   )
@@ -147,11 +145,11 @@ const SizeGuide = () => {
               </Text>
 
               <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 items-start">
-                <div className="w-full max-w-[260px] mx-auto lg:mx-0 lg:w-[240px] lg:flex-shrink-0">
+                <div className="w-full max-w-[300px] mx-auto lg:mx-0 lg:w-[280px] lg:flex-shrink-0">
                   <MeasurementDiagram />
                   <Text className="mt-3 text-center text-ui-fg-subtle text-xs leading-relaxed">
-                    Wrap a measuring tape around the widest part of each area,
-                    keeping it parallel to the floor.
+                    Lay the garment flat and measure across at each point shown.
+                    Compare with the table to find your size.
                   </Text>
                 </div>
 
