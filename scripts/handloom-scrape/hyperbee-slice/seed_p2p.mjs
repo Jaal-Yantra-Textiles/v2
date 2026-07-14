@@ -255,6 +255,21 @@ await swarm.join(pubCore.discoveryKey, { server: true, client: false }).flushed(
 await swarm.join(sensCore.discoveryKey, { server: true, client: false }).flushed();
 console.log("seeding both cores on Hyperswarm — public is readable by anyone; sensitive stays opaque without the key.");
 
+// Direct-socket replication for same-VCN peers (deterministic; avoids the NAT
+// hole-punch that fails between two hosts behind the same cloud NAT). Opt-in via
+// REPL_PORT. The listener replicates the whole Corestore, so it serves the blind
+// mirror the same cores it announces on the swarm.
+if (process.env.REPL_PORT) {
+  const net = await import("node:net");
+  net.createServer((socket) => {
+    console.log(`[${new Date().toISOString()}] direct peer connected from ${socket.remoteAddress}`);
+    socket.on("error", (e) => console.log(`direct peer error: ${e.message}`));
+    const s = store.replicate(false);            // raw socket → replicate(bool) + pipe
+    s.pipe(socket).pipe(s);
+  }).listen(Number(process.env.REPL_PORT), "0.0.0.0", () =>
+    console.log(`direct replication listening on :${process.env.REPL_PORT}`));
+}
+
 // Re-ingest the growing crawl output so the cores (and any replica peers) stay
 // fresh without a service restart. Idempotent upsert by census_id; skipped while
 // a prior pass is still running to avoid overlap.

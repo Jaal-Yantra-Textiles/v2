@@ -58,6 +58,24 @@ for (const core of cores) {
   });
 }
 
+// Direct-socket path for same-VCN peers (deterministic; avoids NAT hole-punch).
+// Opt-in via SEED_HOST (the seeder's private IP). Auto-reconnects.
+if (process.env.SEED_HOST) {
+  const net = await import("node:net");
+  const port = Number(process.env.SEED_PORT || 49737);
+  const dial = () => {
+    const socket = net.connect(port, process.env.SEED_HOST);
+    socket.on("connect", () => {
+      console.log(`[${new Date().toISOString()}] direct connect → ${process.env.SEED_HOST}:${port}`);
+      const s = store.replicate(true);           // raw socket → replicate(bool) + pipe
+      s.pipe(socket).pipe(s);
+    });
+    socket.on("error", (e) => console.log(`[${new Date().toISOString()}] direct dial error: ${e.message}`));
+    socket.on("close", () => setTimeout(dial, 5000));   // reconnect
+  };
+  dial();
+}
+
 const report = () => {
   const parts = cores.map((c, i) =>
     `${["public", "sensitive", "extra"][i] || "core" + i}=${c.contiguousLength}/${c.length}`);
