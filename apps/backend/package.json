@@ -233,5 +233,11 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "optionalDependencies": {
+    "b4a": "^1.8.1",
+    "corestore": "^7.11.0",
+    "hyperbee": "^2.27.3",
+    "hyperswarm": "^4.17.0"
   }
 }
