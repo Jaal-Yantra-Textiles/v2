@@ -22,7 +22,8 @@ import Hyperbee from "hyperbee";
 import b4a from "b4a";
 import { randomBytes } from "node:crypto";
 import { brotliCompressSync, brotliDecompressSync } from "node:zlib";
-import { readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync, existsSync, createReadStream } from "node:fs";
+import { createInterface } from "node:readline";
 import { join } from "node:path";
 import assert from "node:assert";
 
@@ -88,18 +89,31 @@ function walkJsonl(dir) {
   return out;
 }
 
-// census_id -> real profile photo url, harvested by the list (2nd) pass
-function loadPhotos() {
+// census_id -> real photo url, but ONLY for the ids we actually need (the detail
+// records being ingested). Streamed line-by-line so a 100MB+ state CSV never lands
+// in memory whole, and bounded to needed.size — the full 2M+ photo set never does.
+async function loadPhotosFor(needed) {
   const map = new Map();
   const dir = join(DATA_DIR, "photos");
-  if (!existsSync(dir)) return map;
+  if (!needed.size || !existsSync(dir)) return map;
   for (const f of readdirSync(dir).filter((x) => x.endsWith(".csv"))) {
-    for (const line of readFileSync(join(dir, f), "utf8").split("\n").slice(1)) {
+    const rl = createInterface({ input: createReadStream(join(dir, f)), crlfDelay: Infinity });
+    for await (const line of rl) {
       const i = line.indexOf(",");
-      if (i > 0) map.set(line.slice(0, i).trim(), line.slice(i + 1).trim());
+      if (i <= 0) continue;
+      const cid = line.slice(0, i).trim();
+      if (needed.has(cid)) map.set(cid, line.slice(i + 1).trim());
     }
   }
   return map;
+}
+
+// stream a jsonl file's records (avoids readFileSync().split on large chunks)
+async function* readRecords(file) {
+  const rl = createInterface({ input: createReadStream(file), crlfDelay: Infinity });
+  for await (const line of rl) {
+    if (line.trim()) yield JSON.parse(line);
+  }
 }
 
 // open (or reopen) the dual cores — separated so seed mode can re-ingest the
@@ -126,18 +140,26 @@ async function openStores() {
 // idempotent: (re)reads every jsonl under DATA_DIR and upserts by census_id, so
 // calling it repeatedly as the detail sweep grows just appends the new records.
 async function ingestFiles(pub, sens) {
+  const files = walkJsonl(DATA_DIR);
+  if (files.length === 0) return 0;        // no detail records yet — skip (photos alone aren't records)
+
   const pubRec = pub.sub("rec", { valueEncoding: "binary" });
   const pubAgg = pub.sub("agg", { valueEncoding: "utf-8" });
   const sensRec = sens.sub("rec", { valueEncoding: "binary" });
   const sensAggBee = sens.sub("agg", { valueEncoding: "utf-8" });
 
-  const photos = loadPhotos();             // census_id -> real photo url (sensitive)
+  // pass 1 (streamed): which census_ids need a photo joined
+  const needPhoto = new Set();
+  for (const file of files)
+    for await (const r of readRecords(file))
+      if (r.profile_photo_url == null) needPhoto.add(String(r.census_id));
+  const photos = await loadPhotosFor(needPhoto);   // bounded to needPhoto, streamed
+
+  // pass 2 (streamed): upsert every record by census_id
   const agg = new Map(), sensAgg = new Map();
   let n = 0;
-  for (const file of walkJsonl(DATA_DIR)) {
-    for (const line of readFileSync(file, "utf8").split("\n")) {
-      if (!line.trim()) continue;
-      const r = JSON.parse(line);
+  for (const file of files) {
+    for await (const r of readRecords(file)) {
       if (r.profile_photo_url == null && photos.has(String(r.census_id)))
         r.profile_photo_url = photos.get(String(r.census_id));   // join the 2nd-pass photo
       const { pub: pubRow, sensitive } = splitRecord(r);
