@@ -20,8 +20,19 @@ const DEFAULT_PUBLIC_CORE_KEY =
 export default async function p2pReaderLoader({ container }: LoaderOptions) {
   const logger = container.resolve("logger")
 
+  // Proxy mode wins: if a standalone reader service is configured, use HTTP and
+  // skip in-process peering entirely (no native stack, no Hyperswarm needed here
+  // — the robust path for Fargate where DHT hole-punching may not reach the seeder).
+  if (process.env.CENSUS_READER_URL) {
+    censusReader.setProxy(process.env.CENSUS_READER_URL)
+    logger.info(`[census] reader in PROXY mode → ${process.env.CENSUS_READER_URL}`)
+    return
+  }
+
   if (process.env.CENSUS_P2P_ENABLED !== "true") {
-    logger.info("[census] P2P reader disabled (set CENSUS_P2P_ENABLED=true to connect)")
+    logger.info(
+      "[census] reader disabled (set CENSUS_READER_URL for proxy mode, or CENSUS_P2P_ENABLED=true to peer in-process)"
+    )
     return
   }
 

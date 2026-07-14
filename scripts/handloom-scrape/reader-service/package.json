@@ -1,0 +1,19 @@
+{
+  "name": "handloom-census-reader",
+  "version": "0.1.0",
+  "description": "Always-on Hyperswarm edge reader for the handloom census public core — serves stats/weavers over HTTP for clients that can't peer in-process (e.g. Medusa on Fargate).",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "b4a": "^1.8.1",
+    "corestore": "^7.11.0",
+    "hyperbee": "^2.27.3",
+    "hyperswarm": "^4.17.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

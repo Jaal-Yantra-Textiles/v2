@@ -28,13 +28,31 @@ export type Stats = Record<string, Record<string, number | null>>
  */
 export class CensusReader {
   private bee: Bee | null = null
+  private proxyUrl: string | null = null
 
+  /** Embedded mode: the loader replicated the core and hands us the live Hyperbee. */
   setBee(bee: Bee) {
     this.bee = bee
   }
 
+  /**
+   * Proxy mode: instead of peering in-process, read from a standalone reader
+   * service over HTTP (e.g. a Render edge proxy that holds the swarm peer). Lets
+   * prod serve census data without the native hypercore stack or Hyperswarm
+   * connectivity inside Fargate — set CENSUS_READER_URL and we just fetch.
+   */
+  setProxy(url: string) {
+    this.proxyUrl = url.replace(/\/$/, "")
+  }
+
   get ready(): boolean {
-    return this.bee !== null
+    return this.bee !== null || this.proxyUrl !== null
+  }
+
+  private async proxyGet<T>(path: string): Promise<T> {
+    const res = await fetch(`${this.proxyUrl}${path}`, { headers: { accept: "application/json" } })
+    if (!res.ok) throw new Error(`census reader proxy ${path} → HTTP ${res.status}`)
+    return (await res.json()) as T
   }
 
   private requireBee(): Bee {
@@ -52,6 +70,12 @@ export class CensusReader {
 
   /** Resolve one masked weaver record by census_id, or null if unknown. */
   async retrieveWeaver(id: string | number): Promise<Record<string, any> | null> {
+    if (this.proxyUrl) {
+      const { weaver } = await this.proxyGet<{ weaver: Record<string, any> | null }>(
+        `/census/weavers/${encodeURIComponent(String(id))}`
+      )
+      return weaver ?? null
+    }
     const rec = this.requireBee().sub("rec", { valueEncoding: "binary" })
     const node = await rec.get(String(id))
     return node ? this.decode(node.value) : null
@@ -63,6 +87,10 @@ export class CensusReader {
    * scan). Mirrors the seeder's aggregate semantics so counts line up exactly.
    */
   async getStats({ minCell = MIN_CELL }: { minCell?: number } = {}): Promise<Stats> {
+    if (this.proxyUrl) {
+      const { stats } = await this.proxyGet<{ stats: Stats }>(`/census/stats?minCell=${minCell}`)
+      return stats
+    }
     const agg = this.requireBee().sub("agg", { valueEncoding: "utf-8" })
     const dims: Stats = {}
     for await (const { key, value } of agg.createReadStream()) {
@@ -88,6 +116,13 @@ export class CensusReader {
     filters: WeaverFilters = {},
     { limit = 20, offset = 0 }: ListOptions = {}
   ): Promise<{ weavers: Record<string, any>[]; count: number; capped: boolean }> {
+    if (this.proxyUrl) {
+      const qs = new URLSearchParams()
+      for (const [k, v] of Object.entries(filters)) qs.set(k, String(v))
+      qs.set("limit", String(limit))
+      qs.set("offset", String(offset))
+      return this.proxyGet(`/census/weavers?${qs.toString()}`)
+    }
     const rec = this.requireBee().sub("rec", { valueEncoding: "binary" })
     const entries = Object.entries(filters)
     const match = (r: Record<string, any>) =>
