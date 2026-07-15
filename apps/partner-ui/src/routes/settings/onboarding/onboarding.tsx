@@ -1,4 +1,4 @@
-import { BuildingStorefront, PencilSquare, Users } from "@medusajs/icons"
+import { BuildingStorefront, PencilSquare, Sparkles, Users } from "@medusajs/icons"
 import { Badge, Button, Container, Heading, Text, clx } from "@medusajs/ui"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -9,7 +9,7 @@ import { useMe } from "../../../hooks/api/users"
 import { sdk } from "../../../lib/client"
 import { queryClient } from "../../../lib/query-client"
 
-type WorkspaceType = "seller" | "manufacturer" | "individual"
+type WorkspaceType = "seller" | "manufacturer" | "individual" | "designer"
 
 export const SettingsOnboarding = () => {
   const { t } = useTranslation()
@@ -39,6 +39,12 @@ export const SettingsOnboarding = () => {
         title: t("partner.onboardingSettings.businessType.individual.title"),
         description: t("partner.onboardingSettings.businessType.individual.description"),
         icon: <Users className="h-6 w-6" />,
+      },
+      {
+        value: "designer",
+        title: t("partner.onboardingSettings.businessType.designer.title"),
+        description: t("partner.onboardingSettings.businessType.designer.description"),
+        icon: <Sparkles className="h-6 w-6" />,
       },
     ],
     [t]
@@ -98,7 +104,7 @@ export const SettingsOnboarding = () => {
           </Text>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 px-6 py-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 px-6 py-4 sm:grid-cols-2 lg:grid-cols-4">
           {WORKSPACE_TYPE_OPTIONS.map((opt) => (
             <button
               key={opt.value}

@@ -101,7 +101,7 @@ export const PUT = async (
     logo?: string | null
     status?: "active" | "inactive" | "pending"
     is_verified?: boolean
-    workspace_type?: "seller" | "manufacturer" | "individual"
+    workspace_type?: "seller" | "manufacturer" | "individual" | "designer"
     country_code?: string | null
     currency_code?: string | null
     metadata?: Record<string, any> | null

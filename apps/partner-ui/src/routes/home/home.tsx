@@ -1,6 +1,7 @@
 import { Badge, Button, Checkbox, Container, FocusModal, Heading, Text, clx, toast } from "@medusajs/ui"
 import { Outlet, useNavigate } from "react-router-dom"
 import {
+  Adjustments,
   ArrowPath,
   BuildingStorefront,
   CogSixTooth,
@@ -9,6 +10,7 @@ import {
   PencilSquare,
   Plus,
   ShoppingBag,
+  Sparkles,
   TruckFast,
   Users,
 } from "@medusajs/icons"
@@ -22,6 +24,11 @@ import { WhatsNewCarousel } from "./whats-new/whats-new-carousel"
 import { useDiscoverProducts, useCopyProduct, DiscoverProduct } from "../../hooks/api/discover"
 import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
+import {
+  HOME_ZONE,
+  usePartnerLayoutConfiguration,
+} from "../../hooks/api/layout-preferences"
+import { LayoutCustomizer } from "../../components/layout/main-layout/layout-customizer"
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
@@ -44,24 +51,36 @@ export const Home = () => {
   // Track a render key so onboardingStatus re-evaluates after modal closes
   const [statusKey, setStatusKey] = useState(0)
 
+  // #338/#958 — the durable "essentials captured" signal (name + persona from
+  // the minimal gate), written to partner metadata so it survives across devices.
+  const essentialsDone = Boolean(
+    (partner?.metadata as any)?.onboarding_essentials_done
+  )
+
   const onboardingStatus = useMemo(() => {
-    if (!partnerId || !storageKey) return { completed: false, skipped: false }
+    if (!partnerId || !storageKey)
+      return { completed: false, skipped: false, essentials_done: false }
     try {
       const raw = localStorage.getItem(storageKey)
-      if (!raw) return { completed: false, skipped: false }
+      if (!raw)
+        return { completed: false, skipped: false, essentials_done: false }
       const parsed = JSON.parse(raw)
       return {
         completed: Boolean(parsed?.completed),
         skipped: Boolean(parsed?.skipped),
+        essentials_done: Boolean(parsed?.essentials_done),
       }
     } catch {
-      return { completed: false, skipped: false }
+      return { completed: false, skipped: false, essentials_done: false }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partnerId, storageKey, statusKey])
 
   useEffect(() => {
     if (!partnerId || !storageKey || partner?.is_verified) return
+    // Minimal gate already satisfied (durable server flag) — don't re-trap;
+    // the rest of onboarding is progressive via the home checklist.
+    if (essentialsDone) return
     try {
       const raw = localStorage.getItem(storageKey)
       if (!raw) {
@@ -69,20 +88,95 @@ export const Home = () => {
         return
       }
       const parsed = JSON.parse(raw)
-      if (!parsed?.completed && !parsed?.skipped) {
+      if (!parsed?.completed && !parsed?.skipped && !parsed?.essentials_done) {
         navigate("/onboarding", { replace: true })
       }
     } catch {
       navigate("/onboarding", { replace: true })
     }
-  }, [partner?.is_verified, partnerId, storageKey, navigate])
+  }, [partner?.is_verified, essentialsDone, partnerId, storageKey, navigate])
 
   const verified = Boolean(partner?.is_verified)
-  const onboardingDone = Boolean(onboardingStatus.completed || onboardingStatus.skipped)
+  const onboardingDone = Boolean(
+    onboardingStatus.completed ||
+      onboardingStatus.skipped ||
+      onboardingStatus.essentials_done ||
+      essentialsDone
+  )
   const currentWorkspaceType = (
     (partner as any)?.workspace_type ||
     (partner?.metadata as any)?.use_type
   ) as string | undefined
+
+  // #338 — composable dashboard sections. Each card is a widget in the "home"
+  // zone; the partner can hide/reorder them via the LayoutCustomizer. `span: 2`
+  // makes a section full-width in the 2-col grid; the grid reflows on reorder.
+  const { personal_configuration } = usePartnerLayoutConfiguration(HOME_ZONE)
+  const homeWidgets = personal_configuration?.configuration?.widgets ?? {}
+  const [editLayout, setEditLayout] = useState(false)
+
+  const sections = useMemo(
+    () => [
+      {
+        id: "getting-started",
+        label: t("partner.home.gettingStarted.heading"),
+        span: 1,
+        node: (
+          <GettingStartedCard
+            partnerId={partnerId}
+            partner={partner}
+            verified={verified}
+            onboardingDone={onboardingDone}
+            hasStore={hasStore}
+            storesPending={storesPending}
+            currentWorkspaceType={currentWorkspaceType}
+            onOpenOnboarding={() => navigate("/onboarding")}
+          />
+        ),
+      },
+      {
+        id: "quick-settings",
+        label: t("partner.home.quickSettings.heading"),
+        span: 1,
+        node: <QuickSettingsCard hasStore={hasStore} storeId={store?.id} />,
+      },
+      // Discover only has content once the partner has a store.
+      ...(hasStore
+        ? [
+            {
+              id: "discover",
+              label: t("partner.home.discover.title"),
+              span: 2,
+              node: <DiscoverSection />,
+            },
+          ]
+        : []),
+    ],
+    [
+      partnerId,
+      partner,
+      verified,
+      onboardingDone,
+      hasStore,
+      storesPending,
+      currentWorkspaceType,
+      store?.id,
+      navigate,
+      t,
+    ]
+  )
+
+  const visibleSections = useMemo(() => {
+    return sections
+      .map((s, index) => ({ s, index }))
+      .filter(({ s }) => !(homeWidgets[s.id]?.hidden ?? false))
+      .sort((a, b) => {
+        const oa = homeWidgets[a.s.id]?.order ?? a.index
+        const ob = homeWidgets[b.s.id]?.order ?? b.index
+        return oa - ob
+      })
+      .map(({ s }) => s)
+  }, [sections, homeWidgets])
 
   return (
     <div className="flex flex-col gap-y-3">
@@ -98,28 +192,38 @@ export const Home = () => {
                 : t("partner.home.welcome")}
           </Text>
         </div>
+        <Button
+          size="small"
+          variant="secondary"
+          onClick={() => setEditLayout((v) => !v)}
+        >
+          <Adjustments className="mr-1" />
+          {t("partner.home.customizeDashboard")}
+        </Button>
       </div>
 
       {/* What's new — dashboard changelog carousel (#342) */}
       <WhatsNewCarousel />
 
-      {/* Top row: Getting Started + Quick Settings */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <GettingStartedCard
-          partnerId={partnerId}
-          partner={partner}
-          verified={verified}
-          onboardingDone={onboardingDone}
-          hasStore={hasStore}
-          storesPending={storesPending}
-          currentWorkspaceType={currentWorkspaceType}
-          onOpenOnboarding={() => navigate("/onboarding")}
-        />
-        <QuickSettingsCard hasStore={hasStore} storeId={store?.id} />
-      </div>
-
-      {/* Bottom row: Discover Products (full width) */}
-      {hasStore && <DiscoverSection />}
+      {editLayout ? (
+        <Container className="p-4">
+          <LayoutCustomizer
+            zone={HOME_ZONE}
+            items={sections.map((s) => ({ id: s.id, label: s.label }))}
+            widgets={homeWidgets}
+            preset={{}}
+            onClose={() => setEditLayout(false)}
+          />
+        </Container>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {visibleSections.map((s) => (
+            <div key={s.id} className={clx(s.span === 2 && "lg:col-span-2")}>
+              {s.node}
+            </div>
+          ))}
+        </div>
+      )}
 
       <Outlet context={{ onOnboardingClose: () => setStatusKey((k) => k + 1) }} />
     </div>
@@ -226,7 +330,9 @@ const GettingStartedCard = ({
                     ? t("partner.home.gettingStarted.seller")
                     : currentWorkspaceType === "individual"
                       ? t("partner.home.gettingStarted.individual")
-                      : t("partner.home.gettingStarted.manufacturer")}
+                      : currentWorkspaceType === "designer"
+                        ? t("partner.home.gettingStarted.designer")
+                        : t("partner.home.gettingStarted.manufacturer")}
                 </Text>
                 <Link to="/settings/onboarding" className="text-ui-fg-interactive">
                   <Text size="xsmall">{t("partner.home.gettingStarted.change")}</Text>
@@ -251,6 +357,15 @@ const GettingStartedCard = ({
                 >
                   <PencilSquare className="h-3.5 w-3.5 text-ui-fg-subtle" />
                   {t("partner.home.gettingStarted.manufacturer")}
+                </button>
+                <button
+                  type="button"
+                  disabled={savingWorkspaceType}
+                  onClick={() => handleWorkspaceTypeChange("designer")}
+                  className="flex items-center gap-1.5 rounded-md border border-ui-border-base px-2.5 py-1.5 text-xs hover:shadow-elevation-card-hover outline-none focus-visible:shadow-borders-focus"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-ui-fg-subtle" />
+                  {t("partner.home.gettingStarted.designer")}
                 </button>
                 <button
                   type="button"

@@ -47,7 +47,14 @@ export function getPartnerRouteMap(): RouteObject[] {
               lazy: () => import("../../routes/home"),
               children: [
                 {
+                  // #338/#958 — the minimal, expressive gate (name + persona).
+                  // The full step-by-step wizard now lives at onboarding/full.
                   path: "onboarding",
+                  lazy: () =>
+                    import("../../routes/home/home-onboarding-quick"),
+                },
+                {
+                  path: "onboarding/full",
                   lazy: () =>
                     import("../../routes/home/home-onboarding"),
                 },
