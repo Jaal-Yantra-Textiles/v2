@@ -1,3 +1,8 @@
 
 # #1031 census embedded P2P reader local corestore
 .census-p2p-store/
+
+# MikroHyperbee local Hyperbee stores (test/dev artifacts)
+.person-property-store/
+.pp-boot-verify-store/
+.pp-*-store/
