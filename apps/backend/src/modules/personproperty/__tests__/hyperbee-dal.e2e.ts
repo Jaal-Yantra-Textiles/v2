@@ -1,7 +1,7 @@
 /**
  * REAL end-to-end proof: the module's actual PersonPropertyService
  * (class extends MedusaService({ PersonProperty })) driven over the module's
- * ported Hyperbee DAL (HyperbeePersonPropertyService) — no Postgres, no MikroORM.
+ * Hyperbee DAL from @jytextiles/mikrohyperbee — no Postgres, no MikroORM.
  *
  * This re-homes the MikroHyperbee spike proof into the module so it lives beside
  * the code it validates. It exercises the SERVICE seam (generated methods →
@@ -17,7 +17,7 @@ import Corestore from "corestore";
 import Hyperbee from "hyperbee";
 import { MedusaError } from "@medusajs/framework/utils";
 
-import { HyperbeePersonPropertyService } from "../dal/hyperbee-person-property-service";
+import { createPersonPropertyRepository } from "../dal/hyperbee-person-property-service";
 import PersonPropertyServiceDefault from "../service";
 
 // CJS-interop can double-wrap the default export depending on the loader.
@@ -40,7 +40,7 @@ async function main() {
     keyEncoding: "utf-8",
     valueEncoding: "binary",
   });
-  const internal = new HyperbeePersonPropertyService(bee);
+  const internal = createPersonPropertyRepository(bee as any);
 
   const container: any = {
     baseRepository: {

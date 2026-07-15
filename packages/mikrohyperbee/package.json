@@ -6,10 +6,13 @@
   "license": "MIT",
   "author": "Jaal Yantra Textiles",
   "type": "commonjs",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -19,7 +22,8 @@
   "scripts": {
     "test": "tsx test/repository.e2e.ts && tsx test/workflow-store.e2e.ts",
     "typecheck": "tsc --noEmit",
-    "build": "tsc"
+    "build": "tsc",
+    "prepare": "tsc"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

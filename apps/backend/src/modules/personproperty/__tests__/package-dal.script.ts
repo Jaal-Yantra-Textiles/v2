@@ -17,10 +17,9 @@ import Corestore from "corestore";
 // @ts-ignore
 import Hyperbee from "hyperbee";
 
-// Import the extracted package by source (workspace dep wiring comes with the
-// real step-2 module rewire; a relative import keeps this script self-contained).
-import { defineContract, hyperbeeRepositoryFor } from "../../../../../../packages/mikrohyperbee/src";
+import { hyperbeeRepositoryFor } from "@jytextiles/mikrohyperbee";
 
+import { personPropertyContract } from "../dal/hyperbee-person-property-service";
 import PersonPropertyServiceImport from "../service";
 
 // backend service default export can be CJS-interop double-wrapped.
@@ -34,27 +33,7 @@ const ok = (c: boolean, m: string) => {
   else (fail++, console.error(`  ✗ ${m}`));
 };
 
-// Contract mirrors src/modules/personproperty/models/person_property.ts. The
-// person link is a Medusa module-link (no FK column), so it is not modelled as a
-// belongsTo here — census_id is the natural key we dedupe/uniquify on.
-const personPropertyContract = defineContract("person_property", {
-  id: { prefix: "pp" },
-  mode: "lax",
-  fields: {
-    profile_type: { type: "string", default: "weaver" },
-    census_id: { type: "string", nullable: true },
-    gender: { type: "string", nullable: true },
-    social_group: { type: "string", nullable: true },
-    region_state: { type: "string", nullable: true },
-    district: { type: "string", nullable: true },
-    own_looms: { type: "boolean", nullable: true },
-    total_looms_owned: { type: "number", nullable: true },
-  },
-  indexes: ["profile_type", "social_group", "district", "region_state", "gender", "own_looms"],
-  unique: ["census_id"],
-  idempotencyKey: (r) => (r.census_id ? `census:${r.census_id}` : undefined),
-});
-
+// Uses the REAL production contract from ../dal/hyperbee-person-property-service.
 const STORE = join(tmpdir(), `pp-package-dal-${process.pid}`);
 
 async function main() {

@@ -11,7 +11,7 @@
  * before touching Postgres (mikro-orm-connection-loader.js:21-25). The Hyperbee
  * loader then overrides personPropertyService + baseRepository; if the override
  * wins, the generated createPersonProperties/listAndCountPersonProperties run
- * over Hyperbee and the internal service is HyperbeePersonPropertyService.
+ * over Hyperbee and the internal service is the package HyperbeeBaseRepository.
  *
  * Run:  cd apps/backend && \
  *   PERSON_PROPERTY_HYPERBEE=true \
@@ -72,8 +72,8 @@ async function main() {
   const internal = service.__container__?.personPropertyService;
   assert(!!internal, "internal personPropertyService is registered");
   assert(
-    internal?.constructor?.name === "HyperbeePersonPropertyService",
-    `internal service is HyperbeePersonPropertyService (got '${internal?.constructor?.name}') — LOADER OVERRIDE WON`
+    internal?.constructor?.name === "HyperbeeBaseRepository",
+    `internal service is the package HyperbeeBaseRepository (got '${internal?.constructor?.name}') — LOADER OVERRIDE WON`
   );
 
   // 2) live round-trip through the REAL generated methods

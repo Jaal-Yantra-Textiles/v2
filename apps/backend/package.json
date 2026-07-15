@@ -71,6 +71,7 @@
     "@hookform/resolvers": "^5.0.1",
     "@jytextiles/medusa-plugin-etsy-sync": "latest",
     "@jytextiles/medusa-plugin-faire-store-sync": "latest",
+    "@jytextiles/mikrohyperbee": "workspace:*",
     "@mastra/core": "latest",
     "@mastra/evals": "latest",
     "@mastra/loggers": "latest",

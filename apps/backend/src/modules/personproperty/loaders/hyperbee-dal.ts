@@ -2,7 +2,7 @@ import { asValue } from "awilix";
 
 import type { LoaderOptions } from "@medusajs/framework/types";
 
-import { HyperbeePersonPropertyService } from "../dal/hyperbee-person-property-service";
+import { createPersonPropertyRepository } from "../dal/hyperbee-person-property-service";
 
 /**
  * MikroHyperbee DAL swap for the `person_property` module.
@@ -51,7 +51,7 @@ export default async function hyperbeeDalLoader({ container }: LoaderOptions) {
     });
     await bee.ready();
 
-    const internal = new HyperbeePersonPropertyService(bee);
+    const internal = createPersonPropertyRepository(bee);
 
     // For a KV store the "manager" is a no-op and a transaction runs inline; the
     // outer generated service only uses baseRepository.serialize. (Mirrors the
