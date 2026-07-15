@@ -1,3 +1,29 @@
+# [13.56.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.55.0...v13.56.0) (2026-07-15)
+
+
+### Bug Fixes
+
+* **storefront:** await params/searchParams in design page for Next.js 16 ([#1040](https://github.com/Jaal-Yantra-Textiles/v2/issues/1040)) ([003dbad](https://github.com/Jaal-Yantra-Textiles/v2/commit/003dbad887622bdb7f5f4f56aedc24a344af7316))
+* **#1031:** census in embedded P2P mode, retire Render proxy ([#1049](https://github.com/Jaal-Yantra-Textiles/v2/issues/1049)) ([052951d](https://github.com/Jaal-Yantra-Textiles/v2/commit/052951dc55e22bf4dbb411393fafa079f10154a8)), closes [#1031](https://github.com/Jaal-Yantra-Textiles/v2/issues/1031) [#1037](https://github.com/Jaal-Yantra-Textiles/v2/issues/1037)
+* **storefront:** raise filter Drawer z-index above navbar ([#1042](https://github.com/Jaal-Yantra-Textiles/v2/issues/1042)) ([76f245d](https://github.com/Jaal-Yantra-Textiles/v2/commit/76f245d288953d7bcc6f3f0626d4481c62268155))
+* **storefront:** replace Drawer with bottom ActionSheet for mobile filters ([#1044](https://github.com/Jaal-Yantra-Textiles/v2/issues/1044)) ([64b4b3d](https://github.com/Jaal-Yantra-Textiles/v2/commit/64b4b3d84cf397a54afd23aad8c722a7799a0fb3))
+* **backend:** resolve @jytextiles/mikrohyperbee in prod Docker runtime install ([#1053](https://github.com/Jaal-Yantra-Textiles/v2/issues/1053)) ([51729df](https://github.com/Jaal-Yantra-Textiles/v2/commit/51729dfb8a6c239b07917cc51cb6e96d7f94db63))
+* **#969:** settle convertible payments, paid-gate + agreement backfill ([#1047](https://github.com/Jaal-Yantra-Textiles/v2/issues/1047)) ([933ef68](https://github.com/Jaal-Yantra-Textiles/v2/commit/933ef687470431555a3809642bf6476f1b6406b1)), closes [#969](https://github.com/Jaal-Yantra-Textiles/v2/issues/969)
+* **storefront:** update build command for edge runtime deployment ([1bbacd2](https://github.com/Jaal-Yantra-Textiles/v2/commit/1bbacd239d222e5441e411ba69b73a14310ebb06))
+* **storefront:** update submodule to 87aa796 (add edge runtime to all routes) ([ade8e76](https://github.com/Jaal-Yantra-Textiles/v2/commit/ade8e761a231ac82bf87d0096f4b03887b36dce3))
+* **storefront:** update submodule to f763353 with edge runtime webpack fix ([5a935e6](https://github.com/Jaal-Yantra-Textiles/v2/commit/5a935e6fd3642cc5fc54fb8218d193febd9f0f1d))
+* **storefront-starter:** update submodule to include postbuild cache cleanup ([c7fcdff](https://github.com/Jaal-Yantra-Textiles/v2/commit/c7fcdff9fbe845f15715945f708f268836cb3123))
+* **deployment:** use File instead of Blob for Workers multipart upload ([#1057](https://github.com/Jaal-Yantra-Textiles/v2/issues/1057)) ([ddc0819](https://github.com/Jaal-Yantra-Textiles/v2/commit/ddc0819fe8973887cee487ed685a2efc86f86e3e))
+
+
+### Features
+
+* **#1031:** census module — query the P2P handloom data via Medusa /web API ([#1037](https://github.com/Jaal-Yantra-Textiles/v2/issues/1037)) ([4812e8b](https://github.com/Jaal-Yantra-Textiles/v2/commit/4812e8bb75169a9c9b93541cc39625b3abd077bb)), closes [#1031](https://github.com/Jaal-Yantra-Textiles/v2/issues/1031) [#1031](https://github.com/Jaal-Yantra-Textiles/v2/issues/1031)
+* **partner:** designer persona + partner-scoped LayoutComposer & progressive onboarding ([#338](https://github.com/Jaal-Yantra-Textiles/v2/issues/338)) ([#1058](https://github.com/Jaal-Yantra-Textiles/v2/issues/1058)) ([1219e8a](https://github.com/Jaal-Yantra-Textiles/v2/commit/1219e8a70c72f4c0800771c8b640e0d58812c23a))
+* **storefront:** first-touch UTM/referrer cookie capture + cart metadata stamping + presence marker ([#1039](https://github.com/Jaal-Yantra-Textiles/v2/issues/1039)) ([3368016](https://github.com/Jaal-Yantra-Textiles/v2/commit/3368016e6a08db3ce24ffe55e2f1f597436b2d82))
+* **deployment:** migrate storefront from next-on-pages to @opennextjs/cloudflare ([9d468ac](https://github.com/Jaal-Yantra-Textiles/v2/commit/9d468acb591377e33184961189d07bbe502c1e9c))
+* **deployment:** replace CloudflarePagesProvider with CloudflareWorkersProvider ([#1052](https://github.com/Jaal-Yantra-Textiles/v2/issues/1052)) ([bc256ea](https://github.com/Jaal-Yantra-Textiles/v2/commit/bc256ea3deb1b5e1909c621666da6b8ab16ba661))
+
 # [13.55.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.54.0...v13.55.0) (2026-07-14)
 
 
