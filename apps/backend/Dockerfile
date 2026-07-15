@@ -68,8 +68,16 @@ FROM node:22-slim AS runtime
 
 ENV NODE_ENV=production
 
+# libatomic1: the embedded census P2P stack (corestore -> rocksdb-native,
+# hyperswarm -> sodium-native/udx-native) ships prebuilt linux-x64 .node addons
+# that dynamically link libatomic.so.1, which node:22-slim does NOT include.
+# Without it the addon dlopen fails and require-addon reports a misleading
+# ADDON_NOT_FOUND — the reason embedded P2P read as "DOA" and census fell back to
+# proxy mode. Adding this one lib lets the native stack load in-image. Verified
+# in a linux/amd64 node:22-slim container: corestore.ready + hyperbee get +
+# hyperswarm keypair all succeed once libatomic1 is present.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl \
+      ca-certificates curl libatomic1 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@10.30.2 --activate
