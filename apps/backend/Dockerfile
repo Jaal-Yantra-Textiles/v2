@@ -100,7 +100,22 @@ COPY --from=builder /app/.npmrc ./.npmrc
 # Medusa compiles into .medusa/server with its own package.json. Install prod
 # deps there. --ignore-scripts skips the patch-package postinstall (dev-only).
 WORKDIR /app/.medusa/server
+
+# The compiled server carries an internal workspace dependency
+# (@jytextiles/mikrohyperbee — the Hyperbee-backed DAL the personproperty module
+# uses) declared via the `workspace:*` protocol. The prod install below runs with
+# --ignore-workspace (there is no pnpm workspace in the runtime image), and pnpm
+# cannot resolve `workspace:*` without one → ERR_PNPM_WORKSPACE_PKG_NOT_FOUND.
+# So: (1) drop that entry from the generated package.json before installing,
+# (2) install the remaining prod deps (including hyperbee/corestore, which the
+# package declares only as an OPTIONAL peer), then (3) vendor the prebuilt
+# package straight into node_modules. The package is Medusa-free CommonJS with no
+# runtime deps of its own and its dist/ is built by the package's `prepare` (tsc)
+# during the builder install above, so this copy is self-contained.
+RUN node -e "const fs=require('fs');const p=require('./package.json');if(p.dependencies){delete p.dependencies['@jytextiles/mikrohyperbee'];}fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n');"
 RUN pnpm install --prod --ignore-workspace --ignore-scripts
+COPY --from=builder /app/packages/mikrohyperbee/package.json ./node_modules/@jytextiles/mikrohyperbee/package.json
+COPY --from=builder /app/packages/mikrohyperbee/dist ./node_modules/@jytextiles/mikrohyperbee/dist
 
 EXPOSE 9000
 
