@@ -7,7 +7,15 @@ import {
   toast,
   useDataTable,
 } from "@medusajs/ui"
-import { ArrowPath, Check, Clock, CurrencyDollar, XMark } from "@medusajs/icons"
+import {
+  ArrowPath,
+  Check,
+  Clock,
+  CurrencyDollar,
+  DocumentText,
+  PencilSquare,
+  XMark,
+} from "@medusajs/icons"
 import { useSearchParams } from "react-router-dom"
 import { RouteFocusModal } from "../../../../components/modal/route-focus-modal"
 import { ActionMenu } from "../../../../components/common/action-menu"
@@ -15,6 +23,9 @@ import {
   useApproveParticipation,
   useApproveConvertible,
   useMarkParticipationPaid,
+  useMarkConvertiblePaid,
+  useIssueParticipationAgreement,
+  useMarkAgreementSigned,
   useRoundParticipations,
   useSetParticipationStatus,
   type AdminParticipation,
@@ -26,8 +37,10 @@ const num = (v?: number | null) =>
 const statusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
   switch (s) {
     case "fully_paid":
+    case "paid":
     case "active":
       return "green"
+    case "awaiting payment":
     case "partially_paid":
     case "unpaid":
       return "orange"
@@ -42,6 +55,36 @@ const statusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
 }
 
 const statusLabel = (s?: string) => (s ? s.replace(/_/g, " ") : "unpaid")
+
+// A convertible has no `fully_paid` instrument state — "paid" lives on its
+// payment. Consider a participation paid once any payment is `completed`.
+const isPaid = (p: AdminParticipation) =>
+  p.type === "convertible"
+    ? !!p.payments?.some((pm) => pm.status === "completed")
+    : p.status === "fully_paid"
+
+// Payment-aware status for the badge: convertibles show payment reality
+// (paid / awaiting payment) rather than the raw "outstanding" instrument state.
+const displayStatus = (p: AdminParticipation): string => {
+  if (p.type !== "convertible") return p.status ?? "unpaid"
+  if (isPaid(p)) return "paid"
+  return p.metadata?.approved ? "awaiting payment" : "outstanding"
+}
+
+const agreementColor = (s?: string): "green" | "orange" | "red" | "grey" => {
+  switch (s) {
+    case "agreed":
+      return "green"
+    case "sent":
+    case "viewed":
+      return "orange"
+    case "disagreed":
+    case "expired":
+      return "red"
+    default:
+      return "grey"
+  }
+}
 
 const ParticipationsTable = ({
   roundId,
@@ -68,6 +111,21 @@ const ParticipationsTable = ({
   })
   const { mutateAsync: markPaid } = useMarkParticipationPaid(roundId, {
     onSuccess: () => toast.success("Marked as paid"),
+    onError: (e) => toast.error(e?.message || "Failed"),
+  })
+  const { mutateAsync: markConvertiblePaid } = useMarkConvertiblePaid(roundId, {
+    onSuccess: () => toast.success("Marked as paid"),
+    onError: (e) => toast.error(e?.message || "Failed"),
+  })
+  const { mutateAsync: issueAgreement } = useIssueParticipationAgreement(roundId, {
+    onSuccess: (r) =>
+      toast.success(
+        r?.reused ? "Agreement already issued" : "Agreement issued & emailed"
+      ),
+    onError: (e) => toast.error(e?.message || "Issue failed"),
+  })
+  const { mutateAsync: markSigned } = useMarkAgreementSigned(roundId, {
+    onSuccess: () => toast.success("Recorded as signed"),
     onError: (e) => toast.error(e?.message || "Failed"),
   })
   const { mutateAsync: setStatus } = useSetParticipationStatus(roundId, {
@@ -102,11 +160,10 @@ const ParticipationsTable = ({
       {
         header: "Status",
         accessorKey: "status",
-        cell: ({ row }: any) => (
-          <Badge color={statusColor(row.original.status)}>
-            {statusLabel(row.original.status)}
-          </Badge>
-        ),
+        cell: ({ row }: any) => {
+          const s = displayStatus(row.original as AdminParticipation)
+          return <Badge color={statusColor(s)}>{statusLabel(s)}</Badge>
+        },
       },
       {
         header: "Pay link",
@@ -125,12 +182,34 @@ const ParticipationsTable = ({
         },
       },
       {
+        header: "Agreement",
+        id: "agreement",
+        cell: ({ row }: any) => {
+          const a = (row.original as AdminParticipation).agreement
+          if (!a) return <Badge size="2xsmall" color="grey">Not issued</Badge>
+          return (
+            <div className="flex items-center gap-x-1">
+              <Badge size="2xsmall" color={agreementColor(a.status)}>
+                {a.status === "agreed" ? "signed" : a.status}
+              </Badge>
+              {a.signed_by_admin && (
+                <Text size="xsmall" className="text-ui-fg-muted">
+                  (admin)
+                </Text>
+              )}
+            </div>
+          )
+        },
+      },
+      {
         id: "actions",
         header: "",
         cell: ({ row }: any) => {
           const p = row.original as AdminParticipation
           const approved = !!p.metadata?.approved
           const isConvertible = p.type === "convertible"
+          const agreement = p.agreement
+          const agreementSigned = agreement?.status === "agreed"
           const isParked =
             p.status === "rejected" || p.status === "not_followed_up"
           return (
@@ -146,13 +225,42 @@ const ParticipationsTable = ({
                         onClick: () =>
                           isConvertible ? approveConvertible(p.id) : approve(p.id),
                       },
-                      // Mark-paid uses the stake ledger; only equity stakes support it.
+                      // Mark-paid settles the payment ledger: stakes flip to
+                      // fully_paid, convertibles complete their payment (and
+                      // stay outstanding). Both rails are supported.
                       {
                         icon: <CurrencyDollar />,
                         label: "Mark paid",
-                        disabled:
-                          isConvertible || isParked || p.status === "fully_paid",
-                        onClick: () => markPaid(p.id),
+                        disabled: isParked || isPaid(p),
+                        onClick: () =>
+                          isConvertible
+                            ? markConvertiblePaid(p.id)
+                            : markPaid(p.id),
+                      },
+                    ],
+                  },
+                  // Subscription agreement: issue (or re-issue) it, and record
+                  // an out-of-band signature. Issue is disabled once one exists;
+                  // Mark signed once it's already signed.
+                  {
+                    actions: [
+                      {
+                        icon: <DocumentText />,
+                        label: agreement ? "Agreement issued" : "Issue agreement",
+                        disabled: isParked || !!agreement,
+                        onClick: () =>
+                          issueAgreement({ id: p.id, type: p.type }),
+                      },
+                      {
+                        icon: <PencilSquare />,
+                        label: "Mark signed",
+                        disabled: !agreement || agreementSigned,
+                        onClick: () =>
+                          agreement &&
+                          markSigned({
+                            responseId: agreement.id,
+                            agreed: true,
+                          }),
                       },
                     ],
                   },

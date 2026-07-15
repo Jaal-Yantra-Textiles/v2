@@ -7,8 +7,9 @@ import {
   Text,
   useDataTable,
 } from "@medusajs/ui"
-import { CreditCard, CurrencyDollar } from "@medusajs/icons"
-import { Outlet } from "react-router-dom"
+import { CheckCircleSolid, CreditCard, CurrencyDollar, XCircleSolid } from "@medusajs/icons"
+import { Outlet, useSearchParams } from "react-router-dom"
+import { useState } from "react"
 import { ActionMenu } from "../../components/common/action-menu/action-menu"
 import { useIsViewOnly } from "../../hooks/api/companies"
 import {
@@ -23,7 +24,9 @@ const money = (v?: number | null, ccy?: string | null) =>
 const statusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
   switch (s) {
     case "fully_paid":
+    case "paid":
       return "green"
+    case "awaiting payment":
     case "unpaid":
     case "partially_paid":
       return "orange"
@@ -35,6 +38,22 @@ const statusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
     default:
       return "grey"
   }
+}
+
+// A convertible (SAFE / CCPS) has no `fully_paid` instrument state — settlement
+// lives on its payment. Treat a participation as paid once any payment is
+// `completed` (or a stake reaches fully_paid). This keeps an approved-but-unpaid
+// convertible from reading as already invested.
+const isPaid = (p: Participation) =>
+  p.status === "fully_paid" ||
+  !!p.payments?.some((pm) => pm.status === "completed")
+
+// Payment-aware badge label. Convertibles show payment reality rather than the
+// raw "outstanding" instrument status.
+const displayStatus = (p: Participation): string => {
+  if (isPaid(p)) return "paid"
+  if (p.type === "convertible") return "awaiting payment"
+  return p.status ?? "unpaid"
 }
 
 const DealsTable = () => {
@@ -167,11 +186,10 @@ const MyParticipationsTable = () => {
       {
         header: "Status",
         accessorKey: "status",
-        cell: ({ row }: any) => (
-          <Badge color={statusColor(row.original.status)}>
-            {row.original.status ?? "unpaid"}
-          </Badge>
-        ),
+        cell: ({ row }: any) => {
+          const s = displayStatus(row.original as Participation)
+          return <Badge color={statusColor(s)}>{s}</Badge>
+        },
       },
       {
         id: "actions",
@@ -179,7 +197,7 @@ const MyParticipationsTable = () => {
         cell: ({ row }: any) => {
           const p = row.original as Participation
           const link = payLink(p)
-          if (p.status === "fully_paid") {
+          if (isPaid(p)) {
             return (
               <div className="flex justify-end">
                 <Text size="small" className="text-ui-fg-subtle">Paid</Text>
@@ -249,6 +267,60 @@ const MyParticipationsTable = () => {
   )
 }
 
+// Confirmation banner shown when PayU redirects back to /finances?paid=1 (or
+// ?paid=0 on failure). Settlement itself is server-side via the PayU webhook and
+// can lag the redirect by a few seconds, so the success copy sets that
+// expectation rather than asserting the row is already updated.
+const PaymentReturnBanner = () => {
+  const [params, setParams] = useSearchParams()
+  const paid = params.get("paid")
+  const [dismissed, setDismissed] = useState(false)
+
+  if (dismissed || (paid !== "1" && paid !== "0")) return null
+
+  const success = paid === "1"
+
+  const clear = () => {
+    setDismissed(true)
+    params.delete("paid")
+    setParams(params, { replace: true })
+  }
+
+  return (
+    <div
+      className={`flex items-start gap-x-3 rounded-lg border px-4 py-3 ${
+        success
+          ? "border-ui-tag-green-border bg-ui-tag-green-bg"
+          : "border-ui-tag-red-border bg-ui-tag-red-bg"
+      }`}
+      role="status"
+    >
+      {success ? (
+        <CheckCircleSolid className="text-ui-tag-green-icon mt-0.5 shrink-0" />
+      ) : (
+        <XCircleSolid className="text-ui-tag-red-icon mt-0.5 shrink-0" />
+      )}
+      <div className="flex-1">
+        <Text size="small" weight="plus">
+          {success ? "Payment received — thank you." : "Payment not completed"}
+        </Text>
+        <Text size="small" className="text-ui-fg-subtle mt-0.5">
+          {success
+            ? "We're confirming it with the payment provider. Your participation below will update to “Paid” within a few moments."
+            : "The payment wasn't completed. You can retry from “My participations” below, or reach out if you were charged."}
+        </Text>
+      </div>
+      <button
+        onClick={clear}
+        className="text-ui-fg-muted hover:text-ui-fg-subtle text-sm"
+        aria-label="Dismiss"
+      >
+        Dismiss
+      </button>
+    </div>
+  )
+}
+
 export const Finances = () => {
   return (
     <div className="flex flex-col gap-y-3">
@@ -259,6 +331,7 @@ export const Finances = () => {
         </Text>
       </div>
 
+      <PaymentReturnBanner />
       <DealsTable />
       <MyParticipationsTable />
       <Outlet />

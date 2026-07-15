@@ -323,6 +323,12 @@ const convertibleStatusColor = (s?: string): "green" | "orange" | "red" | "grey"
   }
 }
 
+// A convertible has no `fully_paid` instrument state — settlement lives on its
+// payment. Only count it as paid once a payment is `completed`; an approved-but-
+// unpaid convertible is surfaced as "Awaiting payment", not silently invested.
+const convertibleIsPaid = (c: AdminConvertible) =>
+  !!c.payments?.some((pm) => pm.status === "completed")
+
 const ConvertiblesTable = ({ capTable }: { capTable: AdminCapTable }) => {
   const ccy = capTable.currency_code
   const { convertibles = [], isPending } = useCapTableConvertibles(capTable.id)
@@ -378,11 +384,21 @@ const ConvertiblesTable = ({ capTable }: { capTable: AdminCapTable }) => {
       {
         header: "Status",
         accessorKey: "status",
-        cell: ({ row }: any) => (
-          <Badge color={convertibleStatusColor(row.original.status)}>
-            {row.original.status ?? "outstanding"}
-          </Badge>
-        ),
+        cell: ({ row }: any) => {
+          const c = row.original as AdminConvertible
+          const status = c.status ?? "outstanding"
+          const showPayment = status === "outstanding" && !convertibleIsPaid(c)
+          return (
+            <div className="flex items-center gap-x-1">
+              <Badge color={convertibleStatusColor(status)}>{status}</Badge>
+              {showPayment && (
+                <Badge size="2xsmall" color="orange">
+                  Awaiting payment
+                </Badge>
+              )}
+            </div>
+          )
+        },
       },
       {
         id: "actions",
