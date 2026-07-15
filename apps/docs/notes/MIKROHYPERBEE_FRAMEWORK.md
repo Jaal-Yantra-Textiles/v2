@@ -179,9 +179,20 @@ standalone runtime later.
 - **Step 2 — first real module on it.** Move `person_property` (and the weaver
   provenance domain) onto the package behind the existing flag. Prove
   `query.graph`-across-the-`person` link on a real MedusaApp boot.
-- **Step 3 — durable execution over Hyperbee.** A `store:true` workflow whose
-  module DAL is the package — the `workflow_execution` journal on the append-log,
-  single-node, crash/resume, zero Postgres in the loop (Seam B).
+- **Step 3 — durable execution over Hyperbee.** ✅ **Done.** The engine's *real*
+  `InMemoryDistributedTransactionStorage` class, backed by the package repo as
+  `workflowExecutionService`, drives real `save()`/`get()` checkpoints; a
+  checkpoint written by one instance **survives a true process boundary**
+  (`store.close()` → fresh repo+storage over the same on-disk store reads it back
+  via `get()`), completion updates in place, `deleteFromDb` removes non-retained
+  finished txns, and **retention is reimplemented in JS** (the engine's Postgres
+  `raw()` predicate). 11/11, zero Postgres.
+  (`apps/backend/.../workflow-engine-hyperbee.script.ts`.) Findings: `get()`
+  deliberately refuses to return DONE/failed/reverted (a finished txn is never
+  resumed); the engine stores `execution = data.flow` directly; engine-persisted
+  rows lack `updated_at`, so JS retention skips un-ageable rows (conservative) —
+  **follow-up: the package should stamp `updated_at` on write for production
+  retention.**
 - **Later — the standalone runtime.** Grow the package's own thin HTTP + joiner so
   a module runs without Medusa; lift modules across the boundary one at a time.
   Medusa becomes optional, not load-bearing.
