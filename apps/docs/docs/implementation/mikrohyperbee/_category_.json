@@ -1,0 +1,10 @@
+{
+  "label": "MikroHyperbee",
+  "position": 20,
+  "collapsible": true,
+  "collapsed": true,
+  "link": {
+    "type": "generated-index",
+    "description": "A Hyperbee-backed storage backend for Medusa modules — the path off Postgres for append-mostly / provenance domains. What it is, why it exists, and how to put a module on it."
+  }
+}
