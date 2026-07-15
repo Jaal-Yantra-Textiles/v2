@@ -105,9 +105,11 @@ export class CloudflarePagesProvider implements HostingProvider {
           deployments_enabled: true,
         },
       },
+      // next-on-pages transforms Next.js edge-runtime output for Cloudflare
+      // Workers. Output dir is the Vercel output format that CF Pages expects.
       build_config: {
-        build_command: input.buildCommand || "pnpm build",
-        destination_dir: ".next",
+        build_command: input.buildCommand || "pnpm dlx @cloudflare/next-on-pages@1",
+        destination_dir: ".vercel/output/static",
         root_dir: input.rootDirectory || "",
       },
     }
