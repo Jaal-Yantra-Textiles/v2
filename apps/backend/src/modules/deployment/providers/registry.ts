@@ -8,7 +8,7 @@
  */
 
 import type { EncryptedData } from "../../encryption/service"
-import { CloudflarePagesProvider } from "./cloudflare-pages-provider"
+import { CloudflareWorkersProvider } from "./cloudflare-workers-provider"
 import { NetlifyProvider } from "./netlify-provider"
 import { RenderProvider } from "./render-provider"
 import type { HostingCredentials, HostingProvider, HostingProviderName } from "./types"
@@ -98,7 +98,7 @@ export function createHostingProvider(
     case "vercel":
       return new VercelHostingProvider(creds)
     case "cloudflare":
-      return new CloudflarePagesProvider(creds)
+      return new CloudflareWorkersProvider(creds)
     case "netlify":
       return new NetlifyProvider(creds)
     case "render":
@@ -121,6 +121,6 @@ export function hostingProviderForAccount(
 }
 
 export { VercelHostingProvider } from "./vercel-provider"
-export { CloudflarePagesProvider } from "./cloudflare-pages-provider"
+export { CloudflareWorkersProvider } from "./cloudflare-workers-provider"
 // NOTE: resolveHostingProviderForPartner lives in ./resolve-partner-provider —
 // import it from there directly to avoid a registry↔resolver import cycle.

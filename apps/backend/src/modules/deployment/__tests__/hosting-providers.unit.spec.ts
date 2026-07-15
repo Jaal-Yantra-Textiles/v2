@@ -15,7 +15,7 @@ import {
   type DeploymentApiConfig,
 } from "../providers/registry"
 import { VercelHostingProvider } from "../providers/vercel-provider"
-import { CloudflarePagesProvider } from "../providers/cloudflare-pages-provider"
+import { CloudflareWorkersProvider } from "../providers/cloudflare-workers-provider"
 import type { EncryptedData } from "../../encryption/service"
 
 const enc = (s: string): EncryptedData => ({
@@ -64,7 +64,7 @@ describe("createHostingProvider", () => {
   })
   it("builds a Cloudflare Pages provider", () => {
     const p = createHostingProvider("cloudflare", { token: "t", accountId: "acc" })
-    expect(p).toBeInstanceOf(CloudflarePagesProvider)
+    expect(p).toBeInstanceOf(CloudflareWorkersProvider)
     expect(p.provider).toBe("cloudflare")
   })
   it("builds Netlify + Render providers (S5)", () => {
@@ -86,8 +86,8 @@ describe("provider constructors validate creds", () => {
     expect(() => new VercelHostingProvider({ token: "" })).toThrow(/token/)
   })
   it("Cloudflare requires token + accountId", () => {
-    expect(() => new CloudflarePagesProvider({ token: "t" })).toThrow(/accountId/)
-    expect(() => new CloudflarePagesProvider({ token: "", accountId: "a" })).toThrow(/token/)
+    expect(() => new CloudflareWorkersProvider({ token: "t" })).toThrow(/accountId/)
+    expect(() => new CloudflareWorkersProvider({ token: "", accountId: "a" })).toThrow(/token/)
   })
 })
 
@@ -96,11 +96,11 @@ describe("dnsTarget", () => {
     const p = new VercelHostingProvider({ token: "t" })
     expect(p.dnsTarget({ id: "prj", name: "prj" })).toBe("cname.vercel-dns.com")
   })
-  it("Cloudflare Pages points at <project>.pages.dev, preferring the API subdomain", () => {
-    const p = new CloudflarePagesProvider({ token: "t", accountId: "a" })
-    expect(p.dnsTarget({ id: "shop", name: "shop" })).toBe("shop.pages.dev")
-    expect(p.dnsTarget({ id: "shop", name: "shop", originHost: "custom.pages.dev" })).toBe(
-      "custom.pages.dev"
+  it("Cloudflare Workers points at <project>.<accountId>.workers.dev, preferring the API originHost", () => {
+    const p = new CloudflareWorkersProvider({ token: "t", accountId: "a" })
+    expect(p.dnsTarget({ id: "shop", name: "shop" })).toBe("shop.a.workers.dev")
+    expect(p.dnsTarget({ id: "shop", name: "shop", originHost: "custom.workers.dev" })).toBe(
+      "custom.workers.dev"
     )
   })
 })
@@ -154,7 +154,7 @@ describe("hostingProviderForAccount", () => {
       { provider: "cloudflare", api_config: { token_encrypted: enc("cf-tok"), account_id: "acc_9" } },
       decryptor
     )
-    expect(p).toBeInstanceOf(CloudflarePagesProvider)
+    expect(p).toBeInstanceOf(CloudflareWorkersProvider)
   })
 })
 
@@ -255,7 +255,7 @@ describe("deleteProject (teardown)", () => {
 
   const providers = (): Array<[string, { deleteProject?: (id: string) => Promise<void> }]> => [
     ["vercel", new VercelHostingProvider({ token: "v", teamId: "team_1" })],
-    ["cloudflare", new CloudflarePagesProvider({ token: "c", accountId: "acct_1" })],
+    ["cloudflare", new CloudflareWorkersProvider({ token: "c", accountId: "acct_1" })],
     ["netlify", new NetlifyProvider({ token: "n", accountId: "a", extra: { github_installation_id: "1" } })],
     ["render", new RenderProvider({ token: "r", extra: { owner_id: "tea_1" } })],
   ]

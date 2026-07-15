@@ -32,7 +32,7 @@ import type { HostingCredentials, HostingProvider, HostingProviderName } from ".
 export type ResolvedPartnerHosting = {
   providerName: HostingProviderName
   provider: HostingProvider
-  /** The id/name to address the project by on this provider (Vercel: project id; Cloudflare Pages: project name). */
+  /** The id/name to address the project by on this provider (Vercel: project id; Cloudflare Workers: project name). */
   projectRef: string | null
   /** The deployment_account this resolved to, if any (null on the legacy env path). */
   accountId: string | null
@@ -51,7 +51,7 @@ export function partnerHostingProviderName(partner: any): HostingProviderName {
 /** The project reference to address the partner's storefront by, per provider. */
 export function partnerProjectRef(partner: any, providerName: HostingProviderName): string | null {
   if (providerName === "cloudflare") {
-    // Cloudflare Pages addresses projects by name.
+    // Cloudflare Workers addresses projects by name.
     return (
       partner?.deployment_project_name ??
       partner?.vercel_project_name ??
@@ -87,7 +87,7 @@ function envCredentials(providerName: HostingProviderName): HostingCredentials {
       if (!token || !accountId) {
         throw new MedusaError(
           MedusaError.Types.NOT_ALLOWED,
-          "Cloudflare Pages is not configured (CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID missing) and the partner has no deployment account"
+          "Cloudflare Workers is not configured (CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID missing) and the partner has no deployment account"
         )
       }
       return { token, accountId }
