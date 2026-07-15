@@ -104,7 +104,8 @@
       "msgpackr-extract",
       "protobufjs",
       "sharp",
-      "utf-8-validate"
+      "utf-8-validate",
+      "workerd"
     ],
     "patchedDependencies": {},
     "peerDependencyRules": {
