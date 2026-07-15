@@ -30,7 +30,7 @@ import {
 } from "../../../hooks/api/deployment-accounts"
 
 const PROVIDERS: { value: DeploymentProvider; label: string }[] = [
-  { value: "cloudflare", label: "Cloudflare Pages" },
+  { value: "cloudflare", label: "Cloudflare Workers" },
   { value: "netlify", label: "Netlify" },
   { value: "render", label: "Render" },
   { value: "vercel", label: "Vercel" },
