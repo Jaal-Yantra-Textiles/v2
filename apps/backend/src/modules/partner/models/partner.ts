@@ -13,8 +13,12 @@ const Partner = model.define("partner", {
         .default('pending'),
     is_verified: model.boolean().default(false),
 
-    // Workspace type — controls sidebar navigation and available features
-    workspace_type: model.enum(['seller', 'manufacturer', 'individual'])
+    // Workspace type — controls sidebar navigation and available features.
+    // `designer` (#338/#958): a designer-persona partner who authors designs
+    // (sketches → moodboard → fabric spec) and routes them to a producing
+    // partner, rather than running the full commerce surface. Drives the lean
+    // designer sidebar + the persona layout default (see partner-ui-prefs).
+    workspace_type: model.enum(['seller', 'manufacturer', 'individual', 'designer'])
         .default('manufacturer'),
 
     // WhatsApp notifications

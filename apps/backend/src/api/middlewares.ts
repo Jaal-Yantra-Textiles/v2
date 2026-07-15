@@ -109,6 +109,7 @@ import { investorSchema, investorUpdateSchema, capTableSchema, capTableUpdateSch
 import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { updatePartnerMeSchema } from "./partners/me/validators";
 import { onboardingProfileUpdateSchema } from "./partners/onboarding-profile/validators";
+import { setLayoutConfigurationSchema } from "./partners/layouts/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
 import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema } from "./admin/inventory-orders/validators";
 import { createRawMaterialGroupSchema, updateRawMaterialGroupSchema, listRawMaterialGroupsQuerySchema, addGroupColorSchema, addGroupColorFullSchema, linkGroupColorsSchema, createGroupOrderSchema, readGroupQuerySchema } from "./admin/raw-material-groups/validators";
@@ -819,6 +820,43 @@ export default defineMiddlewares({
     {
       matcher: "/partners/onboarding-profile",
       method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+
+    // Partner LayoutComposer persistence (#338). List across zones, plus
+    // per-zone read / upsert / reset. The static `configurations` matcher must
+    // stay above the `:zone` one so it isn't shadowed by the dynamic param.
+    {
+      matcher: "/partners/layouts/configurations",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/layouts/:zone/configuration",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/layouts/:zone/configuration",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(setLayoutConfigurationSchema)),
+      ],
+    },
+    {
+      matcher: "/partners/layouts/:zone/configuration",
+      method: "DELETE",
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),

@@ -6,7 +6,7 @@ type RawPartner = {
   name: string
   handle: string
   logo: string | null
-  workspace_type: "seller" | "manufacturer" | "individual"
+  workspace_type: "seller" | "manufacturer" | "individual" | "designer"
   storefront_domain: string | null
   vercel_linked: boolean
   metadata: Record<string, unknown> | null

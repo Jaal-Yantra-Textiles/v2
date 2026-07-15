@@ -15,7 +15,7 @@ export type AdminPartner = {
   logo?: string | null
   status: "active" | "inactive" | "pending"
   is_verified: boolean
-  workspace_type?: "seller" | "manufacturer" | "individual"
+  workspace_type?: "seller" | "manufacturer" | "individual" | "designer"
   whatsapp_number?: string | null
   whatsapp_verified?: boolean
   metadata?: Record<string, any> | null
@@ -30,7 +30,7 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
   const [logo, setLogo] = useState(partner.logo || "")
   const [status, setStatus] = useState<"active" | "inactive" | "pending">(partner.status)
   const [isVerified, setIsVerified] = useState<boolean>(!!partner.is_verified)
-  const [workspaceType, setWorkspaceType] = useState<"seller" | "manufacturer" | "individual">(
+  const [workspaceType, setWorkspaceType] = useState<"seller" | "manufacturer" | "individual" | "designer">(
     partner.workspace_type || "manufacturer"
   )
   const [showEdit, setShowEdit] = useState(false)
@@ -261,6 +261,7 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
                     <Select.Item value="seller">Seller</Select.Item>
                     <Select.Item value="manufacturer">Manufacturer</Select.Item>
                     <Select.Item value="individual">Individual</Select.Item>
+                    <Select.Item value="designer">Designer</Select.Item>
                   </Select.Content>
                 </Select>
               </div>
