@@ -259,6 +259,15 @@ export type AdminParticipation = {
   metadata?: Record<string, any> | null
   investor?: { id: string; name?: string; email?: string } | null
   payments?: Array<{ id: string; amount?: number | null; status?: string; metadata?: Record<string, any> | null }>
+  // The issued subscription agreement, if any (null = never issued). `status`
+  // is the agreement_response status: sent | viewed | agreed | disagreed | expired.
+  agreement?: {
+    id: string
+    status?: string
+    agreed?: boolean
+    responded_at?: string | null
+    signed_by_admin?: boolean
+  } | null
 }
 
 export type ConvertibleInstrument = "safe" | "convertible_note" | "ccps"
@@ -513,6 +522,86 @@ export const useMarkParticipationPaid = (
       queryClient.invalidateQueries({ queryKey: roundParticipationsQueryKey(roundId) })
       queryClient.invalidateQueries({ queryKey: ["admin-cap-table"] })
       queryClient.invalidateQueries({ queryKey: ["admin-company-cap-tables"] })
+      ;(options?.onSuccess as any)?.(...args)
+    },
+  })
+}
+
+// Settle a SAFE / convertible / CCPS participation manually — completes its
+// payment(s). Counterpart to the PayU webhook for the convertible rail (which,
+// unlike stakes, has no `fully_paid` instrument state — "paid" lives on the
+// Payment). Mirrors useMarkParticipationPaid but hits the convertible route.
+export const useMarkConvertiblePaid = (
+  roundId: string,
+  options?: UseMutationOptions<{ ok: boolean }, FetchError, string>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    ...options,
+    mutationFn: (convertibleId: string) =>
+      sdk.client.fetch(`/admin/convertibles/${convertibleId}/mark-paid`, {
+        method: "POST",
+      }),
+    onSuccess: (...args: any[]) => {
+      queryClient.invalidateQueries({ queryKey: roundParticipationsQueryKey(roundId) })
+      queryClient.invalidateQueries({ queryKey: ["admin-cap-table"] })
+      queryClient.invalidateQueries({ queryKey: ["admin-cap-table-convertibles"] })
+      queryClient.invalidateQueries({ queryKey: ["admin-company-cap-tables"] })
+      ;(options?.onSuccess as any)?.(...args)
+    },
+  })
+}
+
+// Issue (or re-fetch) the subscription agreement for a participation — the
+// admin counterpart to participate-time issuance, used to backfill agreements
+// for participations created before the templates existed. Routes by type
+// (stake vs convertible). Idempotent server-side (returns reused: true).
+export const useIssueParticipationAgreement = (
+  roundId: string,
+  options?: UseMutationOptions<
+    { response_id: string | null; agreement_url: string | null; reused: boolean },
+    FetchError,
+    { id: string; type?: "stake" | "convertible" }
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    ...options,
+    mutationFn: ({ id, type }) =>
+      sdk.client.fetch(
+        type === "convertible"
+          ? `/admin/convertibles/${id}/issue-agreement`
+          : `/admin/stakes/${id}/issue-agreement`,
+        { method: "POST" }
+      ),
+    onSuccess: (...args: any[]) => {
+      queryClient.invalidateQueries({ queryKey: roundParticipationsQueryKey(roundId) })
+      ;(options?.onSuccess as any)?.(...args)
+    },
+  })
+}
+
+// Record an out-of-band signature on an agreement (admin marks it signed /
+// declined on the investor's behalf — paper/e-sign done elsewhere). Flagged
+// signed_by_admin server-side for the audit trail.
+export const useMarkAgreementSigned = (
+  roundId: string,
+  options?: UseMutationOptions<
+    { agreement: { id: string; status: string; agreed: boolean } },
+    FetchError,
+    { responseId: string; agreed?: boolean; notes?: string; signer_name?: string }
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    ...options,
+    mutationFn: ({ responseId, ...body }) =>
+      sdk.client.fetch(
+        `/admin/agreement-responses/${responseId}/mark-signed`,
+        { method: "POST", body }
+      ),
+    onSuccess: (...args: any[]) => {
+      queryClient.invalidateQueries({ queryKey: roundParticipationsQueryKey(roundId) })
       ;(options?.onSuccess as any)?.(...args)
     },
   })

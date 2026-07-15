@@ -67,6 +67,7 @@ export const POST = async (
           invitee_email: data.email,
           access_level: accessLabel,
           note: data.note ?? "",
+          current_year: String(new Date().getFullYear()),
         },
       },
     })
@@ -86,6 +87,7 @@ export const POST = async (
           access_level: accessLabel,
           note: data.note ?? "",
           portal_url: PORTAL_URL,
+          current_year: String(new Date().getFullYear()),
         },
       },
     })

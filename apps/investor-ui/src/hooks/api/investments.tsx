@@ -33,8 +33,13 @@ export const isSafeDeal = (d: Deal) =>
 
 export type Participation = {
   id: string
+  // "stake" (equity) or "convertible" (SAFE / note / CCPS) — set by the route.
+  type?: "stake" | "convertible"
   number_of_shares?: number | null
   total_invested?: number | null
+  // Equity-stake instrument status (unpaid / fully_paid / …); convertibles carry
+  // their own outstanding/converted status. Use isPaid()/displayStatus() for
+  // payment-aware rendering rather than this raw value.
   status?: string
   funding_round?: { name?: string; round_type?: string } | null
   cap_table?: { name?: string; company_id?: string } | null
