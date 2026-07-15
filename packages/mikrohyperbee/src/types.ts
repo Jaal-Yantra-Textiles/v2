@@ -66,6 +66,14 @@ export interface Contract {
   idempotencyKey?: (row: Record<string, any>) => string | undefined;
   /** strict = enforce required/enum/unique hard; lax = warn-and-allow shape, keep uniqueness. */
   mode?: "strict" | "lax";
+  /**
+   * Stamp Medusa-style `created_at`/`updated_at` (and a null `deleted_at`) on
+   * write, the way every DML model does. Default true — set false only for a
+   * model that manages its own timestamps. On create both default to now (a
+   * caller-supplied value, e.g. a backfill preserving origin times, is kept); on
+   * update `created_at` is preserved and `updated_at` is always bumped.
+   */
+  timestamps?: boolean;
 }
 
 /** Query operators supported by the resolver (mirrors the proven DAL). */
@@ -81,7 +89,8 @@ export type WhereCond =
     };
 export type Where = Record<string, WhereCond>;
 export interface ListConfig {
-  take?: number;
+  /** undefined → default page size; null → no limit (Query passes null to mean "all"). */
+  take?: number | null;
   skip?: number;
   order?: Record<string, string>;
 }

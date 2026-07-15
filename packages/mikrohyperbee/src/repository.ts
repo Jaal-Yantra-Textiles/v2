@@ -35,6 +35,9 @@ const isPlainObject = (v: unknown): v is Record<string, any> =>
 const matches = (row: Record<string, any>, where: Where = {}): boolean =>
   Object.entries(where).every(([k, cond]) => {
     const v = row[k];
+    // A bare array is IN-membership — this is the shape query.graph uses to load
+    // linked records (`{ id: [id1, id2] }`), so it must resolve, not fall through.
+    if (Array.isArray(cond)) return cond.includes(v);
     if (cond && typeof cond === "object") {
       const c = cond as Record<string, any>;
       // Unknown/opaque operator values (e.g. a Postgres raw() predicate) never
@@ -110,6 +113,25 @@ export class HyperbeeBaseRepository implements ModelRepository {
       return this.pk.map((k) => String(row[k])).join(":");
     }
     return String(row.id);
+  }
+  /**
+   * Stamp created_at/updated_at the way every Medusa DML model does, so records
+   * served through the generated service + query.graph carry the timestamps
+   * downstream code (and `order: {updated_at}`) expects. Opt out with
+   * `timestamps: false`. Mutates and returns `row`.
+   */
+  private stamp(row: Record<string, any>, existing: any | null): Record<string, any> {
+    if (this.contract.timestamps === false) return row;
+    const now = new Date().toISOString();
+    if (existing) {
+      row.created_at = existing.created_at ?? row.created_at ?? now;
+      row.updated_at = now;
+    } else {
+      row.created_at = row.created_at ?? now;
+      row.updated_at = row.updated_at ?? now;
+    }
+    if (row.deleted_at === undefined) row.deleted_at = null;
+    return row;
   }
   private async ensureSeq(): Promise<void> {
     if (this.seq !== null) return;
@@ -212,6 +234,7 @@ export class HyperbeeBaseRepository implements ModelRepository {
     }
     const key = this.keyOf(row);
     if (this.pk && row.id === undefined) row.id = key;
+    this.stamp(row, existing);
 
     await this.assertUnique(row, key);
     await this.assertReferential(row);
@@ -276,6 +299,24 @@ export class HyperbeeBaseRepository implements ModelRepository {
   }
 
   private async candidateKeys(where: Where = {}): Promise<string[]> {
+    // Fast path: filtering by the record key itself. `id` always equals the
+    // storage key (generated id, or the composite PK we mirror onto row.id), so
+    // an id / [ids] / {$in:[ids]} filter resolves to those keys directly — this
+    // is exactly how query.graph loads linked records. resolve() re-applies the
+    // full `where` (incl. any other predicates) via matches(), so returning the
+    // id set as candidates is a correct superset.
+    const idc: any = (where as any).id;
+    if (idc !== undefined) {
+      const ids =
+        typeof idc === "string"
+          ? [idc]
+          : Array.isArray(idc)
+          ? idc.map(String)
+          : idc && typeof idc === "object" && Array.isArray(idc.$in)
+          ? idc.$in.map(String)
+          : null;
+      if (ids && ids.length) return ids;
+    }
     const eqIndexed = Object.entries(where).filter(
       ([k, v]) => this.indexed.includes(k) && (typeof v !== "object" || v === null)
     );
@@ -309,7 +350,13 @@ export class HyperbeeBaseRepository implements ModelRepository {
 
   async list(filters: Where = {}, config: ListConfig = {}): Promise<any[]> {
     const rows = await this.resolve(filters);
-    const { take = 15, skip = 0, order } = config || {};
+    const cfg = config || {};
+    const skip = cfg.skip ?? 0;
+    // take: undefined → default page size (15); null → no limit. Query hydrates
+    // linked records with `take: null`, and `= 15` default only fires for
+    // undefined — a null `take` must mean "all", never slice(skip, skip+null)=[].
+    const take = cfg.take === undefined ? 15 : cfg.take;
+    const order = cfg.order;
     if (order) {
       const [f, dir] = Object.entries(order)[0] as [string, string];
       const sign = String(dir).toUpperCase() === "DESC" ? -1 : 1;
@@ -317,7 +364,7 @@ export class HyperbeeBaseRepository implements ModelRepository {
     } else {
       rows.sort((a, b) => (a.id > b.id ? 1 : -1));
     }
-    return rows.slice(skip, skip + take);
+    return take === null ? rows.slice(skip) : rows.slice(skip, skip + take);
   }
 
   async listAndCount(filters: Where = {}, config: ListConfig = {}): Promise<[any[], number]> {

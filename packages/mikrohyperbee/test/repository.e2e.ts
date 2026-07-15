@@ -112,9 +112,29 @@ async function main() {
   const gte = await repo.list({ total_looms_owned: { $gte: 3 } });
   ok(gte.length === 1 && gte[0].person_id === "pers_1", "$gte operator filter works");
 
+  // id / bare-array IN — the exact shape query.graph uses to load linked records.
+  const byId = await repo.list({ id: a.id });
+  ok(byId.length === 1 && byId[0].id === a.id, "filter by id resolves the record (link load)");
+  const byIds = await repo.list({ id: [a.id, c1.id] });
+  ok(byIds.length === 2, `bare-array id IN resolves multiple (got ${byIds.length})`);
+  const byIn = await repo.list({ district: ["PANIPAT", "NOWHERE"] });
+  ok(byIn.every((r) => r.district === "PANIPAT"), "bare-array field IN filters correctly");
+
+  // take: null means "no limit" (the shape query.graph passes when hydrating
+  // linked records) — must NOT collapse to slice(skip, skip+null) = [].
+  const nullTake = await repo.list({ id: [a.id] }, { take: null } as any);
+  ok(nullTake.length === 1, `take:null returns all matches, not [] (got ${nullTake.length})`);
+
+  // ── Timestamps ──
+  const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+  ok(ISO.test(a.created_at) && ISO.test(a.updated_at), "create stamps ISO created_at + updated_at");
+  ok(a.deleted_at === null, "create stamps deleted_at=null (Medusa-compatible)");
+
   // ── Update reindex ──
   const upd = await repo.update({ id: a.id, district: "PANIPAT" });
   ok(upd.district === "PANIPAT", "update applied");
+  ok(upd.created_at === a.created_at, "update preserves created_at");
+  ok(upd.updated_at >= a.updated_at && ISO.test(upd.updated_at), "update bumps updated_at (>= original)");
   const [, ambCount] = await repo.listAndCount({ district: "AMBALA" });
   ok(ambCount === 2, `old index entry removed on update (AMBALA now 2, got ${ambCount})`);
 
