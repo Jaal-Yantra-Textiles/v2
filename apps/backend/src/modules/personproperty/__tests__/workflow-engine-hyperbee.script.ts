@@ -122,9 +122,12 @@ async function main() {
   {
     const { store, repo } = openRepo();
     const storage: any = new InMemoryDistributedTransactionStorage({
+      // proof harness: the Hyperbee repo + noop logger stand in for the
+      // MedusaInternalService/Logger the engine expects — cast past the
+      // structural gap (this file runs via tsx, not the app).
       workflowExecutionService: repo,
       logger: noopLogger,
-    });
+    } as any);
     // NOT_STARTED is a persisted, resumable state (get() deliberately refuses to
     // return DONE/failed/reverted — a finished txn is never resumed).
     await storage.save(KEY, checkpoint(TransactionState.NOT_STARTED), 0, {});
@@ -138,9 +141,12 @@ async function main() {
   {
     const { store, repo } = openRepo();
     const storage: any = new InMemoryDistributedTransactionStorage({
+      // proof harness: the Hyperbee repo + noop logger stand in for the
+      // MedusaInternalService/Logger the engine expects — cast past the
+      // structural gap (this file runs via tsx, not the app).
       workflowExecutionService: repo,
       logger: noopLogger,
-    });
+    } as any);
     const resumed = await storage.get(KEY);
     ok(!!resumed, "checkpoint SURVIVES process death — a fresh engine instance reads it from Hyperbee");
     ok(resumed?.flow?.state === TransactionState.NOT_STARTED, "resumed flow has the persisted state");
@@ -159,9 +165,12 @@ async function main() {
   {
     const { store, repo } = openRepo();
     const storage: any = new InMemoryDistributedTransactionStorage({
+      // proof harness: the Hyperbee repo + noop logger stand in for the
+      // MedusaInternalService/Logger the engine expects — cast past the
+      // structural gap (this file runs via tsx, not the app).
       workflowExecutionService: repo,
       logger: noopLogger,
-    });
+    } as any);
     // a second transaction that finishes with no retention
     const K2 = "dtx:create-weaver:tx_2";
     await storage.save(K2, checkpoint(TransactionState.NOT_STARTED, { transactionId: "tx_2", runId: "run_2" }), 0, {});
