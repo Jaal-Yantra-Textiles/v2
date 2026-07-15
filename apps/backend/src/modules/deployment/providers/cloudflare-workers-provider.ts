@@ -192,7 +192,7 @@ export class CloudflareWorkersProvider implements HostingProvider {
     formData.append("metadata", new Blob([metadata], { type: "application/json" }))
     formData.append(
       "worker.js",
-      new Blob([PLACEHOLDER_SCRIPT], {
+      new File([PLACEHOLDER_SCRIPT], "worker.js", {
         type: "application/javascript+module",
       })
     )
