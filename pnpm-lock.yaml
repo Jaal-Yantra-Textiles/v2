@@ -155,6 +155,9 @@ importers:
       '@jytextiles/medusa-plugin-faire-store-sync':
         specifier: latest
         version: 0.2.14(@medusajs/admin-sdk@2.17.2)(@medusajs/cli@2.17.2(@types/node@20.19.34))(@medusajs/dashboard@2.17.2(@emotion/is-prop-valid@1.4.0)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(typescript@5.9.3))(@medusajs/framework@2.17.2(@medusajs/cli@2.17.2(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))(zod@4.2.0))(@medusajs/icons@2.17.2(react@18.3.1))(@medusajs/medusa@2.17.2)(@medusajs/test-utils@2.17.2)(@medusajs/types@2.17.2(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)))(@medusajs/ui@4.1.19(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
+      '@jytextiles/mikrohyperbee':
+        specifier: workspace:*
+        version: link:../../packages/mikrohyperbee
       '@mastra/core':
         specifier: latest
         version: 1.50.1(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(ai@5.0.138(zod@4.2.0))(express@5.2.1)(rxjs@7.8.2)(zod@4.2.0)
@@ -1439,6 +1442,24 @@ importers:
       jest:
         specifier: 29.7.0
         version: 29.7.0(@types/node@20.19.34)(ts-node@10.9.2(@swc/core@1.7.28(@swc/helpers@0.5.19))(@types/node@20.19.34)(typescript@5.9.3))
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+
+  packages/mikrohyperbee:
+    devDependencies:
+      '@types/node':
+        specifier: ^20.12.11
+        version: 20.19.34
+      corestore:
+        specifier: ^7.4.6
+        version: 7.11.0(bare-url@2.4.5)
+      hyperbee:
+        specifier: ^2.24.2
+        version: 2.27.3
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
       typescript:
         specifier: 5.6.3
         version: 5.6.3
@@ -24889,7 +24910,6 @@ snapshots:
       - bare-url
       - react-native-b4a
       - sodium-javascript
-    optional: true
 
   '@icons/material@0.2.4(react@18.3.1)':
     dependencies:
@@ -36898,7 +36918,6 @@ snapshots:
       bare-semver: 1.1.0
     optionalDependencies:
       bare-url: 2.4.5
-    optional: true
 
   bare-ansi-escapes@2.2.3(bare-events@2.9.1):
     dependencies:
@@ -36907,7 +36926,6 @@ snapshots:
       - bare-abort-controller
       - bare-events
       - react-native-b4a
-    optional: true
 
   bare-assert@1.2.0(bare-events@2.9.1):
     dependencies:
@@ -36917,7 +36935,6 @@ snapshots:
       - bare-buffer
       - bare-events
       - react-native-b4a
-    optional: true
 
   bare-events@2.9.1: {}
 
@@ -36953,14 +36970,12 @@ snapshots:
       - bare-buffer
       - bare-events
       - react-native-b4a
-    optional: true
 
   bare-module-resolve@1.12.2(bare-url@2.4.5):
     dependencies:
       bare-semver: 1.1.0
     optionalDependencies:
       bare-url: 2.4.5
-    optional: true
 
   bare-os@3.7.0:
     optional: true
@@ -36972,8 +36987,7 @@ snapshots:
 
   bare-path@3.1.1: {}
 
-  bare-semver@1.1.0:
-    optional: true
+  bare-semver@1.1.0: {}
 
   bare-stream@2.13.3(bare-events@2.9.1):
     dependencies:
@@ -36996,8 +37010,7 @@ snapshots:
       - react-native-b4a
     optional: true
 
-  bare-type@1.1.0:
-    optional: true
+  bare-type@1.1.0: {}
 
   bare-url@2.3.2:
     dependencies:
@@ -37034,8 +37047,7 @@ snapshots:
 
   big-integer@1.6.52: {}
 
-  big-sparse-array@1.0.3:
-    optional: true
+  big-sparse-array@1.0.3: {}
 
   big.js@5.2.2: {}
 
@@ -37650,7 +37662,6 @@ snapshots:
       b4a: 1.8.1
     transitivePeerDependencies:
       - react-native-b4a
-    optional: true
 
   collapse-white-space@2.1.0: {}
 
@@ -37760,7 +37771,6 @@ snapshots:
       b4a: 1.8.1
     transitivePeerDependencies:
       - react-native-b4a
-    optional: true
 
   compare-func@2.0.0:
     dependencies:
@@ -37950,7 +37960,6 @@ snapshots:
       - bare-url
       - react-native-b4a
       - sodium-javascript
-    optional: true
 
   cors@2.8.6:
     dependencies:
@@ -38425,8 +38434,7 @@ snapshots:
 
   debounce@1.2.1: {}
 
-  debounceify@1.1.0:
-    optional: true
+  debounceify@1.1.0: {}
 
   debug@2.6.9:
     dependencies:
@@ -38557,7 +38565,6 @@ snapshots:
       - bare-buffer
       - bare-url
       - react-native-b4a
-    optional: true
 
   devlop@1.1.0:
     dependencies:
@@ -39792,7 +39799,6 @@ snapshots:
       - bare-buffer
       - bare-url
       - react-native-b4a
-    optional: true
 
   fd-slicer@1.1.0:
     dependencies:
@@ -39941,8 +39947,7 @@ snapshots:
       keyv: 4.5.4
       rimraf: 3.0.2
 
-  flat-tree@1.13.0:
-    optional: true
+  flat-tree@1.13.0: {}
 
   flat@5.0.2: {}
 
@@ -40065,7 +40070,6 @@ snapshots:
       which-runtime: 1.4.0
     transitivePeerDependencies:
       - bare-url
-    optional: true
 
   fs.realpath@1.0.0: {}
 
@@ -40118,10 +40122,8 @@ snapshots:
   generate-object-property@2.0.0:
     dependencies:
       is-property: 1.0.2
-    optional: true
 
-  generate-string@1.0.1:
-    optional: true
+  generate-string@1.0.1: {}
 
   generator-function@2.0.1: {}
 
@@ -40708,7 +40710,6 @@ snapshots:
     transitivePeerDependencies:
       - bare-abort-controller
       - react-native-b4a
-    optional: true
 
   hypercore-crypto@3.7.0(bare-events@2.9.1)(bare-url@2.4.5):
     dependencies:
@@ -40722,14 +40723,12 @@ snapshots:
       - bare-url
       - react-native-b4a
       - sodium-javascript
-    optional: true
 
   hypercore-errors@1.5.0:
     dependencies:
       hypercore-id-encoding: 1.3.0
     transitivePeerDependencies:
       - react-native-b4a
-    optional: true
 
   hypercore-id-encoding@1.3.0:
     dependencies:
@@ -40737,7 +40736,6 @@ snapshots:
       z32: 1.1.0
     transitivePeerDependencies:
       - react-native-b4a
-    optional: true
 
   hypercore-storage@3.2.0(bare-events@2.9.1)(bare-url@2.4.5):
     dependencies:
@@ -40761,7 +40759,6 @@ snapshots:
       - bare-url
       - react-native-b4a
       - sodium-javascript
-    optional: true
 
   hypercore@11.34.0(bare-url@2.4.5):
     dependencies:
@@ -40792,7 +40789,6 @@ snapshots:
       - bare-url
       - react-native-b4a
       - sodium-javascript
-    optional: true
 
   hyperdht-address@1.1.1:
     dependencies:
@@ -40847,7 +40843,6 @@ snapshots:
       - bare-abort-controller
       - bare-buffer
       - react-native-b4a
-    optional: true
 
   hyperswarm@4.17.0(bare-url@2.4.5):
     dependencies:
@@ -40997,7 +40992,6 @@ snapshots:
       b4a: 1.8.1
     transitivePeerDependencies:
       - react-native-b4a
-    optional: true
 
   index-to-position@1.2.0: {}
 
@@ -41258,7 +41252,6 @@ snapshots:
       b4a: 1.8.1
     transitivePeerDependencies:
       - react-native-b4a
-    optional: true
 
   is-path-inside@3.0.3: {}
 
@@ -41276,8 +41269,7 @@ snapshots:
 
   is-promise@4.0.0: {}
 
-  is-property@1.0.2:
-    optional: true
+  is-property@1.0.2: {}
 
   is-reference@1.2.1:
     dependencies:
@@ -43338,7 +43330,6 @@ snapshots:
   mutexify@1.4.0:
     dependencies:
       queue-tick: 1.0.1
-    optional: true
 
   mylas@2.1.14: {}
 
@@ -43348,8 +43339,7 @@ snapshots:
       object-assign: 4.1.1
       thenify-all: 1.6.0
 
-  nanoassert@2.0.0:
-    optional: true
+  nanoassert@2.0.0: {}
 
   nanoid@3.3.11: {}
 
@@ -43573,7 +43563,6 @@ snapshots:
       - bare-url
       - react-native-b4a
       - sodium-javascript
-    optional: true
 
   noise-handshake@4.2.0(bare-events@2.9.1)(bare-url@2.4.5):
     dependencies:
@@ -43587,7 +43576,6 @@ snapshots:
       - bare-url
       - react-native-b4a
       - sodium-javascript
-    optional: true
 
   non-layered-tidy-tree-layout@2.0.2: {}
 
@@ -45066,7 +45054,6 @@ snapshots:
       varint: 5.0.0
     transitivePeerDependencies:
       - react-native-b4a
-    optional: true
 
   protomux@3.11.0:
     dependencies:
@@ -45077,7 +45064,6 @@ snapshots:
       unslab: 1.3.0
     transitivePeerDependencies:
       - react-native-b4a
-    optional: true
 
   proxy-addr@2.0.7:
     dependencies:
@@ -45129,8 +45115,7 @@ snapshots:
 
   queue-microtask@1.2.3: {}
 
-  queue-tick@1.0.1:
-    optional: true
+  queue-tick@1.0.1: {}
 
   queue@6.0.2:
     dependencies:
@@ -45156,12 +45141,10 @@ snapshots:
     transitivePeerDependencies:
       - bare-url
       - react-native-b4a
-    optional: true
 
   quotemeta@0.0.0: {}
 
-  rache@1.0.0:
-    optional: true
+  rache@1.0.0: {}
 
   radix-ui@1.1.2(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
@@ -45406,8 +45389,7 @@ snapshots:
       discontinuous-range: 1.0.0
       ret: 0.1.15
 
-  random-array-iterator@1.0.0:
-    optional: true
+  random-array-iterator@1.0.0: {}
 
   random-bytes@1.0.0: {}
 
@@ -46017,7 +45999,6 @@ snapshots:
       bare-events: 2.9.1
     transitivePeerDependencies:
       - bare-abort-controller
-    optional: true
 
   real-require@0.2.0: {}
 
@@ -46136,8 +46117,7 @@ snapshots:
 
   redux@5.0.1: {}
 
-  refcounter@1.0.0:
-    optional: true
+  refcounter@1.0.0: {}
 
   reflect-metadata@0.2.2: {}
 
@@ -46326,7 +46306,6 @@ snapshots:
       bare-addon-resolve: 1.10.0(bare-url@2.4.5)
     transitivePeerDependencies:
       - bare-url
-    optional: true
 
   require-directory@2.1.1: {}
 
@@ -46376,8 +46355,7 @@ snapshots:
 
   resolve-pkg-maps@1.0.0: {}
 
-  resolve-reject-promise@1.1.0:
-    optional: true
+  resolve-reject-promise@1.1.0: {}
 
   resolve.exports@2.0.3: {}
 
@@ -46403,8 +46381,7 @@ snapshots:
       path-parse: 1.0.7
       supports-preserve-symlinks-flag: 1.0.0
 
-  resource-on-exit@1.0.0:
-    optional: true
+  resource-on-exit@1.0.0: {}
 
   responselike@3.0.0:
     dependencies:
@@ -46451,7 +46428,6 @@ snapshots:
       - bare-abort-controller
       - bare-url
       - react-native-b4a
-    optional: true
 
   rollup-plugin-esbuild@6.2.1(esbuild@0.28.1)(rollup@4.62.2):
     dependencies:
@@ -46612,8 +46588,7 @@ snapshots:
 
   safer-buffer@2.1.2: {}
 
-  safety-catch@1.0.3:
-    optional: true
+  safety-catch@1.0.3: {}
 
   sass-embedded-all-unknown@1.97.3:
     dependencies:
@@ -46751,8 +46726,7 @@ snapshots:
       ajv-formats: 2.1.1(ajv@8.20.0)
       ajv-keywords: 5.1.0(ajv@8.20.0)
 
-  scope-lock@1.2.4:
-    optional: true
+  scope-lock@1.2.4: {}
 
   scrypt-kdf@2.0.1: {}
 
@@ -47088,8 +47062,7 @@ snapshots:
 
   signal-exit@4.1.0: {}
 
-  signal-promise@1.0.3:
-    optional: true
+  signal-promise@1.0.3: {}
 
   signale@1.4.0:
     dependencies:
@@ -47100,7 +47073,6 @@ snapshots:
   signed-varint@2.0.1:
     dependencies:
       varint: 5.0.0
-    optional: true
 
   signedsource@1.0.0: {}
 
@@ -47121,7 +47093,6 @@ snapshots:
     transitivePeerDependencies:
       - bare-url
       - react-native-b4a
-    optional: true
 
   simple-concat@1.0.1: {}
 
@@ -47207,7 +47178,6 @@ snapshots:
       - bare-events
       - bare-url
       - react-native-b4a
-    optional: true
 
   sodium-secretstream@1.2.0(bare-events@2.9.1)(bare-url@2.4.5):
     dependencies:
@@ -47220,7 +47190,6 @@ snapshots:
       - bare-url
       - react-native-b4a
       - sodium-javascript
-    optional: true
 
   sodium-universal@5.0.1(bare-events@2.9.1)(bare-url@2.4.5):
     dependencies:
@@ -47231,7 +47200,6 @@ snapshots:
       - bare-events
       - bare-url
       - react-native-b4a
-    optional: true
 
   sonic-boom@4.2.1:
     dependencies:
@@ -47899,8 +47867,7 @@ snapshots:
     dependencies:
       convert-hrtime: 5.0.0
 
-  timeout-refresh@2.0.1:
-    optional: true
+  timeout-refresh@2.0.1: {}
 
   tiny-invariant@1.3.3: {}
 
@@ -48400,7 +48367,6 @@ snapshots:
       b4a: 1.8.1
     transitivePeerDependencies:
       - react-native-b4a
-    optional: true
 
   unzipper@0.10.14:
     dependencies:
@@ -48614,8 +48580,7 @@ snapshots:
 
   value-equal@1.0.1: {}
 
-  varint@5.0.0:
-    optional: true
+  varint@5.0.0: {}
 
   varint@6.0.0: {}
 
@@ -48980,8 +48945,7 @@ snapshots:
 
   which-module@2.0.1: {}
 
-  which-runtime@1.4.0:
-    optional: true
+  which-runtime@1.4.0: {}
 
   which-typed-array@1.1.20:
     dependencies:
@@ -49113,8 +49077,7 @@ snapshots:
     dependencies:
       is-wsl: 3.1.1
 
-  xache@1.2.1:
-    optional: true
+  xache@1.2.1: {}
 
   xdg-basedir@4.0.0: {}
 
@@ -49247,7 +49210,6 @@ snapshots:
       b4a: 1.8.1
     transitivePeerDependencies:
       - react-native-b4a
-    optional: true
 
   zeroentropy@0.1.0-alpha.7:
     dependencies:
