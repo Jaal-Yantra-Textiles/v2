@@ -12,13 +12,18 @@ const MAX_SCAN = 50_000
 // stays free of the native hypercore stack so it type-checks and runs anywhere.
 type Sub = {
   get(key: string): Promise<{ value: Buffer } | null>
-  createReadStream(range?: { gte?: string; lte?: string; lt?: string }): AsyncIterable<{ key: string; value: any }>
+  createReadStream(range?: { gte?: string; gt?: string; lte?: string; lt?: string }): AsyncIterable<{ key: string; value: any }>
 }
 type Bee = { sub(prefix: string, opts?: Record<string, unknown>): Sub }
 
 export type WeaverFilters = Record<string, string | number | boolean>
-export type ListOptions = { limit?: number; offset?: number }
+export type ListOptions = { limit?: number; offset?: number; after?: string | number }
 export type Stats = Record<string, Record<string, number | null>>
+
+// Zero-pad census ids so the secondary index sorts lexicographically = numerically
+// (ids are < 10^10). MUST match the seeder/backfill's padding width.
+const ID_PAD = 10
+const padId = (id: string | number) => String(id).padStart(ID_PAD, "0")
 
 /**
  * Read-only query surface over the handloom census PUBLIC core (masked, PII-free
@@ -106,24 +111,89 @@ export class CensusReader {
   }
 
   /**
-   * Paginated masked-record browse with equality filters. The live public core
-   * carries no secondary index yet, so this scans `rec/*` and filters in memory,
-   * bounded by MAX_SCAN. Fine for modest result sets / early data; for the full
-   * multi-million sweep the seeder should emit `idx/<field>/<value>/<id>` cells
-   * (proven in hyperbee-repo.mjs) so this becomes an index intersection.
+   * Resolve a secondary-index "driver" for the given filters, or null if none of
+   * the indexed facets are present. The seeder emits three index families whose
+   * values line up 1:1 with `agg/*` dims (so counts are O(1)):
+   *   idx/state/<state>/<paddedId>
+   *   idx/gender/<gender>/<paddedId>
+   *   idx/sd/<state>|<district>/<paddedId>   (state-scoped district drill-down)
+   * The most selective available family wins; any remaining filters become the
+   * `residual` predicate applied in memory to the (already narrowed) records.
+   */
+  private resolveIndexDriver(filters: WeaverFilters): {
+    prefix: string
+    aggKey: string
+    residual: WeaverFilters
+  } | null {
+    const state = filters.state != null ? String(filters.state) : null
+    const district = filters.district != null ? String(filters.district) : null
+    const gender = filters.gender != null ? String(filters.gender) : null
+
+    const without = (...keys: string[]): WeaverFilters => {
+      const r = { ...filters }
+      for (const k of keys) delete r[k]
+      return r
+    }
+
+    if (state && district) {
+      return { prefix: `sd/${state}|${district}/`, aggKey: `district/${state}|${district}`, residual: without("state", "district") }
+    }
+    if (state) {
+      return { prefix: `state/${state}/`, aggKey: `state/${state}`, residual: without("state") }
+    }
+    if (gender) {
+      return { prefix: `gender/${gender}/`, aggKey: `gender/${gender}`, residual: without("gender") }
+    }
+    return null
+  }
+
+  /**
+   * Paginated masked-record browse with equality filters.
+   *
+   * When the seeder has emitted the secondary index (meta `idx-version` present)
+   * and a filter hits an indexed facet, this is an ORDERED range-scan over
+   * `idx/<facet>/<value>/*` — O(page), not O(corpus) — with the total lifted from
+   * the matching `agg` cell in O(1). That is what makes browse viable across the
+   * multi-million sweep (a full `rec/*` scan times out). Falls back to the
+   * bounded in-memory scan when there's no index or no indexed filter, preserving
+   * the original behaviour.
+   *
+   * `after` is an opaque cursor (the last census_id of the previous page) enabling
+   * O(page) forward pagination that doesn't degrade with depth like `offset`.
    */
   async listAndCountWeavers(
     filters: WeaverFilters = {},
-    { limit = 20, offset = 0 }: ListOptions = {}
-  ): Promise<{ weavers: Record<string, any>[]; count: number; capped: boolean }> {
+    { limit = 20, offset = 0, after }: ListOptions = {}
+  ): Promise<{
+    weavers: Record<string, any>[]
+    count: number
+    capped: boolean
+    next?: string | null
+    indexed?: boolean
+    estimated?: boolean
+  }> {
     if (this.proxyUrl) {
       const qs = new URLSearchParams()
       for (const [k, v] of Object.entries(filters)) qs.set(k, String(v))
       qs.set("limit", String(limit))
       qs.set("offset", String(offset))
+      if (after != null) qs.set("after", String(after))
       return this.proxyGet(`/census/weavers?${qs.toString()}`)
     }
-    const rec = this.requireBee().sub("rec", { valueEncoding: "binary" })
+
+    const bee = this.requireBee()
+    const rec = bee.sub("rec", { valueEncoding: "binary" })
+
+    const driver = this.resolveIndexDriver(filters)
+    const indexReady =
+      driver != null &&
+      (await bee.sub("meta", { valueEncoding: "utf-8" }).get("idx-version")) != null
+
+    if (driver && indexReady) {
+      return this.listViaIndex(bee, rec, driver, { limit, offset, after })
+    }
+
+    // Fallback: bounded in-memory scan over rec/* (original behaviour).
     const entries = Object.entries(filters)
     const match = (r: Record<string, any>) =>
       entries.every(([k, v]) => String(r[k]) === String(v))
@@ -139,11 +209,92 @@ export class CensusReader {
       }
       const r = this.decode(value)
       if (!match(r)) continue
-      // count all matches; collect only the requested page window
       if (count >= offset && weavers.length < limit) weavers.push(r)
       count++
     }
-    return { weavers, count, capped }
+    return { weavers, count, capped, indexed: false }
+  }
+
+  /** Range-scan the driver's index family, hydrate + page the records. */
+  private async listViaIndex(
+    bee: Bee,
+    rec: Sub,
+    driver: { prefix: string; aggKey: string; residual: WeaverFilters },
+    { limit, offset, after }: { limit: number; offset: number; after?: string | number }
+  ) {
+    const idx = bee.sub("idx", { valueEncoding: "binary" })
+    const residualEntries = Object.entries(driver.residual)
+    const hasResidual = residualEntries.length > 0
+    const residualMatch = (r: Record<string, any>) =>
+      residualEntries.every(([k, v]) => String(r[k]) === String(v))
+
+    // sub-relative range over `<prefix><paddedId>`. ":" (0x3a) is the first byte
+    // above "9" (0x39), so it upper-bounds the all-digit id suffix.
+    const range: { gte?: string; gt?: string; lt: string } =
+      after != null
+        ? { gt: `${driver.prefix}${padId(after)}`, lt: `${driver.prefix}:` }
+        : { gte: driver.prefix, lt: `${driver.prefix}:` }
+
+    const weavers: Record<string, any>[] = []
+    let count = 0
+    let scanned = 0
+    let capped = false
+    let next: string | null = null
+
+    for await (const { key } of idx.createReadStream(range)) {
+      if (++scanned > MAX_SCAN) {
+        capped = true
+        break
+      }
+      const id = String(Number(key.slice(driver.prefix.length)))
+
+      if (!hasResidual) {
+        // Purely index-paged: fetch only the page window; total comes from agg.
+        if (count >= offset && weavers.length < limit) {
+          const node = await rec.get(id)
+          if (node) {
+            weavers.push(this.decode(node.value))
+            next = id
+          }
+        }
+        count++
+        if (weavers.length >= limit) break
+      } else {
+        const node = await rec.get(id)
+        if (!node) continue
+        const r = this.decode(node.value)
+        if (!residualMatch(r)) continue
+        if (count >= offset && weavers.length < limit) {
+          weavers.push(r)
+          next = id
+        }
+        count++
+      }
+    }
+
+    // Exact O(1) total from the aggregate cell when the index alone answered the
+    // query (no residual predicate). With a residual filter the count is the
+    // matches actually scanned (flagged estimated / capped).
+    let total = count
+    let estimated = hasResidual
+    if (!hasResidual) {
+      const aggNode = await bee
+        .sub("agg", { valueEncoding: "utf-8" })
+        .get(driver.aggKey)
+      if (aggNode) {
+        total = Number(aggNode.value)
+        estimated = false
+      }
+    }
+
+    return {
+      weavers,
+      count: total,
+      capped,
+      next,
+      indexed: true,
+      ...(estimated ? { estimated: true } : {}),
+    }
   }
 }
 

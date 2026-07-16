@@ -47,7 +47,21 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const limit = Math.min(Math.max(Number(q.limit) || 20, 1), 100)
   const offset = Math.max(Number(q.offset) || 0, 0)
+  // Opaque forward cursor (last census_id of the previous page). Preferred over
+  // offset at scale — pagination stays O(page) instead of degrading with depth.
+  const after = q.after !== undefined && q.after !== "" ? q.after : undefined
 
-  const { weavers, count, capped } = await census.listAndCountWeavers(filters, { limit, offset })
-  res.json({ weavers, count, limit, offset, ...(capped ? { capped: true } : {}) })
+  const { weavers, count, capped, next, indexed, estimated } =
+    await census.listAndCountWeavers(filters, { limit, offset, after })
+
+  res.json({
+    weavers,
+    count,
+    limit,
+    offset,
+    ...(next ? { next } : {}),
+    ...(indexed !== undefined ? { indexed } : {}),
+    ...(estimated ? { estimated: true } : {}),
+    ...(capped ? { capped: true } : {}),
+  })
 }
