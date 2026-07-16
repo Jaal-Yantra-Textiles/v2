@@ -38,9 +38,11 @@ class PartnerUiPrefsService extends MedusaService({
       is_default: input.is_default,
     })
 
+    // `configuration` is the composer's json blob; the generated create/update
+    // typing narrows json to Record<string, unknown>, so cast at the boundary.
     if (existing?.[0]) {
       const [updated] = await this.updatePartnerUiLayoutConfigurations([
-        { id: existing[0].id, configuration: input.configuration },
+        { id: existing[0].id, configuration: input.configuration as any },
       ])
       return updated
     }
@@ -50,7 +52,7 @@ class PartnerUiPrefsService extends MedusaService({
         partner_id: input.partner_id,
         zone: input.zone,
         is_default: input.is_default,
-        configuration: input.configuration,
+        configuration: input.configuration as any,
       },
     ])
     return created

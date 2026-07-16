@@ -26,7 +26,10 @@ const PartnerAssistantConversation = model
     title: model.text().default("New chat"),
 
     // The AI-SDK UIMessage array (see doc-comment). Empty for a fresh chat.
-    messages: model.json().default([]),
+    // `model.json()` types as an object; the array is stored/read at runtime and
+    // the service always writes a value (defaulting to []), with the DB-level
+    // default '[]' from the migration as the backstop.
+    messages: model.json(),
 
     metadata: model.json().nullable(),
   })

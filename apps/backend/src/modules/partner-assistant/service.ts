@@ -47,10 +47,12 @@ class PartnerAssistantService extends MedusaService({
     partnerId: string,
     input: { title?: string; messages?: unknown[] }
   ) {
+    // `messages` is an array stored in a json column, which the generated
+    // create typing narrows to an object — cast at the boundary.
     return this.createPartnerAssistantConversations({
       partner_id: partnerId,
       ...(input.title !== undefined ? { title: input.title } : {}),
-      ...(input.messages !== undefined ? { messages: input.messages } : {}),
+      messages: (input.messages ?? []) as any,
     })
   }
 
@@ -65,7 +67,10 @@ class PartnerAssistantService extends MedusaService({
       {
         id,
         ...(input.title !== undefined ? { title: input.title } : {}),
-        ...(input.messages !== undefined ? { messages: input.messages } : {}),
+        // json column holds an array; cast past the object-narrowed typing.
+        ...(input.messages !== undefined
+          ? { messages: input.messages as any }
+          : {}),
       },
     ])
     return updated
