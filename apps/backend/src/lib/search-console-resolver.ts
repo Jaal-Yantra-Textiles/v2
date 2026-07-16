@@ -7,25 +7,32 @@ import { WEBSITE_MODULE } from "../modules/website"
  * field is a bare hostname, so the matcher has to consider every plausible
  * form.
  *
- * Given a website with `domain = "cicilabel.com"`, this matches against
- * bindings whose `resource_id` is any of:
+ * Matching is scoped to the website's *own* identity: its canonical
+ * `website.domain` plus every alias in the `website_domain` table (custom
+ * domains, marketing aliases). For each such hostname we consider bindings
+ * whose `resource_id` is any of:
  *   - "https://cicilabel.com/"        (URL-prefix property, https)
  *   - "http://cicilabel.com/"         (URL-prefix property, http — rare)
  *   - "https://www.cicilabel.com/"    (URL-prefix with www)
  *   - "sc-domain:cicilabel.com"       (Domain property — covers all subdomains)
  *
- * If a website's domain is itself a subdomain (e.g. "shop.example.com"),
- * the sc-domain property for the parent ("sc-domain:example.com") is also
- * considered a valid match — Domain properties cover everything below.
+ * We deliberately do NOT auto-widen a subdomain to its parent registrable
+ * domain (e.g. "shop.example.com" → "sc-domain:example.com"). A parent
+ * Domain property is shared by every sibling subdomain, so auto-matching it
+ * leaks one website's Search Console data onto unrelated websites. If an
+ * operator genuinely wants a subdomain site to read from the parent Domain
+ * property, they express that explicitly by adding the parent hostname
+ * (e.g. "example.com") as an alias in the `website_domain` table — which
+ * produces the "sc-domain:example.com" candidate here.
  *
- * Returns the first match found, or null if the website has no GSC
- * property bound on any platform.
+ * Returns the most specific match found, or null if the website has no GSC
+ * property bound to any of its domains on any platform.
  */
 export type SearchConsoleBinding = {
   binding_id: string
   platform_id: string
   resource_id: string // the site_url as stored on the binding
-  matched_via: "url_prefix" | "url_prefix_www" | "sc_domain" | "sc_domain_parent"
+  matched_via: "url_prefix" | "url_prefix_www" | "sc_domain"
 }
 
 export async function resolveSearchConsoleBindingForWebsite(
@@ -47,8 +54,22 @@ export async function resolveSearchConsoleBindingForWebsite(
     return { website: null, binding: null, candidates: [] }
   }
 
-  const domain = String(website.domain || "").trim().toLowerCase()
-  if (!domain) {
+  const primaryDomain = String(website.domain || "").trim().toLowerCase()
+
+  // Gather the website's own identity: primary domain + every alias
+  // registered against it in the website_domain table.
+  const aliasRows = await websiteService
+    .listWebsiteDomains({ website_id: websiteId })
+    .catch(() => [] as any[])
+
+  const hostnames = new Set<string>()
+  if (primaryDomain) hostnames.add(primaryDomain)
+  for (const row of aliasRows || []) {
+    const d = String(row?.domain || "").trim().toLowerCase()
+    if (d) hostnames.add(d)
+  }
+
+  if (hostnames.size === 0) {
     return {
       website: { id: website.id, domain: "", name: website.name || "" },
       binding: null,
@@ -56,7 +77,15 @@ export async function resolveSearchConsoleBindingForWebsite(
     }
   }
 
-  const candidates = buildSearchConsoleCandidates(domain)
+  // Build candidates for every hostname, ordered by specificity. Dedupe by
+  // value while keeping the most specific `kind` for each site_url.
+  const candidateMap = new Map<string, Candidate>()
+  for (const host of hostnames) {
+    for (const c of buildSearchConsoleCandidates(host)) {
+      if (!candidateMap.has(c.value)) candidateMap.set(c.value, c)
+    }
+  }
+  const candidates = [...candidateMap.values()]
 
   // Single query — any of the candidate site_urls. We don't filter by
   // platform_id because we don't know which platform the operator bound
@@ -68,24 +97,36 @@ export async function resolveSearchConsoleBindingForWebsite(
 
   if (!bindings?.length) {
     return {
-      website: { id: website.id, domain, name: website.name || "" },
+      website: { id: website.id, domain: primaryDomain, name: website.name || "" },
       binding: null,
       candidates: candidates.map((c) => c.value),
     }
   }
 
   // Pick the most specific match. URL-prefix is more specific than
-  // sc-domain (which can cover unrelated subdomains too).
+  // sc-domain (which can cover unrelated subdomains too). `candidates` is
+  // already ordered specificity-first, so the first candidate that has a
+  // binding wins. We only ever match on this website's own domains/aliases,
+  // so there is no cross-website fallback.
   const ordered = candidates
-    .map((c) => bindings.find((b: any) => b.resource_id === c.value && c))
+    .map((c) => bindings.find((b: any) => b.resource_id === c.value))
     .filter(Boolean) as any[]
-  const winner = ordered[0] || bindings[0]
+  const winner = ordered[0]
+
+  if (!winner) {
+    return {
+      website: { id: website.id, domain: primaryDomain, name: website.name || "" },
+      binding: null,
+      candidates: candidates.map((c) => c.value),
+    }
+  }
+
   const matchedCandidate = candidates.find(
     (c) => c.value === winner.resource_id
   )
 
   return {
-    website: { id: website.id, domain, name: website.name || "" },
+    website: { id: website.id, domain: primaryDomain, name: website.name || "" },
     binding: {
       binding_id: winner.id,
       platform_id: winner.platform_id,
@@ -103,9 +144,14 @@ type Candidate = {
 
 /**
  * Generate the plausible Search Console site_url forms for a given bare
- * domain. Ordered by specificity — exact URL-prefix first, parent-domain
- * fallback last. The matcher returns the first hit, so this order is
+ * domain. Ordered by specificity — exact URL-prefix first, sc-domain on the
+ * exact hostname last. The matcher returns the first hit, so this order is
  * load-bearing.
+ *
+ * Note: this generates candidates for the *exact* hostname only. Parent
+ * registrable domains are intentionally not derived here — see the note on
+ * `resolveSearchConsoleBindingForWebsite`. Aliases opt into parent Domain
+ * properties explicitly.
  */
 export function buildSearchConsoleCandidates(domain: string): Candidate[] {
   const d = domain.replace(/^https?:\/\//, "").replace(/\/$/, "")
@@ -120,16 +166,8 @@ export function buildSearchConsoleCandidates(domain: string): Candidate[] {
     out.push({ value: `http://www.${d}/`, kind: "url_prefix_www" })
   }
 
-  // sc-domain on the exact hostname
+  // sc-domain on the exact hostname (covers subdomains *below* this host).
   out.push({ value: `sc-domain:${d}`, kind: "sc_domain" })
-
-  // sc-domain on the parent — e.g. shop.example.com → sc-domain:example.com.
-  // Stop at the second-level domain to avoid matching on TLDs.
-  const parts = d.split(".")
-  if (parts.length > 2) {
-    const parent = parts.slice(-2).join(".")
-    out.push({ value: `sc-domain:${parent}`, kind: "sc_domain_parent" })
-  }
 
   return out
 }
