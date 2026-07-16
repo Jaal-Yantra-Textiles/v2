@@ -13,6 +13,7 @@ import {
   OpenRectArrowOut,
   PencilSquare,
   ShoppingCart,
+  Sparkles,
   Tag,
   TimelineVertical,
   Users,
@@ -208,6 +209,7 @@ const useCoreRoutes = (
   if (workspaceType === "designer") {
     return [
       { icon: <House />, label: t("app.nav.main.home"), to: "/" },
+      { icon: <Sparkles />, label: t("app.nav.main.assistant"), to: "/assistant" },
       {
         icon: <PencilSquare />,
         label: t("app.nav.main.designs"),
@@ -255,6 +257,7 @@ const useCoreRoutes = (
   if (workspaceType === "seller") {
     return [
       { icon: <House />, label: t("app.nav.main.home"), to: "/" },
+      { icon: <Sparkles />, label: t("app.nav.main.assistant"), to: "/assistant" },
       { icon: <FolderOpen />, label: t("app.nav.main.sharedFolders"), to: "/shared-folders" },
       {
         icon: <Tag />,
@@ -297,6 +300,7 @@ const useCoreRoutes = (
   if (workspaceType === "individual") {
     return [
       { icon: <House />, label: t("app.nav.main.home"), to: "/" },
+      { icon: <Sparkles />, label: t("app.nav.main.assistant"), to: "/assistant" },
       { icon: <TimelineVertical />, label: t("app.nav.main.tasks"), to: "/tasks" },
       { icon: <FolderOpen />, label: t("app.nav.main.sharedFolders"), to: "/shared-folders" },
       { icon: <CurrencyDollar />, label: t("app.nav.main.paymentSubmissions"), to: "/payment-submissions" },
@@ -305,6 +309,7 @@ const useCoreRoutes = (
 
   return [
     { icon: <House />, label: t("app.nav.main.home"), to: "/" },
+    { icon: <Sparkles />, label: t("app.nav.main.assistant"), to: "/assistant" },
     {
       icon: <ShoppingCart />,
       label: t("app.nav.main.orders"),

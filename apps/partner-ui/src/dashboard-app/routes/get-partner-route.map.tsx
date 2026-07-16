@@ -61,6 +61,15 @@ export function getPartnerRouteMap(): RouteObject[] {
               ],
             },
             {
+              // #338 item 2 — partner assistant (chat + server-persisted history).
+              path: "/assistant",
+              errorElement: <ErrorBoundary />,
+              handle: {
+                breadcrumb: () => "Assistant",
+              },
+              lazy: () => import("../../routes/assistant"),
+            },
+            {
               path: "/create-store",
               errorElement: <ErrorBoundary />,
               handle: {

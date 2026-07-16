@@ -181,6 +181,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/partner-ui-prefs",
     },
     {
+      resolve: "./src/modules/partner-assistant",
+    },
+    {
       resolve: "./src/modules/artisan-product-detail",
     },
     {

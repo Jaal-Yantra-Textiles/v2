@@ -119,6 +119,8 @@ import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]
 import { subscriptionSchema } from "./web/website/[domain]/validators";
 import { websiteThemeSchema } from "./partners/storefront/website/theme/validators";
 import { ThemeChatSchema } from "./partners/storefront/website/theme/chat/validators";
+import { PartnerAssistantChatSchema } from "./partners/assistant/chat/validators";
+import { CreateConversationSchema as PartnerCreateConversationSchema, UpdateConversationSchema as PartnerUpdateConversationSchema } from "./partners/assistant/conversations/validators";
 import { createPlanSchema, updatePlanSchema, createSubscriptionSchema } from "./admin/partner-plans/validators";
 import { subscribeSchema as partnerSubscribeSchema } from "./partners/subscription/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
@@ -2165,6 +2167,71 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(ThemeChatSchema)),
+      ],
+    },
+    // Partner Portal Assistant — streaming chat (drives the Partner API via the
+    // MCP tool registry: onboarding, persona, layout, reads).
+    {
+      matcher: "/partners/assistant/chat",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerAssistantChatSchema)),
+      ],
+    },
+    // Partner MCP — JSON-RPC endpoint exposing the Partner API as tools. Body is
+    // JSON-RPC (validated by the MCP transport), so no body validator here.
+    {
+      matcher: "/partners/mcp",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner assistant conversation history (#338 item 2) — server-persisted
+    // chat threads, partner-scoped. Collection then single-resource.
+    {
+      matcher: "/partners/assistant/conversations",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/assistant/conversations",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerCreateConversationSchema)),
+      ],
+    },
+    {
+      matcher: "/partners/assistant/conversations/:id",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/assistant/conversations/:id",
+      method: "PATCH",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerUpdateConversationSchema)),
+      ],
+    },
+    {
+      matcher: "/partners/assistant/conversations/:id",
+      method: "DELETE",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
       ],
     },
     // Partner Subscription

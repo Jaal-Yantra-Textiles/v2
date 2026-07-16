@@ -74,6 +74,11 @@ export type AiRole =
   // auto-rotating OpenRouter free models. The model emits scoped theme
   // patches via a tool — see safe-patch-schema.ts for the token allowlist.
   | "ai_theme_editor"
+  // Partner-portal assistant chat (#338/#339 sibling). Resolves the assistant
+  // provider from the admin-configured External Platform; falls back to the
+  // auto-rotating OpenRouter free models. The model drives the Partner API via
+  // a tool registry — see api/partners/mcp/lib/registry.ts.
+  | "ai_partner_assistant"
   // String escape hatch so callers can use ad-hoc roles without
   // bumping this union every time.
   | (string & {})
@@ -714,4 +719,5 @@ export const AI_ROLES: AiRole[] = [
   "ai_newsletter_drafter",
   "ai_image_extraction",
   "ai_redesign",
+  "ai_partner_assistant",
 ]
