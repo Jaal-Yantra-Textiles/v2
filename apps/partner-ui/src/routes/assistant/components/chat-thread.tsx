@@ -23,6 +23,8 @@ import {
   type StoredMessage,
 } from "../../../hooks/api/assistant-conversations"
 import { runPartnerMcpTool } from "../../../lib/assistant-mcp"
+import { Markdown } from "./markdown"
+import { ToolData } from "./tool-data"
 
 const jwtTokenStorageKey = __JWT_TOKEN_STORAGE_KEY__ || "partner_ui_auth_token"
 
@@ -248,11 +250,9 @@ function MessageRow({ message: m }: { message: any }) {
           return (
             <div
               key={i}
-              className="bg-ui-bg-subtle rounded-lg rounded-bl-sm px-3 py-2 max-w-[92%]"
+              className="bg-ui-bg-subtle rounded-lg rounded-bl-sm px-3 py-2 max-w-[95%]"
             >
-              <Text size="small" className="whitespace-pre-wrap">
-                {part.text}
-              </Text>
+              <Markdown content={part.text} />
             </div>
           )
         }
@@ -406,18 +406,19 @@ function ToolCard({
     )
   }
 
-  // Executed (or a dry-run preview / read result) — compact status line.
+  // Executed (or a dry-run preview / read result) — status line + any data.
   const ok = out?.ok !== false
+  const hasData = ok && out?.data != null && !out?.dry_run
   return (
-    <div className="border border-ui-border-base rounded-lg px-3 py-2 bg-ui-bg-base space-y-1">
+    <div className="border border-ui-border-base rounded-lg px-3 py-2 bg-ui-bg-base space-y-2">
       <div className="flex items-center gap-x-1.5">
         {ok ? (
           <Check className="text-ui-tag-green-icon" />
         ) : (
           <ExclamationCircle className="text-ui-tag-red-icon" />
         )}
-        <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">
-          {out?.dry_run ? "Preview" : ok ? "Ran" : "Failed"}: {label}
+        <Text size="xsmall" weight="plus" className="text-ui-fg-subtle capitalize">
+          {out?.dry_run ? "Preview" : ok ? label : `Failed: ${label}`}
         </Text>
       </div>
       {out?.error && (
@@ -426,6 +427,7 @@ function ToolCard({
         </Text>
       )}
       {out?.dry_run && <PlanSummary plan={out.plan} />}
+      {hasData && <ToolData data={out.data} />}
     </div>
   )
 }
