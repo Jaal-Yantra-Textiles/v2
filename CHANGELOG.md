@@ -1,3 +1,19 @@
+# [13.57.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.56.0...v13.57.0) (2026-07-16)
+
+
+### Bug Fixes
+
+* **backend:** prod-build TS2769 in partner-assistant + partner-ui-prefs services ([202d960](https://github.com/Jaal-Yantra-Textiles/v2/commit/202d9606839d331c666616445bf8466953701c05)), closes [#338](https://github.com/Jaal-Yantra-Textiles/v2/issues/338)
+* **census:** resolve single weaver by census_id in /web/census/weavers ([#1031](https://github.com/Jaal-Yantra-Textiles/v2/issues/1031)) ([3e2d453](https://github.com/Jaal-Yantra-Textiles/v2/commit/3e2d453cd5a21bc40756d910b0a388942225e561))
+
+
+### Features
+
+* **partner:** AI assistant with server-persisted chat history + Partner MCP ([#338](https://github.com/Jaal-Yantra-Textiles/v2/issues/338)) ([1179686](https://github.com/Jaal-Yantra-Textiles/v2/commit/1179686714d0ef7324173cd69adf3af279e357e7))
+* **census:** auto-repair data-integrity audit ([#1031](https://github.com/Jaal-Yantra-Textiles/v2/issues/1031)) ([e4a86ff](https://github.com/Jaal-Yantra-Textiles/v2/commit/e4a86ffc3efb56c1adb2b5188b14e292a77a5ab7))
+* **census:** million-scale weaver traversal via secondary index ([#1031](https://github.com/Jaal-Yantra-Textiles/v2/issues/1031)) ([e2957e7](https://github.com/Jaal-Yantra-Textiles/v2/commit/e2957e70778a787f8a09ed952d0233a35852d7e0))
+* **partner:** render assistant replies as markdown + data tables ([#338](https://github.com/Jaal-Yantra-Textiles/v2/issues/338)) ([c1a14b7](https://github.com/Jaal-Yantra-Textiles/v2/commit/c1a14b7f31cf7718c585bace3f496f75aa35d6dd))
+
 # [13.56.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.55.0...v13.56.0) (2026-07-15)
 
 
