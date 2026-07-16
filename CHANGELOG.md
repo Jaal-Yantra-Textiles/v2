@@ -1,3 +1,15 @@
+# [13.58.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.57.0...v13.58.0) (2026-07-16)
+
+
+### Bug Fixes
+
+* **analytics:** website analytics filter popover + GSC search discovery scoping ([cbe40b6](https://github.com/Jaal-Yantra-Textiles/v2/commit/cbe40b634372808ef2707c5e17c350eeeb719bb8))
+
+
+### Features
+
+* **analytics:** list all matching GSC properties per website domain ([9e16579](https://github.com/Jaal-Yantra-Textiles/v2/commit/9e1657974d82281af1ca38b4eaf7c2dbddc093ad))
+
 # [13.57.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.56.0...v13.57.0) (2026-07-16)
 
 
