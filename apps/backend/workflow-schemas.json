@@ -3834,6 +3834,24 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/investor/create-investor-admin.ts"
   },
+  "reset-investor-admin-password": {
+    "fields": [
+      {
+        "name": "authIdentityId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.authIdentityId }}"
+      },
+      {
+        "name": "tempPassword",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.tempPassword }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/investor/create-investor-admin.ts"
+  },
   "create-investor-admin-with-registration": {
     "fields": [
       {
@@ -3851,6 +3869,103 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/investor/create-investor-admin.ts"
+  },
+  "generate-investor-agreement": {
+    "fields": [
+      {
+        "name": "investor_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.investor_id }}"
+      },
+      {
+        "name": "funding_round_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.funding_round_id }}"
+      },
+      {
+        "name": "cap_table_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.cap_table_id }}"
+      },
+      {
+        "name": "instrument_group",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.instrument_group }}"
+      },
+      {
+        "name": "instrument_label",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.instrument_label }}",
+        "description": "Human label surfaced in the email/agreement (e.g. \"SAFE\")."
+      },
+      {
+        "name": "amount",
+        "type": "number",
+        "required": true,
+        "placeholder": "0"
+      },
+      {
+        "name": "currency_code",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.currency_code }}"
+      },
+      {
+        "name": "number_of_shares",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.number_of_shares }}"
+      },
+      {
+        "name": "share_price",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.share_price }}"
+      },
+      {
+        "name": "principal",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.principal }}"
+      },
+      {
+        "name": "valuation_cap",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.valuation_cap }}"
+      },
+      {
+        "name": "discount_rate",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.discount_rate }}"
+      },
+      {
+        "name": "safe_type",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.safe_type }}"
+      },
+      {
+        "name": "stake_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.stake_id }}"
+      },
+      {
+        "name": "convertible_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.convertible_id }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/investor/generate-investor-agreement.ts"
   },
   "generate-ideas-email": {
     "fields": [
@@ -5878,6 +5993,42 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/products/link-unlink-products-with-people.ts"
   },
+  "upsert-artisan-product-detail": {
+    "fields": [
+      {
+        "name": "made_to_order",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false"
+      },
+      {
+        "name": "lead_time_days",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.lead_time_days }}"
+      },
+      {
+        "name": "lead_time_label",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.lead_time_label }}"
+      },
+      {
+        "name": "min_order_quantity",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.min_order_quantity }}"
+      },
+      {
+        "name": "maker_story",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.maker_story }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/products/upsert-artisan-product-detail.ts"
+  },
   "create-raw-material": {
     "fields": [
       {
@@ -6693,6 +6844,13 @@
         "type": "string",
         "required": true,
         "placeholder": "{{ $last.s3_pathname }}"
+      },
+      {
+        "name": "preferred_provider",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.preferred_provider }}",
+        "description": "Preferred hosting provider for this NEW storefront. Defaults to DEFAULT_HOSTING_PROVIDER env (or \"cloudflare\"). The selector rotates across that provider's accounts, spills to other providers, then falls back to the legacy env-single-account path."
       }
     ],
     "source": "custom_ts",
