@@ -154,7 +154,7 @@
     "imagetracerjs": "^1.2.6",
     "imapflow": "^1.2.10",
     "isolated-vm": "^6.1.2",
-    "js-yaml": "^4.1.1",
+    "js-yaml": "^4.2.0",
     "json-edit-react": "^1.27.2",
     "jszip": "^3.10.1",
     "leaflet": "^1.9.4",
