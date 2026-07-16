@@ -41,6 +41,13 @@ export async function resolveSearchConsoleBindingForWebsite(
 ): Promise<{
   website: { id: string; domain: string; name: string } | null
   binding: SearchConsoleBinding | null
+  /**
+   * Every GSC property that matches this website's domain or aliases,
+   * ordered most-specific-first. `binding` is `bindings[0]`. Callers that
+   * only need the primary property can keep using `binding`; the console UI
+   * uses this to list all available properties for the domain.
+   */
+  bindings: SearchConsoleBinding[]
   candidates: string[]
 }> {
   const websiteService = scope.resolve(WEBSITE_MODULE) as any
@@ -51,7 +58,7 @@ export async function resolveSearchConsoleBindingForWebsite(
     { take: 1 }
   )
   if (!website) {
-    return { website: null, binding: null, candidates: [] }
+    return { website: null, binding: null, bindings: [], candidates: [] }
   }
 
   const primaryDomain = String(website.domain || "").trim().toLowerCase()
@@ -73,6 +80,7 @@ export async function resolveSearchConsoleBindingForWebsite(
     return {
       website: { id: website.id, domain: "", name: website.name || "" },
       binding: null,
+      bindings: [],
       candidates: [],
     }
   }
@@ -99,40 +107,35 @@ export async function resolveSearchConsoleBindingForWebsite(
     return {
       website: { id: website.id, domain: primaryDomain, name: website.name || "" },
       binding: null,
+      bindings: [],
       candidates: candidates.map((c) => c.value),
     }
   }
 
-  // Pick the most specific match. URL-prefix is more specific than
-  // sc-domain (which can cover unrelated subdomains too). `candidates` is
-  // already ordered specificity-first, so the first candidate that has a
-  // binding wins. We only ever match on this website's own domains/aliases,
-  // so there is no cross-website fallback.
-  const ordered = candidates
-    .map((c) => bindings.find((b: any) => b.resource_id === c.value))
-    .filter(Boolean) as any[]
-  const winner = ordered[0]
-
-  if (!winner) {
-    return {
-      website: { id: website.id, domain: primaryDomain, name: website.name || "" },
-      binding: null,
-      candidates: candidates.map((c) => c.value),
+  // Resolve every matching property, ordered most-specific-first. URL-prefix
+  // is more specific than sc-domain (which can cover unrelated subdomains
+  // too); `candidates` is already ordered specificity-first, so walking it in
+  // order yields the properties in that order. We only ever match on this
+  // website's own domains/aliases, so there is no cross-website fallback.
+  const matched: SearchConsoleBinding[] = []
+  const seen = new Set<string>()
+  for (const c of candidates) {
+    const b = bindings.find((x: any) => x.resource_id === c.value)
+    if (b && !seen.has(b.id)) {
+      seen.add(b.id)
+      matched.push({
+        binding_id: b.id,
+        platform_id: b.platform_id,
+        resource_id: b.resource_id,
+        matched_via: c.kind,
+      })
     }
   }
-
-  const matchedCandidate = candidates.find(
-    (c) => c.value === winner.resource_id
-  )
 
   return {
     website: { id: website.id, domain: primaryDomain, name: website.name || "" },
-    binding: {
-      binding_id: winner.id,
-      platform_id: winner.platform_id,
-      resource_id: winner.resource_id,
-      matched_via: matchedCandidate?.kind || "url_prefix",
-    },
+    binding: matched[0] || null,
+    bindings: matched,
     candidates: candidates.map((c) => c.value),
   }
 }
