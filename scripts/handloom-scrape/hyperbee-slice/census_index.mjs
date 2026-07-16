@@ -107,7 +107,11 @@ export async function backfillIndex(bee, { subKey, decode, batchSize = 5000, log
 }
 
 // ── self-test: verify emission + backfill + range query on a scratch Hyperbee ──
-if (process.argv.includes("--test")) {
+// Guard on being the MAIN module — else this fires whenever an importer (e.g.
+// apply_repairs) is run with --test.
+const { fileURLToPath: _f } = await import("node:url")
+const _isMain = process.argv[1] && _f(import.meta.url) === process.argv[1]
+if (_isMain && process.argv.includes("--test")) {
   const { default: Corestore } = await import("corestore")
   const { default: Hyperbee } = await import("hyperbee")
   const b4a = (await import("b4a")).default
