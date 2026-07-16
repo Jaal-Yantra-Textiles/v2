@@ -27,6 +27,19 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const q = req.query as Record<string, string | undefined>
+
+  // Single-record lookup by census_id. Handled explicitly (not via the filter
+  // scan below) so it resolves the exact record through the keyed `rec/<id>`
+  // get — passing it as an un-whitelisted filter would be dropped, silently
+  // returning page-one of *all* weavers instead of the requested record.
+  if (q.census_id !== undefined && q.census_id !== "") {
+    const weaver = await census.retrieveWeaver(q.census_id)
+    if (!weaver) {
+      return res.status(404).json({ message: `no census weaver with id ${q.census_id}` })
+    }
+    return res.json({ weaver })
+  }
+
   const filters: WeaverFilters = {}
   for (const f of FILTERABLE) {
     if (q[f] !== undefined && q[f] !== "") filters[f] = q[f] as string
