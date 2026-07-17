@@ -163,6 +163,31 @@ describe("partner-mcp registry + dispatch", () => {
       expect(isSensitive(byName("update_storefront_page"))).toBe(false)
       expect(byName("update_storefront_page").write).toBe(true)
     })
+
+    it("covers store config (Tier 3) under /partners/stores/:id", () => {
+      const names = new Set(PARTNER_MCP_TOOLS.map((t) => t.name))
+      for (const n of [
+        "get_store", "update_store", "list_store_regions", "get_store_region",
+        "add_store_region", "update_store_region", "delete_store_region",
+        "list_store_products", "get_store_product", "add_store_product",
+        "update_store_product", "delete_store_product",
+        "list_store_product_variants", "list_store_shipping_options",
+        "add_store_shipping_option", "list_store_tax_regions",
+        "add_store_tax_region", "list_store_sales_channels",
+        "add_store_sales_channel", "list_store_locations",
+        "add_store_location", "list_store_payment_providers",
+      ]) {
+        expect(names.has(n)).toBe(true)
+      }
+      const byName = (n: string) => PARTNER_MCP_TOOLS.find((t) => t.name === n)!
+      // Deletes are implicitly sensitive (DELETE) — explicit assertions.
+      expect(isSensitive(byName("delete_store_region"))).toBe(true)
+      expect(isSensitive(byName("delete_store_product"))).toBe(true)
+      // Routine store updates are plain writes with a previewPath.
+      expect(isSensitive(byName("update_store"))).toBe(false)
+      expect(byName("update_store").previewPath).toBe("/partners/stores/:id")
+      expect(byName("update_store_region").write).toBe(true)
+    })
   })
 
   it("returns a soft error for an unknown tool", async () => {
