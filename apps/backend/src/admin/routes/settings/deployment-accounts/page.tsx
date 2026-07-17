@@ -68,6 +68,7 @@ function providerConfigFields(provider: DeploymentProvider): FieldDef[] {
       return [
         { key: "account_id", label: "Cloudflare Account ID", required: true },
         { key: "zone_id", label: "DNS Zone ID", help: "Optional — for the platform DNS zone." },
+        { key: "shared_worker_name", label: "Shared Worker Name", help: "Set to provision partners in SHARED mode — attach their domain to this one pre-deployed multi-tenant Worker (e.g. nextjs-starter-medusa) instead of a per-partner deploy." },
       ]
     case "netlify":
       return [
@@ -80,9 +81,15 @@ function providerConfigFields(provider: DeploymentProvider): FieldDef[] {
         { key: "owner_id", label: "Render Owner ID", required: true, help: "From GET /v1/owners." },
         { key: "region", label: "Region", help: "Default: oregon." },
         { key: "plan", label: "Plan", help: "Default: starter." },
+        { key: "shared_project_id", label: "Shared Service ID", help: "Set to provision partners in SHARED mode onto this one pre-deployed service." },
+        { key: "shared_project_name", label: "Shared Service Name", help: "Optional display name for the shared service." },
       ]
     case "vercel":
-      return [{ key: "team_id", label: "Vercel Team ID", help: "Optional — personal accounts omit it." }]
+      return [
+        { key: "team_id", label: "Vercel Team ID", help: "Optional — personal accounts omit it." },
+        { key: "shared_project_id", label: "Shared Project ID", help: "Set to provision partners in SHARED mode — attach their domain to this one pre-deployed multi-tenant project instead of a per-partner deploy." },
+        { key: "shared_project_name", label: "Shared Project Name", help: "Optional display name for the shared project (e.g. storefront-shared)." },
+      ]
     default:
       return []
   }

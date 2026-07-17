@@ -28,6 +28,14 @@ const providerConfigFields = {
   owner_id: z.string().optional(),
   region: z.string().optional(),
   plan: z.string().optional(),
+  // Shared multi-tenant target: when set, this account provisions in "shared"
+  // mode — a new partner attaches its domain to this ONE pre-deployed project
+  // instead of getting its own deploy (see resolveProvisioningMode).
+  //   - Vercel/Render: shared_project_id (+ optional shared_project_name)
+  //   - Cloudflare Workers: shared_worker_name (the worker addresses by name)
+  shared_project_id: z.string().optional(),
+  shared_project_name: z.string().optional(),
+  shared_worker_name: z.string().optional(),
 }
 
 export const CreateDeploymentAccountSchema = z
@@ -81,4 +89,7 @@ export const API_CONFIG_KEYS = [
   "owner_id",
   "region",
   "plan",
+  "shared_project_id",
+  "shared_project_name",
+  "shared_worker_name",
 ] as const
