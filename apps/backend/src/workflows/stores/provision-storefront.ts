@@ -9,8 +9,10 @@ import { DEPLOYMENT_MODULE } from "../../modules/deployment"
 import type DeploymentService from "../../modules/deployment/service"
 import {
   decideProvisionTarget,
+  resolveProvisioningMode,
   type DeploymentAccountRow,
   type DeploymentProvider,
+  type ProvisioningMode,
 } from "../../modules/deployment/account-selector"
 import { buildHostingProvider } from "../../modules/deployment/providers/resolve-partner-provider"
 import type { HostingProviderName } from "../../modules/deployment/providers/types"
@@ -94,7 +96,26 @@ const selectHostingTargetStep = createStep(
     }
 
     const accountId = target.kind === "account" ? target.accountId : null
-    return new StepResponse({ providerName: target.provider, accountId })
+
+    // Decide shared (attach-domain-only) vs dedicated (own deploy). Shared kicks
+    // in only when a shared project id is configured on the chosen account's
+    // api_config or via a <PROVIDER>_SHARED_PROJECT_ID env — so this is a no-op
+    // until we actually stand up a shared multi-tenant project.
+    const chosenAccount = accountId
+      ? (accounts || []).find((a) => a.id === accountId)
+      : undefined
+    const { mode, sharedProjectId, sharedProjectName } = resolveProvisioningMode(
+      target.provider,
+      { apiConfig: chosenAccount?.api_config, env: process.env }
+    )
+
+    return new StepResponse({
+      providerName: target.provider,
+      accountId,
+      mode,
+      sharedProjectId,
+      sharedProjectName,
+    })
   }
 )
 
@@ -109,9 +130,27 @@ const createProjectStep = createStep(
       storefrontRepo: string
       rootDirectory?: string
       branch?: string
+      mode: ProvisioningMode
+      sharedProjectId: string | null
+      sharedProjectName: string | null
     },
     { container }
   ) => {
+    // Shared mode: the multi-tenant project is already deployed and owned by us —
+    // provisioning a partner is just attaching their domain later. Return the
+    // shared project ref WITHOUT creating/deploying anything, and register NO
+    // compensation (never tear the shared project down).
+    if (input.mode === "shared" && input.sharedProjectId) {
+      return new StepResponse(
+        {
+          id: input.sharedProjectId,
+          name: input.sharedProjectName || input.sharedProjectId,
+          originHost: null,
+        },
+        null
+      )
+    }
+
     const provider = await buildHostingProvider(
       input.providerName,
       input.accountId,
@@ -176,9 +215,18 @@ const setEnvVarsStep = createStep(
       stripeKey: string
       s3Hostname: string
       s3Pathname: string
+      mode: ProvisioningMode
     },
     { container }
   ) => {
+    // Shared mode: the one shared deploy carries NEXT_PUBLIC_MULTI_TENANT + the
+    // backend URL already; the per-tenant publishable key is resolved at runtime
+    // (/web/storefront/resolve). Nothing per-partner to set — and re-uploading
+    // env vars would clobber the shared project's config.
+    if (input.mode === "shared") {
+      return new StepResponse({ success: true })
+    }
+
     const provider = await buildHostingProvider(
       input.providerName,
       input.accountId,
@@ -363,9 +411,21 @@ const triggerDeploymentStep = createStep(
       projectName: string
       storefrontRepo: string
       branch?: string
+      mode: ProvisioningMode
     },
     { container }
   ) => {
+    // Shared mode: WE deploy the shared multi-tenant project from our own CI —
+    // never per partner. Attaching the domain (addDomainStep) is all that's
+    // needed for the tenant to render.
+    if (input.mode === "shared") {
+      return new StepResponse({
+        id: "shared",
+        url: "",
+        status: "shared",
+      })
+    }
+
     const provider = await buildHostingProvider(
       input.providerName,
       input.accountId,
@@ -457,10 +517,13 @@ const saveStorefrontMetadataStep = createStep(
 const incrementAccountCountStep = createStep(
   "increment-account-count",
   async (
-    input: { accountId: string | null },
+    input: { accountId: string | null; mode: ProvisioningMode },
     { container }
   ) => {
     if (!input.accountId) return new StepResponse({ incremented: false }, null)
+    // Shared mode adds no new project to the account — one shared project holds
+    // unlimited tenant domains — so it doesn't consume a rotation/cutoff slot.
+    if (input.mode === "shared") return new StepResponse({ incremented: false }, null)
     const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
     const account = await deployment.retrieveDeploymentAccount(input.accountId)
     const next = ((account as any)?.project_count ?? 0) + 1
@@ -564,7 +627,8 @@ export const provisionStorefrontWorkflow = createWorkflow(
       preferredProvider: input.preferred_provider,
     })
 
-    // Create the provider project (linked to the storefront repo).
+    // Create the provider project (linked to the storefront repo). In shared
+    // mode this is a no-op returning the shared project ref.
     const project = createProjectStep({
       providerName: target.providerName,
       accountId: target.accountId,
@@ -572,9 +636,12 @@ export const provisionStorefrontWorkflow = createWorkflow(
       storefrontRepo: input.storefront_repo,
       rootDirectory: input.storefront_root_dir,
       branch: input.storefront_branch,
+      mode: target.mode,
+      sharedProjectId: target.sharedProjectId,
+      sharedProjectName: target.sharedProjectName,
     })
 
-    // Env vars.
+    // Env vars (skipped in shared mode).
     setEnvVarsStep({
       providerName: target.providerName,
       accountId: target.accountId,
@@ -584,6 +651,7 @@ export const provisionStorefrontWorkflow = createWorkflow(
       stripeKey: input.stripe_publishable_key,
       s3Hostname: input.s3_hostname,
       s3Pathname: input.s3_pathname,
+      mode: target.mode,
     })
 
     // Custom domain.
@@ -611,7 +679,8 @@ export const provisionStorefrontWorkflow = createWorkflow(
       verification: domainResult.verification as any,
     })
 
-    // Trigger production deployment.
+    // Trigger production deployment (skipped in shared mode — we deploy the
+    // shared project from our own CI).
     const deployment = triggerDeploymentStep({
       providerName: target.providerName,
       accountId: target.accountId,
@@ -619,6 +688,7 @@ export const provisionStorefrontWorkflow = createWorkflow(
       projectName: project.name,
       storefrontRepo: input.storefront_repo,
       branch: input.storefront_branch,
+      mode: target.mode,
     })
 
     // Save partner storefront state (source of truth = columns).
@@ -636,8 +706,8 @@ export const provisionStorefrontWorkflow = createWorkflow(
       lastDeploymentId: deployment.id as unknown as string,
     })
 
-    // Bump the account's rotation load.
-    incrementAccountCountStep({ accountId: target.accountId })
+    // Bump the account's rotation load (skipped in shared mode — no new project).
+    incrementAccountCountStep({ accountId: target.accountId, mode: target.mode })
 
     return new WorkflowResponse({
       provider: target.providerName,
