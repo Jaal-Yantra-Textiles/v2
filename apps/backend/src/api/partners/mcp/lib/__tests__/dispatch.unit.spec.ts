@@ -188,6 +188,33 @@ describe("partner-mcp registry + dispatch", () => {
       expect(byName("update_store").previewPath).toBe("/partners/stores/:id")
       expect(byName("update_store_region").write).toBe(true)
     })
+
+    it("covers sensitive mutations (Tier 4): order/payment/task lifecycle", () => {
+      const names = new Set(PARTNER_MCP_TOOLS.map((t) => t.name))
+      for (const n of [
+        "list_order_changes", "get_fulfillment_tracking",
+        "list_assigned_tasks", "get_assigned_task",
+        "cancel_order", "transfer_order", "cancel_fulfillment",
+        "capture_payment", "refund_payment", "mark_payment_collection_paid",
+        "request_order_edit", "confirm_order_edit",
+        "accept_task", "finish_task",
+      ]) {
+        expect(names.has(n)).toBe(true)
+      }
+      const byName = (n: string) => PARTNER_MCP_TOOLS.find((t) => t.name === n)!
+      // Money/order-reversing ops must require confirmation.
+      expect(isSensitive(byName("cancel_order"))).toBe(true)
+      expect(isSensitive(byName("transfer_order"))).toBe(true)
+      expect(isSensitive(byName("cancel_fulfillment"))).toBe(true)
+      expect(isSensitive(byName("capture_payment"))).toBe(true)
+      expect(isSensitive(byName("refund_payment"))).toBe(true)
+      expect(isSensitive(byName("mark_payment_collection_paid"))).toBe(true)
+      expect(isSensitive(byName("confirm_order_edit"))).toBe(true)
+      expect(isSensitive(byName("accept_task"))).toBe(true)
+      // Opening an order edit / finishing a task are routine writes.
+      expect(isSensitive(byName("request_order_edit"))).toBe(false)
+      expect(isSensitive(byName("finish_task"))).toBe(false)
+    })
   })
 
   it("returns a soft error for an unknown tool", async () => {
