@@ -1510,4 +1510,184 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     pathParams: ["id"],
     inputSchema: obj({ id: STR("Store id.") }, ["id"]),
   },
+
+  // ===== Sensitive mutations + order/payment edits (Tier 4) ===================
+  // These touch live orders/payments. High-stakes ones are flagged `sensitive`
+  // → the dispatcher returns `requires_confirmation` so the chat surfaces an
+  // approval card rather than acting unilaterally.
+  {
+    name: "list_order_changes",
+    description: "List the pending order changes (edits/fulfillment/returns) for an order.",
+    method: "GET",
+    path: "/partners/orders/:id/changes",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Order id.") }, ["id"]),
+  },
+  {
+    name: "get_fulfillment_tracking",
+    description: "Get tracking numbers/links for an order's fulfillment.",
+    method: "GET",
+    path: "/partners/orders/:id/fulfillments/:fulfillmentId/tracking",
+    pathParams: ["id", "fulfillmentId"],
+    inputSchema: obj(
+      { id: STR("Order id."), fulfillmentId: STR("Fulfillment id.") },
+      ["id", "fulfillmentId"]
+    ),
+  },
+  {
+    name: "list_assigned_tasks",
+    description: "List the tasks assigned to the partner (paginated).",
+    method: "GET",
+    path: "/partners/assigned-tasks",
+    queryParams: ["limit", "offset", "status"],
+    inputSchema: obj({ ...PAGINATION, status: STR("Optional status filter.") }),
+  },
+  {
+    name: "get_assigned_task",
+    description: "Get a single assigned task by id (with subtasks + comments).",
+    method: "GET",
+    path: "/partners/assigned-tasks/:taskId",
+    pathParams: ["taskId"],
+    inputSchema: obj({ taskId: STR("Task id.") }, ["taskId"]),
+  },
+  {
+    name: "cancel_order",
+    description:
+      "Cancel a partner order. Sensitive — the order stops being fulfillable. Confirm with the partner first.",
+    method: "POST",
+    path: "/partners/orders/:id/cancel",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    previewPath: "/partners/orders/:id",
+    inputSchema: obj({ id: STR("Order id to cancel.") }, ["id"]),
+  },
+  {
+    name: "transfer_order",
+    description:
+      "Transfer an order's fulfillment to another location/partner. Sensitive — affects who fulfills the order. Body follows the route (e.g. location_id).",
+    method: "POST",
+    path: "/partners/orders/:id/transfer",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    previewPath: "/partners/orders/:id",
+    bodyParams: ["location_id", "metadata"],
+    inputSchema: obj(
+      {
+        id: STR("Order id to transfer."),
+        location_id: STR("Destination stock location id."),
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["id"]
+    ),
+  },
+  {
+    name: "cancel_fulfillment",
+    description:
+      "Cancel a fulfillment (un-ship it). Sensitive — reverses a shipment. Confirm with the partner first.",
+    method: "POST",
+    path: "/partners/orders/:id/fulfillments/:fulfillmentId/cancel",
+    pathParams: ["id", "fulfillmentId"],
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      { id: STR("Order id."), fulfillmentId: STR("Fulfillment id to cancel.") },
+      ["id", "fulfillmentId"]
+    ),
+  },
+  {
+    name: "capture_payment",
+    description:
+      "Capture an authorized payment. Sensitive — moves money. Confirm with the partner first. Optional body: { amount } for partial capture.",
+    method: "POST",
+    path: "/partners/payments/:id/capture",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["amount"],
+    inputSchema: obj(
+      { id: STR("Payment id, e.g. 'pay_...'."), amount: { type: "number", description: "Optional partial capture amount." } },
+      ["id"]
+    ),
+  },
+  {
+    name: "refund_payment",
+    description:
+      "Refund a payment (full or partial). Sensitive — returns money to the customer. Body follows the refund workflow (amount, reason_id, note, …).",
+    method: "POST",
+    path: "/partners/payments/:id/refund",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["amount", "reason_id", "note", "metadata"],
+    inputSchema: obj(
+      {
+        id: STR("Payment id to refund."),
+        amount: { type: "number", description: "Refund amount." },
+        reason_id: STR("Refund reason id (from list_refund_reasons)."),
+        note: STR("Optional internal note."),
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["id"]
+    ),
+  },
+  {
+    name: "mark_payment_collection_paid",
+    description:
+      "Mark a payment collection as paid (manual/offline payment). Sensitive — affects order/payment accounting.",
+    method: "POST",
+    path: "/partners/payment-collections/:id/mark-as-paid",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    inputSchema: obj({ id: STR("Payment collection id (paycol_...).") }, ["id"]),
+  },
+  {
+    name: "request_order_edit",
+    description:
+      "Begin an order edit (request changes to items/quantities/prices). Body follows the order-edit route (order_id, …). Write — opens the edit, doesn't apply it yet.",
+    method: "POST",
+    path: "/partners/order-edits",
+    write: true,
+    bodyParams: ["order_id", "metadata"],
+    inputSchema: obj(
+      {
+        order_id: STR("Order id to edit."),
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["order_id"]
+    ),
+  },
+  {
+    name: "confirm_order_edit",
+    description:
+      "Confirm/apply a pending order edit (applies the staged changes to the order). Sensitive — mutates the live order.",
+    method: "POST",
+    path: "/partners/order-edits/:id/confirm",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    inputSchema: obj({ id: STR("Order edit id to confirm.") }, ["id"]),
+  },
+  {
+    name: "accept_task",
+    description:
+      "Accept a task assigned to the partner. Sensitive — commits the partner to the work.",
+    method: "POST",
+    path: "/partners/tasks/:taskId/accept",
+    pathParams: ["taskId"],
+    write: true,
+    sensitive: true,
+    inputSchema: obj({ taskId: STR("Task id to accept.") }, ["taskId"]),
+  },
+  {
+    name: "finish_task",
+    description: "Mark an accepted task as finished.",
+    method: "POST",
+    path: "/partners/tasks/:taskId/finish",
+    pathParams: ["taskId"],
+    write: true,
+    inputSchema: obj({ taskId: STR("Task id to finish.") }, ["taskId"]),
+  },
 ]
