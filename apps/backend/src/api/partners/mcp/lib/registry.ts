@@ -1011,4 +1011,198 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     queryParams: ["q", "limit", "offset"],
     inputSchema: obj({ ...PAGINATION }),
   },
+
+  // ===== Storefront management (Tier 2): status, website, pages, domain ======
+  {
+    name: "get_storefront_status",
+    description:
+      "Get the partner's storefront status (provisioned? live? domain, website id, deployment project). Call to check whether the storefront exists before provision/redeploy.",
+    method: "GET",
+    path: "/partners/storefront",
+    inputSchema: obj({}),
+  },
+  {
+    name: "get_storefront_website",
+    description:
+      "Get the storefront website record (theme, config, blocks). The source of truth the storefront renders from.",
+    method: "GET",
+    path: "/partners/storefront/website",
+    inputSchema: obj({}),
+  },
+  {
+    name: "update_storefront_website",
+    description:
+      "Create or update the storefront website record (theme policy / website payload). Body follows the website route's validator. Write — persists the website config the storefront renders.",
+    method: "POST",
+    path: "/partners/storefront/website",
+    write: true,
+    previewPath: "/partners/storefront/website",
+    bodyParams: ["website", "theme", "metadata"],
+    inputSchema: obj(
+      {
+        website: { type: "object", description: "Website fields to upsert.", additionalProperties: true },
+        theme: { type: "object", description: "Theme policy payload.", additionalProperties: true },
+        metadata: { type: "object", additionalProperties: true },
+      }
+    ),
+  },
+  {
+    name: "get_storefront_analytics",
+    description: "Get storefront analytics (traffic / visits) for the partner's storefront.",
+    method: "GET",
+    path: "/partners/storefront/website/analytics",
+    queryParams: ["start", "end"],
+    inputSchema: obj({
+      start: STR("Optional ISO start date for the analytics window."),
+      end: STR("Optional ISO end date for the analytics window."),
+    }),
+  },
+  {
+    name: "update_storefront_analytics",
+    description: "Update storefront analytics settings/integration config (e.g. provider keys).",
+    method: "PUT",
+    path: "/partners/storefront/website/analytics",
+    write: true,
+    previewPath: "/partners/storefront/website/analytics",
+    bodyParams: ["config", "provider", "metadata"],
+    inputSchema: obj({
+      config: { type: "object", additionalProperties: true },
+      provider: STR("Analytics provider id, e.g. 'google' or 'plausible'."),
+      metadata: { type: "object", additionalProperties: true },
+    }),
+  },
+  {
+    name: "list_storefront_pages",
+    description:
+      "List the storefront's pages (home, about, product lists, …). Filter by q, status, page_type.",
+    method: "GET",
+    path: "/partners/storefront/pages",
+    queryParams: ["q", "status", "page_type", "limit", "offset"],
+    inputSchema: obj({
+      ...PAGINATION,
+      status: STR("Optional page status filter."),
+      page_type: STR("Optional page type filter, e.g. 'home', 'product', 'collection'."),
+    }),
+  },
+  {
+    name: "get_storefront_page",
+    description: "Get a single storefront page by id (with its blocks).",
+    method: "GET",
+    path: "/partners/storefront/pages/:pageId",
+    pathParams: ["pageId"],
+    inputSchema: obj({ pageId: STR("Page id.") }, ["pageId"]),
+  },
+  {
+    name: "list_storefront_page_blocks",
+    description: "List the content blocks of a storefront page.",
+    method: "GET",
+    path: "/partners/storefront/pages/:pageId/blocks",
+    pathParams: ["pageId"],
+    inputSchema: obj({ pageId: STR("Page id.") }, ["pageId"]),
+  },
+  {
+    name: "create_storefront_page",
+    description: "Create a storefront page (title, slug, page_type, status). The route validator is the source of truth.",
+    method: "POST",
+    path: "/partners/storefront/pages",
+    write: true,
+    bodyParams: ["title", "slug", "page_type", "status", "blocks", "metadata"],
+    inputSchema: obj(
+      {
+        title: STR("Page title."),
+        slug: STR("URL slug."),
+        page_type: STR("Page type, e.g. 'home'."),
+        status: STR("Optional status, e.g. 'published'."),
+        blocks: { type: "array", items: { type: "object", additionalProperties: true } },
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["title"]
+    ),
+  },
+  {
+    name: "update_storefront_page",
+    description: "Update a storefront page (title, slug, status, blocks). Pass only the fields to change.",
+    method: "PUT",
+    path: "/partners/storefront/pages/:pageId",
+    pathParams: ["pageId"],
+    write: true,
+    previewPath: "/partners/storefront/pages/:pageId",
+    bodyParams: ["title", "slug", "page_type", "status", "blocks", "metadata"],
+    inputSchema: obj(
+      {
+        pageId: STR("Page id to update."),
+        title: STR("Page title."),
+        slug: STR("URL slug."),
+        page_type: STR("Page type."),
+        status: STR("Status."),
+        blocks: { type: "array", items: { type: "object", additionalProperties: true } },
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["pageId"]
+    ),
+  },
+  {
+    name: "get_storefront_domain",
+    description: "Get the storefront's configured custom domain (if any).",
+    method: "GET",
+    path: "/partners/storefront/domain",
+    inputSchema: obj({}),
+  },
+  {
+    name: "update_storefront_domain",
+    description:
+      "Set or change the storefront's custom domain. Sensitive — affects the live storefront URL; the partner should confirm. Body: { domain }.",
+    method: "POST",
+    path: "/partners/storefront/domain",
+    write: true,
+    sensitive: true,
+    previewPath: "/partners/storefront/domain",
+    bodyParams: ["domain"],
+    inputSchema: obj(
+      { domain: STR("The custom domain to set, e.g. 'shop.example.com'.") },
+      ["domain"]
+    ),
+  },
+  {
+    name: "verify_storefront_domain",
+    description:
+      "Trigger DNS verification for the storefront's custom domain. Sensitive — re-runs verification against the configured domain.",
+    method: "POST",
+    path: "/partners/storefront/domain/verify",
+    write: true,
+    sensitive: true,
+    inputSchema: obj({}),
+  },
+  {
+    name: "provision_storefront",
+    description:
+      "Provision the partner's storefront (creates the website, seeds default pages, kicks off deployment). Sensitive — heavy, one-time setup. Run get_storefront_status first to check it isn't already provisioned.",
+    method: "POST",
+    path: "/partners/storefront/provision",
+    write: true,
+    sensitive: true,
+    previewPath: "/partners/storefront",
+    inputSchema: obj({}),
+  },
+  {
+    name: "redeploy_storefront",
+    description:
+      "Trigger a redeploy of the storefront (rebuild + publish). Sensitive — touches the live site. Use after content/theme changes need to go live.",
+    method: "POST",
+    path: "/partners/storefront/redeploy",
+    write: true,
+    sensitive: true,
+    previewPath: "/partners/storefront",
+    inputSchema: obj({}),
+  },
+  {
+    name: "seed_storefront_pages",
+    description:
+      "Seed/re-seed the storefront's default pages from the template set. Sensitive — overwrites default pages; confirm with the partner first.",
+    method: "POST",
+    path: "/partners/storefront/seed-pages",
+    write: true,
+    sensitive: true,
+    inputSchema: obj({}),
+  },
 ]
