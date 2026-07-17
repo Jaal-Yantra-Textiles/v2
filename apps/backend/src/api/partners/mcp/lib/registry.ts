@@ -1205,4 +1205,309 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     sensitive: true,
     inputSchema: obj({}),
   },
+
+  // ===== Store config (Tier 3): /partners/stores/:id setup surface ===========
+  // The store id is the :id param from list_stores / create_store. These let the
+  // assistant fully configure a store (regions, products, shipping, tax, sales
+  // channels, locations) during onboarding.
+  {
+    name: "get_store",
+    description: "Get a single store by id (config, default sales channel, region, location).",
+    method: "GET",
+    path: "/partners/stores/:id",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Store id, e.g. 'store_...'.") }, ["id"]),
+  },
+  {
+    name: "update_store",
+    description:
+      "Update a store (name, default_sales_channel_id, metadata, …). Pass only the fields to change.",
+    method: "POST",
+    path: "/partners/stores/:id",
+    pathParams: ["id"],
+    write: true,
+    previewPath: "/partners/stores/:id",
+    bodyParams: ["name", "default_sales_channel_id", "metadata", "supported_currencies"],
+    inputSchema: obj(
+      {
+        id: STR("Store id to update."),
+        name: STR("Store display name."),
+        default_sales_channel_id: STR("Default sales channel id."),
+        supported_currencies: { type: "array", items: { type: "object", additionalProperties: true } },
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["id"]
+    ),
+  },
+  {
+    name: "list_store_regions",
+    description: "List a store's regions (currency + countries).",
+    method: "GET",
+    path: "/partners/stores/:id/regions",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Store id.") }, ["id"]),
+  },
+  {
+    name: "get_store_region",
+    description: "Get a single region of a store by id.",
+    method: "GET",
+    path: "/partners/stores/:id/regions/:regionId",
+    pathParams: ["id", "regionId"],
+    inputSchema: obj(
+      { id: STR("Store id."), regionId: STR("Region id (reg_...).") },
+      ["id", "regionId"]
+    ),
+  },
+  {
+    name: "add_store_region",
+    description:
+      "Add a region to a store (name, currency_code, countries, optional payment_providers). Body follows the store-region route validator.",
+    method: "POST",
+    path: "/partners/stores/:id/regions",
+    pathParams: ["id"],
+    write: true,
+    bodyParams: ["name", "currency_code", "countries", "payment_providers", "metadata"],
+    inputSchema: obj(
+      {
+        id: STR("Store id."),
+        name: STR("Region name, e.g. 'India'."),
+        currency_code: STR("3-letter code, e.g. 'inr'."),
+        countries: { type: "array", description: "Lower-case ISO-2 codes, e.g. ['in'].", items: { type: "string" } },
+        payment_providers: { type: "array", items: { type: "string" } },
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["id", "name", "currency_code", "countries"]
+    ),
+  },
+  {
+    name: "update_store_region",
+    description: "Update a store region (name, currency, countries, providers). Pass only the fields to change.",
+    method: "POST",
+    path: "/partners/stores/:id/regions/:regionId",
+    pathParams: ["id", "regionId"],
+    write: true,
+    previewPath: "/partners/stores/:id/regions/:regionId",
+    bodyParams: ["name", "currency_code", "countries", "payment_providers", "metadata"],
+    inputSchema: obj(
+      {
+        id: STR("Store id."),
+        regionId: STR("Region id to update."),
+        name: STR("Region name."),
+        currency_code: STR("3-letter code."),
+        countries: { type: "array", items: { type: "string" } },
+        payment_providers: { type: "array", items: { type: "string" } },
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["id", "regionId"]
+    ),
+  },
+  {
+    name: "delete_store_region",
+    description: "Delete a region from a store. Sensitive (DELETE).",
+    method: "DELETE",
+    path: "/partners/stores/:id/regions/:regionId",
+    pathParams: ["id", "regionId"],
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      { id: STR("Store id."), regionId: STR("Region id to delete.") },
+      ["id", "regionId"]
+    ),
+  },
+  {
+    name: "list_store_products",
+    description: "List the products configured directly under a store (paginated).",
+    method: "GET",
+    path: "/partners/stores/:id/products",
+    pathParams: ["id"],
+    queryParams: ["q", "limit", "offset"],
+    inputSchema: obj({ id: STR("Store id.") }, ["id"]),
+  },
+  {
+    name: "get_store_product",
+    description: "Get a single product configured under a store by id.",
+    method: "GET",
+    path: "/partners/stores/:id/products/:productId",
+    pathParams: ["id", "productId"],
+    inputSchema: obj(
+      { id: STR("Store id."), productId: STR("Product id.") },
+      ["id", "productId"]
+    ),
+  },
+  {
+    name: "add_store_product",
+    description:
+      "Add an existing product to a store's product set. Body follows the store-product route validator.",
+    method: "POST",
+    path: "/partners/stores/:id/products",
+    pathParams: ["id"],
+    write: true,
+    bodyParams: ["product_id", "product", "metadata"],
+    inputSchema: obj(
+      {
+        id: STR("Store id."),
+        product_id: STR("Existing product id to add."),
+        product: { type: "object", description: "Optional product overrides.", additionalProperties: true },
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["id"]
+    ),
+  },
+  {
+    name: "update_store_product",
+    description: "Update a store-level product config. Pass only the fields to change.",
+    method: "POST",
+    path: "/partners/stores/:id/products/:productId",
+    pathParams: ["id", "productId"],
+    write: true,
+    previewPath: "/partners/stores/:id/products/:productId",
+    bodyParams: ["product", "metadata"],
+    inputSchema: obj(
+      {
+        id: STR("Store id."),
+        productId: STR("Product id to update."),
+        product: { type: "object", additionalProperties: true },
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["id", "productId"]
+    ),
+  },
+  {
+    name: "delete_store_product",
+    description: "Remove a product from a store's product set. Sensitive (DELETE).",
+    method: "DELETE",
+    path: "/partners/stores/:id/products/:productId",
+    pathParams: ["id", "productId"],
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      { id: STR("Store id."), productId: STR("Product id to remove.") },
+      ["id", "productId"]
+    ),
+  },
+  {
+    name: "list_store_product_variants",
+    description: "List the product variants available in a store (paginated).",
+    method: "GET",
+    path: "/partners/stores/:id/product-variants",
+    pathParams: ["id"],
+    queryParams: ["q", "limit", "offset"],
+    inputSchema: obj({ id: STR("Store id.") }, ["id"]),
+  },
+  {
+    name: "list_store_shipping_options",
+    description: "List the shipping options configured for a store.",
+    method: "GET",
+    path: "/partners/stores/:id/shipping-options",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Store id.") }, ["id"]),
+  },
+  {
+    name: "add_store_shipping_option",
+    description:
+      "Add a shipping option to a store (name, provider, price type, amount, …). Body follows the route validator.",
+    method: "POST",
+    path: "/partners/stores/:id/shipping-options",
+    pathParams: ["id"],
+    write: true,
+    bodyParams: ["name", "provider_id", "price_type", "amount", "metadata"],
+    inputSchema: obj(
+      {
+        id: STR("Store id."),
+        name: STR("Shipping option name."),
+        provider_id: STR("Fulfillment provider id."),
+        price_type: STR("Price type, e.g. 'flat'."),
+        amount: { type: "number", description: "Flat amount (if applicable)." },
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["id", "name"]
+    ),
+  },
+  {
+    name: "list_store_tax_regions",
+    description: "List the tax regions configured for a store.",
+    method: "GET",
+    path: "/partners/stores/:id/tax-regions",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Store id.") }, ["id"]),
+  },
+  {
+    name: "add_store_tax_region",
+    description: "Add a tax region to a store (country_code, rate, …). Body follows the route validator.",
+    method: "POST",
+    path: "/partners/stores/:id/tax-regions",
+    pathParams: ["id"],
+    write: true,
+    bodyParams: ["country_code", "province_code", "rate", "metadata"],
+    inputSchema: obj(
+      {
+        id: STR("Store id."),
+        country_code: STR("ISO-2 country code, e.g. 'in'."),
+        province_code: STR("Optional province/state code."),
+        rate: { type: "number", description: "Tax rate (e.g. 0.05 for 5%)." },
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["id", "country_code"]
+    ),
+  },
+  {
+    name: "list_store_sales_channels",
+    description: "List the sales channels of a store.",
+    method: "GET",
+    path: "/partners/stores/:id/sales-channels",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Store id.") }, ["id"]),
+  },
+  {
+    name: "add_store_sales_channel",
+    description: "Add a sales channel to a store. Body follows the route validator.",
+    method: "POST",
+    path: "/partners/stores/:id/sales-channels",
+    pathParams: ["id"],
+    write: true,
+    bodyParams: ["name", "description", "metadata"],
+    inputSchema: obj(
+      {
+        id: STR("Store id."),
+        name: STR("Sales channel name."),
+        description: STR("Optional description."),
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["id", "name"]
+    ),
+  },
+  {
+    name: "list_store_locations",
+    description: "List the stock locations linked to a store.",
+    method: "GET",
+    path: "/partners/stores/:id/locations",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Store id.") }, ["id"]),
+  },
+  {
+    name: "add_store_location",
+    description: "Link/create a stock location for a store (name, address). Body follows the route validator.",
+    method: "POST",
+    path: "/partners/stores/:id/locations",
+    pathParams: ["id"],
+    write: true,
+    bodyParams: ["name", "address", "metadata"],
+    inputSchema: obj(
+      {
+        id: STR("Store id."),
+        name: STR("Location / warehouse name."),
+        address: { type: "object", description: "Address payload.", additionalProperties: true },
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["id", "name"]
+    ),
+  },
+  {
+    name: "list_store_payment_providers",
+    description: "List the payment providers enabled for a store's regions.",
+    method: "GET",
+    path: "/partners/stores/:id/payment-providers",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Store id.") }, ["id"]),
+  },
 ]
