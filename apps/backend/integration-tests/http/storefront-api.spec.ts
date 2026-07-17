@@ -234,5 +234,61 @@ setupSharedTestSuite(({ api, getContainer }) => {
         expect(err.response.status).toBe(404)
       }
     })
+
+    test("GET /web/storefront/resolve?host=<handle>.<base> resolves by subdomain", async () => {
+      const { partner, storeId, salesChannelId, publishableKey } =
+        await fullSetup(api, getContainer)
+
+      const host = `${partner.handle}.jaalyantra.com`
+      const res = await api.get("/web/storefront/resolve", { params: { host } })
+
+      expect(res.status).toBe(200)
+      expect(res.data.host).toBe(host)
+      expect(res.data.publishable_key).toBe(publishableKey)
+      expect(res.data.sales_channel_id).toBe(salesChannelId)
+      expect(res.data.store.id).toBe(storeId)
+      expect(res.data.partner.handle).toBe(partner.handle)
+    })
+
+    test("GET /web/storefront/resolve?host=<custom domain> resolves by storefront_domain", async () => {
+      const { partner, publishableKey } = await fullSetup(api, getContainer)
+
+      // Attach a custom domain to the partner, then resolve by that exact host.
+      const container = await getContainer()
+      const partnerService: any = container.resolve("partner")
+      const customDomain = `shop-${Date.now()}.example-brand.com`
+      await partnerService.updatePartners({
+        id: partner.partnerId,
+        storefront_domain: customDomain,
+      })
+
+      const res = await api.get("/web/storefront/resolve", {
+        params: { host: customDomain },
+      })
+
+      expect(res.status).toBe(200)
+      expect(res.data.host).toBe(customDomain)
+      expect(res.data.publishable_key).toBe(publishableKey)
+    })
+
+    test("GET /web/storefront/resolve without host returns 400", async () => {
+      try {
+        await api.get("/web/storefront/resolve")
+        fail("Expected 400")
+      } catch (err: any) {
+        expect(err.response.status).toBe(400)
+      }
+    })
+
+    test("GET /web/storefront/resolve?host=<unknown> returns 404", async () => {
+      try {
+        await api.get("/web/storefront/resolve", {
+          params: { host: "nope.unknown-xyz-999.com" },
+        })
+        fail("Expected 404")
+      } catch (err: any) {
+        expect(err.response.status).toBe(404)
+      }
+    })
   })
 })
