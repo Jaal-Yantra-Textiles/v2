@@ -515,10 +515,13 @@ export class CloudflareWorkersProvider implements HostingProvider {
     }
 
     try {
+      // Cloudflare's Workers Custom Domains API attaches via PUT (idempotent
+      // upsert), NOT POST — POST returns 405 "Method not allowed for this
+      // authentication scheme" and the subdomain silently never attaches.
       const result = await this.cf<CfWorkerDomain>(
         `${this.domainsBase()}`,
         {
-          method: "POST",
+          method: "PUT",
           headers: this.jsonHeaders(),
           body: JSON.stringify({
             hostname: domain,
