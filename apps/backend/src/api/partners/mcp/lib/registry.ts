@@ -1690,4 +1690,59 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     write: true,
     inputSchema: obj({ taskId: STR("Task id to finish.") }, ["taskId"]),
   },
+
+  // ===== Platform discovery + AI (Tier 5) ====================================
+  // Discovery = browsing products across OTHER partners' sales channels so a
+  // partner can copy a product template into their own store. AI = read-only
+  // usage stats + a vision describe tool.
+  {
+    name: "discover_products",
+    description:
+      "Browse products across OTHER partners' sales channels (platform discovery). Use to find product templates the partner can copy into their own store. Paginated, free-text search via q.",
+    method: "GET",
+    path: "/partners/discover/products",
+    queryParams: ["q", "limit", "offset"],
+    inputSchema: obj({ ...PAGINATION }),
+  },
+  {
+    name: "copy_discover_product",
+    description:
+      "Deep-copy a discovered product into the partner's own store/sales channel. Sensitive — creates products in the partner's catalog from a source product. Pass the source product id from discover_products.",
+    method: "POST",
+    path: "/partners/discover/products/:id/copy",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      { id: STR("Source product id to copy (from discover_products).") },
+      ["id"]
+    ),
+  },
+  {
+    name: "get_ai_usage",
+    description: "Get the partner's AI feature usage stats (tokens, calls, cost) for the billing period.",
+    method: "GET",
+    path: "/partners/ai/usage",
+    queryParams: ["start", "end"],
+    inputSchema: obj({
+      start: STR("Optional ISO start date."),
+      end: STR("Optional ISO end date."),
+    }),
+  },
+  {
+    name: "describe_image",
+    description:
+      "Run vision AI on an image URL to get a structured description (garment/material attributes) — useful before creating a design or product from a photo. Body: { imageUrl, hint? }.",
+    method: "POST",
+    path: "/partners/ai/describe-image",
+    write: true,
+    bodyParams: ["imageUrl", "hint"],
+    inputSchema: obj(
+      {
+        imageUrl: STR("Public URL of the image to describe."),
+        hint: STR("Optional hint, e.g. 'describe the weave and color'."),
+      },
+      ["imageUrl"]
+    ),
+  },
 ]

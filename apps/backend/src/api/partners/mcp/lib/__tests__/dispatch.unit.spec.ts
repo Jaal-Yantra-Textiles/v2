@@ -215,6 +215,25 @@ describe("partner-mcp registry + dispatch", () => {
       expect(isSensitive(byName("request_order_edit"))).toBe(false)
       expect(isSensitive(byName("finish_task"))).toBe(false)
     })
+
+    it("covers discovery + AI (Tier 5)", () => {
+      const names = new Set(PARTNER_MCP_TOOLS.map((t) => t.name))
+      for (const n of [
+        "discover_products", "copy_discover_product",
+        "get_ai_usage", "describe_image",
+      ]) {
+        expect(names.has(n)).toBe(true)
+      }
+      const byName = (n: string) => PARTNER_MCP_TOOLS.find((t) => t.name === n)!
+      // Copying a discovered product into the partner's catalog is a
+      // destructive create → require confirmation.
+      expect(isSensitive(byName("copy_discover_product"))).toBe(true)
+      // Discovery + usage are reads; describe_image is a write (not sensitive).
+      expect(byName("discover_products").method).toBe("GET")
+      expect(byName("get_ai_usage").method).toBe("GET")
+      expect(byName("describe_image").write).toBe(true)
+      expect(isSensitive(byName("describe_image"))).toBe(false)
+    })
   })
 
   it("returns a soft error for an unknown tool", async () => {
