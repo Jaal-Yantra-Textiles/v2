@@ -452,13 +452,29 @@ export class CloudflareWorkersProvider implements HostingProvider {
   }
 
   async getProject(projectName: string): Promise<HostingProject> {
-    const script = await this.cf<CfWorkerMeta>(
-      `${this.scriptsBase()}/${projectName}`,
+    // NB: `GET /workers/scripts/{name}` returns the raw script BODY (JS /
+    // multipart), NOT a JSON CfResponse — so `cf()` parses null, sees
+    // `success:false` on a 200, and throws the misleading
+    // "getProject failed (200): HTTP 200" that surfaces in the partner UI.
+    // Use the JSON list endpoint and match by name to confirm existence.
+    const scripts = await this.cf<CfWorkerMeta[]>(
+      this.scriptsBase(),
       { method: "GET", headers: this.jsonHeaders() },
       "getProject"
     )
+    const script = (scripts || []).find(
+      (s) => (s.id ?? s.name) === projectName
+    )
+    if (!script) {
+      // Signal "not found" the way the status/provision routes expect (they
+      // key off "(404)") so a genuinely-absent worker reads as unprovisioned
+      // rather than as a hard error.
+      throw new Error(
+        `Cloudflare Workers getProject failed (404): worker "${projectName}" not found`
+      )
+    }
     const subdomain = await this.getSubdomain()
-    const name = script.name ?? projectName
+    const name = script.name ?? script.id ?? projectName
     return {
       id: name,
       name,

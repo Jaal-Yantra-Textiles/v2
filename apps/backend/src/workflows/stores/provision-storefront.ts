@@ -293,6 +293,21 @@ const createCnameStep = createStep(
         console.log("[provision-storefront] DNS (vercel recommended):", JSON.stringify(result))
         return new StepResponse(result as any)
       }
+      if (input.providerName === "cloudflare") {
+        // Cloudflare Workers attaches the hostname via a Custom Domain binding
+        // (addDomainStep → Workers Domains API), which creates the correct
+        // proxied route in-zone automatically. Adding our own grey-cloud CNAME
+        // to `<worker>.<sub>.workers.dev` on top is a cross-account CNAME into
+        // Cloudflare's shared workers.dev zone → the storefront 1014s
+        // ("CNAME Cross-User Banned"). So the CNAME step is a no-op here.
+        console.log(
+          `[provision-storefront] DNS (cloudflare): skipped — routed via Workers Custom Domain, no workers.dev CNAME (avoids Error 1014)`
+        )
+        return new StepResponse({
+          action: "skipped",
+          reason: "cloudflare workers custom domain handles routing",
+        } as any)
+      }
       const provider = await buildHostingProvider(
         input.providerName,
         input.accountId,
