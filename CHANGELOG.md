@@ -1,3 +1,13 @@
+# [13.59.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.58.0...v13.59.0) (2026-07-17)
+
+
+### Features
+
+* **partner-mcp:** cover the production workflow (designs, runs, products, orders) ([f3c55e0](https://github.com/Jaal-Yantra-Textiles/v2/commit/f3c55e0bf3dace475bca53c05f062b5c1ef4d326))
+* **partner-mcp:** create_store tool + per-call context property ([1d26a6b](https://github.com/Jaal-Yantra-Textiles/v2/commit/1d26a6b312d13c2c0b68a2501157ae1e78afaa6c))
+* **storefront:** public Host -> publishable key resolver for multi-tenant ([c4d3323](https://github.com/Jaal-Yantra-Textiles/v2/commit/c4d3323fcb7f7cacb9903e14bee12dd8b7954736))
+* **storefront:** resolve alias/custom domains via website_domain ([8e813bd](https://github.com/Jaal-Yantra-Textiles/v2/commit/8e813bdcfbc2b04d3c21cf16322df11f4f814315))
+
 # [13.58.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.57.0...v13.58.0) (2026-07-16)
 
 
