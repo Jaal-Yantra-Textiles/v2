@@ -6,6 +6,8 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../../helpers"
 import { resolveHostingProviderForPartner } from "../../../../modules/deployment/providers/resolve-partner-provider"
 import type { HostingDomainStatus } from "../../../../modules/deployment/providers/types"
+import { DEPLOYMENT_MODULE } from "../../../../modules/deployment"
+import type DeploymentService from "../../../../modules/deployment/service"
 import { WEBSITE_MODULE } from "../../../../modules/website"
 import type WebsiteService from "../../../../modules/website/service"
 import updatePartnerWorkflow from "../../../../workflows/partners/update-partner"
@@ -200,6 +202,19 @@ export const DELETE = async (
       await provider.removeDomain(projectRef, host)
     } catch {
       // best-effort removal
+    }
+  }
+
+  // Also delete the Cloudflare zone DNS record we created for each host. The
+  // provider.removeDomain call above only unbinds the domain from the hosting
+  // project; without this the CNAME/A record lingers in our zone and the domain
+  // keeps resolving after "removal" (mirrors the full-teardown route). #cf-domain
+  const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
+  for (const host of hosts) {
+    try {
+      await deployment.removeStorefrontDns(host)
+    } catch {
+      // best-effort — a missing record is fine
     }
   }
 

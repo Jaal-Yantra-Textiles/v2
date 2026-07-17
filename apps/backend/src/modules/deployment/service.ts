@@ -747,12 +747,21 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
     }
 
     try {
-      const records = await this.listDnsRecords({ name: domain, type: "CNAME" })
-      if (records.length > 0) {
-        await this.deleteDnsRecord(records[0].id)
-        return { action: "deleted" }
+      // Match by name across record types: a storefront domain is a CNAME for a
+      // subdomain but an apex custom domain is an A record — querying CNAME-only
+      // left apex records (and any duplicates) behind. Delete every record we
+      // hold for this name.
+      const records = await this.listDnsRecords({ name: domain })
+      const removable = records.filter(
+        (r) => r.type === "CNAME" || r.type === "A" || r.type === "AAAA"
+      )
+      if (removable.length === 0) {
+        return { action: "not_found" }
       }
-      return { action: "not_found" }
+      for (const record of removable) {
+        await this.deleteDnsRecord(record.id)
+      }
+      return { action: "deleted" }
     } catch (e: any) {
       return { action: "failed", error: e.message }
     }
