@@ -93,6 +93,41 @@ describe("partner-mcp registry + dispatch", () => {
       }
     })
 
+    it("covers the broader dashboard reads (customers, payments, returns/claims/exchanges, inventory)", () => {
+      const names = new Set(PARTNER_MCP_TOOLS.map((t) => t.name))
+      for (const n of [
+        "list_production_runs", "list_customers", "get_customer",
+        "list_customer_groups", "get_payment", "list_payment_providers",
+        "list_payment_submissions", "get_payment_submission",
+        "list_returns", "get_return", "list_claims", "get_claim",
+        "list_exchanges", "get_exchange", "get_inventory_item",
+        "list_inventory_levels", "list_raw_materials",
+        "get_partner_details", "list_currencies",
+        "list_refund_reasons", "list_return_reasons",
+      ]) {
+        expect(names.has(n)).toBe(true)
+      }
+    })
+
+    it("Tier 1 tools are all read-only (GET, non-write, non-sensitive)", () => {
+      const tier1 = [
+        "list_production_runs", "list_customers", "get_customer",
+        "list_customer_groups", "get_payment", "list_payment_providers",
+        "list_payment_submissions", "get_payment_submission",
+        "list_returns", "get_return", "list_claims", "get_claim",
+        "list_exchanges", "get_exchange", "get_inventory_item",
+        "list_inventory_levels", "list_raw_materials",
+        "get_partner_details", "list_currencies",
+        "list_refund_reasons", "list_return_reasons",
+      ]
+        .map((n) => PARTNER_MCP_TOOLS.find((t) => t.name === n)!)
+      for (const t of tier1) {
+        expect(t.method).toBe("GET")
+        expect(t.write).toBeFalsy()
+        expect(isSensitive(t)).toBe(false)
+      }
+    })
+
     it("flags lifecycle/create writes as sensitive but not routine logging", () => {
       const byName = (n: string) => PARTNER_MCP_TOOLS.find((t) => t.name === n)!
       expect(isSensitive(byName("complete_production_run"))).toBe(true)
