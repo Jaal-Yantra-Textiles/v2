@@ -45,7 +45,9 @@ export interface BlogEmailConfig {
  * test email renders exactly what subscribers will receive.
  *
  * - UTM-tags every outbound link (utm_source=newsletter, utm_medium=email,
- *   utm_campaign=<post slug>) so newsletter/blog traffic is attributable.
+ *   utm_campaign=<post slug>, utm_content=<subscriber id>) so newsletter/blog
+ *   traffic is attributable down to the individual recipient — per-recipient
+ *   click feedback in analytics on top of the ESP-webhook engagement ledger.
  * - Carries the email alongside the person id on the unsubscribe URL so the
  *   unsubscribe endpoint can suppress by email even when the id can't resolve.
  * - Passes the two-doors CTAs: shop_url (cicilabel.com) + create_url (jaalyantra.com).
@@ -59,7 +61,11 @@ export function buildEmailData(
 ): Record<string, any> {
   const frontend = process.env.FRONTEND_URL || "https://jaalyantra.com"
   const campaign = (blogData?.slug || "blog_broadcast").toString()
-  const UTM = `utm_source=newsletter&utm_medium=email&utm_campaign=${encodeURIComponent(campaign)}`
+  // utm_content carries the subscriber id so a click is attributable to the
+  // individual recipient (per-recipient feedback), not just the campaign.
+  const UTM =
+    `utm_source=newsletter&utm_medium=email&utm_campaign=${encodeURIComponent(campaign)}` +
+    (subscriber?.id ? `&utm_content=${encodeURIComponent(subscriber.id)}` : "")
   const withUtm = (u: string) => (u ? `${u}${u.includes("?") ? "&" : "?"}${UTM}` : u)
 
   return {
