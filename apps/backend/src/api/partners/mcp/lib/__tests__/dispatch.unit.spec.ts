@@ -137,6 +137,32 @@ describe("partner-mcp registry + dispatch", () => {
       expect(isSensitive(byName("log_design_consumption"))).toBe(false)
       expect(isSensitive(byName("log_production_run_consumption"))).toBe(false)
     })
+
+    it("covers storefront management (Tier 2) with reads + sensitive writes", () => {
+      const names = new Set(PARTNER_MCP_TOOLS.map((t) => t.name))
+      for (const n of [
+        "get_storefront_status", "get_storefront_website",
+        "update_storefront_website", "get_storefront_analytics",
+        "update_storefront_analytics", "list_storefront_pages",
+        "get_storefront_page", "list_storefront_page_blocks",
+        "create_storefront_page", "update_storefront_page",
+        "get_storefront_domain", "update_storefront_domain",
+        "verify_storefront_domain", "provision_storefront",
+        "redeploy_storefront", "seed_storefront_pages",
+      ]) {
+        expect(names.has(n)).toBe(true)
+      }
+      const byName = (n: string) => PARTNER_MCP_TOOLS.find((t) => t.name === n)!
+      // Provisioning/redeploy/domain are high-stakes — must require confirmation.
+      expect(isSensitive(byName("provision_storefront"))).toBe(true)
+      expect(isSensitive(byName("redeploy_storefront"))).toBe(true)
+      expect(isSensitive(byName("update_storefront_domain"))).toBe(true)
+      expect(isSensitive(byName("verify_storefront_domain"))).toBe(true)
+      expect(isSensitive(byName("seed_storefront_pages"))).toBe(true)
+      // Routine page edits are writes but not sensitive (no confirmation friction).
+      expect(isSensitive(byName("update_storefront_page"))).toBe(false)
+      expect(byName("update_storefront_page").write).toBe(true)
+    })
   })
 
   it("returns a soft error for an unknown tool", async () => {
