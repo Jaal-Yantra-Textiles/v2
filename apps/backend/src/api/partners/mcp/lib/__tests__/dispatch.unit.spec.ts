@@ -65,6 +65,45 @@ describe("partner-mcp registry + dispatch", () => {
     })
   })
 
+  describe("registry integrity", () => {
+    it("has unique tool names", () => {
+      const names = PARTNER_MCP_TOOLS.map((t) => t.name)
+      expect(new Set(names).size).toBe(names.length)
+    })
+
+    it("every tool has a method and path, and every write is non-GET", () => {
+      for (const t of PARTNER_MCP_TOOLS) {
+        expect(t.path).toMatch(/^\/partners\//)
+        if (t.write) expect(t.method).not.toBe("GET")
+      }
+    })
+
+    it("covers the production workflow (designs, production runs, products, orders)", () => {
+      const names = new Set(PARTNER_MCP_TOOLS.map((t) => t.name))
+      for (const n of [
+        "get_design", "update_design", "log_design_consumption",
+        "recalculate_design_cost", "add_design_media",
+        "log_production_run_consumption", "accept_production_run",
+        "complete_production_run", "get_production_run_cost_summary",
+        "create_product", "set_artisan_detail",
+        "initiate_media_upload", "complete_media_upload",
+        "get_order", "create_order_fulfillment", "mark_fulfillment_delivered",
+      ]) {
+        expect(names.has(n)).toBe(true)
+      }
+    })
+
+    it("flags lifecycle/create writes as sensitive but not routine logging", () => {
+      const byName = (n: string) => PARTNER_MCP_TOOLS.find((t) => t.name === n)!
+      expect(isSensitive(byName("complete_production_run"))).toBe(true)
+      expect(isSensitive(byName("create_product"))).toBe(true)
+      expect(isSensitive(byName("create_order_fulfillment"))).toBe(true)
+      // Routine consumption logging is a plain write, no confirmation friction.
+      expect(isSensitive(byName("log_design_consumption"))).toBe(false)
+      expect(isSensitive(byName("log_production_run_consumption"))).toBe(false)
+    })
+  })
+
   it("returns a soft error for an unknown tool", async () => {
     const res = await dispatchPartnerTool(
       { baseUrl: "http://localhost:9999" },
