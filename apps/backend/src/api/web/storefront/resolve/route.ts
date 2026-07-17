@@ -36,14 +36,34 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     "stores.*",
   ]
 
-  // 1. Custom domain match.
+  // 1. Custom domain match (partner's primary storefront_domain column).
   let { data: partners } = await query.graph({
     entity: "partners",
     fields: partnerFields,
     filters: { storefront_domain: host },
   })
 
-  // 2. Fall back to handle-subdomain match.
+  // 2. Alias/custom domain a partner attached later. These are registered as
+  //    `website_domain` rows (primary + www/apex twin) on the partner's
+  //    website, so resolve host -> website_domain -> website_id -> the partner
+  //    whose website_id matches. Soft-deleted aliases are excluded by default.
+  if (!partners?.length) {
+    const { data: aliasRows } = await query.graph({
+      entity: "website_domain",
+      fields: ["domain", "website.id"],
+      filters: { domain: host },
+    })
+    const websiteId = aliasRows?.[0]?.website?.id
+    if (websiteId) {
+      ;({ data: partners } = await query.graph({
+        entity: "partners",
+        fields: partnerFields,
+        filters: { website_id: websiteId },
+      }))
+    }
+  }
+
+  // 3. Fall back to handle-subdomain match.
   if (!partners?.length && subdomain) {
     ;({ data: partners } = await query.graph({
       entity: "partners",

@@ -271,6 +271,40 @@ setupSharedTestSuite(({ api, getContainer }) => {
       expect(res.data.publishable_key).toBe(publishableKey)
     })
 
+    test("GET /web/storefront/resolve?host=<alias> resolves via website_domain", async () => {
+      const { partner, publishableKey } = await fullSetup(api, getContainer)
+
+      const container = await getContainer()
+      const partnerService: any = container.resolve("partner")
+      const websiteService: any = container.resolve("websites")
+
+      const unique = Date.now()
+      // A website the partner owns, plus an alias domain attached later.
+      const website = await websiteService.createWebsites({
+        domain: `w-${unique}.example.com`,
+        name: "Alias Test Website",
+      })
+      await partnerService.updatePartners({
+        id: partner.partnerId,
+        website_id: website.id,
+      })
+
+      const alias = `shop-${unique}.custom-brand.com`
+      await websiteService.createWebsiteDomains({
+        domain: alias,
+        is_primary: false,
+        website_id: website.id,
+      })
+
+      const res = await api.get("/web/storefront/resolve", {
+        params: { host: alias },
+      })
+
+      expect(res.status).toBe(200)
+      expect(res.data.host).toBe(alias)
+      expect(res.data.publishable_key).toBe(publishableKey)
+    })
+
     test("GET /web/storefront/resolve without host returns 400", async () => {
       try {
         await api.get("/web/storefront/resolve")
