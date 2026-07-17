@@ -78,6 +78,7 @@ import { replayFxFanoutJob } from "./fanout-fx-job"
 import { backfillStoreCurrenciesJob } from "./backfill-store-currencies-job"
 import { backfillPartnerEmailVerifiedJob } from "./backfill-partner-email-verified-job"
 import { backfillPartnerHostingProviderJob } from "./backfill-partner-hosting-provider-job"
+import { repointPartnerStorefrontSharedJob } from "./repoint-partner-storefront-shared-job"
 import { enableStripeConnectEurRegionsJob } from "./enable-stripe-connect-eur-regions-job"
 import { suppressBouncedSubscribersJob } from "./suppress-bounced-subscribers-job"
 import { backfillAudienceEntriesJob } from "./backfill-audience-entries-job"
@@ -5488,6 +5489,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillStoreCurrenciesJob,
   backfillPartnerEmailVerifiedJob,
   backfillPartnerHostingProviderJob,
+  repointPartnerStorefrontSharedJob,
   enableStripeConnectEurRegionsJob,
   suppressBouncedSubscribersJob,
   backfillAudienceEntriesJob,
