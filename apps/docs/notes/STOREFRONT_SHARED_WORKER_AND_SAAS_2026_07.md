@@ -55,6 +55,12 @@ All now gated on `partnerIsOnSharedProject()`.
 
 ## 3. Restoring the shared worker (runbook)
 
+**Reusable script: [`scripts/deploy-shared-storefront-worker.sh`](../../../scripts/deploy-shared-storefront-worker.sh)** —
+run `CLOUDFLARE_API_TOKEN=cfat_… ./scripts/deploy-shared-storefront-worker.sh`
+(a Workers-Scripts:Edit token; the SSM zone token can't deploy workers). It does
+everything below and bakes the full Vercel-parity build vars (Stripe key,
+multi-tenant, backend URL, S3 host/pathname). The manual steps, for reference:
+
 The worker builds **only in its own checkout**, not nested in the jyt pnpm
 workspace (OpenNext resolves Next against the hoisted root `node_modules` → 54
 esbuild "Could not resolve" errors). Recipe:
