@@ -4,6 +4,7 @@ import {
   isEligible,
   selectDeploymentAccount,
   decideProvisionTarget,
+  resolveProvisioningMode,
   type DeploymentAccountRow,
 } from "../account-selector"
 
@@ -121,5 +122,83 @@ describe("decideProvisionTarget — rotation + env fallback", () => {
         { preferredProvider: "cloudflare", envProviders: [] }
       )
     ).toBeNull()
+  })
+})
+
+describe("deployment account-selector — provisioning mode (shared vs dedicated)", () => {
+  it("defaults to dedicated when nothing is configured", () => {
+    expect(resolveProvisioningMode("vercel", {})).toEqual({
+      mode: "dedicated",
+      sharedProjectId: null,
+      sharedProjectName: null,
+    })
+  })
+
+  it("Netlify is ALWAYS dedicated, even with a shared_project_id set", () => {
+    expect(
+      resolveProvisioningMode("netlify", {
+        apiConfig: { shared_project_id: "site_123", shared_project_name: "shared" },
+      })
+    ).toEqual({ mode: "dedicated", sharedProjectId: null, sharedProjectName: null })
+  })
+
+  it("goes shared from the account api_config (name defaults to id)", () => {
+    expect(
+      resolveProvisioningMode("vercel", {
+        apiConfig: { shared_project_id: "prj_shared" },
+      })
+    ).toEqual({
+      mode: "shared",
+      sharedProjectId: "prj_shared",
+      sharedProjectName: "prj_shared",
+    })
+  })
+
+  it("api_config carries both id and name", () => {
+    expect(
+      resolveProvisioningMode("render", {
+        apiConfig: { shared_project_id: "srv_1", shared_project_name: "storefront-shared" },
+      })
+    ).toEqual({
+      mode: "shared",
+      sharedProjectId: "srv_1",
+      sharedProjectName: "storefront-shared",
+    })
+  })
+
+  it("falls back to the <PROVIDER>_SHARED_PROJECT_ID env on the legacy env path", () => {
+    expect(
+      resolveProvisioningMode("vercel", {
+        env: {
+          VERCEL_SHARED_PROJECT_ID: "prj_env",
+          VERCEL_SHARED_PROJECT_NAME: "storefront-shared",
+        },
+      })
+    ).toEqual({
+      mode: "shared",
+      sharedProjectId: "prj_env",
+      sharedProjectName: "storefront-shared",
+    })
+  })
+
+  it("Cloudflare accepts the worker name as the shared project id", () => {
+    expect(
+      resolveProvisioningMode("cloudflare", {
+        env: { CLOUDFLARE_SHARED_WORKER_NAME: "nextjs-starter-medusa" },
+      })
+    ).toEqual({
+      mode: "shared",
+      sharedProjectId: "nextjs-starter-medusa",
+      sharedProjectName: "nextjs-starter-medusa",
+    })
+  })
+
+  it("account api_config wins over env", () => {
+    expect(
+      resolveProvisioningMode("vercel", {
+        apiConfig: { shared_project_id: "prj_acct" },
+        env: { VERCEL_SHARED_PROJECT_ID: "prj_env" },
+      }).sharedProjectId
+    ).toBe("prj_acct")
   })
 })

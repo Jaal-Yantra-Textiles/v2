@@ -14,6 +14,69 @@ export type DeploymentAccountRow = {
   project_count?: number | null
   priority?: number | null
   status?: "active" | "full" | "inactive"
+  /** Non-secret provider config; carries `shared_project_id`/`shared_project_name`. */
+  api_config?: Record<string, any> | null
+}
+
+export type ProvisioningMode = "shared" | "dedicated"
+
+export type SharedProjectConfig = {
+  mode: ProvisioningMode
+  /** Provider project id/name to attach the tenant's domain to (shared mode only). */
+  sharedProjectId: string | null
+  sharedProjectName: string | null
+}
+
+/**
+ * PURE: decide whether a NEW storefront provisions onto a SHARED, pre-deployed
+ * multi-tenant project (attach-domain-only) or gets its own DEDICATED deploy.
+ *
+ * Shared mode requires BOTH:
+ *   1. the provider supports it (everything except Netlify), and
+ *   2. a shared project id is configured — from the chosen account's
+ *      `api_config.shared_project_id` (multi-account path) or a
+ *      `<PROVIDER>_SHARED_PROJECT_ID` env var (legacy env path).
+ * Otherwise it falls back to a dedicated deploy (the pre-existing behaviour), so
+ * this is a no-op until a shared project is actually configured.
+ */
+export function resolveProvisioningMode(
+  provider: DeploymentProvider,
+  opts: {
+    apiConfig?: Record<string, any> | null
+    env?: Record<string, string | undefined>
+  } = {}
+): SharedProjectConfig {
+  const dedicated: SharedProjectConfig = {
+    mode: "dedicated",
+    sharedProjectId: null,
+    sharedProjectName: null,
+  }
+
+  // Netlify (single primary custom_domain per site) can never be shared.
+  if (provider === "netlify") return dedicated
+
+  const cfg = opts.apiConfig ?? {}
+  const env = opts.env ?? {}
+  const envKey = provider.toUpperCase()
+
+  const sharedProjectId =
+    (cfg.shared_project_id as string | undefined) ||
+    env[`${envKey}_SHARED_PROJECT_ID`] ||
+    // Cloudflare Workers addresses by name — accept the worker name as the id.
+    (provider === "cloudflare"
+      ? (cfg.shared_worker_name as string | undefined) ||
+        env.CLOUDFLARE_SHARED_WORKER_NAME
+      : undefined) ||
+    null
+
+  if (!sharedProjectId) return dedicated
+
+  const sharedProjectName =
+    (cfg.shared_project_name as string | undefined) ||
+    env[`${envKey}_SHARED_PROJECT_NAME`] ||
+    sharedProjectId
+
+  return { mode: "shared", sharedProjectId, sharedProjectName }
 }
 
 /** PURE: projects still allowed on this account (Infinity when uncapped). */

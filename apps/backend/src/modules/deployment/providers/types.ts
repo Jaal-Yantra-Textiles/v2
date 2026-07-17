@@ -15,6 +15,23 @@
 
 export type HostingProviderName = "vercel" | "cloudflare" | "render" | "netlify"
 
+/**
+ * Whether a provider can host MANY tenants on ONE shared, pre-deployed project
+ * where per-partner provisioning is just "attach the domain" (no per-partner
+ * deploy). True for platforms whose custom-domain API attaches an arbitrary
+ * number of hostnames to a single project/service/worker:
+ *   - Vercel   → `POST /v10/projects/{id}/domains` (Vercel for Platforms)
+ *   - Cloudflare Workers → `POST /workers/domains` (Custom Domain per hostname)
+ *   - Render   → `POST /services/{id}/custom-domains`
+ * Netlify is the exception — a site carries a SINGLE primary `custom_domain`,
+ * so it can only ever be a *dedicated* (one-site-per-partner) target.
+ */
+export function providerSupportsSharedProject(
+  name: HostingProviderName
+): boolean {
+  return name === "vercel" || name === "cloudflare" || name === "render"
+}
+
 /** Per-account credentials, decrypted at runtime from `deployment_account.api_config`. */
 export type HostingCredentials = {
   /** API token (Vercel token / Cloudflare API token / Netlify PAT / Render key). */
