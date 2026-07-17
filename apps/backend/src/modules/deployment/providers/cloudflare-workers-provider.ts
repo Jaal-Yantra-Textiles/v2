@@ -301,6 +301,63 @@ export class CloudflareWorkersProvider implements HostingProvider {
     return [cnameInstruction(hostname, this.saasFallbackOrigin)]
   }
 
+  /**
+   * SaaS custom hostnames are served via a **Worker Route**, not a Workers
+   * Custom Domain — the custom hostname proxies to the (originless) fallback
+   * origin and the route is what actually invokes the worker. Create a SCOPED
+   * `<hostname>/*` route (never `*/*`, which would hijack other in-zone hosts
+   * such as the `*.cicilabel.com` subdomains served by Vercel). Best-effort: the
+   * hostname still validates without it, so a failure here must not fail attach.
+   */
+  private async ensureWorkerRoute(
+    hostname: string,
+    script: string
+  ): Promise<void> {
+    const pattern = `${hostname}/*`
+    try {
+      const routes = await this.cf<Array<{ id: string; pattern: string }>>(
+        `${this.zoneBase()}/workers/routes`,
+        { method: "GET", headers: this.jsonHeaders() },
+        "listWorkerRoutes"
+      )
+      if ((routes || []).some((r) => r.pattern === pattern)) return
+      await this.cf(
+        `${this.zoneBase()}/workers/routes`,
+        {
+          method: "POST",
+          headers: this.jsonHeaders(),
+          body: JSON.stringify({ pattern, script }),
+        },
+        "createWorkerRoute"
+      )
+    } catch (e: any) {
+      console.warn(
+        `[CloudflareWorkersProvider] worker route ${pattern} not created:`,
+        e?.message
+      )
+    }
+  }
+
+  /** Delete the scoped `<hostname>/*` Worker Route (best-effort). */
+  private async removeWorkerRoute(hostname: string): Promise<void> {
+    const pattern = `${hostname}/*`
+    try {
+      const routes = await this.cf<Array<{ id: string; pattern: string }>>(
+        `${this.zoneBase()}/workers/routes`,
+        { method: "GET", headers: this.jsonHeaders() },
+        "listWorkerRoutes"
+      )
+      const match = (routes || []).find((r) => r.pattern === pattern)
+      if (!match) return
+      await fetch(`${this.zoneBase()}/workers/routes/${match.id}`, {
+        method: "DELETE",
+        headers: this.jsonHeaders(),
+      })
+    } catch {
+      // best-effort
+    }
+  }
+
   private async cf<T>(
     url: string,
     init: RequestInit,
@@ -444,6 +501,8 @@ export class CloudflareWorkersProvider implements HostingProvider {
       try {
         const existing = await this.findCustomHostname(domain)
         const ch = existing ?? (await this.createCustomHostname(domain))
+        // Route the custom hostname's traffic to the shared worker (scoped route).
+        await this.ensureWorkerRoute(domain, projectName)
         return {
           name: ch.hostname,
           verified: this.customHostnameActive(ch),
@@ -487,8 +546,9 @@ export class CloudflareWorkersProvider implements HostingProvider {
     projectName: string,
     domain: string
   ): Promise<void> {
-    // Partner-owned domain → delete its SaaS Custom Hostname.
+    // Partner-owned domain → delete its SaaS Custom Hostname + Worker Route.
     if (await this.shouldUseSaas(domain)) {
+      await this.removeWorkerRoute(domain)
       const ch = await this.findCustomHostname(domain)
       if (!ch) return
       const res = await fetch(`${this.zoneBase()}/custom_hostnames/${ch.id}`, {
