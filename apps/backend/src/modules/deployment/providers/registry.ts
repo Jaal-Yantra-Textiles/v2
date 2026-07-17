@@ -98,6 +98,9 @@ export function createHostingProvider(
     case "vercel":
       return new VercelHostingProvider(creds)
     case "cloudflare":
+      // Cloudflare Workers (via Workers Builds + OpenNext) — NOT Pages: Pages'
+      // next-on-pages only runs edge-runtime Next.js, so full SSR storefronts
+      // must deploy to Workers.
       return new CloudflareWorkersProvider(creds)
     case "netlify":
       return new NetlifyProvider(creds)
