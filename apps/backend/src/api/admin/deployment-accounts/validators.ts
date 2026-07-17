@@ -36,6 +36,11 @@ const providerConfigFields = {
   shared_project_id: z.string().optional(),
   shared_project_name: z.string().optional(),
   shared_worker_name: z.string().optional(),
+  // Cloudflare for SaaS: the proxied in-zone hostname partner-OWNED domains
+  // CNAME to (routes to the shared worker). Enables Custom Hostnames for domains
+  // outside our zone. `zone_name` lets the provider skip a zone lookup.
+  saas_fallback_origin: z.string().optional(),
+  zone_name: z.string().optional(),
 }
 
 export const CreateDeploymentAccountSchema = z
@@ -92,4 +97,6 @@ export const API_CONFIG_KEYS = [
   "shared_project_id",
   "shared_project_name",
   "shared_worker_name",
+  "saas_fallback_origin",
+  "zone_name",
 ] as const

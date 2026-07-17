@@ -99,10 +99,15 @@ function envCredentials(providerName: HostingProviderName): HostingCredentials {
       // bails ("zone_id is required") and the only routing left is a
       // workers.dev CNAME → Error 1014 (CNAME Cross-User Banned).
       const zoneId = process.env.CLOUDFLARE_ZONE_ID
+      // Cloudflare-for-SaaS fallback origin for partner-owned custom domains.
+      const saasFallback = process.env.CLOUDFLARE_SAAS_FALLBACK_ORIGIN
+      const extra: Record<string, string> = {}
+      if (zoneId) extra.zone_id = zoneId
+      if (saasFallback) extra.saas_fallback_origin = saasFallback
       return {
         token,
         accountId,
-        ...(zoneId ? { extra: { zone_id: zoneId } } : {}),
+        ...(Object.keys(extra).length ? { extra } : {}),
       }
     }
     default:

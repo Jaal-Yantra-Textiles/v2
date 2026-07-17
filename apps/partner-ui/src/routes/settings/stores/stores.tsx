@@ -597,7 +597,10 @@ const CustomDomainSection = () => {
                   <InlineTip variant="info" label="Point Your Domain">
                     Add the DNS record{dnsRecords.length > 1 ? "s" : ""} below at
                     your domain provider so it resolves to your storefront. DNS
-                    changes can take up to 48 hours to propagate.
+                    changes can take up to 48 hours to propagate. For a root
+                    domain (e.g. example.com), use your provider's CNAME
+                    flattening / ALIAS / ANAME record — a plain CNAME isn't
+                    allowed at the root.
                   </InlineTip>
                   <DnsTable rows={dnsRecords} />
                 </>
