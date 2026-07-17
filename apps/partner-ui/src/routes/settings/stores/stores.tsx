@@ -29,6 +29,10 @@ import {
   useRemoveStorefrontDomain,
 } from "../../../hooks/api/storefront"
 
+// Redeploy is hidden for now: shared multi-tenant storefronts deploy centrally,
+// so a per-partner redeploy does nothing useful. Flip to re-enable.
+const REDEPLOY_ENABLED = false
+
 function formatDate(dateStr: string | number | null | undefined): string {
   if (!dateStr) return "—"
   const d = new Date(typeof dateStr === "number" ? dateStr : dateStr)
@@ -236,15 +240,19 @@ const StorefrontSection = () => {
               </Button>
             </a>
           )}
-          <Button
-            variant="secondary"
-            size="small"
-            onClick={handleRedeploy}
-            disabled={isRedeploying}
-          >
-            <ArrowPath className="mr-1" />
-            {isRedeploying ? "Deploying..." : "Redeploy"}
-          </Button>
+          {/* Redeploy hidden for now — shared multi-tenant storefronts are
+              deployed centrally; a per-partner redeploy is a no-op. */}
+          {REDEPLOY_ENABLED && (
+            <Button
+              variant="secondary"
+              size="small"
+              onClick={handleRedeploy}
+              disabled={isRedeploying}
+            >
+              <ArrowPath className="mr-1" />
+              {isRedeploying ? "Deploying..." : "Redeploy"}
+            </Button>
+          )}
         </div>
       </div>
 
