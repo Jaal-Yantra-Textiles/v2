@@ -12,6 +12,20 @@ import { queryKeysFactory } from "../../lib/query-key-factory"
 const STOREFRONT_QUERY_KEY = "partner_storefront" as const
 export const storefrontQueryKeys = queryKeysFactory(STOREFRONT_QUERY_KEY)
 
+const DOMAIN_QUERY_KEY = "partner_storefront_domain" as const
+export const domainQueryKeys = queryKeysFactory(DOMAIN_QUERY_KEY)
+
+/**
+ * The storefront status card and the custom-domain card read from two separate
+ * queries but both surface the partner's domain/project state — any provision,
+ * redeploy, domain add/verify/remove, or storefront removal changes BOTH. Always
+ * invalidate the pair so neither card shows stale data after a mutation.
+ */
+const invalidateStorefrontQueries = () => {
+  queryClient.invalidateQueries({ queryKey: storefrontQueryKeys.detail("me") })
+  queryClient.invalidateQueries({ queryKey: domainQueryKeys.detail("me") })
+}
+
 export type HostingProvider = "vercel" | "cloudflare" | "render" | "netlify"
 
 export interface StorefrontStatus {
@@ -72,9 +86,7 @@ export const useProvisionStorefront = () => {
         method: "POST",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: storefrontQueryKeys.detail("me"),
-      })
+      invalidateStorefrontQueries()
     },
   })
 }
@@ -87,9 +99,7 @@ export const useRedeployStorefront = () => {
         body: input || {},
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: storefrontQueryKeys.detail("me"),
-      })
+      invalidateStorefrontQueries()
     },
   })
 }
@@ -125,9 +135,6 @@ export interface AddDomainResponse {
   dns_records?: DnsRecord[]
 }
 
-const DOMAIN_QUERY_KEY = "partner_storefront_domain" as const
-export const domainQueryKeys = queryKeysFactory(DOMAIN_QUERY_KEY)
-
 export const useStorefrontDomain = (
   options?: Omit<
     UseQueryOptions<DomainStatus, FetchError, DomainStatus, QueryKey>,
@@ -153,9 +160,7 @@ export const useAddStorefrontDomain = () => {
         body: input,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: domainQueryKeys.detail("me"),
-      })
+      invalidateStorefrontQueries()
     },
   })
 }
@@ -168,9 +173,7 @@ export const useVerifyStorefrontDomain = () => {
         { method: "POST" }
       ),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: domainQueryKeys.detail("me"),
-      })
+      invalidateStorefrontQueries()
     },
   })
 }
@@ -182,9 +185,7 @@ export const useRemoveStorefrontDomain = () => {
         method: "DELETE",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: domainQueryKeys.detail("me"),
-      })
+      invalidateStorefrontQueries()
     },
   })
 }
@@ -196,9 +197,7 @@ export const useRemoveStorefront = () => {
         method: "DELETE",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: storefrontQueryKeys.detail("me"),
-      })
+      invalidateStorefrontQueries()
     },
   })
 }
