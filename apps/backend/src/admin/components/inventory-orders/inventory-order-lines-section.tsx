@@ -1,8 +1,12 @@
-import { Container, Heading, Text, Badge } from "@medusajs/ui";
+import { Container, Heading, Text, Badge, Button } from "@medusajs/ui";
 import { TriangleRightMini, PencilSquare } from "@medusajs/icons";
+import { useState } from "react";
 import { AdminInventoryOrder, OrderLine } from "../../hooks/api/inventory-orders";
 import { Link } from "react-router-dom";
 import { ActionMenu } from "../common/action-menu";
+
+// Collapse long order-line lists to keep the detail page scannable (#887).
+const COLLAPSED_LINE_COUNT = 6;
 
 export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder: AdminInventoryOrder }) => {
   // Define extended line type with inventory_item relation. The denormalized
@@ -17,6 +21,13 @@ export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder:
 
   // Handle both orderlines (from API) and order_lines (from type)
   const orderLines = (inventoryOrder as any).orderlines || inventoryOrder.order_lines || [];
+
+  const [expanded, setExpanded] = useState(false);
+  const isCollapsible = orderLines.length > COLLAPSED_LINE_COUNT;
+  const visibleLines =
+    isCollapsible && !expanded ? orderLines.slice(0, COLLAPSED_LINE_COUNT) : orderLines;
+  const hiddenCount = orderLines.length - COLLAPSED_LINE_COUNT;
+
   return (
     <Container className="p-0">
       <div className="flex items-center justify-between px-6 py-4">
@@ -46,7 +57,7 @@ export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder:
             <Text>No order lines found</Text>
           </div>
         ) : (
-          orderLines.map((line: InventoryOrderLine, idx: number) => {
+          visibleLines.map((line: InventoryOrderLine, idx: number) => {
             const inventoryItem = line.inventory_items?.[0];
             
             // Skip lines without inventory item data
@@ -88,6 +99,19 @@ export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder:
               </Link>
             );
           })
+        )}
+
+        {isCollapsible && (
+          <div className="px-2 pt-1">
+            <Button
+              variant="transparent"
+              size="small"
+              className="text-ui-fg-subtle w-full justify-center"
+              onClick={() => setExpanded((prev) => !prev)}
+            >
+              {expanded ? "Show less" : `Show ${hiddenCount} more`}
+            </Button>
+          </div>
         )}
       </div>
     </Container>
