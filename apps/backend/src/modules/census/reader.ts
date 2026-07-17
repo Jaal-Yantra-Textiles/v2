@@ -193,8 +193,20 @@ export class CensusReader {
       return this.listViaIndex(bee, rec, driver, { limit, offset, after })
     }
 
-    // Fallback: bounded in-memory scan over rec/* (original behaviour).
     const entries = Object.entries(filters)
+
+    // Unfiltered browse (the public map's hot path): page the ordered `rec/*`
+    // store directly and lift the grand total from `agg/total/weavers` in O(1).
+    // Previously this fell through to the bounded scan below, decompressing up
+    // to MAX_SCAN records on EVERY request purely to compute the count — which
+    // times out under the multi-million sweep.
+    if (entries.length === 0) {
+      return this.listAllWeavers(bee, rec, { limit, offset, after })
+    }
+
+    // Filtered but no indexed facet available: an accurate count requires
+    // visiting every match, so fall back to the bounded in-memory scan over
+    // rec/* (MAX_SCAN caps worst-case work; `capped` flags truncation).
     const match = (r: Record<string, any>) =>
       entries.every(([k, v]) => String(r[k]) === String(v))
 
@@ -213,6 +225,46 @@ export class CensusReader {
       count++
     }
     return { weavers, count, capped, indexed: false }
+  }
+
+  /**
+   * Unfiltered browse: page the ordered `rec/*` store and stop as soon as the
+   * page window is filled — O(offset + limit), never a full-corpus scan. The
+   * grand total comes from the pre-computed `agg/total/weavers` cell in O(1).
+   * `after` (last census_id of the previous page) enables O(page) forward
+   * pagination that doesn't degrade with depth like `offset`.
+   */
+  private async listAllWeavers(
+    bee: Bee,
+    rec: Sub,
+    { limit, offset, after }: { limit: number; offset: number; after?: string | number }
+  ) {
+    // rec sub keys are the unpadded census_id strings; Hyperbee streams in key
+    // order. With a cursor, resume strictly past the last id of the prior page.
+    const range = after != null ? { gt: String(after) } : {}
+
+    const weavers: Record<string, any>[] = []
+    let skipped = 0
+    let next: string | null = null
+
+    for await (const { key, value } of rec.createReadStream(range)) {
+      // Only `offset` applies when paging from the start; a cursor is already
+      // positioned past the previous page, so there's nothing to skip.
+      if (after == null && skipped < offset) {
+        skipped++
+        continue
+      }
+      weavers.push(this.decode(value))
+      next = String(key)
+      if (weavers.length >= limit) break // page filled — stop, no corpus scan
+    }
+
+    const totalNode = await bee
+      .sub("agg", { valueEncoding: "utf-8" })
+      .get("total/weavers")
+    const count = totalNode ? Number(totalNode.value) : weavers.length
+
+    return { weavers, count, capped: false, next, indexed: false }
   }
 
   /** Range-scan the driver's index family, hydrate + page the records. */

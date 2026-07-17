@@ -69,9 +69,38 @@ async function retrieveWeaver(id) {
   return node ? decode(node.value) : null
 }
 
-async function listAndCountWeavers(filters, limit, offset) {
+async function listAndCountWeavers(filters, limit, offset, after) {
   const rec = bee.sub("rec", { valueEncoding: "binary" })
   const entries = Object.entries(filters)
+
+  // Unfiltered browse (the public map's hot path): page the ordered rec/* store
+  // and stop once the page window is filled — O(offset+limit), never a full
+  // scan. The grand total comes from the agg/total/weavers cell in O(1).
+  // Previously EVERY request decompressed up to MAX_SCAN records just to count
+  // them, which blows past request timeouts under the multi-million sweep.
+  if (entries.length === 0) {
+    // rec sub keys are the unpadded census_id strings; Hyperbee streams in key
+    // order. With a cursor, resume strictly past the last id of the prior page.
+    const range = after != null ? { gt: String(after) } : {}
+    const weavers = []
+    let skipped = 0
+    let next = null
+    for await (const { key, value } of rec.createReadStream(range)) {
+      if (after == null && skipped < offset) {
+        skipped++
+        continue
+      }
+      weavers.push(decode(value))
+      next = String(key)
+      if (weavers.length >= limit) break // page filled — stop, no corpus scan
+    }
+    const totalNode = await bee.sub("agg", { valueEncoding: "utf-8" }).get("total/weavers")
+    const count = totalNode ? Number(totalNode.value) : weavers.length
+    return { weavers, count, capped: false, next }
+  }
+
+  // Filtered: an accurate count requires visiting every match, so do the
+  // bounded in-memory scan (MAX_SCAN caps worst-case work; `capped` flags it).
   const match = (r) => entries.every(([k, v]) => String(r[k]) === String(v))
   const weavers = []
   let count = 0
@@ -133,7 +162,11 @@ const server = http.createServer(async (req, res) => {
       for (const [k, v] of url.searchParams) if (FILTERABLE.has(k) && v !== "") filters[k] = v
       const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 20, 1), 100)
       const offset = Math.max(Number(url.searchParams.get("offset")) || 0, 0)
-      const out = await listAndCountWeavers(filters, limit, offset)
+      // Opaque forward cursor (last census_id of the previous page) — keeps
+      // deep pagination O(page) instead of degrading with offset.
+      const afterParam = url.searchParams.get("after")
+      const after = afterParam !== null && afterParam !== "" ? afterParam : undefined
+      const out = await listAndCountWeavers(filters, limit, offset, after)
       return send(res, 200, { ...out, limit, offset })
     }
 
