@@ -293,6 +293,84 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     inputSchema: obj({ ...PAGINATION }),
   },
   {
+    name: "create_store",
+    description:
+      "Create a storefront/store for the partner. This is a multi-part setup done in ONE call: it provisions the store, a default sales channel, a region (with its countries + currency), and a stock location (with the partner's address). Use it during onboarding once you know the store name, currency, selling countries, and address. Country codes in `region.countries` are lower-case ISO-2 (e.g. ['in']); `location.address.country_code` is upper-case ISO-2 (e.g. 'IN'). Sensitive — requires confirmation.",
+    method: "POST",
+    path: "/partners/stores",
+    write: true,
+    sensitive: true,
+    previewPath: "/partners/stores",
+    bodyParams: ["store", "sales_channel", "region", "location"],
+    inputSchema: obj(
+      {
+        store: obj(
+          {
+            name: STR("Store display name, e.g. 'HR Handloom'."),
+            supported_currencies: {
+              type: "array",
+              description: "At least one currency; mark one is_default.",
+              minItems: 1,
+              items: obj(
+                {
+                  currency_code: STR("3-letter code, e.g. 'inr'."),
+                  is_default: BOOL("Whether this is the default currency."),
+                },
+                ["currency_code"]
+              ),
+            },
+            metadata: {
+              type: "object",
+              description: "Optional store metadata.",
+              additionalProperties: true,
+            },
+          },
+          ["name", "supported_currencies"]
+        ),
+        sales_channel: obj({
+          name: STR("Optional sales-channel name (defaults are applied)."),
+          description: STR("Optional sales-channel description."),
+        }),
+        region: obj(
+          {
+            name: STR("Region name, e.g. 'India'."),
+            currency_code: STR("3-letter code, e.g. 'inr'."),
+            countries: {
+              type: "array",
+              description: "Lower-case ISO-2 country codes, e.g. ['in'].",
+              minItems: 1,
+              items: { type: "string", minLength: 2 },
+            },
+            payment_providers: {
+              type: "array",
+              description: "Optional payment provider ids.",
+              items: { type: "string" },
+            },
+          },
+          ["name", "currency_code", "countries"]
+        ),
+        location: obj(
+          {
+            name: STR("Stock location / warehouse name."),
+            address: obj(
+              {
+                address_1: STR("Street address."),
+                address_2: STR("Optional second address line."),
+                city: STR("City."),
+                province: STR("State / province."),
+                postal_code: STR("Postal / PIN code."),
+                country_code: STR("UPPER-case ISO-2, e.g. 'IN'."),
+              },
+              ["address_1", "country_code"]
+            ),
+          },
+          ["name", "address"]
+        ),
+      },
+      ["store", "region", "location"]
+    ),
+  },
+  {
     name: "list_designs",
     description: "List the partner's designs / design briefs (paginated).",
     method: "GET",

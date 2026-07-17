@@ -68,6 +68,17 @@ export const buildToolInputSchema = (
   const base = def.inputSchema || { type: "object", properties: {} }
   const properties = { ...(base.properties || {}) }
 
+  // Injected on EVERY tool. Lets the model state what it is trying to
+  // accomplish — most valuable for multi-step goals where several tools are
+  // called in sequence (e.g. creating a store, then a product, then pricing).
+  // Forwarded to the route as the `x-mcp-context` header for telemetry and
+  // echoed on dry_run/confirmation plans so approval cards show intent.
+  properties.context = {
+    type: "string",
+    description:
+      "One sentence on what you are ultimately trying to accomplish with this call (and the broader goal if this is one step of several). Always set it — it improves results and helps diagnose multi-step flows.",
+  }
+
   properties.dry_run = {
     type: "boolean",
     description:
@@ -132,6 +143,7 @@ export async function dispatchPartnerTool(
   const args = rawArgs || {}
   const dryRun = args.dry_run === true
   const confirmed = args.confirm === true
+  const context = typeof args.context === "string" ? args.context : undefined
   const write = !!def.write
   const sensitive = isSensitive(def)
 
@@ -157,6 +169,7 @@ export async function dispatchPartnerTool(
     path,
     ...(Object.keys(query).length ? { query } : {}),
     ...(Object.keys(body).length ? { body } : {}),
+    ...(context ? { context } : {}),
   }
 
   // Fetch the current object for writes that declare a previewPath — so the
@@ -216,6 +229,7 @@ export async function dispatchPartnerTool(
       body,
       bearer: ctx.bearer,
       cookie: ctx.cookie,
+      context,
     })
     const out = def.transform ? def.transform(data, args) : data
     return { ok: true, tool: name, data: out }

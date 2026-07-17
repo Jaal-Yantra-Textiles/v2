@@ -30,6 +30,12 @@ export type PartnerProxyArgs = {
   bearer?: string
   /** Optional session cookie to forward when the caller authed via cookie. */
   cookie?: string
+  /**
+   * Optional agent intent ("what am I trying to accomplish") forwarded as the
+   * `x-mcp-context` header. Purely informational — routes/telemetry can log it
+   * to understand multi-step tool sequences; it never affects route logic.
+   */
+  context?: string
 }
 
 export type PartnerProxyError = Error & { status?: number; body?: unknown }
@@ -42,6 +48,7 @@ export async function callPartnerRoute({
   body,
   bearer,
   cookie,
+  context,
 }: PartnerProxyArgs): Promise<unknown> {
   const qstr =
     query && Object.keys(query).length
@@ -57,6 +64,10 @@ export async function callPartnerRoute({
   }
   if (cookie) {
     headers["cookie"] = cookie
+  }
+  if (context) {
+    // Truncate defensively — this is a header, not a payload.
+    headers["x-mcp-context"] = context.slice(0, 1024)
   }
 
   const init: RequestInit = { method, headers }
