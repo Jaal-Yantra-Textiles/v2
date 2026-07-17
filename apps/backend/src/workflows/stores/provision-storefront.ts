@@ -118,13 +118,20 @@ const createProjectStep = createStep(
       container
     )
     const projectName = `storefront-${input.handle}`
+    const branch = input.branch || "main"
     const project = await provider.createProject({
       name: projectName,
       gitRepo: input.storefrontRepo,
       framework: "nextjs",
       rootDirectory: input.rootDirectory,
-      productionBranch: input.branch || "main",
+      productionBranch: branch,
       installCommand: "pnpm install --no-frozen-lockfile",
+      // Build ONLY the production branch. The storefront repo is the shared
+      // monorepo, so without this every push to any feature branch fans out a
+      // preview build to every storefront project (#1027). Vercel ignore-step
+      // semantics: exit 1 => build, exit 0 => skip. (No-op on providers that
+      // don't consume ignoreCommand.)
+      ignoreCommand: `if [ "$VERCEL_GIT_COMMIT_REF" = "${branch}" ]; then exit 1; else exit 0; fi`,
     })
 
     return new StepResponse(

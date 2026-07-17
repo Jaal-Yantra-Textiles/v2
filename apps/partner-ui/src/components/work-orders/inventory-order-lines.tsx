@@ -1,6 +1,9 @@
-import { Badge, Container, Heading, Text } from "@medusajs/ui"
-import { useMemo } from "react"
+import { Badge, Button, Container, Heading, Text } from "@medusajs/ui"
+import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
+
+// Collapse long line lists so the work-order detail stays scannable (#887).
+const COLLAPSED_LINE_COUNT = 6
 
 import { getLocaleAmount, getStylizedAmount } from "../../lib/money-amount-helpers"
 import { Thumbnail } from "../common/thumbnail"
@@ -39,6 +42,7 @@ export const InventoryOrderLines = ({
   totalPrice?: number | null
 }) => {
   const { t } = useTranslation()
+  const [expanded, setExpanded] = useState(false)
 
   // Deterministic order: by creation time, then id — so rows don't jump around.
   const lines = useMemo(
@@ -72,6 +76,11 @@ export const InventoryOrderLines = ({
   const totalMoney = (amount: number) => (cc ? getStylizedAmount(amount, cc) : fmt(amount))
   const totalRequested = lines.reduce((sum, l) => sum + (Number(l?.quantity) || 0), 0)
 
+  const isCollapsible = lines.length > COLLAPSED_LINE_COUNT
+  const visibleLines =
+    isCollapsible && !expanded ? lines.slice(0, COLLAPSED_LINE_COUNT) : lines
+  const hiddenCount = lines.length - COLLAPSED_LINE_COUNT
+
   return (
     <Container className="divide-y divide-dashed p-0">
       <div className="px-6 py-4">
@@ -81,7 +90,7 @@ export const InventoryOrderLines = ({
         </Text>
       </div>
 
-      {lines.map((line) => {
+      {visibleLines.map((line) => {
         // #817 S2 — color identity is denormalized onto the line, so this reads
         // correctly even without the inventory_item relation loaded.
         const title =
@@ -157,6 +166,21 @@ export const InventoryOrderLines = ({
           </div>
         )
       })}
+
+      {isCollapsible && (
+        <div className="px-6 py-3">
+          <Button
+            variant="transparent"
+            size="small"
+            className="text-ui-fg-subtle w-full justify-center"
+            onClick={() => setExpanded((prev) => !prev)}
+          >
+            {expanded
+              ? t("actions.showLess")
+              : `${t("actions.showMore")} (${hiddenCount})`}
+          </Button>
+        </div>
+      )}
 
       {/* Total footer — the retail order-summary money block */}
       <div className="flex flex-col gap-y-2 px-6 py-4">

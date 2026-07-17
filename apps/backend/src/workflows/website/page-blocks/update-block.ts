@@ -22,6 +22,29 @@ export type UpdateBlockStepInput = {
   metadata?: Record<string, unknown> ;
 };
 
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * Deep-merge `patch` onto `base`, recursing into plain objects and replacing
+ * arrays/primitives wholesale. Used so a partial `content`/`settings` payload
+ * updates only the keys it names instead of replacing the whole JSON column
+ * (Medusa writes model.json() columns as a full replace) — see #1016.
+ */
+const deepMerge = (
+  base: unknown,
+  patch: Record<string, unknown>
+): Record<string, unknown> => {
+  const out: Record<string, unknown> = isPlainObject(base) ? { ...base } : {};
+  for (const [key, value] of Object.entries(patch)) {
+    out[key] =
+      isPlainObject(value) && isPlainObject(out[key])
+        ? deepMerge(out[key], value)
+        : value;
+  }
+  return out;
+};
+
 export const updateBlockStep = createStep(
   "update-block-step",
   async (input: UpdateBlockStepInput, { container }) => {
@@ -60,13 +83,23 @@ export const updateBlockStep = createStep(
     // the PUT route's refetchBlock(result.id, ...) fell through to
     // `{ id: undefined }` and returned an arbitrary first block row
     // (same shape as the page PUT bug fixed in #285).
+    // Preserve sibling keys in the JSON columns: deep-merge any partial
+    // `content`/`settings` payload onto the existing block instead of letting
+    // Medusa full-replace the column and drop keys the caller didn't send (#1016).
+    const { content: inputContent, settings: inputSettings, ...rest } = input;
+    const data: Record<string, unknown> = { ...rest };
+    if (inputContent !== undefined) {
+      data.content = deepMerge(existingBlock.content, inputContent);
+    }
+    if (inputSettings !== undefined) {
+      data.settings = deepMerge(existingBlock.settings, inputSettings);
+    }
+
     const updatedRaw = await websiteService.updateBlocks({
       selector: {
         id: input.block_id
       },
-      data:{
-        ...input,
-      }
+      data,
     }) as unknown;
     const updatedBlock = (Array.isArray(updatedRaw) ? updatedRaw[0] : updatedRaw) as Block;
 
