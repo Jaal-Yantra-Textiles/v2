@@ -39,7 +39,12 @@ import { dirname, join } from "node:path"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const VERCEL_API = "https://api.vercel.com"
+const CF_API = "https://api.cloudflare.com/client/v4"
 const PLATFORM_SUFFIX = ".cicilabel.com"
+// Generic, project-agnostic Vercel CNAME target — the working subdomains use
+// this (NOT a per-project <hash>.vercel-dns-017 target). Pointing here makes a
+// domain routable on WHICHEVER project owns it, so no DNS churn on future moves.
+const VERCEL_CNAME = "cname.vercel-dns.com"
 
 // ── args ────────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2)
@@ -76,6 +81,55 @@ if (!TOKEN) {
 }
 let SHARED = val("--shared", process.env.VERCEL_SHARED_PROJECT_ID || "")
 
+// ── Cloudflare DNS (managed zone = cicilabel.com) ────────────────────────────
+// Required to move *.cicilabel.com subdomains: after reassigning the Vercel
+// domain we must repoint the CNAME to the generic target AND publish the
+// per-subdomain _vercel TXT nonce, else Vercel won't verify/route (the mistake
+// that took pml down). Fetch from SSM before running:
+//   export CLOUDFLARE_API_TOKEN=$(aws ssm get-parameter --name /jyt/prod/CLOUDFLARE_API_TOKEN --with-decryption --query Parameter.Value --output text)
+//   export CLOUDFLARE_ZONE_ID=$(aws ssm get-parameter --name /jyt/prod/CLOUDFLARE_ZONE_ID --with-decryption --query Parameter.Value --output text)
+const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN || ""
+const CF_ZONE = process.env.CLOUDFLARE_ZONE_ID || ""
+const VERCEL_TXT_NAME = "_vercel.cicilabel.com"
+
+async function cf(path, init = {}) {
+  const res = await fetch(`${CF_API}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${CF_TOKEN}`,
+      "Content-Type": "application/json",
+      ...(init.headers || {}),
+    },
+  })
+  const body = await res.json().catch(() => ({}))
+  return { ok: res.ok && body.success, status: res.status, body }
+}
+
+/** Upsert a grey-cloud CNAME <name> -> cname.vercel-dns.com in the managed zone. */
+async function cfSetCname(name) {
+  const list = await cf(`/zones/${CF_ZONE}/dns_records?type=CNAME&name=${name}`)
+  const rec = (list.body.result || [])[0]
+  const payload = { type: "CNAME", name, content: VERCEL_CNAME, proxied: false, ttl: 60 }
+  if (rec) {
+    if (rec.content === VERCEL_CNAME && rec.proxied === false) return { ok: true, unchanged: true }
+    return cf(`/zones/${CF_ZONE}/dns_records/${rec.id}`, { method: "PATCH", body: JSON.stringify(payload) })
+  }
+  return cf(`/zones/${CF_ZONE}/dns_records`, { method: "POST", body: JSON.stringify(payload) })
+}
+
+/** Publish the per-subdomain _vercel TXT verification nonce (preserves siblings). */
+async function cfSetVercelTxt(nonce, host) {
+  const list = await cf(`/zones/${CF_ZONE}/dns_records?type=TXT&name=${VERCEL_TXT_NAME}`)
+  const marker = `vc-domain-verify=${host},`
+  const existing = (list.body.result || []).find((r) => (r.content || "").includes(marker))
+  const payload = { type: "TXT", name: VERCEL_TXT_NAME, content: nonce, ttl: 60 }
+  if (existing) {
+    if (existing.content.replace(/^"|"$/g, "") === nonce) return { ok: true, unchanged: true }
+    return cf(`/zones/${CF_ZONE}/dns_records/${existing.id}`, { method: "PATCH", body: JSON.stringify(payload) })
+  }
+  return cf(`/zones/${CF_ZONE}/dns_records`, { method: "POST", body: JSON.stringify(payload) })
+}
+
 // ── vercel api helpers ───────────────────────────────────────────────────────
 const q = (extra = "") => `?teamId=${TEAM}${extra}`
 async function vc(path, init = {}) {
@@ -109,42 +163,91 @@ async function resolveGate(host) {
   }
 }
 
-// ── render check ─────────────────────────────────────────────────────────────
+// ── render check (STRICT) ────────────────────────────────────────────────────
+// Must reject Vercel edge errors: a DEPLOYMENT_NOT_FOUND returns 404 which the
+// old `<500` check wrongly passed. A healthy storefront is 200 (/in) or a 3xx
+// redirect (/) with NO x-vercel-error header.
 async function renders(host) {
   try {
-    const res = await fetch(`https://${host}/`, { redirect: "manual" })
-    return res.status < 500 // 200 / 3xx redirect to /<cc> both fine
-  } catch {
-    return false
+    const res = await fetch(`https://${host}/in`, { redirect: "manual" })
+    if (res.headers.get("x-vercel-error")) {
+      return { ok: false, reason: res.headers.get("x-vercel-error") }
+    }
+    const okStatus = res.status === 200 || (res.status >= 300 && res.status < 400)
+    return { ok: okStatus, reason: `HTTP ${res.status}` }
+  } catch (e) {
+    return { ok: false, reason: e.message }
   }
 }
 
-// ── domain move (remove from dedicated -> add to shared, with rollback) ───────
-async function moveDomain(domain, fromId, toId) {
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+const isInManagedZone = (domain) => domain.endsWith(PLATFORM_SUFFIX)
+
+/** Reassign the Vercel domain from the dedicated project to shared. */
+async function reassignVercelDomain(domain, fromId, toId) {
+  await vc(`/v9/projects/${fromId}/domains/${domain}${q()}`, { method: "DELETE" })
   const add = await vc(`/v10/projects/${toId}/domains${q()}`, {
     method: "POST",
     body: JSON.stringify({ name: domain }),
   })
-  // Vercel refuses a domain already owned by another project on the same team,
-  // so remove from the dedicated project first, then add to shared.
-  if (!add.ok && add.body?.error?.code === "domain_already_in_use") {
-    await vc(`/v9/projects/${fromId}/domains/${domain}${q()}`, { method: "DELETE" })
-    const retry = await vc(`/v10/projects/${toId}/domains${q()}`, {
+  if (!add.ok) {
+    // rollback: put it back on the dedicated project
+    await vc(`/v9/projects/${fromId}/domains${q()}`, {
       method: "POST",
       body: JSON.stringify({ name: domain }),
     })
-    if (!retry.ok) {
-      // rollback: put it back on the dedicated project
-      await vc(`/v9/projects/${fromId}/domains${q()}`, {
-        method: "POST",
-        body: JSON.stringify({ name: domain }),
-      })
-      return { ok: false, reason: JSON.stringify(retry.body?.error || retry.body) }
-    }
-    return { ok: true }
+    return { ok: false, reason: JSON.stringify(add.body?.error || add.body) }
   }
-  if (!add.ok) return { ok: false, reason: JSON.stringify(add.body?.error || add.body) }
-  return { ok: true }
+  return { ok: true, verification: add.body.verification || [] }
+}
+
+/**
+ * Full verified cutover for ONE in-zone subdomain (the recipe proven on pml):
+ *   reassign Vercel domain -> repoint CNAME to the generic target -> publish the
+ *   _vercel TXT nonce -> Vercel verify -> strict render check.
+ * DNS is only touched for domains inside the managed cicilabel.com zone; a
+ * partner-owned apex (its own registrar) is out of scope here and skipped.
+ */
+async function cutover(domain, fromId, toId) {
+  if (!isInManagedZone(domain)) {
+    return { ok: false, reason: "out-of-zone apex — handle separately (not automated)" }
+  }
+  if (!CF_TOKEN || !CF_ZONE) {
+    return { ok: false, reason: "CLOUDFLARE_API_TOKEN / CLOUDFLARE_ZONE_ID not set (export from SSM)" }
+  }
+
+  const mv = await reassignVercelDomain(domain, fromId, toId)
+  if (!mv.ok) return mv
+
+  // 1. CNAME -> generic target (grey cloud)
+  const cn = await cfSetCname(domain)
+  if (!cn.ok) return { ok: false, reason: `CNAME set failed: ${JSON.stringify(cn.body?.errors || cn)}` }
+
+  // 2. read Vercel's expected TXT nonce for this domain on the shared project
+  const dom = await vc(`/v9/projects/${toId}/domains/${domain}${q()}`)
+  const nonce = ((dom.body.verification || [])[0] || {}).value
+  if (nonce) {
+    const txt = await cfSetVercelTxt(nonce, domain)
+    if (!txt.ok) return { ok: false, reason: `TXT set failed: ${JSON.stringify(txt.body?.errors || txt)}` }
+  }
+
+  // 3. wait for DNS + verify on Vercel (retry a few times)
+  let verified = false
+  for (let i = 0; i < 6; i++) {
+    await sleep(10000)
+    const v = await vc(`/v9/projects/${toId}/domains/${domain}/verify${q()}`, { method: "POST" })
+    if (v.body?.verified) {
+      verified = true
+      break
+    }
+  }
+  if (!verified) return { ok: false, reason: "Vercel verify did not pass within timeout" }
+
+  // 4. strict render check
+  await sleep(5000)
+  const r = await renders(domain)
+  return r.ok ? { ok: true } : { ok: false, reason: `render check failed: ${r.reason}` }
 }
 
 // ── main ─────────────────────────────────────────────────────────────────────
@@ -199,21 +302,21 @@ async function main() {
         console.log(`    ✗ ${domain} — resolve gate FAILED (${gate.reason}) → SKIP`)
         continue
       }
+      const zoneNote = isInManagedZone(domain) ? "" : "  [out-of-zone apex — manual]"
       planned++
       console.log(
         `    ✓ ${domain} — gate ok (${gate.pk.slice(0, 14)}… ${gate.store}) ` +
-          `→ move to ${shared ? shared.name : "<shared>"}`
+          `→ ${shared ? shared.name : "<shared>"}${zoneNote}`
       )
       if (!APPLY || !SHARED) continue
 
-      const mv = await moveDomain(domain, proj.id, SHARED)
-      if (!mv.ok) {
-        console.log(`        ✗ move failed: ${mv.reason}`)
-        continue
+      const res = await cutover(domain, proj.id, SHARED)
+      if (res.ok) {
+        console.log(`        ✓ cutover complete — verified + renders`)
+        moved++
+      } else {
+        console.log(`        ✗ ${res.reason}`)
       }
-      const rendered = await renders(domain)
-      console.log(`        → moved; render check: ${rendered ? "200/redirect OK" : "⚠ 5xx — investigate"}`)
-      moved++
     }
 
     recordPayloads.push({
