@@ -305,9 +305,10 @@ export class CloudflareWorkersProvider implements HostingProvider {
    * SaaS custom hostnames are served via a **Worker Route**, not a Workers
    * Custom Domain — the custom hostname proxies to the (originless) fallback
    * origin and the route is what actually invokes the worker. Create a SCOPED
-   * `<hostname>/*` route (never `*/*`, which would hijack other in-zone hosts
-   * such as the `*.cicilabel.com` subdomains served by Vercel). Best-effort: the
-   * hostname still validates without it, so a failure here must not fail attach.
+   * per-hostname route, never a zone-wide wildcard route — a wildcard would
+   * hijack other in-zone hosts such as the cicilabel.com subdomains served by
+   * Vercel. Best-effort: the hostname still validates without it, so a failure
+   * here must not fail the attach.
    */
   private async ensureWorkerRoute(
     hostname: string,
