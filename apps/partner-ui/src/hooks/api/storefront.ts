@@ -123,6 +123,7 @@ export interface DomainStatus {
   verified?: boolean
   misconfigured?: boolean
   configured_by?: string | null
+  verification?: Array<{ type: string; domain: string; value: string }> | null
   dns_records?: DnsRecord[]
 }
 

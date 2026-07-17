@@ -5,6 +5,7 @@ import type DeploymentService from "../modules/deployment/service"
 import { WEBSITE_MODULE } from "../modules/website"
 import type WebsiteService from "../modules/website/service"
 import type PartnerService from "../modules/partner/service"
+import { partnerIsOnSharedProject } from "../modules/deployment/providers/resolve-partner-provider"
 
 /**
  * Backfill existing partner storefronts onto the new deployment model:
@@ -119,6 +120,13 @@ export default async function backfillStorefrontDeployments({
 
       if (!domain || !projectId) {
         logger.warn(`[skip] ${label} — missing domain or project id`)
+        continue
+      }
+
+      // Never relink/redeploy a shared multi-tenant project on behalf of one
+      // partner — it serves every tenant and is deployed centrally.
+      if (await partnerIsOnSharedProject(partner, container)) {
+        logger.warn(`[skip] ${label} — shared multi-tenant project`)
         continue
       }
 

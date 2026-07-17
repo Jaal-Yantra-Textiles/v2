@@ -26,6 +26,10 @@ import { DEPLOYMENT_MODULE } from ".."
 import type DeploymentService from "../service"
 import { ENCRYPTION_MODULE } from "../../encryption"
 import type EncryptionService from "../../encryption/service"
+import {
+  resolveProvisioningMode,
+  type DeploymentProvider,
+} from "../account-selector"
 import { createHostingProvider, resolveAccountCredentials } from "./registry"
 import type { HostingCredentials, HostingProvider, HostingProviderName } from "./types"
 
@@ -133,6 +137,52 @@ export async function buildHostingProvider(
     creds = envCredentials(providerName)
   }
   return createHostingProvider(providerName, creds)
+}
+
+/**
+ * Is this partner's storefront served by a SHARED, pre-deployed multi-tenant
+ * project (attach-domain-only) rather than its own dedicated deploy?
+ *
+ * Shared projects (e.g. the Cloudflare shared worker `nextjs-starter-medusa`)
+ * are owned by us and serve EVERY tenant, resolving the active store per-request
+ * from the Host header (NEXT_PUBLIC_MULTI_TENANT + /web/storefront/resolve). Any
+ * per-partner mutation of the project — above all `setEnvVars` — must be a no-op:
+ * on Cloudflare, `setEnvVars` re-uploads the worker script, replacing the live
+ * storefront with a placeholder and wiping the shared runtime bindings (see
+ * CloudflareWorkersProvider.uploadWorker), which takes ALL tenants down.
+ */
+export async function partnerIsOnSharedProject(
+  partner: any,
+  container: MedusaContainer
+): Promise<boolean> {
+  const providerName = partnerHostingProviderName(partner)
+  const projectRef = partnerProjectRef(partner, providerName)
+  if (!projectRef) return false
+
+  const accountId = (partner?.deployment_account_id ??
+    partner?.metadata?.deployment_account_id ??
+    null) as string | null
+
+  let apiConfig: Record<string, any> | null = null
+  if (accountId) {
+    try {
+      const deployment = container.resolve(DEPLOYMENT_MODULE) as DeploymentService
+      const account = await deployment.retrieveDeploymentAccount(accountId)
+      apiConfig = (account as any)?.api_config ?? null
+    } catch {
+      apiConfig = null
+    }
+  }
+
+  const { mode, sharedProjectId, sharedProjectName } = resolveProvisioningMode(
+    providerName as DeploymentProvider,
+    { apiConfig, env: process.env }
+  )
+
+  return (
+    mode === "shared" &&
+    (projectRef === sharedProjectId || projectRef === sharedProjectName)
+  )
 }
 
 export async function resolveHostingProviderForPartner(
