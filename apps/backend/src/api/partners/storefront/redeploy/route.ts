@@ -4,6 +4,7 @@ import {
 } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../../helpers"
+import { partnerIsOnSharedProject } from "../../../../modules/deployment/providers/resolve-partner-provider"
 import { redeployStorefrontWorkflow } from "../../../../workflows/stores/redeploy-storefront"
 
 const STOREFRONT_REPO_ENV = process.env.VERCEL_STOREFRONT_REPO || ""
@@ -19,6 +20,18 @@ export const POST = async (
       MedusaError.Types.UNAUTHORIZED,
       "No partner associated with this account"
     )
+  }
+
+  // Shared multi-tenant deployment: it's owned + deployed by us and serves every
+  // tenant, resolving the store per-request from the Host header. A per-partner
+  // redeploy would (with update_env) pin THIS partner's publishable key onto the
+  // shared project for all tenants, then redeploy it platform-wide. No-op it.
+  if (await partnerIsOnSharedProject(partner, req.scope)) {
+    return res.json({
+      message:
+        "Your storefront runs on a shared, centrally-managed deployment — content updates are live automatically, so no redeploy is needed.",
+      deployment: { id: "shared", url: "", status: "shared" },
+    })
   }
 
   const vercelProjectId =
