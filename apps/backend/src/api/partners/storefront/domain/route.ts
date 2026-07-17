@@ -63,6 +63,7 @@ export const GET = async (
       verified: partner.metadata?.custom_domain_verified === true,
       misconfigured: primary.misconfigured,
       configured_by: primary.configuredBy ?? null,
+      verification: primary.verification ?? null,
       dns_records: records,
     })
   } catch {

@@ -6,7 +6,10 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../helpers"
 import { DEPLOYMENT_MODULE } from "../../../modules/deployment"
 import type DeploymentService from "../../../modules/deployment/service"
-import { resolveHostingProviderForPartner } from "../../../modules/deployment/providers/resolve-partner-provider"
+import {
+  partnerIsOnSharedProject,
+  resolveHostingProviderForPartner,
+} from "../../../modules/deployment/providers/resolve-partner-provider"
 import updatePartnerWorkflow from "../../../workflows/partners/update-partner"
 import { getStorefrontRefs } from "./helpers"
 
@@ -202,6 +205,12 @@ export const DELETE = async (
 
   const results: Record<string, any> = {}
 
+  // A SHARED, multi-tenant project (e.g. the Cloudflare shared worker) is owned
+  // by us and serves EVERY tenant — removing one partner must only detach that
+  // partner's domain, NEVER tear down the shared project. Deleting it here is
+  // what wiped the shared worker for all tenants; guard it.
+  const isShared = await partnerIsOnSharedProject(partner, req.scope)
+
   // Remove the project on whatever provider the partner is on.
   try {
     const { provider } = await resolveHostingProviderForPartner(partner, req.scope)
@@ -213,11 +222,17 @@ export const DELETE = async (
         results.domain = { action: "failed", error: e.message }
       }
     }
-    // deleteProject is an optional HostingProvider method (#345); every current
-    // adapter (Vercel/Cloudflare Pages/Netlify/Render) implements it, so this
-    // path fully tears down the project via the resolved account's creds. The
-    // legacy branch stays as a fallback for env-only Vercel setups.
-    if (typeof provider.deleteProject === "function") {
+    if (isShared) {
+      // Shared project: detached the domain above; leave the project standing.
+      results.project = {
+        action: "skipped",
+        reason: "shared multi-tenant project — only the partner's domain is detached",
+      }
+    } else if (typeof provider.deleteProject === "function") {
+      // deleteProject is an optional HostingProvider method (#345); every current
+      // adapter (Vercel/Cloudflare Pages/Netlify/Render) implements it, so this
+      // path fully tears down the project via the resolved account's creds. The
+      // legacy branch stays as a fallback for env-only Vercel setups.
       await provider.deleteProject(projectRef)
       results.project = { action: "deleted" }
     } else if (refs.providerName === "vercel" && deployment.isVercelConfigured()) {
@@ -243,7 +258,7 @@ export const DELETE = async (
   // Decrement the account's project_count (best-effort) so freed capacity is
   // reflected in future rotation.
   const accountId = partner?.deployment_account_id
-  if (accountId) {
+  if (accountId && !isShared) {
     try {
       const acct = await deployment.retrieveDeploymentAccount(accountId)
       const next = Math.max(0, ((acct as any)?.project_count ?? 1) - 1)

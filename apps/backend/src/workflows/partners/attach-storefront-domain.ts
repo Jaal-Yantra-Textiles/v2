@@ -10,7 +10,10 @@ import {
 import { WEBSITE_MODULE } from "../../modules/website"
 import type WebsiteService from "../../modules/website/service"
 import { PARTNER_MODULE } from "../../modules/partner"
-import { resolveHostingProviderForPartner } from "../../modules/deployment/providers/resolve-partner-provider"
+import {
+  partnerIsOnSharedProject,
+  resolveHostingProviderForPartner,
+} from "../../modules/deployment/providers/resolve-partner-provider"
 
 /**
  * Roadmap #17 (issue #346) — a partner's custom domain should work in both
@@ -151,6 +154,17 @@ const setBaseUrlEnvStep = createStep(
   ) => {
     const partnerService: any = container.resolve(PARTNER_MODULE)
     const partner = await partnerService.retrievePartner(input.partner_id)
+
+    // Shared multi-tenant project: the base URL is resolved per-request from the
+    // Host header, never pinned to one tenant. And on Cloudflare, setEnvVars
+    // re-uploads the shared worker as a placeholder + wipes its bindings — which
+    // takes every tenant down. Never touch the shared project's env. (This is the
+    // bug that set NEXT_PUBLIC_BASE_URL=https://<partner-domain> on the shared
+    // worker and broke hr-handloom + all tenants.)
+    if (await partnerIsOnSharedProject(partner, container)) {
+      return new StepResponse({ set: false, skipped: "shared" as const })
+    }
+
     const { provider, projectRef } = await resolveHostingProviderForPartner(
       partner,
       container
