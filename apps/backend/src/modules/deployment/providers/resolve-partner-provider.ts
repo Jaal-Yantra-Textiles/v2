@@ -90,7 +90,16 @@ function envCredentials(providerName: HostingProviderName): HostingCredentials {
           "Cloudflare Workers is not configured (CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID missing) and the partner has no deployment account"
         )
       }
-      return { token, accountId }
+      // Forward the platform zone id so the Workers provider can attach the
+      // storefront hostname via a Custom Domain binding. Without it addDomain
+      // bails ("zone_id is required") and the only routing left is a
+      // workers.dev CNAME → Error 1014 (CNAME Cross-User Banned).
+      const zoneId = process.env.CLOUDFLARE_ZONE_ID
+      return {
+        token,
+        accountId,
+        ...(zoneId ? { extra: { zone_id: zoneId } } : {}),
+      }
     }
     default:
       // Netlify/Render have no legacy env-single-account path — they always run
