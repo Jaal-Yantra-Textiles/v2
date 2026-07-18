@@ -1,3 +1,32 @@
+# [13.60.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.59.0...v13.60.0) (2026-07-18)
+
+
+### Bug Fixes
+
+* **storefront:** Cloudflare Workers routing (Error 1014) + getProject status ([d7bbced](https://github.com/Jaal-Yantra-Textiles/v2/commit/d7bbced54b5db2bfcaf4ccb55e291eb63bee05d8))
+* **storefront-hosting:** guard shared multi-tenant project from per-partner destructive ops ([#1068](https://github.com/Jaal-Yantra-Textiles/v2/issues/1068)) ([fcd92db](https://github.com/Jaal-Yantra-Textiles/v2/commit/fcd92dbd559a856d502c41d75ac72efbd831b6be))
+* **partner-ui:** invalidate both storefront queries on every mutation ([45a40d7](https://github.com/Jaal-Yantra-Textiles/v2/commit/45a40d7f23bd95987e59ca49009ff8f0be1a9394))
+* **storefront-resolve:** match the custom_domain column so attached domains serve ([#1077](https://github.com/Jaal-Yantra-Textiles/v2/issues/1077)) ([334b442](https://github.com/Jaal-Yantra-Textiles/v2/commit/334b4428ee3d1caac4ce8ce00c0634b46b22520f)), closes [#1075](https://github.com/Jaal-Yantra-Textiles/v2/issues/1075)
+* **partner-storefront:** repair custom-domain lifecycle + move domain out of metadata ([#1075](https://github.com/Jaal-Yantra-Textiles/v2/issues/1075)) ([82c83a8](https://github.com/Jaal-Yantra-Textiles/v2/commit/82c83a8f935b45ec433909f91ba1e937930dcb5d))
+* **storefront-hosting:** thin-down does full DNS cutover + strict verify ([b2b2b03](https://github.com/Jaal-Yantra-Textiles/v2/commit/b2b2b0356db1389523efd32e9b9d598c91d17100))
+* **storefront-hosting:** unbreak prod build — `*/*` in JSDoc closed the block comment ([#1070](https://github.com/Jaal-Yantra-Textiles/v2/issues/1070)) ([a4e4956](https://github.com/Jaal-Yantra-Textiles/v2/commit/a4e4956f929edf9d12ef949422b16577b5e9a95a)), closes [#1069](https://github.com/Jaal-Yantra-Textiles/v2/issues/1069)
+* **storefront-hosting:** Workers Custom Domain attach must be PUT, not POST ([#1072](https://github.com/Jaal-Yantra-Textiles/v2/issues/1072)) ([6c74dcf](https://github.com/Jaal-Yantra-Textiles/v2/commit/6c74dcf2d4d6052aa39ce022de34126b5bc6e851))
+
+
+### Features
+
+* **storefront-hosting:** apex flip-only migration script ([baa626b](https://github.com/Jaal-Yantra-Textiles/v2/commit/baa626b96a42ae67406aeda7027ee72df78ef679))
+* **partner-mcp:** broader dashboard reads (Tier 1) ([#1063](https://github.com/Jaal-Yantra-Textiles/v2/issues/1063)) ([eb9bb93](https://github.com/Jaal-Yantra-Textiles/v2/commit/eb9bb93559fc0827008e199d022b796d01a09712))
+* **storefront-hosting:** Cloudflare for SaaS Custom Hostnames for partner-owned domains ([#1069](https://github.com/Jaal-Yantra-Textiles/v2/issues/1069)) ([15fa63a](https://github.com/Jaal-Yantra-Textiles/v2/commit/15fa63a268b6cbaf645106f8f318e9b8f61dbf76))
+* **partner-mcp:** discovery + AI reads (Tier 5) ([#1067](https://github.com/Jaal-Yantra-Textiles/v2/issues/1067)) ([72c516b](https://github.com/Jaal-Yantra-Textiles/v2/commit/72c516bcb0899d698a310509aaf9a1bfbbb02e31))
+* **ops:** DP job to repoint partners onto the shared storefront project ([4680362](https://github.com/Jaal-Yantra-Textiles/v2/commit/468036268b2e133debd101cf00742986548fc645))
+* **partner-mcp:** inventory orders (Tier 6) ([#1074](https://github.com/Jaal-Yantra-Textiles/v2/issues/1074)) ([02700cc](https://github.com/Jaal-Yantra-Textiles/v2/commit/02700ccd38d0a508280a91fb088e0fc29d5ecc68))
+* **partner-mcp:** sensitive mutations (Tier 4) ([#1066](https://github.com/Jaal-Yantra-Textiles/v2/issues/1066)) ([35cc6d0](https://github.com/Jaal-Yantra-Textiles/v2/commit/35cc6d0496dd7d3162c5b97338f074b7cdbdccc0))
+* **storefront-hosting:** shared multi-tenant provisioning mode + Vercel thin-down script ([bb3b006](https://github.com/Jaal-Yantra-Textiles/v2/commit/bb3b006c2675ea13a8c066598e0ab779fc822a16))
+* **partner-mcp:** store config (Tier 3) ([#1065](https://github.com/Jaal-Yantra-Textiles/v2/issues/1065)) ([34dbaf3](https://github.com/Jaal-Yantra-Textiles/v2/commit/34dbaf3f4679427f9f10f7644abc4b31df9a9c9a))
+* **deployment:** store shared-project/worker config on the deployment account ([f270a03](https://github.com/Jaal-Yantra-Textiles/v2/commit/f270a03516028470789cf2b2a93b07f2b84a294c))
+* **partner-mcp:** storefront management (Tier 2) ([#1064](https://github.com/Jaal-Yantra-Textiles/v2/issues/1064)) ([1a8af5a](https://github.com/Jaal-Yantra-Textiles/v2/commit/1a8af5ad33f28c923e2a6ad49635fe6f78590f8a))
+
 # [13.59.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.58.0...v13.59.0) (2026-07-17)
 
 
