@@ -19,6 +19,48 @@ const MAX_SCAN = 50_000
 // each decode is already off-thread.
 const YIELD_EVERY = 256
 
+// Hydration concurrency: each rec.get is an INDEPENDENT seek, so draining the
+// index with a bounded worker pool turns N sequential seeks into ~N/POOL. Over a
+// remote P2P peer each seek is an RTT; even against a local replica it overlaps
+// disk + brotli. Bounded so we never open thousands of concurrent seeks at once.
+const HYDRATE_CONCURRENCY = Number(process.env.CENSUS_HYDRATE_CONCURRENCY || 12)
+const HYDRATE_BATCH = HYDRATE_CONCURRENCY * 4
+
+// Decoded-record LRU: the seek+brotli is the cost, so cache the decoded records.
+// Helps repeated reads, the /verify path, and residual re-scans. A short TTL
+// bounds staleness if the underlying core replicates a newer version.
+const REC_CACHE_MAX = Number(process.env.CENSUS_REC_CACHE_MAX || 5000)
+const REC_CACHE_TTL_MS = Number(process.env.CENSUS_REC_CACHE_TTL_MS || 300_000)
+// Stats memo: the agg stream is cheap but there's no reason to re-walk it on
+// every request — aggregates only change on re-seed.
+const STATS_MEMO_TTL_MS = Number(process.env.CENSUS_STATS_MEMO_TTL_MS || 60_000)
+
+/** Tiny insertion-ordered LRU with per-entry TTL — no external dependency. */
+class TtlLru<V> {
+  private map = new Map<string, { v: V; exp: number }>()
+  constructor(private max: number, private ttlMs: number) {}
+  get(k: string): V | undefined {
+    const e = this.map.get(k)
+    if (!e) return undefined
+    if (e.exp <= Date.now()) {
+      this.map.delete(k)
+      return undefined
+    }
+    // bump recency: re-insert so it moves to the tail
+    this.map.delete(k)
+    this.map.set(k, e)
+    return e.v
+  }
+  set(k: string, v: V): void {
+    if (this.map.has(k)) this.map.delete(k)
+    this.map.set(k, { v, exp: Date.now() + this.ttlMs })
+    if (this.map.size > this.max) {
+      const oldest = this.map.keys().next().value
+      if (oldest !== undefined) this.map.delete(oldest)
+    }
+  }
+}
+
 // meta flags the seeder sets once an index family has been backfilled. The facet
 // families (state/gender/sd) gate on FACET_IDX_META; the whole-corpus ordered
 // `all` family gates on ALL_IDX_META — decoupled so the unfiltered browse only
@@ -54,6 +96,8 @@ const padId = (id: string | number) => String(id).padStart(ID_PAD, "0")
 export class CensusReader {
   private bee: Bee | null = null
   private proxyUrl: string | null = null
+  private recCache = new TtlLru<Record<string, any>>(REC_CACHE_MAX, REC_CACHE_TTL_MS)
+  private statsMemo: { at: number; minCell: number; value: Stats } | null = null
 
   /** Embedded mode: the loader replicated the core and hands us the live Hyperbee. */
   setBee(bee: Bee) {
@@ -93,6 +137,36 @@ export class CensusReader {
     return JSON.parse((await brotliDecompressAsync(buf)).toString())
   }
 
+  /** rec.get + decode, memoized in the LRU (keyed by census_id). */
+  private async getDecoded(rec: Sub, id: string): Promise<Record<string, any> | null> {
+    const cached = this.recCache.get(id)
+    if (cached) return cached
+    const node = await rec.get(id)
+    if (!node) return null
+    const r = await this.decode(node.value)
+    this.recCache.set(id, r)
+    return r
+  }
+
+  /** Bounded-concurrency, order-preserving hydration of a list of census ids. */
+  private async hydrateInOrder(
+    rec: Sub,
+    ids: string[]
+  ): Promise<(Record<string, any> | null)[]> {
+    const out: (Record<string, any> | null)[] = new Array(ids.length)
+    let cursor = 0
+    const worker = async () => {
+      while (true) {
+        const i = cursor++
+        if (i >= ids.length) return
+        out[i] = await this.getDecoded(rec, ids[i])
+      }
+    }
+    const n = Math.min(HYDRATE_CONCURRENCY, ids.length)
+    await Promise.all(Array.from({ length: n }, () => worker()))
+    return out
+  }
+
   /** Resolve one masked weaver record by census_id, or null if unknown. */
   async retrieveWeaver(id: string | number): Promise<Record<string, any> | null> {
     if (this.proxyUrl) {
@@ -102,8 +176,7 @@ export class CensusReader {
       return weaver ?? null
     }
     const rec = this.requireBee().sub("rec", { valueEncoding: "binary" })
-    const node = await rec.get(String(id))
-    return node ? await this.decode(node.value) : null
+    return await this.getDecoded(rec, String(id))
   }
 
   /**
@@ -116,6 +189,10 @@ export class CensusReader {
       const { stats } = await this.proxyGet<{ stats: Stats }>(`/census/stats?minCell=${minCell}`)
       return stats
     }
+    const memo = this.statsMemo
+    if (memo && memo.minCell === minCell && Date.now() - memo.at < STATS_MEMO_TTL_MS) {
+      return memo.value
+    }
     const agg = this.requireBee().sub("agg", { valueEncoding: "utf-8" })
     const dims: Stats = {}
     for await (const { key, value } of agg.createReadStream()) {
@@ -127,6 +204,7 @@ export class CensusReader {
       ;(dims[dim] ??= {})[label] =
         dim === "total" || dim === "loom_type" ? count : count < minCell ? null : count
     }
+    this.statsMemo = { at: Date.now(), minCell, value: dims }
     return dims
   }
 
@@ -295,35 +373,57 @@ export class CensusReader {
     let capped = false
     let next: string | null = null
 
-    for await (const { key } of idx.createReadStream(range)) {
-      if (++scanned > MAX_SCAN) {
-        capped = true
-        break
-      }
-      const id = String(Number(key.slice(driver.prefix.length)))
-
-      if (!hasResidual) {
-        // Purely index-paged: fetch only the page window; total comes from agg.
-        if (count >= offset && weavers.length < limit) {
-          const node = await rec.get(id)
-          if (node) {
-            weavers.push(await this.decode(node.value))
-            next = id
-          }
+    if (!hasResidual) {
+      // Purely index-paged: walk the ordered index (keys only — no decode) to the
+      // page window, collect its ids, then hydrate that page in PARALLEL. Total
+      // comes from agg (O(1)) below, so counting past the page is unnecessary.
+      const pageIds: string[] = []
+      for await (const { key } of idx.createReadStream(range)) {
+        if (++scanned > MAX_SCAN) {
+          capped = true
+          break
+        }
+        if (count >= offset && pageIds.length < limit) {
+          pageIds.push(String(Number(key.slice(driver.prefix.length))))
         }
         count++
-        if (weavers.length >= limit) break
-      } else {
-        const node = await rec.get(id)
-        if (!node) continue
-        const r = await this.decode(node.value)
-        if (!residualMatch(r)) continue
-        if (count >= offset && weavers.length < limit) {
+        if (pageIds.length >= limit) break
+      }
+      const hydrated = await this.hydrateInOrder(rec, pageIds)
+      for (let j = 0; j < hydrated.length; j++) {
+        const r = hydrated[j]
+        if (r) {
           weavers.push(r)
-          next = id
+          next = pageIds[j]
         }
-        count++
       }
+    } else {
+      // Residual predicate needs the decoded record, so every id in the family
+      // must be hydrated (up to MAX_SCAN) to count exact matches. Do it in ordered,
+      // bounded-concurrency batches instead of one blocking seek at a time.
+      let batch: string[] = []
+      const drain = async () => {
+        const hydrated = await this.hydrateInOrder(rec, batch)
+        for (let j = 0; j < hydrated.length; j++) {
+          const r = hydrated[j]
+          if (!r || !residualMatch(r)) continue
+          if (count >= offset && weavers.length < limit) {
+            weavers.push(r)
+            next = batch[j]
+          }
+          count++
+        }
+        batch = []
+      }
+      for await (const { key } of idx.createReadStream(range)) {
+        if (++scanned > MAX_SCAN) {
+          capped = true
+          break
+        }
+        batch.push(String(Number(key.slice(driver.prefix.length))))
+        if (batch.length >= HYDRATE_BATCH) await drain()
+      }
+      if (batch.length) await drain()
     }
 
     // Exact O(1) total from the aggregate cell when the index alone answered the

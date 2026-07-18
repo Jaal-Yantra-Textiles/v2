@@ -19,5 +19,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const stats = await census.getStats()
+  // Aggregates only change on re-seed → let the CDN/edge hold them. s-maxage caches
+  // at the edge for 10min; stale-while-revalidate serves stale up to 1h while a
+  // fresh copy is fetched in the background. Pairs with the reader's in-process memo.
+  res.setHeader("Cache-Control", "public, s-maxage=600, stale-while-revalidate=3600")
   res.json({ stats })
 }
