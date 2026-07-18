@@ -36,9 +36,16 @@ export type ProvisionStorefrontInput = {
   s3_pathname: string
   /**
    * Preferred hosting provider for this NEW storefront. Defaults to
-   * DEFAULT_HOSTING_PROVIDER env (or "cloudflare"). The selector rotates across
+   * DEFAULT_HOSTING_PROVIDER env (or "vercel"). The selector rotates across
    * that provider's accounts, spills to other providers, then falls back to the
    * legacy env-single-account path.
+   *
+   * Default is "vercel" (not "cloudflare"): Vercel handles custom domains —
+   * including bare apex — natively (A @ → 76.76.21.21) on any DNS provider,
+   * with auto TLS, so it "just works" for every partner. The Cloudflare Workers
+   * tier is deferred (its SaaS custom-hostname path can't serve a bare apex
+   * without Enterprise apex-proxying); re-enable it later by setting
+   * DEFAULT_HOSTING_PROVIDER=cloudflare and reactivating the CF account.
    */
   preferred_provider?: DeploymentProvider
 }
@@ -81,7 +88,9 @@ const selectHostingTargetStep = createStep(
     const preferred =
       input.preferredProvider ||
       (process.env.DEFAULT_HOSTING_PROVIDER as DeploymentProvider | undefined) ||
-      "cloudflare"
+      // Default to Vercel: native apex + auto-TLS on any DNS provider. The CF
+      // Workers tier is deferred (bare apex needs Enterprise apex-proxying).
+      "vercel"
 
     const target = decideProvisionTarget(accounts || [], {
       preferredProvider: preferred,
