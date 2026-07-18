@@ -700,8 +700,8 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     sensitive: true,
     bodyParams: ["store_id", "product"],
     sideEffects:
-      "creates the product with its variants + inventory items and seeds a 0-quantity stock level at the store location. The product stays a DRAFT and stock stays 0. Publish it with update_store_product (set product.status='published'); stock quantities are set by the partner from the dashboard Products→inventory page (there is no chat tool for stock yet).",
-    nextSteps: ["update_store_product"],
+      "creates the product with its variants + inventory items and seeds a 0-quantity stock level at the store location. The product stays a DRAFT and stock stays 0. Set stock per variant with set_inventory_level, then publish with update_store_product (set product.status='published').",
+    nextSteps: ["set_inventory_level", "update_store_product"],
     inputSchema: obj(
       {
         store_id: STR("Store to create the product in, e.g. 'store_...'."),
@@ -738,7 +738,7 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       })
       if (managedZero.length) {
         warnings.push(
-          `${managedZero.length} variant(s) have 0 stock. There is no chat tool to set stock yet — tell the partner to set quantities on the dashboard Products→inventory page.`
+          `${managedZero.length} variant(s) have 0 stock — set quantities with set_inventory_level (one per inventory item at the store location) before the product can sell.`
         )
       }
       return warnings.length ? { ...data, _advisory: warnings } : data
@@ -1030,6 +1030,78 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     path: "/partners/inventory-items/:id/levels",
     pathParams: ["id"],
     inputSchema: obj({ id: STR("Inventory item id.") }, ["id"]),
+  },
+  // ---- Inventory writes: set on-hand stock. The partner may only write their
+  // OWN stock location (the store's default_location_id) — the routes enforce
+  // it. These are what let the assistant actually stock a product after
+  // create_product (which seeds a 0-qty level). Routine writes, not sensitive.
+  {
+    name: "set_inventory_level",
+    description:
+      "Set the on-hand stock quantity for ONE inventory item at a location. Find the item via get_product/list_inventory_levels and use the store's default_location_id as location_id (only your own location is writable).",
+    method: "POST",
+    path: "/partners/inventory-items/:id/levels/:locationId",
+    pathParams: ["id", "locationId"],
+    write: true,
+    previewPath: "/partners/inventory-items/:id/levels",
+    bodyParams: ["stocked_quantity", "incoming_quantity"],
+    sideEffects:
+      "overwrites the item's on-hand quantity at that location (not a delta). Only the partner's own store location is writable.",
+    inputSchema: obj(
+      {
+        id: STR("Inventory item id (iitem_...)."),
+        locationId: STR("Stock location id — the store's default_location_id."),
+        stocked_quantity: INT("New on-hand quantity (absolute, not a delta)."),
+        incoming_quantity: INT("Optional incoming/expected quantity."),
+      },
+      ["id", "locationId", "stocked_quantity"]
+    ),
+  },
+  {
+    name: "set_inventory_levels_batch",
+    description:
+      "Set stock for MANY inventory items at once (all at the partner's own location) — use to stock every variant of a product in one call. Provide `create` for items with no level yet and `update` for existing levels.",
+    method: "POST",
+    path: "/partners/inventory-items/batch-levels",
+    write: true,
+    bodyParams: ["create", "update", "delete"],
+    sideEffects:
+      "creates/updates on-hand levels for the listed items at the partner's store location; entries for any other location are dropped.",
+    inputSchema: obj({
+      create: {
+        type: "array",
+        description:
+          "Levels to create: [{ inventory_item_id, stocked_quantity }] (location defaults to the partner's store location).",
+        items: {
+          type: "object",
+          properties: {
+            inventory_item_id: STR("Inventory item id."),
+            stocked_quantity: INT("On-hand quantity."),
+          },
+          required: ["inventory_item_id", "stocked_quantity"],
+          additionalProperties: true,
+        },
+      },
+      update: {
+        type: "array",
+        description:
+          "Levels to update: [{ inventory_item_id, stocked_quantity }] for items that already have a level.",
+        items: {
+          type: "object",
+          properties: {
+            inventory_item_id: STR("Inventory item id."),
+            stocked_quantity: INT("New on-hand quantity."),
+          },
+          required: ["inventory_item_id", "stocked_quantity"],
+          additionalProperties: true,
+        },
+      },
+      delete: {
+        type: "array",
+        description: "Level ids (ilev_...) to remove.",
+        items: { type: "string" },
+      },
+    }),
   },
   {
     name: "list_raw_materials",
@@ -1454,6 +1526,132 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     pathParams: ["id"],
     queryParams: ["q", "limit", "offset"],
     inputSchema: obj({ id: STR("Store id.") }, ["id"]),
+  },
+  // ---- Product option + variant writes: edit a product after create_product
+  // (add a colour/size, fix a price, remove a variant). Options must exist
+  // before variants can reference them. Routine writes except DELETE.
+  {
+    name: "add_product_option",
+    description:
+      "Add an option (e.g. Size, Color) with its values to a product. Options must exist before variants can reference them via `options`.",
+    method: "POST",
+    path: "/partners/stores/:id/products/:productId/options",
+    pathParams: ["id", "productId"],
+    write: true,
+    bodyParams: ["title", "values"],
+    inputSchema: obj(
+      {
+        id: STR("Store id."),
+        productId: STR("Product id."),
+        title: STR("Option name, e.g. 'Size'."),
+        values: {
+          type: "array",
+          description: "Option values, e.g. ['S','M','L'].",
+          items: { type: "string" },
+        },
+      },
+      ["id", "productId", "title", "values"]
+    ),
+  },
+  {
+    name: "add_product_variant",
+    description:
+      "Add a variant to an existing product. `options` maps each product option to a value, e.g. { Size: 'M', Color: 'Red' }. Provide `prices` as [{ amount, currency_code }]. Creates an inventory item — seed its stock with set_inventory_level afterward.",
+    method: "POST",
+    path: "/partners/stores/:id/products/:productId/variants",
+    pathParams: ["id", "productId"],
+    write: true,
+    bodyParams: ["title", "sku", "options", "prices", "manage_inventory", "allow_backorder"],
+    sideEffects:
+      "creates the variant + its inventory item; the new variant starts at 0 stock.",
+    nextSteps: ["set_inventory_level"],
+    inputSchema: obj(
+      {
+        id: STR("Store id."),
+        productId: STR("Product id."),
+        title: STR("Variant title, e.g. 'Red / M'."),
+        sku: STR("Stock-keeping unit."),
+        options: {
+          type: "object",
+          description: "Option→value map, e.g. { Size: 'M', Color: 'Red' }.",
+          additionalProperties: true,
+        },
+        prices: {
+          type: "array",
+          description: "Prices: [{ amount, currency_code }].",
+          items: {
+            type: "object",
+            properties: {
+              amount: INT("Price amount in the currency's minor/major unit per store convention."),
+              currency_code: STR("ISO currency code, e.g. 'usd'."),
+            },
+            required: ["amount", "currency_code"],
+            additionalProperties: true,
+          },
+        },
+        manage_inventory: BOOL("Track stock for this variant (default true)."),
+        allow_backorder: BOOL("Allow ordering beyond stock."),
+      },
+      ["id", "productId", "title"]
+    ),
+  },
+  {
+    name: "update_product_variant",
+    description:
+      "Update a variant (title, sku, prices, options, inventory flags). Pass only the fields to change. Prices are [{ amount, currency_code }].",
+    method: "POST",
+    path: "/partners/stores/:id/products/:productId/variants/:variantId",
+    pathParams: ["id", "productId", "variantId"],
+    write: true,
+    previewPath: "/partners/stores/:id/products/:productId/variants/:variantId",
+    bodyParams: ["title", "sku", "options", "prices", "manage_inventory", "allow_backorder"],
+    inputSchema: obj(
+      {
+        id: STR("Store id."),
+        productId: STR("Product id."),
+        variantId: STR("Variant id to update."),
+        title: STR("New variant title."),
+        sku: STR("New SKU."),
+        options: {
+          type: "object",
+          description: "Option→value map to change.",
+          additionalProperties: true,
+        },
+        prices: {
+          type: "array",
+          description: "Replacement prices: [{ amount, currency_code }].",
+          items: {
+            type: "object",
+            properties: {
+              amount: INT("Price amount."),
+              currency_code: STR("ISO currency code."),
+            },
+            required: ["amount", "currency_code"],
+            additionalProperties: true,
+          },
+        },
+        manage_inventory: BOOL("Track stock for this variant."),
+        allow_backorder: BOOL("Allow ordering beyond stock."),
+      },
+      ["id", "productId", "variantId"]
+    ),
+  },
+  {
+    name: "delete_product_variant",
+    description: "Delete a variant from a product.",
+    method: "DELETE",
+    path: "/partners/stores/:id/products/:productId/variants/:variantId",
+    pathParams: ["id", "productId", "variantId"],
+    write: true,
+    previewPath: "/partners/stores/:id/products/:productId/variants/:variantId",
+    inputSchema: obj(
+      {
+        id: STR("Store id."),
+        productId: STR("Product id."),
+        variantId: STR("Variant id to delete."),
+      },
+      ["id", "productId", "variantId"]
+    ),
   },
   {
     name: "list_store_shipping_options",

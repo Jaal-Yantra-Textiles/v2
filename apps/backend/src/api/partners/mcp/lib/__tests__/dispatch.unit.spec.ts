@@ -273,7 +273,7 @@ describe("partner-mcp registry + dispatch", () => {
     it("folds create_product's side effects + next steps into the description", () => {
       const g = renderToolGuidance(byName("create_product"))
       expect(g).toContain("Side effects:")
-      expect(g).toContain("Usually followed by: update_store_product.")
+      expect(g).toContain("Usually followed by: set_inventory_level, update_store_product.")
     })
 
     it("only references next-step tools that actually exist in the registry", () => {
@@ -329,6 +329,42 @@ describe("partner-mcp registry + dispatch", () => {
         {}
       )
       expect(out._advisory).toBeUndefined()
+    })
+  })
+
+  describe("Tier A write tools (stock + variant/option editing)", () => {
+    const byName = (n: string) => PARTNER_MCP_TOOLS.find((t) => t.name === n)!
+
+    it("registers the inventory + variant/option write tools", () => {
+      for (const n of [
+        "set_inventory_level", "set_inventory_levels_batch",
+        "add_product_option", "add_product_variant",
+        "update_product_variant", "delete_product_variant",
+      ]) {
+        expect(byName(n)).toBeTruthy()
+        expect(byName(n).write).toBe(true)
+      }
+    })
+
+    it("maps set_inventory_level to the location-scoped route with a preview", () => {
+      const t = byName("set_inventory_level")
+      expect(t.method).toBe("POST")
+      expect(t.path).toBe("/partners/inventory-items/:id/levels/:locationId")
+      expect(t.pathParams).toEqual(["id", "locationId"])
+      expect(t.bodyParams).toContain("stocked_quantity")
+      expect(t.previewPath).toBe("/partners/inventory-items/:id/levels")
+      // routine stock adjust — not gated behind confirmation
+      expect(isSensitive(t)).toBe(false)
+    })
+
+    it("treats variant delete as sensitive but variant add/update as routine", () => {
+      expect(isSensitive(byName("delete_product_variant"))).toBe(true)
+      expect(isSensitive(byName("add_product_variant"))).toBe(false)
+      expect(isSensitive(byName("update_product_variant"))).toBe(false)
+    })
+
+    it("points add_product_variant at set_inventory_level as its next step", () => {
+      expect(byName("add_product_variant").nextSteps).toEqual(["set_inventory_level"])
     })
   })
 
