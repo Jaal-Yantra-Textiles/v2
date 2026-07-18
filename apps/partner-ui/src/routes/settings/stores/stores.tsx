@@ -632,10 +632,18 @@ const CustomDomainSection = () => {
                   <InlineTip variant="info" label="Point Your Domain">
                     Add the DNS record{dnsRecords.length > 1 ? "s" : ""} below at
                     your domain provider so it resolves to your storefront. DNS
-                    changes can take up to 48 hours to propagate. For a root
-                    domain (e.g. example.com), use your provider's CNAME
-                    flattening / ALIAS / ANAME record — a plain CNAME isn't
-                    allowed at the root.
+                    changes can take up to 48 hours to propagate.
+                    <br />
+                    <br />
+                    <strong>Root domain (e.g. example.com):</strong> a plain
+                    CNAME isn't allowed at the root. Your DNS provider must
+                    support CNAME flattening / ALIAS / ANAME (Cloudflare,
+                    DNSimple). Providers that don't — including{" "}
+                    <strong>AWS Route 53</strong>, whose ALIAS only targets AWS
+                    resources — can't point the root at an external host. On
+                    those, either move your domain's nameservers to Cloudflare,
+                    or point only <code>www</code> and set up a root&nbsp;→&nbsp;www
+                    redirect at your registrar.
                   </InlineTip>
                   <DnsTable rows={dnsRecords} />
                 </>

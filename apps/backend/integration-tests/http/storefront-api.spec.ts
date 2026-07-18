@@ -271,6 +271,35 @@ setupSharedTestSuite(({ api, getContainer }) => {
       expect(res.data.publishable_key).toBe(publishableKey)
     })
 
+    test("GET /web/storefront/resolve?host=<custom_domain> resolves apex AND www via the custom_domain column", async () => {
+      const { partner, publishableKey } = await fullSetup(api, getContainer)
+
+      // Connect a custom domain via the typed column (no website_domain alias,
+      // no website_id) — the path that left www reaching the worker but showing
+      // "no shop found".
+      const container = await getContainer()
+      const partnerService: any = container.resolve("partner")
+      const apex = `brand-${Date.now()}.example.com`
+      await partnerService.updatePartners({
+        id: partner.partnerId,
+        custom_domain: apex,
+      })
+
+      // Apex resolves.
+      const apexRes = await api.get("/web/storefront/resolve", {
+        params: { host: apex },
+      })
+      expect(apexRes.status).toBe(200)
+      expect(apexRes.data.publishable_key).toBe(publishableKey)
+
+      // Its www twin resolves too (host is www-stripped to the apex).
+      const wwwRes = await api.get("/web/storefront/resolve", {
+        params: { host: `www.${apex}` },
+      })
+      expect(wwwRes.status).toBe(200)
+      expect(wwwRes.data.publishable_key).toBe(publishableKey)
+    })
+
     test("GET /web/storefront/resolve?host=<alias> resolves via website_domain", async () => {
       const { partner, publishableKey } = await fullSetup(api, getContainer)
 
