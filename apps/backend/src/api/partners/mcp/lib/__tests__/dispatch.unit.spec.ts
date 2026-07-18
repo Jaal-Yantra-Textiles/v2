@@ -234,6 +234,33 @@ describe("partner-mcp registry + dispatch", () => {
       expect(byName("describe_image").write).toBe(true)
       expect(isSensitive(byName("describe_image"))).toBe(false)
     })
+
+    it("covers inventory orders (Tier 6) — raw-material purchase-order lifecycle", () => {
+      const names = new Set(PARTNER_MCP_TOOLS.map((t) => t.name))
+      for (const n of [
+        "list_inventory_orders", "get_inventory_order",
+        "start_inventory_order", "submit_inventory_order_payment",
+        "get_inventory_order_shiprocket_rates",
+        "get_inventory_order_fulfillment_rates",
+        "ready_inventory_order_for_delivery",
+        "create_inventory_order_shipment",
+        "complete_inventory_order",
+      ]) {
+        expect(names.has(n)).toBe(true)
+      }
+      const byName = (n: string) => PARTNER_MCP_TOOLS.find((t) => t.name === n)!
+      // Money/reversal/state-changing ops require confirmation.
+      expect(isSensitive(byName("submit_inventory_order_payment"))).toBe(true)
+      expect(isSensitive(byName("ready_inventory_order_for_delivery"))).toBe(true)
+      expect(isSensitive(byName("create_inventory_order_shipment"))).toBe(true)
+      expect(isSensitive(byName("complete_inventory_order"))).toBe(true)
+      // Start is a routine state advance (no money).
+      expect(isSensitive(byName("start_inventory_order"))).toBe(false)
+      expect(byName("start_inventory_order").write).toBe(true)
+      // Rates are reads.
+      expect(byName("get_inventory_order_shiprocket_rates").method).toBe("GET")
+      expect(byName("get_inventory_order_fulfillment_rates").method).toBe("GET")
+    })
   })
 
   it("returns a soft error for an unknown tool", async () => {
