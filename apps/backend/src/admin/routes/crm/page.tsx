@@ -17,6 +17,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { sdk } from "../../lib/config";
+import CreateButton from "../../components/creates/create-button";
 
 // Mirrors the CRM People contract served by GET /admin/crm/people. CRM lives on a
 // Hyperbee/Autobase node (#1082), not Postgres — so there is no query.graph here;
@@ -169,7 +170,10 @@ const CrmPeoplePage = () => {
               Contacts on the multi-writer CRM node.
             </Text>
           </div>
-          <DataTable.FilterMenu tooltip="Filter people" />
+          <div className="flex items-center gap-2">
+            <DataTable.FilterMenu tooltip="Filter people" />
+            <CreateButton />
+          </div>
         </DataTable.Toolbar>
         <DataTable.Table />
         <DataTable.Pagination />
