@@ -9,12 +9,24 @@
  *   - generic tool rendering: any registry tool result is summarised;
  *   - a sensitive-tool confirmation card that executes via POST /partners/mcp
  *     on the user's explicit approval (the model never self-confirms).
+ *
+ * UX additions:
+ *   - Stop: a stop button replaces the send button while the model is working
+ *     (streaming or reasoning) so the partner can interrupt a long turn.
+ *   - Retry: an inline "Retry" button appears when a turn errors, calling
+ *     `regenerate()`. The backend also retries construction once.
+ *   - Media upload: not supported in chat — a disabled attachment button with a
+ *     tooltip tells the partner so, instead of silently failing.
+ *   - Context window: a rough token estimate is tracked across the thread;
+ *     near the limit a banner offers "Compact summary" (POST .../summarize),
+ *     which replaces the older turns with a short summary so the chat keeps
+ *     going without exceeding the model's context budget.
  */
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
-import { Button, Text, IconButton, toast } from "@medusajs/ui"
-import { Sparkles, ArrowUpMini, Check, ExclamationCircle } from "@medusajs/icons"
+import { Button, Text, IconButton, toast, Tooltip, Label, Kbd } from "@medusajs/ui"
+import { Sparkles, ArrowUpMini, Check, ExclamationCircle, XMarkMini, PaperClip, ArrowPathMini, TrianglesMini } from "@medusajs/icons"
 
 import { sdk, backendUrl } from "../../../lib/client"
 import { queryClient } from "../../../lib/query-client"
@@ -35,6 +47,8 @@ type ChatThreadProps = {
   initialMessages: StoredMessage[]
   /** Fired once, when a fresh chat is first persisted (gets its server id). */
   onCreated: (id: string, title: string) => void
+  /** Fired after a context compaction replaces the stored history. */
+  onCompacted?: () => void
 }
 
 const SUGGESTIONS = [
@@ -43,6 +57,14 @@ const SUGGESTIONS = [
   "Hide the customers menu from my sidebar",
   "What products am I selling?",
 ]
+
+/**
+ * Rough context budget the chat tries to stay under. The free-model rotator
+ * ranks by context length and most free providers land in the 32k–128k range;
+ * we warn early at 20k estimated tokens so there is headroom for tool output.
+ * Conservative on purpose: this is an estimate, not a precise token count.
+ */
+const CONTEXT_WARN_TOKENS = 20000
 
 function getText(parts: any[] | undefined): string {
   return (
@@ -66,12 +88,37 @@ function toStored(messages: any[]): StoredMessage[] {
   return messages.map((m) => ({ id: m.id, role: m.role, parts: m.parts }))
 }
 
+/** Rough token estimate (~4 chars/token) across all text in a thread. */
+function estimateTokens(messages: any[]): number {
+  let chars = 0
+  for (const m of messages) {
+    const parts = m.parts ?? []
+    for (const p of parts) {
+      if (p?.type === "text" && typeof p.text === "string") chars += p.text.length
+      else if (p?.type === "reasoning" && typeof p.text === "string") chars += p.text.length
+      else if (p?.toolName) {
+        // Tool calls carry input + output; count their JSON size.
+        try {
+          if (p.input) chars += JSON.stringify(p.input).length
+          if (p.output) chars += JSON.stringify(p.output).length
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }
+  return Math.ceil(chars / 4)
+}
+
 export const ChatThread = ({
   conversationId,
   initialMessages,
   onCreated,
+  onCompacted,
 }: ChatThreadProps) => {
   const [input, setInput] = useState("")
+  const [compacting, setCompacting] = useState(false)
+  const [showContextBanner, setShowContextBanner] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const idRef = useRef<string | null>(conversationId)
   // Seed with the loaded thread's snapshot so opening a saved conversation
@@ -94,16 +141,24 @@ export const ChatThread = ({
     },
   })
 
-  const { messages, sendMessage, status, error } = useChat({
+  const { messages, sendMessage, setMessages, status, error, stop, regenerate, clearError } = useChat({
     transport,
     messages: initialMessages as any,
   })
+
+  const streaming = status === "submitted" || status === "streaming"
+  const tokenEstimate = useMemo(() => estimateTokens(messages as any[]), [messages])
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages, status])
+
+  // Surface the context banner once the estimate crosses the threshold.
+  useEffect(() => {
+    setShowContextBanner(tokenEstimate >= CONTEXT_WARN_TOKENS)
+  }, [tokenEstimate])
 
   // Persist the thread after each completed turn. Create-on-first-turn, then
   // patch. A ref-guarded snapshot avoids redundant writes and re-entrancy.
@@ -148,9 +203,98 @@ export const ChatThread = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || status !== "ready") return
+    clearError?.()
     sendMessage({ text: input.trim() })
     setInput("")
   }
+
+  const handleStop = () => {
+    try {
+      stop()
+    } catch {
+      /* stop is best-effort */
+    }
+  }
+
+  const handleRetry = () => {
+    clearError?.()
+    try {
+      regenerate()
+    } catch {
+      toast.error("Could not retry. Please send the message again.")
+    }
+  }
+
+  /**
+   * Context compaction: ask the backend to roll the older turns into a short
+   * summary, then replace the whole thread with [summary]. The recent turn
+   * the partner just made is included in the summary inputs so continuity is
+   * preserved; the client persists the trimmed conversation afterwards.
+   */
+  const handleCompact = useCallback(async () => {
+    if (compacting || messages.length < 2) return
+    setCompacting(true)
+    try {
+      const token =
+        (sdk as any).client?.token ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem(jwtTokenStorageKey)
+          : null)
+      const { summary } = await fetch(
+        `${backendUrl.replace(/\/$/, "")}/partners/assistant/summarize`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "content-type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ messages: toStored(messages as any[]) }),
+        }
+      ).then(async (r) => {
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Summarize failed")
+        return r.json()
+      })
+      if (!summary) throw new Error("No summary returned")
+
+      // Replace the thread with a single assistant summary message. The
+      // persist effect will write it back on the next ready tick.
+      const summaryMessage = {
+        id: `summary-${Date.now()}`,
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: `**Summary so far**\n\n${summary}`,
+          },
+        ],
+      }
+      setMessages?.([summaryMessage] as any)
+      try {
+        if (idRef.current) {
+          await sdk.client.fetch(
+            `/partners/assistant/conversations/${idRef.current}`,
+            { method: "PATCH", body: { messages: toStored([summaryMessage]) } }
+          )
+          lastPersistedRef.current = JSON.stringify([
+            [summaryMessage.id, summaryMessage.parts.length],
+          ])
+          queryClient.invalidateQueries({
+            queryKey: conversationsQueryKeys.lists(),
+          })
+          onCompacted?.()
+          toast.success("Chat compacted — older messages were summarized.")
+        }
+      } catch {
+        // Non-fatal: the in-memory thread is already compacted.
+      }
+      setShowContextBanner(false)
+    } catch (e: any) {
+      toast.error(e?.message || "Could not compact the chat. Try starting a new chat instead.")
+    } finally {
+      setCompacting(false)
+    }
+  }, [compacting, messages, setMessages, onCompacted])
 
   return (
     <div className="flex flex-col h-full min-h-0 flex-1">
@@ -158,7 +302,7 @@ export const ChatThread = ({
         ref={scrollRef}
         className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0"
       >
-        {messages.length === 0 && (
+        {messages.length === 0 && !error && (
           <div className="flex flex-col items-center justify-center h-full text-center gap-y-3">
             <Sparkles className="text-ui-fg-subtle" />
             <Text size="small" className="text-ui-fg-subtle max-w-sm">
@@ -183,7 +327,7 @@ export const ChatThread = ({
           <MessageRow key={m.id} message={m} />
         ))}
 
-        {status === "submitted" && (
+        {streaming && (
           <div className="flex items-center gap-x-1 px-2">
             <span className="h-2 w-2 bg-ui-fg-muted rounded-full animate-pulse" />
             <span className="h-2 w-2 bg-ui-fg-muted rounded-full animate-pulse [animation-delay:0.2s]" />
@@ -192,9 +336,45 @@ export const ChatThread = ({
         )}
 
         {error && (
-          <Text size="small" className="text-ui-tag-red-text">
-            Something went wrong. Please try again.
-          </Text>
+          <div className="flex items-center gap-x-2 px-2">
+            <Text size="small" className="text-ui-tag-red-text">
+              Something went wrong.
+            </Text>
+            <Button
+              size="small"
+              variant="secondary"
+              onClick={handleRetry}
+              className="!py-1 !px-2"
+            >
+              <ArrowPathMini />
+              Retry
+            </Button>
+          </div>
+        )}
+
+        {showContextBanner && !compacting && (
+          <div className="flex items-start gap-x-2 rounded-lg border border-ui-tag-orange-border bg-ui-tag-orange-bg px-3 py-2">
+            <TrianglesMini className="text-ui-tag-orange-icon mt-0.5 shrink-0" />
+            <div className="space-y-1.5">
+              <Text size="xsmall" className="text-ui-tag-orange-text block">
+                This chat is getting long and may exceed the model's context
+                window — the assistant can start to "forget" earlier messages.
+              </Text>
+              <div className="flex items-center gap-x-2">
+                <Button
+                  size="small"
+                  variant="secondary"
+                  onClick={handleCompact}
+                >
+                  <ArrowPathMini />
+                  Compact summary
+                </Button>
+                <Text size="xsmall" className="text-ui-fg-muted">
+                  Or start a new chat to keep responses fast.
+                </Text>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
@@ -215,14 +395,43 @@ export const ChatThread = ({
           placeholder="Ask the assistant…"
           className="flex-1 resize-none rounded-lg border border-ui-border-base bg-ui-bg-field px-3 py-2 text-sm focus:outline-none focus:border-ui-border-interactive max-h-32"
         />
-        <IconButton
-          type="submit"
-          size="large"
-          disabled={!input.trim() || status !== "ready"}
-        >
-          <ArrowUpMini />
-        </IconButton>
+        {/* Media upload is intentionally not supported in chat. The attachment
+            tool exists in the registry (initiate/complete_media_upload) for the
+            model to call, but a partner cannot attach a file in the composer. */}
+        <Tooltip content="Media upload isn't supported in chat — start a new chat if you need to share a file." side="top">
+          <IconButton type="button" size="large" disabled aria-label="Attach media">
+            <PaperClip />
+          </IconButton>
+        </Tooltip>
+        {streaming ? (
+          <IconButton
+            type="button"
+            size="large"
+            onClick={handleStop}
+            aria-label="Stop generating"
+            className="text-ui-tag-red-icon"
+          >
+            <XMarkMini />
+          </IconButton>
+        ) : (
+          <IconButton
+            type="submit"
+            size="large"
+            disabled={!input.trim() || status !== "ready"}
+            aria-label="Send message"
+          >
+            <ArrowUpMini />
+          </IconButton>
+        )}
       </form>
+      <div className="px-3 pb-2 flex items-center justify-between">
+        <Text size="xsmall" className="text-ui-fg-muted">
+          <Kbd>Enter</Kbd> to send · <Kbd>Shift</Kbd>+<Kbd>Enter</Kbd> for a new line
+        </Text>
+        <Label size="xsmall" className="text-ui-fg-muted">
+          ~{tokenEstimate.toLocaleString()} tokens
+        </Label>
+      </div>
     </div>
   )
 }

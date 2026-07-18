@@ -120,6 +120,7 @@ import { subscriptionSchema } from "./web/website/[domain]/validators";
 import { websiteThemeSchema } from "./partners/storefront/website/theme/validators";
 import { ThemeChatSchema } from "./partners/storefront/website/theme/chat/validators";
 import { PartnerAssistantChatSchema } from "./partners/assistant/chat/validators";
+import { PartnerAssistantSummarizeSchema } from "./partners/assistant/summarize/validators";
 import { CreateConversationSchema as PartnerCreateConversationSchema, UpdateConversationSchema as PartnerUpdateConversationSchema } from "./partners/assistant/conversations/validators";
 import { createPlanSchema, updatePlanSchema, createSubscriptionSchema } from "./admin/partner-plans/validators";
 import { subscribeSchema as partnerSubscribeSchema } from "./partners/subscription/validators";
@@ -2178,6 +2179,18 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerAssistantChatSchema)),
+      ],
+    },
+    // Partner assistant context compaction — the client calls this when the
+    // chat approaches the model's context window; the route returns a short
+    // summary the client stores in place of the older turns.
+    {
+      matcher: "/partners/assistant/summarize",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerAssistantSummarizeSchema)),
       ],
     },
     // Partner MCP — JSON-RPC endpoint exposing the Partner API as tools. Body is

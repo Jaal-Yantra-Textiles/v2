@@ -141,40 +141,55 @@ export const POST = async (
   } as const
 
   let result
-  try {
-    result = streamText({
-      model: chatModel,
-      ...(folded.system ? { system: folded.system } : {}),
-      messages: convertToModelMessages(folded.messages as any),
-      tools,
-      stopWhen: stepCountIs(8),
-      temperature: 0.3,
-      onFinish: ({ usage: u }: any) => {
-        logAiUsage(logger, {
-          ...usageBase,
-          ok: true,
-          ms: Date.now() - startedAt,
-          tokens: u?.totalTokens,
-        })
-      },
-      onError: (err: any) => {
-        logAiUsage(logger, {
-          ...usageBase,
-          ok: false,
-          ms: Date.now() - startedAt,
-          error: err?.error ?? err,
-        })
-      },
-    })
-  } catch (e: any) {
-    logAiUsage(logger, {
-      ...usageBase,
-      ok: false,
-      ms: Date.now() - startedAt,
-      error: e,
-    })
-    res.status(502).json({ error: "partner assistant provider failed" })
-    return
+  const MAX_CONSTRUCTION_ATTEMPTS = 2
+  for (let attempt = 1; attempt <= MAX_CONSTRUCTION_ATTEMPTS; attempt++) {
+    try {
+      result = streamText({
+        model: chatModel,
+        ...(folded.system ? { system: folded.system } : {}),
+        messages: convertToModelMessages(folded.messages as any),
+        tools,
+        stopWhen: stepCountIs(8),
+        temperature: 0.3,
+        // Let the AI SDK retry transient network/5xx failures at the model
+        // layer. The free rotator separately self-heals free-tier expiry
+        // (dynamic-text-model.ts), so this covers non-free providers and
+        // generic upstream hiccups.
+        maxRetries: 3,
+        onFinish: ({ usage: u }: any) => {
+          logAiUsage(logger, {
+            ...usageBase,
+            ok: true,
+            ms: Date.now() - startedAt,
+            tokens: u?.totalTokens,
+          })
+        },
+        onError: (err: any) => {
+          logAiUsage(logger, {
+            ...usageBase,
+            ok: false,
+            ms: Date.now() - startedAt,
+            error: err?.error ?? err,
+          })
+        },
+      })
+      break
+    } catch (e: any) {
+      logAiUsage(logger, {
+        ...usageBase,
+        ok: false,
+        ms: Date.now() - startedAt,
+        error: e,
+      })
+      if (attempt < MAX_CONSTRUCTION_ATTEMPTS) {
+        // Back off briefly and retry construction once — transient provider
+        // resolution / connection errors often clear on a second attempt.
+        await new Promise((r) => setTimeout(r, 400 * attempt))
+        continue
+      }
+      res.status(502).json({ error: "partner assistant provider failed" })
+      return
+    }
   }
 
   result.pipeUIMessageStreamToResponse(res as any)
