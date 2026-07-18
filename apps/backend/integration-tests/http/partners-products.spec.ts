@@ -140,6 +140,22 @@ setupSharedTestSuite(() => {
       const product = createProdRes.data.product
       expect(product).toBeDefined()
       expect(product.title).toBe("Test Product")
+
+      // Regression: POST /partners/products (the path the AI assistant's
+      // create_product tool uses) must seed an inventory LEVEL at the store's
+      // stock location for each managed variant. Without it the variant reads 0
+      // everywhere and the partner-ui inventory page 404s on it.
+      const invRes = await api.get(
+        `/admin/products/${product.id}?fields=variants.manage_inventory,variants.inventory_items.inventory.location_levels.location_id,variants.inventory_items.inventory.location_levels.stocked_quantity`,
+        adminHeaders
+      )
+      expect(invRes.status).toBe(200)
+      const firstVariant = invRes.data.product.variants[0]
+      const levels = (firstVariant.inventory_items || []).flatMap(
+        (ii: any) => ii?.inventory?.location_levels || []
+      )
+      expect(levels.length).toBeGreaterThanOrEqual(1)
+
       // List products for the store
       const listRes = await api.get(
         `/partners/stores/${storeId}/products`,

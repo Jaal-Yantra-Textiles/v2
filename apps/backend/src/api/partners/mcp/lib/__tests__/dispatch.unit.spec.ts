@@ -3,7 +3,7 @@ import {
   dispatchPartnerTool,
   isSensitive,
 } from "../dispatch"
-import { PARTNER_MCP_TOOLS } from "../registry"
+import { PARTNER_MCP_TOOLS, renderToolGuidance } from "../registry"
 
 describe("partner-mcp registry + dispatch", () => {
   describe("create_store tool", () => {
@@ -260,6 +260,75 @@ describe("partner-mcp registry + dispatch", () => {
       // Rates are reads.
       expect(byName("get_inventory_order_shiprocket_rates").method).toBe("GET")
       expect(byName("get_inventory_order_fulfillment_rates").method).toBe("GET")
+    })
+  })
+
+  describe("LLM-facing tool guidance (sideEffects / nextSteps)", () => {
+    const byName = (n: string) => PARTNER_MCP_TOOLS.find((t) => t.name === n)!
+
+    it("renders nothing for a tool that declares no guidance", () => {
+      expect(renderToolGuidance(byName("list_stores"))).toBe("")
+    })
+
+    it("folds create_product's side effects + next steps into the description", () => {
+      const g = renderToolGuidance(byName("create_product"))
+      expect(g).toContain("Side effects:")
+      expect(g).toContain("Usually followed by: update_store_product.")
+    })
+
+    it("only references next-step tools that actually exist in the registry", () => {
+      const names = new Set(PARTNER_MCP_TOOLS.map((t) => t.name))
+      for (const t of PARTNER_MCP_TOOLS) {
+        for (const step of t.nextSteps || []) {
+          expect(names.has(step)).toBe(true)
+        }
+      }
+    })
+  })
+
+  describe("create_product result advisory (transform)", () => {
+    const def = () => PARTNER_MCP_TOOLS.find((t) => t.name === "create_product")!
+
+    it("warns when a draft product has 0-stock managed variants", () => {
+      const out = def().transform!(
+        {
+          product: {
+            status: "draft",
+            variants: [
+              {
+                manage_inventory: true,
+                inventory_items: [
+                  { inventory: { location_levels: [{ stocked_quantity: 0 }] } },
+                ],
+              },
+            ],
+          },
+        },
+        {}
+      )
+      expect(Array.isArray(out._advisory)).toBe(true)
+      expect(out._advisory.join(" ")).toMatch(/DRAFT/)
+      expect(out._advisory.join(" ")).toMatch(/0 stock/)
+    })
+
+    it("emits no advisory for a published product with stock", () => {
+      const out = def().transform!(
+        {
+          product: {
+            status: "published",
+            variants: [
+              {
+                manage_inventory: true,
+                inventory_items: [
+                  { inventory: { location_levels: [{ stocked_quantity: 12 }] } },
+                ],
+              },
+            ],
+          },
+        },
+        {}
+      )
+      expect(out._advisory).toBeUndefined()
     })
   })
 

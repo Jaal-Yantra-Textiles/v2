@@ -17,7 +17,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js"
-import { PARTNER_MCP_TOOLS } from "./registry"
+import { PARTNER_MCP_TOOLS, renderToolGuidance } from "./registry"
 import {
   dispatchPartnerTool,
   buildToolInputSchema,
@@ -57,7 +57,8 @@ export function buildPartnerMcpServer(ctx: PartnerMcpContext): Server {
       name: t.name,
       description:
         t.description +
-        (isSensitive(t) ? " [sensitive: requires confirm:true]" : ""),
+        (isSensitive(t) ? " [sensitive: requires confirm:true]" : "") +
+        renderToolGuidance(t),
       inputSchema: buildToolInputSchema(t),
     })),
   }))

@@ -29,7 +29,7 @@ import {
 import { resolveRoleTextModel, logAiUsage } from "../../../../mastra/services/ai-platforms"
 import { dynamicFreeToolTextModel } from "../../../../mastra/providers/dynamic-text-model"
 import { foldSystemForProvider } from "../../../store/ai/chat/system-fold-lib"
-import { PARTNER_MCP_TOOLS } from "../../mcp/lib/registry"
+import { PARTNER_MCP_TOOLS, renderToolGuidance } from "../../mcp/lib/registry"
 import {
   dispatchPartnerTool,
   buildToolInputSchema,
@@ -96,7 +96,8 @@ export const POST = async (
       tool({
         description:
           def.description +
-          (isSensitive(def) ? " [sensitive: requires user confirmation]" : ""),
+          (isSensitive(def) ? " [sensitive: requires user confirmation]" : "") +
+          renderToolGuidance(def),
         inputSchema: jsonSchema(buildToolInputSchema(def)),
         execute: async (input: any) => dispatchPartnerTool(ctx, def.name, input),
       }),

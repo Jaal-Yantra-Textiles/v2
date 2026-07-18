@@ -53,6 +53,35 @@ export type PartnerMcpToolDef = {
   previewPath?: string
   /** Optional pure post-processor applied to a successful response. */
   transform?: (data: any, args: Record<string, unknown>) => any
+  /**
+   * One-line note about non-obvious effects of running this tool (state it
+   * leaves behind, what it does NOT do). Rendered into the model-facing
+   * description so the agent reasons about the tool's real footprint — e.g.
+   * "creates the product in draft with variants + inventory items; does not
+   * publish or set stock quantities."
+   */
+  sideEffects?: string
+  /**
+   * Tool names the agent typically calls after this one to complete the task.
+   * Rendered into the description as a hint (not enforced). Keep these to real
+   * follow-ups a partner would expect — publishing, pricing, stock — not an
+   * exhaustive graph. HARD invariants (a managed variant MUST have a stock
+   * level) belong in the route, not here.
+   */
+  nextSteps?: string[]
+}
+
+/**
+ * Fold the declarative guidance fields (`sideEffects`, `nextSteps`) into a
+ * short suffix appended to the model-facing description. Single source of truth
+ * so the chat route AND the MCP server render identical guidance. Returns "" when
+ * a tool declares neither, so untouched tools are unaffected.
+ */
+export const renderToolGuidance = (def: PartnerMcpToolDef): string => {
+  const parts: string[] = []
+  if (def.sideEffects) parts.push(`Side effects: ${def.sideEffects}`)
+  if (def.nextSteps?.length) parts.push(`Usually followed by: ${def.nextSteps.join(", ")}.`)
+  return parts.length ? `\n${parts.join(" ")}` : ""
 }
 
 // ---- Reusable JSON-Schema fragments ---------------------------------------
@@ -670,6 +699,9 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     write: true,
     sensitive: true,
     bodyParams: ["store_id", "product"],
+    sideEffects:
+      "creates the product with its variants + inventory items and seeds a 0-quantity stock level at the store location. The product stays a DRAFT and stock stays 0. Publish it with update_store_product (set product.status='published'); stock quantities are set by the partner from the dashboard Products→inventory page (there is no chat tool for stock yet).",
+    nextSteps: ["update_store_product"],
     inputSchema: obj(
       {
         store_id: STR("Store to create the product in, e.g. 'store_...'."),
@@ -682,6 +714,35 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       },
       ["store_id", "product"]
     ),
+    // Advise the model about post-create state from the ACTUAL result, so it
+    // reports/acts precisely instead of relying on a static rule it may forget.
+    transform: (data: any) => {
+      const p = data?.product
+      if (!p) return data
+      const warnings: string[] = []
+      if (p.status === "draft") {
+        warnings.push(
+          "Product is a DRAFT — not visible on the storefront. Publish it with update_store_product (product.status='published') when ready."
+        )
+      }
+      const managedZero = (p.variants || []).filter((v: any) => {
+        if (!v?.manage_inventory) return false
+        const levels = (v.inventory_items || []).flatMap(
+          (ii: any) => ii?.inventory?.location_levels || ii?.location_levels || []
+        )
+        const stocked = levels.reduce(
+          (s: number, l: any) => s + (Number(l?.stocked_quantity) || 0),
+          0
+        )
+        return stocked === 0
+      })
+      if (managedZero.length) {
+        warnings.push(
+          `${managedZero.length} variant(s) have 0 stock. There is no chat tool to set stock yet — tell the partner to set quantities on the dashboard Products→inventory page.`
+        )
+      }
+      return warnings.length ? { ...data, _advisory: warnings } : data
+    },
   },
   {
     name: "resubmit_product",
