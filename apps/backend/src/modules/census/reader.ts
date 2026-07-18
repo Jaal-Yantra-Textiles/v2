@@ -211,8 +211,26 @@ export class CensusReader {
       if (!match(r)) continue
       if (count >= offset && weavers.length < limit) weavers.push(r)
       count++
+      // Early-exit once the page is full. Without a secondary index we can't
+      // produce an exact total without decoding the whole corpus (up to
+      // MAX_SCAN brotli inflations) — which is what made the unfiltered browse
+      // time out. Stop at the page window instead and flag the count as a lower
+      // bound (`estimated`). Mirrors listViaIndex's O(page) break. No `next`
+      // cursor is emitted here: the fallback ignores `after` and rec/* keys
+      // aren't numerically ordered, so a cursor would not be re-consumable —
+      // forward pagination is only offered on the indexed facet path.
+      if (weavers.length >= limit) break
     }
-    return { weavers, count, capped, indexed: false }
+    // `count` is exact only when the scan reached the corpus end before filling
+    // the page; if we broke early it's a lower bound, so flag it estimated.
+    const estimated = weavers.length >= limit
+    return {
+      weavers,
+      count,
+      capped,
+      indexed: false,
+      ...(estimated ? { estimated: true } : {}),
+    }
   }
 
   /** Range-scan the driver's index family, hydrate + page the records. */
