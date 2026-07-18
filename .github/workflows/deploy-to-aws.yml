@@ -249,8 +249,13 @@ jobs:
           if [ -n "$NEED" ] || [ -n "$DEP" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
             echo "→ schema-affecting changes — running migrations:"
-            [ -n "$NEED" ] && echo "$NEED"
-            [ -n "$DEP" ] && echo "$DEP"
+            # NB: plain `[ -n "$X" ] && echo` as the LAST line makes the step exit
+            # non-zero under `bash -e` whenever $X is empty (the failing test is the
+            # step's final exit code) — which silently failed the whole migrate gate
+            # for any schema/config change without an @medusajs lockfile bump. Use
+            # if-blocks so the step always ends 0.
+            if [ -n "$NEED" ]; then echo "$NEED"; fi
+            if [ -n "$DEP" ]; then echo "$DEP"; fi
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
             echo "→ no migration/model/link/config/@medusajs changes — skipping migration boot, jumping to deploy"
