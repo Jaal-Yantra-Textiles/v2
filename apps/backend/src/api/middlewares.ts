@@ -282,6 +282,26 @@ import {
   CreatePersonPropertySchema,
   UpdatePersonPropertySchema,
 } from "./admin/person-properties/validators";
+import {
+  CreateCrmCompanySchema,
+  UpdateCrmCompanySchema,
+} from "./admin/crm/companies/validators";
+import {
+  CreateCrmPersonSchema,
+  UpdateCrmPersonSchema,
+} from "./admin/crm/people/validators";
+import {
+  CreateCrmOpportunitySchema,
+  UpdateCrmOpportunitySchema,
+} from "./admin/crm/opportunities/validators";
+import {
+  CreateCrmNoteSchema,
+  UpdateCrmNoteSchema,
+} from "./admin/crm/notes/validators";
+import {
+  CreateCrmTaskSchema,
+  UpdateCrmTaskSchema,
+} from "./admin/crm/tasks/validators";
 import { VerifyWeaverSchema } from "./web/census/verify/validators";
 
 /**
@@ -3075,6 +3095,57 @@ export default defineMiddlewares({
       matcher: "/admin/person-properties/:id",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(UpdatePersonPropertySchema))],
+    },
+    // crm CRUD (Hyperbee-only module-service backed)
+    {
+      matcher: "/admin/crm/companies",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateCrmCompanySchema))],
+    },
+    {
+      matcher: "/admin/crm/companies/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateCrmCompanySchema))],
+    },
+    {
+      matcher: "/admin/crm/people",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateCrmPersonSchema))],
+    },
+    {
+      matcher: "/admin/crm/people/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateCrmPersonSchema))],
+    },
+    {
+      matcher: "/admin/crm/opportunities",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateCrmOpportunitySchema))],
+    },
+    {
+      matcher: "/admin/crm/opportunities/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateCrmOpportunitySchema))],
+    },
+    {
+      matcher: "/admin/crm/notes",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateCrmNoteSchema))],
+    },
+    {
+      matcher: "/admin/crm/notes/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateCrmNoteSchema))],
+    },
+    {
+      matcher: "/admin/crm/tasks",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateCrmTaskSchema))],
+    },
+    {
+      matcher: "/admin/crm/tasks/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateCrmTaskSchema))],
     },
     // #1038 weaver verify against the census public core
     {
