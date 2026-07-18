@@ -80,6 +80,15 @@ variables:
   # non-fatal: if peering ever fails it just 503s /web/census/*, never breaks boot.
   # To revert to proxy: unset CENSUS_P2P_ENABLED and set CENSUS_READER_URL back.
   CENSUS_P2P_ENABLED: "true"
+  # #1082 — CRM on Hyperbee/Autobase (Topology-A). Points the CRM module's DAL
+  # loader (src/modules/crm/loaders/hyperbee-dal.ts) at the always-on Autobase
+  # node co-located on the OCI handloom-mirror VM, reached over a Cloudflare
+  # Tunnel (no inbound VM ports; TLS at the CF edge). Setting this flips the
+  # loader into PROXY mode — Medusa stays stateless (no native hypercore stack in
+  # the API tasks) and forwards CRM CRUD to the node. Unset → module no-ops
+  # (non-fatal). The bearer is CRM_NODE_TOKEN (secret, below). Non-secret URL, so
+  # it lives here.
+  CRM_NODE_URL: https://crm-node.jaalyantra.com
 
 # Secrets: rotating values come from Secrets Manager.
 # Non-rotating config (CORS, URLs, etc.) comes from SSM Parameter Store — listed
@@ -103,6 +112,10 @@ secrets:
   CLOUDFLARE_API_TOKEN: /jyt/prod/CLOUDFLARE_API_TOKEN
   CLOUDFLARE_ZONE_ID: /jyt/prod/CLOUDFLARE_ZONE_ID
   COOKIE_SECRET: /jyt/prod/COOKIE_SECRET
+  # #1082 — bearer for the CRM Autobase node (crm-node.jaalyantra.com). Pairs with
+  # CRM_NODE_URL (variables, above). Store the SSM SecureString BEFORE the first
+  # deploy that carries CRM_NODE_URL, else task start fails resolving this secret.
+  CRM_NODE_TOKEN: /jyt/prod/CRM_NODE_TOKEN
   DATABASE_URL: /jyt/prod/DATABASE_URL
   DELHIVERY_API_TOKEN: /jyt/prod/DELHIVERY_API_TOKEN
   ENCRYPTION_KEY: /jyt/prod/ENCRYPTION_KEY

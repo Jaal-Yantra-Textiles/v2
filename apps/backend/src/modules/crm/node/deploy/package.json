@@ -1,0 +1,15 @@
+{
+  "name": "crm-node",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone always-on CRM Autobase node (Topology A anchor) for the JYT Medusa CRM module.",
+  "main": "crm-node.cjs",
+  "scripts": {
+    "start": "node crm-node.cjs"
+  },
+  "dependencies": {
+    "autobase": "7.28.1",
+    "corestore": "7.11.0",
+    "hyperbee": "2.27.3"
+  }
+}
