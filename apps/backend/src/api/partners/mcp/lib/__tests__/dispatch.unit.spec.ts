@@ -368,6 +368,52 @@ describe("partner-mcp registry + dispatch", () => {
     })
   })
 
+  describe("Tier B–F write tools (catalog / inventory / CRM / returns)", () => {
+    const names = new Set(PARTNER_MCP_TOOLS.map((t) => t.name))
+    const byName = (n: string) => PARTNER_MCP_TOOLS.find((t) => t.name === n)!
+
+    it("registers the catalog + inventory + CRM + returns tools", () => {
+      for (const n of [
+        // Tier B
+        "list_product_categories", "create_product_category", "update_product_category",
+        "delete_product_category", "set_category_products",
+        "list_product_collections", "create_product_collection", "update_product_collection",
+        "delete_product_collection", "set_collection_products",
+        "list_product_tags", "create_product_tag",
+        "list_product_types", "create_product_type", "update_product_type", "delete_product_type",
+        "list_price_preferences", "create_price_preference", "update_price_preference", "delete_price_preference",
+        // Tier C
+        "create_inventory_item", "update_inventory_item", "delete_inventory_item",
+        "list_reservations", "get_reservation", "create_reservation", "update_reservation", "delete_reservation",
+        // Tier D
+        "create_customer", "update_customer", "delete_customer", "add_customer_address",
+        "create_customer_group", "get_customer_group", "update_customer_group",
+        "delete_customer_group", "add_customers_to_group",
+        // Tier F
+        "create_return",
+      ]) {
+        expect(names.has(n)).toBe(true)
+      }
+    })
+
+    it("every non-GET Tier B–F tool is a write with a valid partner path", () => {
+      for (const n of ["create_product_category", "create_inventory_item", "create_customer", "create_return"]) {
+        const t = byName(n)
+        expect(t.write).toBe(true)
+        expect(t.method).not.toBe("GET")
+        expect(t.path).toMatch(/^\/partners\//)
+      }
+    })
+
+    it("marks create_return (a sale reversal) sensitive; routine CRUD is not", () => {
+      expect(isSensitive(byName("create_return"))).toBe(true)
+      expect(isSensitive(byName("create_customer"))).toBe(false)
+      expect(isSensitive(byName("create_product_category"))).toBe(false)
+      // deletes are implicitly sensitive
+      expect(isSensitive(byName("delete_customer"))).toBe(true)
+    })
+  })
+
   it("returns a soft error for an unknown tool", async () => {
     const res = await dispatchPartnerTool(
       { baseUrl: "http://localhost:9999" },
