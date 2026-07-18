@@ -1745,4 +1745,167 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       ["imageUrl"]
     ),
   },
+
+  // ===== Inventory orders (Tier 6) — raw-material purchase orders ============
+  // The partner's own purchase orders for raw materials / inventory. Lifecycle:
+  //   list → get → start → (submit-payment) → shiprocket-rates / ready-for-delivery
+  //   → shipment → complete
+  {
+    name: "list_inventory_orders",
+    description:
+      "List the partner's inventory (purchase) orders — raw-material purchases from suppliers. Paginated, free-text search via q, optional status filter.",
+    method: "GET",
+    path: "/partners/inventory-orders",
+    queryParams: ["limit", "offset", "q", "status"],
+    inputSchema: obj({
+      ...PAGINATION,
+      status: STR("Optional status filter."),
+    }),
+  },
+  {
+    name: "get_inventory_order",
+    description: "Get a single inventory (purchase) order by id, with its lines and supplier.",
+    method: "GET",
+    path: "/partners/inventory-orders/:orderId",
+    pathParams: ["orderId"],
+    inputSchema: obj({ orderId: STR("Inventory order id.") }, ["orderId"]),
+  },
+  {
+    name: "start_inventory_order",
+    description:
+      "Start an inventory (purchase) order — moves it from draft/placed into in-progress (supplier is making/shipping). Body follows the route validator.",
+    method: "POST",
+    path: "/partners/inventory-orders/:orderId/start",
+    pathParams: ["orderId"],
+    write: true,
+    previewPath: "/partners/inventory-orders/:orderId",
+    bodyParams: ["metadata"],
+    inputSchema: obj(
+      {
+        orderId: STR("Inventory order id to start."),
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["orderId"]
+    ),
+  },
+  {
+    name: "submit_inventory_order_payment",
+    description:
+      "Record a payment made to a supplier for an inventory order (Bank/Cash/Digital_Wallet), with optional receipts. Sensitive — moves/reconciles money. Supports an idempotency_key for safe retries.",
+    method: "POST",
+    path: "/partners/inventory-orders/:orderId/submit-payment",
+    pathParams: ["orderId"],
+    write: true,
+    sensitive: true,
+    previewPath: "/partners/inventory-orders/:orderId",
+    bodyParams: [
+      "amount", "payment_type", "payment_date", "note",
+      "paid_to_id", "attachments", "idempotency_key",
+    ],
+    inputSchema: obj(
+      {
+        orderId: STR("Inventory order id."),
+        amount: { type: "number", description: "Amount paid (> 0). Required." },
+        payment_type: {
+          type: "string",
+          enum: ["Bank", "Cash", "Digital_Wallet"],
+          description: "How the supplier was paid.",
+        },
+        payment_date: STR("ISO date the payment was made."),
+        note: STR("Optional note."),
+        paid_to_id: STR("Optional recipient id."),
+        attachments: { type: "array", description: "Receipt/invoice file attachments.", items: { type: "object", additionalProperties: true } },
+        idempotency_key: STR("Optional idempotency key to dedupe retries."),
+      },
+      ["orderId", "amount"]
+    ),
+  },
+  {
+    name: "get_inventory_order_shiprocket_rates",
+    description:
+      "Get live Shiprocket shipping rates/quotes for an inventory order (carrier options + cost). Read.",
+    method: "GET",
+    path: "/partners/inventory-orders/:orderId/shiprocket-rates",
+    pathParams: ["orderId"],
+    inputSchema: obj({ orderId: STR("Inventory order id.") }, ["orderId"]),
+  },
+  {
+    name: "get_inventory_order_fulfillment_rates",
+    description:
+      "Alias for get_inventory_order_shiprocket_rates (fulfillment-rate quotes). Read.",
+    method: "GET",
+    path: "/partners/inventory-orders/:orderId/fulfillment-rates",
+    pathParams: ["orderId"],
+    inputSchema: obj({ orderId: STR("Inventory order id.") }, ["orderId"]),
+  },
+  {
+    name: "ready_inventory_order_for_delivery",
+    description:
+      "Mark an inventory order ready for delivery / pickup. Sensitive — changes the order's fulfillment state. Body follows the route validator.",
+    method: "POST",
+    path: "/partners/inventory-orders/:orderId/ready-for-delivery",
+    pathParams: ["orderId"],
+    write: true,
+    sensitive: true,
+    previewPath: "/partners/inventory-orders/:orderId",
+    bodyParams: ["metadata"],
+    inputSchema: obj(
+      {
+        orderId: STR("Inventory order id."),
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["orderId"]
+    ),
+  },
+  {
+    name: "create_inventory_order_shipment",
+    description:
+      "Create a shipment for an inventory order (book the carrier, optionally set pickup location/weight/dimensions/delivered quantities). Body follows the shipment route. Sensitive — books shipping and changes fulfillment state.",
+    method: "POST",
+    path: "/partners/inventory-orders/:orderId/shipment",
+    pathParams: ["orderId"],
+    write: true,
+    sensitive: true,
+    previewPath: "/partners/inventory-orders/:orderId",
+    bodyParams: [
+      "carrier", "pickup_stock_location_id", "weight_grams",
+      "dimensions_cm", "preferred_courier_id", "delivered_quantities", "pickup_date",
+    ],
+    inputSchema: obj(
+      {
+        orderId: STR("Inventory order id to ship."),
+        carrier: STR("Optional carrier override."),
+        pickup_stock_location_id: STR("Stock location to pick up from."),
+        weight_grams: { type: "number", description: "Shipment weight in grams." },
+        dimensions_cm: {
+          type: "object",
+          description: "Optional { length, breadth, height } in cm.",
+          additionalProperties: true,
+        },
+        preferred_courier_id: STR("Optional preferred courier id."),
+        delivered_quantities: { type: "object", description: "Map of line id -> delivered qty.", additionalProperties: true },
+        pickup_date: STR("Requested pickup date (YYYY-MM-DD)."),
+      },
+      ["orderId"]
+    ),
+  },
+  {
+    name: "complete_inventory_order",
+    description:
+      "Complete an inventory (purchase) order — final state, goods received. Sensitive — closes out the order. Body follows the route validator.",
+    method: "POST",
+    path: "/partners/inventory-orders/:orderId/complete",
+    pathParams: ["orderId"],
+    write: true,
+    sensitive: true,
+    previewPath: "/partners/inventory-orders/:orderId",
+    bodyParams: ["metadata"],
+    inputSchema: obj(
+      {
+        orderId: STR("Inventory order id to complete."),
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["orderId"]
+    ),
+  },
 ]
