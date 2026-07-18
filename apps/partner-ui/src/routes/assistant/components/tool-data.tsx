@@ -21,14 +21,27 @@ const PREFERRED_COLUMNS = [
   "handle",
   "email",
   "status",
+  "partner_status",
   "fulfillment_status",
   "payment_status",
   "quantity",
   "sku",
   "total",
+  "total_price",
+  "line_total",
   "amount",
   "currency_code",
+  "supplier_name",
+  "stock_location",
+  "order_lines_count",
+  "line_items_count",
+  "payments_count",
+  "shipments_count",
+  "is_sample",
+  "expected_delivery_date",
+  "order_date",
   "created_at",
+  "updated_at",
 ]
 
 const HIDDEN_KEYS = new Set(["id", "metadata", "raw_amount", "raw_total"])
@@ -183,29 +196,37 @@ export function ToolData({ data }: { data: unknown }) {
     }
   }
 
-  // ---- Single record: key/value grid -------------------------------------
+  // ---- Single record: key/value grid, with nested objects as sub-sections ---
   if (isRecord(data)) {
-    const entries = Object.entries(data).filter(
+    const scalarEntries = Object.entries(data).filter(
       ([k, v]) => !HIDDEN_KEYS.has(k) && (v === null || typeof v !== "object")
     )
-    if (entries.length) {
+    const nestedEntries = Object.entries(data).filter(
+      ([k, v]) => !HIDDEN_KEYS.has(k) && v !== null && typeof v === "object"
+    )
+    if (scalarEntries.length || nestedEntries.length) {
       return (
         <div className="space-y-1.5">
-          <div className="rounded-lg border border-ui-border-base divide-y divide-ui-border-base">
-            {entries.slice(0, 14).map(([k, v]) => (
-              <div key={k} className="flex gap-x-3 px-3 py-1.5">
-                <Text
-                  size="xsmall"
-                  className="w-32 shrink-0 capitalize text-ui-fg-muted"
-                >
-                  {HEADER_LABEL(k)}
-                </Text>
-                <div className="text-sm text-ui-fg-base break-words min-w-0">
-                  {formatValue(k, v)}
+          {scalarEntries.length > 0 && (
+            <div className="rounded-lg border border-ui-border-base divide-y divide-ui-border-base">
+              {scalarEntries.slice(0, 16).map(([k, v]) => (
+                <div key={k} className="flex gap-x-3 px-3 py-1.5">
+                  <Text
+                    size="xsmall"
+                    className="w-40 shrink-0 capitalize text-ui-fg-muted"
+                  >
+                    {HEADER_LABEL(k)}
+                  </Text>
+                  <div className="text-sm text-ui-fg-base break-words min-w-0">
+                    {formatValue(k, v)}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
+          {nestedEntries.slice(0, 4).map(([k, v]) => (
+            <NestedSection key={k} label={k} value={v} />
+          ))}
           <RawJsonDisclosure data={data} />
         </div>
       )
@@ -234,4 +255,90 @@ function RawJsonDisclosure({
       </pre>
     </details>
   )
+}
+
+/**
+ * Render a nested object/array from a single-record tool result as a labelled
+ * sub-section — arrays of records become a 3-column mini table (capped), other
+ * objects become an indented key/value list. Keeps the raw JSON disclosure as
+ * the escape hatch so nothing is lost.
+ */
+function NestedSection({ label, value }: { label: string; value: unknown }) {
+  const rows = Array.isArray(value)
+    ? value.every(isRecord)
+      ? (value as Record<string, unknown>[])
+      : null
+    : null
+
+  if (rows && rows.length) {
+    const columns = pickColumns(rows).slice(0, 4)
+    const shown = rows.slice(0, 6)
+    return (
+      <div className="space-y-1">
+        <Text size="xsmall" weight="plus" className="text-ui-fg-muted capitalize">
+          {HEADER_LABEL(label)}{" "}
+          <span className="text-ui-fg-subtle font-normal">
+            · {rows.length} {rows.length === 1 ? "item" : "items"}
+          </span>
+        </Text>
+        <div className="overflow-x-auto rounded-lg border border-ui-border-base">
+          <Table className="min-w-full">
+            <Table.Header>
+              <Table.Row>
+                {columns.map((c) => (
+                  <Table.HeaderCell key={c} className="whitespace-nowrap capitalize">
+                    {HEADER_LABEL(c)}
+                  </Table.HeaderCell>
+                ))}
+              </Table.Row>
+            </Table.Header>
+            <Table.Body>
+              {shown.map((row, i) => (
+                <Table.Row key={(row.id as string) || i}>
+                  {columns.map((c) => (
+                    <Table.Cell key={c}>
+                      <div className="text-sm text-ui-fg-base whitespace-nowrap">
+                        {formatValue(c, row[c])}
+                      </div>
+                    </Table.Cell>
+                  ))}
+                </Table.Row>
+              ))}
+            </Table.Body>
+          </Table>
+        </div>
+      </div>
+    )
+  }
+
+  if (isRecord(value)) {
+    const entries = Object.entries(value).filter(
+      ([k, v]) => !HIDDEN_KEYS.has(k) && (v === null || typeof v !== "object")
+    )
+    if (!entries.length) return null
+    return (
+      <div className="space-y-1">
+        <Text size="xsmall" weight="plus" className="text-ui-fg-muted capitalize">
+          {HEADER_LABEL(label)}
+        </Text>
+        <div className="rounded-lg border border-ui-border-base divide-y divide-ui-border-base ml-2">
+          {entries.slice(0, 10).map(([k, v]) => (
+            <div key={k} className="flex gap-x-3 px-3 py-1.5">
+              <Text
+                size="xsmall"
+                className="w-36 shrink-0 capitalize text-ui-fg-muted"
+              >
+                {HEADER_LABEL(k)}
+              </Text>
+              <div className="text-sm text-ui-fg-base break-words min-w-0">
+                {formatValue(k, v)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return null
 }

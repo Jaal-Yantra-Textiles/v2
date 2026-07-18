@@ -2009,10 +2009,15 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   // The partner's own purchase orders for raw materials / inventory. Lifecycle:
   //   list → get → start → (submit-payment) → shiprocket-rates / ready-for-delivery
   //   → shipment → complete
+  //
+  // `transform` flattens the most useful nested fields (partner_info, totals,
+  // order_lines_count) onto the row itself so the chat's ToolData table can
+  // surface them as columns — the table renderer skips nested objects. The
+  // original nested objects are preserved for the raw-JSON disclosure.
   {
     name: "list_inventory_orders",
     description:
-      "List the partner's inventory (purchase) orders — raw-material purchases from suppliers. Paginated, free-text search via q, optional status filter.",
+      "List the partner's inventory (purchase) orders — raw-material purchases from suppliers. Paginated, free-text search via q, optional status filter. Returns each order with status, quantity, total_price, expected delivery date, supplier (partner) status, and order-lines count.",
     method: "GET",
     path: "/partners/inventory-orders",
     queryParams: ["limit", "offset", "q", "status"],
@@ -2020,14 +2025,48 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       ...PAGINATION,
       status: STR("Optional status filter."),
     }),
+    transform: (data: any) => {
+      const orders = Array.isArray(data?.inventory_orders) ? data.inventory_orders : []
+      const flattened = orders.map((o: any) => ({
+        ...o,
+        partner_status: o?.partner_info?.partner_status,
+        supplier_name: o?.partner_info?.partner_name,
+        order_lines_count: o?.order_lines_count ?? o?.orderlines?.length ?? 0,
+        stock_location: o?.stock_location ?? o?.stock_locations?.[0]?.name,
+      }))
+      return { ...data, inventory_orders: flattened }
+    },
   },
   {
     name: "get_inventory_order",
-    description: "Get a single inventory (purchase) order by id, with its lines and supplier.",
+    description:
+      "Get a single inventory (purchase) order by id, with its lines, supplier (partner) info, payments, and shipments. Flattens partner/supplier info and line totals to the top level for easy reading.",
     method: "GET",
     path: "/partners/inventory-orders/:orderId",
     pathParams: ["orderId"],
     inputSchema: obj({ orderId: STR("Inventory order id.") }, ["orderId"]),
+    transform: (data: any) => {
+      const o = data?.inventoryOrder
+      if (!o) return data
+      const lines = Array.isArray(o.order_lines) ? o.order_lines : []
+      const lineTotal = lines.reduce(
+        (sum: number, l: any) => sum + (Number(l?.price) || 0) * (Number(l?.quantity) || 0),
+        0
+      )
+      return {
+        ...data,
+        inventoryOrder: {
+          ...o,
+          partner_status: o?.partner_info?.partner_status,
+          supplier_name: o?.partner_info?.partner_name,
+          supplier_handle: o?.partner_info?.partner_handle,
+          line_items_count: lines.length,
+          line_total: lineTotal,
+          payments_count: Array.isArray(o.payments) ? o.payments.length : 0,
+          shipments_count: Array.isArray(o.shipments) ? o.shipments.length : 0,
+        },
+      }
+    },
   },
   {
     name: "start_inventory_order",
