@@ -56,6 +56,7 @@ function buildSubs(
   const agg = new Map<string, number>()
   const bump = (k: string) => agg.set(k, (agg.get(k) || 0) + 1)
   for (const r of records) {
+    bump(`total/weavers`) // whole-corpus total → O(1) count for the `all` driver
     bump(`state/${r.state}`)
     bump(`gender/${r.gender}`)
     bump(`district/${r.state}|${r.district}`)
@@ -68,12 +69,13 @@ function buildSubs(
     const idx: Array<[string, any]> = []
     for (const r of records) {
       const p = padId(r.census_id)
+      idx.push([`all/${p}`, Buffer.from("")])
       idx.push([`state/${r.state}/${p}`, Buffer.from("")])
       idx.push([`gender/${r.gender}/${p}`, Buffer.from("")])
       idx.push([`sd/${r.state}|${r.district}/${p}`, Buffer.from("")])
     }
     subs.idx = idx
-    subs.meta = [["idx-version", "idx-v1"]]
+    subs.meta = [["idx-version", "idx-v1"], ["idx-all-version", "idxall-v1"]]
   }
 
   return subs
@@ -125,6 +127,19 @@ setupSharedTestSuite(() => {
       expect(res.data.count).toBe(4)
       expect(res.data.weavers).toHaveLength(4)
       expect(res.data.weavers.every((w: any) => w.state === "KARNATAKA")).toBe(true)
+    })
+
+    it("unfiltered browse early-exits at the page window (estimated, no freeze)", async () => {
+      // No `all` family backfilled → fallback. It must NOT scan the whole corpus
+      // to compute a total: it stops at the page and flags the count estimated.
+      const res = await api.get("/web/census/weavers?limit=2", {
+        validateStatus: () => true,
+      })
+      expect(res.status).toBe(200)
+      expect(res.data.indexed).toBe(false)
+      expect(res.data.weavers).toHaveLength(2)
+      expect(res.data.estimated).toBe(true)
+      expect(res.data.next).toBeUndefined() // no cursor on the fallback path
     })
   })
 
@@ -195,6 +210,37 @@ setupSharedTestSuite(() => {
       })
       expect(res.status).toBe(200)
       expect(res.data.weaver).toMatchObject({ census_id: 13, state: "PUNJAB" })
+    })
+
+    it("browses the whole corpus via the `all` family with an exact O(1) total", async () => {
+      const res = await api.get("/web/census/weavers?limit=2", {
+        validateStatus: () => true,
+      })
+      expect(res.status).toBe(200)
+      expect(res.data.indexed).toBe(true)
+      // exact total from the `total/weavers` agg cell (all 5), not the page size
+      expect(res.data.count).toBe(5)
+      expect(res.data.estimated).toBeUndefined()
+      expect(res.data.weavers).toHaveLength(2)
+      // ordered by census_id ascending, with a re-consumable cursor
+      const ids = res.data.weavers.map((w: any) => w.census_id)
+      expect(ids).toEqual([10, 11])
+      expect(res.data.next).toBeDefined()
+
+      const p2 = await api.get(`/web/census/weavers?limit=2&after=${res.data.next}`, {
+        validateStatus: () => true,
+      })
+      expect(p2.data.weavers.map((w: any) => w.census_id)).toEqual([12, 13])
+    })
+
+    it("applies a non-facet residual filter over the `all` family", async () => {
+      const res = await api.get("/web/census/weavers?education=Primary", {
+        validateStatus: () => true,
+      })
+      expect(res.status).toBe(200)
+      expect(res.data.indexed).toBe(true)
+      expect(res.data.estimated).toBe(true) // residual → count is scanned matches
+      expect(res.data.weavers.map((w: any) => w.census_id).sort()).toEqual([11, 14])
     })
   })
 })

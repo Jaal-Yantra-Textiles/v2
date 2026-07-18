@@ -8,6 +8,10 @@
 //   idx/state/<state>/<pad10(id)>
 //   idx/gender/<gender>/<pad10(id)>
 //   idx/sd/<state>|<district>/<pad10(id)>
+//   idx/all/<pad10(id)>                    (whole corpus, ordered by id — powers
+//                                           the unfiltered map browse: O(page)
+//                                           range-scan + O(1) `total/weavers`
+//                                           count, no more O(corpus) rec/* scan)
 //
 // Ids are zero-padded to 10 digits so the lexicographic key order == numeric
 // order (ids < 10^10). This MUST match the Medusa reader (census/reader.ts,
@@ -27,7 +31,12 @@
 import assert from "node:assert"
 
 export const ID_PAD = 10
+// Facet families (state/gender/sd) gate on IDX_VERSION; the whole-corpus `all`
+// family gates on its own IDX_ALL_VERSION so the two roll out independently — the
+// reader only uses `idx/all/*` once THIS backfill has emitted it (else it would
+// range-scan an empty family). MUST match reader.ts FACET_IDX_META/ALL_IDX_META.
 export const IDX_VERSION = "idx-v1"
+export const IDX_ALL_VERSION = "idxall-v1"
 export const padId = (id) => String(id).padStart(ID_PAD, "0")
 
 const EMPTY = Buffer.from("")
@@ -38,6 +47,7 @@ export function idxRelKeys(r) {
   if (r == null || r.census_id == null) return []
   const p = padId(r.census_id)
   const keys = []
+  keys.push(`all/${p}`) // every record joins the whole-corpus ordered family
   if (r.state) keys.push(`state/${r.state}/${p}`)
   if (r.gender) keys.push(`gender/${r.gender}/${p}`)
   if (r.state && r.district) keys.push(`sd/${r.state}|${r.district}/${p}`)
@@ -49,18 +59,28 @@ export function idxRelKeys(r) {
  * Progress is checkpointed in `meta/idx-backfill-cursor` (the last rec key done),
  * so a crash/restart resumes instead of redoing the whole corpus. Batches are
  * flushed every `batchSize` records to bound memory + make progress durable.
- * On completion sets `meta/idx-version`, which is the flag the reader checks.
+ * On completion sets `meta/idx-version` + `meta/idx-all-version`, the flags the
+ * reader checks to flip each family from scan → index. Re-runs if either flag is
+ * missing (e.g. an older run that predates the `all` family), so bumping a
+ * family is just "add the keys in idxRelKeys + re-run this backfill".
  *
  * deps: { subKey(name, key)->Buffer, decode(buf)->record, batchSize?, log? }
  * Returns { indexed, alreadyDone }.
  */
 export async function backfillIndex(bee, { subKey, decode, batchSize = 5000, log = () => {} }) {
   const meta = bee.sub("meta", { valueEncoding: "utf-8" })
-  if ((await meta.get("idx-version"))?.value === IDX_VERSION) {
+  const facetsDone = (await meta.get("idx-version"))?.value === IDX_VERSION
+  const allDone = (await meta.get("idx-all-version"))?.value === IDX_ALL_VERSION
+  if (facetsDone && allDone) {
     return { indexed: 0, alreadyDone: true }
   }
 
-  const cursorNode = await meta.get("idx-backfill-cursor")
+  // A prior run may have completed the facet families (idx-version set) before
+  // the `all` family existed — its completion cursor is parked at the corpus
+  // end, so resuming from it would emit nothing. Reset to a full re-walk in that
+  // case; the idx puts are idempotent (EMPTY-value overwrites), so re-emitting
+  // the facet keys alongside the new `all` keys is harmless.
+  const cursorNode = facetsDone && !allDone ? null : await meta.get("idx-backfill-cursor")
   let resumeAfter = cursorNode ? cursorNode.value : null
 
   const rec = bee.sub("rec", { valueEncoding: "binary" })
@@ -102,7 +122,8 @@ export async function backfillIndex(bee, { subKey, decode, batchSize = 5000, log
   await flush()
 
   await meta.put("idx-version", IDX_VERSION)
-  log(`[idx-backfill] DONE — ${indexed} records indexed, idx-version=${IDX_VERSION}`)
+  await meta.put("idx-all-version", IDX_ALL_VERSION)
+  log(`[idx-backfill] DONE — ${indexed} records indexed, idx-version=${IDX_VERSION}, idx-all-version=${IDX_ALL_VERSION}`)
   return { indexed, alreadyDone: false }
 }
 
@@ -150,6 +171,15 @@ if (_isMain && process.argv.includes("--test")) {
   const res = await backfillIndex(bee, { subKey, decode, batchSize: 2 })
   ok("backfill reports all records indexed", res.indexed === 5)
   ok("idx-version flag set", (await bee.sub("meta", { valueEncoding: "utf-8" }).get("idx-version"))?.value === "idx-v1")
+  ok("idx-all-version flag set", (await bee.sub("meta", { valueEncoding: "utf-8" }).get("idx-all-version"))?.value === "idxall-v1")
+
+  // whole-corpus `all` family → every id, ascending (powers the unfiltered browse).
+  const idxAll = bee.sub("idx", { valueEncoding: "binary" })
+  const all = []
+  for await (const { key } of idxAll.createReadStream({ gte: "all/", lt: "all/:" })) {
+    all.push(Number(key.slice("all/".length)))
+  }
+  ok("all index returns every id, sorted", JSON.stringify(all) === JSON.stringify([10, 11, 12, 13, 14]))
 
   // range-scan the KARNATAKA state facet → ids in ascending order.
   const idx = bee.sub("idx", { valueEncoding: "binary" })
@@ -179,9 +209,10 @@ if (_isMain && process.argv.includes("--test")) {
   const again = await backfillIndex(bee, { subKey, decode })
   ok("second backfill is a no-op (already done)", again.alreadyDone === true)
 
-  // forward emission helper.
-  ok("idxRelKeys emits 3 families for a full record", idxRelKeys(records[0]).length === 3)
-  ok("idxRelKeys skips district family when district missing", idxRelKeys({ census_id: 9, state: "GOA", gender: "Male" }).length === 2)
+  // forward emission helper (all + state + gender + sd = 4 for a full record).
+  ok("idxRelKeys emits 4 families for a full record", idxRelKeys(records[0]).length === 4)
+  ok("idxRelKeys skips district family when district missing", idxRelKeys({ census_id: 9, state: "GOA", gender: "Male" }).length === 3)
+  ok("idxRelKeys still emits the all family for a bare record", idxRelKeys({ census_id: 9 }).length === 1 && idxRelKeys({ census_id: 9 })[0] === "all/0000000009")
 
   await store.close()
   rmSync(DIR, { recursive: true, force: true })

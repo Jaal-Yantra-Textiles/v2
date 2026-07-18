@@ -10,10 +10,12 @@
 //   P2P_STORE=/opt/handloom/p2p-store node backfill_index.mjs
 //   sudo systemctl start handloom-seed
 //
-// It's resumable (checkpoints meta/idx-backfill-cursor) and idempotent (skips if
-// meta/idx-version is already set), so a Ctrl-C / crash just re-runs from the last
-// checkpoint. On completion it sets meta/idx-version, which flips the Medusa
-// reader from the bounded scan to the index range-scan automatically.
+// It's resumable (checkpoints meta/idx-backfill-cursor) and idempotent (skips
+// only when BOTH meta/idx-version AND meta/idx-all-version are set), so a
+// Ctrl-C / crash just re-runs from the last checkpoint. Re-run it after adding a
+// new index family (e.g. the whole-corpus `all` family) — it detects the missing
+// flag, re-walks the corpus, and flips the Medusa reader onto that family
+// automatically. On completion it sets both flags.
 
 import Corestore from "corestore"
 import Hyperbee from "hyperbee"

@@ -1,11 +1,31 @@
-import { brotliDecompressSync } from "node:zlib"
+import { brotliDecompress } from "node:zlib"
+import { promisify } from "node:util"
+
+// Decompress OFF the event loop (libuv threadpool). The sync variant froze the
+// single-threaded server for the whole duration of a large scan — every other
+// request and the ALB/ECS health check stalled with it, so the task got killed
+// and restarted, which read as a "crash". Never reintroduce brotliDecompressSync
+// on a hot path.
+const brotliDecompressAsync = promisify(brotliDecompress)
 
 // k-anonymity: aggregate cells below this are suppressed (null) for public output.
 const MIN_CELL = 5
-// safety cap on a full-record scan (the live public core has no secondary index
-// yet — see listWeavers). Bounds worst-case work; we flag when a scan is capped
-// rather than silently truncating.
+// safety cap on a residual full-record scan (the fallback path, taken only when
+// the relevant index family hasn't been backfilled yet). Bounds worst-case work;
+// we flag when a scan is capped rather than silently truncating.
 const MAX_SCAN = 50_000
+// Yield to the event loop every N scanned records in the fallback so a large
+// residual scan can't starve health checks / concurrent requests even though
+// each decode is already off-thread.
+const YIELD_EVERY = 256
+
+// meta flags the seeder sets once an index family has been backfilled. The facet
+// families (state/gender/sd) gate on FACET_IDX_META; the whole-corpus ordered
+// `all` family gates on ALL_IDX_META — decoupled so the unfiltered browse only
+// takes the index path once ITS backfill has run (otherwise it would range-scan
+// an empty `idx/all/*` family and return nothing).
+const FACET_IDX_META = "idx-version"
+const ALL_IDX_META = "idx-all-version"
 
 // Minimal shape of the Hyperbee handle we depend on. The real instance is created
 // in the P2P loader (dynamic native import) and injected via setBee — this file
@@ -69,8 +89,8 @@ export class CensusReader {
     return this.bee
   }
 
-  private decode(buf: Buffer): Record<string, any> {
-    return JSON.parse(brotliDecompressSync(buf).toString())
+  private async decode(buf: Buffer): Promise<Record<string, any>> {
+    return JSON.parse((await brotliDecompressAsync(buf)).toString())
   }
 
   /** Resolve one masked weaver record by census_id, or null if unknown. */
@@ -83,7 +103,7 @@ export class CensusReader {
     }
     const rec = this.requireBee().sub("rec", { valueEncoding: "binary" })
     const node = await rec.get(String(id))
-    return node ? this.decode(node.value) : null
+    return node ? await this.decode(node.value) : null
   }
 
   /**
@@ -117,14 +137,19 @@ export class CensusReader {
    *   idx/state/<state>/<paddedId>
    *   idx/gender/<gender>/<paddedId>
    *   idx/sd/<state>|<district>/<paddedId>   (state-scoped district drill-down)
+   *   idx/all/<paddedId>                     (whole corpus, ordered by id)
    * The most selective available family wins; any remaining filters become the
    * `residual` predicate applied in memory to the (already narrowed) records.
+   * When no facet filter is present we fall to the `all` family so the common
+   * unfiltered map browse is an O(page) range-scan with an O(1) exact total —
+   * NOT the O(corpus) rec/* scan that used to time the storefront out.
    */
   private resolveIndexDriver(filters: WeaverFilters): {
     prefix: string
     aggKey: string
     residual: WeaverFilters
-  } | null {
+    metaKey: string
+  } {
     const state = filters.state != null ? String(filters.state) : null
     const district = filters.district != null ? String(filters.district) : null
     const gender = filters.gender != null ? String(filters.gender) : null
@@ -136,15 +161,18 @@ export class CensusReader {
     }
 
     if (state && district) {
-      return { prefix: `sd/${state}|${district}/`, aggKey: `district/${state}|${district}`, residual: without("state", "district") }
+      return { prefix: `sd/${state}|${district}/`, aggKey: `district/${state}|${district}`, residual: without("state", "district"), metaKey: FACET_IDX_META }
     }
     if (state) {
-      return { prefix: `state/${state}/`, aggKey: `state/${state}`, residual: without("state") }
+      return { prefix: `state/${state}/`, aggKey: `state/${state}`, residual: without("state"), metaKey: FACET_IDX_META }
     }
     if (gender) {
-      return { prefix: `gender/${gender}/`, aggKey: `gender/${gender}`, residual: without("gender") }
+      return { prefix: `gender/${gender}/`, aggKey: `gender/${gender}`, residual: without("gender"), metaKey: FACET_IDX_META }
     }
-    return null
+    // No indexed facet → browse the whole corpus in id order. Exact total comes
+    // from the O(1) `total/weavers` aggregate; any non-facet filters (district
+    // alone, village, education, …) ride along as a residual predicate.
+    return { prefix: "all/", aggKey: "total/weavers", residual: { ...filters }, metaKey: ALL_IDX_META }
   }
 
   /**
@@ -154,9 +182,11 @@ export class CensusReader {
    * and a filter hits an indexed facet, this is an ORDERED range-scan over
    * `idx/<facet>/<value>/*` — O(page), not O(corpus) — with the total lifted from
    * the matching `agg` cell in O(1). That is what makes browse viable across the
-   * multi-million sweep (a full `rec/*` scan times out). Falls back to the
-   * bounded in-memory scan when there's no index or no indexed filter, preserving
-   * the original behaviour.
+   * multi-million sweep (a full `rec/*` scan times out). The unfiltered browse
+   * rides the `all` family the same way (exact total from `total/weavers`). Only
+   * falls back to the bounded in-memory scan when the driver's index family
+   * hasn't been backfilled yet — and that scan now decodes off-thread + yields,
+   * so it can't freeze the server even at the MAX_SCAN ceiling.
    *
    * `after` is an opaque cursor (the last census_id of the previous page) enabling
    * O(page) forward pagination that doesn't degrade with depth like `offset`.
@@ -185,15 +215,20 @@ export class CensusReader {
     const rec = bee.sub("rec", { valueEncoding: "binary" })
 
     const driver = this.resolveIndexDriver(filters)
+    // The driver's family must be backfilled (its meta flag set) before we range
+    // -scan it; until then we take the bounded fallback below. resolveIndexDriver
+    // always returns a driver now (the `all` family covers the no-facet case), so
+    // this gate is the only thing that keeps us off an un-backfilled family.
     const indexReady =
-      driver != null &&
-      (await bee.sub("meta", { valueEncoding: "utf-8" }).get("idx-version")) != null
+      (await bee.sub("meta", { valueEncoding: "utf-8" }).get(driver.metaKey)) != null
 
-    if (driver && indexReady) {
+    if (indexReady) {
       return this.listViaIndex(bee, rec, driver, { limit, offset, after })
     }
 
-    // Fallback: bounded in-memory scan over rec/* (original behaviour).
+    // Fallback: bounded in-memory scan over rec/* (only when the driver's index
+    // family hasn't been backfilled yet). Decodes off-thread + yields to the
+    // event loop so it can't freeze the server even at the MAX_SCAN ceiling.
     const entries = Object.entries(filters)
     const match = (r: Record<string, any>) =>
       entries.every(([k, v]) => String(r[k]) === String(v))
@@ -207,7 +242,8 @@ export class CensusReader {
         capped = true
         break
       }
-      const r = this.decode(value)
+      if (scanned % YIELD_EVERY === 0) await new Promise((r) => setImmediate(r))
+      const r = await this.decode(value)
       if (!match(r)) continue
       if (count >= offset && weavers.length < limit) weavers.push(r)
       count++
@@ -271,7 +307,7 @@ export class CensusReader {
         if (count >= offset && weavers.length < limit) {
           const node = await rec.get(id)
           if (node) {
-            weavers.push(this.decode(node.value))
+            weavers.push(await this.decode(node.value))
             next = id
           }
         }
@@ -280,7 +316,7 @@ export class CensusReader {
       } else {
         const node = await rec.get(id)
         if (!node) continue
-        const r = this.decode(node.value)
+        const r = await this.decode(node.value)
         if (!residualMatch(r)) continue
         if (count >= offset && weavers.length < limit) {
           weavers.push(r)
