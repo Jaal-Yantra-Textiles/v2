@@ -19,7 +19,14 @@ class CrmService {
   }
 
   private repo(name: string): ModelRepository {
-    return this.__container__.resolve(name);
+    // In the Medusa runtime the module service is constructed with the Awilix
+    // *cradle* (a proxy), not a container — it has no `.resolve()` method, and
+    // even reading `.resolve` makes Awilix look up a registration named
+    // "resolve" ("Could not resolve 'resolve'"), which 500-ed every
+    // /admin/crm/* route. Registrations are read as PROPERTIES on the cradle,
+    // so index into it. The e2e mock container exposes the same properties, so
+    // this works there too.
+    return (this.__container__ as any)[name];
   }
 
   // ── companies ────────────────────────────────────────────────────────────────
