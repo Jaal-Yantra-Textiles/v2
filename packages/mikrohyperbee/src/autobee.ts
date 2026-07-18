@@ -75,7 +75,10 @@ export function makeApply(
       boundView = view;
       repos = {};
       for (const [model, contract] of Object.entries(contracts)) {
-        repos[model] = new HyperbeeBaseRepository(view, contract, ctx);
+        // Each model gets its OWN sub-bee on the view so rec/idx/uniq are isolated
+        // per entity — else a shared index (e.g. company_id) cross-links models and
+        // a list of one model returns another's rows. MUST match the read side.
+        repos[model] = new HyperbeeBaseRepository(view.sub(model), contract, ctx);
       }
     }
     for (const node of nodes) {
@@ -112,7 +115,13 @@ export class AutobeeRepository implements ModelRepository {
   /** Read path: the same contract-driven repository, bound to the linearized view. */
   private read(): HyperbeeBaseRepository {
     if (!this.reader) {
-      this.reader = new HyperbeeBaseRepository(this.base.view, this.contract, this.ctx);
+      // Same per-model sub-bee the apply-fold writes into (view.sub(model)), so
+      // reads see this entity's rec/idx/uniq only — never another model's.
+      this.reader = new HyperbeeBaseRepository(
+        this.base.view.sub(this.contract.model),
+        this.contract,
+        this.ctx
+      );
     }
     return this.reader;
   }

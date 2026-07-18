@@ -135,6 +135,7 @@
     "@xyflow/react": "^12.4.4",
     "ai": "^5.0.52",
     "ajv": "^8.18.0",
+    "autobase": "^7.28.1",
     "awilix": "^8.0.1",
     "bwip-js": "^4.8.0",
     "class-variance-authority": "^0.7.1",
