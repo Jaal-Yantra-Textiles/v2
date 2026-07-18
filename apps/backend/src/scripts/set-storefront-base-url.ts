@@ -102,7 +102,9 @@ export default async function setStorefrontBaseUrl({ container }: ExecArgs) {
         .filter((n) => !n.endsWith(".cicilabel.com") && !n.endsWith(".vercel.app"))
 
       const customDomain = String(
-        (partner as any).metadata?.custom_domain || ""
+        (partner as any).custom_domain ||
+          (partner as any).metadata?.custom_domain ||
+          ""
       ).toLowerCase()
       const preferred = candidates.find(
         (c) => c === customDomain || c === twin(customDomain)

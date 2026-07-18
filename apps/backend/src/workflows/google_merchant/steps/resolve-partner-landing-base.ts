@@ -47,13 +47,16 @@ export function normalizeLandingBase(value?: string | null): string | null {
 export function partnerBaseFromRecord(
   partner: {
     storefront_domain?: string | null
+    custom_domain?: string | null
     metadata?: Record<string, any> | null
   } | null | undefined
 ): string | null {
   if (!partner) return null
   const meta = partner.metadata || {}
+  // Prefer the typed `custom_domain` column; fall back to the legacy
+  // metadata copy for any row not yet migrated.
   return (
-    normalizeLandingBase(meta.custom_domain) ||
+    normalizeLandingBase(partner.custom_domain || meta.custom_domain) ||
     normalizeLandingBase(meta.website_domain) ||
     normalizeLandingBase(partner.storefront_domain)
   )
@@ -96,7 +99,7 @@ export async function resolvePartnerStorefrontForSalesChannel(
     //    dot-paths, so match owner in JS (mirrors resolvePartnerLandingBase).
     const { data: partners } = await query.graph({
       entity: "partners",
-      fields: ["id", "name", "handle", "storefront_domain", "metadata", "stores.id"],
+      fields: ["id", "name", "handle", "storefront_domain", "custom_domain", "metadata", "stores.id"],
     } as any)
     const owner = (partners ?? []).find((p: any) =>
       (p?.stores ?? []).some((st: any) => storeIds.has(st?.id))
@@ -149,7 +152,7 @@ export async function resolvePartnerLandingBase(
     //    and match in JS (mirrors propagate-region-to-partners).
     const { data: partners } = await query.graph({
       entity: "partners",
-      fields: ["id", "storefront_domain", "metadata", "stores.id"],
+      fields: ["id", "storefront_domain", "custom_domain", "metadata", "stores.id"],
     } as any)
     const owner = (partners ?? []).find((p: any) =>
       (p?.stores ?? []).some((st: any) => storeIds.has(st?.id))
