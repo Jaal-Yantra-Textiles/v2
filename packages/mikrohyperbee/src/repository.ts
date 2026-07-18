@@ -422,6 +422,61 @@ export class HyperbeeBaseRepository implements ModelRepository {
   async restore(): Promise<[any[], Record<string, unknown>]> {
     return [[], {}];
   }
+
+  // ── multi-writer fold (Autobase apply) ──────────────────────────────────────
+  // Deterministic persistence of a FULLY-MATERIALIZED row (id + timestamps already
+  // set by the writer). Unlike write(), it never generates an id, never re-stamps,
+  // and NEVER throws — it returns an outcome so the Autobase `apply()` can record a
+  // conflict and keep linearizing instead of halting. Referential integrity is NOT
+  // enforced here (soft-by-default across writers, per the framework doc); flip a
+  // relation to strict only inside a single-writer domain.
+  //
+  // Conflict policy = last-writer-wins by `updated_at` (ties → last in linear order,
+  // which is deterministic because apply replays a fixed order). A uniqueness clash
+  // with a *different* key, or an invariant violation, rejects the row (loser).
+  async foldPut(
+    row: Record<string, any>
+  ): Promise<"applied" | "stale" | "rejected"> {
+    const key = this.keyOf(row);
+    const existing = await this.get(key);
+    if (
+      existing &&
+      row.updated_at != null &&
+      existing.updated_at != null &&
+      String(row.updated_at) < String(existing.updated_at)
+    ) {
+      return "stale"; // an older write loses
+    }
+    // uniqueness: a reservation held by a DIFFERENT key means this row loses.
+    for (const f of this.uniques) {
+      const v = row[f];
+      if (v === undefined || v === null) continue;
+      const node = await this.uniq.get(this.uniqKey(f, v));
+      if (node && node.value !== key) return "rejected";
+    }
+    try {
+      checkInvariants(this.contract, row);
+    } catch {
+      return "rejected";
+    }
+    if (existing) {
+      await this.deindex(existing, key);
+      await this.releaseUnique(existing);
+    }
+    await this.recs.put(key, this.enc(row));
+    await this.index(row, key);
+    await this.reserveUnique(row, key);
+    return "applied";
+  }
+
+  /** Deterministic delete of a materialized key (Autobase apply). Idempotent. */
+  async foldDel(key: string): Promise<void> {
+    const cur = await this.get(key);
+    if (!cur) return;
+    await this.deindex(cur, key);
+    await this.releaseUnique(cur);
+    await this.recs.del(key);
+  }
 }
 
 /** Factory: build a repository for a contract over a ready Hyperbee. */

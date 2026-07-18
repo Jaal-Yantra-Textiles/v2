@@ -127,6 +127,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/personproperty",
     },
     {
+      resolve: "./src/modules/crm",
+    },
+    {
       resolve: "./src/modules/inventory_orders",
     },
     {

@@ -6,6 +6,13 @@
 export { defineContract, applyShape, checkInvariants } from "./contract";
 export { HyperbeeBaseRepository, hyperbeeRepositoryFor } from "./repository";
 export {
+  AutobeeRepository,
+  autobeeRepositoryFor,
+  makeApply,
+  authorizeWriter,
+} from "./autobee";
+export type { AutobaseLike, AutobeeOp } from "./autobee";
+export {
   ContractError,
 } from "./types";
 export type {

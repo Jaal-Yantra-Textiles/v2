@@ -20,13 +20,14 @@
     "dist"
   ],
   "scripts": {
-    "test": "tsx test/repository.e2e.ts && tsx test/workflow-store.e2e.ts",
+    "test": "tsx test/repository.e2e.ts && tsx test/workflow-store.e2e.ts && tsx test/autobee-multiwriter.e2e.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc",
     "prepare": "tsc"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "autobase": "^7.28.1",
     "corestore": "^7.4.6",
     "hyperbee": "^2.24.2",
     "tsx": "^4.19.2",
