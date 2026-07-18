@@ -42,6 +42,14 @@ const Partner = model.define("partner", {
 
     // Storefront
     storefront_domain: model.text().nullable(),
+    // The partner's own connected custom domain (apex/primary form, e.g.
+    // "hrhandloom.in"), distinct from `storefront_domain` (the provisioned
+    // platform subdomain). Typed columns NOT metadata — load-bearing for the
+    // domain status API, host resolution, and marketing-base derivation. The
+    // www/apex twin is derived (see deriveDomainPair) and registered as a
+    // `website_domain` alias; only the canonical host is stored here.
+    custom_domain: model.text().nullable(),
+    custom_domain_verified: model.boolean().default(false),
     website_id: model.text().nullable(),
     vercel_project_id: model.text().nullable(),
     vercel_project_name: model.text().nullable(),

@@ -438,11 +438,19 @@ const CustomDomainSection = () => {
       const result = await addDomain({ domain: value })
       setAddResult(result)
       setDomainInput("")
-      toast.success("Domain added", {
-        description: result.verified
-          ? "Domain verified. Configure your DNS to point it to your storefront."
-          : "Domain added. Follow the verification steps below.",
-      })
+      if (result.error) {
+        // The domain was saved but the provider rejected the attach — surface
+        // why instead of a green "added" that never goes live.
+        toast.error("Domain saved, but attach failed", {
+          description: result.error,
+        })
+      } else {
+        toast.success("Domain added", {
+          description: result.verified
+            ? "Domain verified. Configure your DNS to point it to your storefront."
+            : "Domain added. Follow the verification steps below.",
+        })
+      }
     } catch (e: any) {
       toast.error("Could not add domain", {
         description: e?.message || "Something went wrong",
@@ -456,9 +464,20 @@ const CustomDomainSection = () => {
       setAddResult(result)
       if (result.verified) {
         toast.success("Domain verified")
+      } else if (result.error) {
+        toast.error("Couldn't attach domain", { description: result.error })
       } else {
+        // Guide by what the partner actually needs to publish: a TXT ownership
+        // record vs. a CNAME. The old copy always said "TXT" even when none
+        // existed yet — misleading when the hostname was just (re)created.
+        const hasTxt = (result.verification?.length ?? 0) > 0
+        const hasDns = (result.dns_records?.length ?? 0) > 0
         toast.warning("Domain not yet verified", {
-          description: "Make sure the TXT record is set and try again.",
+          description: hasTxt
+            ? "Add the TXT record(s) shown below to verify ownership, then check again."
+            : hasDns
+            ? "Add the DNS record(s) shown below at your domain provider, then check again in a few minutes."
+            : "We're still attaching your domain — give it a minute, then check again.",
         })
       }
     } catch (e: any) {
@@ -479,9 +498,17 @@ const CustomDomainSection = () => {
     if (!confirmed) return
 
     try {
-      await removeDomain()
+      const result = await removeDomain()
       setAddResult(null)
-      toast.success("Custom domain removed")
+      if (result?.warnings?.length) {
+        toast.warning("Custom domain removed", {
+          description:
+            "Some records may still be clearing at the host: " +
+            result.warnings.join("; "),
+        })
+      } else {
+        toast.success("Custom domain removed")
+      }
     } catch (e: any) {
       toast.error("Could not remove domain", {
         description: e?.message || "Something went wrong",

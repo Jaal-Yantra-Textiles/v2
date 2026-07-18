@@ -46,13 +46,31 @@ export function deriveDomainPair(domain: string): DomainPair {
   return { primary: domain, counterpart: null }
 }
 
+/**
+ * Read a partner's connected custom domain. Prefers the typed `custom_domain`
+ * column; falls back to the legacy `metadata.custom_domain` so a reader that
+ * runs during the deploy window (migration done, old rows) still resolves.
+ */
+export function partnerCustomDomain(partner: any): string | undefined {
+  const col = partner?.custom_domain
+  if (typeof col === "string" && col) return col
+  const meta = partner?.metadata?.custom_domain
+  return typeof meta === "string" && meta ? meta : undefined
+}
+
+export function partnerCustomDomainVerified(partner: any): boolean {
+  if (partner?.custom_domain_verified === true) return true
+  // Only trust the legacy metadata flag when the column hasn't taken over yet.
+  if (partner?.custom_domain) return partner.custom_domain_verified === true
+  return partner?.metadata?.custom_domain_verified === true
+}
+
 export type AttachStorefrontDomainInput = {
   partner_id: string
   /** @deprecated kept for callers; the provider + project ref are now resolved from the partner. */
   vercel_project_id?: string
   website_id: string | null
   domain: string
-  prev_metadata: Record<string, any>
 }
 
 /** Is this provider error just "the domain is already on this project"? */
@@ -83,11 +101,17 @@ const addProviderDomainPairStep = createStep(
     const created: string[] = []
     let verified = false
     let verification: any = null
+    // The Cloudflare provider swallows attach failures (returns `{error}`
+    // instead of throwing) so one bad host can't abort the whole attach. Carry
+    // that reason up to the caller so the partner sees *why* nothing attached
+    // rather than a domain stuck silently unverified with no DNS records.
+    let error: string | null = null
 
     try {
       const res = await provider.addDomain(projectRef, input.pair.primary)
       verified = !!res.verified
       verification = res.verification || null
+      error = res.error || null
       created.push(input.pair.primary)
     } catch (e: any) {
       if (!isAlreadyAttached(String(e?.message || ""))) throw e
@@ -116,10 +140,10 @@ const addProviderDomainPairStep = createStep(
     }
 
     return new StepResponse<
-      { verified: boolean; verification: any; created: string[] },
+      { verified: boolean; verification: any; created: string[]; error: string | null },
       ProviderPairComp
     >(
-      { verified, verification, created },
+      { verified, verification, created, error },
       { partner_id: input.partner_id, created }
     )
   },
@@ -187,38 +211,48 @@ const setBaseUrlEnvStep = createStep(
   }
 )
 
-type MetadataComp = { partner_id: string; prev_metadata: Record<string, any> }
-const updatePartnerDomainMetadataStep = createStep(
-  "asd-update-partner-metadata",
+type DomainColumnComp = {
+  partner_id: string
+  prev_domain: string | null
+  prev_verified: boolean
+}
+const updatePartnerDomainStep = createStep(
+  "asd-update-partner-domain",
   async (
     input: {
       partner_id: string
-      prev_metadata: Record<string, any>
       domain: string
       verified: boolean
     },
     { container }
   ) => {
+    // Typed columns, NOT metadata (#no-critical-data-in-metadata) — the custom
+    // domain is load-bearing for the status API + host resolution.
     const partnerService: any = container.resolve(PARTNER_MODULE)
+    const prev = await partnerService
+      .retrievePartner(input.partner_id)
+      .catch(() => null)
     await partnerService.updatePartners({
       id: input.partner_id,
-      metadata: {
-        ...(input.prev_metadata || {}),
-        custom_domain: input.domain,
-        custom_domain_verified: input.verified,
-      },
+      custom_domain: input.domain,
+      custom_domain_verified: input.verified,
     })
-    return new StepResponse<{ ok: boolean }, MetadataComp>(
+    return new StepResponse<{ ok: boolean }, DomainColumnComp>(
       { ok: true },
-      { partner_id: input.partner_id, prev_metadata: input.prev_metadata }
+      {
+        partner_id: input.partner_id,
+        prev_domain: prev?.custom_domain ?? null,
+        prev_verified: prev?.custom_domain_verified ?? false,
+      }
     )
   },
-  async (comp: MetadataComp | undefined, { container }) => {
+  async (comp: DomainColumnComp | undefined, { container }) => {
     if (!comp) return
     const partnerService: any = container.resolve(PARTNER_MODULE)
     await partnerService.updatePartners({
       id: comp.partner_id,
-      metadata: comp.prev_metadata,
+      custom_domain: comp.prev_domain,
+      custom_domain_verified: comp.prev_verified,
     })
   }
 )
@@ -286,13 +320,12 @@ export const attachStorefrontDomainWorkflow = createWorkflow(
     }))
     setBaseUrlEnvStep(envInput)
 
-    const metaInput = transform({ input, pair, attached }, (d) => ({
+    const domainInput = transform({ input, pair, attached }, (d) => ({
       partner_id: d.input.partner_id,
-      prev_metadata: d.input.prev_metadata,
       domain: d.pair.primary,
       verified: d.attached.verified,
     }))
-    updatePartnerDomainMetadataStep(metaInput)
+    updatePartnerDomainStep(domainInput)
 
     const aliasInput = transform({ input, pair }, (d) => ({
       website_id: d.input.website_id,
@@ -305,6 +338,7 @@ export const attachStorefrontDomainWorkflow = createWorkflow(
       counterpart: d.pair.counterpart,
       verified: d.attached.verified,
       verification: d.attached.verification,
+      error: d.attached.error,
       created_aliases: d.aliases.created,
     }))
 

@@ -134,6 +134,14 @@ export interface AddDomainResponse {
   misconfigured: boolean
   configured_by: string | null
   dns_records?: DnsRecord[]
+  /** Provider attach/heal error (e.g. Cloudflare rejected the hostname). */
+  error?: string | null
+}
+
+export interface RemoveDomainResponse {
+  message: string
+  /** Provider hosts that couldn't be fully torn down (still resolving). */
+  warnings?: string[]
 }
 
 export const useStorefrontDomain = (
@@ -182,7 +190,7 @@ export const useVerifyStorefrontDomain = () => {
 export const useRemoveStorefrontDomain = () => {
   return useMutation({
     mutationFn: () =>
-      sdk.client.fetch<{ message: string }>("/partners/storefront/domain", {
+      sdk.client.fetch<RemoveDomainResponse>("/partners/storefront/domain", {
         method: "DELETE",
       }),
     onSuccess: () => {

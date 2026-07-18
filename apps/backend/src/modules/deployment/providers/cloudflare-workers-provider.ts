@@ -550,36 +550,60 @@ export class CloudflareWorkersProvider implements HostingProvider {
     projectName: string,
     domain: string
   ): Promise<void> {
-    // Partner-owned domain → delete its SaaS Custom Hostname + Worker Route.
-    if (await this.shouldUseSaas(domain)) {
+    // A host can have been attached via EITHER path — a SaaS Custom Hostname
+    // (partner-owned domains) or a Workers Custom Domain (in-zone subdomains) —
+    // and which one was used may differ from what `shouldUseSaas` reports now
+    // (config changed, or the attach happened under an older code path). So we
+    // tear down BOTH, idempotently: this is what keeps a "removed" domain from
+    // lingering in Cloudflare and still resolving.
+    const errors: string[] = []
+
+    // 1. SaaS Custom Hostname + its scoped `<host>/*` Worker Route.
+    if (this.zoneId) {
       await this.removeWorkerRoute(domain)
-      const ch = await this.findCustomHostname(domain)
-      if (!ch) return
-      const res = await fetch(`${this.zoneBase()}/custom_hostnames/${ch.id}`, {
-        method: "DELETE",
-        headers: this.jsonHeaders(),
-      })
-      if (!res.ok && res.status !== 404) {
-        throw new Error(
-          `Cloudflare removeDomain (custom hostname) failed (${res.status}): ${await res.text()}`
-        )
+      try {
+        const ch = await this.findCustomHostname(domain)
+        if (ch) {
+          const res = await fetch(
+            `${this.zoneBase()}/custom_hostnames/${ch.id}`,
+            { method: "DELETE", headers: this.jsonHeaders() }
+          )
+          if (!res.ok && res.status !== 404) {
+            errors.push(
+              `custom hostname (${res.status}): ${await res
+                .text()
+                .catch(() => res.statusText)}`
+            )
+          }
+        }
+      } catch (e: any) {
+        errors.push(`custom hostname: ${e?.message || e}`)
       }
-      return
     }
 
-    // List domains scoped to this service, find the matching one, delete by id.
-    const domains = await this.listServiceDomains(projectName)
-    const match = domains.find((d) => d.hostname === domain)
-    if (!match) return // already gone
+    // 2. Workers Custom Domain entry scoped to this service.
+    try {
+      const domains = await this.listServiceDomains(projectName)
+      const match = domains.find((d) => d.hostname === domain)
+      if (match) {
+        const res = await fetch(`${this.domainsBase()}/${match.id}`, {
+          method: "DELETE",
+          headers: this.jsonHeaders(),
+        })
+        if (!res.ok && res.status !== 404) {
+          errors.push(
+            `workers domain (${res.status}): ${await res
+              .text()
+              .catch(() => res.statusText)}`
+          )
+        }
+      }
+    } catch (e: any) {
+      errors.push(`workers domain: ${e?.message || e}`)
+    }
 
-    const res = await fetch(`${this.domainsBase()}/${match.id}`, {
-      method: "DELETE",
-      headers: this.jsonHeaders(),
-    })
-    if (!res.ok && res.status !== 404) {
-      throw new Error(
-        `Cloudflare Workers removeDomain failed (${res.status}): ${await res.text()}`
-      )
+    if (errors.length) {
+      throw new Error(`Cloudflare removeDomain failed: ${errors.join("; ")}`)
     }
   }
 
