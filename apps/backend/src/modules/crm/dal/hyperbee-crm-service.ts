@@ -12,7 +12,7 @@ import {
 
 export const crmCompanyContract = defineContract("crm_company", {
   id: { prefix: "crmco" },
-  mode: "lax",
+  mode: "strict",
   fields: {
     name: { type: "string", required: true },
     website: { type: "string", nullable: true },
@@ -27,7 +27,7 @@ export const crmCompanyContract = defineContract("crm_company", {
 
 export const crmPersonContract = defineContract("crm_person", {
   id: { prefix: "crmp" },
-  mode: "lax",
+  mode: "strict",
   fields: {
     first_name: { type: "string", required: true },
     last_name: { type: "string", required: true },
@@ -51,7 +51,7 @@ export const crmPersonContract = defineContract("crm_person", {
 
 export const crmOpportunityContract = defineContract("crm_opportunity", {
   id: { prefix: "crmo" },
-  mode: "lax",
+  mode: "strict",
   fields: {
     title: { type: "string", required: true },
     stage: {
@@ -96,7 +96,7 @@ export const crmOpportunityContract = defineContract("crm_opportunity", {
 
 export const crmNoteContract = defineContract("crm_note", {
   id: { prefix: "crmn" },
-  mode: "lax",
+  mode: "strict",
   fields: {
     body: { type: "string", required: true },
     author: { type: "string", nullable: true },
@@ -113,7 +113,7 @@ export const crmNoteContract = defineContract("crm_note", {
 
 export const crmTaskContract = defineContract("crm_task", {
   id: { prefix: "crmt" },
-  mode: "lax",
+  mode: "strict",
   fields: {
     title: { type: "string", required: true },
     description: { type: "string", nullable: true },
@@ -208,9 +208,13 @@ export interface CrmRepositories {
 }
 
 export function createCrmRepositories(bee: BeeLike): CrmRepositories {
+  // Each entity gets its own sub-bee so the rec/idx/uniq/idemp/meta sub-dbs (and
+  // the persisted seq counter) are isolated per model. Sharing one bee would
+  // merge all records into one `rec` namespace, cross-link indexes, and share
+  // one id sequence across entities.
   const raw: Record<string, ModelRepository> = {};
   for (const [model, contract] of Object.entries(crmContracts)) {
-    raw[model] = hyperbeeRepositoryFor(contract, bee);
+    raw[model] = hyperbeeRepositoryFor(contract, bee.sub(model) as BeeLike);
   }
 
   const ctx: RepositoryContext = {
@@ -226,8 +230,10 @@ export function createCrmRepositories(bee: BeeLike): CrmRepositories {
     },
   };
 
+  // Re-bind with the cross-entity exists() resolver (soft relations ignore it,
+  // but flipping any relation to "strict" enforces across the shared store).
   for (const [model, contract] of Object.entries(crmContracts)) {
-    raw[model] = hyperbeeRepositoryFor(contract, bee, ctx);
+    raw[model] = hyperbeeRepositoryFor(contract, bee.sub(model) as BeeLike, ctx);
   }
 
   const wrapped: Record<string, ModelRepository> = {};
