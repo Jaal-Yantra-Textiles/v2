@@ -185,10 +185,17 @@ jobs:
   #    keep serving and the services are never rolled onto un-migrated schema.
   #
   #    Booting the framework for a one-off migration costs ~3 min, so we SKIP it
-  #    when the push touched no schema-affecting paths (migrations / links /
-  #    modules / medusa-config). Anything ambiguous (no base sha, base not
-  #    fetched, force_migrate) runs to be safe. A pure route/workflow/admin/UI/
-  #    email-template change skips the boot entirely.
+  #    when the push touched no schema-affecting sources. "Schema-affecting"
+  #    means the narrow set that `medusa db:migrate --execute-all-links` acts on:
+  #      • any migration file            (/migrations/)            → pending DDL
+  #      • a DML model                   (src/modules/*/models/)   → schema source
+  #      • a module link                 (src/links/**)            → link tables
+  #      • module/link registration      (medusa-config[.prod].ts)
+  #      • an @medusajs/* lockfile bump   (framework migrations ship in the pkg)
+  #    A change to a module's service / subscriber / route / workflow / admin /
+  #    UI / email-template / script / test does NOT touch the schema and skips
+  #    the boot — jumping straight to the deploy jobs. Anything ambiguous (no
+  #    base sha, base not fetched, force_migrate) runs to be safe.
   # ─────────────────────────────────────────────────────────────────────────
   migrate:
     name: Migrate DB
@@ -219,17 +226,34 @@ jobs:
           if ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
             echo "run=true" >> "$GITHUB_OUTPUT"; echo "→ base sha not fetched, running"; exit 0
           fi
-          CHANGED=$(git diff --name-only "$BEFORE" "${{ github.sha }}" -- apps/backend || true)
-          # Schema-affecting: any migration file, module links, module definitions,
-          # or the medusa config (module registration / links live in code, not
-          # only in migration files — --execute-all-links must run for those too).
-          NEED=$(echo "$CHANGED" | grep -E '(/migrations/)|(^apps/backend/src/links/)|(^apps/backend/src/modules/)|(medusa-config(\.prod)?\.ts$)' || true)
-          if [ -n "$NEED" ]; then
+          # Whole-repo diff (not just apps/backend) so a Medusa core version bump
+          # in the lockfile is visible here too.
+          CHANGED=$(git diff --name-only "$BEFORE" "${{ github.sha }}" || true)
+          echo "Changed files:"; echo "$CHANGED"; echo
+
+          # Only the NARROW set that db:migrate --execute-all-links actually acts
+          # on — NOT every file under a module. A service/subscriber/route change
+          # inside src/modules/** does not touch the schema and must not boot the
+          # migration task. Migration files live in /migrations/ (matched anywhere,
+          # incl. src/modules/*/migrations/), so DDL is never missed.
+          NEED=$(echo "$CHANGED" | grep -E '(/migrations/)|(^apps/backend/src/modules/.*/models/)|(^apps/backend/src/links/)|(medusa-config(\.prod)?\.ts$)' || true)
+
+          # A dependency bump can carry NEW @medusajs framework migrations; if the
+          # lockfile touched any @medusajs/* entry, run to be safe.
+          DEP=""
+          if echo "$CHANGED" | grep -q '^pnpm-lock\.yaml$' \
+             && git diff "$BEFORE" "${{ github.sha }}" -- pnpm-lock.yaml | grep -qE '^[+-].*@medusajs/'; then
+            DEP="pnpm-lock.yaml (@medusajs change)"
+          fi
+
+          if [ -n "$NEED" ] || [ -n "$DEP" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
-            echo "→ schema paths changed:"; echo "$NEED"
+            echo "→ schema-affecting changes — running migrations:"
+            [ -n "$NEED" ] && echo "$NEED"
+            [ -n "$DEP" ] && echo "$DEP"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "→ no schema/link/module/config changes — skipping migration boot"
+            echo "→ no migration/model/link/config/@medusajs changes — skipping migration boot, jumping to deploy"
           fi
 
       - name: Configure AWS credentials (OIDC)
