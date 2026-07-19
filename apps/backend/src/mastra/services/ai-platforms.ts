@@ -79,6 +79,11 @@ export type AiRole =
   // auto-rotating OpenRouter free models. The model drives the Partner API via
   // a tool registry — see api/partners/mcp/lib/registry.ts.
   | "ai_partner_assistant"
+  // Admin agentic assistant chat (#1092). Resolves the assistant provider from
+  // the admin-configured External Platform; falls back to the auto-rotating
+  // OpenRouter free models. The model drives the Admin API via the shared MCP
+  // tool registry — see api/admin/mcp/lib/registry.ts.
+  | "ai_admin_assistant"
   // String escape hatch so callers can use ad-hoc roles without
   // bumping this union every time.
   | (string & {})
@@ -720,4 +725,5 @@ export const AI_ROLES: AiRole[] = [
   "ai_image_extraction",
   "ai_redesign",
   "ai_partner_assistant",
+  "ai_admin_assistant",
 ]
