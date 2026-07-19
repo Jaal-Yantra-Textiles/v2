@@ -37,9 +37,49 @@ export const ID_PAD = 10
 // range-scan an empty family). MUST match reader.ts FACET_IDX_META/ALL_IDX_META.
 export const IDX_VERSION = "idx-v1"
 export const IDX_ALL_VERSION = "idxall-v1"
+// Bumped when the index VALUE format changes. v1 stored empty values (keys only,
+// so browse range-scanned the index for ids then hydrated each fat rec/* record);
+// "geo-v1" stores an inline display payload in every family value so browse reads
+// the small payload straight off the ordered scan — no random rec/* seek, no
+// 125-field brotli inflate per row. The reader flips to the inline path only when
+// meta/idx-geo-version is set. MUST match reader.ts GEO_IDX_META.
+export const IDX_GEO_VERSION = "geo-v1"
 export const padId = (id) => String(id).padStart(ID_PAD, "0")
 
 const EMPTY = Buffer.from("")
+
+// The lean projection stored in each index value — exactly the fields the atlas
+// map plots + shows in its side panel, and the equality-filterable facets. Chosen
+// to exclude the fat `survey`/`products`/`schemes` bags (the reason a full-record
+// hydrate is slow). Keep in sync with the map's WEAVER_META_KEYS.
+const GEO_FIELDS = [
+  "census_id", "village", "block", "district", "state", "gender", "age",
+  "religion", "social_group", "education", "rural_urban", "household_type",
+  "dwelling_type", "ownership_type", "electricity", "own_looms",
+  "total_looms_owned", "pit_loom_count", "frame_loom_count", "natural_dye_used",
+  "monthly_income", "handloom_income", "avg_production_meters", "intricacy_level",
+]
+
+/**
+ * Build the inline display payload for a PUBLIC record: the lean typed fields
+ * plus latitude/longitude. The scraper captures the source portal's coordinates
+ * but the fast parser leaves them in the raw `survey` bag rather than promoting
+ * them — so lift survey.{Latitude,Longitude} to typed lat/long here (this is what
+ * finally puts weavers on the map). Only non-empty scalars are kept.
+ */
+export function geoPayload(r) {
+  const out = {}
+  for (const k of GEO_FIELDS) {
+    const v = r[k]
+    if (v != null && v !== "") out[k] = v
+  }
+  const sv = r.survey && typeof r.survey === "object" ? r.survey : null
+  const lat = r.latitude ?? sv?.Latitude ?? sv?.latitude
+  const lng = r.longitude ?? sv?.Longitude ?? sv?.longitude
+  if (lat != null && lat !== "" && Number.isFinite(Number(lat))) out.latitude = Number(lat)
+  if (lng != null && lng !== "" && Number.isFinite(Number(lng))) out.longitude = Number(lng)
+  return out
+}
 
 /** Sub-relative idx keys for one PUBLIC record (skips families whose value is
  * null/empty so we never index a bogus "undefined" bucket). */
@@ -67,20 +107,27 @@ export function idxRelKeys(r) {
  * deps: { subKey(name, key)->Buffer, decode(buf)->record, batchSize?, log? }
  * Returns { indexed, alreadyDone }.
  */
-export async function backfillIndex(bee, { subKey, decode, batchSize = 5000, log = () => {} }) {
+export async function backfillIndex(bee, { subKey, decode, encodePayload, batchSize = 5000, log = () => {} }) {
   const meta = bee.sub("meta", { valueEncoding: "utf-8" })
   const facetsDone = (await meta.get("idx-version"))?.value === IDX_VERSION
   const allDone = (await meta.get("idx-all-version"))?.value === IDX_ALL_VERSION
-  if (facetsDone && allDone) {
+  // Only emit inline payloads when the caller wired an encoder; without it we
+  // preserve the legacy keys-only behaviour (empty values) for old callers.
+  const emitGeo = typeof encodePayload === "function"
+  const geoDone = (await meta.get("idx-geo-version"))?.value === IDX_GEO_VERSION
+  if (facetsDone && allDone && (!emitGeo || geoDone)) {
     return { indexed: 0, alreadyDone: true }
   }
 
-  // A prior run may have completed the facet families (idx-version set) before
-  // the `all` family existed — its completion cursor is parked at the corpus
-  // end, so resuming from it would emit nothing. Reset to a full re-walk in that
-  // case; the idx puts are idempotent (EMPTY-value overwrites), so re-emitting
-  // the facet keys alongside the new `all` keys is harmless.
-  const cursorNode = facetsDone && !allDone ? null : await meta.get("idx-backfill-cursor")
+  // The geo generation rewrites EVERY family value (payload, not empty), so it
+  // must re-walk the whole corpus — a legacy cursor is parked at the end and
+  // would emit nothing. Track the geo pass under its OWN cursor so a crash mid-
+  // backfill resumes instead of restarting. Legacy (no-geo) runs keep using the
+  // old cursor and its facet/all-only reset rule. Puts are idempotent overwrites,
+  // so re-emitting keys is always harmless.
+  const CURSOR = emitGeo ? "idx-geo-cursor" : "idx-backfill-cursor"
+  const cursorNode =
+    !emitGeo && facetsDone && !allDone ? null : await meta.get(CURSOR)
   let resumeAfter = cursorNode ? cursorNode.value : null
 
   const rec = bee.sub("rec", { valueEncoding: "binary" })
@@ -89,15 +136,15 @@ export async function backfillIndex(bee, { subKey, decode, batchSize = 5000, log
   const range = resumeAfter != null ? { gt: resumeAfter } : {}
 
   let indexed = 0
-  let pending = []
+  let pending = [] // [relKey, valueBuffer]
   let lastKey = resumeAfter
 
   const flush = async () => {
     if (pending.length === 0) return
     const batch = bee.batch({ keyEncoding: "binary", valueEncoding: "binary" })
-    for (const relKey of pending) await batch.put(subKey("idx", relKey), EMPTY)
+    for (const [relKey, val] of pending) await batch.put(subKey("idx", relKey), val)
     // checkpoint the cursor in the SAME batch → backfill is itself crash-exact.
-    if (lastKey != null) await batch.put(subKey("meta", "idx-backfill-cursor"), Buffer.from(String(lastKey)))
+    if (lastKey != null) await batch.put(subKey("meta", CURSOR), Buffer.from(String(lastKey)))
     await batch.flush()
     pending = []
   }
@@ -111,7 +158,8 @@ export async function backfillIndex(bee, { subKey, decode, batchSize = 5000, log
     } catch {
       continue // torn/corrupt row — skip, don't abort the whole backfill
     }
-    for (const rk of idxRelKeys(record)) pending.push(rk)
+    const val = emitGeo ? encodePayload(geoPayload(record)) : EMPTY
+    for (const rk of idxRelKeys(record)) pending.push([rk, val])
     indexed++
     if (++sinceFlush >= batchSize) {
       await flush()
@@ -123,7 +171,8 @@ export async function backfillIndex(bee, { subKey, decode, batchSize = 5000, log
 
   await meta.put("idx-version", IDX_VERSION)
   await meta.put("idx-all-version", IDX_ALL_VERSION)
-  log(`[idx-backfill] DONE — ${indexed} records indexed, idx-version=${IDX_VERSION}, idx-all-version=${IDX_ALL_VERSION}`)
+  if (emitGeo) await meta.put("idx-geo-version", IDX_GEO_VERSION)
+  log(`[idx-backfill] DONE — ${indexed} records indexed, idx-version=${IDX_VERSION}, idx-all-version=${IDX_ALL_VERSION}${emitGeo ? `, idx-geo-version=${IDX_GEO_VERSION}` : ""}`)
   return { indexed, alreadyDone: false }
 }
 
@@ -151,9 +200,12 @@ if (_isMain && process.argv.includes("--test")) {
   const subKey = (name, k) => Buffer.concat([Buffer.from(name), SEP, Buffer.from(String(k))])
   const decode = (buf) => JSON.parse(brotliDecompressSync(buf).toString())
   const enc = (r) => brotliCompressSync(Buffer.from(JSON.stringify(r)))
+  const encodePayload = (obj) => brotliCompressSync(Buffer.from(JSON.stringify(obj)))
 
   const records = [
-    { census_id: 10, state: "KARNATAKA", district: "BAGALKOT", gender: "Male" },
+    // id 10 carries coords in the raw survey bag (as the fast parser leaves them)
+    // → the payload must promote them to typed lat/long.
+    { census_id: 10, state: "KARNATAKA", district: "BAGALKOT", gender: "Male", village: "ILKAL", survey: { Latitude: "16.1329", Longitude: "75.9587" } },
     { census_id: 11, state: "KARNATAKA", district: "BAGALKOT", gender: "Female" },
     { census_id: 12, state: "KARNATAKA", district: "BELGAUM", gender: "Male" },
     { census_id: 13, state: "PUNJAB", district: "AMRITSAR", gender: "Female" },
@@ -168,18 +220,25 @@ if (_isMain && process.argv.includes("--test")) {
   let pass = 0
   const ok = (l, c) => { assert(c, `FAIL: ${l}`); console.log(`  ✓ ${l}`); pass++ }
 
-  const res = await backfillIndex(bee, { subKey, decode, batchSize: 2 })
+  const res = await backfillIndex(bee, { subKey, decode, encodePayload, batchSize: 2 })
   ok("backfill reports all records indexed", res.indexed === 5)
   ok("idx-version flag set", (await bee.sub("meta", { valueEncoding: "utf-8" }).get("idx-version"))?.value === "idx-v1")
   ok("idx-all-version flag set", (await bee.sub("meta", { valueEncoding: "utf-8" }).get("idx-all-version"))?.value === "idxall-v1")
+  ok("idx-geo-version flag set", (await bee.sub("meta", { valueEncoding: "utf-8" }).get("idx-geo-version"))?.value === "geo-v1")
 
   // whole-corpus `all` family → every id, ascending (powers the unfiltered browse).
   const idxAll = bee.sub("idx", { valueEncoding: "binary" })
   const all = []
-  for await (const { key } of idxAll.createReadStream({ gte: "all/", lt: "all/:" })) {
-    all.push(Number(key.slice("all/".length)))
+  let payload10 = null
+  for await (const { key, value } of idxAll.createReadStream({ gte: "all/", lt: "all/:" })) {
+    const id = Number(key.slice("all/".length))
+    all.push(id)
+    if (id === 10) payload10 = decode(value) // inline payload rides the value now
   }
   ok("all index returns every id, sorted", JSON.stringify(all) === JSON.stringify([10, 11, 12, 13, 14]))
+  ok("inline payload carries the lean fields", payload10 && payload10.state === "KARNATAKA" && payload10.village === "ILKAL")
+  ok("payload promotes survey coords to typed lat/long", payload10 && payload10.latitude === 16.1329 && payload10.longitude === 75.9587)
+  ok("payload omits the fat survey bag", payload10 && payload10.survey === undefined)
 
   // range-scan the KARNATAKA state facet → ids in ascending order.
   const idx = bee.sub("idx", { valueEncoding: "binary" })

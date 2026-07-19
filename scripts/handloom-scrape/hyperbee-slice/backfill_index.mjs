@@ -19,7 +19,7 @@
 
 import Corestore from "corestore"
 import Hyperbee from "hyperbee"
-import { brotliDecompressSync } from "node:zlib"
+import { brotliDecompressSync, brotliCompressSync } from "node:zlib"
 
 import { backfillIndex } from "./census_index.mjs"
 
@@ -29,6 +29,9 @@ const CORE_NAME = process.env.PUBLIC_CORE_NAME || "handloom-public-v1"
 const SEP = Buffer.from([0])
 const subKey = (name, k) => Buffer.concat([Buffer.from(name), SEP, Buffer.from(String(k))])
 const decode = (buf) => JSON.parse(brotliDecompressSync(buf).toString())
+// Encodes the lean inline display payload written onto every index value (the
+// geo generation). Passing this flips backfillIndex into payload mode.
+const encodePayload = (obj) => brotliCompressSync(Buffer.from(JSON.stringify(obj)))
 
 const store = new Corestore(STORE_DIR)
 const core = store.get({ name: CORE_NAME })
@@ -51,6 +54,7 @@ const t0 = Date.now()
 const { indexed, alreadyDone } = await backfillIndex(bee, {
   subKey,
   decode,
+  encodePayload,
   batchSize: Number(process.env.IDX_BATCH || 5000),
   log: (m) => console.log(m),
 })

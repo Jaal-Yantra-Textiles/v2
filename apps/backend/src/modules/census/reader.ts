@@ -68,6 +68,13 @@ class TtlLru<V> {
 // an empty `idx/all/*` family and return nothing).
 const FACET_IDX_META = "idx-version"
 const ALL_IDX_META = "idx-all-version"
+// Set once the backfill has written the inline DISPLAY PAYLOAD into every index
+// family value (see census_index.mjs geoPayload). When present, browse decodes
+// that small payload straight off the ordered index scan instead of doing a
+// random rec/* seek + 125-field brotli inflate per row — the whole point of the
+// speedup. Absent → we fall back to hydrating the fat rec/* record. MUST match
+// census_index.mjs IDX_GEO_VERSION's meta key.
+const GEO_IDX_META = "idx-geo-version"
 
 // Minimal shape of the Hyperbee handle we depend on. The real instance is created
 // in the P2P loader (dynamic native import) and injected via setBee — this file
@@ -146,6 +153,34 @@ export class CensusReader {
     const r = await this.decode(node.value)
     this.recCache.set(id, r)
     return r
+  }
+
+  /**
+   * Geo-index path: decode the inline display payload carried on an index row's
+   * value. Falls back to the fat rec/* record only when the value is empty — a
+   * row written before the geo backfill, or by the seeder's forward path pre-
+   * upgrade. Payloads are cached under a "g:" prefix so they never collide with
+   * full records cached by getDecoded (retrieveWeaver still returns the full bag).
+   */
+  private async decodeIndexRow(
+    rec: Sub,
+    id: string,
+    value: any
+  ): Promise<Record<string, any> | null> {
+    const buf: Buffer | undefined =
+      value != null && typeof value.length === "number" ? value : undefined
+    if (buf && buf.length > 0) {
+      const cached = this.recCache.get("g:" + id)
+      if (cached) return cached
+      try {
+        const r = await this.decode(buf)
+        this.recCache.set("g:" + id, r)
+        return r
+      } catch {
+        // torn/corrupt payload — fall through to the authoritative rec/* record
+      }
+    }
+    return this.getDecoded(rec, id)
   }
 
   /** Bounded-concurrency, order-preserving hydration of a list of census ids. */
@@ -297,11 +332,13 @@ export class CensusReader {
     // -scan it; until then we take the bounded fallback below. resolveIndexDriver
     // always returns a driver now (the `all` family covers the no-facet case), so
     // this gate is the only thing that keeps us off an un-backfilled family.
-    const indexReady =
-      (await bee.sub("meta", { valueEncoding: "utf-8" }).get(driver.metaKey)) != null
+    const metaSub = bee.sub("meta", { valueEncoding: "utf-8" })
+    const indexReady = (await metaSub.get(driver.metaKey)) != null
 
     if (indexReady) {
-      return this.listViaIndex(bee, rec, driver, { limit, offset, after })
+      // Whether the inline display payload has been backfilled onto index values.
+      const geoReady = (await metaSub.get(GEO_IDX_META)) != null
+      return this.listViaIndex(bee, rec, driver, { limit, offset, after }, geoReady)
     }
 
     // Fallback: bounded in-memory scan over rec/* (only when the driver's index
@@ -352,13 +389,25 @@ export class CensusReader {
     bee: Bee,
     rec: Sub,
     driver: { prefix: string; aggKey: string; residual: WeaverFilters },
-    { limit, offset, after }: { limit: number; offset: number; after?: string | number }
+    { limit, offset, after }: { limit: number; offset: number; after?: string | number },
+    geoReady = false
   ) {
     const idx = bee.sub("idx", { valueEncoding: "binary" })
     const residualEntries = Object.entries(driver.residual)
     const hasResidual = residualEntries.length > 0
     const residualMatch = (r: Record<string, any>) =>
       residualEntries.every(([k, v]) => String(r[k]) === String(v))
+
+    // Hydrate a page of index rows. With the geo payload backfilled, decode the
+    // inline value carried on each row — no random rec/* seek, no fat-record
+    // inflate (falls back to rec/* only for a row whose value is still empty).
+    // Otherwise (pre-backfill) hydrate the authoritative rec/* record by id.
+    const hydratePage = (
+      rows: { id: string; value: any }[]
+    ): Promise<(Record<string, any> | null)[]> =>
+      geoReady
+        ? Promise.all(rows.map((r) => this.decodeIndexRow(rec, r.id, r.value)))
+        : this.hydrateInOrder(rec, rows.map((r) => r.id))
 
     // sub-relative range over `<prefix><paddedId>`. ":" (0x3a) is the first byte
     // above "9" (0x39), so it upper-bounds the all-digit id suffix.
@@ -374,53 +423,54 @@ export class CensusReader {
     let next: string | null = null
 
     if (!hasResidual) {
-      // Purely index-paged: walk the ordered index (keys only — no decode) to the
-      // page window, collect its ids, then hydrate that page in PARALLEL. Total
-      // comes from agg (O(1)) below, so counting past the page is unnecessary.
-      const pageIds: string[] = []
-      for await (const { key } of idx.createReadStream(range)) {
+      // Purely index-paged: walk the ordered index to the page window, collect its
+      // rows, then hydrate that page in PARALLEL (inline payload when geoReady, else
+      // rec/*). Total comes from agg (O(1)) below, so counting past the page is
+      // unnecessary. `value` rides along so the geo path needs no second read.
+      const pageRows: { id: string; value: any }[] = []
+      for await (const { key, value } of idx.createReadStream(range)) {
         if (++scanned > MAX_SCAN) {
           capped = true
           break
         }
-        if (count >= offset && pageIds.length < limit) {
-          pageIds.push(String(Number(key.slice(driver.prefix.length))))
+        if (count >= offset && pageRows.length < limit) {
+          pageRows.push({ id: String(Number(key.slice(driver.prefix.length))), value })
         }
         count++
-        if (pageIds.length >= limit) break
+        if (pageRows.length >= limit) break
       }
-      const hydrated = await this.hydrateInOrder(rec, pageIds)
+      const hydrated = await hydratePage(pageRows)
       for (let j = 0; j < hydrated.length; j++) {
         const r = hydrated[j]
         if (r) {
           weavers.push(r)
-          next = pageIds[j]
+          next = pageRows[j].id
         }
       }
     } else {
       // Residual predicate needs the decoded record, so every id in the family
       // must be hydrated (up to MAX_SCAN) to count exact matches. Do it in ordered,
       // bounded-concurrency batches instead of one blocking seek at a time.
-      let batch: string[] = []
+      let batch: { id: string; value: any }[] = []
       const drain = async () => {
-        const hydrated = await this.hydrateInOrder(rec, batch)
+        const hydrated = await hydratePage(batch)
         for (let j = 0; j < hydrated.length; j++) {
           const r = hydrated[j]
           if (!r || !residualMatch(r)) continue
           if (count >= offset && weavers.length < limit) {
             weavers.push(r)
-            next = batch[j]
+            next = batch[j].id
           }
           count++
         }
         batch = []
       }
-      for await (const { key } of idx.createReadStream(range)) {
+      for await (const { key, value } of idx.createReadStream(range)) {
         if (++scanned > MAX_SCAN) {
           capped = true
           break
         }
-        batch.push(String(Number(key.slice(driver.prefix.length))))
+        batch.push({ id: String(Number(key.slice(driver.prefix.length))), value })
         if (batch.length >= HYDRATE_BATCH) await drain()
       }
       if (batch.length) await drain()
