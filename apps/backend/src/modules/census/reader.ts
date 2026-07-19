@@ -89,6 +89,64 @@ export type WeaverFilters = Record<string, string | number | boolean>
 export type ListOptions = { limit?: number; offset?: number; after?: string | number }
 export type Stats = Record<string, Record<string, number | null>>
 
+// Raw contact / identity-document VALUE keys that must never leave the public
+// read surface. Weaver demographics are public by design, but a phone number or
+// an Aadhaar/PAN number is not. The current corpus already carries none of these
+// as raw values (phone is pre-masked to `mobile_masked`; no Aadhaar/PAN numbers
+// are stored — only the boolean `aadhaar_card_available` / `voter_id_available`
+// presence flags, which ARE the "verified" signal the UI renders). This list is
+// the defensive backstop so a future re-seed can't leak them through here either.
+const RAW_CONTACT_ID_KEYS = [
+  "mobile", "phone", "aadhaar", "aadhaar_number", "aadhaar_no",
+  "pan", "pan_number", "pan_no", "bank_account", "account_number",
+  "ifsc", "aadhaar_photo_url", "profile_photo_url", "father_husband_name",
+] as const
+
+/**
+ * Project a decoded census record to the public read shape. Two things must never
+ * ship as raw values regardless of what the core physically stores:
+ *
+ *   1. The fat raw `survey` bag. It re-dumps every survey answer under opaque
+ *      numbered keys and — critically — carries the weaver's EXACT home
+ *      coordinates, PIN code, locality and income. The atlas legitimately needs
+ *      name + coordinates (it plots and labels weavers, and weaver names are
+ *      public), so we promote just `survey.{Name,Latitude,Longitude}` to typed
+ *      top-level fields (the same promotion census_index.geoPayload does) and then
+ *      drop the whole bag — dropping the PIN/locality/income re-dump with it.
+ *   2. Raw contact / identity-document values (see RAW_CONTACT_ID_KEYS). The
+ *      already-masked `mobile_masked` and the boolean `*_available` presence flags
+ *      are kept — they are the "verified" signal — the raw values are stripped.
+ *
+ * Pure + idempotent (a record with no `survey`/raw keys passes through unchanged),
+ * so it is safe to apply at every decode site, including the already-lean inline
+ * index payload.
+ */
+export function maskWeaver<T extends Record<string, any> | null | undefined>(rec: T): T {
+  if (!rec || typeof rec !== "object") return rec
+  const out: Record<string, any> = { ...rec }
+
+  const sv = out.survey && typeof out.survey === "object" ? out.survey : null
+  if (sv) {
+    if (out.name == null || out.name === "") {
+      const n = sv.Name ?? sv.name
+      if (typeof n === "string" && n.trim()) out.name = n.trim()
+    }
+    if (out.latitude == null) {
+      const lat = Number(sv.Latitude ?? sv.latitude)
+      if (Number.isFinite(lat)) out.latitude = lat
+    }
+    if (out.longitude == null) {
+      const lng = Number(sv.Longitude ?? sv.longitude)
+      if (Number.isFinite(lng)) out.longitude = lng
+    }
+  }
+  delete out.survey
+
+  for (const k of RAW_CONTACT_ID_KEYS) delete out[k]
+
+  return out as T
+}
+
 // Zero-pad census ids so the secondary index sorts lexicographically = numerically
 // (ids are < 10^10). MUST match the seeder/backfill's padding width.
 const ID_PAD = 10
@@ -150,7 +208,7 @@ export class CensusReader {
     if (cached) return cached
     const node = await rec.get(id)
     if (!node) return null
-    const r = await this.decode(node.value)
+    const r = maskWeaver(await this.decode(node.value))
     this.recCache.set(id, r)
     return r
   }
@@ -173,7 +231,7 @@ export class CensusReader {
       const cached = this.recCache.get("g:" + id)
       if (cached) return cached
       try {
-        const r = await this.decode(buf)
+        const r = maskWeaver(await this.decode(buf))
         this.recCache.set("g:" + id, r)
         return r
       } catch {
@@ -358,7 +416,7 @@ export class CensusReader {
         break
       }
       if (scanned % YIELD_EVERY === 0) await new Promise((r) => setImmediate(r))
-      const r = await this.decode(value)
+      const r = maskWeaver(await this.decode(value))
       if (!match(r)) continue
       if (count >= offset && weavers.length < limit) weavers.push(r)
       count++

@@ -74,6 +74,11 @@ export function geoPayload(r) {
     if (v != null && v !== "") out[k] = v
   }
   const sv = r.survey && typeof r.survey === "object" ? r.survey : null
+  // Weaver names are public — promote to a typed field so the atlas can label
+  // pins (the map already reads w.name). The fat survey bag is NOT carried in the
+  // payload, so this is the only place the name survives into the fast browse path.
+  const nm = r.name ?? sv?.Name ?? sv?.name
+  if (typeof nm === "string" && nm.trim()) out.name = nm.trim()
   const lat = r.latitude ?? sv?.Latitude ?? sv?.latitude
   const lng = r.longitude ?? sv?.Longitude ?? sv?.longitude
   if (lat != null && lat !== "" && Number.isFinite(Number(lat))) out.latitude = Number(lat)
@@ -205,7 +210,7 @@ if (_isMain && process.argv.includes("--test")) {
   const records = [
     // id 10 carries coords in the raw survey bag (as the fast parser leaves them)
     // → the payload must promote them to typed lat/long.
-    { census_id: 10, state: "KARNATAKA", district: "BAGALKOT", gender: "Male", village: "ILKAL", survey: { Latitude: "16.1329", Longitude: "75.9587" } },
+    { census_id: 10, state: "KARNATAKA", district: "BAGALKOT", gender: "Male", village: "ILKAL", survey: { Name: "SHANTAVVA", Latitude: "16.1329", Longitude: "75.9587" } },
     { census_id: 11, state: "KARNATAKA", district: "BAGALKOT", gender: "Female" },
     { census_id: 12, state: "KARNATAKA", district: "BELGAUM", gender: "Male" },
     { census_id: 13, state: "PUNJAB", district: "AMRITSAR", gender: "Female" },
@@ -238,6 +243,7 @@ if (_isMain && process.argv.includes("--test")) {
   ok("all index returns every id, sorted", JSON.stringify(all) === JSON.stringify([10, 11, 12, 13, 14]))
   ok("inline payload carries the lean fields", payload10 && payload10.state === "KARNATAKA" && payload10.village === "ILKAL")
   ok("payload promotes survey coords to typed lat/long", payload10 && payload10.latitude === 16.1329 && payload10.longitude === 75.9587)
+  ok("payload promotes survey Name to a public typed field", payload10 && payload10.name === "SHANTAVVA")
   ok("payload omits the fat survey bag", payload10 && payload10.survey === undefined)
 
   // range-scan the KARNATAKA state facet → ids in ascending order.

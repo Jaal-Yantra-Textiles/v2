@@ -333,4 +333,84 @@ setupSharedTestSuite(() => {
       expect(w22.fat).toBe("FROM_REC_SHOULD_NOT_APPEAR") // came from rec/* fallback
     })
   })
+
+  describe("GET /web/census/weavers — PII masking", () => {
+    // A record shaped like the real corpus: a fat raw `survey` bag (real name,
+    // EXACT coords, PIN/income re-dump under numbered keys) plus — to prove the
+    // defensive strip — raw contact/identity values that a future re-seed might
+    // carry. The masked-public fields (mobile_masked + the *_available presence
+    // flags) must survive as the "verified" signal.
+    const PII_RECORDS = [
+      {
+        census_id: 30,
+        state: "UTTAR PRADESH",
+        district: "SITAPUR",
+        village: "MAHMOODPUR",
+        gender: "Male",
+        mobile_masked: "91XXXXXXXXXX",
+        aadhaar_card_available: true,
+        voter_id_available: true,
+        // raw values that must never ship
+        mobile: "9812345678",
+        aadhaar_number: "123412341234",
+        pan: "ABCDE1234F",
+        bank_account: "00112233445566",
+        ifsc: "SBIN0001234",
+        father_husband_name: "SOMEONE ELSE",
+        survey: {
+          Name: "MOHD SHAHID",
+          Latitude: "27.2823364",
+          Longitude: "81.1697055",
+          "2.6": "261203", // PIN
+          "3.9.1": "Less than 5000", // income band
+          "1.9": "91XXXXXXXXXX",
+        },
+      },
+    ]
+
+    beforeAll(() => useBee(makeBee(buildSubs(PII_RECORDS, { indexed: false }))))
+
+    it("strips the raw survey bag but promotes name + coords to typed public fields", async () => {
+      const res = await api.get("/web/census/weavers?census_id=30", {
+        validateStatus: () => true,
+      })
+      expect(res.status).toBe(200)
+      const w = res.data.weaver
+      // survey bag (exact coords / PIN / income re-dump) is gone…
+      expect(w.survey).toBeUndefined()
+      // …but the public display fields are promoted to typed keys.
+      expect(w.name).toBe("MOHD SHAHID")
+      expect(w.latitude).toBe(27.2823364)
+      expect(w.longitude).toBe(81.1697055)
+    })
+
+    it("drops raw contact/identity values, keeps the masked + verified signals", async () => {
+      const res = await api.get("/web/census/weavers?census_id=30", {
+        validateStatus: () => true,
+      })
+      const w = res.data.weaver
+      for (const k of [
+        "mobile", "aadhaar_number", "pan", "bank_account", "ifsc", "father_husband_name",
+      ]) {
+        expect(w[k]).toBeUndefined()
+      }
+      // the "verified" signals the UI renders are intentionally preserved
+      expect(w.mobile_masked).toBe("91XXXXXXXXXX")
+      expect(w.aadhaar_card_available).toBe(true)
+      expect(w.voter_id_available).toBe(true)
+    })
+
+    it("masks every row in a browse list too (no survey leaks through the scan)", async () => {
+      const res = await api.get("/web/census/weavers?state=UTTAR PRADESH", {
+        validateStatus: () => true,
+      })
+      expect(res.status).toBe(200)
+      expect(res.data.weavers.length).toBeGreaterThan(0)
+      for (const w of res.data.weavers) {
+        expect(w.survey).toBeUndefined()
+        expect(w.mobile).toBeUndefined()
+        expect(w.aadhaar_number).toBeUndefined()
+      }
+    })
+  })
 })
