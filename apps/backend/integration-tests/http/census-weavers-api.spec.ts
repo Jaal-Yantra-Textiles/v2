@@ -45,10 +45,28 @@ function makeBee(subs: Record<string, Array<[string, any]>>) {
   }
 }
 
+// The lean display projection the seeder stores inline on each index value
+// (mirrors census_index.geoPayload): the map's fields + coords promoted from the
+// raw survey bag. Deliberately EXCLUDES the `fat` sentinel below, so a browse
+// that returns it proves the reader decoded the payload, not the rec/* record.
+const geoProj = (r: Record<string, any>) => {
+  const sv = r.survey || {}
+  return {
+    census_id: r.census_id,
+    state: r.state,
+    district: r.district,
+    gender: r.gender,
+    education: r.education,
+    village: r.village,
+    latitude: Number(sv.Latitude),
+    longitude: Number(sv.Longitude),
+  }
+}
+
 /** Build rec + agg + (optionally) idx/meta subs from a record set. */
 function buildSubs(
   records: Array<Record<string, any>>,
-  { indexed }: { indexed: boolean }
+  { indexed, geo = false }: { indexed: boolean; geo?: boolean }
 ) {
   const rec: Array<[string, any]> = records.map((r) => [String(r.census_id), enc(r)])
 
@@ -69,13 +87,17 @@ function buildSubs(
     const idx: Array<[string, any]> = []
     for (const r of records) {
       const p = padId(r.census_id)
-      idx.push([`all/${p}`, Buffer.from("")])
-      idx.push([`state/${r.state}/${p}`, Buffer.from("")])
-      idx.push([`gender/${r.gender}/${p}`, Buffer.from("")])
-      idx.push([`sd/${r.state}|${r.district}/${p}`, Buffer.from("")])
+      // geo mode carries the inline payload on the value; legacy mode is keys-only.
+      const val = geo ? enc(geoProj(r)) : Buffer.from("")
+      idx.push([`all/${p}`, val])
+      idx.push([`state/${r.state}/${p}`, val])
+      idx.push([`gender/${r.gender}/${p}`, val])
+      idx.push([`sd/${r.state}|${r.district}/${p}`, val])
     }
     subs.idx = idx
-    subs.meta = [["idx-version", "idx-v1"], ["idx-all-version", "idxall-v1"]]
+    subs.meta = geo
+      ? [["idx-version", "idx-v1"], ["idx-all-version", "idxall-v1"], ["idx-geo-version", "geo-v1"]]
+      : [["idx-version", "idx-v1"], ["idx-all-version", "idxall-v1"]]
   }
 
   return subs
@@ -241,6 +263,74 @@ setupSharedTestSuite(() => {
       expect(res.data.indexed).toBe(true)
       expect(res.data.estimated).toBe(true) // residual → count is scanned matches
       expect(res.data.weavers.map((w: any) => w.census_id).sort()).toEqual([11, 14])
+    })
+  })
+
+  describe("GET /web/census/weavers — inline geo-payload fast path", () => {
+    // rec/* carries a fat `survey` bag + a `fat` sentinel; the index payload is the
+    // lean projection WITHOUT `fat`. So a browse that returns coords but no `fat`
+    // proves the reader decoded the inline payload and never touched rec/*.
+    // distinct ids (+10) so the reader's per-id LRU can't hand us a record cached
+    // by the earlier RECORDS-based suites (which lack the `fat` sentinel).
+    const GEO_RECORDS = RECORDS.map((r, i) => ({
+      ...r,
+      census_id: r.census_id + 10,
+      village: `V${r.census_id + 10}`,
+      fat: "FROM_REC_SHOULD_NOT_APPEAR",
+      survey: { Latitude: `${16 + i / 100}`, Longitude: `${75 + i / 100}`, blob: "x".repeat(80) },
+    }))
+
+    beforeAll(() => useBee(makeBee(buildSubs(GEO_RECORDS, { indexed: true, geo: true }))))
+
+    it("browses a state facet from the inline payload (coords present, rec/* untouched)", async () => {
+      const res = await api.get("/web/census/weavers?state=KARNATAKA", {
+        validateStatus: () => true,
+      })
+      expect(res.status).toBe(200)
+      expect(res.data.indexed).toBe(true)
+      expect(res.data.count).toBe(4)
+      for (const w of res.data.weavers) {
+        expect(typeof w.latitude).toBe("number") // promoted from survey.Latitude
+        expect(w.longitude).toBeGreaterThan(74)
+        expect(w.fat).toBeUndefined() // payload, not the fat rec/* record
+        expect(w.survey).toBeUndefined()
+      }
+    })
+
+    it("browses the whole corpus from the inline payload with an O(1) total", async () => {
+      const res = await api.get("/web/census/weavers?limit=2", {
+        validateStatus: () => true,
+      })
+      expect(res.status).toBe(200)
+      expect(res.data.count).toBe(5)
+      expect(res.data.weavers.map((w: any) => w.census_id)).toEqual([20, 21])
+      expect(res.data.weavers.every((w: any) => w.fat === undefined)).toBe(true)
+      expect(res.data.weavers.every((w: any) => typeof w.latitude === "number")).toBe(true)
+    })
+
+    it("applies a residual filter on the payload fields", async () => {
+      const res = await api.get("/web/census/weavers?state=KARNATAKA&education=Middle", {
+        validateStatus: () => true,
+      })
+      expect(res.status).toBe(200)
+      expect(res.data.weavers.map((w: any) => w.census_id).sort()).toEqual([20, 22])
+    })
+
+    it("falls back to rec/* for a row whose inline payload is empty", async () => {
+      // Simulate a record seeded before the geo backfill (blank idx value): the
+      // reader must still return it, hydrated from the authoritative rec/* record.
+      const subs = buildSubs(GEO_RECORDS, { indexed: true, geo: true })
+      subs.idx = subs.idx!.map(([k, v]) =>
+        k === `state/KARNATAKA/${padId(22)}` ? [k, Buffer.from("")] : [k, v]
+      )
+      useBee(makeBee(subs))
+      const res = await api.get("/web/census/weavers?state=KARNATAKA", {
+        validateStatus: () => true,
+      })
+      expect(res.status).toBe(200)
+      const w22 = res.data.weavers.find((w: any) => w.census_id === 22)
+      expect(w22).toBeDefined()
+      expect(w22.fat).toBe("FROM_REC_SHOULD_NOT_APPEAR") // came from rec/* fallback
     })
   })
 })

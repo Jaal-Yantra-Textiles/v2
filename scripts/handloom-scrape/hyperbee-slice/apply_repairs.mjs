@@ -29,7 +29,7 @@ import { readFileSync } from "node:fs"
 
 import { fileURLToPath } from "node:url"
 
-import { idxRelKeys } from "./census_index.mjs"
+import { idxRelKeys, geoPayload } from "./census_index.mjs"
 
 // True only when this file is the entry point (not when imported).
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]
@@ -103,10 +103,13 @@ export async function applyRepairs(bee, records, { dryRun = true } = {}) {
       if (d !== 0) aggDelta.set(k, (aggDelta.get(k) || 0) + d)
     }
 
-    // idx delta
+    // idx delta. Re-put the inline geo payload on EVERY current family (not just
+    // newly-added keys) so a repair that changed a display field refreshes the
+    // value the reader browses; delete only families the record left.
+    const idxVal = brotliCompressSync(Buffer.from(JSON.stringify(geoPayload(newPub))))
     const newIdx = new Set(idxRelKeys(newPub))
     const oldIdx = new Set(oldPub ? idxRelKeys(oldPub) : [])
-    for (const k of newIdx) if (!oldIdx.has(k)) idxAdd.push(k)
+    for (const k of newIdx) idxAdd.push([k, idxVal])
     for (const k of oldIdx) if (!newIdx.has(k)) idxDel.push(k)
 
     recPuts.push([id, enc(newPub)])
@@ -115,7 +118,7 @@ export async function applyRepairs(bee, records, { dryRun = true } = {}) {
   if (!dryRun) {
     const batch = bee.batch({ keyEncoding: "binary", valueEncoding: "binary" })
     for (const [id, val] of recPuts) await batch.put(subKey("rec", id), val)
-    for (const k of idxAdd) await batch.put(subKey("idx", k), EMPTY)
+    for (const [k, val] of idxAdd) await batch.put(subKey("idx", k), val)
     for (const k of idxDel) await batch.del(subKey("idx", k))
     for (const [k, d] of aggDelta) {
       const cur = await agg.get(k)

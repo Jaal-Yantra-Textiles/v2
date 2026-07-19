@@ -26,7 +26,7 @@ import { readdirSync, writeFileSync, existsSync, createReadStream, openSync, fst
 import { createInterface } from "node:readline";
 import { join } from "node:path";
 import assert from "node:assert";
-import { idxRelKeys } from "./census_index.mjs";
+import { idxRelKeys, geoPayload } from "./census_index.mjs";
 
 const DATA_DIR = "../data/live";
 const STORE_DIR = process.env.P2P_STORE || "./p2p-store";
@@ -203,14 +203,20 @@ async function ingestCore(bee, file, sens) {
   }
 
   const recPuts = [];              // [census_id, brotli(row)]
-  const idxPuts = [];              // sub-relative secondary-index keys (public core)
+  const idxPuts = [];              // [idxRelKey, brotli(geoPayload)] (public core)
   const delta = new Map();         // agg key -> increment
   for (const r of records) {
     if (sens && r.profile_photo_url == null && photos.has(String(r.census_id)))
       r.profile_photo_url = photos.get(String(r.census_id));
     const { pub: pubRow, sensitive } = splitRecord(r);
     recPuts.push([String(r.census_id), brotliCompressSync(Buffer.from(JSON.stringify(sens ? sensitive : pubRow)))]);
-    if (!sens) for (const rk of idxRelKeys(pubRow)) idxPuts.push(rk);
+    // Carry the lean display payload inline on every index family value so the
+    // reader browses without a fat rec/* seek (see census_index.geoPayload). The
+    // payload is identical across a record's families → encode once.
+    if (!sens) {
+      const idxVal = brotliCompressSync(Buffer.from(JSON.stringify(geoPayload(pubRow))));
+      for (const rk of idxRelKeys(pubRow)) idxPuts.push([rk, idxVal]);
+    }
     bumpInto(delta, r, sens);
   }
 
@@ -224,7 +230,7 @@ async function ingestCore(bee, file, sens) {
   }
   const batch = bee.batch({ keyEncoding: "binary", valueEncoding: "binary" });
   for (const [id, val] of recPuts) await batch.put(subKey("rec", id), val);
-  for (const rk of idxPuts) await batch.put(subKey("idx", rk), Buffer.from(""));
+  for (const [rk, val] of idxPuts) await batch.put(subKey("idx", rk), val);
   for (const [k, v] of newAgg) await batch.put(subKey("agg", k), Buffer.from(String(v)));
   await batch.put(subKey("meta", "off/" + file), Buffer.from(String(endOffset)));
   await batch.flush();
