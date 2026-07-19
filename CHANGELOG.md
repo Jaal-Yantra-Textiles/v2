@@ -1,3 +1,24 @@
+# [13.61.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.60.0...v13.61.0) (2026-07-19)
+
+
+### Bug Fixes
+
+* **census:** early-exit the unfiltered weaver scan at the page window ([9e2c61e](https://github.com/Jaal-Yantra-Textiles/v2/commit/9e2c61ee0562e26c2261d4d69b3ea4e5bf74493a))
+* **ci:** migrate-gate step fails under bash -e when no [@medusajs](https://github.com/medusajs) dep change ([#1090](https://github.com/Jaal-Yantra-Textiles/v2/issues/1090)) ([a1e334a](https://github.com/Jaal-Yantra-Textiles/v2/commit/a1e334a371f84ad12999a606d35cb4fb84b1a743)), closes [#1082](https://github.com/Jaal-Yantra-Textiles/v2/issues/1082)
+* **partners:** seed inventory levels on POST /partners/products + LLM tool guidance ([0965abd](https://github.com/Jaal-Yantra-Textiles/v2/commit/0965abdd29257f504f9e2bad82d98775132ae52d)), closes [#1079](https://github.com/Jaal-Yantra-Textiles/v2/issues/1079)
+* **census:** un-freezable weaver browse + O(page) unfiltered path via idx/all ([d850963](https://github.com/Jaal-Yantra-Textiles/v2/commit/d850963314ab3b367967aff5d5f9fab032863a11))
+
+
+### Features
+
+* **crm-admin:** add Create button + RouteFocusModal to create people ([#1091](https://github.com/Jaal-Yantra-Textiles/v2/issues/1091)) ([6a5b836](https://github.com/Jaal-Yantra-Textiles/v2/commit/6a5b836c30638910f520c84a658a3a69c0aa9efb)), closes [#1088](https://github.com/Jaal-Yantra-Textiles/v2/issues/1088)
+* **crm:** admin UI — People list (filters + pagination) + detail page ([#1088](https://github.com/Jaal-Yantra-Textiles/v2/issues/1088)) ([6f1dd31](https://github.com/Jaal-Yantra-Textiles/v2/commit/6f1dd3160d2cd8e7609574db930640267753b133)), closes [#1082](https://github.com/Jaal-Yantra-Textiles/v2/issues/1082)
+* **partner-assistant:** expose inventory + variant/option write tools ([c7e1316](https://github.com/Jaal-Yantra-Textiles/v2/commit/c7e13162af2f46b731f8228d32216823dce3ada4))
+* **partner-assistant:** expose Tiers B–F write tools (catalog/inventory/CRM/returns) ([5ebb31a](https://github.com/Jaal-Yantra-Textiles/v2/commit/5ebb31a0f7d7ea6d8d2a4f8f19e36c1a29643ab2)), closes [#1080](https://github.com/Jaal-Yantra-Textiles/v2/issues/1080) [#1080](https://github.com/Jaal-Yantra-Textiles/v2/issues/1080)
+* **crm:** Hyperbee CRM → Autobase multi-writer → prod (Topology A) ([#1083](https://github.com/Jaal-Yantra-Textiles/v2/issues/1083)) ([f7052c0](https://github.com/Jaal-Yantra-Textiles/v2/commit/f7052c02bfb30b004f6b5aab282606bf7e902650)), closes [#1082](https://github.com/Jaal-Yantra-Textiles/v2/issues/1082) [#1082](https://github.com/Jaal-Yantra-Textiles/v2/issues/1082) [#1084](https://github.com/Jaal-Yantra-Textiles/v2/issues/1084)
+* **census:** reader-node architecture + reader perf (LRU, parallel hydration, stats cache) ([#1089](https://github.com/Jaal-Yantra-Textiles/v2/issues/1089)) ([2b9ee18](https://github.com/Jaal-Yantra-Textiles/v2/commit/2b9ee180d1ad4309c038a993c120fe024d53b7e4)), closes [#1031](https://github.com/Jaal-Yantra-Textiles/v2/issues/1031) [#1087](https://github.com/Jaal-Yantra-Textiles/v2/issues/1087) [#1](https://github.com/Jaal-Yantra-Textiles/v2/issues/1) [#3](https://github.com/Jaal-Yantra-Textiles/v2/issues/3) [#5](https://github.com/Jaal-Yantra-Textiles/v2/issues/5) [#1087](https://github.com/Jaal-Yantra-Textiles/v2/issues/1087)
+* **partner-assistant:** stop/retry controls, context compaction, richer tool data ([#1079](https://github.com/Jaal-Yantra-Textiles/v2/issues/1079)) ([75b937c](https://github.com/Jaal-Yantra-Textiles/v2/commit/75b937c1eb1ce89880fccb467194ca6b755a1f7a))
+
 # [13.60.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.59.0...v13.60.0) (2026-07-18)
 
 
