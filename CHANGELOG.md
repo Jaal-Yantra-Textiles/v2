@@ -1,3 +1,16 @@
+# [13.62.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.61.0...v13.62.0) (2026-07-19)
+
+
+### Bug Fixes
+
+* **crm:** resolve repos via cradle property, not container.resolve() ([#1094](https://github.com/Jaal-Yantra-Textiles/v2/issues/1094)) ([aad1e39](https://github.com/Jaal-Yantra-Textiles/v2/commit/aad1e39f651b745d62de3358fd9306fc8e2e4b23))
+
+
+### Features
+
+* **census:** cut prod /web/census/* over to the durable reader node [[#1087](https://github.com/Jaal-Yantra-Textiles/v2/issues/1087)] ([#1095](https://github.com/Jaal-Yantra-Textiles/v2/issues/1095)) ([8506cec](https://github.com/Jaal-Yantra-Textiles/v2/commit/8506cec442582655fb2258c0f28a18637a235bbb))
+* **census:** inline geo payload on the index — fast map browse, no fat hydrate [[#1087](https://github.com/Jaal-Yantra-Textiles/v2/issues/1087)] ([#1096](https://github.com/Jaal-Yantra-Textiles/v2/issues/1096)) ([865ff0c](https://github.com/Jaal-Yantra-Textiles/v2/commit/865ff0c362a5198993197524a6f2dde2585ea0d4))
+
 # [13.61.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.60.0...v13.61.0) (2026-07-19)
 
 
