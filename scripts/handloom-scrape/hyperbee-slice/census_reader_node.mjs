@@ -73,16 +73,41 @@ for (const core of cores) {
 // reconnects after the seeder already grew (e.g. an index re-backfill jumped the
 // core from 3.26M→10M) can sit frozen at its old contiguous frontier. Re-learn the
 // length and explicitly re-request any missing tail on an interval until closed.
+//
+// download({start,end}) proved unreliable for this: it waits for the peer to
+// ADVERTISE the range in its bitfield, and after a big re-backfill the seeder can
+// under-advertise the tail → the range request never completes and the frontier
+// stays frozen (observed 2026-07-18: stuck at 3,510,134 while the seeder had 10.2M;
+// only a get()-driven mop-up filled it). get(i, {wait:true}) forces an explicit
+// per-block request that doesn't depend on the bitfield advertisement, so it can't
+// stall the same way. Fill the missing tail in bounded-concurrency batches (blocks
+// we already have return instantly from disk; we only pay for the true gap).
+const CATCHUP_CONCURRENCY = Number(process.env.CATCHUP_CONCURRENCY || 128);
+let catchUpRunning = false;
 const catchUp = async () => {
-  for (const core of cores) {
-    try {
-      await core.update();
-      if (core.contiguousLength < core.length) {
-        core.download({ start: core.contiguousLength, end: core.length });
+  if (catchUpRunning) return; // don't stack sweeps while a big tail is still filling
+  catchUpRunning = true;
+  try {
+    for (const core of cores) {
+      try {
+        await core.update();
+        let i = core.contiguousLength;
+        const target = core.length;
+        if (i >= target) continue;
+        console.log(`[${new Date().toISOString()}] catch-up: ${core.key.toString("hex").slice(0, 12)}… filling ${i}→${target} (${target - i} blocks)`);
+        while (i < target) {
+          const end = Math.min(i + CATCHUP_CONCURRENCY, target);
+          const batch = [];
+          for (let j = i; j < end; j++) batch.push(core.get(j, { wait: true }).catch(() => {}));
+          await Promise.all(batch);
+          i = end;
+        }
+      } catch (e) {
+        console.log(`[${new Date().toISOString()}] catch-up error: ${e?.message || e}`);
       }
-    } catch (e) {
-      console.log(`[${new Date().toISOString()}] catch-up error: ${e?.message || e}`);
     }
+  } finally {
+    catchUpRunning = false;
   }
 };
 catchUp();
