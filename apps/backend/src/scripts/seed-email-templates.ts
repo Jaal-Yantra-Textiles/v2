@@ -6,33 +6,53 @@ export const emailTemplatesData = [
     name: "Order Confirmation",
     template_key: "order-placed",
     from: "orders@jyt.com",
-    subject: "Order Confirmation - Order #{{order_display_id}}",
+    subject: "Order Confirmation - Order {{order_display_id}}{{#if partner_name}} · {{partner_name}}{{/if}}",
     html_content: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
         <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          {{#if partner_name}}
+          <p style="color: #999999; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">{{partner_name}}</p>
+          {{/if}}
           <h1 style="color: #28a745; font-size: 24px; margin-bottom: 20px;">Order Confirmation</h1>
           <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">
             Hi {{customer_first_name}},
           </p>
           <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-            Thank you for your order! We have received your order and will process it shortly.
+            Thank you for your order{{#if partner_name}} with {{partner_name}}{{/if}}! We have received it and will process it shortly.
           </p>
           <div style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 4px;">
-            <h3 style="color: #333333; font-size: 18px; margin-bottom: 10px;">Order #{{order_display_id}}</h3>
-            <p style="color: #666666; font-size: 14px;">Total: {{order_total}}</p>
-            <p style="color: #666666; font-size: 14px;">Email: {{order_email}}</p>
+            <h3 style="color: #333333; font-size: 18px; margin-bottom: 10px;">Order {{order_display_id}}</h3>
+            <p style="color: #666666; font-size: 14px; margin: 4px 0;">Items: {{item_count}}</p>
+            <p style="color: #666666; font-size: 14px; margin: 4px 0;">Total: {{order_total}}</p>
+            <p style="color: #666666; font-size: 14px; margin: 4px 0;">Email: {{order_email}}</p>
           </div>
+          {{#if store_url}}
+          <div style="margin: 28px 0; text-align: center;">
+            <a href="{{store_url}}" style="background-color: #28a745; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
+              {{#if partner_name}}Visit {{partner_name}}{{else}}Visit our store{{/if}}
+            </a>
+          </div>
+          {{/if}}
           <p style="color: #999999; font-size: 14px; margin-top: 20px;">
             We'll send you another email when your order ships.
           </p>
+          {{#if partner_name}}
+          <p style="color: #cccccc; font-size: 12px; margin-top: 24px; border-top: 1px solid #eeeeee; padding-top: 16px;">
+            &copy; {{current_year}} {{partner_name}}
+          </p>
+          {{/if}}
         </div>
       </div>
     `,
     variables: {
       customer_first_name: "Customer's first name",
-      order_display_id: "Order display ID",
-      order_total: "Order total amount",
-      order_email: "Customer email"
+      order_display_id: "Order display ID (already prefixed with #)",
+      order_total: "Order total amount (formatted)",
+      order_email: "Customer email",
+      item_count: "Number of line items",
+      partner_name: "Partner / store name (optional)",
+      store_url: "Partner storefront URL (optional)",
+      current_year: "Current year"
     },
     template_type: "order_confirmation",
     is_active: true

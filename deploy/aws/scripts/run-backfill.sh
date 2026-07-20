@@ -167,6 +167,10 @@ add_env DRY_RUN                  "${DRY_RUN:-}"
 # backfill-order-address-country: which order + the corrected ISO-2 country.
 add_env ORDER_ID                 "${ORDER_ID:-}"
 add_env TARGET_COUNTRY           "${TARGET_COUNTRY:-}"
+# update-email-templates: which template keys to push from seed to the DB.
+add_env TEMPLATE_KEYS            "${TEMPLATE_KEYS:-}"
+# resend-order-confirmation: which order(s) to re-send the confirmation for.
+add_env ORDER_IDS               "${ORDER_IDS:-}"
 # repair-stuck-parent-production-runs: force-complete specific (incl.
 # already-cancelled) parents the default stuck-status scan skips.
 add_env FORCE_RUN_IDS            "${FORCE_RUN_IDS:-}"
