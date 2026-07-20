@@ -23,9 +23,23 @@ const PartnerFee = model.define("partner_fee", {
   // How `fee_rate` is interpreted: percentage (basis points) or a flat amount.
   fee_basis: model.enum(["percentage", "flat"]).default("percentage"),
   // For percentage: basis points (200 = 2.00%). For flat: an amount in currency_code.
+  // For a `retail_split` fee this is the COMBINED rate (gateway + commission bps).
   fee_rate: model.number(),
-  // The computed commission amount, in `currency_code`.
+  // The computed fee amount, in `currency_code`. For `retail_split` this is the
+  // TOTAL (payment_gateway_amount + commission_amount).
   fee_amount: model.bigNumber(),
+  // Fee shape: `commission` is the legacy single-rate platform commission
+  // (partner work-orders, default 2%). `retail_split` is the partner retail
+  // order fee = payment gateway + commission (default 2% + 15%), whose two
+  // components are itemised in the columns below.
+  fee_type: model.enum(["commission", "retail_split"]).default("commission"),
+  // --- retail_split breakdown (null for legacy `commission` rows) ------------
+  // Payment-gateway component: rate (bps, 200 = 2.00%) + computed amount.
+  payment_gateway_bps: model.number().nullable(),
+  payment_gateway_amount: model.bigNumber().nullable(),
+  // Platform-commission component: rate (bps, 1500 = 15.00%) + computed amount.
+  commission_bps: model.number().nullable(),
+  commission_amount: model.bigNumber().nullable(),
   // Lifecycle: accrued at placement → invoiced when billed → waived/reversed on cancel.
   status: model
     .enum(["accrued", "invoiced", "waived", "reversed"])
