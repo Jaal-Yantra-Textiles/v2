@@ -76,6 +76,31 @@ export async function dispatchMcpTool(
   }
 
   const args = rawArgs || {}
+
+  // --- Native tools: run in-process via the surface handler -------------------
+  // Store discovery / key resolution etc. — no route, no write/rail gating
+  // (natives are read-only). The surface owns execution and error shaping.
+  if (def.native) {
+    if (!ctx.runNative) {
+      return fail(`Native tool '${name}' is not supported on this surface.`)
+    }
+    try {
+      const result = await ctx.runNative(def.native, args)
+      emit({
+        method: "native",
+        executed: true,
+        ok: result.ok,
+        outcome: "run",
+        context: typeof args.context === "string" ? args.context : undefined,
+      })
+      return result
+    } catch (e) {
+      const error = `Error in native tool ${name}: ${(e as Error).message}`
+      emit({ method: "native", executed: true, ok: false, outcome: "run", error })
+      return { ok: false, tool: name, error }
+    }
+  }
+
   const dryRun = args.dry_run === true
   const confirmed = args.confirm === true
   const context = typeof args.context === "string" ? args.context : undefined
@@ -84,12 +109,16 @@ export async function dispatchMcpTool(
       ? args.reason.trim()
       : undefined
   const write = !!def.write
-  const sensitive = isSensitive(def)
-  const dangerous = isDangerous(def)
+  // The store surface opts out of the confirm/reason rails (its DELETE is a
+  // normal cart op). Partner/admin keep them.
+  const railsOn = !ctx.disableSensitiveRails
+  const sensitive = railsOn && isSensitive(def)
+  const dangerous = railsOn && isDangerous(def)
 
   if (write && ctx.enableWrite === false) {
     return fail(
-      `Tool '${name}' is a write tool and writes are disabled on this server.`
+      ctx.writeDisabledMessage?.(name) ??
+        `Tool '${name}' is a write tool and writes are disabled on this server.`
     )
   }
   // Dangerous tools are hidden + refused when the surface hasn't opted in.
@@ -97,6 +126,33 @@ export async function dispatchMcpTool(
     return fail(
       `Tool '${name}' is a platform-destructive action and dangerous tools are disabled on this server.`
     )
+  }
+
+  // Resolve the tenant publishable key for multi-tenant (store) surfaces. A
+  // `store` argument (handle/domain) wins and is resolved per-call; otherwise
+  // the surface's default key applies. `store` is consumed here and never
+  // forwarded to the route (it isn't in any registry's queryParams either).
+  let publishableKey: string | undefined
+  if (ctx.tenant) {
+    publishableKey = ctx.tenant.defaultKey
+    const storeArg = typeof args.store === "string" ? args.store.trim() : ""
+    if (storeArg) {
+      const resolved = ctx.tenant.resolveKey
+        ? await ctx.tenant.resolveKey(storeArg)
+        : null
+      if (!resolved) {
+        return fail(
+          `No storefront / publishable key found for '${storeArg}'. Use list_stores to discover valid stores.`
+        )
+      }
+      publishableKey = resolved
+    }
+    if (!publishableKey) {
+      return fail(
+        ctx.tenant.missingKeyMessage ??
+          "No publishable key. Pass a `store` argument (see list_stores) or configure a default key on the server."
+      )
+    }
   }
 
   // Substitute path params for the target route.
@@ -131,6 +187,7 @@ export async function dispatchMcpTool(
         path: psub.path as string,
         bearer: ctx.bearer,
         cookie: ctx.cookie,
+        publishableKey,
       })
     } catch {
       return undefined
@@ -195,6 +252,7 @@ export async function dispatchMcpTool(
       body,
       bearer: ctx.bearer,
       cookie: ctx.cookie,
+      publishableKey,
       context,
       reason,
     })

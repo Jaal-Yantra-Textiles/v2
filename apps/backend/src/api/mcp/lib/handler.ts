@@ -1,14 +1,24 @@
 /**
- * Shared request handler for the MCP transport, mounted at two paths:
+ * Shared request handler for the Store MCP transport, mounted at two paths:
  *   - /mcp        (open: zero-config, server injects the default key)
  *   - /store/mcp  (gated: Medusa's publishable-key middleware requires a key)
  *
  * Stateless Streamable HTTP: each POST is a self-contained JSON-RPC request, so
  * there is no session to track — ideal for a read-only catalog server. GET and
  * DELETE are not supported in stateless mode and return 405.
+ *
+ * Transport wiring (build server → hand parsed body to the stateless
+ * Streamable-HTTP transport) is delegated to the shared mcp-core helpers; this
+ * file owns only the store-specific bits: publishable-key resolution, the
+ * STORE_MCP_ENABLE_WRITE gate and the dual-mount write-enable decision.
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js"
+import {
+  handleMcpJsonRpc,
+  mcpMethodNotAllowed as coreMcpMethodNotAllowed,
+  resolveLoopbackBaseUrl,
+} from "../../../lib/mcp-core"
+import { makeMcpLedgerSink } from "../../../lib/mcp-ledger"
 import { buildStoreMcpServer } from "./server"
 
 const PUBLISHABLE_HEADER = "x-publishable-api-key"
@@ -20,28 +30,6 @@ const PUBLISHABLE_HEADER = "x-publishable-api-key"
 function isWriteEnabled(): boolean {
   const v = (process.env.STORE_MCP_ENABLE_WRITE || "").trim().toLowerCase()
   return v === "true" || v === "1" || v === "yes"
-}
-
-/**
- * Loopback origin for proxying to /store/* on this same process.
- *
- * Derived from the incoming request by default (`proto://host`), which is
- * correct everywhere: the integration test runner binds a random port, local
- * dev uses :9000, and prod uses the public host. Set STORE_MCP_LOOPBACK_URL to
- * force an internal address (e.g. http://localhost:9000) and skip a hop.
- */
-function resolveBaseUrl(req: MedusaRequest): string {
-  const override = process.env.STORE_MCP_LOOPBACK_URL
-  if (override) {
-    return override.replace(/\/$/, "")
-  }
-  const proto = (req.protocol || "http").split(",")[0].trim()
-  const host = req.get("host")
-  if (host) {
-    return `${proto}://${host}`
-  }
-  const port = process.env.PORT || "9000"
-  return `http://localhost:${port}`
 }
 
 export async function handleMcpRequest(
@@ -70,7 +58,7 @@ export async function handleMcpRequest(
   const enableWrite = writesEnabledGlobally && hasValidatedKey
 
   const server = buildStoreMcpServer({
-    baseUrl: resolveBaseUrl(req),
+    baseUrl: resolveLoopbackBaseUrl(req, "STORE_MCP_LOOPBACK_URL"),
     publishableKey,
     bearer,
     container: req.scope,
@@ -78,34 +66,15 @@ export async function handleMcpRequest(
     // True on the open /mcp mount when writes exist but aren't reachable here —
     // lets the server tell agents to use the keyed /store/mcp mount instead.
     writesEnabledGlobally,
+    observe: makeMcpLedgerSink(req.scope, { type: "storefront" }),
   })
 
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined, // stateless: each POST is self-contained
-    enableJsonResponse: true, // return a plain JSON-RPC body, not an SSE stream
-  })
-
-  res.on("close", () => {
-    transport.close()
-    server.close()
-  })
-
-  await server.connect(transport)
-  // Medusa's body parser has already consumed the stream, so hand the parsed
-  // body to the transport explicitly.
-  await transport.handleRequest(req as any, res as any, (req as any).body)
+  await handleMcpJsonRpc(req, res, server)
 }
 
 export function mcpMethodNotAllowed(
-  _req: MedusaRequest,
+  req: MedusaRequest,
   res: MedusaResponse
 ): void {
-  res.status(405).json({
-    jsonrpc: "2.0",
-    error: {
-      code: -32000,
-      message: "Method not allowed. This MCP endpoint is stateless; use POST.",
-    },
-    id: null,
-  })
+  coreMcpMethodNotAllowed(req, res)
 }

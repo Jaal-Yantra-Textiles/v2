@@ -22,6 +22,14 @@ export type McpToolDef = {
   description: string
   /** JSON Schema for the domain arguments (framework args are injected). */
   inputSchema: Record<string, any>
+  /**
+   * Native (non-proxy) tool marker. When set, the tool is NOT dispatched to a
+   * loopback route; instead the surface's `ctx.runNative(native, args)` handler
+   * runs it in-process (e.g. the store surface's `list_stores` /
+   * `get_storefront_key` container-backed tenant discovery). Native tools are
+   * read-only and bypass path/method/query/body. Leave unset for proxy tools.
+   */
+  native?: string
   /** HTTP method of the wrapped route. Defaults to GET. */
   method?: McpMethod
   /** Route path, with `:param` placeholders, e.g. `/admin/orders/:id`. */
@@ -105,10 +113,49 @@ export type McpContext = {
    * dangerous tools can leave this undefined.
    */
   enableDangerous?: boolean
+  /**
+   * When true, the confirm/reason safety rails are skipped entirely and every
+   * tool is either a read or a plain write (write-gated only). The store
+   * surface sets this: there a DELETE (`remove_line_item`) is an ordinary cart
+   * operation, not a platform-destructive action, so the admin surface's
+   * "DELETE is implicitly sensitive" rule must not apply. Defaults to false —
+   * partner/admin keep the full rails.
+   */
+  disableSensitiveRails?: boolean
   /** Which surface this context serves — labels observability + server name. */
   surface?: string
   /** Optional sink for per-call observability events (#844). */
   observe?: (evt: McpToolEvent) => void
+  /**
+   * Multi-tenant proxy scoping (store surface only). When set, every proxy tool
+   * is scoped to a storefront's publishable key rather than a user JWT: a
+   * `store` argument (handle/domain) is resolved per-call via `resolveKey`,
+   * falling back to `defaultKey`. Single-tenant surfaces (partner/admin) leave
+   * this undefined and authenticate via `bearer`/`cookie` instead.
+   */
+  tenant?: {
+    /** Publishable key used when no `store` argument is supplied. */
+    defaultKey?: string
+    /** Resolve a `store` argument (handle/domain/id) to a publishable key. */
+    resolveKey?: (storeArg: string) => Promise<string | null>
+    /** Message returned when no key can be resolved and one is required. */
+    missingKeyMessage?: string
+  }
+  /**
+   * Handler for `native` tools — run in-process instead of proxied to a route
+   * (store surface: `list_stores` / `get_storefront_key`). Required if any tool
+   * in the registry sets `native`.
+   */
+  runNative?: (
+    native: string,
+    args: Record<string, unknown>
+  ) => Promise<McpToolResult>
+  /**
+   * Surface-specific copy for the write-disabled refusal. Lets the store
+   * surface keep its dual-mount guidance ("use the keyed /store/mcp mount" vs
+   * "set STORE_MCP_ENABLE_WRITE"). Falls back to a generic message when unset.
+   */
+  writeDisabledMessage?: (toolName: string) => string
 }
 
 /** Structured tool result. `ok:false` is a soft error (returned, not thrown). */

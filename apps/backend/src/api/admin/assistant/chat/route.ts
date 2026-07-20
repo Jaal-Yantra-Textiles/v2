@@ -43,6 +43,7 @@ import {
   isAdminDangerousEnabled,
   resolveAdminBaseUrl,
 } from "../../mcp/lib/handler"
+import { makeMcpLedgerSink } from "../../../../lib/mcp-ledger"
 import type { AdminAssistantChatReq } from "./validators"
 
 const FEATURE = "admin/assistant/chat"
@@ -90,6 +91,10 @@ export const POST = async (
     enableWrite: isAdminWriteEnabled(),
     enableDangerous: isAdminDangerousEnabled(),
     surface: "admin",
+    observe: makeMcpLedgerSink(req.scope, {
+      id: (req as any).auth_context?.actor_id ?? null,
+      type: "admin",
+    }),
   }
   const writeEnabled = ctx.enableWrite !== false
   const dangerousEnabled = ctx.enableDangerous === true

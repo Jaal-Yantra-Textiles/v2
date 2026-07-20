@@ -22,6 +22,7 @@ import {
   envFlagDefaultTrue,
   envFlagDefaultFalse,
 } from "../../../../lib/mcp-core"
+import { makeMcpLedgerSink } from "../../../../lib/mcp-ledger"
 import { ADMIN_MCP_TOOLS } from "./registry"
 
 const SERVER_INFO = { name: "jyt-admin", version: "0.1.0" } as const
@@ -54,6 +55,7 @@ export function resolveAdminBaseUrl(req: MedusaRequest): string {
 }
 
 export function buildAdminMcpServer(req: MedusaRequest): Server {
+  const actorId = (req as any).auth_context?.actor_id as string | undefined
   return buildMcpServer(
     {
       baseUrl: resolveAdminBaseUrl(req),
@@ -62,6 +64,10 @@ export function buildAdminMcpServer(req: MedusaRequest): Server {
       enableWrite: isAdminWriteEnabled(),
       enableDangerous: isAdminDangerousEnabled(),
       surface: "admin",
+      observe: makeMcpLedgerSink(req.scope, {
+        id: actorId ?? null,
+        type: "admin",
+      }),
     },
     ADMIN_MCP_TOOLS,
     { serverInfo: SERVER_INFO, instructions: INSTRUCTIONS }

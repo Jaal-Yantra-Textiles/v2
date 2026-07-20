@@ -13,6 +13,7 @@ import {
   resolveLoopbackBaseUrl,
   envFlagDefaultTrue,
 } from "../../../../lib/mcp-core"
+import { makeMcpLedgerSink } from "../../../../lib/mcp-ledger"
 import { buildPartnerMcpServer } from "./server"
 
 /** Writes are on by default; a deployment can force read-only. */
@@ -32,11 +33,16 @@ export async function handlePartnerMcpRequest(
   req: MedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
+  const actorId = (req as any).auth_context?.actor_id as string | undefined
   const server = buildPartnerMcpServer({
     baseUrl: resolvePartnerBaseUrl(req),
     bearer: req.get("authorization") || undefined,
     cookie: req.get("cookie") || undefined,
     enableWrite: isPartnerWriteEnabled(),
+    observe: makeMcpLedgerSink(req.scope, {
+      id: actorId ?? null,
+      type: "partner",
+    }),
   })
   await handleMcpJsonRpc(req, res, server)
 }

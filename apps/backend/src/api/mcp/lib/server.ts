@@ -1,27 +1,37 @@
 /**
- * Builds the read-only Store MCP server.
+ * Builds the Store MCP server on the shared mcp-core (#1092).
  *
- * Uses the low-level `Server` + `setRequestHandler` API (rather than the
- * high-level `McpServer.registerTool`) so tool input schemas stay as plain
- * JSON Schema and we avoid coupling to a specific zod version.
+ * The store surface is the multi-tenant MCP: it keeps a thin surface-specific
+ * server (rather than the core `buildMcpServer`) for two reasons unique to it:
+ *  - It preserves the raw-JSON wire contract — clients parse the wrapped
+ *    Store-route payload directly, not a `{ok,tool,data}` envelope.
+ *  - Its DELETE (`remove_line_item`) is a normal cart op, so it opts out of the
+ *    confirm/reason rails via `disableSensitiveRails`.
+ * Everything else — path substitution, publishable-key scoping, the loopback
+ * proxy, the write gate and observability — is delegated to the shared
+ * `dispatchMcpTool`. The store-specific bits (per-call `store` → key resolution,
+ * native store-discovery tools, dual-mount write copy) are supplied as
+ * `McpContext` hooks:
+ *  - `tenant`             — resolve a `store` arg to a publishable key.
+ *  - `runNative`          — list_stores / get_storefront_key (container-backed).
+ *  - `writeDisabledMessage` — the keyed-mount vs STORE_MCP_ENABLE_WRITE guidance.
  *
- * Two kinds of tools (see registry.ts):
- *  - proxy tools forward to a live /store/* route (loopback) with a resolved
- *    publishable key, inheriting pricing/tax/scoping/validators.
- *  - native tools run in-process against the container for store discovery and
- *    publishable-key resolution (list_stores, get_storefront_key).
- *
- * Proxy tools accept an optional `store` arg (handle/domain) that is resolved
- * server-side to that storefront's default publishable key — so agents work in
- * terms of store names, not raw pk_ tokens, across a multi-tenant deployment.
+ * Tool input schemas stay plain JSON Schema (returned verbatim in tools/list),
+ * so we avoid coupling to a specific zod version.
  */
 import { Server } from "@modelcontextprotocol/sdk/server/index.js"
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js"
+import {
+  dispatchMcpTool,
+  type McpContext,
+  type McpToolDef,
+  type McpToolEvent,
+  type McpToolResult,
+} from "../../../lib/mcp-core"
 import { STORE_MCP_TOOLS } from "./registry"
-import { callStoreRoute, type ProxyError } from "./proxy"
 import { listStorefronts, resolveStorefront } from "./store-resolver"
 
 export type StoreMcpContext = {
@@ -44,6 +54,8 @@ export type StoreMcpContext = {
    * point agents on the open /mcp mount at the keyed /store/mcp write mount.
    */
   writesEnabledGlobally?: boolean
+  /** Optional observability sink (#844) — one event per tool call. */
+  observe?: (evt: McpToolEvent) => void
 }
 
 const SERVER_INFO = { name: "jyt-store", version: "0.1.0" } as const
@@ -93,15 +105,71 @@ export function buildStoreMcpServer(ctx: StoreMcpContext): Server {
     (writesRequireKey ? WRITE_MOUNT_HINT : "") +
     (ctx.enableWrite ? WRITE_FLOW_GUIDE : "")
 
+  // Native (container-backed) tools: store discovery + key resolution. Returns
+  // the store's raw payload shape; the CallTool handler unwraps `data`.
+  const runNative = async (
+    native: string,
+    args: Record<string, unknown>
+  ): Promise<McpToolResult> => {
+    if (!ctx.container) {
+      return {
+        ok: false,
+        tool: native,
+        error: "Store resolution unavailable (no container).",
+      }
+    }
+    if (native === "list_stores") {
+      const stores = await listStorefronts(ctx.container)
+      return { ok: true, tool: native, data: { stores, count: stores.length } }
+    }
+    if (native === "get_storefront_key") {
+      const store = String(args.store ?? "").trim()
+      if (!store) {
+        return { ok: false, tool: native, error: "Missing required parameter: store" }
+      }
+      const info = await resolveStorefront(ctx.container, store)
+      if (!info) {
+        return { ok: false, tool: native, error: `No storefront found for '${store}'.` }
+      }
+      return { ok: true, tool: native, data: info }
+    }
+    return { ok: false, tool: native, error: `Unhandled native tool: ${native}` }
+  }
+
+  const coreCtx: McpContext = {
+    baseUrl: ctx.baseUrl,
+    bearer: ctx.bearer,
+    enableWrite: ctx.enableWrite,
+    // The store's DELETE (remove_line_item) is a normal cart op — no rails.
+    disableSensitiveRails: true,
+    surface: "store",
+    observe: ctx.observe,
+    runNative,
+    tenant: {
+      defaultKey: ctx.publishableKey,
+      resolveKey: async (storeArg: string) => {
+        if (!ctx.container) return null
+        const info = await resolveStorefront(ctx.container, storeArg)
+        return info?.publishable_key ?? null
+      },
+      missingKeyMessage:
+        "No publishable key. Pass a `store` argument (see list_stores), send an " +
+        "'x-publishable-api-key' header, or configure STORE_MCP_DEFAULT_PUBLISHABLE_KEY " +
+        "on the server.",
+    },
+    writeDisabledMessage: (name: string) =>
+      writesRequireKey
+        ? `Tool '${name}' is a write/checkout tool, available only on the keyed write mount. Reconnect to POST /store/mcp with an 'x-publishable-api-key' header.`
+        : `Tool '${name}' is a write/checkout tool and is disabled on this server. Set STORE_MCP_ENABLE_WRITE=true to enable cart & payment tools.`,
+  }
+
   const server = new Server(SERVER_INFO, {
     capabilities: { tools: {} },
     instructions,
   })
 
   // Write (cart/checkout) tools are only visible/callable when writes are on.
-  const visibleTools = STORE_MCP_TOOLS.filter(
-    (t) => ctx.enableWrite || !t.write
-  )
+  const visibleTools = STORE_MCP_TOOLS.filter((t) => ctx.enableWrite || !t.write)
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: visibleTools.map((t) => ({
@@ -112,119 +180,20 @@ export function buildStoreMcpServer(ctx: StoreMcpContext): Server {
   }))
 
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
-    const def = STORE_MCP_TOOLS.find((t) => t.name === req.params.name)
-    if (!def) {
-      return textResult(`Unknown tool: ${req.params.name}`, true)
-    }
-    // Refuse mutating tools unless writes are enabled AND a key was presented.
-    if (def.write && !ctx.enableWrite) {
-      const msg = writesRequireKey
-        ? `Tool '${def.name}' is a write/checkout tool, available only on the keyed write mount. Reconnect to POST /store/mcp with an 'x-publishable-api-key' header.`
-        : `Tool '${def.name}' is a write/checkout tool and is disabled on this server. Set STORE_MCP_ENABLE_WRITE=true to enable cart & payment tools.`
-      return textResult(msg, true)
-    }
     const args = (req.params.arguments ?? {}) as Record<string, unknown>
-
-    // --- Native tools: store discovery / key resolution -------------------
-    if (def.native) {
-      if (!ctx.container) {
-        return textResult("Store resolution unavailable (no container).", true)
-      }
-      try {
-        if (def.native === "list_stores") {
-          const stores = await listStorefronts(ctx.container)
-          return textResult(
-            JSON.stringify({ stores, count: stores.length }, null, 2)
-          )
-        }
-        if (def.native === "get_storefront_key") {
-          const store = String(args.store ?? "").trim()
-          if (!store) {
-            return textResult("Missing required parameter: store", true)
-          }
-          const info = await resolveStorefront(ctx.container, store)
-          if (!info) {
-            return textResult(`No storefront found for '${store}'.`, true)
-          }
-          return textResult(JSON.stringify(info, null, 2))
-        }
-      } catch (e) {
-        return textResult(`Error in ${def.name}: ${(e as Error).message}`, true)
-      }
-      return textResult(`Unhandled native tool: ${def.native}`, true)
+    const result = await dispatchMcpTool(
+      coreCtx,
+      STORE_MCP_TOOLS as unknown as McpToolDef[],
+      req.params.name,
+      args
+    )
+    if (!result.ok) {
+      return textResult(result.error ?? JSON.stringify(result, null, 2), true)
     }
-
-    // --- Proxy tools: resolve the effective publishable key ---------------
-    // A `store` arg (handle/domain) wins; otherwise the caller/default key.
-    let publishableKey = ctx.publishableKey
-    const storeArg = typeof args.store === "string" ? args.store.trim() : ""
-    if (storeArg) {
-      if (!ctx.container) {
-        return textResult("Cannot resolve `store` (no container).", true)
-      }
-      const info = await resolveStorefront(ctx.container, storeArg)
-      if (!info?.publishable_key) {
-        return textResult(
-          `No storefront / publishable key found for '${storeArg}'. Use list_stores to discover valid stores.`,
-          true
-        )
-      }
-      publishableKey = info.publishable_key
-    }
-    if (!publishableKey) {
-      return textResult(
-        "No publishable key. Pass a `store` argument (see list_stores), send an 'x-publishable-api-key' header, or configure STORE_MCP_DEFAULT_PUBLISHABLE_KEY on the server.",
-        true
-      )
-    }
-
-    // Substitute path params (e.g. :id -> prod_123).
-    let path = def.path as string
-    for (const p of def.pathParams ?? []) {
-      const value = args[p]
-      if (value === undefined || value === null || value === "") {
-        return textResult(`Missing required parameter: ${p}`, true)
-      }
-      path = path.replace(`:${p}`, encodeURIComponent(String(value)))
-    }
-
-    // Forward only the whitelisted query params (`store` is consumed above,
-    // never forwarded to the store route).
-    const query: Record<string, unknown> = {}
-    for (const k of def.queryParams ?? []) {
-      if (args[k] !== undefined && args[k] !== null) {
-        query[k] = args[k]
-      }
-    }
-
-    // Assemble the JSON body for write tools from the whitelisted body params.
-    const body: Record<string, unknown> = {}
-    for (const k of def.bodyParams ?? []) {
-      if (args[k] !== undefined && args[k] !== null) {
-        body[k] = args[k]
-      }
-    }
-
-    try {
-      const data = await callStoreRoute({
-        baseUrl: ctx.baseUrl,
-        method: def.method ?? "GET",
-        path,
-        query,
-        body,
-        publishableKey,
-        bearer: ctx.bearer,
-      })
-      // Optional provider-specific normalization (e.g. payment next_action).
-      const out = def.transform ? def.transform(data, args) : data
-      return textResult(JSON.stringify(out, null, 2))
-    } catch (e) {
-      const err = e as ProxyError
-      return textResult(
-        `Error calling ${def.name} (${path}): ${err.message}`,
-        true
-      )
-    }
+    // Preserve the store's raw-JSON wire contract: clients parse the wrapped
+    // route payload directly, not the {ok,tool,data} envelope.
+    const payload = result.data !== undefined ? result.data : result
+    return textResult(JSON.stringify(payload, null, 2))
   })
 
   return server

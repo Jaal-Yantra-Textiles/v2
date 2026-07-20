@@ -15,6 +15,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { v4 as uuidv4 } from "uuid"
 import { mastra, mastraStorageInit } from "../../../../../mastra"
 import { AdminAiChatReq, AdminAiChatReqType } from "./validators"
+import { isV4ChatDeprecated, respondV4Deprecated } from "../deprecation"
 
 /**
  * POST /admin/ai/chat/chat
@@ -66,6 +67,11 @@ import { AdminAiChatReq, AdminAiChatReqType } from "./validators"
  * }
  */
 export const POST = async (req: MedusaRequest<AdminAiChatReqType>, res: MedusaResponse) => {
+  // Retired in favor of the MCP-backed Admin Assistant when the flag is on.
+  if (isV4ChatDeprecated()) {
+    return respondV4Deprecated(res)
+  }
+
   const runId = uuidv4()
 
   try {
@@ -196,6 +202,11 @@ export const GET = async (_req: MedusaRequest, res: MedusaResponse) => {
     return res.json({
       status: "ok",
       version: "v4",
+      // Signals the UI to steer users to the new Admin Assistant. When true the
+      // POST handler returns 410; the status stays reachable so the UI can show
+      // a deprecation banner rather than silently failing.
+      deprecated: isV4ChatDeprecated(),
+      replacement: "/app/assistant",
       workflow: {
         available: workflowAvailable,
         name: "aiChatWorkflow",
