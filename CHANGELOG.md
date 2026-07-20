@@ -1,3 +1,10 @@
+# [13.64.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.63.0...v13.64.0) (2026-07-20)
+
+
+### Features
+
+* **admin:** Admin MCP + agentic assistant (Tier 0/1) on shared mcp-core [[#1092](https://github.com/Jaal-Yantra-Textiles/v2/issues/1092)] ([#1098](https://github.com/Jaal-Yantra-Textiles/v2/issues/1098)) ([954aa41](https://github.com/Jaal-Yantra-Textiles/v2/commit/954aa417f365320143b53554966e2f9d186e0fc0)), closes [#844](https://github.com/Jaal-Yantra-Textiles/v2/issues/844)
+
 # [13.63.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.62.0...v13.63.0) (2026-07-20)
 
 
