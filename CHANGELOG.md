@@ -1,3 +1,19 @@
+# [13.63.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.62.0...v13.63.0) (2026-07-20)
+
+
+### Bug Fixes
+
+* **partner-emails:** fix partner resolution + branded templates with item thumbnails ([#1105](https://github.com/Jaal-Yantra-Textiles/v2/issues/1105)) ([40d9733](https://github.com/Jaal-Yantra-Textiles/v2/commit/40d973397446692686bbc0c5068440f301372446)), closes [#1102](https://github.com/Jaal-Yantra-Textiles/v2/issues/1102)
+* **partner-orders:** order line-item thumbnails, wire edit actions, country backfill ([#1099](https://github.com/Jaal-Yantra-Textiles/v2/issues/1099)) ([896486b](https://github.com/Jaal-Yantra-Textiles/v2/commit/896486bd2ae9bd01647d545c95bfdb1eb62813dc)), closes [#79](https://github.com/Jaal-Yantra-Textiles/v2/issues/79)
+* **email:** populate empty customer order-confirmation + partner branding ([80a06ab](https://github.com/Jaal-Yantra-Textiles/v2/commit/80a06ab0bd01ae17f6c1667416a2e01f957a0c5b))
+* **partner-billing:** resolve retail partner via store.default_sales_channel_id ([bf3927a](https://github.com/Jaal-Yantra-Textiles/v2/commit/bf3927ae10c89bb65103367fdb7b37f2d47b52f0))
+* **ops:** surface partner-order-* templates under the `partner` seed set ([07c8b3d](https://github.com/Jaal-Yantra-Textiles/v2/commit/07c8b3d4f3939e972358e2b5d4149802fe3c407b))
+
+
+### Features
+
+* **partner-billing:** retail order fee — 2% gateway + 15% commission ([9517f3a](https://github.com/Jaal-Yantra-Textiles/v2/commit/9517f3a83c0f82ab0f3ecf10420bc2d1d7bc9408)), closes [#79](https://github.com/Jaal-Yantra-Textiles/v2/issues/79) [#79](https://github.com/Jaal-Yantra-Textiles/v2/issues/79)
+
 # [13.62.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.61.0...v13.62.0) (2026-07-19)
 
 
