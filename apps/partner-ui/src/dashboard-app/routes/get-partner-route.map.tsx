@@ -647,6 +647,11 @@ export function getPartnerRouteMap(): RouteObject[] {
                         import("../../routes/orders/order-edit-email"),
                     },
                     {
+                      path: "transfer",
+                      lazy: () =>
+                        import("../../routes/orders/order-request-transfer"),
+                    },
+                    {
                       path: "edit-shipping-address",
                       lazy: () =>
                         import(
