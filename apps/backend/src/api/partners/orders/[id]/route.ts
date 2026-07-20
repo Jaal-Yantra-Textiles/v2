@@ -83,6 +83,51 @@ export const GET = async (
     // leave the order as-is; the UI falls back to retail rendering
   }
 
+  // Line-item thumbnails: the order-time snapshot `item.thumbnail` can be null.
+  // Medusa copies it at add-to-cart time via
+  //   thumbnail: item.thumbnail ?? variant.thumbnail ?? variant.product.thumbnail
+  // (see @medusajs/core-flows prepare-line-item-data) — i.e. ONLY from the
+  // product's ROOT `thumbnail`, and only if that was already set then. A product
+  // that gained its thumbnail (or only ever had `images`, never a root thumbnail)
+  // after the order was placed leaves the snapshot null forever. The partner UI
+  // reads `item.thumbnail` directly, so backfill it here from the live product —
+  // root thumbnail first, then the first product image — keeping the response
+  // self-describing instead of pushing the fallback into every client.
+  try {
+    const items = (result as any)?.items as Array<any> | undefined
+    if (Array.isArray(items) && items.length) {
+      const productIdOf = (it: any): string | undefined =>
+        it?.product_id || it?.variant?.product?.id || it?.variant?.product_id
+      const missing = items.filter((it) => !it?.thumbnail && productIdOf(it))
+      const productIds = Array.from(
+        new Set(missing.map((it) => productIdOf(it)).filter(Boolean))
+      ) as string[]
+      if (productIds.length) {
+        const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+        const { data: products } = await query.graph({
+          entity: "product",
+          fields: ["id", "thumbnail", "images.url", "images.rank"],
+          filters: { id: productIds },
+        })
+        const thumbById = new Map<string, string | null | undefined>(
+          (products ?? []).map((p: any) => {
+            const firstImage = (p.images ?? [])
+              .slice()
+              .sort((a: any, b: any) => (a?.rank ?? 0) - (b?.rank ?? 0))[0]?.url
+            return [p.id, p.thumbnail || firstImage]
+          })
+        )
+        for (const it of missing) {
+          const pid = productIdOf(it)
+          const thumb = pid ? thumbById.get(pid) : undefined
+          if (thumb) it.thumbnail = thumb
+        }
+      }
+    }
+  } catch {
+    // best-effort: leave snapshot thumbnails as-is
+  }
+
   res.json({ order: result })
 }
 

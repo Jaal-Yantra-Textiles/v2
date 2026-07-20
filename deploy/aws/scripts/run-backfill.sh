@@ -164,6 +164,9 @@ add_env() {
 }
 add_env BATCH                    "${BATCH:-}"
 add_env DRY_RUN                  "${DRY_RUN:-}"
+# backfill-order-address-country: which order + the corrected ISO-2 country.
+add_env ORDER_ID                 "${ORDER_ID:-}"
+add_env TARGET_COUNTRY           "${TARGET_COUNTRY:-}"
 # repair-stuck-parent-production-runs: force-complete specific (incl.
 # already-cancelled) parents the default stuck-status scan skips.
 add_env FORCE_RUN_IDS            "${FORCE_RUN_IDS:-}"
