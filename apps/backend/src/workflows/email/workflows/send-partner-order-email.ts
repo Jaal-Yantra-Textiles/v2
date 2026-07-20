@@ -31,8 +31,15 @@ const sendPartnerOrderNotificationStep = createStep(
     { container }
   ) => {
     const { context, templateKey, extraData } = input
-    const { order, partner, partnerAdmins, partnerFromEmail, partnerFromName } =
-      context
+    const {
+      order,
+      partner,
+      partnerAdmins,
+      partnerFromEmail,
+      partnerFromName,
+      storeName,
+      storeUrl,
+    } = context
 
     if (!partner || partnerAdmins.length === 0) {
       console.log(
@@ -57,38 +64,83 @@ const sendPartnerOrderNotificationStep = createStep(
 
     // Compute order-level template data once
     const orderItems = (order?.items || []) as any[]
+    const currency = order?.currency_code?.toUpperCase() || "INR"
+    const money = (amount: number) =>
+      new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency,
+      }).format(Number(amount) || 0)
+
+    // Prefer the order's computed grand total (shipping + tax); fall back to the
+    // line-item subtotal only when the total isn't populated.
+    const itemsSubtotal = orderItems.reduce(
+      (sum: number, item: any) =>
+        sum + (Number(item.unit_price) || 0) * (Number(item.quantity) || 0),
+      0
+    )
     const orderTotal =
-      orderItems.reduce(
-        (sum: number, item: any) =>
-          sum + (Number(item.unit_price) || 0) * (Number(item.quantity) || 0),
-        0
-      ) || 0
+      Number(order?.total) > 0 ? Number(order.total) : itemsSubtotal || 0
+
+    // Line items for the template — with thumbnails (backfilled in the resolve
+    // step), variant title, quantity and line total.
+    const lineItems = orderItems.map((item: any) => {
+      const quantity = Number(item?.quantity) || 0
+      const lineTotal = (Number(item?.unit_price) || 0) * quantity
+      return {
+        title: item?.product_title || item?.title || "Item",
+        variant_title: item?.variant_title || item?.subtitle || "",
+        quantity: String(quantity),
+        price: money(lineTotal),
+        unit_price: money(Number(item?.unit_price) || 0),
+        thumbnail: item?.thumbnail || "",
+      }
+    })
+
+    // Partner-facing order link (admin dashboard partner order view).
+    const backendUrl =
+      process.env.MEDUSA_ADMIN_BACKEND_URL || process.env.BACKEND_URL || ""
+    const orderUrl =
+      storeUrl && order?.id
+        ? `${storeUrl.replace(/\/$/, "")}/orders/${order.id}`
+        : backendUrl && order?.id
+          ? `${backendUrl.replace(/\/$/, "")}/app/orders/${order.id}`
+          : ""
+
+    const ship = order?.shipping_address || {}
 
     for (const admin of partnerAdmins) {
       const templateData = {
-        // Partner info
+        // Partner / store info
         partner_name: partner.name,
         partner_handle: partner.handle,
+        store_name: storeName || partner.name,
 
         // Admin info
         admin_name: `${admin.first_name} ${admin.last_name}`.trim(),
-        admin_first_name: admin.first_name,
+        admin_first_name: admin.first_name || partner.name,
 
         // Order info
         order_display_id: order?.display_id || order?.id || "",
         order_id: order?.id || "",
         order_email: order?.email || "",
-        order_total: new Intl.NumberFormat("en-IN", {
-          style: "currency",
-          currency: order?.currency_code?.toUpperCase() || "INR",
-        }).format(orderTotal),
+        order_total: money(orderTotal),
         item_count: String(orderItems.length),
-        customer_name: `${order?.shipping_address?.first_name || ""} ${order?.shipping_address?.last_name || ""}`.trim() || order?.email || "Customer",
+        items: lineItems,
+        payment_status: order?.payment_status || "pending",
+        customer_name: `${ship.first_name || ""} ${ship.last_name || ""}`.trim() || order?.email || "Customer",
         customer_email: order?.email || "",
 
-        // Metadata
+        // Shipping address
+        shipping_address_line1: ship.address_1 || "",
+        shipping_address_line2: ship.address_2 || "",
+        shipping_city: ship.city || "",
+        shipping_postal_code: ship.postal_code || "",
+        shipping_country: (ship.country_code || "").toUpperCase(),
+
+        // Links / metadata
+        order_url: orderUrl,
+        store_url: storeUrl || "",
         current_year: String(new Date().getFullYear()),
-        store_url: process.env.FRONTEND_URL || "",
 
         // Extra data (e.g., tracking, cancellation reason)
         ...extraData,
