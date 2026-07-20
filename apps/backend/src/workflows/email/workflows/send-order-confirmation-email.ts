@@ -1,10 +1,11 @@
 import { createWorkflow, createStep, StepResponse, transform } from "@medusajs/framework/workflows-sdk"
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { Modules } from "@medusajs/framework/utils"
 import type { IOrderModuleService } from "@medusajs/types"
 import { sendNotificationEmailStep } from "../steps/send-notification-email"
 import { fetchEmailTemplateStep } from "../steps/fetch-email-template"
 import { PARTNER_MODULE } from "../../../modules/partner"
 import PartnerService from "../../../modules/partner/service"
+import { resolveRetailPartnerId } from "../../../modules/partner_billing/resolve-retail-partner"
 
 /**
  * Retrieve the order with the relations we need to render the confirmation.
@@ -32,14 +33,12 @@ const retrieveOrderStep = createStep(
  * payload whose keys never matched the template's flat `{{customer_first_name}}`
  * / `{{order_display_id}}` / `{{order_total}}` / `{{order_email}}` variables, so
  * Handlebars rendered every field as an empty string ("Hi ,", "Order #",
- * "Total: "). This step resolves the partner via
- * order → sales_channel → store → partner_store link and formats the money.
+ * "Total: "). This step resolves the partner via the retail ownership rule
+ * (order.sales_channel_id === store.default_sales_channel_id) and formats money.
  */
 const buildOrderConfirmationVarsStep = createStep(
   { name: "build-order-confirmation-vars", store: true },
   async ({ order }: { order: any }, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
-
     // --- Order-level flat vars -------------------------------------------
     const items = (order?.items || []) as any[]
     // Prefer the order's computed grand total (includes shipping + tax); fall
@@ -63,49 +62,32 @@ const buildOrderConfirmationVarsStep = createStep(
       order?.email ||
       "Customer"
 
-    // --- Partner context: order → sales_channel → store → partner --------
+    // --- Partner context: order → (store default sales channel) → partner --
+    // Retail ownership rule: order.sales_channel_id === store.default_sales_channel_id
+    // (same as validatePartnerOrderOwnership / the fee subscriber).
     let partnerName = ""
     let storeUrl = process.env.FRONTEND_URL || ""
 
     try {
-      let storeId: string | null = null
-      if (order?.sales_channel_id) {
-        const { data: scLinks } = await query.graph({
-          entity: "sales_channel",
-          fields: ["id", "store.id"],
-          filters: { id: order.sales_channel_id },
-        })
-        storeId = scLinks?.[0]?.store?.id || null
-      }
-
-      if (storeId) {
-        const { data: partnerStoreLinks } = await query.graph({
-          entity: "partner_partner_store_store",
-          fields: ["partner_id"],
-          filters: { store_id: storeId },
-          pagination: { skip: 0, take: 1 },
-        })
-        const partnerId = partnerStoreLinks?.[0]?.partner_id || null
-
-        if (partnerId) {
-          const partnerService: PartnerService =
-            container.resolve(PARTNER_MODULE)
-          const partners = await partnerService.listPartners(
-            { id: partnerId },
-            { select: ["id", "name", "handle", "storefront_domain", "metadata"] }
-          )
-          const partner = (partners as any[])?.[0]
-          if (partner) {
-            partnerName = partner.name || ""
-            const domain =
-              partner.storefront_domain ||
-              partner.metadata?.storefront_domain ||
-              ""
-            if (domain) {
-              storeUrl = /^https?:\/\//i.test(domain)
-                ? domain
-                : `https://${domain}`
-            }
+      const partnerId = await resolveRetailPartnerId(
+        container,
+        order?.sales_channel_id
+      )
+      if (partnerId) {
+        const partnerService: PartnerService = container.resolve(PARTNER_MODULE)
+        const partners = await partnerService.listPartners(
+          { id: partnerId },
+          { select: ["id", "name", "handle", "storefront_domain", "metadata"] }
+        )
+        const partner = (partners as any[])?.[0]
+        if (partner) {
+          partnerName = partner.name || ""
+          const domain =
+            partner.storefront_domain ||
+            partner.metadata?.storefront_domain ||
+            ""
+          if (domain) {
+            storeUrl = /^https?:\/\//i.test(domain) ? domain : `https://${domain}`
           }
         }
       }

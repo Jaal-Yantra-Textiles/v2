@@ -4,6 +4,7 @@ import { z } from "@medusajs/framework/zod"
 import { PARTNER_BILLING_MODULE } from "../../../../modules/partner_billing"
 import { computeRetailSplitFee } from "../../../../modules/partner_billing/compute-fee"
 import { resolveRetailFeeRates } from "../../../../modules/partner_billing/resolve-fee-rate"
+import { buildRetailPartnerBySalesChannel } from "../../../../modules/partner_billing/resolve-retail-partner"
 import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./registry"
 
 const MAX_RETAIL_FEE_BACKFILL_SCAN = 5000
@@ -64,27 +65,9 @@ export const backfillRetailPartnerFeesJob: MaintenanceJob = {
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const billing: any = container.resolve(PARTNER_BILLING_MODULE)
 
-    // Build sales_channel_id → partner_id (partners/stores are few).
-    const { data: partnerStoreLinks } = await query.graph({
-      entity: "partner_partner_store_store",
-      fields: ["partner_id", "store_id"],
-      pagination: { skip: 0, take: 1000 },
-    })
-    const partnerByStore = new Map<string, string>()
-    for (const l of partnerStoreLinks || []) {
-      if (l?.store_id && l?.partner_id) partnerByStore.set(l.store_id, l.partner_id)
-    }
-
-    const { data: salesChannels } = await query.graph({
-      entity: "sales_channel",
-      fields: ["id", "store.id"],
-      pagination: { skip: 0, take: 1000 },
-    })
-    const partnerBySc = new Map<string, string>()
-    for (const sc of salesChannels || []) {
-      const pid = sc?.store?.id ? partnerByStore.get(sc.store.id) : undefined
-      if (pid) partnerBySc.set(sc.id, pid)
-    }
+    // Map partner store default sales channel → partner_id (the retail
+    // ownership rule; partners are few).
+    const partnerBySc = await buildRetailPartnerBySalesChannel(container)
 
     const ratesByPartner = new Map<string, { gateway_bps: number; commission_bps: number }>()
     const ratesFor = async (pid: string) => {
