@@ -1,37 +1,55 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 /**
- * Resolve the owning partner for a RETAIL order by traversing
- *   order.sales_channel_id → sales_channel ↔ store → partner_store link → partner
+ * Resolve the owning partner for a RETAIL order from its sales channel.
  *
- * This is the retail counterpart to the work-order `partner↔order` D3 link:
- * storefront (retail) orders have no work-order link, so their partner is found
- * through the sales channel's store. Returns null for the platform's own
- * (non-partner) stores and on any lookup failure — accrual must never throw.
+ * Retail (storefront) orders have no partner↔order work-order link. Ownership is
+ * defined exactly as `validatePartnerOrderOwnership` does it:
+ *   order.sales_channel_id === partner.store.default_sales_channel_id
+ * i.e. the order sits in the partner store's default sales channel. We read
+ * every partner's `stores.default_sales_channel_id` (partners are few) and match.
+ *
+ * (The earlier `sales_channel → store → partner_partner_store_store` traversal
+ * was wrong: `sales_channel.store` isn't exposed and the link alias doesn't
+ * resolve — it always returned null.)
+ *
+ * Returns null for the platform's own (non-partner) channels and on any lookup
+ * failure — accrual must never throw.
  */
 export async function resolveRetailPartnerId(
   container: any,
   salesChannelId: string | null | undefined
 ): Promise<string | null> {
   if (!salesChannelId) return null
-  const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
-  try {
-    const { data: scLinks } = await query.graph({
-      entity: "sales_channel",
-      fields: ["id", "store.id"],
-      filters: { id: salesChannelId },
-    })
-    const storeId = scLinks?.[0]?.store?.id || null
-    if (!storeId) return null
+  const map = await buildRetailPartnerBySalesChannel(container)
+  return map.get(salesChannelId) || null
+}
 
-    const { data: partnerStoreLinks } = await query.graph({
-      entity: "partner_partner_store_store",
-      fields: ["partner_id"],
-      filters: { store_id: storeId },
-      pagination: { skip: 0, take: 1 },
+/**
+ * Build a `default_sales_channel_id → partner_id` map for all partners in one
+ * query — shared by the single-order resolver and the backfill job (which
+ * resolves many orders and shouldn't re-scan partners per order). Never throws.
+ */
+export async function buildRetailPartnerBySalesChannel(
+  container: any
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  try {
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+    const { data: partners } = await query.graph({
+      entity: "partners",
+      fields: ["id", "stores.default_sales_channel_id"],
+      pagination: { skip: 0, take: 1000 },
     })
-    return partnerStoreLinks?.[0]?.partner_id || null
+    for (const p of partners || []) {
+      for (const st of p?.stores || []) {
+        if (st?.default_sales_channel_id && p?.id) {
+          map.set(st.default_sales_channel_id, p.id)
+        }
+      }
+    }
   } catch {
-    return null
+    // best-effort — empty map means no retail partner resolves (accrual skipped)
   }
+  return map
 }
