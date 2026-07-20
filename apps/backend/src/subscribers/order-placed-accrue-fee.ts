@@ -3,8 +3,12 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { IOrderModuleService, Logger } from "@medusajs/types"
 import partnerOrderLink from "../links/partner-order"
 import { PARTNER_BILLING_MODULE } from "../modules/partner_billing"
-import { computeFee } from "../modules/partner_billing/compute-fee"
-import { resolvePartnerFeeRate } from "../modules/partner_billing/resolve-fee-rate"
+import { computeFee, computeRetailSplitFee } from "../modules/partner_billing/compute-fee"
+import {
+  resolvePartnerFeeRate,
+  resolveRetailFeeRates,
+} from "../modules/partner_billing/resolve-fee-rate"
+import { resolveRetailPartnerId } from "../modules/partner_billing/resolve-retail-partner"
 
 /**
  * #336 Slice 2 — partner transaction-fee accrual.
@@ -39,15 +43,31 @@ export default async function orderPlacedAccrueFeeHandler({
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
     const billingService: any = container.resolve(PARTNER_BILLING_MODULE)
 
-    // Gate: resolve the partner via the D3 partner↔order link (source of truth).
-    // No link → retail order → no commission.
+    // Gate: resolve the partner. Work-orders (design/inventory) carry the D3
+    // partner↔order link and accrue the legacy flat commission. Retail orders
+    // have NO such link — resolve their partner via the sales channel's store
+    // and accrue the retail split (gateway + commission). Non-partner (platform)
+    // retail orders resolve neither and are skipped.
     const { data: linkRows } = await query.graph({
       entity: partnerOrderLink.entryPoint,
       fields: ["partner_id"],
       filters: { order_id: data.id },
       pagination: { skip: 0, take: 1 },
     })
-    const partnerId: string | null = (linkRows || [])[0]?.partner_id || null
+    let partnerId: string | null = (linkRows || [])[0]?.partner_id || null
+    let isRetail = false
+
+    const orderService = container.resolve(
+      Modules.ORDER
+    ) as IOrderModuleService
+    const order: any = await orderService.retrieveOrder(data.id, {
+      select: ["id", "total", "currency_code", "sales_channel_id"],
+    })
+
+    if (!partnerId) {
+      partnerId = await resolveRetailPartnerId(container, order?.sales_channel_id)
+      isRetail = Boolean(partnerId)
+    }
     if (!partnerId) {
       return
     }
@@ -58,16 +78,47 @@ export default async function orderPlacedAccrueFeeHandler({
       return
     }
 
-    const orderService = container.resolve(
-      Modules.ORDER
-    ) as IOrderModuleService
-    const order: any = await orderService.retrieveOrder(data.id, {
-      select: ["id", "total", "currency_code"],
-    })
-
     const orderTotal = Number(order?.total)
     const currencyCode: string = order?.currency_code || ""
+    const safeTotal = Number.isFinite(orderTotal) ? orderTotal : 0
 
+    if (isRetail) {
+      // Retail split: 2% payment gateway + 15% commission on the order total.
+      const { gateway_bps, commission_bps } = await resolveRetailFeeRates(
+        container,
+        { partnerId }
+      )
+      const split = computeRetailSplitFee(orderTotal, gateway_bps, commission_bps)
+
+      await billingService.createPartnerFees([
+        {
+          partner_id: partnerId,
+          order_id: data.id,
+          order_total: safeTotal,
+          currency_code: currencyCode,
+          fee_basis: "percentage",
+          fee_rate: split.total_bps,
+          fee_amount: split.total_amount,
+          fee_type: "retail_split",
+          payment_gateway_bps: gateway_bps,
+          payment_gateway_amount: split.payment_gateway_amount,
+          commission_bps,
+          commission_amount: split.commission_amount,
+          status: "accrued",
+          accrued_at: new Date(),
+          metadata: { source: "order.placed", kind: "retail" },
+        },
+      ])
+
+      logger.info(
+        `[order.placed] Accrued retail partner fee ${split.total_amount} ${currencyCode} ` +
+          `(gateway ${split.payment_gateway_amount} + commission ${split.commission_amount}) ` +
+          `for partner ${partnerId} on order ${data.id}`
+      )
+      return
+    }
+
+    // Work-order: legacy flat commission (default 2%).
     const { fee_basis, fee_rate } = await resolvePartnerFeeRate(container, {
       partnerId,
     })
@@ -77,11 +128,12 @@ export default async function orderPlacedAccrueFeeHandler({
       {
         partner_id: partnerId,
         order_id: data.id,
-        order_total: Number.isFinite(orderTotal) ? orderTotal : 0,
+        order_total: safeTotal,
         currency_code: currencyCode,
         fee_basis,
         fee_rate,
         fee_amount: feeAmount,
+        fee_type: "commission",
         status: "accrued",
         accrued_at: new Date(),
         metadata: { source: "order.placed" },

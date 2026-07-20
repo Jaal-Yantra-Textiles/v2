@@ -21,12 +21,27 @@ export type PartnerFeeRowLike = {
   fee_amount?: number | string | null
   order_total?: number | string | null
   status?: string | null
+  fee_type?: string | null
+  payment_gateway_bps?: number | string | null
+  payment_gateway_amount?: number | string | null
+  commission_bps?: number | string | null
+  commission_amount?: number | string | null
+}
+
+/** Itemised components of a `retail_split` fee (gateway + commission). */
+export type FeeBreakdown = {
+  payment_gateway_amount: number
+  payment_gateway_rate_label: string
+  commission_amount: number
+  commission_rate_label: string
 }
 
 export type DescribedFee = {
   order_id: string
   status: string
   fee_basis: PartnerFeeBasis
+  /** "commission" (legacy flat) or "retail_split" (gateway + commission). */
+  fee_type: string
   /** Human label for the rate: "2.00%" (percentage, bps→%) or "50.00 INR" (flat). */
   rate_label: string
   fee_amount: number
@@ -34,6 +49,8 @@ export type DescribedFee = {
   currency_code: string
   /** Whether this fee currently counts toward collected commission (accrued/invoiced). */
   is_collectible: boolean
+  /** Itemised gateway + commission components; null for legacy `commission` rows. */
+  breakdown: FeeBreakdown | null
 }
 
 const toNum = (v: unknown): number => {
@@ -73,14 +90,36 @@ export function describeFee(
   const fee_basis: PartnerFeeBasis = fee.fee_basis === "flat" ? "flat" : "percentage"
   const currency_code = (fee.currency_code || "").toUpperCase()
   const status = String(fee.status || "accrued")
+  const fee_type = fee.fee_type === "retail_split" ? "retail_split" : "commission"
+
+  const breakdown: FeeBreakdown | null =
+    fee_type === "retail_split"
+      ? {
+          payment_gateway_amount: toNum(fee.payment_gateway_amount),
+          payment_gateway_rate_label: formatFeeRate(
+            "percentage",
+            fee.payment_gateway_bps,
+            currency_code
+          ),
+          commission_amount: toNum(fee.commission_amount),
+          commission_rate_label: formatFeeRate(
+            "percentage",
+            fee.commission_bps,
+            currency_code
+          ),
+        }
+      : null
+
   return {
     order_id: String(fee.order_id),
     status,
     fee_basis,
+    fee_type,
     rate_label: formatFeeRate(fee_basis, fee.fee_rate, currency_code),
     fee_amount: toNum(fee.fee_amount),
     order_total: toNum(fee.order_total),
     currency_code,
     is_collectible: status === "accrued" || status === "invoiced",
+    breakdown,
   }
 }

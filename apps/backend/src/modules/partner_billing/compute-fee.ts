@@ -37,6 +37,47 @@ export function computeFee(
   return Math.round(raw * 100) / 100
 }
 
+export type RetailSplitFee = {
+  /** Payment-gateway component amount (bps applied to total). */
+  payment_gateway_amount: number
+  /** Platform-commission component amount (bps applied to total). */
+  commission_amount: number
+  /** Combined fee (gateway + commission), the value stored on `fee_amount`. */
+  total_amount: number
+  /** Combined basis points (gateway_bps + commission_bps), stored on `fee_rate`. */
+  total_bps: number
+}
+
+/**
+ * Compute the partner RETAIL order fee: two independent percentage components
+ * (payment gateway + platform commission) on the SAME order total, each rounded
+ * to 2 decimals, then summed. Both are computed with `computeFee` so the
+ * non-positive/non-finite guards and rounding are identical to the single-rate
+ * path. Never throws.
+ *
+ *   gateway    = round2(total * gatewayBps / 10000)     // 200 bps  = 2%
+ *   commission = round2(total * commissionBps / 10000)  // 1500 bps = 15%
+ *   total      = gateway + commission
+ */
+export function computeRetailSplitFee(
+  orderTotal: number,
+  gatewayBps: number,
+  commissionBps: number
+): RetailSplitFee {
+  const payment_gateway_amount = computeFee(orderTotal, "percentage", gatewayBps)
+  const commission_amount = computeFee(orderTotal, "percentage", commissionBps)
+  const total_amount =
+    Math.round((payment_gateway_amount + commission_amount) * 100) / 100
+  const g = Number.isFinite(Number(gatewayBps)) && gatewayBps > 0 ? Math.trunc(gatewayBps) : 0
+  const c = Number.isFinite(Number(commissionBps)) && commissionBps > 0 ? Math.trunc(commissionBps) : 0
+  return {
+    payment_gateway_amount,
+    commission_amount,
+    total_amount,
+    total_bps: g + c,
+  }
+}
+
 /**
  * Parse the platform-default fee rate (basis points) from an env value.
  * Falls back to `fallbackBps` (default 200 = 2%) when unset/invalid.
