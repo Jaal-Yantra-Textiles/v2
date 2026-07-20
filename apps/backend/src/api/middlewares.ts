@@ -186,6 +186,7 @@ import { AdminRagSearchQuery } from "./admin/ai/rag/search/validators";
 import { AdminAiChatResolveReq, AdminAiChatResolveQuery } from "./admin/ai/chat/resolve/validators";
 import { ListConversationsQuerySchema, ListMessagesQuerySchema, SendMessageSchema, CreateConversationSchema } from "./admin/messaging/validators";
 import { AdminAiChatReq } from "./admin/ai/chat/chat/validators";
+import { AdminAssistantChatSchema } from "./admin/assistant/chat/validators";
 import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
 import { AdminPostPartnerTaskAssignReq } from "./admin/partners/[id]/tasks/[taskId]/assign/validators";
 import { AdminCreatePartnerTaskReq } from "./admin/partners/[id]/tasks/validators";
@@ -3249,6 +3250,21 @@ export default defineMiddlewares({
       matcher: "/admin/ai/chat/chat",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminAiChatReq))],
+    },
+
+    // Admin MCP — JSON-RPC endpoint exposing the Admin API as tools (#1092).
+    // Body is JSON-RPC (validated by the MCP transport), so no body validator
+    // here. All /admin/* routes are admin-user authenticated by Medusa.
+    {
+      matcher: "/admin/mcp",
+      method: "POST",
+      middlewares: [],
+    },
+    // Admin agentic assistant — streaming tool-caller over the Admin MCP registry.
+    {
+      matcher: "/admin/assistant/chat",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminAssistantChatSchema))],
     },
 
     {

@@ -21,68 +21,21 @@
  *    the UI can surface an approval card. Everything else executes directly.
  */
 
-export type PartnerMcpToolDef = {
-  /** Tool name surfaced to the agent (snake_case). */
-  name: string
-  /** One-line description shown in `tools/list` and to the model. */
-  description: string
-  /** JSON Schema for the domain arguments (dry_run/confirm are injected). */
-  inputSchema: Record<string, any>
-  /** HTTP method of the wrapped partner route. GET = read (always exposed). */
-  method?: "GET" | "POST" | "PUT" | "DELETE"
-  /** Partner route path, with `:param` placeholders, e.g. `/partners/products/:id`. */
-  path?: string
-  /** Names of `:param` placeholders that must be supplied as arguments. */
-  pathParams?: string[]
-  /** Argument keys forwarded to the route as query-string params. */
-  queryParams?: string[]
-  /** Argument keys assembled into the JSON request body (write tools only). */
-  bodyParams?: string[]
-  /** Non-GET tool: gated behind the write flag on the server. */
-  write?: boolean
-  /**
-   * High-stakes mutation: requires `confirm: true` to execute. Called without
-   * it, the dispatcher returns a `requires_confirmation` plan. Every DELETE is
-   * treated as sensitive implicitly; set this to flag sensitive POST/PUTs too.
-   */
-  sensitive?: boolean
-  /**
-   * Companion GET path (same `:param` substitution) used during `dry_run` to
-   * fetch the current object so the model can see what it is about to change.
-   */
-  previewPath?: string
-  /** Optional pure post-processor applied to a successful response. */
-  transform?: (data: any, args: Record<string, unknown>) => any
-  /**
-   * One-line note about non-obvious effects of running this tool (state it
-   * leaves behind, what it does NOT do). Rendered into the model-facing
-   * description so the agent reasons about the tool's real footprint — e.g.
-   * "creates the product in draft with variants + inventory items; does not
-   * publish or set stock quantities."
-   */
-  sideEffects?: string
-  /**
-   * Tool names the agent typically calls after this one to complete the task.
-   * Rendered into the description as a hint (not enforced). Keep these to real
-   * follow-ups a partner would expect — publishing, pricing, stock — not an
-   * exhaustive graph. HARD invariants (a managed variant MUST have a stock
-   * level) belong in the route, not here.
-   */
-  nextSteps?: string[]
-}
+import type { McpToolDef } from "../../../../lib/mcp-core"
+
+/**
+ * Partner tool definition. The declarative model now lives in the shared
+ * mcp-core (one type reused by store/partner/admin); `PartnerMcpToolDef` stays
+ * as the surface-local alias so existing imports keep working.
+ */
+export type PartnerMcpToolDef = McpToolDef
 
 /**
  * Fold the declarative guidance fields (`sideEffects`, `nextSteps`) into a
- * short suffix appended to the model-facing description. Single source of truth
- * so the chat route AND the MCP server render identical guidance. Returns "" when
- * a tool declares neither, so untouched tools are unaffected.
+ * short suffix appended to the model-facing description. Re-exported from the
+ * shared core so the chat route AND the MCP server render identical guidance.
  */
-export const renderToolGuidance = (def: PartnerMcpToolDef): string => {
-  const parts: string[] = []
-  if (def.sideEffects) parts.push(`Side effects: ${def.sideEffects}`)
-  if (def.nextSteps?.length) parts.push(`Usually followed by: ${def.nextSteps.join(", ")}.`)
-  return parts.length ? `\n${parts.join(" ")}` : ""
-}
+export { renderToolGuidance } from "../../../../lib/mcp-core"
 
 // ---- Reusable JSON-Schema fragments ---------------------------------------
 
