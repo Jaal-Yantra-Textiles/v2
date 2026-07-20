@@ -268,7 +268,10 @@ module.exports = defineConfig({
             resolve: "@medusajs/medusa/notification-local",
             id: "local",
             options: {
-              channels: ["feed", "email"],
+              // `email_partner` is added here (prod routes it to Maileroo) so
+              // partner-order notifications persist a row in the test env and can
+              // be inspected — see partner-order-email-notification.spec.ts.
+              channels: ["feed", "email", "email_partner"],
             },
           },
           {
