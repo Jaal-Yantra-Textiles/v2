@@ -177,6 +177,60 @@ describe("ShiprocketClient.createShipment — international routing", () => {
     expect(hits.some((h) => h === "/orders/create/adhoc")).toBe(false)
   })
 
+  it("resolves the recommended courier via order_id serviceability (post-create) and passes it to assign", async () => {
+    // Live-verified (#1111): intl serviceability only answers in the `order_id`
+    // mode, so the lookup must run AFTER create with the returned SR order id,
+    // and the recommended courier must be forwarded to assign/awb.
+    const hits: { url: string; body?: any }[] = []
+    const real = global.fetch?.bind(globalThis)
+    fetchSpy = jest
+      .spyOn(global, "fetch" as any)
+      .mockImplementation(async (input: any, init: any = {}) => {
+        const url = String(input)
+        if (!url.includes("shiprocket.in")) return real?.(input, init)
+        const path = url.replace("https://apiv2.shiprocket.in/v1/external", "")
+        hits.push({ url: path, body: init.body ? JSON.parse(init.body) : undefined })
+        if (path.includes("/international/orders/create/adhoc"))
+          return make({ shipment_id: 700, order_id: 800 })
+        if (path.includes("/international/courier/serviceability"))
+          return make({
+            data: {
+              recommended_courier_company_id: 140,
+              available_courier_companies: [
+                { courier_company_id: 326, courier_name: "India Post", rate: 900, currency: "USD" },
+                { courier_company_id: 140, courier_name: "SRX Premium Pro", rate: 1500, currency: "USD" },
+              ],
+            },
+          })
+        if (path.includes("/international/courier/assign/awb"))
+          return make({ response: { data: { awb_code: "INTLAWB2", courier_company_id: 140 } } })
+        if (path.endsWith("/courier/generate/label")) return make({ label_url: "x.pdf" })
+        return make({}, 404)
+      })
+
+    const client = new ShiprocketClient({
+      email: "x@y.com",
+      password: "p",
+      token: "injected-token",
+      pickup_location: "warehouse-abc",
+    })
+
+    const result = await client.createShipment(usInput())
+    expect(result.awb).toBe("INTLAWB2")
+
+    // serviceability was queried by the created SR order_id (not country/weight).
+    const svc = hits.find((h) => h.url.includes("/international/courier/serviceability"))
+    expect(svc?.url).toContain("order_id=800")
+    expect(svc?.url).not.toContain("delivery_country")
+    // ...and its recommended courier (140) rode along on the assign body.
+    const assign = hits.find((h) => h.url.includes("/international/courier/assign/awb"))
+    expect(assign?.body?.courier_id).toBe(140)
+    // Serviceability ran AFTER create (order_id only exists post-create).
+    const createIdx = hits.findIndex((h) => h.url.includes("/international/orders/create/adhoc"))
+    const svcIdx = hits.findIndex((h) => h.url.includes("/international/courier/serviceability"))
+    expect(svcIdx).toBeGreaterThan(createIdx)
+  })
+
   it("keeps a domestic (India) destination on the domestic endpoints", async () => {
     const hits: string[] = []
     const real = global.fetch?.bind(globalThis)

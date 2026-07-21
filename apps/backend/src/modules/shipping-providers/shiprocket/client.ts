@@ -652,17 +652,24 @@ export class ShiprocketClient implements ShippingProviderClient {
    * normalized RateOption shape.
    */
   async getInternationalRates(query: {
-    destination_country: string
-    weight_grams: number
+    destination_country?: string
+    weight_grams?: number
     order_id?: string | number
     origin_pincode?: string
   }): Promise<RateOption[]> {
-    const qs = new URLSearchParams({
-      weight: String(Math.max(0.01, query.weight_grams / 1000)),
-      cod: "0",
-      delivery_country: (query.destination_country || "").toUpperCase(),
-    })
-    if (query.order_id != null) qs.set("order_id", String(query.order_id))
+    // Live-verified (#1111): the `order_id` mode is the ONLY one this account
+    // answers — passing an existing Shiprocket order id returns the available
+    // international couriers (+ the recommended one) priced in the order
+    // currency. The documented country+weight mode (below) 400s on the live
+    // account, so `order_id` takes precedence and we omit weight/country when
+    // it's present (they're ignored anyway per the docs).
+    const qs = new URLSearchParams({ cod: "0" })
+    if (query.order_id != null) {
+      qs.set("order_id", String(query.order_id))
+    } else {
+      qs.set("weight", String(Math.max(0.01, (query.weight_grams || 500) / 1000)))
+      qs.set("delivery_country", (query.destination_country || "").toUpperCase())
+    }
     if (query.origin_pincode) qs.set("pickup_postcode", query.origin_pincode)
     const json = await this.request<any>(
       `/international/courier/serviceability?${qs}`,
@@ -709,23 +716,28 @@ export class ShiprocketClient implements ShippingProviderClient {
     }
 
     // Pick a courier: caller's explicit choice wins; otherwise ask international
-    // serviceability for the recommended one. Best-effort — if serviceability
-    // fails we still assign and let Shiprocket default.
-    let courierId = input.preferred_courier_id
-    if (!courierId) {
+    // serviceability for the recommended one. Live-verified (#1111): intl
+    // serviceability only answers in the `order_id` mode, so the lookup must
+    // happen AFTER the order is created (the domestic flow auto-selects on
+    // assign, but international assign needs an explicit courier). Best-effort —
+    // if serviceability fails we still assign and let Shiprocket default.
+    const resolveCourierId = async (
+      srOrderIdForRates: any
+    ): Promise<string | number | undefined> => {
+      if (input.preferred_courier_id) return input.preferred_courier_id
       try {
         const rates = await this.getInternationalRates({
-          destination_country: input.to.country || "",
-          weight_grams: input.weight_grams,
+          order_id: srOrderIdForRates,
         })
-        courierId =
+        return (
           rates.find((r) => r.is_recommended)?.courier_id || rates[0]?.courier_id
+        )
       } catch {
-        // serviceability best-effort; assign below can still auto-select.
+        return undefined
       }
     }
 
-    const assignAwb = async (shipmentIdToAssign: any) => {
+    const assignAwb = async (shipmentIdToAssign: any, courierId?: string | number) => {
       const assignBody: Record<string, any> = { shipment_id: [shipmentIdToAssign] }
       if (courierId) assignBody.courier_id = courierId
       return this.request<any>(`/international/courier/assign/awb`, {
@@ -737,7 +749,10 @@ export class ShiprocketClient implements ShippingProviderClient {
     let created = await createAdhoc(String(createBody.order_id))
     let assigned: any
     try {
-      assigned = await assignAwb(created.shipment_id)
+      assigned = await assignAwb(
+        created.shipment_id,
+        await resolveCourierId(created.order_id)
+      )
     } catch (e: any) {
       const cancelled =
         e instanceof ShiprocketApiError && /cancell?ed state/i.test(e.message)
@@ -745,7 +760,10 @@ export class ShiprocketClient implements ShippingProviderClient {
       created = await createAdhoc(
         `${input.reference_id}-R${Date.now().toString(36)}`
       )
-      assigned = await assignAwb(created.shipment_id)
+      assigned = await assignAwb(
+        created.shipment_id,
+        await resolveCourierId(created.order_id)
+      )
     }
 
     const srOrderId = created?.order_id
