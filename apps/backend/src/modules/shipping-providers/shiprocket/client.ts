@@ -720,21 +720,27 @@ export class ShiprocketClient implements ShippingProviderClient {
     // serviceability only answers in the `order_id` mode, so the lookup must
     // happen AFTER the order is created (the domestic flow auto-selects on
     // assign, but international assign needs an explicit courier). Best-effort —
-    // if serviceability fails we still assign and let Shiprocket default.
-    const resolveCourierId = async (
+    // if serviceability fails we still assign and let Shiprocket default. We
+    // return the chosen RateOption too so the caller can surface which courier
+    // (and rate/currency) was auto-selected — S3 chose auto-select-only, so this
+    // read-only visibility replaces a picker.
+    const resolveCourier = async (
       srOrderIdForRates: any
-    ): Promise<string | number | undefined> => {
-      if (input.preferred_courier_id) return input.preferred_courier_id
+    ): Promise<{ id?: string | number; rate?: RateOption }> => {
+      let rate: RateOption | undefined
       try {
         const rates = await this.getInternationalRates({
           order_id: srOrderIdForRates,
         })
-        return (
-          rates.find((r) => r.is_recommended)?.courier_id || rates[0]?.courier_id
-        )
+        rate = input.preferred_courier_id
+          ? rates.find(
+              (r) => String(r.courier_id) === String(input.preferred_courier_id)
+            )
+          : rates.find((r) => r.is_recommended) || rates[0]
       } catch {
-        return undefined
+        // best-effort — assign can still auto-select carrier-side.
       }
+      return { id: input.preferred_courier_id ?? rate?.courier_id, rate }
     }
 
     const assignAwb = async (shipmentIdToAssign: any, courierId?: string | number) => {
@@ -747,12 +753,10 @@ export class ShiprocketClient implements ShippingProviderClient {
     }
 
     let created = await createAdhoc(String(createBody.order_id))
+    let courier = await resolveCourier(created.order_id)
     let assigned: any
     try {
-      assigned = await assignAwb(
-        created.shipment_id,
-        await resolveCourierId(created.order_id)
-      )
+      assigned = await assignAwb(created.shipment_id, courier.id)
     } catch (e: any) {
       const cancelled =
         e instanceof ShiprocketApiError && /cancell?ed state/i.test(e.message)
@@ -760,10 +764,8 @@ export class ShiprocketClient implements ShippingProviderClient {
       created = await createAdhoc(
         `${input.reference_id}-R${Date.now().toString(36)}`
       )
-      assigned = await assignAwb(
-        created.shipment_id,
-        await resolveCourierId(created.order_id)
-      )
+      courier = await resolveCourier(created.order_id)
+      assigned = await assignAwb(created.shipment_id, courier.id)
     }
 
     const srOrderId = created?.order_id
@@ -792,8 +794,11 @@ export class ShiprocketClient implements ShippingProviderClient {
       provider_refs: {
         sr_order_id: srOrderId,
         shipment_id: shipmentId,
-        courier_company_id: awbData.courier_company_id,
-        courier_name: awbData.courier_name,
+        courier_company_id: awbData.courier_company_id ?? courier.rate?.courier_id,
+        courier_name: awbData.courier_name ?? courier.rate?.courier_name,
+        // The auto-selected international courier's quoted rate (S3 visibility).
+        courier_rate: courier.rate?.amount,
+        courier_rate_currency: courier.rate?.currency_code,
         international: true,
       },
       raw: { created, assigned },
