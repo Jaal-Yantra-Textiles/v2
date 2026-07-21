@@ -1,6 +1,7 @@
 import { ExecArgs } from "@medusajs/framework/types"
 import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { createOrderFulfillmentWorkflow } from "@medusajs/medusa/core-flows"
+import { ensureOrderFulfillment } from "../../apps/backend/src/workflows/orders/fulfillment-context"
 import Scrypt from "scrypt-kdf"
 import * as fs from "fs"
 import * as path from "path"
@@ -150,6 +151,79 @@ async function seedShipmentTrackingOrder(container: any): Promise<string> {
   return order.id
 }
 
+/**
+ * #1112 — seed a design-LESS product that has been sold and fulfilled, so the
+ * admin product-detail "Production Runs" section (in the Linked Designs widget)
+ * can be eyeballed in CI. Fulfilling emits `order.fulfillment_created`, whose
+ * subscriber retroactively mints a COMPLETED product-only run (design_id null)
+ * hung off the product spine. Returns the product id.
+ */
+async function seedProvenanceProductRun(container: any): Promise<string> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const productModule: any = container.resolve(Modules.PRODUCT)
+  const orderModule: any = container.resolve(Modules.ORDER)
+
+  const { data: regions } = await query.graph({
+    entity: "region",
+    fields: ["id", "currency_code"],
+  })
+  const region = regions?.[0]
+  if (!region) {
+    throw new Error(
+      "E2E seed: no region found. Run the demo seed first: `medusa exec ./src/scripts/seed.ts`."
+    )
+  }
+
+  const product = await productModule.createProducts({
+    title: "Retail Provenance Stole (e2e)",
+    status: "published",
+    handle: `e2e-provenance-${Date.now()}`,
+    options: [{ title: "Default", values: ["Default"] }],
+  })
+
+  const created: any = await orderModule.createOrders({
+    status: "pending",
+    region_id: region.id,
+    currency_code: region.currency_code || "usd",
+    email: "e2e-provenance@jyt.test",
+    // Title-only line item carrying product_id (no variant → no inventory), so
+    // the manual fulfillment path works and the run is hung off the product.
+    items: [
+      {
+        title: "Retail Provenance Stole (e2e)",
+        quantity: 3,
+        unit_price: 2500,
+        product_id: product.id,
+      },
+    ],
+    metadata: { source: "e2e-provenance" },
+  })
+  const order = Array.isArray(created) ? created[0] : created
+
+  await ensureOrderFulfillment(container, order.id)
+
+  // The subscriber mints the run async on the emitted event — poll for it so
+  // the seed file only advertises the product once its run exists.
+  let minted = false
+  for (let i = 0; i < 40; i++) {
+    const { data: runs } = await query.graph({
+      entity: "production_runs",
+      fields: ["id", "design_id", "status"],
+      filters: { product_id: product.id },
+    })
+    if ((runs || []).length) {
+      minted = true
+      break
+    }
+    await new Promise((r) => setTimeout(r, 250))
+  }
+  if (!minted) {
+    throw new Error("E2E seed: product-only production run was not minted")
+  }
+
+  return product.id
+}
+
 const SEED_PASSWORD = "e2etest123!"
 const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
 
@@ -251,12 +325,16 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: creating retail order with Shiprocket shipment (#1118)...")
   const shipmentOrderId = await seedShipmentTrackingOrder(container)
 
+  logger.info("E2E seed: creating design-less product + fulfilled order → product-only run (#1112)...")
+  const provenanceProductId = await seedProvenanceProductRun(container)
+
   const seedData = {
     email,
     password: SEED_PASSWORD,
     websiteId: website.id,
     domain,
     shipmentOrderId,
+    provenanceProductId,
   }
 
   fs.writeFileSync(SEED_FILE, JSON.stringify(seedData, null, 2))
