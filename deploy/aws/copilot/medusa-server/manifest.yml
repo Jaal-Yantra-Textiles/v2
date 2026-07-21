@@ -101,6 +101,11 @@ variables:
 # in the SSM section below; ECS resolves both at task start.
 secrets:
   ADMIN_CORS: /jyt/prod/ADMIN_CORS
+  # #1092 — retire the legacy V4 admin chat (routes 410 → new MCP assistant).
+  ADMIN_V4_CHAT_DEPRECATED: /jyt/prod/ADMIN_V4_CHAT_DEPRECATED
+  # #1092 — expose the platform-destructive admin MCP tools (delete_product).
+  # Each call still requires confirm:true AND a human reason.
+  ADMIN_MCP_ENABLE_DANGEROUS: /jyt/prod/ADMIN_MCP_ENABLE_DANGEROUS
   ADMIN_OPENAPI_CATALOG_TOKEN: /jyt/prod/ADMIN_OPENAPI_CATALOG_TOKEN
   ADMIN_OPENAPI_CATALOG_URL: /jyt/prod/ADMIN_OPENAPI_CATALOG_URL
   ADMIN_RAG_EMBED_PROVIDER: /jyt/prod/ADMIN_RAG_EMBED_PROVIDER
