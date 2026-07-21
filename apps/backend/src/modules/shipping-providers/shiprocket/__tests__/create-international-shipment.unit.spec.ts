@@ -225,6 +225,12 @@ describe("ShiprocketClient.createShipment — international routing", () => {
     // ...and its recommended courier (140) rode along on the assign body.
     const assign = hits.find((h) => h.url.includes("/international/courier/assign/awb"))
     expect(assign?.body?.courier_id).toBe(140)
+    // The auto-selected courier's quoted rate + currency surface for visibility
+    // (S3 auto-select-only): courier 140 was quoted 1500 USD.
+    expect(result.provider_refs).toMatchObject({
+      courier_rate: 1500,
+      courier_rate_currency: "usd",
+    })
     // Serviceability ran AFTER create (order_id only exists post-create).
     const createIdx = hits.findIndex((h) => h.url.includes("/international/orders/create/adhoc"))
     const svcIdx = hits.findIndex((h) => h.url.includes("/international/courier/serviceability"))

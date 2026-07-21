@@ -18,6 +18,14 @@ import {
 } from "../../modules/shipping-providers/pickup-locations"
 import { resolveSellerTaxIdForOrder } from "../../modules/shipping-providers/seller-tax-id"
 import { resolveOrderShipFromLocation } from "../../modules/shipping-providers/order-partner-origin"
+import { isInternationalDestination } from "../../modules/shipping-providers/shiprocket/client"
+import {
+  SHIPROCKET_FX_TARGET,
+  SHIPROCKET_SUPPORTED_CURRENCIES,
+  convertShipmentCurrency,
+  isShiprocketSupportedCurrency,
+} from "../../modules/shipping-providers/shiprocket/currency"
+import { FX_RATES_MODULE } from "../../modules/fx_rates"
 
 /**
  * #404 (#31) PR-B — generate a Shiprocket shipment (forward order → AWB → label)
@@ -283,13 +291,46 @@ export async function createShiprocketShipmentForFulfillment(
     (order as any)?.shipping_address?.country_code
   )
 
-  const shipmentInput = buildCreateShipmentInput(order as OrderForShipment, {
+  let shipmentInput = buildCreateShipmentInput(order as OrderForShipment, {
     pickupLocationName,
     weightGrams: input.weightGrams,
     dimensionsCm: input.dimensionsCm,
     preferredCourierId: input.preferredCourierId,
     taxId,
   })
+
+  // International FX (#1111 S3). Shiprocket declares the customs value only in a
+  // fixed currency set; an order priced outside it (e.g. THB/JPY/ZAR) must be
+  // converted or the commercial invoice is invalid. Convert the declared value +
+  // line prices into USD at the cached FX rate. A missing rate is a clean,
+  // actionable error rather than a confusing carrier-side rejection. Domestic
+  // and already-supported currencies pass through untouched.
+  if (
+    isInternationalDestination(shipmentInput.to.country) &&
+    shipmentInput.currency &&
+    !isShiprocketSupportedCurrency(shipmentInput.currency)
+  ) {
+    const from = shipmentInput.currency
+    try {
+      const fx: any = container.resolve(FX_RATES_MODULE)
+      const rate = await fx.getRate(from, SHIPROCKET_FX_TARGET)
+      shipmentInput = convertShipmentCurrency(
+        shipmentInput,
+        SHIPROCKET_FX_TARGET,
+        rate
+      )
+    } catch (e: any) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Cannot ship internationally in ${from}: Shiprocket accepts only ${Array.from(
+          SHIPROCKET_SUPPORTED_CURRENCIES
+        ).join(", ")}, and no FX rate ${from}→${SHIPROCKET_FX_TARGET} is available (${
+          e?.message || "no path"
+        }). Add the FX rate or price this order in a supported currency.`
+      )
+    }
+  }
+
   const result = await provider.createShipment(shipmentInput)
 
   // Persist the carrier refs onto fulfillment.data (what label/tracking read).
