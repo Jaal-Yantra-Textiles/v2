@@ -7,6 +7,7 @@ import {
   OrderLineItemDTO,
 } from "@medusajs/types"
 import {
+  Badge,
   Button,
   Container,
   Copy,
@@ -558,6 +559,48 @@ const Fulfillment = ({
           {formatProvider(fulfillment.provider_id)}
         </Text>
       </div>
+      {/* Auto-selected carrier courier + quoted rate (#1116 / #1118 partner
+          parity) — sourced from the fulfillment's stamped provider_refs, so no
+          extra fetch. Only shown once the carrier flow has resolved a courier. */}
+      {(() => {
+        const refs = (fulfillment as any).data?.provider_refs
+        const courierName: string | undefined = refs?.courier_name
+        const rate = refs?.courier_rate
+        const hasRate = rate != null && Number.isFinite(Number(rate))
+        const isInternational = !!refs?.international
+        if (!courierName && !hasRate && !isInternational) return null
+        return (
+          <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
+            <Text size="small" leading="compact" weight="plus">
+              Courier
+            </Text>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              {courierName && (
+                <Text size="small" leading="compact">
+                  {courierName}
+                </Text>
+              )}
+              {isInternational && (
+                <Badge size="2xsmall" color="purple">
+                  International
+                </Badge>
+              )}
+              {hasRate && (
+                <Text
+                  size="small"
+                  leading="compact"
+                  className="text-ui-fg-muted"
+                >
+                  {getLocaleAmount(
+                    Number(rate),
+                    refs?.courier_rate_currency || order.currency_code
+                  )}
+                </Text>
+              )}
+            </div>
+          </div>
+        )
+      })()}
       <div className="text-ui-fg-subtle grid grid-cols-2 items-start px-6 py-4">
         <Text size="small" leading="compact" weight="plus">
           {t("orders.fulfillment.trackingLabel")}

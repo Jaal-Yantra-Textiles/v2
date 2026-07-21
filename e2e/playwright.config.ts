@@ -10,6 +10,11 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: 1,
   reporter: process.env.CI ? "github" : "list",
+  // On CI the admin bundle is compiled lazily by `medusa develop` on the first
+  // request to /app, so the first navigation can take far longer than a warm
+  // local dev server. Give tests (and assertions) generous headroom there.
+  timeout: process.env.CI ? 120_000 : 30_000,
+  expect: { timeout: process.env.CI ? 15_000 : 5_000 },
 
   webServer: {
     command: `pnpm exec medusa develop`,
