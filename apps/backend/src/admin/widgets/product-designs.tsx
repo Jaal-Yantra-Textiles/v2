@@ -409,6 +409,10 @@ const ProductDesignsWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
           </div>
         )}
       </div>
+
+      {/* #1112 — product-level provenance runs (design-less, from retail
+          fulfillment). Renders regardless of linked designs. */}
+      <ProductProvenanceRunsSection productId={data.id!} />
     </Container>
   )
 }
