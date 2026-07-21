@@ -333,7 +333,10 @@ export async function createShiprocketShipmentForFulfillment(
 
   const result = await provider.createShipment(shipmentInput)
 
-  // Persist the carrier refs onto fulfillment.data (what label/tracking read).
+  // Persist the carrier refs onto fulfillment.data (what label/tracking read),
+  // AND stamp the AWB as a fulfillment_label tracking number — the queryable
+  // key the tracking webhook matches core-order pushes on (data.waybill is
+  // JSONB and can't be filtered). Only when an AWB actually came back.
   await fulfillmentModule.updateFulfillment(input.fulfillmentId, {
     data: {
       ...(fulfillment.data || {}),
@@ -346,6 +349,17 @@ export async function createShiprocketShipmentForFulfillment(
       sr_order_id: result.provider_refs?.sr_order_id,
       provider_refs: result.provider_refs,
     },
+    ...(result.awb
+      ? {
+          labels: [
+            {
+              tracking_number: result.awb,
+              tracking_url: result.tracking_url || "",
+              label_url: result.label_url || "",
+            },
+          ],
+        }
+      : {}),
   })
 
   return { ...result, fulfillment_id: input.fulfillmentId }

@@ -32,6 +32,13 @@ export const shiprocketStubState: {
   lastAddPickupBody?: any
   /** International create/adhoc body (#1111). Also mirrored onto lastAdhocBody. */
   lastIntlAdhocBody?: any
+  /**
+   * Override the AWB the assign endpoints return (default STUBAWB123). Lets a
+   * spec generate a shipment with a UNIQUE waybill so its webhook push can't
+   * collide with another spec's shipment in the shared test DB (#1111 core-order
+   * tracking). Reset to undefined in the spec's cleanup.
+   */
+  awbOverride?: string
 } = {}
 
 const parseBody = (init: any): any => {
@@ -82,7 +89,7 @@ export function createShiprocketStubFetch(): FetchLike {
       return json({
         response: {
           data: {
-            awb_code: "STUBAWB123",
+            awb_code: shiprocketStubState.awbOverride || "STUBAWB123",
             courier_company_id: 301,
             courier_name: "DHL Express Intl",
           },
@@ -101,7 +108,7 @@ export function createShiprocketStubFetch(): FetchLike {
       return json({
         response: {
           data: {
-            awb_code: "STUBAWB123",
+            awb_code: shiprocketStubState.awbOverride || "STUBAWB123",
             courier_company_id: 51,
             courier_name: "Xpressbees Surface",
           },
