@@ -36,6 +36,8 @@ export type OrderForShipment = {
   email?: string | null
   total?: number | null
   subtotal?: number | null
+  /** ISO-4217 currency the order was placed in — declared value for intl customs (#1111). */
+  currency_code?: string | null
   metadata?: Record<string, any> | null
   shipping_address?: Record<string, any> | null
   items?: Array<{
@@ -43,6 +45,9 @@ export type OrderForShipment = {
     quantity?: number | null
     unit_price?: number | null
     sku?: string | null
+    /** HSN/HS code (customs). Sourced from the product; carried in line metadata for now (#1111). */
+    hs_code?: string | null
+    metadata?: Record<string, any> | null
   }> | null
 }
 
@@ -73,6 +78,10 @@ export function buildCreateShipmentInput(
     sku: li.sku || undefined,
     quantity: Number(li.quantity) || 1,
     unit_price: Number(li.unit_price) || 0,
+    // HSN for international customs (#1111): prefer the product's hs_code, then
+    // line metadata. Domestic shipments ignore it; the client requires it only
+    // when the destination is international.
+    hsn: (li.hs_code || li.metadata?.hsn || undefined) as string | undefined,
   }))
   const subTotal =
     order.subtotal != null
@@ -104,6 +113,9 @@ export function buildCreateShipmentInput(
     weight_grams: opts.weightGrams || DEFAULT_WEIGHT_GRAMS,
     dimensions_cm: opts.dimensionsCm,
     sub_total: subTotal,
+    // Declared-value currency for international customs (#1111). Shiprocket reads
+    // intl amounts in this currency; domestic ignores it.
+    currency: order.currency_code ? String(order.currency_code).toUpperCase() : undefined,
     preferred_courier_id: opts.preferredCourierId,
     tax_id: opts.taxId,
   }
@@ -144,11 +156,13 @@ export async function createShiprocketShipmentForFulfillment(
       "email",
       "total",
       "subtotal",
+      "currency_code",
       "metadata",
       "shipping_address.*",
       "items.title",
       "items.quantity",
       "items.unit_price",
+      "items.metadata",
       "fulfillments.id",
       "fulfillments.location_id",
       "fulfillments.data",

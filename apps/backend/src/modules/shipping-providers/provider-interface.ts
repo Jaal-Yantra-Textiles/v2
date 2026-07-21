@@ -56,6 +56,26 @@ export type Dimensions = {
   height: number
 }
 
+/**
+ * Customs declaration for an INTERNATIONAL shipment (#1111). Only consulted when
+ * the destination is outside the origin country. All fields optional — the
+ * carrier client applies sensible retail-sale defaults (a commercial export,
+ * FOB terms) when omitted. Values mirror Shiprocket's international
+ * `create/adhoc` contract (see apps/docs/notes/SHIPROCKET_INTERNATIONAL_API.md).
+ */
+export type CustomsDeclaration = {
+  /** 0 BONAFIDE_SAMPLE · 1 SAMPLE · 2 GIFT · 3 COMMERCIAL. Default 3 (a sale). */
+  reason_of_export?: 0 | 1 | 2 | 3
+  /** 0 gift · 1 sample · 2 commercial. Default 2. */
+  purpose_of_shipment?: 0 | 1 | 2
+  /** Incoterms on the commercial invoice. Default "FOB". */
+  terms_of_invoice?: "FOB" | "CIF"
+  /** IGST: A not-applicable · B LUT/Export-under-Bond · C against IGST payment. Default "A". */
+  igst_payment_status?: "A" | "B" | "C"
+  /** Whether the order is a commodity. Default true. */
+  commodity?: boolean
+}
+
 export type CreateShipmentInput = {
   /** Our order / fulfillment id — the external reference the carrier echoes back. */
   reference_id: string
@@ -74,6 +94,18 @@ export type CreateShipmentInput = {
   dimensions_cm?: Dimensions
   /** Order sub-total (major units). Shiprocket requires it; also the COD amount. */
   sub_total?: number
+  /**
+   * ISO-4217 currency of the order amounts (#1111). Required by Shiprocket's
+   * international create flow — the declared value / line prices are read in THIS
+   * currency (not forced to INR). Ignored on domestic shipments. Shiprocket
+   * supports INR, USD, GBP, EUR, AUD, CAD, SAR, AED, SGD.
+   */
+  currency?: string
+  /**
+   * Customs declaration for international destinations (#1111). Optional — the
+   * carrier client fills retail-sale defaults. Ignored on domestic shipments.
+   */
+  customs?: CustomsDeclaration
   /** Aggregator courier choice (Shiprocket `courier_company_id`). Ignored by
    *  single-carrier providers. When omitted, the provider auto-selects. */
   preferred_courier_id?: string | number
