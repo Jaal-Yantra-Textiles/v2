@@ -11,9 +11,9 @@
  * This lives alongside the legacy V4 hybrid-resolver chat (routes/chats) rather
  * than replacing it, per the epic's one-release deprecation window.
  */
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { ChatBubbleLeftRight, Sparkles, ArrowUpMini, Spinner, Check, ExclamationCircle, ArrowPathMini, SquareTwoStack } from "@medusajs/icons"
+import { ChatBubbleLeftRight, Sparkles, ArrowUpMini, Spinner, Check, ExclamationCircle, ArrowPathMini, SquareTwoStack, Plus, Trash } from "@medusajs/icons"
 import { Container, Heading, Text, Button, Textarea, IconButton, Badge, Table, toast } from "@medusajs/ui"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
@@ -298,9 +298,59 @@ const CopyButton = ({ text }: { text: string }) => {
   )
 }
 
-const AssistantChat = () => {
+// ─── Conversation persistence (history) ──────────────────────────────────────
+
+type ConversationSummary = {
+  id: string
+  title: string
+  created_at?: string
+  updated_at?: string
+}
+
+type StoredMessage = { id: string; role: string; parts: any[] }
+
+const CONVERSATIONS_URL = `${API_BASE_URL.replace(/\/$/, "")}/admin/assistant/conversations`
+
+/** Admin session cookie authenticates; small typed fetch wrapper. */
+async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    ...init,
+  })
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  return (await res.json()) as T
+}
+
+/** First user message → conversation title (trimmed to a sane length). */
+function deriveTitle(messages: any[]): string {
+  const firstUser = messages.find((m) => m.role === "user")
+  const text = getText(firstUser?.parts).trim()
+  if (!text) return "New chat"
+  return text.length > 60 ? `${text.slice(0, 57)}…` : text
+}
+
+/** Reduce UI messages to the storable shape (id/role/parts). */
+function toStored(messages: any[]): StoredMessage[] {
+  return messages.map((m) => ({ id: m.id, role: m.role, parts: m.parts }))
+}
+
+const AssistantChat = ({
+  conversationId,
+  initialMessages,
+  onCreated,
+}: {
+  conversationId: string | null
+  initialMessages: StoredMessage[]
+  onCreated: (id: string, title: string) => void
+}) => {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [input, setInput] = useState("")
+  const idRef = useRef<string | null>(conversationId)
+  const persistingRef = useRef(false)
+  const lastPersistedRef = useRef<string>(
+    JSON.stringify(initialMessages.map((m) => [m.id, m.parts?.length]))
+  )
 
   const transport = useMemo(
     () =>
@@ -312,7 +362,7 @@ const AssistantChat = () => {
   )
 
   const { messages, sendMessage, status, error, stop, regenerate, clearError } =
-    useChat({ transport })
+    useChat({ transport, messages: initialMessages as any })
   const streaming = status === "submitted" || status === "streaming"
 
   const retry = () => {
@@ -328,6 +378,43 @@ const AssistantChat = () => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [messages, status])
 
+  // Persist the thread after each completed turn: create-on-first-turn, then
+  // patch. A ref-guarded snapshot avoids redundant writes and re-entrancy.
+  useEffect(() => {
+    if (status !== "ready" || messages.length === 0) return
+    const snapshot = JSON.stringify(messages.map((m: any) => [m.id, m.parts?.length]))
+    if (snapshot === lastPersistedRef.current || persistingRef.current) return
+
+    persistingRef.current = true
+    const stored = toStored(messages as any[])
+    const run = async () => {
+      try {
+        if (idRef.current) {
+          await apiFetch(`${CONVERSATIONS_URL}/${idRef.current}`, {
+            method: "PATCH",
+            body: JSON.stringify({ messages: stored }),
+          })
+        } else {
+          const title = deriveTitle(messages as any[])
+          const { conversation } = await apiFetch<{
+            conversation: { id: string; title: string }
+          }>(CONVERSATIONS_URL, {
+            method: "POST",
+            body: JSON.stringify({ title, messages: stored }),
+          })
+          idRef.current = conversation.id
+          onCreated(conversation.id, conversation.title)
+        }
+        lastPersistedRef.current = snapshot
+      } catch {
+        // Non-fatal: the chat still works, history just didn't save this turn.
+      } finally {
+        persistingRef.current = false
+      }
+    }
+    void run()
+  }, [status, messages, onCreated])
+
   const submit = (text: string) => {
     const t = text.trim()
     if (!t || streaming) return
@@ -336,17 +423,7 @@ const AssistantChat = () => {
   }
 
   return (
-    <Container className="flex h-[calc(100vh-140px)] flex-col overflow-hidden p-0">
-      <div className="border-ui-border-base flex items-center gap-2 border-b px-6 py-4">
-        <Sparkles className="text-ui-fg-interactive" />
-        <div>
-          <Heading level="h2">Admin Assistant</Heading>
-          <Text size="small" className="text-ui-fg-subtle">
-            Ask about orders, partners, production and more — it reads the Admin API for you.
-          </Text>
-        </div>
-      </div>
-
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
         {messages.length === 0 ? (
           <div className="flex flex-col gap-2">
@@ -450,6 +527,171 @@ const AssistantChat = () => {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── History sidebar ─────────────────────────────────────────────────────────
+
+const HistorySidebar = ({
+  conversations,
+  activeId,
+  loading,
+  onNew,
+  onSelect,
+  onDelete,
+}: {
+  conversations: ConversationSummary[]
+  activeId: string | null
+  loading: boolean
+  onNew: () => void
+  onSelect: (id: string) => void
+  onDelete: (id: string) => void
+}) => (
+  <div className="border-ui-border-base flex w-64 shrink-0 flex-col border-r">
+    <div className="border-ui-border-base border-b p-3">
+      <Button variant="secondary" size="small" className="w-full" onClick={onNew}>
+        <Plus /> New chat
+      </Button>
+    </div>
+    <div className="min-h-0 flex-1 overflow-y-auto p-2">
+      {loading ? (
+        <Text size="xsmall" className="text-ui-fg-muted px-2 py-1">
+          Loading…
+        </Text>
+      ) : conversations.length === 0 ? (
+        <Text size="xsmall" className="text-ui-fg-muted px-2 py-1">
+          No conversations yet.
+        </Text>
+      ) : (
+        conversations.map((c) => (
+          <div
+            key={c.id}
+            className={`group flex items-center gap-1 rounded-md px-2 py-1.5 ${
+              c.id === activeId ? "bg-ui-bg-base-pressed" : "hover:bg-ui-bg-base-hover"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => onSelect(c.id)}
+              className="text-ui-fg-subtle hover:text-ui-fg-base flex-1 truncate text-left text-sm"
+              title={c.title}
+            >
+              {c.title}
+            </button>
+            <button
+              type="button"
+              onClick={() => onDelete(c.id)}
+              className="text-ui-fg-muted hover:text-ui-fg-error opacity-0 transition-opacity group-hover:opacity-100"
+              aria-label="Delete conversation"
+            >
+              <Trash className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ))
+      )}
+    </div>
+  </div>
+)
+
+// ─── Page (two-pane: history + chat) ─────────────────────────────────────────
+
+const AssistantPage = () => {
+  const [conversations, setConversations] = useState<ConversationSummary[]>([])
+  const [loading, setLoading] = useState(true)
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [initialMessages, setInitialMessages] = useState<StoredMessage[]>([])
+  // Bumping this remounts <AssistantChat>, resetting useChat for a fresh thread
+  // or a freshly-loaded conversation.
+  const [threadKey, setThreadKey] = useState(0)
+
+  const refreshList = useCallback(async () => {
+    try {
+      const { conversations } = await apiFetch<{
+        conversations: ConversationSummary[]
+      }>(CONVERSATIONS_URL)
+      setConversations(conversations)
+    } catch {
+      // Non-fatal: the chat still works without the history list.
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshList()
+  }, [refreshList])
+
+  const startNew = useCallback(() => {
+    setActiveId(null)
+    setInitialMessages([])
+    setThreadKey((k) => k + 1)
+  }, [])
+
+  const openConversation = useCallback(async (id: string) => {
+    try {
+      const { conversation } = await apiFetch<{
+        conversation: { id: string; messages: StoredMessage[] }
+      }>(`${CONVERSATIONS_URL}/${id}`)
+      setActiveId(id)
+      setInitialMessages(conversation.messages || [])
+      setThreadKey((k) => k + 1)
+    } catch {
+      toast.error("Could not open that conversation.")
+    }
+  }, [])
+
+  const deleteConversation = useCallback(
+    async (id: string) => {
+      try {
+        await apiFetch(`${CONVERSATIONS_URL}/${id}`, { method: "DELETE" })
+        setConversations((prev) => prev.filter((c) => c.id !== id))
+        if (id === activeId) startNew()
+      } catch {
+        toast.error("Could not delete that conversation.")
+      }
+    },
+    [activeId, startNew]
+  )
+
+  const onCreated = useCallback(
+    (id: string, title: string) => {
+      setActiveId(id)
+      setConversations((prev) => [
+        { id, title },
+        ...prev.filter((c) => c.id !== id),
+      ])
+    },
+    []
+  )
+
+  return (
+    <Container className="flex h-[calc(100vh-140px)] flex-col overflow-hidden p-0">
+      <div className="border-ui-border-base flex items-center gap-2 border-b px-6 py-4">
+        <Sparkles className="text-ui-fg-interactive" />
+        <div>
+          <Heading level="h2">Admin Assistant</Heading>
+          <Text size="small" className="text-ui-fg-subtle">
+            Ask about orders, partners, production and more — it reads the Admin API for you.
+          </Text>
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1">
+        <HistorySidebar
+          conversations={conversations}
+          activeId={activeId}
+          loading={loading}
+          onNew={startNew}
+          onSelect={openConversation}
+          onDelete={deleteConversation}
+        />
+        <AssistantChat
+          key={threadKey}
+          conversationId={activeId}
+          initialMessages={initialMessages}
+          onCreated={onCreated}
+        />
+      </div>
     </Container>
   )
 }
@@ -459,4 +701,4 @@ export const config = defineRouteConfig({
   icon: ChatBubbleLeftRight,
 })
 
-export default AssistantChat
+export default AssistantPage

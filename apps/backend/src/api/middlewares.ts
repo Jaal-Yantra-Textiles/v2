@@ -122,6 +122,7 @@ import { ThemeChatSchema } from "./partners/storefront/website/theme/chat/valida
 import { PartnerAssistantChatSchema } from "./partners/assistant/chat/validators";
 import { PartnerAssistantSummarizeSchema } from "./partners/assistant/summarize/validators";
 import { CreateConversationSchema as PartnerCreateConversationSchema, UpdateConversationSchema as PartnerUpdateConversationSchema } from "./partners/assistant/conversations/validators";
+import { CreateConversationSchema as AdminAssistantCreateConversationSchema, UpdateConversationSchema as AdminAssistantUpdateConversationSchema } from "./admin/assistant/conversations/validators";
 import { createPlanSchema, updatePlanSchema, createSubscriptionSchema } from "./admin/partner-plans/validators";
 import { subscribeSchema as partnerSubscribeSchema } from "./partners/subscription/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
@@ -2266,6 +2267,23 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Admin assistant conversation history (#1092) — server-persisted chat
+    // threads, user-scoped. /admin/* is admin-authenticated globally, so only
+    // the write bodies need validation.
+    {
+      matcher: "/admin/assistant/conversations",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AdminAssistantCreateConversationSchema)),
+      ],
+    },
+    {
+      matcher: "/admin/assistant/conversations/:id",
+      method: "PATCH",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AdminAssistantUpdateConversationSchema)),
       ],
     },
     // Partner Subscription
