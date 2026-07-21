@@ -1,3 +1,24 @@
+# [13.66.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.65.0...v13.66.0) (2026-07-21)
+
+
+### Bug Fixes
+
+* **production-runs:** actually render the product-only runs section [[#1112](https://github.com/Jaal-Yantra-Textiles/v2/issues/1112)] ([#1125](https://github.com/Jaal-Yantra-Textiles/v2/issues/1125)) ([4767bf1](https://github.com/Jaal-Yantra-Textiles/v2/commit/4767bf1cd892b16062a92a01b4f5925dd7b7bef9))
+* **admin:** correct guarded-tool confirm args + polish approval card & chat UX [[#1092](https://github.com/Jaal-Yantra-Textiles/v2/issues/1092)] ([#1108](https://github.com/Jaal-Yantra-Textiles/v2/issues/1108)) ([b2948b7](https://github.com/Jaal-Yantra-Textiles/v2/commit/b2948b7947e972fbf928832a0e9ed7edd9750e6c))
+* **production-runs:** design-backed retail runs complete on fulfillment, not stuck pending_review [[#1126](https://github.com/Jaal-Yantra-Textiles/v2/issues/1126)] ([#1127](https://github.com/Jaal-Yantra-Textiles/v2/issues/1127)) ([15a028d](https://github.com/Jaal-Yantra-Textiles/v2/commit/15a028d63f50e004a74f5a2bcd8d961ae3a42c72)), closes [#1112](https://github.com/Jaal-Yantra-Textiles/v2/issues/1112) [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342) [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342)
+* **census:** redact raw survey PII from public read surface [[#1087](https://github.com/Jaal-Yantra-Textiles/v2/issues/1087)] ([#1097](https://github.com/Jaal-Yantra-Textiles/v2/issues/1097)) ([2f4e197](https://github.com/Jaal-Yantra-Textiles/v2/commit/2f4e197abc182178662efa05ee8a0de641c970f2))
+
+
+### Features
+
+* **shipping:** admin + partner shipment tracking UI, e2e in CI [[#1118](https://github.com/Jaal-Yantra-Textiles/v2/issues/1118)] ([#1119](https://github.com/Jaal-Yantra-Textiles/v2/issues/1119)) ([5665f7a](https://github.com/Jaal-Yantra-Textiles/v2/commit/5665f7ad3baaf5329dc36e7057f90791ecd780bd)), closes [#1116](https://github.com/Jaal-Yantra-Textiles/v2/issues/1116) [#1117](https://github.com/Jaal-Yantra-Textiles/v2/issues/1117)
+* **production-runs:** backfill job for historical fulfilled retail orders [[#1122](https://github.com/Jaal-Yantra-Textiles/v2/issues/1122)] ([#1128](https://github.com/Jaal-Yantra-Textiles/v2/issues/1128)) ([80cb46b](https://github.com/Jaal-Yantra-Textiles/v2/commit/80cb46be97bb1be18b0cff14ee7c8f484ecf0780)), closes [#1112](https://github.com/Jaal-Yantra-Textiles/v2/issues/1112) [#1126](https://github.com/Jaal-Yantra-Textiles/v2/issues/1126) [#1112](https://github.com/Jaal-Yantra-Textiles/v2/issues/1112) [#457](https://github.com/Jaal-Yantra-Textiles/v2/issues/457) [#1126](https://github.com/Jaal-Yantra-Textiles/v2/issues/1126) [#1126](https://github.com/Jaal-Yantra-Textiles/v2/issues/1126) [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342) [pre-#1112](https://github.com/pre-/issues/1112)
+* **admin:** conversation history + persistence for admin assistant [[#1092](https://github.com/Jaal-Yantra-Textiles/v2/issues/1092)] ([#1109](https://github.com/Jaal-Yantra-Textiles/v2/issues/1109)) ([7401f68](https://github.com/Jaal-Yantra-Textiles/v2/commit/7401f681cd245e2f622e78265b128cd0eb737646))
+* **shipping:** international retail shipping via Shiprocket [[#1111](https://github.com/Jaal-Yantra-Textiles/v2/issues/1111)] ([#1115](https://github.com/Jaal-Yantra-Textiles/v2/issues/1115)) ([243b64c](https://github.com/Jaal-Yantra-Textiles/v2/commit/243b64ce125550ded4e7ca60f12ea34d512dccad)), closes [#772](https://github.com/Jaal-Yantra-Textiles/v2/issues/772) [#638](https://github.com/Jaal-Yantra-Textiles/v2/issues/638) [#638](https://github.com/Jaal-Yantra-Textiles/v2/issues/638) [#638](https://github.com/Jaal-Yantra-Textiles/v2/issues/638)
+* **shipping:** intl currency FX conversion for Shiprocket customs [[#1111](https://github.com/Jaal-Yantra-Textiles/v2/issues/1111)] ([#1116](https://github.com/Jaal-Yantra-Textiles/v2/issues/1116)) ([7ea25af](https://github.com/Jaal-Yantra-Textiles/v2/commit/7ea25af2a4d9f4de703453067a4a9cf2bce83ff8))
+* **production-runs:** retail fulfillment → product-only run + design trail [[#1112](https://github.com/Jaal-Yantra-Textiles/v2/issues/1112)] ([#1120](https://github.com/Jaal-Yantra-Textiles/v2/issues/1120)) ([f749c77](https://github.com/Jaal-Yantra-Textiles/v2/commit/f749c7724076f1b5b8d1dac95194f31c61991cc1)), closes [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342)
+* **shipping:** webhook tracking sync for retail/core-order shipments [[#1111](https://github.com/Jaal-Yantra-Textiles/v2/issues/1111)] ([#1117](https://github.com/Jaal-Yantra-Textiles/v2/issues/1117)) ([d3db2cd](https://github.com/Jaal-Yantra-Textiles/v2/commit/d3db2cd8b1f0acc904b720f3687bc0f895f46f12))
+
 # [13.65.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.64.0...v13.65.0) (2026-07-21)
 
 
