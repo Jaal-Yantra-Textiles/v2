@@ -4,10 +4,19 @@ import type { Logger } from "@medusajs/types"
 import { sendOrderFulfillmentEmail } from "../workflows/email/send-notification-email"
 import { sendPartnerOrderFulfilledWorkflow } from "../workflows/email/workflows/send-partner-order-email"
 import { createProductionRunWorkflow } from "../workflows/production-runs/create-production-run"
+import { completeProvenanceRunWorkflow } from "../workflows/production-runs/complete-provenance-run"
 import {
-  hasProductionRunForLineItem,
+  getProductionRunForLineItem,
   resolveLineItemDesignId,
 } from "../lib/resolve-line-item-production"
+
+// #1126 — a run created at order.placed that is still in one of these
+// pre-production states means no production actually happened: the goods
+// shipped from stock. On fulfillment we transition it to `completed` (rather
+// than skipping) so design-backed retail provenance doesn't stay
+// `pending_review` forever. Runs already past this point (real production
+// underway) are left untouched.
+const PRE_PRODUCTION_STATUSES = new Set(["draft", "pending_review"])
 
 // #1112 — "fulfilled from produced stock" ⇒ retroactively mint a COMPLETED
 // production run per fulfilled line item, hung off the Product spine, carrying
@@ -65,8 +74,24 @@ async function createFulfillmentProductionRuns(
         continue
       }
 
-      // Shared idempotency with order.placed — skip if a run already exists.
-      if (await hasProductionRunForLineItem(query, lineItemId)) {
+      // Shared idempotency with order.placed. If a run already exists it was
+      // minted at payment for a design-backed line. When it's still
+      // pre-production the goods shipped from stock, so complete it here (#1126)
+      // — otherwise it would stay `pending_review` forever. A run already in
+      // production is left alone.
+      const existingRun = await getProductionRunForLineItem(query, lineItemId)
+      if (existingRun) {
+        if (PRE_PRODUCTION_STATUSES.has(existingRun.status)) {
+          await completeProvenanceRunWorkflow(container).run({
+            input: {
+              production_run_id: existingRun.id,
+              produced_quantity: quantity,
+            },
+          })
+          logger.info(
+            `[order.fulfillment_created] Completed design-backed provenance run ${existingRun.id} for line item ${lineItemId} (shipped from stock)`
+          )
+        }
         continue
       }
 

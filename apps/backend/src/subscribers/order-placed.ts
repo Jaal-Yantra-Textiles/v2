@@ -90,6 +90,12 @@ export default async function orderPlacedHandler({
           variant_id: variantId,
           order_id: order?.id,
           order_line_item_id: lineItemId,
+          // #1126 — a design-backed RETAIL run is provenance, not a partner
+          // work-order: don't project it onto the #342 unified view (it would
+          // be mis-discriminated as a design work-order). The run is born
+          // `pending_review` ("sold, not yet shipped") and is transitioned to
+          // `completed` by the fulfillment path once the goods ship from stock.
+          skip_unified_projection: true,
           metadata: {
             source: "order.placed",
             is_custom_design: isCustomDesign,
