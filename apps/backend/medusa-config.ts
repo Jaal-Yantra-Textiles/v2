@@ -187,6 +187,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/partner-assistant",
     },
     {
+      resolve: "./src/modules/admin-assistant",
+    },
+    {
       resolve: "./src/modules/artisan-product-detail",
     },
     {
