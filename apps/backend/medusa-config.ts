@@ -193,6 +193,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/artisan-product-detail",
     },
     {
+      resolve: "./src/modules/designer-invite",
+    },
+    {
       resolve: "./src/modules/partner_billing",
     },
     {

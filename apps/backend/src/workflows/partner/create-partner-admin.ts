@@ -20,6 +20,7 @@ export type CreatePartnerAdminWorkflowInput = {
         logo?: string
         status?: 'active' | 'inactive' | 'pending'
         is_verified?: boolean
+        workspace_type?: 'seller' | 'manufacturer' | 'individual' | 'designer'
     }
     admin: {
         email: string
