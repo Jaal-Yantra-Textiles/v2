@@ -92,6 +92,7 @@ import { backfillPartnerShippingOptionsJob } from "./backfill-partner-shipping-o
 import { repairShippingOptionStoreVisibilityJob } from "./repair-shipping-option-store-visibility-job"
 import { normalizeArtisanProductsJob } from "./normalize-artisan-products-job"
 import { linkArtisanDetailRowsJob } from "./link-artisan-detail-rows-job"
+import { backfillFulfilledRetailRunsJob } from "./backfill-fulfilled-retail-runs-job"
 import {
   sweepAiPlatformsByCategory,
   AI_ROLES,
@@ -5504,6 +5505,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   repairShippingOptionStoreVisibilityJob,
   normalizeArtisanProductsJob,
   linkArtisanDetailRowsJob,
+  backfillFulfilledRetailRunsJob,
   seedInvestorPanelsJob,
 ]
 

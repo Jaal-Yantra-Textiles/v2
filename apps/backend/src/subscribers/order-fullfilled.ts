@@ -5,25 +5,14 @@ import { sendOrderFulfillmentEmail } from "../workflows/email/send-notification-
 import { sendPartnerOrderFulfilledWorkflow } from "../workflows/email/workflows/send-partner-order-email"
 import { createProductionRunWorkflow } from "../workflows/production-runs/create-production-run"
 import { completeProvenanceRunWorkflow } from "../workflows/production-runs/complete-provenance-run"
-import {
-  getProductionRunForLineItem,
-  resolveLineItemDesignId,
-} from "../lib/resolve-line-item-production"
-
-// #1126 — a run created at order.placed that is still in one of these
-// pre-production states means no production actually happened: the goods
-// shipped from stock. On fulfillment we transition it to `completed` (rather
-// than skipping) so design-backed retail provenance doesn't stay
-// `pending_review` forever. Runs already past this point (real production
-// underway) are left untouched.
-const PRE_PRODUCTION_STATUSES = new Set(["draft", "pending_review"])
+import { planLineItemRunAction } from "../lib/plan-fulfillment-production-runs"
 
 // #1112 — "fulfilled from produced stock" ⇒ retroactively mint a COMPLETED
 // production run per fulfilled line item, hung off the Product spine, carrying
 // order/partner provenance. Runs on `order.fulfillment_created` (the intent
-// signal). Idempotent with the payment path (`order.placed`) via the shared
-// `order_line_item_id` guard, so design-backed products (whose run was already
-// created at payment) are skipped here and never double-created.
+// signal). The per-line decision (create / complete an existing pre-production
+// run / skip) lives in the shared `planLineItemRunAction` so this path and the
+// historical backfill job (#1122) can never drift or double-create.
 async function createFulfillmentProductionRuns(
   container: SubscriberArgs<any>["container"],
   data: { order_id: string; fulfillment_id: string },
@@ -65,50 +54,41 @@ async function createFulfillmentProductionRuns(
     for (const fi of fulfilledItems) {
       const lineItemId = fi.line_item_id as string
       const orderItem = itemById.get(lineItemId)
-      const productId = orderItem?.product_id as string | undefined
-      const variantId = orderItem?.variant_id as string | undefined
       const quantity = Number(fi.quantity) || 1
 
-      // No product to hang the run off → nothing to provenance.
-      if (!productId) {
-        continue
-      }
-
-      // Shared idempotency with order.placed. If a run already exists it was
-      // minted at payment for a design-backed line. When it's still
-      // pre-production the goods shipped from stock, so complete it here (#1126)
-      // — otherwise it would stay `pending_review` forever. A run already in
-      // production is left alone.
-      const existingRun = await getProductionRunForLineItem(query, lineItemId)
-      if (existingRun) {
-        if (PRE_PRODUCTION_STATUSES.has(existingRun.status)) {
-          await completeProvenanceRunWorkflow(container).run({
-            input: {
-              production_run_id: existingRun.id,
-              produced_quantity: quantity,
-            },
-          })
-          logger.info(
-            `[order.fulfillment_created] Completed design-backed provenance run ${existingRun.id} for line item ${lineItemId} (shipped from stock)`
-          )
-        }
-        continue
-      }
-
-      // Reuse the design-resolution traversal; falls through to the product-only
-      // path (design_id null) when the product has no backing design.
-      const { designId, isCustomDesign } = await resolveLineItemDesignId(query, {
-        productId,
-        variantId,
+      const plan = await planLineItemRunAction(query, {
+        lineItemId,
+        productId: orderItem?.product_id,
+        variantId: orderItem?.variant_id,
+        quantity,
       })
+      if (!plan) {
+        continue
+      }
+
+      // A design-backed run from order.placed that never went through
+      // production → the goods shipped from stock, so complete it (#1126)
+      // instead of leaving it `pending_review` forever.
+      if (plan.action === "complete") {
+        await completeProvenanceRunWorkflow(container).run({
+          input: {
+            production_run_id: plan.production_run_id,
+            produced_quantity: plan.quantity,
+          },
+        })
+        logger.info(
+          `[order.fulfillment_created] Completed design-backed provenance run ${plan.production_run_id} for line item ${lineItemId} (shipped from stock)`
+        )
+        continue
+      }
 
       await createProductionRunWorkflow(container).run({
         input: {
-          design_id: designId ?? undefined,
-          quantity,
-          produced_quantity: quantity,
-          product_id: productId,
-          variant_id: variantId,
+          design_id: plan.design_id ?? undefined,
+          quantity: plan.quantity,
+          produced_quantity: plan.quantity,
+          product_id: plan.product_id,
+          variant_id: plan.variant_id,
           order_id: data.order_id,
           order_line_item_id: lineItemId,
           // Born terminal — the goods are already produced & shipping.
@@ -120,16 +100,16 @@ async function createFulfillmentProductionRuns(
           metadata: {
             source: "order.fulfillment_created",
             fulfillment_id: data.fulfillment_id,
-            is_custom_design: isCustomDesign,
-            design_backed: Boolean(designId),
+            is_custom_design: plan.is_custom_design,
+            design_backed: Boolean(plan.design_id),
           },
         },
       })
 
       logger.info(
         `[order.fulfillment_created] Minted ${
-          designId ? "design-backed" : "product-only"
-        } production run for line item ${lineItemId} (product ${productId})`
+          plan.design_id ? "design-backed" : "product-only"
+        } production run for line item ${lineItemId} (product ${plan.product_id})`
       )
     }
   } catch (e: any) {
