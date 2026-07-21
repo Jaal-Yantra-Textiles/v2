@@ -19,6 +19,7 @@ import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import { API_BASE_URL } from "../../lib/config"
 import { runAdminMcpTool, type AdminToolResult } from "../../lib/assistant-mcp"
+import { Markdown } from "../../components/markdown"
 
 const SUGGESTIONS = [
   "Give me a snapshot of the platform",
@@ -285,9 +286,13 @@ const AssistantChat = () => {
                 }
               >
                 {text ? (
-                  <Text size="small" className="whitespace-pre-wrap">
-                    {text}
-                  </Text>
+                  m.role === "user" ? (
+                    <Text size="small" className="whitespace-pre-wrap">
+                      {text}
+                    </Text>
+                  ) : (
+                    <Markdown content={text} />
+                  )
                 ) : null}
                 {toolParts.map((p: any, i: number) => (
                   <ToolPart key={p.toolCallId || i} part={p} />
