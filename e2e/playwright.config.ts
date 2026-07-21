@@ -15,6 +15,10 @@ export default defineConfig({
   // local dev server. Give tests (and assertions) generous headroom there.
   timeout: process.env.CI ? 120_000 : 30_000,
   expect: { timeout: process.env.CI ? 15_000 : 5_000 },
+  // This config only boots the admin (`medusa develop` on :9000). Specs that
+  // need the partner-ui (:5173) or a live LLM are tagged `@partnerui` and run
+  // only locally — skip them on CI so a shared admin e2e stays deterministic.
+  grepInvert: process.env.CI ? /@partnerui/ : undefined,
 
   webServer: {
     command: `pnpm exec medusa develop`,
