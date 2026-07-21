@@ -1,3 +1,15 @@
+# [13.65.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.64.0...v13.65.0) (2026-07-21)
+
+
+### Bug Fixes
+
+* **admin:** render assistant markdown instead of raw text [[#1092](https://github.com/Jaal-Yantra-Textiles/v2/issues/1092)] ([#1107](https://github.com/Jaal-Yantra-Textiles/v2/issues/1107)) ([3669f20](https://github.com/Jaal-Yantra-Textiles/v2/commit/3669f20366be15a56a9f26bb83fd00461b053d1b))
+
+
+### Features
+
+* **mcp:** consolidate MCP surfaces on mcp-core — store migration, admin Tier 2, V4 deprecation, [#844](https://github.com/Jaal-Yantra-Textiles/v2/issues/844) ledger [[#1092](https://github.com/Jaal-Yantra-Textiles/v2/issues/1092)] ([#1106](https://github.com/Jaal-Yantra-Textiles/v2/issues/1106)) ([fa2b664](https://github.com/Jaal-Yantra-Textiles/v2/commit/fa2b66423d7c10ddce8e9bd3ada64146ae8c0e73))
+
 # [13.64.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.63.0...v13.64.0) (2026-07-20)
 
 
