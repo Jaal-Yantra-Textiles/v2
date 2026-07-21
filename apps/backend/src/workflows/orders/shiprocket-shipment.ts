@@ -17,6 +17,7 @@ import {
   registerShiprocketPickup,
 } from "../../modules/shipping-providers/pickup-locations"
 import { resolveSellerTaxIdForOrder } from "../../modules/shipping-providers/seller-tax-id"
+import { resolveOrderShipFromLocation } from "../../modules/shipping-providers/order-partner-origin"
 
 /**
  * #404 (#31) PR-B — generate a Shiprocket shipment (forward order → AWB → label)
@@ -36,6 +37,8 @@ export type OrderForShipment = {
   email?: string | null
   total?: number | null
   subtotal?: number | null
+  /** ISO-4217 currency the order was placed in — declared value for intl customs (#1111). */
+  currency_code?: string | null
   metadata?: Record<string, any> | null
   shipping_address?: Record<string, any> | null
   items?: Array<{
@@ -43,6 +46,10 @@ export type OrderForShipment = {
     quantity?: number | null
     unit_price?: number | null
     sku?: string | null
+    /** Product variant behind the line — carries the customs `hs_code` (#1111). */
+    variant?: { hs_code?: string | null } | null
+    /** HSN/HS-code fallback for ad-hoc (variant-less) lines. */
+    metadata?: Record<string, any> | null
   }> | null
 }
 
@@ -73,6 +80,10 @@ export function buildCreateShipmentInput(
     sku: li.sku || undefined,
     quantity: Number(li.quantity) || 1,
     unit_price: Number(li.unit_price) || 0,
+    // HSN for international customs (#1111): prefer the variant's hs_code, then
+    // line metadata (for ad-hoc, variant-less lines). Domestic shipments ignore
+    // it; the client requires it only when the destination is international.
+    hsn: (li.variant?.hs_code || li.metadata?.hsn || undefined) as string | undefined,
   }))
   const subTotal =
     order.subtotal != null
@@ -104,6 +115,9 @@ export function buildCreateShipmentInput(
     weight_grams: opts.weightGrams || DEFAULT_WEIGHT_GRAMS,
     dimensions_cm: opts.dimensionsCm,
     sub_total: subTotal,
+    // Declared-value currency for international customs (#1111). Shiprocket reads
+    // intl amounts in this currency; domestic ignores it.
+    currency: order.currency_code ? String(order.currency_code).toUpperCase() : undefined,
     preferred_courier_id: opts.preferredCourierId,
     tax_id: opts.taxId,
   }
@@ -144,11 +158,14 @@ export async function createShiprocketShipmentForFulfillment(
       "email",
       "total",
       "subtotal",
+      "currency_code",
       "metadata",
       "shipping_address.*",
       "items.title",
       "items.quantity",
       "items.unit_price",
+      "items.metadata",
+      "items.variant.hs_code",
       "fulfillments.id",
       "fulfillments.location_id",
       "fulfillments.data",
@@ -198,6 +215,29 @@ export async function createShiprocketShipmentForFulfillment(
     pickupLocationName = (locs?.[0]?.metadata as any)?.[
       SHIPROCKET_PICKUP_METADATA_KEY
     ]
+  }
+
+  // Retail / admin partner-origin (#1111 S4). Retail orders arrive with no
+  // partner in the auth context, so the label flow can't derive the owning
+  // partner's pickup from the caller — resolve it FROM THE ORDER (retail →
+  // sales-channel; work → link) and ship from THAT partner's location,
+  // registered on the fly. Best-effort: only when no explicit ship-from was
+  // given and we still have no pickup; a miss falls through to the #638
+  // any-registered fallback below, so existing admin design-order labels are
+  // unaffected. This stops a retail label from silently shipping from another
+  // party's warehouse on the shared Shiprocket account.
+  if (!pickupLocationName && !input.pickupStockLocationId) {
+    const origin = await resolveOrderShipFromLocation(container, input.orderId)
+    if (origin.locationId) {
+      try {
+        const reg = await registerShiprocketPickup(container, origin.locationId, {
+          email: input.actingEmail || origin.actingEmail || undefined,
+        })
+        pickupLocationName = reg.name
+      } catch {
+        // Best-effort — the #638 fallback (or the guard) handles it cleanly.
+      }
+    }
   }
 
   const carrier = input.carrier || "shiprocket"

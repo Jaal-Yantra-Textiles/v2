@@ -1,6 +1,6 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import type { MedusaContainer } from "@medusajs/framework/types"
-import partnerOrderLink from "../../links/partner-order"
+import { resolveOrderPartnerId } from "./order-partner-origin"
 import { PLATFORM_TAX_IDENTITY_MODULE } from "../platform-tax-identity"
 import {
   resolvePlatformTaxIdString,
@@ -63,8 +63,16 @@ async function loadActiveIdentities(
   }
 }
 
-/** The order's partner's own tax ID, or null (best-effort, never throws). */
+/**
+ * The order's partner's own tax ID, or null (best-effort, never throws).
+ *
+ * Resolves the owning partner via BOTH scoping rules (#1111 S4): the D3
+ * partner↔order work link AND retail sales-channel scoping — so a retail order's
+ * partner GSTIN is stamped on its label instead of always falling through to the
+ * platform GSTIN.
+ */
 async function resolvePartnerOwnTaxId(
+  container: MedusaContainer,
   query: any,
   orderId: string | null | undefined
 ): Promise<string | null> {
@@ -72,12 +80,7 @@ async function resolvePartnerOwnTaxId(
     return null
   }
   try {
-    const { data: links } = await query.graph({
-      entity: partnerOrderLink.entryPoint,
-      fields: ["partner_id"],
-      filters: { order_id: orderId },
-    })
-    const partnerId = links?.[0]?.partner_id
+    const { partnerId } = await resolveOrderPartnerId(container, orderId)
     if (!partnerId) {
       return null
     }
@@ -88,8 +91,8 @@ async function resolvePartnerOwnTaxId(
     })
     return clean(partners?.[0]?.tax_id)
   } catch {
-    // Best-effort: degrade to the platform fallback (no link, un-migrated column,
-    // query error). Never block the label.
+    // Best-effort: degrade to the platform fallback (no partner, un-migrated
+    // column, query error). Never block the label.
     return null
   }
 }
@@ -105,7 +108,7 @@ export async function resolveSellerTaxIdForOrder(
 ): Promise<string | undefined> {
   const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
 
-  const own = await resolvePartnerOwnTaxId(query, orderId)
+  const own = await resolvePartnerOwnTaxId(container, query, orderId)
   if (own) {
     return own
   }

@@ -214,6 +214,144 @@ export function buildShiprocketOrderItems(
   return Array.from(bySku.values())
 }
 
+/**
+ * International shipping (#1111). Shiprocket exposes a SEPARATE
+ * `/v1/external/international/*` namespace (create/serviceability/assign/track);
+ * a shipment is international when its destination is outside India. See
+ * apps/docs/notes/SHIPROCKET_INTERNATIONAL_API.md for the full contract.
+ */
+
+/** Destination ISD dial codes for the countries we ship to (best-effort; omitted when unknown). */
+const ISD_BY_ISO2: Record<string, string> = {
+  US: "+1", CA: "+1", GB: "+44", AU: "+61", NZ: "+64", AE: "+971", SA: "+966",
+  SG: "+65", MY: "+60", DE: "+49", FR: "+33", IT: "+39", ES: "+34", NL: "+31",
+  IE: "+353", SE: "+46", CH: "+41", JP: "+81", HK: "+852", ZA: "+27",
+}
+
+/**
+ * Full country NAME for Shiprocket's create body. The international create/adhoc
+ * expects a name ("United States"), NOT the ISO code (the serviceability call is
+ * the one that wants ISO-2). Our order addresses store ISO-2 `country_code`, so
+ * map it via `Intl.DisplayNames` with a couple of overrides where Shiprocket's
+ * expected spelling differs. Pure & exported for unit testing.
+ */
+const COUNTRY_NAME_OVERRIDES: Record<string, string> = {
+  US: "United States",
+  GB: "United Kingdom",
+  AE: "United Arab Emirates",
+  KR: "South Korea",
+}
+export function toShiprocketCountryName(country?: string): string {
+  const raw = (country || "").trim()
+  if (!raw) return "India"
+  if (/^(in|india)$/i.test(raw)) return "India"
+  // Already a full name (not a 2-letter code) — pass through.
+  if (raw.length > 2) return raw
+  const code = raw.toUpperCase()
+  if (COUNTRY_NAME_OVERRIDES[code]) return COUNTRY_NAME_OVERRIDES[code]
+  try {
+    return new Intl.DisplayNames(["en"], { type: "region" }).of(code) || raw
+  } catch {
+    return raw
+  }
+}
+
+/** True when a shipment's destination country is outside India. */
+export function isInternationalDestination(country?: string): boolean {
+  const raw = (country || "").trim()
+  if (!raw) return false
+  return !/^(in|india)$/i.test(raw)
+}
+
+/** Shiprocket international customs fields, with retail-sale defaults applied. */
+export type ResolvedCustoms = {
+  reasonOfExport: number
+  purpose_of_shipment: number
+  Terms_Of_Invoice: string
+  igstPaymentStatus: string
+  commodity: boolean
+}
+export function resolveCustomsDefaults(
+  customs?: import("../provider-interface").CustomsDeclaration
+): ResolvedCustoms {
+  return {
+    // A retail order is a commercial sale, shipped FOB, IGST not-applicable
+    // (LUT/bond is an account-level export scheme, not per-shipment here).
+    reasonOfExport: customs?.reason_of_export ?? 3, // COMMERCIAL
+    purpose_of_shipment: customs?.purpose_of_shipment ?? 2, // commercial
+    Terms_Of_Invoice: customs?.terms_of_invoice ?? "FOB",
+    igstPaymentStatus: customs?.igst_payment_status ?? "A",
+    commodity: customs?.commodity ?? true,
+  }
+}
+
+/**
+ * Build the Shiprocket INTERNATIONAL `create/adhoc` body from a shipment input.
+ * Pure & exported so the exact customs payload (country name, currency, HSN,
+ * export reason) is unit-testable without a live API. Throws if HSN is missing
+ * on any line (Shiprocket makes HSN mandatory for every international shipment)
+ * or if the caller asked for COD (unavailable internationally).
+ */
+export function buildInternationalCreateBody(
+  input: CreateShipmentInput,
+  pickup: string
+): Record<string, any> {
+  if (input.payment_mode === "cod") {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "Shiprocket does not support COD for international shipments"
+    )
+  }
+  const items = buildShiprocketOrderItems(input.items)
+  const missingHsn = items.filter((i) => !i.hsn).map((i) => i.name)
+  if (missingHsn.length) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `HSN code is required for international shipments; missing on: ${missingHsn.join(", ")}`
+    )
+  }
+  const [firstName, ...rest] = (input.to.name || "Customer").split(" ")
+  const lastName = rest.join(" ")
+  const subTotal =
+    input.sub_total ??
+    input.items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+  const iso2 = (input.to.country || "").trim().toUpperCase()
+  const customs = resolveCustomsDefaults(input.customs)
+
+  return {
+    order_id: input.reference_id,
+    order_date: new Date().toISOString().slice(0, 16).replace("T", " "),
+    pickup_location: pickup,
+    // The customer is abroad — billing + shipping are the same foreign address.
+    billing_customer_name: firstName,
+    billing_last_name: lastName,
+    billing_address: input.to.address_1,
+    billing_address_2: input.to.address_2 || "",
+    billing_city: input.to.city,
+    billing_pincode: input.to.pincode,
+    billing_state: input.to.state,
+    billing_country: toShiprocketCountryName(input.to.country),
+    billing_email: input.to.email || "",
+    billing_phone: input.to.phone,
+    ...(ISD_BY_ISO2[iso2] ? { isd_code: ISD_BY_ISO2[iso2] } : {}),
+    shipping_is_billing: true,
+    order_items: items,
+    payment_method: "Prepaid",
+    sub_total: subTotal,
+    length: input.dimensions_cm?.length || 10,
+    breadth: input.dimensions_cm?.width || 10,
+    height: input.dimensions_cm?.height || 10,
+    weight: Math.max(0.01, input.weight_grams / 1000),
+    // Customs / commercial-invoice fields (amounts are in `currency`, not INR).
+    currency: (input.currency || "INR").toUpperCase(),
+    reasonOfExport: customs.reasonOfExport,
+    purpose_of_shipment: customs.purpose_of_shipment,
+    Terms_Of_Invoice: customs.Terms_Of_Invoice,
+    igstPaymentStatus: customs.igstPaymentStatus,
+    commodity: customs.commodity,
+  }
+}
+
 /** Shiprocket numeric shipment_status_id → coarse scan_type. */
 export function scanTypeForStatus(id?: number): string {
   switch (id) {
@@ -387,6 +525,13 @@ export class ShiprocketClient implements ShippingProviderClient {
       )
     }
 
+    // International destinations use a separate Shiprocket API namespace with a
+    // customs-declaration payload (#1111). Domestic (India) stays on the path
+    // below unchanged.
+    if (isInternationalDestination(input.to.country)) {
+      return this.createInternationalShipment(input, pickup)
+    }
+
     const [firstName, ...rest] = (input.to.name || "Customer").split(" ")
     const lastName = rest.join(" ")
     const subTotal =
@@ -495,6 +640,161 @@ export class ShiprocketClient implements ShippingProviderClient {
         shipment_id: shipmentId,
         courier_company_id: awbData.courier_company_id,
         courier_name: awbData.courier_name,
+      },
+      raw: { created, assigned },
+    }
+  }
+
+  /**
+   * International courier serviceability (#1111). Distinct endpoint from the
+   * domestic `getRates` — takes a destination COUNTRY (ISO Alpha-2), not a
+   * pincode, and `cod` must be 0 (no international COD). Returns the same
+   * normalized RateOption shape.
+   */
+  async getInternationalRates(query: {
+    destination_country?: string
+    weight_grams?: number
+    order_id?: string | number
+    origin_pincode?: string
+  }): Promise<RateOption[]> {
+    // Live-verified (#1111): the `order_id` mode is the ONLY one this account
+    // answers — passing an existing Shiprocket order id returns the available
+    // international couriers (+ the recommended one) priced in the order
+    // currency. The documented country+weight mode (below) 400s on the live
+    // account, so `order_id` takes precedence and we omit weight/country when
+    // it's present (they're ignored anyway per the docs).
+    const qs = new URLSearchParams({ cod: "0" })
+    if (query.order_id != null) {
+      qs.set("order_id", String(query.order_id))
+    } else {
+      qs.set("weight", String(Math.max(0.01, (query.weight_grams || 500) / 1000)))
+      qs.set("delivery_country", (query.destination_country || "").toUpperCase())
+    }
+    if (query.origin_pincode) qs.set("pickup_postcode", query.origin_pincode)
+    const json = await this.request<any>(
+      `/international/courier/serviceability?${qs}`,
+      { method: "GET" }
+    )
+    const couriers = json?.data?.available_courier_companies || []
+    const recommended = json?.data?.recommended_courier_company_id
+    return couriers.map((c: any) => ({
+      courier_id: c.courier_company_id,
+      courier_name: c.courier_name,
+      amount: Number(c.rate) || 0,
+      currency_code: (c.currency || "inr").toString().toLowerCase(),
+      estimated_days: c.estimated_delivery_days
+        ? Number(c.estimated_delivery_days)
+        : undefined,
+      is_recommended: c.courier_company_id === recommended,
+    }))
+  }
+
+  /**
+   * Create an INTERNATIONAL shipment: create order → resolve an international
+   * courier (caller's choice, else the recommended one from serviceability) →
+   * assign AWB → generate label. Mirrors the domestic sequence (incl. the
+   * cancelled-order suffixed retry) but against `/international/*` endpoints and
+   * with a customs-declaration body. (#1111)
+   */
+  private async createInternationalShipment(
+    input: CreateShipmentInput,
+    pickup: string
+  ): Promise<ShipmentResult> {
+    const createBody = buildInternationalCreateBody(input, pickup)
+
+    const createAdhoc = async (channelOrderId: string) => {
+      const res = await this.request<any>(
+        `/international/orders/create/adhoc`,
+        { method: "POST", body: JSON.stringify({ ...createBody, order_id: channelOrderId }) }
+      )
+      if (!res?.shipment_id) {
+        throw new Error(
+          `Shiprocket international order created but returned no shipment_id: ${JSON.stringify(res)}`
+        )
+      }
+      return res
+    }
+
+    // Pick a courier: caller's explicit choice wins; otherwise ask international
+    // serviceability for the recommended one. Live-verified (#1111): intl
+    // serviceability only answers in the `order_id` mode, so the lookup must
+    // happen AFTER the order is created (the domestic flow auto-selects on
+    // assign, but international assign needs an explicit courier). Best-effort —
+    // if serviceability fails we still assign and let Shiprocket default.
+    const resolveCourierId = async (
+      srOrderIdForRates: any
+    ): Promise<string | number | undefined> => {
+      if (input.preferred_courier_id) return input.preferred_courier_id
+      try {
+        const rates = await this.getInternationalRates({
+          order_id: srOrderIdForRates,
+        })
+        return (
+          rates.find((r) => r.is_recommended)?.courier_id || rates[0]?.courier_id
+        )
+      } catch {
+        return undefined
+      }
+    }
+
+    const assignAwb = async (shipmentIdToAssign: any, courierId?: string | number) => {
+      const assignBody: Record<string, any> = { shipment_id: [shipmentIdToAssign] }
+      if (courierId) assignBody.courier_id = courierId
+      return this.request<any>(`/international/courier/assign/awb`, {
+        method: "POST",
+        body: JSON.stringify(assignBody),
+      })
+    }
+
+    let created = await createAdhoc(String(createBody.order_id))
+    let assigned: any
+    try {
+      assigned = await assignAwb(
+        created.shipment_id,
+        await resolveCourierId(created.order_id)
+      )
+    } catch (e: any) {
+      const cancelled =
+        e instanceof ShiprocketApiError && /cancell?ed state/i.test(e.message)
+      if (!cancelled) throw e
+      created = await createAdhoc(
+        `${input.reference_id}-R${Date.now().toString(36)}`
+      )
+      assigned = await assignAwb(
+        created.shipment_id,
+        await resolveCourierId(created.order_id)
+      )
+    }
+
+    const srOrderId = created?.order_id
+    const shipmentId = created?.shipment_id
+    const awbData = assigned?.response?.data || {}
+    const awb = awbData.awb_code || ""
+
+    // Label (shared endpoint; best-effort — may not be ready instantly).
+    let labelUrl = ""
+    try {
+      const label = await this.request<any>(`/courier/generate/label`, {
+        method: "POST",
+        body: JSON.stringify({ shipment_id: [shipmentId] }),
+      })
+      labelUrl = label?.label_url || ""
+    } catch {
+      // Fetch later via getLabel(); don't fail the shipment.
+    }
+
+    return {
+      carrier: this.carrier,
+      awb,
+      tracking_number: awb,
+      tracking_url: awb ? `https://shiprocket.co/tracking/${awb}` : undefined,
+      label_url: labelUrl || undefined,
+      provider_refs: {
+        sr_order_id: srOrderId,
+        shipment_id: shipmentId,
+        courier_company_id: awbData.courier_company_id,
+        courier_name: awbData.courier_name,
+        international: true,
       },
       raw: { created, assigned },
     }
