@@ -16,7 +16,7 @@
 
 import { wrapLanguageModel } from "ai"
 import { createOpenRouter } from "@openrouter/ai-sdk-provider"
-import { fetchAllModels, filterFreeModels, supportsTools, OpenRouterModel } from "./openrouter"
+import { fetchAllModels, filterFreeModels, OpenRouterModel } from "./openrouter"
 
 const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY,
@@ -186,108 +186,18 @@ export const dynamicFreeTextModel = wrapLanguageModel({
 // ──────────────────────────────────────────────────────────────
 // Tool-capable free model variant
 //
-// Roles that call tools (e.g. the partner assistant, ai_partner_assistant)
-// need a model whose OpenRouter providers advertise function-calling. The
-// plain rotator above ranks by context length and can land on a text-only
-// model → "No endpoints found that support tool use". This variant filters the
-// free pool to `supported_parameters` including "tools".
+// Roles that call tools (e.g. the partner/admin assistants) need a model whose
+// provider advertises function-calling. `openrouter/free` is OpenRouter's
+// meta-model that auto-routes each request to an available free model whose
+// provider supports the requested capabilities (incl. tool calling) — OpenRouter
+// does the internal routing and failover for us. So we bind directly to it
+// instead of maintaining our own free-model rotator/eviction for tool roles.
+// (`streamText` in the callers applies its own maxRetries on transient errors.)
 // ──────────────────────────────────────────────────────────────
-
-// `openrouter/free` is OpenRouter's meta-model that auto-routes to an available
-// free model whose provider supports the requested capabilities (incl. tool
-// calling). It is the same model the configured ai_theme_editor platform uses,
-// and is proven to work with tool binding — so we prefer it for tool roles.
 const TOOL_PRIMARY = "openrouter/free"
 
-// Known tool-capable free models, best-effort ordering. Used if the primary is
-// evicted and the live OpenRouter lookup is unavailable.
-const TOOL_STATIC_FALLBACKS = [
-  TOOL_PRIMARY,
-  "meta-llama/llama-3.3-70b-instruct:free",
-  "google/gemini-2.0-flash-exp:free",
-  "mistralai/mistral-7b-instruct:free",
-]
-
-let cachedFreeToolModels: OpenRouterModel[] = []
-let toolCacheTs = 0
-
-async function refreshFreeToolTextModels(): Promise<OpenRouterModel[]> {
-  const now = Date.now()
-  if (cachedFreeToolModels.length > 0 && now - toolCacheTs < CACHE_TTL) {
-    return cachedFreeToolModels
-  }
-  try {
-    const allModels = await fetchAllModels()
-    let free = filterFreeModels(allModels).filter((m) => {
-      const out = m.architecture?.output_modalities ?? []
-      const textOut = out.length === 0 || out.includes("text")
-      return textOut && supportsTools(m)
-    })
-    free.sort((a, b) => (b.context_length ?? 0) - (a.context_length ?? 0))
-    cachedFreeToolModels = free
-    toolCacheTs = now
-    console.log(
-      `[DynamicTextModel] Refreshed OpenRouter tool-capable pool — ${free.length} free models`
-    )
-    return free
-  } catch (err) {
-    console.warn("[DynamicTextModel] OpenRouter tool-model refresh failed:", err)
-    return cachedFreeToolModels
-  }
-}
-
-async function resolveToolModel(): Promise<{ model: any; id: string }> {
-  // Prefer the proven meta-model unless it has been evicted for this process.
-  if (!expiredModelIds.has(TOOL_PRIMARY)) {
-    return { model: openrouter(TOOL_PRIMARY), id: TOOL_PRIMARY }
-  }
-  // Self-healing: pick the largest-context tool-capable free model live.
-  const models = await refreshFreeToolTextModels()
-  const available = models.find((m) => !expiredModelIds.has(m.id))
-  if (available) {
-    return { model: openrouter(available.id), id: available.id }
-  }
-  const staticId =
-    TOOL_STATIC_FALLBACKS.find((id) => !expiredModelIds.has(id)) ??
-    TOOL_STATIC_FALLBACKS[0]
-  console.warn(`[DynamicTextModel] Using static tool fallback: ${staticId}`)
-  return { model: openrouter(staticId), id: staticId }
-}
-
 /**
- * Drop-in AI SDK v5 LanguageModel that resolves the best available
- * tool-capable free model at call-time. Use for tool-calling roles.
+ * Drop-in AI SDK v5 LanguageModel for tool-calling roles. Delegates model
+ * selection to OpenRouter's `openrouter/free` internal router.
  */
-export const dynamicFreeToolTextModel = wrapLanguageModel({
-  model: placeholder,
-  middleware: {
-    wrapGenerate: async ({ params }) => {
-      const { model, id } = await resolveToolModel()
-      console.log(`[DynamicTextModel] tool generate → ${id}`)
-      try {
-        return await model.doGenerate(params)
-      } catch (err) {
-        if (isExpiredFreeModelError(err)) {
-          markModelExpired(id)
-          const retry = await resolveToolModel()
-          return await retry.model.doGenerate(params)
-        }
-        throw err
-      }
-    },
-    wrapStream: async ({ params }) => {
-      const { model, id } = await resolveToolModel()
-      console.log(`[DynamicTextModel] tool stream → ${id}`)
-      try {
-        return await model.doStream(params)
-      } catch (err) {
-        if (isExpiredFreeModelError(err)) {
-          markModelExpired(id)
-          const retry = await resolveToolModel()
-          return await retry.model.doStream(params)
-        }
-        throw err
-      }
-    },
-  },
-})
+export const dynamicFreeToolTextModel = openrouter(TOOL_PRIMARY)
