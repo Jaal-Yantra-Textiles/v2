@@ -1,9 +1,6 @@
 import { ExecArgs } from "@medusajs/framework/types"
 import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import {
-  createOrderWorkflow,
-  createOrderFulfillmentWorkflow,
-} from "@medusajs/medusa/core-flows"
+import { createOrderFulfillmentWorkflow } from "@medusajs/medusa/core-flows"
 import Scrypt from "scrypt-kdf"
 import * as fs from "fs"
 import * as path from "path"
@@ -40,28 +37,43 @@ async function seedShipmentTrackingOrder(container: any): Promise<string> {
   }
   const countryCode = region.countries?.[0]?.iso_2 || "gb"
 
-  const { result: order }: any = await createOrderWorkflow(container).run({
-    input: {
-      status: "pending",
-      region_id: region.id,
-      currency_code: region.currency_code,
-      sales_channel_id: salesChannelId,
-      email: "e2e-buyer@jyt.test",
-      shipping_address: {
-        first_name: "Elena",
-        last_name: "Doe",
-        address_1: "9 Buyer Rd",
-        city: "London",
-        postal_code: "EC1A 1BB",
-        country_code: countryCode,
-        phone: "8887776665",
-      },
-      // Title-only line item (no variant) — same shape as design-order converts,
-      // which avoids inventory lookups and still fulfills via the manual path.
-      items: [{ title: "Tangaliya Stole (e2e)", quantity: 1, unit_price: 1500 }],
-      metadata: { source: "e2e-shipment-tracking" },
-    } as any,
+  // Create the order via the order module directly rather than
+  // createOrderWorkflow: the workflow runs an update-order-tax-lines step that
+  // resolves a tax provider for the region, which is unconfigured on a fresh CI
+  // DB ("tax provider with id: null"). A fixture order needs no tax lines, and
+  // the fulfillment still goes through the proper workflow below.
+  const orderModule: any = container.resolve(Modules.ORDER)
+  const created: any = await orderModule.createOrders({
+    status: "pending",
+    region_id: region.id,
+    currency_code: region.currency_code,
+    sales_channel_id: salesChannelId,
+    email: "e2e-buyer@jyt.test",
+    shipping_address: {
+      first_name: "Elena",
+      last_name: "Doe",
+      address_1: "9 Buyer Rd",
+      city: "London",
+      postal_code: "EC1A 1BB",
+      country_code: countryCode,
+      phone: "8887776665",
+    },
+    // Title-only line item (no variant) — same shape as design-order converts,
+    // which avoids inventory lookups and still fulfills via the manual path.
+    items: [{ title: "Tangaliya Stole (e2e)", quantity: 1, unit_price: 1500 }],
+    metadata: { source: "e2e-shipment-tracking" },
   })
+  const order = Array.isArray(created) ? created[0] : created
+
+  // Line-item ids for the fulfillment (read back — createOrders' return shape
+  // for nested items isn't relied upon).
+  const { data: withItems } = await query.graph({
+    entity: "order",
+    fields: ["id", "items.id"],
+    filters: { id: order.id },
+  })
+  const itemId = withItems?.[0]?.items?.[0]?.id
+  if (!itemId) throw new Error("E2E seed: order line item not created")
 
   // Resolve a manual shipping option (with a stock location) for the plain
   // fulfillment — identical selection to resolvePlainFulfillmentContext.
@@ -84,7 +96,7 @@ async function seedShipmentTrackingOrder(container: any): Promise<string> {
   await createOrderFulfillmentWorkflow(container).run({
     input: {
       order_id: order.id,
-      items: [{ id: order.items[0].id, quantity: 1 }],
+      items: [{ id: itemId, quantity: 1 }],
       shipping_option_id: manual.id,
       location_id: manual.service_zone?.fulfillment_set?.location?.id,
       no_notification: true,
