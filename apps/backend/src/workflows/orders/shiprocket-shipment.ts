@@ -17,6 +17,7 @@ import {
   registerShiprocketPickup,
 } from "../../modules/shipping-providers/pickup-locations"
 import { resolveSellerTaxIdForOrder } from "../../modules/shipping-providers/seller-tax-id"
+import { resolveOrderShipFromLocation } from "../../modules/shipping-providers/order-partner-origin"
 
 /**
  * #404 (#31) PR-B — generate a Shiprocket shipment (forward order → AWB → label)
@@ -214,6 +215,29 @@ export async function createShiprocketShipmentForFulfillment(
     pickupLocationName = (locs?.[0]?.metadata as any)?.[
       SHIPROCKET_PICKUP_METADATA_KEY
     ]
+  }
+
+  // Retail / admin partner-origin (#1111 S4). Retail orders arrive with no
+  // partner in the auth context, so the label flow can't derive the owning
+  // partner's pickup from the caller — resolve it FROM THE ORDER (retail →
+  // sales-channel; work → link) and ship from THAT partner's location,
+  // registered on the fly. Best-effort: only when no explicit ship-from was
+  // given and we still have no pickup; a miss falls through to the #638
+  // any-registered fallback below, so existing admin design-order labels are
+  // unaffected. This stops a retail label from silently shipping from another
+  // party's warehouse on the shared Shiprocket account.
+  if (!pickupLocationName && !input.pickupStockLocationId) {
+    const origin = await resolveOrderShipFromLocation(container, input.orderId)
+    if (origin.locationId) {
+      try {
+        const reg = await registerShiprocketPickup(container, origin.locationId, {
+          email: input.actingEmail || origin.actingEmail || undefined,
+        })
+        pickupLocationName = reg.name
+      } catch {
+        // Best-effort — the #638 fallback (or the guard) handles it cleanly.
+      }
+    }
   }
 
   const carrier = input.carrier || "shiprocket"
