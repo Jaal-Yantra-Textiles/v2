@@ -19,7 +19,10 @@ const ProductionRun = model.define("production_runs", {
   parent_run_id: model.text().nullable(),
   role: model.text().nullable(),
 
-  design_id: model.text(),
+  // #1112 — nullable so a retail-fulfillment provenance run can be minted for a
+  // product with NO backing design (product-only path). Design work-orders still
+  // set it; the create workflow branches on its presence.
+  design_id: model.text().nullable(),
   partner_id: model.text().nullable(),
 
   // Roadmap #6 Phase 4 — how the run is executed:

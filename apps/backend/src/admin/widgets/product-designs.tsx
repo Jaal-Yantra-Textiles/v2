@@ -178,6 +178,66 @@ function DesignAdminProductionRunsSection({ designId }: { designId: string }) {
   )
 }
 
+// #1112 — product-only production runs (design_id null) minted retroactively on
+// retail fulfillment. They hang off the PRODUCT spine (product↔production_run
+// link), not a design, so they'd otherwise be invisible on this page. Shown as
+// the product's "design trail" — the runs that produced sold-and-fulfilled
+// stock. Design-backed runs are excluded here (they already appear under their
+// design above), so there's no double-listing.
+function ProductProvenanceRunsSection({ productId }: { productId: string }) {
+  const navigate = useNavigate()
+  const { production_runs: runs = [], isLoading } = useProductionRuns({
+    product_id: productId,
+    limit: 50,
+  })
+
+  if (isLoading) return null
+
+  const productOnly = (runs as AdminProductionRun[]).filter((r) => !r.design_id)
+  if (!productOnly.length) return null
+
+  return (
+    <div className="flex flex-col gap-y-3 px-6 py-4">
+      <div className="flex items-center gap-x-2">
+        <Text size="small" weight="plus">Production Runs</Text>
+        <Badge size="2xsmall" color="grey">{productOnly.length}</Badge>
+        <Text size="xsmall" className="text-ui-fg-muted">from fulfilled orders</Text>
+      </div>
+
+      <div className="flex flex-col divide-y divide-ui-border-base rounded-lg border border-ui-border-base overflow-hidden">
+        <div className="grid grid-cols-3 px-3 py-1.5 bg-ui-bg-subtle">
+          <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">Status</Text>
+          <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">Order</Text>
+          <Text size="xsmall" weight="plus" className="text-ui-fg-subtle text-right">Produced</Text>
+        </div>
+        {productOnly.map((run) => (
+          <div key={run.id} className="grid grid-cols-3 px-3 py-2 items-center">
+            <StatusBadge color={RUN_STATUS_COLOR[run.status ?? ""] ?? "grey"}>
+              {runStatusLabel(run.status ?? "")}
+            </StatusBadge>
+            {run.order_id ? (
+              <button
+                type="button"
+                onClick={() => navigate(`/orders/${run.order_id}`)}
+                className="text-left"
+              >
+                <Text size="xsmall" className="text-ui-fg-interactive truncate">
+                  {run.order_id.slice(0, 14)}…
+                </Text>
+              </button>
+            ) : (
+              <Text size="xsmall" className="text-ui-fg-muted">—</Text>
+            )}
+            <Text size="xsmall" className="text-right">
+              {(run.produced_quantity ?? run.quantity ?? 0).toLocaleString()}
+            </Text>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const ProductDesignsWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
   const navigate = useNavigate()
   const prompt = usePrompt()

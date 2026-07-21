@@ -5,6 +5,10 @@ import { sendOrderConfirmationWorkflow } from "../workflows/email/send-notificat
 import { sendPartnerOrderPlacedWorkflow } from "../workflows/email/workflows/send-partner-order-email"
 import { createProductionRunWorkflow } from "../workflows/production-runs/create-production-run"
 import { linkDesignsToOrder } from "../workflows/designs/link-designs-to-order"
+import {
+  hasProductionRunForLineItem,
+  resolveLineItemDesignId,
+} from "../lib/resolve-line-item-production"
 
 export default async function orderPlacedHandler({
   event: { data },
@@ -54,52 +58,21 @@ export default async function orderPlacedHandler({
       }
 
       // Idempotency: if we already created a production run for this line item, skip
-      const { data: existing } = await query.graph({
-        entity: "production_runs",
-        fields: ["id"],
-        filters: { order_line_item_id: lineItemId },
-        pagination: { skip: 0, take: 1 },
-      })
-      const existingRuns = existing || []
-      if (existingRuns.length) {
+      if (await hasProductionRunForLineItem(query, lineItemId)) {
         continue
       }
 
-      let designId: string | null = null
-      let isCustomDesign = false
+      // Resolve the design (variant-level custom design takes priority over the
+      // product-level association). Shared with the fulfillment path (#1112).
+      const { designId, isCustomDesign } = await resolveLineItemDesignId(query, {
+        productId,
+        variantId,
+      })
 
-      // First, check for design-variant link (custom designs created via design editor)
-      // This takes priority as it's a direct link to the specific design
-      if (variantId) {
-        const { data: variantDesignLinks } = await query.graph({
-          entity: "design_product_variant",
-          fields: ["design_id", "customer_id", "estimated_cost"],
-          filters: { product_variant_id: variantId },
-          pagination: { skip: 0, take: 1 },
-        })
-
-        const variantLink = (variantDesignLinks || [])[0]
-        if (variantLink?.design_id) {
-          designId = variantLink.design_id
-          isCustomDesign = true
-          logger.info(
-            `[order.placed] Found custom design ${designId} for variant ${variantId}`
-          )
-        }
-      }
-
-      // If no variant-level link, check product-level link (standard product-design association)
-      if (!designId) {
-        const { data: productDesignLinks } = await query.graph({
-          entity: "product_design",
-          fields: ["design.*"],
-          filters: { product_id: productId },
-          pagination: { skip: 0, take: 1 },
-        })
-
-        const link = (productDesignLinks || [])[0]
-        const design = link?.design
-        designId = design?.id || null
+      if (isCustomDesign) {
+        logger.info(
+          `[order.placed] Found custom design ${designId} for variant ${variantId}`
+        )
       }
 
       if (!designId) {

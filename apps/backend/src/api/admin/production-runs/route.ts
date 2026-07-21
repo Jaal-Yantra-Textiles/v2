@@ -172,6 +172,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   if (q.design_id) {
     filters.design_id = q.design_id
   }
+  // #1112 — filter by product so the product-detail widget can render the
+  // full production-run "design trail" hung off the product spine, INCLUDING
+  // product-only runs (design_id null) minted on retail fulfillment.
+  if (q.product_id) {
+    filters.product_id = q.product_id
+  }
   // #826 — filter by the commissioning order so the admin design-order detail
   // can list all the per-design runs a produce fanned out for that one order.
   if (q.order_id) {
