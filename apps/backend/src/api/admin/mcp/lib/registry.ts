@@ -14,8 +14,12 @@
  *  - `dangerous` (platform-destructive): additionally require a human `reason`;
  *    hidden + refused unless ADMIN_MCP_ENABLE_DANGEROUS is on.
  *
- * This is Tier 1 — read-only breadth. Later tiers add partner/storefront,
- * production, money, CRM/investor, and marketing tools (see epic #1092).
+ * Tier 1 is read-only breadth. Tier 2 (below) adds the first writes — catalog
+ * updates (sensitive: require confirm) and the first `dangerous` action
+ * (delete_product: confirm + reason, gated by ADMIN_MCP_ENABLE_DANGEROUS) —
+ * plus the MCP-observability read (`get_mcp_usage`) and the resolver capability
+ * carried over from the deprecated V4 chat (`resolve_admin_query`). Later tiers
+ * add production, money, CRM/investor and marketing tools (see epic #1092).
  */
 import type { McpToolDef } from "../../../../lib/mcp-core"
 
@@ -212,5 +216,128 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     path: "/admin/notifications",
     queryParams: ["limit", "offset"],
     inputSchema: obj({ ...PAGINATION }),
+  },
+
+  // ===== Observability (#844) =============================================
+  {
+    name: "get_mcp_usage",
+    description:
+      "Read the MCP observability ledger: totals plus per-surface and per-tool counts, error count, and the most recent tool calls across the store/partner/admin MCP surfaces. Use to answer 'how is the MCP being used' or 'what's failing'.",
+    method: "GET",
+    path: "/admin/mcp/usage",
+    queryParams: ["surface", "limit"],
+    inputSchema: obj({
+      surface: STR("Optional surface filter: 'store' | 'partner' | 'admin'."),
+      limit: { type: "integer", description: "Max rows to scan (default 50, max 200)." },
+    }),
+  },
+
+  // ===== Assistant capability (carried over from the deprecated V4 chat) ===
+  {
+    name: "resolve_admin_query",
+    description:
+      "Resolve a natural-language question about the platform's data/code into an execution plan (hybrid BM25 code search + LLM). This is the query-resolution capability from the retired V4 admin chat. Read-only: it plans, it does not mutate anything.",
+    method: "POST",
+    path: "/admin/mcp/resolve-query",
+    bodyParams: ["query"],
+    inputSchema: obj(
+      { query: STR("The natural-language query to resolve into an execution plan.") },
+      ["query"]
+    ),
+  },
+
+  // ===== Tier 2: catalog writes ==========================================
+  // Writes are gated by ADMIN_MCP_ENABLE_WRITE (default on) and flagged
+  // `sensitive` so the dispatcher requires the admin's explicit confirm:true.
+  // Each declares a previewPath so dry_run / the confirmation card can show the
+  // current object before the change. They wrap Medusa's built-in admin routes.
+  {
+    name: "create_product",
+    description:
+      "Create a new product. Sensitive: requires confirm:true. Prefer dry_run first to review the payload.",
+    method: "POST",
+    path: "/admin/products",
+    write: true,
+    sensitive: true,
+    bodyParams: ["title", "status", "description", "subtitle", "handle", "metadata"],
+    inputSchema: obj(
+      {
+        title: STR("Product title (required)."),
+        status: STR("Product status: 'draft' | 'proposed' | 'published' | 'rejected'."),
+        description: STR("Product description."),
+        subtitle: STR("Optional subtitle."),
+        handle: STR("Optional URL handle (auto-derived from title if omitted)."),
+        metadata: { type: "object", description: "Optional key/value metadata." },
+      },
+      ["title"]
+    ),
+    sideEffects: "Creates a new product in 'draft' status unless status is set.",
+    nextSteps: ["get_product", "update_product"],
+  },
+  {
+    name: "update_product",
+    description:
+      "Update an existing product (title, status, description, handle, metadata). Sensitive: requires confirm:true. Use dry_run to see the current product first.",
+    method: "POST",
+    path: "/admin/products/:id",
+    pathParams: ["id"],
+    previewPath: "/admin/products/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["title", "status", "description", "subtitle", "handle", "metadata"],
+    inputSchema: obj(
+      {
+        id: STR("Product id, e.g. 'prod_...'."),
+        title: STR("New title."),
+        status: STR("New status: 'draft' | 'proposed' | 'published' | 'rejected'."),
+        description: STR("New description."),
+        subtitle: STR("New subtitle."),
+        handle: STR("New URL handle."),
+        metadata: { type: "object", description: "Metadata to merge." },
+      },
+      ["id"]
+    ),
+    sideEffects: "Publishing a product makes it live on the storefront.",
+  },
+  {
+    name: "update_customer",
+    description:
+      "Update a customer's profile (name, email, phone, company, metadata). Sensitive: requires confirm:true. Use dry_run to see the current customer first.",
+    method: "POST",
+    path: "/admin/customers/:id",
+    pathParams: ["id"],
+    previewPath: "/admin/customers/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["first_name", "last_name", "email", "phone", "company_name", "metadata"],
+    inputSchema: obj(
+      {
+        id: STR("Customer id, e.g. 'cus_...'."),
+        first_name: STR("First name."),
+        last_name: STR("Last name."),
+        email: STR("Email address."),
+        phone: STR("Phone number."),
+        company_name: STR("Company name."),
+        metadata: { type: "object", description: "Metadata to merge." },
+      },
+      ["id"]
+    ),
+  },
+
+  // ===== Tier 2: the first dangerous action ==============================
+  // Platform-destructive: hidden + refused unless ADMIN_MCP_ENABLE_DANGEROUS is
+  // on, and even then requires BOTH confirm:true AND a human-supplied reason.
+  {
+    name: "delete_product",
+    description:
+      "Permanently delete a product. PLATFORM-DESTRUCTIVE: requires confirm:true AND a human reason, and is only available when ADMIN_MCP_ENABLE_DANGEROUS is enabled. Always dry_run first.",
+    method: "DELETE",
+    path: "/admin/products/:id",
+    pathParams: ["id"],
+    previewPath: "/admin/products/:id",
+    write: true,
+    dangerous: true,
+    inputSchema: obj({ id: STR("Product id to delete, e.g. 'prod_...'.") }, ["id"]),
+    sideEffects: "Irreversibly removes the product and its variants from the catalog.",
   },
 ]

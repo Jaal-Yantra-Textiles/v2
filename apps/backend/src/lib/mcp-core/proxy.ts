@@ -31,6 +31,12 @@ export type McpProxyArgs = {
   /** Optional session cookie to forward when the caller authed via cookie. */
   cookie?: string
   /**
+   * Publishable key for sales-channel scoping (store surface). Forwarded as the
+   * `x-publishable-api-key` header so `/store/*` routes resolve the right
+   * storefront. Ignored by single-tenant (partner/admin) surfaces.
+   */
+  publishableKey?: string
+  /**
    * Optional agent intent ("what am I trying to accomplish") forwarded as the
    * `x-mcp-context` header. Purely informational — routes/telemetry can log it
    * to understand multi-step tool sequences; it never affects route logic.
@@ -54,6 +60,7 @@ export async function callMcpRoute({
   body,
   bearer,
   cookie,
+  publishableKey,
   context,
   reason,
 }: McpProxyArgs): Promise<unknown> {
@@ -71,6 +78,9 @@ export async function callMcpRoute({
   }
   if (cookie) {
     headers["cookie"] = cookie
+  }
+  if (publishableKey) {
+    headers["x-publishable-api-key"] = publishableKey
   }
   if (context) {
     // Truncate defensively — this is a header, not a payload.

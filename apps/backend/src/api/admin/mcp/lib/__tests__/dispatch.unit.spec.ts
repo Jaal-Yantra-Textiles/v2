@@ -12,7 +12,7 @@ import {
 } from "../../../../../lib/mcp-core"
 
 describe("admin-mcp registry + dispatch", () => {
-  describe("Tier 1 shape", () => {
+  describe("registry shape (Tier 1 reads + Tier 2 writes)", () => {
     it("registers get_admin_stats as the read-only grounding tool", () => {
       const def = ADMIN_MCP_TOOLS.find((t) => t.name === "get_admin_stats")
       expect(def).toBeTruthy()
@@ -21,13 +21,43 @@ describe("admin-mcp registry + dispatch", () => {
       expect(isSensitive(def!)).toBe(false)
     })
 
-    it("is entirely read-only (no write/sensitive/dangerous tools in Tier 1)", () => {
+    it("GET tools carry no write/sensitive/dangerous flags", () => {
       for (const def of ADMIN_MCP_TOOLS) {
+        if ((def.method ?? "GET") !== "GET") continue
         expect(def.write).toBeFalsy()
         expect(isSensitive(def)).toBe(false)
         expect(isDangerous(def)).toBe(false)
-        expect(def.method ?? "GET").toBe("GET")
       }
+    })
+
+    it("every write tool is guarded (sensitive or dangerous) and non-GET", () => {
+      const writeTools = ADMIN_MCP_TOOLS.filter((t) => t.write)
+      // Tier 2 introduced writes — there must be some now.
+      expect(writeTools.length).toBeGreaterThan(0)
+      for (const def of writeTools) {
+        expect(def.method ?? "GET").not.toBe("GET")
+        expect(isSensitive(def)).toBe(true) // sensitive OR dangerous OR DELETE
+      }
+    })
+
+    it("exposes delete_product as the first dangerous action (confirm + reason)", () => {
+      const def = ADMIN_MCP_TOOLS.find((t) => t.name === "delete_product")
+      expect(def).toBeTruthy()
+      expect(def!.write).toBe(true)
+      expect(def!.method).toBe("DELETE")
+      expect(isDangerous(def!)).toBe(true)
+      // buildToolInputSchema must inject BOTH reason and confirm.
+      const schema = buildToolInputSchema(def!)
+      expect(schema.properties.reason).toBeDefined()
+      expect(schema.properties.confirm).toBeDefined()
+    })
+
+    it("resolve_admin_query is a read-only planner (POST, not a write)", () => {
+      const def = ADMIN_MCP_TOOLS.find((t) => t.name === "resolve_admin_query")
+      expect(def).toBeTruthy()
+      expect(def!.method).toBe("POST")
+      expect(def!.write).toBeFalsy()
+      expect(isSensitive(def!)).toBe(false)
     })
 
     it("has unique tool names", () => {

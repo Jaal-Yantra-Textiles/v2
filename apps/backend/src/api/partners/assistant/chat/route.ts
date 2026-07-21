@@ -40,6 +40,7 @@ import {
   isPartnerWriteEnabled,
   resolvePartnerBaseUrl,
 } from "../../mcp/lib/handler"
+import { makeMcpLedgerSink } from "../../../../lib/mcp-ledger"
 import type { PartnerAssistantChatReq } from "./validators"
 
 const FEATURE = "partners/assistant/chat"
@@ -85,6 +86,10 @@ export const POST = async (
     bearer: req.get("authorization") || undefined,
     cookie: req.get("cookie") || undefined,
     enableWrite: isPartnerWriteEnabled(),
+    observe: makeMcpLedgerSink(req.scope, {
+      id: (req as any).auth_context?.actor_id ?? null,
+      type: "partner",
+    }),
   }
   const writeEnabled = ctx.enableWrite !== false
 
