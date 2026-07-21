@@ -17,7 +17,9 @@ import { test, expect } from "@playwright/test"
 const PARTNER_EMAIL = "theme-test-1783505047@medusa-test.com"
 const PARTNER_PASSWORD = "supersecret"
 
-test.describe("Theme Editor LLM Chat (#339)", () => {
+// @partnerui — needs the partner-ui dev server (:5173) + a live LLM; runs
+// locally only, excluded from the admin e2e CI job (see playwright.config.ts).
+test.describe("Theme Editor LLM Chat (#339) @partnerui", () => {
   test.beforeEach(async ({ page }) => {
     // Login via the partner-ui
     await page.goto("http://localhost:5173/login")

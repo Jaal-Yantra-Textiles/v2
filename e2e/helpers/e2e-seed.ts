@@ -1,8 +1,154 @@
 import { ExecArgs } from "@medusajs/framework/types"
 import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { createOrderFulfillmentWorkflow } from "@medusajs/medusa/core-flows"
 import Scrypt from "scrypt-kdf"
 import * as fs from "fs"
 import * as path from "path"
+
+const E2E_AWB = "E2EAWB1234567"
+
+/**
+ * #1118 — seed a retail order whose fulfillment carries a Shiprocket shipment
+ * blob, so the order-detail "Shipping & Tracking" widget can be exercised in
+ * CI (the browser heavy-lifting Playwright does headlessly). Reuses the demo
+ * commerce infra (region / sales channel / manual shipping option / product)
+ * created by `src/scripts/seed.ts`, which the e2e:seed step runs first. Mirrors
+ * the plain-fulfillment path in `workflows/orders/fulfillment-context.ts`, then
+ * stamps the carrier refs the real Shiprocket flow persists onto
+ * `fulfillment.data` (#1116 courier_rate, #1117 tracking_events).
+ */
+async function seedShipmentTrackingOrder(container: any): Promise<string> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+
+  const { data: regions } = await query.graph({
+    entity: "region",
+    fields: ["id", "currency_code", "countries.iso_2"],
+  })
+  const region = regions?.[0]
+  const { data: channels } = await query.graph({
+    entity: "sales_channel",
+    fields: ["id"],
+  })
+  const salesChannelId = channels?.[0]?.id
+  if (!region || !salesChannelId) {
+    throw new Error(
+      "E2E seed: no region/sales channel found. Run the demo seed first: `medusa exec ./src/scripts/seed.ts`."
+    )
+  }
+  const countryCode = region.countries?.[0]?.iso_2 || "gb"
+
+  // Create the order via the order module directly rather than
+  // createOrderWorkflow: the workflow runs an update-order-tax-lines step that
+  // resolves a tax provider for the region, which is unconfigured on a fresh CI
+  // DB ("tax provider with id: null"). A fixture order needs no tax lines, and
+  // the fulfillment still goes through the proper workflow below.
+  const orderModule: any = container.resolve(Modules.ORDER)
+  const created: any = await orderModule.createOrders({
+    status: "pending",
+    region_id: region.id,
+    currency_code: region.currency_code,
+    sales_channel_id: salesChannelId,
+    email: "e2e-buyer@jyt.test",
+    shipping_address: {
+      first_name: "Elena",
+      last_name: "Doe",
+      address_1: "9 Buyer Rd",
+      city: "London",
+      postal_code: "EC1A 1BB",
+      country_code: countryCode,
+      phone: "8887776665",
+    },
+    // Title-only line item (no variant) — same shape as design-order converts,
+    // which avoids inventory lookups and still fulfills via the manual path.
+    items: [{ title: "Tangaliya Stole (e2e)", quantity: 1, unit_price: 1500 }],
+    metadata: { source: "e2e-shipment-tracking" },
+  })
+  const order = Array.isArray(created) ? created[0] : created
+
+  // Line-item ids for the fulfillment (read back — createOrders' return shape
+  // for nested items isn't relied upon).
+  const { data: withItems } = await query.graph({
+    entity: "order",
+    fields: ["id", "items.id"],
+    filters: { id: order.id },
+  })
+  const itemId = withItems?.[0]?.items?.[0]?.id
+  if (!itemId) throw new Error("E2E seed: order line item not created")
+
+  // Resolve a manual shipping option (with a stock location) for the plain
+  // fulfillment — identical selection to resolvePlainFulfillmentContext.
+  const { data: opts } = await query.graph({
+    entity: "shipping_option",
+    fields: ["id", "provider_id", "service_zone.fulfillment_set.location.id"],
+  })
+  const isManual = (o: any) =>
+    typeof o?.provider_id === "string" && o.provider_id.startsWith("manual")
+  const manual =
+    (opts || []).find(
+      (o: any) => isManual(o) && o.service_zone?.fulfillment_set?.location?.id
+    ) || (opts || []).find(isManual)
+  if (!manual) {
+    throw new Error(
+      "E2E seed: no manual shipping option found. Run the demo seed first."
+    )
+  }
+
+  await createOrderFulfillmentWorkflow(container).run({
+    input: {
+      order_id: order.id,
+      items: [{ id: itemId, quantity: 1 }],
+      shipping_option_id: manual.id,
+      location_id: manual.service_zone?.fulfillment_set?.location?.id,
+      no_notification: true,
+    } as any,
+  })
+
+  const { data: refetched } = await query.graph({
+    entity: "order",
+    fields: ["fulfillments.id"],
+    filters: { id: order.id },
+  })
+  const fulfillmentId = refetched?.[0]?.fulfillments?.[0]?.id
+  if (!fulfillmentId) throw new Error("E2E seed: fulfillment not created")
+
+  const now = new Date().toISOString()
+  const fulfillmentModule = container.resolve(Modules.FULFILLMENT)
+  await fulfillmentModule.updateFulfillment(fulfillmentId, {
+    data: {
+      carrier: "shiprocket",
+      waybill: E2E_AWB,
+      tracking_number: E2E_AWB,
+      tracking_url: `https://shiprocket.co/tracking/${E2E_AWB}`,
+      label_url: "https://sr-core-cdn.shiprocket.in/label/e2e.pdf",
+      current_status: "In Transit",
+      shipment_id: 999001,
+      sr_order_id: 999002,
+      provider_refs: {
+        shipment_id: 999001,
+        sr_order_id: 999002,
+        courier_name: "Xpressbees Surface",
+        // #1116 S3 — auto-selected international courier's quoted rate.
+        courier_rate: 845.5,
+        courier_rate_currency: "INR",
+        international: true,
+      },
+      // #1117 — carrier webhook scan history (oldest first).
+      tracking_events: [
+        { at: null, received_at: now, status: "Pickup Scheduled", status_code: 42, location: "Surendranagar" },
+        { at: null, received_at: now, status: "In Transit", status_code: 18, location: "Ahmedabad Hub" },
+      ],
+    },
+    labels: [
+      {
+        tracking_number: E2E_AWB,
+        tracking_url: `https://shiprocket.co/tracking/${E2E_AWB}`,
+        label_url: "https://sr-core-cdn.shiprocket.in/label/e2e.pdf",
+      },
+    ],
+  })
+
+  return order.id
+}
 
 const SEED_PASSWORD = "e2etest123!"
 const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
@@ -102,11 +248,15 @@ export default async function e2eSeed({ container }: ExecArgs) {
   }
   await socials.createGoogleSearchConsoleInsights(rows)
 
+  logger.info("E2E seed: creating retail order with Shiprocket shipment (#1118)...")
+  const shipmentOrderId = await seedShipmentTrackingOrder(container)
+
   const seedData = {
     email,
     password: SEED_PASSWORD,
     websiteId: website.id,
     domain,
+    shipmentOrderId,
   }
 
   fs.writeFileSync(SEED_FILE, JSON.stringify(seedData, null, 2))

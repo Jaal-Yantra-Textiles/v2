@@ -3,7 +3,7 @@ import { MagnifyingGlass } from "@medusajs/icons"
 import type { ConsoleStatus } from "../../hooks/api/search-console"
 import { useWebsiteConsoleStatus, useWebsiteConsoleSync } from "../../hooks/api/search-console"
 import { useWebsiteSearchConsoleRollup, type SearchConsoleRollupResponse } from "../../hooks/api/analytics"
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts'
 
 function formatPercent(v: number | null | undefined): string {
   if (v === null || v === undefined) return "—"
@@ -240,7 +240,7 @@ export const AnalyticsSearchDiscoveryCard = ({ websiteId, days }: Props) => {
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#9ca3af" />
                 <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                <Tooltip
+                <RechartsTooltip
                   contentStyle={{
                     backgroundColor: '#fff',
                     border: '1px solid #e5e7eb',
