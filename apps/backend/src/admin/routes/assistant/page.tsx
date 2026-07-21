@@ -13,7 +13,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { ChatBubbleLeftRight, Sparkles, ArrowUpMini, Spinner, Check, ExclamationCircle } from "@medusajs/icons"
+import { ChatBubbleLeftRight, Sparkles, ArrowUpMini, Spinner, Check, ExclamationCircle, ArrowPathMini, SquareTwoStack } from "@medusajs/icons"
 import { Container, Heading, Text, Button, Textarea, IconButton, Badge, Table, toast } from "@medusajs/ui"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
@@ -111,6 +111,51 @@ function formatCell(v: unknown): string {
   return String(v)
 }
 
+/** Control keys the confirm bridge re-stamps itself — never re-send from input. */
+const CONTROL_ARGS = new Set(["confirm", "reason", "dry_run"])
+
+/** Strip control keys from the model's tool-call input for a real re-run. */
+function toolCallArgs(input: unknown): Record<string, unknown> {
+  if (!isRecord(input)) return {}
+  return Object.fromEntries(
+    Object.entries(input).filter(([k]) => !CONTROL_ARGS.has(k))
+  )
+}
+
+/** Readable one-line plan: METHOD path (+ body/query preview). */
+const PlanSummary = ({ plan }: { plan: unknown }) => {
+  if (!isRecord(plan)) return null
+  const { method, path, body, query } = plan as Record<string, unknown>
+  return (
+    <div className="border-ui-border-base bg-ui-bg-base rounded-md border px-2.5 py-2">
+      <div className="flex items-center gap-2 font-mono text-xs">
+        {method ? (
+          <Badge size="2xsmall" color={method === "DELETE" ? "red" : "grey"}>
+            {String(method)}
+          </Badge>
+        ) : null}
+        <span className="text-ui-fg-subtle break-all">{String(path ?? "")}</span>
+      </div>
+      {isRecord(body) && Object.keys(body).length ? (
+        <div className="mt-2">
+          <Text size="xsmall" className="text-ui-fg-muted mb-1">
+            Changes
+          </Text>
+          <ToolData data={body} />
+        </div>
+      ) : null}
+      {isRecord(query) && Object.keys(query).length ? (
+        <div className="mt-2">
+          <Text size="xsmall" className="text-ui-fg-muted mb-1">
+            Filters
+          </Text>
+          <ToolData data={query} />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 /** One tool part: activity line + rendered result or approval card. */
 const ToolPart = ({ part }: { part: any }) => {
   const toolName: string =
@@ -123,6 +168,7 @@ const ToolPart = ({ part }: { part: any }) => {
   const [approving, setApproving] = useState(false)
   const [reason, setReason] = useState("")
   const [approved, setApproved] = useState<AdminToolResult | null>(null)
+  const [cancelled, setCancelled] = useState(false)
 
   const guarded = !!output && (output.requires_confirmation || output.requires_reason)
   const result = approved ?? output
@@ -134,10 +180,13 @@ const ToolPart = ({ part }: { part: any }) => {
     }
     setApproving(true)
     try {
-      const args = (output?.plan as any)?.body || {}
+      // Re-issue the model's ORIGINAL tool-call arguments (they carry path
+      // params like an id — `plan.body` does not), letting the confirm bridge
+      // add confirm:true (+ reason). Anything less drops path params and the
+      // backend fails with "Missing required parameter".
       const res = await runAdminMcpTool(
         toolName,
-        { ...args, ...pathArgsFrom(output?.plan) },
+        toolCallArgs(part.input),
         { reason: reason.trim() || undefined }
       )
       setApproved(res)
@@ -163,30 +212,50 @@ const ToolPart = ({ part }: { part: any }) => {
       </div>
 
       {guarded && !approved ? (
-        <div className="mt-1">
-          <div className="mb-2 flex items-start gap-2">
-            <ExclamationCircle className="text-ui-tag-orange-icon mt-0.5" />
-            <Text size="small">
-              {output?.warning || "This action needs your approval before it runs."}
-            </Text>
+        cancelled ? (
+          <Text size="small" className="text-ui-fg-muted mt-1">
+            Cancelled — nothing ran.
+          </Text>
+        ) : (
+          <div className="mt-1">
+            <div className="mb-2 flex items-start gap-2">
+              <ExclamationCircle className="text-ui-tag-orange-icon mt-0.5" />
+              <Text size="small">
+                {output?.warning || "This action needs your approval before it runs."}
+              </Text>
+            </div>
+            {output?.plan ? <PlanSummary plan={output.plan} /> : null}
+            {output?.current !== undefined ? (
+              <div className="mt-2">
+                <Text size="xsmall" className="text-ui-fg-muted mb-1">
+                  Current
+                </Text>
+                <ToolData data={output.current} />
+              </div>
+            ) : null}
+            {output?.requires_reason ? (
+              <Textarea
+                placeholder="Reason (why are you doing this?) — audited"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="mt-2 mb-2"
+              />
+            ) : null}
+            <div className="mt-2 flex items-center gap-2">
+              <Button size="small" variant="danger" isLoading={approving} onClick={approve}>
+                <Check /> Approve &amp; run
+              </Button>
+              <Button
+                size="small"
+                variant="secondary"
+                disabled={approving}
+                onClick={() => setCancelled(true)}
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
-          {output?.plan ? (
-            <pre className="text-ui-fg-subtle bg-ui-bg-base mb-2 overflow-x-auto rounded p-2 text-xs">
-              {JSON.stringify(output.plan, null, 2)}
-            </pre>
-          ) : null}
-          {output?.requires_reason ? (
-            <Textarea
-              placeholder="Reason (why are you doing this?) — audited"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="mb-2"
-            />
-          ) : null}
-          <Button size="small" variant="danger" isLoading={approving} onClick={approve}>
-            <Check /> Approve &amp; run
-          </Button>
-        </div>
+        )
       ) : result?.data !== undefined ? (
         <ToolData data={result.data} />
       ) : result?.error ? (
@@ -198,18 +267,36 @@ const ToolPart = ({ part }: { part: any }) => {
   )
 }
 
-/** Re-derive :param path args from a dry-run/confirmation plan's path. */
-function pathArgsFrom(_plan: unknown): Record<string, unknown> {
-  // Tier 1 has no guarded tools; later tiers with path params will thread the
-  // original args through the tool part. Kept as a no-op seam for now.
-  return {}
-}
-
 const getText = (parts: any[] | undefined): string =>
   (parts || [])
     .filter((p) => p?.type === "text" && typeof p.text === "string")
     .map((p) => p.text)
     .join("")
+
+/** Copy-to-clipboard affordance for an assistant answer. */
+const CopyButton = ({ text }: { text: string }) => {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      toast.error("Could not copy to clipboard.")
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      className="text-ui-fg-muted hover:text-ui-fg-base mt-1 flex items-center gap-1 text-xs transition-colors"
+      aria-label="Copy message"
+    >
+      {copied ? <Check className="h-3 w-3" /> : <SquareTwoStack className="h-3 w-3" />}
+      {copied ? "Copied" : "Copy"}
+    </button>
+  )
+}
 
 const AssistantChat = () => {
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -224,8 +311,18 @@ const AssistantChat = () => {
     []
   )
 
-  const { messages, sendMessage, status, error, stop } = useChat({ transport })
+  const { messages, sendMessage, status, error, stop, regenerate, clearError } =
+    useChat({ transport })
   const streaming = status === "submitted" || status === "streaming"
+
+  const retry = () => {
+    clearError?.()
+    try {
+      regenerate()
+    } catch {
+      toast.error("Could not retry. Please send the message again.")
+    }
+  }
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -291,7 +388,10 @@ const AssistantChat = () => {
                       {text}
                     </Text>
                   ) : (
-                    <Markdown content={text} />
+                    <>
+                      <Markdown content={text} />
+                      {!streaming ? <CopyButton text={text} /> : null}
+                    </>
                   )
                 ) : null}
                 {toolParts.map((p: any, i: number) => (
@@ -312,7 +412,10 @@ const AssistantChat = () => {
         {error ? (
           <div className="text-ui-fg-error flex items-center gap-2">
             <ExclamationCircle />
-            <Text size="small">The assistant hit an error. Try again.</Text>
+            <Text size="small">The assistant hit an error.</Text>
+            <Button size="small" variant="secondary" onClick={retry}>
+              <ArrowPathMini /> Retry
+            </Button>
           </div>
         ) : null}
       </div>
