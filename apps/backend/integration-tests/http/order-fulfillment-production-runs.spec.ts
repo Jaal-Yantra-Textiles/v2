@@ -202,7 +202,7 @@ setupSharedTestSuite(() => {
       expect((runs2 || []).length).toBe(1)
     })
 
-    it("does not double-create when order.placed already minted a run for a design-backed line", async () => {
+    it("completes (not double-creates) the design-backed run order.placed minted, and mints the bare product's run", async () => {
       const { api, getContainer } = getSharedTestEnv()
       const container = getContainer()
       const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
@@ -254,23 +254,48 @@ setupSharedTestSuite(() => {
       // (already has a run) and mint only the bare product's completed run.
       await fulfillOrder(container, orderId)
 
-      const runs = await waitForRuns(query, orderId, 2, [
-        "id",
-        "product_id",
-        "status",
-        "design_id",
-      ])
+      // Poll until the design-backed run has been completed by the fulfillment
+      // subscriber (it starts pending_review, so a length check alone races).
+      let runs: any[] = []
+      for (let i = 0; i < 40; i++) {
+        runs = await waitForRuns(query, orderId, 2, [
+          "id",
+          "product_id",
+          "status",
+          "design_id",
+          "produced_quantity",
+        ])
+        const linked = runs.find((r: any) => r.product_id === linkedProductId)
+        if (runs.length >= 2 && linked?.status === "completed") {
+          break
+        }
+        await new Promise((r) => setTimeout(r, 150))
+      }
       expect(runs.length).toBe(2)
 
-      // The design-backed run is untouched (same id, still pending_review).
+      // #1126 — the same design-backed run (no double-create) is transitioned
+      // to completed from stock, with the shipped quantity stamped.
       const linkedRun = runs.find((r: any) => r.product_id === linkedProductId)
       expect(linkedRun.id).toBe(linkedRunId)
-      expect(linkedRun.status).toBe("pending_review")
+      expect(linkedRun.status).toBe("completed")
+      expect(linkedRun.produced_quantity).toBe(1)
 
       // The bare product got a completed product-only run.
       const bareRun = runs.find((r: any) => r.product_id === bareProductId)
       expect(bareRun.design_id).toBeNull()
       expect(bareRun.status).toBe("completed")
+
+      // #1126 — neither retail run is projected onto the #342 unified view: the
+      // order↔production_run link (`production_runs.order`) must be absent so
+      // the retail order isn't mis-discriminated as a design work-order.
+      const { data: projections } = await query.graph({
+        entity: "production_runs",
+        fields: ["id", "order.id"],
+        filters: { id: [linkedRun.id, bareRun.id] },
+      })
+      for (const p of projections || []) {
+        expect(p.order ?? null).toBeNull()
+      }
     })
   })
 })

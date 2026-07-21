@@ -55,11 +55,25 @@ export async function hasProductionRunForLineItem(
   query: any,
   lineItemId: string
 ): Promise<boolean> {
+  return (await getProductionRunForLineItem(query, lineItemId)) !== null
+}
+
+/**
+ * Like {@link hasProductionRunForLineItem} but returns the existing run's id +
+ * status so the fulfillment path can decide whether to complete it (still
+ * pre-production, i.e. shipped from stock) vs leave it (production already
+ * underway). #1126.
+ */
+export async function getProductionRunForLineItem(
+  query: any,
+  lineItemId: string
+): Promise<{ id: string; status: string } | null> {
   const { data: existing } = await query.graph({
     entity: "production_runs",
-    fields: ["id"],
+    fields: ["id", "status"],
     filters: { order_line_item_id: lineItemId },
     pagination: { skip: 0, take: 1 },
   })
-  return (existing || []).length > 0
+  const run = (existing || [])[0]
+  return run ? { id: run.id, status: run.status } : null
 }
