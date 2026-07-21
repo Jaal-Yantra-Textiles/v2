@@ -1,4 +1,4 @@
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import {
   createStep,
   createWorkflow,
@@ -37,9 +37,15 @@ const sanitizeBigInt = (value: any): any => {
 }
 
 export type CreateProductionRunInput = {
-  design_id: string
+  // #1112 — optional so a retail-fulfillment run can be minted from a product
+  // with NO backing design (product-only path). When absent, product_id is
+  // required and the snapshot is built from the product instead of a design.
+  design_id?: string | null
   partner_id?: string | null
   quantity?: number
+  // #1112 — for runs born already-`completed` (retail fulfillment), stamp the
+  // produced yield up front instead of leaving it for the lifecycle to fill.
+  produced_quantity?: number
   run_type?: "production" | "sample"
   product_id?: string
   variant_id?: string
@@ -130,13 +136,90 @@ const fetchDesignInventorySnapshotStep = createStep(
   }
 )
 
+// #1112 — product-only provenance path. When a retail line item resolves to a
+// product with no backing design, snapshot the product spine instead of a
+// design so a run can still be minted (design_id stays null).
+const fetchProductSnapshotStep = createStep(
+  "fetch-product-snapshot",
+  async (input: { product_id?: string }, { container }) => {
+    if (!input.product_id) {
+      return new StepResponse(null)
+    }
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+
+    const { data } = await query.graph({
+      entity: "product",
+      fields: [
+        "id",
+        "title",
+        "handle",
+        "status",
+        "thumbnail",
+        "subtitle",
+        "metadata",
+      ],
+      filters: { id: input.product_id },
+    })
+
+    const products = data || []
+    if (!products.length) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Product ${input.product_id} not found`
+      )
+    }
+
+    return new StepResponse(products[0])
+  }
+)
+
+// #1112 — hang the run off the Product spine so the provenance trail is
+// queryable via `product.production_runs`. Idempotent-safe: only fires when a
+// product_id is present.
+const linkProductionRunToProductStep = createStep(
+  "link-production-run-to-product",
+  async (
+    input: { production_run_id: string; product_id?: string },
+    { container }
+  ) => {
+    if (!input.product_id) {
+      return new StepResponse<LinkDefinition | null, LinkDefinition | null>(
+        null,
+        null
+      )
+    }
+
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+    const link: LinkDefinition = {
+      [Modules.PRODUCT]: { product_id: input.product_id },
+      [PRODUCTION_RUNS_MODULE]: {
+        production_runs_id: input.production_run_id,
+      },
+    }
+
+    await remoteLink.create([link])
+    return new StepResponse<LinkDefinition | null, LinkDefinition | null>(
+      link,
+      link
+    )
+  },
+  async (link: LinkDefinition | null, { container }) => {
+    if (!link) {
+      return
+    }
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+    await remoteLink.dismiss([link])
+  }
+)
+
 const createProductionRunStep = createStep(
   "create-production-run",
   async (
     input: {
       payload: CreateProductionRunInput
-      design: any
-      inventory: { inventory_links: any[] }
+      design?: any
+      inventory?: { inventory_links: any[] } | null
       captured_at: Date
       snapshot: Record<string, any>
     },
@@ -147,7 +230,7 @@ const createProductionRunStep = createStep(
     )
 
     const created = await productionRunService.createProductionRuns({
-      design_id: input.payload.design_id,
+      design_id: input.payload.design_id ?? null,
       partner_id: input.payload.partner_id ?? null,
       quantity: input.payload.quantity ?? 1,
       run_type: input.payload.run_type ?? "production",
@@ -162,6 +245,9 @@ const createProductionRunStep = createStep(
       // paths keep the model defaults (status=pending_review,
       // execution_mode=in_house).
       ...(input.payload.status ? { status: input.payload.status } : {}),
+      ...(input.payload.produced_quantity !== undefined
+        ? { produced_quantity: input.payload.produced_quantity }
+        : {}),
       ...(input.payload.execution_mode
         ? { execution_mode: input.payload.execution_mode }
         : {}),
@@ -223,34 +309,61 @@ const linkProductionRunToTasksStep = createStep(
 export const createProductionRunWorkflow = createWorkflow(
   "create-production-run",
   (input: CreateProductionRunInput) => {
-    const design = fetchDesignSnapshotStep({ design_id: input.design_id })
-    const inventory = fetchDesignInventorySnapshotStep({ design_id: input.design_id })
+    // #1112 — branch on design presence. Design work-orders snapshot the design
+    // (+ its inventory links); a retail product-only run snapshots the product
+    // spine instead. Both feed the same provenance block.
+    const design = when({ input }, (data) => Boolean(data.input.design_id)).then(
+      () => fetchDesignSnapshotStep({ design_id: input.design_id })
+    )
+    const inventory = when({ input }, (data) =>
+      Boolean(data.input.design_id)
+    ).then(() => fetchDesignInventorySnapshotStep({ design_id: input.design_id }))
+    const product = when({ input }, (data) => !data.input.design_id).then(() =>
+      fetchProductSnapshotStep({ product_id: input.product_id })
+    )
 
     const captured_at = transform({}, () => new Date())
 
     const snapshot = transform(
-      { input, design, inventory, captured_at },
+      { input, design, inventory, product, captured_at },
       (data) => {
         const capturedAtDate =
           data.captured_at instanceof Date
             ? data.captured_at
             : new Date(data.captured_at as any)
 
+        const designData: any = data.design || null
+        const productData: any = data.product || null
+
         return {
           captured_at: capturedAtDate.toISOString(),
-          design: {
-            id: data.design.id,
-            name: data.design.name,
-            description: data.design.description,
-            status: data.design.status,
-            priority: data.design.priority,
-            metadata: data.design.metadata || {},
-            moodboard: data.design.moodboard ?? null,
-          },
-          specifications: data.design.specifications || [],
-          colors: data.design.colors || [],
-          size_sets: data.design.size_sets || [],
-          inventory_links: data.inventory.inventory_links || [],
+          design: designData
+            ? {
+                id: designData.id,
+                name: designData.name,
+                description: designData.description,
+                status: designData.status,
+                priority: designData.priority,
+                metadata: designData.metadata || {},
+                moodboard: designData.moodboard ?? null,
+              }
+            : null,
+          // #1112 — product spine snapshot for the design-less provenance path.
+          product: productData
+            ? {
+                id: productData.id,
+                title: productData.title,
+                handle: productData.handle,
+                status: productData.status,
+                thumbnail: productData.thumbnail ?? null,
+                subtitle: productData.subtitle ?? null,
+                metadata: productData.metadata || {},
+              }
+            : null,
+          specifications: designData?.specifications || [],
+          colors: designData?.colors || [],
+          size_sets: designData?.size_sets || [],
+          inventory_links: data.inventory?.inventory_links || [],
           provenance: {
             order_id: data.input.order_id,
             order_line_item_id: data.input.order_line_item_id,
@@ -272,6 +385,16 @@ export const createProductionRunWorkflow = createWorkflow(
     })
 
     const productionRunId = transform({ run }, (data) => (data.run as any).id as string)
+
+    // #1112 — link the run to the Product spine (provenance queryable via
+    // product.production_runs). Fires whenever a product_id is present, for
+    // both the design and product-only paths.
+    when({ input }, (data) => Boolean(data.input.product_id)).then(() => {
+      linkProductionRunToProductStep({
+        production_run_id: productionRunId,
+        product_id: input.product_id,
+      })
+    })
 
     when({ input }, (data) => Boolean(data.input.task_ids?.length)).then(() => {
       linkProductionRunToTasksStep({
