@@ -238,6 +238,70 @@ setupSharedTestSuite(() => {
       expect(body.pickup_location).toBe(nickname)
     })
 
+    it("sources HSN from the product variant's hs_code (production path)", async () => {
+      // A real product whose variant carries the customs hs_code — no line
+      // metadata. Proves the mapper resolves HSN via items.variant.hs_code.
+      const prod = await api.post(
+        "/admin/products",
+        {
+          title: "Handloom Silk Stole",
+          status: "published",
+          options: [{ title: "Size", values: ["OS"] }],
+          variants: [
+            {
+              title: "OS",
+              sku: `STOLE-${Date.now()}`,
+              hs_code: "621410",
+              manage_inventory: false, // no stock-location association needed
+              options: { Size: "OS" },
+              prices: [{ currency_code: "usd", amount: 1500 }],
+            },
+          ],
+          sales_channels: [{ id: salesChannelId }],
+        },
+        adminHeaders
+      )
+      const variantId = prod.data.product?.variants?.[0]?.id
+      expect(variantId).toBeTruthy()
+
+      const draft = await api.post(
+        "/admin/draft-orders",
+        {
+          email: "buyer3@t.com",
+          region_id: regionId,
+          sales_channel_id: salesChannelId,
+          currency_code: "usd",
+          shipping_address: {
+            first_name: "Prod",
+            last_name: "Buyer",
+            address_1: "9 Buyer Rd",
+            city: "Dallas",
+            province: "TX",
+            postal_code: "75201",
+            country_code: "us",
+            phone: "8887776665",
+          },
+          items: [{ variant_id: variantId, quantity: 1, unit_price: 1500 }],
+        },
+        adminHeaders
+      )
+      const converted = await api.post(
+        `/admin/draft-orders/${draft.data.draft_order.id}/convert-to-order`,
+        {},
+        adminHeaders
+      )
+      const prodOrderId = converted.data.order?.id
+
+      const res = await api.post(
+        `/partners/orders/${prodOrderId}/shiprocket-label`,
+        {},
+        { headers: partnerHeaders }
+      )
+      expect(res.status).toBe(200)
+      // HSN reached the customs body from the variant's hs_code.
+      expect(shiprocketStubState.lastIntlAdhocBody.order_items[0].hsn).toBe("621410")
+    })
+
     it("rejects the international shipment when a line has no HSN code", async () => {
       // Create a second order whose item carries NO hsn.
       const draft = await api.post(

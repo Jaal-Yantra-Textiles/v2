@@ -66,4 +66,70 @@ describe("buildCreateShipmentInput (#404 PR-B)", () => {
     expect(input.sub_total).toBe(200) // 2 * 100
     expect(input.weight_grams).toBe(1200)
   })
+
+  describe("international customs fields (#1111)", () => {
+    it("passes the order currency through (declared value for intl customs)", () => {
+      const input = buildCreateShipmentInput(
+        { ...baseOrder, currency_code: "usd" },
+        { pickupLocationName: "wh" }
+      )
+      expect(input.currency).toBe("USD")
+    })
+
+    it("undefined currency when the order has none", () => {
+      const input = buildCreateShipmentInput(baseOrder, { pickupLocationName: "wh" })
+      expect(input.currency).toBeUndefined()
+    })
+
+    it("sources HSN from the variant's hs_code", () => {
+      const input = buildCreateShipmentInput(
+        {
+          ...baseOrder,
+          items: [
+            {
+              title: "Silk Scarf",
+              quantity: 1,
+              unit_price: 100,
+              sku: "S-1",
+              variant: { hs_code: "6214" },
+            },
+          ],
+        },
+        { pickupLocationName: "wh" }
+      )
+      expect(input.items[0].hsn).toBe("6214")
+    })
+
+    it("falls back to line metadata HSN for ad-hoc (variant-less) lines", () => {
+      const input = buildCreateShipmentInput(
+        {
+          ...baseOrder,
+          items: [
+            { title: "Ad-hoc", quantity: 1, unit_price: 100, metadata: { hsn: "9999" } },
+          ],
+        },
+        { pickupLocationName: "wh" }
+      )
+      expect(input.items[0].hsn).toBe("9999")
+    })
+
+    it("prefers the variant hs_code over line metadata when both exist", () => {
+      const input = buildCreateShipmentInput(
+        {
+          ...baseOrder,
+          items: [
+            {
+              title: "Both",
+              quantity: 1,
+              unit_price: 100,
+              variant: { hs_code: "6214" },
+              metadata: { hsn: "0000" },
+            },
+          ],
+        },
+        { pickupLocationName: "wh" }
+      )
+      expect(input.items[0].hsn).toBe("6214")
+    })
+  })
 })

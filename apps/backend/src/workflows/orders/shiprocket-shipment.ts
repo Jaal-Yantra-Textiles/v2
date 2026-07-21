@@ -45,8 +45,9 @@ export type OrderForShipment = {
     quantity?: number | null
     unit_price?: number | null
     sku?: string | null
-    /** HSN/HS code (customs). Sourced from the product; carried in line metadata for now (#1111). */
-    hs_code?: string | null
+    /** Product variant behind the line — carries the customs `hs_code` (#1111). */
+    variant?: { hs_code?: string | null } | null
+    /** HSN/HS-code fallback for ad-hoc (variant-less) lines. */
     metadata?: Record<string, any> | null
   }> | null
 }
@@ -78,10 +79,10 @@ export function buildCreateShipmentInput(
     sku: li.sku || undefined,
     quantity: Number(li.quantity) || 1,
     unit_price: Number(li.unit_price) || 0,
-    // HSN for international customs (#1111): prefer the product's hs_code, then
-    // line metadata. Domestic shipments ignore it; the client requires it only
-    // when the destination is international.
-    hsn: (li.hs_code || li.metadata?.hsn || undefined) as string | undefined,
+    // HSN for international customs (#1111): prefer the variant's hs_code, then
+    // line metadata (for ad-hoc, variant-less lines). Domestic shipments ignore
+    // it; the client requires it only when the destination is international.
+    hsn: (li.variant?.hs_code || li.metadata?.hsn || undefined) as string | undefined,
   }))
   const subTotal =
     order.subtotal != null
@@ -163,6 +164,7 @@ export async function createShiprocketShipmentForFulfillment(
       "items.quantity",
       "items.unit_price",
       "items.metadata",
+      "items.variant.hs_code",
       "fulfillments.id",
       "fulfillments.location_id",
       "fulfillments.data",
