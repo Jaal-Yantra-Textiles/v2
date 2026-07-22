@@ -246,6 +246,197 @@ export const useGenerateMoodboard = (
   })
 }
 
+/** #1113 S3+ — one insertable moodboard block in the palette. */
+export type MoodboardBlockListing = {
+  key: string
+  label: string
+  group: string
+  available: boolean
+}
+
+/**
+ * #1113 S3+ — the insert-block palette: every drop-in frame the designer can
+ * add to the canvas, flagged by whether the design has data for it. Owner OR
+ * assigned/invited designer.
+ */
+export const useMoodboardBlocks = (
+  id: string,
+  options?: Omit<
+    UseQueryOptions<{ blocks: MoodboardBlockListing[] }, FetchError>,
+    "queryKey" | "queryFn"
+  >
+) => {
+  return useQuery({
+    queryKey: [...partnerDesignsQueryKeys.detail(id), "moodboard-blocks"],
+    queryFn: async () =>
+      sdk.client.fetch<{ blocks: MoodboardBlockListing[] }>(
+        `/partners/designs/${id}/moodboard/blocks`,
+        { method: "GET" }
+      ),
+    enabled: !!id,
+    ...options,
+  })
+}
+
+/**
+ * #1113 S3+ — build ONE block from the design's current data (positioned at
+ * origin). Not persisted server-side: the caller translates + re-ids it onto
+ * the live canvas, then saves via useSaveMoodboard.
+ */
+export const useInsertMoodboardBlock = (
+  id: string,
+  options?: UseMutationOptions<{ block: MoodboardScene }, FetchError, string>
+) => {
+  return useMutation({
+    mutationFn: async (block: string) =>
+      sdk.client.fetch<{ block: MoodboardScene }>(
+        `/partners/designs/${id}/moodboard/blocks`,
+        { method: "POST", body: { block } }
+      ),
+    ...options,
+  })
+}
+
+// ── Construction techniques (#1113 Feature B) ────────────────────────────────
+
+export type ConstructionParamDef = {
+  key: string
+  label: string
+  min: number
+  max: number
+  step: number
+  default: number
+}
+export type ConstructionPreset = {
+  value: string
+  label: string
+  detailLabel: string
+  params?: Record<string, number>
+  fabricRules?: string[]
+  note?: string
+}
+export type ConstructionTechnique = {
+  slug: string
+  label: string
+  family: string
+  garmentAreas: string[]
+  params: ConstructionParamDef[]
+  defaultFabricRules: string[]
+  presets: ConstructionPreset[]
+}
+export type ConstructionCatalog = {
+  families: string[]
+  techniques: ConstructionTechnique[]
+}
+export type ConstructionDetailRecord = {
+  id: string
+  title?: string | null
+  details?: string | null
+  metadata?: {
+    technique?: string
+    params?: Record<string, number>
+    fabricRules?: string[]
+  } | null
+}
+export type CreateConstructionPayload = {
+  technique: string
+  label?: string
+  params?: Record<string, number>
+  fabricRules?: string[]
+  note?: string
+}
+
+/**
+ * #1113 Feature B — the categorized construction catalog the picker renders
+ * (families + techniques with param defs, default fabric rules, presets). Served
+ * verbatim from the canonical backend module, so the picker never hardcodes it.
+ */
+export const useConstructionTechniques = (
+  id: string,
+  options?: Omit<
+    UseQueryOptions<ConstructionCatalog, FetchError>,
+    "queryKey" | "queryFn"
+  >
+) => {
+  return useQuery({
+    queryKey: [...partnerDesignsQueryKeys.detail(id), "construction-techniques"],
+    queryFn: async () =>
+      sdk.client.fetch<ConstructionCatalog>(
+        `/partners/designs/${id}/construction-techniques`,
+        { method: "GET" }
+      ),
+    enabled: !!id,
+    staleTime: Infinity, // static catalog
+    ...options,
+  })
+}
+
+/** #1113 Feature B — this design's authored construction details. */
+export const useConstructionDetails = (
+  id: string,
+  options?: Omit<
+    UseQueryOptions<
+      { construction_details: ConstructionDetailRecord[]; count: number },
+      FetchError
+    >,
+    "queryKey" | "queryFn"
+  >
+) => {
+  return useQuery({
+    queryKey: [...partnerDesignsQueryKeys.detail(id), "construction-details"],
+    queryFn: async () =>
+      sdk.client.fetch<{
+        construction_details: ConstructionDetailRecord[]
+        count: number
+      }>(`/partners/designs/${id}/construction-details`, { method: "GET" }),
+    enabled: !!id,
+    ...options,
+  })
+}
+
+/** #1113 Feature B — add a construction detail (author-scoped). */
+export const useCreateConstructionDetail = (
+  id: string,
+  options?: UseMutationOptions<
+    { construction_detail: ConstructionDetailRecord },
+    FetchError,
+    CreateConstructionPayload
+  >
+) => {
+  return useMutation({
+    mutationFn: async (body: CreateConstructionPayload) =>
+      sdk.client.fetch<{ construction_detail: ConstructionDetailRecord }>(
+        `/partners/designs/${id}/construction-details`,
+        { method: "POST", body }
+      ),
+    onSuccess: async (data, variables, context) => {
+      // Refreshes the detail list, the block-availability list and the catalog.
+      await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+/** #1113 Feature B — remove a construction detail (author-scoped). */
+export const useDeleteConstructionDetail = (
+  id: string,
+  options?: UseMutationOptions<{ id: string; deleted: boolean }, FetchError, string>
+) => {
+  return useMutation({
+    mutationFn: async (detailId: string) =>
+      sdk.client.fetch<{ id: string; deleted: boolean }>(
+        `/partners/designs/${id}/construction-details/${detailId}`,
+        { method: "DELETE" }
+      ),
+    onSuccess: async (data, variables, context) => {
+      await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
 /**
  * #1113 — idempotent, brief-friendly seed: fills an EMPTY moodboard from the
  * brief so the designer opens onto an editable snapshot (Figma-style) without a

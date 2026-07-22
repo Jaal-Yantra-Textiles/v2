@@ -1,10 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import "@excalidraw/excalidraw/index.css"
 import { Excalidraw } from "@excalidraw/excalidraw"
-import { Alert, Badge, Button, Heading, Hint, Input, Text, toast } from "@medusajs/ui"
+import { Alert, Badge, Button, Heading, Hint, IconButton, Input, Text, toast } from "@medusajs/ui"
+import { ArrowsPointingOut, XMark } from "@medusajs/icons"
 import { z } from "@medusajs/framework/zod"
 import { useMutation, useQuery } from "@tanstack/react-query"
-import { useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { Link, useNavigate, useParams } from "react-router-dom"
 
@@ -105,6 +106,26 @@ export const DesignerInvite = () => {
   })
 
   const scene = useMemo(() => toScene(data?.design?.moodboard), [data])
+  const [expanded, setExpanded] = useState(false)
+
+  // Escape exits fullscreen; lock body scroll while the overlay is open.
+  useEffect(() => {
+    if (!expanded) {
+      return
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setExpanded(false)
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [expanded])
 
   const acceptMutation = useMutation<AcceptResponse, unknown, z.infer<typeof AcceptSchema>>({
     mutationFn: async (values) =>
@@ -192,12 +213,42 @@ export const DesignerInvite = () => {
                 </Text>
               ) : null}
 
-              <Text size="small" weight="plus" className="text-ui-fg-subtle mb-2">
-                Moodboard preview
-              </Text>
+              <div className="mb-2 flex items-center justify-between">
+                <Text size="small" weight="plus" className="text-ui-fg-subtle">
+                  Moodboard preview
+                </Text>
+                {scene ? (
+                  <IconButton
+                    size="small"
+                    variant="transparent"
+                    onClick={() => setExpanded(true)}
+                    aria-label="View moodboard fullscreen"
+                  >
+                    <ArrowsPointingOut />
+                  </IconButton>
+                ) : null}
+              </div>
               {scene ? (
-                <div className="relative h-[420px] w-full overflow-hidden rounded-md border">
+                <div
+                  className={
+                    expanded
+                      ? "bg-ui-bg-base fixed inset-0 z-50"
+                      : "relative h-[420px] w-full overflow-hidden rounded-md border"
+                  }
+                >
+                  {expanded ? (
+                    <IconButton
+                      size="small"
+                      variant="primary"
+                      onClick={() => setExpanded(false)}
+                      aria-label="Exit fullscreen"
+                      className="absolute right-4 top-4 z-[60] shadow-elevation-card-rest"
+                    >
+                      <XMark />
+                    </IconButton>
+                  ) : null}
                   <Excalidraw
+                    key={expanded ? "moodboard-fs" : "moodboard-inline"}
                     initialData={scene as any}
                     viewModeEnabled={true}
                     excalidrawAPI={(api) => {

@@ -1808,3 +1808,79 @@ export function mergeFramesIntoScene(
     files: { ...existing.files, ...incoming.files },
   }
 }
+
+// ── Insert-block palette (#1113 S3+) ──────────────────────────────────────────────
+//
+// The monolithic generate rebuilds the whole board. The palette instead exposes
+// each frame as an individual drop-in: the designer inserts one pre-filled block
+// at a time and arranges it themselves. Every block is one existing frame builder
+// run at origin (x=0) — the caller (partner-ui) translates + re-ids the elements
+// onto the live canvas, then saves via the normal moodboard PUT. Nothing here
+// persists, so a drop-in is non-destructive and repeatable.
+
+type FrameBuilder = (i: TechPackSceneInput, r: SceneRng, x: number) => FrameResult
+
+export interface MoodboardBlockDef {
+  key: string
+  label: string
+  /** Grouping for the palette menu. */
+  group: "Brief" | "Tech-pack" | "Workspace"
+  build: FrameBuilder
+  /** Whether the design currently has data backing this block (scaffolds → always). */
+  available: (i: TechPackSceneInput) => boolean
+}
+
+export const MOODBOARD_BLOCKS: MoodboardBlockDef[] = [
+  { key: "brief-concept", label: "Concept & Identity", group: "Brief", build: buildBriefConceptFrame, available: (i) => hasConceptSection(i.brief) },
+  { key: "brief-audience", label: "Audience & Positioning", group: "Brief", build: buildBriefAudienceFrame, available: (i) => hasAudienceSection(i.brief) },
+  { key: "brief-timeline", label: "Timeline & Budget", group: "Brief", build: buildBriefTimelineFrame, available: (i) => hasTimelineSection(i.brief) },
+  { key: "header-flats", label: "Header & Flats", group: "Tech-pack", build: buildHeaderFlatsFrame, available: () => true },
+  { key: "design-specs", label: "Design Specs", group: "Tech-pack", build: buildDesignSpecsFrame, available: (i) => !!i.specs?.length },
+  { key: "construction", label: "Construction details", group: "Tech-pack", build: buildConstructionDetailsFrame, available: (i) => !!i.details?.length },
+  { key: "measurements", label: "Measurements", group: "Tech-pack", build: buildMeasurementFrame, available: (i) => !!i.sizeSet },
+  { key: "materials", label: "Materials", group: "Tech-pack", build: buildMaterialsFrame, available: (i) => !!i.materials?.length },
+  { key: "colorways", label: "Colorways", group: "Tech-pack", build: buildColorwayFrame, available: (i) => !!i.colorways?.length },
+  { key: "workspace", label: "Workspace zone", group: "Workspace", build: buildWorkspaceScaffoldFrame, available: () => true },
+]
+
+export interface MoodboardBlockListing {
+  key: string
+  label: string
+  group: string
+  available: boolean
+}
+
+/** The palette: every insertable block + whether the design has data for it. */
+export function listMoodboardBlocks(input: TechPackSceneInput): MoodboardBlockListing[] {
+  return MOODBOARD_BLOCKS.map(({ key, label, group, available }) => ({
+    key,
+    label,
+    group,
+    available: available(input),
+  }))
+}
+
+/**
+ * Build a SINGLE moodboard block as a standalone scene, positioned at origin
+ * (x=0). The caller translates + re-ids the elements onto the live canvas.
+ * Returns null for an unknown key.
+ */
+export function buildMoodboardBlock(
+  input: TechPackSceneInput,
+  key: string
+): MoodboardScene | null {
+  const def = MOODBOARD_BLOCKS.find((b) => b.key === key)
+  if (!def) {
+    return null
+  }
+  const rng = new SceneRng(input.seed ?? 1)
+  const res = def.build(input, rng, 0)
+  return {
+    type: "excalidraw",
+    version: 2,
+    source: "jyt:moodboard-block",
+    elements: res.elements,
+    appState: { viewBackgroundColor: "#ffffff", gridSize: null, theme: "light" },
+    files: res.files,
+  }
+}

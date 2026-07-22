@@ -21,23 +21,22 @@ import {
   useCreateConstructionDetail,
   useDeleteConstructionDetail,
 } from "../../hooks/api/designs"
+import { CONSTRUCTION_TECHNIQUES } from "../../../modules/designs/construction-techniques"
 
-// Keep in sync with SUPPORTED_TECHNIQUES on the backend route / DETAIL_RENDERERS.
-// `paramHint` documents the parameter the renderer reads, shown as a placeholder.
-const TECHNIQUES: { value: string; label: string; paramHint: string }[] = [
-  { value: "dart", label: "Dart", paramHint: "intake = 0.6" },
-  { value: "knife-pleat", label: "Knife pleat", paramHint: "count = 5" },
-  { value: "box-pleat", label: "Box pleat", paramHint: "count = 3" },
-  { value: "gathers", label: "Gathers", paramHint: "ratio = 1.6" },
-  { value: "tucks", label: "Tucks", paramHint: "count = 4" },
-  { value: "topstitch", label: "Topstitch", paramHint: "rows = 2" },
-  { value: "yoke", label: "Yoke", paramHint: "drop = 0.4" },
-  { value: "embroidery", label: "Embroidery", paramHint: "motif = 6" },
-]
+// Derived from the canonical construction-techniques module (#1113 Feature B) —
+// the single source shared with the backend route, renderer and partner picker.
+// `paramHint` documents the params the renderer reads, shown as a placeholder.
+const TECHNIQUES: { value: string; label: string; paramHint: string }[] =
+  CONSTRUCTION_TECHNIQUES.map((t) => ({
+    value: t.slug,
+    label: t.label,
+    paramHint: t.params.length
+      ? t.params.map((p) => `${p.key} = ${p.default}`).join(", ")
+      : "no params",
+  }))
 
 // Ready-made construction details for common garment features. Selecting one
 // pre-fills the form so the same detail isn't re-authored from scratch each time.
-// All techniques below must exist in TECHNIQUES / the backend SUPPORTED_TECHNIQUES.
 type ConstructionSample = {
   value: string
   label: string
@@ -48,97 +47,17 @@ type ConstructionSample = {
   note?: string
 }
 
-const SAMPLES: ConstructionSample[] = [
-  {
-    value: "waist-dart",
-    label: "Waist dart",
-    technique: "dart",
-    detailLabel: "Waist dart",
-    params: { intake: 0.6 },
-    fabricRules: ["press toward centre front", "taper to nothing at apex"],
-    note: "Backstitch at waist seam, leave apex un-backstitched",
-  },
-  {
-    value: "bust-dart",
-    label: "Bust dart",
-    technique: "dart",
-    detailLabel: "Bust dart",
-    params: { intake: 0.5 },
-    fabricRules: ["press downward", "end 2.5 cm short of apex"],
-  },
-  {
-    value: "knife-pleat-skirt",
-    label: "Knife pleats (skirt)",
-    technique: "knife-pleat",
-    detailLabel: "Knife pleats",
-    params: { count: 6 },
-    fabricRules: ["all pleats face one direction", "press sharp, edge-stitch top 8 cm"],
-  },
-  {
-    value: "box-pleat-center",
-    label: "Centre box pleat",
-    technique: "box-pleat",
-    detailLabel: "Centre box pleat",
-    params: { count: 1 },
-    fabricRules: ["centre on CF", "tack at waist"],
-  },
-  {
-    value: "gathered-sleeve-head",
-    label: "Gathered sleeve head",
-    technique: "gathers",
-    detailLabel: "Sleeve-head gathers",
-    params: { ratio: 1.4 },
-    fabricRules: ["two rows of ease stitching", "distribute fullness between notches"],
-  },
-  {
-    value: "gathered-skirt-waist",
-    label: "Gathered skirt waist",
-    technique: "gathers",
-    detailLabel: "Waist gathers",
-    params: { ratio: 2 },
-    fabricRules: ["gather evenly to waistband length"],
-  },
-  {
-    value: "pin-tucks-bodice",
-    label: "Pin tucks (bodice)",
-    technique: "tucks",
-    detailLabel: "Pin tucks",
-    params: { count: 5 },
-    fabricRules: ["6 mm spacing", "press to one side"],
-  },
-  {
-    value: "double-topstitch-hem",
-    label: "Double topstitch hem",
-    technique: "topstitch",
-    detailLabel: "Double topstitch",
-    params: { rows: 2 },
-    fabricRules: ["6 mm row spacing", "matching thread"],
-  },
-  {
-    value: "edge-topstitch",
-    label: "Edge topstitch",
-    technique: "topstitch",
-    detailLabel: "Edge topstitch",
-    params: { rows: 1 },
-    fabricRules: ["1.5 mm from edge"],
-  },
-  {
-    value: "back-yoke",
-    label: "Back yoke",
-    technique: "yoke",
-    detailLabel: "Back yoke",
-    params: { drop: 0.4 },
-    fabricRules: ["burrito method", "understitch yoke seam"],
-  },
-  {
-    value: "chain-embroidery",
-    label: "Chain-stitch embroidery",
-    technique: "embroidery",
-    detailLabel: "Chain-stitch motif",
-    params: { motif: 6 },
-    fabricRules: ["stabilise reverse before stitching"],
-  },
-]
+const SAMPLES: ConstructionSample[] = CONSTRUCTION_TECHNIQUES.flatMap((t) =>
+  t.presets.map((p) => ({
+    value: p.value,
+    label: p.label,
+    technique: t.slug,
+    detailLabel: p.detailLabel,
+    params: p.params,
+    fabricRules: p.fabricRules,
+    note: p.note,
+  }))
+)
 
 /** Parse a textarea of `key = value` lines into a numeric param map (non-numeric dropped). */
 function parseParams(text: string): Record<string, number> {

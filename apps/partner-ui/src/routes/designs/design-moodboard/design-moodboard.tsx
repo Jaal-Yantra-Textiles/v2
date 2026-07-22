@@ -1,6 +1,6 @@
-import { Button, Heading, Text, toast } from "@medusajs/ui"
+import { Button, DropdownMenu, Heading, Text, toast } from "@medusajs/ui"
 import "@excalidraw/excalidraw/index.css"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Excalidraw } from "@excalidraw/excalidraw"
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
 import type { BinaryFileData, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
@@ -9,12 +9,20 @@ import { RouteFocusModal } from "../../../components/modals"
 import {
   usePartnerDesign,
   useGenerateMoodboard,
+  useMoodboardBlocks,
+  useInsertMoodboardBlock,
   useSeedMoodboard,
   useSaveMoodboard,
   useUpdatePartnerBrief,
+  type MoodboardBlockListing,
   type PartnerBriefUpdate,
 } from "../../../hooks/api/partner-designs"
 import { useResolvedDesignId } from "../../../hooks/use-resolved-design-id"
+import { ConstructionPicker } from "./construction-picker"
+
+// Must match the frame name emitted by buildConstructionDetailsFrame on the
+// backend, so re-inserting replaces the existing construction frame in place.
+const CONSTRUCTION_FRAME_NAME = "4 · Construction details"
 
 type MoodboardData = {
   type?: string
@@ -150,6 +158,48 @@ const extractBriefEdits = (
   return { concept_theme: value }
 }
 
+// Fresh element id — insert-block elements come from the server built at origin
+// with deterministic ids, so re-id on every insert to avoid collisions and to
+// allow inserting the same block twice.
+const genId = (): string =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `el-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`
+
+/**
+ * Re-id a block's elements (remapping internal frameId/containerId/boundElements
+ * references) and translate them by (dx, dy) so the block drops into open space
+ * on the live canvas without clobbering existing element ids.
+ */
+const reidAndTranslate = (
+  elements: readonly any[],
+  dx: number,
+  dy: number
+): any[] => {
+  const idMap = new Map<string, string>()
+  elements.forEach((el) => idMap.set(el.id, genId()))
+  return elements.map((el) => {
+    const next: any = {
+      ...el,
+      id: idMap.get(el.id),
+      x: (el.x ?? 0) + dx,
+      y: (el.y ?? 0) + dy,
+    }
+    if (el.frameId && idMap.has(el.frameId)) {
+      next.frameId = idMap.get(el.frameId)
+    }
+    if (el.containerId && idMap.has(el.containerId)) {
+      next.containerId = idMap.get(el.containerId)
+    }
+    if (Array.isArray(el.boundElements)) {
+      next.boundElements = el.boundElements.map((b: any) =>
+        b?.id && idMap.has(b.id) ? { ...b, id: idMap.get(b.id) } : b
+      )
+    }
+    return next
+  })
+}
+
 export const DesignMoodboard = () => {
   const id = useResolvedDesignId()
 
@@ -157,11 +207,15 @@ export const DesignMoodboard = () => {
   const didInitRef = useRef(false)
   const didSeedRef = useRef(false)
   const [isDirty, setIsDirty] = useState(false)
+  const [constructionOpen, setConstructionOpen] = useState(false)
 
   const { design, isPending, isError, error } = usePartnerDesign(id || "")
 
   const { mutateAsync: generateMoodboard, isPending: isGenerating } =
     useGenerateMoodboard(id || "")
+  const { data: blocksData } = useMoodboardBlocks(id || "")
+  const { mutateAsync: insertBlock, isPending: isInserting } =
+    useInsertMoodboardBlock(id || "")
   const { mutateAsync: seedMoodboard } = useSeedMoodboard(id || "")
   const { mutateAsync: saveMoodboard, isPending: isSavingScene } = useSaveMoodboard(
     id || ""
@@ -278,6 +332,100 @@ export const DesignMoodboard = () => {
     }
   }, [id, generateMoodboard, loadScene])
 
+  // The insert-block palette, grouped for the dropdown menu.
+  const groupedBlocks = useMemo(() => {
+    const blocks: MoodboardBlockListing[] = blocksData?.blocks ?? []
+    const order = ["Brief", "Tech-pack", "Workspace"]
+    const byGroup: Record<string, MoodboardBlockListing[]> = {}
+    for (const b of blocks) {
+      ;(byGroup[b.group] ??= []).push(b)
+    }
+    return order
+      .filter((g) => byGroup[g]?.length)
+      .map((g) => ({ group: g, items: byGroup[g] }))
+  }, [blocksData])
+
+  // Drop one pre-filled block onto the canvas, placed to the right of existing
+  // content, re-id'd so it never collides. Non-destructive: the designer arranges
+  // it and saves via the normal Save button. `replaceFrameNamed` strips any
+  // existing frame with that name first — a "refresh this frame" (used to
+  // re-render the construction glyph after a detail is added) rather than an
+  // additive drop-in.
+  const handleInsert = useCallback(
+    async (key: string, label: string, replaceFrameNamed?: string) => {
+      const api = apiRef.current
+      if (!api || !id) {
+        return
+      }
+      try {
+        const { block } = await insertBlock(key)
+        const els = (block?.elements ?? []) as any[]
+        if (!els.length) {
+          toast.info(`Nothing to insert for "${label}" yet.`)
+          return
+        }
+
+        let existing = api.getSceneElements().filter((e: any) => !e.isDeleted)
+        if (replaceFrameNamed) {
+          const removeIds = new Set(
+            existing
+              .filter(
+                (e: any) => e.type === "frame" && e.name === replaceFrameNamed
+              )
+              .map((e: any) => e.id)
+          )
+          if (removeIds.size) {
+            existing = existing.filter(
+              (e: any) => !removeIds.has(e.id) && !removeIds.has(e.frameId)
+            )
+          }
+        }
+
+        let dx = 0
+        let dy = 0
+        if (existing.length) {
+          const maxX = Math.max(
+            ...existing.map((e: any) => (e.x ?? 0) + (e.width ?? 0))
+          )
+          const minY = Math.min(...existing.map((e: any) => e.y ?? 0))
+          dx = maxX + 120 // one frame gap to the right
+          dy = minY
+        }
+        const placed = reidAndTranslate(els, dx, dy)
+
+        const files = block?.files ?? {}
+        const fileList = Object.entries(files).map(
+          ([fid, f]: [string, any]) => ({
+            id: fid,
+            dataURL: f.dataURL,
+            mimeType: f.mimeType || "image/png",
+            created: f.created || Date.now(),
+            lastRetrieved: Date.now(),
+          })
+        )
+        if (fileList.length) {
+          api.addFiles(fileList as any)
+        }
+
+        api.updateScene({ elements: [...existing, ...placed] as any })
+        api.scrollToContent(placed as any, { fitToContent: true })
+        setIsDirty(true)
+        if (!replaceFrameNamed) {
+          toast.success(`Inserted "${label}"`)
+        }
+      } catch (err: any) {
+        toast.error(err?.message || "Failed to insert block")
+      }
+    },
+    [id, insertBlock]
+  )
+
+  // After a construction detail is added, re-render the construction frame from
+  // the design's fresh data (replacing the existing one in place).
+  const handleConstructionAdded = useCallback(() => {
+    handleInsert("construction", "Construction details", CONSTRUCTION_FRAME_NAME)
+  }, [handleInsert])
+
   const handleSave = useCallback(async () => {
     const api = apiRef.current
     if (!api || !id) {
@@ -393,6 +541,50 @@ export const DesignMoodboard = () => {
               Close
             </Button>
           </RouteFocusModal.Close>
+          <DropdownMenu>
+            <DropdownMenu.Trigger asChild>
+              <Button
+                size="small"
+                variant="secondary"
+                disabled={!id || isSaving || isInserting}
+                isLoading={isInserting}
+              >
+                Insert block
+              </Button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Content>
+              {groupedBlocks.length === 0 ? (
+                <DropdownMenu.Item disabled>No blocks available</DropdownMenu.Item>
+              ) : (
+                groupedBlocks.map((grp, gi) => (
+                  <Fragment key={grp.group}>
+                    {gi > 0 ? <DropdownMenu.Separator /> : null}
+                    <DropdownMenu.Label>{grp.group}</DropdownMenu.Label>
+                    {grp.items.map((b) => (
+                      <DropdownMenu.Item
+                        key={b.key}
+                        disabled={!b.available}
+                        onClick={() => handleInsert(b.key, b.label)}
+                      >
+                        {b.label}
+                        {!b.available ? (
+                          <span className="text-ui-fg-muted ml-1">· empty</span>
+                        ) : null}
+                      </DropdownMenu.Item>
+                    ))}
+                  </Fragment>
+                ))
+              )}
+            </DropdownMenu.Content>
+          </DropdownMenu>
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={() => setConstructionOpen(true)}
+            disabled={!id || isSaving}
+          >
+            Add construction
+          </Button>
           <Button
             size="small"
             variant="secondary"
@@ -413,6 +605,15 @@ export const DesignMoodboard = () => {
           </Button>
         </div>
       </RouteFocusModal.Footer>
+
+      {id ? (
+        <ConstructionPicker
+          designId={id}
+          open={constructionOpen}
+          onOpenChange={setConstructionOpen}
+          onAdded={handleConstructionAdded}
+        />
+      ) : null}
     </RouteFocusModal>
   )
 }
