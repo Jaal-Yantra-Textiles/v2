@@ -1541,6 +1541,11 @@ export function getPartnerRouteMap(): RouteObject[] {
           path: "/invite",
           lazy: () => import("../../routes/invite"),
         },
+        {
+          // #1113 S3 — scoped designer invite landing (token = capability).
+          path: "/designer-invite/:token",
+          lazy: () => import("../../routes/designer-invite"),
+        },
       ],
     },
     {

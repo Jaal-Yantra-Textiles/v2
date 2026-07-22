@@ -2,6 +2,7 @@ import { LoaderFunctionArgs, UIMatch, useLoaderData, useParams } from "react-rou
 import { AdminDesignResponse, useDesign } from "../../../hooks/api/designs";
 import { DesignGeneralSection } from "../../../components/designs/design-general-section";
 import { DesignPartnerSummary } from "../../../components/designs/design-partner-summary";
+import { DesignDesignerInvitesSection } from "../../../components/designs/design-designer-invites-section";
 import { DesignTasksSummary } from "../../../components/designs/design-tasks-summary";
 import { DesignMediaSection } from "../../../components/designs/design-media-section";
 import { DesignMediaFolderSection } from "../../../components/designs/design-media-folder-section";
@@ -73,6 +74,7 @@ const DesignDetailPage = () => {
           <DesignProductionRunsSummary design={design} />
           <DesignTasksSummary design={design} />
           <DesignPartnerSummary design={design} />
+          <DesignDesignerInvitesSection design={design} />
           <DesignInventorySection design={design} />
           <DesignConsumptionLogsSection design={design} />
         </TwoColumnPage.Main>

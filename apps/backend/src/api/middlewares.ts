@@ -207,6 +207,7 @@ import { PartnerCreateProductionRunReq } from "./partners/designs/[designId]/pro
 import { PartnerPostConsumptionLogReq } from "./partners/designs/[designId]/consumption-logs/validators";
 import { PartnerPostDesignTasksReq } from "./partners/designs/[designId]/tasks/validators";
 import { DesignBriefSchema as PartnerDesignBriefSchema, UpdateDesignBriefSchema as PartnerUpdateDesignBriefSchema } from "./partners/designs/[designId]/brief/validators";
+import { SavePartnerMoodboardSchema } from "./partners/designs/[designId]/moodboard/validators";
 import { AdminCreateDesignerInviteSchema } from "./admin/designs/[id]/designer-invites/validators";
 import { AcceptDesignerInviteSchema } from "./partners/designer-invites/[token]/accept/validators";
 import { PartnerPostProductionRunConsumptionLogReq } from "./partners/production-runs/[id]/consumption-logs/validators";
@@ -4608,6 +4609,18 @@ export default defineMiddlewares({
       matcher: "/partners/designs/:designId/moodboard/generate",
       method: "POST",
       middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // #1113 S3 — partner saves the moodboard scene edited on the canvas.
+      // Owner OR assigned designer (author-scoped guard in the route), scoped
+      // to just the `moodboard` column.
+      matcher: "/partners/designs/:designId/moodboard",
+      method: "PUT",
+      bodyParser: { sizeLimit: "20mb" },
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(SavePartnerMoodboardSchema)),
+      ],
     },
     {
       matcher: "/partners/designs/:designId/cost",

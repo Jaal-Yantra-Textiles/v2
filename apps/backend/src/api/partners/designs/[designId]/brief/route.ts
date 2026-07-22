@@ -19,7 +19,10 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import updateDesignWorkflow from "../../../../../workflows/designs/update-design"
-import { assertPartnerOwnsDesign } from "../../helpers"
+import {
+  assertPartnerOwnsDesign,
+  assertPartnerCanAuthorDesign,
+} from "../../helpers"
 import {
   DesignBrief,
   UpdateDesignBrief,
@@ -58,7 +61,9 @@ export async function GET(
   res: MedusaResponse
 ): Promise<void> {
   const { designId } = req.params
-  await assertPartnerOwnsDesign(req, designId)
+  // #1113 S3 — author-scoped (owner OR invited/assigned designer) so the
+  // moodboard brief-anchor cards can be hydrated by the invited designer too.
+  await assertPartnerCanAuthorDesign(req, designId)
   const brief = await readBrief(designId, req.scope)
   res.status(200).json({ brief })
 }
@@ -80,10 +85,12 @@ export async function POST(
   const input: Record<string, any> = {
     id: designId,
     concept_theme: body.concept_theme ?? null,
+    aesthetic_keywords: body.aesthetic_keywords ?? null,
     persona: body.persona ?? null,
     competitors: body.competitors ?? null,
     price_point: body.price_point ?? null,
     design_budget: body.design_budget ?? null,
+    milestones: body.milestones ?? null,
   }
   // cost_currency is shared with manufacturing cost — only overwrite it when
   // the caller explicitly sends one, never null it out on a brief replace.
@@ -113,7 +120,9 @@ export async function PUT(
   res: MedusaResponse
 ): Promise<void> {
   const { designId } = req.params
-  await assertPartnerOwnsDesign(req, designId)
+  // #1113 S3 — partial brief edits round-trip from the moodboard canvas, which
+  // an invited/assigned designer may author; author-scoped (not owner-only).
+  await assertPartnerCanAuthorDesign(req, designId)
 
   const body = req.validatedBody ?? {}
   const input: Record<string, any> = { id: designId }

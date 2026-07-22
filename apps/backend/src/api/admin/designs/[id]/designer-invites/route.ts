@@ -2,6 +2,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { DESIGNER_INVITE_MODULE } from "../../../../../modules/designer-invite"
 import { generateInviteToken } from "../../../../../modules/designer-invite/lib/token"
+import { sendDesignerInviteEmailWorkflow } from "../../../../../workflows/email"
 import { AdminCreateDesignerInviteReq } from "./validators"
 
 const PARTNER_PORTAL_URL =
@@ -72,7 +73,33 @@ export const POST = async (
   const base = PARTNER_PORTAL_URL.replace(/\/$/, "")
   const url = `${base}/designer-invite/${raw}`
 
-  res.status(201).json({ invite: presentInvite(invite), token: raw, url })
+  // Best-effort: when the invite is addressed to an email, notify the recipient
+  // with the landing link. Never fail the mint on an email hiccup.
+  let emailed = false
+  if (invite.email) {
+    try {
+      await sendDesignerInviteEmailWorkflow(req.scope).run({
+        input: {
+          email: invite.email,
+          inviteUrl: url,
+          designName: designs[0].name,
+          inviterName: body.inviter_name ?? null,
+          expiresLabel:
+            body.expires_in_days != null
+              ? `${body.expires_in_days} day${body.expires_in_days === 1 ? "" : "s"}`
+              : "no expiry",
+        },
+        throwOnError: false,
+      })
+      emailed = true
+    } catch (e: any) {
+      req.scope
+        .resolve(ContainerRegistrationKeys.LOGGER)
+        .error(`[designer-invite] email send failed: ${e?.message ?? e}`)
+    }
+  }
+
+  res.status(201).json({ invite: presentInvite(invite), token: raw, url, emailed })
 }
 
 /**
