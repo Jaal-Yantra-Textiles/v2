@@ -1,4 +1,5 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import partnerOrderLink from "../../links/partner-order"
 
 /**
  * Resolve the owning partner for a RETAIL order from its sales channel.
@@ -23,6 +24,40 @@ export async function resolveRetailPartnerId(
   if (!salesChannelId) return null
   const map = await buildRetailPartnerBySalesChannel(container)
   return map.get(salesChannelId) || null
+}
+
+/**
+ * Resolve the owning partner for ANY order — the same two-rule ownership the
+ * partner API enforces (`validatePartnerOrderOwnership`) and the partner-order
+ * email uses:
+ *   1. Work order: the explicit partner↔order link (source of truth) — a
+ *      partner can serve another partner's store, so work-orders need the link.
+ *   2. Retail order: `order.sales_channel_id === partner.store.default_sales_channel_id`.
+ *
+ * Shared seam for provenance-run partner attribution (#1121) and #1111 S4.
+ * Never throws — returns null when no partner owns the order.
+ */
+export async function resolveOwningPartnerId(
+  container: any,
+  input: { orderId: string; salesChannelId?: string | null }
+): Promise<string | null> {
+  // 1) Work order: explicit partner↔order link.
+  try {
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+    const { data: links } = await query.graph({
+      entity: partnerOrderLink.entryPoint,
+      fields: ["partner_id"],
+      filters: { order_id: input.orderId },
+      pagination: { skip: 0, take: 1 },
+    })
+    const linked = (links?.[0] as any)?.partner_id
+    if (linked) return linked
+  } catch {
+    // link table absent / empty — fall through to the retail rule
+  }
+
+  // 2) Retail order: sales-channel ownership rule.
+  return resolveRetailPartnerId(container, input.salesChannelId)
 }
 
 /**
