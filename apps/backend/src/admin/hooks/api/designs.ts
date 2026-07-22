@@ -267,6 +267,106 @@ export const useGenerateMoodboard = (
   });
 };
 
+// #1113 S4 — scoped designer invites for a single design.
+export interface DesignerInvite {
+  id: string;
+  design_id: string;
+  email: string | null;
+  status: "pending" | "accepted" | "revoked" | string;
+  role: string | null;
+  expires_at: string | null;
+  inviter_name: string | null;
+  accepted_partner_id: string | null;
+  accepted_at: string | null;
+  created_at: string;
+}
+
+export interface DesignerInvitesResponse {
+  invites: DesignerInvite[];
+}
+
+export interface CreateDesignerInviteReq {
+  email?: string;
+  expires_in_days?: number;
+  role?: string;
+  inviter_name?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface CreateDesignerInviteResponse {
+  invite: DesignerInvite;
+  /** The raw token/URL — only returned once, at creation. */
+  token: string;
+  url: string;
+  /** Whether a notification email was dispatched (only when `email` was set). */
+  emailed?: boolean;
+}
+
+export const useDesignerInvites = (
+  id: string,
+  options?: Omit<
+    UseQueryOptions<DesignerInvitesResponse, FetchError, DesignerInvitesResponse, QueryKey>,
+    "queryFn" | "queryKey"
+  >,
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: designQueryKeys.detail(id, ["designer-invites"]),
+    queryFn: async () =>
+      sdk.client.fetch<DesignerInvitesResponse>(
+        `/admin/designs/${id}/designer-invites`,
+        { method: "GET" },
+      ),
+    ...options,
+  });
+  return { ...data, invites: data?.invites ?? [], ...rest };
+};
+
+export const useCreateDesignerInvite = (
+  id: string,
+  options?: UseMutationOptions<CreateDesignerInviteResponse, FetchError, CreateDesignerInviteReq>,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload) =>
+      sdk.client.fetch<CreateDesignerInviteResponse>(
+        `/admin/designs/${id}/designer-invites`,
+        { method: "POST", body: payload },
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({
+        queryKey: designQueryKeys.detail(id, ["designer-invites"]),
+      });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
+    },
+    ...options,
+  });
+};
+
+export const useRevokeDesignerInvite = (
+  id: string,
+  options?: UseMutationOptions<
+    { id: string; object: string; revoked: boolean },
+    FetchError,
+    string
+  >,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (inviteId) =>
+      sdk.client.fetch<{ id: string; object: string; revoked: boolean }>(
+        `/admin/designs/${id}/designer-invites/${inviteId}`,
+        { method: "DELETE" },
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({
+        queryKey: designQueryKeys.detail(id, ["designer-invites"]),
+      });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
+    },
+    ...options,
+  });
+};
+
 export const useDeleteDesign = (
   id: string,
   options?: UseMutationOptions<AdminDesign, FetchError, void>,

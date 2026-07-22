@@ -164,4 +164,19 @@ setupSharedTestSuite(() => {
       .catch((e) => e)
     expect(err.response.status).toBe(404)
   })
+
+  // #1113 S4 — minting with an email attempts a best-effort notification. The
+  // send must never fail the mint; the response carries an `emailed` flag.
+  it("mints with an email and reports the email dispatch flag without failing", async () => {
+    const mint = await api.post(
+      `/admin/designs/${designId}/designer-invites`,
+      { email: `notify-${uniq()}@example.com`, expires_in_days: 7, inviter_name: "Studio JYT" },
+      headers
+    )
+    expect(mint.status).toBe(201)
+    expect(mint.data.token).toBeTruthy()
+    expect(mint.data.url).toContain(`/designer-invite/${mint.data.token}`)
+    // Present regardless of send success (best-effort); type is boolean.
+    expect(typeof mint.data.emailed).toBe("boolean")
+  })
 })
