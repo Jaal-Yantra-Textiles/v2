@@ -1,4 +1,5 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
+import { useState } from "react"
 import { Container, Text, Badge, StatusBadge, usePrompt, Skeleton, Button, Heading } from "@medusajs/ui"
 import { DetailWidgetProps } from "@medusajs/framework/types"
 import { useNavigate } from "react-router-dom"
@@ -184,17 +185,33 @@ function DesignAdminProductionRunsSection({ designId }: { designId: string }) {
 // the product's "design trail" — the runs that produced sold-and-fulfilled
 // stock. Design-backed runs are excluded here (they already appear under their
 // design above), so there's no double-listing.
+const PROVENANCE_RUNS_PAGE = 20
+
 function ProductProvenanceRunsSection({ productId }: { productId: string }) {
   const navigate = useNavigate()
-  const { production_runs: runs = [], isLoading } = useProductionRuns({
+  // #1124 — paginate instead of a hard 50-run cap: bump the limit on demand.
+  const [limit, setLimit] = useState(PROVENANCE_RUNS_PAGE)
+  const { production_runs: runs = [], count = 0, isLoading } = useProductionRuns({
     product_id: productId,
-    limit: 50,
+    limit,
   })
 
-  if (isLoading) return null
+  // #1124 — show a skeleton while loading (was `return null`, unlike the
+  // sibling design-runs section) so the section doesn't pop in.
+  if (isLoading && !runs.length) {
+    return (
+      <div className="flex flex-col gap-y-3 px-6 py-4">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-16 w-full" />
+      </div>
+    )
+  }
 
   const productOnly = (runs as AdminProductionRun[]).filter((r) => !r.design_id)
   if (!productOnly.length) return null
+
+  // More runs exist server-side for this product than we've loaded.
+  const hasMore = count > runs.length
 
   return (
     <div className="flex flex-col gap-y-3 px-6 py-4">
@@ -240,6 +257,19 @@ function ProductProvenanceRunsSection({ productId }: { productId: string }) {
           </div>
         ))}
       </div>
+
+      {hasMore && (
+        <div className="flex justify-center">
+          <Button
+            size="small"
+            variant="transparent"
+            isLoading={isLoading}
+            onClick={() => setLimit((l) => l + PROVENANCE_RUNS_PAGE)}
+          >
+            Show more
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
@@ -398,8 +428,12 @@ const ProductDesignsWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
                 {/* Inventory & Production sub-section */}
                 <div className="flex flex-col gap-y-4 px-6 pb-5 bg-ui-bg-subtle border-t border-ui-border-base">
                   <div className="flex flex-col gap-y-2 pt-4">
+                    {/* #1124 — "Design Production Runs" (not just "Production
+                        Runs") so it reads distinctly from the product-level
+                        provenance "Production Runs" section below when a product
+                        has both a linked design and retail-fulfillment runs. */}
                     <Text size="xsmall" weight="plus" className="text-ui-fg-subtle uppercase tracking-wide">
-                      Production Runs
+                      Design Production Runs
                     </Text>
                     <DesignAdminProductionRunsSection designId={design.id} />
                   </div>

@@ -39,6 +39,16 @@ export const GET = async (
       "type.*",
       "collection.*",
       "sales_channels.*",
+      // #1124 — provenance trail: the production runs that produced this
+      // product's sold-and-fulfilled stock (product-as-spine link, #1112).
+      "production_runs.id",
+      "production_runs.status",
+      "production_runs.order_id",
+      "production_runs.design_id",
+      "production_runs.partner_id",
+      "production_runs.quantity",
+      "production_runs.produced_quantity",
+      "production_runs.created_at",
     ],
     filters: { id: req.params.productId },
   })
@@ -65,6 +75,9 @@ export const GET = async (
 
   scopeAndAggregateVariantInventory(product.variants || [], store?.default_location_id)
   const remapped: any = remapProductResponse(product)
+  // `remapProductResponse` only copies a hand-picked allow-list of relations,
+  // so `production_runs` (like `fx_price_meta` above) is dropped — re-attach it.
+  remapped.production_runs = product.production_runs || []
   if (fxMetaByPriceId.size) {
     for (const variant of remapped.variants || []) {
       for (const price of variant.prices || []) {

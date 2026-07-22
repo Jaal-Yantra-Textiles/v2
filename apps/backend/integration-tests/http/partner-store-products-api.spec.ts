@@ -195,6 +195,9 @@ setupSharedTestSuite(() => {
         expect(res.status).toBe(200)
         expect(res.data.product).toBeDefined()
         expect(res.data.product.id).toBe(partner.productId)
+        // #1124 — the provenance trail (product↔production_run link) is wired
+        // through the remap as an array (empty here — no fulfilled orders yet).
+        expect(Array.isArray(res.data.product.production_runs)).toBe(true)
       })
 
       it("POST /partners/stores/:id/products/:productId updates the product", async () => {
