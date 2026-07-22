@@ -188,7 +188,10 @@
         "publishableApiKey": "Publishable API Keys",
         "secretApiKey": "Secret API Keys",
         "command": "Commands",
-        "navigation": "Navigation"
+        "navigation": "Navigation",
+        "orders": "Orders",
+        "designs": "Designs",
+        "customers": "Customers"
       }
     },
     "keyboardShortcuts": {
