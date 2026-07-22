@@ -33,6 +33,14 @@ const Website = model.define("website", {
   // Useful for GTM noscript fallbacks and providers that want a body-end tag.
   analytics_custom_body_end: model.text().nullable(),
 
+  // Google Search Console site-verification token (#349). Each storefront domain
+  // is a separate GSC property, so this is per-Website. The storefront-starter
+  // reads it from the public /web/website/[domain] API and always injects
+  // <meta name="google-site-verification" content="…"> into <head> — independent
+  // of analytics_provider (analytics_custom_head only renders for the "custom"
+  // provider, so it can't double as the SEO hook).
+  google_site_verification: model.text().nullable(),
+
   // Relationship with Pages
   pages: model.hasMany(() => Page),
   // Extra domains that resolve to this website (aliases, custom domains, etc.)

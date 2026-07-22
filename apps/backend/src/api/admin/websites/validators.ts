@@ -14,6 +14,7 @@ export const websiteSchema = z.object({
   analytics_provider: z.enum(ANALYTICS_PROVIDER_VALUES).optional(),
   analytics_custom_head: z.string().nullish(),
   analytics_custom_body_end: z.string().nullish(),
+  google_site_verification: z.string().nullish(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -33,6 +34,7 @@ export const updateWebsiteSchema = z.object({
   analytics_provider: z.enum(ANALYTICS_PROVIDER_VALUES).optional(),
   analytics_custom_head: z.string().nullish(),
   analytics_custom_body_end: z.string().nullish(),
+  google_site_verification: z.string().nullish(),
   metadata: z.record(z.string(), z.unknown()).optional().nullish(),
 });
 
