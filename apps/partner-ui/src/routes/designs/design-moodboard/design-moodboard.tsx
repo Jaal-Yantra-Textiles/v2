@@ -19,6 +19,7 @@ import {
 } from "../../../hooks/api/partner-designs"
 import { useResolvedDesignId } from "../../../hooks/use-resolved-design-id"
 import { ConstructionPicker } from "./construction-picker"
+import { MoodboardLayersPanel } from "./moodboard-layers-panel"
 
 // Must match the frame name emitted by buildConstructionDetailsFrame on the
 // backend, so re-inserting replaces the existing construction frame in place.
@@ -102,19 +103,13 @@ const normalizeMoodboard = (raw: unknown): MoodboardData | null => {
 // persist it back as a real value.
 const CONCEPT_PLACEHOLDER = "Set the overarching story or inspiration."
 
-/**
- * #1113 S3 — read the designer's edits to `brief-field` cards back out of the
- * canvas so they round-trip to the brief columns.
- *
- * Only the free-text `concept_theme` card is round-tripped: its value lives in a
- * standalone text element sitting inside the card rectangle (the rectangle
- * carries `customData.field`; the text is positioned, not bound). Structured
- * fields (persona/competitors/aesthetic_keywords/milestones) are visual-only
- * edits here — they're JSON, not naive text, so we never guess them back.
- */
-const extractBriefEdits = (
-  elements: readonly any[]
-): PartnerBriefUpdate | null => {
+// Must match KEYWORDS_LINE_LABEL in build-moodboard-scene.ts — the stable prefix
+// on the editable aesthetic-keywords line in the Concept & Identity frame.
+const KEYWORDS_LINE_LABEL = "Aesthetic keywords:"
+
+// Read the free-text concept_theme card body out of the canvas (positioned text
+// element inside the `brief-field` rectangle).
+const readConceptTheme = (elements: readonly any[]): string | null => {
   const rect = elements.find(
     (el) =>
       !el.isDeleted &&
@@ -125,13 +120,11 @@ const extractBriefEdits = (
   if (!rect) {
     return null
   }
-
-  // Find the body text element geometrically inside the card, below the heading.
   const rx = rect.x
   const ry = rect.y
   const rw = rect.width ?? 0
   const rh = rect.height ?? 0
-  const bodies = elements
+  const body = elements
     .filter(
       (el) =>
         !el.isDeleted &&
@@ -143,19 +136,63 @@ const extractBriefEdits = (
         el.y < ry + rh
     )
     // The body text is the lower one (y ~+46); heading sits at y ~+16.
-    .sort((a, b) => b.y - a.y)
-
-  const body = bodies[0]
+    .sort((a, b) => b.y - a.y)[0]
   if (!body) {
     return null
   }
-
   const value = String(body.text).trim()
   if (!value || value === CONCEPT_PLACEHOLDER) {
     return null
   }
+  return value
+}
 
-  return { concept_theme: value }
+// Read the comma-separated aesthetic-keywords line (a text element tagged with
+// customData.field === "aesthetic_keywords") back into a string[] (max 8, per
+// the brief schema). Returns null when the line is absent or empty.
+const readAestheticKeywords = (elements: readonly any[]): string[] | null => {
+  const line = elements.find(
+    (el) =>
+      !el.isDeleted &&
+      el.type === "text" &&
+      el.customData?.kind === "brief-field" &&
+      el.customData?.field === "aesthetic_keywords"
+  )
+  if (!line || typeof line.text !== "string") {
+    return null
+  }
+  let raw = String(line.text)
+  if (raw.startsWith(KEYWORDS_LINE_LABEL)) {
+    raw = raw.slice(KEYWORDS_LINE_LABEL.length)
+  }
+  const kws = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 8)
+  return kws.length ? kws : null
+}
+
+/**
+ * #1113 — read the designer's edits to the Concept & Identity frame back out of
+ * the canvas so they round-trip to the brief columns. Handles the free-text
+ * `concept_theme` card and the editable `aesthetic_keywords` line. Other
+ * structured fields (persona/competitors/milestones) remain visual-only.
+ * Returns null when nothing round-trippable is present.
+ */
+const extractBriefEdits = (
+  elements: readonly any[]
+): PartnerBriefUpdate | null => {
+  const edits: PartnerBriefUpdate = {}
+  const concept = readConceptTheme(elements)
+  if (concept != null) {
+    edits.concept_theme = concept
+  }
+  const keywords = readAestheticKeywords(elements)
+  if (keywords != null) {
+    edits.aesthetic_keywords = keywords
+  }
+  return Object.keys(edits).length ? edits : null
 }
 
 // Fresh element id — insert-block elements come from the server built at origin
@@ -208,6 +245,14 @@ export const DesignMoodboard = () => {
   const didSeedRef = useRef(false)
   const [isDirty, setIsDirty] = useState(false)
   const [constructionOpen, setConstructionOpen] = useState(false)
+  const [layersOpen, setLayersOpen] = useState(false)
+  // Bumped on canvas change (only while the layers panel is open) so the panel
+  // re-reads frames without re-rendering the whole editor on every pointer move.
+  const [layersTick, setLayersTick] = useState(0)
+  const layersOpenRef = useRef(false)
+  useEffect(() => {
+    layersOpenRef.current = layersOpen
+  }, [layersOpen])
 
   const { design, isPending, isError, error } = usePartnerDesign(id || "")
 
@@ -253,6 +298,9 @@ export const DesignMoodboard = () => {
       return
     }
     setIsDirty(true)
+    if (layersOpenRef.current) {
+      setLayersTick((t) => t + 1)
+    }
   }, [])
 
   // Load a freshly-generated scene straight into the canvas so it's editable.
@@ -452,15 +500,26 @@ export const DesignMoodboard = () => {
 
       await saveMoodboard(scene)
 
-      // Round-trip concept-card text edits back to the brief column.
+      // Round-trip Concept & Identity edits (concept_theme + aesthetic_keywords)
+      // back to the brief columns.
       const briefEdits = extractBriefEdits(elements)
-      if (briefEdits && briefEdits.concept_theme !== (design as any)?.concept_theme) {
-        try {
-          await updateBrief(briefEdits)
-        } catch {
-          // A brief write-back failure shouldn't lose the saved scene; surface
-          // softly and keep the moodboard save.
-          toast.warning("Moodboard saved, but the brief edit couldn't be synced.")
+      if (briefEdits) {
+        const cur = (design as any) || {}
+        const conceptChanged =
+          "concept_theme" in briefEdits &&
+          briefEdits.concept_theme !== cur.concept_theme
+        const keywordsChanged =
+          "aesthetic_keywords" in briefEdits &&
+          JSON.stringify(briefEdits.aesthetic_keywords ?? []) !==
+            JSON.stringify(cur.aesthetic_keywords ?? [])
+        if (conceptChanged || keywordsChanged) {
+          try {
+            await updateBrief(briefEdits)
+          } catch {
+            // A brief write-back failure shouldn't lose the saved scene; surface
+            // softly and keep the moodboard save.
+            toast.warning("Moodboard saved, but the brief edit couldn't be synced.")
+          }
         }
       }
 
@@ -501,6 +560,15 @@ export const DesignMoodboard = () => {
           </div>
         ) : (
           <div className="relative w-full h-[calc(100dvh-160px)]">
+            {layersOpen ? (
+              <div className="absolute top-14 left-2 z-50 w-64">
+                <MoodboardLayersPanel
+                  excalidrawAPI={apiRef.current}
+                  tick={layersTick}
+                  onClose={() => setLayersOpen(false)}
+                />
+              </div>
+            ) : null}
             <Excalidraw
               excalidrawAPI={(api) => {
                 apiRef.current = api
@@ -517,6 +585,84 @@ export const DesignMoodboard = () => {
               }
               viewModeEnabled={false}
               onChange={handleChange}
+              renderTopRightUI={() => (
+                <div className="flex items-center gap-1.5 flex-wrap justify-end max-w-[62vw]">
+                  <DropdownMenu>
+                    <DropdownMenu.Trigger asChild>
+                      <Button
+                        size="small"
+                        variant="secondary"
+                        disabled={!id || isSaving || isInserting}
+                        isLoading={isInserting}
+                      >
+                        Insert block
+                      </Button>
+                    </DropdownMenu.Trigger>
+                    <DropdownMenu.Content>
+                      {groupedBlocks.length === 0 ? (
+                        <DropdownMenu.Item disabled>
+                          No blocks available
+                        </DropdownMenu.Item>
+                      ) : (
+                        groupedBlocks.map((grp, gi) => (
+                          <Fragment key={grp.group}>
+                            {gi > 0 ? <DropdownMenu.Separator /> : null}
+                            <DropdownMenu.Label>{grp.group}</DropdownMenu.Label>
+                            {grp.items.map((b) => (
+                              <DropdownMenu.Item
+                                key={b.key}
+                                // Brief blocks stay insertable even when empty —
+                                // they drop an editable template you fill in place.
+                                disabled={b.group !== "Brief" && !b.available}
+                                onClick={() => handleInsert(b.key, b.label)}
+                              >
+                                {b.label}
+                                {!b.available ? (
+                                  <span className="text-ui-fg-muted ml-1">· empty</span>
+                                ) : null}
+                              </DropdownMenu.Item>
+                            ))}
+                          </Fragment>
+                        ))
+                      )}
+                    </DropdownMenu.Content>
+                  </DropdownMenu>
+                  <Button
+                    size="small"
+                    variant="secondary"
+                    onClick={() => setConstructionOpen(true)}
+                    disabled={!id || isSaving}
+                  >
+                    Add construction
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="secondary"
+                    onClick={handleGenerate}
+                    disabled={!id || isGenerating || isSaving}
+                    isLoading={isGenerating}
+                  >
+                    Generate
+                  </Button>
+                  <Button
+                    size="small"
+                    variant={layersOpen ? "primary" : "secondary"}
+                    onClick={() => setLayersOpen((v) => !v)}
+                    disabled={!id}
+                  >
+                    Layers
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="primary"
+                    onClick={handleSave}
+                    disabled={!id || isSaving || !isDirty}
+                    isLoading={isSaving}
+                  >
+                    {isDirty ? "Save" : "Saved"}
+                  </Button>
+                </div>
+              )}
               UIOptions={{
                 canvasActions: {
                   changeViewBackgroundColor: true,
@@ -535,74 +681,16 @@ export const DesignMoodboard = () => {
       </RouteFocusModal.Body>
 
       <RouteFocusModal.Footer>
-        <div className="flex items-center justify-end gap-x-2">
+        <div className="flex items-center justify-between w-full gap-x-2">
+          <Text size="xsmall" className="text-ui-fg-muted">
+            Insert, construction, generate, layers &amp; save are in the canvas
+            toolbar (top-right).
+          </Text>
           <RouteFocusModal.Close asChild>
             <Button size="small" variant="secondary">
               Close
             </Button>
           </RouteFocusModal.Close>
-          <DropdownMenu>
-            <DropdownMenu.Trigger asChild>
-              <Button
-                size="small"
-                variant="secondary"
-                disabled={!id || isSaving || isInserting}
-                isLoading={isInserting}
-              >
-                Insert block
-              </Button>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Content>
-              {groupedBlocks.length === 0 ? (
-                <DropdownMenu.Item disabled>No blocks available</DropdownMenu.Item>
-              ) : (
-                groupedBlocks.map((grp, gi) => (
-                  <Fragment key={grp.group}>
-                    {gi > 0 ? <DropdownMenu.Separator /> : null}
-                    <DropdownMenu.Label>{grp.group}</DropdownMenu.Label>
-                    {grp.items.map((b) => (
-                      <DropdownMenu.Item
-                        key={b.key}
-                        disabled={!b.available}
-                        onClick={() => handleInsert(b.key, b.label)}
-                      >
-                        {b.label}
-                        {!b.available ? (
-                          <span className="text-ui-fg-muted ml-1">· empty</span>
-                        ) : null}
-                      </DropdownMenu.Item>
-                    ))}
-                  </Fragment>
-                ))
-              )}
-            </DropdownMenu.Content>
-          </DropdownMenu>
-          <Button
-            size="small"
-            variant="secondary"
-            onClick={() => setConstructionOpen(true)}
-            disabled={!id || isSaving}
-          >
-            Add construction
-          </Button>
-          <Button
-            size="small"
-            variant="secondary"
-            onClick={handleGenerate}
-            disabled={!id || isGenerating || isSaving}
-            isLoading={isGenerating}
-          >
-            Generate from brief
-          </Button>
-          <Button
-            size="small"
-            variant="primary"
-            onClick={handleSave}
-            disabled={!id || isSaving || !isDirty}
-            isLoading={isSaving}
-          >
-            {isDirty ? "Save changes" : "Saved"}
-          </Button>
         </div>
       </RouteFocusModal.Footer>
 

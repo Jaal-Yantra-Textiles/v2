@@ -16,6 +16,7 @@ import { useMoodboard } from "../../hooks/use-moodboard";
 import { Button, DropdownMenu, toast } from "@medusajs/ui";
 import { FashionPanel } from "./fashion-panel";
 import { MoodboardConstructionPicker } from "./moodboard-construction-picker";
+import { MoodboardLayersPanel } from "./moodboard-layers-panel";
 
 // Must match the frame name emitted by buildConstructionDetailsFrame on the
 // backend, so re-inserting replaces the existing construction frame in place.
@@ -62,6 +63,14 @@ export function DesignMoodboardSection() {
   const [fashionPanelOpen, setFashionPanelOpen] = useState(false);
   const [fashionPanelInitialTab, setFashionPanelInitialTab] = useState<string | undefined>(undefined);
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
+  const [layersOpen, setLayersOpen] = useState(false);
+  // Bumped on canvas change (only while the layers panel is open) so the panel
+  // re-reads frames without re-rendering the editor on every pointer move.
+  const [layersTick, setLayersTick] = useState(0);
+  const layersOpenRef = useRef(false);
+  useEffect(() => {
+    layersOpenRef.current = layersOpen;
+  }, [layersOpen]);
 
   const {
     isSaving,
@@ -262,79 +271,10 @@ export function DesignMoodboardSection() {
     <RouteNonFocusModal>
       <RouteNonFocusModal.Header onClick={handleCloseSave}>
         <div className="flex items-center justify-end w-full">
-          <div className="flex items-end justify-end gap-x-2">
-            <DropdownMenu>
-              <DropdownMenu.Trigger asChild>
-                <Button
-                  variant="secondary"
-                  size="base"
-                  onClick={(e) => e.stopPropagation()}
-                  disabled={isSaving || isInserting}
-                  isLoading={isInserting}
-                >
-                  Insert block
-                </Button>
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Content onClick={(e) => e.stopPropagation()}>
-                {groupedBlocks.length === 0 ? (
-                  <DropdownMenu.Item disabled>No blocks available</DropdownMenu.Item>
-                ) : (
-                  groupedBlocks.map((grp, gi) => (
-                    <Fragment key={grp.group}>
-                      {gi > 0 ? <DropdownMenu.Separator /> : null}
-                      <DropdownMenu.Label>{grp.group}</DropdownMenu.Label>
-                      {grp.items.map((b) => (
-                        <DropdownMenu.Item
-                          key={b.key}
-                          disabled={!b.available}
-                          onClick={() => handleInsert(b.key, b.label)}
-                        >
-                          {b.label}
-                          {!b.available ? (
-                            <span className="text-ui-fg-muted ml-1">· empty</span>
-                          ) : null}
-                        </DropdownMenu.Item>
-                      ))}
-                    </Fragment>
-                  ))
-                )}
-              </DropdownMenu.Content>
-            </DropdownMenu>
-            <Button
-              variant="secondary"
-              size="base"
-              onClick={(e) => {
-                e.stopPropagation();
-                setConstructionOpen(true);
-              }}
-              disabled={isSaving}
-            >
-              Add construction
-            </Button>
-            <Button
-              variant="secondary"
-              size="base"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleGenerate();
-              }}
-              disabled={isGenerating || isSaving}
-              isLoading={isGenerating}
-            >
-              Generate tech-pack
-            </Button>
-            <Button
-              variant="primary"
-              size="base"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleSave();
-              }}
-              disabled={isSaving || !hasChanges}
-            >
-              {isSaving ? "Saving..." : hasChanges ? "Save Changes" : "No Changes"}
-            </Button>
-          </div>
+          <span className="text-ui-fg-muted text-sm">
+            Insert · construction · generate · layers · save are in the canvas
+            toolbar (top-right)
+          </span>
         </div>
       </RouteNonFocusModal.Header>
       <RouteNonFocusModal.Body>
@@ -349,6 +289,15 @@ export function DesignMoodboardSection() {
                   setFashionPanelInitialTab(undefined);
                 }}
                 initialTab={fashionPanelInitialTab}
+              />
+            </div>
+          )}
+          {layersOpen && (
+            <div className="absolute top-14 left-2 z-50 w-64">
+              <MoodboardLayersPanel
+                excalidrawAPI={excalidrawAPIRef.current}
+                tick={layersTick}
+                onClose={() => setLayersOpen(false)}
               />
             </div>
           )}
@@ -424,15 +373,88 @@ export function DesignMoodboardSection() {
             onChange={(elements, appState, files) => {
               handleExcalidrawChange(elements, appState, files);
               handleSelectionChange();
+              if (layersOpenRef.current) setLayersTick((t) => t + 1);
             }}
             renderTopRightUI={() => (
-              <button
-                className="rounded px-3 py-1 text-sm font-medium bg-ui-bg-subtle border border-ui-border-base hover:bg-ui-bg-base"
-                onClick={() => setFashionPanelOpen(v => !v)}
-                title="Fashion Library"
-              >
-                Fashion Library
-              </button>
+              <div className="flex items-center gap-1.5 flex-wrap justify-end max-w-[62vw]">
+                <DropdownMenu>
+                  <DropdownMenu.Trigger asChild>
+                    <Button
+                      variant="secondary"
+                      size="small"
+                      disabled={isSaving || isInserting}
+                      isLoading={isInserting}
+                    >
+                      Insert block
+                    </Button>
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Content>
+                    {groupedBlocks.length === 0 ? (
+                      <DropdownMenu.Item disabled>No blocks available</DropdownMenu.Item>
+                    ) : (
+                      groupedBlocks.map((grp, gi) => (
+                        <Fragment key={grp.group}>
+                          {gi > 0 ? <DropdownMenu.Separator /> : null}
+                          <DropdownMenu.Label>{grp.group}</DropdownMenu.Label>
+                          {grp.items.map((b) => (
+                            <DropdownMenu.Item
+                              key={b.key}
+                              // Brief blocks stay insertable even when empty —
+                              // they drop an editable template you fill in place.
+                              disabled={b.group !== "Brief" && !b.available}
+                              onClick={() => handleInsert(b.key, b.label)}
+                            >
+                              {b.label}
+                              {!b.available ? (
+                                <span className="text-ui-fg-muted ml-1">· empty</span>
+                              ) : null}
+                            </DropdownMenu.Item>
+                          ))}
+                        </Fragment>
+                      ))
+                    )}
+                  </DropdownMenu.Content>
+                </DropdownMenu>
+                <Button
+                  variant="secondary"
+                  size="small"
+                  onClick={() => setConstructionOpen(true)}
+                  disabled={isSaving}
+                >
+                  Add construction
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="small"
+                  onClick={() => handleGenerate()}
+                  disabled={isGenerating || isSaving}
+                  isLoading={isGenerating}
+                >
+                  Generate
+                </Button>
+                <Button
+                  variant={layersOpen ? "primary" : "secondary"}
+                  size="small"
+                  onClick={() => setLayersOpen((v) => !v)}
+                >
+                  Layers
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="small"
+                  onClick={() => setFashionPanelOpen((v) => !v)}
+                >
+                  Fashion Library
+                </Button>
+                <Button
+                  variant="primary"
+                  size="small"
+                  onClick={() => handleSave()}
+                  disabled={isSaving || !hasChanges}
+                >
+                  {isSaving ? "Saving..." : hasChanges ? "Save" : "No Changes"}
+                </Button>
+              </div>
             )}
             UIOptions={{
               canvasActions: {

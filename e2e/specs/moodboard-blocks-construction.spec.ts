@@ -216,4 +216,123 @@ test.describe("Moodboard insert blocks + construction (#1113 A/B)", () => {
 
     await admin.dispose()
   })
+
+  test("concept & identity round-trips to the brief; hidden frame persists (#1113 A/C)", async ({
+    baseURL,
+  }) => {
+    const partner = await assignedDesignerContext(baseURL!)
+    const admin = await pwRequest.newContext({
+      baseURL,
+      extraHTTPHeaders: { authorization: `Bearer ${adminToken}` },
+    })
+    const designId = seed.inviteDesignId
+
+    // Capture originals so this shared-seed design is restored for later specs.
+    const origBrief = (
+      await (await partner.get(`/partners/designs/${designId}/brief`)).json()
+    ).brief
+    const origDesign = (
+      await (await admin.get(`/admin/designs/${designId}`)).json()
+    ).design
+    const origMoodboard = origDesign?.moodboard ?? null
+
+    const buildConcept = async () =>
+      (
+        await (
+          await partner.post(`/partners/designs/${designId}/moodboard/blocks`, {
+            data: { block: "brief-concept" },
+          })
+        ).json()
+      ).block
+
+    try {
+      // ── A1 — the built concept block carries a single parseable keyword line ──
+      const block1 = await buildConcept()
+      const kwLine1 = block1.elements.find(
+        (e: any) =>
+          e.type === "text" &&
+          e.customData?.kind === "brief-field" &&
+          e.customData?.field === "aesthetic_keywords"
+      )
+      expect(kwLine1).toBeTruthy()
+      expect(String(kwLine1.text).startsWith("Aesthetic keywords:")).toBe(true)
+
+      // ── A3/A4 — write concept + keywords through the brief route, read back ──
+      const kws = ["airy", "muted", "linen"]
+      const concept = `E2E concept ${Date.now()}`
+      const putRes = await partner.put(`/partners/designs/${designId}/brief`, {
+        data: { concept_theme: concept, aesthetic_keywords: kws },
+      })
+      expect(putRes.status()).toBe(200)
+
+      const brief = (
+        await (await partner.get(`/partners/designs/${designId}/brief`)).json()
+      ).brief
+      expect(brief.concept_theme).toBe(concept)
+      expect(brief.aesthetic_keywords).toEqual(kws)
+
+      // The rebuilt block reflects the persisted brief — keywords on the editable
+      // line, concept in the card body (proves the full canvas → brief → canvas loop).
+      const block2 = await buildConcept()
+      const kwLine2 = block2.elements.find(
+        (e: any) => e.customData?.field === "aesthetic_keywords"
+      )
+      expect(kwLine2.text).toBe(`Aesthetic keywords: ${kws.join(", ")}`)
+      const texts = block2.elements
+        .filter((e: any) => e.type === "text")
+        .map((e: any) => e.text)
+      expect(texts).toContain(concept)
+
+      // ── C — hidden state (opacity 0 + locked) survives save + reload ────────
+      const scene = {
+        type: "excalidraw",
+        version: 2,
+        source: "https://excalidraw.com",
+        elements: block2.elements.map((e: any) =>
+          e.type === "frame" ? { ...e, opacity: 0, locked: true } : e
+        ),
+        appState: { viewBackgroundColor: "#ffffff" },
+        files: {},
+      }
+      const saveRes = await partner.put(
+        `/partners/designs/${designId}/moodboard`,
+        { data: { moodboard: scene } }
+      )
+      expect(saveRes.status()).toBe(200)
+
+      // Reload through a fresh (admin) client to prove it's persisted, not echoed.
+      const reloaded = (
+        await (await admin.get(`/admin/designs/${designId}`)).json()
+      ).design
+      const savedFrame = (reloaded.moodboard?.elements ?? []).find(
+        (e: any) => e.type === "frame"
+      )
+      expect(savedFrame).toBeTruthy()
+      expect(savedFrame.opacity).toBe(0)
+      expect(savedFrame.locked).toBe(true)
+    } finally {
+      // Restore shared-seed state for downstream specs.
+      await partner.put(`/partners/designs/${designId}/brief`, {
+        data: {
+          concept_theme: origBrief?.concept_theme ?? null,
+          aesthetic_keywords: origBrief?.aesthetic_keywords ?? null,
+        },
+      })
+      await partner.put(`/partners/designs/${designId}/moodboard`, {
+        data: {
+          moodboard:
+            origMoodboard ?? {
+              type: "excalidraw",
+              version: 2,
+              source: "https://excalidraw.com",
+              elements: [],
+              appState: {},
+              files: {},
+            },
+        },
+      })
+      await partner.dispose()
+      await admin.dispose()
+    }
+  })
 })

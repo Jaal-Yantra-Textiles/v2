@@ -70,13 +70,16 @@ describe("buildMoodboardScene with a brief", () => {
     expect(frameNames).toContain("1 · Header & Flats")
   })
 
-  it("renders the concept theme + aesthetic keyword pills", () => {
+  it("renders the concept theme + a single editable, parseable keyword line", () => {
     const texts = scene.elements.filter((e) => e.type === "text").map((e) => e.text)
     expect(texts).toContain("90s Tokyo Streetwear")
-    // Each keyword is its own pill label.
-    expect(texts).toContain("utilitarian")
-    expect(texts).toContain("sleek")
-    expect(texts).toContain("nostalgic")
+    // Keywords now live on one editable line prefixed with KEYWORDS_LINE_LABEL,
+    // so they round-trip back to the brief (parsed by the editors).
+    expect(texts).toContain("Aesthetic keywords: utilitarian, sleek, nostalgic")
+    const line = scene.elements.find(
+      (e) => e.type === "text" && (e as any).customData?.field === "aesthetic_keywords"
+    )
+    expect(line).toBeTruthy()
   })
 
   it("renders persona, competitors and price point", () => {
