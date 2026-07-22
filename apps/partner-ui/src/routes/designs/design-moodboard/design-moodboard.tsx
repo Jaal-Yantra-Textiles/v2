@@ -9,6 +9,7 @@ import { RouteFocusModal } from "../../../components/modals"
 import {
   usePartnerDesign,
   useGenerateMoodboard,
+  useSeedMoodboard,
   useSaveMoodboard,
   useUpdatePartnerBrief,
   type PartnerBriefUpdate,
@@ -154,12 +155,14 @@ export const DesignMoodboard = () => {
 
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null)
   const didInitRef = useRef(false)
+  const didSeedRef = useRef(false)
   const [isDirty, setIsDirty] = useState(false)
 
   const { design, isPending, isError, error } = usePartnerDesign(id || "")
 
   const { mutateAsync: generateMoodboard, isPending: isGenerating } =
     useGenerateMoodboard(id || "")
+  const { mutateAsync: seedMoodboard } = useSeedMoodboard(id || "")
   const { mutateAsync: saveMoodboard, isPending: isSavingScene } = useSaveMoodboard(
     id || ""
   )
@@ -221,6 +224,36 @@ export const DesignMoodboard = () => {
     })
     api.scrollToContent((scene.elements ?? []) as any, { fitToContent: true })
   }, [])
+
+  // Auto-seed an empty board from the brief on open, so the designer lands on an
+  // editable snapshot (Figma-style) rather than a blank canvas — no manual
+  // "Generate from brief" click. Runs once; the server only fills an empty board
+  // (merge-not-clobber) and is no-throw, so there's nothing to undo or toast.
+  useEffect(() => {
+    if (didSeedRef.current || !id || isPending) {
+      return
+    }
+    const els = moodboard?.elements
+    if (Array.isArray(els) && els.length > 0) {
+      didSeedRef.current = true // already populated
+      return
+    }
+    didSeedRef.current = true
+    ;(async () => {
+      try {
+        const { moodboard: scene } = await seedMoodboard()
+        if (!scene) {
+          return
+        }
+        setTimeout(
+          () => loadScene(normalizeMoodboard(scene) || (scene as MoodboardData)),
+          60
+        )
+      } catch {
+        // best-effort — auto-seed never blocks editing
+      }
+    })()
+  }, [id, isPending, moodboard, seedMoodboard, loadScene])
 
   const handleGenerate = useCallback(async () => {
     if (!id) {

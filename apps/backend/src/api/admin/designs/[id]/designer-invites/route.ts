@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { DESIGNER_INVITE_MODULE } from "../../../../../modules/designer-invite"
 import { generateInviteToken } from "../../../../../modules/designer-invite/lib/token"
 import { sendDesignerInviteEmailWorkflow } from "../../../../../workflows/email"
+import { seedDesignMoodboardIfEmpty } from "../../../../../workflows/designs/moodboard/seed-design-moodboard"
 import { AdminCreateDesignerInviteReq } from "./validators"
 
 const PARTNER_PORTAL_URL =
@@ -69,6 +70,18 @@ export const POST = async (
       metadata: body.metadata ?? null,
     },
   ])
+
+  // Prepare an editable moodboard snapshot from the design's brief so the
+  // invited designer lands on a populated, Figma-style board (and the landing
+  // preview shows it) instead of a blank canvas. Best-effort, merge-not-clobber
+  // (only fills an empty board); never fail the mint on a seed hiccup.
+  try {
+    await seedDesignMoodboardIfEmpty(req.scope, designId)
+  } catch (e: any) {
+    req.scope
+      .resolve(ContainerRegistrationKeys.LOGGER)
+      .warn(`[designer-invite] moodboard seed skipped: ${e?.message ?? e}`)
+  }
 
   const base = PARTNER_PORTAL_URL.replace(/\/$/, "")
   const url = `${base}/designer-invite/${raw}`

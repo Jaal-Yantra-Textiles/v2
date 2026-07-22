@@ -119,6 +119,33 @@ export interface TechPackBrief {
   target_completion_date?: string | null
 }
 
+/**
+ * A single design specification row → one card on the "Design Specs" reference
+ * frame (#1113 workspace template). Any category (Material, Finishing,
+ * Construction, …) — the full structured spec surfaced on the canvas so a
+ * designer can read it inline alongside the brief.
+ */
+export interface TechPackSpec {
+  title: string
+  category?: string | null
+  details?: string | null
+  special_instructions?: string | null
+}
+
+/**
+ * A pinned raw-material group → one card on the "Materials" reference frame.
+ * Colors stay at the group grain (resolved at production), so we list the
+ * group + its color variants for reference.
+ */
+export interface TechPackMaterial {
+  name: string
+  composition?: string | null
+  status?: string | null
+  /** Color variant names in the group (the "browse all colors" list). */
+  colors?: string[] | null
+  note?: string | null
+}
+
 export interface TechPackSceneInput {
   design: TechPackHeader
   garment_type: string
@@ -130,8 +157,28 @@ export interface TechPackSceneInput {
   regions?: TechPackRegion[]
   /** Construction details → the "4 · Construction details" frame. */
   details?: TechPackDetail[]
+  /** All specifications → the "Design Specs" reference frame (#1113). */
+  specs?: TechPackSpec[]
+  /** Pinned raw-material groups → the "Materials" reference frame (#1113). */
+  materials?: TechPackMaterial[]
   /** Optional stable seed so ids/nonces are reproducible across builds. Default 1. */
   seed?: number
+}
+
+/**
+ * Scene-assembly options (#1113 workspace template). Off by default so existing
+ * callers (and the #892 tech-pack tests) build exactly the frames they always
+ * did; the designer-workspace surface opts in.
+ */
+export interface BuildSceneOptions {
+  /** Prepend a "Contents" index frame listing every section on the board. */
+  includeContents?: boolean
+  /**
+   * Append a blank "Designer Workspace" scaffold. Emit ONLY on the first seed —
+   * never on a regenerate/merge, or `mergeFramesIntoScene` would replace (and
+   * so wipe) the designer's own work in that frame.
+   */
+  includeWorkspace?: boolean
 }
 
 // ── Excalidraw scene / element shapes (local, minimal — matches saveExcalidrawState) ──
@@ -1414,28 +1461,297 @@ export function buildBriefTimelineFrame(
   return { elements, files: {} }
 }
 
+// ── Workspace-template frames (#1113) ─────────────────────────────────────────────
+//
+// Reference frames (Design Specs / Materials) surface the design's own record on
+// the canvas so a designer navigates the exact content inline. They're editable
+// (annotate/rearrange freely) and tagged `customData.kind` so a refresh can
+// re-pull them by frame name without guessing. The Workspace scaffold is the
+// designer's own blank area; Contents is the board index.
+
+/** "Design Specs" — every specification as a card (any category), 2-column grid. */
+export function buildDesignSpecsFrame(
+  input: TechPackSceneInput,
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    { type: "frame", id: frameId, x: originX, y: 0, width: FRAME.width, height: FRAME.height, name: "Design Specs" },
+    rng
+  )
+  const elements: ExcalidrawElement[] = [frame]
+  pushFrameTitle(elements, rng, frameId, originX, "Design Specs")
+
+  const specs = (input.specs ?? []).filter((s) => s?.title)
+  if (!specs.length) {
+    elements.push(
+      makeElement(
+        { type: "text", x: originX + FRAME.pad, y: FRAME.pad + 60, width: 700, height: 20, text: "No specifications yet.", fontSize: 14, opacity: 60 },
+        rng,
+        frameId
+      )
+    )
+    return { elements, files: {} }
+  }
+
+  const cols = 2
+  const cardW = 540
+  const cardH = 200
+  const colGap = 40
+  const rowGap = 32
+  specs.forEach((s, i) => {
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    const x = originX + FRAME.pad + col * (cardW + colGap)
+    const y = FRAME.pad + 60 + row * (cardH + rowGap)
+    const bodyLines = [
+      s.category ? `Category  ${s.category}` : null,
+      s.details ? s.details : null,
+      s.special_instructions ? `Note  ${s.special_instructions}` : null,
+    ].filter(Boolean) as string[]
+    pushBriefCard(elements, rng, frameId, {
+      x,
+      y,
+      width: cardW,
+      height: cardH,
+      heading: s.title,
+      body: bodyLines.join("\n"),
+      accent: "#f8fafc",
+      customData: { kind: "design-spec", title: s.title },
+    })
+  })
+
+  return { elements, files: {} }
+}
+
+/** "Materials" — each pinned raw-material group as a card (composition + colors). */
+export function buildMaterialsFrame(
+  input: TechPackSceneInput,
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    { type: "frame", id: frameId, x: originX, y: 0, width: FRAME.width, height: FRAME.height, name: "Materials" },
+    rng
+  )
+  const elements: ExcalidrawElement[] = [frame]
+  pushFrameTitle(elements, rng, frameId, originX, "Materials")
+
+  const materials = (input.materials ?? []).filter((m) => m?.name)
+  if (!materials.length) {
+    elements.push(
+      makeElement(
+        { type: "text", x: originX + FRAME.pad, y: FRAME.pad + 60, width: 700, height: 20, text: "No materials pinned yet.", fontSize: 14, opacity: 60 },
+        rng,
+        frameId
+      )
+    )
+    return { elements, files: {} }
+  }
+
+  const cols = 2
+  const cardW = 540
+  const cardH = 190
+  const colGap = 40
+  const rowGap = 32
+  materials.forEach((m, i) => {
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    const x = originX + FRAME.pad + col * (cardW + colGap)
+    const y = FRAME.pad + 60 + row * (cardH + rowGap)
+    const colors = (m.colors ?? []).filter(Boolean)
+    const bodyLines = [
+      m.composition ? `Composition  ${m.composition}` : null,
+      m.status ? `Status  ${m.status}` : null,
+      colors.length ? `Colors  ${colors.join(", ")}` : null,
+      m.note ? `Note  ${m.note}` : null,
+    ].filter(Boolean) as string[]
+    pushBriefCard(elements, rng, frameId, {
+      x,
+      y,
+      width: cardW,
+      height: cardH,
+      heading: m.name,
+      body: bodyLines.length ? bodyLines.join("\n") : "—",
+      accent: "#f0fdf4",
+      customData: { kind: "material", name: m.name },
+    })
+  })
+
+  return { elements, files: {} }
+}
+
+/**
+ * "Designer Workspace" — the designer's own blank area. Labelled dashed zones
+ * invite exploration; nothing here is regenerated (emitted only on first seed),
+ * so a refresh never touches it.
+ */
+export function buildWorkspaceScaffoldFrame(
+  _input: TechPackSceneInput,
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    { type: "frame", id: frameId, x: originX, y: 0, width: FRAME.width, height: FRAME.height, name: "Designer Workspace" },
+    rng
+  )
+  const elements: ExcalidrawElement[] = [frame]
+  pushFrameTitle(elements, rng, frameId, originX, "Designer Workspace")
+
+  const zones = ["Explorations", "Fabric & trims", "Notes"]
+  const zoneW = 340
+  const zoneH = 520
+  const gap = 40
+  zones.forEach((label, i) => {
+    const x = originX + FRAME.pad + i * (zoneW + gap)
+    const y = FRAME.pad + 60
+    elements.push(
+      makeElement(
+        {
+          type: "rectangle",
+          x,
+          y,
+          width: zoneW,
+          height: zoneH,
+          strokeColor: "#cbd5e1",
+          strokeStyle: "dashed",
+          backgroundColor: "transparent",
+          roundness: { type: 3 },
+          customData: { kind: "workspace-zone", label },
+        },
+        rng,
+        frameId
+      )
+    )
+    elements.push(
+      makeElement(
+        { type: "text", x: x + 16, y: y + 14, width: zoneW - 32, height: 20, text: label, fontSize: 15, fontFamily: 3, opacity: 70 },
+        rng,
+        frameId
+      )
+    )
+  })
+
+  return { elements, files: {} }
+}
+
+/**
+ * "Contents" — the board index. Lists every section on the board so the designer
+ * can orient and jump via Excalidraw's Frames panel. Rendered first (leftmost).
+ */
+export function buildContentsFrame(
+  sectionNames: string[],
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    { type: "frame", id: frameId, x: originX, y: 0, width: FRAME.width, height: FRAME.height, name: "Contents" },
+    rng
+  )
+  const elements: ExcalidrawElement[] = [frame]
+  pushFrameTitle(elements, rng, frameId, originX, "Contents")
+
+  elements.push(
+    makeElement(
+      {
+        type: "text",
+        x: originX + FRAME.pad,
+        y: FRAME.pad + 54,
+        width: FRAME.width - FRAME.pad * 2,
+        height: 20,
+        text: "This design workspace, section by section — jump between frames from the Frames panel (left).",
+        fontSize: 14,
+        opacity: 65,
+      },
+      rng,
+      frameId
+    )
+  )
+
+  const listX = originX + FRAME.pad
+  let y = FRAME.pad + 100
+  sectionNames.forEach((name, i) => {
+    elements.push(
+      makeElement(
+        {
+          type: "text",
+          x: listX,
+          y,
+          width: FRAME.width - FRAME.pad * 2,
+          height: 26,
+          text: `${String(i + 1).padStart(2, "0")}   ${name}`,
+          fontSize: 18,
+          customData: { kind: "contents-entry", section: name },
+        },
+        rng,
+        frameId
+      )
+    )
+    y += 40
+  })
+
+  return { elements, files: {} }
+}
+
 // ── Scene assembler ──────────────────────────────────────────────────────────────
+
+/** One assemblable section: the frame's own name (for the index) + its builder. */
+interface SceneSection {
+  name: string
+  build: (i: TechPackSceneInput, r: SceneRng, x: number) => FrameResult
+}
 
 /**
  * Assemble the full moodboard scene: runs each applicable frame builder left-to-right
  * and merges their elements + files into one Excalidraw scene.
+ *
+ * `opts` opts into the #1113 designer-workspace template (Contents index +
+ * Workspace scaffold). Omitted → identical output to the original #892 builder.
  */
-export function buildMoodboardScene(input: TechPackSceneInput): MoodboardScene {
+export function buildMoodboardScene(
+  input: TechPackSceneInput,
+  opts?: BuildSceneOptions
+): MoodboardScene {
   const rng = new SceneRng(input.seed ?? 1)
-  const builders: ((
-    i: TechPackSceneInput,
-    r: SceneRng,
-    x: number
-  ) => FrameResult)[] = []
-  // Brief anchor frames come first — they are the "here's the brief" surface.
-  if (hasConceptSection(input.brief)) builders.push(buildBriefConceptFrame)
-  if (hasAudienceSection(input.brief)) builders.push(buildBriefAudienceFrame)
-  if (hasTimelineSection(input.brief)) builders.push(buildBriefTimelineFrame)
-  builders.push(buildHeaderFlatsFrame)
-  if (input.sizeSet) builders.push(buildMeasurementFrame)
-  if (input.regions?.length) builders.push(buildZoomLensFrame)
-  if (input.details?.length) builders.push(buildConstructionDetailsFrame)
-  if (input.colorways?.length) builders.push(buildColorwayFrame)
+
+  // Ordered content sections — frame names match what each builder emits so the
+  // Contents index lines up with Excalidraw's Frames panel.
+  const sections: SceneSection[] = []
+  if (hasConceptSection(input.brief))
+    sections.push({ name: "Brief · Concept & Identity", build: buildBriefConceptFrame })
+  if (hasAudienceSection(input.brief))
+    sections.push({ name: "Brief · Audience & Positioning", build: buildBriefAudienceFrame })
+  if (hasTimelineSection(input.brief))
+    sections.push({ name: "Brief · Timeline & Budget", build: buildBriefTimelineFrame })
+  sections.push({ name: "1 · Header & Flats", build: buildHeaderFlatsFrame })
+  if (input.specs?.length)
+    sections.push({ name: "Design Specs", build: buildDesignSpecsFrame })
+  if (input.sizeSet)
+    sections.push({ name: "2 · Measurements", build: buildMeasurementFrame })
+  if (input.regions?.length)
+    sections.push({ name: "3 · Zoom details", build: buildZoomLensFrame })
+  if (input.details?.length)
+    sections.push({ name: "4 · Construction details", build: buildConstructionDetailsFrame })
+  if (input.materials?.length)
+    sections.push({ name: "Materials", build: buildMaterialsFrame })
+  if (input.colorways?.length)
+    sections.push({ name: "5 · Colorways", build: buildColorwayFrame })
+
+  // Build the ordered list of frame builders: [Contents?] + sections + [Workspace?].
+  const builders: ((i: TechPackSceneInput, r: SceneRng, x: number) => FrameResult)[] = []
+  if (opts?.includeContents) {
+    const indexNames = [
+      ...sections.map((s) => s.name),
+      ...(opts?.includeWorkspace ? ["Designer Workspace"] : []),
+    ]
+    builders.push((_i, r, x) => buildContentsFrame(indexNames, r, x))
+  }
+  builders.push(...sections.map((s) => s.build))
+  if (opts?.includeWorkspace) builders.push(buildWorkspaceScaffoldFrame)
 
   const elements: ExcalidrawElement[] = []
   let files: Record<string, ExcalidrawFile> = {}

@@ -12,6 +12,7 @@ import {
   isInviteUsable,
 } from "../../../../../modules/designer-invite/lib/token"
 import { createPartnerAdminWithRegistrationWorkflow } from "../../../../../workflows/partner/create-partner-admin"
+import { seedDesignMoodboardIfEmpty } from "../../../../../workflows/designs/moodboard/seed-design-moodboard"
 import { DESIGN_MODULE } from "../../../../../modules/designs"
 import { PARTNER_MODULE } from "../../../../../modules/partner"
 import { AcceptDesignerInviteReq } from "./validators"
@@ -107,6 +108,17 @@ export const POST = async (
     accepted_partner_id: partnerId,
     accepted_at: new Date(),
   })
+
+  // 3b. Fallback seed — if this invite was minted before moodboard seeding (or
+  //     the mint-time seed was skipped), fill an empty board from the brief now
+  //     so the designer opens onto a populated, editable snapshot. Best-effort.
+  try {
+    await seedDesignMoodboardIfEmpty(req.scope, invite.design_id)
+  } catch (e: any) {
+    req.scope
+      .resolve(ContainerRegistrationKeys.LOGGER)
+      .warn(`[designer-invite] moodboard seed on accept skipped: ${e?.message ?? e}`)
+  }
 
   // 4. Sign a Medusa-shaped partner session bearer (same shape as
   //    generateJwtTokenForAuthIdentity / the wa-auth route) so the partner-ui

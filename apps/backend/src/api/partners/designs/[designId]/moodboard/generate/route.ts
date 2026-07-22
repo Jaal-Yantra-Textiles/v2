@@ -1,17 +1,10 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { MedusaError } from "@medusajs/framework/utils"
 import { updateDesignWorkflow } from "../../../../../../workflows/designs/update-design"
 import {
-  buildMoodboardScene,
-  briefHasContent,
-  mergeFramesIntoScene,
-  type MoodboardScene,
-} from "../../../../../../workflows/designs/moodboard/build-moodboard-scene"
-import {
-  assessTechPackCompleteness,
-  buildTechPackInputFromDesign,
-  type DesignForTechPack,
-} from "../../../../../../workflows/designs/moodboard/techpack-input-from-design"
+  buildDesignMoodboard,
+  REFRESH_SCENE_OPTS,
+} from "../../../../../../workflows/designs/moodboard/seed-design-moodboard"
 import { assertPartnerCanAuthorDesign } from "../../../helpers"
 
 /**
@@ -40,70 +33,23 @@ export const POST = async (
   const designId = req.params.designId
   await assertPartnerCanAuthorDesign(req, designId)
 
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({
-    entity: "designs",
-    filters: { id: designId },
-    fields: [
-      "id",
-      "name",
-      "design_type",
-      "metadata",
-      "thumbnail_url",
-      "color_palette",
-      // Brief columns → the anchor frames.
-      "concept_theme",
-      "aesthetic_keywords",
-      "persona",
-      "competitors",
-      "price_point",
-      "design_budget",
-      "cost_currency",
-      "milestones",
-      "target_completion_date",
-      // Tech-pack sources.
-      "moodboard",
-      "size_sets.size_label",
-      "size_sets.measurements",
-      "specifications.title",
-      "specifications.category",
-      "specifications.details",
-      "specifications.special_instructions",
-      "specifications.metadata",
-    ],
-  })
-
-  const design = data?.[0]
-  if (!design) {
-    throw new MedusaError(MedusaError.Types.NOT_FOUND, `Design ${designId} not found`)
-  }
-
-  const input = buildTechPackInputFromDesign(design as unknown as DesignForTechPack)
-
-  // A brief-only design can generate its brief frames. Only require tech-pack
-  // completeness when there's no brief to render at all.
-  const completeness = assessTechPackCompleteness(input)
-  if (!briefHasContent(input.brief) && !completeness.ok) {
+  // Shared build: brief anchor frames + Design Specs / Materials reference
+  // frames + Contents index (workspace scaffold is seed-only, so a refresh here
+  // never clobbers the designer's own work). Merge-not-clobber onto the board.
+  const built = await buildDesignMoodboard(req.scope, designId, REFRESH_SCENE_OPTS)
+  if (!built) {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
-      `Nothing to generate yet. Add a brief (concept, audience, or timeline) or ${completeness.missing.join(
-        " and "
-      )}.`
+      "Nothing to generate yet. Add a brief (concept, audience, or timeline), a size set, or a construction spec."
     )
   }
 
-  const scene = buildMoodboardScene(input)
-  const merged = mergeFramesIntoScene(
-    (design as any).moodboard as MoodboardScene | null,
-    scene
-  )
-
   const { errors } = await updateDesignWorkflow(req.scope).run({
-    input: { id: designId, moodboard: merged } as any,
+    input: { id: designId, moodboard: built.merged } as any,
   })
   if (errors.length > 0) {
     throw errors
   }
 
-  res.json({ moodboard: merged })
+  res.json({ moodboard: built.merged })
 }

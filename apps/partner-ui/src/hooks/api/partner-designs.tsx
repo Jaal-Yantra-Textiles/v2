@@ -247,6 +247,33 @@ export const useGenerateMoodboard = (
 }
 
 /**
+ * #1113 — idempotent, brief-friendly seed: fills an EMPTY moodboard from the
+ * brief so the designer opens onto an editable snapshot (Figma-style) without a
+ * manual "Generate" click. No-throw: nothing to render yet, or a board that's
+ * already populated → `{ moodboard: null }` (never clobbers).
+ */
+export const useSeedMoodboard = (
+  id: string,
+  options?: UseMutationOptions<{ moodboard: MoodboardScene | null }, FetchError, void>
+) => {
+  return useMutation({
+    mutationFn: async () => {
+      return await sdk.client.fetch<{ moodboard: MoodboardScene | null }>(
+        `/partners/designs/${id}/moodboard/seed`,
+        { method: "POST" }
+      )
+    },
+    onSuccess: async (data, variables, context) => {
+      if (data?.moodboard) {
+        await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
+      }
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+/**
  * #1113 S3 — persist the moodboard scene the designer edited on the canvas.
  * Author-scoped route (owner OR assigned designer), so an invited stranger can
  * save without owning the design.

@@ -267,6 +267,38 @@ export const useGenerateMoodboard = (
   });
 };
 
+/** Response of POST /admin/designs/:id/moodboard/seed — the seeded scene, or null. */
+export interface SeedMoodboardResponse {
+  moodboard: GenerateMoodboardResponse["moodboard"] | null;
+}
+
+/**
+ * Idempotent, brief-friendly seed (#1113): fills an EMPTY `design.moodboard`
+ * from the brief so the editor opens onto an editable snapshot without a manual
+ * click. No-op (returns `{ moodboard: null }`) when the board already has
+ * content or there's nothing to render yet. Never clobbers.
+ */
+export const useSeedMoodboard = (
+  id: string,
+  options?: UseMutationOptions<SeedMoodboardResponse, FetchError, void>,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      sdk.client.fetch<SeedMoodboardResponse>(
+        `/admin/designs/${id}/moodboard/seed`,
+        { method: "POST" },
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      if (data?.moodboard) {
+        queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
+      }
+      options?.onSuccess?.(data, variables, _mutateResult, context);
+    },
+    ...options,
+  });
+};
+
 // #1113 S4 — scoped designer invites for a single design.
 export interface DesignerInvite {
   id: string;

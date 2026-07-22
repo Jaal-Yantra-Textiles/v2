@@ -22,8 +22,10 @@ import type {
   TechPackDetail,
   TechPackFlats,
   TechPackHeader,
+  TechPackMaterial,
   TechPackSceneInput,
   TechPackSizeSet,
+  TechPackSpec,
 } from "./build-moodboard-scene"
 
 /** The subset of a design graph this mapper reads. All fields optional/defensive. */
@@ -53,6 +55,17 @@ export interface DesignForTechPack {
     details?: string | null
     special_instructions?: string | null
     metadata?: Record<string, any> | null
+  }> | null
+  /**
+   * Pinned raw-material groups (#1113 Materials frame). Attached by the moodboard
+   * loader via the design↔raw_material_group link, NOT a direct design column.
+   */
+  materials?: Array<{
+    name?: string | null
+    composition?: string | null
+    status?: string | null
+    colors?: string[] | null
+    note?: string | null
   }> | null
 }
 
@@ -124,6 +137,39 @@ function normalizeColorways(cp: unknown): TechPackColorway[] {
       }
     })
     .filter((c): c is TechPackColorway => c !== null)
+}
+
+/** Every specification → a TechPackSpec card for the "Design Specs" frame (#1113). */
+function normalizeSpecs(
+  specs: DesignForTechPack["specifications"]
+): TechPackSpec[] {
+  return (specs ?? [])
+    .filter((s) => s?.title)
+    .map((s) => ({
+      title: String(s.title),
+      ...(s.category ? { category: String(s.category) } : {}),
+      ...(s.details ? { details: String(s.details) } : {}),
+      ...(s.special_instructions
+        ? { special_instructions: String(s.special_instructions) }
+        : {}),
+    }))
+}
+
+/** Pinned material groups → TechPackMaterial cards for the "Materials" frame (#1113). */
+function normalizeMaterials(
+  materials: DesignForTechPack["materials"]
+): TechPackMaterial[] {
+  return (materials ?? [])
+    .filter((m) => m?.name)
+    .map((m) => ({
+      name: String(m.name),
+      ...(m.composition ? { composition: String(m.composition) } : {}),
+      ...(m.status ? { status: String(m.status) } : {}),
+      ...(Array.isArray(m.colors) && m.colors.length
+        ? { colors: m.colors.map(String).filter(Boolean) }
+        : {}),
+      ...(m.note ? { note: String(m.note) } : {}),
+    }))
 }
 
 /** A Construction spec → a TechPackDetail, or null if it declares no technique. */
@@ -213,6 +259,8 @@ export function buildTechPackInputFromDesign(
     .filter((d): d is TechPackDetail => d !== null)
 
   const brief = buildBriefInputFromDesign(design)
+  const specs = normalizeSpecs(design.specifications)
+  const materials = normalizeMaterials(design.materials)
 
   return {
     design: header,
@@ -222,5 +270,7 @@ export function buildTechPackInputFromDesign(
     ...(sizeSet ? { sizeSet } : {}),
     ...(colorways.length ? { colorways } : {}),
     ...(details.length ? { details } : {}),
+    ...(specs.length ? { specs } : {}),
+    ...(materials.length ? { materials } : {}),
   }
 }

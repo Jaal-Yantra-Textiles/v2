@@ -1,9 +1,9 @@
 // @ts-ignore - Excalidraw is an ESM module, dynamic import not feasible here
 import { Excalidraw } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useDesign, useGenerateMoodboard } from "../../hooks/api/designs";
+import { useDesign, useGenerateMoodboard, useSeedMoodboard } from "../../hooks/api/designs";
 import { RouteNonFocusModal } from "../modal/route-non-focus";
 import { useMoodboard } from "../../hooks/use-moodboard";
 import { Button, toast } from "@medusajs/ui";
@@ -40,6 +40,28 @@ export function DesignMoodboardSection() {
 
   const { mutate: generateMoodboard, isPending: isGenerating } =
     useGenerateMoodboard(id);
+  const { mutateAsync: seedMoodboard } = useSeedMoodboard(id);
+  const didSeedRef = useRef(false);
+
+  // Load a built scene straight into the canvas so it's editable immediately.
+  const loadMoodboardIntoCanvas = useCallback((moodboard: any) => {
+    const api = excalidrawAPIRef.current;
+    if (!api || !moodboard) return;
+    const files = moodboard.files ?? {};
+    const fileList = Object.entries(files).map(([fid, f]: [string, any]) => ({
+      id: fid,
+      dataURL: f.dataURL,
+      mimeType: f.mimeType || "image/png",
+      created: f.created || Date.now(),
+      lastRetrieved: Date.now(),
+    }));
+    if (fileList.length) api.addFiles(fileList as any);
+    api.updateScene({
+      elements: moodboard.elements,
+      appState: { ...moodboard.appState, collaborators: new Map() },
+    });
+    api.scrollToContent(moodboard.elements, { fitToContent: true });
+  }, [excalidrawAPIRef]);
 
   // Regenerate the tech-pack from the design's structured data (header/flats/
   // size-set/colorways + Construction specs). Persists server-side AND loads the
@@ -55,22 +77,7 @@ export function DesignMoodboardSection() {
     toast.loading("Generating tech-pack…");
     generateMoodboard(undefined, {
       onSuccess: ({ moodboard }) => {
-        const files = moodboard.files ?? {};
-        const fileList = Object.entries(files).map(
-          ([fid, f]: [string, any]) => ({
-            id: fid,
-            dataURL: f.dataURL,
-            mimeType: f.mimeType || "image/png",
-            created: f.created || Date.now(),
-            lastRetrieved: Date.now(),
-          })
-        );
-        if (fileList.length) api.addFiles(fileList as any);
-        api.updateScene({
-          elements: moodboard.elements,
-          appState: { ...moodboard.appState, collaborators: new Map() },
-        });
-        api.scrollToContent(moodboard.elements, { fitToContent: true });
+        loadMoodboardIntoCanvas(moodboard);
         toast.dismiss();
         toast.success("Tech-pack generated");
       },
@@ -79,7 +86,31 @@ export function DesignMoodboardSection() {
         toast.error(err?.message || "Failed to generate tech-pack");
       },
     });
-  }, [generateMoodboard, excalidrawAPIRef]);
+  }, [generateMoodboard, excalidrawAPIRef, loadMoodboardIntoCanvas]);
+
+  // Auto-seed an empty board from the brief on open, so the admin lands on an
+  // editable snapshot (Figma-style) instead of a blank canvas. Runs once; the
+  // server only fills an empty board (merge-not-clobber) and is no-throw, so a
+  // design with nothing to render yet is a silent no-op.
+  useEffect(() => {
+    if (didSeedRef.current || !design) return;
+    const els = (design?.moodboard as any)?.elements;
+    if (Array.isArray(els) && els.length > 0) {
+      didSeedRef.current = true; // already populated — nothing to seed
+      return;
+    }
+    didSeedRef.current = true;
+    (async () => {
+      try {
+        const { moodboard } = await seedMoodboard();
+        if (!moodboard) return;
+        // Give Excalidraw a tick to finish mounting before pushing the scene.
+        setTimeout(() => loadMoodboardIntoCanvas(moodboard), 60);
+      } catch {
+        // best-effort — auto-seed never blocks editing
+      }
+    })();
+  }, [design, seedMoodboard, loadMoodboardIntoCanvas]);
 
   // Track when an image element is selected on the canvas
   const handleSelectionChange = useCallback(() => {
