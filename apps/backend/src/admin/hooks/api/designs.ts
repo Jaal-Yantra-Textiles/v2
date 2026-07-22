@@ -231,6 +231,36 @@ export const useUpdateDesign = (
   });
 };
 
+/** #1113 — the subset of brief columns the moodboard Concept & Identity frame round-trips to. */
+export type DesignBriefUpdate = {
+  concept_theme?: string | null;
+  aesthetic_keywords?: string[] | null;
+};
+
+/**
+ * #1113 — partial brief update driven by Concept & Identity card edits on the
+ * moodboard canvas (concept_theme + aesthetic_keywords). Backed by the existing
+ * PUT /admin/designs/:id/brief route + UpdateDesignBriefSchema.
+ */
+export const useUpdateDesignBrief = (
+  id: string,
+  options?: UseMutationOptions<{ brief: Record<string, any> }, FetchError, DesignBriefUpdate>,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: DesignBriefUpdate) =>
+      sdk.client.fetch<{ brief: Record<string, any> }>(`/admin/designs/${id}/brief`, {
+        method: "PUT",
+        body: payload,
+      }),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
+    },
+    ...options,
+  });
+};
+
 /** Response of POST /admin/designs/:id/moodboard/generate — the freshly-built scene. */
 export interface GenerateMoodboardResponse {
   moodboard: {

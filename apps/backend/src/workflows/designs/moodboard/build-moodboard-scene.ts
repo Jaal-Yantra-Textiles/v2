@@ -1250,6 +1250,14 @@ export function briefHasContent(b?: TechPackBrief): boolean {
   return hasConceptSection(b) || hasAudienceSection(b) || hasTimelineSection(b)
 }
 
+/**
+ * Stable prefix for the editable aesthetic-keywords line in the Concept &
+ * Identity frame. The partner + admin editors strip this prefix and split the
+ * remainder on commas to round-trip `aesthetic_keywords` back to the brief, so
+ * keep it in sync with their local copies of this constant.
+ */
+export const KEYWORDS_LINE_LABEL = "Aesthetic keywords:"
+
 /** Brief Frame 1 — Core Identity & Concept (concept/theme + aesthetic anchor). */
 export function buildBriefConceptFrame(
   input: TechPackSceneInput,
@@ -1277,7 +1285,10 @@ export function buildBriefConceptFrame(
     customData: { kind: "brief-field", field: "concept_theme" },
   })
 
-  // Aesthetic Anchor — keywords as pills.
+  // Aesthetic Anchor — a single editable, comma-separated line so keyword edits
+  // round-trip back to the brief. The text element carries
+  // customData.field = "aesthetic_keywords" so the editors' parser finds it
+  // unambiguously (see extractBriefEdits) and strips KEYWORDS_LINE_LABEL.
   const keywords = (b.aesthetic_keywords ?? []).filter(Boolean)
   const anchorX = originX + FRAME.pad
   const anchorY = cardY + 260
@@ -1288,40 +1299,31 @@ export function buildBriefConceptFrame(
       frameId
     )
   )
-  if (keywords.length) {
-    let px = anchorX
-    let py = anchorY + 34
-    keywords.forEach((kw) => {
-      const pillW = Math.max(90, kw.length * 11 + 32)
-      if (px + pillW > anchorX + 700) {
-        px = anchorX
-        py += 54
-      }
-      elements.push(
-        makeElement(
-          { type: "rectangle", x: px, y: py, width: pillW, height: 40, backgroundColor: "#e0e7ff", fillStyle: "solid", strokeColor: "#a5b4fc", roundness: { type: 3 }, customData: { kind: "brief-field", field: "aesthetic_keywords" } },
-          rng,
-          frameId
-        )
-      )
-      elements.push(
-        makeElement(
-          { type: "text", x: px + 16, y: py + 11, width: pillW - 32, height: 20, text: kw, fontSize: 15, textAlign: "center" },
-          rng,
-          frameId
-        )
-      )
-      px += pillW + 16
-    })
-  } else {
-    elements.push(
-      makeElement(
-        { type: "text", x: anchorX, y: anchorY + 34, width: 700, height: 20, text: "3–5 keywords that define the look & feel (e.g. utilitarian, sleek, nostalgic).", fontSize: 14, opacity: 60 },
-        rng,
-        frameId
-      )
+  elements.push(
+    makeElement(
+      {
+        type: "text",
+        x: anchorX,
+        y: anchorY + 34,
+        width: 700,
+        height: 26,
+        text: keywords.length
+          ? `${KEYWORDS_LINE_LABEL} ${keywords.join(", ")}`
+          : `${KEYWORDS_LINE_LABEL} `,
+        fontSize: 18,
+        customData: { kind: "brief-field", field: "aesthetic_keywords" },
+      },
+      rng,
+      frameId
     )
-  }
+  )
+  elements.push(
+    makeElement(
+      { type: "text", x: anchorX, y: anchorY + 74, width: 700, height: 20, text: "Comma-separated · 3–5 keywords that define the look & feel (e.g. utilitarian, sleek, nostalgic).", fontSize: 14, opacity: 60 },
+      rng,
+      frameId
+    )
+  )
 
   return { elements, files: {} }
 }

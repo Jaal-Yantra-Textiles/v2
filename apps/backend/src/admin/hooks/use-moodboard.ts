@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@medusajs/ui";
-import { useUpdateDesign, useDesign } from "./api/designs";
+import { useUpdateDesign, useDesign, useUpdateDesignBrief } from "./api/designs";
 import { useMoodboardFiles } from "./use-moodboard-files";
+import { extractBriefEdits } from "../components/designs/moodboard-brief";
 import { isEqual } from "lodash";
 
 
@@ -18,6 +19,7 @@ export const useMoodboard = ({
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const { mutate: updateDesign } = useUpdateDesign(designId);
+  const { mutateAsync: updateBrief } = useUpdateDesignBrief(designId);
   const { design } = useDesign(designId, { fields: ["moodboard"] });
 
   const originalStateRef = useRef<any>(null);
@@ -57,7 +59,7 @@ export const useMoodboard = ({
     [handleExcalidrawChange]
   );
 
-  const saveExcalidrawState = useCallback(async () => {
+  const saveExcalidrawState = useCallback(async (opts?: { persistBrief?: boolean }) => {
     setIsSaving(true);
     try {
       const api = excalidrawAPIRef.current;
@@ -157,14 +159,29 @@ export const useMoodboard = ({
           }
         );
       });
-      
+
+      // #1113 — round-trip Concept & Identity edits (concept_theme +
+      // aesthetic_keywords) back to the brief columns. Only on explicit saves
+      // (not the 30s autosave / on-add), and best-effort so a brief failure
+      // never loses the already-saved moodboard.
+      if (opts?.persistBrief) {
+        try {
+          const briefEdits = extractBriefEdits(processedElements);
+          if (briefEdits) {
+            await updateBrief(briefEdits);
+          }
+        } catch (briefErr) {
+          console.error("Brief write-back failed (moodboard still saved):", briefErr);
+        }
+      }
+
     } catch (error) {
       console.error("Error in saveExcalidrawState:", error);
       throw error;
     } finally {
       setIsSaving(false);
     }
-  }, [updateDesign, processImageElements, fileUrlMappingRef, excalidrawAPIRef]);
+  }, [updateDesign, updateBrief, processImageElements, fileUrlMappingRef, excalidrawAPIRef]);
   
   // Update the save ref when the save function changes
   useEffect(() => {
@@ -174,8 +191,8 @@ export const useMoodboard = ({
   const handleSave = useCallback(() => {
     setIsSaving(true);
     toast.loading("Saving moodboard...");
-    
-    saveExcalidrawState()
+
+    saveExcalidrawState({ persistBrief: true })
       .then(() => {
         toast.dismiss();
         toast.success("Moodboard saved successfully");
@@ -199,7 +216,7 @@ export const useMoodboard = ({
     }
     
     setIsSaving(true);
-    saveExcalidrawState()
+    saveExcalidrawState({ persistBrief: true })
       .then(() => {
         toast.success("Moodboard saved successfully");
         onClose?.();
