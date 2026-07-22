@@ -6,3 +6,6 @@
 .person-property-store/
 .pp-boot-verify-store/
 .pp-*-store/
+
+# CRM embedded Hyperbee DAL local Corestore (single-writer, dev only)
+.crm-store/
