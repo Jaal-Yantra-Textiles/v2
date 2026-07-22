@@ -150,6 +150,12 @@ secrets:
   FRONTEND_URL: /jyt/prod/FRONTEND_URL
   GOOGLE_REDIRECT_URI: /jyt/prod/GOOGLE_REDIRECT_URI
   JWT_SECRET: /jyt/prod/JWT_SECRET
+  # #1059 EmailKit — mass blog/newsletter broadcasts via Kit (kit.com). Gated by
+  # EMAILKIT_ENABLED; KIT_WEBHOOK_SECRET auths /webhooks/kit (?token=).
+  EMAILKIT_ENABLED: /jyt/prod/EMAILKIT_ENABLED
+  KIT_API_KEY: /jyt/prod/KIT_API_KEY
+  KIT_BLOG_TAG_ID: /jyt/prod/KIT_BLOG_TAG_ID
+  KIT_WEBHOOK_SECRET: /jyt/prod/KIT_WEBHOOK_SECRET
   MAILEROO_API_KEY: /jyt/prod/MAILEROO_API_KEY
   MAILEROO_FROM_DOMAIN: /jyt/prod/MAILEROO_FROM_DOMAIN
   MAILEROO_FROM_EMAIL: /jyt/prod/MAILEROO_FROM_EMAIL
