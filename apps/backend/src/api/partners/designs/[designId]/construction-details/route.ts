@@ -1,4 +1,4 @@
-import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 import { DESIGN_MODULE } from "../../../../../modules/designs"
@@ -7,22 +7,18 @@ import {
   SUPPORTED_TECHNIQUES,
   techniqueLabel,
 } from "../../../../../modules/designs/construction-techniques"
+import { assertPartnerCanAuthorDesign } from "../../helpers"
 
 /**
- * Construction details = DesignSpecifications with category "Construction" whose
- * metadata carries { technique, params, fabricRules } — the source the #892
- * tech-pack generator reads for the "Construction details" frame. These routes let
- * the admin manage them on a real design (instead of via seed scripts), so a design
- * can satisfy the generation completeness gate.
- *
- * Techniques + presets come from the canonical construction-techniques module
- * (#1113 Feature B) — the single source shared with the renderer, admin UI and
- * partner picker.
+ * Partner mirror of the admin construction-details routes (#1113 Feature B).
+ * Lets the invited designer author construction details (technique + params +
+ * fabricRules) straight from the moodboard picker. Author-scoped: owner OR
+ * assigned/invited designer. Stored as DesignSpecifications(category:"Construction")
+ * exactly like the admin path, so the tech-pack generator + DETAIL_RENDERERS
+ * pick them up unchanged.
  */
 
-export { SUPPORTED_TECHNIQUES }
-
-export const ConstructionDetailBodySchema = z.object({
+const ConstructionDetailBodySchema = z.object({
   technique: z.enum(SUPPORTED_TECHNIQUES),
   label: z.string().trim().min(1).optional(),
   params: z.record(z.string(), z.number()).optional(),
@@ -30,28 +26,27 @@ export const ConstructionDetailBodySchema = z.object({
   note: z.string().trim().optional(),
 })
 
-/**
- * GET /admin/designs/:id/construction-details
- * List this design's Construction specs (the renderable construction details).
- */
-export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const { id } = req.params
-  const designService = req.scope.resolve(DESIGN_MODULE) as DesignService
+export const GET = async (
+  req: AuthenticatedMedusaRequest & { params: { designId: string } },
+  res: MedusaResponse
+) => {
+  const designId = req.params.designId
+  await assertPartnerCanAuthorDesign(req, designId)
 
+  const designService = req.scope.resolve(DESIGN_MODULE) as DesignService
   const specs = await designService.listDesignSpecifications({
-    design_id: id,
+    design_id: designId,
     category: "Construction",
   })
-
   res.json({ construction_details: specs, count: specs.length })
 }
 
-/**
- * POST /admin/designs/:id/construction-details
- * Attach a construction detail. Body: { technique, label?, params?, fabricRules?, note? }
- */
-export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  const { id } = req.params
+export const POST = async (
+  req: AuthenticatedMedusaRequest & { params: { designId: string } },
+  res: MedusaResponse
+) => {
+  const designId = req.params.designId
+  await assertPartnerCanAuthorDesign(req, designId)
 
   const parsed = ConstructionDetailBodySchema.safeParse(req.body)
   if (!parsed.success) {
@@ -63,18 +58,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const { technique, label, params, fabricRules, note } = parsed.data
 
   const designService = req.scope.resolve(DESIGN_MODULE) as DesignService
-
-  const design = await designService.retrieveDesign(id).catch(() => null)
-  if (!design) {
-    throw new MedusaError(MedusaError.Types.NOT_FOUND, `Design ${id} not found`)
-  }
-
   const title = label ?? techniqueLabel(technique)
   const created = await designService.createDesignSpecifications({
-    design_id: id,
+    design_id: designId,
     title,
     category: "Construction",
-    // `details` is required on the model; fall back to a derived description.
     details: note ?? `${title} (${technique})`,
     special_instructions: note ?? null,
     version: "1",

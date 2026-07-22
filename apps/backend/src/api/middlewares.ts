@@ -4611,6 +4611,42 @@ export default defineMiddlewares({
       middlewares: [authenticate("partner", ["session", "bearer"])],
     },
     {
+      // #1113 Feature A — insert-block palette: list drop-in blocks.
+      matcher: "/partners/designs/:designId/moodboard/blocks",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // #1113 Feature A — build one drop-in block from the design's data.
+      matcher: "/partners/designs/:designId/moodboard/blocks",
+      method: "POST",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // #1113 Feature B — construction catalog for the categorized picker.
+      matcher: "/partners/designs/:designId/construction-techniques",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // #1113 Feature B — list the design's construction details.
+      matcher: "/partners/designs/:designId/construction-details",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // #1113 Feature B — add a construction detail (author-scoped guard).
+      matcher: "/partners/designs/:designId/construction-details",
+      method: "POST",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // #1113 Feature B — delete a construction detail.
+      matcher: "/partners/designs/:designId/construction-details/:detailId",
+      method: "DELETE",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
       // #1113 S3 — partner saves the moodboard scene edited on the canvas.
       // Owner OR assigned designer (author-scoped guard in the route), scoped
       // to just the `moodboard` column.
