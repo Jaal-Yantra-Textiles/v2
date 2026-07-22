@@ -5,9 +5,14 @@ import { setupSharedTestSuite, getSharedTestEnv } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { seedCommonEmailTemplates } from "../helpers/seed-email-templates"
 import { setupCheckoutInfrastructure } from "../helpers/setup-checkout-infrastructure"
-import { ensureOrderFulfillment } from "../../src/workflows/orders/fulfillment-context"
+import { createOrderFulfillmentWorkflow } from "@medusajs/medusa/core-flows"
+import {
+  ensureOrderFulfillment,
+  resolvePlainFulfillmentContext,
+} from "../../src/workflows/orders/fulfillment-context"
 import orderPlacedHandler from "../../src/subscribers/order-placed"
 import orderFulfilledHandler from "../../src/subscribers/order-fullfilled"
+import orderCanceledProvenanceRunsHandler from "../../src/subscribers/order-canceled-provenance-runs"
 
 jest.setTimeout(60 * 1000)
 
@@ -189,6 +194,70 @@ setupSharedTestSuite(() => {
       return { orderId, fulfillmentId }
     }
 
+    // Create a single-line order with an explicit quantity (for partial
+    // fulfillment). Returns the order id + the line item id.
+    const createSingleLineOrder = async (
+      container: any,
+      unique: number,
+      productId: string,
+      quantity: number
+    ) => {
+      const orderService = container.resolve(
+        Modules.ORDER
+      ) as IOrderModuleService
+      const createdOrder: any = await orderService.createOrders({
+        region_id: regionId,
+        currency_code: "usd",
+        email: `fulfill-partial-${unique}@jyt.test`,
+        items: [
+          { title: "Partial Line", quantity, unit_price: 1000, product_id: productId },
+        ],
+      } as any)
+      const lineItemId = createdOrder.items[0].id as string
+      return { orderId: createdOrder.id as string, lineItemId }
+    }
+
+    // Fulfill a specific quantity of one line item (a partial shipment). Emits
+    // `order.fulfillment_created`, firing the real subscriber.
+    const fulfillPartial = async (
+      container: any,
+      orderId: string,
+      lineItemId: string,
+      quantity: number
+    ) => {
+      const { shippingOptionId, locationId } =
+        await resolvePlainFulfillmentContext(container)
+      await createOrderFulfillmentWorkflow(container).run({
+        input: {
+          order_id: orderId,
+          items: [{ id: lineItemId, quantity }],
+          shipping_option_id: shippingOptionId,
+          location_id: locationId,
+          no_notification: true,
+        } as any,
+      })
+    }
+
+    // Poll a single line item's run until it reaches an expected produced qty.
+    const waitForProducedQuantity = async (
+      query: any,
+      orderId: string,
+      expected: number
+    ) => {
+      let run: any
+      for (let i = 0; i < 40; i++) {
+        const { data } = await query.graph({
+          entity: "production_runs",
+          fields: ["id", "produced_quantity", "status"],
+          filters: { order_id: orderId },
+        })
+        run = (data || [])[0]
+        if (run && Number(run.produced_quantity) === expected) break
+        await new Promise((r) => setTimeout(r, 150))
+      }
+      return run
+    }
+
     // The real `order.fulfillment_created` subscriber fires (async) when
     // ensureOrderFulfillment emits the event — poll until the runs settle.
     const waitForRuns = async (
@@ -305,6 +374,72 @@ setupSharedTestSuite(() => {
       expect(runs.length).toBe(1)
       expect(runs[0].product_id).toBe(productId)
       expect(runs[0].partner_id).toBe(partnerId)
+    })
+
+    // #1123 — a line fulfilled in two shipments (1 then 2) must end with a single
+    // run whose produced_quantity is the CUMULATIVE 3, not the first shipment's 1.
+    it("aggregates produced_quantity across partial fulfillments", async () => {
+      const { api, getContainer } = getSharedTestEnv()
+      const container = getContainer()
+      const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+      const unique = Date.now()
+
+      const productId = await createProduct(api, unique, "partial")
+      const { orderId, lineItemId } = await createSingleLineOrder(
+        container,
+        unique,
+        productId,
+        3
+      )
+
+      // First shipment: qty 1 → run minted at produced_quantity 1.
+      await fulfillPartial(container, orderId, lineItemId, 1)
+      const afterFirst = await waitForProducedQuantity(query, orderId, 1)
+      expect(afterFirst).toBeTruthy()
+      expect(Number(afterFirst.produced_quantity)).toBe(1)
+
+      // Second shipment: qty 2 → same run bumped to cumulative 3 (not a 2nd run).
+      await fulfillPartial(container, orderId, lineItemId, 2)
+      const afterSecond = await waitForProducedQuantity(query, orderId, 3)
+      expect(afterSecond).toBeTruthy()
+      expect(Number(afterSecond.produced_quantity)).toBe(3)
+
+      const { data: allRuns } = await query.graph({
+        entity: "production_runs",
+        fields: ["id"],
+        filters: { order_id: orderId },
+      })
+      expect((allRuns || []).length).toBe(1)
+    })
+
+    // #1123 — canceling the order voids its provenance run (nothing shipped),
+    // soft-deleting it so the trail doesn't claim stock was produced.
+    it("soft-deletes the provenance run when the order is canceled", async () => {
+      const { api, getContainer } = getSharedTestEnv()
+      const container = getContainer()
+      const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+      const unique = Date.now()
+
+      const productId = await createProduct(api, unique, "cancel")
+      const { orderId } = await createAndFulfillOrder(container, unique, [
+        productId,
+      ])
+      const runs = await waitForRuns(query, orderId, 1, ["id", "status"])
+      expect(runs.length).toBe(1)
+
+      // Fire the real order.canceled provenance handler.
+      await orderCanceledProvenanceRunsHandler({
+        event: { data: { id: orderId } },
+        container,
+      } as any)
+
+      // The run is soft-deleted → query.graph excludes it by default.
+      const { data: after } = await query.graph({
+        entity: "production_runs",
+        fields: ["id"],
+        filters: { order_id: orderId },
+      })
+      expect((after || []).length).toBe(0)
     })
 
     it("completes (not double-creates) the design-backed run order.placed minted, and mints the bare product's run", async () => {
