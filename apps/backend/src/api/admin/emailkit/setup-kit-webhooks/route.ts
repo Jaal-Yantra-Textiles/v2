@@ -7,8 +7,14 @@ import type KitService from "../../../../modules/kit/service"
  *
  * One-time helper: registers the Kit webhook rules we consume against our
  * `/webhooks/kit` sink. Each Kit rule gets a distinct `?event=<kind>` target so
- * the sink can tell bounce/complain/unsubscribe/click apart (Kit does not carry
- * the kind in the payload).
+ * the sink can tell bounce/complain/unsubscribe apart (Kit does not carry the
+ * kind in the payload).
+ *
+ * NOTE: `subscriber.link_click` is intentionally NOT auto-registered — Kit
+ * requires a specific link URL (`initiator_value`) per click webhook, so there
+ * is no generic "any click" rule. Click/open engagement is instead pulled from
+ * the broadcast stats endpoint (`GET /v4/broadcasts/{id}/stats`). The sink still
+ * accepts `?event=click` in case a per-link rule is registered manually.
  *
  * Body: { base_url?: string }  — defaults to BACKEND_URL / the request host.
  */
@@ -16,7 +22,6 @@ const EVENTS: { name: string; kind: string }[] = [
   { name: "subscriber.subscriber_bounce", kind: "bounce" },
   { name: "subscriber.subscriber_complain", kind: "complain" },
   { name: "subscriber.subscriber_unsubscribe", kind: "unsubscribe" },
-  { name: "subscriber.link_click", kind: "click" },
 ]
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
