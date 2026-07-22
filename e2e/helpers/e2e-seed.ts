@@ -224,6 +224,36 @@ async function seedProvenanceProductRun(container: any): Promise<string> {
   return product.id
 }
 
+/**
+ * #1113 — seed a design carrying a full brief (concept + aesthetic anchor +
+ * persona + competitors + price point + milestones + design budget), so the
+ * designer-invite → brief-moodboard flow (S1 invite/accept + S2 generate) can be
+ * driven end-to-end against the live server in CI. Returns the design id.
+ */
+async function seedDesignerInviteDesign(container: any): Promise<string> {
+  const designService: any = container.resolve("design")
+  const design = await designService.createDesigns({
+    name: `Designer Invite Brief (e2e)`,
+    description: "e2e designer-onboarding brief",
+    design_type: "Original",
+    status: "Conceptual",
+    priority: "Medium",
+    // Brief columns (#604 / #1113 S2) → the moodboard's anchor cards.
+    concept_theme: "90s Tokyo Streetwear",
+    aesthetic_keywords: ["utilitarian", "sleek", "nostalgic"],
+    persona: { age_range: "25-34", lifestyle: "urban minimalist", values: ["sustainability"] },
+    competitors: [{ name: "Acme Knits", differentiator: "hand-loomed" }],
+    price_point: "mid_market",
+    design_budget: 250000,
+    cost_currency: "inr",
+    milestones: [
+      { label: "Initial sketches", date: "2026-08-01" },
+      { label: "Production-ready samples", date: null },
+    ],
+  })
+  return design.id
+}
+
 const SEED_PASSWORD = "e2etest123!"
 const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
 
@@ -328,6 +358,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: creating design-less product + fulfilled order → product-only run (#1112)...")
   const provenanceProductId = await seedProvenanceProductRun(container)
 
+  logger.info("E2E seed: creating design with a full brief for the designer-invite flow (#1113)...")
+  const inviteDesignId = await seedDesignerInviteDesign(container)
+
   const seedData = {
     email,
     password: SEED_PASSWORD,
@@ -335,6 +368,7 @@ export default async function e2eSeed({ container }: ExecArgs) {
     domain,
     shipmentOrderId,
     provenanceProductId,
+    inviteDesignId,
   }
 
   fs.writeFileSync(SEED_FILE, JSON.stringify(seedData, null, 2))
