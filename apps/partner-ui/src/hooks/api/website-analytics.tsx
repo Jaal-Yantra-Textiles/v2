@@ -23,6 +23,9 @@ export type WebsiteAnalytics = {
   provider: AnalyticsProvider
   custom_head: string | null
   custom_body_end: string | null
+  // SEO — Google Search Console verification token (#349). Shares this
+  // storefront-<head>-settings surface; not gated by the analytics provider.
+  google_site_verification: string | null
 }
 
 export type WebsiteAnalyticsResponse = { analytics: WebsiteAnalytics }
@@ -31,6 +34,7 @@ export type UpdateWebsiteAnalyticsPayload = {
   provider?: AnalyticsProvider
   custom_head?: string | null
   custom_body_end?: string | null
+  google_site_verification?: string | null
 }
 
 export const useWebsiteAnalytics = (

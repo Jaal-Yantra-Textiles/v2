@@ -16,6 +16,10 @@ type AnalyticsView = {
   provider: "in_house" | "custom" | "off"
   custom_head: string | null
   custom_body_end: string | null
+  // SEO (not analytics) — shares this storefront-<head>-settings surface (#349).
+  // Google Search Console verification token; the storefront always injects it
+  // as <meta name="google-site-verification"> regardless of analytics provider.
+  google_site_verification: string | null
 }
 
 function shape(website: any): AnalyticsView {
@@ -25,6 +29,7 @@ function shape(website: any): AnalyticsView {
     provider: website.analytics_provider ?? "in_house",
     custom_head: website.analytics_custom_head ?? null,
     custom_body_end: website.analytics_custom_body_end ?? null,
+    google_site_verification: website.google_site_verification ?? null,
   }
 }
 
@@ -151,6 +156,24 @@ export const PUT = async (
       )
     }
     update.analytics_custom_body_end = body.custom_body_end
+  }
+
+  if (body.google_site_verification !== undefined) {
+    if (
+      body.google_site_verification !== null &&
+      typeof body.google_site_verification !== "string"
+    ) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "google_site_verification must be a string or null",
+      )
+    }
+    // Collapse empty/whitespace to null so "cleared" is distinct from a token.
+    const token =
+      typeof body.google_site_verification === "string"
+        ? body.google_site_verification.trim()
+        : body.google_site_verification
+    update.google_site_verification = token ? token : null
   }
 
   // Nothing to apply — return the current view.

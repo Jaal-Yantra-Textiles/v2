@@ -8,6 +8,7 @@ import {
   Button,
   Container,
   Heading,
+  Input,
   RadioGroup,
   Text,
   Textarea,
@@ -29,6 +30,7 @@ const analyticsSchema = z.object({
   provider: z.enum(PROVIDER_VALUES),
   custom_head: z.string().nullable(),
   custom_body_end: z.string().nullable(),
+  google_site_verification: z.string().nullable(),
 })
 
 type AnalyticsFormValues = z.infer<typeof analyticsSchema>
@@ -54,6 +56,7 @@ const AnalyticsInner = () => {
       provider: "in_house",
       custom_head: "",
       custom_body_end: "",
+      google_site_verification: "",
     },
     resolver: zodResolver(analyticsSchema),
   })
@@ -66,6 +69,7 @@ const AnalyticsInner = () => {
       provider: analytics.provider,
       custom_head: analytics.custom_head ?? "",
       custom_body_end: analytics.custom_body_end ?? "",
+      google_site_verification: analytics.google_site_verification ?? "",
     })
   }, [analytics, form])
 
@@ -85,6 +89,11 @@ const AnalyticsInner = () => {
           values.provider === "custom" && values.custom_body_end?.trim()
             ? values.custom_body_end
             : null,
+        // SEO verification is independent of the analytics provider — persist
+        // it whenever set, collapsing empty to null so "cleared" is explicit.
+        google_site_verification: values.google_site_verification?.trim()
+          ? values.google_site_verification.trim()
+          : null,
       },
       {
         onSuccess: () => {
@@ -292,6 +301,54 @@ const AnalyticsInner = () => {
                 />
               </>
             )}
+
+            {/* SEO — Search Console verification. Independent of the analytics
+                provider: the storefront always injects this as
+                <meta name="google-site-verification">. (#349) */}
+            <div className="border-t pt-6 flex flex-col gap-y-1">
+              <Text size="small" weight="plus">
+                {t(
+                  "webstore.analytics.seo.heading",
+                  "Search Console verification"
+                )}
+              </Text>
+              <Text size="small" className="text-ui-fg-subtle">
+                {t(
+                  "webstore.analytics.seo.subtitle",
+                  "Verify your storefront in Google Search Console using the HTML-tag method. Paste the token from the <meta name=\"google-site-verification\" content=\"…\"> tag Google gives you — just the content value, not the whole tag."
+                )}
+              </Text>
+            </div>
+
+            <Form.Field
+              control={form.control}
+              name="google_site_verification"
+              render={({ field }) => (
+                <Form.Item>
+                  <Form.Label optional>
+                    {t(
+                      "webstore.analytics.fields.google_site_verification.label",
+                      "Verification token"
+                    )}
+                  </Form.Label>
+                  <Form.Hint>
+                    {t(
+                      "webstore.analytics.fields.google_site_verification.hint",
+                      "Each storefront domain is its own Search Console property. Leave blank to remove."
+                    )}
+                  </Form.Hint>
+                  <Form.Control>
+                    <Input
+                      {...field}
+                      value={field.value ?? ""}
+                      placeholder="e.g. AbCdEf1234_gHiJkLmNoPqRsTuVwXyZ0123456789"
+                      className="font-mono text-xs"
+                    />
+                  </Form.Control>
+                  <Form.ErrorMessage />
+                </Form.Item>
+              )}
+            />
           </div>
 
           <div className="flex justify-end gap-x-2 px-6 py-4 border-t">

@@ -23,6 +23,7 @@ export type UpdateWebsiteStepInput = {
   analytics_provider?: "in_house" | "custom" | "off";
   analytics_custom_head?: string | null;
   analytics_custom_body_end?: string | null;
+  google_site_verification?: string | null;
   theme?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
 };
