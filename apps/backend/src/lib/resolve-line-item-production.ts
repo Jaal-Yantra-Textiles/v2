@@ -4,6 +4,10 @@
 // paths use. Keeping it in one place guarantees the two paths agree so they
 // never double-create a run for the same line item.
 
+// Postgres unique_violation SQLSTATE — raised when the partial unique index on
+// production_runs.order_line_item_id catches a concurrent double-create (#1123).
+export const PLAN_UNIQUE_VIOLATION = "23505"
+
 export type ResolvedLineItemDesign = {
   designId: string | null
   isCustomDesign: boolean
@@ -58,22 +62,57 @@ export async function hasProductionRunForLineItem(
   return (await getProductionRunForLineItem(query, lineItemId)) !== null
 }
 
+export type LineItemProductionRun = {
+  id: string
+  status: string
+  produced_quantity: number | null
+  design_id: string | null
+  metadata: Record<string, any> | null
+}
+
 /**
  * Like {@link hasProductionRunForLineItem} but returns the existing run's id +
- * status so the fulfillment path can decide whether to complete it (still
- * pre-production, i.e. shipped from stock) vs leave it (production already
- * underway). #1126.
+ * status (and the fields the reconcile path needs) so the fulfillment path can
+ * decide whether to complete it (still pre-production, i.e. shipped from stock)
+ * vs leave it (production already underway, #1126), bump its produced quantity
+ * on a later fulfillment, or soft-delete it on cancellation (#1123).
  */
 export async function getProductionRunForLineItem(
   query: any,
   lineItemId: string
-): Promise<{ id: string; status: string } | null> {
+): Promise<LineItemProductionRun | null> {
   const { data: existing } = await query.graph({
     entity: "production_runs",
-    fields: ["id", "status"],
+    fields: ["id", "status", "produced_quantity", "design_id", "metadata"],
     filters: { order_line_item_id: lineItemId },
     pagination: { skip: 0, take: 1 },
   })
   const run = (existing || [])[0]
-  return run ? { id: run.id, status: run.status } : null
+  return run
+    ? {
+        id: run.id,
+        status: run.status,
+        produced_quantity: run.produced_quantity ?? null,
+        design_id: run.design_id ?? null,
+        metadata: run.metadata ?? null,
+      }
+    : null
+}
+
+/**
+ * A provenance run this system minted from retail fulfillment (product-only,
+ * born terminal). ONLY these are quantity-reconciled / soft-deleted by the
+ * fulfillment + cancellation paths — a real production run (design work-order,
+ * or a run that actually went through the shop) is never touched. Identified by
+ * the create-side marker `metadata.source === "order.fulfillment_created"` and
+ * the absence of a backing design.
+ */
+export function isOwnedProvenanceRun(
+  run: Pick<LineItemProductionRun, "design_id" | "metadata"> | null | undefined
+): boolean {
+  if (!run) return false
+  return (
+    run.design_id == null &&
+    run.metadata?.source === "order.fulfillment_created"
+  )
 }
