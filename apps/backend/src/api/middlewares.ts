@@ -207,6 +207,8 @@ import { PartnerCreateProductionRunReq } from "./partners/designs/[designId]/pro
 import { PartnerPostConsumptionLogReq } from "./partners/designs/[designId]/consumption-logs/validators";
 import { PartnerPostDesignTasksReq } from "./partners/designs/[designId]/tasks/validators";
 import { DesignBriefSchema as PartnerDesignBriefSchema, UpdateDesignBriefSchema as PartnerUpdateDesignBriefSchema } from "./partners/designs/[designId]/brief/validators";
+import { AdminCreateDesignerInviteSchema } from "./admin/designs/[id]/designer-invites/validators";
+import { AcceptDesignerInviteSchema } from "./partners/designer-invites/[token]/accept/validators";
 import { PartnerPostProductionRunConsumptionLogReq } from "./partners/production-runs/[id]/consumption-logs/validators";
 import { listPartnersQuerySchema, PostPartnerSchema } from "./admin/partners/validators";
 import { AdminBroadcastNotificationSchema } from "./admin/partners/notifications/broadcast/validators";
@@ -3685,6 +3687,13 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(UpdateDesignBriefSchema))],
     },
 
+    // Designer-invite (#1113 S1): admin mints a scoped invite link for a design.
+    {
+      matcher: "/admin/designs/:id/designer-invites",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminCreateDesignerInviteSchema))],
+    },
+
     // Inventory linkin on designs
 
     {
@@ -4509,6 +4518,15 @@ export default defineMiddlewares({
       method: "GET",
       middlewares: [],
     },
+    // Designer-invite accept (#1113 S1) — PUBLIC (token IS the auth, like
+    // /partners/wa-auth). CORS is inherited from the /partners* catch-all; no
+    // partner session yet, so only body validation runs here.
+    {
+      matcher: "/partners/designer-invites/:token/accept",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AcceptDesignerInviteSchema))],
+    },
+
     // Partner Designs APIs
     {
       matcher: "/partners/designs",
