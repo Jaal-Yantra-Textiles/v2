@@ -52,6 +52,35 @@ export interface BlogEmailConfig {
  *   unsubscribe endpoint can suppress by email even when the id can't resolve.
  * - Passes the two-doors CTAs: shop_url (cicilabel.com) + create_url (jaalyantra.com).
  */
+/**
+ * Builds the template data for the **Kit broadcast** path.
+ *
+ * Unlike {@link buildEmailData}, a Kit broadcast is rendered ONCE for the whole
+ * tag, so there is no per-recipient id/email. Personalization is deferred to
+ * Kit's own Liquid engine: `first_name` becomes a Liquid tag Kit fills per
+ * recipient at send time, and the unsubscribe link points at Kit's managed
+ * `{{ unsubscribe_url }}` (Kit owns/enforces unsubscribe on broadcasts). The
+ * curly-brace Liquid tokens pass through Handlebars untouched (Handlebars only
+ * escapes `& < > " '`, not braces).
+ */
+export function buildKitEmailData(
+  blogData: any,
+  htmlContent: string,
+  emailConfig: BlogEmailConfig
+): Record<string, any> {
+  const KIT_FIRST_NAME = '{{ subscriber.first_name | default: "there" }}'
+  const data = buildEmailData(
+    { id: "", email: "", first_name: KIT_FIRST_NAME },
+    blogData,
+    htmlContent,
+    emailConfig
+  )
+  // Kit manages unsubscribe on broadcasts — point the button at its Liquid tag.
+  data.unsubscribe_url = "{{ unsubscribe_url }}"
+  data.person.first_name = KIT_FIRST_NAME
+  return data
+}
+
 export function buildEmailData(
   subscriber: BlogEmailSubscriber,
   blogData: any,

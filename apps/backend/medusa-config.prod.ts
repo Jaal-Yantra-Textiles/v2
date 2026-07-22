@@ -504,6 +504,9 @@ module.exports = defineConfig({
     resolve: "./src/modules/email_engagement",
   },
   {
+    resolve: "./src/modules/kit",
+  },
+  {
     resolve: "./src/modules/audience",
   },
   {

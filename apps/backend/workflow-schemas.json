@@ -1767,6 +1767,156 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/create-person.ts"
   },
+  "create-crm-opportunity": {
+    "fields": [
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.title }}"
+      },
+      {
+        "name": "stage",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.stage }}"
+      },
+      {
+        "name": "amount",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.amount }}"
+      },
+      {
+        "name": "currency",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.currency }}"
+      },
+      {
+        "name": "expected_close_date",
+        "type": "date",
+        "required": false,
+        "placeholder": "{{ $trigger.expected_close_date }}"
+      },
+      {
+        "name": "company_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.company_id }}"
+      },
+      {
+        "name": "owner_person_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.owner_person_id }}"
+      },
+      {
+        "name": "metadata",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/crm/create-opportunity.ts"
+  },
+  "create-crm-task": {
+    "fields": [
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.title }}"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.description }}"
+      },
+      {
+        "name": "due_date",
+        "type": "date",
+        "required": false,
+        "placeholder": "{{ $trigger.due_date }}"
+      },
+      {
+        "name": "status",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.status }}"
+      },
+      {
+        "name": "priority",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.priority }}"
+      },
+      {
+        "name": "assignee_person_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.assignee_person_id }}"
+      },
+      {
+        "name": "related_type",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.related_type }}"
+      },
+      {
+        "name": "related_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.related_id }}"
+      },
+      {
+        "name": "metadata",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/crm/create-task.ts"
+  },
+  "log-crm-note": {
+    "fields": [
+      {
+        "name": "body",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.body }}"
+      },
+      {
+        "name": "author",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.author }}"
+      },
+      {
+        "name": "related_type",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.related_type }}"
+      },
+      {
+        "name": "related_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.related_id }}"
+      },
+      {
+        "name": "metadata",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/crm/log-note.ts"
+  },
   "delete-person": {
     "fields": [
       {
@@ -4723,6 +4873,18 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/orders/list-partner-orders.ts"
   },
+  "sync-order-shipment-tracking": {
+    "fields": [
+      {
+        "name": "tracking",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.tracking }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/orders/sync-order-shipment-tracking.ts"
+  },
   "associate-partner-person-types": {
     "fields": [
       {
@@ -4881,7 +5043,7 @@
         "type": "id",
         "required": false,
         "placeholder": "{{ $last.vercel_project_id }}",
-        "description": "Roadmap #17 (issue #346) — a partner's custom domain should work in both its www and apex forms. The submitted host is the canonical one; the counterpart is attached to the same Vercel project as a permanent redirect, and BOTH are registered as `website_domain` aliases so the storefront's host-based website lookup resolves either form (the gap that left sharlho.com showing the generic \"Store\" template). / export type DomainPair = { /** The host the partner asked for — canonical, serves traffic. */ primary: string /** The www/apex twin — redirects to primary. Null for deeper subdomains. */ counterpart: string | null } /** apex → www twin; www → apex twin; anything deeper (shop.example.com) has no twin. Assumes an already-cleaned lowercase host. / export function deriveDomainPair(domain: string): DomainPair { const parts = domain.split(\".\") if (parts[0] === \"www\" && parts.length === 3) { return { primary: domain, counterpart: parts.slice(1).join(\".\") } } if (parts.length === 2) { return { primary: domain, counterpart: `www.${domain}` } } return { primary: domain, counterpart: null } } export type AttachStorefrontDomainInput = { partner_id: string /** @deprecated kept for callers; the provider + project ref are now resolved from the partner."
+        "description": "Roadmap #17 (issue #346) — a partner's custom domain should work in both its www and apex forms. The submitted host is the canonical one; the counterpart is attached to the same Vercel project as a permanent redirect, and BOTH are registered as `website_domain` aliases so the storefront's host-based website lookup resolves either form (the gap that left sharlho.com showing the generic \"Store\" template). / export type DomainPair = { /** The host the partner asked for — canonical, serves traffic. */ primary: string /** The www/apex twin — redirects to primary. Null for deeper subdomains. */ counterpart: string | null } /** apex → www twin; www → apex twin; anything deeper (shop.example.com) has no twin. Assumes an already-cleaned lowercase host. / export function deriveDomainPair(domain: string): DomainPair { const parts = domain.split(\".\") if (parts[0] === \"www\" && parts.length === 3) { return { primary: domain, counterpart: parts.slice(1).join(\".\") } } if (parts.length === 2) { return { primary: domain, counterpart: `www.${domain}` } } return { primary: domain, counterpart: null } } /** Read a partner's connected custom domain. Prefers the typed `custom_domain` column; falls back to the legacy `metadata.custom_domain` so a reader that runs during the deploy window (migration done, old rows) still resolves. / export function partnerCustomDomain(partner: any): string | undefined { const col = partner?.custom_domain if (typeof col === \"string\" && col) return col const meta = partner?.metadata?.custom_domain return typeof meta === \"string\" && meta ? meta : undefined } export function partnerCustomDomainVerified(partner: any): boolean { if (partner?.custom_domain_verified === true) return true // Only trust the legacy metadata flag when the column hasn't taken over yet. if (partner?.custom_domain) return partner.custom_domain_verified === true return partner?.metadata?.custom_domain_verified === true } export type AttachStorefrontDomainInput = { partner_id: string /** @deprecated kept for callers; the provider + project ref are now resolved from the partner."
       },
       {
         "name": "website_id",
@@ -4894,12 +5056,6 @@
         "type": "string",
         "required": true,
         "placeholder": "{{ $last.domain }}"
-      },
-      {
-        "name": "prev_metadata",
-        "type": "object",
-        "required": true,
-        "placeholder": "{}"
       }
     ],
     "source": "custom_ts",
@@ -5625,12 +5781,30 @@
     "source": "inferred",
     "sourceFile": "src/workflows/production-runs/complete-production-run.ts"
   },
+  "complete-provenance-run": {
+    "fields": [
+      {
+        "name": "production_run_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.production_run_id }}"
+      },
+      {
+        "name": "produced_quantity",
+        "type": "number",
+        "required": false,
+        "placeholder": "0"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/production-runs/complete-provenance-run.ts"
+  },
   "create-production-run": {
     "fields": [
       {
         "name": "design_id",
         "type": "id",
-        "required": true,
+        "required": false,
         "placeholder": "{{ $last.design_id }}"
       },
       {
@@ -5641,6 +5815,12 @@
       },
       {
         "name": "quantity",
+        "type": "number",
+        "required": false,
+        "placeholder": "0"
+      },
+      {
+        "name": "produced_quantity",
         "type": "number",
         "required": false,
         "placeholder": "0"
@@ -6850,7 +7030,7 @@
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.preferred_provider }}",
-        "description": "Preferred hosting provider for this NEW storefront. Defaults to DEFAULT_HOSTING_PROVIDER env (or \"cloudflare\"). The selector rotates across that provider's accounts, spills to other providers, then falls back to the legacy env-single-account path."
+        "description": "Preferred hosting provider for this NEW storefront. Defaults to DEFAULT_HOSTING_PROVIDER env (or \"vercel\"). The selector rotates across that provider's accounts, spills to other providers, then falls back to the legacy env-single-account path. Default is \"vercel\" (not \"cloudflare\"): Vercel handles custom domains — including bare apex — natively (A @ → 76.76.21.21) on any DNS provider, with auto TLS, so it \"just works\" for every partner. The Cloudflare Workers tier is deferred (its SaaS custom-hostname path can't serve a bare apex without Enterprise apex-proxying); re-enable it later by setting DEFAULT_HOSTING_PROVIDER=cloudflare and reactivating the CF account."
       }
     ],
     "source": "custom_ts",
@@ -7465,6 +7645,12 @@
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.analytics_custom_body_end }}"
+      },
+      {
+        "name": "google_site_verification",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.google_site_verification }}"
       },
       {
         "name": "theme",
