@@ -54,6 +54,9 @@ const Design = model.define("design", {
   // Section 1 (Core Identity): a short story/title distinct from the longer
   // free-text `description` ("90s Tokyo Streetwear").
   concept_theme: model.text().translatable().nullable(),
+  // Section 1 (Core Identity): the Aesthetic Anchor — 3–5 keywords that define
+  // the look & feel ("utilitarian", "sleek", "nostalgic"). A string[] JSON.
+  aesthetic_keywords: model.json().nullable(),
   // Section 2 (Target Audience & Market Positioning) — JSON value objects,
   // read+written as a whole through the design update route (NOT independently
   // mutated rows, NOT metadata, so the metadata-replace hazard does not apply).
@@ -67,6 +70,11 @@ const Design = model.define("design", {
   // Section 3 (Timeline & Budget) — the design-phase budget, deliberately
   // separate from material/production manufacturing cost. Reuses cost_currency.
   design_budget: model.bigNumber().nullable(),
+  // Section 3 (Timeline & Budget) — Key Milestones: an ordered list of
+  // { label, date? } (initial sketches, first revisions, final tech specs,
+  // production-ready samples). A JSON array; `target_completion_date` remains
+  // the single hard deadline.
+  milestones: model.json().nullable(),
   feedback_history: model.json().nullable(), // Track feedback and changes
   revised_from_id: model.text().nullable(),
   revision_number: model.number().default(1),

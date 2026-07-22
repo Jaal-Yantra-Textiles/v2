@@ -367,6 +367,22 @@
           "enumItems": [],
           "mappedType": "text"
         },
+        "aesthetic_keywords": {
+          "name": "aesthetic_keywords",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "json"
+        },
         "persona": {
           "name": "persona",
           "type": "jsonb",
@@ -435,8 +451,8 @@
           "enumItems": [],
           "mappedType": "decimal"
         },
-        "raw_design_budget": {
-          "name": "raw_design_budget",
+        "milestones": {
+          "name": "milestones",
           "type": "jsonb",
           "unsigned": false,
           "autoincrement": false,
@@ -613,6 +629,22 @@
         },
         "raw_production_cost": {
           "name": "raw_production_cost",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "json"
+        },
+        "raw_design_budget": {
+          "name": "raw_design_budget",
           "type": "jsonb",
           "unsigned": false,
           "autoincrement": false,

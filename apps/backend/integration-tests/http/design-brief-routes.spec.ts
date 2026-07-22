@@ -42,11 +42,13 @@ setupSharedTestSuite(() => {
       expect(res.status).toBe(200)
       expect(res.data.brief).toEqual({
         concept_theme: null,
+        aesthetic_keywords: null,
         persona: null,
         competitors: null,
         price_point: null,
         design_budget: null,
         cost_currency: null,
+        milestones: null,
       })
     })
 

@@ -53,10 +53,12 @@ export const POST = async (
   const input: Record<string, any> = {
     id: req.params.id,
     concept_theme: body.concept_theme ?? null,
+    aesthetic_keywords: body.aesthetic_keywords ?? null,
     persona: body.persona ?? null,
     competitors: body.competitors ?? null,
     price_point: body.price_point ?? null,
     design_budget: body.design_budget ?? null,
+    milestones: body.milestones ?? null,
   }
   // cost_currency is shared with manufacturing cost — only overwrite it when
   // the caller explicitly sends one, never null it out on a brief replace.
