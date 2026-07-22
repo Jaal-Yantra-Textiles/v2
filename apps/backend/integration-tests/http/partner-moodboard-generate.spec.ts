@@ -154,4 +154,105 @@ setupSharedTestSuite(() => {
       .catch((e) => e)
     expect(err.response.status).toBe(400)
   })
+
+  // #1113 S3 — the invited (assigned) designer authors the canvas: saves the
+  // scene through an author-scoped route and round-trips a concept-card edit
+  // back to the brief column.
+  it("lets an assigned designer save the scene and round-trip a brief edit", async () => {
+    await api.post(`/admin/designs/${designId}/brief`, brief, headers)
+    const mint = await api.post(
+      `/admin/designs/${designId}/designer-invites`,
+      { inviter_name: "Studio JYT" },
+      headers
+    )
+    const accept = await api.post(
+      `/partners/designer-invites/${mint.data.token}/accept`,
+      { name: "Sol Weaver", email: `sol-${uniq()}@example.com`, password: "supersecret123" }
+    )
+    const bearer = { headers: { authorization: `Bearer ${accept.data.token}` } }
+
+    // Generate → get the concept card, edit its body text, save the scene.
+    const gen = await api.post(
+      `/partners/designs/${designId}/moodboard/generate`,
+      {},
+      bearer
+    )
+    const scene = gen.data.moodboard
+
+    const conceptRect = scene.elements.find(
+      (e: any) =>
+        e.type === "rectangle" &&
+        e.customData?.kind === "brief-field" &&
+        e.customData?.field === "concept_theme"
+    )
+    expect(conceptRect).toBeTruthy()
+
+    // The concept body text sits inside the card, below the heading.
+    const conceptBody = scene.elements
+      .filter(
+        (e: any) =>
+          e.type === "text" &&
+          e.x >= conceptRect.x - 4 &&
+          e.x <= conceptRect.x + conceptRect.width &&
+          e.y > conceptRect.y + 30 &&
+          e.y < conceptRect.y + conceptRect.height
+      )
+      .sort((a: any, b: any) => b.y - a.y)[0]
+    expect(conceptBody?.text).toContain("90s Tokyo Streetwear")
+    conceptBody.text = "Neo-Kyoto Techwear"
+
+    const save = await api.put(
+      `/partners/designs/${designId}/moodboard`,
+      { moodboard: scene },
+      bearer
+    )
+    expect(save.status).toBe(200)
+
+    // The assigned designer can also write the brief column back (author-scoped).
+    const briefPut = await api.put(
+      `/partners/designs/${designId}/brief`,
+      { concept_theme: "Neo-Kyoto Techwear" },
+      bearer
+    )
+    expect(briefPut.status).toBe(200)
+    expect(briefPut.data.brief.concept_theme).toBe("Neo-Kyoto Techwear")
+    // Untouched structured fields survive the partial update.
+    expect(briefPut.data.brief.aesthetic_keywords).toEqual([
+      "utilitarian",
+      "sleek",
+      "nostalgic",
+    ])
+  })
+
+  it("rejects a non-author saving the moodboard scene", async () => {
+    await api.post(`/admin/designs/${designId}/brief`, brief, headers)
+
+    const otherService: any = getContainer().resolve(DESIGN_MODULE)
+    const other = await otherService.createDesigns({
+      name: `Other Save Design ${uniq()}`,
+      description: "other design",
+      design_type: "Original",
+      status: "Conceptual",
+      priority: "Medium",
+    })
+    const mint = await api.post(
+      `/admin/designs/${other.id}/designer-invites`,
+      {},
+      headers
+    )
+    const accept = await api.post(
+      `/partners/designer-invites/${mint.data.token}/accept`,
+      { name: "Intruder", email: `intruder-${uniq()}@example.com`, password: "supersecret123" }
+    )
+    const bearer = { headers: { authorization: `Bearer ${accept.data.token}` } }
+
+    const err = await api
+      .put(
+        `/partners/designs/${designId}/moodboard`,
+        { moodboard: { type: "excalidraw", elements: [] } },
+        bearer
+      )
+      .catch((e) => e)
+    expect(err.response.status).toBe(400)
+  })
 })
