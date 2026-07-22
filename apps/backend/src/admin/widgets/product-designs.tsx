@@ -205,13 +205,14 @@ function ProductProvenanceRunsSection({ productId }: { productId: string }) {
       </div>
 
       <div className="flex flex-col divide-y divide-ui-border-base rounded-lg border border-ui-border-base overflow-hidden">
-        <div className="grid grid-cols-3 px-3 py-1.5 bg-ui-bg-subtle">
+        <div className="grid grid-cols-4 px-3 py-1.5 bg-ui-bg-subtle">
           <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">Status</Text>
           <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">Order</Text>
+          <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">Partner</Text>
           <Text size="xsmall" weight="plus" className="text-ui-fg-subtle text-right">Produced</Text>
         </div>
         {productOnly.map((run) => (
-          <div key={run.id} className="grid grid-cols-3 px-3 py-2 items-center">
+          <div key={run.id} className="grid grid-cols-4 px-3 py-2 items-center">
             <StatusBadge color={RUN_STATUS_COLOR[run.status ?? ""] ?? "grey"}>
               {runStatusLabel(run.status ?? "")}
             </StatusBadge>
@@ -228,6 +229,11 @@ function ProductProvenanceRunsSection({ productId }: { productId: string }) {
             ) : (
               <Text size="xsmall" className="text-ui-fg-muted">—</Text>
             )}
+            {/* #1121 — retail runs now carry the owning partner (resolved from
+                the order's sales channel), so provenance is product+partner+order. */}
+            <Text size="xsmall" className="text-ui-fg-subtle truncate">
+              {run.partner_id ? run.partner_id.slice(0, 8) + "…" : "—"}
+            </Text>
             <Text size="xsmall" className="text-right">
               {(run.produced_quantity ?? run.quantity ?? 0).toLocaleString()}
             </Text>

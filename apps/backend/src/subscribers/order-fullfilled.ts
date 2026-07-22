@@ -6,6 +6,7 @@ import { sendPartnerOrderFulfilledWorkflow } from "../workflows/email/workflows/
 import { createProductionRunWorkflow } from "../workflows/production-runs/create-production-run"
 import { completeProvenanceRunWorkflow } from "../workflows/production-runs/complete-provenance-run"
 import { planLineItemRunAction } from "../lib/plan-fulfillment-production-runs"
+import { resolveOwningPartnerId } from "../modules/partner_billing/resolve-retail-partner"
 
 // #1112 — "fulfilled from produced stock" ⇒ retroactively mint a COMPLETED
 // production run per fulfilled line item, hung off the Product spine, carrying
@@ -40,6 +41,7 @@ async function createFulfillmentProductionRuns(
       entity: "order",
       fields: [
         "id",
+        "sales_channel_id",
         "items.id",
         "items.product_id",
         "items.variant_id",
@@ -50,6 +52,15 @@ async function createFulfillmentProductionRuns(
     const itemById = new Map<string, any>(
       (order?.items || []).map((it: any) => [it.id, it])
     )
+
+    // #1121 — resolve the owning partner once for the whole order so every
+    // provenance run carries product + partner + order provenance (retail runs
+    // were previously minted with partner_id null). Same two-rule ownership the
+    // partner API enforces: work-order link → retail sales-channel rule.
+    const partnerId = await resolveOwningPartnerId(container, {
+      orderId: data.order_id,
+      salesChannelId: order?.sales_channel_id,
+    })
 
     for (const fi of fulfilledItems) {
       const lineItemId = fi.line_item_id as string
@@ -89,6 +100,7 @@ async function createFulfillmentProductionRuns(
           produced_quantity: plan.quantity,
           product_id: plan.product_id,
           variant_id: plan.variant_id,
+          partner_id: partnerId ?? undefined,
           order_id: data.order_id,
           order_line_item_id: lineItemId,
           // Born terminal — the goods are already produced & shipping.

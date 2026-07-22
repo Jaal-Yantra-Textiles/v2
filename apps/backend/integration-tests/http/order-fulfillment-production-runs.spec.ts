@@ -77,10 +77,12 @@ setupSharedTestSuite(() => {
     }
 
     // Create an order (not yet fulfilled) with the given product line items.
+    // An optional sales channel scopes the order to a partner's store (#1121).
     const createOrder = async (
       container: any,
       unique: number,
-      productIds: string[]
+      productIds: string[],
+      salesChannelId?: string
     ) => {
       const orderService = container.resolve(
         Modules.ORDER
@@ -89,6 +91,7 @@ setupSharedTestSuite(() => {
         region_id: regionId,
         currency_code: "usd",
         email: `fulfill-${unique}@jyt.test`,
+        ...(salesChannelId ? { sales_channel_id: salesChannelId } : {}),
         // Title-only line items carrying product_id (no variant → no inventory
         // reservation, so the manual fulfillment path just works — same shape
         // the order-placed subscriber test uses).
@@ -100,6 +103,71 @@ setupSharedTestSuite(() => {
         })),
       } as any)
       return createdOrder.id as string
+    }
+
+    // #1121 — a partner with a store whose default sales channel defines retail
+    // ownership. Returns the partner id + that channel id so an order placed in
+    // the channel resolves back to the partner.
+    const createPartnerWithStore = async (
+      api: any,
+      container: any,
+      unique: number
+    ) => {
+      const email = `fulfill-partner-${unique}@jyt.test`
+      const password = "supersecret"
+      await api.post("/auth/partner/emailpass/register", { email, password })
+      let login = await api.post("/auth/partner/emailpass", { email, password })
+      let headers = { Authorization: `Bearer ${login.data.token}` }
+
+      const partnerRes = await api.post(
+        "/partners",
+        {
+          name: `Fulfill Partner ${unique}`,
+          handle: `fulfill-partner-${unique}`,
+          admin: { email, first_name: "Priya", last_name: "Partner" },
+        },
+        { headers }
+      )
+      const partnerId = partnerRes.data.partner.id as string
+
+      // Re-login to pick up partner context, then create a store.
+      login = await api.post("/auth/partner/emailpass", { email, password })
+      headers = { Authorization: `Bearer ${login.data.token}` }
+
+      await api.post(
+        "/partners/stores",
+        {
+          store: {
+            name: `Fulfill Store ${unique}`,
+            supported_currencies: [{ currency_code: "usd", is_default: true }],
+          },
+          region: {
+            name: "Fulfill Partner Region",
+            currency_code: "usd",
+            countries: ["us"],
+          },
+          location: {
+            name: "Fulfill Partner Warehouse",
+            address: {
+              address_1: "1 Loom Lane",
+              city: "Jaipur",
+              postal_code: "302001",
+              country_code: "IN",
+            },
+          },
+        },
+        { headers }
+      )
+
+      const q = container.resolve(ContainerRegistrationKeys.QUERY) as any
+      const { data: partners } = await q.graph({
+        entity: "partners",
+        fields: ["id", "stores.default_sales_channel_id"],
+        filters: { id: partnerId },
+      })
+      const salesChannelId = partners?.[0]?.stores?.[0]
+        ?.default_sales_channel_id as string
+      return { partnerId, salesChannelId }
     }
 
     // Fulfill the whole order via the shared helper (resolves shipping option +
@@ -200,6 +268,43 @@ setupSharedTestSuite(() => {
         filters: { order_id: orderId },
       })
       expect((runs2 || []).length).toBe(1)
+    })
+
+    // #1121 — a retail order placed in a partner store's default sales channel
+    // must stamp the owning partner on the minted provenance run (product +
+    // partner + order provenance). Previously partner_id was always null.
+    it("stamps the owning partner on a retail (sales-channel-scoped) run", async () => {
+      const { api, getContainer } = getSharedTestEnv()
+      const container = getContainer()
+      const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+      const unique = Date.now()
+
+      const { partnerId, salesChannelId } = await createPartnerWithStore(
+        api,
+        container,
+        unique
+      )
+      expect(salesChannelId).toBeTruthy()
+
+      const productId = await createProduct(api, unique, "retail")
+      const orderId = await createOrder(
+        container,
+        unique,
+        [productId],
+        salesChannelId
+      )
+      await fulfillOrder(container, orderId)
+
+      const runs = await waitForRuns(query, orderId, 1, [
+        "id",
+        "product_id",
+        "order_id",
+        "partner_id",
+        "status",
+      ])
+      expect(runs.length).toBe(1)
+      expect(runs[0].product_id).toBe(productId)
+      expect(runs[0].partner_id).toBe(partnerId)
     })
 
     it("completes (not double-creates) the design-backed run order.placed minted, and mints the bare product's run", async () => {
