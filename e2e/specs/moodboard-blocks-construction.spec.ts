@@ -180,4 +180,40 @@ test.describe("Moodboard insert blocks + construction (#1113 A/B)", () => {
 
     await partner.dispose()
   })
+
+  test("admin editor gets the same insert palette + construction catalog", async ({
+    baseURL,
+  }) => {
+    const admin = await pwRequest.newContext({
+      baseURL,
+      extraHTTPHeaders: { authorization: `Bearer ${adminToken}` },
+    })
+    const designId = seed.inviteDesignId
+
+    // Feature A — admin palette lists + builds a brief block.
+    const listRes = await admin.get(`/admin/designs/${designId}/moodboard/blocks`)
+    expect(listRes.status()).toBe(200)
+    const { blocks } = await listRes.json()
+    expect(blocks.find((b: any) => b.key === "brief-concept").available).toBe(true)
+
+    const blockRes = await admin.post(
+      `/admin/designs/${designId}/moodboard/blocks`,
+      { data: { block: "brief-concept" } }
+    )
+    expect(blockRes.status()).toBe(200)
+    const { block } = await blockRes.json()
+    const frames = block.elements.filter((e: any) => e.type === "frame")
+    expect(frames).toHaveLength(1)
+    expect(frames[0].name).toBe("Brief · Concept & Identity")
+
+    // Feature B — admin construction catalog.
+    const catRes = await admin.get(
+      `/admin/designs/${designId}/construction-techniques`
+    )
+    expect(catRes.status()).toBe(200)
+    const catalog = await catRes.json()
+    expect(catalog.techniques.some((t: any) => t.slug === "dart")).toBe(true)
+
+    await admin.dispose()
+  })
 })
