@@ -82,10 +82,49 @@ export interface TechPackDetail {
   note?: string
 }
 
+/** One Key Milestone on the timeline (initial sketches, first revisions, …). */
+export interface TechPackMilestone {
+  label: string
+  /** ISO date string (or any short date label). Optional — TBD milestones show "—". */
+  date?: string | null
+}
+
+/**
+ * The design brief (#604) rendered as the moodboard's anchor cards (#1113 S2).
+ * Every section is optional; a brief frame is only emitted when its section has
+ * content, so a sparse brief still yields a clean board.
+ */
+export interface TechPackBrief {
+  // Section 1 — Core Identity & Concept.
+  concept_theme?: string | null
+  /** Aesthetic Anchor — 3–5 keywords ("utilitarian", "sleek", "nostalgic"). */
+  aesthetic_keywords?: string[] | null
+  // Section 2 — Target Audience & Market Positioning.
+  persona?: {
+    age_range?: string | null
+    lifestyle?: string | null
+    values?: string[] | null
+    pain_points?: string[] | null
+  } | null
+  competitors?: Array<{
+    name: string
+    url?: string | null
+    differentiator?: string | null
+  }> | null
+  price_point?: "luxury" | "mid_market" | "budget" | null
+  // Section 3 — Timeline & Budget.
+  milestones?: TechPackMilestone[] | null
+  design_budget?: number | null
+  cost_currency?: string | null
+  target_completion_date?: string | null
+}
+
 export interface TechPackSceneInput {
   design: TechPackHeader
   garment_type: string
   flats: TechPackFlats
+  /** Design brief → the "Brief" anchor frames (rendered first). */
+  brief?: TechPackBrief
   sizeSet?: TechPackSizeSet
   colorways?: TechPackColorway[]
   regions?: TechPackRegion[]
@@ -1039,6 +1078,342 @@ export function buildConstructionDetailsFrame(
   return { elements, files }
 }
 
+// ── Brief anchor frames (#1113 S2) ────────────────────────────────────────────────
+//
+// The design brief is rendered as presentable cards — "here's the brief; here are the
+// cards asking a designer to work." Value cards carry `customData` (kind:"brief-field")
+// so an editable canvas can round-trip an edit back to the brief columns (S3+).
+
+const PRICE_POINT_LABEL: Record<string, string> = {
+  luxury: "Luxury",
+  mid_market: "Mid-market",
+  budget: "Budget",
+}
+
+/** A titled card: rounded rectangle background + bold heading + body text block. */
+function pushBriefCard(
+  elements: ExcalidrawElement[],
+  rng: SceneRng,
+  frameId: string,
+  opts: {
+    x: number
+    y: number
+    width: number
+    height: number
+    heading: string
+    body: string
+    accent?: string
+    customData?: Record<string, unknown>
+  }
+): void {
+  elements.push(
+    makeElement(
+      {
+        type: "rectangle",
+        x: opts.x,
+        y: opts.y,
+        width: opts.width,
+        height: opts.height,
+        backgroundColor: opts.accent ?? "#f5f5f4",
+        fillStyle: "solid",
+        strokeColor: "#d6d3d1",
+        roundness: { type: 3 },
+        ...(opts.customData ? { customData: opts.customData } : {}),
+      },
+      rng,
+      frameId
+    )
+  )
+  elements.push(
+    makeElement(
+      {
+        type: "text",
+        x: opts.x + 20,
+        y: opts.y + 16,
+        width: opts.width - 40,
+        height: 22,
+        text: opts.heading,
+        fontSize: 16,
+        fontFamily: 3,
+      },
+      rng,
+      frameId
+    )
+  )
+  elements.push(
+    makeElement(
+      {
+        type: "text",
+        x: opts.x + 20,
+        y: opts.y + 46,
+        width: opts.width - 40,
+        height: opts.height - 62,
+        text: opts.body || "—",
+        fontSize: 14,
+        lineHeight: 1.4,
+      },
+      rng,
+      frameId
+    )
+  )
+}
+
+/** Frame title (the big label at the top of a brief frame). */
+function pushFrameTitle(
+  elements: ExcalidrawElement[],
+  rng: SceneRng,
+  frameId: string,
+  originX: number,
+  title: string
+): void {
+  elements.push(
+    makeElement(
+      {
+        type: "text",
+        x: originX + FRAME.pad,
+        y: FRAME.pad,
+        width: FRAME.width - FRAME.pad * 2,
+        height: 34,
+        text: title,
+        fontSize: 28,
+        fontFamily: 3,
+      },
+      rng,
+      frameId
+    )
+  )
+}
+
+export function hasConceptSection(b?: TechPackBrief): boolean {
+  return !!(b && (b.concept_theme || b.aesthetic_keywords?.length))
+}
+export function hasAudienceSection(b?: TechPackBrief): boolean {
+  return !!(
+    b &&
+    (b.persona || b.competitors?.length || b.price_point)
+  )
+}
+export function hasTimelineSection(b?: TechPackBrief): boolean {
+  return !!(
+    b &&
+    (b.milestones?.length || b.design_budget != null || b.target_completion_date)
+  )
+}
+export function briefHasContent(b?: TechPackBrief): boolean {
+  return hasConceptSection(b) || hasAudienceSection(b) || hasTimelineSection(b)
+}
+
+/** Brief Frame 1 — Core Identity & Concept (concept/theme + aesthetic anchor). */
+export function buildBriefConceptFrame(
+  input: TechPackSceneInput,
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const b = input.brief ?? {}
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    { type: "frame", id: frameId, x: originX, y: 0, width: FRAME.width, height: FRAME.height, name: "Brief · Concept & Identity" },
+    rng
+  )
+  const elements: ExcalidrawElement[] = [frame]
+  pushFrameTitle(elements, rng, frameId, originX, "Concept & Identity")
+
+  const cardY = FRAME.pad + 60
+  pushBriefCard(elements, rng, frameId, {
+    x: originX + FRAME.pad,
+    y: cardY,
+    width: 700,
+    height: 220,
+    heading: "Concept / Theme",
+    body: b.concept_theme || "Set the overarching story or inspiration.",
+    accent: "#eef2ff",
+    customData: { kind: "brief-field", field: "concept_theme" },
+  })
+
+  // Aesthetic Anchor — keywords as pills.
+  const keywords = (b.aesthetic_keywords ?? []).filter(Boolean)
+  const anchorX = originX + FRAME.pad
+  const anchorY = cardY + 260
+  elements.push(
+    makeElement(
+      { type: "text", x: anchorX, y: anchorY, width: 700, height: 22, text: "Aesthetic Anchor", fontSize: 16, fontFamily: 3 },
+      rng,
+      frameId
+    )
+  )
+  if (keywords.length) {
+    let px = anchorX
+    let py = anchorY + 34
+    keywords.forEach((kw) => {
+      const pillW = Math.max(90, kw.length * 11 + 32)
+      if (px + pillW > anchorX + 700) {
+        px = anchorX
+        py += 54
+      }
+      elements.push(
+        makeElement(
+          { type: "rectangle", x: px, y: py, width: pillW, height: 40, backgroundColor: "#e0e7ff", fillStyle: "solid", strokeColor: "#a5b4fc", roundness: { type: 3 }, customData: { kind: "brief-field", field: "aesthetic_keywords" } },
+          rng,
+          frameId
+        )
+      )
+      elements.push(
+        makeElement(
+          { type: "text", x: px + 16, y: py + 11, width: pillW - 32, height: 20, text: kw, fontSize: 15, textAlign: "center" },
+          rng,
+          frameId
+        )
+      )
+      px += pillW + 16
+    })
+  } else {
+    elements.push(
+      makeElement(
+        { type: "text", x: anchorX, y: anchorY + 34, width: 700, height: 20, text: "3–5 keywords that define the look & feel (e.g. utilitarian, sleek, nostalgic).", fontSize: 14, opacity: 60 },
+        rng,
+        frameId
+      )
+    )
+  }
+
+  return { elements, files: {} }
+}
+
+/** Brief Frame 2 — Target Audience & Market Positioning. */
+export function buildBriefAudienceFrame(
+  input: TechPackSceneInput,
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const b = input.brief ?? {}
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    { type: "frame", id: frameId, x: originX, y: 0, width: FRAME.width, height: FRAME.height, name: "Brief · Audience & Positioning" },
+    rng
+  )
+  const elements: ExcalidrawElement[] = [frame]
+  pushFrameTitle(elements, rng, frameId, originX, "Audience & Positioning")
+
+  const cardY = FRAME.pad + 60
+
+  // Persona card.
+  const p = b.persona ?? {}
+  const personaLines = [
+    p.age_range && `Age  ${p.age_range}`,
+    p.lifestyle && `Lifestyle  ${p.lifestyle}`,
+    p.values?.length && `Values  ${p.values.join(", ")}`,
+    p.pain_points?.length && `Pain points  ${p.pain_points.join(", ")}`,
+  ].filter(Boolean) as string[]
+  pushBriefCard(elements, rng, frameId, {
+    x: originX + FRAME.pad,
+    y: cardY,
+    width: 540,
+    height: 300,
+    heading: "Persona",
+    body: personaLines.length ? personaLines.join("\n") : "Who you're designing for.",
+    accent: "#f0fdf4",
+    customData: { kind: "brief-field", field: "persona" },
+  })
+
+  // Competitors card.
+  const competitors = (b.competitors ?? []).filter((c) => c?.name)
+  const compBody = competitors.length
+    ? competitors
+        .map((c) => `• ${c.name}${c.differentiator ? ` — ${c.differentiator}` : ""}`)
+        .join("\n")
+    : "Who else is in this space, and how this stands out."
+  pushBriefCard(elements, rng, frameId, {
+    x: originX + FRAME.pad + 580,
+    y: cardY,
+    width: 500,
+    height: 300,
+    heading: "Competitors",
+    body: compBody,
+    accent: "#fef2f2",
+    customData: { kind: "brief-field", field: "competitors" },
+  })
+
+  // Price-point badge.
+  const ppY = cardY + 330
+  const ppLabel = b.price_point ? PRICE_POINT_LABEL[b.price_point] ?? b.price_point : null
+  pushBriefCard(elements, rng, frameId, {
+    x: originX + FRAME.pad,
+    y: ppY,
+    width: 320,
+    height: 110,
+    heading: "Price Point",
+    body: ppLabel ?? "Luxury · Mid-market · Budget",
+    accent: "#fefce8",
+    customData: { kind: "brief-field", field: "price_point" },
+  })
+
+  return { elements, files: {} }
+}
+
+/** Brief Frame 3 — Timeline & Budget (milestones + design budget). */
+export function buildBriefTimelineFrame(
+  input: TechPackSceneInput,
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const b = input.brief ?? {}
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    { type: "frame", id: frameId, x: originX, y: 0, width: FRAME.width, height: FRAME.height, name: "Brief · Timeline & Budget" },
+    rng
+  )
+  const elements: ExcalidrawElement[] = [frame]
+  pushFrameTitle(elements, rng, frameId, originX, "Timeline & Budget")
+
+  const cardY = FRAME.pad + 60
+
+  // Milestones as a labelled timeline of rows.
+  const milestones = (b.milestones ?? []).filter((m) => m?.label)
+  const msBody = milestones.length
+    ? milestones.map((m) => `• ${m.label}${m.date ? `  —  ${m.date}` : "  —  TBD"}`).join("\n")
+    : "Initial sketches · First revisions · Final tech specs · Production-ready samples"
+  pushBriefCard(elements, rng, frameId, {
+    x: originX + FRAME.pad,
+    y: cardY,
+    width: 640,
+    height: 360,
+    heading: "Key Milestones",
+    body: msBody,
+    accent: "#eff6ff",
+    customData: { kind: "brief-field", field: "milestones" },
+  })
+
+  // Design budget card.
+  const budgetText =
+    b.design_budget != null
+      ? `${b.cost_currency ? b.cost_currency.toUpperCase() + " " : ""}${b.design_budget.toLocaleString("en-US")}`
+      : "Total budget for the design phase (separate from manufacturing)."
+  pushBriefCard(elements, rng, frameId, {
+    x: originX + FRAME.pad + 680,
+    y: cardY,
+    width: 400,
+    height: 170,
+    heading: "Design Budget",
+    body: budgetText,
+    accent: "#f0fdfa",
+    customData: { kind: "brief-field", field: "design_budget" },
+  })
+
+  // Hard deadline card.
+  pushBriefCard(elements, rng, frameId, {
+    x: originX + FRAME.pad + 680,
+    y: cardY + 190,
+    width: 400,
+    height: 170,
+    heading: "Target Completion",
+    body: b.target_completion_date || "The single hard deadline.",
+    accent: "#faf5ff",
+    customData: { kind: "brief-field", field: "target_completion_date" },
+  })
+
+  return { elements, files: {} }
+}
+
 // ── Scene assembler ──────────────────────────────────────────────────────────────
 
 /**
@@ -1051,7 +1426,12 @@ export function buildMoodboardScene(input: TechPackSceneInput): MoodboardScene {
     i: TechPackSceneInput,
     r: SceneRng,
     x: number
-  ) => FrameResult)[] = [buildHeaderFlatsFrame]
+  ) => FrameResult)[] = []
+  // Brief anchor frames come first — they are the "here's the brief" surface.
+  if (hasConceptSection(input.brief)) builders.push(buildBriefConceptFrame)
+  if (hasAudienceSection(input.brief)) builders.push(buildBriefAudienceFrame)
+  if (hasTimelineSection(input.brief)) builders.push(buildBriefTimelineFrame)
+  builders.push(buildHeaderFlatsFrame)
   if (input.sizeSet) builders.push(buildMeasurementFrame)
   if (input.regions?.length) builders.push(buildZoomLensFrame)
   if (input.details?.length) builders.push(buildConstructionDetailsFrame)

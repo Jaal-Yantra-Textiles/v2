@@ -4603,6 +4603,13 @@ export default defineMiddlewares({
       middlewares: [authenticate("partner", ["session", "bearer"])],
     },
     {
+      // #1113 S2 — partner moodboard generate (brief-as-cards). Owner OR
+      // assigned partner (the invited designer); guard is in the route.
+      matcher: "/partners/designs/:designId/moodboard/generate",
+      method: "POST",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
       matcher: "/partners/designs/:designId/cost",
       method: "GET",
       middlewares: [authenticate("partner", ["session", "bearer"])],
