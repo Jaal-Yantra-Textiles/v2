@@ -7,8 +7,8 @@ import { fetchEmailTemplateStep } from "../steps/fetch-email-template"
  *
  * Invoked inline from `POST /admin/designs/:id/designer-invites` when the admin
  * mints an invite with a recipient email. Resolves the `designer-invite`
- * template and hands it to the shared notification email step (custom email
- * module → Resend / email_partner in prod).
+ * template and hands it to the shared notification email step on the
+ * email_partner channel (Maileroo in prod, from partner@partner.jaalyantra.com).
  */
 export const sendDesignerInviteEmailWorkflow = createWorkflow(
   { name: "send-designer-invite-email", store: true },
@@ -36,6 +36,9 @@ export const sendDesignerInviteEmailWorkflow = createWorkflow(
       (d) => ({
         to: d.input.email,
         template: "designer-invite",
+        // Partner-facing invite → Maileroo (from partner@partner.jaalyantra.com),
+        // matching every other partner email rather than the brand Resend sender.
+        channel: "email_partner",
         data: d.emailData,
         templateData: d.templateData,
       })
