@@ -16,7 +16,7 @@ const EmailSuppression = model.define("email_suppression", {
     .enum(["hard_bounce", "soft_bounce", "spam_complaint", "unsubscribe", "manual"])
     .default("hard_bounce"),
   provider: model
-    .enum(["mailjet", "resend", "manual", "other"])
+    .enum(["mailjet", "resend", "kit", "manual", "other"])
     .default("other"),
   // Provider-side event id — used for idempotency so a re-delivered webhook is a
   // no-op. Nullable (manual runs have none).

@@ -12,7 +12,7 @@ const EmailEngagementEvent = model.define("email_engagement_event", {
   email: model.text().searchable(),
   // Normalized event type. `delivered` = Mailjet `sent` / Resend `email.delivered`.
   type: model.enum(["delivered", "open", "click"]).default("delivered"),
-  provider: model.enum(["mailjet", "resend", "other"]).default("other"),
+  provider: model.enum(["mailjet", "resend", "kit", "other"]).default("other"),
   // Provider-side idempotency key (per message + type) — nullable when the ESP
   // gave us no message id.
   event_id: model.text().nullable(),

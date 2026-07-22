@@ -85,3 +85,26 @@ export function parseResendEngagement(body: any): EngagementItem[] {
     message_id,
   }))
 }
+
+/**
+ * Kit (kit.com) webhook. Kit's only broadcast-engagement webhook is
+ * `subscriber.link_click` (opens have no webhook — polled via broadcast stats
+ * instead). Payload is a subscriber object; the clicked link / broadcast id may
+ * ride alongside it. Reduces to a single `click` engagement item.
+ */
+export function parseKitEngagement(body: any): EngagementItem[] {
+  const sub = (body && (body.subscriber || body)) || {}
+  const email = String(sub.email_address || sub.email || "").trim().toLowerCase()
+  if (!email) return []
+
+  const link = String(body?.link?.url || body?.url || "")
+  const bid = body?.broadcast_id ?? body?.broadcast?.id ?? null
+  const message_id = bid != null ? String(bid) : null
+  const subId = sub.id ?? ""
+  const rawAt = body?.created_at || null
+  const at = rawAt ? new Date(rawAt).toISOString() : null
+  // One click event per (subscriber, link) — collapses duplicate deliveries of
+  // the same click webhook while keeping distinct links distinct.
+  const event_id = `kite:click:${subId}:${link}`
+  return [{ email, type: "click", event_id, event_at: at, message_id }]
+}

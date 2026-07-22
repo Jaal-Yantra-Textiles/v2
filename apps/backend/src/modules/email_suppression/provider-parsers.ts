@@ -89,3 +89,38 @@ export function parseResendEvent(body: any): SuppressItem[] {
     event_at: at,
   }))
 }
+
+/**
+ * Kit (kit.com) webhook. Kit posts one subscriber object per rule and does NOT
+ * carry the event kind in the payload, so we register each rule against a
+ * distinct `?event=<kind>` target URL and pass that kind in here. Relevant
+ * kinds: bounce · complain · unsubscribe (click is engagement, not suppression).
+ * Docs: https://developers.kit.com/api-reference (webhooks)
+ */
+export function parseKitSuppression(body: any, kind: string): SuppressItem[] {
+  const sub = (body && (body.subscriber || body)) || {}
+  const email = String(sub.email_address || sub.email || "").trim().toLowerCase()
+  if (!email) return []
+
+  let reason: SuppressReason | null = null
+  switch (String(kind || "").toLowerCase()) {
+    case "bounce":
+      reason = "hard_bounce"
+      break
+    case "complain":
+    case "complaint":
+      reason = "spam_complaint"
+      break
+    case "unsubscribe":
+    case "unsub":
+      reason = "unsubscribe"
+      break
+  }
+  if (!reason) return []
+
+  const subId = sub.id ?? body?.id ?? ""
+  const event_id = subId ? `kit:${String(kind).toLowerCase()}:${subId}` : null
+  const rawAt = body?.created_at || sub.updated_at || sub.created_at || null
+  const at = rawAt ? new Date(rawAt).toISOString() : null
+  return [{ email, reason, event_id, event_at: at }]
+}

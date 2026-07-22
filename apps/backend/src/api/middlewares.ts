@@ -716,6 +716,14 @@ export default defineMiddlewares({
       middlewares: [],
     },
     {
+      // Kit (kit.com) events (bounce/complain/unsubscribe/click) for the mass
+      // blog/newsletter lane → suppress + engagement ledger. Gated by
+      // KIT_WEBHOOK_SECRET (?token=), event kind in ?event=, JSON body parsed.
+      matcher: "/webhooks/kit",
+      method: "POST",
+      middlewares: [],
+    },
+    {
       // Carrier tracking pushes (Shiprocket — #888). Gated by
       // SHIPPING_WEBHOOK_SECRET (custom header configured in the carrier
       // dashboard; Shiprocket has no HMAC), JSON body parsed normally.

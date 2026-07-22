@@ -1,6 +1,7 @@
 import {
   parseMailjetEngagement,
   parseResendEngagement,
+  parseKitEngagement,
 } from "../provider-parsers"
 import { applyEngagement } from "../engagement-core"
 
@@ -112,5 +113,34 @@ describe("engagement-core — applyEngagement", () => {
     agg = applyEngagement(agg, "delivered", t0)
     expect(agg.first_delivered_at).toBe(t0)
     expect(agg.last_delivered_at).toBe(t2)
+  })
+})
+
+describe("provider-parsers — parseKitEngagement", () => {
+  it("maps a link_click to a click event keyed by subscriber+link", () => {
+    expect(
+      parseKitEngagement({
+        subscriber: { id: 9, email_address: "A@X.com" },
+        link: { url: "https://jaalyantra.com/blog/x" },
+        broadcast_id: 55,
+        created_at: "2026-07-04T00:00:00.000Z",
+      })
+    ).toEqual([
+      {
+        email: "a@x.com",
+        type: "click",
+        event_id: "kite:click:9:https://jaalyantra.com/blog/x",
+        event_at: "2026-07-04T00:00:00.000Z",
+        message_id: "55",
+      },
+    ])
+  })
+  it("tolerates a flat subscriber + missing link/broadcast", () => {
+    const out = parseKitEngagement({ email_address: "b@y.com", id: 3 })
+    expect(out[0]).toMatchObject({ email: "b@y.com", type: "click", message_id: null })
+  })
+  it("skips payloads with no email", () => {
+    expect(parseKitEngagement({ subscriber: { id: 1 } })).toEqual([])
+    expect(parseKitEngagement(null)).toEqual([])
   })
 })

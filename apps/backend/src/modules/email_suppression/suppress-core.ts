@@ -22,7 +22,7 @@ export type SuppressReason =
   | "unsubscribe"
   | "manual"
 
-export type SuppressProvider = "mailjet" | "resend" | "manual" | "other"
+export type SuppressProvider = "mailjet" | "resend" | "kit" | "manual" | "other"
 
 export type SuppressInput = {
   email: string
