@@ -1,13 +1,50 @@
 // @ts-ignore - Excalidraw is an ESM module, dynamic import not feasible here
 import { Excalidraw } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { Fragment, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useDesign, useGenerateMoodboard, useSeedMoodboard } from "../../hooks/api/designs";
+import {
+  useDesign,
+  useGenerateMoodboard,
+  useInsertMoodboardBlock,
+  useMoodboardBlocks,
+  useSeedMoodboard,
+  type MoodboardBlockListing,
+} from "../../hooks/api/designs";
 import { RouteNonFocusModal } from "../modal/route-non-focus";
 import { useMoodboard } from "../../hooks/use-moodboard";
-import { Button, toast } from "@medusajs/ui";
+import { Button, DropdownMenu, toast } from "@medusajs/ui";
 import { FashionPanel } from "./fashion-panel";
+import { MoodboardConstructionPicker } from "./moodboard-construction-picker";
+
+// Must match the frame name emitted by buildConstructionDetailsFrame on the
+// backend, so re-inserting replaces the existing construction frame in place.
+const CONSTRUCTION_FRAME_NAME = "4 · Construction details";
+
+const genId = (): string =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `el-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
+
+/**
+ * Re-id a block's elements (remapping frameId/containerId/boundElements) and
+ * translate them by (dx, dy) so a drop-in never collides with existing ids.
+ */
+const reidAndTranslate = (elements: readonly any[], dx: number, dy: number): any[] => {
+  const idMap = new Map<string, string>();
+  elements.forEach((el) => idMap.set(el.id, genId()));
+  return elements.map((el) => {
+    const next: any = { ...el, id: idMap.get(el.id), x: (el.x ?? 0) + dx, y: (el.y ?? 0) + dy };
+    if (el.frameId && idMap.has(el.frameId)) next.frameId = idMap.get(el.frameId);
+    if (el.containerId && idMap.has(el.containerId)) next.containerId = idMap.get(el.containerId);
+    if (Array.isArray(el.boundElements)) {
+      next.boundElements = el.boundElements.map((b: any) =>
+        b?.id && idMap.has(b.id) ? { ...b, id: idMap.get(b.id) } : b,
+      );
+    }
+    return next;
+  });
+};
 
 export function DesignMoodboardSection() {
   const { id } = useParams<{ id: string }>();
@@ -41,6 +78,10 @@ export function DesignMoodboardSection() {
   const { mutate: generateMoodboard, isPending: isGenerating } =
     useGenerateMoodboard(id);
   const { mutateAsync: seedMoodboard } = useSeedMoodboard(id);
+  const { data: blocksData } = useMoodboardBlocks(id);
+  const { mutateAsync: insertBlock, isPending: isInserting } =
+    useInsertMoodboardBlock(id);
+  const [constructionOpen, setConstructionOpen] = useState(false);
   const didSeedRef = useRef(false);
 
   // Load a built scene straight into the canvas so it's editable immediately.
@@ -112,6 +153,74 @@ export function DesignMoodboardSection() {
     })();
   }, [design, seedMoodboard, loadMoodboardIntoCanvas]);
 
+  // The insert-block palette, grouped for the dropdown menu.
+  const groupedBlocks = useMemo(() => {
+    const blocks: MoodboardBlockListing[] = blocksData?.blocks ?? [];
+    const order = ["Brief", "Tech-pack", "Workspace"];
+    const byGroup: Record<string, MoodboardBlockListing[]> = {};
+    for (const b of blocks) (byGroup[b.group] ??= []).push(b);
+    return order.filter((g) => byGroup[g]?.length).map((g) => ({ group: g, items: byGroup[g] }));
+  }, [blocksData]);
+
+  // Drop one pre-filled block onto the canvas (re-id'd, placed right of existing
+  // content). `replaceFrameNamed` strips an existing frame of that name first —
+  // a "refresh this frame" used to re-render the construction glyph.
+  const handleInsert = useCallback(
+    async (key: string, label: string, replaceFrameNamed?: string) => {
+      const api = excalidrawAPIRef.current;
+      if (!api) return;
+      try {
+        const { block } = await insertBlock(key);
+        const els = ((block as any)?.elements ?? []) as any[];
+        if (!els.length) {
+          toast.info(`Nothing to insert for "${label}" yet.`);
+          return;
+        }
+        let existing = api.getSceneElements().filter((e: any) => !e.isDeleted);
+        if (replaceFrameNamed) {
+          const removeIds = new Set(
+            existing
+              .filter((e: any) => e.type === "frame" && e.name === replaceFrameNamed)
+              .map((e: any) => e.id),
+          );
+          if (removeIds.size) {
+            existing = existing.filter(
+              (e: any) => !removeIds.has(e.id) && !removeIds.has(e.frameId),
+            );
+          }
+        }
+        let dx = 0;
+        let dy = 0;
+        if (existing.length) {
+          const maxX = Math.max(...existing.map((e: any) => (e.x ?? 0) + (e.width ?? 0)));
+          const minY = Math.min(...existing.map((e: any) => e.y ?? 0));
+          dx = maxX + 120;
+          dy = minY;
+        }
+        const placed = reidAndTranslate(els, dx, dy);
+        const files = (block as any)?.files ?? {};
+        const fileList = Object.entries(files).map(([fid, f]: [string, any]) => ({
+          id: fid,
+          dataURL: f.dataURL,
+          mimeType: f.mimeType || "image/png",
+          created: f.created || Date.now(),
+          lastRetrieved: Date.now(),
+        }));
+        if (fileList.length) api.addFiles(fileList as any);
+        api.updateScene({ elements: [...existing, ...placed] as any });
+        api.scrollToContent(placed as any, { fitToContent: true });
+        if (!replaceFrameNamed) toast.success(`Inserted "${label}"`);
+      } catch (err: any) {
+        toast.error(err?.message || "Failed to insert block");
+      }
+    },
+    [insertBlock, excalidrawAPIRef],
+  );
+
+  const handleConstructionAdded = useCallback(() => {
+    handleInsert("construction", "Construction details", CONSTRUCTION_FRAME_NAME);
+  }, [handleInsert]);
+
   // Track when an image element is selected on the canvas
   const handleSelectionChange = useCallback(() => {
     const api = excalidrawAPIRef.current;
@@ -154,6 +263,54 @@ export function DesignMoodboardSection() {
       <RouteNonFocusModal.Header onClick={handleCloseSave}>
         <div className="flex items-center justify-end w-full">
           <div className="flex items-end justify-end gap-x-2">
+            <DropdownMenu>
+              <DropdownMenu.Trigger asChild>
+                <Button
+                  variant="secondary"
+                  size="base"
+                  onClick={(e) => e.stopPropagation()}
+                  disabled={isSaving || isInserting}
+                  isLoading={isInserting}
+                >
+                  Insert block
+                </Button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content onClick={(e) => e.stopPropagation()}>
+                {groupedBlocks.length === 0 ? (
+                  <DropdownMenu.Item disabled>No blocks available</DropdownMenu.Item>
+                ) : (
+                  groupedBlocks.map((grp, gi) => (
+                    <Fragment key={grp.group}>
+                      {gi > 0 ? <DropdownMenu.Separator /> : null}
+                      <DropdownMenu.Label>{grp.group}</DropdownMenu.Label>
+                      {grp.items.map((b) => (
+                        <DropdownMenu.Item
+                          key={b.key}
+                          disabled={!b.available}
+                          onClick={() => handleInsert(b.key, b.label)}
+                        >
+                          {b.label}
+                          {!b.available ? (
+                            <span className="text-ui-fg-muted ml-1">· empty</span>
+                          ) : null}
+                        </DropdownMenu.Item>
+                      ))}
+                    </Fragment>
+                  ))
+                )}
+              </DropdownMenu.Content>
+            </DropdownMenu>
+            <Button
+              variant="secondary"
+              size="base"
+              onClick={(e) => {
+                e.stopPropagation();
+                setConstructionOpen(true);
+              }}
+              disabled={isSaving}
+            >
+              Add construction
+            </Button>
             <Button
               variant="secondary"
               size="base"
@@ -289,6 +446,13 @@ export function DesignMoodboardSection() {
           />
         </div>
       </RouteNonFocusModal.Body>
+
+      <MoodboardConstructionPicker
+        designId={id}
+        open={constructionOpen}
+        onOpenChange={setConstructionOpen}
+        onAdded={handleConstructionAdded}
+      />
     </RouteNonFocusModal>
   );
 }

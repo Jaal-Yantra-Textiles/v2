@@ -272,6 +272,95 @@ export interface SeedMoodboardResponse {
   moodboard: GenerateMoodboardResponse["moodboard"] | null;
 }
 
+// ── Insert-block palette + construction catalog (#1113 Feature A/B) ────────────
+
+export interface MoodboardBlockListing {
+  key: string;
+  label: string;
+  group: string;
+  available: boolean;
+}
+
+/** The insert-block palette: every drop-in frame + whether the design has data. */
+export const useMoodboardBlocks = (
+  id: string,
+  options?: Omit<UseQueryOptions<{ blocks: MoodboardBlockListing[] }, FetchError>, "queryKey" | "queryFn">,
+) => {
+  return useQuery({
+    queryKey: [...designQueryKeys.detail(id), "moodboard-blocks"],
+    queryFn: async () =>
+      sdk.client.fetch<{ blocks: MoodboardBlockListing[] }>(
+        `/admin/designs/${id}/moodboard/blocks`,
+        { method: "GET" },
+      ),
+    enabled: !!id,
+    ...options,
+  });
+};
+
+/** Build ONE block from the design's data (origin-positioned). Not persisted. */
+export const useInsertMoodboardBlock = (
+  id: string,
+  options?: UseMutationOptions<{ block: GenerateMoodboardResponse["moodboard"] }, FetchError, string>,
+) => {
+  return useMutation({
+    mutationFn: async (block: string) =>
+      sdk.client.fetch<{ block: GenerateMoodboardResponse["moodboard"] }>(
+        `/admin/designs/${id}/moodboard/blocks`,
+        { method: "POST", body: { block } },
+      ),
+    ...options,
+  });
+};
+
+export interface ConstructionParamDef {
+  key: string;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  default: number;
+}
+export interface ConstructionPreset {
+  value: string;
+  label: string;
+  detailLabel: string;
+  params?: Record<string, number>;
+  fabricRules?: string[];
+  note?: string;
+}
+export interface ConstructionTechnique {
+  slug: string;
+  label: string;
+  family: string;
+  garmentAreas: string[];
+  params: ConstructionParamDef[];
+  defaultFabricRules: string[];
+  presets: ConstructionPreset[];
+}
+export interface ConstructionCatalog {
+  families: string[];
+  techniques: ConstructionTechnique[];
+}
+
+/** The categorized construction catalog the admin picker renders (#1113 Feature B). */
+export const useConstructionTechniques = (
+  id: string,
+  options?: Omit<UseQueryOptions<ConstructionCatalog, FetchError>, "queryKey" | "queryFn">,
+) => {
+  return useQuery({
+    queryKey: [...designQueryKeys.detail(id), "construction-techniques"],
+    queryFn: async () =>
+      sdk.client.fetch<ConstructionCatalog>(
+        `/admin/designs/${id}/construction-techniques`,
+        { method: "GET" },
+      ),
+    enabled: !!id,
+    staleTime: Infinity,
+    ...options,
+  });
+};
+
 /**
  * Idempotent, brief-friendly seed (#1113): fills an EMPTY `design.moodboard`
  * from the brief so the editor opens onto an editable snapshot without a manual
