@@ -133,6 +133,26 @@ setupSharedTestSuite(() =>{
         expect(actualPageTitles).not.toContain("Archived Page");
       });
   
+      it("should default seo.google_site_verification to null when unset", async () => {
+        const response = await api.get("/web/website/test-public.example.com");
+        expect(response.status).toBe(200);
+        expect(response.data.seo).toEqual({ google_site_verification: null });
+      });
+
+      it("should expose the Google Search Console token set via admin update (#349)", async () => {
+        const token = "google-site-verification=abc123XYZ_token";
+        const update = await api.put(
+          `/admin/websites/${websiteId}`,
+          { google_site_verification: token },
+          headers
+        );
+        expect(update.status).toBe(200);
+
+        const response = await api.get("/web/website/test-public.example.com");
+        expect(response.status).toBe(200);
+        expect(response.data.seo.google_site_verification).toBe(token);
+      });
+
       it("should not expose sensitive website data", async () => {
         const response = await api.get("/web/website/test-public.example.com");
         expect(response.status).toBe(200);
