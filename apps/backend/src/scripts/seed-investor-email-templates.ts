@@ -39,6 +39,21 @@ export const investorEmailTemplates = [
     html_content: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#18181b"><h1 style="font-size:18px;margin:0 0 12px">Hi {{investor_name}},</h1><p style="font-size:14px;line-height:1.6;color:#3f3f46">You've been invited to the <strong>Jaal Yantra Textiles</strong> investor portal. Your account is ready — sign in to view companies, your holdings, and cap-table updates.</p><table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0"><tr><td style="padding:8px 12px;border:1px solid #e4e4e7;border-radius:8px 0 0 8px;color:#71717a;background:#f4f4f5">Temporary password</td><td style="padding:8px 12px;border:1px solid #e4e4e7;border-left:0;border-radius:0 8px 8px 0;text-align:right;font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">{{temp_password}}</td></tr></table><p style="margin:20px 0"><a href="{{login_url}}" style="background:#18181b;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;display:inline-block">Sign in to your portal</a></p><p style="font-size:13px;line-height:1.6;color:#71717a">Sign in with your email address and the temporary password above. For your security, please change your password after your first sign-in. If the button doesn't work, copy this link into your browser:<br/><span style="color:#3f3f46">{{login_url}}</span></p><p style="font-size:12px;color:#a1a1aa;margin-top:24px">If you weren't expecting this invitation, you can safely ignore this email.</p><p style="font-size:12px;color:#a1a1aa;margin-top:12px">Jaal Yantra Textiles · {{current_year}}</p></div>`,
   },
   {
+    template_key: "investor-quarterly-report",
+    name: "Investor — Quarterly Report",
+    template_type: "investor",
+    from: "investors@jaalyantra.com",
+    is_active: true,
+    subject: "Your {{quarter}} quarterly report is ready — Jaal Yantra Textiles",
+    variables: {
+      investor_name: "Investor display name",
+      quarter: "Quarter label (e.g. Q1 2026)",
+      report_url: "Link to the quarterly report PDF or portal page",
+      current_year: "Year",
+    },
+    html_content: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#18181b"><h1 style="font-size:18px;margin:0 0 12px">Hi {{investor_name}},</h1><p style="font-size:14px;line-height:1.6;color:#3f3f46">Your <strong>{{quarter}}</strong> quarterly report for <strong>Jaal Yantra Textiles</strong> is now available. This report includes financial highlights, portfolio updates, and key metrics for the period.</p><p style="margin:20px 0;text-align:center"><a href="{{report_url}}" style="background:#18181b;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;display:inline-block">View your quarterly report</a></p><p style="font-size:13px;line-height:1.6;color:#71717a">If the button doesn't work, copy this link into your browser:<br/><span style="color:#3f3f46">{{report_url}}</span></p><p style="font-size:12px;color:#a1a1aa;margin-top:24px">This report is confidential and intended for registered investors only.</p><p style="font-size:12px;color:#a1a1aa;margin-top:12px">Jaal Yantra Textiles · {{current_year}}</p></div>`,
+  },
+  {
     template_key: "investor-referral-team",
     name: "Investor — Referral (team notification)",
     template_type: "investor",
