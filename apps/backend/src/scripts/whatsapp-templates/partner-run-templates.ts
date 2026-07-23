@@ -89,13 +89,16 @@ export interface TemplateSpec {
 // The 3 reminder templates share the same example image. Meta downloads this
 // URL during template review to render the preview, and falls back to it at
 // send time when the runtime doesn't pass a per-message header parameter.
-// Override via env so staging can point at a sample asset without editing
-// the spec file.
+// It MUST be a publicly reachable image (Meta's resumable-upload rejects a
+// non-image body — the previous cicilabel.com/static path served the site's
+// HTML fallback and broke header upload). Override via env
+// (WHATSAPP_REMINDER_HEADER_EXAMPLE_URL, wired from SSM in the copilot
+// manifests) to swap in a branded asset without a code deploy.
 // ──────────────────────────────────────────────────────────────────────────────
 
 const REMINDER_HEADER_EXAMPLE_URL =
   process.env.WHATSAPP_REMINDER_HEADER_EXAMPLE_URL ||
-  "https://cicilabel.com/static/whatsapp/reminder-header.jpg"
+  "https://automatic.jaalyantra.com/automatica/logo.png"
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Reminder action button (dynamic URL)
