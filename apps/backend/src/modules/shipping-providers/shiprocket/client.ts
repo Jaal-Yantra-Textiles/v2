@@ -127,6 +127,75 @@ export function parseShiprocketError(raw: string): {
 }
 
 /**
+ * Known Shiprocket *international prerequisite* failures, turned into friendly,
+ * actionable admin guidance (#1118). Shiprocket rejects an international
+ * create/label when the account isn't set up for cross-border shipping — KYC
+ * not verified, settlement bank details missing, or the pickup location isn't
+ * international-enabled. These come back as opaque `ShiprocketApiError`
+ * messages that mean nothing to an admin; this maps the known signatures onto a
+ * clear "here's what to fix" step.
+ *
+ * Keyword-based (Shiprocket's wording drifts and isn't documented as codes), so
+ * it's deliberately conservative: returns `null` for anything unrecognised, and
+ * the caller rethrows the original error untouched. Pure + unit-tested.
+ */
+export type IntlPrereqReason = "kyc" | "bank_details" | "pickup_not_intl"
+
+export type IntlPrereqGate = { reason: IntlPrereqReason; message: string }
+
+export function describeIntlPrereqError(err: {
+  message?: string
+  fieldErrors?: Record<string, string[]>
+}): IntlPrereqGate | null {
+  const parts: string[] = []
+  if (err?.message) parts.push(err.message)
+  if (err?.fieldErrors) {
+    for (const msgs of Object.values(err.fieldErrors)) parts.push(...msgs)
+  }
+  const text = parts.join(" ").toLowerCase()
+  if (!text) return null
+
+  // Pickup-not-international-enabled — check first: its wording often also
+  // mentions "international", which the bare KYC/bank checks don't key on.
+  if (
+    text.includes("pickup") &&
+    (text.includes("international") ||
+      text.includes("not enabled") ||
+      text.includes("not allowed") ||
+      text.includes("not activated"))
+  ) {
+    return {
+      reason: "pickup_not_intl",
+      message:
+        "This pickup location isn't enabled for international shipping in Shiprocket. Enable international shipping for the pickup address in your Shiprocket dashboard (Settings → Pickup Addresses), or choose an international-capable pickup, then retry generating the label.",
+    }
+  }
+
+  if (text.includes("kyc")) {
+    return {
+      reason: "kyc",
+      message:
+        "International shipping requires your Shiprocket KYC to be verified. Complete KYC in your Shiprocket dashboard (Settings → KYC), then retry generating the label.",
+    }
+  }
+
+  if (
+    text.includes("bank") &&
+    (text.includes("detail") ||
+      text.includes("account") ||
+      text.includes("settlement"))
+  ) {
+    return {
+      reason: "bank_details",
+      message:
+        "International shipping requires your settlement bank details on file with Shiprocket. Add them in your Shiprocket dashboard (Settings → Company → Bank Details), then retry generating the label.",
+    }
+  }
+
+  return null
+}
+
+/**
  * Normalize a Shiprocket `data.shipping_address[]` row into our PickupLocation.
  *
  * Shiprocket exposes `phone_verified` (0/1) — its OTP signal — but per the
