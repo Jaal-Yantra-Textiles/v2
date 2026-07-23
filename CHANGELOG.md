@@ -1,3 +1,29 @@
+# [13.67.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.66.0...v13.67.0) (2026-07-23)
+
+
+### Bug Fixes
+
+* **emailkit:** guard Kit-lane summary transform on send initiate [[#1059](https://github.com/Jaal-Yantra-Textiles/v2/issues/1059)] ([#1152](https://github.com/Jaal-Yantra-Textiles/v2/issues/1152)) ([32af750](https://github.com/Jaal-Yantra-Textiles/v2/commit/32af750b4937e5129a5ab32c39f2167fef38eb15))
+* **designs:** route designer-invite email through Maileroo (email_partner) [[#1113](https://github.com/Jaal-Yantra-Textiles/v2/issues/1113)] ([bb1c1a3](https://github.com/Jaal-Yantra-Textiles/v2/commit/bb1c1a31fb20ef61dec3ad1f6817df087485132d))
+
+
+### Features
+
+* **designs:** admin moodboard parity — insert-block palette + construction picker [[#1113](https://github.com/Jaal-Yantra-Textiles/v2/issues/1113)] ([#1135](https://github.com/Jaal-Yantra-Textiles/v2/issues/1135)) ([36e2996](https://github.com/Jaal-Yantra-Textiles/v2/commit/36e2996cfc5fce13d86c96129fef7caddd133a42)), closes [#1134](https://github.com/Jaal-Yantra-Textiles/v2/issues/1134) [#1134](https://github.com/Jaal-Yantra-Textiles/v2/issues/1134)
+* **production-runs:** aggregate qty, cancel reversal, race guard [[#1123](https://github.com/Jaal-Yantra-Textiles/v2/issues/1123)] ([#1147](https://github.com/Jaal-Yantra-Textiles/v2/issues/1147)) ([6281f54](https://github.com/Jaal-Yantra-Textiles/v2/commit/6281f54997fff52880d9a048be05ce2a1031ec8b)), closes [#1112](https://github.com/Jaal-Yantra-Textiles/v2/issues/1112)
+* **designs:** brief-as-cards moodboard + partner generate route [[#1113](https://github.com/Jaal-Yantra-Textiles/v2/issues/1113)] ([#1131](https://github.com/Jaal-Yantra-Textiles/v2/issues/1131)) ([f70860c](https://github.com/Jaal-Yantra-Textiles/v2/commit/f70860c334da7dc9b237bde421927003a6623b60)), closes [#892](https://github.com/Jaal-Yantra-Textiles/v2/issues/892)
+* **designs:** designer-invite UI — landing, editable moodboard, admin invite panel + email [[#1113](https://github.com/Jaal-Yantra-Textiles/v2/issues/1113)] ([#1133](https://github.com/Jaal-Yantra-Textiles/v2/issues/1133)) ([2b11bcf](https://github.com/Jaal-Yantra-Textiles/v2/commit/2b11bcffd0347455c27bb2097dd5a5cbf79e082a))
+* **designs:** editable Concept & Identity, in-canvas toolbar + layers panel [[#1113](https://github.com/Jaal-Yantra-Textiles/v2/issues/1113)] ([#1136](https://github.com/Jaal-Yantra-Textiles/v2/issues/1136)) ([0f9eb54](https://github.com/Jaal-Yantra-Textiles/v2/commit/0f9eb546cfc95cfd07db378c060ddf3dc46debf2))
+* **emailkit:** mass blog broadcasts via Kit (kit.com) [[#1059](https://github.com/Jaal-Yantra-Textiles/v2/issues/1059)] ([#1150](https://github.com/Jaal-Yantra-Textiles/v2/issues/1150)) ([39598fe](https://github.com/Jaal-Yantra-Textiles/v2/commit/39598fe7c14c3cce5e1eccbf4181d9c1a124ae0b)), closes [#1024](https://github.com/Jaal-Yantra-Textiles/v2/issues/1024)
+* **designs:** moodboard insert-block palette + categorized construction picker [[#1113](https://github.com/Jaal-Yantra-Textiles/v2/issues/1113)] ([#1134](https://github.com/Jaal-Yantra-Textiles/v2/issues/1134)) ([d2816dc](https://github.com/Jaal-Yantra-Textiles/v2/commit/d2816dc2b8d04e3b9864008a9179eff0971fbf0f))
+* **designs:** moodboard opens as an editable snapshot + design-workspace template [[#1113](https://github.com/Jaal-Yantra-Textiles/v2/issues/1113)] ([a551e09](https://github.com/Jaal-Yantra-Textiles/v2/commit/a551e09042f21a9675692c8638301f812c82863a)), closes [#892](https://github.com/Jaal-Yantra-Textiles/v2/issues/892)
+* **production-runs:** partner-UI provenance mirror + admin widget polish [[#1124](https://github.com/Jaal-Yantra-Textiles/v2/issues/1124)] ([#1148](https://github.com/Jaal-Yantra-Textiles/v2/issues/1148)) ([050ea0d](https://github.com/Jaal-Yantra-Textiles/v2/commit/050ea0d73b35bf6382c9eeacd2eb8a51c589da2b)), closes [#1112](https://github.com/Jaal-Yantra-Textiles/v2/issues/1112)
+* **website:** per-storefront Google Search Console verification token [[#349](https://github.com/Jaal-Yantra-Textiles/v2/issues/349)] ([#1139](https://github.com/Jaal-Yantra-Textiles/v2/issues/1139)) ([becc427](https://github.com/Jaal-Yantra-Textiles/v2/commit/becc427e2e69a047772aa38e289215474f897bba))
+* **designs:** scoped designer-invite → stranger accept → granted designer partner [[#1113](https://github.com/Jaal-Yantra-Textiles/v2/issues/1113)] ([#1129](https://github.com/Jaal-Yantra-Textiles/v2/issues/1129)) ([d150f64](https://github.com/Jaal-Yantra-Textiles/v2/commit/d150f64400e6719afc4ded19f27d48e2e7d00715))
+* **partner:** self-serve Google Search Console verification token [[#349](https://github.com/Jaal-Yantra-Textiles/v2/issues/349)] ([#1143](https://github.com/Jaal-Yantra-Textiles/v2/issues/1143)) ([0b3929d](https://github.com/Jaal-Yantra-Textiles/v2/commit/0b3929d47650887a5c325b0d5d1cebef4bbf938a)), closes [#1139](https://github.com/Jaal-Yantra-Textiles/v2/issues/1139)
+* **partner:** stamp owning partner on retail provenance runs [[#1121](https://github.com/Jaal-Yantra-Textiles/v2/issues/1121)] ([#1145](https://github.com/Jaal-Yantra-Textiles/v2/issues/1145)) ([b8005cb](https://github.com/Jaal-Yantra-Textiles/v2/commit/b8005cb85c4b9325a9a394cf5eaa3f44be798315)), closes [#1112](https://github.com/Jaal-Yantra-Textiles/v2/issues/1112) [#1111](https://github.com/Jaal-Yantra-Textiles/v2/issues/1111)
+* **partner:** wire real global search fan-out [[#806](https://github.com/Jaal-Yantra-Textiles/v2/issues/806)] ([#1144](https://github.com/Jaal-Yantra-Textiles/v2/issues/1144)) ([2a25b68](https://github.com/Jaal-Yantra-Textiles/v2/commit/2a25b680fd01835d5b52e80a970dfbb426e38b08))
+
 # [13.66.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.65.0...v13.66.0) (2026-07-21)
 
 
