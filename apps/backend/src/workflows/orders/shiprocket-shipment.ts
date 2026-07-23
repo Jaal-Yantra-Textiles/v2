@@ -18,7 +18,10 @@ import {
 } from "../../modules/shipping-providers/pickup-locations"
 import { resolveSellerTaxIdForOrder } from "../../modules/shipping-providers/seller-tax-id"
 import { resolveOrderShipFromLocation } from "../../modules/shipping-providers/order-partner-origin"
-import { isInternationalDestination } from "../../modules/shipping-providers/shiprocket/client"
+import {
+  describeIntlPrereqError,
+  isInternationalDestination,
+} from "../../modules/shipping-providers/shiprocket/client"
 import {
   SHIPROCKET_FX_TARGET,
   SHIPROCKET_SUPPORTED_CURRENCIES,
@@ -331,7 +334,26 @@ export async function createShiprocketShipmentForFulfillment(
     }
   }
 
-  const result = await provider.createShipment(shipmentInput)
+  // #1118 intl-prerequisites gate: Shiprocket rejects an international
+  // create/label when the account isn't cross-border ready (KYC unverified,
+  // bank details missing, pickup not international-enabled). Turn those opaque
+  // ShiprocketApiError messages into an actionable admin error before they
+  // reach the UI toast; anything unrecognised rethrows untouched.
+  let result
+  try {
+    result = await provider.createShipment(shipmentInput)
+  } catch (e: any) {
+    if (isInternationalDestination(shipmentInput.to.country)) {
+      const gate = describeIntlPrereqError({
+        message: e?.message,
+        fieldErrors: e?.fieldErrors,
+      })
+      if (gate) {
+        throw new MedusaError(MedusaError.Types.NOT_ALLOWED, gate.message)
+      }
+    }
+    throw e
+  }
 
   // Persist the carrier refs onto fulfillment.data (what label/tracking read),
   // AND stamp the AWB as a fulfillment_label tracking number — the queryable
