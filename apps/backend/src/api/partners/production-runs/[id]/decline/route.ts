@@ -4,7 +4,7 @@ import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import type ProductionRunService from "../../../../../modules/production_runs/service"
 import { PRODUCTION_POLICY_MODULE } from "../../../../../modules/production_policy"
 import type ProductionPolicyService from "../../../../../modules/production_policy/service"
-import { declineProductionRunWorkflow } from "../../../../../workflows/production-runs/decline-production-run"
+import { reassignProductionRunWorkflow } from "../../../../../workflows/production-runs/reassign-production-run"
 
 /**
  * POST /partners/production-runs/:id/decline
@@ -19,13 +19,14 @@ import { declineProductionRunWorkflow } from "../../../../../workflows/productio
  *     already cancelled). `started_at` being set means real work began,
  *     which makes this a mid-flight cancellation — that path stays admin-only.
  *
- * Side effects:
- *   - Status → "cancelled" with `cancelled_reason` prefixed so admin feed
- *     clearly attributes the action to the partner, not an admin
- *   - Linked tasks cancelled (mirrors admin cancel behaviour)
- *   - Emits `production_run.declined` (new) AND `production_run.cancelled`
- *     (reuses existing WhatsApp partner-notifications subscriber + admin
- *     feed), so no new subscriber is needed to get an audit trail today.
+ * Side effects (#1093 — decline now REASSIGNS, it does not cancel):
+ *   - Status → "awaiting_reassignment"; the partner is unassigned
+ *     (`previous_partner_id` retained for audit) so an admin can re-dispatch
+ *     the run to a new partner. The customer's order is untouched.
+ *   - `cancelled_reason` carries the attribution string for the admin feed.
+ *   - Linked tasks cancelled (clean slate for re-dispatch).
+ *   - Emits `production_run.reassignment_needed` (drives the admin queue) AND
+ *     `production_run.declined` (audit + existing decline listeners).
  */
 
 const ALLOWED_REASONS = ["capacity", "materials_unavailable", "scheduling_conflict", "other"] as const
@@ -65,7 +66,7 @@ export async function POST(
   const productionRunService: ProductionRunService = req.scope.resolve(PRODUCTION_RUNS_MODULE)
 
   // Fetch + ownership / state guards (kept in the route so they surface as
-  // clean HTTP errors; the mutations live in declineProductionRunWorkflow).
+  // clean HTTP errors; the mutations live in reassignProductionRunWorkflow).
   let run: any
   try {
     run = await productionRunService.retrieveProductionRun(id)
@@ -73,6 +74,16 @@ export async function POST(
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Production run not found")
   }
 
+  // Idempotent re-decline (#1093): once a run is parked for reassignment the
+  // partner has been unassigned (partner_id null), so the ownership check below
+  // would 404. Short-circuit for the partner who declined it — matched on
+  // previous_partner_id so an unrelated partner still gets a clean 404.
+  if (
+    run.status === "awaiting_reassignment" &&
+    run.previous_partner_id === partnerId
+  ) {
+    return res.json({ production_run: run, message: "Already queued for reassignment" })
+  }
   if (run.partner_id !== partnerId) {
     // Surface as NOT_FOUND so we don't leak that the run exists to a
     // partner it isn't assigned to. Maps to 404 via Medusa's error handler.
@@ -96,10 +107,11 @@ export async function POST(
     ? `Declined by partner (${reasonLabel}): ${notes}`
     : `Declined by partner (${reasonLabel})`
 
-  await declineProductionRunWorkflow(req.scope).run({
+  await reassignProductionRunWorkflow(req.scope).run({
     input: {
       production_run_id: id,
       partner_id: partnerId,
+      source: "decline",
       composed_reason: composedReason,
       reason,
       notes,
@@ -109,6 +121,6 @@ export async function POST(
   const final = await productionRunService.retrieveProductionRun(id)
   return res.json({
     production_run: final,
-    message: `Production run declined (${reasonLabel})`,
+    message: `Production run declined (${reasonLabel}) — queued for reassignment`,
   })
 }

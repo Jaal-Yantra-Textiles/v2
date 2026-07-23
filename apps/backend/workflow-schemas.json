@@ -5889,44 +5889,6 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/production-runs/create-production-run.ts"
   },
-  "decline-production-run": {
-    "fields": [
-      {
-        "name": "production_run_id",
-        "type": "id",
-        "required": true,
-        "placeholder": "{{ $last.production_run_id }}"
-      },
-      {
-        "name": "partner_id",
-        "type": "id",
-        "required": true,
-        "placeholder": "{{ $last.partner_id }}"
-      },
-      {
-        "name": "composed_reason",
-        "type": "string",
-        "required": true,
-        "placeholder": "{{ $last.composed_reason }}",
-        "description": "Pre-composed, attribution-prefixed cancellation reason."
-      },
-      {
-        "name": "reason",
-        "type": "string",
-        "required": true,
-        "placeholder": "{{ $last.reason }}",
-        "description": "Pre-composed, attribution-prefixed cancellation reason. */ composed_reason: string /** Raw reason code + notes for the emitted events."
-      },
-      {
-        "name": "notes",
-        "type": "string",
-        "required": false,
-        "placeholder": "{{ $last.notes }}"
-      }
-    ],
-    "source": "custom_ts",
-    "sourceFile": "src/workflows/production-runs/decline-production-run.ts"
-  },
   "emit-production-run-reminder": {
     "fields": [
       {
@@ -5992,6 +5954,51 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/production-runs/production-run-steps.ts"
+  },
+  "reassign-production-run": {
+    "fields": [
+      {
+        "name": "production_run_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.production_run_id }}"
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.reason }}",
+        "description": "#1093 — move a run into the admin reassignment queue. Triggered when the assigned partner never accepted (2 reminders sent, then capped) or explicitly declined. The run is NOT cancelled — the work still needs doing — it is unassigned and parked in `awaiting_reassignment` so an admin can re-dispatch it to a new partner (reuses dispatch-production-run). Deliberately does NOT mirror the order as cancelled (unlike the old decline path): the customer's order is unaffected by one partner stepping away. / export type ReassignSource = \"reminder_cap\" | \"decline\" export type ReassignProductionRunInput = { production_run_id: string /** Raw reason code (e.g. decline reason, or \"reminder_cap\")."
+      },
+      {
+        "name": "source",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.source }}"
+      },
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.partner_id }}",
+        "description": "#1093 — move a run into the admin reassignment queue. Triggered when the assigned partner never accepted (2 reminders sent, then capped) or explicitly declined. The run is NOT cancelled — the work still needs doing — it is unassigned and parked in `awaiting_reassignment` so an admin can re-dispatch it to a new partner (reuses dispatch-production-run). Deliberately does NOT mirror the order as cancelled (unlike the old decline path): the customer's order is unaffected by one partner stepping away. / export type ReassignSource = \"reminder_cap\" | \"decline\" export type ReassignProductionRunInput = { production_run_id: string /** Raw reason code (e.g. decline reason, or \"reminder_cap\"). */ reason: string source: ReassignSource /** The partner being unassigned (for the emitted events / audit)."
+      },
+      {
+        "name": "composed_reason",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.composed_reason }}",
+        "description": "#1093 — move a run into the admin reassignment queue. Triggered when the assigned partner never accepted (2 reminders sent, then capped) or explicitly declined. The run is NOT cancelled — the work still needs doing — it is unassigned and parked in `awaiting_reassignment` so an admin can re-dispatch it to a new partner (reuses dispatch-production-run). Deliberately does NOT mirror the order as cancelled (unlike the old decline path): the customer's order is unaffected by one partner stepping away. / export type ReassignSource = \"reminder_cap\" | \"decline\" export type ReassignProductionRunInput = { production_run_id: string /** Raw reason code (e.g. decline reason, or \"reminder_cap\"). */ reason: string source: ReassignSource /** The partner being unassigned (for the emitted events / audit). */ partner_id?: string | null /** Attribution-prefixed reason string stored on the run for the admin feed."
+      },
+      {
+        "name": "notes",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.notes }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/production-runs/reassign-production-run.ts"
   },
   "recreate-production-run": {
     "fields": [

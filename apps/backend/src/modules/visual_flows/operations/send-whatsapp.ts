@@ -175,6 +175,41 @@ export const sendWhatsAppOperation: OperationDefinition = {
           "leaking to arbitrary numbers. Set false for admin alerts or test " +
           "sends where any recipient is acceptable."
       ),
+
+    // Template URL-button parameter (mode="template" only). Meta templates
+    // approved with a dynamic URL button (url = "…{{1}}") REQUIRE a per-send
+    // value that fills the {{1}} suffix. We use this for the reminder
+    // templates whose "Open" button carries a partner deep-link token
+    // (…/wa-auth?wa_token={{1}}) so the tap lands the partner authenticated
+    // on the run — action-oriented, and delivers OUTSIDE the 24h window
+    // because it rides on the (media-header) template itself, not a
+    // free-form follow-up. Paired with `url_button_enabled` so a single
+    // dispatcher node can send both button and non-button templates.
+    url_button_token: z
+      .string()
+      .optional()
+      .describe(
+        'Value that fills a template URL button\'s {{1}} suffix (e.g. a wa_token ' +
+          "deep-link JWT). Supports {{ }} interpolation. Only attached when " +
+          "`url_button_enabled` is truthy and this resolves non-empty."
+      ),
+    url_button_enabled: z
+      .union([z.boolean(), z.string()])
+      .optional()
+      .describe(
+        "Gate for the URL button. Truthy (true / \"true\") attaches the button " +
+          "component when `url_button_token` is present; falsy skips it. Lets one " +
+          "send node serve both button templates (reminders) and plain templates " +
+          "(assigned / cancelled / completed) in the same flow. Supports {{ }} " +
+          "interpolation (resolves to the string \"true\"/\"false\")."
+      ),
+    url_button_index: z
+      .union([z.number(), z.string()])
+      .optional()
+      .describe(
+        'Zero-based index of the URL button within the template\'s button block. ' +
+          "Defaults to 0 (the first button). Supports {{ }} interpolation."
+      ),
   }),
 
   defaultOptions: {
@@ -510,6 +545,41 @@ export const sendWhatsAppOperation: OperationDefinition = {
           components.push({
             type: "body",
             parameters: variableValues.map((text) => ({ type: "text", text })),
+          })
+        }
+
+        // Dynamic URL-button parameter. Only attach when the caller both
+        // enabled it AND supplied a non-empty token — a template approved
+        // with a "…{{1}}" URL button REQUIRES this parameter at send time
+        // (Meta rejects the send otherwise), so gating on presence keeps a
+        // shared dispatcher node safe for plain (no-button) templates too.
+        const urlButtonEnabled =
+          options.url_button_enabled === true ||
+          (typeof options.url_button_enabled === "string" &&
+            ["true", "1", "yes"].includes(
+              interpolateString(options.url_button_enabled, dataChain)
+                .trim()
+                .toLowerCase()
+            ))
+        const urlButtonToken = options.url_button_token
+          ? interpolateString(options.url_button_token, dataChain).trim()
+          : ""
+        if (urlButtonEnabled && urlButtonToken) {
+          const rawIndex =
+            typeof options.url_button_index === "string"
+              ? interpolateString(options.url_button_index, dataChain).trim()
+              : options.url_button_index
+          const parsedIndex = Number(rawIndex)
+          // Meta accepts the button index as an integer; default to 0 (first
+          // button). WhatsAppService serialises it into the send payload.
+          const buttonIndex = Number.isFinite(parsedIndex)
+            ? Math.max(0, Math.trunc(parsedIndex))
+            : 0
+          components.push({
+            type: "button",
+            sub_type: "url",
+            index: buttonIndex,
+            parameters: [{ type: "text", text: urlButtonToken }],
           })
         }
 

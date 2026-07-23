@@ -26,6 +26,9 @@ export const IN_PROGRESS_STATUSES = [
   "in_progress",
   "sent_to_partner",
   "approved",
+  // #1093 — a run awaiting reassignment is still outstanding work (not done,
+  // not cancelled); count it as in-progress so pending work isn't undercounted.
+  "awaiting_reassignment",
 ] as const
 
 export type ProductionRunTotals = {

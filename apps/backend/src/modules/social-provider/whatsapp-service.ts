@@ -306,7 +306,15 @@ export default class WhatsAppService {
     }
 
     if (components?.length) {
-      payload.template.components = components
+      // Meta's template payload wants the button component `index` as a
+      // string ("0"). Callers pass it as a number (typed) — coerce here so
+      // the wire format matches Meta's spec for dynamic URL/quick-reply
+      // button parameters.
+      payload.template.components = components.map((c) =>
+        c.type === "button" && c.index !== undefined
+          ? { ...c, index: String(c.index) }
+          : c
+      )
     }
 
     return this.sendRequest(payload, to, {
