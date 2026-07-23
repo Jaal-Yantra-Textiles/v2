@@ -108,7 +108,21 @@ export const sendBlogSubscribersWorkflow = createWorkflow(
         recipientCount: synced.syncedCount,
       })
 
-      sendingSummary = transform({ kitResult }, (data) => data.kitResult.summary)
+      // Guard against the initial `.run()` where the workflow suspends at the
+      // confirmation wait step: `createKitBroadcastStep` hasn't executed yet, so
+      // `kitResult` is undefined while the WorkflowResponse transforms are being
+      // evaluated. Mirror the legacy lane's default-shape fallback. [#1059]
+      sendingSummary = transform({ kitResult }, (data) => {
+        return data.kitResult?.summary || {
+          totalSubscribers: 0,
+          sentCount: 0,
+          failedCount: 0,
+          queuedCount: 0,
+          sentList: [],
+          failedList: [],
+          sentAt: new Date().toISOString(),
+        }
+      })
     } else {
       // Legacy lane: per-recipient send distributed across mailjet/resend.
       const batches = prepareSubscriberBatchesStep({
