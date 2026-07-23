@@ -6,6 +6,11 @@ import {
   runGetCategoryProducts,
   runGetProductDetails,
 } from "../../src/mastra/agents/tools/storefront-catalog-tools"
+import { PERSON_MODULE } from "../../src/modules/person"
+import {
+  runCaptureContact,
+  STOREFRONT_CHAT_LEAD_SOURCE,
+} from "../../src/mastra/agents/tools/storefront-capture-contact"
 
 jest.setTimeout(120000)
 
@@ -92,6 +97,56 @@ setupSharedTestSuite(() => {
       const details = await runGetProductDetails({ handle: "no-such-product-xyz" }, container)
       expect(details.products).toEqual([])
       expect(details.error).toMatch(/no published product/i)
+    })
+
+    it("capture_contact creates a lead person tagged with the storefront_chat source", async () => {
+      const container = getContainer()
+      const personService: any = container.resolve(PERSON_MODULE)
+      const email = `chat-lead-${Date.now()}@example.com`
+
+      const res = await runCaptureContact(
+        { email, name: "Asha Rao", interest: "indigo cotton kurta" },
+        container,
+        "visitor-abc"
+      )
+      expect(res).toEqual({ saved: true, already_known: false })
+
+      const [person] = await personService.listPeople({ email })
+      expect(person).toBeTruthy()
+      expect(person.first_name).toBe("Asha")
+      expect(person.last_name).toBe("Rao")
+      expect(person.metadata?.source).toBe(STOREFRONT_CHAT_LEAD_SOURCE)
+      expect(person.metadata?.visitor_id).toBe("visitor-abc")
+      expect(person.metadata?.interest).toBe("indigo cotton kurta")
+    })
+
+    it("capture_contact is idempotent per email and never overwrites an existing source", async () => {
+      const container = getContainer()
+      const personService: any = container.resolve(PERSON_MODULE)
+      const email = `chat-existing-${Date.now()}@example.com`
+
+      // A person already acquired via another surface, with no name yet.
+      const seeded = await personService.createPeople({
+        first_name: "",
+        last_name: "",
+        email,
+        metadata: { source: "ad_planning_order_placed" },
+      })
+
+      const res = await runCaptureContact(
+        { email: email.toUpperCase(), name: "Meera Iyer" },
+        container
+      )
+      expect(res).toEqual({ saved: true, already_known: true })
+
+      const people = await personService.listPeople({ email })
+      // Still one row (dedup on the unique email, case-insensitive input).
+      expect(people).toHaveLength(1)
+      expect(people[0].id).toBe(seeded.id)
+      // Missing name enriched…
+      expect(people[0].first_name).toBe("Meera")
+      // …but the original acquisition source is preserved, not relabelled.
+      expect(people[0].metadata?.source).toBe("ad_planning_order_placed")
     })
   })
 })

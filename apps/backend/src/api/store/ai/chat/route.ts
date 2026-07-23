@@ -38,6 +38,7 @@ import {
   createGetCategoryProductsTool,
   createGetProductDetailsTool,
 } from "../../../../mastra/agents/tools/storefront-catalog-tools"
+import { createCaptureContactTool } from "../../../../mastra/agents/tools/storefront-capture-contact"
 import { foldSystemForProvider } from "./system-fold-lib"
 import { parseChatProvider } from "./chat-usage-lib"
 import { logAiUsage } from "../../../../mastra/services/ai-platforms"
@@ -62,6 +63,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     get_categories: createGetCategoriesTool(req.scope as any),
     get_category_products: createGetCategoryProductsTool(req.scope as any),
     get_product_details: createGetProductDetailsTool(req.scope as any),
+    capture_contact: createCaptureContactTool(req.scope as any, body.visitor_id),
   }
 
   // Normalise the inbound UI messages.
