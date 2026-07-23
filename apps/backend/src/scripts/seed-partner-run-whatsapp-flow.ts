@@ -31,7 +31,7 @@
 import { VISUAL_FLOWS_MODULE } from "../modules/visual_flows"
 import VisualFlowService from "../modules/visual_flows/service"
 
-const FLOW_NAME = "Partner WhatsApp — Production Run (all events)"
+export const FLOW_NAME = "Partner WhatsApp — Production Run (all events)"
 
 // ─── Canvas positions ────────────────────────────────────────────────────────
 const X_CENTER = 500
@@ -330,7 +330,7 @@ return {
 
 // ─── Flow definition ─────────────────────────────────────────────────────────
 
-const FLOW_DEF = {
+export const FLOW_DEF = {
   name: FLOW_NAME,
   description:
     "Single dispatcher for partner-facing WhatsApp notifications on every " +

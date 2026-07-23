@@ -67,6 +67,7 @@ import { FLOW_DEF as WINBACK_AUDIENCE_REFRESH_FLOW_DEF } from "../../../../scrip
 import { FLOW_DEF as INVENTORY_ORDER_STATUS_FLOW_DEF } from "../../../../scripts/seed-inventory-order-status-flow"
 import { FLOW_DEF as INVENTORY_SHIPMENT_PICKUP_FLOW_DEF } from "../../../../scripts/seed-inventory-shipment-pickup-flow"
 import { FLOW_DEF as ARTISAN_PRODUCT_APPROVAL_FLOW_DEF } from "../../../../scripts/seed-artisan-product-approval-flow"
+import { FLOW_DEF as PARTNER_RUN_WHATSAPP_FLOW_DEF } from "../../../../scripts/seed-partner-run-whatsapp-flow"
 import { ALL_WHATSAPP_TEMPLATES } from "../../../../scripts/whatsapp-templates/all-templates"
 import {
   syncWhatsAppTemplates,
@@ -4576,6 +4577,90 @@ export const syncWhatsAppTemplatesJob: MaintenanceJob = {
 }
 
 // ---------------------------------------------------------------------------
+// sync-partner-run-whatsapp-flow (#1093) — install OR REPLACE the partner-run
+// WhatsApp dispatcher flow from the Data-Plumbing console. Unlike the other
+// flow-loader jobs (which refuse to overwrite), this one intentionally
+// REPLACES an existing flow in place via updateCompleteFlow — because the flow
+// graph changed (gen_link now runs before send so the wa_token fills the
+// reminder templates' dynamic URL button, plus the v3 template names). The
+// flow's id and active/draft status are preserved. Same FLOW_DEF as the CLI
+// seed (single source of truth). No shell / ECS run-task needed.
+// ---------------------------------------------------------------------------
+
+export const syncPartnerRunWhatsAppFlowJob: MaintenanceJob = {
+  id: "sync-partner-run-whatsapp-flow",
+  label: "Install / replace partner-run WhatsApp flow",
+  description:
+    "Install or REPLACE the 'Partner WhatsApp — Production Run (all events)' dispatcher visual flow from the console — no shell or ECS run-task (#1093). Unlike the other flow-loaders this one updates an EXISTING flow in place (gen_link→send reorder + v3 reminder templates + dynamic URL-button wiring), preserving its id and active/draft status. Dry-run reports whether it would create or replace + the node/connection counts; apply writes it. Approve the v3 reminder templates in Meta first (Sync WhatsApp templates to Meta) so the URL-button reminders send cleanly.",
+  params: [],
+  run: async (container, { dry_run }) => {
+    const service: any = container.resolve(VISUAL_FLOWS_MODULE)
+    const def = PARTNER_RUN_WHATSAPP_FLOW_DEF
+    const flowName = def.name
+    const nodeCount = def.canvas_state?.nodes?.length ?? 0
+    const connCount = def.connections?.length ?? 0
+
+    const [existing] = await service.listVisualFlows({ name: flowName })
+    const mode = existing ? "replace" : "create"
+
+    if (!dry_run) {
+      if (existing) {
+        await service.updateCompleteFlow(existing.id, {
+          description: def.description,
+          trigger_type: def.trigger_type,
+          trigger_config: def.trigger_config,
+          canvas_state: def.canvas_state,
+          operations: def.operations,
+          connections: def.connections,
+        })
+      } else {
+        await service.createCompleteFlow({
+          flow: {
+            name: def.name,
+            description: def.description,
+            status: def.status,
+            trigger_type: def.trigger_type,
+            trigger_config: def.trigger_config,
+            canvas_state: def.canvas_state,
+          },
+          operations: def.operations,
+          connections: def.connections,
+        })
+      }
+    }
+
+    const targetId = existing?.id ?? "(new)"
+    const changes: MaintenanceChange[] = [
+      {
+        entity: "visual_flow",
+        id: targetId,
+        field: mode === "replace" ? "replaced" : "created",
+        after: {
+          name: flowName,
+          nodes: nodeCount,
+          connections: connCount,
+          status_preserved: existing ? (existing as any).status : def.status,
+        },
+      },
+    ]
+    const summary = dry_run
+      ? mode === "replace"
+        ? `Would REPLACE visual flow "${flowName}" (${targetId}) in place — ${nodeCount} nodes, ${connCount} connections; status preserved. Nothing written.`
+        : `Would create visual flow "${flowName}" (${nodeCount} nodes) as DRAFT. Nothing written.`
+      : mode === "replace"
+        ? `Replaced visual flow "${flowName}" (${targetId}) in place — ${nodeCount} nodes, ${connCount} connections; status preserved. Ensure the v3 reminder templates are Meta-approved.`
+        : `Created visual flow "${flowName}" as DRAFT — approve templates + flip draft→active to go live.`
+    return {
+      job_id: syncPartnerRunWhatsAppFlowJob.id,
+      dry_run,
+      applied: !dry_run,
+      summary,
+      changes,
+    }
+  },
+}
+
+// ---------------------------------------------------------------------------
 // generate-winback-targets (#659, report §12.5) — read ad_planning churn-risk
 // (+ optional CLV) scores, resolve each scored Person's email, and select
 // winback targets with a PURE, unit-tested selector (threshold + optional CLV
@@ -5480,6 +5565,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   installInventoryShipmentPickupFlowJob,
   installArtisanProductApprovalFlowJob,
   syncWhatsAppTemplatesJob,
+  syncPartnerRunWhatsAppFlowJob,
   generateWinbackTargetsJob,
   sendMarketingDailySummaryJob,
   auditAiPlatformsJob,
