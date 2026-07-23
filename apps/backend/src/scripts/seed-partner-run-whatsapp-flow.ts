@@ -31,7 +31,7 @@
 import { VISUAL_FLOWS_MODULE } from "../modules/visual_flows"
 import VisualFlowService from "../modules/visual_flows/service"
 
-const FLOW_NAME = "Partner WhatsApp — Production Run (all events)"
+export const FLOW_NAME = "Partner WhatsApp — Production Run (all events)"
 
 // ─── Canvas positions ────────────────────────────────────────────────────────
 const X_CENTER = 500
@@ -43,8 +43,9 @@ const Y_READ_PARTNER = 280
 const Y_READ_DESIGN = 420
 const Y_RESOLVE = 560
 const Y_COND = 700
-const Y_SEND = 840
-const Y_GEN_LINK = 980
+// gen_link runs before send (#1093) so it sits above it on the canvas.
+const Y_GEN_LINK = 840
+const Y_SEND = 980
 const Y_HAS_IMAGE = 1120
 const Y_FOLLOWUP = 1260
 const Y_SKIP = 840
@@ -227,19 +228,26 @@ const map = {
   // All three reminder templates were approved with an IMAGE header,
   // so design_image_url is forwarded.
   "production_run.reminder_assignment_pending": {
-    template: "jyt_production_run_reminder_pending_v2",
+    template: "jyt_production_run_reminder_pending_v3",
     vars: [partnerName, designName, runId, String(daysSinceAssignment)],
     has_header: true,
+    // #1093: reminder templates carry a dynamic URL button whose {{1}} suffix
+    // is the wa_token deep-link. Signals the send node to attach the button
+    // parameter (from gen_link.token). Non-reminder templates omit this →
+    // send node skips the button → Meta accepts the plain template.
+    url_button: true,
   },
   "production_run.reminder_not_started": {
-    template: "jyt_production_run_reminder_not_started_v2",
+    template: "jyt_production_run_reminder_not_started_v3",
     vars: [partnerName, designName, runId, String(daysSinceAccepted)],
     has_header: true,
+    url_button: true,
   },
   "production_run.reminder_idle": {
-    template: "jyt_production_run_reminder_idle_v2",
+    template: "jyt_production_run_reminder_idle_v3",
     vars: [partnerName, designName, runId, producedQty, quantity],
     has_header: true,
+    url_button: true,
   },
   // Add more mappings here as templates get approved in Meta.
   //
@@ -297,6 +305,10 @@ return {
   // run_id is always the raw run id — use this for deep links and any
   // user-facing display so the per-day suffix never leaks out.
   run_id: runId,
+  // Whether this template has a dynamic URL action button (#1093). The send
+  // node passes gen_link.token as the button parameter only when true, so a
+  // single dispatcher serves both button (reminders) and plain templates.
+  url_button: config.url_button === true,
   // Header parameter rules (Meta is strict):
   //  - has_header=false → must NOT send a header parameter at all,
   //    otherwise Meta rejects with code 132018 ("Template does not
@@ -318,7 +330,7 @@ return {
 
 // ─── Flow definition ─────────────────────────────────────────────────────────
 
-const FLOW_DEF = {
+export const FLOW_DEF = {
   name: FLOW_NAME,
   description:
     "Single dispatcher for partner-facing WhatsApp notifications on every " +
@@ -356,10 +368,14 @@ const FLOW_DEF = {
       { id: "e-2",  source: "read_partner",     sourceHandle: "default", target: "read_design",      targetHandle: "default" },
       { id: "e-3",  source: "read_design",      sourceHandle: "default", target: "resolve_template", targetHandle: "default" },
       { id: "e-4",  source: "resolve_template", sourceHandle: "default", target: "has_template",     targetHandle: "default" },
-      { id: "e-5",  source: "has_template",     sourceHandle: "success", target: "send",             targetHandle: "default" },
+      // #1093: gen_link runs BEFORE send so its wa_token can fill the reminder
+      // template's dynamic URL button (an action-oriented tap that lands the
+      // partner authenticated on the run). has_template success → gen_link →
+      // send → has_image → image/text follow-up.
+      { id: "e-5",  source: "has_template",     sourceHandle: "success", target: "gen_link",         targetHandle: "default" },
       { id: "e-6",  source: "has_template",     sourceHandle: "failure", target: "log_skip",         targetHandle: "default" },
-      { id: "e-7",  source: "send",             sourceHandle: "success", target: "gen_link",         targetHandle: "default" },
-      { id: "e-8",  source: "gen_link",         sourceHandle: "default", target: "has_image",        targetHandle: "default" },
+      { id: "e-7",  source: "gen_link",         sourceHandle: "default", target: "send",             targetHandle: "default" },
+      { id: "e-8",  source: "send",             sourceHandle: "success", target: "has_image",        targetHandle: "default" },
       { id: "e-9",  source: "has_image",        sourceHandle: "success", target: "send_image",       targetHandle: "default" },
       { id: "e-10", source: "has_image",        sourceHandle: "failure", target: "send_link_text",   targetHandle: "default" },
     ],
@@ -473,12 +489,12 @@ const FLOW_DEF = {
       },
     },
 
-    // ── 6a. Send WhatsApp template (success branch) ────────────────────────
+    // ── 6a. Send WhatsApp template (runs after gen_link) ───────────────────
     {
       operation_key: "send",
       operation_type: "send_whatsapp",
       name: "Send WhatsApp",
-      sort_order: 5,
+      sort_order: 6,
       position_x: X_LEFT,
       position_y: Y_SEND,
       options: {
@@ -508,15 +524,24 @@ const FLOW_DEF = {
         dedup_window_minutes: 60,
         // Production notifications should never leak to unknown recipients.
         require_partner: true,
+        // #1093 action-oriented reminders: reminder templates carry a dynamic
+        // URL button whose {{1}} suffix is the wa_token from gen_link. The
+        // send op attaches the button parameter only when url_button_enabled
+        // is truthy AND the token resolves non-empty — so plain templates
+        // (assigned / cancelled / completed, url_button=false) are unaffected.
+        url_button_enabled: "{{ resolve_template.url_button }}",
+        url_button_token: "{{ gen_link.token }}",
       },
     },
 
-    // ── 6c. Generate partner deep-link (success branch, after template) ───
+    // ── 6c. Generate partner deep-link (runs BEFORE send so its token can
+    //         fill the reminder template's dynamic URL button; its .url is
+    //         also reused by the image / text follow-ups below) ────────────
     {
       operation_key: "gen_link",
       operation_type: "generate_partner_deeplink",
       name: "Generate Deep-Link",
-      sort_order: 6,
+      sort_order: 5,
       position_x: X_LEFT,
       position_y: Y_GEN_LINK,
       options: {
@@ -627,10 +652,10 @@ const FLOW_DEF = {
     { source_id: "read_partner",     source_handle: "default", target_id: "read_design",      connection_type: "default" as const },
     { source_id: "read_design",      source_handle: "default", target_id: "resolve_template", connection_type: "default" as const },
     { source_id: "resolve_template", source_handle: "default", target_id: "has_template",     connection_type: "default" as const },
-    { source_id: "has_template",     source_handle: "success", target_id: "send",             connection_type: "success" as const },
+    { source_id: "has_template",     source_handle: "success", target_id: "gen_link",         connection_type: "success" as const },
     { source_id: "has_template",     source_handle: "failure", target_id: "log_skip",         connection_type: "failure" as const },
-    { source_id: "send",             source_handle: "success", target_id: "gen_link",         connection_type: "success" as const },
-    { source_id: "gen_link",         source_handle: "default", target_id: "has_image",        connection_type: "default" as const },
+    { source_id: "gen_link",         source_handle: "default", target_id: "send",             connection_type: "default" as const },
+    { source_id: "send",             source_handle: "success", target_id: "has_image",        connection_type: "success" as const },
     { source_id: "has_image",        source_handle: "success", target_id: "send_image",       connection_type: "success" as const },
     { source_id: "has_image",        source_handle: "failure", target_id: "send_link_text",   connection_type: "failure" as const },
   ],
@@ -647,8 +672,29 @@ export default async function seedPartnerRunWhatsAppFlow({
 
   const [existing] = await service.listVisualFlows({ name: FLOW_NAME } as any)
   if (existing) {
+    // #1093: the dispatcher graph changed (gen_link now runs before send so
+    // its wa_token fills the reminder templates' dynamic URL button). An
+    // existing prod flow must be REPLACED to pick this up. REPLACE_FLOW=1
+    // rewrites the operations + connections + canvas_state IN PLACE via
+    // updateCompleteFlow — preserving the flow id and its active/draft status
+    // (no re-activation needed). Without the flag we keep the old safe
+    // no-overwrite behaviour.
+    if (process.env.REPLACE_FLOW === "1") {
+      console.log(`Flow "${FLOW_NAME}" exists (${existing.id}) — REPLACE_FLOW=1, updating in place…`)
+      await service.updateCompleteFlow(existing.id, {
+        description: FLOW_DEF.description,
+        trigger_type: FLOW_DEF.trigger_type,
+        trigger_config: FLOW_DEF.trigger_config,
+        canvas_state: FLOW_DEF.canvas_state,
+        operations: FLOW_DEF.operations,
+        connections: FLOW_DEF.connections,
+      })
+      console.log(`Flow updated: ${existing.id} (status preserved: ${(existing as any).status}).`)
+      console.log(`Ensure the reminder v3 templates are APPROVED before it fires (see below).`)
+      return
+    }
     console.log(`Flow "${FLOW_NAME}" already exists (${existing.id}) — skipping.`)
-    console.log(`Delete it in the admin UI (or by id) to re-seed.`)
+    console.log(`Re-run with REPLACE_FLOW=1 to update it in place, or delete it in the admin UI to re-seed.`)
     return
   }
 
@@ -674,11 +720,15 @@ export default async function seedPartnerRunWhatsAppFlow({
   console.log(`\nFlow created: ${flow.id}`)
   console.log(`  Open: /app/visual-flows/${flow.id}\n`)
   console.log(`Before activating:`)
-  console.log(`  1. Ensure these 3 templates are APPROVED on every WABA you target:`)
-  console.log(`     - jyt_production_run_assigned_v3  (with buttons)`)
+  console.log(`  1. Ensure these templates are APPROVED on every WABA you target:`)
+  console.log(`     - jyt_production_run_assigned_v3   (quick-reply buttons)`)
   console.log(`     - jyt_production_run_cancelled_v3`)
   console.log(`     - jyt_production_run_completed_v3`)
-  console.log(`     Check status via the admin Templates panel or:`)
+  console.log(`     - jyt_production_run_reminder_pending_v3      (URL action button)`)
+  console.log(`     - jyt_production_run_reminder_not_started_v3  (URL action button)`)
+  console.log(`     - jyt_production_run_reminder_idle_v3         (URL action button)`)
+  console.log(`     Submit any missing ones via the OPS Data-Plumbing job`)
+  console.log(`     "Sync WhatsApp templates to Meta" (id sync-whatsapp-templates), or:`)
   console.log(`       MODE=dry-run npx medusa exec ./src/scripts/manage-whatsapp-templates.ts`)
   console.log(`  2. Flip flow status: draft → active in the admin editor.`)
 }

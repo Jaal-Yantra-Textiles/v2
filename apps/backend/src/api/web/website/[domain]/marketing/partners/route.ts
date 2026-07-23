@@ -6,8 +6,10 @@ type RawPartner = {
   name: string
   handle: string
   logo: string | null
-  workspace_type: "seller" | "manufacturer" | "individual"
+  workspace_type: "seller" | "manufacturer" | "individual" | "designer"
   storefront_domain: string | null
+  custom_domain: string | null
+  custom_domain_verified: boolean
   vercel_linked: boolean
   metadata: Record<string, unknown> | null
 }
@@ -52,6 +54,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       "logo",
       "workspace_type",
       "storefront_domain",
+      "custom_domain",
+      "custom_domain_verified",
       "vercel_linked",
       "metadata",
     ],
@@ -89,9 +93,14 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         // optional verified alias. Prefer the verified custom domain as
         // storefront_url when present so links in marketing UI point at
         // the partner's branded host.
+        // Prefer the typed columns; fall back to legacy metadata for any
+        // not-yet-migrated row.
         const customDomain =
-          typeof meta.custom_domain === "string" ? meta.custom_domain : null
-        const customVerified = meta.custom_domain_verified === true
+          (typeof p.custom_domain === "string" && p.custom_domain) ||
+          (typeof meta.custom_domain === "string" ? meta.custom_domain : null)
+        const customVerified =
+          p.custom_domain_verified === true ||
+          (!p.custom_domain && meta.custom_domain_verified === true)
         const primaryHost =
           customDomain && customVerified ? customDomain : p.storefront_domain!
 

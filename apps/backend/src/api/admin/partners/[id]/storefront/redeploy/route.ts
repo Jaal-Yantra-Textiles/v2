@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { DEPLOYMENT_MODULE } from "../../../../../../modules/deployment"
 import type DeploymentService from "../../../../../../modules/deployment/service"
 import PartnerService from "../../../../../../modules/partner/service"
+import { partnerIsOnSharedProject } from "../../../../../../modules/deployment/providers/resolve-partner-provider"
 
 const STOREFRONT_REPO_ENV = process.env.VERCEL_STOREFRONT_REPO || ""
 const STOREFRONT_BRANCH_ENV = process.env.VERCEL_STOREFRONT_BRANCH || "main"
@@ -25,6 +26,18 @@ export const POST = async (
   }
 
   const partner = partners[0] as any
+
+  // Shared multi-tenant deployment: never redeploy it or overwrite its env on
+  // behalf of a single partner (it serves every tenant; the store is resolved
+  // per-request from the Host header). See partners redeploy route.
+  if (await partnerIsOnSharedProject(partner, req.scope)) {
+    return res.json({
+      message:
+        "This storefront runs on a shared, centrally-managed deployment — no per-partner redeploy is performed.",
+      deployment: { id: "shared", url: "", status: "shared" },
+    })
+  }
+
   const vercelProjectId =
     partner.vercel_project_id || partner.metadata?.vercel_project_id
   const vercelProjectName =

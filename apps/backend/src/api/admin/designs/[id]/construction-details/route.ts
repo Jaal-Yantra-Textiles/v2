@@ -3,6 +3,10 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 import { DESIGN_MODULE } from "../../../../../modules/designs"
 import type DesignService from "../../../../../modules/designs/service"
+import {
+  SUPPORTED_TECHNIQUES,
+  techniqueLabel,
+} from "../../../../../modules/designs/construction-techniques"
 
 /**
  * Construction details = DesignSpecifications with category "Construction" whose
@@ -10,20 +14,13 @@ import type DesignService from "../../../../../modules/designs/service"
  * tech-pack generator reads for the "Construction details" frame. These routes let
  * the admin manage them on a real design (instead of via seed scripts), so a design
  * can satisfy the generation completeness gate.
+ *
+ * Techniques + presets come from the canonical construction-techniques module
+ * (#1113 Feature B) — the single source shared with the renderer, admin UI and
+ * partner picker.
  */
 
-// Keep in sync with DETAIL_RENDERERS in build-moodboard-scene.ts — a technique must
-// key a renderer to appear as an editable glyph in the tech-pack.
-export const SUPPORTED_TECHNIQUES = [
-  "dart",
-  "knife-pleat",
-  "box-pleat",
-  "gathers",
-  "tucks",
-  "topstitch",
-  "yoke",
-  "embroidery",
-] as const
+export { SUPPORTED_TECHNIQUES }
 
 export const ConstructionDetailBodySchema = z.object({
   technique: z.enum(SUPPORTED_TECHNIQUES),
@@ -32,12 +29,6 @@ export const ConstructionDetailBodySchema = z.object({
   fabricRules: z.array(z.string().trim().min(1)).optional(),
   note: z.string().trim().optional(),
 })
-
-/** Turn a technique slug into a readable default title, e.g. knife-pleat → "Knife pleat". */
-function techniqueLabel(technique: string): string {
-  const spaced = technique.replace(/-/g, " ")
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
-}
 
 /**
  * GET /admin/designs/:id/construction-details

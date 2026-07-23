@@ -105,9 +105,11 @@ export class CloudflarePagesProvider implements HostingProvider {
           deployments_enabled: true,
         },
       },
+      // next-on-pages transforms Next.js edge-runtime output for Cloudflare
+      // Workers. Output dir is the Vercel output format that CF Pages expects.
       build_config: {
-        build_command: input.buildCommand || "pnpm build",
-        destination_dir: ".next",
+        build_command: input.buildCommand || "pnpm dlx @cloudflare/next-on-pages@1",
+        destination_dir: ".vercel/output/static",
         root_dir: input.rootDirectory || "",
       },
     }
@@ -249,5 +251,16 @@ export class CloudflarePagesProvider implements HostingProvider {
       "getProject"
     )
     return { id: p.name, name: p.name, originHost: p.subdomain }
+  }
+
+  /** Delete the Pages project (teardown). A 404 means it's already gone. */
+  async deleteProject(projectName: string): Promise<void> {
+    const res = await fetch(`${this.base()}/${projectName}`, {
+      method: "DELETE",
+      headers: this.headers(),
+    })
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`Cloudflare Pages deleteProject failed (${res.status}): ${await res.text().catch(() => res.statusText)}`)
+    }
   }
 }

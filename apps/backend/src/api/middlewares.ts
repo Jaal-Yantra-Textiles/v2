@@ -109,6 +109,7 @@ import { investorSchema, investorUpdateSchema, capTableSchema, capTableUpdateSch
 import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { updatePartnerMeSchema } from "./partners/me/validators";
 import { onboardingProfileUpdateSchema } from "./partners/onboarding-profile/validators";
+import { setLayoutConfigurationSchema } from "./partners/layouts/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
 import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema } from "./admin/inventory-orders/validators";
 import { createRawMaterialGroupSchema, updateRawMaterialGroupSchema, listRawMaterialGroupsQuerySchema, addGroupColorSchema, addGroupColorFullSchema, linkGroupColorsSchema, createGroupOrderSchema, readGroupQuerySchema } from "./admin/raw-material-groups/validators";
@@ -118,6 +119,10 @@ import { SendBlogSubscriptionSchema } from "./admin/websites/[id]/pages/[pageId]
 import { subscriptionSchema } from "./web/website/[domain]/validators";
 import { websiteThemeSchema } from "./partners/storefront/website/theme/validators";
 import { ThemeChatSchema } from "./partners/storefront/website/theme/chat/validators";
+import { PartnerAssistantChatSchema } from "./partners/assistant/chat/validators";
+import { PartnerAssistantSummarizeSchema } from "./partners/assistant/summarize/validators";
+import { CreateConversationSchema as PartnerCreateConversationSchema, UpdateConversationSchema as PartnerUpdateConversationSchema } from "./partners/assistant/conversations/validators";
+import { CreateConversationSchema as AdminAssistantCreateConversationSchema, UpdateConversationSchema as AdminAssistantUpdateConversationSchema } from "./admin/assistant/conversations/validators";
 import { createPlanSchema, updatePlanSchema, createSubscriptionSchema } from "./admin/partner-plans/validators";
 import { subscribeSchema as partnerSubscribeSchema } from "./partners/subscription/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
@@ -125,6 +130,7 @@ import { createStoreSchema } from "./admin/stores/validators";
 import { UpdateInventoryOrderTask } from "./admin/inventory-orders/[id]/tasks/[taskId]/validators";
 import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/test/route";
 import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema, ConnectWhatsAppSchema } from "./admin/social-platforms/validators";
+import { CreateDeploymentAccountSchema, UpdateDeploymentAccountSchema, ListDeploymentAccountsQuerySchema } from "./admin/deployment-accounts/validators";
 import { StoreAiSearchSchema } from "./store/ai/search/validators";
 import { StoreAiChatSchema } from "./store/ai/chat/validators";
 import { StoreGenerateAiImageReqSchema } from "./store/ai/imagegen/validators";
@@ -181,6 +187,7 @@ import { AdminRagSearchQuery } from "./admin/ai/rag/search/validators";
 import { AdminAiChatResolveReq, AdminAiChatResolveQuery } from "./admin/ai/chat/resolve/validators";
 import { ListConversationsQuerySchema, ListMessagesQuerySchema, SendMessageSchema, CreateConversationSchema } from "./admin/messaging/validators";
 import { AdminAiChatReq } from "./admin/ai/chat/chat/validators";
+import { AdminAssistantChatSchema } from "./admin/assistant/chat/validators";
 import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
 import { AdminPostPartnerTaskAssignReq } from "./admin/partners/[id]/tasks/[taskId]/assign/validators";
 import { AdminCreatePartnerTaskReq } from "./admin/partners/[id]/tasks/validators";
@@ -200,6 +207,9 @@ import { PartnerCreateProductionRunReq } from "./partners/designs/[designId]/pro
 import { PartnerPostConsumptionLogReq } from "./partners/designs/[designId]/consumption-logs/validators";
 import { PartnerPostDesignTasksReq } from "./partners/designs/[designId]/tasks/validators";
 import { DesignBriefSchema as PartnerDesignBriefSchema, UpdateDesignBriefSchema as PartnerUpdateDesignBriefSchema } from "./partners/designs/[designId]/brief/validators";
+import { SavePartnerMoodboardSchema } from "./partners/designs/[designId]/moodboard/validators";
+import { AdminCreateDesignerInviteSchema } from "./admin/designs/[id]/designer-invites/validators";
+import { AcceptDesignerInviteSchema } from "./partners/designer-invites/[token]/accept/validators";
 import { PartnerPostProductionRunConsumptionLogReq } from "./partners/production-runs/[id]/consumption-logs/validators";
 import { listPartnersQuerySchema, PostPartnerSchema } from "./admin/partners/validators";
 import { AdminBroadcastNotificationSchema } from "./admin/partners/notifications/broadcast/validators";
@@ -207,7 +217,7 @@ import { ListIdentitiesQuerySchema } from "./admin/users/identities/validators";
 import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-items/raw-materials/validators";
 import { BulkImportSchema } from "./admin/inventory-items/bulk-import/validators";
 import { PartnerCreateStoreReq } from "./partners/stores/validators";
-import { PartnerCreateProductReq } from "./partners/products/validators";
+import { PartnerCreateProductReq, PartnerArtisanProductDetailReq } from "./partners/products/validators";
 import {
   PartnerCreateRegionReq,
   PartnerUpdateRegionReq,
@@ -274,6 +284,31 @@ import { WebSaveTourItinerarySchema } from "./web/tour-visits/[token]/validators
 import { LinkDesignsToCustomerSchema } from "./admin/customers/[id]/designs/validators";
 import { CreateDesignOrderSchema } from "./admin/customers/[id]/design-order/validators";
 import { listAbandonedCartsQuerySchema } from "./admin/abandoned-carts/validators";
+import {
+  CreatePersonPropertySchema,
+  UpdatePersonPropertySchema,
+} from "./admin/person-properties/validators";
+import {
+  CreateCrmCompanySchema,
+  UpdateCrmCompanySchema,
+} from "./admin/crm/companies/validators";
+import {
+  CreateCrmPersonSchema,
+  UpdateCrmPersonSchema,
+} from "./admin/crm/people/validators";
+import {
+  CreateCrmOpportunitySchema,
+  UpdateCrmOpportunitySchema,
+} from "./admin/crm/opportunities/validators";
+import {
+  CreateCrmNoteSchema,
+  UpdateCrmNoteSchema,
+} from "./admin/crm/notes/validators";
+import {
+  CreateCrmTaskSchema,
+  UpdateCrmTaskSchema,
+} from "./admin/crm/tasks/validators";
+import { VerifyWeaverSchema } from "./web/census/verify/validators";
 
 /**
  * In-process per-IP rate limiter for public token-resolution routes.
@@ -681,6 +716,14 @@ export default defineMiddlewares({
       middlewares: [],
     },
     {
+      // Kit (kit.com) events (bounce/complain/unsubscribe/click) for the mass
+      // blog/newsletter lane → suppress + engagement ledger. Gated by
+      // KIT_WEBHOOK_SECRET (?token=), event kind in ?event=, JSON body parsed.
+      matcher: "/webhooks/kit",
+      method: "POST",
+      middlewares: [],
+    },
+    {
       // Carrier tracking pushes (Shiprocket — #888). Gated by
       // SHIPPING_WEBHOOK_SECRET (custom header configured in the carrier
       // dashboard; Shiprocket has no HMAC), JSON body parsed normally.
@@ -819,6 +862,43 @@ export default defineMiddlewares({
       ],
     },
 
+    // Partner LayoutComposer persistence (#338). List across zones, plus
+    // per-zone read / upsert / reset. The static `configurations` matcher must
+    // stay above the `:zone` one so it isn't shadowed by the dynamic param.
+    {
+      matcher: "/partners/layouts/configurations",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/layouts/:zone/configuration",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/layouts/:zone/configuration",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(setLayoutConfigurationSchema)),
+      ],
+    },
+    {
+      matcher: "/partners/layouts/:zone/configuration",
+      method: "DELETE",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+
     {
       matcher: "/partners",
       method: "POST",
@@ -882,6 +962,15 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("investor", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(investorUpdateSchema)),
+      ],
+    },
+    {
+      // #969 follow-up — the investor's SAFEs / convertible notes with value.
+      matcher: "/investors/me/convertibles",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("investor", ["session", "bearer"]),
       ],
     },
     {
@@ -1175,6 +1264,34 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      // #859: private shareable review link for an artisan's unpublished product.
+      matcher: "/partners/products/:id/preview-link",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      // #859 S3 (#862): read the artisan made-to-order/maker-story detail.
+      matcher: "/partners/products/:id/artisan-detail",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      // #859 S3 (#862): upsert the artisan made-to-order/maker-story detail.
+      matcher: "/partners/products/:id/artisan-detail",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerArtisanProductDetailReq)),
       ],
     },
 
@@ -2086,6 +2203,100 @@ export default defineMiddlewares({
         validateAndTransformBody(wrapSchema(ThemeChatSchema)),
       ],
     },
+    // Partner Portal Assistant — streaming chat (drives the Partner API via the
+    // MCP tool registry: onboarding, persona, layout, reads).
+    {
+      matcher: "/partners/assistant/chat",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerAssistantChatSchema)),
+      ],
+    },
+    // Partner assistant context compaction — the client calls this when the
+    // chat approaches the model's context window; the route returns a short
+    // summary the client stores in place of the older turns.
+    {
+      matcher: "/partners/assistant/summarize",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerAssistantSummarizeSchema)),
+      ],
+    },
+    // Partner MCP — JSON-RPC endpoint exposing the Partner API as tools. Body is
+    // JSON-RPC (validated by the MCP transport), so no body validator here.
+    {
+      matcher: "/partners/mcp",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner assistant conversation history (#338 item 2) — server-persisted
+    // chat threads, partner-scoped. Collection then single-resource.
+    {
+      matcher: "/partners/assistant/conversations",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/assistant/conversations",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerCreateConversationSchema)),
+      ],
+    },
+    {
+      matcher: "/partners/assistant/conversations/:id",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/assistant/conversations/:id",
+      method: "PATCH",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerUpdateConversationSchema)),
+      ],
+    },
+    {
+      matcher: "/partners/assistant/conversations/:id",
+      method: "DELETE",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Admin assistant conversation history (#1092) — server-persisted chat
+    // threads, user-scoped. /admin/* is admin-authenticated globally, so only
+    // the write bodies need validation.
+    {
+      matcher: "/admin/assistant/conversations",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AdminAssistantCreateConversationSchema)),
+      ],
+    },
+    {
+      matcher: "/admin/assistant/conversations/:id",
+      method: "PATCH",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AdminAssistantUpdateConversationSchema)),
+      ],
+    },
     // Partner Subscription
     {
       matcher: "/partners/subscription",
@@ -2917,6 +3128,74 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(UpdatePersonSchema))],
     },
+    // person_property CRUD (module-service backed; swappable Postgres/Hyperbee DAL)
+    {
+      matcher: "/admin/person-properties",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreatePersonPropertySchema))],
+    },
+    {
+      matcher: "/admin/person-properties/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdatePersonPropertySchema))],
+    },
+    // crm CRUD (Hyperbee-only module-service backed)
+    {
+      matcher: "/admin/crm/companies",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateCrmCompanySchema))],
+    },
+    {
+      matcher: "/admin/crm/companies/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateCrmCompanySchema))],
+    },
+    {
+      matcher: "/admin/crm/people",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateCrmPersonSchema))],
+    },
+    {
+      matcher: "/admin/crm/people/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateCrmPersonSchema))],
+    },
+    {
+      matcher: "/admin/crm/opportunities",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateCrmOpportunitySchema))],
+    },
+    {
+      matcher: "/admin/crm/opportunities/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateCrmOpportunitySchema))],
+    },
+    {
+      matcher: "/admin/crm/notes",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateCrmNoteSchema))],
+    },
+    {
+      matcher: "/admin/crm/notes/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateCrmNoteSchema))],
+    },
+    {
+      matcher: "/admin/crm/tasks",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateCrmTaskSchema))],
+    },
+    {
+      matcher: "/admin/crm/tasks/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateCrmTaskSchema))],
+    },
+    // #1038 weaver verify against the census public core
+    {
+      matcher: "/web/census/verify",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(VerifyWeaverSchema))],
+    },
     {
       matcher: "/admin/persons/:id/resources/:resource",
       method: "POST",
@@ -3000,6 +3279,21 @@ export default defineMiddlewares({
       matcher: "/admin/ai/chat/chat",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminAiChatReq))],
+    },
+
+    // Admin MCP — JSON-RPC endpoint exposing the Admin API as tools (#1092).
+    // Body is JSON-RPC (validated by the MCP transport), so no body validator
+    // here. All /admin/* routes are admin-user authenticated by Medusa.
+    {
+      matcher: "/admin/mcp",
+      method: "POST",
+      middlewares: [],
+    },
+    // Admin agentic assistant — streaming tool-caller over the Admin MCP registry.
+    {
+      matcher: "/admin/assistant/chat",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminAssistantChatSchema))],
     },
 
     {
@@ -3321,6 +3615,11 @@ export default defineMiddlewares({
       matcher: "/admin/partners/:id/whatsapp-verify",
       method: "DELETE",
     },
+    // Admin partner email verification bypass
+    {
+      matcher: "/admin/partners/:id/bypass-email-verification",
+      method: "POST",
+    },
     {
       matcher: "/admin/persons/partner",
       method: "GET",
@@ -3395,6 +3694,13 @@ export default defineMiddlewares({
       matcher: "/admin/designs/:id/brief",
       method: "PUT",
       middlewares: [validateAndTransformBody(wrapSchema(UpdateDesignBriefSchema))],
+    },
+
+    // Designer-invite (#1113 S1): admin mints a scoped invite link for a design.
+    {
+      matcher: "/admin/designs/:id/designer-invites",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminCreateDesignerInviteSchema))],
     },
 
     // Inventory linkin on designs
@@ -3923,6 +4229,23 @@ export default defineMiddlewares({
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(listSocialPlatformsQuerySchema), {})],
     },
+
+    // ── Deployment accounts (rotatable storefront hosting accounts, #884 S4) ──
+    {
+      matcher: "/admin/deployment-accounts",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateDeploymentAccountSchema))],
+    },
+    {
+      matcher: "/admin/deployment-accounts",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ListDeploymentAccountsQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/deployment-accounts/:id",
+      method: ["POST", "PUT"],
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateDeploymentAccountSchema))],
+    },
     {
       matcher: "/admin/social-posts",
       method: "GET",
@@ -4204,6 +4527,15 @@ export default defineMiddlewares({
       method: "GET",
       middlewares: [],
     },
+    // Designer-invite accept (#1113 S1) — PUBLIC (token IS the auth, like
+    // /partners/wa-auth). CORS is inherited from the /partners* catch-all; no
+    // partner session yet, so only body validation runs here.
+    {
+      matcher: "/partners/designer-invites/:token/accept",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AcceptDesignerInviteSchema))],
+    },
+
     // Partner Designs APIs
     {
       matcher: "/partners/designs",
@@ -4278,6 +4610,61 @@ export default defineMiddlewares({
       matcher: "/partners/designs/:designId/recalculate-cost",
       method: "POST",
       middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // #1113 S2 — partner moodboard generate (brief-as-cards). Owner OR
+      // assigned partner (the invited designer); guard is in the route.
+      matcher: "/partners/designs/:designId/moodboard/generate",
+      method: "POST",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // #1113 Feature A — insert-block palette: list drop-in blocks.
+      matcher: "/partners/designs/:designId/moodboard/blocks",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // #1113 Feature A — build one drop-in block from the design's data.
+      matcher: "/partners/designs/:designId/moodboard/blocks",
+      method: "POST",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // #1113 Feature B — construction catalog for the categorized picker.
+      matcher: "/partners/designs/:designId/construction-techniques",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // #1113 Feature B — list the design's construction details.
+      matcher: "/partners/designs/:designId/construction-details",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // #1113 Feature B — add a construction detail (author-scoped guard).
+      matcher: "/partners/designs/:designId/construction-details",
+      method: "POST",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // #1113 Feature B — delete a construction detail.
+      matcher: "/partners/designs/:designId/construction-details/:detailId",
+      method: "DELETE",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      // #1113 S3 — partner saves the moodboard scene edited on the canvas.
+      // Owner OR assigned designer (author-scoped guard in the route), scoped
+      // to just the `moodboard` column.
+      matcher: "/partners/designs/:designId/moodboard",
+      method: "PUT",
+      bodyParser: { sizeLimit: "20mb" },
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(SavePartnerMoodboardSchema)),
+      ],
     },
     {
       matcher: "/partners/designs/:designId/cost",

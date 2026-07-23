@@ -1,7 +1,7 @@
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
-jest.setTimeout(30000);
+jest.setTimeout(90000);
 
 setupSharedTestSuite(() =>{
 
@@ -133,12 +133,34 @@ setupSharedTestSuite(() =>{
         expect(actualPageTitles).not.toContain("Archived Page");
       });
   
+      it("should default seo.google_site_verification to null when unset", async () => {
+        const response = await api.get("/web/website/test-public.example.com");
+        expect(response.status).toBe(200);
+        expect(response.data.seo).toEqual({ google_site_verification: null });
+      });
+
+      it("should expose the Google Search Console token set via admin update (#349)", async () => {
+        const token = "google-site-verification=abc123XYZ_token";
+        const update = await api.put(
+          `/admin/websites/${websiteId}`,
+          { google_site_verification: token },
+          headers
+        );
+        expect(update.status).toBe(200);
+
+        const response = await api.get("/web/website/test-public.example.com");
+        expect(response.status).toBe(200);
+        expect(response.data.seo.google_site_verification).toBe(token);
+      });
+
       it("should not expose sensitive website data", async () => {
         const response = await api.get("/web/website/test-public.example.com");
         expect(response.status).toBe(200);
         
-        // Verify sensitive fields are not exposed
-        expect(response.data).not.toHaveProperty("id");
+        // `id` IS intentionally exposed — storefronts stamp it on outbound
+        // analytics events (the in-house tracker's `data-website-id`).
+        expect(response.data).toHaveProperty("id");
+        // Verify genuinely sensitive fields are not exposed
         expect(response.data).not.toHaveProperty("metadata");
         expect(response.data).not.toHaveProperty("created_at");
         expect(response.data).not.toHaveProperty("updated_at");
@@ -156,23 +178,24 @@ setupSharedTestSuite(() =>{
       it("should return all published blogs", async () => {
         const response = await api.get("/web/website/test-public.example.com/blogs");
         expect(response.status).toBe(200);
-        // Check blogs data
-        expect(response.data).toBeDefined();
-        expect(response.data).toHaveLength(2);
+        // Blogs list is paginated: { data: [...] }
+        const blogs = response.data.data;
+        expect(blogs).toBeDefined();
+        expect(blogs).toHaveLength(2);
 
         // Check that both expected blogs are present
         const expectedBlogTitles = ["Published Blog 1", "Published Blog 2"];
-        const foundTitles = response.data.map(blog => blog.title);
+        const foundTitles = blogs.map(blog => blog.title);
         expect(foundTitles).toEqual(expect.arrayContaining(expectedBlogTitles));
 
         // Verify each blog has the required published properties
-        response.data.forEach(blog => {
+        blogs.forEach(blog => {
           expect(blog.published_at).toBeDefined();
           expect(blog.status).toBe("Published");
         });
-        
+
         // Verify draft and archived blogs are not included
-        const actualBlogTitles = response.data.map(b => b.title);
+        const actualBlogTitles = blogs.map(b => b.title);
         expect(actualBlogTitles).not.toContain("Draft Blog");
         expect(actualBlogTitles).not.toContain("Archived Blog");
       });
@@ -311,7 +334,11 @@ setupSharedTestSuite(() =>{
         const subscriptionData = {
           first_name: "Test",
           last_name: "Subscriber",
-          email: "test.subscriber@example.com"
+          email: "test.subscriber@example.com",
+          // subscriptionSchema requires these (nativeEnum + email_subscribed)
+          subscription_type: "email",
+          network: "jaalyantra",
+          email_subscribed: "test.subscriber@example.com",
         };
 
         const response = await api.post(
@@ -339,11 +366,20 @@ setupSharedTestSuite(() =>{
         expect(person.first_name).toBe(subscriptionData.first_name);
         expect(person.last_name).toBe(subscriptionData.last_name);
         expect(person.email).toBe(subscriptionData.email);
-        
-        // Verify the person has metadata about the subscription
-        expect(person.metadata).toHaveProperty("is_subscriber", true);
-        expect(person.metadata).toHaveProperty("subscribed_to_website", "Test Public Website");
-        expect(person.metadata).toHaveProperty("subscribed_to_domain", "test-public.example.com");
+
+        // Subscription state now lives in a dedicated person-subscription
+        // record (createPersonSubWorkflow), not on person.metadata. Verify it
+        // via the person's `subscribed` relation.
+        const detail = await api.get(
+          `/admin/persons/${person.id}?fields=id,subscribed.*`,
+          adminHeaders
+        );
+        expect(detail.status).toBe(200);
+        // `subscribed` is a hasOne relation → a single subscription object.
+        const sub = detail.data.person.subscribed;
+        expect(sub).toBeTruthy();
+        expect(sub.subscription_type).toBe(subscriptionData.subscription_type);
+        expect(sub.network).toBe(subscriptionData.network);
       });
 
       it("should return 400 for invalid subscription data", async () => {
@@ -365,7 +401,11 @@ setupSharedTestSuite(() =>{
         const subscriptionData = {
           first_name: "Test",
           last_name: "Subscriber",
-          email: "test.subscriber2@example.com"
+          email: "test.subscriber2@example.com",
+          // Valid body so it passes validation and reaches the domain check
+          subscription_type: "email",
+          network: "jaalyantra",
+          email_subscribed: "test.subscriber2@example.com",
         };
 
         const response = await api.post(

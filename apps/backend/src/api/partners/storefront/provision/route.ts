@@ -5,8 +5,7 @@ import {
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../../helpers"
 import { provisionStorefrontWorkflow } from "../../../../workflows/stores/provision-storefront"
-import { DEPLOYMENT_MODULE } from "../../../../modules/deployment"
-import type DeploymentService from "../../../../modules/deployment/service"
+import { resolveHostingProviderForPartner } from "../../../../modules/deployment/providers/resolve-partner-provider"
 import updatePartnerWorkflow from "../../../../workflows/partners/update-partner"
 
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN || "cicilabel.com"
@@ -84,20 +83,28 @@ export const POST = async (
     )
   }
 
-  // Check if already provisioned — verify the project actually exists on Vercel
-  const existingProjectId =
-    partnerData.vercel_project_id || partnerData.metadata?.vercel_project_id
-  if (existingProjectId) {
+  // Check if already provisioned — verify the project actually exists on the
+  // partner's current hosting provider (provider-agnostic; #884 S3).
+  const existingProjectRef =
+    partnerData.deployment_project_id ||
+    partnerData.deployment_project_name ||
+    partnerData.vercel_project_id ||
+    partnerData.metadata?.vercel_project_id
+  if (existingProjectRef) {
     let projectExists = false
-    const deploymentSvc: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
-    if (deploymentSvc.isVercelConfigured()) {
-      try {
-        await deploymentSvc.getProject(existingProjectId)
+    try {
+      const { provider, projectRef } = await resolveHostingProviderForPartner(
+        partnerData,
+        req.scope
+      )
+      if (projectRef) {
+        await provider.getProject(projectRef)
         projectExists = true
-      } catch {
-        // Project doesn't exist on Vercel (404) — clear stale refs and allow re-provisioning
-        projectExists = false
       }
+    } catch {
+      // Project doesn't exist on the provider (404) or creds missing —
+      // clear stale refs and allow re-provisioning.
+      projectExists = false
     }
 
     if (projectExists) {
@@ -119,6 +126,10 @@ export const POST = async (
       input: {
         id: partner.id,
         data: {
+          hosting_provider: null,
+          deployment_account_id: null,
+          deployment_project_id: null,
+          deployment_project_name: null,
           vercel_project_id: null,
           vercel_project_name: null,
           vercel_last_deployment_id: null,
@@ -128,6 +139,8 @@ export const POST = async (
       },
     })
     partnerData.metadata = cleanMeta
+    partnerData.deployment_project_id = null
+    partnerData.deployment_project_name = null
     partnerData.vercel_project_id = null
     partnerData.vercel_project_name = null
   }
@@ -191,6 +204,9 @@ export const POST = async (
       stripe_publishable_key: STRIPE_PUBLISHABLE_KEY,
       s3_hostname: s3Config.hostname,
       s3_pathname: s3Config.pathname,
+      // Partner-pinned provider wins; else the workflow rotates from the default
+      // (DEFAULT_HOSTING_PROVIDER env, or Cloudflare Pages).
+      preferred_provider: partnerData.hosting_provider || undefined,
     },
   })
 

@@ -1,5 +1,6 @@
-import { PencilSquare, Trash } from "@medusajs/icons"
+import { Link as LinkIcon, PencilSquare, Trash } from "@medusajs/icons"
 import { Button, Container, Heading, toast, usePrompt } from "@medusajs/ui"
+import copy from "copy-to-clipboard"
 import { keepPreviousData } from "@tanstack/react-query"
 import { createColumnHelper } from "@tanstack/react-table"
 import { useMemo } from "react"
@@ -11,6 +12,7 @@ import { ActionMenu } from "../../../../../components/common/action-menu"
 import { _DataTable } from "../../../../../components/table/data-table"
 import {
   useDeleteProduct,
+  useProductPreviewLink,
   useProducts,
 } from "../../../../../hooks/api/products"
 import { usePartnerStores } from "../../../../../hooks/api/partner-stores"
@@ -121,6 +123,29 @@ const ProductActions = ({ product }: { product: HttpTypes.AdminProduct }) => {
   const { t } = useTranslation()
   const prompt = usePrompt()
   const { mutateAsync } = useDeleteProduct(product.id)
+  const { mutateAsync: getPreviewLink, isPending: isPreviewPending } =
+    useProductPreviewLink(product.id)
+
+  const handleSharePreview = async () => {
+    try {
+      const { url } = await getPreviewLink()
+      // `copy-to-clipboard` is synchronous (execCommand) so it works even though
+      // we're past the original click's user-gesture window (async fetch above),
+      // which navigator.clipboard.writeText rejects on Safari/WebKit.
+      const copied = copy(url)
+      if (copied) {
+        toast.success("Private preview link copied", {
+          description: "A shareable, non-discoverable link is on your clipboard.",
+        })
+      } else {
+        toast.info("Private preview link", { description: url })
+      }
+    } catch (e) {
+      toast.error("Couldn't create preview link", {
+        description: e instanceof Error ? e.message : String(e),
+      })
+    }
+  }
 
   const handleDelete = async () => {
     const res = await prompt({
@@ -161,6 +186,12 @@ const ProductActions = ({ product }: { product: HttpTypes.AdminProduct }) => {
               icon: <PencilSquare />,
               label: t("actions.edit"),
               to: `/products/${product.id}/edit`,
+            },
+            {
+              icon: <LinkIcon />,
+              label: "Share private preview",
+              onClick: handleSharePreview,
+              disabled: isPreviewPending,
             },
           ],
         },

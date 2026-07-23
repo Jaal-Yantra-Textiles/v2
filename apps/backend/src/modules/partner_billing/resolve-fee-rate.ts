@@ -23,6 +23,50 @@ import { PARTNER_ONBOARDING_PROFILE_MODULE } from "../partner-onboarding-profile
 /** Platform default commission when no env value is configured: 2.00% (#336 locked). */
 export const PLATFORM_DEFAULT_FEE_BPS = 200
 
+/** Retail-split defaults: 2% payment gateway + 15% platform commission. */
+export const PLATFORM_DEFAULT_GATEWAY_BPS = 200
+export const PLATFORM_DEFAULT_COMMISSION_BPS = 1500
+
+export type ResolvedRetailFeeRates = {
+  /** Payment-gateway component, basis points (200 = 2.00%). */
+  gateway_bps: number
+  /** Platform-commission component, basis points (1500 = 15.00%). */
+  commission_bps: number
+}
+
+/**
+ * Resolve the retail order fee components for a partner.
+ *
+ * - Gateway: `PLATFORM_GATEWAY_FEE_BPS` env → default 200 (2%). Fixed platform
+ *   cost, not partner-negotiable.
+ * - Commission: the partner's onboarding `commission_bps` override →
+ *   `PLATFORM_COMMISSION_FEE_BPS` env → default 1500 (15%).
+ *
+ * Best-effort: override lookup never throws (see
+ * `resolvePartnerCommissionOverrideBps`).
+ */
+export async function resolveRetailFeeRates(
+  container: any,
+  opts: ResolvePartnerFeeRateOpts = {}
+): Promise<ResolvedRetailFeeRates> {
+  const gateway_bps = parsePlatformFeeBps(
+    process.env.PLATFORM_GATEWAY_FEE_BPS,
+    PLATFORM_DEFAULT_GATEWAY_BPS
+  )
+  const overrideBps = await resolvePartnerCommissionOverrideBps(
+    container,
+    opts.partnerId
+  )
+  const commission_bps =
+    overrideBps != null && Number.isFinite(Number(overrideBps)) && overrideBps >= 0
+      ? Math.trunc(overrideBps)
+      : parsePlatformFeeBps(
+          process.env.PLATFORM_COMMISSION_FEE_BPS,
+          PLATFORM_DEFAULT_COMMISSION_BPS
+        )
+  return { gateway_bps, commission_bps }
+}
+
 export type ResolvedFeeRate = {
   fee_basis: FeeBasis
   /** For percentage basis: basis points (200 = 2.00%). */

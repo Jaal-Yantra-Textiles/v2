@@ -1767,6 +1767,156 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/create-person.ts"
   },
+  "create-crm-opportunity": {
+    "fields": [
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.title }}"
+      },
+      {
+        "name": "stage",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.stage }}"
+      },
+      {
+        "name": "amount",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.amount }}"
+      },
+      {
+        "name": "currency",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.currency }}"
+      },
+      {
+        "name": "expected_close_date",
+        "type": "date",
+        "required": false,
+        "placeholder": "{{ $trigger.expected_close_date }}"
+      },
+      {
+        "name": "company_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.company_id }}"
+      },
+      {
+        "name": "owner_person_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.owner_person_id }}"
+      },
+      {
+        "name": "metadata",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/crm/create-opportunity.ts"
+  },
+  "create-crm-task": {
+    "fields": [
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.title }}"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.description }}"
+      },
+      {
+        "name": "due_date",
+        "type": "date",
+        "required": false,
+        "placeholder": "{{ $trigger.due_date }}"
+      },
+      {
+        "name": "status",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.status }}"
+      },
+      {
+        "name": "priority",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.priority }}"
+      },
+      {
+        "name": "assignee_person_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.assignee_person_id }}"
+      },
+      {
+        "name": "related_type",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.related_type }}"
+      },
+      {
+        "name": "related_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.related_id }}"
+      },
+      {
+        "name": "metadata",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/crm/create-task.ts"
+  },
+  "log-crm-note": {
+    "fields": [
+      {
+        "name": "body",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.body }}"
+      },
+      {
+        "name": "author",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.author }}"
+      },
+      {
+        "name": "related_type",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.related_type }}"
+      },
+      {
+        "name": "related_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.related_id }}"
+      },
+      {
+        "name": "metadata",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/crm/log-note.ts"
+  },
   "delete-person": {
     "fields": [
       {
@@ -2088,6 +2238,27 @@
         "type": "array",
         "required": false,
         "placeholder": "{{ $last.inventory_item_ids }}"
+      },
+      {
+        "name": "production_cost_override",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.production_cost_override }}",
+        "description": "Per-material commission (line cost × platform_fee_percent). Set when a fee applies. */ commission?: number; }; type EstimateCostInput = { design_id: string; inventory_item_ids?: string[]; /** Partner-entered production cost per finished unit. When provided it is the authoritative production figure — it overrides every derived estimate (including the DEFAULT_PRODUCTION_PERCENT fallback). Partner recalc route."
+      },
+      {
+        "name": "platform_fee_percent",
+        "type": "number",
+        "required": false,
+        "placeholder": "0",
+        "description": "Per-material commission (line cost × platform_fee_percent). Set when a fee applies. */ commission?: number; }; type EstimateCostInput = { design_id: string; inventory_item_ids?: string[]; /** Partner-entered production cost per finished unit. When provided it is the authoritative production figure — it overrides every derived estimate (including the DEFAULT_PRODUCTION_PERCENT fallback). Partner recalc route. / production_cost_override?: number | null; /** JYT platform commission as a percentage of material cost. Opt-in per caller — defaults to 0 so store/admin/draft-order flows are unaffected; only the partner recalc route passes DEFAULT_PLATFORM_FEE_PERCENT."
+      },
+      {
+        "name": "default_material_cost",
+        "type": "number",
+        "required": false,
+        "placeholder": "0",
+        "description": "Per-material commission (line cost × platform_fee_percent). Set when a fee applies. */ commission?: number; }; type EstimateCostInput = { design_id: string; inventory_item_ids?: string[]; /** Partner-entered production cost per finished unit. When provided it is the authoritative production figure — it overrides every derived estimate (including the DEFAULT_PRODUCTION_PERCENT fallback). Partner recalc route. / production_cost_override?: number | null; /** JYT platform commission as a percentage of material cost. Opt-in per caller — defaults to 0 so store/admin/draft-order flows are unaffected; only the partner recalc route passes DEFAULT_PLATFORM_FEE_PERCENT. / platform_fee_percent?: number; /** Fallback per-unit cost for a material with no resolved cost. Opt-in per caller — defaults to 0 (off) so store/admin/draft-order flows are unaffected; the partner recalc route passes DEFAULT_MATERIAL_COST."
       }
     ],
     "source": "custom_ts",
@@ -3795,6 +3966,157 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/inventory_orders/update-inventory-order.ts"
   },
+  "create-investor-admin": {
+    "fields": [
+      {
+        "name": "authIdentityId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.authIdentityId }}"
+      },
+      {
+        "name": "tempPassword",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.tempPassword }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/investor/create-investor-admin.ts"
+  },
+  "reset-investor-admin-password": {
+    "fields": [
+      {
+        "name": "authIdentityId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.authIdentityId }}"
+      },
+      {
+        "name": "tempPassword",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.tempPassword }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/investor/create-investor-admin.ts"
+  },
+  "create-investor-admin-with-registration": {
+    "fields": [
+      {
+        "name": "authIdentityId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.authIdentityId }}"
+      },
+      {
+        "name": "tempPassword",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.tempPassword }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/investor/create-investor-admin.ts"
+  },
+  "generate-investor-agreement": {
+    "fields": [
+      {
+        "name": "investor_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.investor_id }}"
+      },
+      {
+        "name": "funding_round_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.funding_round_id }}"
+      },
+      {
+        "name": "cap_table_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.cap_table_id }}"
+      },
+      {
+        "name": "instrument_group",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.instrument_group }}"
+      },
+      {
+        "name": "instrument_label",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.instrument_label }}",
+        "description": "Human label surfaced in the email/agreement (e.g. \"SAFE\")."
+      },
+      {
+        "name": "amount",
+        "type": "number",
+        "required": true,
+        "placeholder": "0"
+      },
+      {
+        "name": "currency_code",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.currency_code }}"
+      },
+      {
+        "name": "number_of_shares",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.number_of_shares }}"
+      },
+      {
+        "name": "share_price",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.share_price }}"
+      },
+      {
+        "name": "principal",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.principal }}"
+      },
+      {
+        "name": "valuation_cap",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.valuation_cap }}"
+      },
+      {
+        "name": "discount_rate",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.discount_rate }}"
+      },
+      {
+        "name": "safe_type",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.safe_type }}"
+      },
+      {
+        "name": "stake_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.stake_id }}"
+      },
+      {
+        "name": "convertible_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.convertible_id }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/investor/generate-investor-agreement.ts"
+  },
   "generate-ideas-email": {
     "fields": [
       {
@@ -4551,6 +4873,18 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/orders/list-partner-orders.ts"
   },
+  "sync-order-shipment-tracking": {
+    "fields": [
+      {
+        "name": "tracking",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.tracking }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/orders/sync-order-shipment-tracking.ts"
+  },
   "associate-partner-person-types": {
     "fields": [
       {
@@ -4709,7 +5043,7 @@
         "type": "id",
         "required": false,
         "placeholder": "{{ $last.vercel_project_id }}",
-        "description": "Roadmap #17 (issue #346) — a partner's custom domain should work in both its www and apex forms. The submitted host is the canonical one; the counterpart is attached to the same Vercel project as a permanent redirect, and BOTH are registered as `website_domain` aliases so the storefront's host-based website lookup resolves either form (the gap that left sharlho.com showing the generic \"Store\" template). / export type DomainPair = { /** The host the partner asked for — canonical, serves traffic. */ primary: string /** The www/apex twin — redirects to primary. Null for deeper subdomains. */ counterpart: string | null } /** apex → www twin; www → apex twin; anything deeper (shop.example.com) has no twin. Assumes an already-cleaned lowercase host. / export function deriveDomainPair(domain: string): DomainPair { const parts = domain.split(\".\") if (parts[0] === \"www\" && parts.length === 3) { return { primary: domain, counterpart: parts.slice(1).join(\".\") } } if (parts.length === 2) { return { primary: domain, counterpart: `www.${domain}` } } return { primary: domain, counterpart: null } } export type AttachStorefrontDomainInput = { partner_id: string /** @deprecated kept for callers; the provider + project ref are now resolved from the partner."
+        "description": "Roadmap #17 (issue #346) — a partner's custom domain should work in both its www and apex forms. The submitted host is the canonical one; the counterpart is attached to the same Vercel project as a permanent redirect, and BOTH are registered as `website_domain` aliases so the storefront's host-based website lookup resolves either form (the gap that left sharlho.com showing the generic \"Store\" template). / export type DomainPair = { /** The host the partner asked for — canonical, serves traffic. */ primary: string /** The www/apex twin — redirects to primary. Null for deeper subdomains. */ counterpart: string | null } /** apex → www twin; www → apex twin; anything deeper (shop.example.com) has no twin. Assumes an already-cleaned lowercase host. / export function deriveDomainPair(domain: string): DomainPair { const parts = domain.split(\".\") if (parts[0] === \"www\" && parts.length === 3) { return { primary: domain, counterpart: parts.slice(1).join(\".\") } } if (parts.length === 2) { return { primary: domain, counterpart: `www.${domain}` } } return { primary: domain, counterpart: null } } /** Read a partner's connected custom domain. Prefers the typed `custom_domain` column; falls back to the legacy `metadata.custom_domain` so a reader that runs during the deploy window (migration done, old rows) still resolves. / export function partnerCustomDomain(partner: any): string | undefined { const col = partner?.custom_domain if (typeof col === \"string\" && col) return col const meta = partner?.metadata?.custom_domain return typeof meta === \"string\" && meta ? meta : undefined } export function partnerCustomDomainVerified(partner: any): boolean { if (partner?.custom_domain_verified === true) return true // Only trust the legacy metadata flag when the column hasn't taken over yet. if (partner?.custom_domain) return partner.custom_domain_verified === true return partner?.metadata?.custom_domain_verified === true } export type AttachStorefrontDomainInput = { partner_id: string /** @deprecated kept for callers; the provider + project ref are now resolved from the partner."
       },
       {
         "name": "website_id",
@@ -4722,12 +5056,6 @@
         "type": "string",
         "required": true,
         "placeholder": "{{ $last.domain }}"
-      },
-      {
-        "name": "prev_metadata",
-        "type": "object",
-        "required": true,
-        "placeholder": "{}"
       }
     ],
     "source": "custom_ts",
@@ -5453,12 +5781,30 @@
     "source": "inferred",
     "sourceFile": "src/workflows/production-runs/complete-production-run.ts"
   },
+  "complete-provenance-run": {
+    "fields": [
+      {
+        "name": "production_run_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.production_run_id }}"
+      },
+      {
+        "name": "produced_quantity",
+        "type": "number",
+        "required": false,
+        "placeholder": "0"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/production-runs/complete-provenance-run.ts"
+  },
   "create-production-run": {
     "fields": [
       {
         "name": "design_id",
         "type": "id",
-        "required": true,
+        "required": false,
         "placeholder": "{{ $last.design_id }}"
       },
       {
@@ -5469,6 +5815,12 @@
       },
       {
         "name": "quantity",
+        "type": "number",
+        "required": false,
+        "placeholder": "0"
+      },
+      {
+        "name": "produced_quantity",
         "type": "number",
         "required": false,
         "placeholder": "0"
@@ -5537,44 +5889,6 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/production-runs/create-production-run.ts"
   },
-  "decline-production-run": {
-    "fields": [
-      {
-        "name": "production_run_id",
-        "type": "id",
-        "required": true,
-        "placeholder": "{{ $last.production_run_id }}"
-      },
-      {
-        "name": "partner_id",
-        "type": "id",
-        "required": true,
-        "placeholder": "{{ $last.partner_id }}"
-      },
-      {
-        "name": "composed_reason",
-        "type": "string",
-        "required": true,
-        "placeholder": "{{ $last.composed_reason }}",
-        "description": "Pre-composed, attribution-prefixed cancellation reason."
-      },
-      {
-        "name": "reason",
-        "type": "string",
-        "required": true,
-        "placeholder": "{{ $last.reason }}",
-        "description": "Pre-composed, attribution-prefixed cancellation reason. */ composed_reason: string /** Raw reason code + notes for the emitted events."
-      },
-      {
-        "name": "notes",
-        "type": "string",
-        "required": false,
-        "placeholder": "{{ $last.notes }}"
-      }
-    ],
-    "source": "custom_ts",
-    "sourceFile": "src/workflows/production-runs/decline-production-run.ts"
-  },
   "emit-production-run-reminder": {
     "fields": [
       {
@@ -5640,6 +5954,51 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/production-runs/production-run-steps.ts"
+  },
+  "reassign-production-run": {
+    "fields": [
+      {
+        "name": "production_run_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.production_run_id }}"
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.reason }}",
+        "description": "#1093 — move a run into the admin reassignment queue. Triggered when the assigned partner never accepted (2 reminders sent, then capped) or explicitly declined. The run is NOT cancelled — the work still needs doing — it is unassigned and parked in `awaiting_reassignment` so an admin can re-dispatch it to a new partner (reuses dispatch-production-run). Deliberately does NOT mirror the order as cancelled (unlike the old decline path): the customer's order is unaffected by one partner stepping away. / export type ReassignSource = \"reminder_cap\" | \"decline\" export type ReassignProductionRunInput = { production_run_id: string /** Raw reason code (e.g. decline reason, or \"reminder_cap\")."
+      },
+      {
+        "name": "source",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.source }}"
+      },
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.partner_id }}",
+        "description": "#1093 — move a run into the admin reassignment queue. Triggered when the assigned partner never accepted (2 reminders sent, then capped) or explicitly declined. The run is NOT cancelled — the work still needs doing — it is unassigned and parked in `awaiting_reassignment` so an admin can re-dispatch it to a new partner (reuses dispatch-production-run). Deliberately does NOT mirror the order as cancelled (unlike the old decline path): the customer's order is unaffected by one partner stepping away. / export type ReassignSource = \"reminder_cap\" | \"decline\" export type ReassignProductionRunInput = { production_run_id: string /** Raw reason code (e.g. decline reason, or \"reminder_cap\"). */ reason: string source: ReassignSource /** The partner being unassigned (for the emitted events / audit)."
+      },
+      {
+        "name": "composed_reason",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.composed_reason }}",
+        "description": "#1093 — move a run into the admin reassignment queue. Triggered when the assigned partner never accepted (2 reminders sent, then capped) or explicitly declined. The run is NOT cancelled — the work still needs doing — it is unassigned and parked in `awaiting_reassignment` so an admin can re-dispatch it to a new partner (reuses dispatch-production-run). Deliberately does NOT mirror the order as cancelled (unlike the old decline path): the customer's order is unaffected by one partner stepping away. / export type ReassignSource = \"reminder_cap\" | \"decline\" export type ReassignProductionRunInput = { production_run_id: string /** Raw reason code (e.g. decline reason, or \"reminder_cap\"). */ reason: string source: ReassignSource /** The partner being unassigned (for the emitted events / audit). */ partner_id?: string | null /** Attribution-prefixed reason string stored on the run for the admin feed."
+      },
+      {
+        "name": "notes",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.notes }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/production-runs/reassign-production-run.ts"
   },
   "recreate-production-run": {
     "fields": [
@@ -5820,6 +6179,42 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/products/link-unlink-products-with-people.ts"
+  },
+  "upsert-artisan-product-detail": {
+    "fields": [
+      {
+        "name": "made_to_order",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false"
+      },
+      {
+        "name": "lead_time_days",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.lead_time_days }}"
+      },
+      {
+        "name": "lead_time_label",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.lead_time_label }}"
+      },
+      {
+        "name": "min_order_quantity",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.min_order_quantity }}"
+      },
+      {
+        "name": "maker_story",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.maker_story }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/products/upsert-artisan-product-detail.ts"
   },
   "create-raw-material": {
     "fields": [
@@ -6636,6 +7031,13 @@
         "type": "string",
         "required": true,
         "placeholder": "{{ $last.s3_pathname }}"
+      },
+      {
+        "name": "preferred_provider",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.preferred_provider }}",
+        "description": "Preferred hosting provider for this NEW storefront. Defaults to DEFAULT_HOSTING_PROVIDER env (or \"vercel\"). The selector rotates across that provider's accounts, spills to other providers, then falls back to the legacy env-single-account path. Default is \"vercel\" (not \"cloudflare\"): Vercel handles custom domains — including bare apex — natively (A @ → 76.76.21.21) on any DNS provider, with auto TLS, so it \"just works\" for every partner. The Cloudflare Workers tier is deferred (its SaaS custom-hostname path can't serve a bare apex without Enterprise apex-proxying); re-enable it later by setting DEFAULT_HOSTING_PROVIDER=cloudflare and reactivating the CF account."
       }
     ],
     "source": "custom_ts",
@@ -7250,6 +7652,12 @@
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.analytics_custom_body_end }}"
+      },
+      {
+        "name": "google_site_verification",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.google_site_verification }}"
       },
       {
         "name": "theme",

@@ -9,8 +9,19 @@ const daysAgo = (d: number) =>
   new Date(NOW.getTime() - d * 24 * 60 * 60 * 1000).toISOString()
 
 describe("classifier — classifyEngagement", () => {
-  it("unknown when too little data (< minDataDelivered)", () => {
+  it("unknown when too little data (< minDataDelivered) AND no opens", () => {
     expect(classifyEngagement({ delivered_count: 2, opens_count: 0 }, { now: NOW }).status).toBe("unknown")
+  })
+
+  it("engaged (not unknown) when opened, even with thin/zero delivered count", () => {
+    // An open proves delivery + interest — e.g. Mailjet reports opens but no
+    // `sent` events, so delivered_count stays low. Must not fall to `unknown`.
+    const c = classifyEngagement(
+      { delivered_count: 0, opens_count: 1, delivered_since_last_open: 0 },
+      { now: NOW }
+    )
+    expect(c.status).toBe("engaged")
+    expect(c.bulk_suppressed).toBe(false)
   })
 
   it("engaged when recently opened (short cold streak)", () => {
@@ -47,6 +58,34 @@ describe("classifier — classifyEngagement", () => {
     )
     expect(c.status).toBe("cooling") // flagged, but not suppressed
     expect(c.bulk_suppressed).toBe(false)
+  })
+
+  it("cooling via time-based fallback: opener with NO delivery cold streak but a stale last open", () => {
+    // Provider reports opens but not `delivered` (cold streak can't accrue).
+    // The stale last_open_at (>= coolingIdleDays) must still tip to cooling so
+    // the newsletter win-back audience isn't permanently empty.
+    const c = classifyEngagement(
+      { delivered_count: 0, opens_count: 3, delivered_since_last_open: 0, last_open_at: daysAgo(40) },
+      { now: NOW }
+    )
+    expect(c.status).toBe("cooling")
+    expect(c.bulk_suppressed).toBe(false)
+  })
+
+  it("engaged (not cooling) when the last open is recent, even with no cold streak", () => {
+    const c = classifyEngagement(
+      { delivered_count: 0, opens_count: 3, delivered_since_last_open: 0, last_open_at: daysAgo(5) },
+      { now: NOW }
+    )
+    expect(c.status).toBe("engaged")
+  })
+
+  it("clicker with no last_open_at is not mis-flagged as cooling", () => {
+    const c = classifyEngagement(
+      { delivered_count: 0, opens_count: 0, clicks_count: 2, delivered_since_last_open: 0 },
+      { now: NOW }
+    )
+    expect(c.status).toBe("engaged")
   })
 
   it("never_opened when opens=0 but not yet enough deliveries/time for dormant", () => {

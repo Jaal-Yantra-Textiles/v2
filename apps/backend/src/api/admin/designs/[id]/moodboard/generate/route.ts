@@ -1,11 +1,14 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { MedusaError } from "@medusajs/framework/utils"
 import updateDesignWorkflow from "../../../../../../workflows/designs/update-design"
 import { buildMoodboardScene } from "../../../../../../workflows/designs/moodboard/build-moodboard-scene"
 import {
+  loadDesignForMoodboard,
+  REFRESH_SCENE_OPTS,
+} from "../../../../../../workflows/designs/moodboard/seed-design-moodboard"
+import {
   assessTechPackCompleteness,
   buildTechPackInputFromDesign,
-  type DesignForTechPack,
 } from "../../../../../../workflows/designs/moodboard/techpack-input-from-design"
 
 /**
@@ -19,40 +22,12 @@ import {
  * This REPLACES any existing moodboard — it's a seed/regenerate action, not a merge.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const designId = req.params.id
 
-  const { data } = await query.graph({
-    entity: "designs",
-    filters: { id: designId },
-    fields: [
-      "id",
-      "name",
-      "design_type",
-      "metadata",
-      "thumbnail_url",
-      "color_palette",
-      "size_sets.size_label",
-      "size_sets.measurements",
-      "specifications.title",
-      "specifications.category",
-      "specifications.details",
-      "specifications.special_instructions",
-      "specifications.metadata",
-    ],
-  })
+  // Shared loader → design columns + pinned material groups (#1113 parity).
+  const design = await loadDesignForMoodboard(req.scope, designId)
 
-  const design = data?.[0]
-  if (!design) {
-    throw new MedusaError(
-      MedusaError.Types.NOT_FOUND,
-      `Design ${designId} not found`
-    )
-  }
-
-  const input = buildTechPackInputFromDesign(
-    design as unknown as DesignForTechPack
-  )
+  const input = buildTechPackInputFromDesign(design)
 
   // Don't generate a hollow tech-pack: a design needs measurements + at least one
   // construction detail before a scene is worth building (#892).
@@ -66,7 +41,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     )
   }
 
-  const scene = buildMoodboardScene(input)
+  // Index the board + include the Design Specs / Materials reference frames, but
+  // not the workspace scaffold (this is a replace/regenerate, not a first seed).
+  const scene = buildMoodboardScene(input, REFRESH_SCENE_OPTS)
 
   const { errors } = await updateDesignWorkflow(req.scope).run({
     input: { id: designId, moodboard: scene } as any,

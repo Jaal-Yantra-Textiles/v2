@@ -9,14 +9,14 @@ import { OperationDefinition, OperationContext, OperationResult } from "./types"
 //             + artisans   × per_artisan_monthly × months
 // Conservative, defensible run-rate framing — not an aspirational ceiling.
 const PROJECTION_PER_BRAND_MONTHLY: Record<string, number> = {
-  INR: 100_000,
-  USD: 1_200,
-  EUR: 1_100,
+  INR: 2_000,
+  USD: 24,
+  EUR: 22,
 }
 const PROJECTION_PER_ARTISAN_MONTHLY: Record<string, number> = {
-  INR: 5_000,
-  USD: 60,
-  EUR: 55,
+  INR: 100,
+  USD: 1,
+  EUR: 1,
 }
 
 // Platform's own marketing hosts — excluded from brands_live so the number

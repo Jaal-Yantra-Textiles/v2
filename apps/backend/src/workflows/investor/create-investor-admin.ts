@@ -106,26 +106,151 @@ export type CreateInvestorAdminWithRegistrationInput = Omit<
   "authIdentityId"
 >
 
+const hashPassword = async (plain: string) => {
+  const hashConfig = { logN: 15, r: 8, p: 1 }
+  const hashed = await Scrypt.kdf(Buffer.from(plain), hashConfig)
+  return hashed.toString("base64")
+}
+
+// Find the existing emailpass provider identity for an email (Medusa v2 keys it by
+// entity_id = email). Returns undefined if this email has never authenticated.
+const findEmailpassIdentity = async (
+  authModule: IAuthModuleService,
+  email: string
+) => {
+  const identities = await authModule.listProviderIdentities({
+    entity_id: email,
+  } as any)
+  return (identities || []).find((pi: any) => pi.provider === "emailpass")
+}
+
+// The register step either resets an existing emailpass identity or creates a
+// new one; each path compensates differently, so its compensation payload is a
+// discriminated union. Pin both StepResponse generics to these explicit types
+// so TS unifies the two return branches (otherwise the invoke fn's inferred
+// type collapses and every downstream `.authIdentityId` reference breaks).
+type RegisterAuthOutput = {
+  // Always resolved: `reg.id` on create, the existing identity's
+  // `auth_identity_id` on reset (a provider identity always has one).
+  authIdentityId: string
+  tempPassword: string
+  reused: boolean
+}
+type RegisterAuthCompensate =
+  | {
+      mode: "reset"
+      providerIdentityId: string
+      previousProviderMetadata: Record<string, unknown>
+    }
+  | { mode: "create"; authIdentityId: string }
+
 const registerInvestorAdminAuthStep = createStep(
   "register-investor-admin-auth-step",
   async (input: { email: string; tempPassword?: string }, { container }) => {
-    const hashConfig = { logN: 15, r: 8, p: 1 }
     const plainPassword = input.tempPassword || randomBytes(12).toString("base64")
-    const hashed = await Scrypt.kdf(Buffer.from(plainPassword), hashConfig)
+    const passwordHash = await hashPassword(plainPassword)
 
     const authModule = container.resolve(Modules.AUTH) as IAuthModuleService
+
+    // If an emailpass identity already exists for this email (e.g. the person is
+    // already a partner/user, or a prior invite half-completed), don't fail with
+    // "auth already exists" — regenerate its password so this invite doubles as a
+    // password reset. setAuthAppMetadataStep then adds the investor actor mapping
+    // (it's keyed per actor type, so any existing partner/user mapping is kept).
+    const existing = await findEmailpassIdentity(authModule, input.email)
+    if (existing) {
+      const previousProviderMetadata = existing.provider_metadata || {}
+      await authModule.updateProviderIdentities({
+        id: existing.id,
+        provider_metadata: { ...previousProviderMetadata, password: passwordHash },
+      } as any)
+      return new StepResponse<RegisterAuthOutput, RegisterAuthCompensate>(
+        {
+          // A provider identity always carries its auth_identity_id.
+          authIdentityId: existing.auth_identity_id as string,
+          tempPassword: plainPassword,
+          reused: true,
+        },
+        {
+          mode: "reset",
+          providerIdentityId: existing.id,
+          previousProviderMetadata,
+        }
+      )
+    }
+
     const reg = await authModule.createAuthIdentities({
       provider_identities: [
         {
           provider: "emailpass",
           entity_id: input.email,
-          provider_metadata: {
-            password: hashed.toString("base64"),
-          },
+          provider_metadata: { password: passwordHash },
         },
       ],
     })
-    return new StepResponse({ authIdentityId: reg.id, tempPassword: plainPassword })
+    return new StepResponse<RegisterAuthOutput, RegisterAuthCompensate>(
+      { authIdentityId: reg.id, tempPassword: plainPassword, reused: false },
+      { mode: "create", authIdentityId: reg.id }
+    )
+  },
+  async (rollback: RegisterAuthCompensate | undefined, { container }) => {
+    if (!rollback) return
+    const authModule = container.resolve(Modules.AUTH) as IAuthModuleService
+    if (rollback.mode === "reset" && rollback.providerIdentityId) {
+      // Restore the previous password (don't delete an identity we didn't create).
+      await authModule.updateProviderIdentities({
+        id: rollback.providerIdentityId,
+        provider_metadata: rollback.previousProviderMetadata,
+      } as any)
+    } else if (rollback.mode === "create" && rollback.authIdentityId) {
+      await authModule.deleteAuthIdentities([rollback.authIdentityId])
+    }
+  }
+)
+
+// Reset (regenerate) an existing investor's emailpass password — used by the
+// admin re-invite path when the investor already exists in the system.
+export const resetInvestorAdminAuthStep = createStep(
+  "reset-investor-admin-auth-step",
+  async (input: { email: string; tempPassword?: string }, { container }) => {
+    const authModule = container.resolve(Modules.AUTH) as IAuthModuleService
+    const existing = await findEmailpassIdentity(authModule, input.email)
+    if (!existing) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `No emailpass auth identity found for ${input.email}`
+      )
+    }
+
+    const plainPassword = input.tempPassword || randomBytes(12).toString("base64")
+    const passwordHash = await hashPassword(plainPassword)
+    const previousProviderMetadata = existing.provider_metadata || {}
+
+    await authModule.updateProviderIdentities({
+      id: existing.id,
+      provider_metadata: { ...previousProviderMetadata, password: passwordHash },
+    } as any)
+
+    return new StepResponse(
+      { authIdentityId: existing.auth_identity_id, tempPassword: plainPassword },
+      { providerIdentityId: existing.id, previousProviderMetadata }
+    )
+  },
+  async (rollback, { container }) => {
+    if (!rollback?.providerIdentityId) return
+    const authModule = container.resolve(Modules.AUTH) as IAuthModuleService
+    await authModule.updateProviderIdentities({
+      id: rollback.providerIdentityId,
+      provider_metadata: rollback.previousProviderMetadata,
+    } as any)
+  }
+)
+
+export const resetInvestorAdminPasswordWorkflow = createWorkflow(
+  "reset-investor-admin-password",
+  (input: { email: string; tempPassword?: string }) => {
+    const reset = resetInvestorAdminAuthStep(input)
+    return new WorkflowResponse(reset)
   }
 )
 

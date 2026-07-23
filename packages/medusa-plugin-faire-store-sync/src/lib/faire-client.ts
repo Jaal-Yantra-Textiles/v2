@@ -498,8 +498,13 @@ export class FaireClient {
           data.results ??
           []
         ).map((t: any) => ({ id: String(t.id), name: String(t.name ?? "") }))
-      } catch {
-        this.taxonomyTypesCache = []
+      } catch (err: any) {
+        // Don't cache the failure — a transient/auth error shouldn't blank the
+        // picker for the rest of the process lifetime. Surface it so an empty
+        // list is diagnosable (e.g. a 401 from an un-decrypted token).
+        // eslint-disable-next-line no-console
+        console.warn("[faire-sync] getTaxonomyTypes failed:", err?.message)
+        return []
       }
     }
     return this.taxonomyTypesCache ?? []

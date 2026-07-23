@@ -108,6 +108,7 @@ export const ComplianceSection = ({
             {
               actions: [
                 { icon: <PencilSquare />, label: "Edit details", to: "edit-details" },
+                { icon: <PencilSquare />, label: "Edit investor profile", to: "edit-investor-profile" },
                 { icon: <DocumentText />, label: "Add document", to: "add-document" },
               ],
             },

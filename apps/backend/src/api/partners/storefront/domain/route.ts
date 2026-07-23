@@ -12,6 +12,8 @@ import updatePartnerWorkflow from "../../../../workflows/partners/update-partner
 import {
   attachStorefrontDomainWorkflow,
   deriveDomainPair,
+  partnerCustomDomain,
+  partnerCustomDomainVerified,
 } from "../../../../workflows/partners/attach-storefront-domain"
 
 /**
@@ -42,27 +44,33 @@ export const GET = async (
     )
   }
 
-  const customDomain = partner.metadata?.custom_domain as string | undefined
+  const customDomain = partnerCustomDomain(partner)
   if (!customDomain) {
     return res.json({ configured: false })
   }
 
   const pair = deriveDomainPair(customDomain)
+  const verified = partnerCustomDomainVerified(partner)
 
   try {
     const primary = await provider.describeDomain(projectRef, pair.primary)
     const records = [...primary.dnsRecords]
+    let verification = primary.verification ?? null
     if (pair.counterpart) {
       const twin = await provider.describeDomain(projectRef, pair.counterpart)
       records.push(...twin.dnsRecords)
+      if ((!verification || !verification.length) && twin.verification?.length) {
+        verification = twin.verification
+      }
     }
     return res.json({
       configured: true,
       domain: customDomain,
       redirect_from: pair.counterpart,
-      verified: partner.metadata?.custom_domain_verified === true,
+      verified,
       misconfigured: primary.misconfigured,
       configured_by: primary.configuredBy ?? null,
+      verification,
       dns_records: records,
     })
   } catch {
@@ -70,7 +78,7 @@ export const GET = async (
       configured: true,
       domain: customDomain,
       redirect_from: pair.counterpart,
-      verified: partner.metadata?.custom_domain_verified === true,
+      verified,
       misconfigured: true,
       configured_by: null,
       dns_records: [],
@@ -129,7 +137,6 @@ export const POST = async (
       partner_id: partner.id,
       website_id: websiteId,
       domain: cleaned,
-      prev_metadata: (partner.metadata || {}) as Record<string, any>,
     },
   })
 
@@ -158,6 +165,7 @@ export const POST = async (
     misconfigured,
     configured_by: configuredBy,
     dns_records: dnsRecords,
+    error: result.error || null,
   })
 }
 
@@ -181,7 +189,7 @@ export const DELETE = async (
     partner,
     req.scope
   )
-  const customDomain = partner.metadata?.custom_domain as string | undefined
+  const customDomain = partnerCustomDomain(partner)
 
   if (!projectRef || !customDomain) {
     throw new MedusaError(
@@ -190,20 +198,23 @@ export const DELETE = async (
     )
   }
 
-  // Remove BOTH hosts (primary + its www/apex twin — see deriveDomainPair)
+  // Remove BOTH hosts (primary + its www/apex twin — see deriveDomainPair).
+  // Collect failures instead of swallowing them: a silently-failed provider
+  // removal is exactly what leaves a "removed" domain still resolving.
   const pair = deriveDomainPair(customDomain)
   const hosts = [pair.primary, pair.counterpart].filter(
     (h): h is string => !!h
   )
+  const warnings: string[] = []
   for (const host of hosts) {
     try {
       await provider.removeDomain(projectRef, host)
-    } catch {
-      // best-effort removal
+    } catch (e: any) {
+      warnings.push(`${host}: ${e?.message || e}`)
     }
   }
 
-  // Clear from metadata
+  // Clear the typed columns (and strip any legacy metadata copy).
   const meta = { ...(partner.metadata || {}) }
   delete meta.custom_domain
   delete meta.custom_domain_verified
@@ -211,7 +222,11 @@ export const DELETE = async (
   await updatePartnerWorkflow(req.scope).run({
     input: {
       id: partner.id,
-      data: { metadata: meta },
+      data: {
+        custom_domain: null,
+        custom_domain_verified: false,
+        metadata: meta,
+      },
     },
   })
 
@@ -232,5 +247,8 @@ export const DELETE = async (
     // best-effort
   }
 
-  res.json({ message: "Custom domain removed" })
+  res.json({
+    message: "Custom domain removed",
+    ...(warnings.length ? { warnings } : {}),
+  })
 }

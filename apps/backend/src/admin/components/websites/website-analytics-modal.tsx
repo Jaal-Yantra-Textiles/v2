@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { Button, Heading, Text, Badge, Container, Input } from "@medusajs/ui";
-import * as Popover from "@radix-ui/react-popover";
+import { Button, Heading, Text, Badge, Container, Input, Popover } from "@medusajs/ui";
 import { clx } from "@medusajs/ui";
 import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import {
@@ -110,7 +109,7 @@ function FiltersPopover({
     setDraft((d) => ({ ...d, [k]: v }));
 
   return (
-    <Popover.Root>
+    <Popover>
       <Popover.Trigger asChild>
         <Button size="small" variant={activeCount > 0 ? "primary" : "transparent"}>
           <Adjustments className="mr-1" />
@@ -122,15 +121,11 @@ function FiltersPopover({
           )}
         </Button>
       </Popover.Trigger>
-      <Popover.Portal>
         <Popover.Content
           align="end"
           sideOffset={8}
           collisionPadding={16}
-          className={clx(
-            "bg-ui-bg-base shadow-elevation-flyout rounded-lg outline-none z-[1000]",
-            "w-72 flex flex-col"
-          )}
+          className={clx("w-72 flex flex-col !p-0")}
         >
           {/* Date range section */}
           <div className="px-4 pt-4 pb-3 flex flex-col gap-y-3">
@@ -252,8 +247,7 @@ function FiltersPopover({
             </Popover.Close>
           </div>
         </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+    </Popover>
   );
 }
 

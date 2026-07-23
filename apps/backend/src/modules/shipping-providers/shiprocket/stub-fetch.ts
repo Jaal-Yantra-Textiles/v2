@@ -30,6 +30,15 @@ export const shiprocketStubState: {
   lastAdhocBody?: any
   lastPickupBody?: any
   lastAddPickupBody?: any
+  /** International create/adhoc body (#1111). Also mirrored onto lastAdhocBody. */
+  lastIntlAdhocBody?: any
+  /**
+   * Override the AWB the assign endpoints return (default STUBAWB123). Lets a
+   * spec generate a shipment with a UNIQUE waybill so its webhook push can't
+   * collide with another spec's shipment in the shared test DB (#1111 core-order
+   * tracking). Reset to undefined in the spec's cleanup.
+   */
+  awbOverride?: string
 } = {}
 
 const parseBody = (init: any): any => {
@@ -48,6 +57,46 @@ export function createShiprocketStubFetch(): FetchLike {
       return json({ token: "stub-token" })
     }
 
+    // International create/adhoc (#1111) — must precede the generic
+    // "/orders/create/adhoc" match below. Capture into lastIntlAdhocBody AND
+    // mirror onto lastAdhocBody so existing pickup assertions keep working.
+    if (url.endsWith("/international/orders/create/adhoc")) {
+      const body = parseBody(init)
+      shiprocketStubState.lastIntlAdhocBody = body
+      shiprocketStubState.lastAdhocBody = body
+      return json({ order_id: 9101, shipment_id: 8101 })
+    }
+
+    // International courier serviceability (#1111) — recommend an intl courier.
+    if (url.includes("/international/courier/serviceability")) {
+      return json({
+        data: {
+          recommended_courier_company_id: 301,
+          available_courier_companies: [
+            {
+              courier_company_id: 301,
+              courier_name: "DHL Express Intl",
+              rate: 1450,
+              currency: "INR",
+              estimated_delivery_days: "6",
+            },
+          ],
+        },
+      })
+    }
+
+    if (url.endsWith("/international/courier/assign/awb")) {
+      return json({
+        response: {
+          data: {
+            awb_code: shiprocketStubState.awbOverride || "STUBAWB123",
+            courier_company_id: 301,
+            courier_name: "DHL Express Intl",
+          },
+        },
+      })
+    }
+
     // Adhoc order create — capture the body (the whole point of the #864/#866/#869
     // end-to-end assertions) and return a shipment id.
     if (url.endsWith("/orders/create/adhoc")) {
@@ -59,7 +108,7 @@ export function createShiprocketStubFetch(): FetchLike {
       return json({
         response: {
           data: {
-            awb_code: "STUBAWB123",
+            awb_code: shiprocketStubState.awbOverride || "STUBAWB123",
             courier_company_id: 51,
             courier_name: "Xpressbees Surface",
           },

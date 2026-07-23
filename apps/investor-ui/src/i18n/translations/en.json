@@ -2626,6 +2626,7 @@
     "manageYourProfileDetails": "Manage your profile details.",
     "fields": {
       "languageLabel": "Language",
+      "country": "Country / Region",
       "usageInsightsLabel": "Usage insights"
     },
     "mfa": {
@@ -2657,10 +2658,32 @@
       "header": "Edit Profile",
       "languageHint": "The language you want to use in the admin dashboard. This doesn't change the language of your store.",
       "languagePlaceholder": "Select language",
+      "countryHint": "Select your country of residence. This determines the verification fields shown.",
       "usageInsightsHint": "Share usage insights and help us improve Medusa. You can read more about what we collect and how we use it in our <0>documentation</0>."
     },
     "toast": {
       "edit": "Profiles changes saved"
+    }
+  },
+  "verification": {
+    "domain": "Verification",
+    "description": "Manage your identity verification documents.",
+    "noData": "No verification documents provided yet.",
+    "panCard": "PAN Card",
+    "panHint": "10-character alphanumeric PAN (e.g., ABCDE1234F)",
+    "aadharCard": "Aadhar Card",
+    "aadharHint": "12-digit Aadhar number",
+    "internationalId": "International ID / Passport",
+    "internationalIdHint": "Passport number or government-issued ID",
+    "internationalIdPlaceholder": "Enter ID number",
+    "provided": "Provided",
+    "validation": {
+      "panFormat": "Invalid PAN format. Expected format: ABCDE1234F",
+      "aadharFormat": "Invalid Aadhar format. Must be 12 digits",
+      "required": "This field is required"
+    },
+    "toast": {
+      "update": "Verification details saved"
     }
   },
   "users": {

@@ -42,12 +42,12 @@ const Header = () => {
             actions: [
               {
                 label: t("addresses.shippingAddress.editLabel"),
-                to: "shipping-address",
+                to: "edit-shipping-address",
                 icon: <FlyingBox />,
               },
               {
                 label: t("addresses.billingAddress.editLabel"),
-                to: "billing-address",
+                to: "edit-billing-address",
                 icon: <CurrencyDollar />,
               },
             ],
@@ -56,7 +56,7 @@ const Header = () => {
             actions: [
               {
                 label: t("email.editLabel"),
-                to: `email`,
+                to: `edit-email`,
                 icon: <Envelope />,
               },
             ],

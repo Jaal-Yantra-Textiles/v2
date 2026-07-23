@@ -15,14 +15,40 @@
 
 export type HostingProviderName = "vercel" | "cloudflare" | "render" | "netlify"
 
+/**
+ * Whether a provider can host MANY tenants on ONE shared, pre-deployed project
+ * where per-partner provisioning is just "attach the domain" (no per-partner
+ * deploy). True for platforms whose custom-domain API attaches an arbitrary
+ * number of hostnames to a single project/service/worker:
+ *   - Vercel   → `POST /v10/projects/{id}/domains` (Vercel for Platforms)
+ *   - Cloudflare Workers → `POST /workers/domains` (Custom Domain per hostname)
+ *   - Render   → `POST /services/{id}/custom-domains`
+ * Netlify is the exception — a site carries a SINGLE primary `custom_domain`,
+ * so it can only ever be a *dedicated* (one-site-per-partner) target.
+ */
+export function providerSupportsSharedProject(
+  name: HostingProviderName
+): boolean {
+  return name === "vercel" || name === "cloudflare" || name === "render"
+}
+
 /** Per-account credentials, decrypted at runtime from `deployment_account.api_config`. */
 export type HostingCredentials = {
-  /** API token (Vercel token / Cloudflare API token). */
+  /** API token (Vercel token / Cloudflare API token / Netlify PAT / Render key). */
   token: string
   /** Vercel team id (optional — personal accounts omit it). */
   teamId?: string
   /** Cloudflare/Render account id (the URL-scoping id). */
   accountId?: string
+  /**
+   * Provider-specific non-secret config carried through from api_config so each
+   * adapter can read what it needs without widening the core shape:
+   *   - Netlify: `account_slug`, `github_installation_id`
+   *   - Render:  `owner_id`
+   *   - Cloudflare (Pages/Workers): `zone_id`
+   * Populated from every api_config key that isn't a token/team/account field.
+   */
+  extra?: Record<string, string>
 }
 
 export type CreateProjectInput = {
@@ -96,6 +122,10 @@ export type HostingDomainStatus = {
 
 export type TriggerDeploymentInput = {
   projectName: string
+  /** The provider project id (Netlify site id / Render service id). Providers
+   * that address deploys by id use this; name-addressed providers (Vercel,
+   * Cloudflare Pages) use `projectName`. */
+  projectId?: string
   gitRepo: string
   ref?: string
 }
@@ -113,6 +143,13 @@ export interface HostingProvider {
   setEnvVars(projectId: string, envVars: HostingEnvVar[]): Promise<void>
   triggerDeployment(input: TriggerDeploymentInput): Promise<HostingDeployment>
   getProject(projectId: string): Promise<HostingProject>
+  /**
+   * Delete the project/site on the provider (teardown). Optional: only adapters
+   * whose API supports project deletion implement it. `DELETE
+   * /partners/storefront` calls it when present, else reports "remove it in the
+   * provider dashboard". Treat a missing project (404) as already-deleted.
+   */
+  deleteProject?(projectId: string): Promise<void>
 
   // ── Custom domain lifecycle (provider-specific DNS/verification) ──────────
   addDomain(projectId: string, domain: string, opts?: AddDomainOptions): Promise<HostingDomain>

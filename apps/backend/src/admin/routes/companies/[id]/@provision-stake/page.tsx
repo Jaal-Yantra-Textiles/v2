@@ -120,7 +120,7 @@ const ProvisionStakeForm = ({ companyId }: { companyId: string }) => {
   const ccy = capTable?.currency_code
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-1 flex-col">
+    <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
       <RouteDrawer.Header>
         <RouteDrawer.Title asChild>
           <Heading>Provision shares (manual)</Heading>

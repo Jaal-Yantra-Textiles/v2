@@ -72,6 +72,8 @@ const geoForCurrency = (
       return { country: "GB" }
     case "USD":
       return { country: "US" }
+    case "INR":
+      return { country: "IN" }
     case "CAD":
       return { country: "CA" }
     case "AUD":
@@ -131,12 +133,17 @@ const prepareProductStep = createStep(
         "description",
         "status",
         "metadata",
+        "type.value",
         "tags.*",
         "variants.*",
         "variants.prices.*",
         "variants.options.*",
         "variants.options.option.*",
+        "variants.manage_inventory",
         "variants.inventory_items.*",
+        // Real stock lives on the inventory item's per-location levels; the
+        // variant has no `inventory_quantity` column in a plain query.graph.
+        "variants.inventory_items.inventory.location_levels.*",
         "images.*",
         "variants.sku",
       ],
@@ -198,13 +205,92 @@ const prepareProductStep = createStep(
       prices[0] ??
       null
 
+    // Available quantity for Faire. Medusa v2 has no `variant.inventory_quantity`
+    // column in a plain query.graph — the old code read that undefined field so
+    // EVERY variant published to Faire as available_quantity 0 (sold out). Compute
+    // it from the inventory item location levels (available = stocked − reserved),
+    // matching Medusa's own `min(floor(itemAvailable / required_quantity))` rule.
+    const variantQuantity = (v: any): number => {
+      // manage_inventory === false → Medusa treats the variant as always in
+      // stock, so there are no levels to read. Publish a healthy default (Faire
+      // needs a number) that operators can override per product.
+      if (v?.manage_inventory === false) {
+        const d = Number(metadata.faire_default_available_quantity)
+        return Number.isFinite(d) && d >= 0 ? Math.floor(d) : 100
+      }
+      const items: any[] = v?.inventory_items || []
+      if (!items.length) return 0
+      let available = Infinity
+      for (const link of items) {
+        // Tolerate both the pivot shape ({ inventory: {...} }) and a flattened one.
+        const inv = link?.inventory ?? link
+        const levels: any[] = inv?.location_levels || []
+        const itemAvailable = levels.reduce((sum: number, lvl: any) => {
+          const stocked = Number(lvl?.stocked_quantity ?? 0)
+          const reserved = Number(lvl?.reserved_quantity ?? 0)
+          return sum + Math.max(0, stocked - reserved)
+        }, 0)
+        const required = Number(link?.required_quantity ?? 1) || 1
+        available = Math.min(available, Math.floor(itemAvailable / required))
+      }
+      return Number.isFinite(available) ? Math.max(0, available) : 0
+    }
+
+    const wholesaleFrom = (retailMinor: number): number =>
+      markupPercent > 0
+        ? Math.round((retailMinor * (100 - markupPercent)) / 100)
+        : retailMinor
+
+    // Faire prices are geo-scoped and a variant may carry several — one per
+    // currency the product is priced in. Emit a price for EVERY currency present
+    // (INR → India, USD → US, EUR → the EU group, etc.) so buyers in each region
+    // see their own currency, and fall back to the chosen/default currency +
+    // geo (EUR by default) when the product has no multi-currency prices.
+    const buildPrices = (variantPrices: any[]) => {
+      const byCurrency = new Map<string, any>()
+      for (const p of variantPrices || []) {
+        const c = String(p.currency_code || "").toUpperCase()
+        if (!c) continue
+        // First price row per currency wins (Medusa may hold several tiers).
+        if (!byCurrency.has(c)) byCurrency.set(c, p)
+      }
+
+      const rows: {
+        geo_constraint: { country?: string; country_group?: string }
+        wholesale_price: { amount_minor: number; currency: string }
+        retail_price: { amount_minor: number; currency: string }
+      }[] = []
+      for (const [c, p] of byCurrency) {
+        const retailMinor = toMinor(p.amount)
+        if (retailMinor <= 0) continue
+        // The explicit metadata override only applies to the brand's primary
+        // currency; every other currency is scoped by its natural geo.
+        const geo =
+          c === currency ? geoConstraint : geoForCurrency(c, input.country)
+        rows.push({
+          geo_constraint: geo,
+          wholesale_price: { amount_minor: wholesaleFrom(retailMinor), currency: c },
+          retail_price: { amount_minor: retailMinor, currency: c },
+        })
+      }
+
+      // Guarantee at least the chosen-currency price so a create never ships a
+      // variant with no price at all.
+      if (!rows.length) {
+        const retail = pickPrice(variantPrices || [])
+        const retailMinor = retail ? toMinor(retail.amount) : 0
+        if (retailMinor > 0) {
+          rows.push({
+            geo_constraint: geoConstraint,
+            wholesale_price: { amount_minor: wholesaleFrom(retailMinor), currency },
+            retail_price: { amount_minor: retailMinor, currency },
+          })
+        }
+      }
+      return rows.length ? rows : undefined
+    }
+
     const buildVariant = (v: any, idx: number) => {
-      const retail = pickPrice(v.prices || [])
-      const retailMinor = retail ? toMinor(retail.amount) : 0
-      const wholesaleMinor =
-        markupPercent > 0
-          ? Math.round((retailMinor * (100 - markupPercent)) / 100)
-          : retailMinor
       const sku = v.sku || v.id
       const options =
         (v.options || [])
@@ -218,17 +304,8 @@ const prepareProductStep = createStep(
         name: v.title || sku,
         idempotence_token: `${product.id}:${v.id || sku}`,
         options: options.length ? options : undefined,
-        available_quantity: Number(v.inventory_quantity) || 0,
-        prices:
-          retailMinor > 0
-            ? [
-                {
-                  geo_constraint: geoConstraint,
-                  wholesale_price: { amount_minor: wholesaleMinor, currency },
-                  retail_price: { amount_minor: retailMinor, currency },
-                },
-              ]
-            : undefined,
+        available_quantity: variantQuantity(v),
+        prices: buildPrices(v.prices || []),
       }
     }
 
@@ -238,11 +315,16 @@ const prepareProductStep = createStep(
 
     // Resolve taxonomy_type.id — REQUIRED by Faire create. Priority:
     //   product.metadata.faire_taxonomy_type_id (tt_… or a category name)
+    //   → product.metadata.faire_category (name)
+    //   → product.type.value (the native Medusa Product Type, matched by name)
     //   → settings.default_category (id or name) → error.
+    // Product Type is the natural per-product carrier; the product widget lets an
+    // operator pin an exact `tt_…` id in metadata when the type name is ambiguous.
     const client = service.getClient(input.auth_mode)
     const categoryHint =
       metadata.faire_taxonomy_type_id ||
       metadata.faire_category ||
+      product.type?.value ||
       settings.default_category ||
       ""
     const taxonomyTypeId = await client.resolveTaxonomyTypeId(
@@ -252,9 +334,9 @@ const prepareProductStep = createStep(
     if (!taxonomyTypeId) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        "Faire requires a product category (taxonomy_type). Set a Faire " +
-          "category in sync settings (default_category) or on the product " +
-          "(metadata.faire_taxonomy_type_id — a `tt_…` id or a category name)."
+        "Faire requires a product category (taxonomy_type). Set the product's " +
+          "Type to a Faire category name, pick one from the Faire panel on the " +
+          "product page, or set a fallback category in Faire sync settings."
       )
     }
 
@@ -275,6 +357,20 @@ const prepareProductStep = createStep(
           }
     )
 
+    // Faire requires `unit_multiplier` — the number of individual units in one
+    // sellable unit (e.g. a case of 6) — as a positive integer, or it rejects
+    // the create with 400 "unit multiplier is mandatory…". Default to 1 (sold
+    // individually); allow a per-product override via metadata.
+    const toPositiveInt = (v: any): number | null => {
+      const n = Math.floor(Number(v))
+      return Number.isFinite(n) && n > 0 ? n : null
+    }
+    const unit_multiplier = toPositiveInt(metadata.faire_unit_multiplier) ?? 1
+    const minimum_order_quantity =
+      toPositiveInt(metadata.faire_min_order_quantity) ??
+      toPositiveInt(settings.default_min_order_quantity) ??
+      1
+
     const product_input: CreateProductInput = {
       name: (product.title || "Untitled Product").slice(0, 140),
       idempotence_token: product.id,
@@ -285,6 +381,8 @@ const prepareProductStep = createStep(
         typeof metadata.faire_short_description === "string"
           ? metadata.faire_short_description
           : undefined,
+      unit_multiplier,
+      minimum_order_quantity,
       images,
       variants: builtVariants,
     }
@@ -339,16 +437,25 @@ const syncProductStep = createStep(
       throw err
     }
 
-    // Push inventory levels for each variant.
+    // Push inventory levels — but ONLY for variants with a real SKU. When a
+    // Medusa variant has no SKU we fall back to its id for the create payload
+    // (Faire needs *something*), but that synthetic id (`variant_…` / `prod_…`)
+    // is NOT a Faire SKU, so `PATCH product-inventory/by-skus` 404s on it. Those
+    // variants are already stocked via the create payload's `available_quantity`,
+    // so skip them here rather than push an id Faire will reject.
     if (product_input.variants?.length) {
-      try {
-        const levels = product_input.variants.map((v) => ({
+      const levels = product_input.variants
+        .filter((v) => v.sku && !/^(prod|variant)_/.test(v.sku))
+        .map((v) => ({
           sku: v.sku,
           on_hand_quantity: v.available_quantity ?? 0,
         }))
-        await client.updateInventory(access_token, levels)
-      } catch (err: any) {
-        warnings.push(`Inventory push failed: ${err?.message || err}`)
+      if (levels.length) {
+        try {
+          await client.updateInventory(access_token, levels)
+        } catch (err: any) {
+          warnings.push(`Inventory push failed: ${err?.message || err}`)
+        }
       }
     }
 

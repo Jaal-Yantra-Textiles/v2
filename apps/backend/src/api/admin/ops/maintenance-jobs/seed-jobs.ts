@@ -41,6 +41,19 @@ export type EmailTemplateSpec = {
   [key: string]: unknown
 }
 
+// The partner order-lifecycle templates (partner-order-placed / -fulfilled /
+// -cancelled) physically live in the core `emailTemplatesData`, but they are
+// logically partner/admin templates. Surface them under the `partner` set too so
+// `set=partner` (UI + API) can seed / overwrite them — e.g.
+// `{ set: "partner", only: "partner-order-placed", overwrite: true }`. They stay
+// in `core` as well; `resolveEmailTemplateSpecs` dedupes by `template_key`
+// (first occurrence wins), so the overlap is harmless.
+const partnerOrderTemplates = (emailTemplatesData as EmailTemplateSpec[]).filter(
+  (t) =>
+    typeof t.template_key === "string" &&
+    t.template_key.startsWith("partner-order-")
+)
+
 /** Selectable email-template sets, each wrapping one seed script's data. */
 export const EMAIL_TEMPLATE_SETS: Array<{
   key: string
@@ -65,7 +78,10 @@ export const EMAIL_TEMPLATE_SETS: Array<{
   {
     key: "partner",
     label: "partner/admin templates",
-    specs: partnerEmailTemplates as EmailTemplateSpec[],
+    specs: [
+      ...(partnerEmailTemplates as EmailTemplateSpec[]),
+      ...partnerOrderTemplates,
+    ],
   },
   {
     key: "investor",

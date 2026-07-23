@@ -20,7 +20,14 @@ const FundingRound = model.define("funding_round", {
     "bridge",
     "debt",
     "grant",
+    "safe",
+    "ccps",
   ]).default("seed"),
+
+  // What participating in this round issues. `equity` → a Stake (shares);
+  // `safe` / `convertible_note` / `ccps` → a Convertible (money now, equity
+  // later; `ccps` also allots preference shares up front).
+  instrument_type: model.enum(["equity", "safe", "convertible_note", "ccps"]).default("equity"),
 
   status: model.enum(["planned", "open", "closing", "closed", "cancelled"]).default("planned"),
 
@@ -31,6 +38,11 @@ const FundingRound = model.define("funding_round", {
 
   price_per_share: model.bigNumber().nullable(),
   shares_offered: model.bigNumber().nullable(),
+
+  // SAFE / convertible round terms (applied to Convertibles created on participate).
+  valuation_cap: model.bigNumber().nullable(),
+  discount_rate: model.number().nullable(),
+  safe_type: model.enum(["post_money", "pre_money"]).nullable(),
 
   open_date: model.dateTime().nullable(),
   close_date: model.dateTime().nullable(),

@@ -43,6 +43,17 @@ export function getRouteMap({
               lazy: () => import("../../routes/companies/[companyId]"),
             },
             {
+              path: "/company",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/company"),
+              children: [
+                {
+                  path: "invite",
+                  lazy: () => import("../../routes/company/invite"),
+                },
+              ],
+            },
+            {
               path: "/cap-table",
               errorElement: <ErrorBoundary />,
               lazy: () => import("../../routes/cap-table"),
@@ -62,6 +73,16 @@ export function getRouteMap({
               path: "/compliance",
               errorElement: <ErrorBoundary />,
               lazy: () => import("../../routes/compliance"),
+            },
+            {
+              path: "/agreements",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/agreements"),
+            },
+            {
+              path: "/agreements/:id",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/agreements/[id]"),
             },
             {
               path: "/projections",
@@ -97,6 +118,17 @@ export function getRouteMap({
                 {
                   path: "edit",
                   lazy: () => import("../../routes/profile/profile-edit"),
+                },
+              ],
+            },
+            {
+              path: "verification",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/settings/verification"),
+              children: [
+                {
+                  path: "edit",
+                  lazy: () => import("../../routes/settings/verification/edit"),
                 },
               ],
             },

@@ -32,6 +32,16 @@ const competitorSchema = z.object({
 
 const pricePointSchema = z.enum(["luxury", "mid_market", "budget"])
 
+// Section 1 — Aesthetic Anchor: 3–5 keywords defining the look & feel.
+const aestheticKeywordsSchema = z.array(z.string().min(1)).max(8)
+
+// Section 3 — one Key Milestone (initial sketches, first revisions, tech specs,
+// production-ready samples). `date` is an ISO date string (nullable).
+const milestoneSchema = z.object({
+  label: z.string().min(1, "Milestone label is required"),
+  date: z.string().nullish(),
+})
+
 /**
  * POST /admin/designs/:id/brief — replace the whole brief.
  * Every field is optional (the brief is incremental), but unset fields are
@@ -39,12 +49,14 @@ const pricePointSchema = z.enum(["luxury", "mid_market", "budget"])
  */
 export const DesignBriefSchema = z.object({
   concept_theme: z.string().nullish(),
+  aesthetic_keywords: aestheticKeywordsSchema.nullish(),
   persona: personaSchema.nullish(),
   competitors: z.array(competitorSchema).nullish(),
   price_point: pricePointSchema.nullish(),
   design_budget: z.number().nonnegative().nullish(),
   // Budget currency reuses the shared cost_currency column (e.g. "inr").
   cost_currency: z.string().nullish(),
+  milestones: z.array(milestoneSchema).nullish(),
 })
 
 /**
@@ -59,11 +71,13 @@ export type UpdateDesignBrief = z.infer<typeof UpdateDesignBriefSchema>
 // scalar columns come back without extending DesignAllowedFields).
 export const DESIGN_BRIEF_FIELDS = [
   "concept_theme",
+  "aesthetic_keywords",
   "persona",
   "competitors",
   "price_point",
   "design_budget",
   "cost_currency",
+  "milestones",
 ] as const
 
 /**
@@ -77,6 +91,7 @@ export const pickDesignBrief = (design: Record<string, any> | undefined | null) 
   }
   return {
     concept_theme: design.concept_theme ?? null,
+    aesthetic_keywords: design.aesthetic_keywords ?? null,
     persona: design.persona ?? null,
     competitors: design.competitors ?? null,
     price_point: design.price_point ?? null,
@@ -85,5 +100,6 @@ export const pickDesignBrief = (design: Record<string, any> | undefined | null) 
         ? null
         : Number(design.design_budget),
     cost_currency: design.cost_currency ?? null,
+    milestones: design.milestones ?? null,
   }
 }

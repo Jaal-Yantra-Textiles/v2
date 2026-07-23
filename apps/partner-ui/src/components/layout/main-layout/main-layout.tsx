@@ -1,21 +1,37 @@
 import {
+  Adjustments,
   BuildingStorefront,
   CogSixTooth,
   CurrencyDollar,
   DocumentSeries,
   EllipsisHorizontal,
+  EyeMini,
+  EyeSlashMini,
   FolderOpen,
   House,
   MagnifyingGlass,
   OpenRectArrowOut,
   PencilSquare,
   ShoppingCart,
+  Sparkles,
   Tag,
   TimelineVertical,
   Users,
 } from "@medusajs/icons"
 import { Avatar, Divider, DropdownMenu, Kbd, Text, clx } from "@medusajs/ui"
+import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
+
+import {
+  SIDEBAR_ZONE,
+  DESIGNER_COMMERCE_ROUTE_IDS,
+  getSidebarPreset,
+  usePartnerLayoutConfiguration,
+  useSetPartnerLayoutConfiguration,
+  type LayoutPreference,
+  type SidebarPreset,
+} from "../../../hooks/api/layout-preferences"
+import { LayoutCustomizer } from "./layout-customizer"
 
 import { usePartnerStores } from "../../../hooks/api/partner-stores"
 import { useMe } from "../../../hooks/api/users"
@@ -180,16 +196,68 @@ const Header = () => {
   )
 }
 
-type WorkspaceType = "seller" | "manufacturer" | "individual"
+type WorkspaceType = "seller" | "manufacturer" | "individual" | "designer"
 
 const useCoreRoutes = (
   workspaceType?: WorkspaceType
 ): Omit<INavItem, "pathname">[] => {
   const { t } = useTranslation()
 
+  // #338/#958 — Designer persona. A lean, design-first sidebar: the authoring
+  // + production loop up top, with the full commerce surface present but
+  // hidden by default (see DESIGNER_COMMERCE_ROUTE_IDS) and revealed on demand.
+  if (workspaceType === "designer") {
+    return [
+      { icon: <House />, label: t("app.nav.main.home"), to: "/" },
+      { icon: <Sparkles />, label: t("app.nav.main.assistant"), to: "/assistant" },
+      {
+        icon: <PencilSquare />,
+        label: t("app.nav.main.designs"),
+        to: "/designs",
+        items: [{ label: t("app.nav.main.tasks"), to: "/tasks" }],
+      },
+      {
+        icon: <ShoppingCart />,
+        label: t("app.nav.main.orders"),
+        to: "/orders",
+        items: [
+          { label: "All", to: "/orders/all" },
+          { label: "Design", to: "/orders/design" },
+          { label: "Inventory", to: "/orders/inventory" },
+        ],
+      },
+      { icon: <CurrencyDollar />, label: t("app.nav.main.paymentSubmissions"), to: "/payment-submissions" },
+      { icon: <FolderOpen />, label: t("app.nav.main.sharedFolders"), to: "/shared-folders" },
+      // Commerce group — hidden by default for designers (DESIGNER_COMMERCE_ROUTE_IDS).
+      {
+        icon: <Tag />,
+        label: t("app.nav.main.products"),
+        to: "/products",
+        items: [
+          { label: t("app.nav.main.categories"), to: "/categories" },
+          { label: t("app.nav.main.collections"), to: "/collections" },
+          { label: t("app.nav.main.productTypes"), to: "/product-types" },
+          { label: t("app.nav.main.stock"), to: "/products/inventory" },
+        ],
+      },
+      { icon: <Users />, label: t("app.nav.main.customers"), to: "/customers" },
+      {
+        icon: <DocumentSeries />,
+        label: t("app.nav.main.webStore"),
+        to: "/content",
+        items: [
+          { label: t("app.nav.main.content"), to: "/content" },
+          { label: t("app.nav.main.theme"), to: "/webstore/theme" },
+          { label: t("app.nav.main.analytics"), to: "/webstore/analytics" },
+        ],
+      },
+    ]
+  }
+
   if (workspaceType === "seller") {
     return [
       { icon: <House />, label: t("app.nav.main.home"), to: "/" },
+      { icon: <Sparkles />, label: t("app.nav.main.assistant"), to: "/assistant" },
       { icon: <FolderOpen />, label: t("app.nav.main.sharedFolders"), to: "/shared-folders" },
       {
         icon: <Tag />,
@@ -232,6 +300,7 @@ const useCoreRoutes = (
   if (workspaceType === "individual") {
     return [
       { icon: <House />, label: t("app.nav.main.home"), to: "/" },
+      { icon: <Sparkles />, label: t("app.nav.main.assistant"), to: "/assistant" },
       { icon: <TimelineVertical />, label: t("app.nav.main.tasks"), to: "/tasks" },
       { icon: <FolderOpen />, label: t("app.nav.main.sharedFolders"), to: "/shared-folders" },
       { icon: <CurrencyDollar />, label: t("app.nav.main.paymentSubmissions"), to: "/payment-submissions" },
@@ -240,6 +309,7 @@ const useCoreRoutes = (
 
   return [
     { icon: <House />, label: t("app.nav.main.home"), to: "/" },
+    { icon: <Sparkles />, label: t("app.nav.main.assistant"), to: "/assistant" },
     {
       icon: <ShoppingCart />,
       label: t("app.nav.main.orders"),
@@ -317,7 +387,9 @@ const Searchbar = () => {
   )
 }
 
+
 const CoreRouteSection = () => {
+  const { t } = useTranslation()
   const { user } = useMe()
   // Read workspace_type from the proper field, falling back to metadata.use_type for legacy partners
   const workspaceType = (
@@ -326,12 +398,108 @@ const CoreRouteSection = () => {
   ) as WorkspaceType | undefined
   const coreRoutes = useCoreRoutes(workspaceType)
 
+  // #338 — the partner's saved sidebar personalization (hide/reorder). Errors
+  // are non-fatal: the sidebar renders from persona defaults if the fetch fails.
+  const { personal_configuration } = usePartnerLayoutConfiguration(SIDEBAR_ZONE)
+  const { mutate: saveLayout, isPending: isSavingLayout } =
+    useSetPartnerLayoutConfiguration(SIDEBAR_ZONE)
+
+  const widgets = personal_configuration?.configuration?.widgets ?? {}
+
+  // The persona's pre-saved layout preset — the bootstrap default before any
+  // personal config. Apply precedence: personal override → persona preset →
+  // natural (source) order/visible.
+  const preset = useMemo<SidebarPreset>(
+    () => getSidebarPreset(workspaceType),
+    [workspaceType]
+  )
+
+  // Visible routes with saved ordering applied.
+  const visibleRoutes = useMemo(() => {
+    const hidden = (to: string) =>
+      widgets[to]?.hidden ?? preset[to]?.hidden ?? false
+    return coreRoutes
+      .map((route, index) => ({ route, index }))
+      .filter(({ route }) => !hidden(route.to))
+      .sort((a, b) => {
+        const oa = widgets[a.route.to]?.order ?? preset[a.route.to]?.order ?? a.index
+        const ob = widgets[b.route.to]?.order ?? preset[b.route.to]?.order ?? b.index
+        return oa - ob
+      })
+      .map(({ route }) => route)
+  }, [coreRoutes, widgets, preset])
+
+  // Commerce toggle (designer persona only): reveal or collapse the commerce
+  // group, persisting the choice as explicit overrides on the current widgets.
+  const anyCommerceHidden = DESIGNER_COMMERCE_ROUTE_IDS.some(
+    (id) => widgets[id]?.hidden ?? preset[id]?.hidden ?? false
+  )
+  const toggleCommerce = () => {
+    const nextHidden = !anyCommerceHidden
+    const nextWidgets: LayoutPreference["widgets"] = { ...widgets }
+    for (const id of DESIGNER_COMMERCE_ROUTE_IDS) {
+      nextWidgets[id] = { ...(nextWidgets[id] ?? {}), hidden: nextHidden }
+    }
+    saveLayout({ configuration: { widgets: nextWidgets } })
+  }
+
+  // #338 — full sidebar edit mode (drag-reorder + hide/show any item).
+  const [editMode, setEditMode] = useState(false)
+  if (editMode) {
+    return (
+      <div className="px-3 py-3">
+        <LayoutCustomizer
+          zone={SIDEBAR_ZONE}
+          items={coreRoutes.map((r) => ({
+            id: r.to,
+            label: r.label,
+            icon: r.icon,
+          }))}
+          widgets={widgets}
+          preset={preset}
+          onClose={() => setEditMode(false)}
+        />
+      </div>
+    )
+  }
+
   return (
     <nav className="flex flex-col gap-y-1 py-3">
       <Searchbar />
-      {coreRoutes.map((route) => {
+      {visibleRoutes.map((route) => {
         return <NavItem key={route.to} {...route} />
       })}
+      {workspaceType === "designer" && (
+        <button
+          type="button"
+          onClick={toggleCommerce}
+          disabled={isSavingLayout}
+          className={clx(
+            "text-ui-fg-muted transition-fg hover:bg-ui-bg-subtle-hover mx-3 mt-1 flex items-center gap-x-2 rounded-md px-2 py-1.5 outline-none",
+            "focus-visible:shadow-borders-focus disabled:opacity-60"
+          )}
+        >
+          {anyCommerceHidden ? <EyeMini /> : <EyeSlashMini />}
+          <Text size="small" leading="compact" className="text-ui-fg-subtle">
+            {anyCommerceHidden
+              ? t("app.nav.main.showCommerce")
+              : t("app.nav.main.hideCommerce")}
+          </Text>
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => setEditMode(true)}
+        className={clx(
+          "text-ui-fg-muted transition-fg hover:bg-ui-bg-subtle-hover mx-3 mt-1 flex items-center gap-x-2 rounded-md px-2 py-1.5 outline-none",
+          "focus-visible:shadow-borders-focus"
+        )}
+      >
+        <Adjustments />
+        <Text size="small" leading="compact" className="text-ui-fg-subtle">
+          {t("app.nav.customize.trigger")}
+        </Text>
+      </button>
     </nav>
   )
 }

@@ -5,12 +5,13 @@ import {
   Skeleton,
   Text,
 } from "@medusajs/ui"
-import { Buildings, CurrencyDollar, RocketLaunch, PencilSquare } from "@medusajs/icons"
+import { Buildings, CurrencyDollar, RocketLaunch, PencilSquare, DocumentText } from "@medusajs/icons"
 import { useMemo, useEffect } from "react"
 import { Outlet, useNavigate, Link } from "react-router-dom"
 import { useMe } from "../../hooks/api/users"
-import { useMyCapTable, useDeals } from "../../hooks/api/investments"
+import { useMyCapTable, useDeals, useMyConvertibles, isSafeDeal } from "../../hooks/api/investments"
 import { useMyProjections } from "../../hooks/api/projections"
+import { useIsViewOnly } from "../../hooks/api/companies"
 import { SingleColumnPage } from "../../components/layout/pages"
 import type { InvestorOnboarding } from "../onboarding/onboarding"
 
@@ -82,20 +83,25 @@ const CompanyRow = ({
 
 const DashboardHome = ({ investor }: { investor: Record<string, any> }) => {
   const navigate = useNavigate()
+  const isViewOnly = useIsViewOnly()
   const onboarding: InvestorOnboarding = investor?.metadata?.onboarding ?? {}
   const onboardingCompleted = onboarding.completed === true
 
   const { capTables, isPending: ctPending } = useMyCapTable()
   const { deals, isPending: dealsPending } = useDeals()
   const { portfolio, isPending: posPending } = useMyProjections()
+  const { summary: safeSummary, count: safeCount, isPending: safesPending } = useMyConvertibles()
 
   const companies = useMemo(() => {
     const seen = new Map<string, CompanySummary>()
     for (const ct of capTables) {
       const cid = ct.company_id ?? ct.id
       const existing = seen.get(cid)
-      const totalInvested = ct.stakes?.reduce((s, st) => s + Number(st.total_invested ?? 0), 0) ?? 0
-      const totalShares = ct.stakes?.reduce((s, st) => s + Number(st.number_of_shares ?? 0), 0) ?? 0
+      // Only fully_paid (absorbed) stakes count — consistent with the cap table
+      // and projections. Not-followed-up / rejected / pending contribute nothing.
+      const paidStakes = (ct.stakes ?? []).filter((st) => st.status === "fully_paid")
+      const totalInvested = paidStakes.reduce((s, st) => s + Number(st.total_invested ?? 0), 0)
+      const totalShares = paidStakes.reduce((s, st) => s + Number(st.number_of_shares ?? 0), 0)
       if (existing) {
         seen.set(cid, {
           ...existing,
@@ -122,10 +128,11 @@ const DashboardHome = ({ investor }: { investor: Record<string, any> }) => {
     return Array.from(seen.values())
   }, [capTables, deals])
 
-  const pending = ctPending || dealsPending || posPending
+  const pending = ctPending || dealsPending || posPending || safesPending
 
   const openDeals = deals.filter((d) => d.status !== "closed" && d.status !== "cancelled")
   const totalInvested = portfolio?.total_invested ?? 0
+  const hasSafes = safeCount > 0
 
   return (
     <>
@@ -157,10 +164,19 @@ const DashboardHome = ({ investor }: { investor: Record<string, any> }) => {
           <Skeleton className="h-20 rounded-lg" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className={`grid grid-cols-1 gap-3 ${hasSafes ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
           <StatCard icon={<CurrencyDollar />} label="Total invested" value={money(totalInvested)} />
           <StatCard icon={<Buildings />} label="Companies" value={num(companies.length)} />
           <StatCard icon={<RocketLaunch />} label="Open deals" value={num(openDeals.length)} />
+          {hasSafes && (
+            <Link to="/cap-table" className="block">
+              <StatCard
+                icon={<DocumentText />}
+                label={`SAFEs (${safeCount})`}
+                value={money(safeSummary.total_implied_value)}
+              />
+            </Link>
+          )}
         </div>
       )}
 
@@ -225,25 +241,46 @@ const DashboardHome = ({ investor }: { investor: Record<string, any> }) => {
           <div className="px-6 py-4">
             <Heading level="h2">Open deals</Heading>
             <Text size="small" className="text-ui-fg-subtle mt-1">
-              Active funding rounds you can participate in.
+              {isViewOnly
+                ? "Active funding rounds. Your account is view-only."
+                : "Active funding rounds you can participate in."}
             </Text>
           </div>
           <div className="flex flex-col gap-y-1 px-4 pb-4 pt-2">
-            {openDeals.map((d) => (
-              <Link
-                key={d.id}
-                to={`/finances/participate/${d.id}`}
-                className="flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-ui-bg-base-hover"
-              >
-                <div>
-                  <Text weight="plus">{d.name}</Text>
-                  <Text size="small" className="text-ui-fg-subtle">
-                    {d.cap_table?.name ?? d.round_type ?? "Round"} · {money(d.target_amount)} target
-                  </Text>
+            {openDeals.map((d) => {
+              const inner = (
+                <>
+                  <div>
+                    <Text weight="plus" className="flex items-center gap-x-2">
+                      {d.name}
+                      {isSafeDeal(d) && <Badge size="2xsmall" color="purple">SAFE</Badge>}
+                    </Text>
+                    <Text size="small" className="text-ui-fg-subtle">
+                      {d.cap_table?.name ?? d.round_type ?? "Round"} · {money(d.target_amount)} target
+                    </Text>
+                  </div>
+                  <Badge size="small" color="green">Open</Badge>
+                </>
+              )
+              // View-only investors see the deals but can't open the
+              // participate flow — render a static row, not a link.
+              return isViewOnly ? (
+                <div
+                  key={d.id}
+                  className="flex items-center justify-between rounded-lg border px-4 py-3"
+                >
+                  {inner}
                 </div>
-                <Badge size="small" color="green">Open</Badge>
-              </Link>
-            ))}
+              ) : (
+                <Link
+                  key={d.id}
+                  to={`/finances/participate/${d.id}`}
+                  className="flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-ui-bg-base-hover"
+                >
+                  {inner}
+                </Link>
+              )
+            })}
           </div>
         </Container>
       )}
@@ -302,6 +339,7 @@ export const Home = () => {
   return (
     <SingleColumnPage widgets={{ before: [], after: [] }}>
       <DashboardHome investor={investor} />
+      <Outlet />
     </SingleColumnPage>
   )
 }

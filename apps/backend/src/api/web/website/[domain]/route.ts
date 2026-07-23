@@ -31,6 +31,14 @@ export const GET = async (
         custom_head: (result as any).analytics_custom_head ?? null,
         custom_body_end: (result as any).analytics_custom_body_end ?? null,
       },
+      // SEO tokens the storefront injects into <head> regardless of analytics
+      // provider (#349). google_site_verification → <meta name="google-site-
+      // verification">. Grouped in an `seo` bag to leave room for more tokens
+      // (bing, pinterest, …) without another API shape change.
+      seo: {
+        google_site_verification:
+          (result as any).google_site_verification ?? null,
+      },
       pages: result.pages?.map(page => ({
         title: page.title,
         slug: page.slug,

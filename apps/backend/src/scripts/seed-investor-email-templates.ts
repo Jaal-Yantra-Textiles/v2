@@ -53,6 +53,41 @@ export const investorEmailTemplates = [
     },
     html_content: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#18181b"><h1 style="font-size:18px;margin:0 0 12px">Hi {{investor_name}},</h1><p style="font-size:14px;line-height:1.6;color:#3f3f46">Your <strong>{{quarter}}</strong> quarterly report for <strong>Jaal Yantra Textiles</strong> is now available. This report includes financial highlights, portfolio updates, and key metrics for the period.</p><p style="margin:20px 0;text-align:center"><a href="{{report_url}}" style="background:#18181b;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;display:inline-block">View your quarterly report</a></p><p style="font-size:13px;line-height:1.6;color:#71717a">If the button doesn't work, copy this link into your browser:<br/><span style="color:#3f3f46">{{report_url}}</span></p><p style="font-size:12px;color:#a1a1aa;margin-top:24px">This report is confidential and intended for registered investors only.</p><p style="font-size:12px;color:#a1a1aa;margin-top:12px">Jaal Yantra Textiles · {{current_year}}</p></div>`,
   },
+  {
+    template_key: "investor-referral-team",
+    name: "Investor — Referral (team notification)",
+    template_type: "investor",
+    from: "investors@jaalyantra.com",
+    is_active: true,
+    subject: "New investor referral: {{invitee_name}} (via {{referrer_name}})",
+    variables: {
+      referrer_name: "Investor who sent the referral",
+      referrer_email: "Referrer email",
+      invitee_name: "Person being invited",
+      invitee_email: "Invitee email",
+      access_level: "Requested access level (Investor / View-only)",
+      note: "Optional message from the referrer",
+      current_year: "Year",
+    },
+    html_content: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#18181b"><h1 style="font-size:18px;margin:0 0 12px">New investor referral</h1><p style="font-size:14px;line-height:1.6;color:#3f3f46"><strong>{{referrer_name}}</strong> ({{referrer_email}}) has invited someone to the investor portal. Follow up to onboard them.</p><table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0"><tr><td style="padding:8px 12px;border:1px solid #e4e4e7;color:#71717a;background:#f4f4f5">Name</td><td style="padding:8px 12px;border:1px solid #e4e4e7;border-left:0;text-align:right;font-weight:600">{{invitee_name}}</td></tr><tr><td style="padding:8px 12px;border:1px solid #e4e4e7;border-top:0;color:#71717a;background:#f4f4f5">Email</td><td style="padding:8px 12px;border:1px solid #e4e4e7;border-left:0;border-top:0;text-align:right">{{invitee_email}}</td></tr><tr><td style="padding:8px 12px;border:1px solid #e4e4e7;border-top:0;color:#71717a;background:#f4f4f5">Access level</td><td style="padding:8px 12px;border:1px solid #e4e4e7;border-left:0;border-top:0;text-align:right">{{access_level}}</td></tr></table>{{#if note}}<p style="font-size:13px;line-height:1.6;color:#71717a">Note from referrer: {{note}}</p>{{/if}}<p style="font-size:12px;color:#a1a1aa;margin-top:24px">Jaal Yantra Textiles · {{current_year}}</p></div>`,
+  },
+  {
+    template_key: "investor-referral-friend",
+    name: "Investor — Referral (invitee heads-up)",
+    template_type: "investor",
+    from: "investors@jaalyantra.com",
+    is_active: true,
+    subject: "{{referrer_name}} invited you to Jaal Yantra Textiles",
+    variables: {
+      invitee_name: "Person being invited",
+      referrer_name: "Investor who referred them",
+      access_level: "Access level they were invited with",
+      note: "Optional message from the referrer",
+      portal_url: "Investor portal URL",
+      current_year: "Year",
+    },
+    html_content: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#18181b"><h1 style="font-size:18px;margin:0 0 12px">Hi {{invitee_name}},</h1><p style="font-size:14px;line-height:1.6;color:#3f3f46"><strong>{{referrer_name}}</strong> thought you'd be interested in <strong>Jaal Yantra Textiles</strong> and invited you to our investor portal as a <strong>{{access_level}}</strong>.</p>{{#if note}}<p style="font-size:14px;line-height:1.6;color:#3f3f46;font-style:italic">"{{note}}"</p>{{/if}}<p style="font-size:14px;line-height:1.6;color:#3f3f46">Our team will reach out shortly to set up your access. No action is needed right now — this is just a heads-up.</p>{{#if portal_url}}<p style="font-size:13px;line-height:1.6;color:#71717a">Learn more about the portal: <a href="{{portal_url}}" style="color:#3f3f46">{{portal_url}}</a></p>{{/if}}<p style="font-size:12px;color:#a1a1aa;margin-top:24px">If this wasn't expected, you can safely ignore this email.</p><p style="font-size:12px;color:#a1a1aa;margin-top:12px">Jaal Yantra Textiles · {{current_year}}</p></div>`,
+  },
 ]
 
 export default async function seedInvestorEmailTemplates({ container }: { container: any }) {
@@ -60,18 +95,21 @@ export default async function seedInvestorEmailTemplates({ container }: { contai
   const svc: any = container.resolve(EMAIL_TEMPLATES_MODULE)
 
   let created = 0
-  let skipped = 0
+  let updated = 0
   for (const t of investorEmailTemplates) {
-    let exists = false
+    let existing: any = null
     try {
-      await svc.getTemplateByKey(t.template_key)
-      exists = true
+      existing = await svc.getTemplateByKey(t.template_key)
     } catch {
-      exists = false
+      existing = null
     }
-    if (exists) {
-      skipped++
-      logger.info(`[seed-investor-email-templates] ⏭ ${t.template_key} exists — skip`)
+    // Upsert: the template body lives in the DB, so shipping a fix to the HTML
+    // (e.g. the Handlebars note/portal guards) must refresh the existing row —
+    // a create-only seed would leave prod on the stale copy.
+    if (existing?.id) {
+      await svc.updateEmailTemplates({ id: existing.id, ...t })
+      updated++
+      logger.info(`[seed-investor-email-templates] ♻ updated ${t.template_key}`)
       continue
     }
     await svc.createEmailTemplates([t])
@@ -79,6 +117,6 @@ export default async function seedInvestorEmailTemplates({ container }: { contai
     logger.info(`[seed-investor-email-templates] ✅ created ${t.template_key}`)
   }
   logger.info(
-    `[seed-investor-email-templates] done — created=${created} skipped=${skipped}`
+    `[seed-investor-email-templates] done — created=${created} updated=${updated}`
   )
 }

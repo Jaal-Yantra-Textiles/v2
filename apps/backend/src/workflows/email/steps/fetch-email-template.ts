@@ -71,9 +71,9 @@ const registerEmailTemplateHelpers = () => {
 // error so the admin can fix the template and retry.
 export const fetchEmailTemplateStep = createStep(
   { name: "fetch-email-template", store: true },
-  async (input: { templateKey: string; data?: Record<string, any> }, { container }) => {
+  async (input: { templateKey: string; data?: Record<string, any>; locale?: string }, { container }) => {
     const emailTemplatesService: EmailTemplatesService = container.resolve(EMAIL_TEMPLATES_MODULE)
-    const template = await emailTemplatesService.getTemplateByKey(input.templateKey)
+    const template = await emailTemplatesService.getTemplateByKey(input.templateKey, input.locale)
 
     // Process the template with Handlebars if data is provided
     let processedHtmlContent = template.html_content
@@ -89,6 +89,11 @@ export const fetchEmailTemplateStep = createStep(
             obj[key] = input.data![key]
             return obj
           }, {} as Record<string, any>)
+
+        // Inject locale into template data so helpers and templates can use it
+        if (input.locale && !filteredData.locale) {
+          filteredData.locale = input.locale
+        }
 
         const htmlTemplate = Handlebars.compile(template.html_content)
         processedHtmlContent = htmlTemplate(filteredData)

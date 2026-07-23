@@ -13,7 +13,6 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const hasMarkup =
     settings.default_wholesale_markup_percent != null &&
     settings.default_wholesale_markup_percent > 0
-  const hasShipping = !!settings.default_shipping_policy_id
   const hasTaxonomy = !!settings.default_category
 
   res.json({
@@ -41,7 +40,6 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       connected,
       brand: hasBrand,
       wholesale_pricing: hasMarkup,
-      shipping_policy: hasShipping,
       taxonomy: hasTaxonomy,
       ready_to_publish: connected && hasBrand && hasTaxonomy,
     },

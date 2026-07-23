@@ -343,7 +343,7 @@ setupSharedTestSuite(() => {
       expect(parentAfter.status).toBe("canceled")
     })
 
-    it("mirrors a partner decline as canceled + declined", async () => {
+    it("reassigns a partner decline (run parked, order left active) [#1093]", async () => {
       await createRegion()
       const designId = await createDesign()
       const { partnerId, partnerHeaders } = await createPartner("decline")
@@ -374,9 +374,16 @@ setupSharedTestSuite(() => {
       )
       expect(decline.status).toBe(200)
 
+      // #1093: decline now reassigns — the run is parked + unassigned, and the
+      // customer's order is NOT canceled (a new partner will pick it up).
+      const declinedRun = (await fetchRun(childId)) as any
+      expect(declinedRun.status).toBe("awaiting_reassignment")
+      expect(declinedRun.partner_id).toBeFalsy()
+      expect(declinedRun.previous_partner_id).toBe(partnerId)
+
       const childOrder = await fetchUnifiedOrder(childOrderId)
-      expect(childOrder.status).toBe("canceled")
-      expect(childOrder.unified_order_status?.partner_status).toBe("declined")
+      expect(childOrder.status).not.toBe("canceled")
+      expect(childOrder.unified_order_status?.partner_status).not.toBe("declined")
     })
 
     it("mirrors an admin cancel as canceled without touching partner_status", async () => {

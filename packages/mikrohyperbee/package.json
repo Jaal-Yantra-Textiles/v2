@@ -1,0 +1,44 @@
+{
+  "name": "@jytextiles/mikrohyperbee",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hyperbee-backed DAL: a RepositoryService over an append-log KV store with a staged write-contract (shape, uniqueness, referential integrity). Medusa-free core; opt-in Medusa adapter.",
+  "license": "MIT",
+  "author": "Jaal Yantra Textiles",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
+  "scripts": {
+    "test": "tsx test/repository.e2e.ts && tsx test/workflow-store.e2e.ts && tsx test/autobee-multiwriter.e2e.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "prepare": "tsc"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "autobase": "^7.28.1",
+    "corestore": "^7.4.6",
+    "hyperbee": "^2.24.2",
+    "tsx": "^4.19.2",
+    "typescript": "5.6.3"
+  },
+  "peerDependencies": {
+    "hyperbee": "*"
+  },
+  "peerDependenciesMeta": {
+    "hyperbee": {
+      "optional": true
+    }
+  }
+}

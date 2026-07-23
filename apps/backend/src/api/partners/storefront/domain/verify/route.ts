@@ -8,6 +8,10 @@ import { DEPLOYMENT_MODULE } from "../../../../../modules/deployment"
 import type DeploymentService from "../../../../../modules/deployment/service"
 import { resolveHostingProviderForPartner } from "../../../../../modules/deployment/providers/resolve-partner-provider"
 import updatePartnerWorkflow from "../../../../../workflows/partners/update-partner"
+import {
+  deriveDomainPair,
+  partnerCustomDomain,
+} from "../../../../../workflows/partners/attach-storefront-domain"
 
 /**
  * POST /partners/storefront/domain/verify
@@ -39,7 +43,7 @@ export const POST = async (
 
   const { providerName, provider, projectRef } =
     await resolveHostingProviderForPartner(partner, req.scope)
-  const customDomain = partner.metadata?.custom_domain as string | undefined
+  const customDomain = partnerCustomDomain(partner)
 
   if (!projectRef || !customDomain) {
     throw new MedusaError(
@@ -48,43 +52,80 @@ export const POST = async (
     )
   }
 
-  // Vercel-only: apply Vercel's recommended DNS via Cloudflare. No-op for
-  // domains outside our zone; skipped entirely for non-Vercel providers.
+  const pair = deriveDomainPair(customDomain)
+  const healErrors: string[] = []
   let applied: any = null
+
   if (providerName === "vercel") {
+    // Vercel-only: apply Vercel's recommended DNS via Cloudflare. No-op for
+    // domains outside our zone.
     const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
     applied = await deployment.applyRecommendedDns(customDomain)
+  } else {
+    // Self-heal: idempotently (re)attach each host. `addDomain` reuses an
+    // existing provider hostname or creates a missing one — so a domain that
+    // was saved before its custom hostname existed (the classic "added during a
+    // broken window, then Check Status only ever *verified*, never *created*")
+    // gets recreated here instead of sitting unverifiable forever.
+    const hosts = [pair.primary, pair.counterpart].filter(
+      (h): h is string => !!h
+    )
+    for (const host of hosts) {
+      try {
+        const r = await provider.addDomain(
+          projectRef,
+          host,
+          host === pair.primary
+            ? undefined
+            : { redirect: pair.primary, redirectStatusCode: 308 }
+        )
+        if (r?.error) healErrors.push(`${host}: ${r.error}`)
+      } catch (e: any) {
+        healErrors.push(`${host}: ${e?.message || e}`)
+      }
+    }
   }
 
-  // Verify after applying so a successful CF write can flip verified=true in
-  // the same call (subject to the provider's propagation window).
-  const result = await provider.verifyDomain(projectRef, customDomain)
+  // Verify after (re)attaching so a freshly-created/validated hostname can flip
+  // verified=true in the same call (subject to the propagation window).
+  const result = await provider.verifyDomain(projectRef, pair.primary)
 
   if (result.verified) {
     await updatePartnerWorkflow(req.scope).run({
       input: {
         id: partner.id,
-        data: {
-          metadata: {
-            ...(partner.metadata || {}),
-            custom_domain_verified: true,
-          },
-        },
+        data: { custom_domain_verified: true },
       },
     })
   }
 
-  const status = await provider
-    .describeDomain(projectRef, customDomain)
+  // Aggregate status + DNS/verification records across the apex/www pair.
+  const primaryStatus = await provider
+    .describeDomain(projectRef, pair.primary)
     .catch(() => null)
+  const records = [...(primaryStatus?.dnsRecords ?? [])]
+  let verification =
+    result.verification || primaryStatus?.verification || []
+  if (pair.counterpart) {
+    const twin = await provider
+      .describeDomain(projectRef, pair.counterpart)
+      .catch(() => null)
+    if (twin) {
+      records.push(...twin.dnsRecords)
+      if (!verification.length && twin.verification?.length) {
+        verification = twin.verification
+      }
+    }
+  }
 
   res.json({
     domain: customDomain,
     verified: result.verified,
-    verification: result.verification || null,
-    misconfigured: status?.misconfigured ?? true,
-    configured_by: status?.configuredBy ?? null,
+    verification,
+    misconfigured: primaryStatus?.misconfigured ?? true,
+    configured_by: primaryStatus?.configuredBy ?? null,
     applied,
-    dns_records: status?.dnsRecords ?? [],
+    dns_records: records,
+    ...(healErrors.length ? { error: healErrors.join("; ") } : {}),
   })
 }

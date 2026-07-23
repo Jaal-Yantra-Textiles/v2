@@ -82,17 +82,103 @@ export interface TechPackDetail {
   note?: string
 }
 
+/** One Key Milestone on the timeline (initial sketches, first revisions, …). */
+export interface TechPackMilestone {
+  label: string
+  /** ISO date string (or any short date label). Optional — TBD milestones show "—". */
+  date?: string | null
+}
+
+/**
+ * The design brief (#604) rendered as the moodboard's anchor cards (#1113 S2).
+ * Every section is optional; a brief frame is only emitted when its section has
+ * content, so a sparse brief still yields a clean board.
+ */
+export interface TechPackBrief {
+  // Section 1 — Core Identity & Concept.
+  concept_theme?: string | null
+  /** Aesthetic Anchor — 3–5 keywords ("utilitarian", "sleek", "nostalgic"). */
+  aesthetic_keywords?: string[] | null
+  // Section 2 — Target Audience & Market Positioning.
+  persona?: {
+    age_range?: string | null
+    lifestyle?: string | null
+    values?: string[] | null
+    pain_points?: string[] | null
+  } | null
+  competitors?: Array<{
+    name: string
+    url?: string | null
+    differentiator?: string | null
+  }> | null
+  price_point?: "luxury" | "mid_market" | "budget" | null
+  // Section 3 — Timeline & Budget.
+  milestones?: TechPackMilestone[] | null
+  design_budget?: number | null
+  cost_currency?: string | null
+  target_completion_date?: string | null
+}
+
+/**
+ * A single design specification row → one card on the "Design Specs" reference
+ * frame (#1113 workspace template). Any category (Material, Finishing,
+ * Construction, …) — the full structured spec surfaced on the canvas so a
+ * designer can read it inline alongside the brief.
+ */
+export interface TechPackSpec {
+  title: string
+  category?: string | null
+  details?: string | null
+  special_instructions?: string | null
+}
+
+/**
+ * A pinned raw-material group → one card on the "Materials" reference frame.
+ * Colors stay at the group grain (resolved at production), so we list the
+ * group + its color variants for reference.
+ */
+export interface TechPackMaterial {
+  name: string
+  composition?: string | null
+  status?: string | null
+  /** Color variant names in the group (the "browse all colors" list). */
+  colors?: string[] | null
+  note?: string | null
+}
+
 export interface TechPackSceneInput {
   design: TechPackHeader
   garment_type: string
   flats: TechPackFlats
+  /** Design brief → the "Brief" anchor frames (rendered first). */
+  brief?: TechPackBrief
   sizeSet?: TechPackSizeSet
   colorways?: TechPackColorway[]
   regions?: TechPackRegion[]
   /** Construction details → the "4 · Construction details" frame. */
   details?: TechPackDetail[]
+  /** All specifications → the "Design Specs" reference frame (#1113). */
+  specs?: TechPackSpec[]
+  /** Pinned raw-material groups → the "Materials" reference frame (#1113). */
+  materials?: TechPackMaterial[]
   /** Optional stable seed so ids/nonces are reproducible across builds. Default 1. */
   seed?: number
+}
+
+/**
+ * Scene-assembly options (#1113 workspace template). Off by default so existing
+ * callers (and the #892 tech-pack tests) build exactly the frames they always
+ * did; the designer-workspace surface opts in.
+ */
+export interface BuildSceneOptions {
+  /** Prepend a "Contents" index frame listing every section on the board. */
+  includeContents?: boolean
+  /**
+   * Append a blank "Designer Workspace" scaffold. Emit ONLY on the first seed —
+   * never on a regenerate/merge, or `mergeFramesIntoScene` would replace (and
+   * so wipe) the designer's own work in that frame.
+   */
+  includeWorkspace?: boolean
 }
 
 // ── Excalidraw scene / element shapes (local, minimal — matches saveExcalidrawState) ──
@@ -1039,23 +1125,635 @@ export function buildConstructionDetailsFrame(
   return { elements, files }
 }
 
+// ── Brief anchor frames (#1113 S2) ────────────────────────────────────────────────
+//
+// The design brief is rendered as presentable cards — "here's the brief; here are the
+// cards asking a designer to work." Value cards carry `customData` (kind:"brief-field")
+// so an editable canvas can round-trip an edit back to the brief columns (S3+).
+
+const PRICE_POINT_LABEL: Record<string, string> = {
+  luxury: "Luxury",
+  mid_market: "Mid-market",
+  budget: "Budget",
+}
+
+/** A titled card: rounded rectangle background + bold heading + body text block. */
+function pushBriefCard(
+  elements: ExcalidrawElement[],
+  rng: SceneRng,
+  frameId: string,
+  opts: {
+    x: number
+    y: number
+    width: number
+    height: number
+    heading: string
+    body: string
+    accent?: string
+    customData?: Record<string, unknown>
+  }
+): void {
+  elements.push(
+    makeElement(
+      {
+        type: "rectangle",
+        x: opts.x,
+        y: opts.y,
+        width: opts.width,
+        height: opts.height,
+        backgroundColor: opts.accent ?? "#f5f5f4",
+        fillStyle: "solid",
+        strokeColor: "#d6d3d1",
+        roundness: { type: 3 },
+        ...(opts.customData ? { customData: opts.customData } : {}),
+      },
+      rng,
+      frameId
+    )
+  )
+  elements.push(
+    makeElement(
+      {
+        type: "text",
+        x: opts.x + 20,
+        y: opts.y + 16,
+        width: opts.width - 40,
+        height: 22,
+        text: opts.heading,
+        fontSize: 16,
+        fontFamily: 3,
+      },
+      rng,
+      frameId
+    )
+  )
+  elements.push(
+    makeElement(
+      {
+        type: "text",
+        x: opts.x + 20,
+        y: opts.y + 46,
+        width: opts.width - 40,
+        height: opts.height - 62,
+        text: opts.body || "—",
+        fontSize: 14,
+        lineHeight: 1.4,
+      },
+      rng,
+      frameId
+    )
+  )
+}
+
+/** Frame title (the big label at the top of a brief frame). */
+function pushFrameTitle(
+  elements: ExcalidrawElement[],
+  rng: SceneRng,
+  frameId: string,
+  originX: number,
+  title: string
+): void {
+  elements.push(
+    makeElement(
+      {
+        type: "text",
+        x: originX + FRAME.pad,
+        y: FRAME.pad,
+        width: FRAME.width - FRAME.pad * 2,
+        height: 34,
+        text: title,
+        fontSize: 28,
+        fontFamily: 3,
+      },
+      rng,
+      frameId
+    )
+  )
+}
+
+export function hasConceptSection(b?: TechPackBrief): boolean {
+  return !!(b && (b.concept_theme || b.aesthetic_keywords?.length))
+}
+export function hasAudienceSection(b?: TechPackBrief): boolean {
+  return !!(
+    b &&
+    (b.persona || b.competitors?.length || b.price_point)
+  )
+}
+export function hasTimelineSection(b?: TechPackBrief): boolean {
+  return !!(
+    b &&
+    (b.milestones?.length || b.design_budget != null || b.target_completion_date)
+  )
+}
+export function briefHasContent(b?: TechPackBrief): boolean {
+  return hasConceptSection(b) || hasAudienceSection(b) || hasTimelineSection(b)
+}
+
+/**
+ * Stable prefix for the editable aesthetic-keywords line in the Concept &
+ * Identity frame. The partner + admin editors strip this prefix and split the
+ * remainder on commas to round-trip `aesthetic_keywords` back to the brief, so
+ * keep it in sync with their local copies of this constant.
+ */
+export const KEYWORDS_LINE_LABEL = "Aesthetic keywords:"
+
+/** Brief Frame 1 — Core Identity & Concept (concept/theme + aesthetic anchor). */
+export function buildBriefConceptFrame(
+  input: TechPackSceneInput,
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const b = input.brief ?? {}
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    { type: "frame", id: frameId, x: originX, y: 0, width: FRAME.width, height: FRAME.height, name: "Brief · Concept & Identity" },
+    rng
+  )
+  const elements: ExcalidrawElement[] = [frame]
+  pushFrameTitle(elements, rng, frameId, originX, "Concept & Identity")
+
+  const cardY = FRAME.pad + 60
+  pushBriefCard(elements, rng, frameId, {
+    x: originX + FRAME.pad,
+    y: cardY,
+    width: 700,
+    height: 220,
+    heading: "Concept / Theme",
+    body: b.concept_theme || "Set the overarching story or inspiration.",
+    accent: "#eef2ff",
+    customData: { kind: "brief-field", field: "concept_theme" },
+  })
+
+  // Aesthetic Anchor — a single editable, comma-separated line so keyword edits
+  // round-trip back to the brief. The text element carries
+  // customData.field = "aesthetic_keywords" so the editors' parser finds it
+  // unambiguously (see extractBriefEdits) and strips KEYWORDS_LINE_LABEL.
+  const keywords = (b.aesthetic_keywords ?? []).filter(Boolean)
+  const anchorX = originX + FRAME.pad
+  const anchorY = cardY + 260
+  elements.push(
+    makeElement(
+      { type: "text", x: anchorX, y: anchorY, width: 700, height: 22, text: "Aesthetic Anchor", fontSize: 16, fontFamily: 3 },
+      rng,
+      frameId
+    )
+  )
+  elements.push(
+    makeElement(
+      {
+        type: "text",
+        x: anchorX,
+        y: anchorY + 34,
+        width: 700,
+        height: 26,
+        text: keywords.length
+          ? `${KEYWORDS_LINE_LABEL} ${keywords.join(", ")}`
+          : `${KEYWORDS_LINE_LABEL} `,
+        fontSize: 18,
+        customData: { kind: "brief-field", field: "aesthetic_keywords" },
+      },
+      rng,
+      frameId
+    )
+  )
+  elements.push(
+    makeElement(
+      { type: "text", x: anchorX, y: anchorY + 74, width: 700, height: 20, text: "Comma-separated · 3–5 keywords that define the look & feel (e.g. utilitarian, sleek, nostalgic).", fontSize: 14, opacity: 60 },
+      rng,
+      frameId
+    )
+  )
+
+  return { elements, files: {} }
+}
+
+/** Brief Frame 2 — Target Audience & Market Positioning. */
+export function buildBriefAudienceFrame(
+  input: TechPackSceneInput,
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const b = input.brief ?? {}
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    { type: "frame", id: frameId, x: originX, y: 0, width: FRAME.width, height: FRAME.height, name: "Brief · Audience & Positioning" },
+    rng
+  )
+  const elements: ExcalidrawElement[] = [frame]
+  pushFrameTitle(elements, rng, frameId, originX, "Audience & Positioning")
+
+  const cardY = FRAME.pad + 60
+
+  // Persona card.
+  const p = b.persona ?? {}
+  const personaLines = [
+    p.age_range && `Age  ${p.age_range}`,
+    p.lifestyle && `Lifestyle  ${p.lifestyle}`,
+    p.values?.length && `Values  ${p.values.join(", ")}`,
+    p.pain_points?.length && `Pain points  ${p.pain_points.join(", ")}`,
+  ].filter(Boolean) as string[]
+  pushBriefCard(elements, rng, frameId, {
+    x: originX + FRAME.pad,
+    y: cardY,
+    width: 540,
+    height: 300,
+    heading: "Persona",
+    body: personaLines.length ? personaLines.join("\n") : "Who you're designing for.",
+    accent: "#f0fdf4",
+    customData: { kind: "brief-field", field: "persona" },
+  })
+
+  // Competitors card.
+  const competitors = (b.competitors ?? []).filter((c) => c?.name)
+  const compBody = competitors.length
+    ? competitors
+        .map((c) => `• ${c.name}${c.differentiator ? ` — ${c.differentiator}` : ""}`)
+        .join("\n")
+    : "Who else is in this space, and how this stands out."
+  pushBriefCard(elements, rng, frameId, {
+    x: originX + FRAME.pad + 580,
+    y: cardY,
+    width: 500,
+    height: 300,
+    heading: "Competitors",
+    body: compBody,
+    accent: "#fef2f2",
+    customData: { kind: "brief-field", field: "competitors" },
+  })
+
+  // Price-point badge.
+  const ppY = cardY + 330
+  const ppLabel = b.price_point ? PRICE_POINT_LABEL[b.price_point] ?? b.price_point : null
+  pushBriefCard(elements, rng, frameId, {
+    x: originX + FRAME.pad,
+    y: ppY,
+    width: 320,
+    height: 110,
+    heading: "Price Point",
+    body: ppLabel ?? "Luxury · Mid-market · Budget",
+    accent: "#fefce8",
+    customData: { kind: "brief-field", field: "price_point" },
+  })
+
+  return { elements, files: {} }
+}
+
+/** Brief Frame 3 — Timeline & Budget (milestones + design budget). */
+export function buildBriefTimelineFrame(
+  input: TechPackSceneInput,
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const b = input.brief ?? {}
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    { type: "frame", id: frameId, x: originX, y: 0, width: FRAME.width, height: FRAME.height, name: "Brief · Timeline & Budget" },
+    rng
+  )
+  const elements: ExcalidrawElement[] = [frame]
+  pushFrameTitle(elements, rng, frameId, originX, "Timeline & Budget")
+
+  const cardY = FRAME.pad + 60
+
+  // Milestones as a labelled timeline of rows.
+  const milestones = (b.milestones ?? []).filter((m) => m?.label)
+  const msBody = milestones.length
+    ? milestones.map((m) => `• ${m.label}${m.date ? `  —  ${m.date}` : "  —  TBD"}`).join("\n")
+    : "Initial sketches · First revisions · Final tech specs · Production-ready samples"
+  pushBriefCard(elements, rng, frameId, {
+    x: originX + FRAME.pad,
+    y: cardY,
+    width: 640,
+    height: 360,
+    heading: "Key Milestones",
+    body: msBody,
+    accent: "#eff6ff",
+    customData: { kind: "brief-field", field: "milestones" },
+  })
+
+  // Design budget card.
+  const budgetText =
+    b.design_budget != null
+      ? `${b.cost_currency ? b.cost_currency.toUpperCase() + " " : ""}${b.design_budget.toLocaleString("en-US")}`
+      : "Total budget for the design phase (separate from manufacturing)."
+  pushBriefCard(elements, rng, frameId, {
+    x: originX + FRAME.pad + 680,
+    y: cardY,
+    width: 400,
+    height: 170,
+    heading: "Design Budget",
+    body: budgetText,
+    accent: "#f0fdfa",
+    customData: { kind: "brief-field", field: "design_budget" },
+  })
+
+  // Hard deadline card.
+  pushBriefCard(elements, rng, frameId, {
+    x: originX + FRAME.pad + 680,
+    y: cardY + 190,
+    width: 400,
+    height: 170,
+    heading: "Target Completion",
+    body: b.target_completion_date || "The single hard deadline.",
+    accent: "#faf5ff",
+    customData: { kind: "brief-field", field: "target_completion_date" },
+  })
+
+  return { elements, files: {} }
+}
+
+// ── Workspace-template frames (#1113) ─────────────────────────────────────────────
+//
+// Reference frames (Design Specs / Materials) surface the design's own record on
+// the canvas so a designer navigates the exact content inline. They're editable
+// (annotate/rearrange freely) and tagged `customData.kind` so a refresh can
+// re-pull them by frame name without guessing. The Workspace scaffold is the
+// designer's own blank area; Contents is the board index.
+
+/** "Design Specs" — every specification as a card (any category), 2-column grid. */
+export function buildDesignSpecsFrame(
+  input: TechPackSceneInput,
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    { type: "frame", id: frameId, x: originX, y: 0, width: FRAME.width, height: FRAME.height, name: "Design Specs" },
+    rng
+  )
+  const elements: ExcalidrawElement[] = [frame]
+  pushFrameTitle(elements, rng, frameId, originX, "Design Specs")
+
+  const specs = (input.specs ?? []).filter((s) => s?.title)
+  if (!specs.length) {
+    elements.push(
+      makeElement(
+        { type: "text", x: originX + FRAME.pad, y: FRAME.pad + 60, width: 700, height: 20, text: "No specifications yet.", fontSize: 14, opacity: 60 },
+        rng,
+        frameId
+      )
+    )
+    return { elements, files: {} }
+  }
+
+  const cols = 2
+  const cardW = 540
+  const cardH = 200
+  const colGap = 40
+  const rowGap = 32
+  specs.forEach((s, i) => {
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    const x = originX + FRAME.pad + col * (cardW + colGap)
+    const y = FRAME.pad + 60 + row * (cardH + rowGap)
+    const bodyLines = [
+      s.category ? `Category  ${s.category}` : null,
+      s.details ? s.details : null,
+      s.special_instructions ? `Note  ${s.special_instructions}` : null,
+    ].filter(Boolean) as string[]
+    pushBriefCard(elements, rng, frameId, {
+      x,
+      y,
+      width: cardW,
+      height: cardH,
+      heading: s.title,
+      body: bodyLines.join("\n"),
+      accent: "#f8fafc",
+      customData: { kind: "design-spec", title: s.title },
+    })
+  })
+
+  return { elements, files: {} }
+}
+
+/** "Materials" — each pinned raw-material group as a card (composition + colors). */
+export function buildMaterialsFrame(
+  input: TechPackSceneInput,
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    { type: "frame", id: frameId, x: originX, y: 0, width: FRAME.width, height: FRAME.height, name: "Materials" },
+    rng
+  )
+  const elements: ExcalidrawElement[] = [frame]
+  pushFrameTitle(elements, rng, frameId, originX, "Materials")
+
+  const materials = (input.materials ?? []).filter((m) => m?.name)
+  if (!materials.length) {
+    elements.push(
+      makeElement(
+        { type: "text", x: originX + FRAME.pad, y: FRAME.pad + 60, width: 700, height: 20, text: "No materials pinned yet.", fontSize: 14, opacity: 60 },
+        rng,
+        frameId
+      )
+    )
+    return { elements, files: {} }
+  }
+
+  const cols = 2
+  const cardW = 540
+  const cardH = 190
+  const colGap = 40
+  const rowGap = 32
+  materials.forEach((m, i) => {
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    const x = originX + FRAME.pad + col * (cardW + colGap)
+    const y = FRAME.pad + 60 + row * (cardH + rowGap)
+    const colors = (m.colors ?? []).filter(Boolean)
+    const bodyLines = [
+      m.composition ? `Composition  ${m.composition}` : null,
+      m.status ? `Status  ${m.status}` : null,
+      colors.length ? `Colors  ${colors.join(", ")}` : null,
+      m.note ? `Note  ${m.note}` : null,
+    ].filter(Boolean) as string[]
+    pushBriefCard(elements, rng, frameId, {
+      x,
+      y,
+      width: cardW,
+      height: cardH,
+      heading: m.name,
+      body: bodyLines.length ? bodyLines.join("\n") : "—",
+      accent: "#f0fdf4",
+      customData: { kind: "material", name: m.name },
+    })
+  })
+
+  return { elements, files: {} }
+}
+
+/**
+ * "Designer Workspace" — the designer's own blank area. Labelled dashed zones
+ * invite exploration; nothing here is regenerated (emitted only on first seed),
+ * so a refresh never touches it.
+ */
+export function buildWorkspaceScaffoldFrame(
+  _input: TechPackSceneInput,
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    { type: "frame", id: frameId, x: originX, y: 0, width: FRAME.width, height: FRAME.height, name: "Designer Workspace" },
+    rng
+  )
+  const elements: ExcalidrawElement[] = [frame]
+  pushFrameTitle(elements, rng, frameId, originX, "Designer Workspace")
+
+  const zones = ["Explorations", "Fabric & trims", "Notes"]
+  const zoneW = 340
+  const zoneH = 520
+  const gap = 40
+  zones.forEach((label, i) => {
+    const x = originX + FRAME.pad + i * (zoneW + gap)
+    const y = FRAME.pad + 60
+    elements.push(
+      makeElement(
+        {
+          type: "rectangle",
+          x,
+          y,
+          width: zoneW,
+          height: zoneH,
+          strokeColor: "#cbd5e1",
+          strokeStyle: "dashed",
+          backgroundColor: "transparent",
+          roundness: { type: 3 },
+          customData: { kind: "workspace-zone", label },
+        },
+        rng,
+        frameId
+      )
+    )
+    elements.push(
+      makeElement(
+        { type: "text", x: x + 16, y: y + 14, width: zoneW - 32, height: 20, text: label, fontSize: 15, fontFamily: 3, opacity: 70 },
+        rng,
+        frameId
+      )
+    )
+  })
+
+  return { elements, files: {} }
+}
+
+/**
+ * "Contents" — the board index. Lists every section on the board so the designer
+ * can orient and jump via Excalidraw's Frames panel. Rendered first (leftmost).
+ */
+export function buildContentsFrame(
+  sectionNames: string[],
+  rng: SceneRng,
+  originX: number
+): FrameResult {
+  const frameId = rng.id("frame")
+  const frame = makeElement(
+    { type: "frame", id: frameId, x: originX, y: 0, width: FRAME.width, height: FRAME.height, name: "Contents" },
+    rng
+  )
+  const elements: ExcalidrawElement[] = [frame]
+  pushFrameTitle(elements, rng, frameId, originX, "Contents")
+
+  elements.push(
+    makeElement(
+      {
+        type: "text",
+        x: originX + FRAME.pad,
+        y: FRAME.pad + 54,
+        width: FRAME.width - FRAME.pad * 2,
+        height: 20,
+        text: "This design workspace, section by section — jump between frames from the Frames panel (left).",
+        fontSize: 14,
+        opacity: 65,
+      },
+      rng,
+      frameId
+    )
+  )
+
+  const listX = originX + FRAME.pad
+  let y = FRAME.pad + 100
+  sectionNames.forEach((name, i) => {
+    elements.push(
+      makeElement(
+        {
+          type: "text",
+          x: listX,
+          y,
+          width: FRAME.width - FRAME.pad * 2,
+          height: 26,
+          text: `${String(i + 1).padStart(2, "0")}   ${name}`,
+          fontSize: 18,
+          customData: { kind: "contents-entry", section: name },
+        },
+        rng,
+        frameId
+      )
+    )
+    y += 40
+  })
+
+  return { elements, files: {} }
+}
+
 // ── Scene assembler ──────────────────────────────────────────────────────────────
+
+/** One assemblable section: the frame's own name (for the index) + its builder. */
+interface SceneSection {
+  name: string
+  build: (i: TechPackSceneInput, r: SceneRng, x: number) => FrameResult
+}
 
 /**
  * Assemble the full moodboard scene: runs each applicable frame builder left-to-right
  * and merges their elements + files into one Excalidraw scene.
+ *
+ * `opts` opts into the #1113 designer-workspace template (Contents index +
+ * Workspace scaffold). Omitted → identical output to the original #892 builder.
  */
-export function buildMoodboardScene(input: TechPackSceneInput): MoodboardScene {
+export function buildMoodboardScene(
+  input: TechPackSceneInput,
+  opts?: BuildSceneOptions
+): MoodboardScene {
   const rng = new SceneRng(input.seed ?? 1)
-  const builders: ((
-    i: TechPackSceneInput,
-    r: SceneRng,
-    x: number
-  ) => FrameResult)[] = [buildHeaderFlatsFrame]
-  if (input.sizeSet) builders.push(buildMeasurementFrame)
-  if (input.regions?.length) builders.push(buildZoomLensFrame)
-  if (input.details?.length) builders.push(buildConstructionDetailsFrame)
-  if (input.colorways?.length) builders.push(buildColorwayFrame)
+
+  // Ordered content sections — frame names match what each builder emits so the
+  // Contents index lines up with Excalidraw's Frames panel.
+  const sections: SceneSection[] = []
+  if (hasConceptSection(input.brief))
+    sections.push({ name: "Brief · Concept & Identity", build: buildBriefConceptFrame })
+  if (hasAudienceSection(input.brief))
+    sections.push({ name: "Brief · Audience & Positioning", build: buildBriefAudienceFrame })
+  if (hasTimelineSection(input.brief))
+    sections.push({ name: "Brief · Timeline & Budget", build: buildBriefTimelineFrame })
+  sections.push({ name: "1 · Header & Flats", build: buildHeaderFlatsFrame })
+  if (input.specs?.length)
+    sections.push({ name: "Design Specs", build: buildDesignSpecsFrame })
+  if (input.sizeSet)
+    sections.push({ name: "2 · Measurements", build: buildMeasurementFrame })
+  if (input.regions?.length)
+    sections.push({ name: "3 · Zoom details", build: buildZoomLensFrame })
+  if (input.details?.length)
+    sections.push({ name: "4 · Construction details", build: buildConstructionDetailsFrame })
+  if (input.materials?.length)
+    sections.push({ name: "Materials", build: buildMaterialsFrame })
+  if (input.colorways?.length)
+    sections.push({ name: "5 · Colorways", build: buildColorwayFrame })
+
+  // Build the ordered list of frame builders: [Contents?] + sections + [Workspace?].
+  const builders: ((i: TechPackSceneInput, r: SceneRng, x: number) => FrameResult)[] = []
+  if (opts?.includeContents) {
+    const indexNames = [
+      ...sections.map((s) => s.name),
+      ...(opts?.includeWorkspace ? ["Designer Workspace"] : []),
+    ]
+    builders.push((_i, r, x) => buildContentsFrame(indexNames, r, x))
+  }
+  builders.push(...sections.map((s) => s.build))
+  if (opts?.includeWorkspace) builders.push(buildWorkspaceScaffoldFrame)
 
   const elements: ExcalidrawElement[] = []
   let files: Record<string, ExcalidrawFile> = {}
@@ -1110,5 +1808,81 @@ export function mergeFramesIntoScene(
     ...existing,
     elements: [...keptElements, ...incoming.elements],
     files: { ...existing.files, ...incoming.files },
+  }
+}
+
+// ── Insert-block palette (#1113 S3+) ──────────────────────────────────────────────
+//
+// The monolithic generate rebuilds the whole board. The palette instead exposes
+// each frame as an individual drop-in: the designer inserts one pre-filled block
+// at a time and arranges it themselves. Every block is one existing frame builder
+// run at origin (x=0) — the caller (partner-ui) translates + re-ids the elements
+// onto the live canvas, then saves via the normal moodboard PUT. Nothing here
+// persists, so a drop-in is non-destructive and repeatable.
+
+type FrameBuilder = (i: TechPackSceneInput, r: SceneRng, x: number) => FrameResult
+
+export interface MoodboardBlockDef {
+  key: string
+  label: string
+  /** Grouping for the palette menu. */
+  group: "Brief" | "Tech-pack" | "Workspace"
+  build: FrameBuilder
+  /** Whether the design currently has data backing this block (scaffolds → always). */
+  available: (i: TechPackSceneInput) => boolean
+}
+
+export const MOODBOARD_BLOCKS: MoodboardBlockDef[] = [
+  { key: "brief-concept", label: "Concept & Identity", group: "Brief", build: buildBriefConceptFrame, available: (i) => hasConceptSection(i.brief) },
+  { key: "brief-audience", label: "Audience & Positioning", group: "Brief", build: buildBriefAudienceFrame, available: (i) => hasAudienceSection(i.brief) },
+  { key: "brief-timeline", label: "Timeline & Budget", group: "Brief", build: buildBriefTimelineFrame, available: (i) => hasTimelineSection(i.brief) },
+  { key: "header-flats", label: "Header & Flats", group: "Tech-pack", build: buildHeaderFlatsFrame, available: () => true },
+  { key: "design-specs", label: "Design Specs", group: "Tech-pack", build: buildDesignSpecsFrame, available: (i) => !!i.specs?.length },
+  { key: "construction", label: "Construction details", group: "Tech-pack", build: buildConstructionDetailsFrame, available: (i) => !!i.details?.length },
+  { key: "measurements", label: "Measurements", group: "Tech-pack", build: buildMeasurementFrame, available: (i) => !!i.sizeSet },
+  { key: "materials", label: "Materials", group: "Tech-pack", build: buildMaterialsFrame, available: (i) => !!i.materials?.length },
+  { key: "colorways", label: "Colorways", group: "Tech-pack", build: buildColorwayFrame, available: (i) => !!i.colorways?.length },
+  { key: "workspace", label: "Workspace zone", group: "Workspace", build: buildWorkspaceScaffoldFrame, available: () => true },
+]
+
+export interface MoodboardBlockListing {
+  key: string
+  label: string
+  group: string
+  available: boolean
+}
+
+/** The palette: every insertable block + whether the design has data for it. */
+export function listMoodboardBlocks(input: TechPackSceneInput): MoodboardBlockListing[] {
+  return MOODBOARD_BLOCKS.map(({ key, label, group, available }) => ({
+    key,
+    label,
+    group,
+    available: available(input),
+  }))
+}
+
+/**
+ * Build a SINGLE moodboard block as a standalone scene, positioned at origin
+ * (x=0). The caller translates + re-ids the elements onto the live canvas.
+ * Returns null for an unknown key.
+ */
+export function buildMoodboardBlock(
+  input: TechPackSceneInput,
+  key: string
+): MoodboardScene | null {
+  const def = MOODBOARD_BLOCKS.find((b) => b.key === key)
+  if (!def) {
+    return null
+  }
+  const rng = new SceneRng(input.seed ?? 1)
+  const res = def.build(input, rng, 0)
+  return {
+    type: "excalidraw",
+    version: 2,
+    source: "jyt:moodboard-block",
+    elements: res.elements,
+    appState: { viewBackgroundColor: "#ffffff", gridSize: null, theme: "light" },
+    files: res.files,
   }
 }

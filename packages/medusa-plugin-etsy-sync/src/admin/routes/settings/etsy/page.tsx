@@ -24,7 +24,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query"
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { Outlet, useNavigate } from "react-router-dom"
 import { etsyApi } from "../../../lib/api"
 import { useEtsySyncColumns, EtsySyncRecord } from "./hooks/use-etsy-sync-columns"
 
@@ -173,6 +173,9 @@ const EtsySettingsPage = () => {
             ))}
           </div>
         </Container>
+        {/* Nested @-routes (@settings, @bulk) render here so they overlay the
+            list instead of replacing it. */}
+        <Outlet />
       </div>
     )
   }
@@ -197,6 +200,13 @@ const EtsySettingsPage = () => {
           {connected ? (
             <div className="flex items-center gap-3">
               <StatusBadge color="green">Connected</StatusBadge>
+              <Button
+                size="small"
+                variant="secondary"
+                onClick={() => navigate("/settings/etsy/bulk")}
+              >
+                Bulk sync
+              </Button>
               <Button
                 size="small"
                 variant="secondary"
@@ -266,6 +276,10 @@ const EtsySettingsPage = () => {
           <DataTable.Pagination />
         </DataTable>
       </Container>
+
+      {/* Nested @-routes (@settings, @bulk) render here so they overlay the
+          list instead of navigating away and blanking the page. */}
+      <Outlet />
 
       <Toaster />
     </div>

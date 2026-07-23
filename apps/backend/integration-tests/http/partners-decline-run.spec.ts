@@ -171,19 +171,25 @@ setupSharedTestSuite(() => {
       )
       expect([403, 404]).toContain(cross.status)
 
-      // ── 4. Valid decline by owner → 200, run cancelled ──────────────────
+      // ── 4. Valid decline by owner → 200, run queued for reassignment ────
+      // #1093: decline now REASSIGNS (unassign + awaiting_reassignment), it
+      // no longer cancels. The attribution string is retained on
+      // cancelled_reason for the admin feed, and the partner is unassigned.
       const ok = await api.post(
         `/partners/production-runs/${aRun.id}/decline`,
         { reason: "capacity", notes: "Machine servicing this week" },
         { headers: a.headers, validateStatus: () => true }
       )
       expect(ok.status).toBe(200)
-      expect(ok.data.production_run.status).toBe("cancelled")
-      expect(ok.data.production_run.cancelled_at).toBeTruthy()
+      expect(ok.data.production_run.status).toBe("awaiting_reassignment")
+      expect(ok.data.production_run.partner_id).toBeFalsy()
+      expect(ok.data.production_run.previous_partner_id).toBe(a.partnerId)
       expect(ok.data.production_run.cancelled_reason).toMatch(/capacity/i)
       expect(ok.data.production_run.cancelled_reason).toMatch(/Machine servicing/)
 
-      // ── 5. Idempotent re-decline → 200 with "Already cancelled" ─────────
+      // ── 5. Idempotent re-decline → 200 with "Already queued" ────────────
+      // partner_id is now null, so the ownership check would 404 — the route
+      // short-circuits on the awaiting_reassignment status instead.
       const second = await api.post(
         `/partners/production-runs/${aRun.id}/decline`,
         { reason: "capacity" },

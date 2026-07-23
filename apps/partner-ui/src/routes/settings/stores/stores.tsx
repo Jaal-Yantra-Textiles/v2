@@ -29,6 +29,10 @@ import {
   useRemoveStorefrontDomain,
 } from "../../../hooks/api/storefront"
 
+// Redeploy is hidden for now: shared multi-tenant storefronts deploy centrally,
+// so a per-partner redeploy does nothing useful. Flip to re-enable.
+const REDEPLOY_ENABLED = false
+
 function formatDate(dateStr: string | number | null | undefined): string {
   if (!dateStr) return "—"
   const d = new Date(typeof dateStr === "number" ? dateStr : dateStr)
@@ -39,6 +43,21 @@ function formatDate(dateStr: string | number | null | undefined): string {
     hour: "2-digit",
     minute: "2-digit",
   })
+}
+
+function hostingProviderLabel(provider: string | undefined): string {
+  switch (provider) {
+    case "vercel":
+      return "Vercel"
+    case "cloudflare":
+      return "Cloudflare Workers"
+    case "netlify":
+      return "Netlify"
+    case "render":
+      return "Render"
+    default:
+      return "—"
+  }
 }
 
 function statusColor(
@@ -170,6 +189,11 @@ const StorefrontSection = () => {
             size="small"
             onClick={handleProvision}
             disabled={isProvisioning}
+            className={
+              isProvisioning
+                ? undefined
+                : "!bg-ui-tag-green-icon hover:!bg-ui-tag-green-icon/90 !text-white !border-transparent !shadow-none"
+            }
           >
             {isProvisioning ? "Enabling..." : "Enable Storefront"}
           </Button>
@@ -216,15 +240,19 @@ const StorefrontSection = () => {
               </Button>
             </a>
           )}
-          <Button
-            variant="secondary"
-            size="small"
-            onClick={handleRedeploy}
-            disabled={isRedeploying}
-          >
-            <ArrowPath className="mr-1" />
-            {isRedeploying ? "Deploying..." : "Redeploy"}
-          </Button>
+          {/* Redeploy hidden for now — shared multi-tenant storefronts are
+              deployed centrally; a per-partner redeploy is a no-op. */}
+          {REDEPLOY_ENABLED && (
+            <Button
+              variant="secondary"
+              size="small"
+              onClick={handleRedeploy}
+              disabled={isRedeploying}
+            >
+              <ArrowPath className="mr-1" />
+              {isRedeploying ? "Deploying..." : "Redeploy"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -279,6 +307,11 @@ const StorefrontSection = () => {
               <Text size="small">—</Text>
             )}
           </div>
+
+          <Text size="small" className="text-ui-fg-subtle">
+            Hosting
+          </Text>
+          <Text size="small">{hostingProviderLabel(status.provider)}</Text>
 
           <Text size="small" className="text-ui-fg-subtle">
             Enabled
@@ -340,6 +373,39 @@ const StorefrontSection = () => {
   )
 }
 
+type DnsRow = { type: string; host: string; value: string }
+
+const DnsTable = ({ rows }: { rows: DnsRow[] }) => (
+  <div className="rounded-lg border border-ui-border-base overflow-hidden">
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="bg-ui-bg-subtle border-b border-ui-border-base">
+          <th className="px-3 py-2 text-left text-ui-fg-subtle font-normal">
+            Type
+          </th>
+          <th className="px-3 py-2 text-left text-ui-fg-subtle font-normal">
+            Host
+          </th>
+          <th className="px-3 py-2 text-left text-ui-fg-subtle font-normal">
+            Value
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((rec, i) => (
+          <tr key={i}>
+            <td className="px-3 py-2 font-mono text-xs">{rec.type}</td>
+            <td className="px-3 py-2 font-mono text-xs">{rec.host}</td>
+            <td className="px-3 py-2 font-mono text-xs break-all">
+              {rec.value}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+)
+
 const CustomDomainSection = () => {
   const { data: domainStatus, isPending } = useStorefrontDomain()
   const { mutateAsync: addDomain, isPending: isAdding } =
@@ -372,11 +438,19 @@ const CustomDomainSection = () => {
       const result = await addDomain({ domain: value })
       setAddResult(result)
       setDomainInput("")
-      toast.success("Domain added", {
-        description: result.verified
-          ? "Domain verified. Configure your DNS to point it to your storefront."
-          : "Domain added. Follow the verification steps below.",
-      })
+      if (result.error) {
+        // The domain was saved but the provider rejected the attach — surface
+        // why instead of a green "added" that never goes live.
+        toast.error("Domain saved, but attach failed", {
+          description: result.error,
+        })
+      } else {
+        toast.success("Domain added", {
+          description: result.verified
+            ? "Domain verified. Configure your DNS to point it to your storefront."
+            : "Domain added. Follow the verification steps below.",
+        })
+      }
     } catch (e: any) {
       toast.error("Could not add domain", {
         description: e?.message || "Something went wrong",
@@ -390,9 +464,20 @@ const CustomDomainSection = () => {
       setAddResult(result)
       if (result.verified) {
         toast.success("Domain verified")
+      } else if (result.error) {
+        toast.error("Couldn't attach domain", { description: result.error })
       } else {
+        // Guide by what the partner actually needs to publish: a TXT ownership
+        // record vs. a CNAME. The old copy always said "TXT" even when none
+        // existed yet — misleading when the hostname was just (re)created.
+        const hasTxt = (result.verification?.length ?? 0) > 0
+        const hasDns = (result.dns_records?.length ?? 0) > 0
         toast.warning("Domain not yet verified", {
-          description: "Make sure the TXT record is set and try again.",
+          description: hasTxt
+            ? "Add the TXT record(s) shown below to verify ownership, then check again."
+            : hasDns
+            ? "Add the DNS record(s) shown below at your domain provider, then check again in a few minutes."
+            : "We're still attaching your domain — give it a minute, then check again.",
         })
       }
     } catch (e: any) {
@@ -413,9 +498,17 @@ const CustomDomainSection = () => {
     if (!confirmed) return
 
     try {
-      await removeDomain()
+      const result = await removeDomain()
       setAddResult(null)
-      toast.success("Custom domain removed")
+      if (result?.warnings?.length) {
+        toast.warning("Custom domain removed", {
+          description:
+            "Some records may still be clearing at the host: " +
+            result.warnings.join("; "),
+        })
+      } else {
+        toast.success("Custom domain removed")
+      }
     } catch (e: any) {
       toast.error("Could not remove domain", {
         description: e?.message || "Something went wrong",
@@ -433,7 +526,12 @@ const CustomDomainSection = () => {
     domainStatus?.verified ?? addResult?.verified ?? false
   const isMisconfigured =
     domainStatus?.misconfigured ?? addResult?.misconfigured ?? true
-  const verification = addResult?.verification
+  const isActive = isVerified && !isMisconfigured
+  // Ownership (TXT) records come from the add/verify calls; the persistent
+  // "point your domain here" records come from the GET status. Prefer the
+  // freshest source but fall back so instructions survive a page reload.
+  const verification =
+    addResult?.verification || domainStatus?.verification || []
   const dnsRecords =
     domainStatus?.dns_records || addResult?.dns_records || []
 
@@ -504,97 +602,59 @@ const CustomDomainSection = () => {
             </Button>
           </div>
 
-          {!isVerified && verification && verification.length > 0 && (
+          {isActive ? (
+            <InlineTip variant="success" label="Domain Active">
+              Your custom domain is configured and serving your storefront.
+            </InlineTip>
+          ) : (
             <div className="space-y-3">
-              <InlineTip variant="warning" label="Domain Verification Required">
-                Add the following TXT record at your DNS provider to verify
-                ownership of this domain.
-              </InlineTip>
+              {verification.length > 0 && (
+                <>
+                  <InlineTip
+                    variant="warning"
+                    label="Verify Domain Ownership"
+                  >
+                    Add the following TXT record at your DNS provider to verify
+                    you own this domain.
+                  </InlineTip>
+                  <DnsTable
+                    rows={verification.map((v) => ({
+                      type: v.type,
+                      host: v.domain,
+                      value: v.value,
+                    }))}
+                  />
+                </>
+              )}
 
-              <div className="rounded-lg border border-ui-border-base overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-ui-bg-subtle border-b border-ui-border-base">
-                      <th className="px-3 py-2 text-left text-ui-fg-subtle font-normal">
-                        Type
-                      </th>
-                      <th className="px-3 py-2 text-left text-ui-fg-subtle font-normal">
-                        Host
-                      </th>
-                      <th className="px-3 py-2 text-left text-ui-fg-subtle font-normal">
-                        Value
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {verification.map((v, i) => (
-                      <tr key={i}>
-                        <td className="px-3 py-2 font-mono text-xs">
-                          {v.type}
-                        </td>
-                        <td className="px-3 py-2 font-mono text-xs">
-                          {v.domain}
-                        </td>
-                        <td className="px-3 py-2 font-mono text-xs break-all">
-                          {v.value}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {dnsRecords.length > 0 && (
+                <>
+                  <InlineTip variant="info" label="Point Your Domain">
+                    Add the DNS record{dnsRecords.length > 1 ? "s" : ""} below at
+                    your domain provider so it resolves to your storefront. DNS
+                    changes can take up to 48 hours to propagate.
+                    <br />
+                    <br />
+                    <strong>Root domain (e.g. example.com):</strong> a plain
+                    CNAME isn't allowed at the root. Your DNS provider must
+                    support CNAME flattening / ALIAS / ANAME (Cloudflare,
+                    DNSimple). Providers that don't — including{" "}
+                    <strong>AWS Route 53</strong>, whose ALIAS only targets AWS
+                    resources — can't point the root at an external host. On
+                    those, either move your domain's nameservers to Cloudflare,
+                    or point only <code>www</code> and set up a root&nbsp;→&nbsp;www
+                    redirect at your registrar.
+                  </InlineTip>
+                  <DnsTable rows={dnsRecords} />
+                </>
+              )}
 
-              <Button
-                size="small"
-                variant="secondary"
-                onClick={handleVerify}
-                disabled={isVerifying}
-              >
-                {isVerifying ? "Verifying..." : "Verify Domain"}
-              </Button>
-            </div>
-          )}
-
-          {isVerified && isMisconfigured && (
-            <div className="space-y-3">
-              <InlineTip variant="info" label="DNS Configuration Required">
-                Point your domain to Vercel by adding the DNS record{dnsRecords.length > 1 ? "s" : ""} below at
-                your domain provider. DNS changes can take up to 48 hours to
-                propagate.
-              </InlineTip>
-
-              <div className="rounded-lg border border-ui-border-base overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-ui-bg-subtle border-b border-ui-border-base">
-                      <th className="px-3 py-2 text-left text-ui-fg-subtle font-normal">
-                        Type
-                      </th>
-                      <th className="px-3 py-2 text-left text-ui-fg-subtle font-normal">
-                        Host
-                      </th>
-                      <th className="px-3 py-2 text-left text-ui-fg-subtle font-normal">
-                        Value
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dnsRecords.map((rec, i) => (
-                      <tr key={i}>
-                        <td className="px-3 py-2 font-mono text-xs">
-                          {rec.type}
-                        </td>
-                        <td className="px-3 py-2 font-mono text-xs">
-                          {rec.host}
-                        </td>
-                        <td className="px-3 py-2 font-mono text-xs break-all">
-                          {rec.value}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {verification.length === 0 && dnsRecords.length === 0 && (
+                <InlineTip variant="info" label="Setting Up Domain">
+                  We're attaching your domain to your storefront. This can take a
+                  few minutes — click Check Status to refresh.
+                </InlineTip>
+              )}
 
               <Button
                 size="small"
@@ -605,12 +665,6 @@ const CustomDomainSection = () => {
                 {isVerifying ? "Checking..." : "Check Status"}
               </Button>
             </div>
-          )}
-
-          {isVerified && !isMisconfigured && (
-            <InlineTip variant="success" label="Domain Active">
-              Your custom domain is configured and serving your storefront.
-            </InlineTip>
           )}
         </div>
       )}

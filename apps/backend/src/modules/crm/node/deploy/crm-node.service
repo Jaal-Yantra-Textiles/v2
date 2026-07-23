@@ -1,0 +1,23 @@
+[Unit]
+Description=JYT CRM Autobase node (Topology-A durable anchor)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/crm
+EnvironmentFile=/etc/crm/node.env
+ExecStart=/usr/bin/node /opt/crm/crm-node.cjs
+Restart=on-failure
+RestartSec=3
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=/opt/crm
+# Keep footprint bounded on the 1 GB box
+MemoryMax=280M
+MemoryHigh=220M
+
+[Install]
+WantedBy=multi-user.target

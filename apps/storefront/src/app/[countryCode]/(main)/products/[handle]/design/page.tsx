@@ -9,6 +9,11 @@ import { getRegion } from "@lib/data/regions"
 type PageParams = { handle: string; countryCode: string }
 type SearchParams = { designId?: string }
 
+type Props = {
+  params: Promise<PageParams>
+  searchParams: Promise<SearchParams>
+}
+
 async function getProduct(params: PageParams) {
   const region = await getRegion(params.countryCode)
   if (!region) return null
@@ -19,13 +24,13 @@ async function getProduct(params: PageParams) {
   })
 
   const product = response.products[0]
-  console.log("[DesignPage] Product fetched:", product?.id, "thumbnail:", product?.thumbnail, "other details:", product)
 
   return product || null
 }
 
-export async function generateMetadata({ params }: { params: PageParams }): Promise<Metadata> {
-  const product = await getProduct(params)
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const resolvedParams = await params
+  const product = await getProduct(resolvedParams)
 
   if (!product) {
     return { title: "Design Not Found" }
@@ -40,11 +45,13 @@ export async function generateMetadata({ params }: { params: PageParams }): Prom
 export default async function DesignPage({
   params,
   searchParams,
-}: {
-  params: PageParams
-  searchParams: SearchParams
-}) {
-  const product = await getProduct(params)
+}: Props) {
+  const [resolvedParams, resolvedSearchParams] = await Promise.all([
+    params,
+    searchParams,
+  ])
+
+  const product = await getProduct(resolvedParams)
   const customer = await retrieveCustomer().catch(() => null)
 
   if (!product) {
@@ -53,8 +60,8 @@ export default async function DesignPage({
 
   // If a designId is provided, fetch the existing design to pre-populate the editor
   let initialDesign: DesignDetail | null = null
-  if (searchParams.designId) {
-    initialDesign = await getDesign(searchParams.designId).catch(() => null)
+  if (resolvedSearchParams.designId) {
+    initialDesign = await getDesign(resolvedSearchParams.designId).catch(() => null)
   }
 
   return (
@@ -74,7 +81,7 @@ export default async function DesignPage({
         email: customer.email,
         aiFeaturesPaid: customer.metadata?.ai_features_paid === true,
       } : null}
-      countryCode={params.countryCode}
+      countryCode={resolvedParams.countryCode}
       initialDesign={initialDesign}
     />
   )

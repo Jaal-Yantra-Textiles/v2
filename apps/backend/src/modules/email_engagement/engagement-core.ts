@@ -11,7 +11,7 @@ import type { EngagementType } from "./provider-parsers"
  * the soft-exclusion. Sibling of `suppress-core`.
  */
 
-export type EngagementProvider = "mailjet" | "resend" | "other"
+export type EngagementProvider = "mailjet" | "resend" | "kit" | "other"
 
 export type EngagementInput = {
   email: string

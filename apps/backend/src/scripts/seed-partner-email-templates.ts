@@ -118,6 +118,23 @@ export const partnerEmailTemplates = [
     },
     html_content: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;color:#18181b"><h1 style="font-size:20px;margin:0 0 12px">Confirm your email</h1><p style="font-size:14px;line-height:1.6;color:#3f3f46;margin:0 0 20px">Welcome to Jaal Yantra Textiles. Confirm this email address to activate your partner account and start listing your work.</p><p style="margin:0 0 24px"><a href="{{verify_url}}" style="background:#18181b;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-size:15px;font-weight:600;display:inline-block">Verify my email</a></p><p style="font-size:13px;line-height:1.6;color:#71717a;margin:0 0 8px">This link expires in {{expires_label}}. If it stops working, request a new one from the sign-up screen.</p><p style="font-size:12px;line-height:1.6;color:#a1a1aa;margin:0 0 20px">If the button doesn't work, paste this link into your browser:<br/><span style="color:#3f3f46;word-break:break-all">{{verify_url}}</span></p><p style="font-size:12px;color:#a1a1aa;border-top:1px solid #e4e4e7;padding-top:16px;margin:0">Didn't create a partner account? You can safely ignore this email.<br/>Jaal Yantra Textiles</p></div>`,
   },
+  // #1113 S4 — designer invite. Sent when an admin mints a scoped invite with a
+  // recipient email; links the designer straight to the design's moodboard.
+  {
+    template_key: "designer-invite",
+    name: "Designer — Invitation to a Design",
+    template_type: "partner",
+    from: "partner@partner.jaalyantra.com",
+    is_active: true,
+    subject: "{{inviter_name}} invited you to design {{design_name}}",
+    variables: {
+      invite_url: "Designer-invite landing link (partner-ui /designer-invite/:token)",
+      design_name: "The design being shared",
+      inviter_name: "Who sent the invite (brand/studio)",
+      expires_label: "Human-readable expiry, e.g. '7 days' or 'no expiry'",
+    },
+    html_content: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;color:#18181b"><h1 style="font-size:20px;margin:0 0 12px">You've been invited to design</h1><p style="font-size:14px;line-height:1.6;color:#3f3f46;margin:0 0 8px"><strong>{{inviter_name}}</strong> invited you to collaborate on <strong>{{design_name}}</strong> at Jaal Yantra Textiles.</p><p style="font-size:14px;line-height:1.6;color:#3f3f46;margin:0 0 20px">Accept to create your designer account and open the moodboard — the brief is already waiting for you.</p><p style="margin:0 0 24px"><a href="{{invite_url}}" style="background:#18181b;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-size:15px;font-weight:600;display:inline-block">Accept &amp; open the moodboard</a></p><p style="font-size:13px;line-height:1.6;color:#71717a;margin:0 0 8px">This invite expires in {{expires_label}}.</p><p style="font-size:12px;line-height:1.6;color:#a1a1aa;margin:0 0 20px">If the button doesn't work, paste this link into your browser:<br/><span style="color:#3f3f46;word-break:break-all">{{invite_url}}</span></p><p style="font-size:12px;color:#a1a1aa;border-top:1px solid #e4e4e7;padding-top:16px;margin:0">Weren't expecting this? You can safely ignore this email.<br/>Jaal Yantra Textiles</p></div>`,
+  },
   // #859 S2 (#861) — artisan product review outcome emails. Sent by the
   // "Artisan Product Review — Email" visual flow on partner_product.approved /
   // .rejected (see scripts/seed-artisan-product-approval-flow.ts).

@@ -143,9 +143,14 @@ const BUSINESS_TYPE_KEYS = [
   "other",
 ] as const
 
-const mapBusinessTypeToWorkspaceType = (businessType: string): "seller" | "manufacturer" | "individual" => {
+const mapBusinessTypeToWorkspaceType = (
+  businessType: string
+): "seller" | "manufacturer" | "individual" | "designer" => {
   if (businessType === "seller") return "seller"
   if (businessType === "individual") return "individual"
+  // #338/#958 — designer is now a first-class persona (was collapsed to
+  // manufacturer), driving the lean designer sidebar + layout default.
+  if (businessType === "designer") return "designer"
   return "manufacturer"
 }
 
@@ -222,6 +227,7 @@ const mapWorkspaceTypeToBusinessType = (workspaceType?: string): string => {
   if (workspaceType === "seller") return "seller"
   if (workspaceType === "individual") return "individual"
   if (workspaceType === "manufacturer") return "manufacturer"
+  if (workspaceType === "designer") return "designer"
   return ""
 }
 

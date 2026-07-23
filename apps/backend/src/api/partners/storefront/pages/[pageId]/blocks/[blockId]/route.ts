@@ -42,7 +42,7 @@ export const PUT = async (
   const { result } = await updateBlockWorkflow(req.scope).run({
     input: {
       ...(req.validatedBody as any),
-      id: req.params.blockId,
+      block_id: req.params.blockId,
       page_id: req.params.pageId,
     },
   })

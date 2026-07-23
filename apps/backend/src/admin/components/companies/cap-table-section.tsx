@@ -9,15 +9,18 @@ import {
   toast,
   useDataTable,
 } from "@medusajs/ui"
-import { CurrencyDollar, DocumentText, Plus, RocketLaunch, Users } from "@medusajs/icons"
+import { ArrowPath, CurrencyDollar, DocumentText, PencilSquare, Plus, RocketLaunch, Users } from "@medusajs/icons"
 import { useMemo } from "react"
 import { Link } from "react-router-dom"
 import { ActionMenu } from "../common/action-menu"
 import { OwnershipDonut, type DonutSegment } from "./ownership-donut"
 import {
   useCompanyCapTables,
+  useCapTableConvertibles,
+  useApproveConvertible,
   usePublishRound,
   type AdminCapTable,
+  type AdminConvertible,
   type AdminFundingRound,
   type AdminStake,
 } from "../../hooks/api/cap-tables-admin"
@@ -40,11 +43,19 @@ const stakeStatusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
     case "unpaid":
       return "orange"
     case "cancelled":
+    case "rejected":
       return "red"
+    case "not_followed_up":
+      return "grey"
     default:
       return "grey"
   }
 }
+
+// A participation is "absorbed" into the capital table only once it's fully
+// paid. Committed money and share count exclude parked/declined stakes.
+const ABSORBED_STATUSES = new Set(["fully_paid"])
+const EXCLUDED_STATUSES = new Set(["rejected", "not_followed_up", "cancelled"])
 
 const roundStatusColor = (status?: string): "green" | "orange" | "grey" | "red" => {
   switch (status) {
@@ -66,18 +77,30 @@ const OwnershipPanel = ({ capTable }: { capTable: AdminCapTable }) => {
   const stakes = capTable.stakes ?? []
   const ccy = capTable.currency_code
 
-  const { segments, totalCommitted, totalPaid } = useMemo(() => {
-    const paidStatuses = new Set(["fully_paid", "active", "partially_paid"])
-    const segs: DonutSegment[] = stakes.map((s) => ({
+  const { segments, totalCommitted, totalPaid, absorbedCount } = useMemo(() => {
+    // Capital table = fully absorbed (paid) stakes only. The ownership donut
+    // reflects who actually holds paid-up equity, not who merely committed.
+    const absorbed = stakes.filter((s) => ABSORBED_STATUSES.has(s.status ?? ""))
+    const segs: DonutSegment[] = absorbed.map((s) => ({
       label: s.investor?.name ?? "Investor",
       value: stakeValue(s),
-      highlight: s.status === "fully_paid",
+      highlight: true,
     }))
-    const committed = stakes.reduce((sum, s) => sum + Number(s.total_invested ?? 0), 0)
-    const paid = stakes
-      .filter((s) => paidStatuses.has(s.status ?? ""))
+    // Committed = still-live pipeline (excludes declined / not-followed-up /
+    // cancelled), so it reads as "money we expect to raise".
+    const committed = stakes
+      .filter((s) => !EXCLUDED_STATUSES.has(s.status ?? ""))
       .reduce((sum, s) => sum + Number(s.total_invested ?? 0), 0)
-    return { segments: segs, totalCommitted: committed, totalPaid: paid }
+    const paid = absorbed.reduce(
+      (sum, s) => sum + Number(s.total_invested ?? 0),
+      0
+    )
+    return {
+      segments: segs,
+      totalCommitted: committed,
+      totalPaid: paid,
+      absorbedCount: absorbed.length,
+    }
   }, [stakes])
 
   return (
@@ -104,8 +127,8 @@ const OwnershipPanel = ({ capTable }: { capTable: AdminCapTable }) => {
           <Text weight="plus" className="mt-1">{num(capTable.total_shares_authorized)}</Text>
         </div>
         <div className="rounded-lg border p-3">
-          <Text size="small" className="text-ui-fg-subtle">Investors</Text>
-          <Text weight="plus" className="mt-1">{stakes.length}</Text>
+          <Text size="small" className="text-ui-fg-subtle">Holders (paid)</Text>
+          <Text weight="plus" className="mt-1">{absorbedCount}</Text>
         </div>
       </div>
     </div>
@@ -207,6 +230,14 @@ const DealActions = ({
                 onClick: () => publish(round.id),
               },
               {
+                icon: <PencilSquare />,
+                label: "Edit target amount",
+                // Locked once a participant onboards (server enforces too).
+                disabled:
+                  round.status === "closed" || round.status === "cancelled",
+                to: `edit-round-target?round_id=${round.id}`,
+              },
+              {
                 icon: <CurrencyDollar />,
                 label: "View participations",
                 to: `participations?round_id=${round.id}`,
@@ -227,7 +258,21 @@ const FundingRoundsTable = ({ capTable }: { capTable: AdminCapTable }) => {
       {
         header: "Type",
         accessorKey: "round_type",
-        cell: ({ row }: any) => row.original.round_type ?? "—",
+        cell: ({ row }: any) => {
+          const it = row.original.instrument_type
+          if (it === "ccps" || row.original.round_type === "ccps") {
+            return <Badge size="2xsmall" color="blue">CCPS</Badge>
+          }
+          const isSafe =
+            it === "safe" ||
+            it === "convertible_note" ||
+            row.original.round_type === "safe"
+          return isSafe ? (
+            <Badge size="2xsmall" color="purple">SAFE</Badge>
+          ) : (
+            row.original.round_type ?? "—"
+          )
+        },
       },
       {
         header: "Status",
@@ -252,6 +297,149 @@ const FundingRoundsTable = ({ capTable }: { capTable: AdminCapTable }) => {
       },
     ],
   })
+  return (
+    <DataTable instance={table}>
+      <DataTable.Table />
+    </DataTable>
+  )
+}
+
+const pct = (v?: number | null) =>
+  v == null ? "—" : `${(Number(v) * 100).toFixed(2)}%`
+
+const convertibleStatusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
+  switch (s) {
+    case "outstanding":
+      return "green"
+    case "converted":
+      return "grey"
+    case "redeemed":
+      return "orange"
+    case "cancelled":
+    case "expired":
+      return "red"
+    default:
+      return "grey"
+  }
+}
+
+// A convertible has no `fully_paid` instrument state — settlement lives on its
+// payment. Only count it as paid once a payment is `completed`; an approved-but-
+// unpaid convertible is surfaced as "Awaiting payment", not silently invested.
+const convertibleIsPaid = (c: AdminConvertible) =>
+  !!c.payments?.some((pm) => pm.status === "completed")
+
+const ConvertiblesTable = ({ capTable }: { capTable: AdminCapTable }) => {
+  const ccy = capTable.currency_code
+  const { convertibles = [], isPending } = useCapTableConvertibles(capTable.id)
+  const { mutate: approve } = useApproveConvertible(capTable.id, {
+    onSuccess: (r) =>
+      toast.success(
+        r?.payment_link ? "Approved — PayU link generated" : "Approved — pending payment"
+      ),
+    onError: (e) => toast.error(e?.message || "Approve failed"),
+  })
+
+  const table = useDataTable({
+    data: convertibles,
+    columns: [
+      {
+        header: "Investor",
+        accessorKey: "investor",
+        cell: ({ row }: any) => row.original.investor?.name ?? row.original.investor_id ?? "—",
+      },
+      {
+        header: "Instrument",
+        accessorKey: "instrument_type",
+        cell: ({ row }: any) => {
+          const it = row.original.instrument_type
+          if (it === "ccps") return <Badge size="2xsmall" color="blue">CCPS</Badge>
+          return (
+            <Badge size="2xsmall" color="purple">
+              {it === "convertible_note" ? "Loan" : "SAFE"}
+            </Badge>
+          )
+        },
+      },
+      {
+        header: "Principal",
+        accessorKey: "principal_amount",
+        cell: ({ row }: any) => money(row.original.value?.principal ?? row.original.principal_amount, ccy),
+      },
+      {
+        header: "Cap",
+        accessorKey: "valuation_cap",
+        cell: ({ row }: any) => money(row.original.valuation_cap, ccy),
+      },
+      {
+        header: "Implied own.",
+        id: "implied_own",
+        cell: ({ row }: any) => pct(row.original.value?.implied_ownership_pct),
+      },
+      {
+        header: "Implied value",
+        id: "implied_value",
+        cell: ({ row }: any) => money(row.original.value?.implied_value, ccy),
+      },
+      {
+        header: "Status",
+        accessorKey: "status",
+        cell: ({ row }: any) => {
+          const c = row.original as AdminConvertible
+          const status = c.status ?? "outstanding"
+          const showPayment = status === "outstanding" && !convertibleIsPaid(c)
+          return (
+            <div className="flex items-center gap-x-1">
+              <Badge color={convertibleStatusColor(status)}>{status}</Badge>
+              {showPayment && (
+                <Badge size="2xsmall" color="orange">
+                  Awaiting payment
+                </Badge>
+              )}
+            </div>
+          )
+        },
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }: any) => {
+          const c = row.original as AdminConvertible
+          const approved = !!c.metadata?.approved
+          const isOutstanding = (c.status ?? "outstanding") === "outstanding"
+          return (
+            <div className="flex justify-end">
+              <ActionMenu
+                groups={[
+                  {
+                    actions: [
+                      {
+                        icon: <CurrencyDollar />,
+                        label: "Approve (generate pay link)",
+                        disabled: approved,
+                        onClick: () => approve(c.id),
+                      },
+                      {
+                        icon: <ArrowPath />,
+                        label:
+                          c.instrument_type === "convertible_note"
+                            ? "Convert (loan → CCPS/equity)"
+                            : "Convert to equity/CCPS",
+                        disabled: !isOutstanding,
+                        to: `convert-convertible?convertible_id=${c.id}`,
+                      },
+                    ],
+                  },
+                ]}
+              />
+            </div>
+          )
+        },
+      },
+    ],
+  })
+
+  if (isPending) return <Skeleton className="mx-6 mb-5 h-16" />
   return (
     <DataTable instance={table}>
       <DataTable.Table />
@@ -301,6 +489,7 @@ export const CapTableSection = ({ companyId }: { companyId: string }) => {
                 {
                   actions: [
                     { icon: <Users />, label: "Provision shares (manual)", to: "provision-stake" },
+                    { icon: <DocumentText />, label: "Record SAFE (manual)", to: "add-safe" },
                     { icon: <Plus />, label: "Add share class", to: "add-share-class" },
                     { icon: <Plus />, label: "Add funding round", to: "add-round" },
                     { icon: <DocumentText />, label: "Add document", to: "add-document" },
@@ -352,6 +541,12 @@ export const CapTableSection = ({ companyId }: { companyId: string }) => {
           >
             <FundingRoundsTable capTable={capTable} />
           </FullWidthBlock>
+          <div>
+            <div className="px-6 pb-3 pt-5">
+              <Text weight="plus">SAFEs &amp; convertibles</Text>
+            </div>
+            <ConvertiblesTable capTable={capTable} />
+          </div>
         </>
       )}
     </Container>

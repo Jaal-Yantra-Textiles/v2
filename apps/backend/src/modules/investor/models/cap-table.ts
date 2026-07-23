@@ -1,6 +1,7 @@
 import { model } from "@medusajs/framework/utils"
 import ShareClass from "./share-class"
 import Stake from "./stake"
+import Convertible from "./convertible"
 import FundingRound from "./funding-round"
 import CallForShares from "./call-for-shares"
 import Document from "./document"
@@ -25,6 +26,7 @@ const CapTable = model.define("cap_table", {
 
   share_classes: model.hasMany(() => ShareClass),
   stakes: model.hasMany(() => Stake),
+  convertibles: model.hasMany(() => Convertible),
   funding_rounds: model.hasMany(() => FundingRound),
   calls_for_shares: model.hasMany(() => CallForShares),
   documents: model.hasMany(() => Document),

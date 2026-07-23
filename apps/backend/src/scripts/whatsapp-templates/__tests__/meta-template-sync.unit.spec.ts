@@ -1,5 +1,10 @@
-import { planTemplateActions, type PlatformPlan, type MetaTemplate } from "../meta-template-sync"
-import type { TemplateSpec } from "../partner-run-templates"
+import {
+  planTemplateActions,
+  buildComponents,
+  type PlatformPlan,
+  type MetaTemplate,
+} from "../meta-template-sync"
+import type { TemplateSpec, TemplateLanguageVariant } from "../partner-run-templates"
 
 const platform = (id: string, languages: string[]): PlatformPlan => ({
   platformId: id,
@@ -61,5 +66,56 @@ describe("planTemplateActions", () => {
     )
     expect(actions.every((a) => a.kind === "create")).toBe(true)
     expect(actions.length).toBe(2)
+  })
+})
+
+describe("buildComponents — button emission", () => {
+  const base = (buttons?: TemplateLanguageVariant["buttons"]): TemplateLanguageVariant => ({
+    language: "en",
+    body: "hi {{1}}",
+    examples: ["x"],
+    buttons,
+  })
+
+  it("emits a dynamic URL button WITH its example (Meta requires it for {{1}} urls)", () => {
+    const comps = buildComponents(
+      base([
+        {
+          type: "URL",
+          text: "Review request",
+          url: "https://partner.jaalyantra.com/production-runs?wa_token={{1}}",
+          example: ["https://partner.jaalyantra.com/production-runs?wa_token=eyJ.sample.sig"],
+        },
+      ])
+    )
+    const buttonsComp = comps.find((c) => c.type === "BUTTONS")
+    expect(buttonsComp).toBeDefined()
+    const btn = buttonsComp.buttons[0]
+    expect(btn).toMatchObject({
+      type: "URL",
+      text: "Review request",
+      url: "https://partner.jaalyantra.com/production-runs?wa_token={{1}}",
+      example: ["https://partner.jaalyantra.com/production-runs?wa_token=eyJ.sample.sig"],
+    })
+  })
+
+  it("omits `example` for a static URL button (no variable)", () => {
+    const comps = buildComponents(
+      base([{ type: "URL", text: "Open", url: "https://partner.jaalyantra.com/help" }])
+    )
+    const btn = comps.find((c) => c.type === "BUTTONS").buttons[0]
+    expect(btn.example).toBeUndefined()
+    expect(btn).toMatchObject({ type: "URL", text: "Open", url: "https://partner.jaalyantra.com/help" })
+  })
+
+  it("emits QUICK_REPLY buttons without url/example fields", () => {
+    const comps = buildComponents(base([{ type: "QUICK_REPLY", text: "Accept" }]))
+    const btn = comps.find((c) => c.type === "BUTTONS").buttons[0]
+    expect(btn).toEqual({ type: "QUICK_REPLY", text: "Accept" })
+  })
+
+  it("emits no BUTTONS component when the variant has none", () => {
+    const comps = buildComponents(base())
+    expect(comps.find((c) => c.type === "BUTTONS")).toBeUndefined()
   })
 })

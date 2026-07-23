@@ -208,4 +208,15 @@ export class VercelHostingProvider implements HostingProvider {
     const p = (await res.json()) as { id: string; name: string }
     return { id: p.id, name: p.name }
   }
+
+  /** Delete the Vercel project (teardown). A 404 means it's already gone. */
+  async deleteProject(projectId: string): Promise<void> {
+    const res = await fetch(
+      `${VERCEL_API_BASE}/v9/projects/${projectId}${this.teamQuery()}`,
+      { method: "DELETE", headers: this.headers() }
+    )
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`Vercel deleteProject failed (${res.status}): ${await res.text().catch(() => res.statusText)}`)
+    }
+  }
 }

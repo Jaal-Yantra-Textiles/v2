@@ -41,7 +41,18 @@ const Stake = model.define("stake", {
 
   payments: model.hasMany(() => Payment),
 
-  status: model.enum(["active", "fully_paid", "partially_paid", "unpaid", "cancelled"]).default("unpaid"),
+  // "rejected" = admin declined this participant; "not_followed_up" = the
+  // investor never paid/responded and is parked. Both are excluded from the
+  // capital table (only fully_paid stakes are counted as absorbed).
+  status: model.enum([
+    "active",
+    "fully_paid",
+    "partially_paid",
+    "unpaid",
+    "cancelled",
+    "rejected",
+    "not_followed_up",
+  ]).default("unpaid"),
 
   metadata: model.json().nullable(),
 })

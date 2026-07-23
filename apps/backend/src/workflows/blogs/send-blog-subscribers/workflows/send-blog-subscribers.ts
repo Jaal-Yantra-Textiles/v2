@@ -11,6 +11,8 @@ import {
   processAllBatchesStep,
   updatePageWithResultsStep,
   waitConfirmationBlogSendStep,
+  syncSubscribersToKitStep,
+  createKitBroadcastStep,
 } from "../steps"
 import { SendBlogSubscribersInput } from "../types"
 import { notifyOnFailureStep, sendNotificationsStep } from "@medusajs/medusa/core-flows"
@@ -61,21 +63,16 @@ export const sendBlogSubscribersWorkflow = createWorkflow(
     
     // Calculate total subscribers count early for the initial response
     const subscriberCount = subscribers.length
-    
-    // Step 3: Prepare subscriber batches
-    const batches = prepareSubscriberBatchesStep({
-      subscribers,
-      blogData,
-      emailConfig: {
-        subject: input.subject,
-        customMessage: input.customMessage
-      }
-    })
-    
-    // Step 4: Wait for confirmation before proceeding
-    // This makes the workflow long-running and requires explicit confirmation
+
+    // Deploy-time flag: route the mass send through Kit (kit.com) broadcasts
+    // instead of the per-recipient transactional distributor. Evaluated at
+    // workflow-build time (boot), so the graph is fixed per deploy. [#1059]
+    const useKit = process.env.EMAILKIT_ENABLED === "true"
+
+    // Wait for confirmation before proceeding (shared by both send lanes).
+    // This makes the workflow long-running and requires explicit confirmation.
     const confirmed = waitConfirmationBlogSendStep()
-    
+
     // Create failure notification configuration
     const failureNotification = transform({ input, blogData }, (data) => {
       return [
@@ -90,30 +87,70 @@ export const sendBlogSubscribersWorkflow = createWorkflow(
         },
       ]
     })
-    
+
     // Set up failure notification
     notifyOnFailureStep(failureNotification)
-    
-    // Step 4: Process each batch of subscribers
-    // This will run for each batch and collect all results
-    const batchResults = processAllBatchesStep(batches)
-      .config({ async: true, backgroundExecution: true })
-    
-    // Step 5: Use the summary from the batch processing step
-    // The processAllBatchesStep now returns a single SendingSummary object
-    const sendingSummary = transform({ batchResults }, (data) => {
-      // If we have results, use them directly
-      return data.batchResults || {
-        totalSubscribers: 0,
-        sentCount: 0,
-        failedCount: 0,
-        queuedCount: 0,
-        sentList: [],
-        failedList: [],
-        sentAt: new Date().toISOString()
-      }
-    })
-    
+
+    let sendingSummary
+    if (useKit) {
+      // Kit lane: sync-time gate + push subscribers to Kit, then fire ONE
+      // broadcast to the tag. No per-recipient loop, no daily cap.
+      const synced = syncSubscribersToKitStep({ subscribers })
+        .config({ async: true, backgroundExecution: true })
+
+      const kitResult = createKitBroadcastStep({
+        page_id: input.page_id,
+        blogData,
+        emailConfig: {
+          subject: input.subject,
+          customMessage: input.customMessage,
+        },
+        recipientCount: synced.syncedCount,
+      })
+
+      // Guard against the initial `.run()` where the workflow suspends at the
+      // confirmation wait step: `createKitBroadcastStep` hasn't executed yet, so
+      // `kitResult` is undefined while the WorkflowResponse transforms are being
+      // evaluated. Mirror the legacy lane's default-shape fallback. [#1059]
+      sendingSummary = transform({ kitResult }, (data) => {
+        return data.kitResult?.summary || {
+          totalSubscribers: 0,
+          sentCount: 0,
+          failedCount: 0,
+          queuedCount: 0,
+          sentList: [],
+          failedList: [],
+          sentAt: new Date().toISOString(),
+        }
+      })
+    } else {
+      // Legacy lane: per-recipient send distributed across mailjet/resend.
+      const batches = prepareSubscriberBatchesStep({
+        subscribers,
+        blogData,
+        emailConfig: {
+          subject: input.subject,
+          customMessage: input.customMessage
+        }
+      })
+
+      const batchResults = processAllBatchesStep(batches)
+        .config({ async: true, backgroundExecution: true })
+
+      sendingSummary = transform({ batchResults }, (data) => {
+        // If we have results, use them directly
+        return data.batchResults || {
+          totalSubscribers: 0,
+          sentCount: 0,
+          failedCount: 0,
+          queuedCount: 0,
+          sentList: [],
+          failedList: [],
+          sentAt: new Date().toISOString()
+        }
+      })
+    }
+
     // Step 6: Update page with results
     const pageUpdateResult = updatePageWithResultsStep({
       page_id: input.page_id,

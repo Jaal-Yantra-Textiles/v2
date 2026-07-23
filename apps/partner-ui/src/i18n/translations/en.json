@@ -119,6 +119,7 @@
     "back": "Back",
     "close": "Close",
     "showMore": "Show more",
+    "showLess": "Show less",
     "continue": "Continue",
     "continueWithEmail": "Continue with Email",
     "idCopiedToClipboard": "ID copied to clipboard",
@@ -187,7 +188,10 @@
         "publishableApiKey": "Publishable API Keys",
         "secretApiKey": "Secret API Keys",
         "command": "Commands",
-        "navigation": "Navigation"
+        "navigation": "Navigation",
+        "orders": "Orders",
+        "designs": "Designs",
+        "customers": "Customers"
       }
     },
     "keyboardShortcuts": {
@@ -257,6 +261,7 @@
         "store": "Store",
         "storeSettings": "Store settings",
         "home": "Home",
+        "assistant": "Assistant",
         "designs": "Designs",
         "productionRuns": "Production Runs",
         "tasks": "Tasks",
@@ -273,13 +278,27 @@
         "webStore": "WebStore",
         "content": "Content",
         "theme": "Theme",
-        "analytics": "Analytics"
+        "analytics": "Analytics",
+        "showCommerce": "Show commerce tools",
+        "hideCommerce": "Hide commerce tools"
       },
       "settings": {
         "header": "Settings",
         "general": "General",
         "developer": "Developer",
         "myAccount": "My Account"
+      },
+      "customize": {
+        "trigger": "Customize menu",
+        "title": "Customize your menu",
+        "save": "Save",
+        "cancel": "Cancel",
+        "resetAction": "Reset to default",
+        "saved": "Menu updated",
+        "reset": "Menu reset to default",
+        "dragToReorder": "Drag to reorder",
+        "show": "Show",
+        "hide": "Hide"
       }
     }
   },
@@ -3277,6 +3296,7 @@
     "home": {
       "dashboard": "Dashboard",
       "welcome": "Welcome",
+      "customizeDashboard": "Customize",
       "gettingStarted": {
         "heading": "Getting Started",
         "description": "Complete these steps to set up your workspace.",
@@ -3288,6 +3308,7 @@
         "seller": "Seller",
         "manufacturer": "Manufacturer",
         "individual": "Individual",
+        "designer": "Designer",
         "verifyLabel": "Get verified",
         "verifyDescription": "Upload verification documents.",
         "upload": "Upload",
@@ -3517,6 +3538,19 @@
           "pending": "Pending"
         }
       }
+    },
+    "quickOnboarding": {
+      "heading": "Welcome — let's get you started",
+      "description": "Just two things to begin. You can fill in the rest whenever you like — we'll remind you.",
+      "nameLabel": "What should we call your workspace?",
+      "namePlaceholder": "e.g. Meera Handlooms",
+      "personaLabel": "What best describes you?",
+      "progressiveHint": "You can complete the rest later from your dashboard.",
+      "fullSetupLink": "Prefer to set everything up now?",
+      "continue": "Continue",
+      "toastSaved": "You're all set — welcome aboard!",
+      "errorMissing": "Add a name and pick what describes you to continue.",
+      "errorUnknown": "Something went wrong. Please try again."
     },
     "onboardingModal": {
       "title": "Welcome! Let's set up your workspace",
@@ -3853,6 +3887,10 @@
         "individual": {
           "title": "Individual",
           "description": "Work on assigned tasks. See Tasks, Shared Folders, and Payment Submissions."
+        },
+        "designer": {
+          "title": "Designer",
+          "description": "Author designs and route them to a producing partner. A lean, design-first sidebar; commerce tools stay hidden until you ask for them."
         }
       },
       "status": {

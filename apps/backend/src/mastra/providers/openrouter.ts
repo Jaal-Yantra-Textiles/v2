@@ -27,7 +27,19 @@ export interface OpenRouterModel {
     max_completion_tokens?: number
     is_moderated?: boolean
   }
+  /**
+   * Request parameters the model's providers accept, e.g. "tools",
+   * "tool_choice", "response_format". Used to keep tool-calling roles on
+   * models that actually support function calling.
+   */
+  supported_parameters?: string[]
   description?: string
+}
+
+/** Whether a model advertises OpenRouter tool/function-calling support. */
+export function supportsTools(m: OpenRouterModel): boolean {
+  const params = m.supported_parameters ?? []
+  return params.includes("tools") || params.includes("tool_choice")
 }
 
 export type InputModality = "text" | "image" | "audio" | "video"

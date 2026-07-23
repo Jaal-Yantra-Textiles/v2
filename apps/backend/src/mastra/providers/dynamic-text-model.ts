@@ -182,3 +182,22 @@ export const dynamicFreeTextModel = wrapLanguageModel({
     },
   },
 })
+
+// ──────────────────────────────────────────────────────────────
+// Tool-capable free model variant
+//
+// Roles that call tools (e.g. the partner/admin assistants) need a model whose
+// provider advertises function-calling. `openrouter/free` is OpenRouter's
+// meta-model that auto-routes each request to an available free model whose
+// provider supports the requested capabilities (incl. tool calling) — OpenRouter
+// does the internal routing and failover for us. So we bind directly to it
+// instead of maintaining our own free-model rotator/eviction for tool roles.
+// (`streamText` in the callers applies its own maxRetries on transient errors.)
+// ──────────────────────────────────────────────────────────────
+const TOOL_PRIMARY = "openrouter/free"
+
+/**
+ * Drop-in AI SDK v5 LanguageModel for tool-calling roles. Delegates model
+ * selection to OpenRouter's `openrouter/free` internal router.
+ */
+export const dynamicFreeToolTextModel = openrouter(TOOL_PRIMARY)

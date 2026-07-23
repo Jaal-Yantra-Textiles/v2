@@ -1,4 +1,5 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
+import { useState } from "react"
 import { Container, Text, Badge, StatusBadge, usePrompt, Skeleton, Button, Heading } from "@medusajs/ui"
 import { DetailWidgetProps } from "@medusajs/framework/types"
 import { useNavigate } from "react-router-dom"
@@ -178,6 +179,101 @@ function DesignAdminProductionRunsSection({ designId }: { designId: string }) {
   )
 }
 
+// #1112 — product-only production runs (design_id null) minted retroactively on
+// retail fulfillment. They hang off the PRODUCT spine (product↔production_run
+// link), not a design, so they'd otherwise be invisible on this page. Shown as
+// the product's "design trail" — the runs that produced sold-and-fulfilled
+// stock. Design-backed runs are excluded here (they already appear under their
+// design above), so there's no double-listing.
+const PROVENANCE_RUNS_PAGE = 20
+
+function ProductProvenanceRunsSection({ productId }: { productId: string }) {
+  const navigate = useNavigate()
+  // #1124 — paginate instead of a hard 50-run cap: bump the limit on demand.
+  const [limit, setLimit] = useState(PROVENANCE_RUNS_PAGE)
+  const { production_runs: runs = [], count = 0, isLoading } = useProductionRuns({
+    product_id: productId,
+    limit,
+  })
+
+  // #1124 — show a skeleton while loading (was `return null`, unlike the
+  // sibling design-runs section) so the section doesn't pop in.
+  if (isLoading && !runs.length) {
+    return (
+      <div className="flex flex-col gap-y-3 px-6 py-4">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-16 w-full" />
+      </div>
+    )
+  }
+
+  const productOnly = (runs as AdminProductionRun[]).filter((r) => !r.design_id)
+  if (!productOnly.length) return null
+
+  // More runs exist server-side for this product than we've loaded.
+  const hasMore = count > runs.length
+
+  return (
+    <div className="flex flex-col gap-y-3 px-6 py-4">
+      <div className="flex items-center gap-x-2">
+        <Text size="small" weight="plus">Production Runs</Text>
+        <Badge size="2xsmall" color="grey">{productOnly.length}</Badge>
+        <Text size="xsmall" className="text-ui-fg-muted">from fulfilled orders</Text>
+      </div>
+
+      <div className="flex flex-col divide-y divide-ui-border-base rounded-lg border border-ui-border-base overflow-hidden">
+        <div className="grid grid-cols-4 px-3 py-1.5 bg-ui-bg-subtle">
+          <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">Status</Text>
+          <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">Order</Text>
+          <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">Partner</Text>
+          <Text size="xsmall" weight="plus" className="text-ui-fg-subtle text-right">Produced</Text>
+        </div>
+        {productOnly.map((run) => (
+          <div key={run.id} className="grid grid-cols-4 px-3 py-2 items-center">
+            <StatusBadge color={RUN_STATUS_COLOR[run.status ?? ""] ?? "grey"}>
+              {runStatusLabel(run.status ?? "")}
+            </StatusBadge>
+            {run.order_id ? (
+              <button
+                type="button"
+                onClick={() => navigate(`/orders/${run.order_id}`)}
+                className="text-left"
+              >
+                <Text size="xsmall" className="text-ui-fg-interactive truncate">
+                  {run.order_id.slice(0, 14)}…
+                </Text>
+              </button>
+            ) : (
+              <Text size="xsmall" className="text-ui-fg-muted">—</Text>
+            )}
+            {/* #1121 — retail runs now carry the owning partner (resolved from
+                the order's sales channel), so provenance is product+partner+order. */}
+            <Text size="xsmall" className="text-ui-fg-subtle truncate">
+              {run.partner_id ? run.partner_id.slice(0, 8) + "…" : "—"}
+            </Text>
+            <Text size="xsmall" className="text-right">
+              {(run.produced_quantity ?? run.quantity ?? 0).toLocaleString()}
+            </Text>
+          </div>
+        ))}
+      </div>
+
+      {hasMore && (
+        <div className="flex justify-center">
+          <Button
+            size="small"
+            variant="transparent"
+            isLoading={isLoading}
+            onClick={() => setLimit((l) => l + PROVENANCE_RUNS_PAGE)}
+          >
+            Show more
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const ProductDesignsWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
   const navigate = useNavigate()
   const prompt = usePrompt()
@@ -332,8 +428,12 @@ const ProductDesignsWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
                 {/* Inventory & Production sub-section */}
                 <div className="flex flex-col gap-y-4 px-6 pb-5 bg-ui-bg-subtle border-t border-ui-border-base">
                   <div className="flex flex-col gap-y-2 pt-4">
+                    {/* #1124 — "Design Production Runs" (not just "Production
+                        Runs") so it reads distinctly from the product-level
+                        provenance "Production Runs" section below when a product
+                        has both a linked design and retail-fulfillment runs. */}
                     <Text size="xsmall" weight="plus" className="text-ui-fg-subtle uppercase tracking-wide">
-                      Production Runs
+                      Design Production Runs
                     </Text>
                     <DesignAdminProductionRunsSection designId={design.id} />
                   </div>
@@ -349,6 +449,10 @@ const ProductDesignsWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
           </div>
         )}
       </div>
+
+      {/* #1112 — product-level provenance runs (design-less, from retail
+          fulfillment). Renders regardless of linked designs. */}
+      <ProductProvenanceRunsSection productId={data.id!} />
     </Container>
   )
 }

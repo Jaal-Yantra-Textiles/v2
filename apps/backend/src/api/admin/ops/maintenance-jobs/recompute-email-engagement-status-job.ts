@@ -87,6 +87,7 @@ export const recomputeEmailEngagementStatusJob: MaintenanceJob = {
             "clicks_count",
             "delivered_since_last_open",
             "first_delivered_at",
+            "last_open_at",
             "engagement_status",
           ],
           take: null,

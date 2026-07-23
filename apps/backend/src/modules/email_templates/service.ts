@@ -4,21 +4,26 @@ import EmailTemplate from "./models/email-template";
 class EmailTemplatesService extends MedusaService({
   EmailTemplate,
 }) {
-  // Get template by template key
-  async getTemplateByKey(templateKey: string) {
-    const [templates, count] = await this.listAndCountEmailTemplates({
-      template_key: templateKey,
-      is_active: true,
-    })
+  // Get template by template key, with optional locale-based resolution.
+  // Falls back to "en" if the requested locale isn't found, then to any available locale.
+  async getTemplateByKey(templateKey: string, locale?: string) {
+    const locales = locale && locale !== "en" ? [locale, "en"] : ["en"]
     
-    if (!templates || templates.length === 0) {
-      throw new MedusaError(
-        MedusaError.Types.NOT_FOUND,
-        `Email template with key "${templateKey}" not found or inactive`
-      )
+    for (const l of locales) {
+      const [templates] = await this.listAndCountEmailTemplates({
+        template_key: templateKey,
+        locale: l as any,
+        is_active: true,
+      })
+      if (templates && templates.length > 0) {
+        return templates[0]
+      }
     }
-    
-    return templates[0]
+
+    throw new MedusaError(
+      MedusaError.Types.NOT_FOUND,
+      `Email template with key "${templateKey}" not found or inactive`
+    )
   }
 
   // Get template by type

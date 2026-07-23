@@ -71,6 +71,7 @@
     "@hookform/resolvers": "^5.0.1",
     "@jytextiles/medusa-plugin-etsy-sync": "latest",
     "@jytextiles/medusa-plugin-faire-store-sync": "latest",
+    "@jytextiles/mikrohyperbee": "workspace:*",
     "@mastra/core": "latest",
     "@mastra/evals": "latest",
     "@mastra/loggers": "latest",
@@ -129,11 +130,13 @@
     "@types/qrcode": "^1.5.5",
     "@types/react-color": "^3.0.13",
     "@types/react-json-editor-ajrm": "^2.5.6",
+    "@ai-sdk/react": "^2.0.194",
     "@uploadthing/react": "7.1.0",
     "@xenova/transformers": "^2.17.2",
     "@xyflow/react": "^12.4.4",
     "ai": "^5.0.52",
     "ajv": "^8.18.0",
+    "autobase": "^7.28.1",
     "awilix": "^8.0.1",
     "bwip-js": "^4.8.0",
     "class-variance-authority": "^0.7.1",
@@ -182,8 +185,10 @@
     "react-player": "^2.16.0",
     "react-resizable-panels": "^2.1.8",
     "react-textarea-autosize": "^8.5.9",
+    "react-markdown": "^9.1.0",
     "react-tweet": "^3.2.2",
     "recharts": "^3.4.1",
+    "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "resend": "^4.7.0",
     "rimraf": "^6.0.1",
@@ -233,5 +238,11 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "optionalDependencies": {
+    "b4a": "^1.8.1",
+    "corestore": "^7.11.0",
+    "hyperbee": "^2.27.3",
+    "hyperswarm": "^4.17.0"
   }
 }

@@ -26,13 +26,17 @@ import { DEPLOYMENT_MODULE } from ".."
 import type DeploymentService from "../service"
 import { ENCRYPTION_MODULE } from "../../encryption"
 import type EncryptionService from "../../encryption/service"
+import {
+  resolveProvisioningMode,
+  type DeploymentProvider,
+} from "../account-selector"
 import { createHostingProvider, resolveAccountCredentials } from "./registry"
 import type { HostingCredentials, HostingProvider, HostingProviderName } from "./types"
 
 export type ResolvedPartnerHosting = {
   providerName: HostingProviderName
   provider: HostingProvider
-  /** The id/name to address the project by on this provider (Vercel: project id; Cloudflare Pages: project name). */
+  /** The id/name to address the project by on this provider (Vercel: project id; Cloudflare Workers: project name). */
   projectRef: string | null
   /** The deployment_account this resolved to, if any (null on the legacy env path). */
   accountId: string | null
@@ -51,7 +55,7 @@ export function partnerHostingProviderName(partner: any): HostingProviderName {
 /** The project reference to address the partner's storefront by, per provider. */
 export function partnerProjectRef(partner: any, providerName: HostingProviderName): string | null {
   if (providerName === "cloudflare") {
-    // Cloudflare Pages addresses projects by name.
+    // Cloudflare Workers addresses projects by name.
     return (
       partner?.deployment_project_name ??
       partner?.vercel_project_name ??
@@ -87,17 +91,103 @@ function envCredentials(providerName: HostingProviderName): HostingCredentials {
       if (!token || !accountId) {
         throw new MedusaError(
           MedusaError.Types.NOT_ALLOWED,
-          "Cloudflare Pages is not configured (CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID missing) and the partner has no deployment account"
+          "Cloudflare Workers is not configured (CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID missing) and the partner has no deployment account"
         )
       }
-      return { token, accountId }
+      // Forward the platform zone id so the Workers provider can attach the
+      // storefront hostname via a Custom Domain binding. Without it addDomain
+      // bails ("zone_id is required") and the only routing left is a
+      // workers.dev CNAME → Error 1014 (CNAME Cross-User Banned).
+      const zoneId = process.env.CLOUDFLARE_ZONE_ID
+      // Cloudflare-for-SaaS fallback origin for partner-owned custom domains.
+      const saasFallback = process.env.CLOUDFLARE_SAAS_FALLBACK_ORIGIN
+      const extra: Record<string, string> = {}
+      if (zoneId) extra.zone_id = zoneId
+      if (saasFallback) extra.saas_fallback_origin = saasFallback
+      return {
+        token,
+        accountId,
+        ...(Object.keys(extra).length ? { extra } : {}),
+      }
     }
     default:
+      // Netlify/Render have no legacy env-single-account path — they always run
+      // via a deployment_account. Reaching here means the partner has no account.
       throw new MedusaError(
         MedusaError.Types.NOT_ALLOWED,
-        `Hosting provider "${providerName}" has no env credentials (not implemented until S5)`
+        `Hosting provider "${providerName}" requires a deployment account (no env-single-account fallback)`
       )
   }
+}
+
+/**
+ * Build a HostingProvider for a provider name + (optional) deployment_account.
+ * The single credential-resolution seam used by both the per-partner resolver
+ * and the provision workflow (S3):
+ *   - accountId set → decrypt that account's token (multi-account rotation path)
+ *   - accountId null → legacy env-single-account creds (pre-#884 behaviour)
+ */
+export async function buildHostingProvider(
+  providerName: HostingProviderName,
+  accountId: string | null,
+  container: MedusaContainer
+): Promise<HostingProvider> {
+  let creds: HostingCredentials
+  if (accountId) {
+    const deployment = container.resolve(DEPLOYMENT_MODULE) as DeploymentService
+    const account = await deployment.retrieveDeploymentAccount(accountId)
+    const encryption = container.resolve(ENCRYPTION_MODULE) as EncryptionService
+    creds = resolveAccountCredentials((account as any)?.api_config, encryption)
+  } else {
+    creds = envCredentials(providerName)
+  }
+  return createHostingProvider(providerName, creds)
+}
+
+/**
+ * Is this partner's storefront served by a SHARED, pre-deployed multi-tenant
+ * project (attach-domain-only) rather than its own dedicated deploy?
+ *
+ * Shared projects (e.g. the Cloudflare shared worker `nextjs-starter-medusa`)
+ * are owned by us and serve EVERY tenant, resolving the active store per-request
+ * from the Host header (NEXT_PUBLIC_MULTI_TENANT + /web/storefront/resolve). Any
+ * per-partner mutation of the project — above all `setEnvVars` — must be a no-op:
+ * on Cloudflare, `setEnvVars` re-uploads the worker script, replacing the live
+ * storefront with a placeholder and wiping the shared runtime bindings (see
+ * CloudflareWorkersProvider.uploadWorker), which takes ALL tenants down.
+ */
+export async function partnerIsOnSharedProject(
+  partner: any,
+  container: MedusaContainer
+): Promise<boolean> {
+  const providerName = partnerHostingProviderName(partner)
+  const projectRef = partnerProjectRef(partner, providerName)
+  if (!projectRef) return false
+
+  const accountId = (partner?.deployment_account_id ??
+    partner?.metadata?.deployment_account_id ??
+    null) as string | null
+
+  let apiConfig: Record<string, any> | null = null
+  if (accountId) {
+    try {
+      const deployment = container.resolve(DEPLOYMENT_MODULE) as DeploymentService
+      const account = await deployment.retrieveDeploymentAccount(accountId)
+      apiConfig = (account as any)?.api_config ?? null
+    } catch {
+      apiConfig = null
+    }
+  }
+
+  const { mode, sharedProjectId, sharedProjectName } = resolveProvisioningMode(
+    providerName as DeploymentProvider,
+    { apiConfig, env: process.env }
+  )
+
+  return (
+    mode === "shared" &&
+    (projectRef === sharedProjectId || projectRef === sharedProjectName)
+  )
 }
 
 export async function resolveHostingProviderForPartner(
@@ -111,16 +201,6 @@ export async function resolveHostingProviderForPartner(
     partner?.metadata?.deployment_account_id ??
     null) as string | null
 
-  let creds: HostingCredentials
-  if (accountId) {
-    const deployment = container.resolve(DEPLOYMENT_MODULE) as DeploymentService
-    const account = await deployment.retrieveDeploymentAccount(accountId)
-    const encryption = container.resolve(ENCRYPTION_MODULE) as EncryptionService
-    creds = resolveAccountCredentials((account as any)?.api_config, encryption)
-  } else {
-    creds = envCredentials(providerName)
-  }
-
-  const provider = createHostingProvider(providerName, creds)
+  const provider = await buildHostingProvider(providerName, accountId, container)
   return { providerName, provider, projectRef, accountId }
 }

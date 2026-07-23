@@ -7,6 +7,7 @@ import {
 } from "@medusajs/framework/utils"
 import { wrapVariantsWithInventoryQuantityForSalesChannel } from "@medusajs/medusa/api/utils/middlewares/products/variant-inventory-quantity"
 import { wrapProductsWithTaxPrices } from "@medusajs/medusa/api/store/products/helpers"
+import { attachMakerNames } from "../../../lib/attach-maker-names"
 
 // Workaround for an upstream Medusa bug present in 2.14.x and 2.15.x: the
 // /store/products route gates the index-engine path with
@@ -92,6 +93,7 @@ async function getProductsWithIndexEngine(
     )
   }
   await wrapProductsWithTaxPrices(req as any, products)
+  await attachMakerNames(products as any[], query)
 
   res.json({
     products,
@@ -143,6 +145,7 @@ async function getProducts(req: MedusaRequest, res: MedusaResponse) {
     )
   }
   await wrapProductsWithTaxPrices(req as any, products as any)
+  await attachMakerNames(products as any[], query)
 
   res.json({
     products,

@@ -28,6 +28,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { HybridQueryResolverService } from "../../../../../mastra/services/hybrid-query-resolver"
+import { isV4ChatDeprecated, respondV4Deprecated } from "../deprecation"
 
 // Singleton instance
 let resolverInstance: HybridQueryResolverService | null = null
@@ -49,6 +50,12 @@ function getResolver(): HybridQueryResolverService {
  * Resolve a natural language query into an execution plan
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  // Superseded by POST /admin/mcp/resolve-query (the resolve_admin_query MCP
+  // tool). When the V4 chat is retired, this legacy alias 410s and points there.
+  if (isV4ChatDeprecated()) {
+    return respondV4Deprecated(res)
+  }
+
   try {
     const body = (req as any).validatedBody || req.body
     const { query, options } = body as {

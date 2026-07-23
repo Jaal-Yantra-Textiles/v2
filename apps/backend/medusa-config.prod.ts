@@ -93,10 +93,19 @@ module.exports = defineConfig({
   modules: [
     // Custom app modules
     {
+      resolve: "./src/modules/census",
+    },
+    {
       resolve: "./src/modules/person",
     },
     {
       resolve: "./src/modules/persontype",
+    },
+    {
+      resolve: "./src/modules/personproperty",
+    },
+    {
+      resolve: "./src/modules/crm",
     },
     {
       resolve: "./src/modules/inventory_orders",
@@ -495,6 +504,9 @@ module.exports = defineConfig({
     resolve: "./src/modules/email_engagement",
   },
   {
+    resolve: "./src/modules/kit",
+  },
+  {
     resolve: "./src/modules/audience",
   },
   {
@@ -502,6 +514,21 @@ module.exports = defineConfig({
     },
     {
       resolve: "./src/modules/partner-onboarding-profile",
+    },
+    {
+      resolve: "./src/modules/partner-ui-prefs",
+    },
+    {
+      resolve: "./src/modules/partner-assistant",
+    },
+    {
+      resolve: "./src/modules/admin-assistant",
+    },
+    {
+      resolve: "./src/modules/artisan-product-detail",
+    },
+    {
+      resolve: "./src/modules/designer-invite",
     },
     {
       resolve: "./src/modules/partner_billing",

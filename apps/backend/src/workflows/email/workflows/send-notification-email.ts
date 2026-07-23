@@ -9,7 +9,8 @@ export const sendNotificationEmailWorkflow = createWorkflow(
     // First fetch and process the email template data with the provided data
     const templateData = fetchEmailTemplateStep({ 
       templateKey: input.template,
-      data: input.data
+      data: input.data,
+      locale: input.locale,
     })
     
     // Transform the input and template data together

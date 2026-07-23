@@ -4,11 +4,14 @@ import InvestorAdmin from "./models/investor-admin"
 import CapTable from "./models/cap-table"
 import ShareClass from "./models/share-class"
 import Stake from "./models/stake"
+import Convertible from "./models/convertible"
+import CompanyExpense from "./models/company-expense"
 import FundingRound from "./models/funding-round"
 import Pipeline from "./models/pipeline"
 import CallForShares from "./models/call-for-shares"
 import Payment from "./models/payment"
 import Document from "./models/document"
+import Referral from "./models/referral"
 
 class InvestorService extends MedusaService({
   Investor,
@@ -16,11 +19,14 @@ class InvestorService extends MedusaService({
   CapTable,
   ShareClass,
   Stake,
+  Convertible,
+  CompanyExpense,
   FundingRound,
   Pipeline,
   CallForShares,
   Payment,
   Document,
+  Referral,
 }) {
   constructor() {
     super(...arguments)

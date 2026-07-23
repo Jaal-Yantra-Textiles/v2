@@ -1,5 +1,11 @@
 import { Drawer, clx } from "@medusajs/ui"
-import { PropsWithChildren, useEffect, useState } from "react"
+import {
+  ComponentPropsWithoutRef,
+  PropsWithChildren,
+  forwardRef,
+  useEffect,
+  useState,
+} from "react"
 import { Path, useNavigate } from "react-router-dom"
 import { useStateAwareTo } from "../hooks/use-state-aware-to"
 import { RouteModalForm } from "../route-modal-form"
@@ -61,7 +67,23 @@ const Root = ({ prev = "..", children }: RouteDrawerProps) => {
 const Header = Drawer.Header
 const Title = Drawer.Title
 const Description = Drawer.Description
-const Body = Drawer.Body
+/**
+ * Medusa's raw Drawer.Body is `flex-1` with no overflow, so a form taller than
+ * the fixed-height drawer overflows and clips (unreachable on mobile). Make the
+ * body the scroll container: `min-h-0` lets the flex child shrink below its
+ * content, `overflow-y-auto` scrolls the excess.
+ */
+const Body = forwardRef<
+  HTMLDivElement,
+  ComponentPropsWithoutRef<typeof Drawer.Body>
+>(({ className, ...props }, ref) => (
+  <Drawer.Body
+    ref={ref}
+    className={clx("min-h-0 overflow-y-auto", className)}
+    {...props}
+  />
+))
+Body.displayName = "RouteDrawer.Body"
 const Footer = Drawer.Footer
 const Close = Drawer.Close
 const Form = RouteModalForm

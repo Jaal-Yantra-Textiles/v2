@@ -8,14 +8,16 @@
  * @returns A formatted string
  */
 export const formatProvider = (id: string) => {
-  // Both Stripe providers surface to buyers/partners as a single "Stripe".
-  // `pp_stripe_stripe` (standard) and `pp_stripe-connect_stripe-connect`
-  // (Connect) are one payment method chosen by the partner's onboarding status
-  // (#985) — the Connect-vs-standard split is an implementation detail nobody
-  // configuring a region should have to reason about. Targeted so payu /
-  // fulfillment / tax providers keep their "Name (TYPE)" format.
-  if (id === "pp_stripe_stripe" || id === "pp_stripe-connect_stripe-connect") {
+  // Buyers see a single "Stripe" at checkout (#985), but operators configuring
+  // regions/payment-configs need to tell the two apart: `pp_stripe_stripe` is
+  // the platform-owned standard Stripe, `pp_stripe-connect_stripe-connect` is
+  // the merchant's connected account (Connect). So in the admin/partner-ui we
+  // label them distinctly to avoid the "two identical Stripe rows" confusion.
+  if (id === "pp_stripe_stripe") {
     return "Stripe"
+  }
+  if (id === "pp_stripe-connect_stripe-connect") {
+    return "Stripe Connect"
   }
 
   const [_, name, type] = id.split("_")

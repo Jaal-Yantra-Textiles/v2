@@ -121,7 +121,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { MedusaError, ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { PartnerCreateProductReq } from "./validators"
 import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
-import { getPartnerFromAuthContext } from "../helpers"
+import { getPartnerFromAuthContext, ensureInventoryLevelsForVariants } from "../helpers"
 import { PARTNER_MODULE } from "../../../modules/partner"
 import { PARTNER_ONBOARDING_PROFILE_MODULE } from "../../../modules/partner-onboarding-profile"
 
@@ -186,6 +186,17 @@ export const POST = async (
   })
 
   const created = result?.[0]
+
+  // Auto-seed inventory_level rows at the partner's stock location(s) for every
+  // managed-inventory variant. createProductsWorkflow makes the product +
+  // variants + inventory ITEMS but no location LEVELS — without a level the
+  // variant reads 0 stock everywhere and the partner-ui inventory page 404s on
+  // it. The store-scoped route (stores/[id]/products) already does this; this
+  // legacy route (which the AI assistant's `create_product` tool calls) was
+  // missing it, so AI-created products landed level-less. Idempotent + never
+  // throws (see ensureInventoryLevelsForVariants).
+  const variantIds = (created?.variants || []).map((v: any) => v.id)
+  await ensureInventoryLevelsForVariants(req.scope, store, variantIds)
 
   // Record product → owning partner so the cross-list subscriber can resolve
   // ownership cleanly on publish (see links/partner-product.ts).

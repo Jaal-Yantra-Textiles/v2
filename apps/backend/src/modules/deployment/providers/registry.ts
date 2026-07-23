@@ -8,7 +8,9 @@
  */
 
 import type { EncryptedData } from "../../encryption/service"
-import { CloudflarePagesProvider } from "./cloudflare-pages-provider"
+import { CloudflareWorkersProvider } from "./cloudflare-workers-provider"
+import { NetlifyProvider } from "./netlify-provider"
+import { RenderProvider } from "./render-provider"
 import type { HostingCredentials, HostingProvider, HostingProviderName } from "./types"
 import { VercelHostingProvider } from "./vercel-provider"
 
@@ -30,13 +32,13 @@ export type {
  * (EncryptedData) — same convention as SocialPlatform. A plaintext `token`
  * fallback is tolerated for local/dev seeds.
  */
-export type DeploymentApiConfig = {
+export type DeploymentApiConfig = ({
   token_encrypted?: EncryptedData
   token?: string
   team_id?: string
   account_id?: string
   zone_id?: string
-} | null | undefined
+} & Record<string, any>) | null | undefined
 
 /** Minimal decryptor surface — the encryption module's service satisfies this. */
 export type Decryptor = { decrypt(data: EncryptedData): string }
@@ -63,10 +65,27 @@ export function resolveAccountCredentials(
     throw new Error("resolveAccountCredentials: deployment account has no token")
   }
 
+  // Pass through every remaining non-secret config field so provider adapters
+  // can read provider-specific ids (netlify installation_id, render owner_id…).
+  const RESERVED = new Set([
+    "token",
+    "token_encrypted",
+    "team_id",
+    "account_id",
+  ])
+  const extra: Record<string, string> = {}
+  for (const [k, v] of Object.entries(cfg)) {
+    if (RESERVED.has(k)) continue
+    if (v == null) continue
+    if (typeof v === "string") extra[k] = v
+    else if (typeof v === "number" || typeof v === "boolean") extra[k] = String(v)
+  }
+
   return {
     token,
     teamId: cfg.team_id || undefined,
     accountId: cfg.account_id || undefined,
+    extra: Object.keys(extra).length ? extra : undefined,
   }
 }
 
@@ -79,10 +98,11 @@ export function createHostingProvider(
     case "vercel":
       return new VercelHostingProvider(creds)
     case "cloudflare":
-      return new CloudflarePagesProvider(creds)
-    case "render":
+      return new CloudflareWorkersProvider(creds)
     case "netlify":
-      throw new Error(`Hosting provider "${provider}" not implemented yet (S5)`)
+      return new NetlifyProvider(creds)
+    case "render":
+      return new RenderProvider(creds)
     default:
       throw new Error(`Unknown hosting provider: ${provider}`)
   }
@@ -101,6 +121,6 @@ export function hostingProviderForAccount(
 }
 
 export { VercelHostingProvider } from "./vercel-provider"
-export { CloudflarePagesProvider } from "./cloudflare-pages-provider"
+export { CloudflareWorkersProvider } from "./cloudflare-workers-provider"
 // NOTE: resolveHostingProviderForPartner lives in ./resolve-partner-provider —
 // import it from there directly to avoid a registry↔resolver import cycle.

@@ -29,8 +29,12 @@ const InviteInvestorForm = ({ companyId }: { companyId: string }) => {
     },
   })
   const { mutateAsync, isPending } = useInviteInvestorToCompany(companyId, {
-    onSuccess: () => {
-      toast.success("Investor invited")
+    onSuccess: (data: any) => {
+      toast.success(
+        data?.reinvited
+          ? "Investor already existed — password reset and invite re-sent"
+          : "Investor invited"
+      )
       handleSuccess()
     },
     onError: (err) => toast.error(err?.message || "Failed to invite investor"),

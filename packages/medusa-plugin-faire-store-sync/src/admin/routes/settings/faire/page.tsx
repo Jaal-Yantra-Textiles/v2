@@ -27,7 +27,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query"
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { Outlet, useNavigate } from "react-router-dom"
 import { faireApi } from "../../../lib/api"
 import { useFaireSyncColumns, FaireSyncRecord } from "./hooks/use-faire-sync-columns"
 
@@ -42,7 +42,7 @@ type Status = {
     connected: boolean
     brand: boolean
     wholesale_pricing: boolean
-    shipping_policy: boolean
+    taxonomy: boolean
     ready_to_publish: boolean
   }
 }
@@ -181,6 +181,9 @@ const FaireSettingsPage = () => {
             ))}
           </div>
         </Container>
+        {/* Nested @-routes (the @settings drawer) render here so they overlay
+            the list instead of replacing it. */}
+        <Outlet />
       </div>
     )
   }
@@ -206,20 +209,26 @@ const FaireSettingsPage = () => {
           {connected ? (
             <div className="flex items-center gap-3">
               <StatusBadge color="green">Connected</StatusBadge>
-              <Button
-                size="small"
-                variant="secondary"
-                onClick={() => navigate("/settings/faire/bulk")}
-              >
-                Bulk sync
-              </Button>
-              <Button
-                size="small"
-                variant="secondary"
-                onClick={() => navigate("/settings/faire/settings")}
-              >
-                Sync settings
-              </Button>
+              <DropdownMenu>
+                <DropdownMenu.Trigger asChild>
+                  <Button size="small" variant="secondary">
+                    Sync
+                    <ChevronDownMini />
+                  </Button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content>
+                  <DropdownMenu.Item
+                    onClick={() => navigate("/settings/faire/bulk")}
+                  >
+                    Bulk sync
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    onClick={() => navigate("/settings/faire/settings")}
+                  >
+                    Sync settings
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu>
               <Button
                 size="small"
                 variant="danger"
@@ -333,6 +342,10 @@ const FaireSettingsPage = () => {
           </Drawer.Footer>
         </Drawer.Content>
       </Drawer>
+
+      {/* Nested routes (e.g. @settings drawer) render here so they overlay the
+          list instead of navigating away and blanking the page. */}
+      <Outlet />
 
       <Toaster />
     </div>

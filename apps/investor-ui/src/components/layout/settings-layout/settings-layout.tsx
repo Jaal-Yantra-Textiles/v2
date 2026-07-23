@@ -23,8 +23,17 @@ export const SettingsLayout = () => {
 }
 
 const useSettingRoutes = (): INavItem[] => {
-  // Investor UI shell — settings nav blanked; add investor settings incrementally.
-  return []
+  const { t } = useTranslation()
+
+  return useMemo(
+    () => [
+      {
+        label: t("verification.domain"),
+        to: "/settings/verification",
+      },
+    ],
+    [t]
+  )
 }
 
 const useDeveloperRoutes = (): INavItem[] => {
@@ -51,7 +60,7 @@ const useMyAccountRoutes = (): INavItem[] => {
  */
 const getSafeFromValue = (from: string) => {
   if (from.startsWith("/settings")) {
-    return "/orders"
+    return "/"
   }
 
   return from
@@ -106,7 +115,7 @@ const SettingsSidebar = () => {
 }
 
 const Header = () => {
-  const [from, setFrom] = useState("/orders")
+  const [from, setFrom] = useState("/")
 
   const { t } = useTranslation()
   const location = useLocation()

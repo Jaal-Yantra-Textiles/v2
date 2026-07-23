@@ -1,8 +1,9 @@
-import { Container, Heading, Text, Button } from "@medusajs/ui"
+import { Container, Heading, Text, Button, Badge, Tooltip } from "@medusajs/ui"
 import { MagnifyingGlass } from "@medusajs/icons"
+import type { ConsoleStatus } from "../../hooks/api/search-console"
 import { useWebsiteConsoleStatus, useWebsiteConsoleSync } from "../../hooks/api/search-console"
 import { useWebsiteSearchConsoleRollup, type SearchConsoleRollupResponse } from "../../hooks/api/analytics"
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts'
 
 function formatPercent(v: number | null | undefined): string {
   if (v === null || v === undefined) return "—"
@@ -56,6 +57,42 @@ function MetricStat({ label, value }: { label: string; value: string }) {
     <div className="bg-ui-bg-base p-3 rounded-lg border border-ui-border-base flex flex-col gap-y-1">
       <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide font-medium">{label}</Text>
       <Text className="text-xl font-bold">{value}</Text>
+    </div>
+  )
+}
+
+/**
+ * Lists every GSC property that matches this website's domain / aliases.
+ * The primary (most-specific) property is what Search Discovery reads from;
+ * the rest are shown for visibility so operators can confirm which
+ * properties Search Console has for the domain.
+ */
+function PropertyList({ properties }: { properties: NonNullable<ConsoleStatus["properties"]> }) {
+  if (!properties || properties.length === 0) return null
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 justify-end">
+      {properties.map((p) => (
+        <Tooltip
+          key={p.resource_id}
+          content={
+            p.is_primary
+              ? "Primary property — Search Discovery reads from this one"
+              : p.synced
+                ? "Also matched · synced"
+                : "Also matched · not synced yet"
+          }
+        >
+          <Badge
+            size="2xsmall"
+            color={p.is_primary ? "green" : "grey"}
+            className="font-mono"
+          >
+            {p.resource_id}
+            {!p.synced && <span className="ml-1 opacity-70">· no data</span>}
+          </Badge>
+        </Tooltip>
+      ))}
     </div>
   )
 }
@@ -169,16 +206,20 @@ export const AnalyticsSearchDiscoveryCard = ({ websiteId, days }: Props) => {
 
   return (
     <Container className="p-0 overflow-hidden rounded-lg border border-ui-border-base bg-ui-bg-base">
-      <div className="p-4 border-b border-ui-border-base flex items-center justify-between">
-        <div className="flex items-center gap-x-2">
+      <div className="p-4 border-b border-ui-border-base flex items-start justify-between gap-x-3">
+        <div className="flex items-center gap-x-2 shrink-0">
           <MagnifyingGlass className="text-ui-fg-subtle" />
           <Heading level="h3" className="text-sm font-medium">Search / Discovery</Heading>
         </div>
-        <div className="flex items-center gap-x-2">
-          {gsc.binding && (
-            <Text size="xsmall" className="text-ui-fg-subtle font-mono">
-              {gsc.binding.resource_id}
-            </Text>
+        <div className="flex items-center gap-x-2 flex-wrap justify-end">
+          {status?.properties && status.properties.length > 0 ? (
+            <PropertyList properties={status.properties} />
+          ) : (
+            gsc.binding && (
+              <Text size="xsmall" className="text-ui-fg-subtle font-mono">
+                {gsc.binding.resource_id}
+              </Text>
+            )
           )}
           <SyncButton websiteId={websiteId} />
         </div>
@@ -199,7 +240,7 @@ export const AnalyticsSearchDiscoveryCard = ({ websiteId, days }: Props) => {
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#9ca3af" />
                 <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                <Tooltip
+                <RechartsTooltip
                   contentStyle={{
                     backgroundColor: '#fff',
                     border: '1px solid #e5e7eb',

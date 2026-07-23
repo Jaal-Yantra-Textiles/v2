@@ -2,15 +2,29 @@ import { defineWidgetConfig } from "@medusajs/admin-sdk"
 import {
   Button,
   Container,
+  Drawer,
   Heading,
+  Input,
+  Label,
   Text,
   Alert,
+  Badge,
   StatusBadge,
   Tooltip,
+  clx,
+  toast,
 } from "@medusajs/ui"
 import { DetailWidgetProps, AdminProduct } from "@medusajs/framework/types"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { faireApi } from "../lib/api"
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
+import { useEffect, useState } from "react"
+import { faireApi, sdk } from "../lib/api"
+
+const PICKER_LIMIT = 50
 
 const badgeColor = (status?: string): "green" | "red" | "orange" | "grey" => {
   switch (status) {
@@ -83,6 +97,100 @@ const FaireProductWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
 
   const notReady = connected && readiness && !readiness.ready_to_publish
 
+  // ── Faire category (taxonomy_type) picker ────────────────────────────────
+  // Faire requires a category per product. Sync resolves it in this order:
+  //   metadata.faire_taxonomy_type_id → metadata.faire_category →
+  //   product Type (by name) → account fallback. This panel pins an exact
+  //   `tt_…` id in metadata so the mapping is unambiguous.
+  const metadata: Record<string, any> = (data as any).metadata || {}
+  const productType: string | undefined = (data as any).type?.value
+
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerSearch, setPickerSearch] = useState("")
+  // Debounce the typed query so each keystroke doesn't fire a request; the
+  // backend searches its cached taxonomy and returns only matches.
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(pickerSearch.trim()), 250)
+    return () => clearTimeout(t)
+  }, [pickerSearch])
+
+  // Local echo of the saved pin so the panel updates instantly (the parent
+  // product page's `data.metadata` only refreshes on its own refetch).
+  const [pinnedOverride, setPinnedOverride] = useState<
+    { id: string | null; name: string | null } | undefined
+  >(undefined)
+
+  // Search results — server-side filtered + sliced (Faire has no search API, so
+  // the backend caches the full ~3k list and filters there). keepPreviousData
+  // avoids a flash of "loading" between keystrokes.
+  const taxonomyQuery = useQuery({
+    queryKey: ["faire", "taxonomy", "search", debouncedSearch],
+    enabled: pickerOpen,
+    placeholderData: keepPreviousData,
+    queryFn: async () =>
+      faireApi.taxonomy({
+        q: debouncedSearch || undefined,
+        limit: PICKER_LIMIT,
+      }),
+  })
+  const results = taxonomyQuery.data?.taxonomy ?? []
+  const matchCount = taxonomyQuery.data?.count ?? 0
+
+  const pinnedId: string | undefined =
+    pinnedOverride !== undefined
+      ? pinnedOverride.id ?? undefined
+      : metadata.faire_taxonomy_type_id
+  const pinnedNameFromMeta: string | undefined =
+    pinnedOverride !== undefined
+      ? pinnedOverride.name ?? undefined
+      : metadata.faire_taxonomy_type_name
+
+  // Resolve the name of an already-pinned `tt_…` id when it wasn't stored
+  // alongside (legacy pins) — a targeted `ids` lookup, not the whole list.
+  const pinnedResolveQuery = useQuery({
+    queryKey: ["faire", "taxonomy", "resolve", pinnedId],
+    enabled: !!pinnedId && !pinnedNameFromMeta && /^tt_/.test(String(pinnedId)),
+    queryFn: async () =>
+      (await faireApi.taxonomy({ ids: [pinnedId!] })).taxonomy,
+  })
+  const pinnedName =
+    pinnedNameFromMeta ??
+    (pinnedId && /^tt_/.test(String(pinnedId))
+      ? pinnedResolveQuery.data?.[0]?.name
+      : pinnedId
+        ? String(pinnedId)
+        : undefined)
+
+  // What the sync will actually use as the category source, for display.
+  const resolvedSource = pinnedId
+    ? { label: pinnedName || String(pinnedId), from: "pinned" as const }
+    : metadata.faire_category
+      ? { label: String(metadata.faire_category), from: "metadata" as const }
+      : productType
+        ? { label: productType, from: "type" as const }
+        : { label: "Account fallback", from: "fallback" as const }
+
+  const saveCategory = useMutation({
+    mutationFn: (choice: { id: string; name: string } | null) =>
+      sdk.admin.product.update(data.id, {
+        metadata: {
+          ...metadata,
+          faire_taxonomy_type_id: choice?.id ?? null,
+          faire_taxonomy_type_name: choice?.name ?? null,
+        },
+      }),
+    onSuccess: (_res, choice) => {
+      setPinnedOverride({ id: choice?.id ?? null, name: choice?.name ?? null })
+      queryClient.invalidateQueries({ queryKey: ["product", data.id] })
+      setPickerOpen(false)
+      setPickerSearch("")
+      toast.success(choice ? "Faire category set" : "Faire category cleared")
+    },
+    onError: (err: any) =>
+      toast.error("Failed to save category", { description: err?.message }),
+  })
+
   return (
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
@@ -150,6 +258,37 @@ const FaireProductWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
           </Alert>
         )}
 
+        {/* Faire category (taxonomy_type) */}
+        <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-2">
+              <Text size="small" weight="plus">
+                Faire category
+              </Text>
+              <Badge size="2xsmall" color={resolvedSource.from === "fallback" ? "orange" : "grey"}>
+                {resolvedSource.from === "pinned"
+                  ? "Pinned"
+                  : resolvedSource.from === "type"
+                    ? "From Type"
+                    : resolvedSource.from === "metadata"
+                      ? "Metadata"
+                      : "Fallback"}
+              </Badge>
+            </div>
+            <Text size="small" className="text-ui-fg-subtle">
+              {resolvedSource.label}
+            </Text>
+          </div>
+          <Button
+            size="small"
+            variant="secondary"
+            disabled={!connected}
+            onClick={() => setPickerOpen(true)}
+          >
+            {pinnedId ? "Change" : "Set category"}
+          </Button>
+        </div>
+
         <div className="flex items-center gap-3">
           <Tooltip
             content={
@@ -169,6 +308,82 @@ const FaireProductWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
           </Tooltip>
         </div>
       </div>
+
+      {/* Category picker — searchable list from Faire's taxonomy API. */}
+      <Drawer open={pickerOpen} onOpenChange={setPickerOpen}>
+        <Drawer.Content>
+          <Drawer.Header>
+            <Drawer.Title>Pick a Faire category</Drawer.Title>
+            <Drawer.Description>
+              Search Faire's product taxonomy and pin an exact category to this
+              product.
+            </Drawer.Description>
+          </Drawer.Header>
+          <Drawer.Body className="flex flex-col gap-3 overflow-hidden">
+            <Input
+              type="search"
+              autoFocus
+              placeholder="Search categories…"
+              value={pickerSearch}
+              onChange={(e) => setPickerSearch(e.target.value)}
+            />
+            <div className="flex flex-col gap-1 overflow-y-auto">
+              {taxonomyQuery.isLoading ? (
+                <Text size="small" className="text-ui-fg-subtle px-1 py-2">
+                  Loading categories…
+                </Text>
+              ) : results.length === 0 ? (
+                <Text size="small" className="text-ui-fg-subtle px-1 py-2">
+                  {debouncedSearch
+                    ? `No categories match “${debouncedSearch}”.`
+                    : "No categories available."}
+                </Text>
+              ) : (
+                results.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => saveCategory.mutate(t)}
+                    disabled={saveCategory.isPending}
+                    className={clx(
+                      "flex items-center justify-between rounded-md px-3 py-2 text-left text-sm",
+                      "hover:bg-ui-bg-base-hover",
+                      t.id === pinnedId && "bg-ui-bg-highlight"
+                    )}
+                  >
+                    <span>{t.name}</span>
+                    {t.id === pinnedId && (
+                      <Badge size="2xsmall" color="green">
+                        Current
+                      </Badge>
+                    )}
+                  </button>
+                ))
+              )}
+              {!taxonomyQuery.isLoading && matchCount > results.length && (
+                <Text size="xsmall" className="text-ui-fg-muted px-1 py-1">
+                  Showing {results.length} of {matchCount} matches — refine your
+                  search to narrow down.
+                </Text>
+              )}
+            </div>
+          </Drawer.Body>
+          <Drawer.Footer>
+            {pinnedId && (
+              <Button
+                variant="secondary"
+                onClick={() => saveCategory.mutate(null)}
+                isLoading={saveCategory.isPending}
+              >
+                Clear
+              </Button>
+            )}
+            <Drawer.Close asChild>
+              <Button variant="secondary">Cancel</Button>
+            </Drawer.Close>
+          </Drawer.Footer>
+        </Drawer.Content>
+      </Drawer>
     </Container>
   )
 }

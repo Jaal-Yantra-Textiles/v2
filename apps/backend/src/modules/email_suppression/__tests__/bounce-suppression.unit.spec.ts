@@ -1,4 +1,4 @@
-import { parseMailjetEvents, parseResendEvent } from "../provider-parsers"
+import { parseMailjetEvents, parseResendEvent, parseKitSuppression } from "../provider-parsers"
 import { normalizeEmail, reasonSuppresses, suppressionMetadata } from "../suppress-core"
 
 describe("provider-parsers — parseMailjetEvents", () => {
@@ -103,5 +103,32 @@ describe("suppress-core — suppressionMetadata", () => {
     expect(suppressionMetadata({ bounced: true, bounced_at: "old" }, "spam_complaint", at)).toEqual({
       bounced: true, bounced_at: "old", complained: true, complained_at: at, bounce_reason: "spam_complaint",
     })
+  })
+})
+
+describe("provider-parsers — parseKitSuppression", () => {
+  it("maps bounce→hard_bounce with a stable per-subscriber+kind id", () => {
+    expect(
+      parseKitSuppression(
+        { subscriber: { id: 77, email_address: "A@X.com" }, created_at: "2026-07-04T00:00:00.000Z" },
+        "bounce"
+      )
+    ).toEqual([
+      { email: "a@x.com", reason: "hard_bounce", event_id: "kit:bounce:77", event_at: "2026-07-04T00:00:00.000Z" },
+    ])
+  })
+  it("maps complain→spam_complaint and unsubscribe→unsubscribe", () => {
+    expect(parseKitSuppression({ subscriber: { id: 1, email_address: "a@x.com" } }, "complain")[0].reason).toBe("spam_complaint")
+    expect(parseKitSuppression({ subscriber: { id: 1, email_address: "a@x.com" } }, "unsubscribe")[0].reason).toBe("unsubscribe")
+  })
+  it("reads a flat subscriber object and lowercases the email", () => {
+    expect(parseKitSuppression({ email_address: "B@Y.com", id: 5 }, "bounce")[0]).toMatchObject({
+      email: "b@y.com", reason: "hard_bounce", event_id: "kit:bounce:5",
+    })
+  })
+  it("ignores the click kind (engagement, not suppression) and junk", () => {
+    expect(parseKitSuppression({ subscriber: { id: 1, email_address: "a@x.com" } }, "click")).toEqual([])
+    expect(parseKitSuppression({ subscriber: { id: 1 } }, "bounce")).toEqual([])
+    expect(parseKitSuppression(null, "bounce")).toEqual([])
   })
 })

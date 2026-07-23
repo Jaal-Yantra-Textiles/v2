@@ -9,7 +9,7 @@ import {
 } from "@medusajs/medusa/core-flows"
 import { PARTNER_MODULE } from "../../modules/partner"
 import PartnerService from "../../modules/partner/service"
-import { MedusaError, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { randomBytes } from "crypto"
 import type { IAuthModuleService } from "@medusajs/types"
 
@@ -20,6 +20,7 @@ export type CreatePartnerAdminWorkflowInput = {
         logo?: string
         status?: 'active' | 'inactive' | 'pending'
         is_verified?: boolean
+        workspace_type?: 'seller' | 'manufacturer' | 'individual' | 'designer'
     }
     admin: {
         email: string
@@ -79,6 +80,65 @@ const createPartnerAndAdminStep = createStep(
     }
 )
 
+/**
+ * Bypass email verification for a partner's auth identity by upserting a
+ * verified auth_verification row. Uses the same logic as
+ * backfillPartnerEmailVerifiedJob so login does not return
+ * verification_required.
+ */
+const verifyPartnerAuthEmailStep = createStep(
+    "verify-partner-auth-email",
+    async (
+        input: { authIdentityId: string; email: string },
+        { container }
+    ) => {
+        const authModule = container.resolve(Modules.AUTH) as any
+
+        // Determine entity type from config (same as backfill job)
+        let entityType = "email"
+        try {
+            const config = container.resolve(ContainerRegistrationKeys.CONFIG_MODULE)
+            const forPartner =
+                config?.projectConfig?.http?.authVerificationsPerActor?.partner
+            const emailpass = (forPartner || []).find(
+                (v: any) => v?.auth_provider === "emailpass"
+            )
+            if (emailpass?.entity_type) entityType = emailpass.entity_type
+        } catch { /* default to "email" */ }
+
+        const existing = await authModule.listAuthVerifications({
+            auth_identity_id: input.authIdentityId,
+            entity_id: input.email,
+            entity_type: entityType,
+        } as any)
+
+        const row = existing?.[0] as any
+        const now = new Date()
+
+        if (row) {
+            if (row.verified_at) {
+                return new StepResponse(null) // already verified
+            }
+            await authModule.updateAuthVerifications({
+                id: row.id,
+                verified_at: now,
+            } as any)
+            return new StepResponse(null)
+        }
+
+        await authModule.createAuthVerifications([{
+            auth_identity_id: input.authIdentityId,
+            entity_id: input.email,
+            entity_type: entityType,
+            code_provider: "emailpass",
+            requested_at: now,
+            verified_at: now,
+        }] as any)
+
+        return new StepResponse(null)
+    }
+)
+
 // External workflow: requires authIdentityId
 const createPartnerAdminWorkflow = createWorkflow(
     "create-partner-admin",
@@ -92,6 +152,11 @@ const createPartnerAdminWorkflow = createWorkflow(
             authIdentityId: input.authIdentityId,
             actorType: "partner",
             value: partnerWithAdmin.createdPartner.id,  // Use partner ID, not admin ID
+        })
+
+        verifyPartnerAuthEmailStep({
+            authIdentityId: input.authIdentityId,
+            email: input.admin.email,
         })
 
         return new WorkflowResponse(
@@ -149,6 +214,11 @@ export const createPartnerAdminWithRegistrationWorkflow = createWorkflow(
             authIdentityId: registered.authIdentityId,
             actorType: "partner",
             value: partnerWithAdmin.createdPartner.id,  // Use partner ID, not admin ID
+        })
+
+        verifyPartnerAuthEmailStep({
+            authIdentityId: registered.authIdentityId,
+            email: input.admin.email,
         })
 
         return new WorkflowResponse({

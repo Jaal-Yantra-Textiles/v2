@@ -32,19 +32,34 @@ const competitorSchema = z.object({
 
 const pricePointSchema = z.enum(["luxury", "mid_market", "budget"])
 
+// Section 1 — Aesthetic Anchor: 3–5 keywords defining the look & feel (#1113 S2).
+const aestheticKeywordsSchema = z.array(z.string().min(1)).max(8)
+
+// Section 3 — one Key Milestone; `date` is an ISO date string (nullable) (#1113 S2).
+const milestoneSchema = z.object({
+  label: z.string().min(1, "Milestone label is required"),
+  date: z.string().nullish(),
+})
+
 /**
  * POST /partners/designs/:designId/brief — replace the whole brief.
  * Every field is optional (the brief is incremental), but unset fields are
  * treated as `null` by the route so POST is a full replace.
+ *
+ * Mirrors the admin brief contract wire-for-wire, including the #1113 S2
+ * additions (`aesthetic_keywords`, `milestones`) that back the moodboard
+ * brief-anchor cards, so canvas edits round-trip to the same columns.
  */
 export const DesignBriefSchema = z.object({
   concept_theme: z.string().nullish(),
+  aesthetic_keywords: aestheticKeywordsSchema.nullish(),
   persona: personaSchema.nullish(),
   competitors: z.array(competitorSchema).nullish(),
   price_point: pricePointSchema.nullish(),
   design_budget: z.number().nonnegative().nullish(),
   // Budget currency reuses the shared cost_currency column (e.g. "inr").
   cost_currency: z.string().nullish(),
+  milestones: z.array(milestoneSchema).nullish(),
 })
 
 /**
@@ -58,11 +73,13 @@ export type UpdateDesignBrief = z.infer<typeof UpdateDesignBriefSchema>
 // The brief columns to read back from a hydrated design record.
 export const DESIGN_BRIEF_FIELDS = [
   "concept_theme",
+  "aesthetic_keywords",
   "persona",
   "competitors",
   "price_point",
   "design_budget",
   "cost_currency",
+  "milestones",
 ] as const
 
 /**
@@ -78,6 +95,7 @@ export const pickDesignBrief = (
   }
   return {
     concept_theme: design.concept_theme ?? null,
+    aesthetic_keywords: design.aesthetic_keywords ?? null,
     persona: design.persona ?? null,
     competitors: design.competitors ?? null,
     price_point: design.price_point ?? null,
@@ -86,5 +104,6 @@ export const pickDesignBrief = (
         ? null
         : Number(design.design_budget),
     cost_currency: design.cost_currency ?? null,
+    milestones: design.milestones ?? null,
   }
 }

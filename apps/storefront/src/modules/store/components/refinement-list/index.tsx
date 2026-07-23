@@ -7,7 +7,9 @@ import SortProducts, { SortOptions } from "./sort-products"
 import FilterRadioGroup from "./filter-radio-group"
 import FilterCheckboxGroup from "./filter-checkbox-group"
 import { HttpTypes } from "@medusajs/types"
-import { Drawer, Button, clx, toast } from "@medusajs/ui"
+import { Button, toast } from "@medusajs/ui"
+import { useState } from "react"
+import ActionSheet from "@modules/common/components/action-sheet"
 
 type RefinementListProps = {
   sortBy: SortOptions
@@ -17,16 +19,11 @@ type RefinementListProps = {
   'data-testid'?: string
 }
 
-
-
-// ... (existing imports need to be preserved or re-imported if I overwrite them, so I should be careful)
-// Actually, I can't easily preserve imports with replace_file_content if I don't see the top. 
-// I will use reference to the file content I saw in step 126.
-
 const RefinementList = ({ sortBy, collections, tags, 'data-testid': dataTestId }: RefinementListProps) => {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const [filterOpen, setFilterOpen] = useState(false)
 
 
   const createQueryString = useCallback(
@@ -108,24 +105,25 @@ const RefinementList = ({ sortBy, collections, tags, 'data-testid': dataTestId }
       </div>
 
       <div className="small:hidden mb-6 w-full px-6">
-        <Drawer>
-          <Drawer.Trigger asChild>
-            <Button variant="secondary" className="w-full">Filters</Button>
-          </Drawer.Trigger>
-          <Drawer.Content className="max-h-[85vh] overflow-hidden">
-            <Drawer.Header>
-              <Drawer.Title>Filters</Drawer.Title>
-            </Drawer.Header>
-            <Drawer.Body className="p-6 overflow-y-auto">
-              <FilterContent />
-            </Drawer.Body>
-            <Drawer.Footer>
-              <Drawer.Close asChild>
-                <Button className="w-full">Close</Button>
-              </Drawer.Close>
-            </Drawer.Footer>
-          </Drawer.Content>
-        </Drawer>
+        <Button
+          variant="secondary"
+          className="w-full"
+          onClick={() => setFilterOpen(true)}
+        >
+          Filters
+        </Button>
+        <ActionSheet
+          open={filterOpen}
+          onClose={() => setFilterOpen(false)}
+          title="Filters"
+          footer={
+            <Button className="w-full" onClick={() => setFilterOpen(false)}>
+              Close
+            </Button>
+          }
+        >
+          <FilterContent />
+        </ActionSheet>
       </div>
     </>
   )

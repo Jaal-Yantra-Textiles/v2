@@ -4,7 +4,10 @@ import {
   MedusaError,
   Modules,
 } from "@medusajs/framework/utils"
-import { createInvestorAdminWithRegistrationWorkflow } from "../../../../../workflows/investor/create-investor-admin"
+import {
+  createInvestorAdminWithRegistrationWorkflow,
+  resetInvestorAdminPasswordWorkflow,
+} from "../../../../../workflows/investor/create-investor-admin"
 import { INVESTOR_MODULE } from "../../../../../modules/investor"
 import type InvestorService from "../../../../../modules/investor/service"
 
@@ -37,6 +40,69 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const companyId = req.params.id
   const { admin, ...investorData } = req.validatedBody as any
 
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const investorService: InvestorService = req.scope.resolve(INVESTOR_MODULE)
+  const eventService = req.scope.resolve(Modules.EVENT_BUS)
+
+  // Re-invite path: if an investor admin already exists for this email, don't try
+  // to create a duplicate (which would fail with "auth already exists"). Instead
+  // regenerate the password, ensure the pipeline link to THIS company exists, and
+  // re-send the onboarding email with the fresh temp password.
+  const { data: existingAdmins } = await query.graph({
+    entity: "investor_admin",
+    fields: ["id", "email", "investor_id", "investor.*"],
+    filters: { email: admin.email },
+  })
+  const existingAdmin = existingAdmins?.[0]
+
+  if (existingAdmin?.investor_id) {
+    const { result: reset, errors: resetErrors } =
+      await resetInvestorAdminPasswordWorkflow(req.scope).run({
+        input: { email: admin.email },
+      })
+    if (resetErrors?.length) {
+      throw (
+        resetErrors[0].error ||
+        new MedusaError(
+          MedusaError.Types.UNEXPECTED_STATE,
+          "Failed to reset investor password"
+        )
+      )
+    }
+
+    // Ensure a pipeline row links this existing investor to this company.
+    const { data: pipelines } = await query.graph({
+      entity: "investor_pipeline",
+      fields: ["id"],
+      filters: { investor_id: existingAdmin.investor_id, company_id: companyId },
+    })
+    if (!pipelines?.length) {
+      await investorService.createPipelines({
+        investor_id: existingAdmin.investor_id,
+        company_id: companyId,
+        stage: "lead",
+        status: "active",
+      } as any)
+    }
+
+    eventService.emit({
+      name: "investor.created.fromAdmin",
+      data: {
+        investor_id: existingAdmin.investor_id,
+        investor_admin_id: existingAdmin.id,
+        email: admin.email,
+        temp_password: (reset as any).tempPassword,
+        company_id: companyId,
+      },
+    })
+
+    return res.status(200).json({
+      investor: (existingAdmin as any).investor,
+      investor_admin: existingAdmin,
+      reinvited: true,
+    })
+  }
+
   if (!investorData.handle) {
     investorData.handle = `inv-${Date.now()}-${Math.random()
       .toString(36)
@@ -63,7 +129,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const investorId = payload.investorWithAdmin.createdInvestor.id
 
   // Link the new investor to this company via a pipeline row.
-  const investorService: InvestorService = req.scope.resolve(INVESTOR_MODULE)
   await investorService.createPipelines({
     investor_id: investorId,
     company_id: companyId,
@@ -71,7 +136,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     status: "active",
   } as any)
 
-  const eventService = req.scope.resolve(Modules.EVENT_BUS)
   eventService.emit({
     name: "investor.created.fromAdmin",
     data: {

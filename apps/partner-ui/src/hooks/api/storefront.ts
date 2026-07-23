@@ -12,9 +12,27 @@ import { queryKeysFactory } from "../../lib/query-key-factory"
 const STOREFRONT_QUERY_KEY = "partner_storefront" as const
 export const storefrontQueryKeys = queryKeysFactory(STOREFRONT_QUERY_KEY)
 
+const DOMAIN_QUERY_KEY = "partner_storefront_domain" as const
+export const domainQueryKeys = queryKeysFactory(DOMAIN_QUERY_KEY)
+
+/**
+ * The storefront status card and the custom-domain card read from two separate
+ * queries but both surface the partner's domain/project state — any provision,
+ * redeploy, domain add/verify/remove, or storefront removal changes BOTH. Always
+ * invalidate the pair so neither card shows stale data after a mutation.
+ */
+const invalidateStorefrontQueries = () => {
+  queryClient.invalidateQueries({ queryKey: storefrontQueryKeys.detail("me") })
+  queryClient.invalidateQueries({ queryKey: domainQueryKeys.detail("me") })
+}
+
+export type HostingProvider = "vercel" | "cloudflare" | "render" | "netlify"
+
 export interface StorefrontStatus {
   provisioned: boolean
   message?: string
+  /** Which hosting provider the storefront lives on (#884). */
+  provider?: HostingProvider
   project?: {
     id: string
     name: string
@@ -68,9 +86,7 @@ export const useProvisionStorefront = () => {
         method: "POST",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: storefrontQueryKeys.detail("me"),
-      })
+      invalidateStorefrontQueries()
     },
   })
 }
@@ -83,9 +99,7 @@ export const useRedeployStorefront = () => {
         body: input || {},
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: storefrontQueryKeys.detail("me"),
-      })
+      invalidateStorefrontQueries()
     },
   })
 }
@@ -109,6 +123,7 @@ export interface DomainStatus {
   verified?: boolean
   misconfigured?: boolean
   configured_by?: string | null
+  verification?: Array<{ type: string; domain: string; value: string }> | null
   dns_records?: DnsRecord[]
 }
 
@@ -119,10 +134,15 @@ export interface AddDomainResponse {
   misconfigured: boolean
   configured_by: string | null
   dns_records?: DnsRecord[]
+  /** Provider attach/heal error (e.g. Cloudflare rejected the hostname). */
+  error?: string | null
 }
 
-const DOMAIN_QUERY_KEY = "partner_storefront_domain" as const
-export const domainQueryKeys = queryKeysFactory(DOMAIN_QUERY_KEY)
+export interface RemoveDomainResponse {
+  message: string
+  /** Provider hosts that couldn't be fully torn down (still resolving). */
+  warnings?: string[]
+}
 
 export const useStorefrontDomain = (
   options?: Omit<
@@ -149,9 +169,7 @@ export const useAddStorefrontDomain = () => {
         body: input,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: domainQueryKeys.detail("me"),
-      })
+      invalidateStorefrontQueries()
     },
   })
 }
@@ -164,9 +182,7 @@ export const useVerifyStorefrontDomain = () => {
         { method: "POST" }
       ),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: domainQueryKeys.detail("me"),
-      })
+      invalidateStorefrontQueries()
     },
   })
 }
@@ -174,13 +190,11 @@ export const useVerifyStorefrontDomain = () => {
 export const useRemoveStorefrontDomain = () => {
   return useMutation({
     mutationFn: () =>
-      sdk.client.fetch<{ message: string }>("/partners/storefront/domain", {
+      sdk.client.fetch<RemoveDomainResponse>("/partners/storefront/domain", {
         method: "DELETE",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: domainQueryKeys.detail("me"),
-      })
+      invalidateStorefrontQueries()
     },
   })
 }
@@ -192,9 +206,7 @@ export const useRemoveStorefront = () => {
         method: "DELETE",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: storefrontQueryKeys.detail("me"),
-      })
+      invalidateStorefrontQueries()
     },
   })
 }

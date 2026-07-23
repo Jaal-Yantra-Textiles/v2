@@ -3,6 +3,7 @@ import { ExecArgs } from "@medusajs/framework/types"
 import { DEPLOYMENT_MODULE } from "../modules/deployment"
 import type DeploymentService from "../modules/deployment/service"
 import { getStorefrontRefs } from "../api/partners/storefront/helpers"
+import { partnerIsOnSharedProject } from "../modules/deployment/providers/resolve-partner-provider"
 
 /**
  * One-off: pin NEXT_PUBLIC_BASE_URL on every provisioned partner
@@ -73,6 +74,16 @@ export default async function setStorefrontBaseUrl({ container }: ExecArgs) {
     if (!projectId) continue
 
     const label = `${partner.name} (${partner.handle || partner.id})`
+
+    // Never pin a per-partner base URL on a shared multi-tenant project — it
+    // serves every tenant and resolves the host per-request. Doing so would
+    // clobber the shared canonical (last-writer-wins) and redeploy it for all.
+    if (await partnerIsOnSharedProject(partner, container)) {
+      logger.warn(`[set-base-url] SKIP ${label}: shared multi-tenant project`)
+      skipped++
+      continue
+    }
+
     try {
       const res = await fetch(
         `https://api.vercel.com/v9/projects/${projectId}/domains${teamQuery}`,
@@ -91,7 +102,9 @@ export default async function setStorefrontBaseUrl({ container }: ExecArgs) {
         .filter((n) => !n.endsWith(".cicilabel.com") && !n.endsWith(".vercel.app"))
 
       const customDomain = String(
-        (partner as any).metadata?.custom_domain || ""
+        (partner as any).custom_domain ||
+          (partner as any).metadata?.custom_domain ||
+          ""
       ).toLowerCase()
       const preferred = candidates.find(
         (c) => c === customDomain || c === twin(customDomain)

@@ -17,12 +17,15 @@
  */
 
 import type {
+  TechPackBrief,
   TechPackColorway,
   TechPackDetail,
   TechPackFlats,
   TechPackHeader,
+  TechPackMaterial,
   TechPackSceneInput,
   TechPackSizeSet,
+  TechPackSpec,
 } from "./build-moodboard-scene"
 
 /** The subset of a design graph this mapper reads. All fields optional/defensive. */
@@ -32,6 +35,16 @@ export interface DesignForTechPack {
   metadata?: Record<string, any> | null
   thumbnail_url?: string | null
   color_palette?: unknown
+  // Brief columns (#604 / #1113 S2) — the anchor frames.
+  concept_theme?: string | null
+  aesthetic_keywords?: unknown
+  persona?: Record<string, any> | null
+  competitors?: unknown
+  price_point?: string | null
+  design_budget?: number | string | null
+  cost_currency?: string | null
+  milestones?: unknown
+  target_completion_date?: string | Date | null
   size_sets?: Array<{
     size_label?: string | null
     measurements?: Record<string, number> | null
@@ -43,6 +56,71 @@ export interface DesignForTechPack {
     special_instructions?: string | null
     metadata?: Record<string, any> | null
   }> | null
+  /**
+   * Pinned raw-material groups (#1113 Materials frame). Attached by the moodboard
+   * loader via the design↔raw_material_group link, NOT a direct design column.
+   */
+  materials?: Array<{
+    name?: string | null
+    composition?: string | null
+    status?: string | null
+    colors?: string[] | null
+    note?: string | null
+  }> | null
+}
+
+/** The design-graph fields buildBriefInputFromDesign needs (for query.graph). */
+export const DESIGN_BRIEF_GRAPH_FIELDS = [
+  "concept_theme",
+  "aesthetic_keywords",
+  "persona",
+  "competitors",
+  "price_point",
+  "design_budget",
+  "cost_currency",
+  "milestones",
+  "target_completion_date",
+] as const
+
+/** Map a design's brief columns → the moodboard brief input. Pure + defensive. */
+export function buildBriefInputFromDesign(
+  design: DesignForTechPack
+): TechPackBrief {
+  const keywords = Array.isArray(design.aesthetic_keywords)
+    ? (design.aesthetic_keywords as unknown[]).map(String).filter(Boolean)
+    : null
+  const competitors = Array.isArray(design.competitors)
+    ? (design.competitors as any[])
+        .filter((c) => c && c.name)
+        .map((c) => ({
+          name: String(c.name),
+          ...(c.url ? { url: String(c.url) } : {}),
+          ...(c.differentiator ? { differentiator: String(c.differentiator) } : {}),
+        }))
+    : null
+  const milestones = Array.isArray(design.milestones)
+    ? (design.milestones as any[])
+        .filter((m) => m && m.label)
+        .map((m) => ({ label: String(m.label), date: m.date ?? null }))
+    : null
+  const price = design.price_point
+  return {
+    concept_theme: design.concept_theme ?? null,
+    aesthetic_keywords: keywords,
+    persona: (design.persona as TechPackBrief["persona"]) ?? null,
+    competitors,
+    price_point:
+      price === "luxury" || price === "mid_market" || price === "budget"
+        ? price
+        : null,
+    milestones,
+    design_budget:
+      design.design_budget == null ? null : Number(design.design_budget),
+    cost_currency: design.cost_currency ?? null,
+    target_completion_date: design.target_completion_date
+      ? new Date(design.target_completion_date).toISOString().slice(0, 10)
+      : null,
+  }
 }
 
 /** Normalize color_palette (several historical shapes) into TechPackColorway[]. */
@@ -59,6 +137,39 @@ function normalizeColorways(cp: unknown): TechPackColorway[] {
       }
     })
     .filter((c): c is TechPackColorway => c !== null)
+}
+
+/** Every specification → a TechPackSpec card for the "Design Specs" frame (#1113). */
+function normalizeSpecs(
+  specs: DesignForTechPack["specifications"]
+): TechPackSpec[] {
+  return (specs ?? [])
+    .filter((s) => s?.title)
+    .map((s) => ({
+      title: String(s.title),
+      ...(s.category ? { category: String(s.category) } : {}),
+      ...(s.details ? { details: String(s.details) } : {}),
+      ...(s.special_instructions
+        ? { special_instructions: String(s.special_instructions) }
+        : {}),
+    }))
+}
+
+/** Pinned material groups → TechPackMaterial cards for the "Materials" frame (#1113). */
+function normalizeMaterials(
+  materials: DesignForTechPack["materials"]
+): TechPackMaterial[] {
+  return (materials ?? [])
+    .filter((m) => m?.name)
+    .map((m) => ({
+      name: String(m.name),
+      ...(m.composition ? { composition: String(m.composition) } : {}),
+      ...(m.status ? { status: String(m.status) } : {}),
+      ...(Array.isArray(m.colors) && m.colors.length
+        ? { colors: m.colors.map(String).filter(Boolean) }
+        : {}),
+      ...(m.note ? { note: String(m.note) } : {}),
+    }))
 }
 
 /** A Construction spec → a TechPackDetail, or null if it declares no technique. */
@@ -147,12 +258,19 @@ export function buildTechPackInputFromDesign(
     .map(specToDetail)
     .filter((d): d is TechPackDetail => d !== null)
 
+  const brief = buildBriefInputFromDesign(design)
+  const specs = normalizeSpecs(design.specifications)
+  const materials = normalizeMaterials(design.materials)
+
   return {
     design: header,
     garment_type,
     flats,
+    brief,
     ...(sizeSet ? { sizeSet } : {}),
     ...(colorways.length ? { colorways } : {}),
     ...(details.length ? { details } : {}),
+    ...(specs.length ? { specs } : {}),
+    ...(materials.length ? { materials } : {}),
   }
 }

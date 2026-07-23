@@ -15,6 +15,19 @@ export interface ConsoleStatus {
     resource_id: string
     matched_via: "url_prefix" | "url_prefix_www" | "sc_domain" | "sc_domain_parent"
   }
+  /**
+   * Every GSC property that matches this website's domain or aliases,
+   * most-specific-first. The first entry (`is_primary`) is what Search
+   * Discovery reads from.
+   */
+  properties?: Array<{
+    resource_id: string
+    matched_via: "url_prefix" | "url_prefix_www" | "sc_domain" | "sc_domain_parent"
+    platform_id: string
+    is_primary: boolean
+    synced: boolean
+    last_synced_at: string | null
+  }>
   site?: {
     id: string
     site_url: string

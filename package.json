@@ -1,6 +1,6 @@
 {
   "name": "jyt-commerce-api",
-  "version": "13.52.2",
+  "version": "13.67.0",
   "private": true,
   "workspaces": [
     "apps/analytics",
@@ -104,7 +104,8 @@
       "msgpackr-extract",
       "protobufjs",
       "sharp",
-      "utf-8-validate"
+      "utf-8-validate",
+      "workerd"
     ],
     "patchedDependencies": {},
     "peerDependencyRules": {

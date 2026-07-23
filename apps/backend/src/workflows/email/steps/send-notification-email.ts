@@ -7,6 +7,10 @@ interface SendNotificationEmailInput {
   to: string
   template: string
   data?: Record<string, any>
+  // Notification channel → provider mapping (prod):
+  //   "email" → Resend · "email_partner" → Maileroo · "email_bulk" → Mailjet
+  // Defaults to "email" so existing callers are unaffected.
+  channel?: string
 }
 
 export const sendNotificationEmailStep = createStep(
@@ -29,7 +33,7 @@ export const sendNotificationEmailStep = createStep(
 
     const result = await notificationService.createNotifications({
       to: input.to,
-      channel: "email",
+      channel: input.channel || "email",
       template: input.template,
       data: notificationData,
     })

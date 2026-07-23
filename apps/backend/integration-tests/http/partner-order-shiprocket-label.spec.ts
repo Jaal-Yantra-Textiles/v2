@@ -184,14 +184,18 @@ setupSharedTestSuite(() => {
           region_id: regionId,
           sales_channel_id: salesChannelId,
           currency_code: "usd",
+          // Destination is incidental to this suite (it tests pickup ship-from);
+          // keep it an India address so it stays on the DOMESTIC Shiprocket path.
+          // International (non-IN) routing is covered in
+          // retail-order-international-shiprocket.spec.ts (#1111).
           shipping_address: {
             first_name: "Cust",
             last_name: "Omer",
             address_1: "9 Buyer Rd",
-            city: "New York",
-            province: "NY",
-            postal_code: "10001",
-            country_code: "us",
+            city: "Mumbai",
+            province: "MH",
+            postal_code: "400001",
+            country_code: "in",
             phone: "8887776665",
           },
           items: [{ title: "Tangaliya Stole", quantity: 1, unit_price: 1500 }],

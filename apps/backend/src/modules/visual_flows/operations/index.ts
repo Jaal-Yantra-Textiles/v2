@@ -35,7 +35,9 @@ export { partnerAnalyticsDigestOperation } from "./partner-analytics-digest"
 export { marketingDailyIdeasEmailOperation } from "./marketing-daily-ideas-email"
 export { waitForEventOperation } from "./wait-for-event"
 export { gmvProjectionOperation } from "./gmv-projection"
+export { commissionProjectionOperation } from "./commission-projection"
 export { adsEfficiencyOperation } from "./ads-efficiency"
+export { runMaintenanceJobOperation } from "./run-maintenance-job"
 
 // Import all operations and register them
 import { operationRegistry } from "./types"
@@ -71,7 +73,9 @@ import { partnerAnalyticsDigestOperation } from "./partner-analytics-digest"
 import { marketingDailyIdeasEmailOperation } from "./marketing-daily-ideas-email"
 import { waitForEventOperation } from "./wait-for-event"
 import { gmvProjectionOperation } from "./gmv-projection"
+import { commissionProjectionOperation } from "./commission-projection"
 import { adsEfficiencyOperation } from "./ads-efficiency"
+import { runMaintenanceJobOperation } from "./run-maintenance-job"
 
 // Register all built-in operations
 export function registerBuiltInOperations(): void {
@@ -109,6 +113,7 @@ export function registerBuiltInOperations(): void {
   operationRegistry.register(sleepOperation)
   operationRegistry.register(executeCodeOperation)
   operationRegistry.register(generatePartnerDeeplinkOperation)
+  operationRegistry.register(runMaintenanceJobOperation)
 
   // Analytics operations
   operationRegistry.register(aggregateProductAnalyticsOperation)
@@ -118,6 +123,7 @@ export function registerBuiltInOperations(): void {
   operationRegistry.register(resolveCartRecoveryUrlsOperation)
   operationRegistry.register(partnerAnalyticsDigestOperation)
   operationRegistry.register(gmvProjectionOperation)
+  operationRegistry.register(commissionProjectionOperation)
   operationRegistry.register(adsEfficiencyOperation)
 }
 

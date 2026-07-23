@@ -1,12 +1,16 @@
-import { PencilSquare, Trash } from "@medusajs/icons"
+import { Link as LinkIcon, PencilSquare, Trash } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
 import { Container, Heading, StatusBadge, toast, usePrompt } from "@medusajs/ui"
+import copy from "copy-to-clipboard"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 
 import { ActionMenu } from "../../../../../components/common/action-menu"
 import { SectionRow } from "../../../../../components/common/section"
-import { useDeleteProduct } from "../../../../../hooks/api/products"
+import {
+  useDeleteProduct,
+  useProductPreviewLink,
+} from "../../../../../hooks/api/products"
 import { useExtension } from "../../../../../providers/extension-provider"
 
 const productStatusColor = (status: string) => {
@@ -39,6 +43,28 @@ export const ProductGeneralSection = ({
   const displays = getDisplays("product", "general")
 
   const { mutateAsync } = useDeleteProduct(product.id)
+  const { mutateAsync: getPreviewLink, isPending: isPreviewPending } =
+    useProductPreviewLink(product.id)
+
+  const handleSharePreview = async () => {
+    try {
+      const { url } = await getPreviewLink()
+      // Synchronous copy (execCommand) — works past the click's gesture window,
+      // unlike navigator.clipboard.writeText which Safari/WebKit rejects here.
+      const copied = copy(url)
+      if (copied) {
+        toast.success("Private preview link copied", {
+          description: "A shareable, non-discoverable link is on your clipboard.",
+        })
+      } else {
+        toast.info("Private preview link", { description: url })
+      }
+    } catch (e) {
+      toast.error("Couldn't create preview link", {
+        description: e instanceof Error ? e.message : String(e),
+      })
+    }
+  }
 
   const handleDelete = async () => {
     const res = await prompt({
@@ -82,6 +108,12 @@ export const ProductGeneralSection = ({
                     label: t("actions.edit"),
                     to: "edit",
                     icon: <PencilSquare />,
+                  },
+                  {
+                    label: "Share private preview",
+                    onClick: handleSharePreview,
+                    icon: <LinkIcon />,
+                    disabled: isPreviewPending,
                   },
                 ],
               },

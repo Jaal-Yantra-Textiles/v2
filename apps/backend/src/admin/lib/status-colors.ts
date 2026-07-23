@@ -17,6 +17,9 @@ export const productionRunStatusColor = (status?: string) => {
       return "green"
     case "cancelled":
       return "red"
+    // #1093 — partner never accepted / declined; run waits for a new partner.
+    case "awaiting_reassignment":
+      return "red"
     default:
       return "grey"
   }

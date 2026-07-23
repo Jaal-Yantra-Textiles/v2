@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv*/
+
+# Node
+node_modules/
+
+# Secrets / local env
+.env
+# P2P keypair dump — contains a `sensitive:` writer secret despite the name
+PUBLIC_KEY.txt

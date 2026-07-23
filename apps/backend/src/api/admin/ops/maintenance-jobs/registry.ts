@@ -63,9 +63,11 @@ import {
 } from "../../marketing/marketing-summary-lib"
 import { VISUAL_FLOWS_MODULE } from "../../../../modules/visual_flows"
 import { FLOW_DEF as IDEAS_EMAIL_FLOW_DEF } from "../../../../scripts/seed-marketing-daily-ideas-email-flow"
+import { FLOW_DEF as WINBACK_AUDIENCE_REFRESH_FLOW_DEF } from "../../../../scripts/seed-winback-audience-refresh-flow"
 import { FLOW_DEF as INVENTORY_ORDER_STATUS_FLOW_DEF } from "../../../../scripts/seed-inventory-order-status-flow"
 import { FLOW_DEF as INVENTORY_SHIPMENT_PICKUP_FLOW_DEF } from "../../../../scripts/seed-inventory-shipment-pickup-flow"
 import { FLOW_DEF as ARTISAN_PRODUCT_APPROVAL_FLOW_DEF } from "../../../../scripts/seed-artisan-product-approval-flow"
+import { FLOW_DEF as PARTNER_RUN_WHATSAPP_FLOW_DEF } from "../../../../scripts/seed-partner-run-whatsapp-flow"
 import { ALL_WHATSAPP_TEMPLATES } from "../../../../scripts/whatsapp-templates/all-templates"
 import {
   syncWhatsAppTemplates,
@@ -76,9 +78,12 @@ import { seedInvestorPanelsJob } from "./seed-investor-panels-job"
 import { replayFxFanoutJob } from "./fanout-fx-job"
 import { backfillStoreCurrenciesJob } from "./backfill-store-currencies-job"
 import { backfillPartnerEmailVerifiedJob } from "./backfill-partner-email-verified-job"
+import { backfillPartnerHostingProviderJob } from "./backfill-partner-hosting-provider-job"
+import { repointPartnerStorefrontSharedJob } from "./repoint-partner-storefront-shared-job"
 import { enableStripeConnectEurRegionsJob } from "./enable-stripe-connect-eur-regions-job"
 import { suppressBouncedSubscribersJob } from "./suppress-bounced-subscribers-job"
 import { backfillAudienceEntriesJob } from "./backfill-audience-entries-job"
+import { backfillRetailPartnerFeesJob } from "./backfill-retail-partner-fees-job"
 import { recomputeEmailEngagementStatusJob } from "./recompute-email-engagement-status-job"
 import { generateNewsletterWinbackTargetsJob } from "./generate-newsletter-winback-targets-job"
 import { repairInventoryOrderSourceJob } from "./repair-inventory-order-source-job"
@@ -86,6 +91,9 @@ import { backfillGoogleAdsHistoryJob } from "./backfill-google-ads-history-job"
 import { backfillDesignSizeSetsJob } from "./backfill-design-size-sets-job"
 import { backfillPartnerShippingOptionsJob } from "./backfill-partner-shipping-options-job"
 import { repairShippingOptionStoreVisibilityJob } from "./repair-shipping-option-store-visibility-job"
+import { normalizeArtisanProductsJob } from "./normalize-artisan-products-job"
+import { linkArtisanDetailRowsJob } from "./link-artisan-detail-rows-job"
+import { backfillFulfilledRetailRunsJob } from "./backfill-fulfilled-retail-runs-job"
 import {
   sweepAiPlatformsByCategory,
   AI_ROLES,
@@ -4150,6 +4158,70 @@ export const installMarketingIdeasEmailFlowJob: MaintenanceJob = {
 }
 
 // ---------------------------------------------------------------------------
+// install-winback-audience-refresh-flow (#450/#916) — LOAD the weekly scheduled
+// visual flow that refreshes the winback audiences, replacing the two manual
+// Data-Plumbing runs. Graph: schedule (0 2 * * 1) → run_maintenance_job
+// generate-newsletter-winback-targets → run_maintenance_job generate-winback-
+// targets → log. Seeded ACTIVE (per the install decision) so the scheduler picks
+// it up; the underlying jobs are idempotent. Idempotent install — refuses to
+// overwrite an existing flow.
+// ---------------------------------------------------------------------------
+
+export const installWinbackAudienceRefreshFlowJob: MaintenanceJob = {
+  id: "install-winback-audience-refresh-flow",
+  label: "Install winback audience-refresh visual flow",
+  description:
+    "Load/create the 'Winback Audience Refresh — Weekly' visual flow from the console — no shell or seed script needed (#450/#916). The flow runs the newsletter + churn winback-target jobs weekly (Mondays 02:00 UTC ≈ 07:30 IST) via the run_maintenance_job op, replacing the two manual Data-Plumbing runs. Dry-run previews the flow it would create (or reports it already exists); apply creates it idempotently as ACTIVE — the every-minute scheduler then runs it on the next cron tick (the underlying jobs are idempotent, so a re-run only adds newly-qualifying contacts). Retime or disable from the canvas. Re-running never overwrites an existing flow.",
+  params: [],
+  run: async (container, { dry_run }) => {
+    const service: any = container.resolve(VISUAL_FLOWS_MODULE)
+    const flowName = WINBACK_AUDIENCE_REFRESH_FLOW_DEF.name
+    const cron = WINBACK_AUDIENCE_REFRESH_FLOW_DEF.trigger_config?.cron ?? ""
+    const nodeCount = WINBACK_AUDIENCE_REFRESH_FLOW_DEF.canvas_state?.nodes?.length ?? 0
+
+    const [existing] = await service.listVisualFlows({ name: flowName })
+    if (existing) {
+      return summarizeFlowInstall({
+        jobId: installWinbackAudienceRefreshFlowJob.id,
+        dry_run,
+        flowName,
+        cron,
+        nodeCount,
+        existingId: existing.id,
+        createdId: null,
+      })
+    }
+
+    let createdId: string | null = null
+    if (!dry_run) {
+      const flow = await service.createCompleteFlow({
+        flow: {
+          name: WINBACK_AUDIENCE_REFRESH_FLOW_DEF.name,
+          description: WINBACK_AUDIENCE_REFRESH_FLOW_DEF.description,
+          status: WINBACK_AUDIENCE_REFRESH_FLOW_DEF.status,
+          trigger_type: WINBACK_AUDIENCE_REFRESH_FLOW_DEF.trigger_type,
+          trigger_config: WINBACK_AUDIENCE_REFRESH_FLOW_DEF.trigger_config,
+          canvas_state: WINBACK_AUDIENCE_REFRESH_FLOW_DEF.canvas_state,
+        },
+        operations: WINBACK_AUDIENCE_REFRESH_FLOW_DEF.operations,
+        connections: WINBACK_AUDIENCE_REFRESH_FLOW_DEF.connections,
+      })
+      createdId = flow?.id ?? null
+    }
+
+    return summarizeFlowInstall({
+      jobId: installWinbackAudienceRefreshFlowJob.id,
+      dry_run,
+      flowName,
+      cron,
+      nodeCount,
+      existingId: null,
+      createdId,
+    })
+  },
+}
+
+// ---------------------------------------------------------------------------
 // install-inventory-order-status-flow (#771) — LOAD the partner WhatsApp
 // inventory-order status notification flow from the Data Plumbing console,
 // instead of shelling in to run the seed script. The flow listens to the #776
@@ -4501,6 +4573,90 @@ export const syncWhatsAppTemplatesJob: MaintenanceJob = {
       logger,
     })
     return buildSyncTemplatesResult(syncWhatsAppTemplatesJob.id, dry_run, sync)
+  },
+}
+
+// ---------------------------------------------------------------------------
+// sync-partner-run-whatsapp-flow (#1093) — install OR REPLACE the partner-run
+// WhatsApp dispatcher flow from the Data-Plumbing console. Unlike the other
+// flow-loader jobs (which refuse to overwrite), this one intentionally
+// REPLACES an existing flow in place via updateCompleteFlow — because the flow
+// graph changed (gen_link now runs before send so the wa_token fills the
+// reminder templates' dynamic URL button, plus the v3 template names). The
+// flow's id and active/draft status are preserved. Same FLOW_DEF as the CLI
+// seed (single source of truth). No shell / ECS run-task needed.
+// ---------------------------------------------------------------------------
+
+export const syncPartnerRunWhatsAppFlowJob: MaintenanceJob = {
+  id: "sync-partner-run-whatsapp-flow",
+  label: "Install / replace partner-run WhatsApp flow",
+  description:
+    "Install or REPLACE the 'Partner WhatsApp — Production Run (all events)' dispatcher visual flow from the console — no shell or ECS run-task (#1093). Unlike the other flow-loaders this one updates an EXISTING flow in place (gen_link→send reorder + v3 reminder templates + dynamic URL-button wiring), preserving its id and active/draft status. Dry-run reports whether it would create or replace + the node/connection counts; apply writes it. Approve the v3 reminder templates in Meta first (Sync WhatsApp templates to Meta) so the URL-button reminders send cleanly.",
+  params: [],
+  run: async (container, { dry_run }) => {
+    const service: any = container.resolve(VISUAL_FLOWS_MODULE)
+    const def = PARTNER_RUN_WHATSAPP_FLOW_DEF
+    const flowName = def.name
+    const nodeCount = def.canvas_state?.nodes?.length ?? 0
+    const connCount = def.connections?.length ?? 0
+
+    const [existing] = await service.listVisualFlows({ name: flowName })
+    const mode = existing ? "replace" : "create"
+
+    if (!dry_run) {
+      if (existing) {
+        await service.updateCompleteFlow(existing.id, {
+          description: def.description,
+          trigger_type: def.trigger_type,
+          trigger_config: def.trigger_config,
+          canvas_state: def.canvas_state,
+          operations: def.operations,
+          connections: def.connections,
+        })
+      } else {
+        await service.createCompleteFlow({
+          flow: {
+            name: def.name,
+            description: def.description,
+            status: def.status,
+            trigger_type: def.trigger_type,
+            trigger_config: def.trigger_config,
+            canvas_state: def.canvas_state,
+          },
+          operations: def.operations,
+          connections: def.connections,
+        })
+      }
+    }
+
+    const targetId = existing?.id ?? "(new)"
+    const changes: MaintenanceChange[] = [
+      {
+        entity: "visual_flow",
+        id: targetId,
+        field: mode === "replace" ? "replaced" : "created",
+        after: {
+          name: flowName,
+          nodes: nodeCount,
+          connections: connCount,
+          status_preserved: existing ? (existing as any).status : def.status,
+        },
+      },
+    ]
+    const summary = dry_run
+      ? mode === "replace"
+        ? `Would REPLACE visual flow "${flowName}" (${targetId}) in place — ${nodeCount} nodes, ${connCount} connections; status preserved. Nothing written.`
+        : `Would create visual flow "${flowName}" (${nodeCount} nodes) as DRAFT. Nothing written.`
+      : mode === "replace"
+        ? `Replaced visual flow "${flowName}" (${targetId}) in place — ${nodeCount} nodes, ${connCount} connections; status preserved. Ensure the v3 reminder templates are Meta-approved.`
+        : `Created visual flow "${flowName}" as DRAFT — approve templates + flip draft→active to go live.`
+    return {
+      job_id: syncPartnerRunWhatsAppFlowJob.id,
+      dry_run,
+      applied: !dry_run,
+      summary,
+      changes,
+    }
   },
 }
 
@@ -5398,15 +5554,18 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillConsumptionLogProductionRunIdJob,
   repairInventoryRawMaterialLinksJob,
   backfillPartnerOrderFeesJob,
+  backfillRetailPartnerFeesJob,
   backfillStatsPanelWindowJob,
   backfillOrderPersonsJob,
   syncMarketingOutreachEngagementJob,
   runMarketingIdeasEmailJob,
   installMarketingIdeasEmailFlowJob,
+  installWinbackAudienceRefreshFlowJob,
   installInventoryOrderStatusFlowJob,
   installInventoryShipmentPickupFlowJob,
   installArtisanProductApprovalFlowJob,
   syncWhatsAppTemplatesJob,
+  syncPartnerRunWhatsAppFlowJob,
   generateWinbackTargetsJob,
   sendMarketingDailySummaryJob,
   auditAiPlatformsJob,
@@ -5418,6 +5577,8 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   replayFxFanoutJob,
   backfillStoreCurrenciesJob,
   backfillPartnerEmailVerifiedJob,
+  backfillPartnerHostingProviderJob,
+  repointPartnerStorefrontSharedJob,
   enableStripeConnectEurRegionsJob,
   suppressBouncedSubscribersJob,
   backfillAudienceEntriesJob,
@@ -5428,6 +5589,9 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillDesignSizeSetsJob,
   backfillPartnerShippingOptionsJob,
   repairShippingOptionStoreVisibilityJob,
+  normalizeArtisanProductsJob,
+  linkArtisanDetailRowsJob,
+  backfillFulfilledRetailRunsJob,
   seedInvestorPanelsJob,
 ]
 

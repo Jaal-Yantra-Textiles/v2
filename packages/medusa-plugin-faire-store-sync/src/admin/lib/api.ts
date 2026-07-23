@@ -17,7 +17,7 @@ export const faireApi = {
         connected: boolean
         brand: boolean
         wholesale_pricing: boolean
-        shipping_policy: boolean
+        taxonomy: boolean
         ready_to_publish: boolean
       }
     }>("/admin/faire/status"),
@@ -83,11 +83,20 @@ export const faireApi = {
   getSync: (id: string) => sdk.client.fetch(`/admin/faire/syncs/${id}`),
   retrySync: (id: string) =>
     sdk.client.fetch(`/admin/faire/syncs/${id}`, { method: "POST" }),
+  deleteSync: (id: string) =>
+    sdk.client.fetch(`/admin/faire/syncs/${id}`, { method: "DELETE" }),
   brand: () => sdk.client.fetch("/admin/faire/brand"),
-  taxonomy: () =>
-    sdk.client.fetch<{ taxonomy: Array<{ id: string; name: string }> }>(
-      "/admin/faire/taxonomy"
-    ),
+  taxonomy: (opts: { q?: string; limit?: number; ids?: string[] } = {}) => {
+    const query: Record<string, string> = {}
+    if (opts.q) query.q = opts.q
+    if (opts.limit !== undefined) query.limit = String(opts.limit)
+    if (opts.ids?.length) query.ids = opts.ids.join(",")
+    return sdk.client.fetch<{
+      taxonomy: Array<{ id: string; name: string }>
+      count: number
+      total: number
+    }>("/admin/faire/taxonomy", { query })
+  },
   products: (opts: { limit?: number; page?: string; updated_at_min?: string } = {}) => {
     const query: Record<string, string> = {}
     if (opts.limit !== undefined) query.limit = String(opts.limit)

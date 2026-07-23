@@ -47,11 +47,27 @@ export function getPartnerRouteMap(): RouteObject[] {
               lazy: () => import("../../routes/home"),
               children: [
                 {
+                  // #338/#958 — the minimal, expressive gate (name + persona).
+                  // The full step-by-step wizard now lives at onboarding/full.
                   path: "onboarding",
+                  lazy: () =>
+                    import("../../routes/home/home-onboarding-quick"),
+                },
+                {
+                  path: "onboarding/full",
                   lazy: () =>
                     import("../../routes/home/home-onboarding"),
                 },
               ],
+            },
+            {
+              // #338 item 2 — partner assistant (chat + server-persisted history).
+              path: "/assistant",
+              errorElement: <ErrorBoundary />,
+              handle: {
+                breadcrumb: () => "Assistant",
+              },
+              lazy: () => import("../../routes/assistant"),
             },
             {
               path: "/create-store",
@@ -629,6 +645,11 @@ export function getPartnerRouteMap(): RouteObject[] {
                       path: "edit-email",
                       lazy: () =>
                         import("../../routes/orders/order-edit-email"),
+                    },
+                    {
+                      path: "transfer",
+                      lazy: () =>
+                        import("../../routes/orders/order-request-transfer"),
                     },
                     {
                       path: "edit-shipping-address",
@@ -1519,6 +1540,11 @@ export function getPartnerRouteMap(): RouteObject[] {
         {
           path: "/invite",
           lazy: () => import("../../routes/invite"),
+        },
+        {
+          // #1113 S3 — scoped designer invite landing (token = capability).
+          path: "/designer-invite/:token",
+          lazy: () => import("../../routes/designer-invite"),
         },
       ],
     },

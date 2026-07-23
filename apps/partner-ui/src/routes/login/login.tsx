@@ -253,24 +253,27 @@ export const Login = () => {
             Sign up
           </Link>
 
-          <div className="flex w-full flex-col items-center gap-y-1">
-            <div className="h-px w-full border-b border-dotted" />
-            <Select
-              value={i18n.language}
-              onValueChange={(value) => i18n.changeLanguage(value)}
-            >
-              <Select.Trigger className="w-full">
-                <Select.Value />
-              </Select.Trigger>
-              <Select.Content>
-                {languages.map((lang) => (
-                  <Select.Item key={lang.code} value={lang.code}>
-                    {lang.display_name}
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select>
-          </div>
+        </div>
+        <div className="flex w-full flex-col items-center gap-y-1">
+          <div className="h-px w-full border-b border-dotted" />
+          <Text size="xsmall" className="text-ui-fg-muted">
+            Language option
+          </Text>
+          <Select
+            value={i18n.language}
+            onValueChange={(value) => i18n.changeLanguage(value)}
+          >
+            <Select.Trigger className="w-full">
+              <Select.Value />
+            </Select.Trigger>
+            <Select.Content>
+              {languages.map((lang) => (
+                <Select.Item key={lang.code} value={lang.code}>
+                  {lang.display_name}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select>
         </div>
       </div>
     </div>

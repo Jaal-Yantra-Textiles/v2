@@ -231,6 +231,36 @@ export const useUpdateDesign = (
   });
 };
 
+/** #1113 — the subset of brief columns the moodboard Concept & Identity frame round-trips to. */
+export type DesignBriefUpdate = {
+  concept_theme?: string | null;
+  aesthetic_keywords?: string[] | null;
+};
+
+/**
+ * #1113 — partial brief update driven by Concept & Identity card edits on the
+ * moodboard canvas (concept_theme + aesthetic_keywords). Backed by the existing
+ * PUT /admin/designs/:id/brief route + UpdateDesignBriefSchema.
+ */
+export const useUpdateDesignBrief = (
+  id: string,
+  options?: UseMutationOptions<{ brief: Record<string, any> }, FetchError, DesignBriefUpdate>,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: DesignBriefUpdate) =>
+      sdk.client.fetch<{ brief: Record<string, any> }>(`/admin/designs/${id}/brief`, {
+        method: "PUT",
+        body: payload,
+      }),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
+    },
+    ...options,
+  });
+};
+
 /** Response of POST /admin/designs/:id/moodboard/generate — the freshly-built scene. */
 export interface GenerateMoodboardResponse {
   moodboard: {
@@ -261,6 +291,227 @@ export const useGenerateMoodboard = (
       ),
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
+    },
+    ...options,
+  });
+};
+
+/** Response of POST /admin/designs/:id/moodboard/seed — the seeded scene, or null. */
+export interface SeedMoodboardResponse {
+  moodboard: GenerateMoodboardResponse["moodboard"] | null;
+}
+
+// ── Insert-block palette + construction catalog (#1113 Feature A/B) ────────────
+
+export interface MoodboardBlockListing {
+  key: string;
+  label: string;
+  group: string;
+  available: boolean;
+}
+
+/** The insert-block palette: every drop-in frame + whether the design has data. */
+export const useMoodboardBlocks = (
+  id: string,
+  options?: Omit<UseQueryOptions<{ blocks: MoodboardBlockListing[] }, FetchError>, "queryKey" | "queryFn">,
+) => {
+  return useQuery({
+    queryKey: [...designQueryKeys.detail(id), "moodboard-blocks"],
+    queryFn: async () =>
+      sdk.client.fetch<{ blocks: MoodboardBlockListing[] }>(
+        `/admin/designs/${id}/moodboard/blocks`,
+        { method: "GET" },
+      ),
+    enabled: !!id,
+    ...options,
+  });
+};
+
+/** Build ONE block from the design's data (origin-positioned). Not persisted. */
+export const useInsertMoodboardBlock = (
+  id: string,
+  options?: UseMutationOptions<{ block: GenerateMoodboardResponse["moodboard"] }, FetchError, string>,
+) => {
+  return useMutation({
+    mutationFn: async (block: string) =>
+      sdk.client.fetch<{ block: GenerateMoodboardResponse["moodboard"] }>(
+        `/admin/designs/${id}/moodboard/blocks`,
+        { method: "POST", body: { block } },
+      ),
+    ...options,
+  });
+};
+
+export interface ConstructionParamDef {
+  key: string;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  default: number;
+}
+export interface ConstructionPreset {
+  value: string;
+  label: string;
+  detailLabel: string;
+  params?: Record<string, number>;
+  fabricRules?: string[];
+  note?: string;
+}
+export interface ConstructionTechnique {
+  slug: string;
+  label: string;
+  family: string;
+  garmentAreas: string[];
+  params: ConstructionParamDef[];
+  defaultFabricRules: string[];
+  presets: ConstructionPreset[];
+}
+export interface ConstructionCatalog {
+  families: string[];
+  techniques: ConstructionTechnique[];
+}
+
+/** The categorized construction catalog the admin picker renders (#1113 Feature B). */
+export const useConstructionTechniques = (
+  id: string,
+  options?: Omit<UseQueryOptions<ConstructionCatalog, FetchError>, "queryKey" | "queryFn">,
+) => {
+  return useQuery({
+    queryKey: [...designQueryKeys.detail(id), "construction-techniques"],
+    queryFn: async () =>
+      sdk.client.fetch<ConstructionCatalog>(
+        `/admin/designs/${id}/construction-techniques`,
+        { method: "GET" },
+      ),
+    enabled: !!id,
+    staleTime: Infinity,
+    ...options,
+  });
+};
+
+/**
+ * Idempotent, brief-friendly seed (#1113): fills an EMPTY `design.moodboard`
+ * from the brief so the editor opens onto an editable snapshot without a manual
+ * click. No-op (returns `{ moodboard: null }`) when the board already has
+ * content or there's nothing to render yet. Never clobbers.
+ */
+export const useSeedMoodboard = (
+  id: string,
+  options?: UseMutationOptions<SeedMoodboardResponse, FetchError, void>,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      sdk.client.fetch<SeedMoodboardResponse>(
+        `/admin/designs/${id}/moodboard/seed`,
+        { method: "POST" },
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      if (data?.moodboard) {
+        queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
+      }
+      options?.onSuccess?.(data, variables, _mutateResult, context);
+    },
+    ...options,
+  });
+};
+
+// #1113 S4 — scoped designer invites for a single design.
+export interface DesignerInvite {
+  id: string;
+  design_id: string;
+  email: string | null;
+  status: "pending" | "accepted" | "revoked" | string;
+  role: string | null;
+  expires_at: string | null;
+  inviter_name: string | null;
+  accepted_partner_id: string | null;
+  accepted_at: string | null;
+  created_at: string;
+}
+
+export interface DesignerInvitesResponse {
+  invites: DesignerInvite[];
+}
+
+export interface CreateDesignerInviteReq {
+  email?: string;
+  expires_in_days?: number;
+  role?: string;
+  inviter_name?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface CreateDesignerInviteResponse {
+  invite: DesignerInvite;
+  /** The raw token/URL — only returned once, at creation. */
+  token: string;
+  url: string;
+  /** Whether a notification email was dispatched (only when `email` was set). */
+  emailed?: boolean;
+}
+
+export const useDesignerInvites = (
+  id: string,
+  options?: Omit<
+    UseQueryOptions<DesignerInvitesResponse, FetchError, DesignerInvitesResponse, QueryKey>,
+    "queryFn" | "queryKey"
+  >,
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: designQueryKeys.detail(id, ["designer-invites"]),
+    queryFn: async () =>
+      sdk.client.fetch<DesignerInvitesResponse>(
+        `/admin/designs/${id}/designer-invites`,
+        { method: "GET" },
+      ),
+    ...options,
+  });
+  return { ...data, invites: data?.invites ?? [], ...rest };
+};
+
+export const useCreateDesignerInvite = (
+  id: string,
+  options?: UseMutationOptions<CreateDesignerInviteResponse, FetchError, CreateDesignerInviteReq>,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload) =>
+      sdk.client.fetch<CreateDesignerInviteResponse>(
+        `/admin/designs/${id}/designer-invites`,
+        { method: "POST", body: payload },
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({
+        queryKey: designQueryKeys.detail(id, ["designer-invites"]),
+      });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
+    },
+    ...options,
+  });
+};
+
+export const useRevokeDesignerInvite = (
+  id: string,
+  options?: UseMutationOptions<
+    { id: string; object: string; revoked: boolean },
+    FetchError,
+    string
+  >,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (inviteId) =>
+      sdk.client.fetch<{ id: string; object: string; revoked: boolean }>(
+        `/admin/designs/${id}/designer-invites/${inviteId}`,
+        { method: "DELETE" },
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({
+        queryKey: designQueryKeys.detail(id, ["designer-invites"]),
+      });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
     ...options,

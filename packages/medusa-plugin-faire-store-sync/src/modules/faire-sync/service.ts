@@ -208,6 +208,12 @@ class FaireSyncService extends MedusaService({
         "Faire account is not connected"
       )
     }
+    // API keys never expire and have no OAuth refresh flow — short-circuit
+    // before touching the refresh path. Without this, a stray token_expires_at
+    // on an apiKey account would drive the OAuth token endpoint and 400 hourly.
+    if (acct.auth_mode === "apiKey") {
+      return this.withDecryptedTokens(acct)
+    }
     if (!acct.token_expires_at) {
       return this.withDecryptedTokens(acct)
     }
@@ -225,7 +231,8 @@ class FaireSyncService extends MedusaService({
       )
     }
     try {
-      const client = this.getClient()
+      // OAuth-only path (apiKey accounts short-circuited above).
+      const client = this.getClient("oauth")
       const token = await client.refreshAccessToken(refreshToken)
       const updated = await this.updateFaireSyncAccounts({
         id: acct.id,
@@ -256,8 +263,13 @@ class FaireSyncService extends MedusaService({
   async getTaxonomyTypes(): Promise<Array<{ id: string; name: string }>> {
     const account = await this.getActiveAccount()
     if (!account) return []
+    // Tokens are stored AES-256-GCM encrypted at rest — go through
+    // ensureFreshToken so we send Faire the DECRYPTED (and non-expired) token.
+    // Passing the raw ciphertext gets a 401 that the client silently swallows to
+    // [], which surfaces as an empty taxonomy picker.
+    const fresh = await this.ensureFreshToken(account)
     const client = this.getClient(account.auth_mode as "oauth" | "apiKey")
-    return client.getTaxonomyTypes(account.access_token)
+    return client.getTaxonomyTypes(fresh!.access_token)
   }
 
   /**

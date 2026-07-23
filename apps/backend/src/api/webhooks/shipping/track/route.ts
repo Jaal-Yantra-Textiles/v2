@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import { normalizeShiprocketWebhook } from "../../../../modules/shipping-providers/shiprocket/client"
 import { syncInventoryShipmentTrackingWorkflow } from "../../../../workflows/inventory_orders/sync-inventory-shipment-tracking"
+import { syncOrderShipmentTrackingWorkflow } from "../../../../workflows/orders/sync-order-shipment-tracking"
 
 /**
  * POST /webhooks/shipping/track (#888)
@@ -73,18 +74,34 @@ async function processTrackingPush(scope: any, carrier: string, body: any): Prom
     input: { tracking: { ...tracking, raw: body } },
   })
 
-  if (!result.matched) {
+  if (result.matched) {
     logger.info(
-      `[Shipping Webhook] AWB ${tracking.awb} matched no inventory shipment (status "${tracking.current_status}") — ignored`
+      `[Shipping Webhook] AWB ${tracking.awb}: shipment ${result.shipment_id} ` +
+        `${result.previous_shipment_status}→${result.shipment_status}` +
+        (result.shipment_status_changed ? "" : " (no change)") +
+        (result.order_status_changed
+          ? ` · order ${result.order_id} ${result.previous_order_status}→${result.order_status}`
+          : "")
+    )
+    return
+  }
+
+  // Not an inventory shipment — try the retail/core-order path (#1111). The
+  // account-level webhook carries both; core shipments store the AWB on a
+  // fulfillment_label (domestic + international alike).
+  const { result: orderResult } = await syncOrderShipmentTrackingWorkflow(scope).run({
+    input: { tracking: { ...tracking, raw: body } },
+  })
+
+  if (!orderResult.matched) {
+    logger.info(
+      `[Shipping Webhook] AWB ${tracking.awb} matched no inventory or core-order shipment (status "${tracking.current_status}") — ignored`
     )
     return
   }
   logger.info(
-    `[Shipping Webhook] AWB ${tracking.awb}: shipment ${result.shipment_id} ` +
-      `${result.previous_shipment_status}→${result.shipment_status}` +
-      (result.shipment_status_changed ? "" : " (no change)") +
-      (result.order_status_changed
-        ? ` · order ${result.order_id} ${result.previous_order_status}→${result.order_status}`
-        : "")
+    `[Shipping Webhook] AWB ${tracking.awb}: core fulfillment ${orderResult.fulfillment_id} ` +
+      `(order ${orderResult.order_id}) → ${orderResult.synced_state}` +
+      (orderResult.status_changed ? "" : " (no change)")
   )
 }

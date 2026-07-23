@@ -13,7 +13,7 @@ import { usePersonTypes } from "../../../hooks/api/persontype"
 // Use literal tuples to avoid TS enum widening issues with z.enum
 const ROLE_ENUM = ["owner", "admin", "manager"] as const
 const STATUS_ENUM = ["active", "inactive", "pending"] as const
-const WORKSPACE_TYPE_ENUM = ["seller", "manufacturer", "individual"] as const
+const WORKSPACE_TYPE_ENUM = ["seller", "manufacturer", "individual", "designer"] as const
 
 const partnerAdminSchema = z.object({
   partner: z.object({
@@ -243,6 +243,7 @@ const CreatePartnerComponent = () => {
                           <Select.Item value="seller">Seller</Select.Item>
                           <Select.Item value="manufacturer">Manufacturer</Select.Item>
                           <Select.Item value="individual">Individual</Select.Item>
+                          <Select.Item value="designer">Designer</Select.Item>
                         </Select.Content>
                       </Select>
                     </Form.Control>
