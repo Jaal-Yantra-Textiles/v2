@@ -11,6 +11,12 @@ const ProductionRun = model.define("production_runs", {
       "in_progress",
       "completed",
       "cancelled",
+      // #1093 — a run whose assigned partner never accepted (2 reminders sent,
+      // then capped) or who declined. Partner is unassigned; the run waits in
+      // the admin reassignment queue for a new partner (re-dispatch reuses
+      // dispatch-production-run). Distinct from cancelled: the work still needs
+      // doing, just by someone else.
+      "awaiting_reassignment",
     ])
     .default("pending_review"),
   run_type: model.enum(["production", "sample"]).default("production"),
@@ -74,6 +80,31 @@ const ProductionRun = model.define("production_runs", {
 
   // Lifecycle workflow transaction ID — used to signal async steps
   lifecycle_transaction_id: model.text().nullable(),
+
+  // #1093 — actionable-reminder state machine.
+  //   reminder_count   how many reminders have been SENT in the current cycle
+  //                    (a "cycle" = a single reminder_kind bucket). Capped at 2;
+  //                    the 2nd warns of reassignment, then the run escalates.
+  //   reminder_kind    the bucket the count belongs to (assignment_pending /
+  //                    not_started / idle). When the run moves to a new bucket
+  //                    the count resets so each stage gets its own 2 reminders.
+  //   last_reminded_at timestamp of the most recent reminder send.
+  //   reminder_status  cycle lifecycle: "active" (reminding), "escalated" (cap
+  //                    hit on an already-accepted run → admin notified, no
+  //                    reassignment), "closed" (partner acted / run left the
+  //                    bucket). null = never reminded. assignment_pending caps
+  //                    move the RUN status to awaiting_reassignment instead.
+  reminder_count: model.number().default(0),
+  reminder_kind: model.text().nullable(),
+  last_reminded_at: model.dateTime().nullable(),
+  reminder_status: model
+    .enum(["active", "escalated", "closed"])
+    .nullable(),
+
+  // #1093 — the partner a run was unassigned FROM when it entered
+  // awaiting_reassignment (reminder cap or decline). Audit-only; re-dispatch
+  // assigns a fresh partner_id.
+  previous_partner_id: model.text().nullable(),
 
   metadata: model.json().nullable(),
 })

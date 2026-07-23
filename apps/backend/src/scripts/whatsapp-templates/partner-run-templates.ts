@@ -20,7 +20,11 @@
 
 export type ButtonSpec =
   | { type: "QUICK_REPLY"; text: string }
-  | { type: "URL"; text: string; url: string }
+  // A URL button whose `url` ends in `{{1}}` is a *dynamic* URL button: Meta
+  // requires an `example` (the full URL with a sample suffix) at approval
+  // time, and the runtime must pass a per-send suffix value (see
+  // send-whatsapp.ts `url_button_token`). Static URLs omit `example`.
+  | { type: "URL"; text: string; url: string; example?: string[] }
   | { type: "PHONE_NUMBER"; text: string; phone_number: string }
 
 /**
@@ -92,6 +96,39 @@ export interface TemplateSpec {
 const REMINDER_HEADER_EXAMPLE_URL =
   process.env.WHATSAPP_REMINDER_HEADER_EXAMPLE_URL ||
   "https://cicilabel.com/static/whatsapp/reminder-header.jpg"
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Reminder action button (dynamic URL)
+//
+// The reminder templates carry a single dynamic URL button whose {{1}} suffix
+// is a partner deep-link token (a wa_token JWT — see whatsapp-deeplink.ts). A
+// tap opens the partner portal, which exchanges the token via /partners/wa-auth
+// and lands the partner *authenticated* on the specific run (the run id is
+// encoded in the token). This makes reminders action-oriented — the partner
+// accepts / starts / updates from the real portal form (mirroring the exact
+// API), no password, and — crucially — the button rides on the media-header
+// template so it delivers OUTSIDE Meta's 24-hour window, unlike a free-form
+// follow-up.
+//
+// The base is baked into the approved template (static per Meta), overridable
+// per environment via PARTNER_PORTAL_URL so staging can approve against its own
+// portal. The landing path is a protected route; partner-ui's ProtectedRoute
+// reads `wa_token` from the query on any protected page, exchanges it, then
+// navigates to the backend-returned redirect. The runtime fills {{1}} via
+// send_whatsapp's `url_button_token` option.
+// ──────────────────────────────────────────────────────────────────────────────
+
+const REMINDER_ACTION_BASE = (
+  process.env.PARTNER_PORTAL_URL || "https://partner.jaalyantra.com"
+).replace(/\/$/, "")
+
+/** Dynamic URL button target — {{1}} is filled per-send with the wa_token. */
+const REMINDER_ACTION_URL = `${REMINDER_ACTION_BASE}/production-runs?wa_token={{1}}`
+
+/** Sample URL Meta shows reviewers at approval time (dynamic buttons need it). */
+const REMINDER_ACTION_EXAMPLE = [
+  `${REMINDER_ACTION_BASE}/production-runs?wa_token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwcnRuXzAxIiwicnVuX2lkIjoicHJ1bl8wMUFCQyJ9.s1gnatureExample`,
+]
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Template definitions
@@ -207,14 +244,15 @@ const TEMPLATE_COMPLETED: TemplateSpec = {
  *   {{3}} run id
  *   {{4}} days since assignment
  *
- * No buttons — keep informational. The IMAGE header carries the design
- * thumbnail at send time, so this single template fully replaces the
- * old "template + send_image follow-up" pair (which kept failing for
- * any partner outside the 24-hour customer-care window — raw media
- * sends are blocked there, but a media-header template is exempt).
+ * Action-oriented (#1093): a single dynamic URL button opens the run
+ * authenticated (see REMINDER_ACTION_URL) so the partner can Accept /
+ * Decline from the real portal form. The IMAGE header carries the design
+ * thumbnail and exempts the send from the 24-hour customer-care window —
+ * so both the reminder AND its action button reach partners who haven't
+ * replied recently, which a free-form follow-up never could.
  */
 const TEMPLATE_REMINDER_PENDING: TemplateSpec = {
-  name: "jyt_production_run_reminder_pending_v2",
+  name: "jyt_production_run_reminder_pending_v3",
   category: "UTILITY",
   languages: [
     {
@@ -227,9 +265,17 @@ const TEMPLATE_REMINDER_PENDING: TemplateSpec = {
         "Hi {{1}}, a quick reminder — production run {{3}} for design " +
         "{{2}} has been waiting for your response.\n\n" +
         "*Waiting since:* {{4}} day(s) ago\n\n" +
-        "Please open the partner portal and tap Accept or Decline so we " +
-        "can plan the next steps. Reply here if you need help.",
+        "Tap *Review request* below to open it — you'll be signed in " +
+        "automatically — then Accept or Decline. Reply here if you need help.",
       examples: ["Rajesh", "Block Print Kurta", "prun_01ABC", "2"],
+      buttons: [
+        {
+          type: "URL",
+          text: "Review request",
+          url: REMINDER_ACTION_URL,
+          example: REMINDER_ACTION_EXAMPLE,
+        },
+      ],
     },
     {
       language: "hi",
@@ -241,9 +287,17 @@ const TEMPLATE_REMINDER_PENDING: TemplateSpec = {
         "नमस्ते {{1}}, याद दिला रहे हैं — डिज़ाइन {{2}} के लिए प्रोडक्शन " +
         "रन {{3}} अभी भी आपके उत्तर की प्रतीक्षा में है।\n\n" +
         "*प्रतीक्षा अवधि:* {{4}} दिन\n\n" +
-        "कृपया पार्टनर पोर्टल खोलें और स्वीकार करें या मना करें पर टैप " +
-        "करें ताकि हम अगले कदम तय कर सकें। मदद चाहिए तो यहीं उत्तर दें।",
+        "नीचे *अनुरोध देखें* पर टैप करें — आप अपने-आप साइन-इन हो जाएंगे " +
+        "— फिर स्वीकार करें या मना करें। मदद चाहिए तो यहीं उत्तर दें।",
       examples: ["राजेश", "ब्लॉक प्रिंट कुर्ता", "prun_01ABC", "2"],
+      buttons: [
+        {
+          type: "URL",
+          text: "अनुरोध देखें",
+          url: REMINDER_ACTION_URL,
+          example: REMINDER_ACTION_EXAMPLE,
+        },
+      ],
     },
   ],
 }
@@ -257,7 +311,7 @@ const TEMPLATE_REMINDER_PENDING: TemplateSpec = {
  *   {{4}} days since acceptance
  */
 const TEMPLATE_REMINDER_NOT_STARTED: TemplateSpec = {
-  name: "jyt_production_run_reminder_not_started_v2",
+  name: "jyt_production_run_reminder_not_started_v3",
   category: "UTILITY",
   languages: [
     {
@@ -270,10 +324,17 @@ const TEMPLATE_REMINDER_NOT_STARTED: TemplateSpec = {
         "Hi {{1}}, just checking in — you've accepted production run " +
         "{{3}} for design {{2}}, but we haven't seen it start yet.\n\n" +
         "*Days since acceptance:* {{4}}\n\n" +
-        "If you've already begun, please tap Start in the partner portal " +
-        "so we can track progress. Reply here if you're blocked on " +
-        "anything and the team will help.",
+        "Tap *Start run* below to open it — you'll be signed in " +
+        "automatically — and mark it started. Reply here if you're blocked.",
       examples: ["Rajesh", "Block Print Kurta", "prun_01ABC", "2"],
+      buttons: [
+        {
+          type: "URL",
+          text: "Start run",
+          url: REMINDER_ACTION_URL,
+          example: REMINDER_ACTION_EXAMPLE,
+        },
+      ],
     },
     {
       language: "hi",
@@ -286,10 +347,17 @@ const TEMPLATE_REMINDER_NOT_STARTED: TemplateSpec = {
         "प्रोडक्शन रन {{3}} स्वीकार किया है, लेकिन काम अभी शुरू नहीं " +
         "हुआ है।\n\n" +
         "*स्वीकृति के बाद के दिन:* {{4}}\n\n" +
-        "यदि आप पहले से शुरू कर चुके हैं, तो कृपया पार्टनर पोर्टल में " +
-        "Start (शुरू करें) पर टैप करें ताकि हम प्रगति ट्रैक कर सकें। " +
-        "कोई बाधा हो तो यहीं उत्तर दें, टीम मदद करेगी।",
+        "नीचे *रन शुरू करें* पर टैप करें — आप अपने-आप साइन-इन हो जाएंगे " +
+        "— और इसे शुरू के रूप में चिह्नित करें। बाधा हो तो यहीं उत्तर दें।",
       examples: ["राजेश", "ब्लॉक प्रिंट कुर्ता", "prun_01ABC", "2"],
+      buttons: [
+        {
+          type: "URL",
+          text: "रन शुरू करें",
+          url: REMINDER_ACTION_URL,
+          example: REMINDER_ACTION_EXAMPLE,
+        },
+      ],
     },
   ],
 }
@@ -305,7 +373,7 @@ const TEMPLATE_REMINDER_NOT_STARTED: TemplateSpec = {
  *   {{5}} total / target quantity
  */
 const TEMPLATE_REMINDER_IDLE: TemplateSpec = {
-  name: "jyt_production_run_reminder_idle_v2",
+  name: "jyt_production_run_reminder_idle_v3",
   category: "UTILITY",
   languages: [
     {
@@ -318,10 +386,18 @@ const TEMPLATE_REMINDER_IDLE: TemplateSpec = {
         "Hi {{1}}, checking in on production run {{3}} for design {{2}} " +
         "— it's been quiet for a few days.\n\n" +
         "*Progress:* {{4}} of {{5}} pieces produced\n\n" +
-        "Please log a fresh produced-quantity update in the partner " +
-        "portal so we know where things stand. Reply here if you're " +
-        "blocked and the team will help.",
+        "Tap *Update progress* below to open it — you'll be signed in " +
+        "automatically — and log a fresh produced-quantity update. Reply " +
+        "here if you're blocked.",
       examples: ["Rajesh", "Block Print Kurta", "prun_01ABC", "120", "250"],
+      buttons: [
+        {
+          type: "URL",
+          text: "Update progress",
+          url: REMINDER_ACTION_URL,
+          example: REMINDER_ACTION_EXAMPLE,
+        },
+      ],
     },
     {
       language: "hi",
@@ -333,10 +409,18 @@ const TEMPLATE_REMINDER_IDLE: TemplateSpec = {
         "नमस्ते {{1}}, डिज़ाइन {{2}} के लिए प्रोडक्शन रन {{3}} पर अपडेट " +
         "चाहिए — कुछ दिनों से कोई गतिविधि नहीं है।\n\n" +
         "*प्रगति:* {{5}} में से {{4}} पीस पूरे\n\n" +
-        "कृपया पार्टनर पोर्टल में ताज़ा उत्पादित मात्रा अपडेट दर्ज करें " +
-        "ताकि हमें वर्तमान स्थिति का पता चले। कोई बाधा हो तो यहीं उत्तर " +
-        "दें, टीम मदद करेगी।",
+        "नीचे *प्रगति अपडेट करें* पर टैप करें — आप अपने-आप साइन-इन हो " +
+        "जाएंगे — और ताज़ा उत्पादित मात्रा दर्ज करें। बाधा हो तो यहीं " +
+        "उत्तर दें।",
       examples: ["राजेश", "ब्लॉक प्रिंट कुर्ता", "prun_01ABC", "120", "250"],
+      buttons: [
+        {
+          type: "URL",
+          text: "प्रगति अपडेट करें",
+          url: REMINDER_ACTION_URL,
+          example: REMINDER_ACTION_EXAMPLE,
+        },
+      ],
     },
   ],
 }

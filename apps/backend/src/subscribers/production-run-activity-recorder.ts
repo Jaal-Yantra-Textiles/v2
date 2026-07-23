@@ -56,6 +56,14 @@ const LIFECYCLE_SUMMARY_BY_KIND: Record<string, string> = {
   cancelled: "Run cancelled",
 }
 
+// #1093 — reminder escalations. `reminder_escalated` is handled here (not the
+// reminder_* branch) because it isn't a real send — it's the cap-reached
+// admin escalation for an already-accepted run.
+const ESCALATION_SUMMARY_BY_EVENT: Record<string, string> = {
+  "production_run.reassignment_needed": "Run queued for reassignment",
+  "production_run.reminder_escalated": "Reminder cap reached — escalated to admin",
+}
+
 export default async function productionRunActivityRecorder({
   event,
   container,
@@ -83,7 +91,18 @@ export default async function productionRunActivityRecorder({
   let templateName: string | null = null
   let payload: Record<string, any> | null = null
 
-  if (eventName.startsWith("production_run.reminder_")) {
+  if (ESCALATION_SUMMARY_BY_EVENT[eventName]) {
+    // Reassignment / escalation — a lifecycle-style audit row (no send).
+    activityType = "lifecycle_event"
+    kind = eventName.replace("production_run.", "")
+    summary = ESCALATION_SUMMARY_BY_EVENT[eventName]
+    payload = {
+      reminder_kind: eventData.reminder_kind ?? null,
+      source: eventData.source ?? null,
+      previous_partner_id: eventData.previous_partner_id ?? null,
+      reason: eventData.reason ?? null,
+    }
+  } else if (eventName.startsWith("production_run.reminder_")) {
     const reminderKind = eventName.replace("production_run.reminder_", "") as ReminderKind
     if (!REMINDER_TEMPLATE_BY_KIND[reminderKind]) {
       return
@@ -162,5 +181,8 @@ export const config: SubscriberConfig = {
     "production_run.reminder_assignment_pending",
     "production_run.reminder_not_started",
     "production_run.reminder_idle",
+    // #1093 — reminder cap escalations.
+    "production_run.reassignment_needed",
+    "production_run.reminder_escalated",
   ],
 }

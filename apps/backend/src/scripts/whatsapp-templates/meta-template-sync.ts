@@ -212,7 +212,16 @@ export function buildComponents(
     components.push({
       type: "BUTTONS",
       buttons: lang.buttons.map((b) => {
-        if (b.type === "URL") return { type: "URL", text: b.text, url: b.url }
+        if (b.type === "URL")
+          return {
+            type: "URL",
+            text: b.text,
+            url: b.url,
+            // Dynamic URL buttons (url ends in {{1}}) need an example URL at
+            // approval time; static URLs pass `example` as undefined and Meta
+            // ignores it.
+            ...(b.example && b.example.length ? { example: b.example } : {}),
+          }
         if (b.type === "PHONE_NUMBER")
           return { type: "PHONE_NUMBER", text: b.text, phone_number: b.phone_number }
         return { type: "QUICK_REPLY", text: b.text }

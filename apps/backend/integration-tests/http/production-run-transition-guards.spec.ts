@@ -180,16 +180,17 @@ setupSharedTestSuite(() => {
         partnerHeaders
       )
       expect(ok.status).toBe(200)
-      expect(ok.data.production_run.status).toBe("cancelled")
+      // #1093: decline reassigns (parks + unassigns) rather than cancelling.
+      expect(ok.data.production_run.status).toBe("awaiting_reassignment")
 
-      // Idempotent: declining the already-cancelled run is a 200 no-op
+      // Idempotent: declining the already-parked run is a 200 no-op
       const again = await post(
         `/partners/production-runs/${freshRunId}/decline`,
         { reason: "capacity" },
         partnerHeaders
       )
       expect(again.status).toBe(200)
-      expect(String(again.data.message || "")).toContain("Already cancelled")
+      expect(String(again.data.message || "")).toMatch(/already/i)
     })
 
     it("walks the happy path: accept → start → finish → complete", async () => {
