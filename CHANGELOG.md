@@ -1,3 +1,19 @@
+# [13.68.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.67.0...v13.68.0) (2026-07-24)
+
+
+### Bug Fixes
+
+* **whatsapp:** valid reminder header example URL + wire SSM override [[#1093](https://github.com/Jaal-Yantra-Textiles/v2/issues/1093)] ([#1155](https://github.com/Jaal-Yantra-Textiles/v2/issues/1155)) ([13fdaff](https://github.com/Jaal-Yantra-Textiles/v2/commit/13fdaff8e96aa2e3ff66338a2205b379c33ae1a4))
+
+
+### Features
+
+* **production-runs:** actionable WhatsApp reminders + cap-2 reassignment [[#1093](https://github.com/Jaal-Yantra-Textiles/v2/issues/1093)] ([#1153](https://github.com/Jaal-Yantra-Textiles/v2/issues/1153)) ([e192aef](https://github.com/Jaal-Yantra-Textiles/v2/commit/e192aef2e2b4a4a4c626137be76093887476254a))
+* **email-templates:** add investor-quarterly-report template ([#997](https://github.com/Jaal-Yantra-Textiles/v2/issues/997)) ([3990631](https://github.com/Jaal-Yantra-Textiles/v2/commit/39906314cb285aa0938a42856fe10c499ced6f3b))
+* **store-chat:** capture shopper name+email as a lead via capture_contact tool ([#1156](https://github.com/Jaal-Yantra-Textiles/v2/issues/1156)) ([22ad352](https://github.com/Jaal-Yantra-Textiles/v2/commit/22ad352b0c58068de347dbdc0dd688313845cdca)), closes [#835](https://github.com/Jaal-Yantra-Textiles/v2/issues/835) [#881](https://github.com/Jaal-Yantra-Textiles/v2/issues/881)
+* **ops:** Data-Plumbing job to install/replace partner-run WhatsApp flow [[#1093](https://github.com/Jaal-Yantra-Textiles/v2/issues/1093)] ([#1154](https://github.com/Jaal-Yantra-Textiles/v2/issues/1154)) ([dc14cf5](https://github.com/Jaal-Yantra-Textiles/v2/commit/dc14cf56d5a68a07ada5571bdabe8777cf40d16a))
+* **shipping:** friendly intl-prerequisites gate before label generation [[#1118](https://github.com/Jaal-Yantra-Textiles/v2/issues/1118)] ([#1157](https://github.com/Jaal-Yantra-Textiles/v2/issues/1157)) ([00a840f](https://github.com/Jaal-Yantra-Textiles/v2/commit/00a840fd094bfc7d281030c07b9a6ca4f773f182)), closes [#1119](https://github.com/Jaal-Yantra-Textiles/v2/issues/1119)
+
 # [13.67.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.66.0...v13.67.0) (2026-07-23)
 
 
