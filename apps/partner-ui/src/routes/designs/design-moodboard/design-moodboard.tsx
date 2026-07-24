@@ -1,5 +1,8 @@
 import { Button, DropdownMenu, Heading, Text, toast } from "@medusajs/ui"
 import "@excalidraw/excalidraw/index.css"
+// Scoped overrides that map Excalidraw's theme variables onto Medusa tokens —
+// must import after Excalidraw's own CSS so equal-specificity ties resolve to us.
+import "./moodboard.css"
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Excalidraw } from "@excalidraw/excalidraw"
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
@@ -237,8 +240,37 @@ const reidAndTranslate = (
   })
 }
 
+// Resolve the effective admin theme so the canvas matches its surroundings
+// instead of Excalidraw's hard-coded light default. Medusa's admin (and this
+// embedded dashboard) toggles a `.dark` class on the document root, which itself
+// tracks the user's system/admin preference.
+const getAdminTheme = (): "light" | "dark" =>
+  typeof document !== "undefined" &&
+  document.documentElement.classList.contains("dark")
+    ? "dark"
+    : "light"
+
 export const DesignMoodboard = () => {
   const id = useResolvedDesignId()
+
+  // Follow the admin theme live — observe the root `.dark` class (and system
+  // preference as a fallback) so toggling dark mode reflows the canvas.
+  const [theme, setTheme] = useState<"light" | "dark">(getAdminTheme)
+  useEffect(() => {
+    const update = () => setTheme(getAdminTheme())
+    update()
+    const observer = new MutationObserver(update)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    })
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)")
+    media?.addEventListener?.("change", update)
+    return () => {
+      observer.disconnect()
+      media?.removeEventListener?.("change", update)
+    }
+  }, [])
 
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null)
   const didInitRef = useRef(false)
@@ -559,7 +591,7 @@ export const DesignMoodboard = () => {
             </Text>
           </div>
         ) : (
-          <div className="relative w-full h-[calc(100dvh-160px)]">
+          <div className="jyt-moodboard relative w-full h-[calc(100dvh-160px)]">
             {layersOpen ? (
               <div className="absolute top-14 left-2 z-50 w-64">
                 <MoodboardLayersPanel
@@ -570,11 +602,12 @@ export const DesignMoodboard = () => {
               </div>
             ) : null}
             <Excalidraw
+              theme={theme}
               excalidrawAPI={(api) => {
                 apiRef.current = api
               }}
-              initialData={
-                (moodboard as any) || {
+              initialData={(() => {
+                const base = (moodboard as any) || {
                   type: "excalidraw",
                   version: 2,
                   source: "https://excalidraw.com",
@@ -582,87 +615,15 @@ export const DesignMoodboard = () => {
                   appState: {},
                   files: {},
                 }
-              }
+                // Force the live admin theme at mount so a stale saved
+                // appState.theme can't leave the canvas on the wrong theme.
+                return {
+                  ...base,
+                  appState: { ...(base.appState || {}), theme },
+                }
+              })()}
               viewModeEnabled={false}
               onChange={handleChange}
-              renderTopRightUI={() => (
-                <div className="flex items-center gap-1.5 flex-wrap justify-end max-w-[62vw]">
-                  <DropdownMenu>
-                    <DropdownMenu.Trigger asChild>
-                      <Button
-                        size="small"
-                        variant="secondary"
-                        disabled={!id || isSaving || isInserting}
-                        isLoading={isInserting}
-                      >
-                        Insert block
-                      </Button>
-                    </DropdownMenu.Trigger>
-                    <DropdownMenu.Content>
-                      {groupedBlocks.length === 0 ? (
-                        <DropdownMenu.Item disabled>
-                          No blocks available
-                        </DropdownMenu.Item>
-                      ) : (
-                        groupedBlocks.map((grp, gi) => (
-                          <Fragment key={grp.group}>
-                            {gi > 0 ? <DropdownMenu.Separator /> : null}
-                            <DropdownMenu.Label>{grp.group}</DropdownMenu.Label>
-                            {grp.items.map((b) => (
-                              <DropdownMenu.Item
-                                key={b.key}
-                                // Brief blocks stay insertable even when empty —
-                                // they drop an editable template you fill in place.
-                                disabled={b.group !== "Brief" && !b.available}
-                                onClick={() => handleInsert(b.key, b.label)}
-                              >
-                                {b.label}
-                                {!b.available ? (
-                                  <span className="text-ui-fg-muted ml-1">· empty</span>
-                                ) : null}
-                              </DropdownMenu.Item>
-                            ))}
-                          </Fragment>
-                        ))
-                      )}
-                    </DropdownMenu.Content>
-                  </DropdownMenu>
-                  <Button
-                    size="small"
-                    variant="secondary"
-                    onClick={() => setConstructionOpen(true)}
-                    disabled={!id || isSaving}
-                  >
-                    Add construction
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="secondary"
-                    onClick={handleGenerate}
-                    disabled={!id || isGenerating || isSaving}
-                    isLoading={isGenerating}
-                  >
-                    Generate
-                  </Button>
-                  <Button
-                    size="small"
-                    variant={layersOpen ? "primary" : "secondary"}
-                    onClick={() => setLayersOpen((v) => !v)}
-                    disabled={!id}
-                  >
-                    Layers
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="primary"
-                    onClick={handleSave}
-                    disabled={!id || isSaving || !isDirty}
-                    isLoading={isSaving}
-                  >
-                    {isDirty ? "Save" : "Saved"}
-                  </Button>
-                </div>
-              )}
               UIOptions={{
                 canvasActions: {
                   changeViewBackgroundColor: true,
@@ -671,11 +632,90 @@ export const DesignMoodboard = () => {
                   export: { saveFileToDisk: true },
                   loadScene: false,
                   clearCanvas: false,
-                  toggleTheme: true,
+                  // Theme is controlled to follow the admin — no manual toggle.
+                  toggleTheme: false,
                 },
               }}
               detectScroll={true}
             />
+
+            {/* Floating action dock — pinned bottom-center over the canvas. */}
+            <div className="absolute bottom-4 left-1/2 z-[60] -translate-x-1/2 flex items-center gap-1 flex-nowrap rounded-full border border-ui-border-base bg-ui-bg-base shadow-elevation-flyout px-1.5 py-1">
+              <DropdownMenu>
+                <DropdownMenu.Trigger asChild>
+                  <Button
+                    size="small"
+                    variant="secondary"
+                    disabled={!id || isSaving || isInserting}
+                    isLoading={isInserting}
+                  >
+                    Insert block
+                  </Button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content side="top" sideOffset={8}>
+                  {groupedBlocks.length === 0 ? (
+                    <DropdownMenu.Item disabled>
+                      No blocks available
+                    </DropdownMenu.Item>
+                  ) : (
+                    groupedBlocks.map((grp, gi) => (
+                      <Fragment key={grp.group}>
+                        {gi > 0 ? <DropdownMenu.Separator /> : null}
+                        <DropdownMenu.Label>{grp.group}</DropdownMenu.Label>
+                        {grp.items.map((b) => (
+                          <DropdownMenu.Item
+                            key={b.key}
+                            // Brief blocks stay insertable even when empty —
+                            // they drop an editable template you fill in place.
+                            disabled={b.group !== "Brief" && !b.available}
+                            onClick={() => handleInsert(b.key, b.label)}
+                          >
+                            {b.label}
+                            {!b.available ? (
+                              <span className="text-ui-fg-muted ml-1">· empty</span>
+                            ) : null}
+                          </DropdownMenu.Item>
+                        ))}
+                      </Fragment>
+                    ))
+                  )}
+                </DropdownMenu.Content>
+              </DropdownMenu>
+              <Button
+                size="small"
+                variant="secondary"
+                onClick={() => setConstructionOpen(true)}
+                disabled={!id || isSaving}
+              >
+                Add construction
+              </Button>
+              <Button
+                size="small"
+                variant="secondary"
+                onClick={handleGenerate}
+                disabled={!id || isGenerating || isSaving}
+                isLoading={isGenerating}
+              >
+                Generate
+              </Button>
+              <Button
+                size="small"
+                variant={layersOpen ? "primary" : "secondary"}
+                onClick={() => setLayersOpen((v) => !v)}
+                disabled={!id}
+              >
+                Layers
+              </Button>
+              <Button
+                size="small"
+                variant="primary"
+                onClick={handleSave}
+                disabled={!id || isSaving || !isDirty}
+                isLoading={isSaving}
+              >
+                {isDirty ? "Save" : "Saved"}
+              </Button>
+            </div>
           </div>
         )}
       </RouteFocusModal.Body>
@@ -683,8 +723,8 @@ export const DesignMoodboard = () => {
       <RouteFocusModal.Footer>
         <div className="flex items-center justify-between w-full gap-x-2">
           <Text size="xsmall" className="text-ui-fg-muted">
-            Insert, construction, generate, layers &amp; save are in the canvas
-            toolbar (top-right).
+            Insert, construction, generate, layers &amp; save are in the dock at
+            the bottom of the canvas.
           </Text>
           <RouteFocusModal.Close asChild>
             <Button size="small" variant="secondary">
