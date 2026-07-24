@@ -25,7 +25,7 @@ export const DesignOwnerActionsSection = ({ design }: Props) => {
   const prompt = usePrompt()
   const { mutateAsync } = useDeletePartnerDesign(design.id)
 
-  const isOwner = !!(design as any).owner_partner_id
+  const isOwner = !!design.is_owner
   const { production_runs = [] } = usePartnerProductionRuns(
     { design_id: design.id, limit: 50 },
     { enabled: isOwner }

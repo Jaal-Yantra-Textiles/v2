@@ -11,12 +11,18 @@ const make = (
     status: string
     partner_status: string
     owner_partner_id: string | null
+    is_owner: boolean
   }> = {}
 ) => ({
   id: over.id ?? "design_1",
   name: over.name ?? "Untitled",
   status: over.status ?? "Conceptual",
   owner_partner_id: over.owner_partner_id ?? null,
+  // `is_owner` is what the route computes (owner === current partner); the
+  // "yours" bucket keys on it, not on `owner_partner_id` presence. Defaults to
+  // whether an owner is set unless overridden — lets tests model the
+  // assigned-but-owned-by-another-partner case (owner set, is_owner false).
+  is_owner: over.is_owner ?? over.owner_partner_id != null,
   partner_info: { partner_status: over.partner_status ?? "incoming" },
 })
 
@@ -115,9 +121,14 @@ describe("design work buckets (#6 partner tabs)", () => {
     expect(matchesBucket(make({ partner_status: "incoming" }), "completed")).toBe(false)
   })
 
-  it("yours keys on ownership regardless of status", () => {
-    expect(matchesBucket(make({ owner_partner_id: "p" }), "yours")).toBe(true)
+  it("yours keys on ownership (is_owner) regardless of status", () => {
+    expect(matchesBucket(make({ owner_partner_id: "p", is_owner: true }), "yours")).toBe(true)
     expect(matchesBucket(make({ owner_partner_id: null }), "yours")).toBe(false)
+    // #920 — assigned to this partner but owned by ANOTHER: owner_partner_id is
+    // set, yet is_owner is false → NOT "yours" (the bug the fix closes).
+    expect(
+      matchesBucket(make({ owner_partner_id: "other_partner", is_owner: false }), "yours")
+    ).toBe(false)
   })
 
   it("computes facet counts over the full set (yours cross-cuts status)", () => {

@@ -14,6 +14,8 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import designPartnersLink from "../../src/links/design-partners-link"
+import { DESIGN_MODULE } from "../../src/modules/designs"
+import { PARTNER_MODULE } from "../../src/modules/partner"
 
 const PARTNER_PASSWORD = "supersecret"
 
@@ -131,6 +133,80 @@ setupSharedTestSuite(() => {
         validateStatus: () => true,
       })
       expect(otherDetail.status).toBe(404)
+    })
+
+    // #920 — `is_owner` must reflect whether the *current* partner owns the
+    // design, not merely that it has some owner. An assigned (linked but not
+    // owning) partner sees the design but must get is_owner=false so the UI
+    // hides owner-only surfaces (cost estimate, BOM add/remove) instead of
+    // rendering panels whose backend calls would 403.
+    it("emits is_owner per viewer: true for the owner, false for an assigned non-owner", async () => {
+      const { partnerId: ownerId, partnerHeaders: ownerHeaders } =
+        await createPartner(api, "iso-owner")
+      const { partnerId: assigneeId, partnerHeaders: assigneeHeaders } =
+        await createPartner(api, "iso-assignee")
+
+      const createRes = await api.post(
+        "/partners/designs",
+        { name: "Ownership Signal Jacket", design_type: "Original" },
+        { headers: ownerHeaders }
+      )
+      expect(createRes.status).toBe(201)
+      const designId = createRes.data.design.id
+
+      // Assign (link) the owner's design to a second partner — mirrors the
+      // admin assign / production-run auto-link path. The assignee can now read
+      // the detail but does NOT own it.
+      const remoteLink = getContainer().resolve(
+        ContainerRegistrationKeys.LINK
+      ) as any
+      await remoteLink.create({
+        [DESIGN_MODULE]: { design_id: designId },
+        [PARTNER_MODULE]: { partner_id: assigneeId },
+      })
+
+      // Owner detail → is_owner true, owner_partner_id is theirs.
+      const ownerDetail = await api.get(`/partners/designs/${designId}`, {
+        headers: ownerHeaders,
+      })
+      expect(ownerDetail.status).toBe(200)
+      expect(ownerDetail.data.design.is_owner).toBe(true)
+      expect(ownerDetail.data.design.owner_partner_id).toBe(ownerId)
+
+      // Assignee detail → 200 (linked, can view), but is_owner false even
+      // though owner_partner_id is set (it belongs to the owner).
+      const assigneeDetail = await api.get(`/partners/designs/${designId}`, {
+        headers: assigneeHeaders,
+      })
+      expect(assigneeDetail.status).toBe(200)
+      expect(assigneeDetail.data.design.is_owner).toBe(false)
+      expect(assigneeDetail.data.design.owner_partner_id).toBe(ownerId)
+
+      // List route mirrors the same signal + the "yours" bucket keys on it.
+      const ownerList = await api.get("/partners/designs?limit=100", {
+        headers: ownerHeaders,
+      })
+      expect(
+        (ownerList.data.designs || []).find((d: any) => d.id === designId)
+          ?.is_owner
+      ).toBe(true)
+
+      const assigneeList = await api.get("/partners/designs?limit=100", {
+        headers: assigneeHeaders,
+      })
+      const assigneeRow = (assigneeList.data.designs || []).find(
+        (d: any) => d.id === designId
+      )
+      expect(assigneeRow?.is_owner).toBe(false)
+
+      // The assigned non-owner's design is NOT in their "yours" bucket.
+      const assigneeYours = await api.get(
+        "/partners/designs?limit=100&bucket=yours",
+        { headers: assigneeHeaders }
+      )
+      expect(
+        (assigneeYours.data.designs || []).map((d: any) => d.id)
+      ).not.toContain(designId)
     })
 
     it("excludes partner-owned designs from the admin global list by default", async () => {

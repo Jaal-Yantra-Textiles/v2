@@ -53,7 +53,7 @@ function extractMedia(line: PartnerDesignInventoryItem): string[] {
 
 export const DesignInventoryBomSection = ({ design }: Props) => {
   const prompt = usePrompt()
-  const isOwner = !!(design as any).owner_partner_id
+  const isOwner = !!design.is_owner
   const { inventory_items, isLoading } = usePartnerDesignInventory(design.id)
   const { mutateAsync: delink } = useDelinkPartnerDesignInventory(design.id)
 

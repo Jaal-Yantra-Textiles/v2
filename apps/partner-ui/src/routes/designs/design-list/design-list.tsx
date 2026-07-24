@@ -234,7 +234,7 @@ export const DesignList = () => {
           <span className="font-medium">{getValue() || "-"}</span>
         ),
       }),
-      columnHelper.accessor((row) => (row as any)?.owner_partner_id, {
+      columnHelper.accessor((row) => (row as any)?.is_owner, {
         id: "source",
         header: () => "Source",
         cell: ({ getValue }) => (

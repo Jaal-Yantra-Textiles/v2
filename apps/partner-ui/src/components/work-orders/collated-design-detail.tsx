@@ -164,7 +164,7 @@ export const DesignSpecs = ({ design }: { design: any }) => {
       <DesignInventoryBomSection design={design} />
       {/* Cost estimate only matters for partner-owned designs — hide it for
           JYT-owned work-orders (#5). */}
-      {!!design?.owner_partner_id && <DesignCostSection design={design} />}
+      {!!design?.is_owner && <DesignCostSection design={design} />}
     </>
   )
 }
