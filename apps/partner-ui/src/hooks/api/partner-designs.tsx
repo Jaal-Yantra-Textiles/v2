@@ -33,6 +33,14 @@ export type PartnerDesign = Record<string, any> & {
   updated_at?: string
   partner_info?: PartnerDesignPartnerInfo
   inventory_items?: Array<Record<string, any>>
+  /**
+   * True when the *current* partner owns this design (not merely assigned to it
+   * via the design-partners link). Set by `GET /partners/designs/:id`. Owner-only
+   * surfaces (cost estimate, BOM add/remove) gate on this — do NOT infer ownership
+   * from a truthiness check on `owner_partner_id`, which is true for any owned
+   * design regardless of who is viewing.
+   */
+  is_owner?: boolean
 }
 
 /** #6 — the partner "work" tab buckets (server-side lens over the same set). */

@@ -33,7 +33,7 @@ const fmt = (v?: number | null, currency?: string | null) =>
  * their own production cost, which overrides the auto estimate.
  */
 export const DesignCostSection = ({ design }: Props) => {
-  const isOwner = !!(design as any).owner_partner_id
+  const isOwner = !!design.is_owner
   const { cost, isLoading } = usePartnerDesignCost(design.id)
   const { mutateAsync: recalc, isPending } = useRecalculatePartnerDesignCost(
     design.id

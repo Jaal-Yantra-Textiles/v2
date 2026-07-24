@@ -327,6 +327,13 @@ export async function GET(
     return {
       ...design,
       partner_info,
+      // Whether the *current* partner owns this design (vs merely being assigned
+      // to it). Mirrors the detail route so the UI's "Yours"/"Assigned" source
+      // badge is accurate — a bare truthiness check on `owner_partner_id` would
+      // mislabel a design owned by another partner but assigned to this one.
+      is_owner:
+        design.owner_partner_id != null &&
+        design.owner_partner_id === partner.id,
     }
   })
 

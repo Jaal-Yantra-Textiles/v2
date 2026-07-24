@@ -18,6 +18,8 @@ export type PartnerDesignView = {
   name?: string | null
   status?: string | null
   owner_partner_id?: string | null
+  /** Set by the list route: true when the *current* partner owns this design. */
+  is_owner?: boolean
   partner_info?: { partner_status?: string | null } | null
   [key: string]: unknown
 }
@@ -44,12 +46,15 @@ export type DesignListFilters = {
  *   incoming    → partner_status ∈ {incoming, assigned}       (needs acceptance)
  *   in_progress → partner_status ∈ {in_progress, awaiting_review}
  *   completed   → partner_status ∈ {finished, completed}
- *   yours       → owner_partner_id set (designs the partner created), any status
+ *   yours       → owned by the current partner (created via self-serve), any status
  *   all         → everything
  */
 export function matchesBucket(design: PartnerDesignView, bucket: DesignBucket): boolean {
   if (bucket === "all") return true
-  if (bucket === "yours") return !!design.owner_partner_id
+  // Keyed on `is_owner` (owner_partner_id === current partner), NOT a bare
+  // truthiness check on owner_partner_id — an assigned design owned by another
+  // partner would otherwise be counted as "yours".
+  if (bucket === "yours") return !!design.is_owner
   const ps = String(design.partner_info?.partner_status || "")
   switch (bucket) {
     case "incoming":

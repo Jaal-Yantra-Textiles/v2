@@ -497,7 +497,10 @@ export const DesignDetail = ({ designId, backTo }: DesignDetailProps = {}) => {
         {/* Production & Material Usage — highest priority for partners */}
         {design && <DesignInventoryBomSection design={design} />}
 
-        {design && <DesignCostSection design={design} />}
+        {/* Cost estimate (incl. the JYT platform fee) is owner-only — hidden
+            for partners merely assigned to the design, whose cost fetch would
+            403 anyway (#920). */}
+        {design && design.is_owner && <DesignCostSection design={design} />}
 
         {/* Start production now lives in the owner command header above
             (DesignOwnerActionsSection); the run list follows. */}

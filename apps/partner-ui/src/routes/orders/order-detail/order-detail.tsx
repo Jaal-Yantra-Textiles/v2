@@ -195,7 +195,7 @@ export const OrderDetail = () => {
                   <DesignSizeSetsSection design={design} />
                   <DesignInventoryBomSection design={design} />
                   {/* Cost estimate only for partner-owned designs (#5). */}
-                  {!!(design as any)?.owner_partner_id && (
+                  {!!design?.is_owner && (
                     <DesignCostSection design={design} />
                   )}
                 </>

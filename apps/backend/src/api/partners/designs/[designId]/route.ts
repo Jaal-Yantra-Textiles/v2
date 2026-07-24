@@ -254,10 +254,22 @@ export const GET = async (
 
   const invNode = (invResult?.data || [])[0] || {}
 
+  // Whether the *current* partner owns this design (vs merely being assigned to
+  // it via the design-partners link). This is the sole ownership signal — there
+  // is no `supplies_to_platform` flag. The partner-ui gates owner-only surfaces
+  // (cost estimate, BOM add/remove) on this rather than a truthiness check on
+  // `owner_partner_id`, which is true for any owned design regardless of viewer.
+  const owner_partner_id =
+    (workflowDesign as any)?.owner_partner_id ??
+    (linkData.design as any)?.owner_partner_id ??
+    null
+  const is_owner = owner_partner_id != null && owner_partner_id === partner.id
+
   // Merge partner_info and inventory_items into the design payload
   const design = {
     ...(workflowDesign || linkData.design),
     partner_info,
+    is_owner,
     inventory_items: invNode?.inventory_items || [],
   }
 
