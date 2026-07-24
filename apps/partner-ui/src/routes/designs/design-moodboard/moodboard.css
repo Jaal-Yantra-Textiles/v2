@@ -1,0 +1,103 @@
+/*
+ * #1113 — restyle the Excalidraw canvas chrome (island toolbar, shape picker,
+ * color popups, context menu, dialogs) with Medusa design tokens so the
+ * moodboard reads as part of the admin instead of stock Excalidraw.
+ *
+ * Everything is scoped under `.jyt-moodboard` so it only touches our editor,
+ * and it maps Excalidraw's public theming variables onto Medusa's global
+ * tokens (`--bg-*`, `--fg-*`, `--border-*`, `--button-*`). Because those Medusa
+ * tokens already flip between `:root` (light) and `.dark`, the chrome follows
+ * the admin theme automatically — we intentionally override both Excalidraw
+ * light and `.theme--dark` (this file is imported after Excalidraw's own CSS,
+ * so equal-specificity ties resolve in our favour).
+ *
+ * The drawing surface itself (canvas background, element colors) stays under
+ * Excalidraw's own theme toggle — we only restyle the UI.
+ */
+
+.jyt-moodboard .excalidraw,
+.jyt-moodboard .excalidraw.theme--dark {
+  /* Typography — match the admin's Inter stack. */
+  --ui-font: "Inter", "Inter var", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* Corner radii — tighten to Medusa's 6/8px feel. */
+  --border-radius-md: 6px;
+  --border-radius-lg: 8px;
+
+  /* Accent — Excalidraw's purple → Medusa interactive blue. */
+  --color-primary: var(--fg-interactive);
+  --color-primary-darker: var(--fg-interactive-hover);
+  --color-primary-darkest: var(--fg-interactive-hover);
+  --color-primary-hover: var(--fg-interactive-hover);
+  --color-primary-light: var(--bg-highlight);
+  --color-primary-light-darker: var(--bg-highlight-hover);
+  --color-on-primary-container: var(--fg-interactive);
+  --color-surface-primary-container: var(--bg-highlight);
+
+  /* Surfaces — islands, popups and menus sit on Medusa base/subtle. */
+  --island-bg-color: var(--bg-base);
+  --popup-bg-color: var(--bg-base);
+  --popup-secondary-bg-color: var(--bg-subtle);
+  --popup-text-color: var(--fg-base);
+  --popup-text-inverted-color: var(--fg-on-color);
+  --default-border-color: var(--border-base);
+
+  --color-surface-high: var(--bg-subtle);
+  --color-surface-mid: var(--bg-base);
+  --color-surface-low: var(--bg-subtle);
+  --color-surface-lowest: var(--bg-base);
+  --color-on-surface: var(--fg-base);
+  --text-primary-color: var(--fg-base);
+
+  /* Inputs. */
+  --input-bg-color: var(--bg-field);
+  --input-hover-bg-color: var(--bg-field-hover);
+  --input-border-color: var(--border-base);
+  --input-label-color: var(--fg-subtle);
+
+  /* Toolbar / action buttons. */
+  --button-bg: var(--bg-base);
+  --button-color: var(--fg-base);
+  --button-border: var(--border-base);
+  --button-hover-bg: var(--bg-base-hover);
+  --button-hover-color: var(--fg-base);
+  --button-hover-border: var(--border-strong);
+  --button-active-bg: var(--bg-base-pressed);
+  --button-active-border: var(--border-strong);
+  --button-selected-bg: var(--bg-highlight);
+  --button-selected-border: var(--border-interactive);
+  --button-selected-hover-bg: var(--bg-highlight-hover);
+  --button-special-active-bg-color: var(--bg-highlight);
+
+  /* Destructive (delete, clear). */
+  --button-destructive-bg-color: var(--button-danger);
+  --button-destructive-color: var(--fg-on-color);
+}
+
+/*
+ * Give the floating islands + popups a single Medusa border and shadow. Scope
+ * strictly to the OUTER container — `.Island` nests `.Stack` layout wrappers, so
+ * bordering `.Stack` too draws a second box inside the first (the "stacked
+ * layers" look). Only the island shell gets the surface treatment.
+ */
+.jyt-moodboard .excalidraw .Island,
+.jyt-moodboard .excalidraw .dropdown-menu .dropdown-menu-container,
+.jyt-moodboard .excalidraw .popover {
+  border: 1px solid var(--border-base);
+  box-shadow: var(--elevation-flyout);
+}
+
+/* Inner layout stacks must stay flat so only the island shell reads as a
+ * surface — kills the doubled/stacked border around the shape & lock icons. */
+.jyt-moodboard .excalidraw .Island .Stack {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+/* Selected tool + active menu rows read as Medusa's subtle highlight. */
+.jyt-moodboard .excalidraw .ToolIcon__icon,
+.jyt-moodboard .excalidraw .dropdown-menu-item {
+  border-radius: var(--border-radius-md);
+}
