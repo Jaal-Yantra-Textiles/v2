@@ -295,8 +295,14 @@ export const validatePartnerOrderOwnership = async (
     authContext: { actor_id?: string | null } | undefined,
     orderId: string,
     container: MedusaContainer,
-): Promise<{ partner: any; store: any }> => {
-    const { partner, store } = await getPartnerStore(authContext, container)
+): Promise<{ partner: any; store: any | null }> => {
+    // A partner can own an order two ways: retail (it's in their store's sales
+    // channel) OR work (the D3 partner↔order link, for design/inventory work
+    // orders). The work path needs NO store — a designer/producer partner may
+    // have no store at all. Use the NON-throwing store lookup so a storeless
+    // partner still reaches the work-ownership check instead of being 404'd by
+    // "No store configured for this partner" before we ever look at the link.
+    const { partner, store } = await tryGetPartnerStore(authContext, container)
 
     const query = container.resolve(ContainerRegistrationKeys.QUERY)
     const { data: orders } = await query.graph({
@@ -312,7 +318,7 @@ export const validatePartnerOrderOwnership = async (
 
     // Retail ownership: order is in the partner's store sales channel.
     const ownsRetail =
-        !!store.default_sales_channel_id &&
+        !!store?.default_sales_channel_id &&
         order.sales_channel_id === store.default_sales_channel_id
 
     // Work ownership: the D3 partner↔order link (read by entryPoint, the source

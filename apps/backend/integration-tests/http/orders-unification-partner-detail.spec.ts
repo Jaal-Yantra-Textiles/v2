@@ -24,8 +24,9 @@ const TEST_PARTNER_PASSWORD = "supersecret"
 type PartnerCtx = {
   headers: any
   partnerId: string
-  salesChannelId: string
-  regionId: string
+  // undefined for a storeless partner (work-order-only, no retail store)
+  salesChannelId?: string
+  regionId?: string
   currencyCode: string
   tag: string
 }
@@ -117,6 +118,49 @@ setupSharedTestSuite(() => {
         currencyCode: cc,
         salesChannelId: storeRes.data.sales_channel?.id,
         regionId: storeRes.data.region?.id,
+        tag,
+      }
+    }
+
+    // A partner with NO store (e.g. a design/production partner who only ever
+    // works work-orders and never sells retail). Same registration path, minus
+    // the `/partners/stores` provisioning. Used to prove work-order ownership
+    // does not require a store.
+    const createPartnerWithoutStore = async (tag: string): Promise<PartnerCtx> => {
+      const email = `partner-detail-nostore-${tag}-${unique}@jyt.test`
+      await post("/auth/partner/emailpass/register", {
+        email,
+        password: TEST_PARTNER_PASSWORD,
+      })
+      const login1 = await post("/auth/partner/emailpass", {
+        email,
+        password: TEST_PARTNER_PASSWORD,
+      })
+      const headers1 = { headers: { Authorization: `Bearer ${login1.data.token}` } }
+
+      const partnerRes = await post(
+        "/partners",
+        {
+          name: `Detail NoStore ${tag} ${unique}`,
+          handle: `detail-nostore-${tag}-${unique}`,
+          admin: { email, first_name: "NoStore", last_name: tag },
+        },
+        headers1
+      )
+      const pid = partnerRes.data.partner.id
+
+      const login2 = await post("/auth/partner/emailpass", {
+        email,
+        password: TEST_PARTNER_PASSWORD,
+      })
+      const headers2 = { headers: { Authorization: `Bearer ${login2.data.token}` } }
+
+      return {
+        headers: headers2,
+        partnerId: pid,
+        currencyCode: "inr",
+        salesChannelId: undefined,
+        regionId: undefined,
         tag,
       }
     }
@@ -327,6 +371,22 @@ setupSharedTestSuite(() => {
       expect(order.metadata?.legacy_id).toBe(legacyId)
       expect(linked(order.production_runs)).toBe(true)
       expect(linked(order.inventory_orders)).toBe(false)
+    })
+
+    it("STORELESS partner CAN GET its own design work-order detail (no store required)", async () => {
+      // Regression: a design/production partner with no store owns work orders
+      // purely via the D3 partner↔order link. The ownership check used the
+      // throwing store lookup, so it 404'd with "No store configured for this
+      // partner" before the work-ownership check ran — their design orders
+      // never loaded. Now the storeless partner gets their order.
+      const storeless = await createPartnerWithoutStore("nostore")
+      const { unifiedId, legacyId } = await createDesignWorkOrder(storeless)
+
+      const res = await getDetail(unifiedId, storeless.headers)
+      expect(res.status).toBe(200)
+      const order = res.data.order
+      expect(order.metadata?.legacy_id).toBe(legacyId)
+      expect(linked(order.production_runs)).toBe(true)
     })
 
     it("partner CAN GET its own retail order detail (kind=retail, no links)", async () => {
