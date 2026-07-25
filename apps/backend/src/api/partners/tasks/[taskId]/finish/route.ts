@@ -50,9 +50,7 @@
  * }
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
-import { updateTaskWorkflow } from "../../../../../workflows/tasks/update-task";
-import { setStepSuccessWorkflow } from "../../../../../workflows/tasks/task-engine/task-steps";
-import { Status } from "../../../../../workflows/tasks/create-task";
+import { finishPartnerTaskWorkflow } from "../../../../../workflows/tasks/finish-partner-task";
 
 export async function POST(
     req: AuthenticatedMedusaRequest,
@@ -67,49 +65,29 @@ export async function POST(
         notes?: string
     } | undefined
 
-    const update: Record<string, any> = {
-        status: Status.completed,
-    }
-
-    // Accept cost data from the partner
-    if (body?.actual_cost != null && body.actual_cost > 0) {
-        update.actual_cost = body.actual_cost
-    }
-    if (body?.cost_type) {
-        update.cost_type = body.cost_type
-    }
-    if (body?.cost_currency) {
-        update.cost_currency = body.cost_currency
-    }
-
-    const { result, errors } = await updateTaskWorkflow(req.scope).run({
+    // finishPartnerTaskWorkflow marks the task completed (with cost data),
+    // cascades completion to any open subtasks, and signals the
+    // await-task-finish gate when the task has a transaction_id.
+    const { result, errors } = await finishPartnerTaskWorkflow(req.scope).run({
         input: {
-            id: taskId,
-            update,
+            task_id: taskId,
+            cost: {
+                actual_cost: body?.actual_cost,
+                cost_type: body?.cost_type,
+                cost_currency: body?.cost_currency,
+            },
         }
     })
 
     if (errors && errors.length > 0) {
-        console.warn("Error reported at", errors);
         throw errors;
     }
 
-    // Signal the workflow step only if the task has a transaction_id
-    // (meaning it was created as part of a long-running workflow)
-    const updatedTask = result[0]
-    if (updatedTask?.transaction_id) {
-        await setStepSuccessWorkflow(req.scope).run({
-            input: {
-                stepId: 'await-task-finish',
-                updatedTask,
-            }
-        }).catch(() => {
-            // Expected if the workflow already completed or was cancelled
-        })
-    }
+    const tasks = result?.tasks
+    const updatedTask = Array.isArray(tasks) ? tasks[0] : tasks
 
     res.status(200).json({
-        task: result[0],
+        task: updatedTask,
     })
 
 }

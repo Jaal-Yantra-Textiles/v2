@@ -17,6 +17,8 @@ type UpdateTaskStepInput = {
     status?: Status;
     priority?: PriorityLevel;
     due_date?: Date;
+    start_date?: Date;
+    end_date?: Date;
     assignee_id?: string;
     category_id?: string;
     template_id?: string;
@@ -24,6 +26,7 @@ type UpdateTaskStepInput = {
     actual_cost?: number;
     cost_currency?: string;
     cost_type?: "per_unit" | "total";
+    completed_at?: Date;
     metadata?: Record<string, any>;
   };
 };

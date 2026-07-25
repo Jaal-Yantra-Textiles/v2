@@ -50,6 +50,7 @@ const taskSchema = z.object({
   status: z.enum(TASK_STATUSES),
   end_date: z.date().optional(),
   start_date: z.date().optional(),
+  estimated_cost: z.string().optional(),
   assign_immediately: z.boolean(),
   workflow_config: logicalExpressionSchema,
   steps: z.array(taskStepSchema).min(1, "At least one step is required"),
@@ -120,6 +121,7 @@ export const CreatePartnerTaskComponent = () => {
       status: "pending",
       end_date: undefined,
       start_date: undefined,
+      estimated_cost: "",
       assign_immediately: false,
       workflow_config: {
         type: "sequential",
@@ -213,6 +215,7 @@ export const CreatePartnerTaskComponent = () => {
       }));
 
       // Create the task with child tasks
+      const parsedCost = parseFloat(data.estimated_cost || "");
       const taskPayload = {
         title: data.title,
         description: data.description,
@@ -220,6 +223,9 @@ export const CreatePartnerTaskComponent = () => {
         status: data.status,
         end_date: data.end_date,
         start_date: data.start_date,
+        ...(!isNaN(parsedCost) && parsedCost > 0
+          ? { estimated_cost: parsedCost, cost_currency: "inr" }
+          : {}),
         metadata,
         child_tasks, // Pass child tasks to create parent-child relationship
         dependency_type: "subtask" as const,
@@ -464,6 +470,29 @@ export const CreatePartnerTaskComponent = () => {
                       )}
                     />
                   </div>
+
+                  <Form.Field
+                    control={form.control}
+                    name="estimated_cost"
+                    render={({ field }) => (
+                      <Form.Item>
+                        <Form.Label optional>Estimated Cost (INR)</Form.Label>
+                        <Form.Control>
+                          <Input
+                            type="number"
+                            placeholder="0"
+                            autoComplete="off"
+                            {...field}
+                          />
+                        </Form.Control>
+                        <Form.Hint>
+                          The agreed amount for this task. Used when the partner
+                          submits the completed task for payment.
+                        </Form.Hint>
+                        <Form.ErrorMessage />
+                      </Form.Item>
+                    )}
+                  />
 
                   <Form.Field
                     control={form.control}

@@ -195,8 +195,89 @@ setupSharedTestSuite(() => {
 
       expect(res.status).toBeGreaterThanOrEqual(400)
       expect(res.data.message || res.data.error || "").toMatch(
-        /missing estimated cost/i
+        /missing cost/i
       )
+    })
+
+    it("should honor a partner-entered cost override for a design missing cost", async () => {
+      const d1 = await createDesign("Override No Cost Design", {
+        estimated_cost: undefined,
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api.post(
+        "/partners/payment-submissions",
+        {
+          design_ids: [d1],
+          metadata: { design_cost_overrides: { [d1]: 4200 } },
+        },
+        { headers: partnerHeaders }
+      )
+
+      expect(res.status).toBe(201)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(4200)
+    })
+
+    it("should prefer the cost override over the stored design cost", async () => {
+      const d1 = await createDesign("Override Stored Cost Design", {
+        estimated_cost: 5000,
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api.post(
+        "/partners/payment-submissions",
+        {
+          design_ids: [d1],
+          metadata: { design_cost_overrides: { [d1]: 6500 } },
+        },
+        { headers: partnerHeaders }
+      )
+
+      expect(res.status).toBe(201)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(6500)
+    })
+
+    it("should honor a partner-entered cost override for a completed task missing cost", async () => {
+      const container = getContainer()
+      const taskService = container.resolve("tasks") as any
+      const task = await taskService.createTasks({
+        title: "No Cost Completed Task",
+        status: "completed",
+        start_date: new Date(),
+      })
+      const remoteLink = container.resolve(
+        ContainerRegistrationKeys.LINK
+      ) as any
+      await remoteLink.create({
+        partner: { partner_id: partnerId },
+        tasks: { task_id: task.id },
+      })
+
+      // Without an override the submission is rejected for missing cost
+      const rejected = await api
+        .post(
+          "/partners/payment-submissions",
+          { task_ids: [task.id] },
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+      expect(rejected.status).toBeGreaterThanOrEqual(400)
+      expect(rejected.data.message || rejected.data.error || "").toMatch(
+        /missing cost/i
+      )
+
+      // With the override the submission succeeds using the entered amount
+      const res = await api.post(
+        "/partners/payment-submissions",
+        {
+          task_ids: [task.id],
+          metadata: { task_cost_overrides: { [task.id]: 1500 } },
+        },
+        { headers: partnerHeaders }
+      )
+
+      expect(res.status).toBe(201)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(1500)
     })
 
     it("should reject designs already in an active submission", async () => {

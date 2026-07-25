@@ -13,7 +13,7 @@ const testTasks = [
     description: "Design and create a comprehensive product catalog for the new collection",
     priority: "high",
     status: "pending",
-    due_date: new Date("2025-07-15"),
+    end_date: new Date("2025-07-15"),
     metadata: {
       category: "Marketing",
       deliverable: "PDF Catalog"
@@ -24,7 +24,7 @@ const testTasks = [
     description: "Perform quality inspection on received fabric samples",
     priority: "medium",
     status: "pending",
-    due_date: new Date("2025-06-30"),
+    end_date: new Date("2025-06-30"),
     metadata: {
       category: "Quality Control",
       samples_count: 25
@@ -210,6 +210,25 @@ setupSharedTestSuite(() => {
     test("should prevent unauthorized partner from accessing other partner's tasks", async () => {
       console.log("\nTesting task access control...")
 
+      // The shared test runner restores the DB to a clean snapshot before
+      // every test() block, so tasks created in earlier tests no longer
+      // exist here — create a fresh task for this test rather than
+      // reusing `createdTasks` from "should complete full standalone
+      // partner task flow".
+      const ownTaskResponse = await api.post(
+        `/admin/partners/${partnerId}/tasks`,
+        {
+          title: "Access Control Task",
+          description: "Task used to verify unauthorized partners are rejected",
+          priority: "medium",
+          status: "pending",
+          end_date: new Date("2025-08-01"),
+        },
+        adminHeaders
+      )
+      expect(ownTaskResponse.status).toBe(200)
+      const ownTask = ownTaskResponse.data.task
+
       // Create another partner
       const otherPartnerEmail = "other-partner@medusa-test.com"
       await api.post("/auth/partner/emailpass/register", {
@@ -251,22 +270,18 @@ setupSharedTestSuite(() => {
       }
 
       // Try to accept a task that belongs to the first partner
-      if (createdTasks.length > 0) {
-        const taskId = createdTasks[0].id
-        
-        try {
-          await api.post(
-            `/partners/assigned-tasks/${taskId}/accept`,
-            {},
-            { headers: newOtherPartnerHeaders }
-          )
-          // Should not reach here
-          fail("Should have thrown an error")
-        } catch (error) {
-          expect(error.response?.status).toBe(403)
-          expect(error.response?.data.message).toContain("not assigned to this partner")
-          console.log("Access control working: unauthorized partner cannot access task")
-        }
+      try {
+        await api.post(
+          `/partners/assigned-tasks/${ownTask.id}/accept`,
+          {},
+          { headers: newOtherPartnerHeaders }
+        )
+        // Should not reach here
+        fail("Should have thrown an error")
+      } catch (error) {
+        expect(error.response?.status).toBe(403)
+        expect(error.response?.data.message).toContain("not assigned to this partner")
+        console.log("Access control working: unauthorized partner cannot access task")
       }
     })
 
@@ -372,6 +387,79 @@ setupSharedTestSuite(() => {
       console.log("Task completed successfully")
       
       console.log("\n✓ Task assignment workflow completed successfully")
+    })
+
+    test("should cascade completion to open subtasks when parent task is finished", async () => {
+      // 1. Admin creates a parent task with two subtasks for the partner
+      const createResponse = await api.post(
+        `/admin/partners/${partnerId}/tasks`,
+        {
+          title: "Parent With Subtasks",
+          description: "Parent task whose completion should complete subtasks",
+          priority: "high",
+          status: "pending",
+          start_date: new Date("2025-06-01"),
+          end_date: new Date("2025-07-15"),
+          dependency_type: "subtask",
+          child_tasks: [
+            {
+              title: "Cascade Subtask A",
+              description: "First subtask",
+              start_date: new Date("2025-06-01"),
+              end_date: new Date("2025-07-10"),
+              dependency_type: "subtask",
+            },
+            {
+              title: "Cascade Subtask B",
+              description: "Second subtask",
+              start_date: new Date("2025-06-01"),
+              end_date: new Date("2025-07-12"),
+              dependency_type: "subtask",
+            },
+          ],
+        },
+        adminHeaders
+      )
+      expect(createResponse.status).toBe(200)
+      const parentId = createResponse.data.task?.id ?? createResponse.data.task?.parent?.id
+      expect(parentId).toBeDefined()
+
+      // Sanity: subtasks exist and are open
+      const taskService = getContainer().resolve("tasks") as any
+      const parentBefore = await taskService.retrieveTask(parentId, {
+        relations: ["subtasks"],
+      })
+      expect(parentBefore.subtasks.length).toBe(2)
+      for (const subtask of parentBefore.subtasks) {
+        expect(subtask.status).not.toBe("completed")
+      }
+
+      // 2. Partner accepts, then finishes the parent
+      const acceptResponse = await api.post(
+        `/partners/assigned-tasks/${parentId}/accept`,
+        {},
+        { headers: partnerHeaders }
+      )
+      expect(acceptResponse.status).toBe(200)
+
+      const finishResponse = await api.post(
+        `/partners/assigned-tasks/${parentId}/finish`,
+        {},
+        { headers: partnerHeaders }
+      )
+      expect(finishResponse.status).toBe(200)
+      expect(finishResponse.data.task.status).toBe("completed")
+
+      // 3. Subtasks were completed by the cascade
+      const parentAfter = await taskService.retrieveTask(parentId, {
+        relations: ["subtasks"],
+      })
+      expect(parentAfter.status).toBe("completed")
+      expect(parentAfter.subtasks.length).toBe(2)
+      for (const subtask of parentAfter.subtasks) {
+        expect(subtask.status).toBe("completed")
+        expect(subtask.completed_at).toBeTruthy()
+      }
     })
   })
 })

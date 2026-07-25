@@ -22,6 +22,9 @@ export const AdminCreatePartnerTaskReq = z.object({
     priority: z.nativeEnum(PriorityLevel).optional(),
     end_date: z.string().or(z.date()).optional(),
     start_date: z.string().or(z.date()).optional(),
+    estimated_cost: z.number().positive().optional(),
+    cost_currency: z.string().optional(),
+    cost_type: z.enum(["per_unit", "total"]).optional(),
     template_names: z.array(z.string()).optional(),
     eventable: z.boolean().optional(),
     notifiable: z.boolean().optional(),
@@ -32,3 +35,27 @@ export const AdminCreatePartnerTaskReq = z.object({
 });
 
 export type AdminCreatePartnerTaskReq = z.infer<typeof AdminCreatePartnerTaskReq>;
+
+/**
+ * Validator for updating an existing partner task (e.g. correcting cost
+ * fields after creation). All fields optional; child_tasks/dependency_type
+ * are creation-only and intentionally excluded.
+ */
+export const AdminUpdatePartnerTaskReq = z.object({
+    title: z.string().min(1, "Title is required").optional(),
+    description: z.string().optional(),
+    status: z.nativeEnum(Status).optional(),
+    priority: z.nativeEnum(PriorityLevel).optional(),
+    end_date: z.string().or(z.date()).optional(),
+    start_date: z.string().or(z.date()).optional(),
+    estimated_cost: z.number().positive().optional(),
+    actual_cost: z.number().positive().optional(),
+    cost_currency: z.string().optional(),
+    cost_type: z.enum(["per_unit", "total"]).optional(),
+    eventable: z.boolean().optional(),
+    notifiable: z.boolean().optional(),
+    message: z.string().optional(),
+    metadata: z.record(z.string(), z.any()).optional(),
+});
+
+export type AdminUpdatePartnerTaskReq = z.infer<typeof AdminUpdatePartnerTaskReq>;

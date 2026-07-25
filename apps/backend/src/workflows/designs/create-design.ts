@@ -34,6 +34,7 @@ type CreateDesignStepInput = {
   color_palette?: Record<string, any>;
   tags?: Record<string, any>;
   estimated_cost?: number;
+  cost_currency?: string;
   designer_notes?: string;
   feedback_history?: Record<string, any>;
   metadata?: Record<string, any>;
@@ -74,6 +75,7 @@ export const createDesignStep = createStep(
       color_palette: normalizedColors ? null : input.color_palette,
       tags: input.tags,
       estimated_cost: input.estimated_cost,
+      cost_currency: input.cost_currency,
       designer_notes: input.designer_notes,
       feedback_history: input.feedback_history,
       metadata: input.metadata,
