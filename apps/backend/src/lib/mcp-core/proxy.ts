@@ -15,7 +15,7 @@ export type McpProxyArgs = {
   /** Base origin of this backend, e.g. http://localhost:9000 (no trailing slash). */
   baseUrl: string
   /** HTTP method. Defaults to GET (read tools). */
-  method?: "GET" | "POST" | "PUT" | "DELETE"
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
   /** Route path with params already substituted, e.g. /admin/orders/order_1. */
   path: string
   /** Query params to forward. Arrays are serialized as key[]=a&key[]=b. */

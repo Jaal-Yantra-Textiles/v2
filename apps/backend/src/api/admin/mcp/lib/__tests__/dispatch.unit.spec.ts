@@ -66,6 +66,85 @@ describe("admin-mcp registry + dispatch", () => {
     })
   })
 
+  describe("partner ops tools (#843): wrap existing /admin/partners/:id/* routes", () => {
+    it("registers read tools for tasks, feedbacks, people, fees and subscription", () => {
+      const reads = [
+        ["list_partner_tasks", "/admin/partners/:id/tasks"],
+        ["get_partner_task", "/admin/partners/:id/tasks/:taskId"],
+        ["list_partner_feedbacks", "/admin/partners/:id/feedbacks"],
+        ["list_partner_people", "/admin/partners/:id/people"],
+        ["get_partner_fees", "/admin/partners/:id/fees"],
+        ["get_partner_subscription", "/admin/partners/:id/subscription"],
+      ] as const
+      for (const [name, path] of reads) {
+        const def = ADMIN_MCP_TOOLS.find((t) => t.name === name)
+        expect(def).toBeTruthy()
+        expect(def!.method ?? "GET").toBe("GET")
+        expect(def!.path).toBe(path)
+        expect(def!.write).toBeFalsy()
+        expect(isSensitive(def!)).toBe(false)
+      }
+    })
+
+    it("registers write tools for tasks, feedbacks, people and subscription, all sensitive", () => {
+      const writes = [
+        ["create_partner_task", "POST", "/admin/partners/:id/tasks"],
+        ["update_partner_task", "PATCH", "/admin/partners/:id/tasks/:taskId"],
+        ["create_partner_feedback", "POST", "/admin/partners/:id/feedbacks"],
+        ["link_partner_people", "POST", "/admin/partners/:id/people"],
+        ["create_partner_subscription", "POST", "/admin/partners/:id/subscription"],
+      ] as const
+      for (const [name, method, path] of writes) {
+        const def = ADMIN_MCP_TOOLS.find((t) => t.name === name)
+        expect(def).toBeTruthy()
+        expect(def!.write).toBe(true)
+        expect(def!.method).toBe(method)
+        expect(def!.path).toBe(path)
+        expect(isSensitive(def!)).toBe(true)
+        expect(isDangerous(def!)).toBe(false)
+      }
+    })
+
+    it("update_partner_task declares a previewPath matching its own route (dry_run shows current task)", () => {
+      const def = ADMIN_MCP_TOOLS.find((t) => t.name === "update_partner_task")!
+      expect(def.previewPath).toBe("/admin/partners/:id/tasks/:taskId")
+      expect(def.pathParams).toEqual(["id", "taskId"])
+    })
+
+    it("get_partner_task requires both id and taskId path params", async () => {
+      const missingTaskId = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "get_partner_task",
+        { id: "partner_1" }
+      )
+      expect(missingTaskId.ok).toBe(false)
+      expect(missingTaskId.error).toMatch(/taskId/)
+    })
+
+    it("dry_run on create_partner_task previews the plan without executing", async () => {
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "create_partner_task",
+        { id: "partner_1", title: "Inspect this partner", dry_run: true }
+      )
+      expect(res.ok).toBe(true)
+      expect(res.dry_run).toBe(true)
+      expect(res.plan?.method).toBe("POST")
+      expect(res.plan?.path).toBe("/admin/partners/partner_1/tasks")
+      expect((res.plan?.body as any)?.title).toBe("Inspect this partner")
+    })
+
+    it("link_partner_people without confirm returns requires_confirmation, not executed", async () => {
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "link_partner_people",
+        { id: "partner_1", person_ids: ["person_1"] }
+      )
+      expect(res.requires_confirmation).toBe(true)
+      expect(res.plan?.path).toBe("/admin/partners/partner_1/people")
+    })
+  })
+
   describe("framework args — parity with the partner dispatcher", () => {
     it("injects context + dry_run onto EVERY tool's input schema", () => {
       for (const def of ADMIN_MCP_TOOLS) {
