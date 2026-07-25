@@ -560,6 +560,305 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     sideEffects: "Creates an active subscription for the partner, optionally recording a manual payment.",
   },
 
+  // ===== Partner ops (#843 tier 3): CRUD parity + admins/comms/artisan ===
+  // Round 2 of partner coverage: the core partner record (create/update/
+  // delete), task-assign, person-types, unlinking contacts, partner-admin
+  // user management, WhatsApp connect/disconnect, the email-verification
+  // bypass, and the artisan product approve/reject/proposal trio. Same
+  // wrap-an-existing-route pattern as the #1164 tier.
+  {
+    name: "create_partner",
+    description:
+      "Create a new partner (seller/manufacturer/individual/designer) with its primary admin user. Sensitive: requires confirm:true. Registers real auth credentials for the admin and emails them a temp password.",
+    method: "POST",
+    path: "/admin/partners",
+    write: true,
+    sensitive: true,
+    bodyParams: ["partner", "admin"],
+    inputSchema: obj(
+      {
+        partner: {
+          type: "object",
+          description: "Partner data: { name (required), handle, logo, status, is_verified, workspace_type }.",
+          properties: {
+            name: STR("Partner name (required)."),
+            handle: STR("Unique handle (auto-derived if omitted)."),
+            logo: STR("Logo URL."),
+            status: STR("'active' | 'inactive' | 'pending' (defaults to 'pending')."),
+            is_verified: { type: "boolean", description: "Verification flag (defaults to false)." },
+            workspace_type: STR("'seller' | 'manufacturer' | 'individual' | 'designer' (defaults to 'manufacturer')."),
+          },
+          required: ["name"],
+        },
+        admin: {
+          type: "object",
+          description: "Primary admin data: { email, first_name, last_name (required), phone, role }.",
+          properties: {
+            email: STR("Admin email (required)."),
+            first_name: STR("Admin first name (required)."),
+            last_name: STR("Admin last name (required)."),
+            phone: STR("Admin phone number."),
+            role: STR("'owner' | 'admin' | 'manager' (defaults to 'owner')."),
+          },
+          required: ["email", "first_name", "last_name"],
+        },
+      },
+      ["partner", "admin"]
+    ),
+    sideEffects: "Creates the partner record, registers an auth identity for the admin, and emails a temp password.",
+    nextSteps: ["get_partner", "add_partner_admin"],
+  },
+  {
+    name: "update_partner",
+    description:
+      "Update a partner's profile (name, handle, logo, status, verification, workspace type, metadata). Sensitive: requires confirm:true. Use dry_run to see the current partner first.",
+    method: "PUT",
+    path: "/admin/partners/:id",
+    pathParams: ["id"],
+    previewPath: "/admin/partners/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["name", "handle", "logo", "status", "is_verified", "workspace_type", "metadata"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        name: STR("New name."),
+        handle: STR("New handle."),
+        logo: STR("New logo URL."),
+        status: STR("New status: 'active' | 'inactive' | 'pending'."),
+        is_verified: { type: "boolean", description: "New verification flag." },
+        workspace_type: STR("New workspace type: 'seller' | 'manufacturer' | 'individual' | 'designer'."),
+        metadata: { type: "object", description: "Metadata to merge." },
+      },
+      ["id"]
+    ),
+  },
+  {
+    name: "delete_partner",
+    description:
+      "Permanently delete a partner. PLATFORM-DESTRUCTIVE: requires confirm:true AND a human reason, and is only available when ADMIN_MCP_ENABLE_DANGEROUS is enabled. Always dry_run first.",
+    method: "DELETE",
+    path: "/admin/partners/:id",
+    pathParams: ["id"],
+    previewPath: "/admin/partners/:id",
+    write: true,
+    dangerous: true,
+    inputSchema: obj({ id: STR("Partner id to delete, e.g. 'partner_...'.") }, ["id"]),
+    sideEffects: "Irreversibly removes the partner and its admin/auth records.",
+  },
+  {
+    name: "assign_partner_task",
+    description:
+      "Assign an existing task to a partner (notifies the partner and starts the assignment workflow). Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/tasks/:taskId/assign",
+    pathParams: ["id", "taskId"],
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        taskId: STR("Task id, e.g. 'task_...'."),
+      },
+      ["id", "taskId"]
+    ),
+    sideEffects: "Links the task to the partner and notifies them; starts the assignment/acceptance workflow.",
+  },
+  {
+    name: "list_partner_person_types",
+    description: "List the person types (roles/categories) linked to a partner.",
+    method: "GET",
+    path: "/admin/partners/:id/person-types",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Partner id, e.g. 'partner_...'.") }, ["id"]),
+  },
+  {
+    name: "set_partner_person_types",
+    description:
+      "Set (replace) the person types linked to a partner. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/person-types",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["person_type_ids"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        person_type_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Person type ids to set on the partner (required; replaces the existing set).",
+        },
+      },
+      ["id", "person_type_ids"]
+    ),
+    sideEffects: "Replaces the partner's full set of linked person types.",
+  },
+  {
+    name: "unlink_partner_people",
+    description:
+      "Unlink persons (contacts) from a partner. Sensitive: requires confirm:true.",
+    method: "DELETE",
+    path: "/admin/partners/:id/people",
+    pathParams: ["id"],
+    write: true,
+    bodyParams: ["person_ids"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        person_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Person ids to unlink from the partner (required, non-empty).",
+        },
+      },
+      ["id", "person_ids"]
+    ),
+    sideEffects: "Removes the contact link between the given persons and the partner.",
+  },
+  {
+    name: "list_partner_admins",
+    description: "List the admin users (owner/admin/manager) belonging to a partner.",
+    method: "GET",
+    path: "/admin/partners/:id/admins",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Partner id, e.g. 'partner_...'.") }, ["id"]),
+  },
+  {
+    name: "add_partner_admin",
+    description:
+      "Add a new admin user to an existing partner. Registers auth credentials and emails them a temp password. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/admins",
+    pathParams: ["id"],
+    previewPath: "/admin/partners/:id/admins",
+    write: true,
+    sensitive: true,
+    bodyParams: ["email", "first_name", "last_name", "phone", "role"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        email: STR("Admin email (required)."),
+        first_name: STR("Admin first name."),
+        last_name: STR("Admin last name."),
+        phone: STR("Admin phone number."),
+        role: STR("'owner' | 'admin' | 'manager' (defaults to 'admin')."),
+      },
+      ["id", "email"]
+    ),
+    sideEffects: "Creates an auth identity for the new admin and emails a temp password.",
+    nextSteps: ["list_partner_admins", "update_partner_admin"],
+  },
+  {
+    name: "update_partner_admin",
+    description:
+      "Update a partner admin's profile (name, phone, role, preferred language, active flag). Sensitive: requires confirm:true. Use dry_run to see the partner's admins first.",
+    method: "PATCH",
+    path: "/admin/partners/:id/admins/:adminId",
+    pathParams: ["id", "adminId"],
+    previewPath: "/admin/partners/:id/admins",
+    write: true,
+    sensitive: true,
+    bodyParams: ["first_name", "last_name", "phone", "role", "preferred_language", "is_active"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        adminId: STR("Partner admin id to update."),
+        first_name: STR("New first name."),
+        last_name: STR("New last name."),
+        phone: STR("New phone number."),
+        role: STR("New role: 'owner' | 'admin' | 'manager'."),
+        preferred_language: STR("New preferred language code."),
+        is_active: { type: "boolean", description: "Whether the admin account is active." },
+      },
+      ["id", "adminId"]
+    ),
+  },
+  {
+    name: "connect_partner_whatsapp",
+    description:
+      "Set a partner's WhatsApp number and send the welcome template to start onboarding. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/whatsapp-verify",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["phone"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        phone: STR("WhatsApp number with country code, e.g. '919876543210' (required)."),
+      },
+      ["id", "phone"]
+    ),
+    sideEffects: "Sends a WhatsApp welcome template to the partner and records the conversation.",
+  },
+  {
+    name: "disconnect_partner_whatsapp",
+    description: "Disconnect WhatsApp from a partner. Sensitive: requires confirm:true.",
+    method: "DELETE",
+    path: "/admin/partners/:id/whatsapp-verify",
+    pathParams: ["id"],
+    write: true,
+    inputSchema: obj({ id: STR("Partner id, e.g. 'partner_...'.") }, ["id"]),
+    sideEffects: "Clears the partner's WhatsApp number and verification flag.",
+  },
+  {
+    name: "bypass_partner_email_verification",
+    description:
+      "Mark a partner admin's email as verified, bypassing the login gate. Idempotent. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/bypass-email-verification",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    inputSchema: obj({ id: STR("Partner id, e.g. 'partner_...'.") }, ["id"]),
+    sideEffects: "Marks the partner admin's email verified so they can log in without clicking the email link.",
+  },
+  {
+    name: "get_partner_product_proposal",
+    description:
+      "Read the artisan-proposal state of a product: whether it's artisan-owned, its status, owning partner, and whether it can currently be approved/rejected.",
+    method: "GET",
+    path: "/admin/partners/products/:id/proposal",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Product id, e.g. 'prod_...'.") }, ["id"]),
+  },
+  {
+    name: "approve_partner_product",
+    description:
+      "Approve an artisan's proposed product: publishes it and attaches the core sales channel. Sensitive: requires confirm:true. Use get_partner_product_proposal first to check can_approve.",
+    method: "POST",
+    path: "/admin/partners/products/:id/approve",
+    pathParams: ["id"],
+    previewPath: "/admin/partners/products/:id/proposal",
+    write: true,
+    sensitive: true,
+    inputSchema: obj({ id: STR("Product id, e.g. 'prod_...'.") }, ["id"]),
+    sideEffects: "Publishes the product and emits partner_product.approved (cross-list subscriber attaches the core sales channel).",
+  },
+  {
+    name: "reject_partner_product",
+    description:
+      "Reject an artisan's proposed product, optionally with a reason shown to the artisan. Sensitive: requires confirm:true. Use get_partner_product_proposal first to check can_reject.",
+    method: "POST",
+    path: "/admin/partners/products/:id/reject",
+    pathParams: ["id"],
+    previewPath: "/admin/partners/products/:id/proposal",
+    write: true,
+    sensitive: true,
+    bodyParams: ["rejection_reason"],
+    inputSchema: obj(
+      {
+        id: STR("Product id, e.g. 'prod_...'."),
+        rejection_reason: STR("Optional reason shown to the artisan in the rejection email."),
+      },
+      ["id"]
+    ),
+    sideEffects: "Sets the product to 'rejected' and emits partner_product.rejected.",
+  },
+
   // ===== Tier 2: the first dangerous action ==============================
   // Platform-destructive: hidden + refused unless ADMIN_MCP_ENABLE_DANGEROUS is
   // on, and even then requires BOTH confirm:true AND a human-supplied reason.
