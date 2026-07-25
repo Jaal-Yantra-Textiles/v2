@@ -1,3 +1,13 @@
+## [13.68.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.68.0...v13.68.1) (2026-07-25)
+
+
+### Bug Fixes
+
+* **partner-tasks:** cost capture, subtask cascade, admin cost edit [[#1162](https://github.com/Jaal-Yantra-Textiles/v2/issues/1162)] ([#1163](https://github.com/Jaal-Yantra-Textiles/v2/issues/1163)) ([216e6ac](https://github.com/Jaal-Yantra-Textiles/v2/commit/216e6ac36bd2bbc9cc04ae3d9953af698d1bdd74))
+* **partner-designs:** gate owner-only surfaces on real ownership, not owner_partner_id truthiness [[#920](https://github.com/Jaal-Yantra-Textiles/v2/issues/920)] ([#1159](https://github.com/Jaal-Yantra-Textiles/v2/issues/1159)) ([aa6ee54](https://github.com/Jaal-Yantra-Textiles/v2/commit/aa6ee542d7a75b042fa723d8740a5d2cd4cfd242))
+* **handloom-import:** HTTP Basic auth for Medusa sk_ keys + richer person import [[#1030](https://github.com/Jaal-Yantra-Textiles/v2/issues/1030)] ([#1160](https://github.com/Jaal-Yantra-Textiles/v2/issues/1160)) ([aa8d4e2](https://github.com/Jaal-Yantra-Textiles/v2/commit/aa8d4e2f4e8ae30f69c9d02d2b769b07fe469aa6)), closes [#1031](https://github.com/Jaal-Yantra-Textiles/v2/issues/1031)
+* **partner-orders:** storeless partner can load work-order detail (no store required) ([#1158](https://github.com/Jaal-Yantra-Textiles/v2/issues/1158)) ([a5fc29b](https://github.com/Jaal-Yantra-Textiles/v2/commit/a5fc29be543c9037d091db14bfb2c511b7f0d16f))
+
 # [13.68.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.67.0...v13.68.0) (2026-07-24)
 
 
