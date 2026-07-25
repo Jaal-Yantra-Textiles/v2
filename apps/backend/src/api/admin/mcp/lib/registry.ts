@@ -324,6 +324,242 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     ),
   },
 
+  // ===== Partner ops (#843): inspect + act on a partner's sub-resources ===
+  // These wrap ALREADY-EXISTING /admin/partners/:id/* routes — no new backend
+  // surface, just registry rows exposing what admins can already do via the
+  // partner detail page as chat-invokable tools (read + write).
+  {
+    name: "list_partner_tasks",
+    description: "List all tasks assigned to a partner.",
+    method: "GET",
+    path: "/admin/partners/:id/tasks",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Partner id, e.g. 'partner_...'.") }, ["id"]),
+  },
+  {
+    name: "get_partner_task",
+    description: "Get a single task assigned to a partner by task id.",
+    method: "GET",
+    path: "/admin/partners/:id/tasks/:taskId",
+    pathParams: ["id", "taskId"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        taskId: STR("Task id, e.g. 'task_...'."),
+      },
+      ["id", "taskId"]
+    ),
+  },
+  {
+    name: "list_partner_feedbacks",
+    description: "List feedback entries linked to a partner.",
+    method: "GET",
+    path: "/admin/partners/:id/feedbacks",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Partner id, e.g. 'partner_...'.") }, ["id"]),
+  },
+  {
+    name: "list_partner_people",
+    description: "List persons (contacts) linked to a partner.",
+    method: "GET",
+    path: "/admin/partners/:id/people",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Partner id, e.g. 'partner_...'.") }, ["id"]),
+  },
+  {
+    name: "get_partner_fees",
+    description:
+      "Get a partner's transaction-fee (commission) ledger and roll-up summary (totals, by-status, by-currency).",
+    method: "GET",
+    path: "/admin/partners/:id/fees",
+    pathParams: ["id"],
+    queryParams: ["limit", "offset", "status"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        limit: { type: "integer", description: "Max results (default 50)." },
+        offset: { type: "integer", description: "Pagination offset." },
+        status: STR("Optional fee status filter."),
+      },
+      ["id"]
+    ),
+  },
+  {
+    name: "get_partner_subscription",
+    description: "Get a partner's subscriptions (with plan and payments) plus the list of active plans.",
+    method: "GET",
+    path: "/admin/partners/:id/subscription",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Partner id, e.g. 'partner_...'.") }, ["id"]),
+  },
+
+  // ---- Partner ops writes -------------------------------------------------
+  {
+    name: "create_partner_task",
+    description:
+      "Create a new task and assign it to a partner. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/tasks",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "title",
+      "description",
+      "status",
+      "priority",
+      "start_date",
+      "end_date",
+      "estimated_cost",
+      "cost_currency",
+      "cost_type",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        title: STR("Task title (required)."),
+        description: STR("Task description."),
+        status: STR("Task status."),
+        priority: STR("Task priority: 'low' | 'medium' | 'high'."),
+        start_date: STR("Start date (ISO string)."),
+        end_date: STR("Due date (ISO string)."),
+        estimated_cost: { type: "number", description: "Estimated cost, set at creation." },
+        cost_currency: STR("Currency code for estimated/actual cost."),
+        cost_type: STR("'per_unit' | 'total'."),
+        metadata: { type: "object", description: "Optional key/value metadata." },
+      },
+      ["id", "title"]
+    ),
+    sideEffects: "Creates and assigns a new task to the partner.",
+    nextSteps: ["get_partner_task", "update_partner_task"],
+  },
+  {
+    name: "update_partner_task",
+    description:
+      "Update a task assigned to a partner (title/description/status/priority/dates/cost fields). Sensitive: requires confirm:true. Use dry_run to see the current task first.",
+    method: "PATCH",
+    path: "/admin/partners/:id/tasks/:taskId",
+    pathParams: ["id", "taskId"],
+    previewPath: "/admin/partners/:id/tasks/:taskId",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "title",
+      "description",
+      "status",
+      "priority",
+      "start_date",
+      "end_date",
+      "estimated_cost",
+      "actual_cost",
+      "cost_currency",
+      "cost_type",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        taskId: STR("Task id, e.g. 'task_...'."),
+        title: STR("New title."),
+        description: STR("New description."),
+        status: STR("New status."),
+        priority: STR("New priority: 'low' | 'medium' | 'high'."),
+        start_date: STR("New start date (ISO string)."),
+        end_date: STR("New due date (ISO string)."),
+        estimated_cost: { type: "number", description: "New estimated cost." },
+        actual_cost: { type: "number", description: "New actual cost (recorded at finish)." },
+        cost_currency: STR("Currency code for cost fields."),
+        cost_type: STR("'per_unit' | 'total'."),
+        metadata: { type: "object", description: "Metadata to merge." },
+      },
+      ["id", "taskId"]
+    ),
+  },
+  {
+    name: "create_partner_feedback",
+    description:
+      "Create a feedback entry linked to a partner. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/feedbacks",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "rating",
+      "comment",
+      "status",
+      "submitted_by",
+      "submitted_at",
+      "reviewed_by",
+      "reviewed_at",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        rating: STR("'one' | 'two' | 'three' | 'four' | 'five' (required)."),
+        comment: STR("Feedback comment."),
+        status: STR("'pending' | 'reviewed' | 'resolved' (required)."),
+        submitted_by: STR("Who submitted the feedback (required)."),
+        submitted_at: STR("Submission timestamp (ISO string, required)."),
+        reviewed_by: STR("Who reviewed the feedback."),
+        reviewed_at: STR("Review timestamp (ISO string)."),
+        metadata: { type: "object", description: "Optional key/value metadata." },
+      },
+      ["id", "rating", "status", "submitted_by", "submitted_at"]
+    ),
+    sideEffects: "Creates a feedback record linked to the partner.",
+  },
+  {
+    name: "link_partner_people",
+    description:
+      "Link existing persons (contacts) to a partner by id. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/people",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["person_ids"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        person_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Person ids to link to the partner (required, non-empty).",
+        },
+      },
+      ["id", "person_ids"]
+    ),
+    sideEffects: "Links the given persons to the partner as contacts.",
+  },
+  {
+    name: "create_partner_subscription",
+    description:
+      "Assign a subscription plan to a partner (admin can comp/trial via skip_payment). Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/subscription",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["plan_id", "payment_provider", "skip_payment", "notes"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        plan_id: STR("Plan id to assign (required)."),
+        payment_provider: STR("Payment provider, e.g. 'manual' (defaults to 'manual')."),
+        skip_payment: {
+          type: "boolean",
+          description: "If true and the plan has a cost, record a manual comp/trial payment instead of requiring real payment.",
+        },
+        notes: STR("Optional admin notes, recorded on the payment/metadata."),
+      },
+      ["id", "plan_id"]
+    ),
+    sideEffects: "Creates an active subscription for the partner, optionally recording a manual payment.",
+  },
+
   // ===== Tier 2: the first dangerous action ==============================
   // Platform-destructive: hidden + refused unless ADMIN_MCP_ENABLE_DANGEROUS is
   // on, and even then requires BOTH confirm:true AND a human-supplied reason.

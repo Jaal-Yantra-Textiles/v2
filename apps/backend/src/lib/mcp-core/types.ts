@@ -13,7 +13,7 @@
  */
 
 /** HTTP verb of the wrapped route. GET = read (always exposed). */
-export type McpMethod = "GET" | "POST" | "PUT" | "DELETE"
+export type McpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
 
 export type McpToolDef = {
   /** Tool name surfaced to the agent (snake_case). */
