@@ -31,6 +31,7 @@ type UpdateDesignStepInput = {
   color_palette?: Record<string, any>;
   tags?: Record<string, any>;
   estimated_cost?: number;
+  cost_currency?: string;
   designer_notes?: string;
   feedback_history?: Record<string, any>;
   metadata?: Record<string, any>;

@@ -63,6 +63,57 @@ const markTaskStepsCompletedStep = createStep(
   }
 )
 
+// Completing a parent task implies its remaining subtasks are done too —
+// mirror of complete-partner-subtask's child→parent cascade.
+const completeOpenSubtasksStep = createStep(
+  "finish-partner-task-complete-subtasks",
+  async (input: { task_id: string }, { container }) => {
+    const taskService: TaskService = container.resolve(TASKS_MODULE)
+    const parent = await taskService.retrieveTask(input.task_id, {
+      relations: ["subtasks"],
+    })
+    const subtasks = Array.isArray((parent as any)?.subtasks)
+      ? (parent as any).subtasks
+      : []
+    const open = subtasks.filter(
+      (s: any) => s && s.status !== "completed" && s.status !== "cancelled"
+    )
+    if (!open.length) {
+      return new StepResponse({ completed_subtask_ids: [] as string[] }, [])
+    }
+
+    const prior = open.map((s: any) => ({
+      id: s.id,
+      status: s.status,
+      completed_at: s.completed_at ?? null,
+    }))
+
+    await taskService.updateTasks(
+      open.map((s: any) => ({
+        id: s.id,
+        status: "completed",
+        completed_at: new Date(),
+      }))
+    )
+
+    return new StepResponse(
+      { completed_subtask_ids: open.map((s: any) => s.id) as string[] },
+      prior
+    )
+  },
+  async (prior: Array<{ id: string; status: any; completed_at: Date | null }> | undefined, { container }) => {
+    if (!prior?.length) return
+    const taskService: TaskService = container.resolve(TASKS_MODULE)
+    await taskService.updateTasks(
+      prior.map((p) => ({
+        id: p.id,
+        status: p.status,
+        completed_at: p.completed_at,
+      }))
+    )
+  }
+)
+
 // Signals the run-task-assignment "await-task-finish" gate if the task has a
 // transaction_id. Swallows all engine errors — it's expected to fail when the
 // parent workflow has already completed or was cancelled.
@@ -111,6 +162,7 @@ export const finishPartnerTaskWorkflow = createWorkflow(
         id: data.input.task_id,
         update: {
           status: Status.completed,
+          completed_at: new Date(),
           ...(cost.actual_cost != null && cost.actual_cost > 0
             ? { actual_cost: cost.actual_cost }
             : {}),
@@ -121,6 +173,8 @@ export const finishPartnerTaskWorkflow = createWorkflow(
     })
 
     const updatedTasks = updateTaskStep(updateInput) as any
+
+    completeOpenSubtasksStep({ task_id: input.task_id })
 
     signalTaskFinishGateStep({ updatedTasks })
 

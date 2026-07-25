@@ -56,6 +56,7 @@ export const designSchema = z.object({
   color_palette: colorPaletteSchema.optional(),
   tags: z.array(z.string()).optional(),
   estimated_cost: z.number().optional(),
+  cost_currency: z.string().optional(),
   designer_notes: z.string().optional(),
   feedback_history: feedbackHistorySchema.optional(),
   metadata: z.record(z.string(), z.any()).optional(),

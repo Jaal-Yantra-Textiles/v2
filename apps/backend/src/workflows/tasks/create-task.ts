@@ -44,6 +44,9 @@ type CreateTaskStepInput = {
   eventable?: boolean;
   notifiable?: boolean;
   message?: string;
+  estimated_cost?: number;
+  cost_currency?: string;
+  cost_type?: "per_unit" | "total";
   metadata?: Record<string, any>;
   template_ids?: string[];  // Added for template IDs
   originalInput?: any;      // Added for original input

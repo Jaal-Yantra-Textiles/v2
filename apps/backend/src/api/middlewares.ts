@@ -190,7 +190,7 @@ import { AdminAiChatReq } from "./admin/ai/chat/chat/validators";
 import { AdminAssistantChatSchema } from "./admin/assistant/chat/validators";
 import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
 import { AdminPostPartnerTaskAssignReq } from "./admin/partners/[id]/tasks/[taskId]/assign/validators";
-import { AdminCreatePartnerTaskReq } from "./admin/partners/[id]/tasks/validators";
+import { AdminCreatePartnerTaskReq, AdminUpdatePartnerTaskReq } from "./admin/partners/[id]/tasks/validators";
 import {
   ListPaymentsByPartnerQuerySchema as PartnerListPaymentsByPartnerQuerySchema,
   ListPaymentMethodsByPartnerQuerySchema as PartnerListPaymentMethodsByPartnerQuerySchema,
@@ -3591,6 +3591,16 @@ export default defineMiddlewares({
       matcher: "/admin/partners/:id/tasks",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminCreatePartnerTaskReq))],
+    },
+    {
+      matcher: "/admin/partners/:id/tasks/:taskId",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/partners/:id/tasks/:taskId",
+      method: "PATCH",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminUpdatePartnerTaskReq))],
     },
     {
       matcher: "/admin/partners/:id/tasks/:taskId/assign",

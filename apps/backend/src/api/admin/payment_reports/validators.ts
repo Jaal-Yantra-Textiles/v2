@@ -9,6 +9,7 @@ export const ReportingQuerySchema = z.object({
   payment_type: z.enum(["Bank", "Cash", "Digital_Wallet"]).optional(),
   limit:        z.coerce.number().min(1).max(500).optional().default(100),
   offset:       z.coerce.number().min(0).optional().default(0),
+  include_reconciliation: z.string().optional(), // /summary only: "true" | "1" enables reconciliation_summary
 })
 export type ReportingQuery = z.infer<typeof ReportingQuerySchema>
 

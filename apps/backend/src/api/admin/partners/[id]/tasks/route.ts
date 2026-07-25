@@ -209,6 +209,9 @@ export const POST = async (req: MedusaRequest<AdminCreatePartnerTaskReq>, res: M
                 eventable: req.validatedBody.eventable,
                 notifiable: req.validatedBody.notifiable,
                 message: req.validatedBody.message,
+                estimated_cost: req.validatedBody.estimated_cost,
+                cost_currency: req.validatedBody.cost_currency,
+                cost_type: req.validatedBody.cost_type,
                 metadata: req.validatedBody.metadata,
                 child_tasks: req.validatedBody.child_tasks?.map((childTask: any) => ({
                     ...childTask,

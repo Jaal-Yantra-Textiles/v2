@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AdminPartner } from "../../hooks/api/partners-admin";
-import { Button, Text, Badge, Textarea, toast } from "@medusajs/ui";
-import { CheckCircleSolid, XCircleSolid, Clock } from "@medusajs/icons";
+import { Button, Text, Badge, Textarea, Input, Select, toast } from "@medusajs/ui";
+import { CheckCircleSolid, XCircleSolid, Clock, PencilSquare } from "@medusajs/icons";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { sdk } from "../../lib/config";
+import { useUpdatePartnerTask } from "../../hooks/api/partner-tasks";
 
 // React Flow imports
 import { 
@@ -30,6 +31,10 @@ interface Task {
   end_date?: Date;
   parent_task_id?: string;
   subtasks?: Task[];
+  estimated_cost?: number | null;
+  actual_cost?: number | null;
+  cost_currency?: string | null;
+  cost_type?: "per_unit" | "total" | null;
   metadata?: {
     comments?: TaskComment[];
     [key: string]: any;
@@ -58,6 +63,144 @@ interface TaskNodeData {
 
 interface PartnerTaskCanvasSectionProps {
   partner: AdminPartner & { tasks?: Task[] };
+}
+
+// Inline editor for a task's cost fields (estimated/actual cost, currency,
+// per-unit vs total). Admin-only correction path — partners submit actual
+// cost via the finish flow, but admins sometimes need to fix a bad entry or
+// backfill an estimate.
+function TaskCostSection({
+  partnerId,
+  task,
+  onUpdated,
+}: {
+  partnerId: string;
+  task: Task;
+  onUpdated: (patch: Partial<Task>) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [estimatedCost, setEstimatedCost] = useState(task.estimated_cost?.toString() ?? "");
+  const [actualCost, setActualCost] = useState(task.actual_cost?.toString() ?? "");
+  const [costCurrency, setCostCurrency] = useState(task.cost_currency ?? "inr");
+  const [costType, setCostType] = useState<"per_unit" | "total">(task.cost_type ?? "total");
+
+  const { mutateAsync: updateTask, isPending } = useUpdatePartnerTask(partnerId, task.id);
+
+  useEffect(() => {
+    setEstimatedCost(task.estimated_cost?.toString() ?? "");
+    setActualCost(task.actual_cost?.toString() ?? "");
+    setCostCurrency(task.cost_currency ?? "inr");
+    setCostType(task.cost_type ?? "total");
+    setIsEditing(false);
+  }, [task.id]);
+
+  const handleSave = async () => {
+    const payload = {
+      estimated_cost: estimatedCost ? Number(estimatedCost) : undefined,
+      actual_cost: actualCost ? Number(actualCost) : undefined,
+      cost_currency: costCurrency || undefined,
+      cost_type: costType,
+    };
+
+    try {
+      const { task: updated } = await updateTask(payload);
+      onUpdated({
+        estimated_cost: updated?.estimated_cost ?? payload.estimated_cost ?? null,
+        actual_cost: updated?.actual_cost ?? payload.actual_cost ?? null,
+        cost_currency: updated?.cost_currency ?? payload.cost_currency ?? null,
+        cost_type: (updated?.cost_type as any) ?? payload.cost_type ?? null,
+      });
+      setIsEditing(false);
+      toast.success("Task cost updated");
+    } catch (error) {
+      toast.error("Failed to update task cost");
+    }
+  };
+
+  if (!isEditing) {
+    const hasCost = task.estimated_cost != null || task.actual_cost != null;
+    return (
+      <div className="p-6 border-b">
+        <div className="flex items-center justify-between mb-3">
+          <Text size="base" weight="plus">Cost</Text>
+          <Button variant="secondary" size="small" onClick={() => setIsEditing(true)}>
+            <PencilSquare className="w-4 h-4" />
+            Edit
+          </Button>
+        </div>
+        {hasCost ? (
+          <div className="flex flex-col gap-1 text-sm">
+            {task.estimated_cost != null && (
+              <Text size="small" className="text-ui-fg-subtle">
+                Estimated: {task.estimated_cost} {task.cost_currency?.toUpperCase()} ({task.cost_type === "per_unit" ? "per unit" : "total"})
+              </Text>
+            )}
+            {task.actual_cost != null && (
+              <Text size="small" className="text-ui-fg-subtle">
+                Actual: {task.actual_cost} {task.cost_currency?.toUpperCase()}
+              </Text>
+            )}
+          </div>
+        ) : (
+          <Text size="small" className="text-ui-fg-muted">No cost recorded</Text>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 border-b">
+      <Text size="base" weight="plus" className="mb-3">Cost</Text>
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <Text size="xsmall" className="text-ui-fg-subtle mb-1">Estimated cost</Text>
+          <Input
+            type="number"
+            min={0}
+            value={estimatedCost}
+            onChange={(e) => setEstimatedCost(e.target.value)}
+          />
+        </div>
+        <div>
+          <Text size="xsmall" className="text-ui-fg-subtle mb-1">Actual cost</Text>
+          <Input
+            type="number"
+            min={0}
+            value={actualCost}
+            onChange={(e) => setActualCost(e.target.value)}
+          />
+        </div>
+        <div>
+          <Text size="xsmall" className="text-ui-fg-subtle mb-1">Currency</Text>
+          <Input
+            value={costCurrency}
+            onChange={(e) => setCostCurrency(e.target.value)}
+            placeholder="inr"
+          />
+        </div>
+        <div>
+          <Text size="xsmall" className="text-ui-fg-subtle mb-1">Cost type</Text>
+          <Select value={costType} onValueChange={(v) => setCostType(v as "per_unit" | "total")}>
+            <Select.Trigger>
+              <Select.Value placeholder="Select cost type" />
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="total">Total</Select.Item>
+              <Select.Item value="per_unit">Per unit</Select.Item>
+            </Select.Content>
+          </Select>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button size="small" onClick={handleSave} isLoading={isPending}>
+          Save
+        </Button>
+        <Button variant="secondary" size="small" onClick={() => setIsEditing(false)}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 export function PartnerTaskCanvasSection({ partner }: PartnerTaskCanvasSectionProps) {
@@ -477,6 +620,12 @@ export function PartnerTaskCanvasSection({ partner }: PartnerTaskCanvasSectionPr
                 )}
               </div>
 
+              <TaskCostSection
+                partnerId={partner.id}
+                task={selectedTask}
+                onUpdated={(patch) => setSelectedTask((prev) => (prev ? { ...prev, ...patch } : prev))}
+              />
+
               {selectedTask.subtasks && selectedTask.subtasks.length > 0 && (
                 <div className="p-6 border-b">
                   <Text size="base" weight="plus" className="mb-3">
@@ -658,6 +807,12 @@ export function PartnerTaskCanvasSection({ partner }: PartnerTaskCanvasSectionPr
               </div>
             )}
           </div>
+
+          <TaskCostSection
+            partnerId={partner.id}
+            task={selectedTask}
+            onUpdated={(patch) => setSelectedTask((prev) => (prev ? { ...prev, ...patch } : prev))}
+          />
 
           {/* Subtasks Section */}
           {selectedTask.subtasks && selectedTask.subtasks.length > 0 && (

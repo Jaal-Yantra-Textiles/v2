@@ -2,6 +2,7 @@ import {
   createStep,
   createWorkflow,
   StepResponse,
+  transform,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
 import {
@@ -83,11 +84,31 @@ type SubmissionTaskLinkResult = {
   payment_submission?: { status: string } | null
 }
 
+// Partner-entered amounts from the submission form (metadata.design_cost_overrides /
+// metadata.task_cost_overrides). A positive override satisfies the cost requirement
+// and becomes the submitted amount even when the design/task has no stored cost.
+const sanitizeCostOverrides = (raw: unknown): Record<string, number> => {
+  const out: Record<string, number> = {}
+  if (raw && typeof raw === "object") {
+    for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+      const amount = Number(value)
+      if (Number.isFinite(amount) && amount > 0) {
+        out[id] = amount
+      }
+    }
+  }
+  return out
+}
+
 // Step 1a: Validate all designs for submission eligibility
 const validateDesignsForSubmissionStep = createStep(
   "validate-designs-for-submission",
   async (
-    input: { partner_id: string; design_ids: string[] },
+    input: {
+      partner_id: string
+      design_ids: string[]
+      cost_overrides?: Record<string, number>
+    },
     { container }
   ) => {
     if (!input.design_ids?.length) {
@@ -126,9 +147,12 @@ const validateDesignsForSubmissionStep = createStep(
       )
     }
 
-    // 3. Validate all designs have a cost (estimated_cost or production_cost)
+    // 3. Validate all designs have a cost (estimated_cost, production_cost,
+    // or a partner-entered override)
+    const overrides = input.cost_overrides || {}
     const noCost = typedDesigns.filter(
       (d) =>
+        !overrides[d.id] &&
         (d.estimated_cost === null || d.estimated_cost === undefined) &&
         ((d as any).production_cost === null || (d as any).production_cost === undefined)
     )
@@ -187,7 +211,9 @@ const validateDesignsForSubmissionStep = createStep(
     const validated: ValidatedDesign[] = typedDesigns.map((d) => ({
       id: d.id,
       name: d.name,
-      estimated_cost: Number(d.estimated_cost || (d as any).production_cost || 0),
+      estimated_cost:
+        overrides[d.id] ??
+        Number(d.estimated_cost || (d as any).production_cost || 0),
       cost_breakdown: d.cost_breakdown,
     }))
 
@@ -199,7 +225,11 @@ const validateDesignsForSubmissionStep = createStep(
 const validateTasksForSubmissionStep = createStep(
   "validate-tasks-for-submission",
   async (
-    input: { partner_id: string; task_ids: string[] },
+    input: {
+      partner_id: string
+      task_ids: string[]
+      cost_overrides?: Record<string, number>
+    },
     { container }
   ) => {
     if (!input.task_ids?.length) {
@@ -246,9 +276,12 @@ const validateTasksForSubmissionStep = createStep(
       )
     }
 
-    // 3. Every task must have a cost (prefer actual_cost, fall back to estimated_cost)
+    // 3. Every task must have a cost (prefer actual_cost, fall back to
+    // estimated_cost, or a partner-entered override)
+    const overrides = input.cost_overrides || {}
     const noCost = typedTasks.filter(
       (t) =>
+        !overrides[t.id] &&
         (t.actual_cost === null || t.actual_cost === undefined) &&
         (t.estimated_cost === null || t.estimated_cost === undefined)
     )
@@ -305,12 +338,13 @@ const validateTasksForSubmissionStep = createStep(
     const validated: ValidatedTask[] = typedTasks.map((t) => ({
       id: t.id,
       title: t.title,
-      amount: Number(t.actual_cost ?? t.estimated_cost ?? 0),
+      amount: overrides[t.id] ?? Number(t.actual_cost ?? t.estimated_cost ?? 0),
       cost_breakdown: {
         cost_currency: t.cost_currency,
         cost_type: t.cost_type,
         estimated_cost: t.estimated_cost,
         actual_cost: t.actual_cost,
+        ...(overrides[t.id] != null ? { override_amount: overrides[t.id] } : {}),
       },
     }))
 
@@ -538,14 +572,23 @@ const emitSubmissionCreatedStep = createStep(
 export const createPaymentSubmissionWorkflow = createWorkflow(
   "create-payment-submission",
   (input: CreatePaymentSubmissionInput) => {
+    // The partner UI passes form-entered amounts via metadata so reviewers can
+    // see original vs requested; honor them here as the submitted amounts.
+    const costOverrides = transform({ input }, (data) => ({
+      designs: sanitizeCostOverrides(data.input.metadata?.design_cost_overrides),
+      tasks: sanitizeCostOverrides(data.input.metadata?.task_cost_overrides),
+    }))
+
     const validatedDesigns = validateDesignsForSubmissionStep({
       partner_id: input.partner_id,
       design_ids: input.design_ids || [],
+      cost_overrides: costOverrides.designs,
     })
 
     const validatedTasks = validateTasksForSubmissionStep({
       partner_id: input.partner_id,
       task_ids: input.task_ids || [],
+      cost_overrides: costOverrides.tasks,
     })
 
     const submission = createSubmissionRecordStep({

@@ -18,6 +18,10 @@ export type AdminPartnerTask = {
   status: string;
   end_date?: Date;
   start_date?: Date;
+  estimated_cost?: number | null;
+  actual_cost?: number | null;
+  cost_currency?: string | null;
+  cost_type?: "per_unit" | "total" | null;
   metadata?: Record<string, any>;
   created_at: Date;
   updated_at: Date;
@@ -31,10 +35,15 @@ export type CreatePartnerTaskPayload = {
   status: string;
   end_date?: Date;
   start_date?: Date;
+  estimated_cost?: number;
+  cost_currency?: string;
+  cost_type?: "per_unit" | "total";
   metadata?: Record<string, any>;
 };
 
-export type UpdatePartnerTaskPayload = Partial<CreatePartnerTaskPayload>;
+export type UpdatePartnerTaskPayload = Partial<CreatePartnerTaskPayload> & {
+  actual_cost?: number;
+};
 
 export interface PartnerTaskResponse {
   task: AdminPartnerTask;
