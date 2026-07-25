@@ -145,6 +145,121 @@ describe("admin-mcp registry + dispatch", () => {
     })
   })
 
+  describe("partner ops tools round 2 (#843): CRUD parity + admins/comms/artisan", () => {
+    it("registers read tools for person-types, admins and the artisan proposal", () => {
+      const reads = [
+        ["list_partner_person_types", "/admin/partners/:id/person-types"],
+        ["list_partner_admins", "/admin/partners/:id/admins"],
+        ["get_partner_product_proposal", "/admin/partners/products/:id/proposal"],
+      ] as const
+      for (const [name, path] of reads) {
+        const def = ADMIN_MCP_TOOLS.find((t) => t.name === name)
+        expect(def).toBeTruthy()
+        expect(def!.method ?? "GET").toBe("GET")
+        expect(def!.path).toBe(path)
+        expect(def!.write).toBeFalsy()
+        expect(isSensitive(def!)).toBe(false)
+      }
+    })
+
+    it("registers sensitive write tools for partner CRUD, admins, whatsapp and artisan approve/reject", () => {
+      const writes = [
+        ["create_partner", "POST", "/admin/partners"],
+        ["update_partner", "PUT", "/admin/partners/:id"],
+        ["assign_partner_task", "POST", "/admin/partners/:id/tasks/:taskId/assign"],
+        ["set_partner_person_types", "POST", "/admin/partners/:id/person-types"],
+        ["add_partner_admin", "POST", "/admin/partners/:id/admins"],
+        ["update_partner_admin", "PATCH", "/admin/partners/:id/admins/:adminId"],
+        ["connect_partner_whatsapp", "POST", "/admin/partners/:id/whatsapp-verify"],
+        ["bypass_partner_email_verification", "POST", "/admin/partners/:id/bypass-email-verification"],
+        ["approve_partner_product", "POST", "/admin/partners/products/:id/approve"],
+        ["reject_partner_product", "POST", "/admin/partners/products/:id/reject"],
+      ] as const
+      for (const [name, method, path] of writes) {
+        const def = ADMIN_MCP_TOOLS.find((t) => t.name === name)
+        expect(def).toBeTruthy()
+        expect(def!.write).toBe(true)
+        expect(def!.method).toBe(method)
+        expect(def!.path).toBe(path)
+        expect(isSensitive(def!)).toBe(true)
+        expect(isDangerous(def!)).toBe(false)
+      }
+    })
+
+    it("registers unlink/disconnect DELETE tools as implicitly sensitive (not dangerous)", () => {
+      const deletes = [
+        ["unlink_partner_people", "/admin/partners/:id/people"],
+        ["disconnect_partner_whatsapp", "/admin/partners/:id/whatsapp-verify"],
+      ] as const
+      for (const [name, path] of deletes) {
+        const def = ADMIN_MCP_TOOLS.find((t) => t.name === name)
+        expect(def).toBeTruthy()
+        expect(def!.method).toBe("DELETE")
+        expect(def!.path).toBe(path)
+        expect(def!.write).toBe(true)
+        expect(isSensitive(def!)).toBe(true)
+        expect(isDangerous(def!)).toBe(false)
+      }
+    })
+
+    it("exposes delete_partner as a second dangerous action (confirm + reason)", () => {
+      const def = ADMIN_MCP_TOOLS.find((t) => t.name === "delete_partner")
+      expect(def).toBeTruthy()
+      expect(def!.write).toBe(true)
+      expect(def!.method).toBe("DELETE")
+      expect(isDangerous(def!)).toBe(true)
+      const schema = buildToolInputSchema(def!)
+      expect(schema.properties.reason).toBeDefined()
+      expect(schema.properties.confirm).toBeDefined()
+    })
+
+    it("update_partner and update_partner_admin declare previewPaths for dry_run", () => {
+      const updatePartner = ADMIN_MCP_TOOLS.find((t) => t.name === "update_partner")!
+      expect(updatePartner.previewPath).toBe("/admin/partners/:id")
+
+      const updateAdmin = ADMIN_MCP_TOOLS.find((t) => t.name === "update_partner_admin")!
+      expect(updateAdmin.previewPath).toBe("/admin/partners/:id/admins")
+      expect(updateAdmin.pathParams).toEqual(["id", "adminId"])
+    })
+
+    it("dry_run on create_partner previews the plan without executing", async () => {
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "create_partner",
+        {
+          partner: { name: "Acme" },
+          admin: { email: "a@acme.com", first_name: "A", last_name: "B" },
+          dry_run: true,
+        }
+      )
+      expect(res.ok).toBe(true)
+      expect(res.dry_run).toBe(true)
+      expect(res.plan?.method).toBe("POST")
+      expect(res.plan?.path).toBe("/admin/partners")
+      expect((res.plan?.body as any)?.partner?.name).toBe("Acme")
+    })
+
+    it("connect_partner_whatsapp without confirm returns requires_confirmation, not executed", async () => {
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "connect_partner_whatsapp",
+        { id: "partner_1", phone: "919876543210" }
+      )
+      expect(res.requires_confirmation).toBe(true)
+      expect(res.plan?.path).toBe("/admin/partners/partner_1/whatsapp-verify")
+    })
+
+    it("assign_partner_task substitutes both id and taskId path params", async () => {
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "assign_partner_task",
+        { id: "partner_1", taskId: "task_1", dry_run: true }
+      )
+      expect(res.ok).toBe(true)
+      expect(res.plan?.path).toBe("/admin/partners/partner_1/tasks/task_1/assign")
+    })
+  })
+
   describe("framework args — parity with the partner dispatcher", () => {
     it("injects context + dry_run onto EVERY tool's input schema", () => {
       for (const def of ADMIN_MCP_TOOLS) {
