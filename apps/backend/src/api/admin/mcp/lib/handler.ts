@@ -28,13 +28,15 @@ import { ADMIN_MCP_TOOLS } from "./registry"
 const SERVER_INFO = { name: "jyt-admin", version: "0.1.0" } as const
 
 const INSTRUCTIONS =
-  "JYT Admin MCP — drive the platform via the Admin API. Tools currently cover " +
-  "read-only breadth: orders, products, customers, partners, stores, designs, " +
-  "production runs, inventory, payments, campaigns and notifications. Every tool " +
-  "accepts a `dry_run` flag. Sensitive/destructive tools require `confirm: true`, " +
-  "and platform-destructive ('dangerous') tools additionally require a human " +
-  "`reason` — never confirm or invent a reason on the admin's behalf. Start by " +
-  "calling get_admin_stats to ground yourself."
+  "JYT Admin MCP — drive the platform via the Admin API. Tools cover reads across " +
+  "orders, products, customers, partners, stores, designs, production runs, " +
+  "inventory, payments, campaigns and notifications, plus writes for the catalog, " +
+  "partner ops, order fulfillment and order edits, the production-run lifecycle " +
+  "(create -> approve/assign -> dispatch -> cancel) and the design -> production " +
+  "pipeline. Every tool accepts a `dry_run` flag. Sensitive/destructive tools " +
+  "require `confirm: true`, and platform-destructive ('dangerous') tools " +
+  "additionally require a human `reason` — never confirm or invent a reason on " +
+  "the admin's behalf. Start by calling get_admin_stats to ground yourself."
 
 /** Write tools are on by default; a deployment can force read-only. */
 export function isAdminWriteEnabled(): boolean {
