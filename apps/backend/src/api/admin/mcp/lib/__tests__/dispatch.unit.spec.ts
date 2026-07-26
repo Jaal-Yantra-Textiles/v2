@@ -260,6 +260,395 @@ describe("admin-mcp registry + dispatch", () => {
     })
   })
 
+  describe("orders ops (#1165): fulfillment, shipping and order edits", () => {
+    it("registers the order read companions", () => {
+      const reads = [
+        ["list_order_changes", "/admin/orders/:id/changes"],
+        ["list_order_designs", "/admin/orders/:id/design"],
+        ["list_order_shipping_rates", "/admin/orders/:id/fulfillment-rates"],
+        [
+          "get_order_fulfillment_label",
+          "/admin/orders/:id/fulfillments/:fulfillmentId/label",
+        ],
+      ] as const
+      for (const [name, path] of reads) {
+        const def = ADMIN_MCP_TOOLS.find((t) => t.name === name)
+        expect(def).toBeTruthy()
+        expect(def!.method ?? "GET").toBe("GET")
+        expect(def!.path).toBe(path)
+        expect(def!.write).toBeFalsy()
+        expect(isSensitive(def!)).toBe(false)
+      }
+    })
+
+    it("registers fulfillment/shipping writes as sensitive (confirm only)", () => {
+      const writes = [
+        ["update_order", "POST", "/admin/orders/:id"],
+        ["create_order_fulfillment", "POST", "/admin/orders/:id/fulfillments"],
+        [
+          "create_order_shipment",
+          "POST",
+          "/admin/orders/:id/fulfillments/:fulfillmentId/shipments",
+        ],
+        [
+          "mark_order_fulfillment_delivered",
+          "POST",
+          "/admin/orders/:id/fulfillments/:fulfillmentId/mark-as-delivered",
+        ],
+        ["complete_order", "POST", "/admin/orders/:id/complete"],
+        ["produce_order_designs", "POST", "/admin/orders/:id/design/produce"],
+        ["create_order_shipping_label", "POST", "/admin/orders/:id/fulfillment-label"],
+        ["attach_order_awb", "POST", "/admin/orders/:id/shiprocket-attach-awb"],
+      ] as const
+      for (const [name, method, path] of writes) {
+        const def = ADMIN_MCP_TOOLS.find((t) => t.name === name)
+        expect(def).toBeTruthy()
+        expect(def!.write).toBe(true)
+        expect(def!.method).toBe(method)
+        expect(def!.path).toBe(path)
+        expect(isSensitive(def!)).toBe(true)
+        expect(isDangerous(def!)).toBe(false)
+      }
+    })
+
+    it("flags the irreversible order actions as dangerous (confirm + reason)", () => {
+      const dangerous = [
+        ["cancel_order", "/admin/orders/:id/cancel"],
+        [
+          "cancel_order_fulfillment",
+          "/admin/orders/:id/fulfillments/:fulfillmentId/cancel",
+        ],
+        ["confirm_order_edit", "/admin/order-edits/:id/confirm"],
+      ] as const
+      for (const [name, path] of dangerous) {
+        const def = ADMIN_MCP_TOOLS.find((t) => t.name === name)
+        expect(def).toBeTruthy()
+        expect(def!.path).toBe(path)
+        expect(def!.write).toBe(true)
+        expect(isDangerous(def!)).toBe(true)
+        const schema = buildToolInputSchema(def!)
+        expect(schema.properties.reason).toBeDefined()
+        expect(schema.properties.confirm).toBeDefined()
+      }
+    })
+
+    it("registers the staged order-edit loop, with only confirm being dangerous", () => {
+      const staged = [
+        ["create_order_edit", "POST", "/admin/order-edits"],
+        ["add_order_edit_items", "POST", "/admin/order-edits/:id/items"],
+        [
+          "update_order_edit_item",
+          "POST",
+          "/admin/order-edits/:id/items/item/:itemId",
+        ],
+        ["request_order_edit", "POST", "/admin/order-edits/:id/request"],
+        ["cancel_order_edit", "DELETE", "/admin/order-edits/:id"],
+      ] as const
+      for (const [name, method, path] of staged) {
+        const def = ADMIN_MCP_TOOLS.find((t) => t.name === name)
+        expect(def).toBeTruthy()
+        expect(def!.method).toBe(method)
+        expect(def!.path).toBe(path)
+        expect(def!.write).toBe(true)
+        expect(isSensitive(def!)).toBe(true)
+        expect(isDangerous(def!)).toBe(false)
+      }
+    })
+
+    it("substitutes both order and fulfillment path params", async () => {
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "create_order_shipment",
+        {
+          id: "order_1",
+          fulfillmentId: "ful_1",
+          items: [{ id: "item_1", quantity: 2 }],
+          dry_run: true,
+        }
+      )
+      expect(res.ok).toBe(true)
+      expect(res.plan?.path).toBe(
+        "/admin/orders/order_1/fulfillments/ful_1/shipments"
+      )
+      expect((res.plan?.body as any)?.items).toHaveLength(1)
+    })
+
+    it("create_order_fulfillment without confirm returns requires_confirmation", async () => {
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "create_order_fulfillment",
+        { id: "order_1", items: [{ id: "item_1", quantity: 1 }] }
+      )
+      expect(res.requires_confirmation).toBe(true)
+      expect(res.plan?.path).toBe("/admin/orders/order_1/fulfillments")
+    })
+
+    it("list_orders exposes kind so the model can reach non-retail orders", () => {
+      const def = ADMIN_MCP_TOOLS.find((t) => t.name === "list_orders")!
+      expect(def.queryParams).toContain("kind")
+    })
+  })
+
+  describe("production runs (#1167): lifecycle levers", () => {
+    it("registers the run read companions", () => {
+      const reads = [
+        ["get_production_run", "/admin/production-runs/:id"],
+        ["list_production_run_activities", "/admin/production-runs/:id/activities"],
+        ["get_production_run_cost_summary", "/admin/production-runs/:id/cost-summary"],
+        ["get_production_run_task", "/admin/production-runs/:id/tasks/:taskId"],
+        ["get_production_run_policy", "/admin/production-run-policy"],
+      ] as const
+      for (const [name, path] of reads) {
+        const def = ADMIN_MCP_TOOLS.find((t) => t.name === name)
+        expect(def).toBeTruthy()
+        expect(def!.method ?? "GET").toBe("GET")
+        expect(def!.path).toBe(path)
+        expect(def!.write).toBeFalsy()
+      }
+    })
+
+    it("registers the lifecycle writes as sensitive", () => {
+      const writes = [
+        ["create_production_run", "POST", "/admin/production-runs"],
+        ["update_production_run", "POST", "/admin/production-runs/:id"],
+        ["approve_production_run", "POST", "/admin/production-runs/:id/approve"],
+        [
+          "send_production_run_to_production",
+          "POST",
+          "/admin/production-runs/:id/send-to-production",
+        ],
+        [
+          "start_production_run_dispatch",
+          "POST",
+          "/admin/production-runs/:id/start-dispatch",
+        ],
+        [
+          "resume_production_run_dispatch",
+          "POST",
+          "/admin/production-runs/:id/resume-dispatch",
+        ],
+        ["update_production_run_task", "POST", "/admin/production-runs/:id/tasks/:taskId"],
+        ["update_production_run_policy", "PUT", "/admin/production-run-policy"],
+      ] as const
+      for (const [name, method, path] of writes) {
+        const def = ADMIN_MCP_TOOLS.find((t) => t.name === name)
+        expect(def).toBeTruthy()
+        expect(def!.write).toBe(true)
+        expect(def!.method).toBe(method)
+        expect(def!.path).toBe(path)
+        expect(isSensitive(def!)).toBe(true)
+        expect(isDangerous(def!)).toBe(false)
+      }
+    })
+
+    it("cancel_production_run is dangerous and forwards the audited reason as the cancel reason", async () => {
+      const def = ADMIN_MCP_TOOLS.find((t) => t.name === "cancel_production_run")!
+      expect(isDangerous(def)).toBe(true)
+      expect(def.bodyParams).toContain("reason")
+
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "cancel_production_run",
+        { id: "prun_1", reason: "partner dropped out", dry_run: true }
+      )
+      expect(res.ok).toBe(true)
+      expect(res.plan?.path).toBe("/admin/production-runs/prun_1/cancel")
+      expect((res.plan?.body as any)?.reason).toBe("partner dropped out")
+    })
+
+    it("list_production_runs drops the unsupported q filter and exposes the real ones", () => {
+      const def = ADMIN_MCP_TOOLS.find((t) => t.name === "list_production_runs")!
+      // The route has no free-text search — declaring `q` would silently
+      // swallow the model's search term.
+      expect(def.queryParams).not.toContain("q")
+      for (const p of ["status", "partner_id", "design_id", "run_type"]) {
+        expect(def.queryParams).toContain(p)
+      }
+    })
+
+    it("approve_production_run carries partner assignments in the body", async () => {
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "approve_production_run",
+        {
+          id: "prun_1",
+          assignments: [{ partner_id: "partner_1", quantity: 10 }],
+          dry_run: true,
+        }
+      )
+      expect(res.ok).toBe(true)
+      expect(res.plan?.path).toBe("/admin/production-runs/prun_1/approve")
+      expect((res.plan?.body as any)?.assignments?.[0]?.partner_id).toBe("partner_1")
+    })
+
+    it("resume_production_run_dispatch requires the transaction_id from start", () => {
+      const def = ADMIN_MCP_TOOLS.find((t) => t.name === "resume_production_run_dispatch")!
+      expect(def.bodyParams).toContain("transaction_id")
+      expect(def.inputSchema.required).toEqual(
+        expect.arrayContaining(["id", "template_names", "transaction_id"])
+      )
+    })
+  })
+
+  describe("designs (#1166): design -> production pipeline", () => {
+    it("registers the design read companions", () => {
+      const reads = [
+        ["list_design_work_orders", "/admin/design-work-orders"],
+        ["list_design_revisions", "/admin/designs/:id/revisions"],
+        ["list_design_inventory", "/admin/designs/:id/inventory"],
+        ["list_design_tasks", "/admin/designs/:id/tasks"],
+        ["get_design_task", "/admin/designs/:id/tasks/:taskId"],
+      ] as const
+      for (const [name, path] of reads) {
+        const def = ADMIN_MCP_TOOLS.find((t) => t.name === name)
+        expect(def).toBeTruthy()
+        expect(def!.method ?? "GET").toBe("GET")
+        expect(def!.path).toBe(path)
+        expect(def!.write).toBeFalsy()
+      }
+    })
+
+    it("registers the pipeline writes as sensitive, none dangerous", () => {
+      const writes = [
+        ["create_design", "POST", "/admin/designs"],
+        ["update_design", "PUT", "/admin/designs/:id"],
+        ["link_design_partners", "POST", "/admin/designs/:id/partner"],
+        ["unlink_design_partner", "DELETE", "/admin/designs/:id/partner"],
+        ["create_design_production_run", "POST", "/admin/designs/:id/production-runs"],
+        ["produce_designs", "POST", "/admin/designs/produce"],
+        [
+          "recreate_design_production_run",
+          "POST",
+          "/admin/designs/recreate-production-run",
+        ],
+        [
+          "cancel_design_partner_assignment",
+          "POST",
+          "/admin/designs/:id/cancel-partner-assignment",
+        ],
+        ["update_design_task", "POST", "/admin/designs/:id/tasks/:taskId"],
+        ["assign_design_task", "POST", "/admin/designs/:id/tasks/:taskId/assign"],
+      ] as const
+      for (const [name, method, path] of writes) {
+        const def = ADMIN_MCP_TOOLS.find((t) => t.name === name)
+        expect(def).toBeTruthy()
+        expect(def!.write).toBe(true)
+        expect(def!.method).toBe(method)
+        expect(def!.path).toBe(path)
+        expect(isSensitive(def!)).toBe(true)
+        expect(isDangerous(def!)).toBe(false)
+      }
+    })
+
+    it("update_design carries size_sets — the only route that can set them", () => {
+      const def = ADMIN_MCP_TOOLS.find((t) => t.name === "update_design")!
+      expect(def.bodyParams).toContain("size_sets")
+      expect(def.previewPath).toBe("/admin/designs/:id")
+      expect(def.inputSchema.properties.size_sets).toBeDefined()
+    })
+
+    it("produce_designs previews a batch send-to-production without executing", async () => {
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "produce_designs",
+        { design_ids: ["design_1", "design_2"], partner_id: "partner_1", dry_run: true }
+      )
+      expect(res.ok).toBe(true)
+      expect(res.dry_run).toBe(true)
+      expect(res.plan?.path).toBe("/admin/designs/produce")
+      expect((res.plan?.body as any)?.design_ids).toHaveLength(2)
+    })
+
+    it("assign_design_task sends taskId in BOTH the path and the body (route validator wants both)", async () => {
+      const def = ADMIN_MCP_TOOLS.find((t) => t.name === "assign_design_task")!
+      expect(def.pathParams).toEqual(["id", "taskId"])
+      expect(def.bodyParams).toEqual(expect.arrayContaining(["taskId", "partnerId"]))
+
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "assign_design_task",
+        { id: "design_1", taskId: "task_1", partnerId: "partner_1", dry_run: true }
+      )
+      expect(res.plan?.path).toBe("/admin/designs/design_1/tasks/task_1/assign")
+      expect((res.plan?.body as any)?.taskId).toBe("task_1")
+    })
+
+    it("does NOT wrap the AI-generation / file-shaped design routes", () => {
+      // These cost money per call, need an uploaded image, or return payloads
+      // (SVG documents, Excalidraw scenes) that would blow the chat context.
+      const excluded = [
+        "/admin/designs/auto",
+        "/admin/designs/:id/segment",
+        "/admin/designs/:id/outline",
+        "/admin/designs/:id/redesign",
+        "/admin/designs/:id/moodboard/generate",
+        "/admin/designs/:id/pattern-blocks",
+      ]
+      for (const path of excluded) {
+        expect(ADMIN_MCP_TOOLS.find((t) => t.path === path)).toBeUndefined()
+      }
+    })
+  })
+
+  describe("registry-wide invariants across all tiers", () => {
+    it("every write tool declares a non-GET method and at least one guard", () => {
+      for (const def of ADMIN_MCP_TOOLS.filter((t) => t.write)) {
+        expect(def.method ?? "GET").not.toBe("GET")
+        expect(isSensitive(def)).toBe(true)
+      }
+    })
+
+    it("every previewPath is a subset of its tool's own path params", () => {
+      for (const def of ADMIN_MCP_TOOLS) {
+        if (!def.previewPath) continue
+        // Anything left as `:param` after substitution would produce a bogus
+        // preview URL, so the preview path must only use declared params.
+        const previewParams = [...def.previewPath.matchAll(/:([A-Za-z0-9_]+)/g)].map(
+          (m) => m[1]
+        )
+        for (const p of previewParams) {
+          expect(def.pathParams ?? []).toContain(p)
+        }
+      }
+    })
+
+    it("every declared path param actually appears in the tool's path", () => {
+      for (const def of ADMIN_MCP_TOOLS) {
+        for (const p of def.pathParams ?? []) {
+          expect(def.path).toContain(`:${p}`)
+        }
+      }
+    })
+
+    it("every path/body/query param is described in the tool's input schema", () => {
+      for (const def of ADMIN_MCP_TOOLS) {
+        const props = def.inputSchema?.properties ?? {}
+        for (const p of def.pathParams ?? []) {
+          expect(`${def.name}:${p}`).toBe(props[p] ? `${def.name}:${p}` : "MISSING")
+        }
+        for (const p of def.queryParams ?? []) {
+          expect(`${def.name}:${p}`).toBe(props[p] ? `${def.name}:${p}` : "MISSING")
+        }
+        for (const p of def.bodyParams ?? []) {
+          // `reason` is injected by the dangerous rail, not declared per-tool.
+          if (p === "reason" && isDangerous(def)) continue
+          expect(`${def.name}:${p}`).toBe(props[p] ? `${def.name}:${p}` : "MISSING")
+        }
+      }
+    })
+
+    it("every nextSteps hint points at a tool that exists", () => {
+      const names = new Set(ADMIN_MCP_TOOLS.map((t) => t.name))
+      for (const def of ADMIN_MCP_TOOLS) {
+        for (const step of def.nextSteps ?? []) {
+          expect(`${def.name} -> ${step}`).toBe(
+            names.has(step) ? `${def.name} -> ${step}` : "DANGLING"
+          )
+        }
+      }
+    })
+  })
+
   describe("framework args — parity with the partner dispatcher", () => {
     it("injects context + dry_run onto EVERY tool's input schema", () => {
       for (const def of ADMIN_MCP_TOOLS) {
