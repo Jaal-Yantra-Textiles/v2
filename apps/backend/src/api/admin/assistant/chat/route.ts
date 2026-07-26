@@ -32,6 +32,12 @@ import { dynamicFreeToolTextModel } from "../../../../mastra/providers/dynamic-t
 import { foldSystemForProvider } from "../../../store/ai/chat/system-fold-lib"
 import { ADMIN_MCP_TOOLS, renderToolGuidance } from "../../mcp/lib/registry"
 import {
+  selectAdminToolSlice,
+  toolsInDomains,
+  toolDomain,
+  SELECTABLE_DOMAINS,
+} from "../../mcp/lib/tool-slice"
+import {
   dispatchAdminTool,
   buildToolInputSchema,
   isSensitive,
@@ -55,6 +61,9 @@ const SYSTEM_PROMPT = `You are the JYT admin assistant. You help platform operat
 - ALWAYS call \`get_admin_stats\` first to ground yourself in the platform's current shape before answering operational questions.
 - Use the read tools (list_orders, list_products, list_customers, list_partners, list_designs, list_production_runs, list_inventory_items, list_payments, ...) to answer "what's happening" questions. Fetch a single record with the get_* tools when you have an id.
 - Prefer doing (calling a tool) over describing. Chain tools to complete a goal, and set each tool's \`context\` to what you're ultimately trying to accomplish.
+
+## Your tools are loaded on demand
+You are given the tools for the domains this conversation appears to be about, not the full admin surface. If the tool you need is not in your list, DO NOT tell the user it is impossible or improvise with a different tool — call \`load_admin_tools\` with the relevant domains (orders, catalog, customers, partners, designs, production, inventory, money, marketing, observability) and the tools become callable on your next step. Loading a domain you turn out not to need is harmless.
 
 ## Safety rails (important)
 - Every tool accepts \`dry_run: true\`. Use it to PREVIEW a change and inspect the current object before you actually write.
@@ -102,12 +111,13 @@ export const POST = async (
   // Bind the registry as AI-SDK tools. One source of truth (JSON Schema) feeds
   // both this binding and the MCP endpoint's tools/list. Disabled tiers are
   // hidden from the model entirely (and refused at dispatch as a backstop).
-  const tools = Object.fromEntries(
-    ADMIN_MCP_TOOLS.filter(
-      (def) =>
-        (writeEnabled || !def.write) &&
-        (dangerousEnabled || !isDangerous(def))
-    ).map((def) => [
+  const enabled = ADMIN_MCP_TOOLS.filter(
+    (def) =>
+      (writeEnabled || !def.write) && (dangerousEnabled || !isDangerous(def))
+  )
+
+  const tools: Record<string, any> = Object.fromEntries(
+    enabled.map((def) => [
       def.name,
       tool({
         description:
@@ -142,6 +152,69 @@ export const POST = async (
     }
   })
 
+  // ---- Per-ask registry slicing -------------------------------------------
+  // All ~100 tools stay BOUND (so any of them can still execute), but only the
+  // slice this ask needs is serialised to the provider via `activeTools`.
+  // Without this every turn re-sends the whole registry, which is both the
+  // dominant token cost of a conversation and — because the free rotator ranks
+  // by context length — a lever on which model answers.
+  //
+  // `activated` is the live slice. It starts from keyword matching on the recent
+  // conversation and can only ever GROW, via load_admin_tools below, so a bad
+  // initial guess costs one round trip rather than a capability.
+  const recentText = messages
+    .slice(-6)
+    .map((m: any) => m.parts.map((p: any) => p.text).join(" "))
+    .join("\n")
+
+  const initialSlice = selectAdminToolSlice(recentText, enabled)
+  const activated = new Set<string>(initialSlice.names)
+
+  logger.debug?.(
+    `[${FEATURE}] tool slice: ${activated.size}/${enabled.length} tools` +
+      ` (domains: ${initialSlice.domains.join(", ") || "none matched"})`
+  )
+
+  // The escape hatch. Always active, so the model is never boxed in by a slice
+  // that guessed wrong — it names the domains it needs and they light up on the
+  // next step. This is also why the slice can be aggressive.
+  tools.load_admin_tools = tool({
+    description:
+      "Load the tools for one or more admin domains when the tool you need is not currently available to you. " +
+      `Valid domains: ${SELECTABLE_DOMAINS.join(", ")}. ` +
+      "Returns the names and descriptions of the tools that just became callable — call them on your next step. " +
+      "Use this instead of telling the user something is impossible.",
+    inputSchema: jsonSchema({
+      type: "object",
+      properties: {
+        domains: {
+          type: "array",
+          items: { type: "string", enum: SELECTABLE_DOMAINS },
+          description: "The admin domains to load tools for.",
+        },
+      },
+      required: ["domains"],
+      additionalProperties: false,
+    }),
+    execute: async ({ domains }: { domains: string[] }) => {
+      const names = toolsInDomains(domains ?? [], enabled)
+      names.forEach((n) => activated.add(n))
+      return {
+        ok: true,
+        loaded: names.length,
+        domains: domains ?? [],
+        tools: enabled
+          .filter((d) => names.includes(d.name))
+          .map((d) => ({
+            name: d.name,
+            domain: toolDomain(d),
+            description: d.description,
+          })),
+      }
+    },
+  })
+  activated.add("load_admin_tools")
+
   // This assistant REQUIRES tool calling. The free rotator ranks by context
   // length and can land on a text-only model, so on the free path use the
   // tool-capable variant. A DB-configured platform for this role overrides this.
@@ -169,6 +242,9 @@ export const POST = async (
         ...(folded.system ? { system: folded.system } : {}),
         messages: convertToModelMessages(folded.messages as any),
         tools,
+        // Re-read `activated` before every step so tools loaded via
+        // load_admin_tools become callable on the very next one.
+        prepareStep: () => ({ activeTools: [...activated] }),
         stopWhen: stepCountIs(8),
         temperature: 0.3,
         maxRetries: 3,
