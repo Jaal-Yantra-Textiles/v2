@@ -467,8 +467,30 @@ const autoLinkFulfillmentProvidersStep = createStep(
       const serviceZone = shippingSet.service_zones?.[0]
       if (serviceZone) {
         try {
+          // #1176: this used to be a bare lookup, and when it came back empty
+          // the whole `if (profileId)` block below was skipped — silently, with
+          // no log. The store came out with fulfillment sets and service zones
+          // but ZERO shipping options, so carts in it could never pick a
+          // shipping method, and core's create-fulfillment then died on
+          // `shippingOption.provider_id` of undefined (a 500 with no clue).
+          //
+          // A shipping profile only pre-exists because the seed made one, so
+          // any environment provisioning a store before a seed hits this: fresh
+          // test DBs always, and a brand-new deployment for real. Create the
+          // default profile rather than skip.
           const shippingProfiles = await fulfillmentService.listShippingProfiles({}, { take: 1 })
-          const profileId = shippingProfiles?.[0]?.id
+          let profileId = shippingProfiles?.[0]?.id
+
+          if (!profileId) {
+            const created = await fulfillmentService.createShippingProfiles({
+              name: "Default",
+              type: "default",
+            })
+            profileId = Array.isArray(created) ? created[0]?.id : created?.id
+            console.log(
+              `[create-store] No shipping profile existed — created default ${profileId}`
+            )
+          }
 
           if (profileId) {
             // Determine provider and currency-specific pricing

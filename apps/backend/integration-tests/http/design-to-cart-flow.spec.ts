@@ -13,6 +13,7 @@ import { setupCheckoutInfrastructure } from "../helpers/setup-checkout-infrastru
 import orderPlacedHandler from "../../src/subscribers/order-placed";
 import { DESIGN_MODULE } from "../../src/modules/designs";
 import designOrderLink from "../../src/links/design-order-link";
+import { pickTestPaymentProvider } from "../helpers/pick-payment-provider";
 
 jest.setTimeout(60 * 1000);
 
@@ -932,10 +933,11 @@ setupSharedTestSuite(() => {
           const providers = paymentProvidersRes.data.payment_providers || [];
           console.log("[Full Checkout] Available payment providers:", providers.map((p: any) => p.id));
 
-          if (providers.length > 0) {
+          const provider = pickTestPaymentProvider(providers);
+          if (provider) {
             await api.post(
               `/store/payment-collections/${paymentCollectionId}/payment-sessions`,
-              { provider_id: providers[0].id },
+              { provider_id: provider.id },
               customerHeaders
             ).catch(() => null);
 
