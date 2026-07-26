@@ -1,3 +1,15 @@
+# [13.70.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.69.0...v13.70.0) (2026-07-26)
+
+
+### Features
+
+* **admin-mcp:** orders, production-run and design ops tools [[#1165](https://github.com/Jaal-Yantra-Textiles/v2/issues/1165)][[#1166](https://github.com/Jaal-Yantra-Textiles/v2/issues/1166)][[#1167](https://github.com/Jaal-Yantra-Textiles/v2/issues/1167)] ([#1170](https://github.com/Jaal-Yantra-Textiles/v2/issues/1170)) ([8e2c85b](https://github.com/Jaal-Yantra-Textiles/v2/commit/8e2c85bd655b8dca1369b6761629d5499b3e70ab)), closes [#843](https://github.com/Jaal-Yantra-Textiles/v2/issues/843) [#1169](https://github.com/Jaal-Yantra-Textiles/v2/issues/1169) [#1168](https://github.com/Jaal-Yantra-Textiles/v2/issues/1168)
+
+
+### Performance Improvements
+
+* **admin-mcp:** slice the tool registry per ask instead of binding all of it [[#1168](https://github.com/Jaal-Yantra-Textiles/v2/issues/1168)] ([#1171](https://github.com/Jaal-Yantra-Textiles/v2/issues/1171)) ([78eebfd](https://github.com/Jaal-Yantra-Textiles/v2/commit/78eebfd70276913b9d09b1512d0ffd0a4a3e4329))
+
 # [13.69.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.68.1...v13.69.0) (2026-07-26)
 
 
