@@ -1,6 +1,6 @@
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
-import { setupCheckoutInfrastructure } from "../helpers/setup-checkout-infrastructure"
+import { pickTestPaymentProvider } from "../helpers/pick-payment-provider"
 import { ProductStatus, Modules } from "@medusajs/framework/utils"
 
 const TEST_PARTNER_PASSWORD = "supersecret"
@@ -225,13 +225,21 @@ async function placeOrder(
     { headers: storeHeaders }
   )
   const shippingOptions = shippingRes.data.shipping_options || []
-  if (shippingOptions.length > 0) {
-    await api.post(
-      `/store/carts/${cartId}/shipping-methods`,
-      { option_id: shippingOptions[0].id },
-      { headers: storeHeaders }
+  // Assert rather than skip (#1176). This was `if (length > 0)`, so when store
+  // provisioning stopped creating shipping options the cart quietly completed
+  // with no shipping method — and the failure surfaced eight tests later as an
+  // opaque 500 from core's create-fulfillment (`shippingOption.provider_id` of
+  // undefined). Fail here, where the cause is legible.
+  if (!shippingOptions.length) {
+    throw new Error(
+      `No shipping options for cart ${cartId} — the partner store was provisioned without them, so this order can never be fulfilled.`
     )
   }
+  await api.post(
+    `/store/carts/${cartId}/shipping-methods`,
+    { option_id: shippingOptions[0].id },
+    { headers: storeHeaders }
+  )
 
   // 5. Create payment collection + session
   const payCollRes = await api.post(
@@ -246,10 +254,11 @@ async function placeOrder(
     { headers: storeHeaders }
   )
   const providers = providersRes.data.payment_providers || []
-  if (providers.length > 0) {
+  const provider = pickTestPaymentProvider(providers)
+  if (provider) {
     await api.post(
       `/store/payment-collections/${payCollId}/payment-sessions`,
-      { provider_id: providers[0].id },
+      { provider_id: provider.id },
       { headers: storeHeaders }
     )
   }
@@ -377,9 +386,18 @@ setupSharedTestSuite(() => {
         })
         const md = after.data.order.metadata
         // Protected keys survive the partner's attempt to change them.
-        expect(md.kind).toBe("design")
+        //
+        // The protected set has shrunk twice since this test was written, both
+        // deliberately, and this assert block was missed each time (CI only
+        // runs changed specs):
+        //   - `kind` left the set in #394 (PR-C Chunk 6) — the order↔execution
+        //     links became the sole kind discriminator, so `metadata.kind` is
+        //     no longer load-bearing and is no longer force-protected.
+        //   - `partner_status` left in PR-H — promoted onto the typed
+        //     `unified_order_status.partner_status` sidecar column, which is
+        //     now the SOLE source; the metadata copy was retired.
+        // `legacy_id` is still protected, so that's what this asserts.
         expect(md.legacy_id).toBe("leg_test_342")
-        expect(md.partner_status).toBe("assigned")
         // Partner-owned keys merge (incoming wins, new key added).
         expect(md.partner_note).toBe("updated")
         expect(md.extra).toBe("added")
@@ -432,9 +450,13 @@ setupSharedTestSuite(() => {
         expect(fulfillRes.status).toBe(200)
         expect(fulfillRes.data.order).toBeDefined()
 
-        // Get the fulfillment ID from the updated order
+        // Get the fulfillment ID from the updated order.
+        // `fulfillments.items` must be asked for explicitly (#1176): the route's
+        // field set is Medusa's admin order query config, whose default is
+        // `*fulfillments` — fulfillment scalars only, no nested items. Admin
+        // behaves the same way, so this is the contract, not a partner gap.
         const updatedOrderRes = await api.get(
-          `/partners/orders/${orderId}`,
+          `/partners/orders/${orderId}?fields=%2Bfulfillments.items.*`,
           { headers: partner.headers }
         )
         const fulfillments = updatedOrderRes.data.order.fulfillments || []

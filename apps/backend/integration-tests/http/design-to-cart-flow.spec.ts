@@ -10,9 +10,11 @@ import {
   getTestCustomerCredentials,
 } from "../helpers/create-customer";
 import { setupCheckoutInfrastructure } from "../helpers/setup-checkout-infrastructure";
+import { seedCommonEmailTemplates } from "../helpers/seed-email-templates";
 import orderPlacedHandler from "../../src/subscribers/order-placed";
 import { DESIGN_MODULE } from "../../src/modules/designs";
 import designOrderLink from "../../src/links/design-order-link";
+import { pickTestPaymentProvider } from "../helpers/pick-payment-provider";
 
 jest.setTimeout(60 * 1000);
 
@@ -37,6 +39,12 @@ setupSharedTestSuite(() => {
       // Create admin user
       await createAdminUser(container);
       adminHeaders = await getAuthHeaders(api);
+
+      // Seed the common email templates production subscribers expect. The
+      // tests below invoke `orderPlacedHandler` directly, which sends the
+      // customer order confirmation as its first side effect — same
+      // convention as order-placed-production-runs.spec.ts.
+      await seedCommonEmailTemplates(api, adminHeaders);
     });
 
     beforeEach(async () => {
@@ -932,10 +940,11 @@ setupSharedTestSuite(() => {
           const providers = paymentProvidersRes.data.payment_providers || [];
           console.log("[Full Checkout] Available payment providers:", providers.map((p: any) => p.id));
 
-          if (providers.length > 0) {
+          const provider = pickTestPaymentProvider(providers);
+          if (provider) {
             await api.post(
               `/store/payment-collections/${paymentCollectionId}/payment-sessions`,
-              { provider_id: providers[0].id },
+              { provider_id: provider.id },
               customerHeaders
             ).catch(() => null);
 

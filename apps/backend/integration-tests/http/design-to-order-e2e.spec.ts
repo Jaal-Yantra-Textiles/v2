@@ -11,6 +11,7 @@ import {
 } from "../helpers/create-customer"
 import { setupCheckoutInfrastructure } from "../helpers/setup-checkout-infrastructure"
 import { DESIGN_MODULE } from "../../src/modules/designs"
+import { pickTestPaymentProvider } from "../helpers/pick-payment-provider"
 
 jest.setTimeout(90 * 1000)
 
@@ -178,11 +179,12 @@ setupSharedTestSuite(() => {
           .catch(() => ({ data: { payment_providers: [] } }))
 
         const providers = providersRes.data.payment_providers || []
-        if (providers.length > 0) {
+        const provider = pickTestPaymentProvider(providers)
+        if (provider) {
           await api
             .post(
               `/store/payment-collections/${payCollId}/payment-sessions`,
-              { provider_id: providers[0].id },
+              { provider_id: provider.id },
               customerHeaders
             )
             .catch(() => null)
