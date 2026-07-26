@@ -165,14 +165,15 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "list_production_runs",
     description:
-      "List production runs / work orders (paginated). Filter by status, partner, design, product, order, run type or parent run. Use to see open runs, their stage and assigned partner.",
+      "List production runs / work orders (paginated). Free-text search via q (matches run id and the design, partner or product the run is for). Filter by status, partner, design, product, order, run type or parent run. Use to see open runs, their stage and assigned partner.",
     method: "GET",
     path: "/admin/production-runs",
-    // NB: this route has no free-text `q` — it filters on explicit ids/enums
-    // only. Declaring `q` here would silently drop the model's search term.
+    // `q` was withheld here until #1172 — the route accepted the param but never
+    // read it, so declaring it silently dropped the model's search term.
     queryParams: [
       "limit",
       "offset",
+      "q",
       "status",
       "partner_id",
       "design_id",
@@ -185,6 +186,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     inputSchema: obj({
       limit: { type: "integer", description: "Max results (default 20)." },
       offset: { type: "integer", description: "Pagination offset." },
+      q: STR(
+        "Free-text search over the run id and the name of the design, partner or product the run is for."
+      ),
       status: STR(
         "Run status: 'draft' | 'pending_review' | 'approved' | 'sent_to_partner' | 'in_progress' | 'completed' | 'cancelled' | 'awaiting_reassignment'."
       ),
@@ -1681,7 +1685,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "create_design",
     description:
-      "Create a new design. Sensitive: requires confirm:true. Supply at least a name and a description; everything else can be filled in later with update_design.",
+      "Create a new design. Sensitive: requires confirm:true. A name is enough; everything else can be filled in later with update_design.",
     method: "POST",
     path: "/admin/designs",
     write: true,
@@ -1704,10 +1708,10 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     inputSchema: obj(
       {
         name: STR("Design name (required)."),
-        // `description` is optional in the route's Zod validator but NOT NULL on
-        // the model, so omitting it 500s instead of 400ing. Require it here so
-        // the agent gets a usable schema error rather than an opaque failure.
-        description: STR("Design description (required — the column is NOT NULL)."),
+        // Was required here as a workaround: omitting it used to 500 on the
+        // model's NOT NULL column. #1172 defaults it at the route, so a
+        // name-only draft is legal again — still worth sending when known.
+        description: STR("Design description. Optional; defaults to empty."),
         design_type: STR("'Original' | 'Derivative' | 'Custom' | 'Collaboration'."),
         status: STR(
           "'Conceptual' | 'In_Development' | 'Technical_Review' | 'Sample_Production' | 'Revision' | 'Approved' | 'Rejected' | 'On_Hold' | 'Commerce_Ready' | 'Superseded'."
@@ -1743,7 +1747,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         },
         metadata: { type: "object", description: "Optional key/value metadata." },
       },
-      ["name", "description"]
+      ["name"]
     ),
     nextSteps: ["get_design", "update_design", "link_design_partners"],
   },
