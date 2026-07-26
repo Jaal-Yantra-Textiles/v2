@@ -1,3 +1,11 @@
+# [13.69.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.68.1...v13.69.0) (2026-07-26)
+
+
+### Features
+
+* **admin-mcp:** partner ops read+write tools via chat [[#843](https://github.com/Jaal-Yantra-Textiles/v2/issues/843)] ([#1164](https://github.com/Jaal-Yantra-Textiles/v2/issues/1164)) ([65f897e](https://github.com/Jaal-Yantra-Textiles/v2/commit/65f897e11f02ce6bc677d45c9ddaf61e5e8584a4))
+* **admin-mcp:** partner ops round 2 — CRUD, admins, whatsapp, artisan [[#843](https://github.com/Jaal-Yantra-Textiles/v2/issues/843)] ([#1169](https://github.com/Jaal-Yantra-Textiles/v2/issues/1169)) ([9801598](https://github.com/Jaal-Yantra-Textiles/v2/commit/98015987388303de65fc33c5dfbc95523f612861)), closes [#1164](https://github.com/Jaal-Yantra-Textiles/v2/issues/1164) [#1165](https://github.com/Jaal-Yantra-Textiles/v2/issues/1165) [#1166](https://github.com/Jaal-Yantra-Textiles/v2/issues/1166) [#1167](https://github.com/Jaal-Yantra-Textiles/v2/issues/1167) [#1168](https://github.com/Jaal-Yantra-Textiles/v2/issues/1168)
+
 ## [13.68.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.68.0...v13.68.1) (2026-07-25)
 
 
