@@ -16,12 +16,22 @@ export default async function orderPlacedHandler({
 }: SubscriberArgs<{ id: string }>) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
 
-  // Execute the order confirmation email workflow (customer)
-  await sendOrderConfirmationWorkflow(container).run({
-    input: {
-      orderId: data.id,
-    },
-  })
+  // Execute the order confirmation email workflow (customer).
+  // Non-fatal: a missing/inactive `order-placed` template (or any mail
+  // failure) must not abort the handler — production runs and design→order
+  // links below are the load-bearing side effects, and an unguarded throw
+  // here silently skipped both for the entire order.
+  try {
+    await sendOrderConfirmationWorkflow(container).run({
+      input: {
+        orderId: data.id,
+      },
+    })
+  } catch (e: any) {
+    logger.warn(
+      `[order.placed] Order confirmation email failed for order ${data.id}: ${e?.message || e}`
+    )
+  }
 
   // Notify the partner (if order belongs to a partner store)
   try {

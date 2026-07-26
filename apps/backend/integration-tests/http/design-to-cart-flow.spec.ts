@@ -10,6 +10,7 @@ import {
   getTestCustomerCredentials,
 } from "../helpers/create-customer";
 import { setupCheckoutInfrastructure } from "../helpers/setup-checkout-infrastructure";
+import { seedCommonEmailTemplates } from "../helpers/seed-email-templates";
 import orderPlacedHandler from "../../src/subscribers/order-placed";
 import { DESIGN_MODULE } from "../../src/modules/designs";
 import designOrderLink from "../../src/links/design-order-link";
@@ -38,6 +39,12 @@ setupSharedTestSuite(() => {
       // Create admin user
       await createAdminUser(container);
       adminHeaders = await getAuthHeaders(api);
+
+      // Seed the common email templates production subscribers expect. The
+      // tests below invoke `orderPlacedHandler` directly, which sends the
+      // customer order confirmation as its first side effect — same
+      // convention as order-placed-production-runs.spec.ts.
+      await seedCommonEmailTemplates(api, adminHeaders);
     });
 
     beforeEach(async () => {
