@@ -8,6 +8,46 @@ import type { PartnerOrderKind } from "./validators"
 // that middleware (the `?kind=` discriminator must not reach the orders filters),
 // so we map the same params here, by hand, in a pure + unit-testable helper.
 
+// The field set the partner orders list is read with. Lives here, next to the
+// param mapping, because it is part of the partner order-list *contract* rather
+// than of any one route: the admin read-proxy (`GET /admin/partners/:id/orders`,
+// #843) reads with exactly these fields so the inspection mirror cannot drift
+// from what the partner actually sees.
+//
+// IMPORTANT: use the `relation.*` suffix syntax, not `*relation` prefix.
+//
+// `getOrdersListWorkflow` -> `useRemoteQueryStep` -> `query.graph` only
+// understands `relation.*` (expand all fields of a relation). The
+// `*relation` form is admin's user-facing convention, but the admin
+// middleware (`validateAndTransformQuery` -> `prepareListQuery`) rewrites
+// it to `relation.*` before handing it to the workflow — see
+// node_modules/@medusajs/framework/.../get-query-config.js#prepareListQuery.
+// We don't run that middleware here, so we have to write the canonical
+// form ourselves.
+//
+// Symptom of getting this wrong: `customer`, `sales_channel`, and
+// `shipping_address` all come back as `null` in the response and even
+// their `_id` scalars get dropped — the orders list table renders blank
+// cells for those columns.
+export const PARTNER_ORDER_LIST_FIELDS = [
+  "id", "status", "created_at", "email", "display_id",
+  "custom_display_id", "payment_status", "fulfillment_status",
+  "total", "currency_code",
+  "customer_id",
+  "sales_channel_id",
+  "shipping_address_id",
+  "customer.*",
+  "sales_channel.*",
+  "payment_collections.*",
+  "shipping_address.*",
+  // Chunk 5 (T3.4): kind is the route `?kind=` param (link-derived, Chunk 6).
+  // Chunk 9b / PR-G + PR-H: the work-status badge reads the typed
+  // `unified_order_status.partner_status` column (PR-F sidecar) via the link
+  // accessor — now the SOLE source (PR-H retired the `metadata.partner_status`
+  // copy and its transitional fallback).
+  "unified_order_status.partner_status",
+]
+
 // Filters that apply to EVERY order row regardless of kind.
 const UNIVERSAL_FILTER_KEYS = ["status", "q", "created_at", "updated_at"] as const
 
