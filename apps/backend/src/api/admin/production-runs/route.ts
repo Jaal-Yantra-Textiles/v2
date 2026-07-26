@@ -86,6 +86,7 @@
  * @group ProductionRun - Operations related to production runs
  * @param {number} [offset=0] - Pagination offset
  * @param {number} [limit=20] - Number of items to return
+ * @param {string} [q] - Free-text search over run ID and the name of the design, partner or product the run is for
  * @param {string} [design_id] - Filter by design ID
  * @param {string} [status] - Filter by status
  * @param {string} [partner_id] - Filter by partner ID
@@ -125,11 +126,68 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 
+import { buildQSearchFilter } from "../../../lib/list-search-filters"
 import {
   createProductionRunWorkflow,
 } from "../../../workflows/production-runs/create-production-run"
 
 import type { AdminCreateProductionRunReq } from "./validators"
+
+/**
+ * #1172 — the referents a free-text search resolves through.
+ *
+ * A production run has no name of its own; what an operator types is the name
+ * of the thing the run is *for*. query.graph can't express a name match on a
+ * linked entity inside an `$or` (it only joins one hop — /admin/abandoned-carts
+ * hits the same wall and drops customer-name search for it), so the matching
+ * referent ids are resolved first and folded into an id-based `$or` on the run.
+ */
+const RUN_SEARCH_REFS = [
+  { entity: "design", field: "design_id", fields: ["name"] },
+  { entity: "partner", field: "partner_id", fields: ["name", "handle"] },
+  // #1112 — a product-only run has design_id null, so the product spine is the
+  // only name it can be found by.
+  { entity: "product", field: "product_id", fields: ["title", "handle"] },
+] as const
+
+/**
+ * Cap on referents folded into one search. A term matching more designs than
+ * this isn't a search any more, and the `$in` list shouldn't grow unbounded.
+ */
+const RUN_SEARCH_REF_LIMIT = 200
+
+/** Build the `$or` clauses for `?q=`, resolving referent names to ids first. */
+const buildRunSearchClauses = async (
+  query: any,
+  search: string
+): Promise<Record<string, any>[]> => {
+  const clauses: Record<string, any>[] = [{ id: { $ilike: `%${search}%` } }]
+
+  const matches = await Promise.all(
+    RUN_SEARCH_REFS.map(async (ref) => {
+      const { data } = await query.graph({
+        entity: ref.entity,
+        fields: ["id"],
+        filters: buildQSearchFilter(search, [...ref.fields]),
+        pagination: { skip: 0, take: RUN_SEARCH_REF_LIMIT },
+      })
+      return {
+        field: ref.field,
+        ids: ((data as any[]) || []).map((row) => row.id),
+      }
+    })
+  )
+
+  for (const { field, ids } of matches) {
+    // Omit referents with no match rather than emitting `$in: []` — an empty
+    // branch can never match, so leaving it out keeps the SQL to what we mean.
+    if (ids.length) {
+      clauses.push({ [field]: ids })
+    }
+  }
+
+  return clauses
+}
 
 export const POST = async (
   req: MedusaRequest<AdminCreateProductionRunReq>,
@@ -197,6 +255,14 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+
+  // #1172 — `q` was not read at all, so a search term was dropped without error
+  // and the caller got back an unfiltered first page. Sits alongside the
+  // equality filters above (top-level keys are AND-ed with `$or`).
+  const search = typeof q.q === "string" ? q.q.trim() : ""
+  if (search) {
+    filters.$or = await buildRunSearchClauses(query, search)
+  }
 
   const includeTasks = q.include_tasks === "true"
 

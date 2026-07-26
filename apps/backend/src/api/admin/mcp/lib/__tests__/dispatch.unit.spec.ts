@@ -456,14 +456,24 @@ describe("admin-mcp registry + dispatch", () => {
       expect((res.plan?.body as any)?.reason).toBe("partner dropped out")
     })
 
-    it("list_production_runs drops the unsupported q filter and exposes the real ones", () => {
+    it("list_production_runs exposes free-text q alongside the id/enum filters", () => {
       const def = ADMIN_MCP_TOOLS.find((t) => t.name === "list_production_runs")!
-      // The route has no free-text search — declaring `q` would silently
-      // swallow the model's search term.
-      expect(def.queryParams).not.toContain("q")
+      // `q` was deliberately withheld here until #1172: the route accepted the
+      // param and never read it, so declaring it swallowed the model's search
+      // term. The route now resolves `q` through the run's design / partner /
+      // product, so it must be declared — and stay declared.
+      expect(def.queryParams).toContain("q")
+      expect((def.inputSchema as any)?.properties?.q).toBeDefined()
       for (const p of ["status", "partner_id", "design_id", "run_type"]) {
         expect(def.queryParams).toContain(p)
       }
+    })
+
+    it("create_design no longer forces a description (route defaults it, #1172)", () => {
+      const def = ADMIN_MCP_TOOLS.find((t) => t.name === "create_design")!
+      expect((def.inputSchema as any)?.required).toEqual(["name"])
+      // Still offered — a description is good practice, just not mandatory.
+      expect((def.inputSchema as any)?.properties?.description).toBeDefined()
     })
 
     it("approve_production_run carries partner assignments in the body", async () => {

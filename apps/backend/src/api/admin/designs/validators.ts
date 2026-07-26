@@ -30,6 +30,9 @@ const designSizeSetSchema = z.object({
 
 export const designSchema = z.object({
   name: z.string().min(1, "Name is required"),
+  // Stays optional: the NOT NULL column it feeds is defaulted in the route
+  // handler (see #1172 note in ./route.ts), matching the partner and store
+  // create paths.
   description: z.string().optional(),
   inspiration_sources: z.array(z.string()).optional(),
   design_type: z.enum(["Original", "Derivative", "Custom", "Collaboration"]).optional(),

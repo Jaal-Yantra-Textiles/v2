@@ -20,6 +20,21 @@ RUN corepack enable && corepack prepare pnpm@10.30.2 --activate
 # pnpm's own documented fix — it auto-confirms the purge non-interactively.
 ENV CI=true
 
+# registry.npmjs.org answers a cold install's burst of parallel requests with
+# HTTP 429 (ERR_PNPM_FETCH_429), which fails the build outright. pnpm's default
+# 16 sockets and near-zero backoff turn a transient rate-limit into a hard stop,
+# so: fewer concurrent sockets, and retries that actually wait. Set as env
+# (npm_config_*) rather than in .npmrc so developer machines keep pnpm's faster
+# defaults — this only ever mattered inside the build.
+ENV npm_config_network_concurrency=8 \
+    npm_config_fetch_retries=6 \
+    npm_config_fetch_retry_mintimeout=20000 \
+    npm_config_fetch_retry_maxtimeout=120000
+
+# One explicit store path, so the runtime stage can reuse what this stage
+# downloads instead of resolving the whole tree again from the registry.
+ENV PNPM_STORE_DIR=/pnpm-store
+
 WORKDIR /app
 
 # Build-time env for the admin (Vite) bundle. Vite inlines these at compile
@@ -41,7 +56,7 @@ ENV VITE_STOREFRONT_URL=${VITE_STOREFRONT_URL}
 # re-downloaded everything on every build. .npmrc carries the shamefully-hoist
 # config Medusa's phantom deps need.
 COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-RUN pnpm fetch
+RUN pnpm fetch --store-dir "$PNPM_STORE_DIR"
 
 # Now bring in the full workspace. .dockerignore trims node_modules/.medusa/etc.
 COPY . .
@@ -51,7 +66,7 @@ RUN cp apps/backend/medusa-config.prod.ts apps/backend/medusa-config.ts
 
 # --offline: resolve entirely from the store `pnpm fetch` populated — no network,
 # so this stays fast even when the layer re-runs on a source change.
-RUN pnpm install --frozen-lockfile --offline
+RUN pnpm install --frozen-lockfile --offline --store-dir "$PNPM_STORE_DIR"
 
 # Root build proxies to `pnpm --filter @jyt/backend build`, which runs from
 # apps/backend and produces apps/backend/.medusa/server. The workflow-schema
@@ -87,6 +102,15 @@ RUN corepack enable && corepack prepare pnpm@10.30.2 --activate
 # pnpm's own documented fix — it auto-confirms the purge non-interactively.
 ENV CI=true
 
+# Same rate-limit guard as the builder — see the note there. This stage is the
+# one that actually hit ERR_PNPM_FETCH_429: unlike the builder it has no
+# lockfile and no store, so `pnpm install --prod` below resolved the compiled
+# server's whole dependency tree (~2.4k packages) straight from the registry.
+ENV npm_config_network_concurrency=8 \
+    npm_config_fetch_retries=6 \
+    npm_config_fetch_retry_mintimeout=20000 \
+    npm_config_fetch_retry_maxtimeout=120000
+
 WORKDIR /app
 
 # Bring in the compiled server, the generated workflow schemas, and .npmrc
@@ -113,7 +137,19 @@ WORKDIR /app/.medusa/server
 # runtime deps of its own and its dist/ is built by the package's `prepare` (tsc)
 # during the builder install above, so this copy is self-contained.
 RUN node -e "const fs=require('fs');const p=require('./package.json');if(p.dependencies){delete p.dependencies['@jytextiles/mikrohyperbee'];}fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n');"
-RUN pnpm install --prod --ignore-workspace --ignore-scripts
+# The compiled server's prod deps are the backend's own deps, which the builder
+# already downloaded from the lockfile. Bind-mounting that store lets this
+# install resolve locally instead of re-fetching the tree — a bind mount (not a
+# COPY) so the multi-GB store never lands in a layer of the shipped image, and
+# not a cache mount because BuildKit does not export those to the `type=gha`
+# cache the deploy workflow uses, so in CI a cache mount would always be cold.
+# `rw` gives pnpm the writable store it wants; the overlay is discarded with the
+# mount. `--prefer-offline` (not `--offline`) so anything genuinely absent —
+# this package.json carries ranges, not the lockfile's pinned versions — can
+# still come over the network.
+RUN --mount=type=bind,from=builder,source=/pnpm-store,target=/pnpm-store,rw \
+    pnpm install --prod --ignore-workspace --ignore-scripts \
+      --store-dir /pnpm-store --prefer-offline
 COPY --from=builder /app/packages/mikrohyperbee/package.json ./node_modules/@jytextiles/mikrohyperbee/package.json
 COPY --from=builder /app/packages/mikrohyperbee/dist ./node_modules/@jytextiles/mikrohyperbee/dist
 

@@ -168,6 +168,13 @@ export const POST = async (
   const { result, errors } = await createDesignWorkflow(req.scope).run({
     input: {
       ...req.validatedBody,
+      // #1172 — `Design.description` is a non-nullable text column with no
+      // default, but the validator (and the MCP `create_design` tool, and any
+      // script) may legitimately omit it for a name-only draft. Without this a
+      // minimal create passed Zod and then died on the NOT NULL constraint as an
+      // opaque 500, with the real cause only in the logs. Mirrors what
+      // `POST /partners/designs` and `POST /store/custom/designs` already do.
+      description: req.validatedBody?.description ?? "",
       origin_source: req.validatedBody?.origin_source ?? "manual",
     },
   })
