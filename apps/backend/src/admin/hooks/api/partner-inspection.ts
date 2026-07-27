@@ -1,10 +1,11 @@
 /**
  * Read-only hooks for the partner inspection mirror (#843, approach #2).
  *
- * These hit the admin read-proxy routes (`/admin/partners/:id/{orders,
- * onboarding-profile}`), which run the partner portal's own scoping helpers
- * against a synthesized partner context — so what renders here is what the
- * partner sees. There are deliberately no mutation hooks in this file.
+ * These hit the admin read-proxy routes (`/admin/partners/:id/{orders, designs,
+ * production-runs, onboarding-profile}`), which run the partner portal's own
+ * scoping helpers and listing workflows against a synthesized partner context —
+ * so what renders here is what the partner sees. There are deliberately no
+ * mutation hooks in this file.
  */
 import { FetchError } from "@medusajs/js-sdk"
 import { QueryKey, UseQueryOptions, useQuery } from "@tanstack/react-query"
@@ -74,6 +75,138 @@ export const usePartnerInspectionOrders = (
 
   return {
     orders: data?.orders || [],
+    count: data?.count || 0,
+    ...rest,
+  }
+}
+
+export interface PartnerInspectionDesign {
+  id: string
+  name?: string
+  status?: string
+  is_owner?: boolean
+  created_at?: string
+  partner_info?: {
+    partner_status?: string
+    partner_phase?: string | null
+    partner_started_at?: string | null
+    partner_finished_at?: string | null
+    partner_completed_at?: string | null
+    workflow_tasks_count?: number
+  }
+}
+
+export type PartnerDesignBucket =
+  | "all"
+  | "incoming"
+  | "in_progress"
+  | "completed"
+  | "yours"
+
+export interface PartnerInspectionDesignsResponse {
+  designs: PartnerInspectionDesign[]
+  count: number
+  /** Per-bucket totals, counted over the whole q+status set — see #6. */
+  facets?: Record<PartnerDesignBucket, number>
+  offset: number
+  limit: number
+}
+
+export const usePartnerInspectionDesigns = (
+  partnerId: string,
+  query?: {
+    bucket?: PartnerDesignBucket
+    status?: string
+    q?: string
+    limit?: number
+    offset?: number
+  },
+  options?: Omit<
+    UseQueryOptions<
+      PartnerInspectionDesignsResponse,
+      FetchError,
+      PartnerInspectionDesignsResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: async () =>
+      sdk.client.fetch<PartnerInspectionDesignsResponse>(
+        `/admin/partners/${partnerId}/designs`,
+        { method: "GET", query }
+      ),
+    queryKey: partnerInspectionQueryKeys.detail(partnerId, { designs: query }),
+    enabled: !!partnerId,
+    ...options,
+  })
+
+  return {
+    designs: data?.designs || [],
+    count: data?.count || 0,
+    facets: data?.facets,
+    ...rest,
+  }
+}
+
+export interface PartnerInspectionProductionRun {
+  id: string
+  status?: string
+  run_type?: string
+  role?: string
+  quantity?: number
+  produced_quantity?: number
+  design_id?: string | null
+  /** Resolved from the order↔run link (#342 D5), not the legacy `order_id` column. */
+  unified_order_id?: string | null
+  accepted_at?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  completed_at?: string | null
+  created_at?: string
+}
+
+export interface PartnerInspectionProductionRunsResponse {
+  production_runs: PartnerInspectionProductionRun[]
+  count: number
+  offset: number
+  limit: number
+}
+
+export const usePartnerInspectionProductionRuns = (
+  partnerId: string,
+  query?: {
+    status?: string
+    role?: string
+    run_type?: "production" | "sample"
+    design_id?: string
+    limit?: number
+    offset?: number
+  },
+  options?: Omit<
+    UseQueryOptions<
+      PartnerInspectionProductionRunsResponse,
+      FetchError,
+      PartnerInspectionProductionRunsResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: async () =>
+      sdk.client.fetch<PartnerInspectionProductionRunsResponse>(
+        `/admin/partners/${partnerId}/production-runs`,
+        { method: "GET", query }
+      ),
+    queryKey: partnerInspectionQueryKeys.detail(partnerId, { runs: query }),
+    enabled: !!partnerId,
+    ...options,
+  })
+
+  return {
+    productionRuns: data?.production_runs || [],
     count: data?.count || 0,
     ...rest,
   }
