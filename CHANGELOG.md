@@ -1,3 +1,16 @@
+# [13.71.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.70.0...v13.71.0) (2026-07-27)
+
+
+### Bug Fixes
+
+* **stores,test:** default shipping profile when none exists; stop fixtures picking Stripe [[#1176](https://github.com/Jaal-Yantra-Textiles/v2/issues/1176)] ([#1177](https://github.com/Jaal-Yantra-Textiles/v2/issues/1177)) ([36a6b45](https://github.com/Jaal-Yantra-Textiles/v2/commit/36a6b458c6e08fc174947258dbf9c9e9867d83ed)), closes [#394](https://github.com/Jaal-Yantra-Textiles/v2/issues/394)
+* **admin:** production-run ?q= search + name-only design create, and the CI 429 [[#1172](https://github.com/Jaal-Yantra-Textiles/v2/issues/1172)] ([#1173](https://github.com/Jaal-Yantra-Textiles/v2/issues/1173)) ([30eaeb5](https://github.com/Jaal-Yantra-Textiles/v2/commit/30eaeb5ca9a0772f4b45ca83e3ebfcd3fe2ba8e6)), closes [#1170](https://github.com/Jaal-Yantra-Textiles/v2/issues/1170)
+
+
+### Features
+
+* **admin:** partner inspection mirror — read-proxy orders + onboarding profile [[#843](https://github.com/Jaal-Yantra-Textiles/v2/issues/843)] ([#1175](https://github.com/Jaal-Yantra-Textiles/v2/issues/1175)) ([43571bf](https://github.com/Jaal-Yantra-Textiles/v2/commit/43571bfface76179f3cced09f5d5a35a0e19290d)), closes [#2](https://github.com/Jaal-Yantra-Textiles/v2/issues/2) [#648](https://github.com/Jaal-Yantra-Textiles/v2/issues/648) [#1](https://github.com/Jaal-Yantra-Textiles/v2/issues/1)
+
 # [13.70.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.69.0...v13.70.0) (2026-07-26)
 
 
