@@ -8,8 +8,9 @@
  * Read-only by construction: no action menus, no mutations. Acting on a
  * partner's behalf is the separate audited-impersonation track.
  *
- * The top-level tabs are the SURFACE (orders / designs / runs); the order-kind
- * discriminator is a sub-tab of Orders, since it only means anything there.
+ * The top-level tabs are the SURFACE (orders / designs / runs / products); the
+ * order-kind discriminator is a sub-tab of Orders, since it only means anything
+ * there.
  */
 import { Badge, Container, Heading, Table, Tabs, Text } from "@medusajs/ui"
 import { useState } from "react"
@@ -21,6 +22,9 @@ import {
   usePartnerInspectionDesigns,
   usePartnerInspectionOrders,
   usePartnerInspectionProductionRuns,
+  usePartnerInspectionProducts,
+  usePartnerInspectionInventoryItems,
+  usePartnerInspectionInventoryOrders,
   usePartnerOnboardingProfile,
 } from "../../hooks/api/partner-inspection"
 
@@ -28,12 +32,27 @@ interface PartnerInspectionSectionProps {
   partnerId: string
 }
 
-type InspectionSurface = "orders" | "designs" | "runs"
+type InspectionSurface =
+  | "orders"
+  | "designs"
+  | "runs"
+  | "products"
+  | "inventory"
 
 const SURFACES: { value: InspectionSurface; label: string }[] = [
   { value: "orders", label: "Orders" },
   { value: "designs", label: "Designs" },
   { value: "runs", label: "Production runs" },
+  { value: "products", label: "Products" },
+  { value: "inventory", label: "Inventory" },
+]
+
+/** Inventory splits two ways the partner portal itself splits them. */
+type InventoryView = "items" | "orders"
+
+const INVENTORY_VIEWS: { value: InventoryView; label: string }[] = [
+  { value: "items", label: "Stock" },
+  { value: "orders", label: "Inventory orders" },
 ]
 
 const KINDS: { value: PartnerOrderKind; label: string }[] = [
@@ -389,6 +408,262 @@ const ProductionRunsPanel = ({ partnerId }: { partnerId: string }) => {
   )
 }
 
+const ProductsPanel = ({ partnerId }: { partnerId: string }) => {
+  const { products, storeId, isLoading, isError, error } =
+    usePartnerInspectionProducts(partnerId)
+
+  if (isError) {
+    throw error
+  }
+
+  if (isLoading) {
+    return <LoadingRows />
+  }
+
+  // No store at all is a different fact from an empty catalog, and it is the
+  // one an operator can act on (it's what the onboarding flow fixes) — so say
+  // which it is rather than showing the same "nothing here" for both.
+  if (!storeId) {
+    return (
+      <EmptyRow>
+        This partner has not provisioned a store yet — no catalog to show.
+      </EmptyRow>
+    )
+  }
+
+  if (products.length === 0) {
+    return <EmptyRow>No products in this partner&apos;s store</EmptyRow>
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <Table className="w-full">
+        <Table.Header>
+          <Table.Row>
+            <Table.HeaderCell>Product</Table.HeaderCell>
+            <Table.HeaderCell>Handle</Table.HeaderCell>
+            <Table.HeaderCell>Status</Table.HeaderCell>
+            <Table.HeaderCell>Collection</Table.HeaderCell>
+            <Table.HeaderCell className="text-right">Variants</Table.HeaderCell>
+            <Table.HeaderCell className="text-right">Created</Table.HeaderCell>
+          </Table.Row>
+        </Table.Header>
+        <Table.Body>
+          {products.map((product) => (
+            <Table.Row key={product.id}>
+              <Table.Cell>
+                <Link
+                  to={`/products/${product.id}`}
+                  className="text-ui-fg-interactive"
+                >
+                  {product.title || product.id}
+                </Link>
+              </Table.Cell>
+              <Table.Cell>
+                <Text size="small" className="text-ui-fg-subtle">
+                  {product.handle || "—"}
+                </Text>
+              </Table.Cell>
+              <Table.Cell>
+                <Badge size="2xsmall" color={statusColor(product.status)}>
+                  {product.status || "—"}
+                </Badge>
+              </Table.Cell>
+              <Table.Cell>
+                <Text size="small" className="text-ui-fg-subtle">
+                  {product.collection?.title || "—"}
+                </Text>
+              </Table.Cell>
+              <Table.Cell className="text-right">
+                <Text size="small" className="text-ui-fg-subtle">
+                  {product.variants?.length ?? 0}
+                </Text>
+              </Table.Cell>
+              <Table.Cell className="text-right">
+                <Text size="small" className="text-ui-fg-subtle">
+                  {formatDate(product.created_at)}
+                </Text>
+              </Table.Cell>
+            </Table.Row>
+          ))}
+        </Table.Body>
+      </Table>
+    </div>
+  )
+}
+
+const InventoryItemsTable = ({ partnerId }: { partnerId: string }) => {
+  const { inventoryItems, isLoading, isError, error } =
+    usePartnerInspectionInventoryItems(partnerId, { limit: PAGE_SIZE })
+
+  if (isError) {
+    throw error
+  }
+
+  if (isLoading) {
+    return <LoadingRows />
+  }
+
+  if (inventoryItems.length === 0) {
+    return <EmptyRow>No stock at this partner&apos;s location</EmptyRow>
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <Table className="w-full">
+        <Table.Header>
+          <Table.Row>
+            <Table.HeaderCell>Item</Table.HeaderCell>
+            <Table.HeaderCell>SKU</Table.HeaderCell>
+            <Table.HeaderCell className="text-right">Stocked</Table.HeaderCell>
+            <Table.HeaderCell className="text-right">Reserved</Table.HeaderCell>
+            <Table.HeaderCell className="text-right">Incoming</Table.HeaderCell>
+          </Table.Row>
+        </Table.Header>
+        <Table.Body>
+          {inventoryItems.map((item) => (
+            <Table.Row key={item.id}>
+              <Table.Cell>
+                <Link
+                  to={`/inventory/${item.id}`}
+                  className="text-ui-fg-interactive"
+                >
+                  {item.title || item.sku || item.id}
+                </Link>
+              </Table.Cell>
+              <Table.Cell>
+                <Text size="small" className="text-ui-fg-subtle">
+                  {item.sku || "—"}
+                </Text>
+              </Table.Cell>
+              {/* Quantities are aggregated over the partner's location only —
+                  the global figure would be a different (and misleading)
+                  number here. */}
+              <Table.Cell className="text-right">
+                <Text size="small">{item.stocked_quantity ?? 0}</Text>
+              </Table.Cell>
+              <Table.Cell className="text-right">
+                <Text size="small" className="text-ui-fg-subtle">
+                  {item.reserved_quantity ?? 0}
+                </Text>
+              </Table.Cell>
+              <Table.Cell className="text-right">
+                <Text size="small" className="text-ui-fg-subtle">
+                  {item.incoming_quantity ?? 0}
+                </Text>
+              </Table.Cell>
+            </Table.Row>
+          ))}
+        </Table.Body>
+      </Table>
+    </div>
+  )
+}
+
+const InventoryOrdersTable = ({ partnerId }: { partnerId: string }) => {
+  const { inventoryOrders, isLoading, isError, error } =
+    usePartnerInspectionInventoryOrders(partnerId, { limit: PAGE_SIZE })
+
+  if (isError) {
+    throw error
+  }
+
+  if (isLoading) {
+    return <LoadingRows />
+  }
+
+  if (inventoryOrders.length === 0) {
+    return <EmptyRow>No inventory orders assigned to this partner</EmptyRow>
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <Table className="w-full">
+        <Table.Header>
+          <Table.Row>
+            <Table.HeaderCell>Order</Table.HeaderCell>
+            <Table.HeaderCell>Location</Table.HeaderCell>
+            <Table.HeaderCell>Partner status</Table.HeaderCell>
+            <Table.HeaderCell>Order status</Table.HeaderCell>
+            <Table.HeaderCell className="text-right">Qty</Table.HeaderCell>
+            <Table.HeaderCell className="text-right">Expected</Table.HeaderCell>
+          </Table.Row>
+        </Table.Header>
+        <Table.Body>
+          {inventoryOrders.map((order) => (
+            <Table.Row key={order.id}>
+              <Table.Cell>
+                <Link
+                  to={`/inventory-orders/${order.id}`}
+                  className="text-ui-fg-interactive"
+                >
+                  {order.id}
+                </Link>
+              </Table.Cell>
+              <Table.Cell>
+                <Text size="small" className="text-ui-fg-subtle">
+                  {order.stock_location || "—"}
+                </Text>
+              </Table.Cell>
+              <Table.Cell>
+                {/* Derived from the partner_assignment tasks — this is the
+                    column an operator opens this surface for. */}
+                <Badge
+                  size="2xsmall"
+                  color={statusColor(order.partner_info?.partner_status)}
+                >
+                  {order.partner_info?.partner_status || "—"}
+                </Badge>
+              </Table.Cell>
+              <Table.Cell>
+                <Text size="small" className="text-ui-fg-subtle">
+                  {order.status || "—"}
+                </Text>
+              </Table.Cell>
+              <Table.Cell className="text-right">
+                <Text size="small" className="text-ui-fg-subtle">
+                  {order.quantity ?? "—"}
+                </Text>
+              </Table.Cell>
+              <Table.Cell className="text-right">
+                <Text size="small" className="text-ui-fg-subtle">
+                  {formatDate(order.expected_delivery_date)}
+                </Text>
+              </Table.Cell>
+            </Table.Row>
+          ))}
+        </Table.Body>
+      </Table>
+    </div>
+  )
+}
+
+const InventoryPanel = ({ partnerId }: { partnerId: string }) => {
+  const [view, setView] = useState<InventoryView>("items")
+
+  return (
+    <>
+      <div className="px-6 py-4">
+        <Tabs value={view} onValueChange={(v) => setView(v as InventoryView)}>
+          <Tabs.List>
+            {INVENTORY_VIEWS.map((v) => (
+              <Tabs.Trigger key={v.value} value={v.value}>
+                {v.label}
+              </Tabs.Trigger>
+            ))}
+          </Tabs.List>
+        </Tabs>
+      </div>
+
+      {view === "items" ? (
+        <InventoryItemsTable partnerId={partnerId} />
+      ) : (
+        <InventoryOrdersTable partnerId={partnerId} />
+      )}
+    </>
+  )
+}
+
 export const PartnerInspectionSection = ({
   partnerId,
 }: PartnerInspectionSectionProps) => {
@@ -426,6 +701,8 @@ export const PartnerInspectionSection = ({
       {surface === "orders" && <OrdersPanel partnerId={partnerId} />}
       {surface === "designs" && <DesignsPanel partnerId={partnerId} />}
       {surface === "runs" && <ProductionRunsPanel partnerId={partnerId} />}
+      {surface === "products" && <ProductsPanel partnerId={partnerId} />}
+      {surface === "inventory" && <InventoryPanel partnerId={partnerId} />}
 
       <div className="px-6 py-4">
         <Text size="small" weight="plus" className="mb-2">

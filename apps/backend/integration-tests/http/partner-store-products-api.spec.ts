@@ -121,6 +121,11 @@ setupSharedTestSuite(() => {
         const products = res.data.products || []
         expect(Array.isArray(products)).toBe(true)
         expect(products.length).toBeGreaterThanOrEqual(1)
+        // The payload is now shaped by `list-store-products` itself so the admin
+        // inspection mirror serves the identical body (#843); `store_id` says
+        // which store the catalog came from.
+        expect(res.data.count).toBe(products.length)
+        expect(res.data.store_id).toBe(partner.storeId)
       })
 
       it("POST /partners/stores/:id/products/quick creates product + variant + price + stock in one shot", async () => {

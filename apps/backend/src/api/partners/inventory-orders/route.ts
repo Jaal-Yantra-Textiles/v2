@@ -128,8 +128,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { getPartnerFromAuthContext } from "../helpers";
 import { ListInventoryOrdersQuery } from "./validators";
-import { applyInventoryOrderListFilters } from "./list-filters";
-import InventoryOrderPartnerLink from "../../../links/partner-inventory-order"
+import { listPartnerInventoryOrdersWorkflow } from "../../../workflows/inventory_orders/list-partner-inventory-orders"
 
 
 export async function GET(
@@ -140,8 +139,6 @@ export async function GET(
         const { limit = 20, offset = 0, status, q } =
             req.validatedQuery as ListInventoryOrdersQuery;
 
-        const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
-        
         // Get the authenticated partner from auth context
         const actorId = req.auth_context?.actor_id;
         
@@ -159,108 +156,22 @@ export async function GET(
             });
         }
         
-        const partnerId = partner.id;
-        
-        // Build filters for orders assigned to this partner
-        // Note: Cannot filter on linked module properties (inventory_orders.status)
-        // due to MedusaJS limitation - filters only work on link table columns
-        const filters: any = {
-            partner_id: partnerId
-        };
-        
-        // Status filtering will be done after query, not in filters
-        
-        // Use query.graph to get orders linked to this partner with associated tasks.
-        // NOTE: pagination is intentionally NOT applied here. `query.graph` cannot
-        // filter on linked-module columns (inventory_orders.status) and the partner
-        // route has no free-text index, so status/`q` are matched in-app below.
-        // Paginating here would slice BEFORE those filters run, returning the wrong
-        // page and a per-page (not total) count — the #484 page-vs-set bug.
-        const { data: orders } = await query.graph({
-            entity: InventoryOrderPartnerLink.entryPoint,
-            fields: [
-                "inventory_orders.*",
-                "inventory_orders.orderlines.*",
-                "inventory_orders.stock_locations.*",
-                "inventory_orders.tasks.*",
-                "partner.*",
-              ],
-            filters,
-        }, { locale: req.locale });
-
-        // Format the response for partner view - now using task-based status
-        const formattedOrders = orders.map((linkData: any) => {
-            const order = linkData.inventory_orders;
-            
-            // Extract partner workflow status from tasks instead of metadata
-            const partnerTasks = order.tasks || [];
-            const workflowTasks = partnerTasks.filter((task: any) => 
-                task && task.metadata?.workflow_type === 'partner_assignment'
-            );
-            
-            // Determine partner status based on task completion
-            let partnerStatus = 'assigned';
-            let partnerStartedAt: string | null = null;
-            let partnerCompletedAt: string | null = null;
-            
-            if (workflowTasks.length > 0) {
-                const sentTask = workflowTasks.find((task: any) => 
-                    task.title?.includes('sent') && task.status === 'completed'
-                );
-                const receivedTask = workflowTasks.find((task: any) => 
-                    task.title?.includes('received') && task.status === 'completed'
-                );
-                const shippedTask = workflowTasks.find((task: any) => 
-                    task.title?.includes('shipped') && task.status === 'completed'
-                );
-                
-                if (shippedTask) {
-                    partnerStatus = 'completed';
-                    partnerCompletedAt = shippedTask.updated_at ? String(shippedTask.updated_at) : null;
-                } else if (receivedTask) {
-                    partnerStatus = 'in_progress';
-                    partnerStartedAt = receivedTask.updated_at ? String(receivedTask.updated_at) : null;
-                } else if (sentTask) {
-                    partnerStatus = 'assigned';
-                }
-            }
-            
-            return {
-                id: order.id,
-                status: order.status,
-                quantity: order.quantity,
-                total_price: order.total_price,
-                expected_delivery_date: order.expected_delivery_date,
-                order_date: order.order_date,
-                is_sample: order.is_sample,
-                order_lines_count: order.orderlines?.length || 0,
-                stock_location: order.stock_locations?.[0]?.name || 'Unknown',
-                partner_info: {
-                    assigned_partner_id: linkData.partner?.id || partnerId,
-                    partner_status: partnerStatus,
-                    partner_started_at: partnerStartedAt,
-                    partner_completed_at: partnerCompletedAt,
-                    workflow_tasks_count: workflowTasks.length
-                },
-                created_at: order.created_at,
-                updated_at: order.updated_at
-            };
+        // Auth is all this route contributes — the listing (partner_info
+        // derivation, q/status filtering, pagination) belongs to the workflow so
+        // the admin inspection mirror runs the same code rather than a second
+        // copy of it (#843).
+        const { result } = await listPartnerInventoryOrdersWorkflow(req.scope).run({
+            input: {
+                partnerId: partner.id,
+                q,
+                status,
+                offset,
+                limit,
+                locale: req.locale,
+            },
         });
-        
-        // Apply status + free-text (`q`) filtering, THEN paginate, over the full
-        // partner-scoped set. count = total matched (pre-pagination) so the UI
-        // pager is correct. Pure + unit-tested in ./list-filters.
-        const { items: partnerOrders, count } = applyInventoryOrderListFilters(
-            formattedOrders,
-            { q, status, offset, limit }
-        );
 
-        res.status(200).json({
-            inventory_orders: partnerOrders,
-            count,
-            limit,
-            offset
-        });
+        res.status(200).json(result);
     } catch (error) {
         const logger = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
         logger.error(

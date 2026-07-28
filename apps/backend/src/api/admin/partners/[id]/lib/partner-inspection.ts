@@ -8,6 +8,7 @@
  */
 import { MedusaContainer } from "@medusajs/framework"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { tryGetPartnerStore } from "../../../../partners/helpers"
 
 /**
  * The shape `src/api/partners/helpers.ts` reads off `req.auth_context`.
@@ -70,6 +71,49 @@ export const assertPartnerExists = async (
   }
 
   return partner
+}
+
+/**
+ * Which of the partner's stores an inspection route should read.
+ *
+ * Defaults to the partner's first store — the one the partner portal itself
+ * lands on — via the portal's own helper. An explicit `store_id` is checked
+ * against the partner's stores HERE so a foreign id reads as a 404 to an admin,
+ * instead of the partner-voiced `UNAUTHORIZED "Store … is not associated with
+ * this partner"` the downstream partner code would throw. Same reason
+ * `assertPartnerExists` exists.
+ *
+ * Returns `storeId: null` for a partner that has never provisioned a store:
+ * that is a normal state an operator wants to see (it is what the onboarding
+ * flow exists to fix), not an error (#1158).
+ */
+export const resolvePartnerInspectionStoreId = async (
+  authContext: SynthesizedPartnerAuthContext,
+  container: MedusaContainer,
+  requestedStoreId?: string
+): Promise<{ partner: any; storeId: string | null }> => {
+  const { partner, store } = await tryGetPartnerStore(authContext, container)
+
+  if (!requestedStoreId) {
+    return { partner, storeId: store?.id ?? null }
+  }
+
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "partners",
+    fields: ["id", "stores.id"],
+    filters: { id: partner.id },
+  })
+
+  const stores = ((data?.[0] as any)?.stores || []) as Array<{ id: string }>
+  if (!stores.some((s) => s.id === requestedStoreId)) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_FOUND,
+      "Store not found for this partner"
+    )
+  }
+
+  return { partner, storeId: requestedStoreId }
 }
 
 /**

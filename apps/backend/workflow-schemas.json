@@ -3773,6 +3773,37 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/internal_payments/update-payment.ts"
   },
+  "list-partner-inventory-items": {
+    "fields": [
+      {
+        "name": "locationId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.locationId }}",
+        "description": "The partner's stock location — the whole scoping rule for this surface."
+      },
+      {
+        "name": "q",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.q }}"
+      },
+      {
+        "name": "offset",
+        "type": "number",
+        "required": true,
+        "placeholder": "0"
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": true,
+        "placeholder": "0"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/inventory/list-partner-inventory-items.ts"
+  },
   "split-inventory-item": {
     "fields": [
       {
@@ -3941,6 +3972,49 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/inventory_orders/get-inventory-order-tasks.ts"
+  },
+  "list-partner-inventory-orders": {
+    "fields": [
+      {
+        "name": "partnerId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.partnerId }}"
+      },
+      {
+        "name": "q",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.q }}"
+      },
+      {
+        "name": "status",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.status }}"
+      },
+      {
+        "name": "offset",
+        "type": "number",
+        "required": true,
+        "placeholder": "0"
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": true,
+        "placeholder": "0"
+      },
+      {
+        "name": "locale",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.locale }}",
+        "description": "Forwarded to `query.graph` for translated fields; the route reads it off the request."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/inventory_orders/list-partner-inventory-orders.ts"
   },
   "sync-inventory-shipment-tracking": {
     "fields": [
