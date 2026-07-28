@@ -137,15 +137,15 @@ setupSharedTestSuite(() => {
       })
     })
 
-    describe("GET /admin/partners/:id/products", () => {
-      // Provision a store (with its default sales channel) and put a product in
-      // it. The partner catalog is sales-channel-scoped, so without a real store
-      // + product both surfaces return empty and the mirror comparison would
-      // pass against a broken proxy.
-      const provisionStoreWithProduct = async () => {
-        const unique = Date.now() + Math.random().toString(36).slice(2, 6)
+    // Provision a store (with its default sales channel and stock location) and
+    // put a product in it. The partner catalog is sales-channel-scoped and the
+    // inventory surface is location-scoped, so without a real store both
+    // surfaces return empty and a mirror comparison would pass against a
+    // broken proxy — two empty lists always agree.
+    const provisionStoreWithProduct = async () => {
+      const unique = Date.now() + Math.random().toString(36).slice(2, 6)
 
-        const currenciesRes = await api.get("/admin/currencies", adminHeaders)
+      const currenciesRes = await api.get("/admin/currencies", adminHeaders)
         const currencies = currenciesRes.data.currencies || []
         const usd = currencies.find((c: any) => c.code?.toLowerCase() === "usd")
         const currencyCode = String((usd || currencies[0]).code).toLowerCase()
@@ -202,8 +202,9 @@ setupSharedTestSuite(() => {
         )
 
         return { storeId, productId: productRes.data.product?.id }
-      }
+    }
 
+    describe("GET /admin/partners/:id/products", () => {
       it("mirrors GET /partners/stores/:id/products — same ids and count", async () => {
         const { storeId, productId } = await provisionStoreWithProduct()
         expect(productId).toBeTruthy()
@@ -306,6 +307,240 @@ setupSharedTestSuite(() => {
           .post(
             `/admin/partners/${partner.partnerId}/products`,
             {},
+            adminHeaders
+          )
+          .catch((e: any) => e)
+
+        expect(err.response.status).toBe(404)
+      })
+    })
+
+    describe("GET /admin/partners/:id/inventory-orders", () => {
+      it("mirrors GET /partners/inventory-orders — same ids and count", async () => {
+        const viaAdmin = await api.get(
+          `/admin/partners/${partner.partnerId}/inventory-orders`,
+          adminHeaders
+        )
+        const viaPartner = await api.get("/partners/inventory-orders", {
+          headers: partner.headers,
+        })
+
+        expect(viaAdmin.status).toBe(200)
+        expect(viaAdmin.data.count).toBe(viaPartner.data.count)
+        expect(viaAdmin.data.inventory_orders.map((o: any) => o.id)).toEqual(
+          viaPartner.data.inventory_orders.map((o: any) => o.id)
+        )
+      })
+
+      it("mirrors the status + q filters, not just the unfiltered list", async () => {
+        // Filters are where a re-implementation diverges, so they are checked
+        // even when the set is empty for this partner — an admin-side filter
+        // that silently ignored `status` would still show up as a count or id
+        // mismatch the moment rows exist.
+        // `Pending`, capitalised — the status enum is the canonical set in
+        // modules/inventory_orders/constants.ts, and lowercase is rejected.
+        for (const qs of ["status=Pending", "q=warehouse", "limit=5&offset=0"]) {
+          const viaAdmin = await api.get(
+            `/admin/partners/${partner.partnerId}/inventory-orders?${qs}`,
+            adminHeaders
+          )
+          const viaPartner = await api.get(
+            `/partners/inventory-orders?${qs}`,
+            { headers: partner.headers }
+          )
+
+          expect(viaAdmin.data.count).toBe(viaPartner.data.count)
+          expect(viaAdmin.data.inventory_orders.map((o: any) => o.id)).toEqual(
+            viaPartner.data.inventory_orders.map((o: any) => o.id)
+          )
+        }
+      })
+
+      it("rejects an invalid status exactly as the partner surface does", async () => {
+        // The mirror must not be MORE PERMISSIVE than what it mirrors. This
+        // caught a real bug: the proxy first parsed the loose schema in
+        // `partners/inventory-orders/validators.ts` (status: string) while the
+        // partner matcher validates with the admin schema (status: enum), so
+        // `?status=pending` returned 200 here and 400 there.
+        const viaAdmin = await api
+          .get(
+            `/admin/partners/${partner.partnerId}/inventory-orders?status=pending`,
+            adminHeaders
+          )
+          .catch((e: any) => e)
+        const viaPartner = await api
+          .get("/partners/inventory-orders?status=pending", {
+            headers: partner.headers,
+          })
+          .catch((e: any) => e)
+
+        expect(viaAdmin.response.status).toBe(400)
+        expect(viaPartner.response.status).toBe(400)
+      })
+
+      it("echoes the pagination contract", async () => {
+        const res = await api.get(
+          `/admin/partners/${partner.partnerId}/inventory-orders?limit=5&offset=0`,
+          adminHeaders
+        )
+
+        expect(res.status).toBe(200)
+        expect(res.data.limit).toBe(5)
+        expect(res.data.offset).toBe(0)
+      })
+
+      it("404s for an unknown partner", async () => {
+        const err = await api
+          .get(
+            "/admin/partners/partner_does_not_exist/inventory-orders",
+            adminHeaders
+          )
+          .catch((e: any) => e)
+
+        expect(err.response.status).toBe(404)
+      })
+
+      it("requires admin auth", async () => {
+        const err = await api
+          .get(`/admin/partners/${partner.partnerId}/inventory-orders`)
+          .catch((e: any) => e)
+
+        expect(err.response.status).toBe(401)
+      })
+
+      it("is read-only — no write verb is exposed", async () => {
+        const err = await api
+          .post(
+            `/admin/partners/${partner.partnerId}/inventory-orders`,
+            {},
+            adminHeaders
+          )
+          .catch((e: any) => e)
+
+        expect(err.response.status).toBe(404)
+      })
+    })
+
+    describe("GET /admin/partners/:id/inventory-items", () => {
+      // Seed real stock: the store gives the partner a location, and the
+      // partner's own POST creates the item plus a level at that location.
+      // Without it both surfaces return empty and agree for the wrong reason.
+      const seedStock = async () => {
+        await provisionStoreWithProduct()
+        const unique = Date.now() + Math.random().toString(36).slice(2, 6)
+        const created = await api.post(
+          "/partners/inventory-items",
+          { sku: `INSPECT-INV-${unique}`, title: `Inspect Item ${unique}` },
+          { headers: partner.headers }
+        )
+        return created.data.inventory_item?.id
+      }
+
+      it("mirrors GET /partners/inventory-items — same ids and count", async () => {
+        const itemId = await seedStock()
+        expect(itemId).toBeTruthy()
+
+        const viaAdmin = await api.get(
+          `/admin/partners/${partner.partnerId}/inventory-items`,
+          adminHeaders
+        )
+        const viaPartner = await api.get("/partners/inventory-items", {
+          headers: partner.headers,
+        })
+
+        expect(viaAdmin.status).toBe(200)
+        expect(viaAdmin.data.count).toBe(viaPartner.data.count)
+        expect(viaAdmin.data.inventory_items.map((i: any) => i.id)).toEqual(
+          viaPartner.data.inventory_items.map((i: any) => i.id)
+        )
+        expect(
+          viaAdmin.data.inventory_items.some((i: any) => i.id === itemId)
+        ).toBe(true)
+      })
+
+      it("carries the location-scoped quantity aggregation through the proxy", async () => {
+        // The top-level quantities are computed by the workflow (the inventory
+        // service returns them null), and they are location-scoped — a global
+        // figure here would be a different, misleading number.
+        await seedStock()
+
+        const res = await api.get(
+          `/admin/partners/${partner.partnerId}/inventory-items`,
+          adminHeaders
+        )
+
+        const item = res.data.inventory_items[0]
+        expect(item).toBeTruthy()
+        expect(typeof item.stocked_quantity).toBe("number")
+        expect(Array.isArray(item.location_levels)).toBe(true)
+      })
+
+      it("scopes to the partner — another partner's stock never leaks in", async () => {
+        const itemId = await seedStock()
+        const other = await createPartner(api)
+
+        const res = await api.get(
+          `/admin/partners/${other.partnerId}/inventory-items`,
+          adminHeaders
+        )
+
+        expect(res.status).toBe(200)
+        expect(
+          res.data.inventory_items.some((i: any) => i.id === itemId)
+        ).toBe(false)
+      })
+
+      it("returns an empty list for a partner with no store or location", async () => {
+        const res = await api.get(
+          `/admin/partners/${partner.partnerId}/inventory-items`,
+          adminHeaders
+        )
+
+        expect(res.status).toBe(200)
+        expect(res.data.inventory_items).toHaveLength(0)
+        expect(res.data.count).toBe(0)
+      })
+
+      it("mirrors the q filter", async () => {
+        const viaAdmin = await api.get(
+          `/admin/partners/${partner.partnerId}/inventory-items?q=nothingmatches`,
+          adminHeaders
+        )
+        const viaPartner = await api.get(
+          "/partners/inventory-items?q=nothingmatches",
+          { headers: partner.headers }
+        )
+
+        expect(viaAdmin.data.count).toBe(viaPartner.data.count)
+        expect(viaAdmin.data.inventory_items.map((i: any) => i.id)).toEqual(
+          viaPartner.data.inventory_items.map((i: any) => i.id)
+        )
+      })
+
+      it("404s for an unknown partner", async () => {
+        const err = await api
+          .get(
+            "/admin/partners/partner_does_not_exist/inventory-items",
+            adminHeaders
+          )
+          .catch((e: any) => e)
+
+        expect(err.response.status).toBe(404)
+      })
+
+      it("requires admin auth", async () => {
+        const err = await api
+          .get(`/admin/partners/${partner.partnerId}/inventory-items`)
+          .catch((e: any) => e)
+
+        expect(err.response.status).toBe(401)
+      })
+
+      it("is read-only — the partner route's POST is NOT mirrored", async () => {
+        const err = await api
+          .post(
+            `/admin/partners/${partner.partnerId}/inventory-items`,
+            { sku: "SHOULD-NOT-EXIST" },
             adminHeaders
           )
           .catch((e: any) => e)

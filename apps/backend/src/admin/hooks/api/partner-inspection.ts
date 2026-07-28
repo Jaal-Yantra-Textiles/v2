@@ -2,7 +2,8 @@
  * Read-only hooks for the partner inspection mirror (#843, approach #2).
  *
  * These hit the admin read-proxy routes (`/admin/partners/:id/{orders, designs,
- * production-runs, products, onboarding-profile}`), which run the partner portal's own
+ * production-runs, products, inventory-items, inventory-orders,
+ * onboarding-profile}`), which run the partner portal's own
  * scoping helpers and listing workflows against a synthesized partner context —
  * so what renders here is what the partner sees. There are deliberately no
  * mutation hooks in this file.
@@ -262,6 +263,118 @@ export const usePartnerInspectionProducts = (
     products: data?.products || [],
     count: data?.count || 0,
     storeId: data?.store_id ?? null,
+    ...rest,
+  }
+}
+
+export interface PartnerInspectionInventoryOrder {
+  id: string
+  status?: string
+  quantity?: number
+  total_price?: number
+  order_date?: string
+  expected_delivery_date?: string
+  is_sample?: boolean
+  order_lines_count?: number
+  stock_location?: string
+  partner_info?: {
+    assigned_partner_id?: string
+    /** Derived from the partner_assignment TASKS, not from metadata. */
+    partner_status?: string
+    partner_started_at?: string | null
+    partner_completed_at?: string | null
+    workflow_tasks_count?: number
+  }
+  created_at?: string
+}
+
+export interface PartnerInspectionInventoryOrdersResponse {
+  inventory_orders: PartnerInspectionInventoryOrder[]
+  count: number
+  offset: number
+  limit: number
+}
+
+export const usePartnerInspectionInventoryOrders = (
+  partnerId: string,
+  query?: { status?: string; q?: string; limit?: number; offset?: number },
+  options?: Omit<
+    UseQueryOptions<
+      PartnerInspectionInventoryOrdersResponse,
+      FetchError,
+      PartnerInspectionInventoryOrdersResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: async () =>
+      sdk.client.fetch<PartnerInspectionInventoryOrdersResponse>(
+        `/admin/partners/${partnerId}/inventory-orders`,
+        { method: "GET", query }
+      ),
+    queryKey: partnerInspectionQueryKeys.detail(partnerId, {
+      inventoryOrders: query,
+    }),
+    enabled: !!partnerId,
+    ...options,
+  })
+
+  return {
+    inventoryOrders: data?.inventory_orders || [],
+    count: data?.count || 0,
+    ...rest,
+  }
+}
+
+export interface PartnerInspectionInventoryItem {
+  id: string
+  sku?: string
+  title?: string
+  /** Aggregated over the partner's location only — see the workflow. */
+  stocked_quantity?: number
+  reserved_quantity?: number
+  incoming_quantity?: number
+  location_levels?: { id: string; location_id: string }[]
+}
+
+export interface PartnerInspectionInventoryItemsResponse {
+  inventory_items: PartnerInspectionInventoryItem[]
+  count: number
+  offset: number
+  limit: number
+}
+
+export const usePartnerInspectionInventoryItems = (
+  partnerId: string,
+  query?: { q?: string; limit?: number; offset?: number },
+  options?: Omit<
+    UseQueryOptions<
+      PartnerInspectionInventoryItemsResponse,
+      FetchError,
+      PartnerInspectionInventoryItemsResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: async () =>
+      sdk.client.fetch<PartnerInspectionInventoryItemsResponse>(
+        `/admin/partners/${partnerId}/inventory-items`,
+        { method: "GET", query }
+      ),
+    queryKey: partnerInspectionQueryKeys.detail(partnerId, {
+      inventoryItems: query,
+    }),
+    enabled: !!partnerId,
+    ...options,
+  })
+
+  return {
+    inventoryItems: data?.inventory_items || [],
+    count: data?.count || 0,
     ...rest,
   }
 }
