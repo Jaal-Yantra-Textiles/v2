@@ -137,6 +137,182 @@ setupSharedTestSuite(() => {
       })
     })
 
+    describe("GET /admin/partners/:id/products", () => {
+      // Provision a store (with its default sales channel) and put a product in
+      // it. The partner catalog is sales-channel-scoped, so without a real store
+      // + product both surfaces return empty and the mirror comparison would
+      // pass against a broken proxy.
+      const provisionStoreWithProduct = async () => {
+        const unique = Date.now() + Math.random().toString(36).slice(2, 6)
+
+        const currenciesRes = await api.get("/admin/currencies", adminHeaders)
+        const currencies = currenciesRes.data.currencies || []
+        const usd = currencies.find((c: any) => c.code?.toLowerCase() === "usd")
+        const currencyCode = String((usd || currencies[0]).code).toLowerCase()
+
+        const storeRes = await api.post(
+          "/partners/stores",
+          {
+            store: {
+              name: `InspectStore ${unique}`,
+              supported_currencies: [
+                { currency_code: currencyCode, is_default: true },
+              ],
+            },
+            sales_channel: {
+              name: `InspectChannel ${unique}`,
+              description: "Default",
+            },
+            region: {
+              name: "Default Region",
+              currency_code: currencyCode,
+              countries: ["us"],
+            },
+            location: {
+              name: "Warehouse",
+              address: {
+                address_1: "1 Main St",
+                city: "NY",
+                postal_code: "10001",
+                country_code: "US",
+              },
+            },
+          },
+          { headers: partner.headers }
+        )
+        const storeId = storeRes.data.store.id
+
+        const productRes = await api.post(
+          `/partners/stores/${storeId}/products`,
+          {
+            title: `Inspect Product ${unique}`,
+            handle: `inspect-prod-${unique}`,
+            status: "published",
+            options: [{ title: "Color", values: ["Red"] }],
+            variants: [
+              {
+                title: "Red",
+                sku: `INSPECT-SKU-${unique}`,
+                options: { Color: "Red" },
+                prices: [{ amount: 1500, currency_code: currencyCode }],
+              },
+            ],
+          },
+          { headers: partner.headers }
+        )
+
+        return { storeId, productId: productRes.data.product?.id }
+      }
+
+      it("mirrors GET /partners/stores/:id/products — same ids and count", async () => {
+        const { storeId, productId } = await provisionStoreWithProduct()
+        expect(productId).toBeTruthy()
+
+        const viaAdmin = await api.get(
+          `/admin/partners/${partner.partnerId}/products`,
+          adminHeaders
+        )
+        const viaPartner = await api.get(
+          `/partners/stores/${storeId}/products`,
+          { headers: partner.headers }
+        )
+
+        expect(viaAdmin.status).toBe(200)
+        expect(viaAdmin.data.count).toBe(viaPartner.data.count)
+        expect(viaAdmin.data.products.map((p: any) => p.id)).toEqual(
+          viaPartner.data.products.map((p: any) => p.id)
+        )
+        expect(viaAdmin.data.products.length).toBeGreaterThan(0)
+        expect(viaAdmin.data.store_id).toBe(storeId)
+      })
+
+      it("mirrors an explicitly selected store", async () => {
+        const { storeId } = await provisionStoreWithProduct()
+
+        const viaAdmin = await api.get(
+          `/admin/partners/${partner.partnerId}/products?store_id=${storeId}`,
+          adminHeaders
+        )
+        const viaPartner = await api.get(
+          `/partners/stores/${storeId}/products`,
+          { headers: partner.headers }
+        )
+
+        expect(viaAdmin.data.count).toBe(viaPartner.data.count)
+        expect(viaAdmin.data.products.map((p: any) => p.id)).toEqual(
+          viaPartner.data.products.map((p: any) => p.id)
+        )
+      })
+
+      it("scopes to the partner — another partner's catalog never leaks in", async () => {
+        const { productId } = await provisionStoreWithProduct()
+        const other = await createPartner(api)
+
+        const res = await api.get(
+          `/admin/partners/${other.partnerId}/products`,
+          adminHeaders
+        )
+
+        expect(res.status).toBe(200)
+        expect(
+          res.data.products.some((p: any) => p.id === productId)
+        ).toBe(false)
+      })
+
+      it("404s on a store belonging to someone else, not a partner-voiced 401", async () => {
+        const { storeId } = await provisionStoreWithProduct()
+        const other = await createPartner(api)
+
+        const err = await api
+          .get(
+            `/admin/partners/${other.partnerId}/products?store_id=${storeId}`,
+            adminHeaders
+          )
+          .catch((e: any) => e)
+
+        expect(err.response.status).toBe(404)
+      })
+
+      it("returns an empty catalog for a partner with no store yet", async () => {
+        const res = await api.get(
+          `/admin/partners/${partner.partnerId}/products`,
+          adminHeaders
+        )
+
+        expect(res.status).toBe(200)
+        expect(res.data.products).toHaveLength(0)
+        expect(res.data.store_id).toBeNull()
+      })
+
+      it("404s for an unknown partner", async () => {
+        const err = await api
+          .get("/admin/partners/partner_does_not_exist/products", adminHeaders)
+          .catch((e: any) => e)
+
+        expect(err.response.status).toBe(404)
+      })
+
+      it("requires admin auth", async () => {
+        const err = await api
+          .get(`/admin/partners/${partner.partnerId}/products`)
+          .catch((e: any) => e)
+
+        expect(err.response.status).toBe(401)
+      })
+
+      it("is read-only — no write verb is exposed", async () => {
+        const err = await api
+          .post(
+            `/admin/partners/${partner.partnerId}/products`,
+            {},
+            adminHeaders
+          )
+          .catch((e: any) => e)
+
+        expect(err.response.status).toBe(404)
+      })
+    })
+
     describe("GET /admin/partners/:id/onboarding-profile", () => {
       it("returns null when the partner never started the wizard", async () => {
         const res = await api.get(

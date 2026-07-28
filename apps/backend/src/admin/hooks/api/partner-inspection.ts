@@ -2,7 +2,7 @@
  * Read-only hooks for the partner inspection mirror (#843, approach #2).
  *
  * These hit the admin read-proxy routes (`/admin/partners/:id/{orders, designs,
- * production-runs, onboarding-profile}`), which run the partner portal's own
+ * production-runs, products, onboarding-profile}`), which run the partner portal's own
  * scoping helpers and listing workflows against a synthesized partner context —
  * so what renders here is what the partner sees. There are deliberately no
  * mutation hooks in this file.
@@ -208,6 +208,59 @@ export const usePartnerInspectionProductionRuns = (
   return {
     productionRuns: data?.production_runs || [],
     count: data?.count || 0,
+    ...rest,
+  }
+}
+
+export interface PartnerInspectionProduct {
+  id: string
+  title?: string
+  handle?: string
+  status?: string
+  thumbnail?: string | null
+  created_at?: string
+  collection?: { id: string; title?: string } | null
+  variants?: { id: string; title?: string }[]
+  images?: { id: string; url?: string }[]
+}
+
+export interface PartnerInspectionProductsResponse {
+  products: PartnerInspectionProduct[]
+  count: number
+  offset: number
+  limit: number
+  /** Which of the partner's stores the catalog was read from; null if they have none. */
+  store_id: string | null
+}
+
+export const usePartnerInspectionProducts = (
+  partnerId: string,
+  query?: { store_id?: string },
+  options?: Omit<
+    UseQueryOptions<
+      PartnerInspectionProductsResponse,
+      FetchError,
+      PartnerInspectionProductsResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: async () =>
+      sdk.client.fetch<PartnerInspectionProductsResponse>(
+        `/admin/partners/${partnerId}/products`,
+        { method: "GET", query }
+      ),
+    queryKey: partnerInspectionQueryKeys.detail(partnerId, { products: query }),
+    enabled: !!partnerId,
+    ...options,
+  })
+
+  return {
+    products: data?.products || [],
+    count: data?.count || 0,
+    storeId: data?.store_id ?? null,
     ...rest,
   }
 }

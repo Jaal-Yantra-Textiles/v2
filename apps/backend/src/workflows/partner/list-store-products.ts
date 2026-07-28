@@ -1,5 +1,11 @@
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
+import {
+  createStep,
+  createWorkflow,
+  StepResponse,
+  transform,
+  WorkflowResponse,
+} from "@medusajs/framework/workflows-sdk"
 import type { RemoteQueryFunction } from "@medusajs/types"
 
 export type ListStoreProductsInput = {
@@ -79,14 +85,46 @@ const listStoreProductsStep = createStep(
   }
 )
 
+export type ListStoreProductsOutput = {
+  products: any[]
+  count: number
+  offset: number
+  limit: number
+  /** Which of the partner's stores this listing came from. */
+  store_id: string
+}
+
 export const listStoreProductsWorkflow = createWorkflow(
   {
     name: "list-store-products",
     store: true,
   },
   (input: ListStoreProductsInput) => {
-    const products = listStoreProductsStep(input)
-    return new WorkflowResponse(products)
+    const links = listStoreProductsStep(input)
+
+    // #843 — the response shaping lives HERE rather than in the route, so the
+    // admin inspection mirror (`GET /admin/partners/:id/products`) can serve the
+    // exact payload the partner portal serves. Re-mapping links→products a
+    // second time admin-side is precisely the seam the mirror exists to close.
+    const output = transform({ links, input }, ({ links, input }) => {
+      const products = ((links as any[]) || [])
+        .map((l: any) => l?.product)
+        .filter(Boolean)
+
+      return {
+        products,
+        count: products.length,
+        // The partner products listing is unpaginated — the step returns the
+        // store's whole channel-linked set. `offset`/`limit` are echoed for
+        // response-shape parity with the other partner listings; they do NOT
+        // slice, and changing that is a separate (partner-visible) decision.
+        offset: 0,
+        limit: 20,
+        store_id: input.storeId,
+      } as ListStoreProductsOutput
+    })
+
+    return new WorkflowResponse(output)
   }
 )
 

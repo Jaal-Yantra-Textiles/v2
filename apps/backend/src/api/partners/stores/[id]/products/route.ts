@@ -21,23 +21,17 @@ export const GET = async (
     req.scope
   )
 
-  const { result: links } = await listStoreProductsWorkflow(req.scope).run({
+  // Auth is all this route contributes — the listing (and its response shape)
+  // belongs to the workflow so the admin inspection mirror runs the same code
+  // rather than a second copy of it (#843).
+  const { result } = await listStoreProductsWorkflow(req.scope).run({
     input: {
       partnerId: partner.id,
       storeId: store.id,
     },
   })
 
-  const products = ((links as any[]) || [])
-    .map((l: any) => l?.product)
-    .filter(Boolean)
-
-  res.json({
-    products,
-    count: products.length,
-    offset: 0,
-    limit: 20,
-  })
+  res.json(result)
 }
 
 export const POST = async (

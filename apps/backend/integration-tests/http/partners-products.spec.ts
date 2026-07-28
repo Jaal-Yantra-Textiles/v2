@@ -283,16 +283,20 @@ setupSharedTestSuite(() => {
       // Partner 1 listing must only include P1
       const p1List = await api.get(`/partners/stores/${storeId}/products`, { headers: partnerHeaders })
       expect(p1List.status).toBe(200)
+      // The listing returns PRODUCTS, not link rows — `p.product.id` was a stale
+      // read of an older payload, and since it could only ever be undefined both
+      // `some()` calls were false. It went unnoticed because CI runs only the
+      // spec files a PR changes, so this one had not run in a long time.
       const p1Products = p1List.data.products || []
-      expect(p1Products.some((l: any) => l?.product?.id === p1Product.id)).toBe(true)
-      expect(p1Products.some((l: any) => l?.product?.id === p2Product.id)).toBe(false)
+      expect(p1Products.some((p: any) => p?.id === p1Product.id)).toBe(true)
+      expect(p1Products.some((p: any) => p?.id === p2Product.id)).toBe(false)
 
       // Partner 2 listing must only include P2
       const p2List = await api.get(`/partners/stores/${store2Id}/products`, { headers: partner2Headers })
       expect(p2List.status).toBe(200)
       const p2Products = p2List.data.products || []
-      expect(p2Products.some((l: any) => l?.product?.id === p2Product.id)).toBe(true)
-      expect(p2Products.some((l: any) => l?.product?.id === p1Product.id)).toBe(false)
+      expect(p2Products.some((p: any) => p?.id === p2Product.id)).toBe(true)
+      expect(p2Products.some((p: any) => p?.id === p1Product.id)).toBe(false)
 
       // Cross-access should be unauthorized
       const cross1 = await api.get(`/partners/stores/${store2Id}/products`, { headers: partnerHeaders, validateStatus: () => true })
