@@ -181,5 +181,219 @@ setupSharedTestSuite(() => {
         expect(err.response.status).toBe(404)
       })
     })
+
+    describe("GET /admin/partners/:id/designs", () => {
+      it("mirrors GET /partners/designs — same ids, count and facets", async () => {
+        // Seed a design the partner OWNS (self-serve create) so the comparison
+        // runs over real rows rather than two empty lists agreeing with each
+        // other, which would pass even if the mirror were broken.
+        const created = await api.post(
+          "/partners/designs",
+          { name: `Inspect Design ${Date.now()}`, description: "mirror test" },
+          { headers: partner.headers }
+        )
+        expect(created.status).toBe(201)
+
+        const viaAdmin = await api.get(
+          `/admin/partners/${partner.partnerId}/designs`,
+          adminHeaders
+        )
+        const viaPartner = await api.get("/partners/designs", {
+          headers: partner.headers,
+        })
+
+        expect(viaAdmin.status).toBe(200)
+        expect(viaAdmin.data.count).toBe(viaPartner.data.count)
+        expect(viaAdmin.data.designs.map((d: any) => d.id)).toEqual(
+          viaPartner.data.designs.map((d: any) => d.id)
+        )
+        expect(viaAdmin.data.facets).toEqual(viaPartner.data.facets)
+        expect(viaAdmin.data.designs.length).toBeGreaterThan(0)
+      })
+
+      it("carries partner_info and is_owner through the proxy", async () => {
+        // `is_owner` is per-viewer (#920) and the derived `partner_info` block is
+        // the whole reason an operator opens this surface — if the proxy dropped
+        // either, the list would render but say nothing useful.
+        await api.post(
+          "/partners/designs",
+          { name: `Owned Design ${Date.now()}`, description: "ownership test" },
+          { headers: partner.headers }
+        )
+
+        const res = await api.get(
+          `/admin/partners/${partner.partnerId}/designs`,
+          adminHeaders
+        )
+
+        const design = res.data.designs[0]
+        expect(design.is_owner).toBe(true)
+        expect(design.partner_info).toMatchObject({
+          assigned_partner_id: partner.partnerId,
+          partner_status: "incoming",
+        })
+      })
+
+      it("mirrors the bucket + q filters, not just the unfiltered list", async () => {
+        await api.post(
+          "/partners/designs",
+          { name: `Bucketed ${Date.now()}`, description: "filter test" },
+          { headers: partner.headers }
+        )
+
+        for (const qs of ["bucket=yours", "bucket=completed", "q=Bucketed"]) {
+          const viaAdmin = await api.get(
+            `/admin/partners/${partner.partnerId}/designs?${qs}`,
+            adminHeaders
+          )
+          const viaPartner = await api.get(`/partners/designs?${qs}`, {
+            headers: partner.headers,
+          })
+
+          expect(viaAdmin.data.count).toBe(viaPartner.data.count)
+          expect(viaAdmin.data.designs.map((d: any) => d.id)).toEqual(
+            viaPartner.data.designs.map((d: any) => d.id)
+          )
+        }
+      })
+
+      it("404s for an unknown partner", async () => {
+        const err = await api
+          .get("/admin/partners/partner_does_not_exist/designs", adminHeaders)
+          .catch((e: any) => e)
+
+        expect(err.response.status).toBe(404)
+      })
+
+      it("requires admin auth", async () => {
+        const err = await api
+          .get(`/admin/partners/${partner.partnerId}/designs`)
+          .catch((e: any) => e)
+
+        expect(err.response.status).toBe(401)
+      })
+
+      it("is read-only — no write verb is exposed", async () => {
+        const err = await api
+          .post(`/admin/partners/${partner.partnerId}/designs`, {}, adminHeaders)
+          .catch((e: any) => e)
+
+        expect(err.response.status).toBe(404)
+      })
+    })
+
+    describe("GET /admin/partners/:id/production-runs", () => {
+      // Assign real work to the partner: admin creates a design, opens a
+      // production run on it, and approves an assignment to this partner. That
+      // is the only path that produces a partner-scoped run, and it is what an
+      // operator would be inspecting.
+      const assignRunToPartner = async () => {
+        const design = await api.post(
+          "/admin/designs",
+          { name: `Run Design ${Date.now()}`, description: "run mirror test" },
+          adminHeaders
+        )
+        const parent = await api.post(
+          "/admin/production-runs",
+          { design_id: design.data.design.id, quantity: 4 },
+          adminHeaders
+        )
+        const approved = await api.post(
+          `/admin/production-runs/${parent.data.production_run.id}/approve`,
+          {
+            assignments: [
+              { partner_id: partner.partnerId, role: "stitching", quantity: 4 },
+            ],
+          },
+          adminHeaders
+        )
+        expect(approved.status).toBe(200)
+        return approved.data.result?.children?.[0]?.id
+      }
+
+      it("mirrors GET /partners/production-runs for an assigned run", async () => {
+        const runId = await assignRunToPartner()
+        expect(runId).toBeTruthy()
+
+        const viaAdmin = await api.get(
+          `/admin/partners/${partner.partnerId}/production-runs`,
+          adminHeaders
+        )
+        const viaPartner = await api.get("/partners/production-runs", {
+          headers: partner.headers,
+        })
+
+        expect(viaAdmin.status).toBe(200)
+        expect(viaAdmin.data.count).toBe(viaPartner.data.count)
+        expect(viaAdmin.data.production_runs.map((r: any) => r.id)).toEqual(
+          viaPartner.data.production_runs.map((r: any) => r.id)
+        )
+        expect(
+          viaAdmin.data.production_runs.some((r: any) => r.id === runId)
+        ).toBe(true)
+      })
+
+      it("scopes to the partner — another partner's runs never leak in", async () => {
+        await assignRunToPartner()
+        const other = await createPartner(api)
+
+        const res = await api.get(
+          `/admin/partners/${other.partnerId}/production-runs`,
+          adminHeaders
+        )
+
+        expect(res.status).toBe(200)
+        expect(res.data.production_runs).toHaveLength(0)
+      })
+
+      it("mirrors the status filter", async () => {
+        await assignRunToPartner()
+
+        const viaAdmin = await api.get(
+          `/admin/partners/${partner.partnerId}/production-runs?status=pending`,
+          adminHeaders
+        )
+        const viaPartner = await api.get(
+          "/partners/production-runs?status=pending",
+          { headers: partner.headers }
+        )
+
+        expect(viaAdmin.data.count).toBe(viaPartner.data.count)
+        expect(viaAdmin.data.production_runs.map((r: any) => r.id)).toEqual(
+          viaPartner.data.production_runs.map((r: any) => r.id)
+        )
+      })
+
+      it("404s for an unknown partner", async () => {
+        const err = await api
+          .get(
+            "/admin/partners/partner_does_not_exist/production-runs",
+            adminHeaders
+          )
+          .catch((e: any) => e)
+
+        expect(err.response.status).toBe(404)
+      })
+
+      it("requires admin auth", async () => {
+        const err = await api
+          .get(`/admin/partners/${partner.partnerId}/production-runs`)
+          .catch((e: any) => e)
+
+        expect(err.response.status).toBe(401)
+      })
+
+      it("is read-only — no write verb is exposed", async () => {
+        const err = await api
+          .post(
+            `/admin/partners/${partner.partnerId}/production-runs`,
+            {},
+            adminHeaders
+          )
+          .catch((e: any) => e)
+
+        expect(err.response.status).toBe(404)
+      })
+    })
   })
 })

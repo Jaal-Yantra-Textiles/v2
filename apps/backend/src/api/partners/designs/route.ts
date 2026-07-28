@@ -107,8 +107,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../helpers"
 import { ListDesignsQuery, PartnerCreateDesign } from "./validators"
-import { applyDesignListFilters } from "./list-filters"
-import designPartnersLink from "../../../links/design-partners-link"
+import { listPartnerDesignsWorkflow } from "../../../workflows/designs/list-partner-designs"
 import { createDesignWorkflow } from "../../../workflows/designs/create-design"
 import { linkDesignPartnerWorkflow } from "../../../workflows/designs/partner/link-design-to-partner"
 
@@ -116,247 +115,35 @@ export async function GET(
   req: AuthenticatedMedusaRequest<ListDesignsQuery>,
   res: MedusaResponse
 ) {
-  const { limit = 20, offset = 0, status, q, bucket } = req.validatedQuery as ListDesignsQuery
-
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { limit = 20, offset = 0, status, q, bucket } =
+    req.validatedQuery as ListDesignsQuery
 
   // Authenticated partner
   if (!req.auth_context?.actor_id) {
     return res.status(401).json({ error: "Partner authentication required - no actor ID" })
   }
-  
+
   const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
   if (!partner) {
     return res.status(401).json({ error: "Partner authentication required - no partner found" })
   }
 
-  // Filters: cannot filter on linked design properties; filter post-query if needed
-  const filters: any = { partner_id: partner.id }
-
-  // Order newest-assigned first: the link row's `created_at` is when the
-  // design was assigned to (or created by) this partner. Without an
-  // explicit order the link query returns rows in an arbitrary order, so
-  // a freshly assigned/created design could fall past the `take` window
-  // and never reach page 1. Wrapped in a fallback so that if a runtime
-  // ever rejects `order` on a link entry point, the listing degrades to
-  // unordered instead of 500-ing.
-  //
-  // NOTE: pagination is intentionally NOT applied here. `query.graph` cannot
-  // filter on the linked design's columns (design.status) and the partner
-  // route has no free-text index, so status/`q` are matched in-app below.
-  // Paginating here would slice BEFORE the linked+owned merge and those
-  // filters run, returning the wrong page and a per-page (not total) count —
-  // the #484 page-vs-set bug. We fetch the full partner-scoped set (capped)
-  // and paginate in `applyDesignListFilters`.
-  const linkFields = ["created_at", "design.*", "design.tasks.*", "partner.*"]
-  let results: any[] = []
-  try {
-    const { data } = await query.graph({
-      entity: designPartnersLink.entryPoint,
-      fields: linkFields,
-      filters,
-      pagination: { skip: 0, take: 1000, order: { created_at: "DESC" } },
-    }, { locale: req.locale })
-    results = data
-  } catch {
-    const { data } = await query.graph({
-      entity: designPartnersLink.entryPoint,
-      fields: linkFields,
-      filters,
-      pagination: { skip: 0, take: 1000 },
-    }, { locale: req.locale })
-    results = data
-  }
-
-  // Include all linked designs for this partner.
-  // We'll compute assignment status based on presence of partner workflow tasks (by known titles).
-  // Guard against orphaned link rows: a soft-deleted design resolves to
-  // a null `design` on the link join (e.g. after DELETE /partners/designs/:id),
-  // and the mapping below dereferences `design.*` — drop those so the
-  // listing doesn't 500.
-  const allLinked = (results || [])
-    .filter((linkData: any) => !!linkData?.design)
-    .map((l: any) => ({
-      ...l,
-      _recency: l.created_at || l.design?.created_at || null,
-    }))
-
-  // Safety net: also pull designs this partner OWNS (created via
-  // self-serve). They ARE in the link table (POST creates the link), so
-  // the ordered query above already surfaces them — but if link ordering
-  // ever misses one, this guarantees a partner still sees what they
-  // created. Merged + re-sorted by recency below, never force-pinned.
-  // Always fetched now (no offset gate): pagination happens in-app AFTER
-  // the merge, so gating owned-fetch on offset===0 would drop owned
-  // designs from every page but the first. #484.
-  let ownedRows: any[] = []
-  {
-    try {
-      const { data: owned } = await query.graph(
-        {
-          entity: "design",
-          filters: { owner_partner_id: partner.id } as any,
-          fields: ["*", "tasks.*"],
-          pagination: { skip: 0, take: 50, order: { created_at: "DESC" } },
-        },
-        { locale: req.locale }
-      )
-      // Normalize to the {design, partner} shape the mapping below expects.
-      ownedRows = (owned || [])
-        .filter((d: any) => !!d?.id)
-        .map((d: any) => ({
-          design: d,
-          partner,
-          _recency: d.created_at || null,
-        }))
-    } catch {
-      // Non-fatal — owned designs still appear via the linked set.
-    }
-  }
-
-  // Merge linked + owned, deduped by design id, then sort newest-first by
-  // recency so the most recently assigned/created design is always on top.
-  const seenDesignIds = new Set<string>()
-  const merged: any[] = []
-  for (const item of [...allLinked, ...ownedRows]) {
-    const did = item?.design?.id
-    if (!did || seenDesignIds.has(did)) {
-      continue
-    }
-    seenDesignIds.add(did)
-    merged.push(item)
-  }
-  merged.sort((a: any, b: any) => {
-    const at = a._recency ? new Date(a._recency).getTime() : 0
-    const bt = b._recency ? new Date(b._recency).getTime() : 0
-    return bt - at
+  // The listing itself lives in a workflow so the admin inspection mirror
+  // (`GET /admin/partners/:id/designs`, #843) runs exactly this logic rather
+  // than a second copy of it. This route contributes auth and nothing else.
+  const { result } = await listPartnerDesignsWorkflow(req.scope).run({
+    input: {
+      partnerId: partner.id,
+      q,
+      status,
+      bucket,
+      offset,
+      limit,
+      locale: req.locale,
+    },
   })
 
-  // status + free-text (`q`) filtering and pagination are applied AFTER the
-  // designs are mapped (so `q` can match the resolved design fields), via
-  // applyDesignListFilters below. Map over the full merged set here.
-  const filtered = merged
-
-  // Pre-fetch all production runs for this partner (one query, not per-design)
-  let partnerRuns: any[] = []
-  try {
-    const { data: runs } = await query.graph({
-      entity: "production_runs",
-      // Include cancelled runs: production runs are the single source of
-      // truth for partner_status, so a cancelled run is how a cancelled
-      // assignment is represented (no separate metadata marker).
-      filters: { partner_id: partner.id },
-      fields: ["id", "design_id", "status", "accepted_at", "started_at", "finished_at", "completed_at", "created_at"],
-      pagination: { skip: 0, take: 200 },
-    }, { locale: req.locale })
-    partnerRuns = runs || []
-  } catch {
-    // Non-fatal
-  }
-
-  const mappedDesigns = filtered.map((linkData: any) => {
-    const design = linkData.design
-
-    const tasks = design.tasks || []
-    const isPartnerWorkflowTask = (t: any) =>
-      !!t && [
-        "partner-design-start",
-        "partner-design-redo",
-        "partner-design-finish",
-        "partner-design-completed",
-      ].includes(t.title)
-    const workflowTasks = tasks.filter(isPartnerWorkflowTask)
-
-    let partnerStatus: "incoming" | "assigned" | "in_progress" | "awaiting_review" | "finished" | "completed" | "cancelled" =
-      "incoming"
-    let partnerPhase: "redo" | null = null
-    let partnerStartedAt: string | null = null
-    let partnerFinishedAt: string | null = null
-    let partnerCompletedAt: string | null = null
-
-    // ── Single source of truth: production runs (incl. cancelled) ──────
-    const runsForDesign = partnerRuns
-      .filter((r: any) => r.design_id === design.id)
-      .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
-    const resolvedFromRun = runsForDesign.length > 0
-    if (resolvedFromRun) {
-      const activeRun = runsForDesign.find(
-        (r: any) => !["completed", "cancelled"].includes(String(r.status))
-      )
-      if (activeRun) {
-        const runStatus = String(activeRun.status)
-        if (runStatus === "in_progress") {
-          partnerStatus = activeRun.finished_at
-            ? "awaiting_review"
-            : activeRun.started_at
-              ? "in_progress"
-              : "assigned"
-        } else {
-          partnerStatus = "assigned"
-        }
-        if (activeRun.started_at) partnerStartedAt = String(activeRun.started_at)
-        if (activeRun.finished_at) partnerFinishedAt = String(activeRun.finished_at)
-      } else {
-        const newest = runsForDesign[0]
-        const runStatus = String(newest.status)
-        if (runStatus === "completed") {
-          partnerStatus = "completed"
-          partnerCompletedAt = newest.completed_at ? String(newest.completed_at) : null
-          if (newest.finished_at) partnerFinishedAt = String(newest.finished_at)
-        } else if (runStatus === "cancelled") {
-          partnerStatus = "cancelled"
-        }
-      }
-    }
-
-    // The legacy v1 fallback (cancel marker + partner-design-* task status
-    // inference for run-less designs) was removed 2026-06-09 after the
-    // backfill migrated all marked designs onto production runs. A design
-    // with no runs is "incoming". See V1_PARTNER_DESIGN_REMOVAL_PLAN.md.
-
-    const partner_info = {
-      assigned_partner_id: linkData.partner?.id || partner.id,
-      partner_status: partnerStatus,
-      partner_phase: partnerPhase,
-      partner_started_at: partnerStartedAt,
-      partner_finished_at: partnerFinishedAt,
-      partner_completed_at: partnerCompletedAt,
-      workflow_tasks_count: workflowTasks.length,
-    }
-
-    return {
-      ...design,
-      partner_info,
-      // Whether the *current* partner owns this design (vs merely being assigned
-      // to it). Mirrors the detail route so the UI's "Yours"/"Assigned" source
-      // badge is accurate — a bare truthiness check on `owner_partner_id` would
-      // mislabel a design owned by another partner but assigned to this one.
-      is_owner:
-        design.owner_partner_id != null &&
-        design.owner_partner_id === partner.id,
-    }
-  })
-
-  // Apply status + free-text (`q`) filtering, THEN paginate, over the full
-  // partner-scoped set. count = total matched (pre-pagination) so the UI
-  // pager is correct. Pure + unit-tested in ./list-filters.
-  const { items: designs, count, facets } = applyDesignListFilters(mappedDesigns, {
-    q,
-    status,
-    bucket,
-    offset,
-    limit,
-  })
-
-  res.status(200).json({
-    designs,
-    count,
-    // #6 — per-bucket counts for the partner work tabs (accurate across all
-    // pages, computed over the full q+status set before the active bucket).
-    facets,
-    limit,
-    offset,
-  })
+  res.status(200).json(result)
 }
 
 /**

@@ -86,15 +86,16 @@
  * }
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import type { ListProductionRunsQuery } from "./validators"
+import { listPartnerProductionRunsWorkflow } from "../../../workflows/production-runs/list-partner-production-runs"
 
 export async function GET(
   req: AuthenticatedMedusaRequest<ListProductionRunsQuery>,
   res: MedusaResponse
 ) {
-  const { limit = 20, offset = 0, status, role, run_type, design_id } = req.validatedQuery || {}
+  const { limit = 20, offset = 0, status, role, run_type, design_id } =
+    (req.validatedQuery || {}) as ListProductionRunsQuery
 
   const partnerId = req.auth_context?.actor_id
   if (!partnerId) {
@@ -103,57 +104,21 @@ export async function GET(
       .json({ error: "Partner authentication required - no actor ID" })
   }
 
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-
-  const filters: any = { partner_id: partnerId }
-  if (status) {
-    filters.status = status
-  }
-  if (role) {
-    filters.role = role
-  }
-  if (run_type) {
-    filters.run_type = run_type
-  }
-  if (design_id) {
-    filters.design_id = design_id
-  }
-
-  const { data: runs, metadata } = await query.graph({
-    entity: "production_runs",
-    fields: [
-      "id", "status", "run_type", "quantity", "role",
-      "design_id", "partner_id", "parent_run_id",
-      "product_id", "variant_id", "order_id", "order_line_item_id",
-      "accepted_at", "started_at", "finished_at", "completed_at",
-      "cancelled_at", "cancelled_reason",
-      "finish_notes", "completion_notes",
-      "partner_cost_estimate", "cost_type",
-      "produced_quantity", "rejected_quantity", "rejection_reason", "rejection_notes",
-      "depends_on_run_ids", "metadata",
-      "created_at", "updated_at",
-      "tasks.*",
-      // `order.id` resolves the order↔production_run link (#342 D5) so the design
-      // page can deep-link each run to its unified order detail (`/orders/:id`).
-      // NB: this is the LINK accessor, distinct from the plain legacy `order_id`
-      // column above (the original retail order line the run was created from).
-      "order.id",
-    ],
-    filters,
-    pagination: { skip: offset, take: limit },
-  }, { locale: req.locale })
-
-  const list = (runs || []).map((run: any) => ({
-    ...run,
-    unified_order_id: Array.isArray(run?.order)
-      ? run.order[0]?.id
-      : run?.order?.id,
-  }))
-
-  return res.status(200).json({
-    production_runs: list,
-    count: (metadata as any)?.count ?? list.length,
-    limit,
-    offset,
+  // The read lives in a workflow so the admin inspection mirror
+  // (`GET /admin/partners/:id/production-runs`, #843) runs exactly this query
+  // and field set rather than a second copy. This route contributes auth only.
+  const { result } = await listPartnerProductionRunsWorkflow(req.scope).run({
+    input: {
+      partnerId,
+      status,
+      role,
+      run_type,
+      design_id,
+      offset,
+      limit,
+      locale: req.locale,
+    },
   })
+
+  return res.status(200).json(result)
 }
