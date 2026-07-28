@@ -1,3 +1,11 @@
+# [13.72.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.71.0...v13.72.0) (2026-07-28)
+
+
+### Features
+
+* **admin,partners:** inspection mirror for designs + production runs [[#843](https://github.com/Jaal-Yantra-Textiles/v2/issues/843)] ([#1182](https://github.com/Jaal-Yantra-Textiles/v2/issues/1182)) ([e4d82f8](https://github.com/Jaal-Yantra-Textiles/v2/commit/e4d82f820b8fca1f43b78bc967364432bace8623)), closes [#1175](https://github.com/Jaal-Yantra-Textiles/v2/issues/1175) [#920](https://github.com/Jaal-Yantra-Textiles/v2/issues/920) [#1180](https://github.com/Jaal-Yantra-Textiles/v2/issues/1180)
+* **admin,partners:** inspection mirror for products + inventory [[#843](https://github.com/Jaal-Yantra-Textiles/v2/issues/843)] ([#1183](https://github.com/Jaal-Yantra-Textiles/v2/issues/1183)) ([0b2498a](https://github.com/Jaal-Yantra-Textiles/v2/commit/0b2498a8d006d2993beaf8046db6b1567a849c6e)), closes [#1158](https://github.com/Jaal-Yantra-Textiles/v2/issues/1158)
+
 # [13.71.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.70.0...v13.71.0) (2026-07-27)
 
 
