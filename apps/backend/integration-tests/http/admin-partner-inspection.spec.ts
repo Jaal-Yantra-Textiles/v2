@@ -224,6 +224,7 @@ setupSharedTestSuite(() => {
         )
         expect(viaAdmin.data.products.length).toBeGreaterThan(0)
         expect(viaAdmin.data.store_id).toBe(storeId)
+        expect(viaAdmin.data.partner_id).toBe(partner.partnerId)
       })
 
       it("mirrors an explicitly selected store", async () => {

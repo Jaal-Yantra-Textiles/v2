@@ -90,6 +90,8 @@ export type ListStoreProductsOutput = {
   count: number
   offset: number
   limit: number
+  /** Whose catalog this is — the admin mirror serves several partners. */
+  partner_id: string
   /** Which of the partner's stores this listing came from. */
   store_id: string
 }
@@ -120,6 +122,7 @@ export const listStoreProductsWorkflow = createWorkflow(
         // slice, and changing that is a separate (partner-visible) decision.
         offset: 0,
         limit: 20,
+        partner_id: input.partnerId,
         store_id: input.storeId,
       } as ListStoreProductsOutput
     })

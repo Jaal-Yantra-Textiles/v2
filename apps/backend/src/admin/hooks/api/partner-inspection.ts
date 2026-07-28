@@ -229,6 +229,7 @@ export interface PartnerInspectionProductsResponse {
   count: number
   offset: number
   limit: number
+  partner_id: string
   /** Which of the partner's stores the catalog was read from; null if they have none. */
   store_id: string | null
 }

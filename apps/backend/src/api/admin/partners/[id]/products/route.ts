@@ -64,6 +64,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       count: 0,
       offset: 0,
       limit: 20,
+      partner_id: partner.id,
       store_id: null,
     })
   }

@@ -166,8 +166,9 @@ setupSharedTestSuite(() => {
       expect(listRes.data.store_id).toBe(storeId)
       const products = listRes.data.products || []
       expect(Array.isArray(products)).toBe(true)
-      // Ensure the created product is present in listing
-      expect(products.some((p: any) => p?.product?.id === product.id)).toBe(true)
+      // Ensure the created product is present in listing — the listing returns
+      // products, not link rows (see the note in the isolation test below).
+      expect(products.some((p: any) => p?.id === product.id)).toBe(true)
     })
 
     it("isolates products and store access across multiple partners", async () => {
