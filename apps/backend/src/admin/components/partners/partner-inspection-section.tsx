@@ -8,9 +8,9 @@
  * Read-only by construction: no action menus, no mutations. Acting on a
  * partner's behalf is the separate audited-impersonation track.
  *
- * The top-level tabs are the SURFACE (orders / designs / runs / products); the
- * order-kind discriminator is a sub-tab of Orders, since it only means anything
- * there.
+ * The top-level tabs are the SURFACE (orders / designs / runs / products /
+ * inventory / website); the order-kind discriminator is a sub-tab of Orders,
+ * since it only means anything there.
  */
 import { Badge, Container, Heading, Table, Tabs, Text } from "@medusajs/ui"
 import { useState } from "react"
@@ -26,6 +26,9 @@ import {
   usePartnerInspectionInventoryItems,
   usePartnerInspectionInventoryOrders,
   usePartnerOnboardingProfile,
+  usePartnerInspectionStorefront,
+  usePartnerInspectionWebsite,
+  usePartnerInspectionPages,
 } from "../../hooks/api/partner-inspection"
 
 interface PartnerInspectionSectionProps {
@@ -38,6 +41,7 @@ type InspectionSurface =
   | "runs"
   | "products"
   | "inventory"
+  | "website"
 
 const SURFACES: { value: InspectionSurface; label: string }[] = [
   { value: "orders", label: "Orders" },
@@ -45,6 +49,7 @@ const SURFACES: { value: InspectionSurface; label: string }[] = [
   { value: "runs", label: "Production runs" },
   { value: "products", label: "Products" },
   { value: "inventory", label: "Inventory" },
+  { value: "website", label: "Website" },
 ]
 
 /** Inventory splits two ways the partner portal itself splits them. */
@@ -111,6 +116,24 @@ const statusColor = (status?: string) => {
       return "grey" as const
   }
 }
+
+/** Label-over-value pair, for the storefront surface's summary grids. */
+const Field = ({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) => (
+  <div className="flex flex-col">
+    <Text size="xsmall" className="text-ui-fg-muted">
+      {label}
+    </Text>
+    <Text size="small" className="text-ui-fg-subtle" asChild>
+      <div>{children}</div>
+    </Text>
+  </div>
+)
 
 const EmptyRow = ({ children }: { children: React.ReactNode }) => (
   <div className="px-6 py-8 text-center">
@@ -664,6 +687,193 @@ const InventoryPanel = ({ partnerId }: { partnerId: string }) => {
   )
 }
 
+/**
+ * The storefront surface (#843 slice 5). Unlike the other panels this is not a
+ * single list — an operator asking "what's up with their storefront?" needs the
+ * hosting state, the site itself, and its pages together, because the useful
+ * answer is usually the relationship between them ("provisioned, but no website
+ * record" / "website exists but every page is draft").
+ */
+const WebsitePanel = ({ partnerId }: { partnerId: string }) => {
+  const {
+    storefrontStatus: status,
+    isLoading: isStatusLoading,
+    isError: isStatusError,
+    error: statusError,
+  } = usePartnerInspectionStorefront(partnerId)
+  const {
+    website,
+    previewUrl,
+    reason,
+    isLoading: isWebsiteLoading,
+  } = usePartnerInspectionWebsite(partnerId)
+  const { pages, count, isLoading: isPagesLoading } =
+    usePartnerInspectionPages(partnerId, { limit: PAGE_SIZE })
+
+  if (isStatusError) {
+    throw statusError
+  }
+
+  if (isStatusLoading || isWebsiteLoading) {
+    return <LoadingRows />
+  }
+
+  return (
+    <div className="divide-y">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2 px-6 py-4 md:grid-cols-4">
+        <Field label="Hosting">
+          <Badge
+            size="2xsmall"
+            color={status?.provisioned ? "green" : "grey"}
+          >
+            {status?.provisioned ? "Provisioned" : "Not provisioned"}
+          </Badge>
+        </Field>
+        <Field label="Provider">{status?.provider || "—"}</Field>
+        <Field label="Domain">
+          {status?.storefront_url ? (
+            // Opening a partner's own storefront is safe — it is a public page.
+            <a
+              href={status.storefront_url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-ui-fg-interactive"
+            >
+              {status.domain}
+            </a>
+          ) : (
+            "—"
+          )}
+        </Field>
+        <Field label="Last deployment">
+          {status?.latest_deployment ? (
+            <Badge
+              size="2xsmall"
+              color={statusColor(status.latest_deployment.status)}
+            >
+              {status.latest_deployment.status}
+            </Badge>
+          ) : (
+            "—"
+          )}
+        </Field>
+      </div>
+
+      {/* Both of these are states an operator must be able to act on, and the
+          partner route repairs them silently on its next read — the mirror only
+          reports, so say so plainly here. */}
+      {status?.stale_project && (
+        <div className="px-6 py-3">
+          <Text size="small" className="text-ui-fg-error">
+            The hosting provider no longer knows this project — the partner&apos;s
+            stored references are stale. They are cleared the next time the
+            partner opens their own storefront page; this view never writes.
+          </Text>
+        </div>
+      )}
+      {status?.error && (
+        <div className="px-6 py-3">
+          <Text size="small" className="text-ui-fg-subtle">
+            {status.error}
+          </Text>
+        </div>
+      )}
+
+      <div className="px-6 py-4">
+        <Text size="small" weight="plus" className="mb-2">
+          Website
+        </Text>
+        {!website ? (
+          <Text size="small" className="text-ui-fg-muted">
+            {reason === "not_provisioned"
+              ? "No storefront provisioned yet — nothing to edit."
+              : "Storefront provisioned, but no website record exists yet. The partner creates one from their Content section."}
+          </Text>
+        ) : (
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 md:grid-cols-4">
+            <Field label="Name">{website.name || "—"}</Field>
+            <Field label="Status">
+              <Badge size="2xsmall" color={statusColor(website.status)}>
+                {website.status || "—"}
+              </Badge>
+            </Field>
+            <Field label="Pages">{count}</Field>
+            <Field label="Theme preview">
+              {previewUrl ? (
+                // The same URL the partner's own theme editor frames, so this
+                // shows the storefront as they are editing it, not as published.
+                <a
+                  href={previewUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-ui-fg-interactive"
+                >
+                  Open
+                </a>
+              ) : (
+                "—"
+              )}
+            </Field>
+          </div>
+        )}
+      </div>
+
+      {website && (
+        <div className="overflow-x-auto">
+          {isPagesLoading ? (
+            <LoadingRows />
+          ) : pages.length === 0 ? (
+            <EmptyRow>This website has no pages yet</EmptyRow>
+          ) : (
+            <Table className="w-full">
+              <Table.Header>
+                <Table.Row>
+                  <Table.HeaderCell>Page</Table.HeaderCell>
+                  <Table.HeaderCell>Slug</Table.HeaderCell>
+                  <Table.HeaderCell>Type</Table.HeaderCell>
+                  <Table.HeaderCell>Status</Table.HeaderCell>
+                  <Table.HeaderCell className="text-right">
+                    Updated
+                  </Table.HeaderCell>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {pages.map((page) => (
+                  <Table.Row key={page.id}>
+                    <Table.Cell>
+                      <Text size="small">{page.title || page.id}</Text>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Text size="small" className="text-ui-fg-subtle">
+                        {page.slug || "—"}
+                      </Text>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Text size="small" className="text-ui-fg-subtle">
+                        {page.page_type || "—"}
+                      </Text>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Badge size="2xsmall" color={statusColor(page.status)}>
+                        {page.status || "—"}
+                      </Badge>
+                    </Table.Cell>
+                    <Table.Cell className="text-right">
+                      <Text size="small" className="text-ui-fg-subtle">
+                        {formatDate(page.updated_at)}
+                      </Text>
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export const PartnerInspectionSection = ({
   partnerId,
 }: PartnerInspectionSectionProps) => {
@@ -703,6 +913,7 @@ export const PartnerInspectionSection = ({
       {surface === "runs" && <ProductionRunsPanel partnerId={partnerId} />}
       {surface === "products" && <ProductsPanel partnerId={partnerId} />}
       {surface === "inventory" && <InventoryPanel partnerId={partnerId} />}
+      {surface === "website" && <WebsitePanel partnerId={partnerId} />}
 
       <div className="px-6 py-4">
         <Text size="small" weight="plus" className="mb-2">

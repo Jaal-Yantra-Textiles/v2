@@ -407,3 +407,159 @@ export const usePartnerOnboardingProfile = (
     ...rest,
   }
 }
+
+/**
+ * The storefront surface (#843 slice 5) reads three things: hosting status,
+ * the website + theme, and the pages. Status comes from the route that already
+ * existed for provisioning; the other two are the mirror proper.
+ */
+export interface PartnerInspectionStorefrontStatus {
+  provisioned: boolean
+  provider: string
+  message?: string
+  project?: { id: string | null; name: string | null }
+  domain?: string | null
+  storefront_url?: string | null
+  provisioned_at?: string | null
+  latest_deployment?: {
+    id: string
+    url: string
+    status: string
+    created_at: number
+  } | null
+  error?: string
+  vercel_configured?: boolean
+  cloudflare_configured?: boolean
+  /** Provider 404'd on a project we still reference. Reported, never repaired here. */
+  stale_project?: boolean
+}
+
+export const usePartnerInspectionStorefront = (
+  partnerId: string,
+  options?: Omit<
+    UseQueryOptions<
+      PartnerInspectionStorefrontStatus,
+      FetchError,
+      PartnerInspectionStorefrontStatus,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: async () =>
+      sdk.client.fetch<PartnerInspectionStorefrontStatus>(
+        `/admin/partners/${partnerId}/storefront`,
+        { method: "GET" }
+      ),
+    queryKey: partnerInspectionQueryKeys.detail(partnerId, {
+      storefront: true,
+    }),
+    enabled: !!partnerId,
+    ...options,
+  })
+
+  // NOT `status` — react-query puts its own `status` in `rest`, and spreading
+  // it last would silently overwrite ours with "success".
+  return { storefrontStatus: data ?? null, ...rest }
+}
+
+export interface PartnerInspectionWebsiteResponse {
+  website: {
+    id: string
+    name?: string
+    domain?: string
+    status?: string
+    theme?: Record<string, any> | null
+    metadata?: Record<string, any> | null
+  } | null
+  theme: Record<string, any> | null
+  /** The partner theme editor's own iframe URL (`?theme_editor=true`). */
+  preview_url: string | null
+  reason?: "not_provisioned" | "no_website"
+  message?: string
+  resolved_by?: "website_id" | "domain" | null
+}
+
+export const usePartnerInspectionWebsite = (
+  partnerId: string,
+  options?: Omit<
+    UseQueryOptions<
+      PartnerInspectionWebsiteResponse,
+      FetchError,
+      PartnerInspectionWebsiteResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: async () =>
+      sdk.client.fetch<PartnerInspectionWebsiteResponse>(
+        `/admin/partners/${partnerId}/storefront/website`,
+        { method: "GET" }
+      ),
+    queryKey: partnerInspectionQueryKeys.detail(partnerId, { website: true }),
+    enabled: !!partnerId,
+    ...options,
+  })
+
+  return {
+    website: data?.website ?? null,
+    theme: data?.theme ?? null,
+    previewUrl: data?.preview_url ?? null,
+    reason: data?.reason,
+    ...rest,
+  }
+}
+
+export interface PartnerInspectionPage {
+  id: string
+  title?: string
+  slug?: string
+  status?: string
+  page_type?: string
+  updated_at?: string
+}
+
+export interface PartnerInspectionPagesResponse {
+  pages: PartnerInspectionPage[]
+  count: number
+  offset: number
+  limit: number
+  hasMore: boolean
+  website_id: string | null
+  reason?: "not_provisioned" | "no_website"
+}
+
+export const usePartnerInspectionPages = (
+  partnerId: string,
+  query?: { q?: string; status?: string; page_type?: string; limit?: number },
+  options?: Omit<
+    UseQueryOptions<
+      PartnerInspectionPagesResponse,
+      FetchError,
+      PartnerInspectionPagesResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: async () =>
+      sdk.client.fetch<PartnerInspectionPagesResponse>(
+        `/admin/partners/${partnerId}/storefront/pages`,
+        { method: "GET", query }
+      ),
+    queryKey: partnerInspectionQueryKeys.detail(partnerId, { pages: query }),
+    enabled: !!partnerId,
+    ...options,
+  })
+
+  return {
+    pages: data?.pages || [],
+    count: data?.count || 0,
+    websiteId: data?.website_id ?? null,
+    ...rest,
+  }
+}

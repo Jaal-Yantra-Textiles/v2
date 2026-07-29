@@ -5208,6 +5208,19 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/partners/delete-partner.ts"
   },
+  "get-partner-storefront-status": {
+    "fields": [
+      {
+        "name": "partner",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.partner }}",
+        "description": "The provider 404'd for a project we still hold a reference to — the refs are stale. The partner route clears them; the admin mirror only reports it. / stale_project?: boolean } export type GetPartnerStorefrontStatusWorkflowInput = { /** The full partner record — read for its provider/project/domain columns."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partners/get-partner-storefront-status.ts"
+  },
   "list-partners": {
     "fields": [
       {
@@ -5243,6 +5256,18 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/partners/list-partners.ts"
+  },
+  "resolve-partner-website": {
+    "fields": [
+      {
+        "name": "partner",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.partner }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partners/resolve-partner-website.ts"
   },
   "create-payment-report": {
     "fields": [

@@ -9,6 +9,7 @@ import WebsiteService from "../../../../modules/website/service"
 import { createWebsiteWorkflow } from "../../../../workflows/website/create-website"
 import { seedDefaultPagesWorkflow } from "../../../../workflows/website/seed-default-pages"
 import updatePartnerWorkflow from "../../../../workflows/partners/update-partner"
+import { resolvePartnerWebsiteWorkflow } from "../../../../workflows/partners/resolve-partner-website"
 
 type PartnerRecord = {
   id: string
@@ -98,7 +99,15 @@ export const POST = async (
 
 /**
  * GET /partners/storefront/website
- * Get the partner's website. Uses table columns first, falls back to domain lookup.
+ *
+ * The partner's website. The lookup (website_id first, storefront_domain
+ * fallback) lives in `resolvePartnerWebsiteWorkflow` so the admin inspection
+ * mirror (`GET /admin/partners/:id/storefront/website`) resolves it identically
+ * (#843).
+ *
+ * What stays here is the WRITE: resolving via the domain fallback means the
+ * partner's `website_id` is absent or stale, so it gets backfilled for next
+ * time. The mirror is read-only and deliberately skips it.
  */
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -112,47 +121,26 @@ export const GET = async (
     )
   }
 
-  const domain = getStorefrontDomain(partner)
-  if (!domain) {
-    return res.json({ website: null, message: "Storefront not provisioned" })
-  }
+  const { result: resolution } = await resolvePartnerWebsiteWorkflow(
+    req.scope
+  ).run({ input: { partner } })
 
-  const websiteService: WebsiteService = req.scope.resolve(WEBSITE_MODULE)
-
-  // 1. Direct lookup by website_id
-  const websiteId = getWebsiteId(partner)
-  if (websiteId) {
-    try {
-      const website = await websiteService.retrieveWebsite(websiteId)
-      return res.json({ website })
-    } catch {
-      // stale id, fall through to domain
-    }
-  }
-
-  // 2. Fallback: lookup by storefront_domain
-  const [websites] = await websiteService.listAndCountWebsites(
-    { domain },
-    { take: 1 }
-  )
-
-  if (websites.length) {
-    // Backfill website_id on partner for next time
+  if (resolution.website && resolution.resolved_by === "domain") {
     try {
       await updatePartnerWorkflow(req.scope).run({
         input: {
           id: partner.id,
-          data: { website_id: websites[0].id },
+          data: { website_id: resolution.website.id },
         },
       })
     } catch {
       // best-effort backfill
     }
-    return res.json({ website: websites[0] })
   }
 
-  return res.json({
-    website: null,
-    message: "No website found. Create one from the Content section.",
-  })
+  if (!resolution.website) {
+    return res.json({ website: null, message: resolution.message })
+  }
+
+  return res.json({ website: resolution.website })
 }
