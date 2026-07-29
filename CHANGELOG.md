@@ -1,3 +1,15 @@
+# [13.73.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.72.0...v13.73.0) (2026-07-29)
+
+
+### Bug Fixes
+
+* **partners,tests:** repair 6 dormant-spec failures on main [[#1184](https://github.com/Jaal-Yantra-Textiles/v2/issues/1184)] ([#1186](https://github.com/Jaal-Yantra-Textiles/v2/issues/1186)) ([003e030](https://github.com/Jaal-Yantra-Textiles/v2/commit/003e030c74abe94a32e11f2c982bff3376785914)), closes [#778](https://github.com/Jaal-Yantra-Textiles/v2/issues/778) [#778](https://github.com/Jaal-Yantra-Textiles/v2/issues/778)
+
+
+### Features
+
+* **admin,partners:** inspection mirror for website + storefront [[#843](https://github.com/Jaal-Yantra-Textiles/v2/issues/843)] ([#1185](https://github.com/Jaal-Yantra-Textiles/v2/issues/1185)) ([8b0e30c](https://github.com/Jaal-Yantra-Textiles/v2/commit/8b0e30c5b55e9e57003cac0be14f80f07f0b1c76)), closes [#1184](https://github.com/Jaal-Yantra-Textiles/v2/issues/1184)
+
 # [13.72.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.71.0...v13.72.0) (2026-07-28)
 
 
