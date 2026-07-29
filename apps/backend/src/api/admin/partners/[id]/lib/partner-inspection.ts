@@ -117,6 +117,37 @@ export const resolvePartnerInspectionStoreId = async (
 }
 
 /**
+ * The FULL partner record, for the storefront surfaces (#843 slice 5).
+ *
+ * The other surfaces only ever need the partner's id — they hand the
+ * synthesized context to a partner helper and let it do the scoping. The
+ * storefront surfaces are different: their partner-side logic reads the
+ * record's own columns (`hosting_provider`, `vercel_project_id`,
+ * `storefront_domain`, `website_id`, and the pre-#884 `metadata` fallbacks), so
+ * the mirror has to pass the same record in rather than an id.
+ *
+ * 404s on an unknown partner for the same reason `assertPartnerExists` does.
+ */
+export const getPartnerInspectionRecord = async (
+  partnerId: string,
+  container: MedusaContainer
+): Promise<any> => {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "partners",
+    fields: ["*"],
+    filters: { id: partnerId },
+  })
+
+  const partner = data?.[0]
+  if (!partner) {
+    throw new MedusaError(MedusaError.Types.NOT_FOUND, "Partner not found")
+  }
+
+  return partner
+}
+
+/**
  * The two together: 404 on an unknown partner, otherwise the synthesized
  * context the partner helpers expect.
  */

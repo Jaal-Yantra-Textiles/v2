@@ -12,6 +12,7 @@ import {
 } from "../../../modules/deployment/providers/resolve-partner-provider"
 import updatePartnerWorkflow from "../../../workflows/partners/update-partner"
 import { getStorefrontRefs } from "./helpers"
+import { getPartnerStorefrontStatusWorkflow } from "../../../workflows/partners/get-partner-storefront-status"
 
 const STOREFRONT_META_KEYS = [
   "vercel_project_id",
@@ -31,6 +32,17 @@ function stripStorefrontKeys(metadata: any): Record<string, any> | null {
   return Object.keys(clean).length > 0 ? clean : null
 }
 
+/**
+ * GET /partners/storefront
+ *
+ * Hosting status for the partner's storefront. The resolution itself lives in
+ * `getPartnerStorefrontStatusWorkflow` so the admin inspection mirror
+ * (`GET /admin/partners/:id/storefront`) reports the identical state (#843).
+ *
+ * The one thing that stays here is the WRITE: when the provider no longer knows
+ * the project, the refs we hold are stale and the partner's record is cleaned
+ * up. The mirror deliberately reports `stale_project` without performing it.
+ */
 export const GET = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
@@ -43,136 +55,39 @@ export const GET = async (
     )
   }
 
-  const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
-  const refs = getStorefrontRefs(partner)
+  const { result: status } = await getPartnerStorefrontStatusWorkflow(
+    req.scope
+  ).run({ input: { partner } })
 
-  if (!refs.projectRef) {
-    return res.json({
-      provisioned: false,
-      provider: refs.providerName,
-      message: "Storefront has not been provisioned yet",
-      vercel_configured: deployment.isVercelConfigured(),
-      cloudflare_configured: deployment.isCloudflareConfigured(),
-    })
-  }
-
-  // Resolve the partner's provider (Vercel/Cloudflare Pages/Netlify/Render) and
-  // confirm the project still exists. Vercel keeps its richer latest-deployment
-  // detail; other providers report existence + the stored deployment id.
-  let provider: Awaited<ReturnType<typeof resolveHostingProviderForPartner>>
-  try {
-    provider = await resolveHostingProviderForPartner(partner, req.scope)
-  } catch (e: any) {
-    return res.json({
-      provisioned: true,
-      provider: refs.providerName,
-      project: { id: refs.projectRef, name: refs.vercelProjectName },
-      domain: refs.storefrontDomain,
-      storefront_url: refs.storefrontDomain ? `https://${refs.storefrontDomain}` : null,
-      provisioned_at: refs.storefrontProvisionedAt,
-      latest_deployment: null,
-      error: `Hosting provider not resolvable: ${e.message}`,
-    })
-  }
-
-  try {
-    const project = await provider.provider.getProject(refs.projectRef)
-
-    let deploymentInfo: {
-      id: string
-      url: string
-      status: string
-      created_at: number
-    } | null = null
-
-    // Vercel exposes latest-deployment detail via the legacy service client.
-    if (refs.providerName === "vercel") {
-      try {
-        const vProject = await deployment.getProject(refs.projectRef)
-        const latest = vProject.latestDeployments?.[0]
-        if (latest) {
-          try {
-            const details = await deployment.getDeployment(latest.id)
-            deploymentInfo = {
-              id: details.id,
-              url: details.url,
-              status: details.readyState,
-              created_at: details.createdAt,
-            }
-          } catch {
-            deploymentInfo = {
-              id: latest.id,
-              url: latest.url,
-              status: latest.readyState,
-              created_at: latest.createdAt,
-            }
-          }
-        }
-      } catch {
-        // non-fatal — status still returns
-      }
-    }
-
-    res.json({
-      provisioned: true,
-      provider: refs.providerName,
-      project: { id: project.id, name: project.name },
-      domain: refs.storefrontDomain,
-      storefront_url: refs.storefrontDomain
-        ? `https://${refs.storefrontDomain}`
-        : null,
-      provisioned_at: refs.storefrontProvisionedAt,
-      latest_deployment: deploymentInfo,
-      vercel_configured: deployment.isVercelConfigured(),
-      cloudflare_configured: deployment.isCloudflareConfigured(),
-    })
-  } catch (e: any) {
-    // Project no longer exists on the provider (404) — treat as unprovisioned
-    // and clear stale references.
-    const is404 = e.message?.includes("(404)") || e.message?.includes("NOT_FOUND")
-    if (is404) {
-      try {
-        await updatePartnerWorkflow(req.scope).run({
-          input: {
-            id: partner.id,
-            data: {
-              metadata: stripStorefrontKeys(partner.metadata),
-              hosting_provider: null,
-              deployment_account_id: null,
-              deployment_project_id: null,
-              deployment_project_name: null,
-              vercel_project_id: null,
-              vercel_project_name: null,
-              vercel_last_deployment_id: null,
-              vercel_linked: false,
-              storefront_domain: null,
-            },
+  if (status.stale_project) {
+    try {
+      await updatePartnerWorkflow(req.scope).run({
+        input: {
+          id: partner.id,
+          data: {
+            metadata: stripStorefrontKeys(partner.metadata),
+            hosting_provider: null,
+            deployment_account_id: null,
+            deployment_project_id: null,
+            deployment_project_name: null,
+            vercel_project_id: null,
+            vercel_project_name: null,
+            vercel_last_deployment_id: null,
+            vercel_linked: false,
+            storefront_domain: null,
           },
-        })
-      } catch {
-        // best-effort cleanup
-      }
-
-      return res.json({
-        provisioned: false,
-        provider: refs.providerName,
-        message: "Storefront project no longer exists",
+        },
       })
+    } catch {
+      // best-effort cleanup
     }
-
-    res.json({
-      provisioned: true,
-      provider: refs.providerName,
-      project: { id: refs.projectRef, name: refs.vercelProjectName },
-      domain: refs.storefrontDomain,
-      storefront_url: refs.storefrontDomain
-        ? `https://${refs.storefrontDomain}`
-        : null,
-      provisioned_at: refs.storefrontProvisionedAt,
-      latest_deployment: null,
-      error: `Could not fetch status: ${e.message}`,
-    })
   }
+
+  // `stale_project` is an instruction to this route, not part of the partner
+  // contract — strip it so the response shape is unchanged.
+  const { stale_project: _staleProject, ...body } = status
+
+  res.json(body)
 }
 
 /**

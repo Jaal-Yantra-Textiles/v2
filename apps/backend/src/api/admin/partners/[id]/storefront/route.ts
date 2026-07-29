@@ -1,110 +1,37 @@
-import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-import { DEPLOYMENT_MODULE } from "../../../../../modules/deployment"
-import type DeploymentService from "../../../../../modules/deployment/service"
-import { resolveHostingProviderForPartner } from "../../../../../modules/deployment/providers/resolve-partner-provider"
-import { getStorefrontRefs } from "../../../../partners/storefront/helpers"
+/**
+ * @file Admin read-proxy: a partner's storefront hosting status (#843).
+ * @module API/Admin/Partners/Storefront
+ */
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 
-export const GET = async (
-  req: AuthenticatedMedusaRequest,
-  res: MedusaResponse
-) => {
+import { getPartnerStorefrontStatusWorkflow } from "../../../../../workflows/partners/get-partner-storefront-status"
+import { getPartnerInspectionRecord } from "../lib/partner-inspection"
+
+/**
+ * GET /admin/partners/:id/storefront
+ *
+ * The inspection mirror of `GET /partners/storefront`.
+ *
+ * This route PRE-DATES the #843 mirror and used to hand-roll its own copy of
+ * the partner logic — which had already drifted: it omitted the
+ * provider-not-resolvable branch, the `vercel_configured` /
+ * `cloudflare_configured` flags, and the stale-project detection. It now runs
+ * the same workflow the partner route runs, so the two cannot diverge again.
+ *
+ * READ-ONLY. The partner route clears a partner's stale provider refs when the
+ * project has vanished; this one reports that state via `stale_project` and
+ * writes nothing. An operator opening a tab must never mutate a partner record.
+ */
+export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id: partnerId } = req.params
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  const { data: partners } = await query.graph({
-    entity: "partners",
-    fields: ["*"],
-    filters: { id: partnerId },
-  })
+  // 404s on an unknown partner before any partner-voiced error can reach an
+  // admin caller.
+  const partner = await getPartnerInspectionRecord(partnerId, req.scope)
 
-  if (!partners?.length) {
-    throw new MedusaError(MedusaError.Types.NOT_FOUND, `Partner ${partnerId} not found`)
-  }
+  const { result: status } = await getPartnerStorefrontStatusWorkflow(
+    req.scope
+  ).run({ input: { partner } })
 
-  const partner = partners[0] as any
-  const refs = getStorefrontRefs(partner)
-
-  const { providerName, provider, projectRef } =
-    await resolveHostingProviderForPartner(partner, req.scope).catch(() => ({
-      providerName: "vercel" as const,
-      provider: null as any,
-      projectRef: null,
-    }))
-
-  if (!projectRef) {
-    return res.json({
-      provisioned: false,
-      message: "Storefront has not been provisioned yet",
-    })
-  }
-
-  try {
-    const project = await provider.getProject(projectRef)
-
-    // Vercel exposes latest-deployment detail; other providers don't (yet) —
-    // the provider interface's getProject stays minimal, so this richer status
-    // is a Vercel-only enhancement.
-    let deploymentInfo: {
-      id: string
-      url: string
-      status: string
-      created_at: number
-    } | null = null
-
-    if (providerName === "vercel") {
-      const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
-      const full = await deployment.getProject(projectRef)
-      const latestDeployment = full.latestDeployments?.[0]
-      if (latestDeployment) {
-        try {
-          const details = await deployment.getDeployment(latestDeployment.id)
-          deploymentInfo = {
-            id: details.id,
-            url: details.url,
-            status: details.readyState,
-            created_at: details.createdAt,
-          }
-        } catch {
-          deploymentInfo = {
-            id: latestDeployment.id,
-            url: latestDeployment.url,
-            status: latestDeployment.readyState,
-            created_at: latestDeployment.createdAt,
-          }
-        }
-      }
-    }
-
-    res.json({
-      provisioned: true,
-      provider: providerName,
-      project: {
-        id: project.id,
-        name: project.name,
-      },
-      domain: refs.storefrontDomain,
-      storefront_url: refs.storefrontDomain
-        ? `https://${refs.storefrontDomain}`
-        : null,
-      provisioned_at: refs.storefrontProvisionedAt,
-      latest_deployment: deploymentInfo,
-    })
-  } catch (e: any) {
-    res.json({
-      provisioned: true,
-      provider: providerName,
-      project: {
-        id: refs.vercelProjectId,
-        name: refs.vercelProjectName,
-      },
-      domain: refs.storefrontDomain,
-      storefront_url: refs.storefrontDomain
-        ? `https://${refs.storefrontDomain}`
-        : null,
-      provisioned_at: refs.storefrontProvisionedAt,
-      latest_deployment: null,
-      error: `Could not fetch storefront status: ${e.message}`,
-    })
-  }
+  res.json(status)
 }
