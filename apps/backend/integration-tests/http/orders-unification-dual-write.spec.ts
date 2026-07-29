@@ -46,7 +46,10 @@ setupSharedTestSuite(() => {
           { inventory_item_id: inventoryItemId, quantity: 2.5, price: 100 },
         ],
         quantity: 2.5,
-        total_price: 100,
+        // Consistent with the per-unit convention: 2.5 × 100. The old fixture
+        // said 100 here, which only made sense under the retired line-total
+        // reading and made the totals-parity assertion below vacuous.
+        total_price: 250,
         status: "Pending",
         expected_delivery_date: new Date().toISOString(),
         order_date: new Date().toISOString(),
@@ -191,11 +194,12 @@ setupSharedTestSuite(() => {
       // Work-orders live on the internal channel, not a storefront channel
       expect(unified.sales_channel?.name).toBe("Partner Work Orders")
 
-      // GAP-1: decimal quantity survives end-to-end; legacy line price is the
-      // line total, so unit_price = 100 / 2.5 = 40
+      // GAP-1: decimal quantity survives end-to-end. Legacy line `price` is the
+      // PER-UNIT price (#778 H9 — dividing by quantity was the money bug), so it
+      // passes straight through to core's unit_price.
       expect(unified.items).toHaveLength(1)
       expect(Number(unified.items[0].quantity)).toBe(2.5)
-      expect(Number(unified.items[0].unit_price)).toBe(40)
+      expect(Number(unified.items[0].unit_price)).toBe(100)
       expect(unified.items[0].title).toBe("Raw Cotton")
       expect(unified.items[0].metadata.inventory_item_id).toBe(inventoryItemId)
 
@@ -210,7 +214,7 @@ setupSharedTestSuite(() => {
       // onto it; the link is the sole pointer.
       expect(legacyRow.status).toBe("Pending")
       expect(Number(legacyRow.quantity)).toBe(2.5)
-      expect(Number(legacyRow.total_price)).toBe(100)
+      expect(Number(legacyRow.total_price)).toBe(250)
       expect(legacyRow.orderlines).toHaveLength(1)
       expect(legacyRow.metadata?.unified_order_id ?? null).toBeNull()
 
