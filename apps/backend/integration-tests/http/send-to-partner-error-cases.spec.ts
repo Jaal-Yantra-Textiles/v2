@@ -190,8 +190,10 @@ setupSharedTestSuite(() =>{
             headers: partnerHeaders
           }).catch((err) => err.response)
 
-          expect(response.status).toBe(400)
-          expect(response.data.message).toBe(`Inventory order ${unassignedOrderId} is not assigned to your partner account`)
+          // #778 C1 — the ownership guard answers "not yours" and "does not exist"
+          // identically (404, same message) so partners can't enumerate order IDs.
+          expect(response.status).toBe(404)
+          expect(response.data.message).toBe(`Inventory order ${unassignedOrderId} not found`)
         })
 
         it("should fail without partner authentication", async () => {
@@ -208,7 +210,9 @@ setupSharedTestSuite(() =>{
           }).catch((err) => err.response)
 
           expect(response.status).toBe(404)
-          expect(response.data.message).toBe("InventoryOrders with id: non-existent-id was not found")
+          // The ownership guard now runs before the service retrieve, so the
+          // message is the guard's, not MikroORM's.
+          expect(response.data.message).toBe("Inventory order non-existent-id not found")
         })
 
         it("should fail to start unassigned order", async () => {
@@ -239,8 +243,11 @@ setupSharedTestSuite(() =>{
             headers: partnerHeaders
           }).catch((err) => err.response)
 
-          expect(response.status).toBe(400)
-          expect(response.data.error).toBe("Order is not assigned to a partner workflow")
+          // Guarded before the transaction-id lookup, so this is 404 (not the
+          // route's own "not assigned to a partner workflow" 400, which now only
+          // fires for an owned order whose workflow tasks are missing).
+          expect(response.status).toBe(404)
+          expect(response.data.message).toBe(`Inventory order ${separateOrderId} not found`)
         })
       })
 
@@ -288,8 +295,10 @@ setupSharedTestSuite(() =>{
             headers: partnerHeaders
           }).catch((err) => err.response)
 
-          expect(response.status).toBe(400)
-          expect(response.data.message).toBe(`Inventory order ${separateOrderId} not in an updatable state (status: Pending)`)
+          // Ownership is checked before state, so a non-owned Pending order is
+          // 404 rather than the "not in an updatable state" 400.
+          expect(response.status).toBe(404)
+          expect(response.data.message).toBe(`Inventory order ${separateOrderId} not found`)
         })
       })
 

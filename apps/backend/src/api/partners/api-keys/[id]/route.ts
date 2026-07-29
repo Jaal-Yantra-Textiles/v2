@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
-import { updateApiKeysWorkflow, deleteApiKeysWorkflow } from "@medusajs/medusa/core-flows"
+import { updateApiKeysWorkflow, deleteApiKeysWorkflow, revokeApiKeysWorkflow } from "@medusajs/medusa/core-flows"
 import { getPartnerFromAuthContext } from "../../helpers"
 import { PartnerUpdateApiKeyReq } from "../validators"
 
@@ -102,7 +102,19 @@ export const DELETE = async (
   }
 
   const { id } = req.params
-  await validateApiKeyOwnership(partner, id, req.scope)
+  const apiKey = await validateApiKeyOwnership(partner, id, req.scope)
+
+  // #1184 — Medusa's api-key module refuses to delete a publishable key that is
+  // still live (NOT_ALLOWED → 400), so DELETE never actually deleted anything.
+  // Revoke first when needed; an already-revoked key skips straight to delete.
+  if (!apiKey.revoked_at) {
+    await revokeApiKeysWorkflow(req.scope).run({
+      input: {
+        selector: { id },
+        revoke: { revoked_by: partner.id },
+      },
+    })
+  }
 
   await deleteApiKeysWorkflow(req.scope).run({
     input: { ids: [id] },
