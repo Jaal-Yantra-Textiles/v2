@@ -6,8 +6,9 @@
  * Why batches at all: each jest invocation boots the Medusa app and migrates a
  * fresh database, so the per-invocation cost is large and fixed (~368s on a
  * GitHub runner, measured from run 30374675208). Batching amortises that boot
- * across many spec files. Batches are NOT for isolation — they exist purely so
- * a single long-lived jest process doesn't accumulate enough heap to OOM.
+ * across many spec files. Batches are NOT for isolation — they exist because
+ * the jest parent leaks heap per spec file and dies around file 15, so the
+ * batch size is a hard ceiling set by that leak. See BATCH_SIZE below.
  *
  * Two things this file gets wrong at your peril (both were live bugs, #1187):
  *   1. Spec files must be selected with `--runTestsByPath`. The previous
@@ -31,14 +32,25 @@ const TEST_ROOT = path.join(BACKEND_ROOT, 'integration-tests/http');
 
 // Configuration
 const config = {
-  // 40 files/invocation. Empirically chosen: boot cost is per invocation, so
-  // bigger is cheaper, bounded only by heap growth across a single jest
-  // process. See #1188 for the measurements behind this number — re-measure
-  // before raising it rather than guessing.
-  batchSize: parseInt(process.env.BATCH_SIZE) || 40,
-  // Default 0. A retry re-runs the WHOLE batch, so with 40-file batches a
-  // single flake used to triple an hour of runner time and mask the flake
-  // besides. Opt in per-run when chasing a known-flaky spec.
+  // 10 files/invocation, and this is a HARD ceiling, not a preference.
+  //
+  // The jest parent process leaks heap per spec file: each file boots a Medusa
+  // app, and whatever that retains is never released. Measured (#1188, local,
+  // --max-old-space-size=8192): per-file wall time degrades 12s → 93s as the
+  // heap fills with GC thrash, then the process dies with
+  //   FATAL ERROR: Reached heap limit Allocation failed (exit 134)
+  // at file 15 of 34. A 269-file invocation thrashes for 30+ minutes and
+  // completes 6 files. 13 files fit; 15 does not; heap cost varies per file,
+  // so 10 is the safe setting rather than the maximum observed to work.
+  //
+  // Boot cost is per invocation (~368s on a runner), so bigger batches ARE
+  // cheaper — but only up to this wall. Raising BATCH_SIZE without first
+  // fixing the leak trades a slow gate for a red one. Re-measure before
+  // touching it.
+  batchSize: parseInt(process.env.BATCH_SIZE) || 10,
+  // Default 0. A retry re-runs the WHOLE batch — including its boot cost and
+  // every spec that already passed — so one flake multiplies runner time and
+  // masks the flake besides. Opt in per-run when chasing a known-flaky spec.
   maxRetries: parseInt(process.env.MAX_RETRIES) || 0,
   parallel: process.env.PARALLEL === 'true',
   parallelCount: parseInt(process.env.PARALLEL_COUNT) || 2,
@@ -51,6 +63,9 @@ const config = {
   // Set to 'false' to run without the zero-test tripwire (local debugging only
   // — CI must never disable it).
   tripwire: process.env.TRIPWIRE !== 'false',
+  // Stop at the first red batch instead of collecting the whole inventory.
+  // Useful locally, wrong for the gate.
+  failFast: process.env.FAIL_FAST === 'true',
 };
 
 // Parse command line arguments
@@ -75,7 +90,7 @@ process.argv.slice(2).forEach(arg => {
 Usage: node run-batched-tests.js [OPTIONS]
 
 Options:
-  --batch-size=N    Spec files per jest invocation (default: 40)
+  --batch-size=N    Spec files per jest invocation (default: 10, heap-capped)
   --filter=PATTERN  Only run spec files whose path contains PATTERN
   --shard=I/N       Run shard I of N (1-based); see SHARD_INDEX/SHARD_TOTAL
   --parallel        Run batches in parallel
@@ -92,6 +107,7 @@ Environment Variables:
   PARALLEL_COUNT    Number of parallel batches (default: 2)
   MAX_RETRIES       Max retries for failed batches (default: 0)
   TRIPWIRE          Set to 'false' to disable the zero-test check (local only)
+  FAIL_FAST         Set to 'true' to stop at the first failing batch
   WATCH             Set to 'true' for watch mode
   COVERAGE          Set to 'true' for coverage
 `);
@@ -150,6 +166,7 @@ console.log(`   Batch size:       ${config.batchSize}`);
 console.log(`   Parallel:         ${config.parallel ? 'Yes' : 'No'}`);
 console.log(`   Max retries:      ${config.maxRetries}`);
 console.log(`   Tripwire:         ${config.tripwire ? 'on' : 'OFF'}`);
+console.log(`   Fail fast:        ${config.failFast ? 'yes' : 'no (full inventory)'}`);
 if (config.shardTotal > 0) console.log(`   Shard:            ${config.shardIndex}/${config.shardTotal}`);
 if (config.filter) console.log(`   Filter:           ${config.filter}`);
 
@@ -166,6 +183,7 @@ const stats = {
   retriedBatches: 0,
   testsRun: 0,
   suitesRun: 0,
+  heapAborts: 0,
   startTime: Date.now(),
   batchTimes: [],
   tripwireFailures: [],
@@ -173,6 +191,7 @@ const stats = {
 
 // Run tests in batches to prevent memory issues
 let currentBatch = 0;
+const batchErrors = [];
 
 /**
  * Read the batch's counts, written by scripts/jest-batch-summary-reporter.js.
@@ -294,6 +313,19 @@ async function runBatch(batch, batchNumber, retryCount = 0) {
           }
         } else {
           console.log(`❌ Batch ${batchNumber} failed${config.maxRetries > 0 ? ` after ${config.maxRetries} retries` : ''}`);
+          // 134 = SIGABRT, which for this suite is almost always V8 giving up:
+          // "Reached heap limit Allocation failed - JavaScript heap out of
+          // memory". It is a batch-size problem, not a test failure, and the
+          // batch's results are lost — so say so instead of leaving someone to
+          // read a V8 stack trace.
+          if (code === 134) {
+            console.log(
+              `   ↳ exit 134 (SIGABRT) — almost certainly the jest heap limit. ` +
+              `This batch had ${batch.length} files; the per-file heap leak (#1188) caps a ` +
+              `single invocation at ~12. Lower BATCH_SIZE rather than raising the heap.`
+            );
+            stats.heapAborts++;
+          }
           stats.failedBatches++;
           reject(new Error(`Batch ${batchNumber} failed with exit code ${code}`));
         }
@@ -335,9 +367,24 @@ async function runAllBatches() {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     } else {
-      // Run batches sequentially
+      // Run batches sequentially, and DON'T stop at the first red batch.
+      //
+      // The point of this gate is the inventory: which specs are broken, all of
+      // them, in one run. Aborting on batch 1 means each CI run reveals one
+      // batch's worth of failures and triage costs as many full runs as there
+      // are broken batches. Failures are recorded and the process still exits
+      // non-zero at the end — set FAIL_FAST=true to stop early when you're
+      // iterating on a single batch locally.
       for (const batch of batches) {
-        await runBatch(batch.files, batch.number);
+        try {
+          await runBatch(batch.files, batch.number);
+        } catch (error) {
+          console.log(`   ↳ continuing to the next batch (${error.message})`);
+          batchErrors.push(error.message);
+          if (config.failFast) {
+            throw error;
+          }
+        }
         currentBatch++;
 
         // Force garbage collection between batches if available
@@ -383,6 +430,18 @@ function printSummary() {
   console.log(`   Avg batch time:  ${(avgBatchTime / 1000).toFixed(2)}s`);
   console.log('='.repeat(60));
 
+  if (batchErrors.length > 0) {
+    console.log('\n❌ Failing batches:');
+    batchErrors.forEach(e => console.log(`   - ${e}`));
+  }
+
+  if (stats.heapAborts > 0) {
+    console.log(
+      `\n💥 ${stats.heapAborts} batch(es) aborted on the jest heap limit. ` +
+      `Lower BATCH_SIZE (currently ${config.batchSize}).`
+    );
+  }
+
   if (stats.tripwireFailures.length > 0) {
     console.log('\n🚨 Tripwire failures (the gate ran fewer tests than it was given):');
     stats.tripwireFailures.forEach(f => console.log(`   - ${f}`));
@@ -421,6 +480,7 @@ if (config.watch) {
       retriedBatches: 0,
       testsRun: 0,
       suitesRun: 0,
+      heapAborts: 0,
       startTime: Date.now(),
       batchTimes: [],
       tripwireFailures: [],
