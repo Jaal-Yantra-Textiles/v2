@@ -20,11 +20,7 @@ on:
         required: false
         default: ''
   push:
-    # TEMPORARY (#1188): validate the sharded gate on real runners before merge.
-    # workflow_dispatch is unavailable from a branch until it exists on the
-    # default branch, and the PR path only runs changed specs — so a push
-    # trigger is the only way to exercise this from here. REMOVE BEFORE MERGE.
-    branches: [ main, fix/1188-ci-suite-runtime ]
+    branches: [ main ]
     paths:
       - 'apps/backend/**'
       - 'packages/**'
