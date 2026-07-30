@@ -2518,6 +2518,19 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    // Second route shipped without a middleware entry (see payment-providers
+    // above): unauthenticated, so validatePartnerStoreAccess rejected every
+    // caller with 400 "No partner associated with this account". The handler
+    // reads `req.body` directly, so no body validator here — matching how the
+    // route is written rather than inventing a schema for it.
+    {
+      matcher: "/partners/stores/:id/sales-channels/:channelId/products/batch",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     // Partner Store Tax Regions
     {
       matcher: "/partners/stores/:id/tax-regions",
