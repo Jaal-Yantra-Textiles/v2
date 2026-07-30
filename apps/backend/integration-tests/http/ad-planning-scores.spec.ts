@@ -20,14 +20,18 @@ setupSharedTestSuite(() => {
     await createAdminUser(container);
     headers = await getAuthHeaders(api);
 
-    // Create a test person for scoring
+    // Create a test person for scoring.
+    // No `phone` here — it is not a Person field (phone numbers live on the
+    // person's contact_details), and validateAndTransformBody rejects
+    // unrecognized keys outright: `Invalid request: Unrecognized fields:
+    // 'phone'` -> 400. That 400 was thrown in beforeAll, which failed all 17
+    // tests in this file instantly and made them look like scores-API failures.
     const personResponse = await api.post(
       "/admin/persons",
       {
         first_name: "Score",
         last_name: "Tester",
         email: `score-test-${Date.now()}@example.com`,
-        phone: "+91 98765 43210",
       },
       headers
     );
