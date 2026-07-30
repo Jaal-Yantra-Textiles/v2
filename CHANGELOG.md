@@ -1,3 +1,10 @@
+## [13.73.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.1...v13.73.2) (2026-07-30)
+
+
+### Bug Fixes
+
+* **tests,ad-planning,feedback:** clear 192 of the 200 failures the new CI gate exposed [[#1187](https://github.com/Jaal-Yantra-Textiles/v2/issues/1187)] ([#1191](https://github.com/Jaal-Yantra-Textiles/v2/issues/1191)) ([e81c7af](https://github.com/Jaal-Yantra-Textiles/v2/commit/e81c7af72ab33f7fd5c758f07c3f7a5d9116b4f1)), closes [#1179](https://github.com/Jaal-Yantra-Textiles/v2/issues/1179)
+
 ## [13.73.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.0...v13.73.1) (2026-07-30)
 
 
