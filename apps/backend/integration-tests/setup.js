@@ -4,6 +4,38 @@ process.env.PRODUCTION_RUN_AWAIT_TIMEOUT_SECONDS = "5"
 process.env.MASTRA_DISABLED = "true"
 // Suppress noisy logs during tests (migrations, index engine, S3, etc.)
 process.env.LOG_LEVEL = "error"
+// WhatsApp webhook verification. Both whatsapp specs fall back to this literal
+// when the env var is unset, but nothing ever defined it: the service resolved
+// an empty verify token, matched nothing, and the webhook answered 403. Set it
+// here, before the app boots, so the fallback the specs assume is real.
+process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN =
+  process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "jyt_whatsapp_test_verify"
+
+// Opt-in HTTP error tracing: `DEBUG_HTTP_ERRORS=1 pnpm test:integration:http:shared ...`
+//
+// An AxiosError prints its status and nothing else, so a spec that fails with
+// "Request failed with status code 400" tells you nothing about *why* — and the
+// body carrying the validator's complaint is discarded. This logs method, url
+// and response body for every failed request. Off by default; it is noisy.
+if (process.env.DEBUG_HTTP_ERRORS) {
+  const axios = require("axios")
+  const _create = axios.create.bind(axios)
+  const attach = (instance) => {
+    instance.interceptors.response.use(undefined, (err) => {
+      const res = err.response
+      if (res) {
+        const { method, url } = err.config || {}
+        console.error(
+          `[http-error] ${String(method).toUpperCase()} ${url} -> ${res.status} ${JSON.stringify(res.data)}`
+        )
+      }
+      return Promise.reject(err)
+    })
+    return instance
+  }
+  attach(axios)
+  axios.create = (...args) => attach(_create(...args))
+}
 
 // Silence console.log/warn noise from framework internals (Index engine, S3, Observability)
 const _origLog = console.log

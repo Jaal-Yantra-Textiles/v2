@@ -248,6 +248,8 @@ import {
   listTransformQueryConfig as partnerRegionListTransformQueryConfig,
   retrieveTransformQueryConfig as partnerRegionRetrieveTransformQueryConfig,
 } from "@medusajs/medusa/api/admin/regions/query-config";
+import { AdminGetPaymentProvidersParams } from "@medusajs/medusa/api/admin/payments/validators";
+import { listTransformPaymentProvidersQueryConfig } from "@medusajs/medusa/api/admin/payments/query-config";
 import {
   listInboundEmailsQuerySchema,
   extractInboundEmailSchema,
@@ -1301,6 +1303,25 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner Store Payment Providers (discovery for the region form).
+    //
+    // The route existed with no middleware entry at all: `authenticate` never
+    // ran, so `req.auth_context` was empty and validatePartnerStoreAccess
+    // answered 400 "No partner associated with this account" to every caller.
+    // It also read `req.queryConfig`, which nothing populated. Mirrors admin's
+    // `/admin/payments/payment-providers` wiring.
+    {
+      matcher: "/partners/stores/:id/payment-providers",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(
+          wrapSchema(AdminGetPaymentProvidersParams),
+          listTransformPaymentProvidersQueryConfig
+        ),
       ],
     },
     // Partner Store Regions
@@ -2492,6 +2513,19 @@ export default defineMiddlewares({
     {
       matcher: "/partners/stores/:id/sales-channels/:channelId",
       method: "DELETE",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Second route shipped without a middleware entry (see payment-providers
+    // above): unauthenticated, so validatePartnerStoreAccess rejected every
+    // caller with 400 "No partner associated with this account". The handler
+    // reads `req.body` directly, so no body validator here — matching how the
+    // route is written rather than inventing a schema for it.
+    {
+      matcher: "/partners/stores/:id/sales-channels/:channelId/products/batch",
+      method: "POST",
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),

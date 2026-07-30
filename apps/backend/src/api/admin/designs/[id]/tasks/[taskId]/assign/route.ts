@@ -18,7 +18,7 @@
  * Responses
  * - 200 OK
  *   {
- *     "task": { ... } // The refreshed task entity with partner relation (fields: *, partner.*)
+ *     "task": { ... } // The refreshed task entity with its partners (fields: *, partners.*)
  *   }
  * - 400 Bad Request - validation failed
  * - 401 Unauthorized - missing/invalid admin credentials
@@ -51,6 +51,7 @@
  * - After successful execution the partner will be notified and the notify-partner workflow step is marked as successful.
  */
 import { MedusaRequest, MedusaResponse, refetchEntity } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { createTaskAssignmentWorkflow } from "../../../../../../../workflows/tasks/create-task-assignment";
 import { runTaskAssignmentWorkflow } from "../../../../../../../workflows/tasks/run-task-assignment";
 import { AdminPostDesignTaskAssignReq } from "./validators";
@@ -100,7 +101,22 @@ export const POST = async (req: MedusaRequest<AdminPostDesignTaskAssignReq>, res
 
    
 
+    // Re-read after the workflow: `task` above is the pre-assignment snapshot,
+    // fetched to feed the workflow, so it carries no partner. The endpoint was
+    // answering with the task it was handed rather than the task it produced.
+    //
+    // The relation is `partners`, plural: the partner<->task link is declared
+    // isList on both sides. Asking for `partner.*` is not an error -- it just
+    // silently returns nothing, which is why this went unnoticed.
+    const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+    const { data: assigned } = await query.graph({
+        entity: "task",
+        fields: ["*", "partners.*"],
+        filters: { id: req.validatedBody.taskId },
+    })
+    const assignedTask = assigned?.[0]
+
     return res.json({
-        task
+        task: assignedTask ?? task
     })
 }

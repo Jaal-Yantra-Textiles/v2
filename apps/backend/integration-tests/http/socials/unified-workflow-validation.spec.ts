@@ -1,5 +1,6 @@
 import { createAdminUser, getAuthHeaders } from "../../helpers/create-admin-user"
 import { getSharedTestEnv, setupSharedTestSuite } from "../shared-test-setup"
+import { SOCIALS_MODULE } from "../../../src/modules/socials"
 
 jest.setTimeout(60000)
 
@@ -186,7 +187,10 @@ setupSharedTestSuite(() => {
           {
             metadata: {
               publish_target: "facebook",
-              // page_id removed
+              // Explicitly null, not omitted: a metadata update MERGES, so
+              // leaving page_id out keeps the value beforeEach set and the post
+              // sails past validation into a real Facebook call.
+              page_id: null,
             },
           },
           headers
@@ -262,12 +266,21 @@ setupSharedTestSuite(() => {
         )
 
         const apiConfig = fetchedPlatform.data.socialPlatform.api_config
-        
-        // Token should be encrypted
-        expect(apiConfig.access_token_encrypted).toBeDefined()
-        expect(apiConfig.access_token_encrypted.encrypted).toBeDefined()
-        expect(apiConfig.access_token_encrypted.iv).toBeDefined()
-        expect(apiConfig.access_token_encrypted.authTag).toBeDefined()
+
+        // The endpoint redacts secrets: it reports `*_present` and never returns
+        // the ciphertext. Assert the redaction here, and check the encrypted
+        // blob itself at rest.
+        expect(apiConfig.access_token_encrypted).toBeUndefined()
+        expect(apiConfig.access_token_present).toBe(true)
+
+        const socialsService: any = getContainer().resolve(SOCIALS_MODULE)
+        const stored = await socialsService.retrieveSocialPlatform(platformId)
+        const storedConfig = stored.api_config
+
+        expect(storedConfig.access_token_encrypted).toBeDefined()
+        expect(storedConfig.access_token_encrypted.encrypted).toBeDefined()
+        expect(storedConfig.access_token_encrypted.iv).toBeDefined()
+        expect(storedConfig.access_token_encrypted.authTag).toBeDefined()
       })
     })
   })

@@ -21,7 +21,7 @@ export const POST = async (
   if ("pages" in body) {
     const batchBody = body as CreatePagesSchema;
 
-    const { result, errors } = await createBulkPagesWorkflow(req.scope).run({
+    const { result } = await createBulkPagesWorkflow(req.scope).run({
       input: {
         pages: batchBody.pages.map((page) => ({
           ...page,
@@ -31,17 +31,24 @@ export const POST = async (
       },
     });
 
-    if (errors.length > 0) {
+    // Per-page failures are *collected* by the step and returned as
+    // `result.errors`; they are not thrown, so the `errors` array the workflow
+    // run itself returns is always empty. Keying the status off that array meant
+    // a batch where every page was rejected still answered 201 "All pages
+    // created successfully" with an empty list.
+    const pageErrors = result.errors ?? [];
+
+    if (pageErrors.length > 0) {
       if (!result.created || result.created.length === 0) {
         return res.status(400).json({
           message: "Failed to create pages",
-          errors: result.errors,
+          errors: pageErrors,
         });
       }
       return res.status(207).json({
         message: "Some pages were created successfully while others failed",
         pages: result.created,
-        errors: result.errors,
+        errors: pageErrors,
       });
     }
 

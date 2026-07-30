@@ -222,9 +222,27 @@ jobs:
           pnpm test:unit --runTestsByPath $UNIT
           echo "::endgroup::"
         fi
+        # Batch the integration specs. The jest parent leaks heap per spec file
+        # (#1189): a single invocation grows until it dies with
+        # "Ineffective mark-compacts near heap limit" / exit 134 somewhere past
+        # a dozen files. The main-suite path has always batched for this reason
+        # (BATCH_SIZE is capped at 10 for the same leak); this path did not, so
+        # a PR touching many specs OOM'd after ~11 minutes and reported nothing
+        # about the specs it changed. Seen on #1192, which changes 19.
         if [ -n "$HTTP" ]; then
           echo "::group::integration (shared DB) specs"
-          pnpm test:integration:http:shared --runTestsByPath $HTTP
+          set -- $HTTP
+          while [ "$#" -gt 0 ]; do
+            CHUNK=""
+            n=0
+            while [ "$#" -gt 0 ] && [ "$n" -lt 8 ]; do
+              CHUNK="$CHUNK $1"
+              shift
+              n=$((n + 1))
+            done
+            echo "--- batch:$CHUNK"
+            pnpm test:integration:http:shared --runTestsByPath $CHUNK
+          done
           echo "::endgroup::"
         fi
 

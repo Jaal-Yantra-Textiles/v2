@@ -38,6 +38,23 @@ export const ReadBlocksQuerySchema = z.object({
           return val;
         }
       }
+      // `config[take]=10` arrives as the *string* "10". The workflow echoes
+      // take/skip straight back as `limit`/`offset`, so without this the
+      // endpoint answers `"limit": "10"` — a typed field returning a string.
+      // Sibling `page`/`limit` params below have always been coerced; the
+      // numerics nested under `config` were missed.
+      if (val && typeof val === "object" && !Array.isArray(val)) {
+        const out: Record<string, unknown> = { ...(val as Record<string, unknown>) };
+        for (const key of ["take", "skip"]) {
+          if (typeof out[key] === "string" && out[key] !== "") {
+            const n = Number(out[key]);
+            if (Number.isFinite(n)) {
+              out[key] = n;
+            }
+          }
+        }
+        return out;
+      }
       return val;
     },
     z.record(z.string(), z.unknown()).optional()

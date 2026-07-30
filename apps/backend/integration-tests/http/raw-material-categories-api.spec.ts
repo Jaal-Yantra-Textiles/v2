@@ -2,7 +2,10 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
-jest.setTimeout(30000);
+// 90s, the convention across these specs: 30s is not enough for the shared
+// runner's boot hook on a cold CI database, and the PR job boots every changed
+// spec in one process.
+jest.setTimeout(90000);
 
 // Sample categories for testing
 const fiberCategory = {
@@ -127,7 +130,10 @@ setupSharedTestSuite(() => {
       });
 
       it("should filter categories by category type", async () => {
-        const response = await api.get(`/admin/categories/rawmaterials?category=Fabric`, {
+        // Filters go under `filters[...]`. A bare `?category=` is an unknown
+        // query key, which validateAndTransformQuery rejects outright — this
+        // was asserting 200 against a flat 400.
+        const response = await api.get(`/admin/categories/rawmaterials?filters[category]=Fabric`, {
           headers: headers.headers,
         });
 

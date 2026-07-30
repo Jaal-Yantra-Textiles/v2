@@ -3,7 +3,10 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
-jest.setTimeout(30000);
+// 90s, the convention every other http spec uses: 30s is not enough for the
+// shared runner's boot hook on a cold CI database, and all four tests in this
+// file were failing on that hook rather than on anything they assert.
+jest.setTimeout(90000);
 
 setupSharedTestSuite(() => {
     let headers;
@@ -231,8 +234,11 @@ setupSharedTestSuite(() => {
             <p>Please review the agreement: {{agreement.title}}</p>
             <p><a href="{{agreement_url}}">Click here to view</a></p>
           `,
-          text_template: "Please review the agreement: {{agreement.title}}",
-          status: "active",
+          // `text_template` and `status` are not fields on the email-template
+          // schema, which is `.strict()` — sending them is a flat 400. The
+          // active flag is `is_active`. This test never got far enough to
+          // notice, because the file's 30s timeout killed the boot hook first.
+          is_active: true,
           template_key:'agreement-email',
           template_type: 'email'
         };

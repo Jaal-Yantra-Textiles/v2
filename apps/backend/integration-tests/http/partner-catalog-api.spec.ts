@@ -61,7 +61,10 @@ async function createPartnerWithStoreAndProduct(api: any, adminHeaders: Record<s
         title: `Catalog Product ${unique}`,
         handle: `catalog-prod-${unique}`,
         status: ProductStatus.PUBLISHED,
-        options: [{ title: "Color", values: ["Red"] }],
+        // "Blue" is here for the variant-create test further down: a variant can
+        // only use an option value the product option already declares, so
+        // creating a Blue variant against a Red-only option is a 400.
+        options: [{ title: "Color", values: ["Red", "Blue"] }],
         variants: [
           {
             title: "Red",
@@ -117,7 +120,8 @@ setupSharedTestSuite(() => {
           },
           { headers: partner.headers }
         )
-        expect(res.status).toBe(200)
+        // Creates answer 201 here, like the other ~50 partner POST routes.
+        expect(res.status).toBe(201)
         expect(res.data.product_category).toBeDefined()
         expect(res.data.product_category.name).toBe(`Test Category ${unique}`)
       })
@@ -162,7 +166,7 @@ setupSharedTestSuite(() => {
           },
           { headers: partner.headers }
         )
-        expect(res.status).toBe(200)
+        expect(res.status).toBe(201)
         expect(res.data.collection).toBeDefined()
         expect(res.data.collection.title).toBe(`Summer ${unique}`)
       })

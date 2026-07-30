@@ -1,7 +1,10 @@
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
-jest.setTimeout(30000);
+// 90s, the convention across these specs: 30s is not enough for the shared
+// runner's boot hook on a cold CI database, and the PR job boots every changed
+// spec in one process.
+jest.setTimeout(90000);
 
 //Add more test cases like delete and etc
 
@@ -164,15 +167,17 @@ setupSharedTestSuite(() => {
         expect(response.data.count).toBe(0);
       });
 
-      it("should handle invalid filters gracefully", async () => {
+      it("rejects an unknown filter rather than ignoring it", async () => {
         const response = await api.get(
-          "/admin/persons?invalid_filter=value", 
+          "/admin/persons?invalid_filter=value",
           headers
-        );
+        ).catch((e: any) => e.response);
 
-        expect(response.status).toBe(200);
-        // Invalid filter should be ignored
-        expect(response.data.persons.length).toBeGreaterThan(0);
+        // This used to expect the filter to be silently dropped.
+        // validateAndTransformQuery rejects unknown query keys, and that is the
+        // better behaviour: a typo'd filter returning the whole table looks
+        // like a successful narrow search.
+        expect(response.status).toBe(400);
       });
     });
 

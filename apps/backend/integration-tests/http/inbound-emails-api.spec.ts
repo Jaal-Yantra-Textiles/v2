@@ -1,7 +1,10 @@
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 
-jest.setTimeout(30000)
+// 90s, the convention across these specs: 30s is not enough for the shared
+// runner's boot hook on a cold CI database, and the PR job boots every changed
+// spec in one process.
+jest.setTimeout(90000)
 setupSharedTestSuite(() => {
   let headers: any
   const { api, getContainer } = getSharedTestEnv()
@@ -85,7 +88,11 @@ setupSharedTestSuite(() => {
       const container = getContainer()
       const service = container.resolve("inbound_emails") as any
 
-      const updated = await service.updateInboundEmails(email.id, {
+      // The generated update takes one object carrying the id, or a
+      // (selector, data) pair — a bare id string as the first of two args is
+      // neither, and blows up inside the internal service.
+      const updated = await service.updateInboundEmails({
+        id: email.id,
         status: "ignored",
         action_type: "create_inventory_order",
       })

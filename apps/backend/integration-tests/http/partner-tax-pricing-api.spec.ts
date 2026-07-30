@@ -96,6 +96,9 @@ setupSharedTestSuite(() => {
           `/partners/stores/${partner.storeId}/tax-regions`,
           {
             country_code: "us",
+            // A root tax region requires a provider — the validator refines on
+            // it, matching admin. Only province-level regions inherit one.
+            provider_id: "tp_system",
           },
           { headers: partner.headers }
         )
@@ -145,7 +148,10 @@ setupSharedTestSuite(() => {
           "/partners/price-preferences",
           {
             attribute: "currency_code",
-            value: partner.currencyCode,
+            // Not `partner.currencyCode`: provisioning the store already
+            // creates a preference for it, and a second one is a 400
+            // "already exists". Use a currency the store did not claim.
+            value: "sek",
             is_tax_inclusive: true,
           },
           { headers: partner.headers }

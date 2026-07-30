@@ -5,7 +5,10 @@ import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 const TEST_PARTNER_EMAIL = "admin@medusa-test.com"
 const TEST_PARTNER_PASSWORD = "supersecret"
 
-jest.setTimeout(30000)
+// 90s, the convention across these specs: 30s is not enough for the shared
+// runner's boot hook on a cold CI database, and the PR job boots every changed
+// spec in one process.
+jest.setTimeout(90000)
 
 const testDesign = {
   name: "Summer Collection 2025",
@@ -170,7 +173,11 @@ setupSharedTestSuite(() => {
           console.log(JSON.stringify(assignResponse.data, null, 2))
           expect(assignResponse.status).toBe(200)
           expect(assignResponse.data.task).toBeDefined()
-          expect(assignResponse.data.task.partner.id).toBe(partnerId)
+          // `partners`, plural — the partner<->task link is isList on both
+          // sides, so the relation is a list. `task.partner` was always
+          // undefined here; the route asked query.graph for `partner.*`, which
+          // silently returns nothing rather than erroring.
+          expect(assignResponse.data.task.partners.map((p: any) => p.id)).toContain(partnerId)
         }
 
         // 5. Accept tasks as partner

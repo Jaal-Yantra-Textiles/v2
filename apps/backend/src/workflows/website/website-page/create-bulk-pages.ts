@@ -34,10 +34,19 @@ export const createBulkPagesStep = createStep(
           await websiteService.retrieveWebsite(pageInput.website_id);
         }
 
-        // Check for existing page with this slug
+        // Check for existing page with this slug.
+        //
+        // This used to call `retrievePage(pageInput.slug)` — retrieve looks up
+        // by *id*, so it was handed a slug, always threw NOT_FOUND, and the
+        // duplicate check silently passed every time. Bulk create happily wrote
+        // second copies of an existing slug. Look it up by slug, scoped to the
+        // website, which is where slugs actually have to be unique.
         try {
-          const existingPage = await websiteService.retrievePage(pageInput.slug);
-          if (existingPage) {
+          const existingPages = await websiteService.listPages({
+            website_id: pageInput.website_id,
+            slug: pageInput.slug,
+          });
+          if (existingPages.length > 0) {
             errors.push({
               slug: pageInput.slug,
               error: `Page with slug: ${pageInput.slug}, already exists.`
@@ -45,14 +54,11 @@ export const createBulkPagesStep = createStep(
             continue;
           }
         } catch (error: MedusaError | any) {
-          // If error is NOT_FOUND, that's good - means no duplicate
-          if (error.type !== MedusaError.Types.NOT_FOUND) {
-            errors.push({
-              slug: pageInput.slug,
-              error: error.message
-            });
-            continue;
-          }
+          errors.push({
+            slug: pageInput.slug,
+            error: error.message
+          });
+          continue;
         }
 
         // Create the page

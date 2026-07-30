@@ -95,7 +95,12 @@ describe("createDraftProductFromExtractionWorkflow", () => {
       expect(result.product_id).toMatch(/^prod_/)
       expect(result.product_title).toBe("Handwoven Cotton Kurta")
       expect(result.status).toBe("draft")
-      expect(result.admin_url).toBe(`/app/products/${result.product_id}`)
+      // #707 repointed this at the partner portal — the confirmation goes to a
+      // partner, who cannot open the admin app. The field name stayed
+      // `admin_url` so the seeded message template binding kept working.
+      expect(result.admin_url).toBe(
+        `${process.env.PARTNER_APP_URL || process.env.PARTNER_PORTAL_URL || "https://partner.jaalyantra.com"}/products/${result.product_id}`
+      )
       expect(result.rehosted_image_urls).toEqual([])
 
       // Read it back via the partner products route and assert shape.

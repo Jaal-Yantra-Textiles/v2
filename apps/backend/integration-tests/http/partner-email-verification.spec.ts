@@ -71,22 +71,14 @@ medusaIntegrationTestRunner({
         expect(claims1.auth_identity_id).toBeTruthy()
         expect(claims1.actor_id === "" || claims1.actor_id == null).toBe(true)
 
-        // 3. Create the partner record (allowed pre-verification via
-        //    allowUnregistered) so re-login can mint a real actor token.
-        const partnerRes = await api.post(
-          "/partners",
-          {
-            name: `Verify Co ${Date.now()}`,
-            handle: `verify-${Date.now()}`,
-            admin: { email, first_name: "Ada", last_name: "Weaver" },
-          },
-          { headers: { Authorization: `Bearer ${token1}` } }
-        )
-        const partnerId = partnerRes.data.partner.id
-        expect(partnerId).toBeTruthy()
-
         // 4. Obtain a real code via the auth module (the HTTP request route
         //    intentionally never returns the raw code).
+        //
+        //    This has to happen BEFORE the partner is created: creating a
+        //    partner runs verifyPartnerAuthEmailStep, which marks the email
+        //    verified outright. Once a verification row carries verified_at,
+        //    the token provider returns that row as-is and issues no new code —
+        //    so asking afterwards yields a record with no `code` on it.
         const authService: any = getContainer().resolve(Modules.AUTH)
         const requested = await authService.requestAuthVerification({
           auth_identity_id: claims1.auth_identity_id,
@@ -105,7 +97,21 @@ medusaIntegrationTestRunner({
         expect(confirm.data.entity_id).toBe(email)
         expect(confirm.data.verified_at).toBeTruthy()
 
-        // 6. Re-login → now a real actor token, no verification gate.
+        // 6. Create the partner record (allowed pre-verification via
+        //    allowUnregistered) so re-login can mint a real actor token.
+        const partnerRes = await api.post(
+          "/partners",
+          {
+            name: `Verify Co ${Date.now()}`,
+            handle: `verify-${Date.now()}`,
+            admin: { email, first_name: "Ada", last_name: "Weaver" },
+          },
+          { headers: { Authorization: `Bearer ${token1}` } }
+        )
+        const partnerId = partnerRes.data.partner.id
+        expect(partnerId).toBeTruthy()
+
+        // 7. Re-login → now a real actor token, no verification gate.
         const login2 = await api.post("/auth/partner/emailpass", {
           email,
           password: PASSWORD,
