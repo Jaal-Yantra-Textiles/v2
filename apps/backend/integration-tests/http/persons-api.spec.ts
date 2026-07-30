@@ -164,15 +164,17 @@ setupSharedTestSuite(() => {
         expect(response.data.count).toBe(0);
       });
 
-      it("should handle invalid filters gracefully", async () => {
+      it("rejects an unknown filter rather than ignoring it", async () => {
         const response = await api.get(
-          "/admin/persons?invalid_filter=value", 
+          "/admin/persons?invalid_filter=value",
           headers
-        );
+        ).catch((e: any) => e.response);
 
-        expect(response.status).toBe(200);
-        // Invalid filter should be ignored
-        expect(response.data.persons.length).toBeGreaterThan(0);
+        // This used to expect the filter to be silently dropped.
+        // validateAndTransformQuery rejects unknown query keys, and that is the
+        // better behaviour: a typo'd filter returning the whole table looks
+        // like a successful narrow search.
+        expect(response.status).toBe(400);
       });
     });
 

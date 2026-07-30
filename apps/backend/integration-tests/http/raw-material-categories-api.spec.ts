@@ -127,7 +127,10 @@ setupSharedTestSuite(() => {
       });
 
       it("should filter categories by category type", async () => {
-        const response = await api.get(`/admin/categories/rawmaterials?category=Fabric`, {
+        // Filters go under `filters[...]`. A bare `?category=` is an unknown
+        // query key, which validateAndTransformQuery rejects outright — this
+        // was asserting 200 against a flat 400.
+        const response = await api.get(`/admin/categories/rawmaterials?filters[category]=Fabric`, {
           headers: headers.headers,
         });
 

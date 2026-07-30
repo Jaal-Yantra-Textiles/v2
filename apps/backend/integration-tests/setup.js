@@ -11,6 +11,32 @@ process.env.LOG_LEVEL = "error"
 process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN =
   process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "jyt_whatsapp_test_verify"
 
+// Opt-in HTTP error tracing: `DEBUG_HTTP_ERRORS=1 pnpm test:integration:http:shared ...`
+//
+// An AxiosError prints its status and nothing else, so a spec that fails with
+// "Request failed with status code 400" tells you nothing about *why* — and the
+// body carrying the validator's complaint is discarded. This logs method, url
+// and response body for every failed request. Off by default; it is noisy.
+if (process.env.DEBUG_HTTP_ERRORS) {
+  const axios = require("axios")
+  const _create = axios.create.bind(axios)
+  const attach = (instance) => {
+    instance.interceptors.response.use(undefined, (err) => {
+      const res = err.response
+      if (res) {
+        const { method, url } = err.config || {}
+        console.error(
+          `[http-error] ${String(method).toUpperCase()} ${url} -> ${res.status} ${JSON.stringify(res.data)}`
+        )
+      }
+      return Promise.reject(err)
+    })
+    return instance
+  }
+  attach(axios)
+  axios.create = (...args) => attach(_create(...args))
+}
+
 // Silence console.log/warn noise from framework internals (Index engine, S3, Observability)
 const _origLog = console.log
 const _origWarn = console.warn
