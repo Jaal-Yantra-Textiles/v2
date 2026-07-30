@@ -4,6 +4,12 @@ process.env.PRODUCTION_RUN_AWAIT_TIMEOUT_SECONDS = "5"
 process.env.MASTRA_DISABLED = "true"
 // Suppress noisy logs during tests (migrations, index engine, S3, etc.)
 process.env.LOG_LEVEL = "error"
+// WhatsApp webhook verification. Both whatsapp specs fall back to this literal
+// when the env var is unset, but nothing ever defined it: the service resolved
+// an empty verify token, matched nothing, and the webhook answered 403. Set it
+// here, before the app boots, so the fallback the specs assume is real.
+process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN =
+  process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "jyt_whatsapp_test_verify"
 
 // Silence console.log/warn noise from framework internals (Index engine, S3, Observability)
 const _origLog = console.log
