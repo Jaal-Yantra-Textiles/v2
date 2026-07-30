@@ -210,14 +210,25 @@ jobs:
         echo "Changed unit specs:        ${UNIT:-(none)}"
         echo "Changed integration specs: ${HTTP:-(none)}"
 
+        # No `--` before the jest flags. pnpm forwards trailing args to the
+        # script either way, but jest treats everything after a literal `--` as
+        # a positional testPathPattern — so `-- --runTestsByPath foo.spec.ts`
+        # silently became the REGEX `--runTestsByPath|foo.spec.ts` instead of a
+        # path selection. For most paths the regex happens to match the same
+        # single file, which is why this looked fine. It is not fine for the six
+        # specs living under Medusa's bracketed route dirs — in a regex, `[id]`
+        # is a character class, so
+        #   src/api/admin/websites/[id]/pages/__tests__/validators.unit.spec.ts
+        # matches nothing, jest reports "0 matches" and the PR fails without
+        # ever running the spec the PR changed.
         if [ -n "$UNIT" ]; then
           echo "::group::unit specs"
-          pnpm test:unit -- --runTestsByPath $UNIT
+          pnpm test:unit --runTestsByPath $UNIT
           echo "::endgroup::"
         fi
         if [ -n "$HTTP" ]; then
           echo "::group::integration (shared DB) specs"
-          pnpm test:integration:http:shared -- --runTestsByPath $HTTP
+          pnpm test:integration:http:shared --runTestsByPath $HTTP
           echo "::endgroup::"
         fi
 
