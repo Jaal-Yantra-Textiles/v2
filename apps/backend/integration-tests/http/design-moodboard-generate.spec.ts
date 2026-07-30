@@ -131,11 +131,13 @@ setupSharedTestSuite(() => {
 
       // Page-frames built from real design data. "3 · Zoom details" is intentionally
       // absent: it needs region bboxes, which the mapper does not derive from any
-      // design field yet — so a design produces 4 frames (header/measurements/
-      // construction/colorways), not the fixture's 5.
+      // design field yet. The mapper also emits a "Contents" cover and a
+      // "Design Specs" frame, added after this spec was written — six frames.
       const frames = scene.elements.filter((e: any) => e.type === "frame")
       expect(frames.map((f: any) => f.name)).toEqual([
+        "Contents",
         "1 · Header & Flats",
+        "Design Specs",
         "2 · Measurements",
         "4 · Construction details",
         "5 · Colorways",
@@ -183,7 +185,7 @@ setupSharedTestSuite(() => {
       const persistedFrames = fetched.moodboard.elements.filter(
         (e: any) => e.type === "frame"
       )
-      expect(persistedFrames).toHaveLength(4)
+      expect(persistedFrames).toHaveLength(6)
       // deterministic builder → persisted scene equals the returned one.
       expect(fetched.moodboard.elements.length).toBe(generated.elements.length)
     })

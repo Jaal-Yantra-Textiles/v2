@@ -96,6 +96,8 @@ setupSharedTestSuite(() => {
         headers: partnerHeaders,
       })
       expect(res.status).toBe(200)
+      // aesthetic_keywords and milestones were added to the brief after this
+      // spec was written; a fresh design returns them null like the rest.
       expect(res.data.brief).toEqual({
         concept_theme: null,
         persona: null,
@@ -103,6 +105,8 @@ setupSharedTestSuite(() => {
         price_point: null,
         design_budget: null,
         cost_currency: null,
+        aesthetic_keywords: null,
+        milestones: null,
       })
     })
 
@@ -134,6 +138,9 @@ setupSharedTestSuite(() => {
         price_point: "luxury",
         design_budget: 1500,
         cost_currency: "inr",
+        // POST is a full replace, so fields this body omits come back null.
+        aesthetic_keywords: null,
+        milestones: null,
       })
 
       const getRes = await api.get(`/partners/designs/${designId}/brief`, {

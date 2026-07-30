@@ -365,8 +365,10 @@ setupSharedTestSuite(() => {
         };
         const res = await api.put(`/admin/inventory-orders/${createdOrderId}`, updatePayload, headers);
         expect(res.status).toBe(200);
-        expect(res.data.quantity).toBe(5);
-        expect(res.data.total_price).toBe(500);
+        // PUT answers { inventoryOrder }, like POST does — the fields were
+        // never at the top level.
+        expect(res.data.inventoryOrder.quantity).toBe(5);
+        expect(res.data.inventoryOrder.total_price).toBe(500);
       });
 
       it("should update an order while Processing", async () => {
@@ -378,7 +380,7 @@ setupSharedTestSuite(() => {
         const updatePayload = { quantity: 10 };
         const res2 = await api.put(`/admin/inventory-orders/${createdOrderId}`, updatePayload, headers);
         expect(res2.status).toBe(200);
-        expect(res2.data.quantity).toBe(10);
+        expect(res2.data.inventoryOrder.quantity).toBe(10);
       });
 
       it("should not update an order if status is not Pending or Processing", async () => {
