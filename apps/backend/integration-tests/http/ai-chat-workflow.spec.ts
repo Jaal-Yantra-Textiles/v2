@@ -17,6 +17,22 @@ import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 
 jest.setTimeout(120000) // AI queries can take time
 
+/**
+ * Everything below the status endpoint and the error-handling block asserts on
+ * what the LLM *resolved* — targetEntity, mode, execution-plan length. That
+ * needs a live model. CI has no OPENROUTER_API_KEY (no workflow sets one), so
+ * every request fell through the model rotator, which sleeps between attempts
+ * and then returns the degraded fallback: targetEntity "unknown", mode "chat".
+ * Nineteen assertions failed on that, and the file burned 3,088s — 51 minutes,
+ * a third of shard 4 and the main cause of the 4x shard imbalance — to do it.
+ *
+ * So these are gated on the key rather than deleted: they are real tests of
+ * real behaviour, they just cannot run where there is no model. Set
+ * OPENROUTER_API_KEY locally to run them.
+ */
+const HAS_LLM_KEY = Boolean(process.env.OPENROUTER_API_KEY)
+const describeLLM = HAS_LLM_KEY ? describe : describe.skip
+
 medusaIntegrationTestRunner({
   testSuite: ({ api, getContainer }) => {
     let headers: Record<string, string>
@@ -51,7 +67,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Core Entity Queries", () => {
+    describeLLM("AI V4 Workflow - Core Entity Queries", () => {
       describe("Orders", () => {
         it("should list all orders", async () => {
           const response = await api.post(
@@ -244,7 +260,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Custom Entity Queries", () => {
+    describeLLM("AI V4 Workflow - Custom Entity Queries", () => {
       describe("Designs", () => {
         it("should list all designs", async () => {
           const response = await api.post(
@@ -475,7 +491,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Mixed Entity Queries", () => {
+    describeLLM("AI V4 Workflow - Mixed Entity Queries", () => {
       it("should handle orders for customer query (core + reference)", async () => {
         const response = await api.post(
           "/admin/ai/chat/chat",
@@ -528,7 +544,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Complex Multi-Step Queries", () => {
+    describeLLM("AI V4 Workflow - Complex Multi-Step Queries", () => {
       it("should handle count query with filter", async () => {
         const response = await api.post(
           "/admin/ai/chat/chat",
@@ -599,7 +615,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - MCP Generic Path (No Entity Detected)", () => {
+    describeLLM("AI V4 Workflow - MCP Generic Path (No Entity Detected)", () => {
       it("should handle feature flags query via MCP", async () => {
         const response = await api.post(
           "/admin/ai/chat/chat",
@@ -638,7 +654,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Human-in-the-Loop Clarification", () => {
+    describeLLM("AI V4 Workflow - Human-in-the-Loop Clarification", () => {
       it("should request clarification for ambiguous campaign query", async () => {
         const response = await api.post(
           "/admin/ai/chat/chat",
@@ -696,7 +712,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Fields Parameter Validation", () => {
+    describeLLM("AI V4 Workflow - Fields Parameter Validation", () => {
       it("should NOT generate fields=* (invalid in Medusa v2)", async () => {
         const queries = [
           "show all orders with all fields",
@@ -745,7 +761,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Data Presentation (All Items)", () => {
+    describeLLM("AI V4 Workflow - Data Presentation (All Items)", () => {
       it("should return all items when listing entities", async () => {
         const response = await api.post(
           "/admin/ai/chat/chat",
@@ -792,12 +808,13 @@ medusaIntegrationTestRunner({
     })
 
     describe("AI V4 Workflow - Error Handling", () => {
+      // axios rejects on 4xx, so a test that expects a 400 has to catch it —
+      // reading `.status` off the resolved value never happens. Both tests here
+      // were failing with an unhandled AxiosError, not with a bad status.
       it("should handle empty message gracefully", async () => {
-        const response = await api.post(
-          "/admin/ai/chat/chat",
-          { message: "" },
-          { headers }
-        )
+        const response = await api
+          .post("/admin/ai/chat/chat", { message: "" }, { headers })
+          .catch((e: any) => e.response)
 
         expect(response.status).toBe(400)
       })
@@ -816,24 +833,26 @@ medusaIntegrationTestRunner({
       })
 
       it("should handle malformed clarification context", async () => {
-        const response = await api.post(
-          "/admin/ai/chat/chat",
-          {
-            message: "show campaigns",
-            clarification: {
-              // Missing required fields
-              selectedOptionId: "test",
+        const response = await api
+          .post(
+            "/admin/ai/chat/chat",
+            {
+              message: "show campaigns",
+              clarification: {
+                // Missing required fields
+                selectedOptionId: "test",
+              },
             },
-          },
-          { headers }
-        )
+            { headers }
+          )
+          .catch((e: any) => e.response)
 
         // Should either reject with 400 or handle gracefully
         expect([200, 400]).toContain(response.status)
       })
     })
 
-    describe("AI V4 Workflow - Execution Logs", () => {
+    describeLLM("AI V4 Workflow - Execution Logs", () => {
       it("should include execution logs in response", async () => {
         const response = await api.post(
           "/admin/ai/chat/chat",
@@ -871,7 +890,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Thread Management", () => {
+    describeLLM("AI V4 Workflow - Thread Management", () => {
       it("should accept and return threadId", async () => {
         const threadId = `test_thread_${Date.now()}`
 
@@ -900,7 +919,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Performance Metadata", () => {
+    describeLLM("AI V4 Workflow - Performance Metadata", () => {
       it("should include timing metadata", async () => {
         const response = await api.post(
           "/admin/ai/chat/chat",
@@ -932,7 +951,7 @@ medusaIntegrationTestRunner({
     // COMPLEX TEST CASES
     // ================================================================
 
-    describe("AI V4 Workflow - Natural Language Variations", () => {
+    describeLLM("AI V4 Workflow - Natural Language Variations", () => {
       it("should understand different ways to ask for the same data", async () => {
         const variations = [
           "show me all designs",
@@ -1004,7 +1023,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Complex Filtering", () => {
+    describeLLM("AI V4 Workflow - Complex Filtering", () => {
       it("should handle multiple filter conditions (AND)", async () => {
         const response = await api.post(
           "/admin/ai/chat/chat",
@@ -1068,7 +1087,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Date Range Queries", () => {
+    describeLLM("AI V4 Workflow - Date Range Queries", () => {
       it("should handle relative date queries (today)", async () => {
         const response = await api.post(
           "/admin/ai/chat/chat",
@@ -1136,7 +1155,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Sorting and Pagination", () => {
+    describeLLM("AI V4 Workflow - Sorting and Pagination", () => {
       it("should handle sorting by field (ascending)", async () => {
         const response = await api.post(
           "/admin/ai/chat/chat",
@@ -1204,7 +1223,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Search and Text Matching", () => {
+    describeLLM("AI V4 Workflow - Search and Text Matching", () => {
       it("should handle keyword search (contains)", async () => {
         const response = await api.post(
           "/admin/ai/chat/chat",
@@ -1250,7 +1269,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Complex Multi-Entity Queries", () => {
+    describeLLM("AI V4 Workflow - Complex Multi-Entity Queries", () => {
       it("should resolve entity by name then filter related entity", async () => {
         const response = await api.post(
           "/admin/ai/chat/chat",
@@ -1313,7 +1332,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Aggregation and Statistics", () => {
+    describeLLM("AI V4 Workflow - Aggregation and Statistics", () => {
       it("should count with grouping", async () => {
         const response = await api.post(
           "/admin/ai/chat/chat",
@@ -1382,7 +1401,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Typo Tolerance and Fuzzy Matching", () => {
+    describeLLM("AI V4 Workflow - Typo Tolerance and Fuzzy Matching", () => {
       it("should handle minor typos in entity names", async () => {
         const typoQueries = [
           { query: "show all desings", expected: "design" },  // typo: desings -> designs
@@ -1429,7 +1448,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Contextual Queries", () => {
+    describeLLM("AI V4 Workflow - Contextual Queries", () => {
       it("should handle 'those' referring to previous query results", async () => {
         // First query
         await api.post(
@@ -1469,7 +1488,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Edge Cases", () => {
+    describeLLM("AI V4 Workflow - Edge Cases", () => {
       it("should handle very long queries", async () => {
         const longQuery = "show me all the designs that were created recently and have status set to in development along with their specifications and colors and size sets and also include the partner information if available"
 
@@ -1540,7 +1559,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Module Link Traversal", () => {
+    describeLLM("AI V4 Workflow - Module Link Traversal", () => {
       it("should traverse design -> customer link", async () => {
         const response = await api.post(
           "/admin/ai/chat/chat",
@@ -1593,7 +1612,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Model Relations (Within Module)", () => {
+    describeLLM("AI V4 Workflow - Model Relations (Within Module)", () => {
       it("should fetch design specifications (model relation)", async () => {
         const response = await api.post(
           "/admin/ai/chat/chat",
@@ -1646,7 +1665,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Complex Business Queries", () => {
+    describeLLM("AI V4 Workflow - Complex Business Queries", () => {
       it("should answer 'which partner has the most designs?'", async () => {
         const response = await api.post(
           "/admin/ai/chat/chat",
@@ -1714,7 +1733,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Error Recovery", () => {
+    describeLLM("AI V4 Workflow - Error Recovery", () => {
       it("should recover from service call failures gracefully", async () => {
         // Query for a non-existent entity ID
         const response = await api.post(
@@ -1743,7 +1762,7 @@ medusaIntegrationTestRunner({
       })
     })
 
-    describe("AI V4 Workflow - Concurrent Requests", () => {
+    describeLLM("AI V4 Workflow - Concurrent Requests", () => {
       it("should handle multiple concurrent requests", async () => {
         const queries = [
           "show all designs",
