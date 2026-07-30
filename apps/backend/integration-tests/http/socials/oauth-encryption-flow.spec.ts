@@ -143,14 +143,29 @@ setupSharedTestSuite(() => {
           // ============================================
           console.log("\n🔍 STEP 5: Verifying encryption in database...");
           
+          // Read through the module, not the API. The admin response redacts
+          // every `*_encrypted` blob and reports `*_present: true` instead, so
+          // asking the endpoint for ciphertext gets undefined -- which is the
+          // redaction working, not encryption failing. At-rest encryption has
+          // to be checked at rest.
           const getResponse = await api.get(
             `/admin/social-platforms/${platform.id}`,
             headers
           );
 
           expect(getResponse.status).toBe(200);
-          const retrievedPlatform = getResponse.data.socialPlatform;
-          
+          expect(
+            getResponse.data.socialPlatform.api_config.access_token_encrypted
+          ).toBeUndefined();
+          expect(
+            getResponse.data.socialPlatform.api_config.access_token_present
+          ).toBe(true);
+
+          const socialsService: any = getContainer().resolve(SOCIALS_MODULE);
+          const retrievedPlatform = await socialsService.retrieveSocialPlatform(
+            platform.id
+          );
+
           // Verify encrypted tokens exist
           expect(retrievedPlatform.api_config.access_token_encrypted).toBeDefined();
           expect(retrievedPlatform.api_config.access_token_encrypted.encrypted).toBeDefined();
@@ -227,10 +242,17 @@ setupSharedTestSuite(() => {
 
           const legacyPlatform = legacyPlatformResponse.data.socialPlatform;
           console.log(`✅ Legacy platform created: ${legacyPlatform.id}`);
-          
+
+          // Again from the module: redaction strips the plaintext `access_token`
+          // from the response too, so the stored row is the only place to read
+          // the legacy shape from.
+          const storedLegacy = await socialsService.retrieveSocialPlatform(
+            legacyPlatform.id
+          );
+
           // Test that helper can still read plaintext tokens
           const legacyToken = decryptAccessToken(
-            legacyPlatform.api_config,
+            storedLegacy.api_config,
             getContainer()
           );
           expect(legacyToken).toBe("legacy_plaintext_token_12345");
@@ -424,14 +446,18 @@ setupSharedTestSuite(() => {
             console.log(`✅ Created ${config.name} with encrypted token`);
           }
 
-          // Verify each platform has correct encrypted token
+          // Verify each platform has correct encrypted token. The api_config on
+          // the create response is redacted, so the ciphertext has to come from
+          // the module.
           const { decryptAccessToken } = require("../../../src/modules/socials/utils/token-helpers");
-          
+          const socialsService: any = getContainer().resolve(SOCIALS_MODULE);
+
           for (let i = 0; i < platforms.length; i++) {
             const platform = platforms[i];
             const expectedToken = platformConfigs[i].token;
-            
-            const decrypted = decryptAccessToken(platform.api_config, getContainer());
+
+            const stored = await socialsService.retrieveSocialPlatform(platform.id);
+            const decrypted = decryptAccessToken(stored.api_config, getContainer());
             expect(decrypted).toBe(expectedToken);
             console.log(`✅ ${platform.name} token verified`);
           }

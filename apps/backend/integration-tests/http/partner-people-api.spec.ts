@@ -93,8 +93,12 @@ setupSharedTestSuite(() => {
                 expect(response.status).toBe(200)
                 expect(response.data.partner).toBeDefined()
                 expect(response.data.partner.people).toHaveLength(2)
-                expect(response.data.partner.people[0].email).toBe("john@example.com")
-                expect(response.data.partner.people[1].email).toBe("jane@example.com")
+                // Order is not part of the contract — nothing sorts this list,
+                // so indexing into it is a coin flip. It passes locally and
+                // failed in CI on exactly that.
+                expect(
+                    response.data.partner.people.map((p: any) => p.email).sort()
+                ).toEqual(["jane@example.com", "john@example.com"])
             })
 
             test("should get partner people successfully", async () => {

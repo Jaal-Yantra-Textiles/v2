@@ -287,8 +287,16 @@ setupSharedTestSuite(() => {
     });
 
     it("should return 401 when no auth is provided", async () => {
+      // Send the publishable key but no customer token. With neither, the store
+      // route is rejected at the publishable-key check first and answers 400 —
+      // which says nothing about authentication, the thing this test is for.
       const response = await api
-        .get(`/store/custom/designs/${designId}`)
+        .get(`/store/custom/designs/${designId}`, {
+          headers: {
+            "x-publishable-api-key":
+              customerHeaders.headers["x-publishable-api-key"],
+          },
+        })
         .catch((err) => err.response);
 
       expect(response.status).toBe(401);

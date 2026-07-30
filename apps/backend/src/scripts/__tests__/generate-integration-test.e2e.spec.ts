@@ -81,7 +81,7 @@ describe('generate-integration-test E2E', () => {
 
     // Delete previously generated test file if it exists
     try {
-      // await fs.unlink(generatedTestPath); // Temporarily commented out for debugging
+      await fs.unlink(generatedTestPath);
     } catch (error: any) {
       if (error.code !== 'ENOENT') { // Ignore if file doesn't exist
         throw error;
@@ -92,7 +92,7 @@ describe('generate-integration-test E2E', () => {
   afterAll(async () => {
     // Clean up the generated test file
     try {
-      // await fs.unlink(generatedTestPath); // Temporarily commented out for debugging
+      await fs.unlink(generatedTestPath);
     } catch (error: any) {
       if (error.code !== 'ENOENT') {
         // console.warn(`Could not clean up ${generatedTestPath}: ${error.message}`);

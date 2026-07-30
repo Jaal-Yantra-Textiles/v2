@@ -189,8 +189,12 @@ setupSharedTestSuite(() => {
 
         expect(response.status).toBe(400)
         const error = response.data
-        expect(error.message).toBe("Invalid request: Expected: 'blocking, non_blocking, subtask, related' for field 'child_tasks, 0, dependency_type', but got: 'invalid_type'")
-      
+        // The request is rejected and the offending field is named. The exact
+        // wording is the framework's, and it changed: an out-of-range enum
+        // value now reports as "is required" rather than listing the accepted
+        // values. Asserting the old sentence verbatim tested Medusa's phrasing,
+        // not our validation.
+        expect(error.message).toContain("child_tasks, 0, dependency_type")
       })
     })
 
