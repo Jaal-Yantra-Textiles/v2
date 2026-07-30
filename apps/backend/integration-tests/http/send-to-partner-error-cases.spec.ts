@@ -4,7 +4,6 @@ import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 const TEST_PARTNER_EMAIL = "partner@error-cases-test.com"
 const TEST_PARTNER_PASSWORD = "supersecret"
 
-jest.setTimeout(30000)
 
 setupSharedTestSuite(() =>{
     describe("Send to Partner - Error Cases", () => {

@@ -4,7 +4,6 @@ import * as fs from "fs"
 import * as path from "path"
 import FormData from "form-data"
 
-jest.setTimeout(45000)
 
 const PUBLIC_IMAGE_URL = "https://i.ibb.co/0jL3htdV/sample-image.jpg"
 

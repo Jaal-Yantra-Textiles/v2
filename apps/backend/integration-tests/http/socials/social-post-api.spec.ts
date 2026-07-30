@@ -1,7 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { createAdminUser, getAuthHeaders } from "../../helpers/create-admin-user"
 
-jest.setTimeout(30000);
 
 describe("Social Post API", () => {
   medusaIntegrationTestRunner({

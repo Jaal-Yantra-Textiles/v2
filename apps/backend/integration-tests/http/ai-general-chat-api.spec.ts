@@ -1,7 +1,6 @@
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 
-jest.setTimeout(45000)
 
 /**
  * This spec used to target `POST /admin/ai/chat` and `GET /admin/ai/chat/stream`.

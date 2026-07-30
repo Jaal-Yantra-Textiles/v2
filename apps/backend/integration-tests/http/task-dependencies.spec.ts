@@ -2,7 +2,6 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 
-jest.setTimeout(30000)
 
 const testDesign = {
     name: "Summer Collection 2025",

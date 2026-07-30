@@ -6,7 +6,6 @@ import FormData from "form-data";
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
 
-jest.setTimeout(50000); // Longer timeout for workflow processing
 
 setupSharedTestSuite(() => {
     let headers;

@@ -7,7 +7,6 @@ const TEST_PARTNER_EMAIL = "partner@complete-workflow-test.com"
 const TEST_PARTNER_PASSWORD = "supersecret"
 
 // Keep a reasonable suite timeout
-jest.setTimeout(10000)
 
 setupSharedTestSuite(() => {
     describe("Send to Partner - Complete Workflow", () => {
