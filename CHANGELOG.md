@@ -1,3 +1,10 @@
+## [13.73.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.2...v13.73.3) (2026-07-30)
+
+
+### Bug Fixes
+
+* **#1187:** clear the remaining 57 suite failures — six of them production bugs ([#1192](https://github.com/Jaal-Yantra-Textiles/v2/issues/1192)) ([375e8a3](https://github.com/Jaal-Yantra-Textiles/v2/commit/375e8a362657d5f7a7bfa3cc7c989421915f76ce)), closes [#1187](https://github.com/Jaal-Yantra-Textiles/v2/issues/1187) [#1187](https://github.com/Jaal-Yantra-Textiles/v2/issues/1187) [#1187](https://github.com/Jaal-Yantra-Textiles/v2/issues/1187) [#1187](https://github.com/Jaal-Yantra-Textiles/v2/issues/1187) [#1187](https://github.com/Jaal-Yantra-Textiles/v2/issues/1187) [#271](https://github.com/Jaal-Yantra-Textiles/v2/issues/271) [#1187](https://github.com/Jaal-Yantra-Textiles/v2/issues/1187) [#1187](https://github.com/Jaal-Yantra-Textiles/v2/issues/1187) [#707](https://github.com/Jaal-Yantra-Textiles/v2/issues/707) [#1187](https://github.com/Jaal-Yantra-Textiles/v2/issues/1187) [#1187](https://github.com/Jaal-Yantra-Textiles/v2/issues/1187) [#1187](https://github.com/Jaal-Yantra-Textiles/v2/issues/1187) [#1187](https://github.com/Jaal-Yantra-Textiles/v2/issues/1187) [#1187](https://github.com/Jaal-Yantra-Textiles/v2/issues/1187) [#1189](https://github.com/Jaal-Yantra-Textiles/v2/issues/1189) [#1190](https://github.com/Jaal-Yantra-Textiles/v2/issues/1190)
+
 ## [13.73.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.1...v13.73.2) (2026-07-30)
 
 
