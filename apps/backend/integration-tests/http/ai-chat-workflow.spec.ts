@@ -819,7 +819,11 @@ medusaIntegrationTestRunner({
         expect(response.status).toBe(400)
       })
 
-      it("should handle unknown entity gracefully", async () => {
+      // Needs the model like the gated blocks above: without a key this one
+      // request walks the whole rotator, and it alone kept the file at ~10
+      // minutes after the rest were gated.
+      const itLLM = HAS_LLM_KEY ? it : it.skip
+      itLLM("should handle unknown entity gracefully", async () => {
         const response = await api.post(
           "/admin/ai/chat/chat",
           { message: "show me all xyzabc123" },
