@@ -6,7 +6,6 @@ jest.setTimeout(30000)
 
 // Define test task templates
 const inventoryCheckTemplate = {
-  title: "Inventory Check Template",
   name: "Inventory Check Template",
   description: "Template for checking received inventory",
   priority: "high",
@@ -26,7 +25,6 @@ const inventoryCheckTemplate = {
 }
 
 const supplierFollowUpTemplate = {
-  title: "Supplier Follow-up Template",
   name: "Supplier Follow-up Template",
   description: "Template for following up with suppliers",
   priority: "medium",
@@ -46,7 +44,6 @@ const supplierFollowUpTemplate = {
 }
 
 const qualityInspectionTemplate = {
-  title: "Quality Inspection Template",
   name: "Quality Inspection Template",
   description: "Template for inspecting inventory quality",
   priority: "high",
@@ -151,8 +148,8 @@ setupSharedTestSuite(() => {
         console.log(tasksList)
         // Check task properties
         const taskNames = tasksList.map(task => task.title)
-        expect(taskNames).toContain(inventoryCheckTemplate.title)
-        expect(taskNames).toContain(qualityInspectionTemplate.title)
+        expect(taskNames).toContain(inventoryCheckTemplate.name)
+        expect(taskNames).toContain(qualityInspectionTemplate.name)
       })
 
       it("should create a single task without template", async () => {
@@ -269,8 +266,8 @@ setupSharedTestSuite(() => {
         // Verify task properties
         const tasks = inventoryOrderData.tasks
         const taskNames = tasks.map(task => task.title)
-        expect(taskNames).toContain(inventoryCheckTemplate.title)
-        expect(taskNames).toContain(supplierFollowUpTemplate.title)
+        expect(taskNames).toContain(inventoryCheckTemplate.name)
+        expect(taskNames).toContain(supplierFollowUpTemplate.name)
       })
       
       it("should retrieve tasks with specific fields", async () => {

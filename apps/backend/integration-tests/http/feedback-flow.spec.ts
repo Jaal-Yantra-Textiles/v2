@@ -80,10 +80,32 @@ setupSharedTestSuite(() => {
     console.log("Created task with ID:", taskId)
   })
 
+  // medusaIntegrationTestRunner restores the database before EVERY test(), not
+  // once per file. So a row created in one test() is gone by the next, and the
+  // id captured from it dangles — which is exactly why "list" saw zero rows and
+  // get/update/delete answered 404. Each test that needs a feedback creates its
+  // own instead of inheriting one from a sibling.
+  const createFeedback = async (
+    overrides: Record<string, any> = {}
+  ): Promise<string> => {
+    const res = await api.post(
+      "/admin/feedbacks",
+      {
+        rating: "four",
+        comment: "Great work on this task!",
+        status: "pending",
+        submitted_by: "admin@test.com",
+        submitted_at: new Date().toISOString(),
+        ...overrides,
+      },
+      adminHeaders
+    )
+    expect(res.status).toBe(201)
+    return res.data.feedback.id
+  }
+
   describe("Feedback Module Flow", () => {
     test("should create feedback via admin API", async () => {
-      console.log("\n1. Creating feedback via admin API...")
-      
       const feedbackResponse = await api.post(
         "/admin/feedbacks",
         {
@@ -96,24 +118,22 @@ setupSharedTestSuite(() => {
         adminHeaders
       )
 
-      console.log("Feedback created:", feedbackResponse.data)
       expect(feedbackResponse.status).toBe(201)
       expect(feedbackResponse.data.feedback).toBeDefined()
       expect(feedbackResponse.data.feedback.rating).toBe("four")
       expect(feedbackResponse.data.feedback.comment).toBe("Great work on this task!")
-      
+
       feedbackId = feedbackResponse.data.feedback.id
     })
 
     test("should list all feedbacks", async () => {
-      console.log("\n2. Listing all feedbacks...")
-      
+      await createFeedback()
+
       const listResponse = await api.get(
         "/admin/feedbacks",
         adminHeaders
       )
 
-      console.log("Feedbacks list:", listResponse.data)
       expect(listResponse.status).toBe(200)
       expect(listResponse.data.feedbacks).toBeDefined()
       expect(listResponse.data.feedbacks.length).toBeGreaterThan(0)
@@ -121,8 +141,8 @@ setupSharedTestSuite(() => {
     })
 
     test("should get a specific feedback by ID", async () => {
-      console.log("\n3. Getting feedback by ID...")
-      
+      feedbackId = await createFeedback()
+
       const getResponse = await api.get(
         `/admin/feedbacks/${feedbackId}`,
         adminHeaders
@@ -136,8 +156,8 @@ setupSharedTestSuite(() => {
     })
 
     test("should update feedback status", async () => {
-      console.log("\n4. Updating feedback status...")
-      
+      feedbackId = await createFeedback()
+
       const updateResponse = await api.post(
         `/admin/feedbacks/${feedbackId}`,
         {
@@ -156,8 +176,8 @@ setupSharedTestSuite(() => {
     })
 
     test("should delete feedback", async () => {
-      console.log("\n5. Deleting feedback...")
-      
+      feedbackId = await createFeedback()
+
       const deleteResponse = await api.delete(
         `/admin/feedbacks/${feedbackId}`,
         adminHeaders

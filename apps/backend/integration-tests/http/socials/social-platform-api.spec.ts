@@ -50,7 +50,7 @@ setupSharedTestSuite(() => {
           expect(updateResponse.data.socialPlatform.name).toEqual("Updated Platform");
 
           // 4. List
-          const listResponse = await api.get(`/admin/social-platforms`, adminHeaders);
+          const listResponse = await api.get(`/admin/social-platforms`, headers);
           expect(listResponse.status).toBe(200);
           expect(listResponse.data.socialPlatforms).toBeInstanceOf(Array);
 
@@ -67,7 +67,7 @@ setupSharedTestSuite(() => {
           });
 
           // 6. Verify Deletion
-          await api.get(`/admin/social-platforms/${createdId}`, adminHeaders).catch((err) => {
+          await api.get(`/admin/social-platforms/${createdId}`, headers).catch((err) => {
             expect(err.response.status).toBe(404);
           });
         });
@@ -111,7 +111,7 @@ setupSharedTestSuite(() => {
           });
 
           // Cleanup
-          await api.delete(`/admin/social-platforms/${platform.id}`, adminHeaders);
+          await api.delete(`/admin/social-platforms/${platform.id}`, headers);
         });
 
         it("should update platform extended fields", async () => {
@@ -148,7 +148,7 @@ setupSharedTestSuite(() => {
           expect(platform.metadata).toEqual({ api_version: "2.0" });
 
           // Cleanup
-          await api.delete(`/admin/social-platforms/${platformId}`, adminHeaders);
+          await api.delete(`/admin/social-platforms/${platformId}`, headers);
         });
       });
 
@@ -192,7 +192,7 @@ setupSharedTestSuite(() => {
 
         it("should filter platforms by status", async () => {
           // Update one platform to inactive
-          const listResponse = await api.get("/admin/social-platforms", adminHeaders);
+          const listResponse = await api.get("/admin/social-platforms", headers);
           const firstPlatform = listResponse.data.socialPlatforms[0];
 
           await api.post(
@@ -244,7 +244,7 @@ setupSharedTestSuite(() => {
             expect(platform.auth_type).toBe(auth_type);
 
             // Cleanup
-            await api.delete(`/admin/social-platforms/${platform.id}`, adminHeaders);
+            await api.delete(`/admin/social-platforms/${platform.id}`, headers);
           });
         });
       });
@@ -265,7 +265,7 @@ setupSharedTestSuite(() => {
           expect(platform.status).toBe("active"); // Default
 
           // Cleanup
-          await api.delete(`/admin/social-platforms/${platform.id}`, adminHeaders);
+          await api.delete(`/admin/social-platforms/${platform.id}`, headers);
         });
       });
 

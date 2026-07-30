@@ -1,3 +1,6 @@
+import { Modules } from "@medusajs/utils"
+import Scrypt from "scrypt-kdf"
+import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 
 jest.setTimeout(120 * 1000)
@@ -5,45 +8,116 @@ jest.setTimeout(120 * 1000)
 setupSharedTestSuite(() => {
   let investorHeaders: Record<string, string>
   let investorId: string
-  const { api } = getSharedTestEnv()
+  const { api, getContainer } = getSharedTestEnv()
 
   const TEST_EMAIL = `investor-${Date.now()}@medusa-test.com`
   const TEST_PASSWORD = "supersecret"
 
-  beforeEach(async () => {
-    await api.post("/auth/investor/emailpass/register", {
-      email: TEST_EMAIL,
-      password: TEST_PASSWORD,
+  // Investor onboarding is invite-only. `POST /investors` is deliberately
+  // disabled and answers 400 ("Investor self-registration is disabled"), so
+  // provisioning goes through `POST /admin/investors` as a platform admin.
+  //
+  // That route issues a random temp password and surfaces it ONLY via the
+  // `investor.created.fromAdmin` event (for the onboarding email) — never in
+  // the response. So to log in as the investor afterwards we set a known
+  // password directly on the emailpass provider identity the workflow created.
+  const setInvestorPassword = async (email: string, password: string) => {
+    const authModule: any = getContainer().resolve(Modules.AUTH)
+    const identities = await authModule.listProviderIdentities({
+      entity_id: email,
     })
+    const emailpass = (identities || []).find(
+      (pi: any) => pi.provider === "emailpass"
+    )
+    if (!emailpass) {
+      throw new Error(`no emailpass identity was provisioned for ${email}`)
+    }
+    const hashed = (
+      await Scrypt.kdf(Buffer.from(password), { logN: 15, r: 8, p: 1 })
+    ).toString("base64")
+    await authModule.updateProviderIdentities({
+      id: emailpass.id,
+      provider_metadata: {
+        ...(emailpass.provider_metadata || {}),
+        password: hashed,
+      },
+    })
+  }
 
-    const loginRes = await api.post("/auth/investor/emailpass", {
-      email: TEST_EMAIL,
+  /**
+   * Provision an investor the only way the platform allows: as a platform admin.
+   * Returns the raw response so callers can assert failures (e.g. duplicate
+   * handle) as well as successes.
+   */
+  const provisionInvestor = async (body: Record<string, any>) => {
+    await createAdminUser(getContainer())
+    const adminHeaders = await getAuthHeaders(api)
+    const res = await api
+      .post("/admin/investors", body, adminHeaders)
+      .catch((e: any) => e.response)
+
+    if (res?.status === 201) {
+      await setInvestorPassword(body.admin.email, TEST_PASSWORD)
+    }
+    return res
+  }
+
+  const loginInvestor = async (email = TEST_EMAIL) => {
+    const res = await api.post("/auth/investor/emailpass", {
+      email,
       password: TEST_PASSWORD,
     })
-    investorHeaders = { Authorization: `Bearer ${loginRes.data.token}` }
-  })
+    return { Authorization: `Bearer ${res.data.token}` }
+  }
 
   describe("Investor Registration & Auth", () => {
-    test("should create an investor successfully", async () => {
-      const res = await api.post(
-        "/investors",
-        {
-          name: "Investor One",
+    test("should provision an investor successfully (invite-only)", async () => {
+      const res = await provisionInvestor({
+        name: "Investor One",
+        email: TEST_EMAIL,
+        admin: {
           email: TEST_EMAIL,
-          admin: {
-            email: TEST_EMAIL,
-            first_name: "Investor",
-            last_name: "One",
-          },
+          first_name: "Investor",
+          last_name: "One",
         },
-        { headers: investorHeaders }
-      )
+      })
 
-      expect(res.status).toBe(200)
+      expect(res.status).toBe(201)
       expect(res.data.investor).toBeDefined()
       expect(res.data.investor.name).toBe("Investor One")
-      expect(res.data.investor.admins).toHaveLength(1)
-      expect(res.data.investor.admins[0].email).toBe(TEST_EMAIL)
+      // The admin route returns the admin alongside the investor rather than
+      // nested under `investor.admins`.
+      expect(res.data.investor_admin).toBeDefined()
+      expect(res.data.investor_admin.email).toBe(TEST_EMAIL)
+    })
+
+    test("should reject investor self-registration", async () => {
+      // Unauthenticated callers never reach the handler — investor auth runs
+      // first and answers 401. Provision + log in so the request gets past auth
+      // and actually exercises the self-registration guard itself.
+      await provisionInvestor({
+        name: "Existing Investor",
+        email: TEST_EMAIL,
+        admin: { email: TEST_EMAIL },
+      })
+      investorHeaders = await loginInvestor()
+
+      const res = await api
+        .post(
+          "/investors",
+          {
+            name: "Self Signup",
+            email: TEST_EMAIL,
+            admin: { email: TEST_EMAIL },
+          },
+          { headers: investorHeaders }
+        )
+        .catch((e) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(res.data.message).toContain(
+        "Investor self-registration is disabled"
+      )
     })
 
     test("should reject unauthenticated GET /investors/me", async () => {
@@ -51,22 +125,14 @@ setupSharedTestSuite(() => {
       expect(res.status).toBe(401)
     })
 
-    test("should GET /investors/me after creation + re-login", async () => {
-      await api.post(
-        "/investors",
-        {
-          name: "Profile Investor",
-          email: TEST_EMAIL,
-          admin: { email: TEST_EMAIL, first_name: "Profile", last_name: "Inv" },
-        },
-        { headers: investorHeaders }
-      )
-
-      const relogin = await api.post("/auth/investor/emailpass", {
+    test("should GET /investors/me after provisioning + login", async () => {
+      await provisionInvestor({
+        name: "Profile Investor",
         email: TEST_EMAIL,
-        password: TEST_PASSWORD,
+        admin: { email: TEST_EMAIL, first_name: "Profile", last_name: "Inv" },
       })
-      investorHeaders = { Authorization: `Bearer ${relogin.data.token}` }
+
+      investorHeaders = await loginInvestor()
 
       const res = await api.get("/investors/me", { headers: investorHeaders })
       expect(res.status).toBe(200)
@@ -75,29 +141,21 @@ setupSharedTestSuite(() => {
     })
 
     test("should reject duplicate handle", async () => {
-      await api.post(
-        "/investors",
-        {
-          name: "Dup A",
-          handle: "dup-handle",
-          email: TEST_EMAIL,
-          admin: { email: TEST_EMAIL },
-        },
-        { headers: investorHeaders }
-      )
+      const first = await provisionInvestor({
+        name: "Dup A",
+        handle: "dup-handle",
+        email: TEST_EMAIL,
+        admin: { email: TEST_EMAIL },
+      })
+      expect(first.status).toBe(201)
 
-      const dup = await api
-        .post(
-          "/investors",
-          {
-            name: "Dup B",
-            handle: "dup-handle",
-            email: `other-${Date.now()}@test.com`,
-            admin: { email: `other-${Date.now()}@test.com` },
-          },
-          { headers: investorHeaders }
-        )
-        .catch((e) => e.response)
+      const otherEmail = `other-${Date.now()}@test.com`
+      const dup = await provisionInvestor({
+        name: "Dup B",
+        handle: "dup-handle",
+        email: otherEmail,
+        admin: { email: otherEmail },
+      })
       expect(dup.status).toBe(400)
     })
   })
@@ -106,22 +164,14 @@ setupSharedTestSuite(() => {
     let capTableId: string
 
     beforeEach(async () => {
-      const createRes = await api.post(
-        "/investors",
-        {
-          name: "Cap Table Owner",
-          email: TEST_EMAIL,
-          admin: { email: TEST_EMAIL, first_name: "Cap", last_name: "Owner" },
-        },
-        { headers: investorHeaders }
-      )
+      const createRes = await provisionInvestor({
+        name: "Cap Table Owner",
+        email: TEST_EMAIL,
+        admin: { email: TEST_EMAIL, first_name: "Cap", last_name: "Owner" },
+      })
       investorId = createRes.data.investor.id
 
-      const relogin = await api.post("/auth/investor/emailpass", {
-        email: TEST_EMAIL,
-        password: TEST_PASSWORD,
-      })
-      investorHeaders = { Authorization: `Bearer ${relogin.data.token}` }
+      investorHeaders = await loginInvestor()
 
       const capRes = await api.post(
         "/investors/cap-tables",
@@ -248,22 +298,14 @@ setupSharedTestSuite(() => {
     let stakeId: string
 
     beforeEach(async () => {
-      const createRes = await api.post(
-        "/investors",
-        {
-          name: "Pay Investor",
-          email: TEST_EMAIL,
-          admin: { email: TEST_EMAIL, first_name: "Pay", last_name: "Inv" },
-        },
-        { headers: investorHeaders }
-      )
+      const createRes = await provisionInvestor({
+        name: "Pay Investor",
+        email: TEST_EMAIL,
+        admin: { email: TEST_EMAIL, first_name: "Pay", last_name: "Inv" },
+      })
       investorId = createRes.data.investor.id
 
-      const relogin = await api.post("/auth/investor/emailpass", {
-        email: TEST_EMAIL,
-        password: TEST_PASSWORD,
-      })
-      investorHeaders = { Authorization: `Bearer ${relogin.data.token}` }
+      investorHeaders = await loginInvestor()
 
       const capRes = await api.post(
         "/investors/cap-tables",
@@ -329,22 +371,14 @@ setupSharedTestSuite(() => {
 
   describe("Pipeline Tracking", () => {
     beforeEach(async () => {
-      const createRes = await api.post(
-        "/investors",
-        {
-          name: "Pipeline Investor",
-          email: TEST_EMAIL,
-          admin: { email: TEST_EMAIL, first_name: "Pipe", last_name: "Inv" },
-        },
-        { headers: investorHeaders }
-      )
+      const createRes = await provisionInvestor({
+        name: "Pipeline Investor",
+        email: TEST_EMAIL,
+        admin: { email: TEST_EMAIL, first_name: "Pipe", last_name: "Inv" },
+      })
       investorId = createRes.data.investor.id
 
-      const relogin = await api.post("/auth/investor/emailpass", {
-        email: TEST_EMAIL,
-        password: TEST_PASSWORD,
-      })
-      investorHeaders = { Authorization: `Bearer ${relogin.data.token}` }
+      investorHeaders = await loginInvestor()
     })
 
     test("should create a pipeline entry", async () => {
