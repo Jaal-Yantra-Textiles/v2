@@ -85,7 +85,11 @@ setupSharedTestSuite(() => {
       const container = getContainer()
       const service = container.resolve("inbound_emails") as any
 
-      const updated = await service.updateInboundEmails(email.id, {
+      // The generated update takes one object carrying the id, or a
+      // (selector, data) pair — a bare id string as the first of two args is
+      // neither, and blows up inside the internal service.
+      const updated = await service.updateInboundEmails({
+        id: email.id,
         status: "ignored",
         action_type: "create_inventory_order",
       })

@@ -21,15 +21,28 @@ const STOREFRONT_META_KEYS = [
   "storefront_provisioned_at",
 ]
 
-function stripStorefrontKeys(metadata: any): Record<string, any> | null {
+/**
+ * Build the metadata patch that removes the storefront keys.
+ *
+ * Metadata updates MERGE — Medusa's internal service runs the incoming object
+ * through `mergeMetadata`, so a key simply left out of the patch keeps its old
+ * value. This used to return "everything except the storefront keys" and the
+ * storefront refs therefore survived every removal: a partner kept a stale
+ * `vercel_project_id` forever, and "cleared" in the response was a lie.
+ *
+ * The empty string is mergeMetadata's delete sentinel, so each storefront key
+ * is tombstoned explicitly. Returning null (the old empty case) is worse than
+ * useless: an absent metadata patch means "no change at all".
+ */
+function stripStorefrontKeys(metadata: any): Record<string, any> {
   const current = (metadata || {}) as Record<string, any>
-  const clean: Record<string, any> = {}
-  for (const [key, value] of Object.entries(current)) {
-    if (!STOREFRONT_META_KEYS.includes(key)) {
-      clean[key] = value
+  const patch: Record<string, any> = {}
+  for (const key of STOREFRONT_META_KEYS) {
+    if (key in current) {
+      patch[key] = ""
     }
   }
-  return Object.keys(clean).length > 0 ? clean : null
+  return patch
 }
 
 /**
