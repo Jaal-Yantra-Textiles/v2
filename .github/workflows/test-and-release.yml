@@ -1,6 +1,24 @@
 name: Test and Release
 
 on:
+  # Manual trigger for the full sharded suite. Without this the only way to
+  # exercise the release gate is to merge to main and hope — which is how the
+  # gate managed to run zero tests for months (#1187). `shard_list` lets you
+  # probe a single shard cheaply (`[1]`) before spending eight runners.
+  workflow_dispatch:
+    inputs:
+      shard_list:
+        description: 'JSON array of shard indices to run, e.g. [1] or [1,2,3,4,5,6,7,8]'
+        required: false
+        default: '[1,2,3,4,5,6,7,8]'
+      shard_total:
+        description: 'Size of the division (blank = SUITE_SHARDS). Keep at 8 when probing one shard so it still selects 1/8th of the files.'
+        required: false
+        default: ''
+      batch_size:
+        description: 'Spec files per jest invocation (blank = runner default)'
+        required: false
+        default: ''
   push:
     branches: [ main ]
     paths:
@@ -24,6 +42,11 @@ env:
   # Opt into Node.js 24 for JS-based actions. Node 20 runtime is deprecated
   # on GHA runners; forced default 2026-06-02, removed 2026-09-16.
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  # How many shards the spec list is divided into. MUST equal the length of the
+  # `shard:` matrix below — a mismatch silently drops files from the run, which
+  # is the exact failure class #1187 was about. The guard step in the test job
+  # asserts the two agree on a main push rather than trusting them to.
+  SUITE_SHARDS: "8"
 
 jobs:
   # Prod-parity build gate — mirrors what the ECS Dockerfile does (build the
@@ -57,6 +80,21 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    # An honest full suite is ~6.5h in one job (measured: ~368s fixed cost per
+    # jest invocation + ~10.4s per test, see #1188) against GitHub's 6h kill.
+    # Sharding is what makes the gate runnable at all, not an optimisation.
+    # Each shard gets its own runner and its own Postgres service container.
+    # PRs run a single job — that path only executes the specs the PR changed.
+    timeout-minutes: 120
+    strategy:
+      # Every shard reports. One red shard must not hide the state of the
+      # other seven — that is the whole point of running the suite.
+      fail-fast: false
+      matrix:
+        # PRs run one job (that path only executes the PR's changed specs).
+        # Anything else runs the full shard list — the dispatch input when
+        # present, otherwise all eight.
+        shard: ${{ github.event_name == 'pull_request' && fromJSON('[1]') || fromJSON(github.event.inputs.shard_list || '[1,2,3,4,5,6,7,8]') }}
 
     services:
       postgres:
@@ -99,7 +137,10 @@ jobs:
     - name: Build workspace plugins
       run: pnpm --filter "@jytextiles/medusa-plugin-etsy-sync" build
 
+    # Config parity is a property of the commit, not of the shard — running it
+    # once is enough. (The prod-build job checks it independently too.)
     - name: Check medusa-config dev/prod parity
+      if: matrix.shard == 1
       run: pnpm --filter @jyt/backend check:prod-config
 
     - name: Setup Database
@@ -165,30 +206,78 @@ jobs:
         echo "Changed unit specs:        ${UNIT:-(none)}"
         echo "Changed integration specs: ${HTTP:-(none)}"
 
+        # No `--` before the jest flags. pnpm forwards trailing args to the
+        # script either way, but jest treats everything after a literal `--` as
+        # a positional testPathPattern — so `-- --runTestsByPath foo.spec.ts`
+        # silently became the REGEX `--runTestsByPath|foo.spec.ts` instead of a
+        # path selection. For most paths the regex happens to match the same
+        # single file, which is why this looked fine. It is not fine for the six
+        # specs living under Medusa's bracketed route dirs — in a regex, `[id]`
+        # is a character class, so
+        #   src/api/admin/websites/[id]/pages/__tests__/validators.unit.spec.ts
+        # matches nothing, jest reports "0 matches" and the PR fails without
+        # ever running the spec the PR changed.
         if [ -n "$UNIT" ]; then
           echo "::group::unit specs"
-          pnpm test:unit -- --runTestsByPath $UNIT
+          pnpm test:unit --runTestsByPath $UNIT
           echo "::endgroup::"
         fi
         if [ -n "$HTTP" ]; then
           echo "::group::integration (shared DB) specs"
-          pnpm test:integration:http:shared -- --runTestsByPath $HTTP
+          pnpm test:integration:http:shared --runTestsByPath $HTTP
           echo "::endgroup::"
         fi
 
-    # ---- main push: full suite stays the release gate ----
-    - name: Run full integration suite (main)
+    # ---- main push (and manual dispatch): full suite is the release gate ----
+    # SHARD_TOTAL is the size of the division, NOT the number of jobs launched —
+    # a one-shard dispatch probe must still select 1/8th of the files, so
+    # strategy.job-total is the wrong source for it.
+    - name: Assert shard matrix matches SUITE_SHARDS
       if: github.event_name == 'push'
+      run: |
+        if [ "${{ strategy.job-total }}" != "$SUITE_SHARDS" ]; then
+          echo "::error::matrix launches ${{ strategy.job-total }} shards but SUITE_SHARDS=$SUITE_SHARDS. Whichever is larger, the mismatch means some spec files are never assigned to any runner. Keep them equal."
+          exit 1
+        fi
+
+    # The runner assigns files by stride (i % total), so `--shard=3/8` selects
+    # the same files locally as on CI and a red shard is reproducible verbatim.
+    - name: Run integration suite shard
+      if: github.event_name != 'pull_request'
       run: pnpm --filter @jyt/backend test:integration:http:batched
       env:
         NODE_ENV: test
         DATABASE_URL: postgresql://runner@localhost:5432/postgres
         POSTGRES_USER: runner
         POSTGRES_PASSWORD: runner
+        SHARD_INDEX: ${{ matrix.shard }}
+        SHARD_TOTAL: ${{ github.event.inputs.shard_total || env.SUITE_SHARDS }}
+        BATCH_SIZE: ${{ github.event.inputs.batch_size || '' }}
 
   release:
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Release is deliberately NOT gated on the suite yet.
+    #
+    # Until now `needs: test` looked like a gate but wasn't one: the suite
+    # fake-passed, so release always ran. Turning the suite honest without this
+    # escape hatch would flip that from "always releases" to "never releases" in
+    # one commit — the first honest measurement puts the failure rate around 7%
+    # (15 of 202 tests in shard 1/8), i.e. ~110-120 failures suite-wide, none of
+    # which are triaged yet.
+    #
+    # So: honest signal now, gate once it's green. Flip the repo variable
+    # RELEASE_IGNORES_SUITE to false (or delete it) to make the gate real — that
+    # is the last step of the triage tracked on #1187, and the whole point of
+    # this being a variable rather than a comment is that flipping it needs no
+    # code change.
+    #
+    # `!cancelled()` is required: without a status-check function, a failed
+    # dependency skips this job before the `if` is even considered.
+    if: >-
+      !cancelled() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      (needs.test.result == 'success' || vars.RELEASE_IGNORES_SUITE == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: write
