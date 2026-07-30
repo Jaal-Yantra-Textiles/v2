@@ -249,7 +249,28 @@ jobs:
 
   release:
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Release is deliberately NOT gated on the suite yet.
+    #
+    # Until now `needs: test` looked like a gate but wasn't one: the suite
+    # fake-passed, so release always ran. Turning the suite honest without this
+    # escape hatch would flip that from "always releases" to "never releases" in
+    # one commit — the first honest measurement puts the failure rate around 7%
+    # (15 of 202 tests in shard 1/8), i.e. ~110-120 failures suite-wide, none of
+    # which are triaged yet.
+    #
+    # So: honest signal now, gate once it's green. Flip the repo variable
+    # RELEASE_IGNORES_SUITE to false (or delete it) to make the gate real — that
+    # is the last step of the triage tracked on #1187, and the whole point of
+    # this being a variable rather than a comment is that flipping it needs no
+    # code change.
+    #
+    # `!cancelled()` is required: without a status-check function, a failed
+    # dependency skips this job before the `if` is even considered.
+    if: >-
+      !cancelled() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      (needs.test.result == 'success' || vars.RELEASE_IGNORES_SUITE == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: write
