@@ -19,6 +19,18 @@ import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 
 jest.setTimeout(60000)
 
+/**
+ * Both tests in this file used to drive `GET /admin/ai/chat/stream` (SSE), a
+ * route DELETED in 92bc280bb when the admin chat was consolidated onto
+ * `/admin/ai/chat/chat`. They 404'd from that commit onward and nobody saw it,
+ * because the main gate ran no tests at all (#1187).
+ *
+ * The stream-establishment test is gone with the endpoint — there is no SSE GET
+ * to establish. What is worth keeping is the *stability* concern the file is
+ * named for: repeated sequential requests must not deadlock the shared
+ * embedding/index state. That is retargeted onto the consolidated route, where
+ * it still means something.
+ */
 setupSharedTestSuite(() => {
     const { api, getContainer } = getSharedTestEnv()
     let headers: any
@@ -29,89 +41,38 @@ setupSharedTestSuite(() => {
         headers = await getAuthHeaders(api)
     })
 
-    describe("Chat Stability & Stream Tests", () => {
-        it("successfully establishes a chat stream and receives response", async () => {
-            const params = {
-                message: "Hello world",
-                context: JSON.stringify({ sse: true })
+    describe("Chat Stability", () => {
+        it("handles multiple sequential requests without crashing", async () => {
+            // Sequential (not parallel) on purpose: this exercises the
+            // embedding/index locking that a burst would mask.
+            for (let i = 0; i < 3; i++) {
+                const res = await api.post(
+                    "/admin/ai/chat/chat",
+                    { message: `Request number ${i}` },
+                    headers
+                )
+
+                expect(res.status).toBe(200)
+                expect(res.data.status).toBe("completed")
+                expect(typeof res.data.result?.reply).toBe("string")
             }
-
-            const res = await api.get("/admin/ai/chat/stream", {
-                ...headers,
-                params,
-                responseType: "stream",
-                headers: {
-                    ...headers.headers,
-                    Accept: "text/event-stream",
-                },
-            })
-
-            expect(res.status).toBe(200)
-            const stream: NodeJS.ReadableStream = res.data
-
-            let dataReceived = false
-            let summaryReceived = false
-            let endReceived = false
-
-            await new Promise<void>((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                    resolve() // Resolve to avoid hanging if stream is incomplete but check flags
-                }, 15000)
-
-                stream.on("data", (buf: Buffer) => {
-                    const text = buf.toString("utf8")
-                    if (text.includes("event: chunk")) dataReceived = true
-                    if (text.includes("event: summary")) summaryReceived = true
-                    if (text.includes("event: end")) {
-                        endReceived = true
-                        clearTimeout(timeout)
-                        resolve()
-                    }
-                })
-                stream.on("error", (err) => {
-                    clearTimeout(timeout)
-                    reject(err)
-                })
-            })
-
-            expect(endReceived).toBe(true)
-            // We expect at least some chunks or a summary
-            expect(dataReceived || summaryReceived).toBe(true)
         })
 
-        it("can handle multiple sequential requests without crashing", async () => {
-            // Run 3 sequential requests to test stability/embedding locking
-            for (let i = 0; i < 3; i++) {
-                const params = {
-                    message: `Request number ${i}`,
-                    context: JSON.stringify({ sse: true })
-                }
+        it("keeps serving after a malformed request", async () => {
+            const bad = await api
+                .post("/admin/ai/chat/chat", {}, headers)
+                .catch((e: any) => e.response)
+            expect(bad.status).toBe(400)
 
-                try {
-                    const res = await api.get("/admin/ai/chat/stream", {
-                        ...headers,
-                        params,
-                        responseType: "stream",
-                        headers: {
-                            ...headers.headers,
-                            Accept: "text/event-stream",
-                        },
-                    })
-
-                    expect(res.status).toBe(200)
-                    const stream: NodeJS.ReadableStream = res.data
-
-                    // Consume stream
-                    await new Promise<void>((resolve) => {
-                        stream.on("data", () => { })
-                        stream.on("end", resolve)
-                        stream.on("error", resolve) // Treat error as end for loop continuation but test fails if status != 200
-                    })
-                } catch (e) {
-                    console.error(`Request ${i} failed`, e)
-                    throw e
-                }
-            }
+            // The route must still answer normally afterwards — a rejected
+            // request must not leave the workflow or its storage wedged.
+            const good = await api.post(
+                "/admin/ai/chat/chat",
+                { message: "still alive?" },
+                headers
+            )
+            expect(good.status).toBe(200)
+            expect(good.data.status).toBe("completed")
         })
     })
 })

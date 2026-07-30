@@ -3,6 +3,23 @@ import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 
 jest.setTimeout(45000)
 
+/**
+ * This spec used to target `POST /admin/ai/chat` and `GET /admin/ai/chat/stream`.
+ * Both routes were DELETED in 92bc280bb ("consolidate AI chat, ..."), which
+ * folded the admin chat into `/admin/ai/chat/chat` and dropped the SSE endpoint
+ * without a like-for-like replacement. The spec was never updated, and because
+ * the main gate skipped every test for months (#1187) nothing noticed — all four
+ * tests here and in ai-chat-stability.spec.ts were 404ing.
+ *
+ * Retargeted at the consolidated route. Note the envelope changed too: the
+ * response is `{ status, runId, result: { reply, ... }, meta }` — there is no
+ * top-level `message` field, which the old assertions also expected.
+ *
+ * Streaming is NOT re-covered here: the SSE surface this file used to exercise
+ * no longer exists. Streaming now happens over `POST /admin/assistant/chat`
+ * (AI SDK `streamText` piped as a UI message stream), a different contract on a
+ * different route, and asserting it here would mean inventing one.
+ */
 setupSharedTestSuite(() => {
   const { api, getContainer } = getSharedTestEnv()
   let headers: any
@@ -13,81 +30,44 @@ setupSharedTestSuite(() => {
     headers = await getAuthHeaders(api)
   })
 
-  describe("POST /admin/ai/chat", () => {
-    it("responds with reply and optional toolCalls fields", async () => {
-      const body = {
-        message: "Hello there!",
-        context: { test: true },
-      }
+  describe("GET /admin/ai/chat/chat", () => {
+    it("reports V4 status and configuration", async () => {
+      const res = await api.get("/admin/ai/chat/chat", headers)
 
-      const res = await api.post("/admin/ai/chat", body, headers)
       expect(res.status).toBe(200)
-      expect(res.data).toBeDefined()
-      expect(res.data.message).toBeDefined()
-      expect(res.data.result).toBeDefined()
-      console.log(res.data)
-      // Basic shape checks
-      expect(typeof res.data.result.reply).toBe("string")
-      if (res.data.result.toolCalls) {
-        expect(Array.isArray(res.data.result.toolCalls)).toBe(true)
-      }
-      if (res.data.result.activations) {
-        expect(Array.isArray(res.data.result.activations)).toBe(true)
-      }
+      expect(res.data.status).toBe("ok")
+      expect(res.data.version).toBe("v4")
     })
   })
 
-  describe("GET /admin/ai/chat/stream (SSE)", () => {
-    it("streams chunk events and ends with summary/end", async () => {
-      // Ensure the HTTP client supports streams (axios instance)
-      const params = { message: "Stream this response", context: JSON.stringify({ sse: true }) }
-
-      // The integration test API is an axios-like instance
-      const res = await api.get("/admin/ai/chat/stream", {
-        ...headers,
-        params,
-        responseType: "stream",
-        // Important for SSE
-        headers: {
-          ...headers.headers,
-          Accept: "text/event-stream",
-        },
-      })
+  describe("POST /admin/ai/chat/chat", () => {
+    it("responds with a reply and optional toolCalls fields", async () => {
+      const res = await api.post(
+        "/admin/ai/chat/chat",
+        { message: "Hello there!" },
+        headers
+      )
 
       expect(res.status).toBe(200)
-      const stream: NodeJS.ReadableStream = res.data
+      expect(res.data.status).toBe("completed")
+      expect(res.data.result).toBeDefined()
+      expect(typeof res.data.result.reply).toBe("string")
 
-      let sawChunk = false
-      let sawSummary = false
-      let sawEnd = false
+      // Optional shape checks — present only for some resolution modes.
+      if (res.data.result.toolCalls) {
+        expect(Array.isArray(res.data.result.toolCalls)).toBe(true)
+      }
+      if (res.data.result.steps) {
+        expect(Array.isArray(res.data.result.steps)).toBe(true)
+      }
+    })
 
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          // Resolve even if not all events seen, to avoid flakiness
-          resolve()
-        }, 15000)
+    it("rejects a request with no message", async () => {
+      const res = await api
+        .post("/admin/ai/chat/chat", {}, headers)
+        .catch((e: any) => e.response)
 
-        stream.on("data", (buf: Buffer) => {
-          const text = buf.toString("utf8")
-          // Look for SSE event prefixes
-          if (text.includes("event: chunk")) sawChunk = true
-          if (text.includes("event: summary")) sawSummary = true
-          if (text.includes("event: end")) {
-            sawEnd = true
-            clearTimeout(timeout)
-            resolve()
-          }
-        })
-        stream.on("error", (err) => {
-          clearTimeout((timeout as any))
-          reject(err)
-        })
-      })
-
-      // We should at least see an end event; chunk/summary may vary based on model behavior
-      expect(sawEnd).toBe(true)
-      // Soft assertions to help debug without failing the suite unnecessarily
-      // console.log({ sawChunk, sawSummary, sawEnd })
+      expect(res.status).toBe(400)
     })
   })
 })
