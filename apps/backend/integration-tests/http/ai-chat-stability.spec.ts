@@ -17,7 +17,7 @@ jest.mock("p-map", () => {
 
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 
-jest.setTimeout(60000)
+jest.setTimeout(90000)
 
 /**
  * Both tests in this file used to drive `GET /admin/ai/chat/stream` (SSE), a
@@ -42,6 +42,11 @@ setupSharedTestSuite(() => {
     })
 
     describe("Chat Stability", () => {
+        // 3 minutes, not the file's 90s: with no OPENROUTER_API_KEY (CI's normal
+        // state) every call walks the model rotator, which sleeps between
+        // attempts before giving up — ~20-25s per request against ~2s locally.
+        // Three of those overran the old 60s and this is the only test here that
+        // pays the cost more than once.
         it("handles multiple sequential requests without crashing", async () => {
             // Sequential (not parallel) on purpose: this exercises the
             // embedding/index locking that a burst would mask.
@@ -56,7 +61,7 @@ setupSharedTestSuite(() => {
                 expect(res.data.status).toBe("completed")
                 expect(typeof res.data.result?.reply).toBe("string")
             }
-        })
+        }, 180000)
 
         it("keeps serving after a malformed request", async () => {
             const bad = await api
