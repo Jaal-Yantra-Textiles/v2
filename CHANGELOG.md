@@ -1,3 +1,10 @@
+## [13.73.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.0...v13.73.1) (2026-07-30)
+
+
+### Bug Fixes
+
+* **ci:** make the integration suite gate real — run the tests, fit the job limit [[#1187](https://github.com/Jaal-Yantra-Textiles/v2/issues/1187)][[#1188](https://github.com/Jaal-Yantra-Textiles/v2/issues/1188)] ([#1190](https://github.com/Jaal-Yantra-Textiles/v2/issues/1190)) ([db32f68](https://github.com/Jaal-Yantra-Textiles/v2/commit/db32f680f67acf84d60e3121a8743a4d9a6c1c00))
+
 # [13.73.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.72.0...v13.73.0) (2026-07-29)
 
 
