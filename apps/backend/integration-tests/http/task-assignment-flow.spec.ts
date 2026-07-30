@@ -5,7 +5,10 @@ import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 const TEST_PARTNER_EMAIL = "admin@medusa-test.com"
 const TEST_PARTNER_PASSWORD = "supersecret"
 
-jest.setTimeout(30000)
+// 90s, the convention across these specs: 30s is not enough for the shared
+// runner's boot hook on a cold CI database, and the PR job boots every changed
+// spec in one process.
+jest.setTimeout(90000)
 
 const testDesign = {
   name: "Summer Collection 2025",
