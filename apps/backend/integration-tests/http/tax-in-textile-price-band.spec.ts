@@ -176,7 +176,13 @@ setupSharedTestSuite(() => {
         input: { product_id: productId },
       })
 
-      expect(result.decision).toBe("assigned")
+      // The `product.created` subscriber classifies asynchronously and
+      // converges to the same answer, so whether THIS run does the assigning or
+      // merely confirms the subscriber's is a race — `no-change` here means
+      // "already the desired type", which is the same outcome. CI lost this
+      // race reproducibly; locally the manual run got there first. Assert the
+      // invariant, not who won.
+      expect(["assigned", "no-change"]).toContain(result.decision)
       expect(result.max_inr_price).toBe(3000)
       const typeValue = await readProductTypeValue(container, productId)
       expect(typeValue).toBe(TAX_CLASS_OVER_2500_VALUE)
@@ -246,7 +252,9 @@ setupSharedTestSuite(() => {
       const { result } = await classifyProductTaxClassWorkflow(container).run({
         input: { product_id: productId },
       })
-      expect(result.decision).toBe("cleared")
+      // Same race as above, in the other direction: the subscriber may have
+      // cleared it already, which reports `no-change`.
+      expect(["cleared", "no-change"]).toContain(result.decision)
       expect(await readProductTypeValue(container, productId)).toBeNull()
     })
 
