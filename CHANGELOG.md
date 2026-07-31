@@ -1,3 +1,10 @@
+## [13.73.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.3...v13.73.4) (2026-07-31)
+
+
+### Bug Fixes
+
+* **tests:** raise the spec timeout floor — 31 specs opted below it and failed only on CI [[#1187](https://github.com/Jaal-Yantra-Textiles/v2/issues/1187)] ([#1193](https://github.com/Jaal-Yantra-Textiles/v2/issues/1193)) ([c5079e8](https://github.com/Jaal-Yantra-Textiles/v2/commit/c5079e87fdfcf0ee816bca1528a222d7599a0943)), closes [#1192](https://github.com/Jaal-Yantra-Textiles/v2/issues/1192) [#1192](https://github.com/Jaal-Yantra-Textiles/v2/issues/1192)
+
 ## [13.73.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.2...v13.73.3) (2026-07-30)
 
 
