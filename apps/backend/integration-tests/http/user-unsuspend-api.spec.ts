@@ -3,7 +3,6 @@ import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
 import { AdminUser } from "@medusajs/types";
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
-jest.setTimeout(50000);
 
 setupSharedTestSuite(() => {
     let adminHeaders;

@@ -6,7 +6,6 @@ import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
  * This is a simple case where we assume that Raw_maeterials are attached already 
  */
 
-jest.setTimeout(30000);
 
 const testDesign = {
   name: "Summer T-Shirt Design",

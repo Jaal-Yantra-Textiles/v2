@@ -5,7 +5,6 @@ import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 const TEST_PARTNER_EMAIL = "feedback-test-partner@medusa-test.com"
 const TEST_PARTNER_PASSWORD = "supersecret"
 
-jest.setTimeout(30000)
 
 setupSharedTestSuite(() => {
   let adminHeaders: any

@@ -1,7 +1,6 @@
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
 import { setupSharedTestSuite, getSharedTestEnv } from "./shared-test-setup";
 
-jest.setTimeout(30000);
 
 setupSharedTestSuite(() => {
   let headers;

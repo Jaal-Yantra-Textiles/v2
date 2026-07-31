@@ -2,7 +2,6 @@ import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user";
 import FormData from "form-data";
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
-jest.setTimeout(30000);
 
 setupSharedTestSuite(() => {
     let headers;

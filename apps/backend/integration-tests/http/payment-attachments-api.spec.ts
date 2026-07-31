@@ -2,7 +2,6 @@ import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import { INTERNAL_PAYMENTS_MODULE } from "../../src/modules/internal_payments"
 
-jest.setTimeout(40000)
 
 setupSharedTestSuite(() => {
   const { api, getContainer } = getSharedTestEnv()

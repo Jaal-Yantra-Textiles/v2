@@ -4,7 +4,6 @@ import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 import fs from "fs";
 import path from "path";
 
-jest.setTimeout(30000);
 
 /**
  * Regression guard for #769: POST /admin/medias must store binary uploads

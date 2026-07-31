@@ -4,7 +4,6 @@ import { Modules } from "@medusajs/utils";
 import FormData from "form-data";
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup";
 
-jest.setTimeout(50000); // Increased timeout for file operations
 
 setupSharedTestSuite(() => {
   
@@ -12,12 +11,21 @@ setupSharedTestSuite(() => {
     let fileService: IFileModuleService;
     const createdFileIds: string[] = [];
     const totalFilesToCreate = 15;
+    // /admin/editor-files lists the file PROVIDER's contents, which live on
+    // disk — the per-test DB restore does not clean them, and sibling specs
+    // (media-upload-api, media-upload-binary-integrity) upload into the same
+    // store. So this file does not own the count and cannot assert an absolute
+    // one; it asserts its own delta against whatever was already there.
+    let expectedTotal = totalFilesToCreate;
     const { api, getContainer } = getSharedTestEnv();
     beforeAll(async () => {
       const container = getContainer();
       await createAdminUser(container); // Ensure admin user exists
       authConfig = await getAuthHeaders(api); // Get auth config for admin
       fileService = container.resolve(Modules.FILE) // Still needed for cleanup
+
+      const baseline = await api.get("/admin/editor-files?limit=1", authConfig);
+      expectedTotal = (baseline.data.count ?? 0) + totalFilesToCreate;
 
       // Create multiple files for testing pagination using the /admin/uploads API
       for (let i = 0; i < totalFilesToCreate; i++) {
@@ -77,8 +85,8 @@ setupSharedTestSuite(() => {
         expect(response.status).toBe(200);
         expect(response.data.files).toBeInstanceOf(Array);
         // Default limit is 20, we created 15 files
-        expect(response.data.files.length).toBe(Math.min(totalFilesToCreate, 20)); 
-        expect(response.data.count).toBe(totalFilesToCreate);
+        expect(response.data.files.length).toBe(Math.min(expectedTotal, 20));
+        expect(response.data.count).toBe(expectedTotal);
         expect(response.data.offset).toBe(0);
         expect(response.data.limit).toBe(20); // Default limit from API route
 
@@ -95,8 +103,8 @@ setupSharedTestSuite(() => {
 
         expect(response.status).toBe(200);
         expect(response.data.files).toBeInstanceOf(Array);
-        expect(response.data.files.length).toBe(Math.min(limit, totalFilesToCreate));
-        expect(response.data.count).toBe(totalFilesToCreate);
+        expect(response.data.files.length).toBe(Math.min(limit, expectedTotal));
+        expect(response.data.count).toBe(expectedTotal);
         expect(response.data.offset).toBe(0);
         expect(response.data.limit).toBe(limit);
       });
@@ -108,9 +116,9 @@ setupSharedTestSuite(() => {
 
         expect(response.status).toBe(200);
         expect(response.data.files).toBeInstanceOf(Array);
-        const expectedLength = Math.max(0, Math.min(limit, totalFilesToCreate - offset));
+        const expectedLength = Math.max(0, Math.min(limit, expectedTotal - offset));
         expect(response.data.files.length).toBe(expectedLength);
-        expect(response.data.count).toBe(totalFilesToCreate);
+        expect(response.data.count).toBe(expectedTotal);
         expect(response.data.offset).toBe(offset);
         expect(response.data.limit).toBe(limit);
 
@@ -124,26 +132,26 @@ setupSharedTestSuite(() => {
       });
 
       it("should handle limit greater than total files", async () => {
-        const limit = totalFilesToCreate + 5;
+        const limit = expectedTotal + 5;
         const response = await api.get(`/admin/editor-files?limit=${limit}`, authConfig);
 
         expect(response.status).toBe(200);
         expect(response.data.files).toBeInstanceOf(Array);
-        expect(response.data.files.length).toBe(totalFilesToCreate);
-        expect(response.data.count).toBe(totalFilesToCreate);
+        expect(response.data.files.length).toBe(expectedTotal);
+        expect(response.data.count).toBe(expectedTotal);
         expect(response.data.offset).toBe(0);
         expect(response.data.limit).toBe(limit);
       });
 
       it("should handle offset resulting in no files", async () => {
         const limit = 5;
-        const offset = totalFilesToCreate; // Offset is total, so 0 files expected
+        const offset = expectedTotal; // Offset is total, so 0 files expected
         const response = await api.get(`/admin/editor-files?limit=${limit}&offset=${offset}`, authConfig);
 
         expect(response.status).toBe(200);
         expect(response.data.files).toBeInstanceOf(Array);
         expect(response.data.files.length).toBe(0);
-        expect(response.data.count).toBe(totalFilesToCreate);
+        expect(response.data.count).toBe(expectedTotal);
         expect(response.data.offset).toBe(offset);
         expect(response.data.limit).toBe(limit);
       });

@@ -1,6 +1,5 @@
 import { buildSkuPrefix, formatSku, nextSequenceNumber } from "../../src/utils/generate-sku"
 
-jest.setTimeout(30000)
 
 describe("SKU Generation Utils", () => {
   describe("buildSkuPrefix", () => {
