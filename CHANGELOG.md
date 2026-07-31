@@ -1,3 +1,10 @@
+## [13.73.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.4...v13.73.5) (2026-07-31)
+
+
+### Bug Fixes
+
+* **tests:** the tax-band spec asserted which actor won a race with a subscriber [[#1187](https://github.com/Jaal-Yantra-Textiles/v2/issues/1187)] ([#1194](https://github.com/Jaal-Yantra-Textiles/v2/issues/1194)) ([df3a82c](https://github.com/Jaal-Yantra-Textiles/v2/commit/df3a82c3d11416a2b47db7ba5baa860c718439bd))
+
 ## [13.73.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.3...v13.73.4) (2026-07-31)
 
 
