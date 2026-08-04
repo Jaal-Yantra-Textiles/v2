@@ -197,5 +197,90 @@ setupSharedTestSuite(() => {
         .catch((e: any) => e.response)
       expect(blankErr.status).toBe(400)
     })
+
+    /**
+     * #1195 — pins the ORM behaviour the attach-AWB label write depends on.
+     *
+     * `sync-order-shipment-tracking` can only find a fulfillment from a webhook
+     * by `filters: { labels: { tracking_number } }` (`data.waybill` is JSONB and
+     * unfilterable), so the attach path MUST leave a label row behind. It used
+     * to leave none, making every attached parcel invisible to status pushes.
+     *
+     * The subtlety this test exists for: `updateFulfillment` REPLACES the
+     * labels collection, and `createOrderShipmentWorkflow` defaults to
+     * `labels: []`. If that empty array wipes existing rows, writing the label
+     * before marking the shipment silently undoes it — which is why
+     * `buildAttachAwbLabels` always returns the full set and the caller feeds
+     * it to the shipment workflow instead of writing first.
+     */
+    it("updateFulfillment replaces the labels collection — [] wipes it, ids carry it", async () => {
+      const container = getContainer()
+      const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+      const fulfillmentModule: any = container.resolve(Modules.FULFILLMENT)
+
+      const lineItemId = await buildDesignOrder()
+      const convertRes = await api.post(
+        `/admin/designs/orders/${lineItemId}/convert`,
+        { payment_mode: "prepaid" },
+        adminHeaders
+      )
+      const orderId = convertRes.data.design_order_conversion.order_id
+      const fulfillmentId = await ensureOrderFulfillment(container, orderId)
+
+      const labelsOf = async () => {
+        const { data } = await query.graph({
+          entity: "fulfillment",
+          fields: ["id", "labels.id", "labels.tracking_number"],
+          filters: { id: fulfillmentId },
+        })
+        return data?.[0]?.labels || []
+      }
+
+      await fulfillmentModule.updateFulfillment(fulfillmentId, {
+        labels: [
+          {
+            tracking_number: "AWB-KEEP-1",
+            tracking_url: "https://shiprocket.co/tracking/AWB-KEEP-1",
+            label_url: "",
+          },
+        ],
+      })
+      const written = await labelsOf()
+      expect(written).toHaveLength(1)
+      expect(written[0].tracking_number).toBe("AWB-KEEP-1")
+
+      // The webhook's lookup finds it — this is the whole point of the row.
+      const { data: byTracking } = await query.graph({
+        entity: "fulfillment",
+        fields: ["id", "labels.tracking_number"],
+        filters: { labels: { tracking_number: "AWB-KEEP-1" } },
+      })
+      expect((byTracking || []).some((f: any) => f.id === fulfillmentId)).toBe(
+        true
+      )
+
+      // Carrying the existing row through by id preserves it AND adds the new
+      // one — the shape buildAttachAwbLabels produces.
+      await fulfillmentModule.updateFulfillment(fulfillmentId, {
+        labels: [
+          { id: written[0].id },
+          {
+            tracking_number: "AWB-KEEP-2",
+            tracking_url: "https://shiprocket.co/tracking/AWB-KEEP-2",
+            label_url: "",
+          },
+        ],
+      })
+      const merged = await labelsOf()
+      expect(merged.map((l: any) => l.tracking_number).sort()).toEqual([
+        "AWB-KEEP-1",
+        "AWB-KEEP-2",
+      ])
+
+      // ...and the empty array is destructive, which is why the attach path
+      // never passes `labels: []` to createOrderShipmentWorkflow.
+      await fulfillmentModule.updateFulfillment(fulfillmentId, { labels: [] })
+      expect(await labelsOf()).toHaveLength(0)
+    })
   })
 })

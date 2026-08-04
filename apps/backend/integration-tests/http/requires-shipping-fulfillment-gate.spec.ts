@@ -360,22 +360,39 @@ setupSharedTestSuite(() => {
      * It no longer blocks us: an explicit `requires_shipping` on the item wins
      * over the derivation (`isDefined(item.requires_shipping) ? ... : ...`),
      * which is the lever the fix uses — see the test below.
+     *
+     * Asserted against the WORKFLOW, not the draft-order route: the route now
+     * emits `order.placed`, whose subscriber repairs exactly this case, so
+     * going through it would test our repair rather than the upstream defect.
+     * If a Medusa upgrade fixes the derivation this test fails loudly — that
+     * failure is GOOD NEWS, not a regression.
      */
-    it("KNOWN DEFECT: the draft-order path ignores the shipping profile", async () => {
-      const { api } = getSharedTestEnv()
+    it("KNOWN DEFECT: createOrderWorkflow ignores the shipping profile", async () => {
+      const { api, getContainer } = getSharedTestEnv()
+      const { createOrderWorkflow } = await import("@medusajs/medusa/core-flows")
       const { variantId, shippingProfile } = await createProduct(api, {
         withProfile: true,
         label: "FulfilOk",
       })
       expect(shippingProfile?.id).toBe(profileId)
 
-      const res = await fulfilOrderFor(api, variantId)
+      const { result } = await createOrderWorkflow(getContainer()).run({
+        input: {
+          email: "known-defect@test.com",
+          region_id: regionId,
+          sales_channel_id: salesChannelId,
+          currency_code: "usd",
+          shipping_address: {
+            first_name: "Known", last_name: "Defect", address_1: "1 Test Rd",
+            city: "Dallas", province: "TX", postal_code: "75201", country_code: "us",
+          },
+          // No explicit flag — the derivation decides, and gets it wrong.
+          items: [{ variant_id: variantId, quantity: 1, unit_price: 1500 }],
+        } as any,
+      })
 
       // Same product that yields `true` through the cart yields `false` here.
-      expect(res.lineItemRequiresShipping).toBe(false)
-      expect(res.isPickUpFulfillment).toBe(false)
-      expect(res.fulfillment.requires_shipping).toBe(false)
-      expect(res.showShippingButton).toBe(false)
+      expect((result as any).items[0].requires_shipping).toBe(false)
     })
 
     /**
@@ -411,6 +428,89 @@ setupSharedTestSuite(() => {
       })
 
       expect((result as any).items[0].requires_shipping).toBe(true)
+    })
+
+    /**
+     * The forward fix (#1195 item 3). `order.placed` repairs the derived flag
+     * on the ORDER, so newly placed orders never reach a fulfillment with the
+     * wrong value and the DP backfill below is only ever needed for history.
+     *
+     * Scoped to products that HAVE a shipping profile — which is exactly the
+     * draft-order defect (profile present, derivation still says false). Two
+     * interlocks make a wider fix actively harmful, both verified here:
+     *  - on the CART, `validateShippingStep` demands a shipping method whose
+     *    profile matches the item's — unsatisfiable for our variant-less
+     *    design items;
+     *  - at FULFILLMENT, `create-fulfillment.js:78-83` throws when a
+     *    requires-shipping item's product profile differs from the chosen
+     *    option's, which for a profile-less product is always. See the test
+     *    below.
+     */
+    it("order.placed repairs requires_shipping so new fulfillments come out true", async () => {
+      const { api } = getSharedTestEnv()
+      const { variantId } = await createProduct(api, {
+        withProfile: true,
+        label: "Forward",
+      })
+
+      const draft = await api.post(
+        "/admin/draft-orders",
+        {
+          email: "forward@test.com",
+          region_id: regionId,
+          sales_channel_id: salesChannelId,
+          currency_code: "usd",
+          shipping_address: {
+            first_name: "For", last_name: "Ward", address_1: "1 Test Rd",
+            city: "Dallas", province: "TX", postal_code: "75201", country_code: "us",
+          },
+          items: [{ variant_id: variantId, quantity: 1, unit_price: 1500 }],
+        },
+        adminHeaders
+      )
+      const converted = await api.post(
+        `/admin/draft-orders/${draft.data.draft_order.id}/convert-to-order`,
+        {},
+        adminHeaders
+      )
+      const orderId = converted.data.order.id
+
+      // The subscriber runs off the order.placed event — poll rather than race.
+      let itemRequiresShipping: boolean | undefined
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const res = await api.get(
+          `/admin/orders/${orderId}?fields=id,items.id,items.requires_shipping`,
+          adminHeaders
+        )
+        itemRequiresShipping = res.data.order.items[0].requires_shipping
+        if (itemRequiresShipping === true) break
+        await new Promise((r) => setTimeout(r, 250))
+      }
+      expect(itemRequiresShipping).toBe(true)
+
+      // ...and the fulfillment created afterwards inherits the repaired value,
+      // so the stock dashboard offers the shipment action with no backfill.
+      const shippingOptionId = await createManualShippingOption(api)
+      const orderNow = await api.get(
+        `/admin/orders/${orderId}?fields=id,items.id`,
+        adminHeaders
+      )
+      await loud("forward fulfillment", () =>
+        api.post(
+          `/admin/orders/${orderId}/fulfillments`,
+          {
+            items: [{ id: orderNow.data.order.items[0].id, quantity: 1 }],
+            shipping_option_id: shippingOptionId,
+          },
+          adminHeaders
+        )
+      )
+
+      const after = await api.get(
+        `/admin/orders/${orderId}?fields=id,fulfillments.id,fulfillments.requires_shipping`,
+        adminHeaders
+      )
+      expect(after.data.order.fulfillments[0].requires_shipping).toBe(true)
     })
 
     /**
@@ -459,12 +559,16 @@ setupSharedTestSuite(() => {
             c.entity === "fulfillment" && c.id === before.fulfillment.id
         )
       ).toBe(true)
+      // ...but NOT the line item: this product has no shipping profile, and a
+      // requires-shipping item whose product profile can't match the chosen
+      // option is rejected by create-fulfillment — flipping it would break the
+      // remaining quantity instead of revealing the action.
       expect(
         preview.data.result.changes.some(
           (c: any) =>
             c.entity === "order_line_item" && c.id === before.lineItemId
         )
-      ).toBe(true)
+      ).toBe(false)
 
       const stillBroken = await api.get(
         `/admin/orders/${before.orderId}?fields=id,fulfillments.id,fulfillments.requires_shipping`,
@@ -492,7 +596,10 @@ setupSharedTestSuite(() => {
       )
       const fulfillment = after.data.order.fulfillments[0]
       expect(fulfillment.requires_shipping).toBe(true)
-      expect(after.data.order.items[0].requires_shipping).toBe(true)
+      // The item is deliberately left alone — see the dry-run assertion above.
+      // Fixing it means giving the product a profile
+      // (backfill-product-shipping-profiles), not flipping the flag.
+      expect(after.data.order.items[0].requires_shipping).toBe(false)
 
       // The stock dashboard gate now passes — including the undocumented term.
       const showShippingButton =
@@ -506,6 +613,69 @@ setupSharedTestSuite(() => {
       const rerun = await api.post(
         RUN,
         { dry_run: false, params: { order_id: before.orderId } },
+        adminHeaders
+      )
+      expect(rerun.data.result.changes).toHaveLength(0)
+      expect(rerun.data.result.applied).toBe(false)
+    })
+
+    /**
+     * #1195 item 4 — the root repair. A product with a shipping profile derives
+     * `requires_shipping: true` on its own, so this is what actually retires
+     * the bug for new orders rather than working around it.
+     */
+    it("the profile backfill links profile-less products and fixes the derivation at source", async () => {
+      const { api } = getSharedTestEnv()
+      const RUN =
+        "/admin/ops/maintenance-jobs/backfill-product-shipping-profiles/run"
+      const { productId, variantId, shippingProfile } = await createProduct(api, {
+        withProfile: false,
+        label: "ProfileFix",
+      })
+      expect(shippingProfile).toBeNull()
+
+      // Before: the cart derives false, which is the whole defect.
+      const itemBefore = await addToCart(api, variantId)
+      expect(itemBefore.requires_shipping).toBe(false)
+
+      const preview = await loud("profile dry-run", () =>
+        api.post(
+          RUN,
+          { dry_run: true, params: { product_id: productId } },
+          adminHeaders
+        )
+      )
+      expect(preview.data.result.dry_run).toBe(true)
+      expect(
+        preview.data.result.changes.some(
+          (c: any) => c.entity === "product" && c.id === productId
+        )
+      ).toBe(true)
+
+      const applied = await loud("profile apply", () =>
+        api.post(
+          RUN,
+          { dry_run: false, params: { product_id: productId } },
+          adminHeaders
+        )
+      )
+      expect(applied.data.result.applied).toBe(true)
+      expect(applied.data.result.errors).toBeUndefined()
+
+      const productAfter = await api.get(
+        `/admin/products/${productId}?fields=id,shipping_profile.id`,
+        adminHeaders
+      )
+      expect(productAfter.data.product.shipping_profile?.id).toBe(profileId)
+
+      // After: a NEW cart derives true with no flag-flipping anywhere.
+      const itemAfter = await addToCart(api, variantId)
+      expect(itemAfter.requires_shipping).toBe(true)
+
+      // Idempotent: the product already has a profile, so it is never relinked.
+      const rerun = await api.post(
+        RUN,
+        { dry_run: false, params: { product_id: productId } },
         adminHeaders
       )
       expect(rerun.data.result.changes).toHaveLength(0)

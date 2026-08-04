@@ -303,6 +303,12 @@ const createDesignCartStep = createStep(
         title: est.name,
         unit_price: est.unit_price,
         is_custom_price: true,
+        // #1195: MUST stay false on the CART. `completeCartWorkflow` runs
+        // `validateShippingStep`, which demands a shipping method whose
+        // profile matches `item.variant.product.shipping_profile.id` — these
+        // items are custom-priced with no variant, so a `true` here makes
+        // checkout unsatisfiable. The flag is repaired at order.placed
+        // instead; see `src/lib/requires-shipping.ts`.
         requires_shipping: false,
         quantity: 1,
         metadata: {

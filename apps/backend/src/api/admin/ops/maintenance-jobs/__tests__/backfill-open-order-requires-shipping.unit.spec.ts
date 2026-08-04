@@ -13,6 +13,8 @@ const pickupOption = {
 const shippingOption = {
   service_zone: { fulfillment_set: { type: "shipping" } },
 }
+/** A product that carries a shipping profile — the only kind that may be flipped. */
+const profiled = { shipping_profile: { id: "sp_1" } }
 
 describe("backfill-open-order-requires-shipping pure helpers (#1195)", () => {
   describe("isPickupFulfillment", () => {
@@ -116,8 +118,8 @@ describe("backfill-open-order-requires-shipping pure helpers (#1195)", () => {
       const plan = planOrderRepair({
         id: "order_1",
         items: [
-          { id: "li_1", requires_shipping: false },
-          { id: "li_2", requires_shipping: false },
+          { id: "li_1", requires_shipping: false, product: profiled },
+          { id: "li_2", requires_shipping: false, product: profiled },
         ],
         fulfillments: [
           {
@@ -137,7 +139,7 @@ describe("backfill-open-order-requires-shipping pure helpers (#1195)", () => {
     it("does not re-flip line items that are already true", () => {
       const plan = planOrderRepair({
         id: "order_1",
-        items: [{ id: "li_1", requires_shipping: true }],
+        items: [{ id: "li_1", requires_shipping: true, product: profiled }],
         fulfillments: [
           {
             id: "ful_1",
@@ -155,7 +157,7 @@ describe("backfill-open-order-requires-shipping pure helpers (#1195)", () => {
     it("leaves items covered only by a pickup fulfillment alone", () => {
       const plan = planOrderRepair({
         id: "order_1",
-        items: [{ id: "li_1", requires_shipping: false }],
+        items: [{ id: "li_1", requires_shipping: false, product: profiled }],
         fulfillments: [
           {
             id: "ful_1",
@@ -173,7 +175,7 @@ describe("backfill-open-order-requires-shipping pure helpers (#1195)", () => {
     it("still repairs an item shared with a pickup fulfillment when a shipped one covers it", () => {
       const plan = planOrderRepair({
         id: "order_1",
-        items: [{ id: "li_1", requires_shipping: false }],
+        items: [{ id: "li_1", requires_shipping: false, product: profiled }],
         fulfillments: [
           {
             id: "ful_pickup",
@@ -194,10 +196,30 @@ describe("backfill-open-order-requires-shipping pure helpers (#1195)", () => {
       expect(plan.lineItemIds).toEqual(["li_1"])
     })
 
+    it("repairs the fulfillment but NOT the line item when the product has no shipping profile", () => {
+      // create-fulfillment.js:78-83 would then reject the remaining quantity:
+      // `undefined !== sp_...` can never match the chosen option's profile.
+      const plan = planOrderRepair({
+        id: "order_1",
+        items: [{ id: "li_1", requires_shipping: false, product: {} }],
+        fulfillments: [
+          {
+            id: "ful_1",
+            requires_shipping: false,
+            shipping_option: shippingOption,
+            items: [{ line_item_id: "li_1" }],
+          },
+        ],
+      })
+
+      expect(plan.fulfillmentIds).toEqual(["ful_1"])
+      expect(plan.lineItemIds).toEqual([])
+    })
+
     it("returns an empty plan for an order with no fulfillments", () => {
       const plan = planOrderRepair({
         id: "order_1",
-        items: [{ id: "li_1", requires_shipping: false }],
+        items: [{ id: "li_1", requires_shipping: false, product: profiled }],
         fulfillments: [],
       })
 

@@ -5,6 +5,8 @@ import {
 } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 
+import { lineItemIdsNeedingShippingFlag } from "../../../../lib/requires-shipping"
+
 import type {
   MaintenanceChange,
   MaintenanceJob,
@@ -41,10 +43,17 @@ import type {
  *     fulfillment we create is `manual_manual` through the shipping
  *     side-channel), and
  *   - are stamped `requires_shipping: false`
- * and sets them to `true`, along with the order line items those fulfillments
- * cover. A pickup fulfillment is left alone — that is the one real restriction,
- * and flipping it would surface "Mark as shipped" on an order the customer
- * collects in person.
+ * and sets them to `true`. A pickup fulfillment is left alone — that is the one
+ * real restriction, and flipping it would surface "Mark as shipped" on an order
+ * the customer collects in person.
+ *
+ * The line items those fulfillments cover are flipped too, but ONLY when the
+ * product carries a shipping profile: `create-fulfillment.js:78-83` rejects a
+ * requires-shipping item whose product profile doesn't match the chosen
+ * option, and for a profile-less product that comparison can never succeed —
+ * flipping it would make the remaining quantity of a partially-fulfilled order
+ * unfulfillable. Profile-less products are fixed by giving them a profile
+ * (`backfill-product-shipping-profiles`), not by flipping the flag.
  *
  * Dry-run (default) previews every before→after without writing; apply is
  * idempotent (a second run finds nothing left to flip).
@@ -132,12 +141,16 @@ export function planOrderRepair(order: any): {
     }
   }
 
-  const lineItemIds = (order?.items ?? [])
-    .filter(
-      (item: any) =>
-        coveredLineItemIds.has(item?.id) && item?.requires_shipping === false
-    )
-    .map((item: any) => item.id)
+  // A line item may only be flipped when its product carries a shipping
+  // profile: `create-fulfillment.js:78-83` rejects a requires-shipping item
+  // whose product profile doesn't match the chosen option, and for a
+  // profile-less product that comparison can never succeed. Flipping it would
+  // make the REMAINING quantity of a partially-fulfilled order unfulfillable.
+  // The fulfillment's own flag is repaired regardless — nothing re-validates
+  // it, and it is what the dashboard gates on.
+  const lineItemIds = lineItemIdsNeedingShippingFlag(
+    (order?.items ?? []).filter((item: any) => coveredLineItemIds.has(item?.id))
+  )
 
   return { fulfillmentIds, lineItemIds }
 }
@@ -159,7 +172,7 @@ export const backfillOpenOrderRequiresShippingJob: MaintenanceJob = {
   id: "backfill-open-order-requires-shipping",
   label: "Backfill requires_shipping on open orders (#1195)",
   description:
-    "Repair open orders whose fulfillments were stamped requires_shipping=false by Medusa's derivation (no shipping profile + manage_inventory:false), which hides the 'Mark as shipped' action in the admin dashboard. Sets requires_shipping=true on every live NON-pickup fulfillment of an open order and on the line items it covers. Pickup fulfillments are left untouched. Dry-run previews the before/after; apply is idempotent.",
+    "Repair open orders whose fulfillments were stamped requires_shipping=false by Medusa's derivation (no shipping profile + manage_inventory:false), which hides the 'Mark as shipped' action in the admin dashboard. Sets requires_shipping=true on every live NON-pickup fulfillment of an open order, and on the line items it covers WHEN their product has a shipping profile (without one the flag would make the item unfulfillable — run backfill-product-shipping-profiles first). Pickup fulfillments are left untouched. Dry-run previews the before/after; apply is idempotent.",
   params: [
     {
       name: "order_id",
@@ -204,6 +217,7 @@ export const backfillOpenOrderRequiresShippingJob: MaintenanceJob = {
         "canceled_at",
         "items.id",
         "items.requires_shipping",
+        "items.product.shipping_profile.id",
         "fulfillments.id",
         "fulfillments.requires_shipping",
         "fulfillments.canceled_at",

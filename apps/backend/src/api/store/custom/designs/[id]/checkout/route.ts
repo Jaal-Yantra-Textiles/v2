@@ -107,6 +107,9 @@ export async function POST(
       title: designName,
       unit_price: convertedEstimate,
       is_custom_price: true,
+      // #1195: MUST stay false on the CART — `validateShippingStep` would
+      // otherwise block completion for these variant-less custom items. The
+      // flag is repaired at order.placed; see `src/lib/requires-shipping.ts`.
       requires_shipping: false,
       quantity: 1,
       metadata: {
