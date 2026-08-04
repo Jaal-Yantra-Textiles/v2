@@ -214,6 +214,8 @@ describe("backfill-open-order-requires-shipping pure helpers (#1195)", () => {
 
       expect(plan.fulfillmentIds).toEqual(["ful_1"])
       expect(plan.lineItemIds).toEqual([])
+      // ...and it is REPORTED, not silently dropped.
+      expect(plan.skippedLineItemIds).toEqual(["li_1"])
     })
 
     it("returns an empty plan for an order with no fulfillments", () => {
@@ -231,6 +233,7 @@ describe("backfill-open-order-requires-shipping pure helpers (#1195)", () => {
       expect(planOrderRepair(null)).toEqual({
         fulfillmentIds: [],
         lineItemIds: [],
+        skippedLineItemIds: [],
       })
     })
   })
@@ -248,6 +251,30 @@ describe("backfill-open-order-requires-shipping pure helpers (#1195)", () => {
       )
       expect(summarizeRequiresShippingBackfill(false, 12, 3, 5)).toContain(
         "Set requires_shipping=true on 3 fulfillment(s) and 5 line item(s)"
+      )
+    })
+
+    it("never hides a partial repair — skipped items and their cure are named", () => {
+      const summary = summarizeRequiresShippingBackfill(false, 12, 3, 5, 7)
+      expect(summary).toContain("SKIPPED 7 line item(s)")
+      expect(summary).toContain("no shipping profile")
+      expect(summary).toContain("backfill-product-shipping-profiles")
+    })
+
+    it("says so even when nothing else changed", () => {
+      // The dangerous case: a run that repaired nothing AND skipped work would
+      // otherwise read as "all clean".
+      const summary = summarizeRequiresShippingBackfill(true, 12, 0, 0, 4)
+      expect(summary).toContain("No changes")
+      expect(summary).toContain("SKIPPED 4 line item(s)")
+    })
+
+    it("stays quiet when there is nothing to skip", () => {
+      expect(summarizeRequiresShippingBackfill(false, 12, 3, 5, 0)).not.toContain(
+        "SKIPPED"
+      )
+      expect(summarizeRequiresShippingBackfill(false, 12, 3, 5)).not.toContain(
+        "SKIPPED"
       )
     })
   })

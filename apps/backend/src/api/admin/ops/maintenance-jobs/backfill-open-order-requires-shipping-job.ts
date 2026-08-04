@@ -122,13 +122,15 @@ export function fulfillmentLineItemIds(fulfillment: any): string[] {
 
 /**
  * PURE: given one open order, decide every repair it needs. Returns the
- * fulfillment ids to flip and the line item ids to flip (only items actually
- * covered by a repairable fulfillment AND currently stamped false).
- * Exported for unit testing.
+ * fulfillment ids to flip, the line item ids to flip (only items actually
+ * covered by a repairable fulfillment AND currently stamped false), and the
+ * ids deliberately SKIPPED for want of a shipping profile — those are reported
+ * so a partial repair never reads as a complete one. Exported for unit testing.
  */
 export function planOrderRepair(order: any): {
   fulfillmentIds: string[]
   lineItemIds: string[]
+  skippedLineItemIds: string[]
 } {
   const fulfillmentIds: string[] = []
   const coveredLineItemIds = new Set<string>()
@@ -148,24 +150,48 @@ export function planOrderRepair(order: any): {
   // make the REMAINING quantity of a partially-fulfilled order unfulfillable.
   // The fulfillment's own flag is repaired regardless — nothing re-validates
   // it, and it is what the dashboard gates on.
-  const lineItemIds = lineItemIdsNeedingShippingFlag(
-    (order?.items ?? []).filter((item: any) => coveredLineItemIds.has(item?.id))
+  const covered = (order?.items ?? []).filter((item: any) =>
+    coveredLineItemIds.has(item?.id)
   )
+  const lineItemIds = lineItemIdsNeedingShippingFlag(covered)
 
-  return { fulfillmentIds, lineItemIds }
+  // Everything the guard above held back. Reported rather than swallowed: a
+  // silent skip makes a half-finished repair look complete, and the cure is a
+  // different job (backfill-product-shipping-profiles) the operator has to run
+  // first.
+  const skippedLineItemIds = covered
+    .filter(
+      (item: any) =>
+        item?.id &&
+        item?.requires_shipping === false &&
+        !lineItemIds.includes(item.id)
+    )
+    .map((item: any) => item.id as string)
+
+  return { fulfillmentIds, lineItemIds, skippedLineItemIds }
 }
 
-/** PURE: the operator-facing summary line. Exported for unit testing. */
+/**
+ * PURE: the operator-facing summary line. Always states what was SKIPPED for
+ * want of a shipping profile — that half of the repair needs a different job
+ * (`backfill-product-shipping-profiles`) run first, and reporting only the
+ * successes would read as full coverage. Exported for unit testing.
+ */
 export function summarizeRequiresShippingBackfill(
   dryRun: boolean,
   scannedOrders: number,
   fulfillmentCount: number,
-  lineItemCount: number
+  lineItemCount: number,
+  skippedLineItemCount = 0
 ): string {
+  const skipped = skippedLineItemCount
+    ? ` — SKIPPED ${skippedLineItemCount} line item(s) whose product has no shipping profile (they would become unfulfillable); run backfill-product-shipping-profiles first, then re-run this job`
+    : ""
+
   if (fulfillmentCount === 0 && lineItemCount === 0) {
-    return `No changes — scanned ${scannedOrders} open order(s), every live non-pickup fulfillment already requires shipping`
+    return `No changes — scanned ${scannedOrders} open order(s), every live non-pickup fulfillment already requires shipping${skipped}`
   }
-  return `${dryRun ? "Would set" : "Set"} requires_shipping=true on ${fulfillmentCount} fulfillment(s) and ${lineItemCount} line item(s) across ${scannedOrders} scanned open order(s)`
+  return `${dryRun ? "Would set" : "Set"} requires_shipping=true on ${fulfillmentCount} fulfillment(s) and ${lineItemCount} line item(s) across ${scannedOrders} scanned open order(s)${skipped}`
 }
 
 export const backfillOpenOrderRequiresShippingJob: MaintenanceJob = {
@@ -232,6 +258,7 @@ export const backfillOpenOrderRequiresShippingJob: MaintenanceJob = {
     const errors: Array<{ id: string; message: string }> = []
     let fulfillmentCount = 0
     let lineItemCount = 0
+    let skippedLineItemCount = 0
 
     for (const order of (orders || []) as any[]) {
       // `canceled_at` is belt-and-braces: the status filter already excludes
@@ -239,7 +266,9 @@ export const backfillOpenOrderRequiresShippingJob: MaintenanceJob = {
       // the status.
       if (order.canceled_at) continue
 
-      const { fulfillmentIds, lineItemIds } = planOrderRepair(order)
+      const { fulfillmentIds, lineItemIds, skippedLineItemIds } =
+        planOrderRepair(order)
+      skippedLineItemCount += skippedLineItemIds.length
 
       for (const fulfillmentId of fulfillmentIds) {
         fulfillmentCount++
@@ -293,7 +322,8 @@ export const backfillOpenOrderRequiresShippingJob: MaintenanceJob = {
         dry_run,
         (orders || []).length,
         fulfillmentCount,
-        lineItemCount
+        lineItemCount,
+        skippedLineItemCount
       ),
       changes,
       errors: errors.length ? errors : undefined,

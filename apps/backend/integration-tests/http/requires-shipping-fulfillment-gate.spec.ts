@@ -553,6 +553,12 @@ setupSharedTestSuite(() => {
       expect(preview.status).toBe(200)
       expect(preview.data.result.dry_run).toBe(true)
       expect(preview.data.result.applied).toBe(false)
+      // The skip is surfaced to the operator, along with the job that cures it
+      // — a partial repair must never read as a complete one.
+      expect(preview.data.result.summary).toContain("SKIPPED")
+      expect(preview.data.result.summary).toContain(
+        "backfill-product-shipping-profiles"
+      )
       expect(
         preview.data.result.changes.some(
           (c: any) =>
