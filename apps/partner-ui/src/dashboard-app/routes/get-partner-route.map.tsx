@@ -627,7 +627,12 @@ export function getPartnerRouteMap(): RouteObject[] {
                         ),
                     },
                     {
-                      path: "shipment/:fulfillmentId",
+                      // #1195: mirrors the admin map. The screen reads `f_id`
+                      // (order-create-shipment.tsx:8) and the fulfillment
+                      // section navigates to `./<id>/create-shipment`, so the
+                      // old "shipment/:fulfillmentId" matched neither — the
+                      // route was unreachable.
+                      path: ":f_id/create-shipment",
                       lazy: () =>
                         import("../../routes/orders/order-create-shipment"),
                     },

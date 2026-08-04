@@ -253,11 +253,10 @@ const Fulfillment = ({
     }
   )
 
-  let statusText = fulfillment.requires_shipping
-    ? isPickUpFulfillment
-      ? "Awaiting pickup"
-      : "Awaiting shipping"
-    : "Awaiting delivery"
+  // #1195: keyed off the fulfillment set type, not `requires_shipping` — the
+  // flag is false for most of the catalogue, which read "Awaiting delivery"
+  // next to a shipment action.
+  let statusText = isPickUpFulfillment ? "Awaiting pickup" : "Awaiting shipping"
   let statusColor: "blue" | "green" | "red" = "blue"
   let statusTimestamp = fulfillment.created_at
 
@@ -300,11 +299,19 @@ const Fulfillment = ({
   const isDelhivery = (fulfillment as any).data?.carrier === "delhivery"
   const hasWaybill = !!(fulfillment as any).data?.waybill
 
+  // #1195: `requires_shipping` is NOT a reliable gate. It is derived from
+  // `hasShippingProfile || someInventoryRequiresShipping`
+  // (core-flows prepare-line-item-data.js:23-29) and copied onto the
+  // fulfillment — so a product with no shipping profile whose variants are
+  // `manage_inventory: false` lands on `false` and hides the shipment action
+  // entirely. That's most of our catalogue. The only restriction the Medusa
+  // user guide actually documents is the pickup one, so that's the only one we
+  // gate on; every fulfillment we create goes out through the manual shipping
+  // side-channel regardless of the flag.
   const showShippingButton =
     !fulfillment.canceled_at &&
     !fulfillment.shipped_at &&
     !fulfillment.delivered_at &&
-    fulfillment.requires_shipping &&
     !isPickUpFulfillment
 
   const showDeliveryButton =
@@ -348,11 +355,12 @@ const Fulfillment = ({
   const { mutateAsync: attachShiprocketAwb, isPending: isAttachingAwb } =
     useAttachShiprocketAwb(order.id)
 
+  // Same #1195 reasoning as `showShippingButton` — the carrier actions were
+  // hidden by the same unreliable flag.
   const showShiprocketCarrierActions =
     !hasWaybill &&
     !fulfillment.canceled_at &&
     !fulfillment.delivered_at &&
-    fulfillment.requires_shipping &&
     !isPickUpFulfillment
 
   const handleGenerateShiprocketLabel = async () => {
