@@ -1,3 +1,10 @@
+## [13.73.6](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.5...v13.73.6) (2026-08-04)
+
+
+### Bug Fixes
+
+* **#1195:** restore "Mark as shipped" — requires_shipping, not the pickup rule ([#1196](https://github.com/Jaal-Yantra-Textiles/v2/issues/1196)) ([50a0eba](https://github.com/Jaal-Yantra-Textiles/v2/commit/50a0eba9dc181ec0729fef2a20ad252bb9016d46)), closes [#1195](https://github.com/Jaal-Yantra-Textiles/v2/issues/1195) [#1195](https://github.com/Jaal-Yantra-Textiles/v2/issues/1195) [#1195](https://github.com/Jaal-Yantra-Textiles/v2/issues/1195) [#1195](https://github.com/Jaal-Yantra-Textiles/v2/issues/1195) [#1195](https://github.com/Jaal-Yantra-Textiles/v2/issues/1195) [#1195](https://github.com/Jaal-Yantra-Textiles/v2/issues/1195)
+
 ## [13.73.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.4...v13.73.5) (2026-07-31)
 
 
