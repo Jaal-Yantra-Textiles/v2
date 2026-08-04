@@ -342,17 +342,22 @@ setupSharedTestSuite(() => {
      * (see the test above), but the draft-order path does NOT: the item comes
      * out `requires_shipping: false` even when the product carries a profile.
      *
-     * Verified while narrowing this down:
-     *  - `query.graph({ entity: "variants", fields: [..., "product.shipping_profile.id"] })`
-     *    resolves the profile correctly, so the data is available.
-     *  - the variant IS resolved during line prep (the item gets `product_id`
-     *    and `product_title`), so it isn't a failed variant lookup.
-     * The profile is therefore dropped inside `createOrderWorkflow`'s own
-     * variant fetch. Exact line not isolated — this test pins the behaviour so
-     * a Medusa upgrade that fixes it fails loudly here.
+     * Isolated to `createOrderWorkflow` itself (not the draft-order route):
+     * calling the workflow directly with a profiled variant yields `false`.
+     * Ruled out along the way —
+     *  - `query.graph` with the workflow's EXACT `variantFields` list returns
+     *    `product.shipping_profile` fine, cached and uncached;
+     *  - the variant IS resolved during line prep (item gets `product_id`);
+     *  - only one `@medusajs/core-flows` copy is installed (2.17.2), and its
+     *    `prepare-line-item-data.js:23-29` reads
+     *    `variant?.product?.shipping_profile?.id` as expected.
+     * So the profile is lost between the query step and `prepareLineItemData`
+     * — most likely workflow step-output serialisation dropping the nested
+     * link relation. That last hop is NOT proven.
      *
-     * Consequence: assigning shipping profiles fixes storefront-cart orders,
-     * but NOT anything created through admin draft orders.
+     * It no longer blocks us: an explicit `requires_shipping` on the item wins
+     * over the derivation (`isDefined(item.requires_shipping) ? ... : ...`),
+     * which is the lever the fix uses — see the test below.
      */
     it("KNOWN DEFECT: the draft-order path ignores the shipping profile", async () => {
       const { api } = getSharedTestEnv()
@@ -369,6 +374,41 @@ setupSharedTestSuite(() => {
       expect(res.isPickUpFulfillment).toBe(false)
       expect(res.fulfillment.requires_shipping).toBe(false)
       expect(res.showShippingButton).toBe(false)
+    })
+
+    /**
+     * The fix lever. `prepareLineItemData` honours an explicit flag ahead of the
+     * broken derivation, so our own order-creating code (design orders, draft
+     * orders, partner flows) can set it rather than wait on upstream. This is
+     * the exact inverse of the two hard-coded `requires_shipping: false` lines
+     * in create-draft-order-from-designs.ts:306 and designs/[id]/checkout.
+     */
+    it("honours an explicit requires_shipping on the item, overriding the derivation", async () => {
+      const { api, getContainer } = getSharedTestEnv()
+      const { createOrderWorkflow } = await import("@medusajs/medusa/core-flows")
+      const { variantId } = await createProduct(api, {
+        withProfile: false,
+        label: "Explicit",
+      })
+
+      const { result } = await createOrderWorkflow(getContainer()).run({
+        input: {
+          email: "explicit@test.com",
+          region_id: regionId,
+          sales_channel_id: salesChannelId,
+          currency_code: "usd",
+          shipping_address: {
+            first_name: "Ex", last_name: "Plicit", address_1: "1 Test Rd",
+            city: "Dallas", province: "TX", postal_code: "75201", country_code: "us",
+          },
+          // No shipping profile on the product — the derivation would say false.
+          items: [
+            { variant_id: variantId, quantity: 1, unit_price: 1500, requires_shipping: true },
+          ],
+        } as any,
+      })
+
+      expect((result as any).items[0].requires_shipping).toBe(true)
     })
   })
 })
