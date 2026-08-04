@@ -311,6 +311,8 @@ setupSharedTestSuite(() => {
         !isPickUpFulfillment
 
       return {
+        orderId,
+        lineItemId: order.data.order.items[0].id,
         lineItemRequiresShipping:
           order.data.order.items[0].requires_shipping,
         fulfillment,
@@ -409,6 +411,105 @@ setupSharedTestSuite(() => {
       })
 
       expect((result as any).items[0].requires_shipping).toBe(true)
+    })
+
+    /**
+     * The repair path for orders that already exist. The admin core gate lives
+     * inside the shipped `@medusajs/dashboard` bundle and can't be patched from
+     * here, so fixing the DATA is what restores the shipment action there.
+     *
+     * This also pins the two load-bearing assumptions the DP job makes, neither
+     * of which is guaranteed by the public types:
+     *  - `requires_shipping` is absent from `UpdateFulfillmentDTO`, but
+     *    `updateFulfillment_` spreads `data` into the ORM update, so it writes;
+     *  - the job's `query.graph` field list actually resolves (a mis-named
+     *    relation returns nothing SILENTLY).
+     */
+    it("the DP backfill repairs an existing open order's fulfillment and items", async () => {
+      const { api } = getSharedTestEnv()
+      // Driven through the ops route, so registry wiring and param validation
+      // are covered too — this is how an operator actually runs it.
+      const RUN =
+        "/admin/ops/maintenance-jobs/backfill-open-order-requires-shipping/run"
+      const { variantId } = await createProduct(api, {
+        withProfile: false,
+        label: "Backfill",
+      })
+
+      const before = await fulfilOrderFor(api, variantId)
+      // The broken starting state.
+      expect(before.fulfillment.requires_shipping).toBe(false)
+      expect(before.lineItemRequiresShipping).toBe(false)
+      expect(before.showShippingButton).toBe(false)
+
+      // Dry-run first: it must report the change without writing anything.
+      const preview = await loud("dp dry-run", () =>
+        api.post(
+          RUN,
+          { dry_run: true, params: { order_id: before.orderId } },
+          adminHeaders
+        )
+      )
+      expect(preview.status).toBe(200)
+      expect(preview.data.result.dry_run).toBe(true)
+      expect(preview.data.result.applied).toBe(false)
+      expect(
+        preview.data.result.changes.some(
+          (c: any) =>
+            c.entity === "fulfillment" && c.id === before.fulfillment.id
+        )
+      ).toBe(true)
+      expect(
+        preview.data.result.changes.some(
+          (c: any) =>
+            c.entity === "order_line_item" && c.id === before.lineItemId
+        )
+      ).toBe(true)
+
+      const stillBroken = await api.get(
+        `/admin/orders/${before.orderId}?fields=id,fulfillments.id,fulfillments.requires_shipping`,
+        adminHeaders
+      )
+      expect(
+        stillBroken.data.order.fulfillments[0].requires_shipping
+      ).toBe(false)
+
+      // Apply.
+      const applied = await loud("dp apply", () =>
+        api.post(
+          RUN,
+          { dry_run: false, params: { order_id: before.orderId } },
+          adminHeaders
+        )
+      )
+      expect(applied.status).toBe(200)
+      expect(applied.data.result.applied).toBe(true)
+      expect(applied.data.result.errors).toBeUndefined()
+
+      const after = await api.get(
+        `/admin/orders/${before.orderId}?fields=id,items.id,items.requires_shipping,fulfillments.id,fulfillments.requires_shipping,fulfillments.canceled_at,fulfillments.shipped_at,fulfillments.delivered_at`,
+        adminHeaders
+      )
+      const fulfillment = after.data.order.fulfillments[0]
+      expect(fulfillment.requires_shipping).toBe(true)
+      expect(after.data.order.items[0].requires_shipping).toBe(true)
+
+      // The stock dashboard gate now passes — including the undocumented term.
+      const showShippingButton =
+        !fulfillment.canceled_at &&
+        !fulfillment.shipped_at &&
+        !fulfillment.delivered_at &&
+        fulfillment.requires_shipping
+      expect(showShippingButton).toBe(true)
+
+      // Idempotent: a second apply finds nothing left to repair.
+      const rerun = await api.post(
+        RUN,
+        { dry_run: false, params: { order_id: before.orderId } },
+        adminHeaders
+      )
+      expect(rerun.data.result.changes).toHaveLength(0)
+      expect(rerun.data.result.applied).toBe(false)
     })
   })
 })
