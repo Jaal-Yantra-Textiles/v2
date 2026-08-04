@@ -9,6 +9,7 @@ import {
   hasProductionRunForLineItem,
   resolveLineItemDesignId,
 } from "../lib/resolve-line-item-production"
+import { lineItemIdsNeedingShippingFlag } from "../lib/requires-shipping"
 
 export default async function orderPlacedHandler({
   event: { data },
@@ -55,6 +56,48 @@ export default async function orderPlacedHandler({
     const items: any[] = order?.items || []
     if (!items.length) {
       return
+    }
+
+    // #1195: repair the derived `requires_shipping` before anything fulfils
+    // this order — but ONLY for items whose product carries a shipping
+    // profile. That is the draft-order defect: `createOrderWorkflow` loses the
+    // profile between its query step and `prepareLineItemData`, so an item that
+    // should derive `true` comes out `false` and the dashboard hides "Mark as
+    // shipped".
+    //
+    // A profile-less product is deliberately NOT touched: `create-fulfillment`
+    // rejects a requires-shipping item whose product profile doesn't match the
+    // chosen option, so flipping it there would make the order unfulfillable
+    // rather than shippable. Those are fixed by giving the product a profile
+    // (see the backfill-product-shipping-profiles DP job).
+    //
+    // Non-fatal, like the email steps above.
+    try {
+      const { data: graphed } = await query.graph({
+        entity: "order",
+        fields: [
+          "id",
+          "items.id",
+          "items.requires_shipping",
+          "items.product.shipping_profile.id",
+        ],
+        filters: { id: data.id },
+      })
+      const needsFlag = lineItemIdsNeedingShippingFlag(graphed?.[0]?.items)
+      for (const lineItemId of needsFlag) {
+        await orderService.updateOrderLineItems(lineItemId, {
+          requires_shipping: true,
+        })
+      }
+      if (needsFlag.length) {
+        logger.info(
+          `[order.placed] Repaired requires_shipping on ${needsFlag.length} line item(s) of order ${data.id} (#1195)`
+        )
+      }
+    } catch (e: any) {
+      logger.warn(
+        `[order.placed] requires_shipping repair failed for order ${data.id}: ${e?.message || e}`
+      )
     }
 
     for (const item of items) {

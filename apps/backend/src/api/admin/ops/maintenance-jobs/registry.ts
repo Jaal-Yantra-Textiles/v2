@@ -91,6 +91,8 @@ import { backfillGoogleAdsHistoryJob } from "./backfill-google-ads-history-job"
 import { backfillDesignSizeSetsJob } from "./backfill-design-size-sets-job"
 import { backfillPartnerShippingOptionsJob } from "./backfill-partner-shipping-options-job"
 import { repairShippingOptionStoreVisibilityJob } from "./repair-shipping-option-store-visibility-job"
+import { backfillOpenOrderRequiresShippingJob } from "./backfill-open-order-requires-shipping-job"
+import { backfillProductShippingProfilesJob } from "./backfill-product-shipping-profiles-job"
 import { normalizeArtisanProductsJob } from "./normalize-artisan-products-job"
 import { linkArtisanDetailRowsJob } from "./link-artisan-detail-rows-job"
 import { backfillFulfilledRetailRunsJob } from "./backfill-fulfilled-retail-runs-job"
@@ -5589,6 +5591,8 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillDesignSizeSetsJob,
   backfillPartnerShippingOptionsJob,
   repairShippingOptionStoreVisibilityJob,
+  backfillOpenOrderRequiresShippingJob,
+  backfillProductShippingProfilesJob,
   normalizeArtisanProductsJob,
   linkArtisanDetailRowsJob,
   backfillFulfilledRetailRunsJob,

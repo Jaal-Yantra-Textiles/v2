@@ -54,6 +54,39 @@ export function deriveFulfillmentState(
   return "pending"
 }
 
+/**
+ * PURE: the full `labels` array to write so this AWB is discoverable by the
+ * Shiprocket webhook.
+ *
+ * #1195 — the webhook has exactly ONE way to find a core fulfillment from an
+ * AWB: `query.graph({ entity: "fulfillment", filters: { labels: {
+ * tracking_number } } })` in `sync-order-shipment-tracking.ts` (`data.waybill`
+ * is JSONB and cannot be filtered). Attaching an AWB without a label row left
+ * the fulfillment permanently invisible to every later status push.
+ *
+ * ALWAYS returns the complete desired set, never a delta: `updateFulfillment`
+ * treats `labels` as a full replace, so existing rows must be carried through
+ * by id or the ORM deletes them. (This is also why
+ * `createOrderShipmentWorkflow`'s default `labels: []` is dangerous — it wipes
+ * the collection. The caller passes this array to it instead.)
+ *
+ * Idempotent: re-attaching the same AWB yields the same set, adding nothing.
+ * Exported for unit testing.
+ */
+export function buildAttachAwbLabels(
+  existingLabels: any[] | undefined,
+  label: { tracking_number: string; tracking_url: string; label_url: string }
+): Array<{ id: string } | typeof label> {
+  const existing = existingLabels ?? []
+  const carried = existing
+    .filter((l: any) => !!l?.id)
+    .map((l: any) => ({ id: l.id as string }))
+  if (existing.some((l: any) => l?.tracking_number === label.tracking_number)) {
+    return carried
+  }
+  return [...carried, label]
+}
+
 export async function attachExistingShiprocketAwb(
   container: MedusaContainer,
   input: { orderId: string; fulfillmentId: string; awb: string }
@@ -76,6 +109,10 @@ export async function attachExistingShiprocketAwb(
       "items.detail.quantity",
       "fulfillments.id",
       "fulfillments.data",
+      // Needed to merge rather than clobber — `updateFulfillment` replaces the
+      // whole `labels` collection.
+      "fulfillments.labels.id",
+      "fulfillments.labels.tracking_number",
     ],
     filters: { id: input.orderId },
   })
@@ -129,13 +166,25 @@ export async function attachExistingShiprocketAwb(
 
   const refs = tracking.raw?.shipment_track?.[0] || {}
   const shipmentId = refs.shipment_id ?? refs.id
+  const trackingUrl = `https://shiprocket.co/tracking/${awb}`
+
+  // #1195: the label row the Shiprocket webhook matches on. Written in exactly
+  // ONE place below — `createOrderShipmentWorkflow` sends `labels: []` through
+  // to `updateFulfillment`, which replaces the collection, so writing it here
+  // and shipping afterwards would silently delete it again.
+  const labels = buildAttachAwbLabels(fulfillment.labels, {
+    tracking_number: awb,
+    tracking_url: trackingUrl,
+    label_url: "",
+  })
+
   await fulfillmentModule.updateFulfillment(input.fulfillmentId, {
     data: {
       ...(fulfillment.data || {}),
       carrier: "shiprocket",
       waybill: awb,
       tracking_number: awb,
-      tracking_url: `https://shiprocket.co/tracking/${awb}`,
+      tracking_url: trackingUrl,
       current_status: tracking.current_status,
       shipment_id: shipmentId,
       sr_order_id: refs.sr_order_id,
@@ -158,6 +207,7 @@ export async function attachExistingShiprocketAwb(
   // Auto-sync the order's fulfillment status to reality. createOrderShipment
   // marks the fulfillment shipped; markDelivered then closes it out. Both are
   // best-effort — a benign "already in that state" must not fail the attach.
+  let labelsWritten = false
   if (state === "shipped" || state === "delivered") {
     const items = (order.items || []).map((i: any) => ({
       id: i.id,
@@ -169,13 +219,30 @@ export async function attachExistingShiprocketAwb(
           order_id: input.orderId,
           fulfillment_id: input.fulfillmentId,
           items,
-          labels: [],
+          // NOT `[]` — that is a full replace and would drop the AWB label.
+          labels: labels as any,
           no_notification: true,
         },
       })
+      labelsWritten = true
     } catch (e: any) {
       logger.warn(
         `[attach-awb] mark-shipped skipped for fulfillment ${input.fulfillmentId}: ${e?.message}`
+      )
+    }
+  }
+
+  // Pending parcels never reach the shipment workflow, and a skipped/failed
+  // one must not cost us the label either — the webhook is how such a parcel
+  // eventually moves.
+  if (!labelsWritten) {
+    try {
+      await fulfillmentModule.updateFulfillment(input.fulfillmentId, {
+        labels: labels as any,
+      })
+    } catch (e: any) {
+      logger.warn(
+        `[attach-awb] label write failed for fulfillment ${input.fulfillmentId}: ${e?.message}`
       )
     }
   }
