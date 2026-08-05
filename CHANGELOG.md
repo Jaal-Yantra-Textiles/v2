@@ -1,3 +1,10 @@
+# [13.74.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.10...v13.74.0) (2026-08-05)
+
+
+### Features
+
+* **shipping:** international HSN sourcing, bulk HS-code tooling, two-step partner ship flow, and net-payout transparency ([#1206](https://github.com/Jaal-Yantra-Textiles/v2/issues/1206)) ([82e6be1](https://github.com/Jaal-Yantra-Textiles/v2/commit/82e6be164a13051e5d40b5d35c358b4638e8da13))
+
 ## [13.73.10](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.9...v13.73.10) (2026-08-05)
 
 
