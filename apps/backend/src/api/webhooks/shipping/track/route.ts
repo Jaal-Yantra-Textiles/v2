@@ -1,6 +1,7 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
+import { normalizeDelhiveryWebhook } from "../../../../modules/shipping-providers/delhivery/client"
 import { normalizeShiprocketWebhook } from "../../../../modules/shipping-providers/shiprocket/client"
 import { syncInventoryShipmentTrackingWorkflow } from "../../../../workflows/inventory_orders/sync-inventory-shipment-tracking"
 import { syncOrderShipmentTrackingWorkflow } from "../../../../workflows/orders/sync-order-shipment-tracking"
@@ -53,18 +54,33 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   })
 }
 
+/**
+ * Payload normalizers by `?carrier=`. Both produce the same `TrackingResult`
+ * shape, so everything downstream (AWB match → inventory shipment → core order)
+ * is carrier-agnostic.
+ *
+ * Delhivery's status push has to be enabled by their account team, so until it
+ * is, Delhivery AWBs are kept current by the scheduled poll in
+ * `jobs/poll-delhivery-tracking` instead. Both paths feed the same workflows,
+ * so the webhook is a latency improvement rather than a dependency.
+ */
+const NORMALIZERS: Record<string, (body: any) => any> = {
+  shiprocket: normalizeShiprocketWebhook,
+  delhivery: normalizeDelhiveryWebhook,
+}
+
 async function processTrackingPush(scope: any, carrier: string, body: any): Promise<void> {
   const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
 
-  // Only one normalizer exists today; unknown carriers are logged, not 4xx'd
-  // (the ack already went out, and a misconfigured query param shouldn't make
-  // the carrier retry-storm us).
-  if (carrier !== "shiprocket") {
+  // Unknown carriers are logged, not 4xx'd (the ack already went out, and a
+  // misconfigured query param shouldn't make the carrier retry-storm us).
+  const normalizer = NORMALIZERS[carrier]
+  if (!normalizer) {
     logger.warn(`[Shipping Webhook] No normalizer for carrier "${carrier}" — push ignored`)
     return
   }
 
-  const tracking = normalizeShiprocketWebhook(body)
+  const tracking = normalizer(body)
   if (!tracking.awb) {
     logger.info("[Shipping Webhook] Push without an AWB — ignored (test webhook?)")
     return
