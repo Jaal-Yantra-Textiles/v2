@@ -83,6 +83,32 @@ async function createPartnerWithStore(api: any, adminHeaders: Record<string, any
   }
 }
 
+/**
+ * Create a region the way the platform looked BEFORE the 0B auto-expand
+ * subscriber landed — i.e. the legacy state this whole spec exists to
+ * verify the backfill repairs.
+ *
+ * Deliberately NOT `POST /admin/regions`: that goes through core-flows'
+ * `createRegionsWorkflow`, which emits `region.created`, which
+ * `src/subscribers/region-propagate.ts` handles *asynchronously* by
+ * adding the region's currency to every partner store. That subscriber
+ * write lands at an unpredictable moment and silently repairs the very
+ * legacy state we're trying to construct — turning the dry-run
+ * assertions into a coin flip (see the shard-4 failure on 30990456155,
+ * where `zar` appeared after a dry run that wrote nothing).
+ *
+ * The module service performs no workflow and emits no event, so the
+ * state we build is the state the backfill sees. Subscriber behaviour
+ * itself is covered by region-propagate-subscriber.spec.ts.
+ */
+async function createLegacyRegion(
+  container: any,
+  opts: { name: string; currency_code: string; countries: string[] }
+) {
+  const regionService = container.resolve(Modules.REGION) as any
+  return await regionService.createRegions(opts)
+}
+
 async function readSupportedCurrencies(container: any, storeId: string) {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const { data: stores } = await query.graph({
@@ -116,15 +142,16 @@ setupSharedTestSuite(() => {
 
       // Simulate the legacy state: partner created an Africa/zar region
       // BEFORE the auto-expand code landed. We model that by creating
-      // a region via admin (skipping the partner auto-expand path),
-      // linking it to the partner, then forcing the store back to
-      // single-currency to mimic "this currency was never added".
-      const adminRegionRes = await api.post(
-        "/admin/regions",
-        { name: "Africa", currency_code: "zar", countries: ["za"] },
-        adminHeaders
-      )
-      const zarRegionId = adminRegionRes.data.region.id
+      // the region straight through the module service (no workflow, so
+      // no region.created subscriber), linking it to the partner, then
+      // forcing the store back to single-currency to mimic "this
+      // currency was never added".
+      const zarRegion = await createLegacyRegion(container, {
+        name: "Africa",
+        currency_code: "zar",
+        countries: ["za"],
+      })
+      const zarRegionId = zarRegion.id
       await remoteLink.create({
         partner: { partner_id: a.partnerId },
         [Modules.REGION]: { region_id: zarRegionId },
@@ -171,14 +198,14 @@ setupSharedTestSuite(() => {
       const storeService = container.resolve(Modules.STORE) as any
 
       // Same legacy-state setup as scenario 1.
-      const adminRegionRes = await api.post(
-        "/admin/regions",
-        { name: "Africa", currency_code: "zar", countries: ["za"] },
-        adminHeaders
-      )
+      const zarRegion = await createLegacyRegion(container, {
+        name: "Africa",
+        currency_code: "zar",
+        countries: ["za"],
+      })
       await remoteLink.create({
         partner: { partner_id: a.partnerId },
-        [Modules.REGION]: { region_id: adminRegionRes.data.region.id },
+        [Modules.REGION]: { region_id: zarRegion.id },
       })
       await storeService.updateStores({
         id: a.storeId,
@@ -204,14 +231,14 @@ setupSharedTestSuite(() => {
       const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as any
       const storeService = container.resolve(Modules.STORE) as any
 
-      const adminRegionRes = await api.post(
-        "/admin/regions",
-        { name: "Africa", currency_code: "zar", countries: ["za"] },
-        adminHeaders
-      )
+      const zarRegion = await createLegacyRegion(container, {
+        name: "Africa",
+        currency_code: "zar",
+        countries: ["za"],
+      })
       await remoteLink.create({
         partner: { partner_id: a.partnerId },
-        [Modules.REGION]: { region_id: adminRegionRes.data.region.id },
+        [Modules.REGION]: { region_id: zarRegion.id },
       })
       await storeService.updateStores({
         id: a.storeId,
@@ -237,14 +264,14 @@ setupSharedTestSuite(() => {
       const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as any
       const storeService = container.resolve(Modules.STORE) as any
 
-      const adminRegionRes = await api.post(
-        "/admin/regions",
-        { name: "Africa", currency_code: "zar", countries: ["za"] },
-        adminHeaders
-      )
+      const zarRegion = await createLegacyRegion(container, {
+        name: "Africa",
+        currency_code: "zar",
+        countries: ["za"],
+      })
       await remoteLink.create({
         partner: { partner_id: a.partnerId },
-        [Modules.REGION]: { region_id: adminRegionRes.data.region.id },
+        [Modules.REGION]: { region_id: zarRegion.id },
       })
       await storeService.updateStores({
         id: a.storeId,
