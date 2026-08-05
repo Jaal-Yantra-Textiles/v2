@@ -245,7 +245,7 @@ const Fulfillment = ({
     fulfillment.shipping_option?.service_zone.fulfillment_set.type ===
     FulfillmentSetType.Pickup
 
-  const { stock_location, isError, error } = useStockLocation(
+  const { stock_location, isError, error, isLoading } = useStockLocation(
     fulfillment.location_id!,
     undefined,
     {
@@ -471,8 +471,23 @@ const Fulfillment = ({
     }
   }
 
+  // Deliberately NOT `throw error`. This is a decorative lookup — it supplies
+  // one warehouse name on the fulfillment card — but rethrowing sent it to the
+  // error boundary and blanked the ENTIRE order detail page.
+  //
+  // It fails for real, reachable orders: a partner whose store exists but whose
+  // fulfillment shipped from a location other than `store.default_location_id`
+  // gets a 404 from `/partners/stores/:id/locations/:locationId`, which
+  // hard-requires that equality. Work orders fulfilled from JYT's own warehouse
+  // are exactly that case.
+  //
+  // `stock_location` is already optional and `showLocation` gates the row, so
+  // degrading costs one line of the card instead of the whole page.
   if (isError) {
-    throw error
+    console.warn(
+      `[order-fulfillment] stock location ${fulfillment.location_id} unavailable:`,
+      error
+    )
   }
 
   const isValidUrl = (url?: string) => url && url.length > 0 && url !== "#"
@@ -553,8 +568,15 @@ const Fulfillment = ({
                 {stock_location.name}
               </Text>
             </Link>
-          ) : (
+          ) : isLoading ? (
             <Skeleton className="w-16" />
+          ) : (
+            // Unresolvable (storeless partner, or a location that isn't the
+            // store's default). A skeleton here shimmers forever and reads as
+            // "still loading"; say plainly that we don't have the name.
+            <Text size="small" leading="compact" className="text-ui-fg-muted">
+              &mdash;
+            </Text>
           )}
         </div>
       )}

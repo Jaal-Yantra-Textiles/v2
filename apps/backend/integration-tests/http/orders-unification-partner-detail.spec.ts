@@ -389,6 +389,37 @@ setupSharedTestSuite(() => {
       expect(linked(order.production_runs)).toBe(true)
     })
 
+    it("STORELESS partner is rejected by the store-scoped locations route", async () => {
+      // Pins the contract the partner-ui's `useStockLocation` guard depends on.
+      //
+      // A storeless partner has no store id to put in the path, so the hook
+      // must not fire at all. It used to: `enabled: !!storeId && ...` was
+      // written BEFORE a `...options` spread, so a caller passing
+      // `{ enabled: showLocation }` clobbered the guard and the request went
+      // out with the literal string "undefined" as the store id. The order
+      // detail page then rethrew the failure into its error boundary and went
+      // blank for every work order whose fulfillment carried a location_id.
+      //
+      // The route is right to refuse — this asserts it keeps refusing, so the
+      // frontend guard stays load-bearing rather than decorative.
+      const storeless = await createPartnerWithoutStore("nostore-loc")
+
+      const res = await api
+        .get(
+          "/partners/stores/undefined/locations/sloc_01TEST",
+          storeless.headers
+        )
+        .catch((e: any) => e.response)
+
+      // 400, not the 401 the throw asks for. `validatePartnerStoreAccess`
+      // raises `MedusaError.Types.UNAUTHORIZED`, which the framework maps to
+      // 401 — but this app's custom `errorHandler` (src/api/middlewares.ts)
+      // collapses every MedusaError that isn't `not_found` into 400. Asserting
+      // the status the API actually returns, not the one it intends. See #1202.
+      expect(res.status).toBe(400)
+      expect(res.data.message).toContain("not associated with this partner")
+    })
+
     it("partner CAN GET its own retail order detail (kind=retail, no links)", async () => {
       const retailId = await createRetailOrder(partnerA)
 
