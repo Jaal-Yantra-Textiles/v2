@@ -1,3 +1,10 @@
+## [13.73.10](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.9...v13.73.10) (2026-08-05)
+
+
+### Bug Fixes
+
+* **api:** map MedusaError types to real HTTP statuses instead of collapsing to 400 [[#1202](https://github.com/Jaal-Yantra-Textiles/v2/issues/1202)] ([#1205](https://github.com/Jaal-Yantra-Textiles/v2/issues/1205)) ([6726ef4](https://github.com/Jaal-Yantra-Textiles/v2/commit/6726ef4173f1ed6f951885c9911e0ec8578c953c)), closes [fall-throu#to-500](https://github.com/fall-throu/issues/to-500) [#1204](https://github.com/Jaal-Yantra-Textiles/v2/issues/1204)
+
 ## [13.73.9](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.8...v13.73.9) (2026-08-05)
 
 
