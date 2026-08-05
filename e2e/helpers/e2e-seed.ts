@@ -152,6 +152,103 @@ async function seedShipmentTrackingOrder(container: any): Promise<string> {
 }
 
 /**
+ * A product that would FAIL an international label: a real variant with no
+ * HS/HSN code at any of the three levels a label reads (variant → the variant's
+ * inventory item → the product).
+ *
+ * The existing gate fixture can't cover this. Its line item is title-only with
+ * no variant at all, so it can only ever exercise the `metadata.hsn` fallback —
+ * the catalogue chain is invisible to it. This one has a variant precisely so
+ * specs can write a code at each level and watch the resolution change.
+ *
+ * `manage_inventory: false` is deliberate and load-bearing: it is the case the
+ * placement rule cares about, where the correct target is the PRODUCT top level
+ * rather than the variant.
+ */
+async function seedHsCodeGapProduct(container: any): Promise<{
+  productId: string
+  variantId: string
+}> {
+  const productModule: any = container.resolve(Modules.PRODUCT)
+
+  const product = await productModule.createProducts({
+    title: "Kutch Mirror-Work Stole (e2e HSN gap)",
+    status: "published",
+    handle: `e2e-hsn-gap-${Date.now()}`,
+    // Enough context for an LLM to classify the goods — the tooling is
+    // explicitly forbidden from guessing a code off an id or SKU.
+    description:
+      "Hand-woven cotton stole with traditional Kutch mirror embroidery, 70x200cm.",
+    material: "Cotton",
+    // No hs_code at ANY level — that's the whole fixture.
+    options: [{ title: "Size", values: ["One Size"] }],
+    variants: [
+      {
+        title: "One Size",
+        sku: `E2E-HSN-${Date.now()}`,
+        manage_inventory: false,
+        options: { Size: "One Size" },
+      },
+    ],
+  })
+  const created = Array.isArray(product) ? product[0] : product
+
+  const variantId = created?.variants?.[0]?.id
+  if (!variantId) {
+    throw new Error("E2E seed: HSN gap product variant not created")
+  }
+  if (created.hs_code || created.variants[0].hs_code) {
+    // If this ever trips, something upstream is defaulting a code and the specs
+    // would be asserting against a gap that no longer exists.
+    throw new Error("E2E seed: HSN gap fixture unexpectedly has an hs_code")
+  }
+
+  return { productId: created.id, variantId }
+}
+
+/**
+ * A `partner_fee` for the gate order, carrying BOTH deductions — the platform
+ * commission and a recorded platform-shipping charge — so the partner-UI payout
+ * block has something real to render.
+ *
+ * The gate order is built with `orderModule.createOrders`, which never emits
+ * `order.placed`, so the accrual subscriber doesn't run and no fee exists. That
+ * is deliberate (the fixture must stay inert), so the fee is written directly.
+ *
+ * The numbers are chosen so a wrong calculation is obvious rather than
+ * coincidental: 1500 − 45 − 120 = 1335, and no pair of them sums to another.
+ */
+async function seedPartnerFeeForGateOrder(
+  container: any,
+  orderId: string,
+  partnerId: string,
+  currencyCode: string
+): Promise<{ orderTotal: number; commission: number; shipping: number; net: number }> {
+  const billing: any = container.resolve("partner_billing")
+
+  await billing.createPartnerFees([
+    {
+      partner_id: partnerId,
+      order_id: orderId,
+      order_total: 1500,
+      currency_code: currencyCode,
+      fee_basis: "percentage",
+      fee_rate: 300, // 3.00%
+      fee_amount: 45,
+      status: "accrued",
+      accrued_at: new Date(),
+      // Partner used OUR carrier account — the second deduction.
+      shipping_amount: 120,
+      shipping_currency_code: currencyCode,
+      shipping_carrier: "shiprocket",
+      metadata: { source: "e2e-payout-summary" },
+    },
+  ])
+
+  return { orderTotal: 1500, commission: 45, shipping: 120, net: 1335 }
+}
+
+/**
  * #1112 — seed a design-LESS product that has been sold and fulfilled, so the
  * admin product-detail "Production Runs" section (in the Linked Designs widget)
  * can be eyeballed in CI. Fulfilling emits `order.fulfillment_created`, whose
@@ -270,6 +367,7 @@ async function seedDesignerInviteDesign(container: any): Promise<string> {
 export async function seedShipmentGateOrder(container: any): Promise<{
   orderId: string
   fulfillmentId: string
+  currencyCode: string
 }> {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const orderModule: any = container.resolve(Modules.ORDER)
@@ -377,7 +475,11 @@ export async function seedShipmentGateOrder(container: any): Promise<{
     )
   }
 
-  return { orderId: order.id, fulfillmentId: fulfillment.id }
+  return {
+    orderId: order.id,
+    fulfillmentId: fulfillment.id,
+    currencyCode: region.currency_code,
+  }
 }
 
 /**
@@ -589,6 +691,17 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: creating the #1195 gate partner (partner-UI spec)...")
   const gatePartner = await seedShipmentGatePartner(container, gate.orderId)
 
+  logger.info("E2E seed: creating the HSN-gap product (customs specs)...")
+  const hsnGap = await seedHsCodeGapProduct(container)
+
+  logger.info("E2E seed: creating the gate order's partner fee (payout spec)...")
+  const gateFee = await seedPartnerFeeForGateOrder(
+    container,
+    gate.orderId,
+    gatePartner.partnerId,
+    gate.currencyCode
+  )
+
   const seedData = {
     email,
     password: SEED_PASSWORD,
@@ -604,6 +717,13 @@ export default async function e2eSeed({ container }: ExecArgs) {
     gatePartnerEmail: gatePartner.email,
     gatePartnerPassword: gatePartner.password,
     gatePartnerId: gatePartner.partnerId,
+    // HSN-gap fixture — a variant-backed product with no HS code at any level,
+    // consumed by hs-code-bulk-fill.spec.ts.
+    hsnGapProductId: hsnGap.productId,
+    hsnGapVariantId: hsnGap.variantId,
+    // Expected payout arithmetic for partner-order-payout-summary.spec.ts.
+    gateOrderCurrency: gate.currencyCode,
+    gateFee,
   }
 
   fs.writeFileSync(SEED_FILE, JSON.stringify(seedData, null, 2))
