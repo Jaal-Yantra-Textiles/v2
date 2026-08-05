@@ -7,8 +7,11 @@ import { OrderCreateShipmentForm } from "./components/order-create-shipment-form
 export function OrderCreateShipment() {
   const { id, f_id } = useParams()
 
+  // `fulfillments.data` carries the stamped carrier + waybill, which the
+  // carrier step reads to know whether an AWB already exists.
   const { order, isLoading, isError, error } = useOrder(id!, {
-    fields: "*fulfillments,*fulfillments.items,*fulfillments.labels",
+    fields:
+      "*fulfillments,fulfillments.data,*fulfillments.items,*fulfillments.labels",
   })
 
   if (isError) {

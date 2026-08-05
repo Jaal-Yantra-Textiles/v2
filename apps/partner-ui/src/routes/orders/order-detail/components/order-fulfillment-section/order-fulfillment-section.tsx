@@ -15,7 +15,6 @@ import {
   Heading,
   Input,
   Label,
-  Select,
   StatusBadge,
   Text,
   Tooltip,
@@ -38,10 +37,6 @@ import {
   useMarkOrderFulfillmentAsDelivered,
   useSchedulePickup,
 } from "../../../../../hooks/api/orders"
-import {
-  useAttachShiprocketAwb,
-  useGenerateShiprocketLabel,
-} from "../../../../../hooks/api/shiprocket"
 import { useStockLocation } from "../../../../../hooks/api/stock-locations"
 import { formatProvider } from "../../../../../lib/format-provider"
 import { getLocaleAmount } from "../../../../../lib/money-amount-helpers"
@@ -308,6 +303,11 @@ const Fulfillment = ({
   // user guide actually documents is the pickup one, so that's the only one we
   // gate on; every fulfillment we create goes out through the manual shipping
   // side-channel regardless of the flag.
+  //
+  // This button is now the entry point to the WHOLE ship flow (pick carrier →
+  // label/AWB → confirm shipment), not just the confirm step, so it must be
+  // reachable in the no-waybill case the removed inline carrier actions used
+  // to cover.
   const showShippingButton =
     !fulfillment.canceled_at &&
     !fulfillment.shipped_at &&
@@ -341,57 +341,6 @@ const Fulfillment = ({
       }
     } catch {
       toast.error("Failed to fetch label")
-    }
-  }
-
-  // Shiprocket carrier actions (#639) — partner parity with admin Design-Orders.
-  // Available only while the fulfillment has no waybill yet and isn't canceled.
-  const [selectedCarrier, setSelectedCarrier] = useState<string>("shiprocket")
-  const [showAttachAwb, setShowAttachAwb] = useState(false)
-  const [awbInput, setAwbInput] = useState("")
-
-  const { mutateAsync: generateShiprocketLabel, isPending: isGeneratingLabel } =
-    useGenerateShiprocketLabel(order.id)
-  const { mutateAsync: attachShiprocketAwb, isPending: isAttachingAwb } =
-    useAttachShiprocketAwb(order.id)
-
-  // Same #1195 reasoning as `showShippingButton` — the carrier actions were
-  // hidden by the same unreliable flag.
-  const showShiprocketCarrierActions =
-    !hasWaybill &&
-    !fulfillment.canceled_at &&
-    !fulfillment.delivered_at &&
-    !isPickUpFulfillment
-
-  const handleGenerateShiprocketLabel = async () => {
-    try {
-      const res = await generateShiprocketLabel({ carrier: selectedCarrier })
-      const awb = res?.shiprocket_label?.awb || res?.shiprocket_label?.tracking_number
-      toast.success(
-        awb
-          ? `${selectedCarrier === "delhivery" ? "Delhivery" : "Shiprocket"} label generated — AWB ${awb}`
-          : `${selectedCarrier === "delhivery" ? "Delhivery" : "Shiprocket"} label generated`
-      )
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to generate label")
-    }
-  }
-
-  const handleAttachShiprocketAwb = async () => {
-    const awb = awbInput.trim()
-    if (!awb) {
-      toast.error("Please enter an AWB number")
-      return
-    }
-    try {
-      const res = await attachShiprocketAwb(awb)
-      toast.success(
-        `AWB ${res?.shiprocket_awb?.awb} attached (${res?.shiprocket_awb?.synced_state})`
-      )
-      setShowAttachAwb(false)
-      setAwbInput("")
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to attach AWB")
     }
   }
 
@@ -759,83 +708,16 @@ const Fulfillment = ({
         </Drawer.Content>
       </Drawer>
 
-      {/* Attach existing Shiprocket AWB (#639) */}
-      <Drawer open={showAttachAwb} onOpenChange={setShowAttachAwb}>
-        <Drawer.Content>
-          <Drawer.Header>
-            <Drawer.Title>Attach existing AWB</Drawer.Title>
-            <Drawer.Description>
-              Link a Shiprocket AWB that was generated outside this system to this
-              fulfillment. We look it up, stamp it on, and sync the status.
-            </Drawer.Description>
-          </Drawer.Header>
-          <Drawer.Body className="flex flex-col gap-y-4 overflow-y-auto">
-            <div>
-              <Label size="xsmall">AWB number</Label>
-              <Input
-                value={awbInput}
-                onChange={(e) => setAwbInput(e.target.value)}
-                placeholder="e.g. 14112363690867"
-                size="small"
-              />
-            </div>
-          </Drawer.Body>
-          <Drawer.Footer>
-            <Button
-              onClick={() => setShowAttachAwb(false)}
-              variant="secondary"
-              size="small"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleAttachShiprocketAwb}
-              variant="primary"
-              size="small"
-              isLoading={isAttachingAwb}
-            >
-              Attach AWB
-            </Button>
-          </Drawer.Footer>
-        </Drawer.Content>
-      </Drawer>
+      {/* Carrier actions (provider select / Attach AWB / Generate Label) used to
+          live here as an inline button row. They now open as step 1 of the
+          "Mark as shipped" route-focus modal below, so picking a carrier,
+          getting a waybill and confirming the shipment is one sequence. */}
 
       {(showShippingButton ||
         showDeliveryButton ||
         hasWaybill ||
-        showPickupButton ||
-        showShiprocketCarrierActions) && (
+        showPickupButton) && (
         <div className="bg-ui-bg-subtle flex items-center justify-end gap-x-2 rounded-b-xl px-4 py-4">
-          {showShiprocketCarrierActions && (
-            <>
-              <Select
-                value={selectedCarrier}
-                onValueChange={setSelectedCarrier}
-              >
-                <Select.Trigger className="w-36">
-                  <Select.Value />
-                </Select.Trigger>
-                <Select.Content>
-                  <Select.Item value="shiprocket">Shiprocket</Select.Item>
-                  <Select.Item value="delhivery">Delhivery</Select.Item>
-                </Select.Content>
-              </Select>
-              <Button
-                onClick={() => setShowAttachAwb(true)}
-                variant="secondary"
-              >
-                Attach AWB
-              </Button>
-              <Button
-                onClick={handleGenerateShiprocketLabel}
-                variant="secondary"
-                isLoading={isGeneratingLabel}
-              >
-                {selectedCarrier === "delhivery" ? "Generate Delhivery Label" : "Generate Shiprocket Label"}
-              </Button>
-            </>
-          )}
-
           {hasWaybill && !fulfillment.canceled_at && (
             <Button
               onClick={handleFetchLabel}

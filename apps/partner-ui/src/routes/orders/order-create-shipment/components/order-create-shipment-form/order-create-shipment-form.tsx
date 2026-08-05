@@ -3,17 +3,38 @@ import { useTranslation } from "react-i18next"
 import { z as zod } from "@medusajs/framework/zod"
 
 import { AdminFulfillment, AdminOrder } from "@medusajs/types"
-import { Button, clx, Heading, Input, Switch, toast } from "@medusajs/ui"
+import { Button, ProgressStatus, ProgressTabs, toast } from "@medusajs/ui"
+import { useState } from "react"
 import { useFieldArray, useForm } from "react-hook-form"
 
-import { Form } from "../../../../../components/common/form"
 import {
   RouteFocusModal,
   useRouteModal,
 } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
+import { useDocumentDirection } from "../../../../../hooks/use-document-direction"
 import { useCreateOrderShipment } from "../../../../../hooks/api"
+import { CarrierTab, CarrierOutcome } from "./carrier-tab"
 import { CreateShipmentSchema } from "./constants"
+import { ShipmentTab } from "./shipment-tab"
+
+/**
+ * "Mark as shipped" as a two-step flow.
+ *
+ * Step 1 (carrier) is where the provider is picked and a label generated or an
+ * existing AWB attached — actions that used to sit as loose buttons on the
+ * fulfillment card. Step 2 confirms the shipment.
+ *
+ * The steps are deliberately NOT coupled: a partner can generate a label and
+ * close the modal, and the fulfillment stays un-shipped. Only submitting step 2
+ * calls `createShipment` / sets `shipped_at`. Labelling has never implied
+ * shipping in this system and it still doesn't.
+ */
+
+enum Tab {
+  CARRIER = "carrier",
+  SHIPMENT = "shipment",
+}
 
 type OrderCreateFulfillmentFormProps = {
   order: AdminOrder
@@ -26,21 +47,60 @@ export function OrderCreateShipmentForm({
 }: OrderCreateFulfillmentFormProps) {
   const { t } = useTranslation()
   const { handleSuccess } = useRouteModal()
+  const direction = useDocumentDirection()
 
   const { mutateAsync: createShipment, isPending: isMutating } =
     useCreateOrderShipment(order.id, fulfillment?.id)
 
+  // An AWB already stamped on the fulfillment means the carrier step is
+  // satisfied on arrival — jump straight to confirming the shipment.
+  const hasExistingAwb = !!(
+    (fulfillment as any)?.data?.waybill || fulfillment?.labels?.length
+  )
+
+  const [tab, setTab] = useState<Tab>(
+    hasExistingAwb ? Tab.SHIPMENT : Tab.CARRIER
+  )
+  const [carrierDone, setCarrierDone] = useState(hasExistingAwb)
+
   const form = useForm<zod.infer<typeof CreateShipmentSchema>>({
     defaultValues: {
+      carrier: (fulfillment as any)?.data?.carrier || "shiprocket",
+      labels: [],
       send_notification: !order.no_notification,
     },
     resolver: zodResolver(CreateShipmentSchema),
   })
 
-  const { fields: labels, append } = useFieldArray({
+  const { fields: labels, append, replace } = useFieldArray({
     name: "labels",
     control: form.control,
   })
+
+  const tabState: Record<Tab, ProgressStatus> = {
+    [Tab.CARRIER]: carrierDone
+      ? "completed"
+      : tab === Tab.CARRIER
+      ? "in-progress"
+      : "not-started",
+    [Tab.SHIPMENT]: tab === Tab.SHIPMENT ? "in-progress" : "not-started",
+  }
+
+  /**
+   * A label was generated or an AWB attached. Prefill the tracking row from it
+   * and advance — the partner shouldn't have to retype an AWB we just minted.
+   */
+  const handleCarrierResolved = (outcome: CarrierOutcome) => {
+    replace([
+      {
+        tracking_number: outcome.awb,
+        tracking_url: outcome.tracking_url || "",
+        label_url: outcome.label_url || "",
+      },
+    ])
+    setCarrierDone(true)
+    setTab(Tab.SHIPMENT)
+  }
 
   const handleSubmit = form.handleSubmit(async (data) => {
     const addedLabels = data.labels
@@ -51,13 +111,24 @@ export function OrderCreateShipmentForm({
         label_url: l.label_url || "#",
       }))
 
+    // Merge, never replace: `createOrderShipmentWorkflow` treats `labels` as a
+    // destructive overwrite, so omitting the fulfillment's existing labels
+    // would wipe the AWB the carrier step just stamped on. Drop duplicates by
+    // tracking number — step 1 prefills from the very label we're merging with.
+    const existing = fulfillment?.labels || []
+    const addedNumbers = new Set(addedLabels.map((l) => l.tracking_number))
+    const merged = [
+      ...addedLabels,
+      ...existing.filter((l: any) => !addedNumbers.has(l.tracking_number)),
+    ]
+
     await createShipment(
       {
         items: fulfillment?.items?.map((i) => ({
           id: i.line_item_id,
           quantity: i.quantity,
         })),
-        labels: [...addedLabels, ...(fulfillment?.labels || [])],
+        labels: merged,
         no_notification: !data.send_notification,
       },
       {
@@ -74,161 +145,82 @@ export function OrderCreateShipmentForm({
 
   return (
     <RouteFocusModal.Form form={form}>
-      <KeyboundForm
-        onSubmit={handleSubmit}
+      <ProgressTabs
+        dir={direction}
+        value={tab}
+        onValueChange={(next) => setTab(next as Tab)}
         className="flex h-full flex-col overflow-hidden"
       >
-        <RouteFocusModal.Header />
-
-        <RouteFocusModal.Body className="flex h-full w-full flex-col items-center divide-y overflow-y-auto">
-          <div className="flex size-full flex-col items-center overflow-auto p-16">
-            <div className="flex w-full max-w-[736px] flex-col justify-center px-2 pb-2">
-              <div className="flex flex-col divide-y">
-                <div className="flex flex-1 flex-col">
-                  <Heading className="mb-4">
-                    {t("orders.shipment.title")}
-                  </Heading>
-
-                  <div className="flex flex-col max-md:gap-y-2 max-md:divide-y">
-                    {labels.map((label, index) => (
-                      <div
-                        key={label.id}
-                        className={clx(
-                          "grid grid-cols-1 gap-x-4 md:grid-cols-3",
-                          { "max-md:pt-4": index > 0 }
-                        )}
-                      >
-                        <Form.Field
-                          control={form.control}
-                          name={`labels.${index}.tracking_number`}
-                          render={({ field }) => {
-                            return (
-                              <Form.Item className="mb-2">
-                                <Form.Label
-                                  className={clx({ "md:hidden": index > 0 })}
-                                >
-                                  {t("orders.shipment.trackingNumber")}
-                                </Form.Label>
-
-                                <Form.Control>
-                                  <Input {...field} placeholder="123-456-789" />
-                                </Form.Control>
-                                <Form.ErrorMessage />
-                              </Form.Item>
-                            )
-                          }}
-                        />
-                        <Form.Field
-                          control={form.control}
-                          name={`labels.${index}.tracking_url`}
-                          render={({ field }) => {
-                            return (
-                              <Form.Item className="mb-2">
-                                <Form.Label
-                                  className={clx({ "md:hidden": index > 0 })}
-                                >
-                                  {t("orders.shipment.trackingUrl")}
-                                </Form.Label>
-                                <Form.Control>
-                                  <Input
-                                    {...field}
-                                    placeholder="https://example.com/tracking/123"
-                                  />
-                                </Form.Control>
-                                <Form.ErrorMessage />
-                              </Form.Item>
-                            )
-                          }}
-                        />
-                        <Form.Field
-                          control={form.control}
-                          name={`labels.${index}.label_url`}
-                          render={({ field }) => {
-                            return (
-                              <Form.Item className="mb-2">
-                                <Form.Label
-                                  className={clx({ "md:hidden": index > 0 })}
-                                >
-                                  {t("orders.shipment.labelUrl")}
-                                </Form.Label>
-                                <Form.Control>
-                                  <Input
-                                    {...field}
-                                    placeholder="https://example.com/label/123"
-                                  />
-                                </Form.Control>
-                                <Form.ErrorMessage />
-                              </Form.Item>
-                            )
-                          }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  <Button
-                    type="button"
-                    onClick={() =>
-                      append({
-                        tracking_number: "",
-                        label_url: "",
-                        tracking_url: "",
-                      })
-                    }
-                    className="mt-2 self-end"
-                    variant="secondary"
+        <KeyboundForm
+          onSubmit={handleSubmit}
+          className="flex h-full flex-col overflow-hidden"
+        >
+          <RouteFocusModal.Header>
+            <div className="flex w-full items-center justify-between gap-x-4">
+              <div className="-my-2 w-full max-w-[400px] border-l">
+                <ProgressTabs.List className="grid w-full grid-cols-2">
+                  <ProgressTabs.Trigger
+                    status={tabState[Tab.CARRIER]}
+                    value={Tab.CARRIER}
                   >
-                    {t("orders.shipment.addTracking")}
-                  </Button>
-                </div>
-
-                <div className="mt-8 pt-8 ">
-                  <Form.Field
-                    control={form.control}
-                    name="send_notification"
-                    render={({ field: { onChange, value, ...field } }) => {
-                      return (
-                        <Form.Item>
-                          <div className="flex items-center justify-between">
-                            <Form.Label>
-                              {t("orders.shipment.sendNotification")}
-                            </Form.Label>
-                            <Form.Control>
-                              <Form.Control>
-                                <Switch
-                                  dir="ltr"
-                                  className="rtl:rotate-180"
-                                  checked={!!value}
-                                  onCheckedChange={onChange}
-                                  {...field}
-                                />
-                              </Form.Control>
-                            </Form.Control>
-                          </div>
-                          <Form.Hint className="!mt-1">
-                            {t("orders.shipment.sendNotificationHint")}
-                          </Form.Hint>
-                          <Form.ErrorMessage />
-                        </Form.Item>
-                      )
-                    }}
-                  />
-                </div>
+                    Carrier
+                  </ProgressTabs.Trigger>
+                  <ProgressTabs.Trigger
+                    status={tabState[Tab.SHIPMENT]}
+                    value={Tab.SHIPMENT}
+                  >
+                    Shipment
+                  </ProgressTabs.Trigger>
+                </ProgressTabs.List>
               </div>
             </div>
-          </div>
-        </RouteFocusModal.Body>
-        <RouteFocusModal.Footer>
-          <RouteFocusModal.Close asChild>
-            <Button size="small" variant="secondary">
-              {t("actions.cancel")}
-            </Button>
-          </RouteFocusModal.Close>
-          <Button size="small" type="submit" isLoading={isMutating}>
-            {t("actions.save")}
-          </Button>
-        </RouteFocusModal.Footer>
-      </KeyboundForm>
+          </RouteFocusModal.Header>
+
+          <RouteFocusModal.Body className="size-full overflow-hidden">
+            <ProgressTabs.Content
+              className="size-full overflow-y-auto"
+              value={Tab.CARRIER}
+            >
+              <CarrierTab
+                orderId={order.id}
+                fulfillment={fulfillment}
+                form={form}
+                onCarrierResolved={handleCarrierResolved}
+              />
+            </ProgressTabs.Content>
+            <ProgressTabs.Content
+              className="size-full overflow-y-auto"
+              value={Tab.SHIPMENT}
+            >
+              <ShipmentTab form={form} labels={labels} append={append} />
+            </ProgressTabs.Content>
+          </RouteFocusModal.Body>
+
+          <RouteFocusModal.Footer>
+            <RouteFocusModal.Close asChild>
+              <Button size="small" variant="secondary">
+                {t("actions.cancel")}
+              </Button>
+            </RouteFocusModal.Close>
+            {tab === Tab.CARRIER ? (
+              // Always skippable — a partner shipping on their own account
+              // never touches our carrier at all.
+              <Button
+                size="small"
+                type="button"
+                variant="primary"
+                onClick={() => setTab(Tab.SHIPMENT)}
+              >
+                {t("actions.continue")}
+              </Button>
+            ) : (
+              <Button size="small" type="submit" isLoading={isMutating}>
+                {t("orders.fulfillment.markAsShipped")}
+              </Button>
+            )}
+          </RouteFocusModal.Footer>
+        </KeyboundForm>
+      </ProgressTabs>
     </RouteFocusModal.Form>
   )
 }

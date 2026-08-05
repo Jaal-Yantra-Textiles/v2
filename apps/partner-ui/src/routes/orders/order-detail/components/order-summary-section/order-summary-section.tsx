@@ -42,7 +42,9 @@ import { AdminReservation } from "@medusajs/types/src/http"
 import { ActionMenu } from "../../../../../components/common/action-menu"
 import DisplayId from "../../../../../components/common/display-id/display-id"
 import { Thumbnail } from "../../../../../components/common/thumbnail"
+import { Skeleton } from "../../../../../components/common/skeleton"
 import { useClaims } from "../../../../../hooks/api/claims"
+import { usePartnerOrderFee } from "../../../../../hooks/api/partner-order-fee"
 import { useExchanges } from "../../../../../hooks/api/exchanges"
 import { useOrderPreview } from "../../../../../hooks/api/orders"
 import { useMarkPaymentCollectionAsPaid } from "../../../../../hooks/api/payment-collections"
@@ -194,6 +196,7 @@ export const OrderSummarySection = ({
       <CostBreakdown order={order} />
       <DiscountAndTotalBreakdown order={order} plugins={plugins} />
       <Total order={order} />
+      <PartnerPayout order={order} />
 
       {(showAllocateButton || showReturns || showPayment || showRefund) && (
         <div className="bg-ui-bg-subtle flex items-center justify-end gap-x-2 rounded-b-xl px-4 py-4">
@@ -1263,6 +1266,118 @@ const Total = ({ order }: { order: AdminOrder }) => {
             order.summary.pending_difference || 0,
             order.currency_code
           )}
+        </Text>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * What the partner actually takes home on this order.
+ *
+ * Two things come off the order total before a partner is paid: the platform
+ * commission, and — when they generated the label on OUR carrier account rather
+ * than shipping themselves — what that shipping actually cost.
+ *
+ * That second line needs explaining rather than just displaying. Partners
+ * charge the customer a flat shipping rate, but our real cost varies by lane,
+ * so the amount deducted routinely differs from what the customer paid. Both
+ * numbers are shown side by side for exactly that reason.
+ *
+ * Renders nothing for a retail order or one that never accrued a fee.
+ */
+const PartnerPayout = ({ order }: { order: AdminOrder }) => {
+  const { data, isLoading } = usePartnerOrderFee(order.id)
+  const fee = data?.display
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-y-2 px-6 py-4">
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="h-4 w-28" />
+      </div>
+    )
+  }
+
+  if (!fee) {
+    return null
+  }
+
+  const shipping = fee.shipping
+  // What the customer was charged for shipping, for the side-by-side compare.
+  const customerPaidShipping = order.shipping_total ?? 0
+  const showShippingCompare =
+    !!shipping &&
+    !shipping.is_foreign_currency &&
+    Math.round(customerPaidShipping * 100) !== Math.round(shipping.amount * 100)
+
+  return (
+    <div className="flex flex-col gap-y-2 px-6 py-4">
+      <div className="flex items-center justify-between">
+        <Text size="small" leading="compact" weight="plus">
+          Your payout
+        </Text>
+        {!fee.is_collectible && (
+          <Badge size="2xsmall" color="grey">
+            {fee.status}
+          </Badge>
+        )}
+      </div>
+
+      <div className="text-ui-fg-subtle flex items-center justify-between">
+        <Text size="small" leading="compact">
+          Order total
+        </Text>
+        <Text size="small" leading="compact">
+          {getStylizedAmount(fee.order_total, fee.currency_code)}
+        </Text>
+      </div>
+
+      <div className="text-ui-fg-subtle flex items-center justify-between">
+        <Text size="small" leading="compact">
+          Platform commission ({fee.rate_label})
+        </Text>
+        <Text size="small" leading="compact">
+          {fee.is_collectible
+            ? `− ${getStylizedAmount(fee.fee_amount, fee.currency_code)}`
+            : "—"}
+        </Text>
+      </div>
+
+      {shipping && (
+        <div className="text-ui-fg-subtle flex items-start justify-between">
+          <div className="flex flex-col">
+            <Text size="small" leading="compact">
+              Platform shipping
+              {shipping.carrier ? ` (${shipping.carrier})` : ""}
+            </Text>
+            {showShippingCompare && (
+              <Text size="xsmall" leading="compact" className="text-ui-fg-muted">
+                Customer paid{" "}
+                {getStylizedAmount(customerPaidShipping, order.currency_code)} —
+                shipping is a flat charge, our actual cost varies by destination.
+              </Text>
+            )}
+            {shipping.is_foreign_currency && (
+              <Text size="xsmall" leading="compact" className="text-ui-fg-muted">
+                Charged in {shipping.currency_code}; settled separately at the
+                prevailing rate.
+              </Text>
+            )}
+          </div>
+          <Text size="small" leading="compact" className="whitespace-nowrap">
+            {shipping.is_foreign_currency ? "" : "− "}
+            {getStylizedAmount(shipping.amount, shipping.currency_code)}
+          </Text>
+        </div>
+      )}
+
+      <div className="text-ui-fg-base flex items-center justify-between border-t border-dashed pt-2">
+        <Text size="small" leading="compact" weight="plus">
+          You will receive
+        </Text>
+        <Text size="small" leading="compact" weight="plus">
+          {getStylizedAmount(fee.net_payout, fee.currency_code)}
         </Text>
       </div>
     </div>

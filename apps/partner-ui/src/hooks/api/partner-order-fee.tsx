@@ -7,6 +7,15 @@ import { sdk } from "../../lib/client"
 // order the partner fulfils, from the partner mirror route
 // `GET /partners/orders/:id/partner-fee` (ownership-scoped server-side).
 
+/** Platform-shipping deduction, when the partner shipped on OUR carrier account. */
+export type PartnerOrderShippingCharge = {
+  amount: number
+  currency_code: string
+  carrier: string | null
+  /** Carrier quoted in a currency other than the order's — show it separately. */
+  is_foreign_currency: boolean
+}
+
 export type PartnerOrderFeeDisplay = {
   order_id: string
   status: string
@@ -16,6 +25,10 @@ export type PartnerOrderFeeDisplay = {
   order_total: number
   currency_code: string
   is_collectible: boolean
+  /** Null when the partner shipped on their own account. */
+  shipping: PartnerOrderShippingCharge | null
+  /** order_total − commission − platform shipping. */
+  net_payout: number
 }
 
 export type PartnerOrderFeeResponse = {
