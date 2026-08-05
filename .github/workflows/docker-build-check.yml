@@ -1,0 +1,59 @@
+name: Docker Build Check
+
+# Builds the backend image WITHOUT pushing it anywhere.
+#
+# Why this exists: Deploy to AWS ECS is the only job that builds this image, it
+# runs only on push-to-main, and its very first step assumes an AWS role whose
+# trust policy accepts `refs/heads/main` alone. So a broken Dockerfile cannot be
+# caught before merge — it is discovered by a failed deploy, on main, after the
+# fact. That is how five consecutive deploys were lost to ERR_PNPM_FETCH_429
+# (#1174) while a merged fix sat undeployed.
+#
+# This job needs no credentials: it builds and throws the image away. Path
+# filters keep it off the ~99% of PRs that cannot affect the image.
+
+on:
+  pull_request:
+    paths:
+      - 'apps/backend/Dockerfile'
+      - '.dockerignore'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.npmrc'
+      - '.github/workflows/docker-build-check.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: docker-build-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build image (no push)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Same build the deploy performs, minus the registries. The build args are
+      # public URLs Vite inlines; dummy values are fine here because nothing
+      # produced by this job is ever run or shipped.
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./apps/backend/Dockerfile
+          push: false
+          build-args: |
+            MEDUSA_BACKEND_URL=https://example.invalid
+            VITE_MEDUSA_BACKEND_URL=https://example.invalid
+            VITE_MEDIA_GALLERY_BASE_URL=https://example.invalid
+            VITE_STOREFRONT_URL=https://example.invalid
+          # Shares the deploy's cache scope deliberately: a PR build warms the
+          # layers the subsequent main build reuses.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
