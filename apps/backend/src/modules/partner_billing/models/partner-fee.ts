@@ -40,6 +40,21 @@ const PartnerFee = model.define("partner_fee", {
   // Platform-commission component: rate (bps, 1500 = 15.00%) + computed amount.
   commission_bps: model.number().nullable(),
   commission_amount: model.bigNumber().nullable(),
+  // --- platform shipping recovery -------------------------------------------
+  // What shipping this order ACTUALLY cost us, when the partner shipped on the
+  // platform's carrier account rather than their own. It is not part of
+  // `fee_amount` (that's commission) — it's a separate deduction from the
+  // payout, stamped at label generation from the carrier's quoted rate.
+  //
+  // Null means the partner did not use our shipping (own AWB, own account, or
+  // no label generated yet) and nothing is deducted.
+  shipping_amount: model.bigNumber().nullable(),
+  // Currency of `shipping_amount`. Carrier rates are quoted in the carrier's
+  // own currency, which is NOT always the order currency, so never assume
+  // `currency_code` above applies to it.
+  shipping_currency_code: model.text().nullable(),
+  // Which carrier account the label was generated on ("shiprocket" | "delhivery").
+  shipping_carrier: model.text().nullable(),
   // Lifecycle: accrued at placement → invoiced when billed → waived/reversed on cancel.
   status: model
     .enum(["accrued", "invoiced", "waived", "reversed"])

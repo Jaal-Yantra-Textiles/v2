@@ -1,4 +1,4 @@
-import { ShiprocketClient, buildShiprocketOrderItems } from "../client"
+import { ShiprocketClient, buildShiprocketOrderItems, toRate } from "../client"
 
 /**
  * #404 PR-B — ShiprocketClient.createShipment sequences create-adhoc-order →
@@ -261,5 +261,114 @@ describe("buildShiprocketOrderItems (dedupe repeated SKUs)", () => {
     ])
     expect(rows[0]).toMatchObject({ hsn: "5208", tax: 5 })
     expect(rows[1]).toMatchObject({ hsn: "", tax: "" })
+  })
+})
+
+/**
+ * Platform shipping cost — the DOMESTIC assign/awb response carries the freight
+ * charge, which used to be dropped on the floor (only the international path
+ * stamped a rate). Without it a domestic label left no cost trace, so a
+ * partner's payout couldn't show what our shipping actually cost them.
+ */
+describe("toRate (carrier freight charge coercion)", () => {
+  it("parses numbers and numeric strings", () => {
+    expect(toRate(84)).toBe(84)
+    expect(toRate("84.50")).toBe(84.5)
+  })
+
+  it("keeps a genuine zero — free shipping is a real rate", () => {
+    expect(toRate(0)).toBe(0)
+    expect(toRate("0")).toBe(0)
+  })
+
+  it("returns undefined for absent or unparseable values rather than 0", () => {
+    // Collapsing these to 0 would silently under-deduct a partner's payout.
+    expect(toRate(undefined)).toBeUndefined()
+    expect(toRate(null)).toBeUndefined()
+    expect(toRate("")).toBeUndefined()
+    expect(toRate("N/A")).toBeUndefined()
+  })
+})
+
+describe("ShiprocketClient.createShipment — domestic courier rate", () => {
+  let fetchSpy: jest.SpyInstance
+
+  afterEach(() => fetchSpy?.mockRestore())
+
+  const stubFetch = (awbData: Record<string, any>) => {
+    const real = global.fetch?.bind(globalThis)
+    fetchSpy = jest
+      .spyOn(global, "fetch" as any)
+      .mockImplementation(async (input: any, init: any = {}) => {
+        const url = String(input)
+        const make = (body: any, status = 200) =>
+          ({
+            ok: status >= 200 && status < 300,
+            status,
+            json: async () => body,
+            text: async () => JSON.stringify(body),
+          }) as any
+        if (!url.includes("shiprocket.in")) return real?.(input, init)
+        if (url.endsWith("/orders/create/adhoc"))
+          return make({ shipment_id: 111, order_id: 222 })
+        if (url.endsWith("/courier/assign/awb"))
+          return make({ response: { data: awbData } })
+        if (url.endsWith("/courier/generate/label"))
+          return make({ label_url: "https://shiprocket/label.pdf" })
+        return make({}, 404)
+      })
+  }
+
+  const ship = () => {
+    const client = new ShiprocketClient({
+      email: "x@y.com",
+      password: "p",
+      token: "injected-token",
+      pickup_location: "warehouse-abc",
+    })
+    return client.createShipment({
+      reference_id: "order_rate",
+      payment_mode: "prepaid",
+      pickup_location_name: "warehouse-abc",
+      to: {
+        name: "Asha Rao",
+        phone: "+919800000000",
+        address_1: "12 MG Road",
+        city: "Bengaluru",
+        state: "KA",
+        pincode: "560001",
+        country: "IN",
+      },
+      items: [{ name: "Saree", quantity: 1, unit_price: 250 }],
+      weight_grams: 500,
+      sub_total: 250,
+    })
+  }
+
+  it("stamps freight_charges as courier_rate in account currency", async () => {
+    stubFetch({
+      awb_code: "AWB123",
+      courier_company_id: 5,
+      courier_name: "Test Courier",
+      freight_charges: "84.50",
+    })
+    const result = await ship()
+    expect(result.provider_refs).toMatchObject({
+      courier_rate: 84.5,
+      courier_rate_currency: "INR",
+    })
+  })
+
+  it("omits the rate entirely when the courier returns none", async () => {
+    // An absent rate must not become 0 — the payout would deduct nothing and
+    // claim we shipped for free.
+    stubFetch({
+      awb_code: "AWB123",
+      courier_company_id: 5,
+      courier_name: "Test Courier",
+    })
+    const result = await ship()
+    expect(result.provider_refs).not.toHaveProperty("courier_rate")
+    expect(result.provider_refs).toMatchObject({ courier_name: "Test Courier" })
   })
 })

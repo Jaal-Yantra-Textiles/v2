@@ -43,11 +43,94 @@ describe("describeFee (#623)", () => {
       order_id: "order_1",
       status: "accrued",
       fee_basis: "percentage",
+      fee_type: "commission",
       rate_label: "2.00%",
       fee_amount: 199.99,
       order_total: 9999.5,
       currency_code: "INR",
       is_collectible: true,
+      breakdown: null,
+      shipping: null,
+      net_payout: 9799.51,
+    })
+  })
+
+  describe("platform shipping + net payout", () => {
+    const base = {
+      order_id: "o",
+      currency_code: "inr",
+      fee_rate: 200,
+      fee_amount: 100,
+      order_total: 1000,
+      status: "accrued",
+    }
+
+    it("reports no shipping when the partner shipped on their own account", () => {
+      const d = describeFee(base)!
+      expect(d.shipping).toBeNull()
+      expect(d.net_payout).toBe(900)
+    })
+
+    it("deducts a recorded platform shipping charge from the payout", () => {
+      const d = describeFee({
+        ...base,
+        shipping_amount: "75.5",
+        shipping_currency_code: "inr",
+        shipping_carrier: "shiprocket",
+      })!
+      expect(d.shipping).toEqual({
+        amount: 75.5,
+        currency_code: "INR",
+        carrier: "shiprocket",
+        is_foreign_currency: false,
+      })
+      expect(d.net_payout).toBe(824.5)
+    })
+
+    it("keeps a recorded zero rate as a shipping row rather than dropping it", () => {
+      // Free shipping is a real carrier outcome and must stay visible; only an
+      // ABSENT amount means "didn't use our shipping".
+      const d = describeFee({ ...base, shipping_amount: 0 })!
+      expect(d.shipping).not.toBeNull()
+      expect(d.shipping!.amount).toBe(0)
+      expect(d.net_payout).toBe(900)
+    })
+
+    it("surfaces but does not subtract a foreign-currency carrier charge", () => {
+      // Subtracting it would mean inventing an FX rate; the UI shows it on its
+      // own line in its own currency instead.
+      const d = describeFee({
+        ...base,
+        shipping_amount: 12,
+        shipping_currency_code: "usd",
+        shipping_carrier: "shiprocket",
+      })!
+      expect(d.shipping!.is_foreign_currency).toBe(true)
+      expect(d.shipping!.currency_code).toBe("USD")
+      expect(d.net_payout).toBe(900)
+    })
+
+    it("does not deduct a waived or reversed commission", () => {
+      expect(describeFee({ ...base, status: "waived" })!.net_payout).toBe(1000)
+      expect(describeFee({ ...base, status: "reversed" })!.net_payout).toBe(1000)
+    })
+
+    it("still deducts shipping when the commission itself was waived", () => {
+      // The carrier was paid regardless of whether we waived our cut.
+      const d = describeFee({
+        ...base,
+        status: "waived",
+        shipping_amount: 60,
+        shipping_currency_code: "inr",
+      })!
+      expect(d.net_payout).toBe(940)
+    })
+
+    it("falls back to the order currency when the carrier currency is absent", () => {
+      const d = describeFee({ ...base, shipping_amount: 40 })!
+      expect(d.shipping!.currency_code).toBe("INR")
+      expect(d.shipping!.is_foreign_currency).toBe(false)
+      expect(d.net_payout).toBe(860)
     })
   })
 
