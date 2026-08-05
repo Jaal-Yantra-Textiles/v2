@@ -42,8 +42,14 @@ export const useStockLocation = (
         { method: "GET" }
       ),
     queryKey: stockLocationsQueryKeys.detail(id, query),
-    enabled: !!storeId && (options?.enabled !== false),
     ...options,
+    // MUST come after the spread. A caller passing `{ enabled: true }`
+    // used to clobber the `!!storeId` guard, firing a request at the
+    // literal URL `/partners/stores/undefined/locations/:id` — which the
+    // backend answers 401 ("Store undefined is not associated with this
+    // partner"). Storeless partners are legitimate: work orders are owned
+    // through the partner↔order link and need no store (see PR #1158).
+    enabled: !!storeId && (options?.enabled !== false),
   })
 
   return { ...data, ...rest }
@@ -71,8 +77,9 @@ export const useStockLocations = (
         { method: "GET" }
       ),
     queryKey: stockLocationsQueryKeys.list(query),
-    enabled: !!storeId && (options?.enabled !== false),
     ...options,
+    // After the spread — same clobbering hazard as useStockLocation above.
+    enabled: !!storeId && (options?.enabled !== false),
   })
 
   return { ...data, ...rest }
