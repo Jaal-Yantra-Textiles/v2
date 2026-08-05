@@ -254,6 +254,228 @@ async function seedDesignerInviteDesign(container: any): Promise<string> {
   return design.id
 }
 
+/**
+ * #1195 — an order in the exact shape that hid "Mark as shipped": a line item
+ * the derivation stamps `requires_shipping: false` (title-only, so no shipping
+ * profile and no inventory to vote true), fulfilled against a NON-pickup manual
+ * option. The pickup rule the Medusa user guide documents is therefore NOT what
+ * suppresses the action — the undocumented `requires_shipping` term is.
+ *
+ * Deliberately built with `orderModule.createOrders` + the fulfillment
+ * workflow, NOT `createOrderWorkflow` (no tax provider on a fresh CI DB) and
+ * NOT through a cart (which would emit `order.placed`, whose subscriber repairs
+ * profiled items — this fixture must stay broken for the specs to mean
+ * anything).
+ */
+export async function seedShipmentGateOrder(container: any): Promise<{
+  orderId: string
+  fulfillmentId: string
+}> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const orderModule: any = container.resolve(Modules.ORDER)
+
+  const { data: regions } = await query.graph({
+    entity: "region",
+    fields: ["id", "currency_code", "countries.iso_2"],
+  })
+  const region = regions?.[0]
+  const { data: channels } = await query.graph({
+    entity: "sales_channel",
+    fields: ["id"],
+  })
+  const salesChannelId = channels?.[0]?.id
+  if (!region || !salesChannelId) {
+    throw new Error(
+      "E2E seed: no region/sales channel found. Run the demo seed first."
+    )
+  }
+
+  const created: any = await orderModule.createOrders({
+    status: "pending",
+    region_id: region.id,
+    currency_code: region.currency_code,
+    sales_channel_id: salesChannelId,
+    email: "e2e-gate@jyt.test",
+    shipping_address: {
+      first_name: "Gate",
+      last_name: "Check",
+      address_1: "1 Loom St",
+      city: "London",
+      postal_code: "EC1A 1BB",
+      country_code: region.countries?.[0]?.iso_2 || "gb",
+      phone: "8887776665",
+    },
+    items: [
+      {
+        title: "Tangaliya Stole (#1195 gate)",
+        quantity: 1,
+        unit_price: 1500,
+        // Explicit, so the fixture cannot drift if the derivation is fixed
+        // upstream — the spec's whole point is this value being false.
+        requires_shipping: false,
+      },
+    ],
+    metadata: { source: "e2e-shipment-gate" },
+  })
+  const order = Array.isArray(created) ? created[0] : created
+
+  const { data: withItems } = await query.graph({
+    entity: "order",
+    fields: ["id", "items.id"],
+    filters: { id: order.id },
+  })
+  const itemId = withItems?.[0]?.items?.[0]?.id
+  if (!itemId) throw new Error("E2E seed: gate order line item not created")
+
+  const { data: opts } = await query.graph({
+    entity: "shipping_option",
+    fields: [
+      "id",
+      "provider_id",
+      "service_zone.fulfillment_set.type",
+      "service_zone.fulfillment_set.location.id",
+    ],
+  })
+  const manual = (opts || []).find(
+    (o: any) =>
+      typeof o?.provider_id === "string" &&
+      o.provider_id.startsWith("manual") &&
+      o.service_zone?.fulfillment_set?.location?.id &&
+      o.service_zone?.fulfillment_set?.type !== "pickup"
+  )
+  if (!manual) {
+    throw new Error(
+      "E2E seed: no manual NON-pickup shipping option found. Run the demo seed first."
+    )
+  }
+
+  await createOrderFulfillmentWorkflow(container).run({
+    input: {
+      order_id: order.id,
+      items: [{ id: itemId, quantity: 1 }],
+      shipping_option_id: manual.id,
+      location_id: manual.service_zone?.fulfillment_set?.location?.id,
+      no_notification: true,
+    } as any,
+  })
+
+  const { data: refetched } = await query.graph({
+    entity: "order",
+    fields: ["fulfillments.id", "fulfillments.requires_shipping"],
+    filters: { id: order.id },
+  })
+  const fulfillment = refetched?.[0]?.fulfillments?.[0]
+  if (!fulfillment?.id) {
+    throw new Error("E2E seed: gate fulfillment not created")
+  }
+  if (fulfillment.requires_shipping !== false) {
+    // If this ever trips, upstream changed the derivation — the specs that use
+    // this fixture are asserting a bug that no longer exists. Fail loudly here
+    // rather than let them pass for the wrong reason.
+    throw new Error(
+      `E2E seed: gate fulfillment expected requires_shipping=false, got ${fulfillment.requires_shipping}`
+    )
+  }
+
+  return { orderId: order.id, fulfillmentId: fulfillment.id }
+}
+
+/**
+ * #1195 — a partner that can open the gate order in the partner-UI. Mirrors the
+ * admin identity seeding above (Scrypt-hashed emailpass identity), then links
+ * the store and the order.
+ *
+ * The store link is NOT optional: without one the partner order-detail route
+ * requests `/partners/stores/undefined/locations/<id>` and error-boundaries the
+ * whole page into a 400, so the fulfillment section never renders.
+ */
+export async function seedShipmentGatePartner(
+  container: any,
+  orderId: string
+): Promise<{ email: string; password: string; partnerId: string }> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const authModule = container.resolve(Modules.AUTH)
+  const link: any = container.resolve(ContainerRegistrationKeys.LINK)
+  const partnerModule: any = container.resolve("partner")
+
+  const email = `e2e-partner-gate-${Date.now()}@jyt.test`
+  const partner = await partnerModule.createPartners({
+    name: "E2E Gate Partner",
+    handle: `e2e-gate-${Date.now()}`,
+    // Active + verified, else the app parks the session on /onboarding.
+    status: "active",
+    is_verified: true,
+  })
+  const partnerId = Array.isArray(partner) ? partner[0].id : partner.id
+
+  await partnerModule.createPartnerAdmins({
+    email,
+    first_name: "E2E",
+    last_name: "Partner",
+    role: "admin",
+    partner_id: partnerId,
+  })
+
+  const hashConfig = { logN: 15, r: 8, p: 1 }
+  const passwordHash = await Scrypt.kdf(SEED_PASSWORD, hashConfig)
+  const authIdentity: any = await authModule.createAuthIdentities({
+    provider_identities: [
+      {
+        provider: "emailpass",
+        entity_id: email,
+        provider_metadata: { password: passwordHash.toString("base64") },
+      },
+    ],
+    app_metadata: { partner_id: partnerId },
+  })
+  const authIdentityId = Array.isArray(authIdentity)
+    ? authIdentity[0].id
+    : authIdentity.id
+
+  // PARTNER_EMAIL_VERIFICATION: without a VERIFIED auth_verification row the
+  // login returns `{ verification_required: true }` with an actorless token,
+  // and the partner UI deliberately does not persist that token — so the seeded
+  // partner would appear to log in and then 401 on every request. Same row the
+  // `backfill-partner-email-verified` DP job writes.
+  const now = new Date()
+  await authModule.createAuthVerifications([
+    {
+      auth_identity_id: authIdentityId,
+      entity_id: email,
+      entity_type: "email",
+      code_provider: "emailpass",
+      requested_at: now,
+      verified_at: now,
+    },
+  ])
+
+  // A DEDICATED store, not the demo one: the partner↔store link is one store
+  // per partner (`defineLink(partner, { store, isList: true })`), so reusing an
+  // already-linked store throws "Cannot create multiple links between 'partner'
+  // and 'store'" the second time the seed runs.
+  const storeModule: any = container.resolve(Modules.STORE)
+  const createdStore: any = await storeModule.createStores({
+    name: `E2E Gate Store ${Date.now()}`,
+  })
+  const storeId = Array.isArray(createdStore)
+    ? createdStore[0].id
+    : createdStore.id
+
+  await link.create({
+    partner: { partner_id: partnerId },
+    store: { store_id: storeId },
+  })
+  await link.create({
+    partner: { partner_id: partnerId },
+    order: { order_id: orderId },
+  })
+
+  // Password returned explicitly rather than letting the spec reuse the admin
+  // `password` field — they happen to be the same constant today, and a spec
+  // that silently depends on that fails with "Invalid email or password".
+  return { email, password: SEED_PASSWORD, partnerId }
+}
+
 const SEED_PASSWORD = "e2etest123!"
 const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
 
@@ -361,6 +583,12 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: creating design with a full brief for the designer-invite flow (#1113)...")
   const inviteDesignId = await seedDesignerInviteDesign(container)
 
+  logger.info("E2E seed: creating the #1195 requires_shipping gate order...")
+  const gate = await seedShipmentGateOrder(container)
+
+  logger.info("E2E seed: creating the #1195 gate partner (partner-UI spec)...")
+  const gatePartner = await seedShipmentGatePartner(container, gate.orderId)
+
   const seedData = {
     email,
     password: SEED_PASSWORD,
@@ -369,6 +597,13 @@ export default async function e2eSeed({ container }: ExecArgs) {
     shipmentOrderId,
     provenanceProductId,
     inviteDesignId,
+    // #1195 gate fixture — consumed by order-shipment-gate.spec.ts (admin, CI)
+    // and partner-shipment-gate.spec.ts (@partnerui, local).
+    gateOrderId: gate.orderId,
+    gateFulfillmentId: gate.fulfillmentId,
+    gatePartnerEmail: gatePartner.email,
+    gatePartnerPassword: gatePartner.password,
+    gatePartnerId: gatePartner.partnerId,
   }
 
   fs.writeFileSync(SEED_FILE, JSON.stringify(seedData, null, 2))
