@@ -13,6 +13,105 @@ function sanitizeAddress(value: string): string {
   return value.replace(/[&\#%;\\]/g, " ").replace(/\s+/g, " ").trim()
 }
 
+/**
+ * Map a Delhivery scan to the coarse `scan_type` the tracking sync switches on.
+ *
+ * Delhivery reports status two ways and they disagree in useful ways: `Status`
+ * is a broad bucket ("In Transit", "Dispatched") while `StatusType` is a single
+ * letter — `UD` undelivered/in-transit, `DL` delivered, `RT` return-to-origin.
+ * `NSLCode` refines it further (e.g. `EOD-*` end-of-day scans). Prefer the typed
+ * codes and fall back to the free text, which is the only field Delhivery has
+ * never changed the shape of.
+ */
+export function delhiveryScanType(
+  statusType?: string | null,
+  status?: string | null
+): string {
+  const type = String(statusType || "").trim().toUpperCase()
+  if (type === "DL") return "delivered"
+  if (type === "RT") return "rto"
+
+  const text = String(status || "").trim().toLowerCase()
+  if (text.includes("delivered")) return "delivered"
+  if (text.includes("rto") || text.includes("return")) return "rto"
+  if (text.includes("manifest") || text.includes("pickup scheduled")) {
+    return "created"
+  }
+  if (text.includes("dispatched") || text.includes("out for delivery")) {
+    return "shipped"
+  }
+  if (text.includes("in transit") || text.includes("in-transit")) {
+    return "in_transit"
+  }
+  // `UD` with unrecognised text is still a live shipment, not a created one.
+  return type === "UD" ? "in_transit" : "in_transit"
+}
+
+/**
+ * Normalize a Delhivery status-push payload into a `TrackingResult`.
+ *
+ * Pure and exported so the inbound webhook route can parse a push without
+ * carrier credentials — the same shape as `normalizeShiprocketWebhook`, so the
+ * webhook route can dispatch on `?carrier=` and feed both into the one sync
+ * workflow.
+ *
+ * Delhivery's push nests everything under `Shipment`, with the current scan in
+ * `Shipment.Status` and the history in `Shipment.Scans[].ScanDetail`. Some
+ * accounts receive a flatter shape, so both the nested and top-level AWB keys
+ * are accepted. An unrecognised payload yields an empty `awb`, which the route
+ * already treats as "ignore this push" rather than an error.
+ */
+export function normalizeDelhiveryWebhook(payload: any): {
+  carrier: string
+  awb: string
+  current_status: string
+  current_status_code?: string
+  estimated_delivery?: string | null
+  events: Array<{
+    timestamp: string
+    status: string
+    location: string
+    scan_type: string
+  }>
+  raw: any
+} {
+  const shipment = payload?.Shipment ?? payload?.shipment ?? payload ?? {}
+  const status = shipment?.Status ?? shipment?.status ?? {}
+
+  const awb =
+    shipment?.AWB ??
+    shipment?.awb ??
+    shipment?.Waybill ??
+    shipment?.waybill ??
+    payload?.AWB ??
+    payload?.waybill ??
+    ""
+
+  const currentStatus = status?.Status ?? status?.status ?? ""
+  const statusType = status?.StatusType ?? status?.statusType ?? ""
+
+  const events = (shipment?.Scans ?? shipment?.scans ?? []).map((s: any) => {
+    const d = s?.ScanDetail ?? s?.scanDetail ?? s ?? {}
+    return {
+      timestamp: d?.ScanDateTime ?? d?.StatusDateTime ?? "",
+      status: d?.Scan ?? d?.Instructions ?? d?.ScanType ?? "",
+      location: d?.ScannedLocation ?? d?.StatusLocation ?? "",
+      scan_type: delhiveryScanType(d?.StatusType ?? d?.ScanType, d?.Scan),
+    }
+  })
+
+  return {
+    carrier: "delhivery",
+    awb: String(awb || ""),
+    current_status: String(currentStatus || ""),
+    current_status_code: statusType ? String(statusType) : undefined,
+    estimated_delivery:
+      shipment?.ExpectedDeliveryDate ?? shipment?.PromisedDeliveryDate ?? null,
+    events,
+    raw: payload,
+  }
+}
+
 export class DelhiveryClient {
   private baseUrl: string
   private token: string

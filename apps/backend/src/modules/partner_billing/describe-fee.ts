@@ -26,6 +26,9 @@ export type PartnerFeeRowLike = {
   payment_gateway_amount?: number | string | null
   commission_bps?: number | string | null
   commission_amount?: number | string | null
+  shipping_amount?: number | string | null
+  shipping_currency_code?: string | null
+  shipping_carrier?: string | null
 }
 
 /** Itemised components of a `retail_split` fee (gateway + commission). */
@@ -51,6 +54,32 @@ export type DescribedFee = {
   is_collectible: boolean
   /** Itemised gateway + commission components; null for legacy `commission` rows. */
   breakdown: FeeBreakdown | null
+  /**
+   * What shipping on the PLATFORM's carrier account cost on this order, or null
+   * when the partner shipped on their own. A second deduction from the payout,
+   * separate from the commission in `fee_amount`.
+   */
+  shipping: ShippingCharge | null
+  /**
+   * What the partner actually receives: `order_total − fee_amount − shipping`.
+   *
+   * A non-collectible fee (waived / reversed) deducts nothing, so it drops out
+   * of the arithmetic rather than being subtracted anyway.
+   */
+  net_payout: number
+}
+
+/** Platform-shipping deduction, when the partner used our carrier account. */
+export type ShippingCharge = {
+  amount: number
+  currency_code: string
+  carrier: string | null
+  /**
+   * True when the carrier quoted in a currency other than the order's. The
+   * amount is then NOT directly comparable with the order totals and must be
+   * labelled with its own currency in the UI.
+   */
+  is_foreign_currency: boolean
 }
 
 const toNum = (v: unknown): number => {
@@ -110,16 +139,45 @@ export function describeFee(
         }
       : null
 
+  const is_collectible = status === "accrued" || status === "invoiced"
+  const fee_amount = toNum(fee.fee_amount)
+  const order_total = toNum(fee.order_total)
+
+  // `null`/absent means the partner didn't use our shipping. A recorded 0 is a
+  // real free-shipping rate and must survive as a shipping row, so test for
+  // presence rather than truthiness.
+  const shipping: ShippingCharge | null =
+    fee.shipping_amount === null || fee.shipping_amount === undefined
+      ? null
+      : {
+          amount: toNum(fee.shipping_amount),
+          currency_code: (fee.shipping_currency_code || currency_code).toUpperCase(),
+          carrier: fee.shipping_carrier || null,
+          is_foreign_currency:
+            !!fee.shipping_currency_code &&
+            fee.shipping_currency_code.toUpperCase() !== currency_code,
+        }
+
+  // Only deduct what is actually collected. A foreign-currency carrier charge
+  // is deliberately NOT subtracted — converting it here would invent an FX rate
+  // this pure function has no business choosing; the UI shows it as its own
+  // line in its own currency instead.
+  const deductions =
+    (is_collectible ? fee_amount : 0) +
+    (shipping && !shipping.is_foreign_currency ? shipping.amount : 0)
+
   return {
     order_id: String(fee.order_id),
     status,
     fee_basis,
     fee_type,
     rate_label: formatFeeRate(fee_basis, fee.fee_rate, currency_code),
-    fee_amount: toNum(fee.fee_amount),
-    order_total: toNum(fee.order_total),
+    fee_amount,
+    order_total,
     currency_code,
-    is_collectible: status === "accrued" || status === "invoiced",
+    is_collectible,
     breakdown,
+    shipping,
+    net_payout: order_total - deductions,
   }
 }

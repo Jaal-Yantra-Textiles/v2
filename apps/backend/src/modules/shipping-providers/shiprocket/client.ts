@@ -284,6 +284,22 @@ export function buildShiprocketOrderItems(
 }
 
 /**
+ * Coerce a carrier-quoted charge into a finite number, or undefined.
+ *
+ * Shiprocket returns freight charges inconsistently — number, numeric string,
+ * `"0"`, `""`, or absent depending on courier and endpoint. A blank or
+ * unparseable value must NOT become `0`: zero is a real (free-shipping) rate,
+ * and recording a fake zero would silently under-deduct a partner's payout.
+ */
+export function toRate(v: unknown): number | undefined {
+  if (v === null || v === undefined || v === "") {
+    return undefined
+  }
+  const n = Number(v)
+  return Number.isFinite(n) ? n : undefined
+}
+
+/**
  * International shipping (#1111). Shiprocket exposes a SEPARATE
  * `/v1/external/international/*` namespace (create/serviceability/assign/track);
  * a shipment is international when its destination is outside India. See
@@ -709,6 +725,17 @@ export class ShiprocketClient implements ShippingProviderClient {
         shipment_id: shipmentId,
         courier_company_id: awbData.courier_company_id,
         courier_name: awbData.courier_name,
+        // What this label actually cost us. The international path has always
+        // stamped a rate (from the courier quote it picks); domestic stamped
+        // only the courier NAME, so a domestic label left no cost trace at all
+        // and the partner's payout couldn't show a shipping deduction.
+        // `assign/awb` returns it as `freight_charges` in account currency.
+        ...(toRate(awbData.freight_charges) != null
+          ? {
+              courier_rate: toRate(awbData.freight_charges),
+              courier_rate_currency: "INR",
+            }
+          : {}),
       },
       raw: { created, assigned },
     }

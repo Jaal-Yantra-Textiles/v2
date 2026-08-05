@@ -85,8 +85,14 @@ test.describe("#1195 requires_shipping gate — partner UI @partnerui", () => {
     await expect(page).toHaveURL(
       new RegExp(`${seed.gateFulfillmentId}/create-shipment`)
     )
-    await expect(page.getByText(/shipment|tracking/i).first()).toBeVisible({
-      timeout: 30_000,
-    })
+
+    // The route now opens the two-step carrier → shipment modal rather than a
+    // bare tracking form, so assert on the step tabs. Both must exist: a
+    // regression that drops the carrier step would silently take the provider
+    // picker away again.
+    await expect(
+      page.getByRole("tab", { name: /^carrier$/i })
+    ).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByRole("tab", { name: /^shipment$/i })).toBeVisible()
   })
 })

@@ -12,6 +12,13 @@ import { sdk } from "../lib/config"
 
 type AdminOrder = { id: string }
 
+type ShippingCharge = {
+  amount: number
+  currency_code: string
+  carrier: string | null
+  is_foreign_currency: boolean
+}
+
 type DescribedFee = {
   order_id: string
   status: string
@@ -21,6 +28,10 @@ type DescribedFee = {
   order_total: number
   currency_code: string
   is_collectible: boolean
+  /** Null when the partner shipped on their own carrier account. */
+  shipping: ShippingCharge | null
+  /** order_total − commission − platform shipping. */
+  net_payout: number
 }
 
 type PartnerFeeResponse = {
@@ -70,9 +81,9 @@ const OrderPartnerFeeWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) =
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
         <div>
-          <Heading level="h2">Platform commission</Heading>
+          <Heading level="h2">Partner payout</Heading>
           <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            The platform's cut on this order, deducted from the partner payout.
+            What comes off this order before the partner is paid.
           </Text>
         </div>
         {fee ? (
@@ -105,6 +116,22 @@ const OrderPartnerFeeWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) =
               {formatMoney(fee.fee_amount, fee.currency_code)}
             </Text>
           </div>
+          {/* Platform shipping — present only when the partner generated the
+              label on OUR carrier account rather than shipping themselves. A
+              foreign-currency carrier charge is shown but never folded into
+              net_payout (no FX rate is invented server-side). */}
+          {fee.shipping && (
+            <div className="flex items-center justify-between">
+              <Text size="small" className="text-ui-fg-subtle">
+                Platform shipping
+                {fee.shipping.carrier ? ` (${fee.shipping.carrier})` : ""}
+              </Text>
+              <Text size="small" weight="plus">
+                {formatMoney(fee.shipping.amount, fee.shipping.currency_code)}
+                {fee.shipping.is_foreign_currency ? " *" : ""}
+              </Text>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <Text size="small" className="text-ui-fg-subtle">
               Order total
@@ -113,6 +140,20 @@ const OrderPartnerFeeWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) =
               {formatMoney(fee.order_total, fee.currency_code)}
             </Text>
           </div>
+          <div className="flex items-center justify-between border-t border-dashed pt-3">
+            <Text size="small" weight="plus">
+              Partner receives
+            </Text>
+            <Text size="small" weight="plus">
+              {formatMoney(fee.net_payout, fee.currency_code)}
+            </Text>
+          </div>
+          {fee.shipping?.is_foreign_currency && (
+            <Text size="xsmall" className="text-ui-fg-muted">
+              * Shipping was charged in {fee.shipping.currency_code} and is
+              settled separately, so it is not deducted above.
+            </Text>
+          )}
         </div>
       )}
     </Container>

@@ -46,6 +46,10 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   ["/admin/order-edits", "orders"],
   ["/admin/products", "catalog"],
   ["/admin/stores", "catalog"],
+  // Customs/HS-code tooling operates on the catalogue, so it belongs to the
+  // catalog slice. Without this entry the tools classify as undefined and never
+  // light up for a customs question.
+  ["/admin/customs", "catalog"],
   ["/admin/customers", "customers"],
   ["/admin/partners", "partners"],
   ["/admin/designs", "designs"],
@@ -91,6 +95,11 @@ const DOMAIN_KEYWORDS: Record<Exclude<AdminToolDomain, "core">, string[]> = {
     "product", "products", "variant", "variants", "sku", "catalog",
     "catalogue", "publish", "published", "draft", "store", "stores",
     "storefront", "listing", "listings", "price", "pricing",
+    // Customs vocabulary — a "the HSN is missing" ask must reach the catalog
+    // slice, since that's where the codes are written. The PREFIX_DOMAINS entry
+    // above only classifies the tools; these are what ACTIVATE the slice.
+    "hsn", "hs code", "hs codes", "hs_code", "customs", "harmonized",
+    "harmonised", "tariff", "duty", "commodity code",
   ],
   customers: ["customer", "customers", "buyer", "buyers", "shopper", "shoppers"],
   partners: [
