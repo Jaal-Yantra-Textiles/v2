@@ -76,6 +76,46 @@ RUN pnpm install --frozen-lockfile --offline --store-dir "$PNPM_STORE_DIR"
 ENV NODE_OPTIONS="--max-old-space-size=6144"
 RUN pnpm run build
 
+# --- runtime dependency tree ------------------------------------------------
+# The runtime stage used to run its own `pnpm install --prod` against the
+# package.json `medusa build` generates. That stage has no lockfile, so pnpm
+# re-resolved ~2.5k ranges against registry.npmjs.org on every build — which is
+# what earned the ERR_PNPM_FETCH_429 that broke the deploy (the store #1173
+# bind-mounted holds tarballs; resolution needs *metadata*, a different cache
+# the builder never fills). It also ran with --ignore-workspace, which discards
+# root `pnpm.overrides`, so the shipped image floated off our pins — the
+# deliberate `zod: 4.2.0` pin (4.4.3 breaks boot via zod-to-openapi `.omit`)
+# was measured at 4.4.3 inside the image.
+#
+# `pnpm deploy` builds the same tree here instead, from the workspace lockfile:
+# versions come from the lockfile rather than a re-resolve, so overrides are
+# honoured and two builds of one commit produce the same tree.
+# --legacy because pnpm 10 otherwise requires
+# inject-workspace-packages. It also injects the
+# @jytextiles/mikrohyperbee workspace package properly, replacing the
+# strip-the-dep-then-vendor-it-by-hand dance the runtime stage used to do.
+#
+# --prefer-offline, not --offline: packages/mikrohyperbee declares `hyperbee` as
+# an OPTIONAL PEER with a `*` range, and a `*` cannot be satisfied from the
+# lockfile, so a fully-offline deploy dies on ERR_PNPM_NO_OFFLINE_META for that
+# one spec. Everything else comes from the store, so what remains is a handful
+# of metadata requests where the old runtime install made ~2.5k. Measured on a
+# cold build (empty metadata cache, as CI always is): this step takes ~2 min and
+# logs no 429s, against ~15 min of backoff — or an outright failure — before.
+RUN pnpm deploy --legacy --filter=@jyt/backend --prod --ignore-scripts \
+      --prefer-offline --store-dir "$PNPM_STORE_DIR" /prod-deps
+
+# `medusa build` copies apps/backend's dependencies verbatim into
+# .medusa/server/package.json, so the tree above is exactly what the compiled
+# server needs. That is an assumption about Medusa's build, not a guarantee —
+# so assert it here. If a future Medusa adds a dependency of its own, this
+# fails the build loudly instead of shipping an image that dies at require().
+RUN node -e "\
+const deps=Object.keys(require('/app/apps/backend/.medusa/server/package.json').dependencies||{});\
+const missing=deps.filter(d=>!require('fs').existsSync('/prod-deps/node_modules/'+d+'/package.json'));\
+if(missing.length){console.error('Missing from the deployed prod tree: '+missing.join(', '));process.exit(1);}\
+console.log('runtime dep check OK ('+deps.length+' deps)');"
+
 # -----------------------------------------------------------------------------
 # Runtime image — ships only the compiled server and its prod deps.
 # -----------------------------------------------------------------------------
@@ -102,15 +142,6 @@ RUN corepack enable && corepack prepare pnpm@10.30.2 --activate
 # pnpm's own documented fix — it auto-confirms the purge non-interactively.
 ENV CI=true
 
-# Same rate-limit guard as the builder — see the note there. This stage is the
-# one that actually hit ERR_PNPM_FETCH_429: unlike the builder it has no
-# lockfile and no store, so `pnpm install --prod` below resolved the compiled
-# server's whole dependency tree (~2.4k packages) straight from the registry.
-ENV npm_config_network_concurrency=8 \
-    npm_config_fetch_retries=6 \
-    npm_config_fetch_retry_mintimeout=20000 \
-    npm_config_fetch_retry_maxtimeout=120000
-
 WORKDIR /app
 
 # Bring in the compiled server, the generated workflow schemas, and .npmrc
@@ -121,37 +152,26 @@ COPY --from=builder /app/apps/backend/.medusa ./.medusa
 COPY --from=builder /app/apps/backend/workflow-schemas.json ./workflow-schemas.json
 COPY --from=builder /app/.npmrc ./.npmrc
 
-# Medusa compiles into .medusa/server with its own package.json. Install prod
-# deps there. --ignore-scripts skips the patch-package postinstall (dev-only).
+# Medusa compiles into .medusa/server with its own package.json, and expects its
+# deps in a node_modules beside it. That tree is built in the builder stage from
+# the lockfile (see the `pnpm deploy` note there) and copied in whole — this
+# stage performs no install, so it needs no registry, no store mount and no
+# lockfile. @jytextiles/mikrohyperbee comes along inside it, injected by the
+# deploy rather than hand-vendored.
 WORKDIR /app/.medusa/server
 
-# The compiled server carries an internal workspace dependency
-# (@jytextiles/mikrohyperbee — the Hyperbee-backed DAL the personproperty module
-# uses) declared via the `workspace:*` protocol. The prod install below runs with
-# --ignore-workspace (there is no pnpm workspace in the runtime image), and pnpm
-# cannot resolve `workspace:*` without one → ERR_PNPM_WORKSPACE_PKG_NOT_FOUND.
-# So: (1) drop that entry from the generated package.json before installing,
-# (2) install the remaining prod deps (including hyperbee/corestore, which the
-# package declares only as an OPTIONAL peer), then (3) vendor the prebuilt
-# package straight into node_modules. The package is Medusa-free CommonJS with no
-# runtime deps of its own and its dist/ is built by the package's `prepare` (tsc)
-# during the builder install above, so this copy is self-contained.
-RUN node -e "const fs=require('fs');const p=require('./package.json');if(p.dependencies){delete p.dependencies['@jytextiles/mikrohyperbee'];}fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n');"
-# The compiled server's prod deps are the backend's own deps, which the builder
-# already downloaded from the lockfile. Bind-mounting that store lets this
-# install resolve locally instead of re-fetching the tree — a bind mount (not a
-# COPY) so the multi-GB store never lands in a layer of the shipped image, and
-# not a cache mount because BuildKit does not export those to the `type=gha`
-# cache the deploy workflow uses, so in CI a cache mount would always be cold.
-# `rw` gives pnpm the writable store it wants; the overlay is discarded with the
-# mount. `--prefer-offline` (not `--offline`) so anything genuinely absent —
-# this package.json carries ranges, not the lockfile's pinned versions — can
-# still come over the network.
-RUN --mount=type=bind,from=builder,source=/pnpm-store,target=/pnpm-store,rw \
-    pnpm install --prod --ignore-workspace --ignore-scripts \
-      --store-dir /pnpm-store --prefer-offline
-COPY --from=builder /app/packages/mikrohyperbee/package.json ./node_modules/@jytextiles/mikrohyperbee/package.json
-COPY --from=builder /app/packages/mikrohyperbee/dist ./node_modules/@jytextiles/mikrohyperbee/dist
+COPY --from=builder /prod-deps/node_modules ./node_modules
+
+# The generated package.json still declares mikrohyperbee as `workspace:*`,
+# which nothing in this image can resolve. Nothing installs here so it is inert,
+# but rewrite it to the concrete version anyway so that a future `pnpm install`
+# run inside the container fails on something honest rather than
+# ERR_PNPM_WORKSPACE_PKG_NOT_FOUND.
+RUN node -e "\
+const fs=require('fs');const p=require('./package.json');\
+if(p.dependencies&&p.dependencies['@jytextiles/mikrohyperbee']){\
+p.dependencies['@jytextiles/mikrohyperbee']=require('./node_modules/@jytextiles/mikrohyperbee/package.json').version;\
+fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n');}"
 
 EXPOSE 9000
 
