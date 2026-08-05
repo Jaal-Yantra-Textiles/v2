@@ -356,7 +356,9 @@ setupSharedTestSuite(() => {
             )
             .catch((e) => e.response);
 
-          expect(response.status).toBe(400);
+          // 422 since #1202: DUPLICATE_ERROR. Was 400 only because the custom
+          // errorHandler collapsed every non-404 MedusaError into 400.
+          expect(response.status).toBe(422);
           expect(response.data.message).toContain("A block of type Hero already exists for this page");
         });
       });
