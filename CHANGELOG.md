@@ -1,3 +1,10 @@
+## [13.73.9](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.8...v13.73.9) (2026-08-05)
+
+
+### Bug Fixes
+
+* **partner-ui:** a storeless partner's order detail blanked on any fulfillment with a location_id ([#1203](https://github.com/Jaal-Yantra-Textiles/v2/issues/1203)) ([3b20d28](https://github.com/Jaal-Yantra-Textiles/v2/commit/3b20d28430387e985e87070ea0968d7c54f67e2a)), closes [#1158](https://github.com/Jaal-Yantra-Textiles/v2/issues/1158) [#1202](https://github.com/Jaal-Yantra-Textiles/v2/issues/1202)
+
 ## [13.73.8](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.7...v13.73.8) (2026-08-05)
 
 
