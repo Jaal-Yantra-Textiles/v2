@@ -131,5 +131,143 @@ describe("buildCreateShipmentInput (#404 PR-B)", () => {
       )
       expect(input.items[0].hsn).toBe("6214")
     })
+
+    it("sources HSN from the variant's inventory item when the variant has none", () => {
+      const input = buildCreateShipmentInput(
+        {
+          ...baseOrder,
+          items: [
+            {
+              title: "Managed",
+              quantity: 1,
+              unit_price: 100,
+              variant: {
+                inventory_items: [{ inventory: { hs_code: "5208" } }],
+              },
+            },
+          ],
+        },
+        { pickupLocationName: "wh" }
+      )
+      expect(input.items[0].hsn).toBe("5208")
+    })
+
+    it("sources HSN from the product when neither variant nor inventory has one", () => {
+      // The case the user called out: variants exist but nothing is
+      // inventory-managed, so the code belongs at the product top level.
+      const input = buildCreateShipmentInput(
+        {
+          ...baseOrder,
+          items: [
+            {
+              title: "Unmanaged",
+              quantity: 1,
+              unit_price: 100,
+              variant: { product: { hs_code: "6117" } },
+            },
+          ],
+        },
+        { pickupLocationName: "wh" }
+      )
+      expect(input.items[0].hsn).toBe("6117")
+    })
+
+    it("takes the first non-empty inventory hs_code across several inventory items", () => {
+      const input = buildCreateShipmentInput(
+        {
+          ...baseOrder,
+          items: [
+            {
+              title: "Kit",
+              quantity: 1,
+              unit_price: 100,
+              variant: {
+                inventory_items: [
+                  { inventory: { hs_code: null } },
+                  { inventory: { hs_code: "  " } },
+                  { inventory: { hs_code: "5007" } },
+                ],
+              },
+            },
+          ],
+        },
+        { pickupLocationName: "wh" }
+      )
+      expect(input.items[0].hsn).toBe("5007")
+    })
+
+    it("applies the full precedence order variant > inventory > product > metadata", () => {
+      const item = {
+        title: "All four",
+        quantity: 1,
+        unit_price: 100,
+        variant: {
+          hs_code: "1111",
+          inventory_items: [{ inventory: { hs_code: "2222" } }],
+          product: { hs_code: "3333" },
+        },
+        metadata: { hsn: "4444" },
+      }
+      const at = (order: any) =>
+        buildCreateShipmentInput(order, { pickupLocationName: "wh" }).items[0].hsn
+
+      expect(at({ ...baseOrder, items: [item] })).toBe("1111")
+      expect(
+        at({
+          ...baseOrder,
+          items: [{ ...item, variant: { ...item.variant, hs_code: null } }],
+        })
+      ).toBe("2222")
+      expect(
+        at({
+          ...baseOrder,
+          items: [
+            {
+              ...item,
+              variant: { ...item.variant, hs_code: null, inventory_items: [] },
+            },
+          ],
+        })
+      ).toBe("3333")
+      expect(at({ ...baseOrder, items: [{ ...item, variant: null }] })).toBe("4444")
+    })
+
+    it("treats a blank hs_code as absent rather than letting it win", () => {
+      // An empty string is truthy-adjacent enough to slip past a `??` chain if
+      // it isn't trimmed — and a blank HSN fails the carrier, not the code.
+      const input = buildCreateShipmentInput(
+        {
+          ...baseOrder,
+          items: [
+            {
+              title: "Blank",
+              quantity: 1,
+              unit_price: 100,
+              variant: { hs_code: "   ", product: { hs_code: "6214" } },
+            },
+          ],
+        },
+        { pickupLocationName: "wh" }
+      )
+      expect(input.items[0].hsn).toBe("6214")
+    })
+
+    it("leaves hsn undefined when no level supplies one", () => {
+      const input = buildCreateShipmentInput(
+        {
+          ...baseOrder,
+          items: [
+            {
+              title: "Nothing",
+              quantity: 1,
+              unit_price: 100,
+              variant: { hs_code: null, inventory_items: [], product: null },
+            },
+          ],
+        },
+        { pickupLocationName: "wh" }
+      )
+      expect(input.items[0].hsn).toBeUndefined()
+    })
   })
 })

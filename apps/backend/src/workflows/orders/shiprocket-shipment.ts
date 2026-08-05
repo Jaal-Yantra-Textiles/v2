@@ -29,6 +29,11 @@ import {
   isShiprocketSupportedCurrency,
 } from "../../modules/shipping-providers/shiprocket/currency"
 import { FX_RATES_MODULE } from "../../modules/fx_rates"
+import { PARTNER_BILLING_MODULE } from "../../modules/partner_billing"
+import {
+  nonEmptyCode,
+  resolveVariantHsCode,
+} from "../../modules/shipping-providers/hs-code-resolution"
 
 /**
  * #404 (#31) PR-B — generate a Shiprocket shipment (forward order → AWB → label)
@@ -57,11 +62,38 @@ export type OrderForShipment = {
     quantity?: number | null
     unit_price?: number | null
     sku?: string | null
-    /** Product variant behind the line — carries the customs `hs_code` (#1111). */
-    variant?: { hs_code?: string | null } | null
+    /**
+     * Product variant behind the line. `hs_code` lives on THREE core models —
+     * the variant, its inventory item(s) and the parent product — and any of
+     * them may be the one a merchant filled in. See `resolveLineHsn`.
+     */
+    variant?: {
+      hs_code?: string | null
+      product?: { hs_code?: string | null } | null
+      inventory_items?: Array<{
+        inventory?: { hs_code?: string | null } | null
+      }> | null
+    } | null
     /** HSN/HS-code fallback for ad-hoc (variant-less) lines. */
     metadata?: Record<string, any> | null
   }> | null
+}
+
+/**
+ * Resolve the customs HSN/HS code for one order line (#1111).
+ *
+ * The catalogue half of the chain (variant → inventory item → product) lives in
+ * `hs-code-resolution`, shared with the HS-code tooling that WRITES codes, so a
+ * write always lands where the label reads. The one rung that is specific to an
+ * order is the last: `line.metadata.hsn`, for ad-hoc / variant-less lines that
+ * have no catalogue row to hang a code off at all.
+ */
+export function resolveLineHsn(
+  li: NonNullable<OrderForShipment["items"]>[number]
+): string | undefined {
+  return (
+    resolveVariantHsCode(li.variant).hs_code ?? nonEmptyCode(li.metadata?.hsn)
+  )
 }
 
 export type BuildShipmentOpts = {
@@ -91,10 +123,10 @@ export function buildCreateShipmentInput(
     sku: li.sku || undefined,
     quantity: Number(li.quantity) || 1,
     unit_price: Number(li.unit_price) || 0,
-    // HSN for international customs (#1111): prefer the variant's hs_code, then
-    // line metadata (for ad-hoc, variant-less lines). Domestic shipments ignore
-    // it; the client requires it only when the destination is international.
-    hsn: (li.variant?.hs_code || li.metadata?.hsn || undefined) as string | undefined,
+    // HSN for international customs (#1111) — variant → inventory item →
+    // product → line metadata. Domestic shipments ignore it; the client
+    // requires it only when the destination is international.
+    hsn: resolveLineHsn(li),
   }))
   const subTotal =
     order.subtotal != null
@@ -176,7 +208,11 @@ export async function createShiprocketShipmentForFulfillment(
       "items.quantity",
       "items.unit_price",
       "items.metadata",
+      // All three levels `resolveLineHsn` walks. Dotted paths, never `*variant`
+      // — a star on a relation silently drops it from the result.
       "items.variant.hs_code",
+      "items.variant.product.hs_code",
+      "items.variant.inventory_items.inventory.hs_code",
       "fulfillments.id",
       "fulfillments.location_id",
       "fulfillments.data",
@@ -384,5 +420,62 @@ export async function createShiprocketShipmentForFulfillment(
       : {}),
   })
 
+  await recordPlatformShippingCost(container, input.orderId, carrier, result)
+
   return { ...result, fulfillment_id: input.fulfillmentId }
+}
+
+/**
+ * Record what this label cost us on the order's `partner_fee` row.
+ *
+ * The partner shipped on the PLATFORM's carrier account, so the freight is a
+ * deduction from their payout on top of the commission — and the partner needs
+ * to see it, because they charged the customer a flat shipping rate while our
+ * real cost varies by lane.
+ *
+ * Best-effort by design: a billing bookkeeping write must never fail a label
+ * that the carrier has already accepted and assigned an AWB to. A miss leaves
+ * the payout line absent, which reads as "no platform shipping" — the same as
+ * before this existed — rather than breaking the shipment.
+ */
+async function recordPlatformShippingCost(
+  container: MedusaContainer,
+  orderId: string,
+  carrier: string,
+  result: ShipmentResult
+): Promise<void> {
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+  try {
+    const rate = result.provider_refs?.courier_rate
+    const amount = Number(rate)
+    // No quoted rate (carrier didn't return one) → nothing to record. Note 0 IS
+    // recordable: free shipping is a real outcome, absence is not.
+    if (rate == null || !Number.isFinite(amount)) {
+      return
+    }
+
+    const billing: any = container.resolve(PARTNER_BILLING_MODULE)
+    const fee = await billing.findFeeForOrder(orderId)
+    if (!fee) {
+      // Retail order with no partner, or the accrual subscriber hasn't run.
+      // There's no row to hang the cost off; don't invent one here — accrual
+      // owns that lifecycle.
+      return
+    }
+
+    await billing.updatePartnerFees([
+      {
+        id: fee.id,
+        shipping_amount: amount,
+        shipping_currency_code: String(
+          result.provider_refs?.courier_rate_currency || "INR"
+        ).toUpperCase(),
+        shipping_carrier: carrier,
+      },
+    ])
+  } catch (e: any) {
+    logger?.warn?.(
+      `[shiprocket-shipment] could not record platform shipping cost for order ${orderId}: ${e?.message}`
+    )
+  }
 }
