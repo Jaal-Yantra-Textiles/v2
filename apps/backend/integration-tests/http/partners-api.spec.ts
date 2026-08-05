@@ -82,7 +82,8 @@ setupSharedTestSuite(() => {
                     duplicate,
                     { headers: partnerHeaders }
                 ).catch((err) => err.response).then(res => {
-                    expect(res.status).toBe(400)
+                    // 422 since #1202 — DUPLICATE_ERROR, not a validation failure.
+                    expect(res.status).toBe(422)
                     expect(res.data.message).toBe("A partner with handle \"acme-2\" already exists. Please use a unique handle.")
                 })
             })

@@ -141,7 +141,15 @@ setupSharedTestSuite(() => {
           {},
           { headers: intruder.headers }
         )
-      ).rejects.toMatchObject({ response: { status: 400 } })
+        // 401 since #1202 (was 400 via the collapsed error handler).
+        //
+        // ⚠️ This assertion passes for the WRONG REASON. `/partners/orders/:id/
+        // fulfillment-label` has NO matcher in src/api/middlewares.ts, so
+        // `authenticate` never runs, `auth_context` is always undefined, and the
+        // route refuses EVERY caller — the legitimate owner included. It has
+        // therefore never tested ownership. Tracked in #1204; once the matcher
+        // exists a genuine intruder should get 404, like the two routes above.
+      ).rejects.toMatchObject({ response: { status: 401 } })
     })
   })
 })

@@ -156,7 +156,8 @@ setupSharedTestSuite(() => {
         email: otherEmail,
         admin: { email: otherEmail },
       })
-      expect(dup.status).toBe(400)
+      // 422 since #1202 — DUPLICATE_ERROR, not a validation failure.
+      expect(dup.status).toBe(422)
     })
   })
 

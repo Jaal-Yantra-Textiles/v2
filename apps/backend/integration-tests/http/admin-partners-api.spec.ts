@@ -67,7 +67,7 @@ setupSharedTestSuite(({ api, getContainer }) => {
       expect(res.data.partner_admin.email).toBe(payload.admin.email)
     })
 
-    test("POST /admin/partners with duplicate handle returns 400", async () => {
+    test("POST /admin/partners with duplicate handle returns 422", async () => {
       const unique = Date.now()
       const baseHandle = `acme-admin-dupe-${unique}`
       const first = {
@@ -106,7 +106,7 @@ setupSharedTestSuite(({ api, getContainer }) => {
         console.log("[TEST][UNEXPECTED] Second POST status:", resp.status)
         console.log("[TEST][UNEXPECTED] Second POST data:", JSON.stringify(resp.data))
         // If it gets here, fail explicitly
-        expect(resp.status).toBe(400)
+        expect(resp.status).toBe(422)
       } catch (err: any) {
         const res = err?.response || {}
         console.log("[TEST] Second POST error status:", res?.status)
@@ -114,7 +114,8 @@ setupSharedTestSuite(({ api, getContainer }) => {
         console.log("[TEST] Second POST error headers:", JSON.stringify(res?.headers))
         console.log("[TEST] Second POST request URL:", res?.config?.url)
         console.log("[TEST] Second POST request data:", JSON.stringify(res?.config?.data))
-        expect(res.status).toBe(400)
+        // 422 since #1202 — DUPLICATE_ERROR, not a validation failure.
+        expect(res.status).toBe(422)
         expect(res.data?.message).toBe(
           `A partner with handle "${baseHandle}" already exists. Please use a unique handle.`
         )

@@ -301,9 +301,9 @@ setupSharedTestSuite(() => {
 
       // Cross-access should be unauthorized
       const cross1 = await api.get(`/partners/stores/${store2Id}/products`, { headers: partnerHeaders, validateStatus: () => true })
-      expect([400, 403]).toContain(cross1.status)
+      expect([401, 403]).toContain(cross1.status)
       const cross2 = await api.get(`/partners/stores/${storeId}/products`, { headers: partner2Headers, validateStatus: () => true })
-      expect([400, 403]).toContain(cross2.status)
+      expect([401, 403]).toContain(cross2.status)
     })
   })
 })

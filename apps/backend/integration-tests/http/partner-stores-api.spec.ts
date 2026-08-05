@@ -121,7 +121,7 @@ setupSharedTestSuite(() => {
             headers: partner.headers,
             validateStatus: () => true,
           })
-        expect([400, 403]).toContain(res.status)
+        expect([401, 403]).toContain(res.status)
       })
     })
 

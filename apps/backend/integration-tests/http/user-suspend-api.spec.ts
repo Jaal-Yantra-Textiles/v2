@@ -100,7 +100,8 @@ setupSharedTestSuite(() => {
             })
           ).rejects.toMatchObject({
             response: {
-              status: 400,
+              // 401 since #1202 — the framework auth route throws UNAUTHORIZED.
+              status: 401,
               data: {
                 message: "Invalid email or password",
               },

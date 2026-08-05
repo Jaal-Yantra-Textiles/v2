@@ -411,12 +411,11 @@ setupSharedTestSuite(() => {
         )
         .catch((e: any) => e.response)
 
-      // 400, not the 401 the throw asks for. `validatePartnerStoreAccess`
-      // raises `MedusaError.Types.UNAUTHORIZED`, which the framework maps to
-      // 401 — but this app's custom `errorHandler` (src/api/middlewares.ts)
-      // collapses every MedusaError that isn't `not_found` into 400. Asserting
-      // the status the API actually returns, not the one it intends. See #1202.
-      expect(res.status).toBe(400)
+      // 401 since #1202. `validatePartnerStoreAccess` raises
+      // `MedusaError.Types.UNAUTHORIZED`; the custom errorHandler used to
+      // collapse every non-`not_found` MedusaError into 400, so this asserted
+      // 400 when first written. It now maps types properly.
+      expect(res.status).toBe(401)
       expect(res.data.message).toContain("not associated with this partner")
     })
 

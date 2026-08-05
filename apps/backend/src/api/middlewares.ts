@@ -41,6 +41,54 @@ import { resolveStorefrontUrl } from "./ucp/lib/context";
 // access .partial / .extend / etc. on the underlying ZodObject.
 const wrapSchema = <T extends z.ZodType>(schema: T) => schema as any;
 
+/**
+ * HTTP status for a MedusaError `type`, mirroring the framework's own handler
+ * (`@medusajs/framework/dist/http/middlewares/error-handler.js`).
+ *
+ * This map exists because the custom `errorHandler` at the bottom of this file
+ * has to re-implement the mapping: it returns a `{ message }`-only body that
+ * clients already depend on, so it cannot simply delegate to the framework
+ * handler (which returns `{ code, type, message }`).
+ *
+ * It previously had exactly two branches — `not_found` → 404, EVERYTHING else
+ * → 400 — which meant no partner or admin endpoint could ever answer 401, 403,
+ * 409, 422 or 500. An expired session was indistinguishable from a malformed
+ * body, so client interceptors that key off 401 were dead code, and database
+ * faults were reported as client errors and never tripped 5xx alerting (#1202).
+ *
+ * DELIBERATE DIVERGENCE — unmapped types keep today's 400 rather than the
+ * framework's 500. The unmapped set is `unexpected_state`, `invalid_argument`
+ * and `unknown_modules`, and there are ~157 throw sites across src (99 under
+ * api/ alone). The framework calls those server faults and 500s them; that is
+ * defensible, but flipping 157 endpoints to 5xx in the same change that fixes
+ * auth statuses would bury the real fix under an alerting flood, and some of
+ * those sites are genuinely client-caused. Keeping 400 makes this change
+ * strictly "wrong statuses become right", with nothing else moving.
+ *
+ * Re-classifying `unexpected_state` / `invalid_argument` is worth doing on its
+ * own, site by site, and is tracked separately — do NOT do it by changing this
+ * default.
+ *
+ * One more divergence: `payment_requires_more_error` → 422. The framework has
+ * no case for it and would 500; 422 is the semantically right answer and there
+ * are currently zero throw sites, so this is a no-op that avoids a future trap.
+ */
+const MEDUSA_ERROR_STATUS: Record<string, number> = {
+  not_found: 404,
+  invalid_data: 400,
+  not_allowed: 400,
+  unauthorized: 401,
+  forbidden: 403,
+  conflict: 409,
+  duplicate_error: 422,
+  payment_authorization_error: 422,
+  payment_requires_more_error: 422,
+  database_error: 500,
+};
+
+const medusaErrorStatus = (type: string | undefined): number =>
+  (type && MEDUSA_ERROR_STATUS[type]) || 400;
+
 const buildPersonResourceValidator =
   (type: "create" | "update") =>
     (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
@@ -5942,15 +5990,9 @@ export default defineMiddlewares({
     // if (error.name === "ZodError") {
     // Option 2: check if error is an instance of ZodError
     if (error.__isMedusaError) {
-      if (error.type == 'not_found') {
-        return res.status(404).json({
-          message: error.message,
-        });
-      } else {
-        return res.status(400).json({
-          message: error.message,
-        });
-      }
+      return res.status(medusaErrorStatus(error.type)).json({
+        message: error.message,
+      });
     }
     if (error instanceof z.ZodError) {
       /*
@@ -5977,17 +6019,15 @@ export default defineMiddlewares({
       });
     }
 
-    // Handle custom errors
-    if (error.type === "not_found") {
-      return res.status(404).json({
+    // Non-MedusaError objects that still carry a Medusa-shaped `type` (ORM
+    // errors, module errors). Route them through the SAME map so a
+    // `duplicate_error` doesn't answer 422 when thrown as a MedusaError and
+    // 400 when thrown as a plain object — which is what the two hand-written
+    // branches here used to do.
+    if (typeof error.type === "string" && error.type in MEDUSA_ERROR_STATUS) {
+      return res.status(MEDUSA_ERROR_STATUS[error.type]).json({
         message: error.message,
       });
-    }
-
-    if (error.type === "duplicate_error") {
-      return res.status(400).json({
-        message: error.message,
-      })
     }
 
     // For everything else, fall back to the default error handler
