@@ -67,7 +67,37 @@ export class Migration20260730101243 extends Migration {
     this.addSql(`CREATE INDEX IF NOT EXISTS "idx_sentiment_time" ON "sentiment_analysis" ("analyzed_at") WHERE deleted_at IS NULL;`);
     this.addSql(`CREATE INDEX IF NOT EXISTS "idx_sentiment_person" ON "sentiment_analysis" ("person_id") WHERE deleted_at IS NULL;`);
 
-    this.addSql(`alter table if exists "segment_member" add constraint "segment_member_segment_id_foreign" foreign key ("segment_id") references "customer_segment" ("id") on update cascade;`);
+    // `alter table IF EXISTS ... ADD CONSTRAINT` guards the TABLE, not the
+    // CONSTRAINT, and Postgres has no ADD CONSTRAINT IF NOT EXISTS. Every other
+    // statement in this migration is re-runnable (`create table if not exists`,
+    // `CREATE INDEX IF NOT EXISTS`), so on a database where these tables already
+    // exist the whole thing no-ops until this line, which then errors with
+    // `constraint ... already exists` and fails the entire migrate run — taking
+    // every other module's pending migration down with it.
+    //
+    // That is exactly what wedged the prod deploy: the migrate job is gated and
+    // auto-skips when no schema paths change, so this sat undetected from
+    // 2026-07-30 until the first push that touched a schema path.
+    //
+    // Guard on the catalog instead, scoped to the table (conname is unique per
+    // relation, not globally).
+    this.addSql(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint c
+          JOIN pg_class t ON t.oid = c.conrelid
+          WHERE c.conname = 'segment_member_segment_id_foreign'
+            AND t.relname = 'segment_member'
+        ) THEN
+          ALTER TABLE "segment_member"
+            ADD CONSTRAINT "segment_member_segment_id_foreign"
+            FOREIGN KEY ("segment_id") REFERENCES "customer_segment" ("id")
+            ON UPDATE CASCADE;
+        END IF;
+      END $$;
+    `);
   }
 
   override async down(): Promise<void> {
