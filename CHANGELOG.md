@@ -1,3 +1,10 @@
+## [13.73.8](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.7...v13.73.8) (2026-08-05)
+
+
+### Bug Fixes
+
+* **tests:** the store-currency backfill spec raced the region.created subscriber [[#1187](https://github.com/Jaal-Yantra-Textiles/v2/issues/1187)] ([#1200](https://github.com/Jaal-Yantra-Textiles/v2/issues/1200)) ([b1fab0c](https://github.com/Jaal-Yantra-Textiles/v2/commit/b1fab0ceab5c8790ab46592d7c63f3255ba62e9d))
+
 ## [13.73.7](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.6...v13.73.7) (2026-08-05)
 
 
