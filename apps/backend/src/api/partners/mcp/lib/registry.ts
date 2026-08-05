@@ -1557,7 +1557,21 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     pathParams: ["id", "productId", "variantId"],
     write: true,
     previewPath: "/partners/stores/:id/products/:productId/variants/:variantId",
-    bodyParams: ["title", "sku", "options", "prices", "manage_inventory", "allow_backorder"],
+    bodyParams: [
+      "title",
+      "sku",
+      "options",
+      "prices",
+      "manage_inventory",
+      "allow_backorder",
+      // Customs fields. The route already spreads the whole body into
+      // updateProductVariantsWorkflow, so these have always persisted — they
+      // were simply never exposed, which left the assistant unable to fix the
+      // missing-HSN failures that block international labels.
+      "hs_code",
+      "origin_country",
+      "material",
+    ],
     inputSchema: obj(
       {
         id: STR("Store id."),
@@ -1565,6 +1579,11 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
         variantId: STR("Variant id to update."),
         title: STR("New variant title."),
         sku: STR("New SKU."),
+        hs_code: STR(
+          "HS/HSN customs code. Required for international shipping labels."
+        ),
+        origin_country: STR("ISO-2 country of manufacture."),
+        material: STR("Material description for customs."),
         options: {
           type: "object",
           description: "Option→value map to change.",
@@ -1588,6 +1607,74 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       },
       ["id", "productId", "variantId"]
     ),
+  },
+  // ===== Customs / HS codes (mirrors the admin pair) ======================
+  {
+    name: "list_missing_hs_codes",
+    description:
+      "List items in YOUR store that have NO HS/HSN customs code at any level and would therefore fail an international shipping label. Each row carries the product title, description, material, type and categories so you can propose an accurate code, plus `suggested_target` telling you exactly which level and id to write it to. Read-only.",
+    method: "GET",
+    path: "/partners/stores/:id/customs/hs-codes/missing",
+    pathParams: ["id"],
+    queryParams: ["limit", "offset"],
+    inputSchema: obj(
+      {
+        id: STR("Store id."),
+        limit: INT("Max products to scan (default 50, max 200)."),
+        offset: INT("Pagination offset over products."),
+      },
+      ["id"]
+    ),
+    nextSteps: ["bulk_set_hs_codes"],
+  },
+  {
+    name: "bulk_set_hs_codes",
+    description: [
+      "Assign HS/HSN customs codes to many items in your store at once. Returns a PER-ROW outcome — a bad id never discards the rest of the batch, so read `results`, not just the status. Ids outside your own catalogue are rejected per-row.",
+      "",
+      "WHERE to write a code matters: a label reads the levels in a fixed order (variant → the variant's inventory item → the product), so a code written at the wrong level is invisible to it.",
+      "- Variant manages its own inventory → write at `inventory_item`.",
+      "- Product HAS variants but none of them manage inventory → write at `product`. The code then covers every sibling variant at once; writing per-variant there means N rows to maintain and N chances for one to drift.",
+      "- Write at `variant` only when one specific variant genuinely differs from its siblings.",
+      "`list_missing_hs_codes` already computes this for you as `suggested_target` — prefer it over deciding yourself.",
+      "",
+      "NEVER guess a code from an id or a SKU. Classify from the product title, description, material and category. If those don't identify the goods well enough, say so and ask — this is a customs declaration, and a wrong one is a misdeclaration.",
+    ].join("\n"),
+    method: "POST",
+    path: "/partners/stores/:id/customs/hs-codes",
+    pathParams: ["id"],
+    write: true,
+    bodyParams: ["assignments"],
+    inputSchema: obj(
+      {
+        id: STR("Store id."),
+        assignments: {
+          type: "array",
+          description: "The codes to write (max 200 per call).",
+          items: {
+            type: "object",
+            properties: {
+              level: {
+                type: "string",
+                enum: ["variant", "inventory_item", "product"],
+                description: "Which catalogue level to write the code to.",
+              },
+              id: STR("Id of the variant / inventory item / product."),
+              hs_code: STR(
+                "The HS/HSN code. 6 digits internationally; India's HSN runs to 8 and some tariff lines to 10."
+              ),
+              origin_country: STR("Optional ISO-2 country of manufacture."),
+              material: STR("Optional material description for customs."),
+            },
+            required: ["level", "id", "hs_code"],
+            additionalProperties: false,
+          },
+        },
+      },
+      ["id", "assignments"]
+    ),
+    sideEffects:
+      "Writes customs codes onto live catalogue records. Labels resolve HSN from the DB at generation time, so this immediately affects EXISTING orders too — no backfill needed.",
   },
   {
     name: "delete_product_variant",

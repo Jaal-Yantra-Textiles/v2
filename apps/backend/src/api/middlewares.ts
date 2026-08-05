@@ -171,6 +171,7 @@ import { PartnerAssistantChatSchema } from "./partners/assistant/chat/validators
 import { PartnerAssistantSummarizeSchema } from "./partners/assistant/summarize/validators";
 import { CreateConversationSchema as PartnerCreateConversationSchema, UpdateConversationSchema as PartnerUpdateConversationSchema } from "./partners/assistant/conversations/validators";
 import { CreateConversationSchema as AdminAssistantCreateConversationSchema, UpdateConversationSchema as AdminAssistantUpdateConversationSchema } from "./admin/assistant/conversations/validators";
+import { BulkHsCodesSchema } from "./admin/customs/hs-codes/validators";
 import { createPlanSchema, updatePlanSchema, createSubscriptionSchema } from "./admin/partner-plans/validators";
 import { subscribeSchema as partnerSubscribeSchema } from "./partners/subscription/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
@@ -2364,6 +2365,40 @@ export default defineMiddlewares({
       method: "PATCH",
       middlewares: [
         validateAndTransformBody(wrapSchema(AdminAssistantUpdateConversationSchema)),
+      ],
+    },
+    // Customs HS/HSN codes — bulk gap scan + bulk fill. /admin/* is
+    // admin-authenticated globally, so only the write body needs validation.
+    // The GET still needs its matcher registered: a route file without one is
+    // not a route.
+    {
+      matcher: "/admin/customs/hs-codes/missing",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/customs/hs-codes",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(BulkHsCodesSchema))],
+    },
+    // Partner mirrors. These carry their own CORS + partner auth, and the POST
+    // additionally re-checks every id against the store's catalogue inside the
+    // handler (store access alone doesn't scope arbitrary ids in a body).
+    {
+      matcher: "/partners/stores/:id/customs/hs-codes/missing",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/customs/hs-codes",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(BulkHsCodesSchema)),
       ],
     },
     // Partner Subscription

@@ -334,6 +334,106 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     ),
     sideEffects: "Publishing a product makes it live on the storefront.",
   },
+  // ===== Customs / HS codes ===============================================
+  // Shiprocket rejects EVERY international shipment whose lines lack an HSN,
+  // and the manual fix is one variant at a time. These two make it a bulk job.
+  {
+    name: "list_missing_hs_codes",
+    description:
+      "List catalogue items that have NO HS/HSN customs code at any level and would therefore fail an international shipping label. Each row carries the product title, description, material, type and categories so you can propose an accurate code, plus `suggested_target` telling you exactly which level and id to write it to. Read-only.",
+    method: "GET",
+    path: "/admin/customs/hs-codes/missing",
+    queryParams: ["limit", "offset"],
+    inputSchema: obj({
+      limit: { type: "integer", description: "Max products to scan (default 50, max 200)." },
+      offset: { type: "integer", description: "Pagination offset over products." },
+    }),
+    nextSteps: ["bulk_set_hs_codes"],
+  },
+  {
+    name: "bulk_set_hs_codes",
+    description: [
+      "Assign HS/HSN customs codes to many catalogue items in one call. Sensitive: requires confirm:true. Use dry_run first to review the batch. Returns a PER-ROW outcome — a bad id never discards the rest of the batch, so read `results`, not just the status.",
+      "",
+      "WHERE to write a code matters: a label reads the levels in a fixed order (variant → the variant's inventory item → the product), so a code written at the wrong level is invisible to it.",
+      "- Variant manages its own inventory → write at `inventory_item`.",
+      "- Product HAS variants but none of them manage inventory → write at `product`. The code then covers every sibling variant at once; writing per-variant there means N rows to maintain and N chances for one to drift.",
+      "- Write at `variant` only when one specific variant genuinely differs from its siblings.",
+      "`list_missing_hs_codes` already computes this for you as `suggested_target` — prefer it over deciding yourself.",
+      "",
+      "NEVER guess a code from an id or a SKU. Classify from the product title, description, material and category. If those don't identify the goods well enough, say so and ask — this is a customs declaration, and a wrong one is a misdeclaration.",
+    ].join("\n"),
+    method: "POST",
+    path: "/admin/customs/hs-codes",
+    write: true,
+    sensitive: true,
+    bodyParams: ["assignments"],
+    inputSchema: obj(
+      {
+        assignments: {
+          type: "array",
+          description: "The codes to write (max 200 per call).",
+          items: {
+            type: "object",
+            properties: {
+              level: {
+                type: "string",
+                enum: ["variant", "inventory_item", "product"],
+                description: "Which catalogue level to write the code to.",
+              },
+              id: STR("Id of the variant / inventory item / product."),
+              hs_code: STR(
+                "The HS/HSN code. 6 digits internationally; India's HSN runs to 8 and some tariff lines to 10."
+              ),
+              origin_country: STR("Optional ISO-2 country of manufacture."),
+              material: STR("Optional material description for customs."),
+            },
+            required: ["level", "id", "hs_code"],
+            additionalProperties: false,
+          },
+        },
+      },
+      ["assignments"]
+    ),
+    sideEffects:
+      "Writes customs codes onto live catalogue records. Labels resolve HSN from the DB at generation time, so this immediately affects EXISTING orders too — no backfill needed.",
+  },
+  {
+    name: "update_product_variant",
+    description:
+      "Update a single product variant (sku, title, customs fields, inventory flags). Sensitive: requires confirm:true. For filling HS codes across many items use bulk_set_hs_codes instead.",
+    method: "POST",
+    path: "/admin/products/:product_id/variants/:id",
+    pathParams: ["product_id", "id"],
+    previewPath: "/admin/products/:product_id/variants/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "title",
+      "sku",
+      "hs_code",
+      "origin_country",
+      "material",
+      "manage_inventory",
+      "allow_backorder",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        product_id: STR("Product id, e.g. 'prod_...'."),
+        id: STR("Variant id, e.g. 'variant_...'."),
+        title: STR("New variant title."),
+        sku: STR("New SKU."),
+        hs_code: STR("HS/HSN customs code."),
+        origin_country: STR("ISO-2 country of manufacture."),
+        material: STR("Material description."),
+        manage_inventory: { type: "boolean", description: "Track stock for this variant." },
+        allow_backorder: { type: "boolean", description: "Allow ordering beyond stock." },
+        metadata: { type: "object", description: "Metadata to merge." },
+      },
+      ["product_id", "id"]
+    ),
+  },
   {
     name: "update_customer",
     description:

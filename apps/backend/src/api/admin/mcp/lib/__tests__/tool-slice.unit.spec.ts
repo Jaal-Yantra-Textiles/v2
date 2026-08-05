@@ -177,4 +177,25 @@ describe("admin-mcp per-ask tool slicing", () => {
       expect(toolsInDomains(["not_a_domain"], ADMIN_MCP_TOOLS)).toEqual([])
     })
   })
+
+  describe("customs / HS codes reach the catalog slice", () => {
+    // Two independent wirings must BOTH be right or the tools are invisible:
+    // PREFIX_DOMAINS classifies them, DOMAIN_KEYWORDS activates the slice.
+    it("classifies the customs tools as catalog", () => {
+      const byName = new Map(ADMIN_MCP_TOOLS.map((t) => [t.name, t]))
+      expect(toolDomain(byName.get("list_missing_hs_codes")!)).toBe("catalog")
+      expect(toolDomain(byName.get("bulk_set_hs_codes")!)).toBe("catalog")
+    })
+
+    it.each([
+      "the HSN is missing on a few products",
+      "fill in HS codes for the catalogue",
+      "our customs declaration is incomplete",
+      "what tariff code should this scarf use?",
+    ])("activates them for: %s", (ask) => {
+      const slice = selectAdminToolSlice(ask, ADMIN_MCP_TOOLS)
+      expect(slice.names).toContain("list_missing_hs_codes")
+      expect(slice.names).toContain("bulk_set_hs_codes")
+    })
+  })
 })
