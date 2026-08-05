@@ -1,3 +1,10 @@
+## [13.73.7](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.6...v13.73.7) (2026-08-05)
+
+
+### Bug Fixes
+
+* **#1174:** build the runtime dep tree from the lockfile, not the registry ([#1198](https://github.com/Jaal-Yantra-Textiles/v2/issues/1198)) ([fd7636a](https://github.com/Jaal-Yantra-Textiles/v2/commit/fd7636adbc1d6f03bce8013c129803902d86feca)), closes [#1174](https://github.com/Jaal-Yantra-Textiles/v2/issues/1174) [#1174](https://github.com/Jaal-Yantra-Textiles/v2/issues/1174) [#1173](https://github.com/Jaal-Yantra-Textiles/v2/issues/1173) [#1174](https://github.com/Jaal-Yantra-Textiles/v2/issues/1174) [#1174](https://github.com/Jaal-Yantra-Textiles/v2/issues/1174) [#1196](https://github.com/Jaal-Yantra-Textiles/v2/issues/1196) [#1174](https://github.com/Jaal-Yantra-Textiles/v2/issues/1174)
+
 ## [13.73.6](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.5...v13.73.6) (2026-08-04)
 
 
