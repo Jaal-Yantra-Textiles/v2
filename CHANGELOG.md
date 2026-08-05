@@ -1,3 +1,10 @@
+## [13.74.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.74.0...v13.74.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* **migrations:** make the ad-planning FK idempotent so migrate can complete ([#1207](https://github.com/Jaal-Yantra-Textiles/v2/issues/1207)) ([8870eca](https://github.com/Jaal-Yantra-Textiles/v2/commit/8870ecad3759da260e532016cd57facb32de66e6)), closes [#1206](https://github.com/Jaal-Yantra-Textiles/v2/issues/1206)
+
 # [13.74.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.73.10...v13.74.0) (2026-08-05)
 
 
