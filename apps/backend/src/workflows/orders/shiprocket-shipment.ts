@@ -7,10 +7,12 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { resolveShippingProvider } from "../../modules/shipping-providers/resolver"
 import type {
   CreateShipmentInput,
+  CustomsDeclaration,
   Dimensions,
   ShipmentItem,
   ShipmentResult,
 } from "../../modules/shipping-providers/provider-interface"
+import { resolveExportIgstForCountry } from "../../modules/shipping-providers/export-igst"
 import {
   SHIPROCKET_PICKUP_METADATA_KEY,
   chooseRegisteredPickup,
@@ -130,6 +132,8 @@ export type BuildShipmentOpts = {
    * correct for the single-fulfillment case and is what every caller did before.
    */
   fulfillmentItems?: FulfillmentLine[] | null
+  /** Customs declaration overrides (#1216 export IGST); resolved by the caller. */
+  customs?: CustomsDeclaration
 }
 
 /**
@@ -275,6 +279,7 @@ export function buildCreateShipmentInput(
     currency: order.currency_code ? String(order.currency_code).toUpperCase() : undefined,
     preferred_courier_id: opts.preferredCourierId,
     tax_id: opts.taxId,
+    customs: opts.customs,
   }
 }
 
@@ -470,6 +475,27 @@ export async function createShiprocketShipmentForFulfillment(
     )
   }
 
+  // Export IGST status (#1216). Only meaningful for a cross-border shipment, so
+  // don't spend the query on a domestic label.
+  //
+  // We pass a value ONLY when a live LUT actually justifies "B". With no LUT on
+  // file we pass nothing and let the client's own default apply — that keeps
+  // `SHIPROCKET_IGST_PAYMENT_STATUS` working as the interim escape hatch for the
+  // window between the ARN being issued and the LUT being recorded here. The
+  // effect is that this lookup can only ever UPGRADE the declaration to "B", and
+  // only on evidence; it can never silently downgrade one an operator has set.
+  let customs: CustomsDeclaration | undefined
+  const destinationCountry = (order as any)?.shipping_address?.country_code
+  if (isInternationalDestination(destinationCountry)) {
+    const igst = await resolveExportIgstForCountry(container)
+    if (igst.status === "B") {
+      customs = { igst_payment_status: "B" }
+      logger.info(
+        `Export declared under LUT ${igst.lut_arn} (FY ${igst.financial_year}, ${igst.days_until_expiry} days left) for order ${input.orderId}`
+      )
+    }
+  }
+
   let shipmentInput = buildCreateShipmentInput(order as OrderForShipment, {
     pickupLocationName,
     weightGrams: input.weightGrams,
@@ -477,6 +503,7 @@ export async function createShiprocketShipmentForFulfillment(
     preferredCourierId: input.preferredCourierId,
     taxId,
     fulfillmentItems,
+    customs,
   })
 
   // International FX (#1111 S3). Shiprocket declares the customs value only in a

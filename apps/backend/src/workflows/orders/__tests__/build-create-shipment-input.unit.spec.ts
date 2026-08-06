@@ -554,3 +554,38 @@ describe("buildCreateShipmentInput — partial fulfillment", () => {
     expect(input.cod_amount).toBe(300)
   })
 })
+
+describe("buildCreateShipmentInput — customs declaration passthrough (#1216)", () => {
+  const order: OrderForShipment = {
+    id: "order_1",
+    email: "buyer@example.com",
+    total: 100,
+    item_total: 100,
+    metadata: {},
+    shipping_address: {
+      first_name: "Buyer",
+      phone: "+15551234567",
+      address_1: "1 Main St",
+      city: "Austin",
+      province: "TX",
+      postal_code: "78701",
+      country_code: "us",
+    },
+    items: [{ id: "l1", title: "Scarf", quantity: 1, unit_price: 100, sku: "S-1" }],
+  }
+
+  it("carries a caller-resolved IGST status through to the client", () => {
+    const input = buildCreateShipmentInput(order, {
+      pickupLocationName: "wh",
+      customs: { igst_payment_status: "B" },
+    })
+    expect(input.customs).toEqual({ igst_payment_status: "B" })
+  })
+
+  it("leaves customs undefined when the caller resolved nothing", () => {
+    // The client then applies its own default, which keeps
+    // SHIPROCKET_IGST_PAYMENT_STATUS working as the interim escape hatch.
+    const input = buildCreateShipmentInput(order, { pickupLocationName: "wh" })
+    expect(input.customs).toBeUndefined()
+  })
+})
