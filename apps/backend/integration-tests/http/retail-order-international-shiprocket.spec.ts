@@ -229,8 +229,26 @@ setupSharedTestSuite(() => {
       expect(body.reasonOfExport).toBe(3)
       expect(body.purpose_of_shipment).toBe(2)
       expect(body.Terms_Of_Invoice).toBe("FOB")
-      expect(body.igstPaymentStatus).toBe("A")
+      // "C", not "A". A complete commercial export body classifies as CSB-5 at
+      // Shiprocket, which REJECTS "A" ("IGST can not be Not Applicable in case of
+      // CSB5 shipments") — so "A" was never shippable. "C" = IGST paid and
+      // reclaimed, correct until an LUT is on file (#1216).
+      expect(body.igstPaymentStatus).toBe("C")
       expect(body.commodity).toBe(true)
+
+      // The DELIVERY block must be sent explicitly. `shipping_is_billing` is not
+      // honoured by the international pipeline: create/adhoc accepts the body
+      // either way, and only `assign/awb` fails — with
+      // `["Delivery pincode is empty","Customer phone is empty"]` two calls
+      // later. This assertion is what would have caught #1215 at the create
+      // step instead of in production.
+      expect(body.shipping_is_billing).toBe(false)
+      expect(body.shipping_pincode).toBe(body.billing_pincode)
+      expect(body.shipping_phone).toBe(body.billing_phone)
+      expect(body.shipping_country).toBe("United States")
+      expect(String(body.shipping_pincode ?? "")).not.toBe("")
+      expect(String(body.shipping_phone ?? "")).not.toBe("")
+
       // HSN reached the line item.
       expect(body.order_items[0].hsn).toBe("621410")
       // Ships from the partner's registered India pickup.

@@ -1,7 +1,10 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 
 import { validatePartnerOrderOwnership } from "../../../helpers"
-import { getShiprocketRatesForOrder } from "../../../../../workflows/orders/shiprocket-rates"
+import {
+  getShiprocketRatesForOrder,
+  parseRateQuery,
+} from "../../../../../workflows/orders/shiprocket-rates"
 
 /**
  * GET /partners/orders/:id/shiprocket-rates
@@ -28,20 +31,9 @@ export const GET = async (
   const orderId = req.params.id
   await validatePartnerOrderOwnership(req.auth_context, orderId, req.scope)
 
-  const carrierRaw = req.query.carrier
-  const carrier =
-    typeof carrierRaw === "string" && carrierRaw ? carrierRaw : undefined
-
-  const weightRaw = req.query.weight_grams
-  const weightGrams = weightRaw != null ? Number(weightRaw) : undefined
-
   const result = await getShiprocketRatesForOrder(req.scope, {
     orderId,
-    carrier,
-    weightGrams:
-      weightGrams != null && Number.isFinite(weightGrams) && weightGrams > 0
-        ? weightGrams
-        : undefined,
+    ...parseRateQuery(req.query as Record<string, any>),
   })
 
   res.status(200).json(result)

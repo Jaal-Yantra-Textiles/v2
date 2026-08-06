@@ -13,6 +13,7 @@ import { isInternationalDestination } from "../destination"
 import { nonEmptyCode, normalizeHsCode } from "../hs-code-resolution"
 import {
   CreateShipmentInput,
+  Dimensions,
   LabelResult,
   PickupLocation,
   RateOption,
@@ -740,6 +741,7 @@ export class ShiprocketClient implements ShippingProviderClient {
         destination_country: query.destination_country,
         weight_grams: query.weight_grams,
         origin_pincode: query.origin_pincode,
+        dimensions_cm: query.dimensions_cm,
       })
     }
     const qs = new URLSearchParams({
@@ -932,6 +934,7 @@ export class ShiprocketClient implements ShippingProviderClient {
     weight_grams?: number
     order_id?: string | number
     origin_pincode?: string
+    dimensions_cm?: Dimensions
   }): Promise<RateOption[]> {
     // Two modes, BOTH live-verified 2026-08-06:
     //  · `order_id` — prices an existing Shiprocket order in its own currency.
@@ -956,6 +959,19 @@ export class ShiprocketClient implements ShippingProviderClient {
       }
       qs.set("weight", String(Math.max(0.01, (query.weight_grams || 500) / 1000)))
       qs.set("delivery_country", (query.destination_country || "").toUpperCase())
+      // Dimensions are NOT cosmetic on a cross-border quote — international
+      // couriers price on VOLUMETRIC weight, and the size also decides who will
+      // carry it. Live-verified (176215→IL, 1.2 kg actual):
+      //   no dims        → 5 couriers, charge weight 1.2, SRX Economy Pro ₹3119
+      //   30×25×10       → charge weight 1.5, SRX Economy Pro ₹3700
+      //   60×50×40       → only 2 couriers left, Aramex ₹8477 → ₹57,937 (24 kg)
+      // Quoting without them understates the price and offers couriers that
+      // cannot take the parcel.
+      if (query.dimensions_cm) {
+        qs.set("length", String(query.dimensions_cm.length))
+        qs.set("breadth", String(query.dimensions_cm.width))
+        qs.set("height", String(query.dimensions_cm.height))
+      }
     }
     if (query.origin_pincode) qs.set("pickup_postcode", query.origin_pincode)
     const json = await this.request<any>(

@@ -1,5 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { getShiprocketRatesForOrder } from "../../../../../workflows/orders/shiprocket-rates"
+import {
+  getShiprocketRatesForOrder,
+  parseRateQuery,
+} from "../../../../../workflows/orders/shiprocket-rates"
 
 /**
  * GET /admin/orders/:id/shiprocket-rates
@@ -13,20 +16,12 @@ import { getShiprocketRatesForOrder } from "../../../../../workflows/orders/ship
  * cleanly to the UI toast.
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const orderId = req.params.id
-  const carrierRaw = req.query.carrier
-  const carrier =
-    typeof carrierRaw === "string" && carrierRaw ? carrierRaw : undefined
-  const weightRaw = req.query.weight_grams
-  const weightGrams = weightRaw != null ? Number(weightRaw) : undefined
-
+  // Dimensions matter on a cross-border quote (volumetric weight + which
+  // couriers accept the size), so the parsing is shared with every other rate
+  // route rather than hand-rolled per route.
   const result = await getShiprocketRatesForOrder(req.scope, {
-    orderId,
-    carrier,
-    weightGrams:
-      weightGrams != null && Number.isFinite(weightGrams) && weightGrams > 0
-        ? weightGrams
-        : undefined,
+    orderId: req.params.id,
+    ...parseRateQuery(req.query as Record<string, any>),
   })
 
   res.status(200).json(result)
