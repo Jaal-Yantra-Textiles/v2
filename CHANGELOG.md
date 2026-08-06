@@ -1,3 +1,10 @@
+## [13.74.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.74.1...v13.74.2) (2026-08-06)
+
+
+### Bug Fixes
+
+* **customs:** scope HS-code routes through the sales-channel pivot, not a product filter ([#1209](https://github.com/Jaal-Yantra-Textiles/v2/issues/1209)) ([1419338](https://github.com/Jaal-Yantra-Textiles/v2/commit/14193385f1a0885ab2e9ff2628c8849ae0332d78))
+
 ## [13.74.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.74.0...v13.74.1) (2026-08-05)
 
 
