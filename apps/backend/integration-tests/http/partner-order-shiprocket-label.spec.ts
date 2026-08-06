@@ -364,6 +364,50 @@ setupSharedTestSuite(() => {
       expect(shiprocketStubState.lastAdhocBody.length).toBe(10) // default box
     })
 
+    it("lists courier rates for the partner's own order (#641 mirror)", async () => {
+      // Registerable location so a pickup (rate origin) exists.
+      await api.post(
+        `/admin/stock-locations/${locationId}`,
+        {
+          address: {
+            address_1: "1 Loom St",
+            city: "Surendranagar",
+            province: "GJ",
+            postal_code: "363035",
+            country_code: "IN",
+            phone: "9990001112",
+          },
+        },
+        adminHeaders
+      )
+      // Register the pickup so listPickupLocations has an origin pincode.
+      await api.post(
+        `/partners/orders/${orderId}/shiprocket-label`,
+        { carrier: "shiprocket" },
+        { headers: partnerHeaders }
+      )
+
+      const res = await api.get(
+        `/partners/orders/${orderId}/shiprocket-rates`,
+        { headers: partnerHeaders }
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.destination_pincode).toBe("400001")
+      expect(Array.isArray(res.data.rates)).toBe(true)
+      // Same canned stub as the admin rates spec — a recommended courier is present.
+      expect(res.data.rates.find((r: any) => r.is_recommended)).toBeDefined()
+    })
+
+    it("rejects a rates request for an order the partner does not own", async () => {
+      const res = await api
+        .get(`/partners/orders/order_not_mine/shiprocket-rates`, {
+          headers: partnerHeaders,
+        })
+        .catch((e: any) => e.response)
+      // Ownership guard runs before any carrier work (404, not a rate list).
+      expect([401, 403, 404]).toContain(res.status)
+    })
+
     it("400s when the partner's location cannot be registered — never ships from another party's warehouse", async () => {
       // Fixture location has NO phone → registration must fail loudly instead
       // of falling back to the shared account's first registered pickup.

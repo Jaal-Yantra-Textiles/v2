@@ -2,6 +2,7 @@ import { AdminFulfillment } from "@medusajs/types"
 import {
   Badge,
   Button,
+  clx,
   Heading,
   Input,
   Label,
@@ -16,6 +17,7 @@ import { z as zod } from "@medusajs/framework/zod"
 import {
   useAttachShiprocketAwb,
   useGenerateShiprocketLabel,
+  usePartnerShiprocketRates,
 } from "../../../../../hooks/api/shiprocket"
 import {
   CreateShipmentSchema,
@@ -90,6 +92,40 @@ export const CarrierTab = ({
   const { mutateAsync: attachAwb, isPending: isAttaching } =
     useAttachShiprocketAwb(orderId)
 
+  // Courier selection (#641). Shiprocket-only — Delhivery auto-assigns and has
+  // no courier picker. Fetched on demand (the request hits the live carrier),
+  // quoting against the parcel weight entered above. A chosen courier threads
+  // into generate as `preferred_courier_id`; none → the carrier auto-selects.
+  const isShiprocket = carrier === "shiprocket"
+  const [ratesRequested, setRatesRequested] = useState(false)
+  const [rateWeight, setRateWeight] = useState<number | undefined>(undefined)
+  const [selectedCourierId, setSelectedCourierId] = useState<
+    string | number | undefined
+  >(undefined)
+
+  const {
+    data: ratesData,
+    isFetching: ratesLoading,
+    error: ratesError,
+  } = usePartnerShiprocketRates(
+    orderId,
+    { weightGrams: rateWeight },
+    { enabled: ratesRequested && isShiprocket && !existingAwb }
+  )
+
+  const numeric = (v: unknown) => {
+    const n = Number(v)
+    return Number.isFinite(n) && n > 0 ? n : undefined
+  }
+
+  const handleGetRates = () => {
+    // Quote against the weight typed in the parcel block, so the estimate
+    // matches the parcel that will actually ship.
+    setRateWeight(numeric(form.getValues().weight_grams))
+    setSelectedCourierId(undefined)
+    setRatesRequested(true)
+  }
+
   const handleGenerate = async () => {
     try {
       // Parcel details drive the carrier's weight/dimension pricing and the
@@ -109,7 +145,13 @@ export const CarrierTab = ({
       const dimensions_cm =
         length && width && height ? { length, width, height } : undefined
 
-      const res = await generateLabel({ carrier, weight_grams, dimensions_cm })
+      const res = await generateLabel({
+        carrier,
+        weight_grams,
+        dimensions_cm,
+        // Only meaningful for Shiprocket; ignored by carriers that auto-assign.
+        preferred_courier_id: isShiprocket ? selectedCourierId : undefined,
+      })
       const label = res?.shiprocket_label
       const awb = label?.awb || label?.tracking_number
       if (!awb) {
@@ -247,6 +289,90 @@ export const CarrierTab = ({
             </div>
           ) : null}
 
+          {/* Courier selection — Shiprocket only. Quote couriers by rate/ETA and
+              pick one before generating; skipping this lets Shiprocket
+              auto-select. Delhivery has no courier picker (it auto-assigns). */}
+          {!existingAwb && isShiprocket ? (
+            <div className="flex flex-col gap-y-2 border-t pt-4">
+              <div className="flex items-center justify-between">
+                <Label size="xsmall">Courier</Label>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="small"
+                  onClick={handleGetRates}
+                  isLoading={ratesLoading}
+                >
+                  {ratesRequested ? "Refresh rates" : "Get courier rates"}
+                </Button>
+              </div>
+              <Text size="small" className="text-ui-fg-subtle">
+                Compare couriers by price and delivery estimate. Optional —
+                leave it and Shiprocket picks the recommended courier.
+              </Text>
+
+              {ratesError ? (
+                <Text size="small" className="text-ui-fg-error">
+                  {(ratesError as any)?.message || "Couldn't load courier rates."}
+                </Text>
+              ) : null}
+
+              {ratesRequested && !ratesLoading && ratesData ? (
+                ratesData.rates?.length ? (
+                  <div className="flex flex-col gap-y-2">
+                    {ratesData.rates.map((r, i) => {
+                      const id = r.courier_id ?? `rate-${i}`
+                      const isSel = selectedCourierId === r.courier_id
+                      return (
+                        <button
+                          type="button"
+                          key={id}
+                          onClick={() => setSelectedCourierId(r.courier_id)}
+                          className={clx(
+                            "flex items-center justify-between rounded-lg border px-3 py-2 text-left",
+                            {
+                              "border-ui-border-interactive bg-ui-bg-highlight":
+                                isSel,
+                              "border-ui-border-base hover:bg-ui-bg-subtle-hover":
+                                !isSel,
+                            }
+                          )}
+                        >
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-x-2">
+                              <Text size="small" weight="plus">
+                                {r.courier_name || `Courier ${id}`}
+                              </Text>
+                              {r.is_recommended ? (
+                                <Badge size="2xsmall" color="green">
+                                  Recommended
+                                </Badge>
+                              ) : null}
+                            </div>
+                            {r.estimated_days != null ? (
+                              <Text size="xsmall" className="text-ui-fg-subtle">
+                                Est. {r.estimated_days} day
+                                {r.estimated_days === 1 ? "" : "s"}
+                              </Text>
+                            ) : null}
+                          </div>
+                          <Text size="small" weight="plus">
+                            {r.currency_code?.toUpperCase()} {r.amount}
+                          </Text>
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <Text size="small" className="text-ui-fg-subtle">
+                    No couriers serviced this route. You can still generate a
+                    label — Shiprocket will auto-assign.
+                  </Text>
+                )
+              ) : null}
+            </div>
+          ) : null}
+
           <div>
             <Button
               type="button"
@@ -255,6 +381,9 @@ export const CarrierTab = ({
               isLoading={isGenerating}
             >
               Generate {carrierLabel} label
+              {selectedCourierId != null && isShiprocket
+                ? " (selected courier)"
+                : ""}
             </Button>
           </div>
         </div>

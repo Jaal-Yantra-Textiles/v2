@@ -5122,6 +5122,14 @@ export default defineMiddlewares({
       ],
     },
     {
+      matcher: "/partners/orders/:id/shiprocket-rates",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       matcher: "/partners/orders/:id/shiprocket-attach-awb",
       method: "POST",
       middlewares: [
