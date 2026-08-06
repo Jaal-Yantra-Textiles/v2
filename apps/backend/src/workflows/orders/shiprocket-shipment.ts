@@ -478,12 +478,16 @@ export async function createShiprocketShipmentForFulfillment(
   // Export IGST status (#1216). Only meaningful for a cross-border shipment, so
   // don't spend the query on a domestic label.
   //
-  // We pass a value ONLY when a live LUT actually justifies "B". With no LUT on
-  // file we pass nothing and let the client's own default apply — that keeps
-  // `SHIPROCKET_IGST_PAYMENT_STATUS` working as the interim escape hatch for the
-  // window between the ARN being issued and the LUT being recorded here. The
-  // effect is that this lookup can only ever UPGRADE the declaration to "B", and
-  // only on evidence; it can never silently downgrade one an operator has set.
+  // Who owns the declaration depends on whether any LUT has been RECORDED:
+  //
+  //  · none recorded → pass nothing, so the client's own default applies. That
+  //    keeps `SHIPROCKET_IGST_PAYMENT_STATUS` working as the escape hatch for the
+  //    window between an ARN being issued and the LUT being entered.
+  //  · any recorded → the table decides, and we pass its verdict EXPLICITLY,
+  //    including "C". This is the important half: without it, an expired LUT plus
+  //    a stale env `=B` would keep claiming the exemption, silently defeating the
+  //    validity window that the whole feature is built on. Once the data exists,
+  //    the env must not be able to override it.
   let customs: CustomsDeclaration | undefined
   const destinationCountry = (order as any)?.shipping_address?.country_code
   if (isInternationalDestination(destinationCountry)) {
@@ -492,6 +496,11 @@ export async function createShiprocketShipmentForFulfillment(
       customs = { igst_payment_status: "B" }
       logger.info(
         `Export declared under LUT ${igst.lut_arn} (FY ${igst.financial_year}, ${igst.days_until_expiry} days left) for order ${input.orderId}`
+      )
+    } else if (igst.has_recorded_lut) {
+      customs = { igst_payment_status: "C" }
+      logger.warn(
+        `Export declaring IGST as paid/reclaimed ("C") for order ${input.orderId}: an LUT is on record but none is currently in force (expired or withdrawn). Re-furnish RFD-11 and record it under Settings → Export LUT.`
       )
     }
   }
