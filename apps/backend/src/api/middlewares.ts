@@ -172,6 +172,10 @@ import { PartnerAssistantSummarizeSchema } from "./partners/assistant/summarize/
 import { CreateConversationSchema as PartnerCreateConversationSchema, UpdateConversationSchema as PartnerUpdateConversationSchema } from "./partners/assistant/conversations/validators";
 import { CreateConversationSchema as AdminAssistantCreateConversationSchema, UpdateConversationSchema as AdminAssistantUpdateConversationSchema } from "./admin/assistant/conversations/validators";
 import { BulkHsCodesSchema } from "./admin/customs/hs-codes/validators";
+import {
+  CreateExportLutSchema,
+  UpdateExportLutSchema,
+} from "./admin/platform-tax-identities/validators";
 import { createPlanSchema, updatePlanSchema, createSubscriptionSchema } from "./admin/partner-plans/validators";
 import { subscribeSchema as partnerSubscribeSchema } from "./partners/subscription/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
@@ -2374,6 +2378,39 @@ export default defineMiddlewares({
     {
       matcher: "/admin/customs/hs-codes/missing",
       method: "GET",
+      middlewares: [],
+    },
+    // Export IGST / LUT (#1216). What a label would declare today, and the CRUD
+    // for the LUTs that decide it. Same rule as above — every one of these needs
+    // a matcher registered or the route file is inert.
+    {
+      matcher: "/admin/customs/export-igst-status",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/platform-tax-identities",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/platform-tax-identities/:id/export-luts",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/platform-tax-identities/:id/export-luts",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateExportLutSchema))],
+    },
+    {
+      matcher: "/admin/platform-tax-identities/:id/export-luts/:lutId",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateExportLutSchema))],
+    },
+    {
+      matcher: "/admin/platform-tax-identities/:id/export-luts/:lutId",
+      method: "DELETE",
       middlewares: [],
     },
     {

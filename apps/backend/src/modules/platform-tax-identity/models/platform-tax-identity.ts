@@ -1,5 +1,7 @@
 import { model } from "@medusajs/framework/utils"
 
+import PlatformExportLut from "./platform-export-lut"
+
 /**
  * Platform tax identity (#348 slice B) — an admin-managed row mapping a brand
  * entity to the tax/GST/VAT registration ID the platform bills under in a set of
@@ -23,6 +25,10 @@ const PlatformTaxIdentity = model.define("platform_tax_identity", {
   country_codes: model.array(),
   /** Disabled rows are skipped by the resolver without being deleted. */
   is_active: model.boolean().default(true),
+  /** Export LUTs furnished under this registration — one per financial year (#1216). */
+  export_luts: model.hasMany(() => PlatformExportLut, {
+    mappedBy: "tax_identity",
+  }),
 })
 
 export default PlatformTaxIdentity
