@@ -28,10 +28,23 @@ export const carriersForDestination = (country?: string | null) =>
     (c) => !("domesticOnly" in c && c.domesticOnly) || !isInternationalDestination(country)
   )
 
+// Empty string → undefined, else a positive number. Parcel fields are optional;
+// a blank must not coerce to 0 (which would be a real, wrong, zero-gram parcel).
+const optionalPositive = z.preprocess(
+  (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+  z.number().positive().optional()
+)
+
 export const CreateShipmentSchema = z.object({
   // Which carrier account a label is generated on. NOT sent to the shipment
   // endpoint — it only drives the label/AWB calls on the carrier step.
   carrier: z.string().optional(),
+  // Parcel details for label generation (carrier step only). Omitted → the
+  // backend default weight, which is why every label used to ship at 500 g.
+  weight_grams: optionalPositive,
+  length_cm: optionalPositive,
+  width_cm: optionalPositive,
+  height_cm: optionalPositive,
   labels: z.array(
     z.object({
       tracking_number: z.string(),

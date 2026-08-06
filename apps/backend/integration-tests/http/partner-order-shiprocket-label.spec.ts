@@ -302,6 +302,68 @@ setupSharedTestSuite(() => {
       expect(res.data.shiprocket_label.awb).toBe("STUBAWB123")
     })
 
+    it("forwards parcel weight + dimensions to the carrier body", async () => {
+      await api.post(
+        `/admin/stock-locations/${locationId}`,
+        {
+          address: {
+            address_1: "1 Loom St",
+            city: "Surendranagar",
+            province: "GJ",
+            postal_code: "363035",
+            country_code: "IN",
+            phone: "9990001112",
+          },
+        },
+        adminHeaders
+      )
+
+      const res = await api.post(
+        `/partners/orders/${orderId}/shiprocket-label`,
+        {
+          carrier: "shiprocket",
+          weight_grams: 1500,
+          dimensions_cm: { length: 30, width: 20, height: 10 },
+        },
+        { headers: partnerHeaders }
+      )
+      expect(res.status).toBe(200)
+      // Shiprocket takes kg; the parcel must reach the create body, not the
+      // 500 g / 10cm default the label used to always ship at.
+      expect(shiprocketStubState.lastAdhocBody.weight).toBe(1.5)
+      expect(shiprocketStubState.lastAdhocBody.length).toBe(30)
+      expect(shiprocketStubState.lastAdhocBody.breadth).toBe(20)
+      expect(shiprocketStubState.lastAdhocBody.height).toBe(10)
+    })
+
+    it("ignores a partial box and blank weight (falls back to defaults)", async () => {
+      await api.post(
+        `/admin/stock-locations/${locationId}`,
+        {
+          address: {
+            address_1: "1 Loom St",
+            city: "Surendranagar",
+            province: "GJ",
+            postal_code: "363035",
+            country_code: "IN",
+            phone: "9990001112",
+          },
+        },
+        adminHeaders
+      )
+
+      const res = await api.post(
+        `/partners/orders/${orderId}/shiprocket-label`,
+        // Only two of three dims → the box is meaningless and must be dropped;
+        // no weight → default. Neither should error.
+        { carrier: "shiprocket", dimensions_cm: { length: 30, width: 20 } },
+        { headers: partnerHeaders }
+      )
+      expect(res.status).toBe(200)
+      expect(shiprocketStubState.lastAdhocBody.weight).toBe(0.5) // 500 g default
+      expect(shiprocketStubState.lastAdhocBody.length).toBe(10) // default box
+    })
+
     it("400s when the partner's location cannot be registered — never ships from another party's warehouse", async () => {
       // Fixture location has NO phone → registration must fail loudly instead
       // of falling back to the shared account's first registered pickup.
