@@ -146,6 +146,12 @@ export type ShipmentResult = {
 export type RateQuery = {
   origin_pincode: string
   destination_pincode: string
+  /**
+   * Destination country. Optional because domestic callers never set it, but a
+   * carrier with no export product needs it to refuse the quote rather than
+   * pass a foreign postcode to an India-only rate API.
+   */
+  destination_country?: string
   weight_grams: number
   cod?: boolean
   dimensions_cm?: Dimensions

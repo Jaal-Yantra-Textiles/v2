@@ -186,6 +186,7 @@ export function OrderCreateShipmentForm({
                 fulfillment={fulfillment}
                 form={form}
                 onCarrierResolved={handleCarrierResolved}
+                destinationCountry={order?.shipping_address?.country_code}
               />
             </ProgressTabs.Content>
             <ProgressTabs.Content
