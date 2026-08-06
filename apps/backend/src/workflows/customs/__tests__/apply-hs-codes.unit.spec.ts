@@ -8,7 +8,11 @@ jest.mock("@medusajs/medusa/core-flows", () => ({
   updateProductsWorkflow: () => ({ run: updateProductsRun }),
 }))
 
-import { applyHsCodes, partitionAssignmentsByStore } from "../hs-codes"
+import {
+  applyHsCodes,
+  partitionAssignmentsByStore,
+  scanMissingHsCodes,
+} from "../hs-codes"
 
 /**
  * The bulk HS-code apply is deliberately NOT transactional: one bad id in a
@@ -129,22 +133,83 @@ describe("applyHsCodes", () => {
   })
 })
 
+/**
+ * Store scoping goes through the sales_channel → products_link pivot, NOT a
+ * `sales_channels` filter on product. The filter shape reads fine and passes a
+ * mocked query, but mikro-orm rejects it at runtime ("Trying to query by not
+ * existing property Product.sales_channels") and every partner-scoped call
+ * 500s. Since a mock can't reject it for us, these tests assert the query SHAPE
+ * — that's the only place the regression is visible from a unit test.
+ */
+const makeChannelQuery = (
+  products: any[],
+  linkedIds = products.map((p) => p.id)
+) => {
+  const graph = jest.fn(async ({ entity }: any) => {
+    if (entity === "sales_channel") {
+      return {
+        data: [
+          {
+            id: "sc_1",
+            products_link: linkedIds.map((id: string) => ({ product_id: id })),
+          },
+        ],
+      }
+    }
+    return { data: products }
+  })
+  return { graph }
+}
+
+const productCall = (query: any) =>
+  query.graph.mock.calls.map(([a]: any[]) => a).find((a: any) => a.entity === "product")
+
 describe("partitionAssignmentsByStore", () => {
-  const query = {
-    graph: jest.fn().mockResolvedValue({
-      data: [
+  const storeProducts = [
+    {
+      id: "prod_mine",
+      variants: [
         {
-          id: "prod_mine",
-          variants: [
-            {
-              id: "var_mine",
-              inventory_items: [{ inventory: { id: "iitem_mine" } }],
-            },
-          ],
+          id: "var_mine",
+          inventory_items: [{ inventory: { id: "iitem_mine" } }],
         },
       ],
-    }),
-  }
+    },
+  ]
+  let query = makeChannelQuery(storeProducts)
+
+  beforeEach(() => {
+    query = makeChannelQuery(storeProducts)
+  })
+
+  it("scopes by the channel pivot, never by a sales_channels filter on product", async () => {
+    await partitionAssignmentsByStore(makeContainer({ query }), "sc_1", [
+      { level: "product", id: "prod_mine", hs_code: "1" },
+    ])
+
+    expect(query.graph).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entity: "sales_channel",
+        filters: { id: "sc_1" },
+      })
+    )
+    expect(productCall(query).filters).toEqual({ id: ["prod_mine"] })
+  })
+
+  it("rejects everything when the channel links no products", async () => {
+    // An empty `id` filter matches the whole catalogue, so this must short out
+    // before the product query rather than fall through to one.
+    const empty = makeChannelQuery([], [])
+    const { owned, foreign } = await partitionAssignmentsByStore(
+      makeContainer({ query: empty }),
+      "sc_1",
+      [{ level: "product", id: "prod_anything", hs_code: "1" }]
+    )
+
+    expect(owned).toHaveLength(0)
+    expect(foreign).toHaveLength(1)
+    expect(productCall(empty)).toBeUndefined()
+  })
 
   it("keeps ids in the store's catalogue and rejects everything else", async () => {
     const { owned, foreign } = await partitionAssignmentsByStore(
@@ -187,5 +252,61 @@ describe("partitionAssignmentsByStore", () => {
     )
     expect(owned).toHaveLength(0)
     expect(foreign).toHaveLength(1)
+  })
+})
+
+describe("scanMissingHsCodes", () => {
+  const gapProduct = {
+    id: "prod_mine",
+    title: "Kala Cotton Shirt",
+    hs_code: null,
+    variants: [
+      { id: "var_mine", manage_inventory: false, hs_code: null, inventory_items: [] },
+    ],
+  }
+
+  it("scopes a store scan through the channel pivot and pages over its ids", async () => {
+    const query = makeChannelQuery([gapProduct], ["prod_b", "prod_mine", "prod_a"])
+
+    const out = await scanMissingHsCodes(makeContainer({ query }), {
+      salesChannelId: "sc_1",
+      limit: 2,
+    })
+
+    expect(query.graph).toHaveBeenCalledWith(
+      expect.objectContaining({ entity: "sales_channel", filters: { id: "sc_1" } })
+    )
+    const call = productCall(query)
+    // Sorted so the page boundary is stable across calls, and paged here rather
+    // than in the DB — the ids came from the pivot, not from a product filter.
+    expect(call.filters).toEqual({ id: ["prod_a", "prod_b"] })
+    expect(call.pagination).toBeUndefined()
+    expect(out.has_more).toBe(true)
+  })
+
+  it("returns an empty page without querying products when the channel is empty", async () => {
+    const query = makeChannelQuery([], [])
+
+    const out = await scanMissingHsCodes(makeContainer({ query }), {
+      salesChannelId: "sc_1",
+    })
+
+    expect(out).toMatchObject({ gaps: [], scanned: 0, covered: 0, has_more: false })
+    expect(productCall(query)).toBeUndefined()
+  })
+
+  it("keeps DB-side pagination for the unscoped admin scan", async () => {
+    const query = makeChannelQuery([gapProduct])
+
+    const out = await scanMissingHsCodes(makeContainer({ query }), {
+      limit: 10,
+      offset: 20,
+    })
+
+    const call = productCall(query)
+    expect(call.filters).toEqual({})
+    expect(call.pagination).toEqual({ skip: 20, take: 10 })
+    expect(out.gaps).toHaveLength(1)
+    expect(out.gaps[0].suggested_target).toEqual({ level: "product", id: "prod_mine" })
   })
 })
