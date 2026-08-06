@@ -48,6 +48,16 @@ describe("describeIntlPrereqError (#1118)", () => {
     expect(g?.reason).toBe("kyc")
   })
 
+  it("names a wallet shortfall so it isn't mistaken for bad order data", () => {
+    // Arrives as awb_assign_error on an HTTP 200 (see assertAwbAssigned).
+    const g = describeIntlPrereqError({
+      message:
+        "Shiprocket AWB assignment failed — Insufficient amount to label this shipment",
+    })
+    expect(g?.reason).toBe("insufficient_balance")
+    expect(g?.message).toMatch(/wallet/i)
+  })
+
   it("returns null for an unrelated error (caller rethrows untouched)", () => {
     expect(
       describeIntlPrereqError({ message: "HSN code is required for international shipments" })

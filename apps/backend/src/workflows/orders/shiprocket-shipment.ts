@@ -53,6 +53,14 @@ export type OrderForShipment = {
   email?: string | null
   total?: number | null
   subtotal?: number | null
+  /**
+   * Goods-only value. `subtotal` is NOT it — in Medusa v2 `order.subtotal`
+   * INCLUDES shipping (verified on a live order: item_total 241.85 + shipping 39
+   * = subtotal 280.85), so it over-declares a customs invoice by the freight.
+   * `item_total` is post-discount, `item_subtotal` pre-discount.
+   */
+  item_total?: number | null
+  item_subtotal?: number | null
   /** ISO-4217 currency the order was placed in — declared value for intl customs (#1111). */
   currency_code?: string | null
   metadata?: Record<string, any> | null
@@ -62,6 +70,8 @@ export type OrderForShipment = {
   /** Fallback source for the buyer phone when neither address carries one. */
   customer?: { phone?: string | null; email?: string | null } | null
   items?: Array<{
+    /** Line id — the key `fulfillment.items[].line_item_id` points at. */
+    id?: string | null
     title?: string | null
     quantity?: number | null
     unit_price?: number | null
@@ -100,6 +110,12 @@ export function resolveLineHsn(
   )
 }
 
+/** One line of the fulfillment being shipped — what is actually in the box. */
+export type FulfillmentLine = {
+  line_item_id?: string | null
+  quantity?: number | null
+}
+
 export type BuildShipmentOpts = {
   pickupLocationName?: string
   weightGrams?: number
@@ -107,6 +123,58 @@ export type BuildShipmentOpts = {
   preferredCourierId?: string | number
   /** Seller tax/GST ID to stamp on the label (#348); resolved by the caller. */
   taxId?: string
+  /**
+   * The fulfillment's own lines. When given, ONLY these are declared, at these
+   * quantities — a shipment must describe what's in the box, not the whole
+   * order. Omitted (or unresolvable) falls back to every order line, which is
+   * correct for the single-fulfillment case and is what every caller did before.
+   */
+  fulfillmentItems?: FulfillmentLine[] | null
+}
+
+/**
+ * Restrict an order's lines to the ones this fulfillment actually ships, at the
+ * fulfilled quantity. Pure & exported: a partial fulfillment that declared the
+ * whole order overstated both the customs value AND the goods themselves —
+ * declaring items that aren't in the box is a misdeclaration, not a rounding
+ * error.
+ *
+ * Matching is by `line_item_id` only. Fulfillment items carry the VARIANT title
+ * ("Chrome Yellow", "S") while order lines carry the product title, so titles
+ * can't be joined on — and two lines of the same product would collide anyway.
+ *
+ * Returns the full list unchanged when there's nothing usable to filter by, so a
+ * missing field selection degrades to today's behaviour rather than shipping an
+ * empty declaration.
+ */
+export function selectFulfilledLines(
+  lines: NonNullable<OrderForShipment["items"]>,
+  fulfillmentItems?: FulfillmentLine[] | null
+): { items: NonNullable<OrderForShipment["items"]>; partial: boolean } {
+  if (!fulfillmentItems?.length) return { items: lines, partial: false }
+
+  const byId = new Map(
+    lines.filter((l) => l.id).map((l) => [String(l.id), l] as const)
+  )
+  const selected: NonNullable<OrderForShipment["items"]> = []
+  for (const fi of fulfillmentItems) {
+    const line = fi.line_item_id ? byId.get(String(fi.line_item_id)) : undefined
+    if (!line) continue
+    // The fulfilled quantity wins — one order line can be shipped across
+    // several fulfillments, and each may carry only part of it.
+    const qty = Number(fi.quantity)
+    selected.push({
+      ...line,
+      quantity: Number.isFinite(qty) && qty > 0 ? qty : line.quantity,
+    })
+  }
+  if (!selected.length) return { items: lines, partial: false }
+
+  const sameCount = selected.length === lines.length
+  const sameQty = selected.every(
+    (s) => Number(s.quantity) === Number(byId.get(String(s.id))?.quantity)
+  )
+  return { items: selected, partial: !(sameCount && sameQty) }
 }
 
 /**
@@ -135,7 +203,12 @@ export function buildCreateShipmentInput(
   const paymentMode: "prepaid" | "cod" =
     order.metadata?.payment_mode === "cod" ? "cod" : "prepaid"
 
-  const items: ShipmentItem[] = (order.items || []).map((li) => ({
+  // Declare what's in THIS box, not the whole order.
+  const { items: fulfilledLines, partial } = selectFulfilledLines(
+    order.items || [],
+    opts.fulfillmentItems
+  )
+  const items: ShipmentItem[] = fulfilledLines.map((li) => ({
     name: li.title || "Item",
     sku: li.sku || undefined,
     quantity: Number(li.quantity) || 1,
@@ -145,10 +218,24 @@ export function buildCreateShipmentInput(
     // requires it only when the destination is international.
     hsn: resolveLineHsn(li),
   }))
-  const subTotal =
-    order.subtotal != null
-      ? Number(order.subtotal)
-      : items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+  // Declared value = GOODS ONLY, and it must agree with the line items we send
+  // (the carrier shows the invoice total, and customs duty abroad is charged on
+  // it). `order.subtotal` includes shipping, so using it declared freight as
+  // merchandise — inflating the total by the shipping charge and contradicting
+  // the FOB terms we state, where freight is the buyer's cost, not part of the
+  // invoice value. Prefer the goods figures; fall back to the line sum, which is
+  // by construction consistent with what we declare.
+  const lineSum = items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+  // On a PARTIAL shipment the order-level goods totals describe the whole order,
+  // so only the line sum can describe this box.
+  const goodsTotal = partial
+    ? lineSum
+    : order.item_total != null
+      ? Number(order.item_total)
+      : order.item_subtotal != null
+        ? Number(order.item_subtotal)
+        : lineSum
+  const subTotal = Number.isFinite(goodsTotal) && goodsTotal > 0 ? goodsTotal : lineSum
 
   const name =
     [addr.first_name, addr.last_name].filter(Boolean).join(" ") || "Customer"
@@ -156,8 +243,16 @@ export function buildCreateShipmentInput(
   return {
     reference_id: order.id,
     payment_mode: paymentMode,
+    // A partial shipment must not collect the WHOLE order at the door — two
+    // boxes would each ask the customer for the full order total. Collect only
+    // what this box is worth; the full order total stays correct for the normal
+    // ship-everything case.
     cod_amount:
-      paymentMode === "cod" ? Number(order.total) || subTotal : undefined,
+      paymentMode === "cod"
+        ? partial
+          ? subTotal
+          : Number(order.total) || subTotal
+        : undefined,
     // "" lets the client fall back to its configured default pickup location.
     pickup_location_name: opts.pickupLocationName || "",
     to: {
@@ -210,6 +305,7 @@ export async function createShiprocketShipmentForFulfillment(
 ): Promise<ShipmentResult & { fulfillment_id: string }> {
   const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
   const fulfillmentModule: any = container.resolve(Modules.FULFILLMENT)
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
 
   const { data: orders } = await query.graph({
     entity: "order",
@@ -218,6 +314,10 @@ export async function createShiprocketShipmentForFulfillment(
       "email",
       "total",
       "subtotal",
+      // Goods-only totals — `subtotal` includes shipping and must not be used as
+      // the declared customs value.
+      "item_total",
+      "item_subtotal",
       "currency_code",
       "metadata",
       "shipping_address.*",
@@ -225,6 +325,8 @@ export async function createShiprocketShipmentForFulfillment(
       "billing_address.*",
       "customer.phone",
       "customer.email",
+      // Line id — the join key for `fulfillment.items[].line_item_id`.
+      "items.id",
       "items.title",
       "items.quantity",
       "items.unit_price",
@@ -237,6 +339,11 @@ export async function createShiprocketShipmentForFulfillment(
       "fulfillments.id",
       "fulfillments.location_id",
       "fulfillments.data",
+      // What is actually in the box. Must be named explicitly — the default order
+      // payload returns `fulfillments.items` EMPTY, so the shipment silently
+      // declared every line of the order instead.
+      "fulfillments.items.line_item_id",
+      "fulfillments.items.quantity",
     ],
     filters: { id: input.orderId },
   })
@@ -351,12 +458,25 @@ export async function createShiprocketShipmentForFulfillment(
     (order as any)?.shipping_address?.country_code
   )
 
+  // Declare the fulfillment's own lines, not the order's. `fulfillment.items`
+  // has to be requested explicitly — the default order payload returns it empty,
+  // which is exactly how declaring every order line went unnoticed.
+  const fulfillmentItems = (fulfillment as any)?.items as
+    | FulfillmentLine[]
+    | undefined
+  if (!fulfillmentItems?.length) {
+    logger.warn(
+      `Fulfillment ${input.fulfillmentId} exposed no items; declaring all lines of order ${input.orderId} to ${carrier}. Correct for a single full fulfillment, over-declares a partial one.`
+    )
+  }
+
   let shipmentInput = buildCreateShipmentInput(order as OrderForShipment, {
     pickupLocationName,
     weightGrams: input.weightGrams,
     dimensionsCm: input.dimensionsCm,
     preferredCourierId: input.preferredCourierId,
     taxId,
+    fulfillmentItems,
   })
 
   // International FX (#1111 S3). Shiprocket declares the customs value only in a

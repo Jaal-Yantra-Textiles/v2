@@ -141,7 +141,11 @@ export function parseShiprocketError(raw: string): {
  * it's deliberately conservative: returns `null` for anything unrecognised, and
  * the caller rethrows the original error untouched. Pure + unit-tested.
  */
-export type IntlPrereqReason = "kyc" | "bank_details" | "pickup_not_intl"
+export type IntlPrereqReason =
+  | "kyc"
+  | "bank_details"
+  | "pickup_not_intl"
+  | "insufficient_balance"
 
 export type IntlPrereqGate = { reason: IntlPrereqReason; message: string }
 
@@ -170,6 +174,25 @@ export function describeIntlPrereqError(err: {
       reason: "pickup_not_intl",
       message:
         "This pickup location isn't enabled for international shipping in Shiprocket. Enable international shipping for the pickup address in your Shiprocket dashboard (Settings → Pickup Addresses), or choose an international-capable pickup, then retry generating the label.",
+    }
+  }
+
+  // Wallet balance. Live-verified 2026-08-06: this arrives as
+  // `awb_assign_error: "Insufficient amount to label this shipment"` on an HTTP
+  // 200 (see assertAwbAssigned) — the address was fine, the account just can't
+  // pay for the waybill. Worth naming because it's indistinguishable from a data
+  // problem otherwise.
+  if (
+    (text.includes("insufficient") || text.includes("low balance")) &&
+    (text.includes("amount") ||
+      text.includes("balance") ||
+      text.includes("wallet") ||
+      text.includes("label"))
+  ) {
+    return {
+      reason: "insufficient_balance",
+      message:
+        "Your Shiprocket wallet doesn't have enough balance to book this waybill. Top up the wallet in your Shiprocket dashboard (Billing → Recharge), then retry generating the label. The shipment details were accepted — only payment is missing.",
     }
   }
 
@@ -366,12 +389,25 @@ export function resolveCustomsDefaults(
   customs?: import("../provider-interface").CustomsDeclaration
 ): ResolvedCustoms {
   return {
-    // A retail order is a commercial sale, shipped FOB, IGST not-applicable
-    // (LUT/bond is an account-level export scheme, not per-shipment here).
+    // A retail order is a commercial sale, shipped FOB.
     reasonOfExport: customs?.reason_of_export ?? 3, // COMMERCIAL
     purpose_of_shipment: customs?.purpose_of_shipment ?? 2, // commercial
     Terms_Of_Invoice: customs?.terms_of_invoice ?? "FOB",
-    igstPaymentStatus: customs?.igst_payment_status ?? "A",
+    // IGST: was "A" (not applicable). Live-verified 2026-08-06 that a complete
+    // commercial export body classifies as CSB-5, and CSB-5 REJECTS "A" at
+    // create time: "IGST can not be Not Applicable in case of CSB5 shipments."
+    // An export of goods is zero-rated either way — this field only says HOW the
+    // Indian exporter discharges that: "B" = LUT/bond on file (no IGST paid),
+    // "C" = IGST paid and reclaimed.
+    //
+    // Default "C": as of 2026-08-06 the LUT is applied for but has NO ARN yet,
+    // and declaring "B" without an LUT on file is a false declaration. Flip to
+    // "B" once the ARN is issued — via SHIPROCKET_IGST_PAYMENT_STATUS (no code
+    // change), or per-shipment through the customs declaration.
+    igstPaymentStatus:
+      customs?.igst_payment_status ??
+      (process.env.SHIPROCKET_IGST_PAYMENT_STATUS as "A" | "B" | "C") ??
+      "C",
     commodity: customs?.commodity ?? true,
   }
 }
@@ -401,6 +437,27 @@ export function buildInternationalCreateBody(
       `HSN code is required for international shipments; missing on: ${missingHsn.join(", ")}`
     )
   }
+  // Pre-flight the delivery fields Shiprocket rejects downstream. Without this
+  // an empty phone or pincode only surfaces at assign/awb as
+  // `["Delivery pincode is empty","Customer phone is empty"]` — a 400 two calls
+  // deep, after an order has already been created carrier-side. Name them all at
+  // once so one round of data-fixing clears them (rather than one per attempt).
+  const missingTo = (
+    [
+      ["phone", input.to.phone],
+      ["pincode", input.to.pincode],
+      ["address", input.to.address_1],
+      ["city", input.to.city],
+    ] as const
+  )
+    .filter(([, v]) => !String(v ?? "").trim())
+    .map(([k]) => k)
+  if (missingTo.length) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `Shipping address is missing ${missingTo.join(", ")} — Shiprocket rejects an international shipment without ${missingTo.length > 1 ? "these" : "this"}. Add ${missingTo.length > 1 ? "them" : "it"} to the order's shipping address (or billing address / customer record) and retry.`
+    )
+  }
   const [firstName, ...rest] = (input.to.name || "Customer").split(" ")
   const lastName = rest.join(" ")
   const subTotal =
@@ -408,6 +465,9 @@ export function buildInternationalCreateBody(
     input.items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
   const iso2 = (input.to.country || "").trim().toUpperCase()
   const customs = resolveCustomsDefaults(input.customs)
+
+  const state = nonEmptyCode(input.to.state) || input.to.city
+  const countryName = toShiprocketCountryName(input.to.country)
 
   return {
     order_id: input.reference_id,
@@ -425,12 +485,30 @@ export function buildInternationalCreateBody(
     // buyer left it blank) — it 422s with "The billing state field is required".
     // Fall back to the city, which is what Shiprocket's own support advises for
     // stateless addresses, so a valid order isn't blocked on an empty field.
-    billing_state: nonEmptyCode(input.to.state) || input.to.city,
-    billing_country: toShiprocketCountryName(input.to.country),
+    billing_state: state,
+    billing_country: countryName,
     billing_email: input.to.email || "",
     billing_phone: input.to.phone,
     ...(ISD_BY_ISO2[iso2] ? { isd_code: ISD_BY_ISO2[iso2] } : {}),
-    shipping_is_billing: true,
+    // The DELIVERY block must be sent explicitly. `shipping_is_billing: true` is
+    // NOT honored by the international pipeline: create/adhoc returns 200 and
+    // `/orders/show` even echoes the copied address back, but
+    // `/international/courier/assign/awb` then 400s with
+    // `["Delivery pincode is empty","Customer phone is empty"]` — the intl
+    // shipment record never got a delivery address. Live-verified 2026-08-06:
+    // billing-only + the flag → assign 400; the same order with an explicit
+    // shipping_* block → assign 200. Domestic is unaffected (it honors the flag).
+    shipping_is_billing: false,
+    shipping_customer_name: firstName,
+    shipping_last_name: lastName,
+    shipping_address: input.to.address_1,
+    shipping_address_2: input.to.address_2 || "",
+    shipping_city: input.to.city,
+    shipping_pincode: input.to.pincode,
+    shipping_state: state,
+    shipping_country: countryName,
+    shipping_email: input.to.email || "",
+    shipping_phone: input.to.phone,
     order_items: items,
     payment_method: "Prepaid",
     sub_total: subTotal,
@@ -446,6 +524,81 @@ export function buildInternationalCreateBody(
     igstPaymentStatus: customs.igstPaymentStatus,
     commodity: customs.commodity,
   }
+}
+
+/**
+ * Normalize one courier from `/international/courier/serviceability` into a
+ * `RateOption`. Pure & exported because the international response shape differs
+ * from the domestic one in two ways that both silently produced garbage
+ * (live-verified 2026-08-06):
+ *
+ *  · `rate` is an OBJECT (`{ rate: 1125, zone, extra_info: { edd } }`), not a
+ *    number. `Number(c.rate)` is NaN, so every international quote came out as
+ *    amount 0 — an empty-looking courier picker and a `courier_rate: 0` stamped
+ *    on the shipment by the auto-select path.
+ *  · `estimated_delivery_days` is a STRING RANGE ("10 - 12"), not a number, so
+ *    `Number(...)` was NaN. The structured `rate.extra_info.edd.{from,to}` is
+ *    the reliable source; the string is the fallback.
+ *
+ * The international payload carries no `currency` field, and these accounts are
+ * billed in INR, so INR is the fallback — but an explicit currency still wins if
+ * Shiprocket ever starts sending one.
+ */
+export function normalizeInternationalRate(
+  c: any,
+  recommendedId?: number | string
+): RateOption {
+  const rateObj = c?.rate && typeof c.rate === "object" ? c.rate : undefined
+  const amount = Number(rateObj ? rateObj.rate : c?.rate) || 0
+  // Prefer the structured upper bound (the promise we'd show a customer), then
+  // the high end of the "10 - 12" string, then a bare number.
+  const eddTo = Number(rateObj?.extra_info?.edd?.to)
+  // `Number("")` is 0, not NaN — so an absent ETA has to be rejected on the
+  // string being empty, or it reports as a 0-day delivery promise.
+  const eddText = String(c?.estimated_delivery_days ?? "")
+    .split(/[-–]/)
+    .pop()
+    ?.trim()
+  const parsedDays = Number.isFinite(eddTo)
+    ? eddTo
+    : eddText
+      ? Number(eddText)
+      : NaN
+  return {
+    courier_id: c?.courier_company_id,
+    courier_name: c?.courier_name,
+    amount,
+    currency_code: (c?.currency || rateObj?.currency || "inr")
+      .toString()
+      .toLowerCase(),
+    estimated_days: Number.isFinite(parsedDays) ? parsedDays : undefined,
+    is_recommended:
+      recommendedId != null &&
+      String(c?.courier_company_id) === String(recommendedId),
+  }
+}
+
+/**
+ * AWB assignment can FAIL WITH HTTP 200. Shiprocket answers
+ * `/courier/assign/awb` (domestic and international) with
+ * `{ awb_assign_status: 0, response: { data: { awb_assign_error: "..." } } }`
+ * and no `awb_code` — e.g. "Insufficient amount to label this shipment" (wallet
+ * balance) or a courier-side rejection. The old code read `awb_code || ""` and
+ * returned a shipment carrying a BLANK AWB and no error, so an operator saw a
+ * label step that appeared to succeed while nothing was ever booked. Throw
+ * instead, with the carrier's own reason. Pure & exported for unit testing.
+ */
+export function assertAwbAssigned(assigned: any): void {
+  const data = assigned?.response?.data || {}
+  if (data.awb_code) return
+  const reason =
+    data.awb_assign_error ||
+    assigned?.message ||
+    "Shiprocket assigned no AWB and gave no reason"
+  throw new ShiprocketApiError(
+    `Shiprocket AWB assignment failed — ${reason}`,
+    { status: 200, raw: JSON.stringify(assigned) }
+  )
 }
 
 /** Shiprocket numeric shipment_status_id → coarse scan_type. */
@@ -576,6 +729,19 @@ export class ShiprocketClient implements ShippingProviderClient {
   }
 
   async getRates(query: RateQuery): Promise<RateOption[]> {
+    // An international destination has to go through the `/international/*`
+    // serviceability endpoint — the domestic one takes a delivery PINCODE and
+    // simply returns no couriers for a foreign postcode, which surfaced as an
+    // empty courier picker rather than an error. Branch here (not at the call
+    // sites) so every rate caller — admin, partner, inventory-order — gets the
+    // right endpoint from the destination country alone.
+    if (isInternationalDestination(query.destination_country)) {
+      return this.getInternationalRates({
+        destination_country: query.destination_country,
+        weight_grams: query.weight_grams,
+        origin_pincode: query.origin_pincode,
+      })
+    }
     const qs = new URLSearchParams({
       pickup_postcode: query.origin_pincode,
       delivery_postcode: query.destination_pincode,
@@ -712,6 +878,7 @@ export class ShiprocketClient implements ShippingProviderClient {
 
     const srOrderId = created?.order_id
     const shipmentId = created?.shipment_id
+    assertAwbAssigned(assigned)
     const awbData = assigned?.response?.data || {}
     const awb = awbData.awb_code || ""
 
@@ -766,16 +933,27 @@ export class ShiprocketClient implements ShippingProviderClient {
     order_id?: string | number
     origin_pincode?: string
   }): Promise<RateOption[]> {
-    // Live-verified (#1111): the `order_id` mode is the ONLY one this account
-    // answers — passing an existing Shiprocket order id returns the available
-    // international couriers (+ the recommended one) priced in the order
-    // currency. The documented country+weight mode (below) 400s on the live
-    // account, so `order_id` takes precedence and we omit weight/country when
-    // it's present (they're ignored anyway per the docs).
+    // Two modes, BOTH live-verified 2026-08-06:
+    //  · `order_id` — prices an existing Shiprocket order in its own currency.
+    //    Used after create/adhoc to auto-select a courier.
+    //  · `delivery_country` + `weight` — quotes BEFORE any order exists, which
+    //    is what a pre-label courier picker needs.
+    // An earlier note here claimed the country mode "400s on the live account"
+    // and that `order_id` was the only one that answers. That was wrong: the
+    // country mode 400s ("Please fix request using below fields") only when
+    // `pickup_postcode` is omitted. With an origin it returns 200 + couriers.
+    // So the origin is REQUIRED in country mode — fail loudly rather than send
+    // a request we know comes back 400.
     const qs = new URLSearchParams({ cod: "0" })
     if (query.order_id != null) {
       qs.set("order_id", String(query.order_id))
     } else {
+      if (!query.origin_pincode) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "International courier rates need a pickup pincode (origin). Register a Shiprocket pickup location before requesting rates."
+        )
+      }
       qs.set("weight", String(Math.max(0.01, (query.weight_grams || 500) / 1000)))
       qs.set("delivery_country", (query.destination_country || "").toUpperCase())
     }
@@ -786,16 +964,7 @@ export class ShiprocketClient implements ShippingProviderClient {
     )
     const couriers = json?.data?.available_courier_companies || []
     const recommended = json?.data?.recommended_courier_company_id
-    return couriers.map((c: any) => ({
-      courier_id: c.courier_company_id,
-      courier_name: c.courier_name,
-      amount: Number(c.rate) || 0,
-      currency_code: (c.currency || "inr").toString().toLowerCase(),
-      estimated_days: c.estimated_delivery_days
-        ? Number(c.estimated_delivery_days)
-        : undefined,
-      is_recommended: c.courier_company_id === recommended,
-    }))
+    return couriers.map((c: any) => normalizeInternationalRate(c, recommended))
   }
 
   /**
@@ -879,6 +1048,7 @@ export class ShiprocketClient implements ShippingProviderClient {
 
     const srOrderId = created?.order_id
     const shipmentId = created?.shipment_id
+    assertAwbAssigned(assigned)
     const awbData = assigned?.response?.data || {}
     const awb = awbData.awb_code || ""
 

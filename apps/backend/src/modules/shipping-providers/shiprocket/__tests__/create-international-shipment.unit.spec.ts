@@ -58,12 +58,17 @@ describe("toShiprocketCountryName", () => {
 })
 
 describe("resolveCustomsDefaults", () => {
-  it("defaults to a commercial FOB export", () => {
+  // "C" (export against IGST payment), not "A". A complete commercial export
+  // body classifies as CSB-5 at Shiprocket, and CSB-5 rejects "A" at create
+  // time: "IGST can not be Not Applicable in case of CSB5 shipments."
+  // (live-verified). "C" rather than "B" because the LUT has no ARN yet —
+  // claiming LUT/bond without one on file would be a false declaration.
+  it("defaults to a commercial FOB export declaring IGST paid", () => {
     expect(resolveCustomsDefaults()).toEqual({
       reasonOfExport: 3,
       purpose_of_shipment: 2,
       Terms_Of_Invoice: "FOB",
-      igstPaymentStatus: "A",
+      igstPaymentStatus: "C",
       commodity: true,
     })
   })
@@ -71,6 +76,25 @@ describe("resolveCustomsDefaults", () => {
     expect(
       resolveCustomsDefaults({ reason_of_export: 2, terms_of_invoice: "CIF" })
     ).toMatchObject({ reasonOfExport: 2, Terms_Of_Invoice: "CIF" })
+  })
+  it("switches to LUT/bond once the exporter has one on file", () => {
+    expect(
+      resolveCustomsDefaults({ igst_payment_status: "B" })
+    ).toMatchObject({ igstPaymentStatus: "B" })
+  })
+  it("takes the account-wide default from the environment", () => {
+    const prev = process.env.SHIPROCKET_IGST_PAYMENT_STATUS
+    process.env.SHIPROCKET_IGST_PAYMENT_STATUS = "B"
+    try {
+      expect(resolveCustomsDefaults()).toMatchObject({ igstPaymentStatus: "B" })
+      // An explicit per-shipment value still wins over the env.
+      expect(
+        resolveCustomsDefaults({ igst_payment_status: "C" })
+      ).toMatchObject({ igstPaymentStatus: "C" })
+    } finally {
+      if (prev === undefined) delete process.env.SHIPROCKET_IGST_PAYMENT_STATUS
+      else process.env.SHIPROCKET_IGST_PAYMENT_STATUS = prev
+    }
   })
 })
 
@@ -86,12 +110,47 @@ describe("buildInternationalCreateBody", () => {
       reasonOfExport: 3,
       purpose_of_shipment: 2,
       Terms_Of_Invoice: "FOB",
-      igstPaymentStatus: "A",
+      igstPaymentStatus: "C",
       commodity: true,
       sub_total: 80,
     })
     expect(body.order_items[0]).toMatchObject({ sku: "SCARF-1", hsn: "6214", units: 2 })
   })
+
+  // The bug behind `assign/awb` 400 ["Delivery pincode is empty","Customer phone
+  // is empty"]: the international pipeline does NOT honour shipping_is_billing,
+  // so the delivery block has to be sent field-by-field.
+  it("sends an explicit shipping_* delivery block rather than relying on shipping_is_billing", () => {
+    const body = buildInternationalCreateBody(usInput(), "warehouse-abc")
+    expect(body.shipping_is_billing).toBe(false)
+    expect(body).toMatchObject({
+      shipping_pincode: body.billing_pincode,
+      shipping_phone: body.billing_phone,
+      shipping_address: body.billing_address,
+      shipping_city: body.billing_city,
+      shipping_state: body.billing_state,
+      shipping_country: "United States",
+    })
+    for (const f of ["shipping_pincode", "shipping_phone"] as const) {
+      expect(String(body[f] ?? "")).not.toBe("")
+    }
+  })
+
+  it.each([
+    ["phone", { phone: "" }],
+    ["pincode", { pincode: "" }],
+    ["address", { address_1: "" }],
+    ["city", { city: "" }],
+  ])(
+    "refuses to build a body missing the delivery %s (carrier 400s two calls later)",
+    (field, patch) => {
+      const input = usInput()
+      Object.assign(input.to, patch)
+      expect(() => buildInternationalCreateBody(input, "warehouse-abc")).toThrow(
+        new RegExp(field)
+      )
+    }
+  )
 
   it("throws when any line is missing an HSN code (mandatory internationally)", () => {
     const input = usInput({
