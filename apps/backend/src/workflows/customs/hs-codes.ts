@@ -39,6 +39,41 @@ import {
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 
+/**
+ * Ids of the products linked to a sales channel.
+ *
+ * Scoping a product query with `filters: { sales_channels: { id } }` READS
+ * correctly and is what both halves of this file originally shipped with, but
+ * mikro-orm rejects it at runtime — "Trying to query by not existing property
+ * Product.sales_channels" — because the relation lives on the link entity, not
+ * on Product. Every partner-scoped call 500'd; nothing caught it because the
+ * unit tests mock `query.graph` and so never see the filter rejected.
+ *
+ * The working shape is to pivot from the channel and walk `products_link`,
+ * which is what `listStoreProductsWorkflow` and the price-fanout script already
+ * do. Two hops (`product_variants` filtered by `"product.sales_channels.id"`)
+ * fails differently — postgres "missing FROM-clause entry" — so don't reach for
+ * that either.
+ */
+async function channelProductIds(
+  query: any,
+  salesChannelId: string
+): Promise<string[]> {
+  const { data } = await query.graph({
+    entity: "sales_channel",
+    fields: ["id", "products_link.product_id"],
+    filters: { id: salesChannelId },
+  })
+
+  const links = ((data?.[0] as any)?.products_link || []) as Array<{
+    product_id?: string
+  }>
+
+  return Array.from(
+    new Set(links.map((l) => l?.product_id).filter(Boolean) as string[])
+  )
+}
+
 export type HsCodeGap = {
   product_id: string
   product_title: string
@@ -98,6 +133,23 @@ export async function scanMissingHsCodes(
   const limit = Math.min(Math.max(Number(input.limit) || DEFAULT_LIMIT, 1), MAX_LIMIT)
   const offset = Math.max(Number(input.offset) || 0, 0)
 
+  // Channel-scoped scans page over the id list HERE rather than in the product
+  // query: the channel pivot is the only way to resolve the set (see
+  // `channelProductIds`), and once we hold it, `pagination` on the id-filtered
+  // query would page a page. Unscoped (admin) scans page in the DB as before.
+  let pagedIds: string[] | null = null
+  let totalScopedProducts = 0
+
+  if (input.salesChannelId) {
+    const ids = await channelProductIds(query, input.salesChannelId)
+    totalScopedProducts = ids.length
+    pagedIds = ids.slice().sort().slice(offset, offset + limit)
+
+    if (!pagedIds.length) {
+      return { gaps: [], scanned: 0, covered: 0, limit, offset, has_more: false }
+    }
+  }
+
   const { data: products } = await query.graph({
     entity: "product",
     fields: [
@@ -122,11 +174,9 @@ export async function scanMissingHsCodes(
       "variants.inventory_items.inventory.hs_code",
     ],
     filters: {
-      ...(input.salesChannelId
-        ? { sales_channels: { id: input.salesChannelId } }
-        : {}),
+      ...(pagedIds ? { id: pagedIds } : {}),
     },
-    pagination: { skip: offset, take: limit },
+    ...(pagedIds ? {} : { pagination: { skip: offset, take: limit } }),
   })
 
   const gaps: HsCodeGap[] = []
@@ -184,7 +234,9 @@ export async function scanMissingHsCodes(
     covered,
     limit,
     offset,
-    has_more: (products || []).length === limit,
+    has_more: pagedIds
+      ? offset + pagedIds.length < totalScopedProducts
+      : (products || []).length === limit,
   }
 }
 
@@ -210,6 +262,14 @@ export async function partitionAssignmentsByStore(
   }
 
   const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+
+  const productIds = await channelProductIds(query, salesChannelId)
+  if (!productIds.length) {
+    // An empty `id` filter is not a no-op — it would match the whole catalogue
+    // and hand this partner every product on the platform.
+    return { owned: [], foreign: [...(assignments || [])] }
+  }
+
   const { data: products } = await query.graph({
     entity: "product",
     fields: [
@@ -218,7 +278,7 @@ export async function partitionAssignmentsByStore(
       "variants.inventory_items.inventory_item_id",
       "variants.inventory_items.inventory.id",
     ],
-    filters: { sales_channels: { id: salesChannelId } },
+    filters: { id: productIds },
   })
 
   const ownedIds: Record<HsCodeLevel, Set<string>> = {
