@@ -22,6 +22,77 @@ const baseOrder: OrderForShipment = {
   items: [{ title: "Custom Saree", quantity: 2, unit_price: 100, sku: "SAR-1" }],
 }
 
+describe("buildCreateShipmentInput — phone / pincode fallbacks", () => {
+  // Shiprocket 422s on empty billing_phone / billing_pincode. The buyer's phone
+  // and postal code are often captured on the order/customer or billing address,
+  // not the shipping address — walk shipping → billing → customer.
+  const noContactShipping = {
+    first_name: "Asha",
+    last_name: "Rao",
+    address_1: "12 MG Road",
+    city: "Bengaluru",
+    province: "KA",
+    country_code: "in",
+    // no phone, no postal_code
+  }
+
+  it("falls back phone to billing, then to the customer", () => {
+    const fromBilling = buildCreateShipmentInput(
+      {
+        ...baseOrder,
+        shipping_address: noContactShipping,
+        billing_address: { phone: "+919811111111", postal_code: "560001" },
+      },
+      { pickupLocationName: "wh" }
+    )
+    expect(fromBilling.to.phone).toBe("+919811111111")
+
+    const fromCustomer = buildCreateShipmentInput(
+      {
+        ...baseOrder,
+        shipping_address: noContactShipping,
+        billing_address: {},
+        customer: { phone: "+919822222222" },
+      },
+      { pickupLocationName: "wh" }
+    )
+    expect(fromCustomer.to.phone).toBe("+919822222222")
+  })
+
+  it("falls back pincode to the billing address", () => {
+    const input = buildCreateShipmentInput(
+      {
+        ...baseOrder,
+        shipping_address: noContactShipping,
+        billing_address: { postal_code: "110001" },
+      },
+      { pickupLocationName: "wh" }
+    )
+    expect(input.to.pincode).toBe("110001")
+  })
+
+  it("prefers the shipping address when it has its own phone/pincode", () => {
+    const input = buildCreateShipmentInput(
+      {
+        ...baseOrder,
+        billing_address: { phone: "+910000000000", postal_code: "000000" },
+      },
+      { pickupLocationName: "wh" }
+    )
+    expect(input.to.phone).toBe("+919800000000")
+    expect(input.to.pincode).toBe("560001")
+  })
+
+  it("leaves phone/pincode empty when no source has them (guarded upstream)", () => {
+    const input = buildCreateShipmentInput(
+      { ...baseOrder, shipping_address: noContactShipping, billing_address: {}, customer: {} },
+      { pickupLocationName: "wh" }
+    )
+    expect(input.to.phone).toBe("")
+    expect(input.to.pincode).toBe("")
+  })
+})
+
 describe("buildCreateShipmentInput (#404 PR-B)", () => {
   it("maps a prepaid order (no cod_amount)", () => {
     const input = buildCreateShipmentInput(baseOrder, {

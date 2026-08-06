@@ -57,6 +57,10 @@ export type OrderForShipment = {
   currency_code?: string | null
   metadata?: Record<string, any> | null
   shipping_address?: Record<string, any> | null
+  /** Fallback source for phone / postal code the shipping address may lack. */
+  billing_address?: Record<string, any> | null
+  /** Fallback source for the buyer phone when neither address carries one. */
+  customer?: { phone?: string | null; email?: string | null } | null
   items?: Array<{
     title?: string | null
     quantity?: number | null
@@ -115,6 +119,19 @@ export function buildCreateShipmentInput(
   opts: BuildShipmentOpts
 ): CreateShipmentInput {
   const addr = order.shipping_address || {}
+  const billing = order.billing_address || {}
+  // Shiprocket makes billing_phone and billing_pincode mandatory. The buyer's
+  // phone is often captured on the order/customer or the billing address rather
+  // than the shipping address, and the postal code can likewise live on billing
+  // — sending "" 422s ("The billing phone field is required" / pincode). Walk
+  // shipping → billing → customer so a complete order isn't blocked because one
+  // field landed on a sibling record.
+  const phone =
+    nonEmptyCode(addr.phone) ||
+    nonEmptyCode(billing.phone) ||
+    nonEmptyCode(order.customer?.phone) ||
+    ""
+  const pincode = nonEmptyCode(addr.postal_code) || nonEmptyCode(billing.postal_code) || ""
   const paymentMode: "prepaid" | "cod" =
     order.metadata?.payment_mode === "cod" ? "cod" : "prepaid"
 
@@ -145,13 +162,13 @@ export function buildCreateShipmentInput(
     pickup_location_name: opts.pickupLocationName || "",
     to: {
       name,
-      phone: addr.phone || "",
-      email: order.email || addr.email || undefined,
+      phone,
+      email: order.email || addr.email || billing.email || order.customer?.email || undefined,
       address_1: addr.address_1 || "",
       address_2: addr.address_2 || undefined,
       city: addr.city || "",
       state: addr.province || "",
-      pincode: addr.postal_code || "",
+      pincode,
       country: addr.country_code ? String(addr.country_code).toUpperCase() : "IN",
     },
     items,
@@ -204,6 +221,10 @@ export async function createShiprocketShipmentForFulfillment(
       "currency_code",
       "metadata",
       "shipping_address.*",
+      // Fallback source for phone / postal code the shipping address may lack.
+      "billing_address.*",
+      "customer.phone",
+      "customer.email",
       "items.title",
       "items.quantity",
       "items.unit_price",
