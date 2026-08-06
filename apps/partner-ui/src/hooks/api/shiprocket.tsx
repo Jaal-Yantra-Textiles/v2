@@ -87,20 +87,39 @@ export type ShiprocketRatesResponse = {
   origin_pincode: string
   destination_pincode: string
   weight_grams: number
+  dimensions_cm?: { length: number; width: number; height: number }
   cod: boolean
   rates: ShiprocketRateOption[]
+  /** Destination country (ISO-2) — set when quoted cross-border. */
+  destination_country?: string
+  /** True when quoted through the carrier's international product. */
+  international?: boolean
 }
 
 /**
  * List the carrier's courier options (rate / ETA / recommended) for one of the
  * partner's own orders, so the Mark-as-Shipped carrier step can show a picker
  * before generating the label. On-demand: pass `enabled` to fetch only when the
- * partner asks (the request hits the live carrier). `weightGrams` feeds the
- * quote from the parcel weight entered in the same step.
+ * partner asks (the request hits the live carrier). `weightGrams` and the parcel
+ * dimensions both feed the quote from the same step, so the estimate is priced on
+ * the parcel that will actually ship.
+ *
+ * Dimensions are NOT optional detail on a cross-border quote: international
+ * couriers price on VOLUMETRIC weight, and the size also decides which of them
+ * will carry the parcel at all. Live-verified 176215→IL at 1.2 kg — adding
+ * 60×50×40 dropped the courier list from 5 to 2 and took Aramex from ₹8,477 to
+ * ₹57,937 (charged as 24 kg). Sent all-or-nothing; a partial box can't be turned
+ * into a volume.
  */
 export const usePartnerShiprocketRates = (
   orderId: string,
-  query?: { carrier?: string; weightGrams?: number },
+  query?: {
+    carrier?: string
+    weightGrams?: number
+    lengthCm?: number
+    widthCm?: number
+    heightCm?: number
+  },
   options?: Omit<
     UseQueryOptions<ShiprocketRatesResponse, FetchError>,
     "queryFn" | "queryKey"
@@ -109,6 +128,11 @@ export const usePartnerShiprocketRates = (
   const params = new URLSearchParams()
   if (query?.carrier) params.set("carrier", query.carrier)
   if (query?.weightGrams) params.set("weight_grams", String(query.weightGrams))
+  if (query?.lengthCm && query?.widthCm && query?.heightCm) {
+    params.set("length_cm", String(query.lengthCm))
+    params.set("width_cm", String(query.widthCm))
+    params.set("height_cm", String(query.heightCm))
+  }
   const qs = params.toString() ? `?${params.toString()}` : ""
 
   return useQuery({

@@ -174,14 +174,22 @@ setupSharedTestSuite(() => {
       expect(res.data.destination_pincode).toBe("10001")
       expect(res.data.cod).toBe(false)
 
+      // This fixture ships to the US, so the quote MUST come from the
+      // international courier product. It previously asserted the 2-courier
+      // DOMESTIC stub response — i.e. it pinned the bug fixed in #1215, where a
+      // foreign destination was quoted against the India-only pincode endpoint
+      // (which in production returns an EMPTY courier list, not a wrong one).
+      expect(res.data.destination_country).toBe("US")
+      expect(res.data.international).toBe(true)
+
       const rates = res.data.rates
       expect(Array.isArray(rates)).toBe(true)
-      expect(rates.length).toBe(2)
+      expect(rates.length).toBe(1)
       const recommended = rates.find((r: any) => r.is_recommended)
-      expect(recommended?.courier_id).toBe(51)
-      expect(recommended?.courier_name).toBe("Xpressbees Surface")
-      expect(recommended?.amount).toBe(78)
-      expect(recommended?.estimated_days).toBe(4)
+      expect(recommended?.courier_id).toBe(301)
+      expect(recommended?.courier_name).toBe("DHL Express Intl")
+      expect(recommended?.amount).toBe(1450)
+      expect(recommended?.estimated_days).toBe(6)
 
       // ── weight_grams override ─────────────────────────────────────────
       const res2 = await api.get(
@@ -199,7 +207,32 @@ setupSharedTestSuite(() => {
       )
       expect(res.status).toBe(200)
       expect(Array.isArray(res.data.rates)).toBe(true)
-      expect(res.data.rates.length).toBe(2)
+      // 1, not 2 — the US destination is quoted internationally (see above).
+      expect(res.data.rates.length).toBe(1)
+    })
+
+    it("threads parcel dimensions into the quote (volumetric pricing)", async () => {
+      // Dimensions decide the CHARGED weight on a cross-border quote, and which
+      // couriers will take the parcel at all — live-verified 176215→IL, where
+      // 60x50x40 dropped the list from 5 couriers to 2 and took one from
+      // INR 8,477 to INR 57,937. Echoing them back proves the query params
+      // parsed and reached the carrier call rather than being dropped.
+      const res = await api.get(
+        `/admin/orders/${orderId}/shiprocket-rates?weight_grams=1200&length_cm=30&width_cm=25&height_cm=10`,
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.weight_grams).toBe(1200)
+      expect(res.data.dimensions_cm).toEqual({ length: 30, width: 25, height: 10 })
+    })
+
+    it("ignores a partial dimension set rather than guessing a side", async () => {
+      const res = await api.get(
+        `/admin/orders/${orderId}/shiprocket-rates?length_cm=30&height_cm=10`,
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.dimensions_cm).toBeUndefined()
     })
 
     it("rejects carrier=delhivery (no courier picker for Delhivery)", async () => {
@@ -222,7 +255,9 @@ setupSharedTestSuite(() => {
       expect(res.status).toBe(200)
       expect(res.data.origin_pincode).toBe("302001")
       expect(Array.isArray(res.data.rates)).toBe(true)
-      expect(res.data.rates.length).toBe(2)
+      // The alias resolves the same workflow, so it too quotes internationally.
+      expect(res.data.rates.length).toBe(1)
+      expect(res.data.international).toBe(true)
     })
 
     it("carrier-neutral fulfillment-rates alias honours ?carrier=shiprocket", async () => {

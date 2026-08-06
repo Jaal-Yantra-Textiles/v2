@@ -99,6 +99,11 @@ export const CarrierTab = ({
   const isShiprocket = carrier === "shiprocket"
   const [ratesRequested, setRatesRequested] = useState(false)
   const [rateWeight, setRateWeight] = useState<number | undefined>(undefined)
+  const [rateDims, setRateDims] = useState<{
+    lengthCm?: number
+    widthCm?: number
+    heightCm?: number
+  }>({})
   const [selectedCourierId, setSelectedCourierId] = useState<
     string | number | undefined
   >(undefined)
@@ -109,7 +114,7 @@ export const CarrierTab = ({
     error: ratesError,
   } = usePartnerShiprocketRates(
     orderId,
-    { weightGrams: rateWeight },
+    { weightGrams: rateWeight, ...rateDims },
     { enabled: ratesRequested && isShiprocket && !existingAwb }
   )
 
@@ -119,9 +124,19 @@ export const CarrierTab = ({
   }
 
   const handleGetRates = () => {
-    // Quote against the weight typed in the parcel block, so the estimate
-    // matches the parcel that will actually ship.
-    setRateWeight(numeric(form.getValues().weight_grams))
+    // Quote against the weight AND dimensions typed in the parcel block, so the
+    // estimate matches the parcel that will actually ship. Dimensions are not a
+    // refinement on a cross-border quote — international couriers price on
+    // volumetric weight and the size filters who will carry it at all, so a
+    // quote without them can be far too cheap and list couriers that would
+    // refuse the parcel.
+    const values = form.getValues()
+    setRateWeight(numeric(values.weight_grams))
+    setRateDims({
+      lengthCm: numeric(values.length_cm),
+      widthCm: numeric(values.width_cm),
+      heightCm: numeric(values.height_cm),
+    })
     setSelectedCourierId(undefined)
     setRatesRequested(true)
   }

@@ -7,6 +7,7 @@ import { resolveShippingProvider } from "../../modules/shipping-providers/resolv
 import { isInternationalDestination } from "../../modules/shipping-providers/destination"
 import { SHIPROCKET_PICKUP_METADATA_KEY } from "../../modules/shipping-providers/pickup-locations"
 import type {
+  Dimensions,
   PickupLocation,
   RateOption,
 } from "../../modules/shipping-providers/provider-interface"
@@ -45,12 +46,22 @@ export type ShiprocketRatesInput = {
   /** Defaults to "shiprocket". */
   carrier?: string
   weightGrams?: number
+  /**
+   * Parcel dimensions. Forwarded to the carrier because a cross-border quote is
+   * priced on VOLUMETRIC weight, and the size also filters which couriers will
+   * accept the parcel — so a quote without them can be both too cheap and list
+   * couriers that would refuse the job. The Carrier step already collects these
+   * (#1213), so the estimate can match the parcel that actually ships.
+   */
+  dimensionsCm?: Dimensions
 }
 
 export type ShiprocketRatesResult = {
   origin_pincode: string
   destination_pincode: string
   weight_grams: number
+  /** Echoed back so the UI can show what the quote was actually priced on. */
+  dimensions_cm?: Dimensions
   cod: boolean
   rates: RateOption[]
   /** Destination country (ISO-2). Present so the UI can label the quote. */
@@ -162,6 +173,7 @@ export async function getShiprocketRatesForOrder(
     destination_pincode: destinationPincode,
     destination_country: destinationCountry || undefined,
     weight_grams: weightGrams,
+    dimensions_cm: input.dimensionsCm,
     cod,
   })
 
@@ -171,7 +183,47 @@ export async function getShiprocketRatesForOrder(
     destination_country: destinationCountry || undefined,
     international,
     weight_grams: weightGrams,
+    dimensions_cm: input.dimensionsCm,
     cod,
     rates,
+  }
+}
+
+/**
+ * Parse the shared `?weight_grams=&length_cm=&width_cm=&height_cm=` rate-quote
+ * query into workflow input. Exported so all four rate routes (admin/partner ×
+ * order/inventory-order) accept the SAME parameters — the previous per-route
+ * hand-parsing is how dimensions ended up supported on the label call but not on
+ * the quote, which then priced a different parcel than the one that shipped.
+ *
+ * Dimensions are all-or-nothing: a partial box (length but no height) can't be
+ * turned into a volume, and guessing the missing side would silently change the
+ * price. Pure — unit-tested.
+ */
+export function parseRateQuery(query: Record<string, any>): {
+  carrier?: string
+  weightGrams?: number
+  dimensionsCm?: Dimensions
+} {
+  const num = (v: any): number | undefined => {
+    if (v == null || v === "") return undefined
+    const n = Number(v)
+    return Number.isFinite(n) && n > 0 ? n : undefined
+  }
+
+  const carrier =
+    typeof query.carrier === "string" && query.carrier ? query.carrier : undefined
+
+  const length = num(query.length_cm ?? query.length)
+  const width = num(query.width_cm ?? query.width ?? query.breadth)
+  const height = num(query.height_cm ?? query.height)
+
+  return {
+    carrier,
+    weightGrams: num(query.weight_grams),
+    dimensionsCm:
+      length != null && width != null && height != null
+        ? { length, width, height }
+        : undefined,
   }
 }
