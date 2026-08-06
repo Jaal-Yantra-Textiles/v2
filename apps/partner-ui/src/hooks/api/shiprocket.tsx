@@ -1,4 +1,9 @@
-import { useMutation, UseMutationOptions } from "@tanstack/react-query"
+import {
+  useMutation,
+  UseMutationOptions,
+  useQuery,
+  UseQueryOptions,
+} from "@tanstack/react-query"
 
 import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
@@ -62,6 +67,57 @@ export const useGenerateShiprocketLabel = (
       queryClient.invalidateQueries({ queryKey: ordersQueryKeys.all })
       options?.onSuccess?.(data, variables, context)
     },
+    ...options,
+  })
+}
+
+// ── Courier rates (#641 partner mirror) ───────────────────────────────────────
+
+export type ShiprocketRateOption = {
+  courier_id?: string | number
+  courier_name?: string
+  amount: number
+  currency_code: string
+  estimated_days?: number
+  cod_charges?: number
+  is_recommended?: boolean
+}
+
+export type ShiprocketRatesResponse = {
+  origin_pincode: string
+  destination_pincode: string
+  weight_grams: number
+  cod: boolean
+  rates: ShiprocketRateOption[]
+}
+
+/**
+ * List the carrier's courier options (rate / ETA / recommended) for one of the
+ * partner's own orders, so the Mark-as-Shipped carrier step can show a picker
+ * before generating the label. On-demand: pass `enabled` to fetch only when the
+ * partner asks (the request hits the live carrier). `weightGrams` feeds the
+ * quote from the parcel weight entered in the same step.
+ */
+export const usePartnerShiprocketRates = (
+  orderId: string,
+  query?: { carrier?: string; weightGrams?: number },
+  options?: Omit<
+    UseQueryOptions<ShiprocketRatesResponse, FetchError>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const params = new URLSearchParams()
+  if (query?.carrier) params.set("carrier", query.carrier)
+  if (query?.weightGrams) params.set("weight_grams", String(query.weightGrams))
+  const qs = params.toString() ? `?${params.toString()}` : ""
+
+  return useQuery({
+    queryKey: [...ordersQueryKeys.detail(orderId), "shiprocket-rates", qs],
+    queryFn: () =>
+      sdk.client.fetch<ShiprocketRatesResponse>(
+        `/partners/orders/${orderId}/shiprocket-rates${qs}`,
+        { method: "GET" }
+      ),
     ...options,
   })
 }
