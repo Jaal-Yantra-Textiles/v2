@@ -17,7 +17,12 @@ import {
   useAttachShiprocketAwb,
   useGenerateShiprocketLabel,
 } from "../../../../../hooks/api/shiprocket"
-import { CreateShipmentSchema, SHIPMENT_CARRIERS } from "./constants"
+import {
+  CreateShipmentSchema,
+  SHIPMENT_CARRIERS,
+  carriersForDestination,
+  isInternationalDestination,
+} from "./constants"
 
 /**
  * Step 1 of "Mark as shipped" — the carrier step (#639 follow-up).
@@ -43,6 +48,8 @@ type CarrierTabProps = {
   form: UseFormReturn<zod.infer<typeof CreateShipmentSchema>>
   /** Called with the AWB once a label is generated or an existing one attached. */
   onCarrierResolved: (outcome: CarrierOutcome) => void
+  /** Destination country of the order — decides which carriers can serve it. */
+  destinationCountry?: string | null
 }
 
 export const CarrierTab = ({
@@ -50,10 +57,23 @@ export const CarrierTab = ({
   fulfillment,
   form,
   onCarrierResolved,
+  destinationCountry,
 }: CarrierTabProps) => {
   const [awbInput, setAwbInput] = useState("")
 
-  const carrier = form.watch("carrier") || "shiprocket"
+  // Only offer carriers that can actually reach this destination. Delhivery is
+  // domestic-only here (its exports are a separate Cross Border service), and
+  // picking it for a foreign address just returns an opaque carrier error.
+  const availableCarriers = carriersForDestination(destinationCountry)
+  const isIntl = isInternationalDestination(destinationCountry)
+
+  const selected = form.watch("carrier") || "shiprocket"
+  // A carrier that can't serve this destination must not stay selected — the
+  // default is `shiprocket` and the form may have been pre-filled from a
+  // previous, domestic order.
+  const carrier = availableCarriers.some((c) => c.value === selected)
+    ? selected
+    : availableCarriers[0]?.value || "shiprocket"
   const carrierLabel =
     SHIPMENT_CARRIERS.find((c) => c.value === carrier)?.label ?? carrier
 
@@ -153,13 +173,20 @@ export const CarrierTab = ({
               <Select.Value />
             </Select.Trigger>
             <Select.Content>
-              {SHIPMENT_CARRIERS.map((c) => (
+              {availableCarriers.map((c) => (
                 <Select.Item key={c.value} value={c.value}>
                   {c.label}
                 </Select.Item>
               ))}
             </Select.Content>
           </Select>
+          {isIntl ? (
+            <Text size="small" className="text-ui-fg-subtle">
+              This order ships outside India, so only carriers with an export
+              service are listed. Delhivery is domestic-only on this account —
+              its exports run on Cross Border, a separate service.
+            </Text>
+          ) : null}
           <div>
             <Button
               type="button"

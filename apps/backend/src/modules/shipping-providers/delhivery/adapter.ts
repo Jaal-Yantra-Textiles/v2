@@ -4,7 +4,10 @@
  * auto-assigns the waybill, so `createShipment` is a single round-trip; the
  * waybill is the only ref needed for label/track/cancel.
  */
+import { MedusaError } from "@medusajs/framework/utils"
+
 import { DelhiveryClient, DelhiveryOptions } from "./client"
+import { isInternationalDestination } from "../destination"
 import {
   CreateShipmentInput,
   LabelResult,
@@ -31,6 +34,34 @@ const STATUS_LABELS: Record<string, string> = {
   NFI: "Not Found",
 }
 
+/**
+ * Refuse an export up front, with the reason and the way out.
+ *
+ * This adapter drives Delhivery's Express last-mile API (`/api/cmu/create.json`)
+ * — the DOMESTIC product. Delhivery's exports run on Cross Border, a separate
+ * Delhivery One service with its own activation, seller KYC (PAN, GST, bank +
+ * IFSC, AD code, IEC) and a different order object (shipment type, INCO terms,
+ * invoice number/date, IGST payment status, per-item category/HSN/qty/price).
+ * None of it is in the Express API at all.
+ *
+ * Without this guard the domestic endpoint is handed a foreign postcode in
+ * `pin` and a `country` it does not serve. Measured against the live account
+ * 2026-08-06: serviceability for a US ZIP returns `{"delivery_codes": []}`, and
+ * the rate API answers `400 "Unable to process request, Please contact:
+ * lastmile-integration@delhivery.com"` — no indication that the real problem is
+ * "this carrier has no export product on this account". Fail here instead, so
+ * the operator is told to pick a carrier that can actually ship it.
+ */
+function assertDomestic(country: string | undefined, action: string): void {
+  if (!isInternationalDestination(country)) {
+    return
+  }
+  throw new MedusaError(
+    MedusaError.Types.NOT_ALLOWED,
+    `Delhivery cannot ${action} to ${country} — this integration drives Delhivery's domestic (Express) API, and international exports run on Delhivery Cross Border, which is a separate service. Use Shiprocket for this order, or contact Delhivery to enable Cross Border.`
+  )
+}
+
 export class DelhiveryProviderAdapter implements ShippingProviderClient {
   readonly carrier = "delhivery"
   private client: DelhiveryClient
@@ -45,6 +76,10 @@ export class DelhiveryProviderAdapter implements ShippingProviderClient {
   }
 
   async getRates(query: RateQuery): Promise<RateOption[]> {
+    // The Kinko invoice API takes two 6-digit INDIAN pincodes and quotes in INR.
+    // A foreign destination gets a bare 400 from Delhivery, so classify it here.
+    assertDomestic(query.destination_country, "quote a rate")
+
     const result = await this.client.calculateShippingCost({
       origin_pin: query.origin_pincode,
       destination_pin: query.destination_pincode,
@@ -62,7 +97,16 @@ export class DelhiveryProviderAdapter implements ShippingProviderClient {
   }
 
   async createShipment(input: CreateShipmentInput): Promise<ShipmentResult> {
+    assertDomestic(input.to.country, "create a shipment")
+
     const result = await this.client.createShipment({
+      // Delhivery makes `hsn_code` mandatory on order creation alongside
+      // `seller_gst_tin`, and it is ONE code per shipment, not one per line —
+      // so send the first line that resolves one. `items[].hsn` is filled by
+      // the shared variant → inventory item → product → line-metadata chain
+      // (#1206); this adapter was dropping it, which is why Delhivery labels
+      // carried a GSTIN but never an HSN.
+      hsn_code: input.items.map((i) => i.hsn).find((h) => !!h && String(h).trim()),
       waybill: "",
       name: input.to.name,
       phone: input.to.phone,

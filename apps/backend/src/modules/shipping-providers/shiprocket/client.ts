@@ -9,6 +9,7 @@
  *
  * Docs: https://apidocs.shiprocket.in/  ·  base: https://apiv2.shiprocket.in/v1/external
  */
+import { isInternationalDestination } from "../destination"
 import {
   CreateShipmentInput,
   LabelResult,
@@ -341,12 +342,13 @@ export function toShiprocketCountryName(country?: string): string {
   }
 }
 
-/** True when a shipment's destination country is outside India. */
-export function isInternationalDestination(country?: string): boolean {
-  const raw = (country || "").trim()
-  if (!raw) return false
-  return !/^(in|india)$/i.test(raw)
-}
+// Destination classification is carrier-neutral — it now lives in
+// `../destination` so an adapter with no export product (Delhivery) can refuse
+// the job without importing the Shiprocket client. Re-exported here so the
+// existing import sites keep working.
+// (A re-export alone wouldn't put the name in this module's scope, and it is
+// used below to branch the create flow — so import, then re-export.)
+export { isInternationalDestination }
 
 /** Shiprocket international customs fields, with retail-sale defaults applied. */
 export type ResolvedCustoms = {
