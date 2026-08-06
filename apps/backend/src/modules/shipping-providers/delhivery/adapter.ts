@@ -8,6 +8,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 
 import { DelhiveryClient, DelhiveryOptions } from "./client"
 import { isInternationalDestination } from "../destination"
+import { normalizeHsCode } from "../hs-code-resolution"
 import {
   CreateShipmentInput,
   LabelResult,
@@ -106,7 +107,9 @@ export class DelhiveryProviderAdapter implements ShippingProviderClient {
       // the shared variant → inventory item → product → line-metadata chain
       // (#1206); this adapter was dropping it, which is why Delhivery labels
       // carried a GSTIN but never an HSN.
-      hsn_code: input.items.map((i) => i.hsn).find((h) => !!h && String(h).trim()),
+      hsn_code: input.items
+        .map((i) => normalizeHsCode(i.hsn))
+        .find((h) => !!h),
       waybill: "",
       name: input.to.name,
       phone: input.to.phone,

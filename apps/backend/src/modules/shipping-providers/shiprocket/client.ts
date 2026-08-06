@@ -10,6 +10,7 @@
  * Docs: https://apidocs.shiprocket.in/  ·  base: https://apiv2.shiprocket.in/v1/external
  */
 import { isInternationalDestination } from "../destination"
+import { nonEmptyCode, normalizeHsCode } from "../hs-code-resolution"
 import {
   CreateShipmentInput,
   LabelResult,
@@ -276,7 +277,10 @@ export function buildShiprocketOrderItems(
         sku,
         units,
         selling_price: i.unit_price,
-        hsn: i.hsn || "",
+        // Digits only — Shiprocket rejects `6205.20.00` / `6205 20 00` with
+        // "HSN should be numeric". An unrecoverable code normalizes to "" and is
+        // then caught by the missing-HSN guard rather than posted invalid.
+        hsn: normalizeHsCode(i.hsn) || "",
         tax: i.tax ?? "",
       })
     }
@@ -416,7 +420,12 @@ export function buildInternationalCreateBody(
     billing_address_2: input.to.address_2 || "",
     billing_city: input.to.city,
     billing_pincode: input.to.pincode,
-    billing_state: input.to.state,
+    // Shiprocket makes billing_state mandatory even for destinations that have
+    // no province in their address (city-states, or foreign addresses where the
+    // buyer left it blank) — it 422s with "The billing state field is required".
+    // Fall back to the city, which is what Shiprocket's own support advises for
+    // stateless addresses, so a valid order isn't blocked on an empty field.
+    billing_state: nonEmptyCode(input.to.state) || input.to.city,
     billing_country: toShiprocketCountryName(input.to.country),
     billing_email: input.to.email || "",
     billing_phone: input.to.phone,
@@ -636,7 +645,9 @@ export class ShiprocketClient implements ShippingProviderClient {
       billing_address_2: input.to.address_2 || "",
       billing_city: input.to.city,
       billing_pincode: input.to.pincode,
-      billing_state: input.to.state,
+      // Mandatory at Shiprocket even when the address carries no state — fall
+      // back to the city (same as the international body above).
+      billing_state: nonEmptyCode(input.to.state) || input.to.city,
       billing_country: input.to.country || "India",
       billing_email: input.to.email || "",
       billing_phone: input.to.phone,

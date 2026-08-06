@@ -1,5 +1,6 @@
 import {
   nonEmptyCode,
+  normalizeHsCode,
   resolveVariantHsCode,
   suggestHsCodeTarget,
 } from "../hs-code-resolution"
@@ -23,6 +24,32 @@ describe("nonEmptyCode", () => {
     expect(nonEmptyCode("   ")).toBeUndefined()
     expect(nonEmptyCode(null)).toBeUndefined()
     expect(nonEmptyCode(undefined)).toBeUndefined()
+  })
+})
+
+describe("normalizeHsCode", () => {
+  it("strips the formatting customs schedules print", () => {
+    // Same code, three ways a merchant might type it — carriers want bare digits.
+    expect(normalizeHsCode("6205.20.00")).toBe("62052000")
+    expect(normalizeHsCode("6205 20 00")).toBe("62052000")
+    expect(normalizeHsCode("6205-20-00")).toBe("62052000")
+    expect(normalizeHsCode(" 6205200000 ")).toBe("6205200000")
+    expect(normalizeHsCode(62052000)).toBe("62052000")
+  })
+
+  it("returns undefined when nothing numeric survives", () => {
+    // A pure-text code must not reach the carrier as "" and slip past — it
+    // returns undefined so the missing-HSN guard fires with a clear message.
+    expect(normalizeHsCode("N/A")).toBeUndefined()
+    expect(normalizeHsCode("")).toBeUndefined()
+    expect(normalizeHsCode(null)).toBeUndefined()
+    expect(normalizeHsCode(undefined)).toBeUndefined()
+  })
+
+  it("rejects an over-long string rather than truncating a code", () => {
+    // >15 digits is a data error, not a code to silently cut to 15.
+    expect(normalizeHsCode("1234567890123456")).toBeUndefined()
+    expect(normalizeHsCode("123456789012345")).toBe("123456789012345")
   })
 })
 
