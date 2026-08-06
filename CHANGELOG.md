@@ -1,3 +1,16 @@
+# [13.75.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.74.4...v13.75.0) (2026-08-06)
+
+
+### Bug Fixes
+
+* **shipping:** fall back Shiprocket phone/pincode to billing + customer ([#1212](https://github.com/Jaal-Yantra-Textiles/v2/issues/1212)) ([688bb0d](https://github.com/Jaal-Yantra-Textiles/v2/commit/688bb0d88f5166300de139b2df48a018417e8b80)), closes [#1211](https://github.com/Jaal-Yantra-Textiles/v2/issues/1211)
+
+
+### Features
+
+* **shipping:** courier selection in partner Mark-as-Shipped ([#1214](https://github.com/Jaal-Yantra-Textiles/v2/issues/1214)) ([500a6be](https://github.com/Jaal-Yantra-Textiles/v2/commit/500a6be2390c2decc7dbc1839c857ebfdc97c1a0)), closes [#641](https://github.com/Jaal-Yantra-Textiles/v2/issues/641)
+* **shipping:** parcel weight + dimensions in partner Mark-as-Shipped ([#1213](https://github.com/Jaal-Yantra-Textiles/v2/issues/1213)) ([fc30178](https://github.com/Jaal-Yantra-Textiles/v2/commit/fc3017889be5a73c5ce22d4e7861d4125dab96b5))
+
 ## [13.74.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.74.3...v13.74.4) (2026-08-06)
 
 
