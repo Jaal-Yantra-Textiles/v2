@@ -4,6 +4,7 @@ import {
 } from "@medusajs/framework/utils"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { resolveShippingProvider } from "../../modules/shipping-providers/resolver"
+import { isInternationalDestination } from "../../modules/shipping-providers/destination"
 import { SHIPROCKET_PICKUP_METADATA_KEY } from "../../modules/shipping-providers/pickup-locations"
 import type {
   PickupLocation,
@@ -52,6 +53,10 @@ export type ShiprocketRatesResult = {
   weight_grams: number
   cod: boolean
   rates: RateOption[]
+  /** Destination country (ISO-2). Present so the UI can label the quote. */
+  destination_country?: string
+  /** True when quoted through the carrier's cross-border product. */
+  international?: boolean
 }
 
 export async function getShiprocketRatesForOrder(
@@ -66,6 +71,12 @@ export async function getShiprocketRatesForOrder(
       "id",
       "metadata",
       "shipping_address.postal_code",
+      "shipping_address.country_code",
+      // Same fallback source the label flow walks (#1212): the postal code can
+      // land on the billing address instead, and quoting must not fail on a
+      // field the label call would have found.
+      "billing_address.postal_code",
+      "billing_address.country_code",
       "fulfillments.location_id",
     ],
     filters: { id: input.orderId },
@@ -79,9 +90,24 @@ export async function getShiprocketRatesForOrder(
   }
 
   const destinationPincode = String(
-    order.shipping_address?.postal_code || ""
+    order.shipping_address?.postal_code ||
+      order.billing_address?.postal_code ||
+      ""
   ).trim()
-  if (!destinationPincode) {
+  const destinationCountry = String(
+    order.shipping_address?.country_code ||
+      order.billing_address?.country_code ||
+      ""
+  )
+    .trim()
+    .toUpperCase()
+  const international = isInternationalDestination(destinationCountry)
+
+  // A cross-border quote is priced on destination COUNTRY + weight, not on a
+  // postcode, so a missing pincode must not block it — international couriers
+  // quote fine without one (and the label flow validates it separately, where it
+  // actually matters). Domestic serviceability genuinely needs the pincode.
+  if (!destinationPincode && !international) {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
       "Order has no shipping-address pincode to quote a delivery rate against."
@@ -127,9 +153,14 @@ export async function getShiprocketRatesForOrder(
   const cod = order.metadata?.payment_mode === "cod"
   const weightGrams = input.weightGrams || DEFAULT_WEIGHT_GRAMS
 
+  // `destination_country` is what makes the adapter reach for its cross-border
+  // product. Omitting it was why international orders came back with an empty
+  // courier list: the quote went to the India-only pincode endpoint, which has
+  // no couriers to offer for a foreign postcode and reports that as success.
   const rates = await provider.getRates({
     origin_pincode: originPincode,
     destination_pincode: destinationPincode,
+    destination_country: destinationCountry || undefined,
     weight_grams: weightGrams,
     cod,
   })
@@ -137,6 +168,8 @@ export async function getShiprocketRatesForOrder(
   return {
     origin_pincode: originPincode,
     destination_pincode: destinationPincode,
+    destination_country: destinationCountry || undefined,
+    international,
     weight_grams: weightGrams,
     cod,
     rates,
