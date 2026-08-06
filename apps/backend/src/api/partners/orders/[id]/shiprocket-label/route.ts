@@ -22,8 +22,17 @@ import { createShiprocketShipmentForFulfillment } from "../../../../../workflows
  * there is deliberately NO registered-pickup fallback — all parties share one
  * Shiprocket account, so the #638 fallback would print a label originating at
  * another party's warehouse. Accepts an optional `preferred_courier_id`
- * (#641 parity).
+ * (#641 parity) and optional parcel `weight_grams` / `dimensions_cm` — when
+ * omitted the shipment falls back to the default weight, which is why every
+ * label used to ship at 500 g regardless of the parcel.
  */
+
+/** Coerce a body value to a positive number, or undefined (never 0/NaN). */
+const positiveNumber = (v: unknown): number | undefined => {
+  const n = Number(v)
+  return Number.isFinite(n) && n > 0 ? n : undefined
+}
+
 export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
@@ -34,11 +43,23 @@ export const POST = async (
   const body = (req.body || {}) as {
     carrier?: string
     preferred_courier_id?: string | number
+    weight_grams?: number
+    dimensions_cm?: { length?: number; width?: number; height?: number }
   }
   const preferredCourierId =
     body.preferred_courier_id != null && body.preferred_courier_id !== ""
       ? body.preferred_courier_id
       : undefined
+
+  const weightGrams = positiveNumber(body.weight_grams)
+  // Dimensions are all-or-nothing at the carrier (a partial box is meaningless),
+  // so only forward them when all three are present and positive.
+  const dims = body.dimensions_cm || {}
+  const length = positiveNumber(dims.length)
+  const width = positiveNumber(dims.width)
+  const height = positiveNumber(dims.height)
+  const dimensionsCm =
+    length && width && height ? { length, width, height } : undefined
 
   const { partner, locationId } = await resolvePartnerShipFromLocation(
     req.auth_context,
@@ -61,6 +82,8 @@ export const POST = async (
     pickupStockLocationId: locationId,
     actingEmail: partner?.admins?.[0]?.email,
     preferredCourierId,
+    weightGrams,
+    dimensionsCm,
   })
 
   res.status(200).json({ shiprocket_label: shipment })

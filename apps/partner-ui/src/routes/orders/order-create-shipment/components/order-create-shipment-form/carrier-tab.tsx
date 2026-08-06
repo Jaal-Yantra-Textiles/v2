@@ -92,7 +92,24 @@ export const CarrierTab = ({
 
   const handleGenerate = async () => {
     try {
-      const res = await generateLabel({ carrier })
+      // Parcel details drive the carrier's weight/dimension pricing and the
+      // label. Form inputs are strings, so coerce; omitted/blank fields aren't
+      // sent — the backend keeps its default weight rather than shipping a
+      // zero-gram parcel. Dimensions are all-or-nothing (a partial box is
+      // meaningless), matching the server-side rule.
+      const pos = (v: unknown) => {
+        const n = Number(v)
+        return Number.isFinite(n) && n > 0 ? n : undefined
+      }
+      const values = form.getValues()
+      const weight_grams = pos(values.weight_grams)
+      const length = pos(values.length_cm)
+      const width = pos(values.width_cm)
+      const height = pos(values.height_cm)
+      const dimensions_cm =
+        length && width && height ? { length, width, height } : undefined
+
+      const res = await generateLabel({ carrier, weight_grams, dimensions_cm })
       const label = res?.shiprocket_label
       const awb = label?.awb || label?.tracking_number
       if (!awb) {
@@ -187,6 +204,49 @@ export const CarrierTab = ({
               its exports run on Cross Border, a separate service.
             </Text>
           ) : null}
+
+          {/* Parcel details — drive the carrier's weight/dimension pricing and
+              the printed label. Optional: left blank, the shipment uses the
+              backend default weight (which is why labels used to ship at 500 g
+              regardless of the parcel). */}
+          {!existingAwb ? (
+            <div className="flex flex-col gap-y-2 border-t pt-4">
+              <Label size="xsmall">Parcel</Label>
+              <Text size="small" className="text-ui-fg-subtle">
+                Weight and box size price the shipment and print on the label.
+                Leave blank to use the default weight.
+              </Text>
+              <div className="grid max-w-xs grid-cols-2 gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Weight (g)"
+                  {...form.register("weight_grams")}
+                />
+              </div>
+              <div className="grid max-w-xs grid-cols-3 gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="L (cm)"
+                  {...form.register("length_cm")}
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="W (cm)"
+                  {...form.register("width_cm")}
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="H (cm)"
+                  {...form.register("height_cm")}
+                />
+              </div>
+            </div>
+          ) : null}
+
           <div>
             <Button
               type="button"

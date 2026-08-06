@@ -27,6 +27,10 @@ export type GenerateShiprocketLabelResponse = {
 export type GenerateShiprocketLabelVariables = {
   preferred_courier_id?: string | number
   carrier?: string
+  /** Chargeable parcel weight in grams. Omitted → backend default weight. */
+  weight_grams?: number
+  /** Parcel box in cm. All three or none — a partial box is ignored server-side. */
+  dimensions_cm?: { length?: number; width?: number; height?: number }
 }
 
 /**
@@ -47,6 +51,8 @@ export const useGenerateShiprocketLabel = (
       const body: Record<string, any> = {}
       if (variables?.preferred_courier_id) body.preferred_courier_id = variables.preferred_courier_id
       if (variables?.carrier) body.carrier = variables.carrier
+      if (variables?.weight_grams) body.weight_grams = variables.weight_grams
+      if (variables?.dimensions_cm) body.dimensions_cm = variables.dimensions_cm
       return sdk.client.fetch<GenerateShiprocketLabelResponse>(
         `/partners/orders/${orderId}/shiprocket-label`,
         { method: "POST", body }
