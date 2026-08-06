@@ -1,3 +1,10 @@
+## [13.74.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.74.3...v13.74.4) (2026-08-06)
+
+
+### Bug Fixes
+
+* **shipping:** normalize HSN to digits and fall back billing_state for Shiprocket ([#1211](https://github.com/Jaal-Yantra-Textiles/v2/issues/1211)) ([6ff5a41](https://github.com/Jaal-Yantra-Textiles/v2/commit/6ff5a418ff0f2d430646ad8cb149ce6b5b9b23f7))
+
 ## [13.74.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.74.2...v13.74.3) (2026-08-06)
 
 
