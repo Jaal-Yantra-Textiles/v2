@@ -23,6 +23,33 @@ export const nonEmptyCode = (v: unknown): string | undefined => {
   return s.length ? s : undefined
 }
 
+/**
+ * Normalize an HS/HSN code for a carrier that wants digits only.
+ *
+ * Merchants enter codes the way customs schedules print them — `6205.20.00`,
+ * `6205 20 00`, `6205-20-00` — but Shiprocket rejects anything non-numeric
+ * (`HSN should be numeric; Can have length between 1 to 15`) and Delhivery
+ * expects a bare code too. Dots / spaces / hyphens are pure formatting of the
+ * SAME code, so stripping them is safe and does not change the declaration.
+ *
+ * Returns undefined when nothing numeric survives (e.g. a code typed as pure
+ * text), so the caller's existing "missing HSN" guard fires with an actionable
+ * message rather than posting an invalid code. Capped at 15 digits — Shiprocket's
+ * documented max; a longer string is a data error, not a truncatable code, so it
+ * is rejected (undefined) rather than silently cut.
+ */
+export const normalizeHsCode = (v: unknown): string | undefined => {
+  const raw = nonEmptyCode(v)
+  if (!raw) {
+    return undefined
+  }
+  const digits = raw.replace(/[^0-9]/g, "")
+  if (!digits.length || digits.length > 15) {
+    return undefined
+  }
+  return digits
+}
+
 /** The shape `resolveVariantHsCode` needs; a superset of it is fine. */
 export type VariantLike = {
   id?: string | null

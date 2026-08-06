@@ -110,6 +110,36 @@ describe("buildInternationalCreateBody", () => {
     const body = buildInternationalCreateBody(usInput({ currency: undefined }), "wh")
     expect(body.currency).toBe("INR")
   })
+
+  it("normalizes a formatted HSN to digits (Shiprocket 422: 'HSN should be numeric')", () => {
+    const body = buildInternationalCreateBody(
+      usInput({
+        items: [{ name: "Shirt", sku: "S-1", quantity: 1, unit_price: 20, hsn: "6205.20.00" }],
+      }),
+      "wh"
+    )
+    expect(body.order_items[0].hsn).toBe("62052000")
+  })
+
+  it("treats a non-numeric HSN as missing rather than posting it invalid", () => {
+    const input = usInput({
+      items: [{ name: "Shirt", sku: "S-1", quantity: 1, unit_price: 20, hsn: "N/A" }],
+    })
+    expect(() => buildInternationalCreateBody(input, "wh")).toThrow(/HSN code is required/i)
+  })
+
+  it("falls back billing_state to the city when the address has none (422: 'billing state field is required')", () => {
+    const body = buildInternationalCreateBody(
+      usInput({ to: { ...usInput().to, state: "" } as any }),
+      "wh"
+    )
+    expect(body.billing_state).toBe("Dallas")
+  })
+
+  it("keeps a real billing_state untouched", () => {
+    const body = buildInternationalCreateBody(usInput(), "wh")
+    expect(body.billing_state).toBe("Texas")
+  })
 })
 
 describe("ShiprocketClient.createShipment — international routing", () => {
