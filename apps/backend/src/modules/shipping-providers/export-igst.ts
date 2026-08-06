@@ -87,6 +87,19 @@ export type ExportIgstResolution = {
   financial_year?: string
   /** Days until the LUT lapses; negative is impossible (expired ⇒ no LUT). */
   days_until_expiry?: number
+  /**
+   * Whether ANY LUT has ever been recorded for this jurisdiction — regardless of
+   * whether one is currently in force.
+   *
+   * This is what decides who owns the declaration. It exists because the env
+   * escape hatch (`SHIPROCKET_IGST_PAYMENT_STATUS`) would otherwise outlive its
+   * purpose: it is meant for the window between an ARN being issued and the LUT
+   * being entered here, but if it stayed authoritative afterwards, an EXPIRED LUT
+   * plus a stale `=B` would keep claiming the exemption — silently defeating the
+   * whole point of tracking a validity window. So once any LUT is on record, the
+   * table decides (including expiry) and the env can no longer override it.
+   */
+  has_recorded_lut: boolean
 }
 
 /**
@@ -101,13 +114,15 @@ export async function resolveExportIgstForCountry(
   now: Date = new Date()
 ): Promise<ExportIgstResolution> {
   const luts = await loadExportLuts(container, country)
+  const hasRecordedLut = luts.length > 0
   const { status, lut } = resolveExportIgstStatus(luts, now)
   if (!lut) {
-    return { status }
+    return { status, has_recorded_lut: hasRecordedLut }
   }
   const validTo = lut.valid_to ? new Date(lut.valid_to as any) : null
   return {
     status,
+    has_recorded_lut: hasRecordedLut,
     lut_arn: typeof lut.arn === "string" ? lut.arn : undefined,
     financial_year:
       typeof lut.financial_year === "string" ? lut.financial_year : undefined,

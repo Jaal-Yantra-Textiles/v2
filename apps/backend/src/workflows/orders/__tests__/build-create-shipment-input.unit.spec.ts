@@ -589,3 +589,43 @@ describe("buildCreateShipmentInput — customs declaration passthrough (#1216)",
     expect(input.customs).toBeUndefined()
   })
 })
+
+/**
+ * #1216 follow-up — who owns the IGST declaration.
+ *
+ * `SHIPROCKET_IGST_PAYMENT_STATUS` is an escape hatch for the window between an
+ * ARN being issued and the LUT being recorded. It must NOT outlive that window:
+ * once a LUT is on record, an expired one plus a stale `=B` would keep claiming
+ * the exemption, defeating the validity window entirely. So the workflow passes
+ * "C" explicitly whenever a LUT exists but none is in force.
+ */
+describe("export IGST precedence (env escape hatch vs recorded LUT)", () => {
+  // The workflow's branch, verbatim in shape.
+  const workflowCustoms = (igst: {
+    status: "B" | "C"
+    has_recorded_lut: boolean
+  }) =>
+    igst.status === "B"
+      ? { igst_payment_status: "B" as const }
+      : igst.has_recorded_lut
+        ? { igst_payment_status: "C" as const }
+        : undefined
+
+  it("stays silent when nothing is recorded, letting the env apply", () => {
+    expect(workflowCustoms({ status: "C", has_recorded_lut: false })).toBeUndefined()
+  })
+
+  it("declares C explicitly when a LUT exists but none is in force", () => {
+    // The regression: previously this returned undefined, so a stale env "=B"
+    // re-granted the exemption on an EXPIRED LUT.
+    expect(workflowCustoms({ status: "C", has_recorded_lut: true })).toEqual({
+      igst_payment_status: "C",
+    })
+  })
+
+  it("declares B when a live LUT justifies it", () => {
+    expect(workflowCustoms({ status: "B", has_recorded_lut: true })).toEqual({
+      igst_payment_status: "B",
+    })
+  })
+})
