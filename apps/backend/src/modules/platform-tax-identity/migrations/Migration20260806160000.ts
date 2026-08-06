@@ -13,8 +13,16 @@ import { Migration } from "@medusajs/framework/mikro-orm/migrations";
  * fail on a DB that already has the table — the non-idempotent pattern tracked
  * in #1208. No seed: there is no ARN yet, and inventing one would be a false
  * declaration.
+ *
+ * ⚠️ The timestamp is 1600, not 1200, because MikroORM tracks migrations by NAME
+ * in ONE shared `mikro_orm_migrations` table across every module — and
+ * `partner_billing/Migration20260806120000` already exists (#1206, same day).
+ * With the colliding name this migration was recorded as already-executed and
+ * SKIPPED: `db:migrate` said "Migrations completed" and created no table. See
+ * memory:reference_medusa_migration_name_collision. Any new migration must be
+ * checked against `find src -name "Migration<ts>.ts"` before it ships.
  */
-export class Migration20260806120000 extends Migration {
+export class Migration20260806160000 extends Migration {
 
   override async up(): Promise<void> {
     this.addSql(`create table if not exists "platform_export_lut" (
