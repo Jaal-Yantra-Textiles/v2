@@ -1,3 +1,10 @@
+## [13.74.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.74.2...v13.74.3) (2026-08-06)
+
+
+### Bug Fixes
+
+* **shipping:** refuse Delhivery for international destinations, and send its HSN ([#1210](https://github.com/Jaal-Yantra-Textiles/v2/issues/1210)) ([27622d3](https://github.com/Jaal-Yantra-Textiles/v2/commit/27622d30f06981008da8a72b061995521c3059ed)), closes [#348](https://github.com/Jaal-Yantra-Textiles/v2/issues/348) [#1206](https://github.com/Jaal-Yantra-Textiles/v2/issues/1206)
+
 ## [13.74.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.74.1...v13.74.2) (2026-08-06)
 
 
