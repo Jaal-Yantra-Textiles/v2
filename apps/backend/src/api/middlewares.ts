@@ -5159,6 +5159,20 @@ export default defineMiddlewares({
       ],
     },
     {
+      // #1204 — the `fulfillment-label` alias (#835) re-exports the handler
+      // above, but a route file is not a route: with no matcher here
+      // `authenticate` never ran, so `auth_context` was always undefined and
+      // `validatePartnerOrderOwnership` refused EVERY caller, the owner
+      // included. Must stay identical to the canonical matcher above — an alias
+      // that authenticates differently from its target is worse than no alias.
+      matcher: "/partners/orders/:id/fulfillment-label",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       matcher: "/partners/orders/:id/shiprocket-rates",
       method: "GET",
       middlewares: [

@@ -135,21 +135,34 @@ setupSharedTestSuite(() => {
       const order = await createOrder(unique)
       await linkPartnerOrder(owner.partnerId, order.id)
 
+      // 404, not 401 — and the difference IS the test (#1204).
+      //
+      // This route re-exports `shiprocket-label`'s handler verbatim, so the only
+      // thing unique to the alias is its matcher. Until #1204 it had none:
+      // `authenticate` never ran, `auth_context` was always undefined, and the
+      // handler refused EVERY caller with UNAUTHORIZED — the legitimate owner
+      // included. The old assertion expected that 401 and so passed while the
+      // route was completely broken.
+      //
+      // 404 can only be reached by authenticating successfully and THEN failing
+      // the ownership lookup, which is precisely what a working matcher buys.
+      // Regress the matcher and this flips back to 401.
       await expect(
         api.post(
           `/partners/orders/${order.id}/fulfillment-label`,
           {},
           { headers: intruder.headers }
         )
-        // 401 since #1202 (was 400 via the collapsed error handler).
-        //
-        // ⚠️ This assertion passes for the WRONG REASON. `/partners/orders/:id/
-        // fulfillment-label` has NO matcher in src/api/middlewares.ts, so
-        // `authenticate` never runs, `auth_context` is always undefined, and the
-        // route refuses EVERY caller — the legitimate owner included. It has
-        // therefore never tested ownership. Tracked in #1204; once the matcher
-        // exists a genuine intruder should get 404, like the two routes above.
-      ).rejects.toMatchObject({ response: { status: 401 } })
+      ).rejects.toMatchObject({ response: { status: 404 } })
+
+      // NOTE: no owner-passes-through assertion here, deliberately. The sibling
+      // test proves that with `attach-awb`, whose body validation trips before
+      // any carrier work. This handler has no such gate: after the ownership
+      // check it resolves a ship-from location, and `pickPartnerShipFromLocation`
+      // falls back to the first linked location — so the fixture's warehouse
+      // qualifies and an owner's request would proceed into a LIVE Shiprocket
+      // label call. The 404-vs-401 discriminator above already proves the
+      // matcher authenticates; buying the owner half is not worth a live call.
     })
   })
 })
