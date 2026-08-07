@@ -1,3 +1,19 @@
+# [13.76.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.75.0...v13.76.0) (2026-08-07)
+
+
+### Bug Fixes
+
+* **partners:** add the missing auth matcher for the fulfillment-label alias ([#1204](https://github.com/Jaal-Yantra-Textiles/v2/issues/1204)) ([#1221](https://github.com/Jaal-Yantra-Textiles/v2/issues/1221)) ([957e760](https://github.com/Jaal-Yantra-Textiles/v2/commit/957e760ebca8ed5eb496a815b9ac95093a112919))
+* **shipping:** forward parcel dimensions to international rate quotes ([#1220](https://github.com/Jaal-Yantra-Textiles/v2/issues/1220)) ([64fa82a](https://github.com/Jaal-Yantra-Textiles/v2/commit/64fa82a448150c8c1423f68f457b45e3ce7e3860)), closes [pre-#1215](https://github.com/pre-/issues/1215) [#1215](https://github.com/Jaal-Yantra-Textiles/v2/issues/1215) [#1213](https://github.com/Jaal-Yantra-Textiles/v2/issues/1213) [#1215](https://github.com/Jaal-Yantra-Textiles/v2/issues/1215) [pre-#1215](https://github.com/pre-/issues/1215) [#1215](https://github.com/Jaal-Yantra-Textiles/v2/issues/1215) [#1215](https://github.com/Jaal-Yantra-Textiles/v2/issues/1215)
+* **shipping:** international Shiprocket delivery block, rates and declared value ([#1215](https://github.com/Jaal-Yantra-Textiles/v2/issues/1215)) ([a5b9503](https://github.com/Jaal-Yantra-Textiles/v2/commit/a5b950346e3e52527af49da7c360cb10a7ad60ae))
+* **customs:** stop a stale env var overriding an expired LUT ([#1219](https://github.com/Jaal-Yantra-Textiles/v2/issues/1219)) ([491d571](https://github.com/Jaal-Yantra-Textiles/v2/commit/491d571f10d1ee274d73b69b5be6bf83ff027d50))
+
+
+### Features
+
+* **customs:** export-LUT admin settings page + expiry warning job ([#1216](https://github.com/Jaal-Yantra-Textiles/v2/issues/1216)) ([#1218](https://github.com/Jaal-Yantra-Textiles/v2/issues/1218)) ([1f3b549](https://github.com/Jaal-Yantra-Textiles/v2/commit/1f3b5494de2fa3153d593e68f91ad6530e2a048d)), closes [#1217](https://github.com/Jaal-Yantra-Textiles/v2/issues/1217)
+* **customs:** resolve export IGST status from a recorded LUT ([#1216](https://github.com/Jaal-Yantra-Textiles/v2/issues/1216)) ([#1217](https://github.com/Jaal-Yantra-Textiles/v2/issues/1217)) ([164e4c7](https://github.com/Jaal-Yantra-Textiles/v2/commit/164e4c7fdd2b4087f06e8a89f014af1028dc3c1e)), closes [#1208](https://github.com/Jaal-Yantra-Textiles/v2/issues/1208)
+
 # [13.75.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.74.4...v13.75.0) (2026-08-06)
 
 
