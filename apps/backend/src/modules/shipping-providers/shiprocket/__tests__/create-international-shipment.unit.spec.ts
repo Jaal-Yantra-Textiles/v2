@@ -26,7 +26,10 @@ const usInput = (over: Partial<CreateShipmentInput> = {}): CreateShipmentInput =
     pincode: "75201",
     country: "US",
   },
-  items: [{ name: "Silk Scarf", sku: "SCARF-1", quantity: 2, unit_price: 40, hsn: "6214" }],
+  // 8-digit ITC-HS (6214.10.10, silk scarves). The fixture used to carry the
+  // 4-digit "6214", which `/international/*` rejects outright — so every test
+  // built on it was asserting against a body the carrier would never accept.
+  items: [{ name: "Silk Scarf", sku: "SCARF-1", quantity: 2, unit_price: 40, hsn: "62141010" }],
   weight_grams: 600,
   sub_total: 80,
   currency: "USD",
@@ -114,7 +117,7 @@ describe("buildInternationalCreateBody", () => {
       commodity: true,
       sub_total: 80,
     })
-    expect(body.order_items[0]).toMatchObject({ sku: "SCARF-1", hsn: "6214", units: 2 })
+    expect(body.order_items[0]).toMatchObject({ sku: "SCARF-1", hsn: "62141010", units: 2 })
   })
 
   // The bug behind `assign/awb` 400 ["Delivery pincode is empty","Customer phone
@@ -185,6 +188,69 @@ describe("buildInternationalCreateBody", () => {
       items: [{ name: "Shirt", sku: "S-1", quantity: 1, unit_price: 20, hsn: "N/A" }],
     })
     expect(() => buildInternationalCreateBody(input, "wh")).toThrow(/HSN code is required/i)
+  })
+
+  /**
+   * The live 422 this guard exists for, reproduced from order 79 (2026-08-07):
+   *   "order_items.0.hsn: The order_items.0.hsn must be at least 8 characters"
+   *   … repeated for every line.
+   *
+   * All six products carried a 6-digit WCO heading, which the DOMESTIC endpoint
+   * accepts (documented 1–15) and `normalizeHsCode` therefore allows. The failure
+   * was invisible until the carrier saw it.
+   */
+  it("rejects a 6-digit HSN before the call (422: 'must be at least 8 characters')", () => {
+    const input = usInput({
+      items: [
+        { name: "Garpön Kala Cotton Shirt", sku: "S-1", quantity: 1, unit_price: 20, hsn: "620520" },
+        { name: "Lamyig Canvas Carryall", sku: "S-2", quantity: 1, unit_price: 30, hsn: "420222" },
+      ],
+    })
+    expect(() => buildInternationalCreateBody(input, "wh")).toThrow(
+      /at least|8-digit/i
+    )
+  })
+
+  it("names every short line and its current code, so one fix clears them all", () => {
+    const input = usInput({
+      items: [
+        { name: "Shirt", sku: "S-1", quantity: 1, unit_price: 20, hsn: "620520" },
+        { name: "Carryall", sku: "S-2", quantity: 1, unit_price: 30, hsn: "420222" },
+        { name: "Apron", sku: "S-3", quantity: 1, unit_price: 15, hsn: "62114900" },
+      ],
+    })
+    try {
+      buildInternationalCreateBody(input, "wh")
+      throw new Error("expected a throw")
+    } catch (e: any) {
+      expect(e.message).toMatch(/Shirt \(620520\)/)
+      expect(e.message).toMatch(/Carryall \(420222\)/)
+      // The already-valid 8-digit line must NOT be blamed.
+      expect(e.message).not.toMatch(/Apron/)
+    }
+  })
+
+  /**
+   * Zero-padding 6→8 is deliberately NOT done. The last two digits are an Indian
+   * national subheading: 4202.22 splits into 42022210/20/30/40/90 and there is no
+   * 42022200, so padding would invent a tariff line and declare it to customs.
+   */
+  it("does not pad a short HSN to 8 digits", () => {
+    const input = usInput({
+      items: [{ name: "Carryall", sku: "S-2", quantity: 1, unit_price: 30, hsn: "420222" }],
+    })
+    expect(() => buildInternationalCreateBody(input, "wh")).toThrow()
+    // …rather than silently producing "42022200".
+  })
+
+  it("accepts a full 8-digit ITC-HS code", () => {
+    const body = buildInternationalCreateBody(
+      usInput({
+        items: [{ name: "Shirt", sku: "S-1", quantity: 1, unit_price: 20, hsn: "62052000" }],
+      }),
+      "wh"
+    )
+    expect(body.order_items[0].hsn).toBe("62052000")
   })
 
   it("falls back billing_state to the city when the address has none (422: 'billing state field is required')", () => {

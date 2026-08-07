@@ -193,7 +193,7 @@ setupSharedTestSuite(() => {
               title: "Tangaliya Stole",
               quantity: 1,
               unit_price: 1500,
-              metadata: { hsn: "621410" },
+              metadata: { hsn: "62141010" },
             },
           ],
         },
@@ -250,7 +250,7 @@ setupSharedTestSuite(() => {
       expect(String(body.shipping_phone ?? "")).not.toBe("")
 
       // HSN reached the line item.
-      expect(body.order_items[0].hsn).toBe("621410")
+      expect(body.order_items[0].hsn).toBe("62141010")
       // Ships from the partner's registered India pickup.
       const nickname = `warehouse-${locationId.slice(-8)}`
       expect(body.pickup_location).toBe(nickname)
@@ -269,7 +269,7 @@ setupSharedTestSuite(() => {
             {
               title: "OS",
               sku: `STOLE-${Date.now()}`,
-              hs_code: "621410",
+              hs_code: "62141010",
               manage_inventory: false, // no stock-location association needed
               options: { Size: "OS" },
               prices: [{ currency_code: "usd", amount: 1500 }],
@@ -317,7 +317,7 @@ setupSharedTestSuite(() => {
       )
       expect(res.status).toBe(200)
       // HSN reached the customs body from the variant's hs_code.
-      expect(shiprocketStubState.lastIntlAdhocBody.order_items[0].hsn).toBe("621410")
+      expect(shiprocketStubState.lastIntlAdhocBody.order_items[0].hsn).toBe("62141010")
     })
 
     it("rejects the international shipment when a line has no HSN code", async () => {
@@ -359,6 +359,68 @@ setupSharedTestSuite(() => {
         .catch((e: any) => e.response)
       expect(res.status).toBe(400)
       expect(res.data.message).toMatch(/HSN code is required/i)
+    })
+
+    /**
+     * A code can be PRESENT and still rejected. `/international/*` requires at
+     * least 8 digits; the domestic endpoint documents 1–15, which is what
+     * `normalizeHsCode` enforces. So a 6-digit WCO heading passed every check we
+     * had and died at the carrier — the live 422 on order 79 (2026-08-07) named
+     * all six lines at once:
+     *   "order_items.0.hsn: The order_items.0.hsn must be at least 8 characters"
+     *
+     * This asserts the rejection happens HERE, before the carrier call, naming
+     * the offending line and its current code.
+     */
+    it("rejects a 6-digit HSN before the carrier sees it (422: 'at least 8 characters')", async () => {
+      const draft = await api.post(
+        "/admin/draft-orders",
+        {
+          email: "buyer3@t.com",
+          region_id: regionId,
+          sales_channel_id: salesChannelId,
+          currency_code: "usd",
+          shipping_address: {
+            first_name: "Short",
+            last_name: "Hsn",
+            address_1: "9 Buyer Rd",
+            city: "Dallas",
+            province: "TX",
+            postal_code: "75201",
+            country_code: "us",
+            phone: "8887776665",
+          },
+          items: [
+            {
+              title: "Six Digit Shirt",
+              quantity: 1,
+              unit_price: 1500,
+              // The exact shape that shipped to prod: a valid WCO heading that
+              // the international endpoint refuses.
+              metadata: { hsn: "620520" },
+            },
+          ],
+        },
+        adminHeaders
+      )
+      const converted = await api.post(
+        `/admin/draft-orders/${draft.data.draft_order.id}/convert-to-order`,
+        {},
+        adminHeaders
+      )
+
+      const res = await api
+        .post(
+          `/partners/orders/${converted.data.order?.id}/shiprocket-label`,
+          {},
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(res.data.message).toMatch(/8-digit|at least/i)
+      // Names the line AND its current code, so the fix is obvious.
+      expect(res.data.message).toMatch(/620520/)
     })
   })
 })
