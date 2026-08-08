@@ -58,6 +58,29 @@ describe("describeIntlPrereqError (#1118)", () => {
     expect(g?.message).toMatch(/wallet/i)
   })
 
+  /**
+   * A partner has no Shiprocket login — the shared carrier account is the
+   * platform's. Pointing them at "Billing → Recharge" is advice they cannot act
+   * on, so every gate carries partner-facing copy that names what they CAN do.
+   */
+  it("gives every gate partner-facing copy that never mentions the dashboard", () => {
+    const gates = [
+      describeIntlPrereqError({ message: "Insufficient amount to label this shipment" }),
+      describeIntlPrereqError({ message: "KYC is not verified" }),
+      describeIntlPrereqError({ message: "settlement bank details missing" }),
+      describeIntlPrereqError({ message: "pickup location is not enabled for international" }),
+    ]
+    for (const g of gates) {
+      expect(g?.partnerMessage).toBeTruthy()
+      expect(g!.partnerMessage).not.toMatch(/shiprocket|dashboard/i)
+      expect(g!.partnerMessage).toMatch(/support|credits/i)
+    }
+    // The wallet case is the one a partner hits in practice — it must name
+    // credits and support, per the wording asked for in the field.
+    expect(gates[0]!.partnerMessage).toMatch(/courier credits/i)
+    expect(gates[0]!.partnerMessage).toMatch(/support/i)
+  })
+
   it("returns null for an unrelated error (caller rethrows untouched)", () => {
     expect(
       describeIntlPrereqError({ message: "HSN code is required for international shipments" })

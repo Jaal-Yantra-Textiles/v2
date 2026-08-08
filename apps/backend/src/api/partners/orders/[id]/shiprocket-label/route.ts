@@ -84,6 +84,10 @@ export const POST = async (
     preferredCourierId,
     weightGrams,
     dimensionsCm,
+    // Carrier-account failures must read as something a PARTNER can act on —
+    // "load courier credits or contact support", not "open the Shiprocket
+    // dashboard" (they have no login for the shared platform account).
+    audience: "partner",
   })
 
   res.status(200).json({ shiprocket_label: shipment })
