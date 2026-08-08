@@ -534,6 +534,78 @@ describe("ShiprocketClient.createShipment — international routing", () => {
     )
   })
 
+  /**
+   * THE order-79 bug. `create/adhoc` dedupes on the channel `order_id`, so a
+   * reference whose carrier order was cancelled resolves back to that dead
+   * record — HTTP 200, `status: "CANCELED"`, the OLD shipment_id — and assign
+   * then blames the delivery pincode. Live-verified: creating with order 79's id
+   * returned sr_order 1499133560 / shipment 1495356234, cancelled on 6 Aug.
+   */
+  it("recreates under a fresh channel id when the carrier returns a CANCELED order", async () => {
+    const creates: string[] = []
+    const assigned: any[] = []
+    const real = global.fetch?.bind(globalThis)
+    fetchSpy = jest
+      .spyOn(global, "fetch" as any)
+      .mockImplementation(async (input: any, init: any = {}) => {
+        const url = String(input)
+        if (!url.includes("shiprocket.in")) return real?.(input, init)
+        const path = url.replace("https://apiv2.shiprocket.in/v1/external", "")
+        if (path.includes("/international/orders/create/adhoc")) {
+          const body = JSON.parse(init.body)
+          creates.push(body.order_id)
+          // First create resolves to the CANCELLED existing carrier order.
+          return creates.length === 1
+            ? make({
+                order_id: 1499133560,
+                shipment_id: 1495356234,
+                status: "CANCELED",
+                status_code: 5,
+              })
+            : make({ order_id: 1503999, shipment_id: 1499999, status: "NEW", status_code: 1 })
+        }
+        if (path.includes("/international/courier/serviceability"))
+          return make({
+            data: {
+              recommended_courier_company_id: 262,
+              available_courier_companies: [
+                { courier_company_id: 262, courier_name: "SRX Premium Plus Pro", rate: { rate: 1300 } },
+              ],
+            },
+          })
+        if (path.includes("/international/courier/assign/awb")) {
+          const body = JSON.parse(init.body)
+          assigned.push(body.shipment_id[0])
+          // The dead shipment refuses exactly as the live account does.
+          if (body.shipment_id[0] === 1495356234)
+            return make(
+              { message: '["Delivery pincode is empty","Customer phone is empty"]' },
+              400
+            )
+          return make({ response: { data: { awb_code: "INTLAWB79", courier_company_id: 262 } } })
+        }
+        if (path.endsWith("/courier/generate/label")) return make({ label_url: "x.pdf" })
+        return make({}, 404)
+      })
+
+    const client = new ShiprocketClient({
+      email: "x@y.com",
+      password: "p",
+      token: "injected-token",
+      pickup_location: "warehouse-abc",
+    })
+
+    const result = await client.createShipment(usInput({ reference_id: "order_79" } as any))
+
+    expect(result.awb).toBe("INTLAWB79")
+    // Recreated under a suffixed channel id, and the dead shipment was NEVER assigned.
+    expect(creates[0]).toBe("order_79")
+    expect(creates[1]).toMatch(/^order_79-R[a-z0-9]+$/)
+    expect(assigned).toEqual([1499999])
+    // The refs describe the FRESH carrier order, not the cancelled one.
+    expect(result.provider_refs).toMatchObject({ sr_order_id: 1503999, shipment_id: 1499999 })
+  })
+
   it("keeps a domestic (India) destination on the domestic endpoints", async () => {
     const hits: string[] = []
     const real = global.fetch?.bind(globalThis)
