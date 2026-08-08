@@ -253,6 +253,36 @@ describe("buildInternationalCreateBody", () => {
     expect(body.order_items[0].hsn).toBe("62052000")
   })
 
+  /**
+   * Live-verified 2026-08-08, order 79 → IL. `create/adhoc` returned 200 but
+   * `assign/awb` 400'd with ["Delivery pincode is empty","Customer phone is
+   * empty"] — on an address carrying BOTH. IL was absent from the 20-country
+   * dial-code map, so `isd_code` was silently omitted; Shiprocket then failed to
+   * register the phone and dropped the whole shipping_* block, which is why the
+   * pincode is also reported missing. The US order this path was verified
+   * against on 2026-08-06 carried `+1` and assigned fine.
+   */
+  it("sends isd_code for a destination outside the original 20-country map (IL)", () => {
+    const body = buildInternationalCreateBody(
+      usInput({ to: { ...usInput().to, country: "IL", pincode: "9339904", phone: "+972548043774" } as any }),
+      "wh"
+    )
+    expect(body.isd_code).toBe("+972")
+    // The delivery block must still be explicit — the flag is not honoured.
+    expect(body.shipping_is_billing).toBe(false)
+    expect(body.shipping_pincode).toBe("9339904")
+    expect(body.shipping_phone).toBe("+972548043774")
+  })
+
+  it("refuses to build a body for a country with no dial code, naming the real gap", () => {
+    expect(() =>
+      buildInternationalCreateBody(
+        usInput({ to: { ...usInput().to, country: "ZZ" } as any }),
+        "wh"
+      )
+    ).toThrow(/ISD dial code/i)
+  })
+
   it("falls back billing_state to the city when the address has none (422: 'billing state field is required')", () => {
     const body = buildInternationalCreateBody(
       usInput({ to: { ...usInput().to, state: "" } as any }),
