@@ -1,3 +1,11 @@
+## [13.76.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.76.1...v13.76.2) (2026-08-08)
+
+
+### Bug Fixes
+
+* **shipping:** recreate the carrier order when Shiprocket returns a CANCELED one ([#1227](https://github.com/Jaal-Yantra-Textiles/v2/issues/1227)) ([bd853ae](https://github.com/Jaal-Yantra-Textiles/v2/commit/bd853aefa0a188399de87db967857f920c6bd201)), closes [#1224](https://github.com/Jaal-Yantra-Textiles/v2/issues/1224)
+* **shipping:** try the next intl courier, opt out of insurance, name credits to partners ([#1226](https://github.com/Jaal-Yantra-Textiles/v2/issues/1226)) ([#1226](https://github.com/Jaal-Yantra-Textiles/v2/issues/1226)) ([5475c2f](https://github.com/Jaal-Yantra-Textiles/v2/commit/5475c2f311decd65cfb85462b92623658bd1f6e2)), closes [#1224](https://github.com/Jaal-Yantra-Textiles/v2/issues/1224)
+
 ## [13.76.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.76.0...v13.76.1) (2026-08-08)
 
 
