@@ -52,6 +52,36 @@ const BASE_URL = "https://apiv2.shiprocket.in/v1/external"
 const INSURANCE_OPT_OUT = 0
 
 /**
+ * `create/adhoc` is NOT create-only: a repeated `order_id` resolves to the
+ * EXISTING carrier order and returns it with HTTP 200 — no error, no new
+ * shipment. If that order was cancelled, every retry then assigns against a
+ * cancelled shipment.
+ *
+ * Live-verified 2026-08-08 (order 79 → IL): creating with the real order id
+ * returned `{order_id: 1499133560, shipment_id: 1495356234, status: "CANCELED",
+ * status_code: 5}` — a carrier order cancelled on 6 Aug — and
+ * `/international/courier/assign/awb` refused it with
+ * `["Delivery pincode is empty","Customer phone is empty"]`. THAT is what made
+ * the error immune to every address fix: the create was a no-op handing back a
+ * dead shipment, so nothing we changed about the order ever reached the carrier.
+ *
+ * The existing suffixed retry only fired on an assign error matching
+ * /cancell?ed state/i, which the international pipeline never says. Checking the
+ * create RESPONSE instead is deterministic and catches it one call earlier, for
+ * domestic and international alike. Pure + exported for unit testing.
+ */
+export function isCanceledCarrierOrder(res: any): boolean {
+  return (
+    Number(res?.status_code) === 5 || /cancell?ed/i.test(String(res?.status ?? ""))
+  )
+}
+
+/** Fresh channel order id for a retry — the carrier keys dedup on this. */
+export function suffixedChannelOrderId(referenceId: string): string {
+  return `${referenceId}-R${Date.now().toString(36)}`
+}
+
+/**
  * Minimum HSN length accepted by `/international/*` — live-verified against a
  * 422 that named every line at once. India's ITC-HS export schedule is 8-digit;
  * the 6-digit WCO heading that satisfies the DOMESTIC endpoint is rejected here.
@@ -975,13 +1005,18 @@ export class ShiprocketClient implements ShippingProviderClient {
     }
 
     let created = await createAdhoc(String(createBody.order_id))
+    // Shiprocket dedupes adhoc orders on the channel `order_id`, so a reference
+    // whose earlier attempt was cancelled carrier-side resolves BACK to that
+    // cancelled record — returned with HTTP 200. Detect it here rather than
+    // waiting for the assign to complain (international never says "cancelled
+    // state"; it blames the delivery pincode instead).
+    if (isCanceledCarrierOrder(created)) {
+      created = await createAdhoc(suffixedChannelOrderId(input.reference_id))
+    }
 
-    // 2) Assign an AWB (force a courier if the caller picked one). Shiprocket
-    // dedupes adhoc orders on the channel `order_id`: a reference whose earlier
-    // shipment attempt was CANCELLED carrier-side maps back to that cancelled
-    // record, and the assign fails with "order is in cancelled state". Retry
-    // ONCE under a fresh suffixed channel id so a legitimate re-ship of the
-    // same platform order gets a new carrier order instead of a dead end.
+    // 2) Assign an AWB (force a courier if the caller picked one). The
+    // "cancelled state" catch stays as a belt-and-braces fallback for a record
+    // that only reveals itself at assign time.
     let assigned: any
     try {
       assigned = await assignAwb(created.shipment_id)
@@ -989,9 +1024,7 @@ export class ShiprocketClient implements ShippingProviderClient {
       const cancelled =
         e instanceof ShiprocketApiError && /cancell?ed state/i.test(e.message)
       if (!cancelled) throw e
-      created = await createAdhoc(
-        `${input.reference_id}-R${Date.now().toString(36)}`
-      )
+      created = await createAdhoc(suffixedChannelOrderId(input.reference_id))
       assigned = await assignAwb(created.shipment_id)
     }
 
@@ -1238,6 +1271,12 @@ export class ShiprocketClient implements ShippingProviderClient {
     }
 
     let created = await createAdhoc(String(createBody.order_id))
+    // The carrier handed back a CANCELLED order for this reference — assigning
+    // against it can only fail (and fails misleadingly). Take a fresh channel
+    // order id before touching couriers.
+    if (isCanceledCarrierOrder(created)) {
+      created = await createAdhoc(suffixedChannelOrderId(input.reference_id))
+    }
     let assigned: any
     let courier: { id?: string | number; rate?: RateOption }
     try {
