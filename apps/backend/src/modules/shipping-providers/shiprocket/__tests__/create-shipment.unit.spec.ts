@@ -154,6 +154,9 @@ describe("ShiprocketClient.createShipment (#404 PR-B)", () => {
       sub_total: 250,
     })
 
+    // Domestic opts out of shipment insurance explicitly too — same field, same
+    // reason as the international body (don't inherit the account toggle).
+    expect(createBodies[0].is_insurance_opt).toBe(0)
     // Two creates: the original reference, then the suffixed retry.
     expect(createBodies).toHaveLength(2)
     expect(createBodies[0].order_id).toBe("inv_order_CANCELLED1")

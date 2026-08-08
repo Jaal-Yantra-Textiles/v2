@@ -69,8 +69,13 @@ export type OrderForShipment = {
   shipping_address?: Record<string, any> | null
   /** Fallback source for phone / postal code the shipping address may lack. */
   billing_address?: Record<string, any> | null
-  /** Fallback source for the buyer phone when neither address carries one. */
-  customer?: { phone?: string | null; email?: string | null } | null
+  /** Fallback source for the buyer phone/name when neither address carries one. */
+  customer?: {
+    phone?: string | null
+    email?: string | null
+    first_name?: string | null
+    last_name?: string | null
+  } | null
   items?: Array<{
     /** Line id — the key `fulfillment.items[].line_item_id` points at. */
     id?: string | null
@@ -241,8 +246,17 @@ export function buildCreateShipmentInput(
         : lineSum
   const subTotal = Number.isFinite(goodsTotal) && goodsTotal > 0 ? goodsTotal : lineSum
 
+  // Recipient name: walk shipping → billing → customer, the same fallback the
+  // phone and pincode already do above. Order 79's shipping address was replaced
+  // with one carrying NO first/last name while billing still held "Yosef Pivk",
+  // so we sent `shipping_customer_name: "Customer"` with an empty
+  // `shipping_last_name` — and an international shipment must name its
+  // recipient (it prints on the commercial invoice). "Customer" stays only as
+  // the last resort for a genuinely nameless order.
+  const nameFrom = (src: Record<string, any> | null | undefined) =>
+    [src?.first_name, src?.last_name].filter(Boolean).join(" ").trim()
   const name =
-    [addr.first_name, addr.last_name].filter(Boolean).join(" ") || "Customer"
+    nameFrom(addr) || nameFrom(billing) || nameFrom(order.customer) || "Customer"
 
   return {
     reference_id: order.id,
@@ -302,6 +316,14 @@ export type CreateShiprocketShipmentInput = {
   weightGrams?: number
   dimensionsCm?: Dimensions
   preferredCourierId?: string | number
+  /**
+   * Who is reading the error. Carrier-account failures (empty wallet, KYC,
+   * settlement bank, pickup not international-enabled) are none of a partner's
+   * doing and none of them are fixable from a dashboard they can't log into —
+   * so a partner gets "load courier credits or contact support" where an admin
+   * gets the Shiprocket dashboard path. Defaults to admin wording.
+   */
+  audience?: "admin" | "partner"
 }
 
 export async function createShiprocketShipmentForFulfillment(
@@ -330,6 +352,9 @@ export async function createShiprocketShipmentForFulfillment(
       "billing_address.*",
       "customer.phone",
       "customer.email",
+      // Last-resort recipient name when neither address carries one.
+      "customer.first_name",
+      "customer.last_name",
       // Line id — the join key for `fulfillment.items[].line_item_id`.
       "items.id",
       "items.title",
@@ -556,14 +581,24 @@ export async function createShiprocketShipmentForFulfillment(
   try {
     result = await provider.createShipment(shipmentInput)
   } catch (e: any) {
-    if (isInternationalDestination(shipmentInput.to.country)) {
-      const gate = describeIntlPrereqError({
-        message: e?.message,
-        fieldErrors: e?.fieldErrors,
-      })
-      if (gate) {
-        throw new MedusaError(MedusaError.Types.NOT_ALLOWED, gate.message)
-      }
+    const gate = describeIntlPrereqError({
+      message: e?.message,
+      fieldErrors: e?.fieldErrors,
+    })
+    // KYC / bank / pickup-not-international are international-only signatures.
+    // An empty WALLET is not: a domestic label fails on it identically, and it
+    // used to surface as a raw carrier string ("Insufficient amount to label this
+    // shipment") on the domestic path. Keyword matching is fuzzy, so only the
+    // balance gate is trusted for a domestic destination.
+    const applies =
+      gate &&
+      (isInternationalDestination(shipmentInput.to.country) ||
+        gate.reason === "insufficient_balance")
+    if (gate && applies) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        input.audience === "partner" ? gate.partnerMessage : gate.message
+      )
     }
     throw e
   }

@@ -33,6 +33,25 @@ import { MedusaError } from "@medusajs/framework/utils"
 const BASE_URL = "https://apiv2.shiprocket.in/v1/external"
 
 /**
+ * Shipment insurance: OFF, explicitly.
+ *
+ * `is_insurance_opt` is the ONLY field that moves it — live-verified 2026-08-08
+ * against the account: `1` ⇒ serviceability reports
+ * `insurace_opted_at_order_creation: true` (their typo), `0` or omitted ⇒ false.
+ * `insurance`, `is_insurance` and `shipment_insurance` are silently ignored.
+ *
+ * Omitting it already means opted-out today, but only because the account has
+ * `company_auto_shipment_insurance_setting: false`. Sending 0 explicitly keeps us
+ * opted out even if someone flips that dashboard toggle — the premium is real
+ * money (a live IL quote wanted `coverage_charges: 362.39` on top of 848 freight).
+ * Per-courier `insurance_applicable: 1` only means the courier OFFERS it.
+ *
+ * ⚠️ If Shiprocket ever sets `user_insurance_manadatory: true` on the account,
+ * revisit — an explicit 0 may then be rejected rather than ignored.
+ */
+const INSURANCE_OPT_OUT = 0
+
+/**
  * Minimum HSN length accepted by `/international/*` — live-verified against a
  * 422 that named every line at once. India's ITC-HS export schedule is 8-digit;
  * the 6-digit WCO heading that satisfies the DOMESTIC endpoint is rejected here.
@@ -155,7 +174,18 @@ export type IntlPrereqReason =
   | "pickup_not_intl"
   | "insufficient_balance"
 
-export type IntlPrereqGate = { reason: IntlPrereqReason; message: string }
+/**
+ * `message` is admin-facing — it names the Shiprocket dashboard, which only the
+ * platform account holder can reach. `partnerMessage` is what a partner sees:
+ * none of these are theirs to fix (one shared carrier account), so it tells them
+ * the one thing they CAN do instead of pointing them at a dashboard they have no
+ * login for. Pick with `audience` on the shipment call.
+ */
+export type IntlPrereqGate = {
+  reason: IntlPrereqReason
+  message: string
+  partnerMessage: string
+}
 
 export function describeIntlPrereqError(err: {
   message?: string
@@ -182,6 +212,8 @@ export function describeIntlPrereqError(err: {
       reason: "pickup_not_intl",
       message:
         "This pickup location isn't enabled for international shipping in Shiprocket. Enable international shipping for the pickup address in your Shiprocket dashboard (Settings → Pickup Addresses), or choose an international-capable pickup, then retry generating the label.",
+      partnerMessage:
+        "Your pickup address isn't approved for international shipping yet. Please contact support to get it enabled, then retry generating the label.",
     }
   }
 
@@ -201,6 +233,8 @@ export function describeIntlPrereqError(err: {
       reason: "insufficient_balance",
       message:
         "Your Shiprocket wallet doesn't have enough balance to book this waybill. Top up the wallet in your Shiprocket dashboard (Billing → Recharge), then retry generating the label. The shipment details were accepted — only payment is missing.",
+      partnerMessage:
+        "You don't have enough courier credits to book this label. Please load courier credits or contact support, then retry — the shipment details were accepted, only the payment is missing.",
     }
   }
 
@@ -209,6 +243,8 @@ export function describeIntlPrereqError(err: {
       reason: "kyc",
       message:
         "International shipping requires your Shiprocket KYC to be verified. Complete KYC in your Shiprocket dashboard (Settings → KYC), then retry generating the label.",
+      partnerMessage:
+        "International shipping isn't activated on the courier account yet (KYC pending). Please contact support, then retry generating the label.",
     }
   }
 
@@ -222,6 +258,8 @@ export function describeIntlPrereqError(err: {
       reason: "bank_details",
       message:
         "International shipping requires your settlement bank details on file with Shiprocket. Add them in your Shiprocket dashboard (Settings → Company → Bank Details), then retry generating the label.",
+      partnerMessage:
+        "International shipping isn't fully set up on the courier account (settlement bank details missing). Please contact support, then retry generating the label.",
     }
   }
 
@@ -601,6 +639,7 @@ export function buildInternationalCreateBody(
     Terms_Of_Invoice: customs.Terms_Of_Invoice,
     igstPaymentStatus: customs.igstPaymentStatus,
     commodity: customs.commodity,
+    is_insurance_opt: INSURANCE_OPT_OUT,
   }
 }
 
@@ -907,6 +946,7 @@ export class ShiprocketClient implements ShippingProviderClient {
       breadth: input.dimensions_cm?.width || 10,
       height: input.dimensions_cm?.height || 10,
       weight: Math.max(0.01, input.weight_grams / 1000),
+      is_insurance_opt: INSURANCE_OPT_OUT,
     }
 
     const createAdhoc = async (channelOrderId: string) => {
@@ -1095,23 +1135,46 @@ export class ShiprocketClient implements ShippingProviderClient {
     // return the chosen RateOption too so the caller can surface which courier
     // (and rate/currency) was auto-selected — S3 chose auto-select-only, so this
     // read-only visibility replaces a picker.
-    const resolveCourier = async (
+    /**
+     * ORDERED candidates, not one pick. An explicit caller choice is the only
+     * candidate (their call, don't silently ship with someone else). Otherwise:
+     * recommended first, then every other serviceable courier as a fallback.
+     *
+     * Live-verified 2026-08-08 on order 79 → IL: the SAME order body, pickup and
+     * address assigns fine on `SRX Premium Plus Pro (262)` while the RECOMMENDED
+     * `SRX Economy (384)` refuses it — and 384's refusal arrives as
+     * `["Delivery pincode is empty","Customer phone is empty"]` on an address
+     * Shiprocket has demonstrably recorded (`/orders/show` echoes the pincode,
+     * state and country back), or as "Courier is facing some issues". So a
+     * recommended courier that won't take the parcel used to fail the whole
+     * label with an error naming fields that are not the problem.
+     */
+    const resolveCandidates = async (
       srOrderIdForRates: any
-    ): Promise<{ id?: string | number; rate?: RateOption }> => {
-      let rate: RateOption | undefined
+    ): Promise<{ id?: string | number; rate?: RateOption }[]> => {
+      let rates: RateOption[] = []
       try {
-        const rates = await this.getInternationalRates({
-          order_id: srOrderIdForRates,
-        })
-        rate = input.preferred_courier_id
-          ? rates.find(
-              (r) => String(r.courier_id) === String(input.preferred_courier_id)
-            )
-          : rates.find((r) => r.is_recommended) || rates[0]
+        rates = await this.getInternationalRates({ order_id: srOrderIdForRates })
       } catch {
         // best-effort — assign can still auto-select carrier-side.
       }
-      return { id: input.preferred_courier_id ?? rate?.courier_id, rate }
+      if (input.preferred_courier_id != null) {
+        return [
+          {
+            id: input.preferred_courier_id,
+            rate: rates.find(
+              (r) => String(r.courier_id) === String(input.preferred_courier_id)
+            ),
+          },
+        ]
+      }
+      const ordered = [
+        ...rates.filter((r) => r.is_recommended),
+        ...rates.filter((r) => !r.is_recommended),
+      ]
+      // No serviceability at all — one attempt, letting Shiprocket default.
+      if (!ordered.length) return [{}]
+      return ordered.map((rate) => ({ id: rate.courier_id, rate }))
     }
 
     const assignAwb = async (shipmentIdToAssign: any, courierId?: string | number) => {
@@ -1123,11 +1186,65 @@ export class ShiprocketClient implements ShippingProviderClient {
       })
     }
 
+    /**
+     * Walk the candidates until one actually returns an AWB. A refusal is either
+     * a 4xx (throws) or a 200 carrying `awb_assign_status: 0` — both mean "this
+     * courier didn't take it", so both fall through to the next one. Only when
+     * every candidate has refused do we fail, naming each courier and its own
+     * reason; that beats reporting the first courier's misleading message as if
+     * it described the order.
+     */
+    const assignWithFallback = async (
+      shipmentIdToAssign: any,
+      candidates: { id?: string | number; rate?: RateOption }[]
+    ): Promise<{ assigned: any; courier: { id?: string | number; rate?: RateOption } }> => {
+      const refusals: string[] = []
+      for (const candidate of candidates) {
+        const label = candidate.rate?.courier_name
+          ? `${candidate.rate.courier_name} (${candidate.id})`
+          : `courier ${candidate.id ?? "auto"}`
+        let assigned: any
+        try {
+          assigned = await assignAwb(shipmentIdToAssign, candidate.id)
+        } catch (e: any) {
+          // A cancelled-order state is about the ORDER, not this courier —
+          // the caller recreates and retries, so it must not be swallowed.
+          if (e instanceof ShiprocketApiError && /cancell?ed state/i.test(e.message)) {
+            throw e
+          }
+          refusals.push(`${label}: ${e?.message ?? e}`)
+          continue
+        }
+        if (assigned?.response?.data?.awb_code) return { assigned, courier: candidate }
+        const data = assigned?.response?.data
+        const reason =
+          data?.awb_assign_error ||
+          (typeof data === "string" ? data : "") ||
+          assigned?.message ||
+          "no AWB and no reason"
+        refusals.push(`${label}: ${reason}`)
+        // An empty wallet is not a courier's opinion — every remaining candidate
+        // will refuse for the same reason. Stop so the operator gets the balance
+        // error promptly instead of after N round-trips (each one is a request the
+        // browser is waiting on, and the label call is already slow).
+        if (describeIntlPrereqError({ message: reason })?.reason === "insufficient_balance") {
+          break
+        }
+      }
+      throw new ShiprocketApiError(
+        `No international courier would accept this shipment. ${refusals.join(" · ")}`,
+        { status: 400, raw: JSON.stringify(refusals) }
+      )
+    }
+
     let created = await createAdhoc(String(createBody.order_id))
-    let courier = await resolveCourier(created.order_id)
     let assigned: any
+    let courier: { id?: string | number; rate?: RateOption }
     try {
-      assigned = await assignAwb(created.shipment_id, courier.id)
+      ;({ assigned, courier } = await assignWithFallback(
+        created.shipment_id,
+        await resolveCandidates(created.order_id)
+      ))
     } catch (e: any) {
       const cancelled =
         e instanceof ShiprocketApiError && /cancell?ed state/i.test(e.message)
@@ -1135,8 +1252,10 @@ export class ShiprocketClient implements ShippingProviderClient {
       created = await createAdhoc(
         `${input.reference_id}-R${Date.now().toString(36)}`
       )
-      courier = await resolveCourier(created.order_id)
-      assigned = await assignAwb(created.shipment_id, courier.id)
+      ;({ assigned, courier } = await assignWithFallback(
+        created.shipment_id,
+        await resolveCandidates(created.order_id)
+      ))
     }
 
     const srOrderId = created?.order_id

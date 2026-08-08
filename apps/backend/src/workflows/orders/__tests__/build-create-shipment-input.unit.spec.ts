@@ -37,6 +37,47 @@ describe("buildCreateShipmentInput — phone / pincode fallbacks", () => {
     // no phone, no postal_code
   }
 
+  /**
+   * Order 79's shipping address was replaced on 2026-08-07 with one carrying no
+   * first/last name, while billing still held "Yosef Pivk" — so the recipient
+   * went out as the placeholder "Customer" on a commercial-invoice-bearing
+   * international shipment. The name walks the same chain as phone/pincode.
+   */
+  it("falls back the recipient name to billing, then to the customer", () => {
+    const nameless = { ...noContactShipping, first_name: null, last_name: null }
+
+    expect(
+      buildCreateShipmentInput(
+        {
+          ...baseOrder,
+          shipping_address: nameless,
+          billing_address: { first_name: "Yosef", last_name: "Pivk" },
+        },
+        { pickupLocationName: "wh" }
+      ).to.name
+    ).toBe("Yosef Pivk")
+
+    expect(
+      buildCreateShipmentInput(
+        {
+          ...baseOrder,
+          shipping_address: nameless,
+          billing_address: {},
+          customer: { first_name: "Yosef", last_name: "Pivk" },
+        },
+        { pickupLocationName: "wh" }
+      ).to.name
+    ).toBe("Yosef Pivk")
+
+    // Genuinely nameless everywhere — the placeholder is the last resort only.
+    expect(
+      buildCreateShipmentInput(
+        { ...baseOrder, shipping_address: nameless, billing_address: {} },
+        { pickupLocationName: "wh" }
+      ).to.name
+    ).toBe("Customer")
+  })
+
   it("falls back phone to billing, then to the customer", () => {
     const fromBilling = buildCreateShipmentInput(
       {

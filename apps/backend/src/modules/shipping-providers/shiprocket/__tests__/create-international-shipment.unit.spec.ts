@@ -118,6 +118,11 @@ describe("buildInternationalCreateBody", () => {
       sub_total: 80,
     })
     expect(body.order_items[0]).toMatchObject({ sku: "SCARF-1", hsn: "62141010", units: 2 })
+    // Insurance opted OUT explicitly. `is_insurance_opt` is the only field that
+    // moves it (live-verified 2026-08-08: 1 ⇒ opted, 0/absent ⇒ not) — sending 0
+    // keeps us opted out even if the account's auto-insurance toggle is flipped,
+    // instead of silently paying a premium (a live IL quote wanted 362.39).
+    expect(body.is_insurance_opt).toBe(0)
   })
 
   // The bug behind `assign/awb` 400 ["Delivery pincode is empty","Customer phone
@@ -420,6 +425,113 @@ describe("ShiprocketClient.createShipment — international routing", () => {
     const createIdx = hits.findIndex((h) => h.url.includes("/international/orders/create/adhoc"))
     const svcIdx = hits.findIndex((h) => h.url.includes("/international/courier/serviceability"))
     expect(svcIdx).toBeGreaterThan(createIdx)
+  })
+
+  /**
+   * Live-verified 2026-08-08, order 79 → IL: the RECOMMENDED courier
+   * `SRX Economy (384)` refuses the shipment while `SRX Premium Plus Pro (262)`
+   * assigns the identical body/pickup/address instantly. 384's refusal arrives
+   * as `["Delivery pincode is empty","Customer phone is empty"]` — on an address
+   * Shiprocket has recorded — so the whole label used to die on a message that
+   * named fields which were not the problem.
+   */
+  it("falls through to the next courier when the recommended one refuses", async () => {
+    const assigns: any[] = []
+    const real = global.fetch?.bind(globalThis)
+    fetchSpy = jest
+      .spyOn(global, "fetch" as any)
+      .mockImplementation(async (input: any, init: any = {}) => {
+        const url = String(input)
+        if (!url.includes("shiprocket.in")) return real?.(input, init)
+        const path = url.replace("https://apiv2.shiprocket.in/v1/external", "")
+        if (path.includes("/international/orders/create/adhoc"))
+          return make({ shipment_id: 700, order_id: 800 })
+        if (path.includes("/international/courier/serviceability"))
+          return make({
+            data: {
+              recommended_courier_company_id: 384,
+              available_courier_companies: [
+                { courier_company_id: 384, courier_name: "SRX Economy", rate: { rate: 1100 } },
+                { courier_company_id: 262, courier_name: "SRX Premium Plus Pro", rate: { rate: 1300 } },
+              ],
+            },
+          })
+        if (path.includes("/international/courier/assign/awb")) {
+          const body = JSON.parse(init.body)
+          assigns.push(body.courier_id)
+          // 384 refuses the way the live account does: a 400 naming the wrong fields.
+          if (body.courier_id === 384)
+            return make(
+              { message: '["Delivery pincode is empty","Customer phone is empty"]' },
+              400
+            )
+          return make({
+            response: { data: { awb_code: "INTLAWB262", courier_company_id: 262 } },
+          })
+        }
+        if (path.endsWith("/courier/generate/label")) return make({ label_url: "x.pdf" })
+        return make({}, 404)
+      })
+
+    const client = new ShiprocketClient({
+      email: "x@y.com",
+      password: "p",
+      token: "injected-token",
+      pickup_location: "warehouse-abc",
+    })
+
+    const result = await client.createShipment(usInput())
+
+    expect(result.awb).toBe("INTLAWB262")
+    // Recommended first, then the fallback — and the refusal did not fail the label.
+    expect(assigns).toEqual([384, 262])
+    // The refs describe the courier that actually took it, not the recommended one.
+    expect(result.provider_refs).toMatchObject({ courier_company_id: 262 })
+  })
+
+  it("fails naming every courier and its own reason once all refuse", async () => {
+    const real = global.fetch?.bind(globalThis)
+    fetchSpy = jest
+      .spyOn(global, "fetch" as any)
+      .mockImplementation(async (input: any, init: any = {}) => {
+        const url = String(input)
+        if (!url.includes("shiprocket.in")) return real?.(input, init)
+        const path = url.replace("https://apiv2.shiprocket.in/v1/external", "")
+        if (path.includes("/international/orders/create/adhoc"))
+          return make({ shipment_id: 700, order_id: 800 })
+        if (path.includes("/international/courier/serviceability"))
+          return make({
+            data: {
+              recommended_courier_company_id: 384,
+              available_courier_companies: [
+                { courier_company_id: 384, courier_name: "SRX Economy", rate: { rate: 1100 } },
+                { courier_company_id: 262, courier_name: "SRX Premium Plus Pro", rate: { rate: 1300 } },
+              ],
+            },
+          })
+        if (path.includes("/international/courier/assign/awb")) {
+          const body = JSON.parse(init.body)
+          // The other live shape: HTTP 200 with awb_assign_status 0 and no AWB.
+          if (body.courier_id === 262)
+            return make({
+              awb_assign_status: 0,
+              response: { data: "Courier is facing some issues, Please try after sometime." },
+            })
+          return make({ message: '["Delivery pincode is empty"]' }, 400)
+        }
+        return make({}, 404)
+      })
+
+    const client = new ShiprocketClient({
+      email: "x@y.com",
+      password: "p",
+      token: "injected-token",
+      pickup_location: "warehouse-abc",
+    })
+
+    await expect(client.createShipment(usInput())).rejects.toThrow(
+      /No international courier would accept this shipment.*SRX Economy \(384\).*SRX Premium Plus Pro \(262\).*facing some issues/s
+    )
   })
 
   it("keeps a domestic (India) destination on the domestic endpoints", async () => {
