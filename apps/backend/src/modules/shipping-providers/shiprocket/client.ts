@@ -32,6 +32,13 @@ import { MedusaError } from "@medusajs/framework/utils"
 
 const BASE_URL = "https://apiv2.shiprocket.in/v1/external"
 
+/**
+ * Minimum HSN length accepted by `/international/*` — live-verified against a
+ * 422 that named every line at once. India's ITC-HS export schedule is 8-digit;
+ * the 6-digit WCO heading that satisfies the DOMESTIC endpoint is rejected here.
+ */
+export const INTERNATIONAL_HSN_MIN_DIGITS = 8
+
 /** The subset of `fetch` the client uses — injectable so tests/CI can supply a
  *  deterministic transport instead of patching the global (which doesn't reliably
  *  cross the test ↔ in-process-server boundary). See `stub-fetch.ts`. (#647) */
@@ -417,8 +424,9 @@ export function resolveCustomsDefaults(
  * Build the Shiprocket INTERNATIONAL `create/adhoc` body from a shipment input.
  * Pure & exported so the exact customs payload (country name, currency, HSN,
  * export reason) is unit-testable without a live API. Throws if HSN is missing
- * on any line (Shiprocket makes HSN mandatory for every international shipment)
- * or if the caller asked for COD (unavailable internationally).
+ * or shorter than 8 digits on any line (Shiprocket makes a full-length HSN
+ * mandatory for every international shipment) or if the caller asked for COD
+ * (unavailable internationally).
  */
 export function buildInternationalCreateBody(
   input: CreateShipmentInput,
@@ -436,6 +444,28 @@ export function buildInternationalCreateBody(
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
       `HSN code is required for international shipments; missing on: ${missingHsn.join(", ")}`
+    )
+  }
+  // A code can be PRESENT and still rejected: `/international/*` requires at
+  // least 8 digits ("The order_items.0.hsn must be at least 8 characters"),
+  // while the domestic endpoint documents 1–15 — which is what `normalizeHsCode`
+  // enforces. So the common 6-digit WCO code (620520, 420222 …) passes every
+  // check we have and dies at the carrier, one 422 listing every line at once.
+  //
+  // Deliberately NOT auto-padded to 8. The first 6 digits are the internationally
+  // harmonised heading; the last 2 are a NATIONAL subheading, and India's ITC-HS
+  // does not simply zero-extend — 4202.22 splits into 42022210/20/30/40/90 with
+  // no 42022200 at all. Padding would invent a tariff line that doesn't exist and
+  // put it on a customs declaration; the same reason a non-numeric code is
+  // treated as missing rather than coerced. Only a human can pick the right
+  // subheading, so name the lines and their current codes and stop here.
+  const shortHsn = items.filter((i) => i.hsn.length < INTERNATIONAL_HSN_MIN_DIGITS)
+  if (shortHsn.length) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `Shiprocket requires an ${INTERNATIONAL_HSN_MIN_DIGITS}-digit HSN code for international shipments, but these lines carry a shorter one: ` +
+        `${shortHsn.map((i) => `${i.name} (${i.hsn})`).join(", ")}. ` +
+        `Set the full ${INTERNATIONAL_HSN_MIN_DIGITS}-digit ITC-HS code on the product, variant or inventory item — do not pad with zeros, as the last two digits are an Indian national subheading.`
     )
   }
   // Pre-flight the delivery fields Shiprocket rejects downstream. Without this
