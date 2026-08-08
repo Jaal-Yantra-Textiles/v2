@@ -1,3 +1,11 @@
+## [13.76.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.76.0...v13.76.1) (2026-08-08)
+
+
+### Bug Fixes
+
+* **customs:** reject a short HSN before the carrier does (intl needs 8 digits) ([#1222](https://github.com/Jaal-Yantra-Textiles/v2/issues/1222)) ([d440800](https://github.com/Jaal-Yantra-Textiles/v2/commit/d440800d3f296638ed8c5f97268de020593a1bb1))
+* **shipping:** send isd_code for every intl destination, never silently omit ([#1224](https://github.com/Jaal-Yantra-Textiles/v2/issues/1224)) ([4643030](https://github.com/Jaal-Yantra-Textiles/v2/commit/46430305ef2d6f435751da342044ec4043c0b4e8)), closes [#1215](https://github.com/Jaal-Yantra-Textiles/v2/issues/1215)
+
 # [13.76.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.75.0...v13.76.0) (2026-08-07)
 
 
