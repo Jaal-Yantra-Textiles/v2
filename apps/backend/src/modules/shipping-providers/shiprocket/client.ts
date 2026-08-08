@@ -342,11 +342,43 @@ export function toRate(v: unknown): number | undefined {
  * apps/docs/notes/SHIPROCKET_INTERNATIONAL_API.md for the full contract.
  */
 
-/** Destination ISD dial codes for the countries we ship to (best-effort; omitted when unknown). */
+/**
+ * Destination ISD dial codes.
+ *
+ * NOT cosmetic. When `isd_code` is absent, Shiprocket cannot register the
+ * delivery phone, the whole `shipping_*` block fails to land, and
+ * `/international/courier/assign/awb` then 400s with BOTH
+ * `["Delivery pincode is empty","Customer phone is empty"]` — the pincode is
+ * reported empty even though it was sent, because the delivery record was never
+ * created. Live-verified 2026-08-08 on an order to IL (absent from the original
+ * 20-country map ⇒ no isd_code ⇒ that exact 400), against a US order on
+ * 2026-08-06 that carried `+1` and assigned fine.
+ *
+ * So this map is load-bearing, and a miss must never be silent — see the
+ * fail-fast guard in `buildInternationalCreateBody`.
+ */
 const ISD_BY_ISO2: Record<string, string> = {
-  US: "+1", CA: "+1", GB: "+44", AU: "+61", NZ: "+64", AE: "+971", SA: "+966",
-  SG: "+65", MY: "+60", DE: "+49", FR: "+33", IT: "+39", ES: "+34", NL: "+31",
-  IE: "+353", SE: "+46", CH: "+41", JP: "+81", HK: "+852", ZA: "+27",
+  // Americas
+  US: "+1", CA: "+1", MX: "+52", BR: "+55", AR: "+54", CL: "+56", CO: "+57",
+  PE: "+51", UY: "+598",
+  // Western & Northern Europe
+  GB: "+44", IE: "+353", FR: "+33", DE: "+49", NL: "+31", BE: "+32", LU: "+352",
+  CH: "+41", AT: "+43", IT: "+39", ES: "+34", PT: "+351", SE: "+46", NO: "+47",
+  DK: "+45", FI: "+358", IS: "+354",
+  // Central, Eastern & Southern Europe
+  PL: "+48", CZ: "+420", SK: "+421", HU: "+36", RO: "+40", BG: "+359",
+  GR: "+30", HR: "+385", SI: "+386", EE: "+372", LV: "+371", LT: "+370",
+  CY: "+357", MT: "+356", RS: "+381", UA: "+380", TR: "+90",
+  // Middle East
+  AE: "+971", SA: "+966", QA: "+974", KW: "+965", BH: "+973", OM: "+968",
+  IL: "+972", JO: "+962", LB: "+961",
+  // Asia-Pacific
+  SG: "+65", MY: "+60", TH: "+66", ID: "+62", PH: "+63", VN: "+84",
+  JP: "+81", KR: "+82", CN: "+86", HK: "+852", TW: "+886", MO: "+853",
+  AU: "+61", NZ: "+64", IN: "+91", LK: "+94", NP: "+977", BD: "+880",
+  // Africa
+  ZA: "+27", KE: "+254", NG: "+234", EG: "+20", MA: "+212", TZ: "+255",
+  GH: "+233", MU: "+230",
 }
 
 /**
@@ -495,6 +527,21 @@ export function buildInternationalCreateBody(
     input.sub_total ??
     input.items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
   const iso2 = (input.to.country || "").trim().toUpperCase()
+  // A missing dial code must NOT be silently omitted. Without `isd_code`
+  // Shiprocket fails to register the delivery phone and drops the entire
+  // `shipping_*` block, surfacing two calls later as
+  // `["Delivery pincode is empty","Customer phone is empty"]` — an error that
+  // names the wrong fields and sends you hunting for order data that is
+  // perfectly complete. Better to stop here naming the real gap.
+  const isdCode = ISD_BY_ISO2[iso2]
+  if (!isdCode) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `No ISD dial code is configured for destination country "${iso2 || "(none)"}". ` +
+        `Shiprocket needs it to register the delivery phone — without it the shipment fails at AWB assignment ` +
+        `with a misleading "Delivery pincode is empty". Add "${iso2}" to ISD_BY_ISO2.`
+    )
+  }
   const customs = resolveCustomsDefaults(input.customs)
 
   const state = nonEmptyCode(input.to.state) || input.to.city
@@ -520,7 +567,7 @@ export function buildInternationalCreateBody(
     billing_country: countryName,
     billing_email: input.to.email || "",
     billing_phone: input.to.phone,
-    ...(ISD_BY_ISO2[iso2] ? { isd_code: ISD_BY_ISO2[iso2] } : {}),
+    isd_code: isdCode,
     // The DELIVERY block must be sent explicitly. `shipping_is_billing: true` is
     // NOT honored by the international pipeline: create/adhoc returns 200 and
     // `/orders/show` even echoes the copied address back, but
