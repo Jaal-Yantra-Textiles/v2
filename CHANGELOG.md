@@ -1,3 +1,10 @@
+# [13.79.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.78.1...v13.79.0) (2026-08-09)
+
+
+### Features
+
+* **production-runs:** let admins correct a partner's reported output ([#1239](https://github.com/Jaal-Yantra-Textiles/v2/issues/1239)) ([e3a9e64](https://github.com/Jaal-Yantra-Textiles/v2/commit/e3a9e64f338610de424598c7baa823183c42c9ab)), closes [#1238](https://github.com/Jaal-Yantra-Textiles/v2/issues/1238)
+
 ## [13.78.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.78.0...v13.78.1) (2026-08-09)
 
 
