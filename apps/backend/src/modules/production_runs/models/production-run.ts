@@ -106,6 +106,13 @@ const ProductionRun = model.define("production_runs", {
   // assigns a fresh partner_id.
   previous_partner_id: model.text().nullable(),
 
+  // #1228 — how many times the reminder cap has re-nudged the SAME partner
+  // instead of parking the run. Budget comes from the stored policy
+  // (`reassignment.same_partner_retries`, default 1). Once spent, the next cap
+  // parks the run in awaiting_reassignment as before. Reset to 0 whenever a
+  // partner is (re)assigned, so each partner gets its own budget.
+  reassign_retry_count: model.number().default(0),
+
   metadata: model.json().nullable(),
 })
 

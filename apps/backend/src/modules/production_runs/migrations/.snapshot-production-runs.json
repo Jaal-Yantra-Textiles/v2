@@ -1004,6 +1004,22 @@
           "enumItems": [],
           "mappedType": "text"
         },
+        "reassign_retry_count": {
+          "name": "reassign_retry_count",
+          "type": "integer",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": "0",
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "integer"
+        },
         "metadata": {
           "name": "metadata",
           "type": "jsonb",

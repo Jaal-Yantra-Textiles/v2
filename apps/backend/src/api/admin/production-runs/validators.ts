@@ -41,6 +41,16 @@ export const AdminCancelProductionRunReq = z.object({
   reason: z.string().optional(),
 })
 
+/**
+ * #1228 — manual (re)assignment. `partner_id` may be the partner who already
+ * let the run go stale (the "send to the same partner again" case) or a new
+ * one; the route treats both identically.
+ */
+export const AdminAssignProductionRunPartnerReq = z.object({
+  partner_id: z.string().min(1),
+  note: z.string().max(500).nullish(),
+})
+
 export const AdminResumeDispatchProductionRunReq = z.object({
   template_names: z.array(z.string()).min(1),
   transaction_id: z.string().min(1),
@@ -51,3 +61,4 @@ export type AdminApproveProductionRunReq = z.infer<typeof AdminApproveProduction
 export type AdminSendProductionRunToProductionReq = z.infer<typeof AdminSendProductionRunToProductionReq>
 export type AdminStartDispatchProductionRunReq = z.infer<typeof AdminStartDispatchProductionRunReq>
 export type AdminResumeDispatchProductionRunReq = z.infer<typeof AdminResumeDispatchProductionRunReq>
+export type AdminAssignProductionRunPartnerReq = z.infer<typeof AdminAssignProductionRunPartnerReq>
