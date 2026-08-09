@@ -242,6 +242,7 @@ import { AdminAiChatResolveReq, AdminAiChatResolveQuery } from "./admin/ai/chat/
 import { ListConversationsQuerySchema, ListMessagesQuerySchema, SendMessageSchema, CreateConversationSchema } from "./admin/messaging/validators";
 import { AdminAiChatReq } from "./admin/ai/chat/chat/validators";
 import { AdminAssistantChatSchema } from "./admin/assistant/chat/validators";
+import { AdminAssistantSummarizeSchema } from "./admin/assistant/summarize/validators";
 import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
 import { AdminPostPartnerTaskAssignReq } from "./admin/partners/[id]/tasks/[taskId]/assign/validators";
 import { AdminCreatePartnerTaskReq, AdminUpdatePartnerTaskReq } from "./admin/partners/[id]/tasks/validators";
@@ -3470,6 +3471,16 @@ export default defineMiddlewares({
       matcher: "/admin/assistant/chat",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminAssistantChatSchema))],
+    },
+    // Admin assistant context compaction — the client calls this when the thread
+    // approaches the model's context window; the route returns a short summary
+    // the client stores in place of the older turns.
+    {
+      matcher: "/admin/assistant/summarize",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AdminAssistantSummarizeSchema)),
+      ],
     },
 
     {

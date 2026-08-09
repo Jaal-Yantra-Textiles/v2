@@ -335,6 +335,101 @@ function toStored(messages: any[]): StoredMessage[] {
   return messages.map((m) => ({ id: m.id, role: m.role, parts: m.parts }))
 }
 
+/**
+ * Rough context budget the thread tries to stay under (#1238). Admin threads
+ * carry every tool call's input AND its JSON result, so they reach the ceiling
+ * markedly faster than the same number of partner turns — we warn at 20k
+ * estimated tokens to leave headroom for the next tool's output.
+ *
+ * Deliberately an estimate, not a count: the provider's real usage figure only
+ * arrives after a request, and the point is to warn BEFORE sending one.
+ */
+const CONTEXT_WARN_TOKENS = 20000
+
+/** Rough token estimate (~4 chars/token) across a thread, tool payloads included. */
+function estimateTokens(messages: any[]): number {
+  let chars = 0
+  for (const m of messages) {
+    for (const p of m.parts ?? []) {
+      if (p?.type === "text" && typeof p.text === "string") chars += p.text.length
+      else if (p?.type === "reasoning" && typeof p.text === "string") chars += p.text.length
+      else if (p?.toolName) {
+        try {
+          if (p.input) chars += JSON.stringify(p.input).length
+          if (p.output) chars += JSON.stringify(p.output).length
+        } catch {
+          /* a non-serialisable payload just doesn't count toward the estimate */
+        }
+      }
+    }
+  }
+  return Math.ceil(chars / 4)
+}
+
+/**
+ * Turn whatever `useChat` surfaced into something an operator can act on.
+ *
+ * A single "the assistant hit an error" line is useless when the real cause is
+ * an expired admin session or one failing tool — the operator retries forever
+ * against a problem retrying cannot fix. Transport/auth faults are separated
+ * from model faults so the message can say what to actually do.
+ */
+function describeChatError(error: unknown): { title: string; detail?: string; retryable: boolean } {
+  const raw = (error as any)?.message ? String((error as any).message) : ""
+
+  if (/\b401\b|unauthor/i.test(raw)) {
+    return {
+      title: "Your admin session expired.",
+      detail: "Reload the page to sign in again — retrying won't help until you do.",
+      retryable: false,
+    }
+  }
+  if (/\b503\b|not configured/i.test(raw)) {
+    return {
+      title: "The admin assistant isn't configured.",
+      detail:
+        "Add a platform with role ai_admin_assistant under Settings → External Platforms, or set OPENROUTER_API_KEY.",
+      retryable: false,
+    }
+  }
+  if (/\b429\b|rate limit/i.test(raw)) {
+    return {
+      title: "The model is rate-limited.",
+      detail: "Wait a moment before retrying.",
+      retryable: true,
+    }
+  }
+  if (/failed to fetch|network|ECONN/i.test(raw)) {
+    return {
+      title: "Couldn't reach the server.",
+      detail: "Check your connection, then retry.",
+      retryable: true,
+    }
+  }
+  return {
+    title: "The assistant hit an error.",
+    detail: raw || undefined,
+    retryable: true,
+  }
+}
+
+/** Tool calls that came back as errors, so the UI can name them. */
+function failedToolNames(messages: any[]): string[] {
+  const names = new Set<string>()
+  for (const m of messages) {
+    for (const p of m.parts ?? []) {
+      if (!p?.toolName) continue
+      const out: any = p.output
+      const errored =
+        p.state === "output-error" ||
+        p.errorText ||
+        (out && typeof out === "object" && (out.error || out.ok === false))
+      if (errored) names.add(String(p.toolName))
+    }
+  }
+  return [...names]
+}
+
 const AssistantChat = ({
   conversationId,
   initialMessages,
@@ -361,9 +456,15 @@ const AssistantChat = ({
     []
   )
 
-  const { messages, sendMessage, status, error, stop, regenerate, clearError } =
+  const { messages, setMessages, sendMessage, status, error, stop, regenerate, clearError } =
     useChat({ transport, messages: initialMessages as any })
   const streaming = status === "submitted" || status === "streaming"
+
+  const [autoScroll, setAutoScroll] = useState(true)
+  const [queued, setQueued] = useState<string[]>([])
+  const [compacting, setCompacting] = useState(false)
+  const tokenEstimate = useMemo(() => estimateTokens(messages as any[]), [messages])
+  const overBudget = tokenEstimate >= CONTEXT_WARN_TOKENS
 
   const retry = () => {
     clearError?.()
@@ -374,9 +475,25 @@ const AssistantChat = ({
     }
   }
 
+  /**
+   * Follow the stream only while the operator is actually at the bottom.
+   *
+   * Auto-scroll used to be unconditional, so reading back through a long tool
+   * result mid-answer yanked you to the end on every token. Scrolling away now
+   * releases the thread; returning to the bottom re-attaches it, and the toggle
+   * turns the whole behaviour off.
+   */
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48
+    setAutoScroll(atBottom)
+  }, [])
+
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [messages, status])
+    if (!autoScroll || !scrollRef.current) return
+    scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+  }, [messages, status, autoScroll])
 
   // Persist the thread after each completed turn: create-on-first-turn, then
   // patch. A ref-guarded snapshot avoids redundant writes and re-entrancy.
@@ -415,16 +532,68 @@ const AssistantChat = ({
     void run()
   }, [status, messages, onCreated])
 
+  /**
+   * Queue instead of dropping. Typing a follow-up while the model is working
+   * used to be silently discarded (`if (streaming) return`), which reads as the
+   * UI ignoring you. Queued messages send in order as each turn finishes.
+   */
   const submit = (text: string) => {
     const t = text.trim()
-    if (!t || streaming) return
+    if (!t) return
     setInput("")
+    if (streaming) {
+      setQueued((q) => [...q, t])
+      return
+    }
     sendMessage({ text: t })
   }
 
+  useEffect(() => {
+    if (status !== "ready" || queued.length === 0 || error) return
+    const [next, ...rest] = queued
+    setQueued(rest)
+    sendMessage({ text: next })
+  }, [status, queued, error, sendMessage])
+
+  /**
+   * Context compaction: roll the older turns into a summary so a long thread can
+   * continue instead of silently losing its head. Mirrors the partner assistant,
+   * against POST /admin/assistant/summarize.
+   */
+  const compact = useCallback(async () => {
+    if (compacting || messages.length < 2) return
+    setCompacting(true)
+    try {
+      const { summary } = await apiFetch<{ summary: string }>(
+        `${API_BASE_URL.replace(/\/$/, "")}/admin/assistant/summarize`,
+        { method: "POST", body: JSON.stringify({ messages: toStored(messages as any[]) }) }
+      )
+      // Keep the last exchange verbatim — the operator is usually mid-thought in
+      // it — and replace everything older with the summary.
+      const tail = (messages as any[]).slice(-2)
+      setMessages([
+        {
+          id: `summary-${Date.now()}`,
+          role: "assistant",
+          parts: [{ type: "text", text: `**Summary so far**\n\n${summary}` }],
+        } as any,
+        ...tail,
+      ])
+      toast.success("Chat compacted — older messages were summarized.")
+    } catch (e: any) {
+      toast.error(e?.message || "Could not compact the chat. Try starting a new chat instead.")
+    } finally {
+      setCompacting(false)
+    }
+  }, [compacting, messages, setMessages])
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 space-y-4 overflow-y-auto px-6 py-4"
+      >
         {messages.length === 0 ? (
           <div className="flex flex-col gap-2">
             <Text size="small" className="text-ui-fg-muted">
@@ -487,20 +656,68 @@ const AssistantChat = ({
         ) : null}
 
         {error ? (
-          <div className="text-ui-fg-error flex items-center gap-2">
-            <ExclamationCircle />
-            <Text size="small">The assistant hit an error.</Text>
-            <Button size="small" variant="secondary" onClick={retry}>
-              <ArrowPathMini /> Retry
-            </Button>
-          </div>
+          (() => {
+            const described = describeChatError(error)
+            const failed = failedToolNames(messages as any[])
+            return (
+              <div className="text-ui-fg-error flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <ExclamationCircle />
+                  <Text size="small">{described.title}</Text>
+                  {described.retryable ? (
+                    <Button size="small" variant="secondary" onClick={retry}>
+                      <ArrowPathMini /> Retry
+                    </Button>
+                  ) : null}
+                </div>
+                {described.detail ? (
+                  <Text size="xsmall" className="text-ui-fg-subtle pl-6">
+                    {described.detail}
+                  </Text>
+                ) : null}
+                {failed.length ? (
+                  <Text size="xsmall" className="text-ui-fg-subtle pl-6">
+                    Failed {failed.length === 1 ? "tool" : "tools"}: {failed.join(", ")}
+                  </Text>
+                ) : null}
+              </div>
+            )
+          })()
         ) : null}
       </div>
 
       <div className="border-ui-border-base border-t px-6 py-4">
+        {overBudget ? (
+          <div className="border-ui-border-base bg-ui-bg-subtle mb-3 flex items-center gap-2 rounded-md border px-3 py-2">
+            <Text size="xsmall" className="text-ui-fg-subtle flex-1">
+              This chat is getting long (~{tokenEstimate.toLocaleString()} tokens) and the
+              assistant may start losing earlier context.
+            </Text>
+            <Button size="small" variant="secondary" isLoading={compacting} onClick={compact}>
+              Compact summary
+            </Button>
+          </div>
+        ) : null}
+        {queued.length ? (
+          <div className="mb-2 flex flex-wrap items-center gap-1">
+            <Text size="xsmall" className="text-ui-fg-muted">
+              Queued:
+            </Text>
+            {queued.map((q, i) => (
+              <Badge key={`${q}-${i}`} size="2xsmall" className="max-w-[240px] truncate">
+                {q}
+              </Badge>
+            ))}
+            <Button size="small" variant="transparent" onClick={() => setQueued([])}>
+              Clear
+            </Button>
+          </div>
+        ) : null}
         <div className="flex items-end gap-2">
           <Textarea
-            placeholder="Ask the admin assistant…"
+            placeholder={
+              streaming ? "Type to queue the next message…" : "Ask the admin assistant…"
+            }
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -516,15 +733,32 @@ const AssistantChat = ({
             <Button variant="secondary" onClick={() => stop()}>
               Stop
             </Button>
-          ) : (
-            <IconButton
-              variant="primary"
-              disabled={!input.trim()}
-              onClick={() => submit(input)}
-            >
-              <ArrowUpMini />
-            </IconButton>
-          )}
+          ) : null}
+          <IconButton
+            variant="primary"
+            disabled={!input.trim()}
+            onClick={() => submit(input)}
+          >
+            <ArrowUpMini />
+          </IconButton>
+        </div>
+        <div className="mt-2 flex items-center justify-between">
+          <Text size="xsmall" className="text-ui-fg-muted">
+            ~{tokenEstimate.toLocaleString()} tokens
+          </Text>
+          <Button
+            size="small"
+            variant="transparent"
+            onClick={() => {
+              const next = !autoScroll
+              setAutoScroll(next)
+              if (next && scrollRef.current) {
+                scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+              }
+            }}
+          >
+            {autoScroll ? "Following" : "Not following"}
+          </Button>
         </div>
       </div>
     </div>
