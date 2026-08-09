@@ -12,10 +12,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import { FULLFILLED_ORDERS_MODULE } from "../../modules/fullfilled_orders"
 import { resolveShippingProvider } from "../../modules/shipping-providers/resolver"
-import {
-  SHIPROCKET_PICKUP_METADATA_KEY,
-  registerShiprocketPickup,
-} from "../../modules/shipping-providers/pickup-locations"
+import { ensureCarrierPickup } from "../../modules/shipping-providers/carrier-pickups"
 import { resolvePlatformTaxIdForCountry } from "../../modules/shipping-providers/seller-tax-id"
 import { describeIntlPrereqError } from "../../modules/shipping-providers/shiprocket/client"
 import type { Dimensions } from "../../modules/shipping-providers/provider-interface"
@@ -34,7 +31,7 @@ import {
  * needs to go next (a finishing partner, a QC/packaging warehouse, or stock).
  *
  * Reuses the shipment machinery wholesale: `resolveShippingProvider` (so both
- * Shiprocket and Delhivery work here on day one), `registerShiprocketPickup`
+ * Shiprocket and Delhivery work here on day one), `ensureCarrierPickup`
  * for the origin, `resolveInventoryDestinationAddress` for the destination, and
  * an `inventory_shipment` row for the carrier refs so the existing tracking
  * webhook needs no new routing. What's new is only the `goods_transfer` row
@@ -236,21 +233,23 @@ export async function createProductionRunTransfer(
   // deliberately NO any-registered-pickup fallback — every party shares one
   // Shiprocket account, so "first registered pickup" is someone else's warehouse.
   const fromLocation = await getStockLocation(container, fromLocationId)
-  let pickupLocationName = (fromLocation?.metadata as any)?.[
-    SHIPROCKET_PICKUP_METADATA_KEY
-  ] as string | undefined
-  if (!pickupLocationName) {
-    try {
-      const reg = await registerShiprocketPickup(container, fromLocationId, {
-        email: input.actingEmail,
-      })
-      pickupLocationName = reg.name
-    } catch (e: any) {
-      throw new MedusaError(
-        MedusaError.Types.INVALID_DATA,
-        `The source location "${fromLocation?.name || fromLocationId}" could not be registered as a carrier pickup: ${e?.message}. Complete its address (phone + pincode), then retry.`
-      )
-    }
+  let pickupLocationName: string
+  try {
+    // Register with the carrier actually being used. This used to always call
+    // Shiprocket, so a Delhivery transfer shipped from a nickname Delhivery had
+    // never heard of and was refused every time.
+    pickupLocationName = await ensureCarrierPickup(container, carrier, fromLocationId, {
+      email: input.actingEmail,
+      metadata: fromLocation?.metadata,
+    })
+  } catch (e: any) {
+    // Don't append a guess at the cause — the registration errors already name
+    // the missing fields, and blaming "phone + pincode" for (say) an address
+    // line the carrier rejected sends the operator to fix the wrong thing.
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `The source location "${fromLocation?.name || fromLocationId}" could not be registered as a ${carrier} pickup: ${e?.message}`
+    )
   }
 
   // Destination: a stock location carries a proper structured address, which is

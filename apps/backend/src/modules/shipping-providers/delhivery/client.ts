@@ -1,9 +1,24 @@
+import { MedusaError } from "@medusajs/framework/utils"
+
 const STAGING_BASE = "https://staging-express.delhivery.com"
 const PROD_BASE = "https://track.delhivery.com"
+
+/** Injectable transport, so tests can run the full flow without a live call. */
+export type FetchLike = (
+  input: string,
+  init?: Record<string, any>
+) => Promise<any>
 
 export type DelhiveryOptions = {
   api_token: string
   sandbox?: boolean
+  /**
+   * Deterministic transport for tests/CI (`DELHIVERY_STUB=1`). Delhivery has NO
+   * usable sandbox — `staging-express` 401s our live token — so every real
+   * `create` mints a BILLABLE waybill on the live account. Creation behaviour is
+   * therefore verified against this stub, never against a live probe.
+   */
+  fetchImpl?: FetchLike
 }
 
 /**
@@ -112,13 +127,94 @@ export function normalizeDelhiveryWebhook(payload: any): {
   }
 }
 
+/**
+ * A Delhivery call that came back 200 but refused the work.
+ *
+ * A `MedusaError` so the framework's error handler returns a clean
+ * `{ type, message }` with a real status code instead of an opaque 500
+ * (see the #1202 status-mapping fix).
+ */
+export class DelhiveryApiError extends MedusaError {
+  /** `unregistered_pickup` when the named warehouse doesn't exist on the account. */
+  readonly code?: string
+  readonly raw?: any
+
+  constructor(message: string, opts?: { code?: string; raw?: any }) {
+    super(MedusaError.Types.INVALID_DATA, message)
+    this.code = opts?.code
+    this.raw = opts?.raw
+  }
+}
+
+/** Delhivery's phrasing when `pickup_location.name` isn't a registered warehouse. */
+const UNREGISTERED_PICKUP_RMK = "clientwarehouse matching query does not exist"
+
+/**
+ * Throw unless Delhivery actually accepted the manifest.
+ *
+ * Two independent ways a `/api/cmu/create.json` 200 can still be a failure:
+ * a top-level `success: false` (with the reason in `rmk`), and a per-package
+ * `status` that isn't `Success` (reason in `remarks`). Both are checked —
+ * a partial refusal must not read as a shipment.
+ *
+ * Pure & exported for unit testing.
+ */
+export function assertDelhiveryManifestSucceeded(
+  body: any,
+  pickupLocationName?: string
+): void {
+  const packages: any[] = Array.isArray(body?.packages) ? body.packages : []
+  const failed = packages.find(
+    (p) => p?.status && String(p.status).toLowerCase() !== "success"
+  )
+
+  const succeeded = body?.success !== false && !failed
+  if (succeeded) {
+    // A 200 with `success: true` but no package at all is still not a shipment.
+    if (!packages.length && !body?.upload_wbn) {
+      throw new DelhiveryApiError(
+        "Delhivery accepted the request but returned no package or waybill.",
+        { raw: body }
+      )
+    }
+    return
+  }
+
+  const remark = String(
+    body?.rmk ??
+      (Array.isArray(failed?.remarks) ? failed.remarks.join("; ") : failed?.remarks) ??
+      ""
+  ).trim()
+
+  // The overwhelmingly common cause, and the one with a specific remedy: the
+  // pickup name must match a registered warehouse EXACTLY and case-sensitively
+  // (Delhivery's docs are explicit about this), so a location that was never
+  // registered fails every single time until someone registers it.
+  if (remark.toLowerCase().includes(UNREGISTERED_PICKUP_RMK)) {
+    throw new DelhiveryApiError(
+      `Delhivery has no registered pickup warehouse named "${
+        pickupLocationName ?? "(none supplied)"
+      }". Register this stock location as a Delhivery warehouse, then retry — ` +
+        `Delhivery matches the pickup name exactly and is case-sensitive.`,
+      { code: "unregistered_pickup", raw: body }
+    )
+  }
+
+  throw new DelhiveryApiError(
+    `Delhivery refused the shipment${remark ? `: ${remark}` : "."}`,
+    { raw: body }
+  )
+}
+
 export class DelhiveryClient {
   private baseUrl: string
   private token: string
+  private fetch_: FetchLike
 
   constructor(options: DelhiveryOptions) {
     this.token = options.api_token
     this.baseUrl = options.sandbox ? STAGING_BASE : PROD_BASE
+    this.fetch_ = options.fetchImpl ?? ((input, init) => fetch(input, init as any))
   }
 
   private headers(): Record<string, string> {
@@ -142,7 +238,7 @@ export class DelhiveryClient {
   }
 
   async checkServiceability(pincode: string): Promise<any> {
-    const res = await fetch(
+    const res = await this.fetch_(
       `${this.baseUrl}/c/api/pin-codes/json/?filter_codes=${pincode}`,
       { headers: this.headers() }
     )
@@ -184,7 +280,7 @@ export class DelhiveryClient {
     const url = `${this.baseUrl}/api/kinko/v1/invoice/charges/.json?${qs}`
     console.log(`[Delhivery] Rate API request: ${url}`)
 
-    const res = await fetch(url, { headers: this.headers() })
+    const res = await this.fetch_(url, { headers: this.headers() })
 
     if (!res.ok) {
       const body = await res.text().catch(() => "")
@@ -214,7 +310,7 @@ export class DelhiveryClient {
     state?: string
     country?: string
   }): Promise<any> {
-    const res = await fetch(`${this.baseUrl}/api/backend/clientwarehouse/create/`, {
+    const res = await this.fetch_(`${this.baseUrl}/api/backend/clientwarehouse/create/`, {
       method: "POST",
       headers: {
         Authorization: `Token ${this.token}`,
@@ -261,7 +357,7 @@ export class DelhiveryClient {
       ? `${params.pickup_time}:00`
       : params.pickup_time
 
-    const res = await fetch(`${this.baseUrl}/fm/request/new/`, {
+    const res = await this.fetch_(`${this.baseUrl}/fm/request/new/`, {
       method: "POST",
       headers: {
         Authorization: `Token ${this.token}`,
@@ -282,7 +378,7 @@ export class DelhiveryClient {
   }
 
   async fetchWaybill(): Promise<string> {
-    const res = await fetch(`${this.baseUrl}/waybill/api/fetch/`, {
+    const res = await this.fetch_(`${this.baseUrl}/waybill/api/fetch/`, {
       headers: this.headers(),
     })
     if (!res.ok) throw new Error(`Delhivery waybill fetch failed (${res.status})`)
@@ -356,7 +452,7 @@ export class DelhiveryClient {
 
     const form = `format=json&data=${encodeURIComponent(JSON.stringify(payload))}`
 
-    const res = await fetch(`${this.baseUrl}/api/cmu/create.json`, {
+    const res = await this.fetch_(`${this.baseUrl}/api/cmu/create.json`, {
       method: "POST",
       headers: {
         Authorization: `Token ${this.token}`,
@@ -368,11 +464,18 @@ export class DelhiveryClient {
       const body = await res.text()
       throw new Error(`Delhivery shipment creation failed (${res.status}): ${body}`)
     }
-    return res.json()
+
+    // Delhivery reports a REFUSED manifest as HTTP 200 with `success: false`
+    // (and the reason in `rmk`), so a status check alone lets a failure through
+    // as if it had worked — that is exactly how order #83 came to hold a
+    // fulfillment with an empty waybill. Treat the body as the source of truth.
+    const body = await res.json()
+    assertDelhiveryManifestSucceeded(body, shipment.pickup_location_name)
+    return body
   }
 
   async trackShipment(waybill: string): Promise<any> {
-    const res = await fetch(
+    const res = await this.fetch_(
       `${this.baseUrl}/api/v1/packages/json/?waybill=${waybill}`,
       { headers: this.headers() }
     )
@@ -381,7 +484,7 @@ export class DelhiveryClient {
   }
 
   async getLabel(waybill: string): Promise<any> {
-    const res = await fetch(
+    const res = await this.fetch_(
       `${this.baseUrl}/api/p/packing_slip?wbns=${waybill}`,
       { headers: this.headers() }
     )
@@ -390,7 +493,7 @@ export class DelhiveryClient {
   }
 
   async cancelShipment(waybill: string): Promise<any> {
-    const res = await fetch(`${this.baseUrl}/api/p/edit`, {
+    const res = await this.fetch_(`${this.baseUrl}/api/p/edit`, {
       method: "POST",
       headers: {
         Authorization: `Token ${this.token}`,

@@ -138,7 +138,16 @@ export async function resolveShippingProvider(
     const sandbox =
       (cfg.mode ? cfg.mode === "test" : undefined) ??
       process.env.DELHIVERY_SANDBOX === "true"
-    return new DelhiveryProviderAdapter({ api_token: apiToken, sandbox })
+    // Tests/CI inject a deterministic transport (DELHIVERY_STUB=1) — Delhivery
+    // has no usable sandbox, so a live create would mint a billable waybill.
+    return new DelhiveryProviderAdapter({
+      api_token: apiToken,
+      sandbox,
+      fetchImpl:
+        process.env.DELHIVERY_STUB === "1"
+          ? require("./delhivery/stub-fetch").createDelhiveryStubFetch()
+          : undefined,
+    })
   }
 
   if (id === "shiprocket") {

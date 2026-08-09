@@ -521,6 +521,53 @@ export function resolveCustomsDefaults(
 }
 
 /**
+ * The subscriber number to send alongside `isd_code`, with any country code the
+ * stored phone already carries removed.
+ *
+ * Shiprocket takes the dial code as its OWN field and concatenates it onto the
+ * phone, so a number stored in E.164 — which is how most of our foreign
+ * addresses arrive — comes out doubled on the label and the commercial invoice:
+ * `isd_code "+972"` + phone `"+972548043774"` renders as
+ * `+972-+972548043774`. Sending the national part is what makes the two fields
+ * compose into one correct number.
+ *
+ * Only an EXPLICIT international prefix is stripped (`+972…` or `00972…`). A
+ * bare national number that merely happens to begin with the same digits is
+ * left alone — for several dial codes those digits are a legitimate start to a
+ * local number, and truncating a good phone is worse than a cosmetic doubling.
+ *
+ * Pure & exported for unit testing.
+ */
+export function stripIsdPrefix(
+  phone: string | undefined | null,
+  isdCode: string
+): string {
+  const raw = String(phone ?? "").trim()
+  if (!raw) return ""
+
+  // Separators are presentational; Shiprocket wants digits.
+  const compact = raw.replace(/[\s().-]/g, "")
+  const digits = isdCode.replace(/\D/g, "")
+  if (!digits) return compact
+
+  let rest: string | undefined
+  if (compact.startsWith(`+${digits}`)) {
+    rest = compact.slice(digits.length + 1)
+  } else if (compact.startsWith(`00${digits}`)) {
+    rest = compact.slice(digits.length + 2)
+  }
+  if (rest === undefined) return compact
+
+  // Some locales store the national number with a trunk "0" after the dial
+  // code; it is not part of the international form.
+  rest = rest.replace(/^0+/, "")
+
+  // Never hand back an empty phone — an unusable number that at least exists
+  // beats a blank field, which Shiprocket rejects two calls later at AWB assign.
+  return rest || compact
+}
+
+/**
  * Build the Shiprocket INTERNATIONAL `create/adhoc` body from a shipment input.
  * Pure & exported so the exact customs payload (country name, currency, HSN,
  * export reason) is unit-testable without a live API. Throws if HSN is missing
@@ -612,6 +659,10 @@ export function buildInternationalCreateBody(
   }
   const customs = resolveCustomsDefaults(input.customs)
 
+  // Sent as the national part — `isd_code` carries the country code, and
+  // Shiprocket concatenates the two.
+  const nationalPhone = stripIsdPrefix(input.to.phone, isdCode)
+
   const state = nonEmptyCode(input.to.state) || input.to.city
   const countryName = toShiprocketCountryName(input.to.country)
 
@@ -634,7 +685,7 @@ export function buildInternationalCreateBody(
     billing_state: state,
     billing_country: countryName,
     billing_email: input.to.email || "",
-    billing_phone: input.to.phone,
+    billing_phone: nationalPhone,
     isd_code: isdCode,
     // The DELIVERY block must be sent explicitly. `shipping_is_billing: true` is
     // NOT honored by the international pipeline: create/adhoc returns 200 and
@@ -654,7 +705,7 @@ export function buildInternationalCreateBody(
     shipping_state: state,
     shipping_country: countryName,
     shipping_email: input.to.email || "",
-    shipping_phone: input.to.phone,
+    shipping_phone: nationalPhone,
     order_items: items,
     payment_method: "Prepaid",
     sub_total: subTotal,
