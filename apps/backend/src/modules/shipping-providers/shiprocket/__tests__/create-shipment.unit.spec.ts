@@ -222,6 +222,145 @@ describe("ShiprocketClient.createShipment (#404 PR-B)", () => {
     ).rejects.toThrow(/no couriers serviceable/)
     expect(createCalls).toBe(1)
   })
+
+  /**
+   * #1225 — a failed assign used to leave the created carrier order behind.
+   * Nothing on our side persists a reference to it (the caller only writes
+   * `fulfillment.data` on success), so it became a live orphan in the Shiprocket
+   * dashboard, one per retry, swept by hand.
+   */
+  describe("orphan cleanup on a failed assign (#1225)", () => {
+    const stub = (opts: {
+      created: any
+      assign: () => any
+      cancels: any[]
+      status?: number
+    }) => {
+      const real = global.fetch?.bind(globalThis)
+      return jest
+        .spyOn(global, "fetch" as any)
+        .mockImplementation(async (input: any, init: any = {}) => {
+          const url = String(input)
+          const make = (body: any, status = 200) =>
+            ({
+              ok: status >= 200 && status < 300,
+              status,
+              json: async () => body,
+              text: async () => JSON.stringify(body),
+            }) as any
+          if (!url.includes("shiprocket.in")) return real?.(input, init)
+          if (url.endsWith("/orders/create/adhoc")) return make(opts.created)
+          if (url.endsWith("/courier/assign/awb"))
+            return make(opts.assign(), opts.status ?? 200)
+          if (url.endsWith("/orders/cancel")) {
+            opts.cancels.push(JSON.parse(String(init?.body || "{}")))
+            return make({ status: 200, message: "Order cancelled" })
+          }
+          return make({}, 404)
+        })
+    }
+
+    const input = (reference_id: string) => ({
+      reference_id,
+      payment_mode: "prepaid" as const,
+      pickup_location_name: "warehouse-abc",
+      to: {
+        name: "Asha Rao",
+        phone: "+919800000000",
+        address_1: "12 MG Road",
+        city: "Bengaluru",
+        state: "KA",
+        pincode: "560001",
+        country: "IN",
+      },
+      items: [{ name: "Saree", quantity: 1, unit_price: 250 }],
+      weight_grams: 500,
+      sub_total: 250,
+    })
+
+    const client = () =>
+      new ShiprocketClient({
+        email: "x@y.com",
+        password: "p",
+        token: "injected-token",
+        pickup_location: "warehouse-abc",
+      })
+
+    it("cancels the order it created, and still throws the carrier's own error", async () => {
+      const cancels: any[] = []
+      fetchSpy = stub({
+        created: { shipment_id: 111, order_id: 222 },
+        assign: () => ({ message: "no couriers serviceable" }),
+        status: 422,
+        cancels,
+      })
+
+      await expect(client().createShipment(input("order_orphan"))).rejects.toThrow(
+        /no couriers serviceable/
+      )
+      expect(cancels).toEqual([{ ids: [222] }])
+    })
+
+    it("cancels a 200 that carried no waybill at all", async () => {
+      const cancels: any[] = []
+      fetchSpy = stub({
+        created: { shipment_id: 111, order_id: 222 },
+        // 200 with an empty AWB — a refusal that never throws, so it used to
+        // strand the order past `assertAwbAssigned`.
+        assign: () => ({ response: { data: { awb_code: "" } } }),
+        cancels,
+      })
+
+      await expect(client().createShipment(input("order_noawb"))).rejects.toThrow()
+      expect(cancels).toEqual([{ ids: [222] }])
+    })
+
+    it("never cancels an order that already carries an AWB", async () => {
+      const cancels: any[] = []
+      fetchSpy = stub({
+        // `create/adhoc` dedupes on the channel order id, so this can be a
+        // PRE-EXISTING shipment that is already moving. Cancelling it on our
+        // assign failure would kill a real delivery.
+        created: { shipment_id: 111, order_id: 222, awb_code: "LIVE1" },
+        assign: () => ({ message: "AWB already assigned" }),
+        status: 400,
+        cancels,
+      })
+
+      await expect(client().createShipment(input("order_live"))).rejects.toThrow(
+        /AWB already assigned/
+      )
+      expect(cancels).toEqual([])
+    })
+
+    it("keeps the carrier error when the cleanup call itself fails", async () => {
+      const real = global.fetch?.bind(globalThis)
+      fetchSpy = jest
+        .spyOn(global, "fetch" as any)
+        .mockImplementation(async (i: any, init: any = {}) => {
+          const url = String(i)
+          const make = (body: any, status = 200) =>
+            ({
+              ok: status >= 200 && status < 300,
+              status,
+              json: async () => body,
+              text: async () => JSON.stringify(body),
+            }) as any
+          if (!url.includes("shiprocket.in")) return real?.(i, init)
+          if (url.endsWith("/orders/create/adhoc"))
+            return make({ shipment_id: 111, order_id: 222 })
+          if (url.endsWith("/courier/assign/awb"))
+            return make({ message: "no couriers serviceable" }, 422)
+          // Cleanup is best-effort: the operator needs the ORIGINAL failure, not
+          // a message about cancellation.
+          return make({ message: "cancellation not allowed" }, 403)
+        })
+
+      await expect(client().createShipment(input("order_cleanupfail"))).rejects.toThrow(
+        /no couriers serviceable/
+      )
+    })
+  })
 })
 
 describe("buildShiprocketOrderItems (dedupe repeated SKUs)", () => {

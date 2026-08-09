@@ -326,6 +326,30 @@ export type ShiprocketRatesResponse = {
 
 export type ShiprocketRatesQuery = {
   carrier?: string;
+  /**
+   * Parcel the quote should describe. Omitted, the backend prices its default
+   * weight — which is a different parcel than the one the label then ships.
+   */
+  weightGrams?: number;
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
+};
+
+/** Query string for a rate request — only the params actually supplied. */
+const rateQueryString = (query?: ShiprocketRatesQuery): string => {
+  const params = new URLSearchParams();
+  if (query?.carrier) params.set("carrier", query.carrier);
+  if (query?.weightGrams) params.set("weight_grams", String(query.weightGrams));
+  // Dimensions are all-or-nothing at the carrier — sending one side would be
+  // dropped anyway, so don't imply a box we can't describe.
+  if (query?.lengthCm && query?.widthCm && query?.heightCm) {
+    params.set("length_cm", String(query.lengthCm));
+    params.set("width_cm", String(query.widthCm));
+    params.set("height_cm", String(query.heightCm));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
 };
 
 /**
@@ -347,7 +371,7 @@ export const useShiprocketRates = (
     "queryFn" | "queryKey"
   >
 ) => {
-  const qs = query?.carrier ? `?carrier=${encodeURIComponent(query.carrier)}` : "";
+  const qs = rateQueryString(query);
   return useQuery({
     queryKey: designOrdersQueryKeys.detail(`${orderId}-shiprocket-rates${qs}`),
     queryFn: async () =>
@@ -372,6 +396,9 @@ export type GenerateShiprocketLabelResponse = {
 export type GenerateShiprocketLabelVariables = {
   preferred_courier_id?: string | number;
   carrier?: string;
+  /** Real parcel weight; omitted falls back to the backend default (500 g). */
+  weight_grams?: number;
+  dimensions_cm?: { length: number; width: number; height: number };
 };
 
 /**
@@ -394,6 +421,8 @@ export const useGenerateShiprocketLabel = (
       const body: Record<string, any> = {};
       if (variables?.preferred_courier_id) body.preferred_courier_id = variables.preferred_courier_id;
       if (variables?.carrier) body.carrier = variables.carrier;
+      if (variables?.weight_grams) body.weight_grams = variables.weight_grams;
+      if (variables?.dimensions_cm) body.dimensions_cm = variables.dimensions_cm;
       return sdk.client.fetch<GenerateShiprocketLabelResponse>(
         `/admin/orders/${orderId}/shiprocket-label`,
         { method: "POST", body }
