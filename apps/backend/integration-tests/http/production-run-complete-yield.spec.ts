@@ -408,5 +408,92 @@ setupSharedTestSuite(() => {
       // Stored verbatim: 450/unit (cost_type records per_unit). #456
       expect(adminDetail.data.production_run.partner_cost_estimate).toBe(450)
     })
+
+    // ── Test: admin corrects an over-reported yield ─────────────────
+
+    it("should let an admin correct the partner's reported output after completion", async () => {
+      const { adminHeaders, unique } = await setupTestData()
+      const { partnerId, partnerHeaders } = await createPartner(unique)
+      const { templateName } = await createTemplates(adminHeaders, unique)
+      const designId = await createDesign(adminHeaders, unique)
+
+      const createRes = await api.post(
+        `/admin/designs/${designId}/production-runs`,
+        {
+          quantity: 9,
+          assignments: [{ partner_id: partnerId, quantity: 9, template_names: [templateName] }],
+        },
+        adminHeaders
+      )
+      expect(createRes.status).toBe(201)
+      const runId = createRes.data.children[0].id
+
+      await advanceToFinished(runId, partnerHeaders)
+
+      // The partner over-reports: claims all 9 were made (prod_run_01KYPM4G…).
+      await api.post(
+        `/partners/production-runs/${runId}/complete`,
+        { produced_quantity: 9 },
+        { headers: partnerHeaders }
+      )
+
+      const correction = await api.post(
+        `/admin/production-runs/${runId}`,
+        {
+          produced_quantity: 3,
+          correction_reason: "Partner reported 9; physical count was 3",
+        },
+        adminHeaders
+      )
+      expect(correction.status).toBe(200)
+      expect(correction.data.production_run.produced_quantity).toBe(3)
+      // The ordered quantity is a different fact and must survive untouched.
+      expect(correction.data.production_run.quantity).toBe(9)
+      expect(correction.data.production_run.status).toBe("completed")
+
+      // The correction is auditable, not a silent overwrite.
+      const activities = await api.get(
+        `/admin/production-runs/${runId}/activities`,
+        adminHeaders
+      )
+      expect(activities.status).toBe(200)
+      const corrections = activities.data.activities.filter(
+        (a: any) => a.kind === "output_corrected"
+      )
+      expect(corrections).toHaveLength(1)
+      expect(corrections[0].actor_type).toBe("admin")
+      expect(corrections[0].payload.previous.produced_quantity).toBe(9)
+      expect(corrections[0].payload.corrected.produced_quantity).toBe(3)
+      expect(corrections[0].payload.reason).toBe(
+        "Partner reported 9; physical count was 3"
+      )
+    })
+
+    it("should reject a negative output correction", async () => {
+      const { adminHeaders, unique } = await setupTestData()
+      const { partnerId, partnerHeaders } = await createPartner(unique)
+      const { templateName } = await createTemplates(adminHeaders, unique)
+      const designId = await createDesign(adminHeaders, unique)
+
+      const createRes = await api.post(
+        `/admin/designs/${designId}/production-runs`,
+        {
+          quantity: 4,
+          assignments: [{ partner_id: partnerId, quantity: 4, template_names: [templateName] }],
+        },
+        adminHeaders
+      )
+      const runId = createRes.data.children[0].id
+      await advanceToFinished(runId, partnerHeaders)
+      await api.post(
+        `/partners/production-runs/${runId}/complete`,
+        { produced_quantity: 4 },
+        { headers: partnerHeaders }
+      )
+
+      await expect(
+        api.post(`/admin/production-runs/${runId}`, { produced_quantity: -1 }, adminHeaders)
+      ).rejects.toMatchObject({ response: { status: 400 } })
+    })
   })
 })
