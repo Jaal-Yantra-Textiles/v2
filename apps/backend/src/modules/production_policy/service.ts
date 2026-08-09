@@ -13,9 +13,31 @@ type ProductionRunLike = {
   role?: string | null
   depends_on_run_ids?: string[] | null
   dispatch_state?: string | null
+  accepted_at?: Date | string | null
   started_at?: Date | string | null
   finished_at?: Date | string | null
   metadata?: Record<string, any> | null
+}
+
+/** #1228 — what the reminder cap does before parking a run for reassignment. */
+export type ReassignmentPolicy = {
+  /**
+   * How many times the cap re-nudges the SAME partner (resetting the reminder
+   * cycle) before the run is parked in `awaiting_reassignment`. 0 restores the
+   * original #1093 behaviour: cap → park immediately.
+   */
+  same_partner_retries: number
+  /**
+   * On a same-partner retry ONLY, accept the run on the partner's behalf so
+   * production can move without another round-trip. Gated a second time by the
+   * partner's own `auto_accept_production_runs` opt-in — both must be true.
+   */
+  auto_accept_on_retry: boolean
+}
+
+export const DEFAULT_REASSIGNMENT_POLICY: ReassignmentPolicy = {
+  same_partner_retries: 1,
+  auto_accept_on_retry: false,
 }
 
 type StoredPolicy = {
@@ -55,7 +77,77 @@ class ProductionPolicyService extends MedusaService({
         finish_work_from: ["in_progress"],
         complete_work_from: ["in_progress"],
         decline_from: ["draft", "pending_review", "approved", "sent_to_partner", "in_progress"],
+        // #1228 — manual (re)assignment. Deliberately a SEPARATE key from
+        // dispatch_from: `allowedStatuses` falls back per-key, so adding this
+        // takes effect on already-stored policy configs without a backfill,
+        // whereas widening dispatch_from would need one.
+        assign_partner_from: [
+          "awaiting_reassignment",
+          "draft",
+          "pending_review",
+          "approved",
+          "sent_to_partner",
+        ],
       },
+      reassignment: DEFAULT_REASSIGNMENT_POLICY,
+    }
+  }
+
+  /**
+   * #1228 — what the reminder cap does before giving up on a partner.
+   * Missing/partial stored config falls back field-by-field, same contract as
+   * `allowedStatuses`, so existing policy rows need no backfill.
+   */
+  async getReassignmentPolicy(): Promise<ReassignmentPolicy> {
+    const config = await this.getPolicyConfig()
+    const stored = (config?.reassignment || {}) as Record<string, any>
+
+    const retries = Number(stored.same_partner_retries)
+    return {
+      same_partner_retries: Number.isFinite(retries) && retries >= 0
+        ? Math.floor(retries)
+        : DEFAULT_REASSIGNMENT_POLICY.same_partner_retries,
+      auto_accept_on_retry:
+        typeof stored.auto_accept_on_retry === "boolean"
+          ? stored.auto_accept_on_retry
+          : DEFAULT_REASSIGNMENT_POLICY.auto_accept_on_retry,
+    }
+  }
+
+  /**
+   * #1228 — an admin is pointing the run at a partner by hand: the recovery
+   * path out of `awaiting_reassignment`, and equally a correction before the
+   * partner has accepted. Refuses once work is under way (in_progress) or the
+   * run is terminal — swapping the partner mid-production would strand tasks.
+   */
+  async assertCanAssignPartner(run: ProductionRunLike) {
+    if (!run) {
+      throw new MedusaError(MedusaError.Types.NOT_FOUND, "ProductionRun not found")
+    }
+    this.assertNotTerminal(run, "reassigned")
+
+    const config = await this.getPolicyConfig()
+    const allowed = this.allowedStatuses(config, "assign_partner_from", [
+      "awaiting_reassignment",
+      "draft",
+      "pending_review",
+      "approved",
+      "sent_to_partner",
+    ])
+
+    const status = String(run.status)
+    if (!allowed.includes(status)) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `ProductionRun ${run.id} cannot be assigned a partner from status ${status}`
+      )
+    }
+
+    if (run.accepted_at) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `ProductionRun ${run.id} has already been accepted — cancel it instead of reassigning`
+      )
     }
   }
 

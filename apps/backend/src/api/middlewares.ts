@@ -133,6 +133,7 @@ import { AdminPostDesignTasksReq } from "./admin/designs/[id]/tasks/validators";
 import { AdminPutDesignTaskReq } from "./admin/designs/[id]/tasks/[taskId]/validators";
 import {
   AdminApproveProductionRunReq,
+  AdminAssignProductionRunPartnerReq,
   AdminCreateProductionRunReq,
   AdminCancelProductionRunReq,
   AdminResumeDispatchProductionRunReq,
@@ -4174,6 +4175,11 @@ export default defineMiddlewares({
       matcher: "/admin/production-runs/:id/resume-dispatch",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminResumeDispatchProductionRunReq))],
+    },
+    {
+      matcher: "/admin/production-runs/:id/assign-partner",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminAssignProductionRunPartnerReq))],
     },
 
     {

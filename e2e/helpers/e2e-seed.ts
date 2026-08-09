@@ -322,6 +322,83 @@ async function seedProvenanceProductRun(container: any): Promise<string> {
 }
 
 /**
+ * #1228 — a production run parked in `awaiting_reassignment`, plus the two
+ * partners the reassign drawer picks between: the one that let it lapse
+ * (`previous_partner_id`, the "same partner again" option) and a fresh one.
+ *
+ * Written straight through the module services rather than by driving a real
+ * decline: the fixture only needs the END state, and going through the partner
+ * decline route would drag the whole auth + dispatch chain into the seed.
+ *
+ * Mirrors exactly what `reassignProductionRunWorkflow` leaves behind — partner
+ * unassigned, previous partner retained, a park reason for the drawer to show —
+ * so the spec exercises the same shape production produces.
+ */
+async function seedParkedProductionRun(container: any): Promise<{
+  runId: string
+  designId: string
+  lapsedPartnerId: string
+  lapsedPartnerName: string
+  freshPartnerName: string
+}> {
+  const partnerModule: any = container.resolve("partner")
+  const designService: any = container.resolve("design")
+  const runService: any = container.resolve("production_runs")
+
+  const stamp = Date.now()
+
+  const mkPartner = async (label: string) => {
+    const created = await partnerModule.createPartners({
+      // Stamped: the name is what the reassign picker shows and what the spec
+      // selects on, so repeat seeds must not produce duplicates.
+      name: `E2E ${label} Partner ${stamp}`,
+      handle: `e2e-${label.toLowerCase()}-${stamp}`,
+      status: "active",
+      is_verified: true,
+    })
+    const row = Array.isArray(created) ? created[0] : created
+    return { id: row.id as string, name: row.name as string }
+  }
+
+  const lapsed = await mkPartner("Lapsed")
+  const fresh = await mkPartner("Fresh")
+
+  const design = await designService.createDesigns({
+    name: `Reassign Fixture (e2e ${stamp})`,
+    description: "e2e #1228 manual reassignment fixture",
+    design_type: "Original",
+    status: "Commerce_Ready",
+    priority: "Medium",
+  })
+  const designId = (Array.isArray(design) ? design[0] : design).id as string
+
+  const run = await runService.createProductionRuns({
+    design_id: designId,
+    quantity: 3,
+    run_type: "production",
+    // Both non-nullable on the model; the run page reads design.name off the
+    // snapshot.
+    snapshot: { design: { id: designId, name: `Reassign Fixture (e2e ${stamp})` } },
+    captured_at: new Date(),
+    status: "awaiting_reassignment",
+    partner_id: null,
+    previous_partner_id: lapsed.id,
+    cancelled_reason: "Declined by partner (capacity): Machine servicing",
+    reminder_count: 0,
+    reminder_status: "closed",
+  })
+  const runId = (Array.isArray(run) ? run[0] : run).id as string
+
+  return {
+    runId,
+    designId,
+    lapsedPartnerId: lapsed.id,
+    lapsedPartnerName: lapsed.name,
+    freshPartnerName: fresh.name,
+  }
+}
+
+/**
  * #1113 — seed a design carrying a full brief (concept + aesthetic anchor +
  * persona + competitors + price point + milestones + design budget), so the
  * designer-invite → brief-moodboard flow (S1 invite/accept + S2 generate) can be
@@ -694,6 +771,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: creating the HSN-gap product (customs specs)...")
   const hsnGap = await seedHsCodeGapProduct(container)
 
+  logger.info("E2E seed: creating the #1228 parked production run + partners...")
+  const parkedRun = await seedParkedProductionRun(container)
+
   logger.info("E2E seed: creating the gate order's partner fee (payout spec)...")
   const gateFee = await seedPartnerFeeForGateOrder(
     container,
@@ -724,6 +804,13 @@ export default async function e2eSeed({ container }: ExecArgs) {
     // Expected payout arithmetic for partner-order-payout-summary.spec.ts.
     gateOrderCurrency: gate.currencyCode,
     gateFee,
+    // #1228 manual-reassignment fixture — consumed by
+    // production-run-reassign.spec.ts (admin, CI).
+    parkedRunId: parkedRun.runId,
+    parkedRunDesignId: parkedRun.designId,
+    parkedRunLapsedPartnerId: parkedRun.lapsedPartnerId,
+    parkedRunLapsedPartnerName: parkedRun.lapsedPartnerName,
+    parkedRunFreshPartnerName: parkedRun.freshPartnerName,
   }
 
   fs.writeFileSync(SEED_FILE, JSON.stringify(seedData, null, 2))

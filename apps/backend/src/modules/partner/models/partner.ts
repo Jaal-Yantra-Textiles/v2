@@ -70,6 +70,14 @@ const Partner = model.define("partner", {
     deployment_project_id: model.text().nullable(),
     deployment_project_name: model.text().nullable(),
 
+    // #1228 — the partner has pre-agreed that work re-sent to them after they
+    // let a dispatch go stale should be accepted on their behalf, skipping the
+    // accept step so production can actually move. Only ever consulted on a
+    // same-partner RETRY (never on a first dispatch), and only when the stored
+    // policy has `reassignment.auto_accept_on_retry` enabled. Typed column NOT
+    // metadata — it silently changes who owns the work.
+    auto_accept_production_runs: model.boolean().default(false),
+
     // Relationships
     admins: model.hasMany(() => PartnerAdmin),
 

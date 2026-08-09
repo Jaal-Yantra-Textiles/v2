@@ -9,7 +9,12 @@ import type { IEventBusModuleService } from "@medusajs/types"
 
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
+import { PRODUCTION_POLICY_MODULE } from "../../modules/production_policy"
+import type ProductionPolicyService from "../../modules/production_policy/service"
+import type { ReassignmentPolicy } from "../../modules/production_policy/service"
+import { PARTNER_MODULE } from "../../modules/partner"
 import { reassignProductionRunWorkflow } from "./reassign-production-run"
+import { acceptProductionRunWorkflow } from "./accept-production-run"
 
 export type ReminderKind = "assignment_pending" | "not_started" | "idle"
 
@@ -33,7 +38,13 @@ const REMINDER_EVENT_BY_KIND: Record<ReminderKind, string> = {
  */
 export const REMINDER_CAP = 2
 
-type EmitAction = "reminded" | "reassigned" | "escalated" | "skipped"
+type EmitAction =
+  | "reminded"
+  | "reassigned"
+  | "escalated"
+  | "skipped"
+  /** #1228 — cap hit, but the partner still has retry budget left. */
+  | "retried_same_partner"
 
 type EmitStepResult = {
   action: EmitAction
@@ -76,6 +87,27 @@ export function decideReminderAction(
   }
 
   return { action: "reminded", nextCount: effectiveCount + 1 }
+}
+
+/**
+ * #1228 — what a cap on an UNACCEPTED run does. Before #1228 this was always
+ * "park it"; now the stored policy may buy the partner one more full reminder
+ * cycle first, on the theory that a silent partner is usually a busy one rather
+ * than an absent one. `same_partner_retries: 0` restores the old behaviour.
+ *
+ * Pure — exported for unit testing.
+ */
+export function decideCapOutcome(
+  run: { reassign_retry_count?: number | null },
+  policy: Pick<ReassignmentPolicy, "same_partner_retries">
+): { outcome: "retry_same_partner" | "park"; nextRetryCount: number } {
+  const spent = run.reassign_retry_count ?? 0
+  const budget = policy.same_partner_retries ?? 0
+
+  if (spent < budget) {
+    return { outcome: "retry_same_partner", nextRetryCount: spent + 1 }
+  }
+  return { outcome: "park", nextRetryCount: spent }
 }
 
 const processReminderStep = createStep(
@@ -153,7 +185,75 @@ const processReminderStep = createStep(
     }
 
     if (action === "reassigned") {
-      // Cap hit on an unaccepted run → send it to the reassignment queue.
+      // Cap hit on an unaccepted run. #1228 — before giving the work to
+      // someone else, the policy may buy this partner one more reminder cycle.
+      const policyService: ProductionPolicyService = container.resolve(
+        PRODUCTION_POLICY_MODULE
+      )
+      const reassignmentPolicy = await policyService.getReassignmentPolicy()
+      const { outcome, nextRetryCount } = decideCapOutcome(run, reassignmentPolicy)
+
+      if (outcome === "retry_same_partner") {
+        // Keep the partner and the status; just restart the reminder cycle and
+        // spend a retry. The next cap on this run will park it.
+        await service.updateProductionRuns({
+          id: input.production_run_id,
+          reassign_retry_count: nextRetryCount,
+          reminder_count: 0,
+          reminder_kind: null,
+          reminder_status: null,
+        })
+
+        await eventService.emit([
+          {
+            name: "production_run.reminder_retried_same_partner",
+            data: {
+              production_run_id: input.production_run_id,
+              partner_id: input.partner_id,
+              design_id: input.design_id ?? null,
+              reminder_kind: input.reminder_kind,
+              retry_count: nextRetryCount,
+            },
+          },
+        ])
+
+        // Optional escape hatch: a partner who has pre-agreed to it gets the
+        // run accepted on their behalf, so production moves instead of waiting
+        // on a click that history says isn't coming. Both the policy AND the
+        // partner's own opt-in must be true, and only ever on a retry.
+        let autoAccepted = false
+        if (reassignmentPolicy.auto_accept_on_retry && run.status === "sent_to_partner") {
+          const partnerService: any = container.resolve(PARTNER_MODULE)
+          const partner = await partnerService
+            .retrievePartner(input.partner_id)
+            .catch(() => null)
+
+          if (partner?.auto_accept_production_runs) {
+            await acceptProductionRunWorkflow(container)
+              .run({
+                input: {
+                  production_run_id: input.production_run_id,
+                  partner_id: input.partner_id,
+                },
+              })
+              .then(() => {
+                autoAccepted = true
+              })
+              .catch(() => {
+                /* non-fatal — the retry itself already stands */
+              })
+          }
+        }
+
+        return new StepResponse<EmitStepResult>({
+          action: "retried_same_partner",
+          event: "production_run.reminder_retried_same_partner",
+          reminder_count: 0,
+          reason: autoAccepted ? "auto_accepted" : null,
+        })
+      }
+
+      // Retry budget spent → send it to the reassignment queue.
       await reassignProductionRunWorkflow(container).run({
         input: {
           production_run_id: input.production_run_id,

@@ -299,6 +299,48 @@ export const useApproveProductionRun = (
   })
 }
 
+export type AdminAssignProductionRunPartnerPayload = {
+  partner_id: string
+  note?: string | null
+}
+
+export type AdminAssignProductionRunPartnerResponse = {
+  production_run: AdminProductionRun
+  previous_partner_id: string | null
+  same_partner: boolean
+}
+
+/**
+ * #1228 — point a run at a partner by hand. The recovery path out of
+ * `awaiting_reassignment`, and the "send it to the same partner again" action.
+ * The run lands on `approved`; the operator's next step is Dispatch.
+ */
+export const useAssignProductionRunPartner = (
+  runId: string,
+  options?: UseMutationOptions<
+    AdminAssignProductionRunPartnerResponse,
+    FetchError,
+    AdminAssignProductionRunPartnerPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: AdminAssignProductionRunPartnerPayload) =>
+      sdk.client.fetch<AdminAssignProductionRunPartnerResponse>(
+        `/admin/production-runs/${runId}/assign-partner`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.detail(runId) })
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
 export type AdminUpdateProductionRunPayload = {
   quantity?: number
   role?: string

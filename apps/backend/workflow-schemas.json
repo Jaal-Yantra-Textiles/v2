@@ -5923,6 +5923,37 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/production-runs/approve-production-run.ts"
   },
+  "assign-production-run-partner": {
+    "fields": [
+      {
+        "name": "production_run_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.production_run_id }}"
+      },
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "note",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.note }}",
+        "description": "#1228 — the manual half of #1093's reassignment story. #1093 built the automatic path (reminders → cap → park in `awaiting_reassignment`, partner unassigned, tasks cancelled) but nothing that moves a parked run back OUT. This workflow is that missing half: an admin points the run at a partner — the same one who let it go stale, or a different one — and it lands back on `approved`, ready for the ordinary dispatch flow. Deliberately stops at `approved` rather than dispatching itself. Dispatch is what collects template names, and template names are what seed the partner's tasks; short-circuiting it would hand a partner a run with no work items. / export type AssignProductionRunPartnerSource = \"manual\" | \"reminder_retry\" export type AssignProductionRunPartnerInput = { production_run_id: string partner_id: string /** Free-text admin note, recorded on the activity feed."
+      },
+      {
+        "name": "source",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.source }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/production-runs/assign-production-run-partner.ts"
+  },
   "complete-production-run": {
     "fields": [
       {

@@ -62,6 +62,11 @@ const LIFECYCLE_SUMMARY_BY_KIND: Record<string, string> = {
 const ESCALATION_SUMMARY_BY_EVENT: Record<string, string> = {
   "production_run.reassignment_needed": "Run queued for reassignment",
   "production_run.reminder_escalated": "Reminder cap reached — escalated to admin",
+  // #1228 — the cap spent a retry instead of parking the run, and the manual
+  // assignment that pulls a parked run back out.
+  "production_run.reminder_retried_same_partner":
+    "Reminder cap reached — re-sent to the same partner",
+  "production_run.partner_assigned": "Partner assigned by admin",
 }
 
 export default async function productionRunActivityRecorder({
@@ -184,5 +189,8 @@ export const config: SubscriberConfig = {
     // #1093 — reminder cap escalations.
     "production_run.reassignment_needed",
     "production_run.reminder_escalated",
+    // #1228 — same-partner retry + manual assignment.
+    "production_run.reminder_retried_same_partner",
+    "production_run.partner_assigned",
   ],
 }

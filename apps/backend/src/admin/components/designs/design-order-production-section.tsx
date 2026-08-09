@@ -6,7 +6,13 @@ import {
   Text,
   clx,
 } from "@medusajs/ui"
-import { ArrowRightMini, ArrowUpRightOnBox, PencilSquare } from "@medusajs/icons"
+import {
+  ArrowPath,
+  ArrowRightMini,
+  ArrowUpRightOnBox,
+  PencilSquare,
+  Users,
+} from "@medusajs/icons"
 import { Link } from "react-router-dom"
 
 import { ActionMenu } from "../../components/common/action-menu"
@@ -38,6 +44,9 @@ const runStatusColor = (
       return "blue"
     case "cancelled":
       return "red"
+    // #1228 — parked by the reminder cap or a decline: nobody is working on it.
+    case "awaiting_reassignment":
+      return "red"
     default:
       return "grey"
   }
@@ -55,12 +64,17 @@ const adminStatusHint = (run: any): string => {
     return "In progress"
   }
   if (s === "sent_to_partner") return "Sent — awaiting acceptance"
+  // #1228 — before this branch existed a parked run fell through to "Not sent
+  // to a partner yet", which reads as "nothing has happened" rather than "the
+  // partner dropped it and it is waiting on you".
+  if (s === "awaiting_reassignment") return "Unassigned — needs a new partner"
   return "Not sent to a partner yet"
 }
 
 /** The partner's NEXT step in the lifecycle ("up ahead"), or null when none. */
 const partnerNextStep = (run: any): string | null => {
   const s = String(run?.status || "")
+  if (s === "awaiting_reassignment") return null
   if (s === "sent_to_partner") return "Accept the run"
   if (s === "in_progress") {
     if (run.finished_at) return "Complete with output + cost"
@@ -136,6 +150,18 @@ export const RunCard = ({
   const status = String(run.status || "")
   const title = design?.name || run?.snapshot?.design?.name || `Design ${run.design_id}`
   const nextStep = partnerNextStep(run)
+  // #1228 — mirrors the server-side policy (`assign_partner_from` + the
+  // already-accepted guard) so we never offer an action the API will refuse.
+  const canAssignPartner =
+    !run?.accepted_at &&
+    [
+      "awaiting_reassignment",
+      "draft",
+      "pending_review",
+      "approved",
+      "sent_to_partner",
+    ].includes(status)
+  const lastPartnerId = run?.partner_id || run?.previous_partner_id || null
   const targetDate = fmtDate(design?.target_completion_date)
   const cost = fmtCost(
     run?.partner_cost_estimate ?? design?.estimated_cost,
@@ -184,9 +210,35 @@ export const RunCard = ({
           </Text>
         </div>
         {/* Lifecycle actions (approve / dispatch / cost / cancel / tasks) live on
-            the canonical run page — link there instead of duplicating them. */}
+            the canonical run page — link there instead of duplicating them.
+            #1228 is the exception: reassignment is the action an operator comes
+            to THIS page looking for, since this is where a stalled run is
+            noticed. Both entries deep-link into the run page's reassign drawer,
+            so there is still exactly one implementation. */}
         <ActionMenu
           groups={[
+            ...(canAssignPartner
+              ? [
+                  {
+                    actions: [
+                      ...(lastPartnerId
+                        ? [
+                            {
+                              label: "Send to the same partner again",
+                              icon: <ArrowPath />,
+                              to: `/production-runs/${run.id}/reassign?mode=same`,
+                            },
+                          ]
+                        : []),
+                      {
+                        label: "Assign a different partner",
+                        icon: <Users />,
+                        to: `/production-runs/${run.id}/reassign`,
+                      },
+                    ],
+                  },
+                ]
+              : []),
             {
               actions: [
                 {

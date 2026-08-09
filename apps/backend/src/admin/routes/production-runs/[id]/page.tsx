@@ -10,7 +10,14 @@ import {
   toast,
   usePrompt,
 } from "@medusajs/ui"
-import { EllipsisHorizontal, PencilSquare, Trash, XMark } from "@medusajs/icons"
+import {
+  ArrowPath,
+  EllipsisHorizontal,
+  PencilSquare,
+  Trash,
+  Users,
+  XMark,
+} from "@medusajs/icons"
 import {
   Link,
   LoaderFunctionArgs,
@@ -68,6 +75,18 @@ const ProductionRunDetailPage = () => {
     run?.dispatch_state === "idle" &&
     !run?.dispatch_completed_at &&
     !!run?.partner_id
+
+  // #1228 — a run parked by the reminder cap (or a decline) has no partner and
+  // no other control on this page; this is its only way back into production.
+  const isParked = run?.status === "awaiting_reassignment"
+  // Reassignment is also a plain correction before the partner has accepted.
+  const canAssignPartner =
+    !isParent &&
+    !run?.accepted_at &&
+    ["awaiting_reassignment", "draft", "pending_review", "approved", "sent_to_partner"].includes(
+      String(run?.status)
+    )
+  const lastPartnerId = run?.partner_id || run?.previous_partner_id || null
 
   const handleCancel = async () => {
     const confirmed = await prompt({
@@ -154,6 +173,13 @@ const ProductionRunDetailPage = () => {
                   </Button>
                 </Link>
               )}
+              {/* A parked run is a dead end without this — promote it out of the
+                  overflow menu so the queue is actionable at a glance. */}
+              {isParked && canAssignPartner && (
+                <Link to={lastPartnerId ? "reassign?mode=same" : "reassign"}>
+                  <Button size="small">Reassign</Button>
+                </Link>
+              )}
               <DropdownMenu>
                 <DropdownMenu.Trigger asChild>
                   <IconButton size="small" variant="transparent" aria-label="Actions">
@@ -166,6 +192,23 @@ const ProductionRunDetailPage = () => {
                       <PencilSquare className="mr-2" />
                       {isOverride ? "Edit details (override)" : "Edit details"}
                     </DropdownMenu.Item>
+                  )}
+                  {canAssignPartner && (
+                    <>
+                      <DropdownMenu.Separator />
+                      {lastPartnerId && (
+                        <DropdownMenu.Item
+                          onClick={() => navigate("reassign?mode=same")}
+                        >
+                          <ArrowPath className="mr-2" />
+                          Send to the same partner again
+                        </DropdownMenu.Item>
+                      )}
+                      <DropdownMenu.Item onClick={() => navigate("reassign")}>
+                        <Users className="mr-2" />
+                        Assign a different partner
+                      </DropdownMenu.Item>
+                    </>
                   )}
                   {canEditCost && (
                     <>
