@@ -2886,6 +2886,27 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    // #891 goods movement — a route file is NOT a route until it has a matcher
+    // here; without one `authenticate` never runs and the handler refuses every
+    // caller including the owner (that was #1204). Body validation stays in the
+    // handler (its own zod schema) rather than `validateAndTransformBody`, so
+    // this matcher only has to establish CORS + partner auth.
+    {
+      matcher: "/partners/production-runs/:id/transfers",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/production-runs/:id/transfers",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     {
       matcher: "/partners/production-runs/:id/consumption-logs",
       method: "POST",

@@ -920,6 +920,41 @@ export class ShiprocketClient implements ShippingProviderClient {
   }
 
   /**
+   * Cancel a carrier order we created but could never get an AWB onto (#1225).
+   *
+   * `createShipment` is create → assign → label. When the assign fails, the
+   * created order stays behind: nothing on our side persisted a reference to it
+   * (the caller only writes `fulfillment.data` on success), so it is an orphan —
+   * a live "New" row in the Shiprocket dashboard that no retry will ever reuse,
+   * because each retry takes a fresh channel order id. Sweeping them was manual.
+   *
+   * Best-effort on purpose: this runs on the failure path, and the operator
+   * needs the ORIGINAL carrier error — a cleanup that itself fails must not
+   * replace it with something about cancellation. The client has no logger, so a
+   * failed sweep is silent; the order simply remains for the manual sweep it
+   * needed before this existed.
+   */
+  private async cancelOrphanedCarrierOrder(created: any): Promise<void> {
+    const srOrderId = created?.order_id
+    if (!srOrderId) return
+    // `create/adhoc` DEDUPES on the channel order id, so `created` is not
+    // necessarily ours — it can be a pre-existing order that is already moving.
+    // An AWB on it means a real shipment; cancelling that would be destructive,
+    // and no assign failure justifies it.
+    if (created?.awb_code) return
+    // Already cancelled carrier-side: nothing to sweep.
+    if (isCanceledCarrierOrder(created)) return
+    try {
+      await this.request<any>(`/orders/cancel`, {
+        method: "POST",
+        body: JSON.stringify({ ids: [srOrderId] }),
+      })
+    } catch {
+      // Swallowed — see the note above.
+    }
+  }
+
+  /**
    * Create order → assign AWB → generate label, returning a uniform result.
    * Shiprocket separates these; we sequence them so the caller gets an AWB +
    * label in one call, mirroring Delhivery's single-call shape.
@@ -1017,20 +1052,31 @@ export class ShiprocketClient implements ShippingProviderClient {
     // 2) Assign an AWB (force a courier if the caller picked one). The
     // "cancelled state" catch stays as a belt-and-braces fallback for a record
     // that only reveals itself at assign time.
+    //
+    // The outer try owns orphan cleanup (#1225): every way out of this block
+    // without an AWB — a 4xx, a 200 carrying no waybill (`assertAwbAssigned`),
+    // or the recreated order failing too — leaves a carrier order nothing
+    // references. Cancel whichever one is current, then rethrow untouched.
     let assigned: any
     try {
-      assigned = await assignAwb(created.shipment_id)
-    } catch (e: any) {
-      const cancelled =
-        e instanceof ShiprocketApiError && /cancell?ed state/i.test(e.message)
-      if (!cancelled) throw e
-      created = await createAdhoc(suffixedChannelOrderId(input.reference_id))
-      assigned = await assignAwb(created.shipment_id)
+      try {
+        assigned = await assignAwb(created.shipment_id)
+      } catch (e: any) {
+        const cancelled =
+          e instanceof ShiprocketApiError && /cancell?ed state/i.test(e.message)
+        if (!cancelled) throw e
+        // The old `created` is cancelled carrier-side already — nothing to sweep.
+        created = await createAdhoc(suffixedChannelOrderId(input.reference_id))
+        assigned = await assignAwb(created.shipment_id)
+      }
+      assertAwbAssigned(assigned)
+    } catch (e) {
+      await this.cancelOrphanedCarrierOrder(created)
+      throw e
     }
 
     const srOrderId = created?.order_id
     const shipmentId = created?.shipment_id
-    assertAwbAssigned(assigned)
     const awbData = assigned?.response?.data || {}
     const awb = awbData.awb_code || ""
 
@@ -1277,29 +1323,35 @@ export class ShiprocketClient implements ShippingProviderClient {
     if (isCanceledCarrierOrder(created)) {
       created = await createAdhoc(suffixedChannelOrderId(input.reference_id))
     }
+    // As on the domestic path, the outer try owns orphan cleanup (#1225): an
+    // international assign that no courier accepts is exactly the case that
+    // stranded a carrier order per retry on order 79.
     let assigned: any
-    let courier: { id?: string | number; rate?: RateOption }
+    let courier: { id?: string | number; rate?: RateOption } = {}
     try {
-      ;({ assigned, courier } = await assignWithFallback(
-        created.shipment_id,
-        await resolveCandidates(created.order_id)
-      ))
-    } catch (e: any) {
-      const cancelled =
-        e instanceof ShiprocketApiError && /cancell?ed state/i.test(e.message)
-      if (!cancelled) throw e
-      created = await createAdhoc(
-        `${input.reference_id}-R${Date.now().toString(36)}`
-      )
-      ;({ assigned, courier } = await assignWithFallback(
-        created.shipment_id,
-        await resolveCandidates(created.order_id)
-      ))
+      try {
+        ;({ assigned, courier } = await assignWithFallback(
+          created.shipment_id,
+          await resolveCandidates(created.order_id)
+        ))
+      } catch (e: any) {
+        const cancelled =
+          e instanceof ShiprocketApiError && /cancell?ed state/i.test(e.message)
+        if (!cancelled) throw e
+        created = await createAdhoc(suffixedChannelOrderId(input.reference_id))
+        ;({ assigned, courier } = await assignWithFallback(
+          created.shipment_id,
+          await resolveCandidates(created.order_id)
+        ))
+      }
+      assertAwbAssigned(assigned)
+    } catch (e) {
+      await this.cancelOrphanedCarrierOrder(created)
+      throw e
     }
 
     const srOrderId = created?.order_id
     const shipmentId = created?.shipment_id
-    assertAwbAssigned(assigned)
     const awbData = assigned?.response?.data || {}
     const awb = awbData.awb_code || ""
 

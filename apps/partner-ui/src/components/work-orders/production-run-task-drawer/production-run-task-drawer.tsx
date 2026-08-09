@@ -6,6 +6,7 @@ import { RouteDrawer } from "../../modals"
 import { SectionRow } from "../../common/section"
 import { getStatusBadgeColor } from "../../../lib/status-badge"
 import { usePartnerAssignedTask } from "../../../hooks/api/partner-assigned-tasks"
+import { GoodsTransferSection } from "../goods-transfer-section"
 
 export const ProductionRunTaskDrawer = () => {
   const { task_id } = useParams()
@@ -17,6 +18,21 @@ export const ProductionRunTaskDrawer = () => {
   const subtasks = useMemo(() => {
     return (task?.subtasks || []) as any[]
   }, [task?.subtasks])
+
+  /**
+   * A task template can carry an ACTION, not just a checklist line (#891). The
+   * tasks module knows nothing about shipping — the binding lives in the
+   * template's metadata, which `createTaskWithTemplates` merges onto every task
+   * it creates, alongside the `production_run_id` the run dispatch adds. A task
+   * whose template declared `create_goods_transfer` therefore arrives here
+   * already knowing both what to do and which run to do it for, and renders the
+   * movement form in place of a bare "mark done".
+   *
+   * Anything else renders as an ordinary task — an unknown action is not an
+   * error, just a template this build doesn't have a form for.
+   */
+  const action = (task?.metadata as any)?.action
+  const actionRunId = (task?.metadata as any)?.production_run_id
 
   if (!task_id) {
     return (
@@ -78,6 +94,17 @@ export const ProductionRunTaskDrawer = () => {
               {task?.description || "-"}
             </Text>
           </div>
+
+          {action === "create_goods_transfer" && actionRunId ? (
+            <GoodsTransferSection
+              runId={String(actionRunId)}
+              // The task IS the instruction to move the goods — gating it on
+              // run completion here would hide the very step the partner was
+              // handed. Completion is enforced upstream, by when the step is
+              // dispatched.
+              isCompleted
+            />
+          ) : null}
 
           <div className="flex flex-col px-6 py-4">
             <Text size="small" weight="plus" leading="compact" className="mb-2">

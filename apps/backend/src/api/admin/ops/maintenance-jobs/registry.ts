@@ -4,6 +4,8 @@ import { z } from "@medusajs/framework/zod"
 import { estimateDesignCostWorkflow } from "../../../../workflows/designs/estimate-design-cost"
 import { DESIGN_MODULE } from "../../../../modules/designs"
 import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
+import { TASKS_MODULE } from "../../../../modules/tasks"
+import { TEMPLATE_DEF } from "../../../../scripts/seed-goods-transfer-task-template"
 import { CONSUMPTION_LOG_MODULE } from "../../../../modules/consumption_log"
 import { RAW_MATERIAL_MODULE } from "../../../../modules/raw_material"
 import { buildGroupColorTitle } from "../../../../modules/raw_material/lib/group-order-helpers"
@@ -5541,6 +5543,64 @@ export const reconcileInventoryMirrorJob: MaintenanceJob = {
   },
 }
 
+// ---------------------------------------------------------------------------
+// seed-goods-transfer-task-template (#891) — install the "Ship to next
+// location" task template so the goods-movement step can be attached to a
+// production run like any other dispatch step. Idempotent: an existing template
+// of the same name is left ALONE, never overwritten — operators edit templates
+// (durations, wording, required fields) and a re-run must not undo that.
+// ---------------------------------------------------------------------------
+
+export const seedGoodsTransferTaskTemplateJob: MaintenanceJob = {
+  id: "seed-goods-transfer-task-template",
+  label: "Install the 'Ship to next location' task template",
+  description:
+    "Create the task template that lets a production run's finished output be moved to its next location — a finishing/QC partner, a packaging warehouse, or into stock (#891). Production-run dispatch resolves templates by NAME, so installing this makes the movement step attachable to a run like any other step, and it appears in the partner's task list with a transfer form (carrier optional — a self-driven hop is a real movement). Dry-run reports what it would create; apply creates it. Re-running never overwrites an existing template, so operator edits are safe.",
+  params: [],
+  run: async (container, { dry_run }) => {
+    const taskService: any = container.resolve(TASKS_MODULE)
+    const name = TEMPLATE_DEF.name
+
+    const existing = await taskService.listTaskTemplates({ name: [name] })
+    if (existing?.length) {
+      return {
+        job_id: seedGoodsTransferTaskTemplateJob.id,
+        dry_run,
+        applied: false,
+        summary: `Task template "${name}" already installed (${existing[0].id}) — left untouched. Edit it under Settings → Task Templates.`,
+        changes: [],
+      }
+    }
+
+    let createdId: string | null = null
+    if (!dry_run) {
+      const created = await taskService.createTaskTemplates(TEMPLATE_DEF as any)
+      createdId = (Array.isArray(created) ? created[0] : created)?.id ?? null
+    }
+
+    return {
+      job_id: seedGoodsTransferTaskTemplateJob.id,
+      dry_run,
+      applied: !dry_run && !!createdId,
+      summary: dry_run
+        ? `Would create task template "${name}" (${TEMPLATE_DEF.required_fields.length} fields) — nothing written. Apply to install.`
+        : `Created task template "${name}" (${createdId}). Attach it to a production run's dispatch step list to offer the movement.`,
+      changes: [
+        {
+          entity: "task_template",
+          id: createdId ?? "(new)",
+          field: "created",
+          after: {
+            name,
+            action: TEMPLATE_DEF.metadata.action,
+            fields: TEMPLATE_DEF.required_fields.length,
+          },
+        },
+      ],
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
@@ -5597,6 +5657,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   linkArtisanDetailRowsJob,
   backfillFulfilledRetailRunsJob,
   seedInvestorPanelsJob,
+  seedGoodsTransferTaskTemplateJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>

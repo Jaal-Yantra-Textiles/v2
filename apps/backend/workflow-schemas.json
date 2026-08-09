@@ -5990,6 +5990,90 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/production-runs/complete-provenance-run.ts"
   },
+  "create-production-run-transfer": {
+    "fields": [
+      {
+        "name": "productionRunId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.productionRunId }}"
+      },
+      {
+        "name": "toLocationId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.toLocationId }}",
+        "description": "#891 — move a production run's output from where it was made to wherever it needs to go next (a finishing partner, a QC/packaging warehouse, or stock). Reuses the shipment machinery wholesale: `resolveShippingProvider` (so both Shiprocket and Delhivery work here on day one), `registerShiprocketPickup` for the origin, `resolveInventoryDestinationAddress` for the destination, and an `inventory_shipment` row for the carrier refs so the existing tracking webhook needs no new routing. What's new is only the `goods_transfer` row recording the movement's intent. A carrier booking is OPTIONAL. A hop between two of our own locations is frequently someone driving a van, and that is still a real transfer whose inventory consequences matter — so `carrier: undefined` records a `draft` transfer with no AWB rather than refusing the movement. / export type CreateProductionRunTransferInput = { productionRunId: string /** Destination stock location."
+      },
+      {
+        "name": "fromLocationId",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.fromLocationId }}",
+        "description": "#891 — move a production run's output from where it was made to wherever it needs to go next (a finishing partner, a QC/packaging warehouse, or stock). Reuses the shipment machinery wholesale: `resolveShippingProvider` (so both Shiprocket and Delhivery work here on day one), `registerShiprocketPickup` for the origin, `resolveInventoryDestinationAddress` for the destination, and an `inventory_shipment` row for the carrier refs so the existing tracking webhook needs no new routing. What's new is only the `goods_transfer` row recording the movement's intent. A carrier booking is OPTIONAL. A hop between two of our own locations is frequently someone driving a van, and that is still a real transfer whose inventory consequences matter — so `carrier: undefined` records a `draft` transfer with no AWB rather than refusing the movement. / export type CreateProductionRunTransferInput = { productionRunId: string /** Destination stock location. */ toLocationId: string /** Origin; defaults to the run's own goods location (see below)."
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.reason }}"
+      },
+      {
+        "name": "quantity",
+        "type": "number",
+        "required": false,
+        "placeholder": "0",
+        "description": "#891 — move a production run's output from where it was made to wherever it needs to go next (a finishing partner, a QC/packaging warehouse, or stock). Reuses the shipment machinery wholesale: `resolveShippingProvider` (so both Shiprocket and Delhivery work here on day one), `registerShiprocketPickup` for the origin, `resolveInventoryDestinationAddress` for the destination, and an `inventory_shipment` row for the carrier refs so the existing tracking webhook needs no new routing. What's new is only the `goods_transfer` row recording the movement's intent. A carrier booking is OPTIONAL. A hop between two of our own locations is frequently someone driving a van, and that is still a real transfer whose inventory consequences matter — so `carrier: undefined` records a `draft` transfer with no AWB rather than refusing the movement. / export type CreateProductionRunTransferInput = { productionRunId: string /** Destination stock location. */ toLocationId: string /** Origin; defaults to the run's own goods location (see below). */ fromLocationId?: string reason?: \"finishing\" | \"qc\" | \"packaging\" | \"stock\" | \"customer\" | \"other\" /** Units moving in this hop; defaults to what the run produced."
+      },
+      {
+        "name": "carrier",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.carrier }}",
+        "description": "#891 — move a production run's output from where it was made to wherever it needs to go next (a finishing partner, a QC/packaging warehouse, or stock). Reuses the shipment machinery wholesale: `resolveShippingProvider` (so both Shiprocket and Delhivery work here on day one), `registerShiprocketPickup` for the origin, `resolveInventoryDestinationAddress` for the destination, and an `inventory_shipment` row for the carrier refs so the existing tracking webhook needs no new routing. What's new is only the `goods_transfer` row recording the movement's intent. A carrier booking is OPTIONAL. A hop between two of our own locations is frequently someone driving a van, and that is still a real transfer whose inventory consequences matter — so `carrier: undefined` records a `draft` transfer with no AWB rather than refusing the movement. / export type CreateProductionRunTransferInput = { productionRunId: string /** Destination stock location. */ toLocationId: string /** Origin; defaults to the run's own goods location (see below). */ fromLocationId?: string reason?: \"finishing\" | \"qc\" | \"packaging\" | \"stock\" | \"customer\" | \"other\" /** Units moving in this hop; defaults to what the run produced. */ quantity?: number /** Book with this carrier. Omitted → a `draft` transfer with no carrier booking (a self-driven hop), which is a legitimate movement, not an error."
+      },
+      {
+        "name": "weightGrams",
+        "type": "number",
+        "required": false,
+        "placeholder": "0"
+      },
+      {
+        "name": "dimensionsCm",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.dimensionsCm }}"
+      },
+      {
+        "name": "preferredCourierId",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.preferredCourierId }}"
+      },
+      {
+        "name": "actingEmail",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.actingEmail }}",
+        "description": "#891 — move a production run's output from where it was made to wherever it needs to go next (a finishing partner, a QC/packaging warehouse, or stock). Reuses the shipment machinery wholesale: `resolveShippingProvider` (so both Shiprocket and Delhivery work here on day one), `registerShiprocketPickup` for the origin, `resolveInventoryDestinationAddress` for the destination, and an `inventory_shipment` row for the carrier refs so the existing tracking webhook needs no new routing. What's new is only the `goods_transfer` row recording the movement's intent. A carrier booking is OPTIONAL. A hop between two of our own locations is frequently someone driving a van, and that is still a real transfer whose inventory consequences matter — so `carrier: undefined` records a `draft` transfer with no AWB rather than refusing the movement. / export type CreateProductionRunTransferInput = { productionRunId: string /** Destination stock location. */ toLocationId: string /** Origin; defaults to the run's own goods location (see below). */ fromLocationId?: string reason?: \"finishing\" | \"qc\" | \"packaging\" | \"stock\" | \"customer\" | \"other\" /** Units moving in this hop; defaults to what the run produced. */ quantity?: number /** Book with this carrier. Omitted → a `draft` transfer with no carrier booking (a self-driven hop), which is a legitimate movement, not an error. / carrier?: string weightGrams?: number dimensionsCm?: Dimensions & { breadth?: number } preferredCourierId?: string | number /** Acting user's email recorded on a freshly-registered pickup (#427)."
+      },
+      {
+        "name": "notes",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.notes }}"
+      },
+      {
+        "name": "audience",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.audience }}",
+        "description": "#891 — move a production run's output from where it was made to wherever it needs to go next (a finishing partner, a QC/packaging warehouse, or stock). Reuses the shipment machinery wholesale: `resolveShippingProvider` (so both Shiprocket and Delhivery work here on day one), `registerShiprocketPickup` for the origin, `resolveInventoryDestinationAddress` for the destination, and an `inventory_shipment` row for the carrier refs so the existing tracking webhook needs no new routing. What's new is only the `goods_transfer` row recording the movement's intent. A carrier booking is OPTIONAL. A hop between two of our own locations is frequently someone driving a van, and that is still a real transfer whose inventory consequences matter — so `carrier: undefined` records a `draft` transfer with no AWB rather than refusing the movement. / export type CreateProductionRunTransferInput = { productionRunId: string /** Destination stock location. */ toLocationId: string /** Origin; defaults to the run's own goods location (see below). */ fromLocationId?: string reason?: \"finishing\" | \"qc\" | \"packaging\" | \"stock\" | \"customer\" | \"other\" /** Units moving in this hop; defaults to what the run produced. */ quantity?: number /** Book with this carrier. Omitted → a `draft` transfer with no carrier booking (a self-driven hop), which is a legitimate movement, not an error. / carrier?: string weightGrams?: number dimensionsCm?: Dimensions & { breadth?: number } preferredCourierId?: string | number /** Acting user's email recorded on a freshly-registered pickup (#427). */ actingEmail?: string notes?: string /** Who reads the error — carrier-account failures are not a partner's doing."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/production-runs/create-production-run-transfer.ts"
+  },
   "create-production-run": {
     "fields": [
       {

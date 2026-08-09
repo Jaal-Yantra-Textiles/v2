@@ -535,6 +535,53 @@ describe("ShiprocketClient.createShipment — international routing", () => {
   })
 
   /**
+   * #1225 — this is the shape that stranded a carrier order per retry on order
+   * 79: the create succeeds, every courier refuses, and the order stays behind
+   * as a live "New" row nothing references. Sweep it on the way out.
+   */
+  it("cancels the carrier order it created once every courier has refused", async () => {
+    const cancels: any[] = []
+    const real = global.fetch?.bind(globalThis)
+    fetchSpy = jest
+      .spyOn(global, "fetch" as any)
+      .mockImplementation(async (input: any, init: any = {}) => {
+        const url = String(input)
+        if (!url.includes("shiprocket.in")) return real?.(input, init)
+        const path = url.replace("https://apiv2.shiprocket.in/v1/external", "")
+        if (path.includes("/international/orders/create/adhoc"))
+          return make({ shipment_id: 700, order_id: 800 })
+        if (path.includes("/international/courier/serviceability"))
+          return make({
+            data: {
+              recommended_courier_company_id: 384,
+              available_courier_companies: [
+                { courier_company_id: 384, courier_name: "SRX Economy", rate: { rate: 1100 } },
+              ],
+            },
+          })
+        if (path.includes("/international/courier/assign/awb"))
+          return make({ message: '["Delivery pincode is empty"]' }, 400)
+        if (path === "/orders/cancel") {
+          cancels.push(JSON.parse(String(init.body || "{}")))
+          return make({ status: 200 })
+        }
+        return make({}, 404)
+      })
+
+    const client = new ShiprocketClient({
+      email: "x@y.com",
+      password: "p",
+      token: "injected-token",
+      pickup_location: "warehouse-abc",
+    })
+
+    await expect(client.createShipment(usInput())).rejects.toThrow(
+      /No international courier would accept this shipment/
+    )
+    expect(cancels).toEqual([{ ids: [800] }])
+  })
+
+  /**
    * THE order-79 bug. `create/adhoc` dedupes on the channel `order_id`, so a
    * reference whose carrier order was cancelled resolves back to that dead
    * record — HTTP 200, `status: "CANCELED"`, the OLD shipment_id — and assign

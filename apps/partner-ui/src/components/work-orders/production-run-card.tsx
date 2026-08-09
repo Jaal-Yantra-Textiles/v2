@@ -35,6 +35,7 @@ import {
 } from "../../hooks/api/partner-assigned-tasks"
 import { getStatusBadgeColor } from "../../lib/status-badge"
 import { extractErrorMessage } from "../../lib/extract-error-message"
+import { GoodsTransferSection } from "./goods-transfer-section"
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -605,6 +606,10 @@ export const ProductionRunCard = ({
           existingConsumptionCount={consumptionCount}
         />
       )}
+
+      {/* Where the output goes next (#891). Completed runs only — before that
+          there is nothing produced to move. */}
+      <GoodsTransferSection runId={runId} isCompleted={isCompleted} />
 
       {/* Yield summary (shown after completion) */}
       {isCompleted && run.produced_quantity != null && (
