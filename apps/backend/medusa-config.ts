@@ -393,98 +393,106 @@ module.exports = defineConfig({
           },
         ]
       : []),
-    // {
-    //   resolve: "@medusajs/medusa/fulfillment",
-    //   options: {
-    //     providers: [
-    //       {
-    //         resolve: "@medusajs/medusa/fulfillment-manual",
-    //         id: "manual",
-    //       },
-    //       ...(process.env.DELHIVERY_API_TOKEN
-    //         ? [
-    //             {
-    //               resolve: "./src/modules/shipping-providers/delhivery",
-    //               id: "delhivery",
-    //               options: {
-    //                 api_token: process.env.DELHIVERY_API_TOKEN,
-    //                 sandbox: process.env.DELHIVERY_SANDBOX === "true",
-    //               },
-    //             },
-    //           ]
-    //         : []),
-    //       ...(process.env.SHIPROCKET_EMAIL
-    //         ? [
-    //             {
-    //               resolve: "./src/modules/shipping-providers/shiprocket",
-    //               id: "shiprocket",
-    //               options: {
-    //                 email: process.env.SHIPROCKET_EMAIL,
-    //                 password: process.env.SHIPROCKET_PASSWORD,
-    //                 pickup_location: process.env.SHIPROCKET_PICKUP_LOCATION,
-    //               },
-    //             },
-    //           ]
-    //         : []),
-    //       ...(process.env.DHL_API_KEY
-    //         ? [
-    //             {
-    //               resolve: "./src/modules/shipping-providers/dhl",
-    //               id: "dhl-express",
-    //               options: {
-    //                 api_key: process.env.DHL_API_KEY,
-    //                 api_secret: process.env.DHL_API_SECRET,
-    //                 account_number: process.env.DHL_ACCOUNT_NUMBER,
-    //                 sandbox: process.env.DHL_SANDBOX === "true",
-    //               },
-    //             },
-    //           ]
-    //         : []),
-    //       ...(process.env.UPS_CLIENT_ID
-    //         ? [
-    //             {
-    //               resolve: "./src/modules/shipping-providers/ups",
-    //               id: "ups",
-    //               options: {
-    //                 client_id: process.env.UPS_CLIENT_ID,
-    //                 client_secret: process.env.UPS_CLIENT_SECRET,
-    //                 account_number: process.env.UPS_ACCOUNT_NUMBER,
-    //                 sandbox: process.env.UPS_SANDBOX === "true",
-    //               },
-    //             },
-    //           ]
-    //         : []),
-    //       ...(process.env.FEDEX_CLIENT_ID
-    //         ? [
-    //             {
-    //               resolve: "./src/modules/shipping-providers/fedex",
-    //               id: "fedex",
-    //               options: {
-    //                 client_id: process.env.FEDEX_CLIENT_ID,
-    //                 client_secret: process.env.FEDEX_CLIENT_SECRET,
-    //                 account_number: process.env.FEDEX_ACCOUNT_NUMBER,
-    //                 sandbox: process.env.FEDEX_SANDBOX === "true",
-    //               },
-    //             },
-    //           ]
-    //         : []),
-    //       ...(process.env.AUSPOST_CLIENT_ID
-    //         ? [
-    //             {
-    //               resolve: "./src/modules/shipping-providers/auspost",
-    //               id: "auspost",
-    //               options: {
-    //                 client_id: process.env.AUSPOST_CLIENT_ID,
-    //                 client_secret: process.env.AUSPOST_CLIENT_SECRET,
-    //                 account_number: process.env.AUSPOST_ACCOUNT_NUMBER,
-    //                 sandbox: process.env.AUSPOST_SANDBOX === "true",
-    //               },
-    //             },
-    //           ]
-    //         : []),
-    //     ],
-    //   },
-    // },
+    // Carrier fulfillment providers are OFF by default in dev. The tokens in
+    // `.env` are LIVE — Delhivery has no usable sandbox — so an accidental local
+    // fulfilment would mint a real, billable waybill. Opt in explicitly, and pair
+    // it with DELHIVERY_STUB=1 unless you truly mean to call the carrier.
+    ...(process.env.ENABLE_CARRIER_FULFILLMENT === "1"
+      ? [
+          {
+            resolve: "@medusajs/medusa/fulfillment",
+            options: {
+              providers: [
+                {
+                  resolve: "@medusajs/medusa/fulfillment-manual",
+                  id: "manual",
+                },
+                ...(process.env.DELHIVERY_API_TOKEN
+                  ? [
+                      {
+                        resolve: "./src/modules/shipping-providers/delhivery",
+                        id: "delhivery",
+                        options: {
+                          api_token: process.env.DELHIVERY_API_TOKEN,
+                          sandbox: process.env.DELHIVERY_SANDBOX === "true",
+                        },
+                      },
+                    ]
+                  : []),
+                ...(process.env.SHIPROCKET_EMAIL
+                  ? [
+                      {
+                        resolve: "./src/modules/shipping-providers/shiprocket",
+                        id: "shiprocket",
+                        options: {
+                          email: process.env.SHIPROCKET_EMAIL,
+                          password: process.env.SHIPROCKET_PASSWORD,
+                          pickup_location: process.env.SHIPROCKET_PICKUP_LOCATION,
+                        },
+                      },
+                    ]
+                  : []),
+                ...(process.env.DHL_API_KEY
+                  ? [
+                      {
+                        resolve: "./src/modules/shipping-providers/dhl",
+                        id: "dhl-express",
+                        options: {
+                          api_key: process.env.DHL_API_KEY,
+                          api_secret: process.env.DHL_API_SECRET,
+                          account_number: process.env.DHL_ACCOUNT_NUMBER,
+                          sandbox: process.env.DHL_SANDBOX === "true",
+                        },
+                      },
+                    ]
+                  : []),
+                ...(process.env.UPS_CLIENT_ID
+                  ? [
+                      {
+                        resolve: "./src/modules/shipping-providers/ups",
+                        id: "ups",
+                        options: {
+                          client_id: process.env.UPS_CLIENT_ID,
+                          client_secret: process.env.UPS_CLIENT_SECRET,
+                          account_number: process.env.UPS_ACCOUNT_NUMBER,
+                          sandbox: process.env.UPS_SANDBOX === "true",
+                        },
+                      },
+                    ]
+                  : []),
+                ...(process.env.FEDEX_CLIENT_ID
+                  ? [
+                      {
+                        resolve: "./src/modules/shipping-providers/fedex",
+                        id: "fedex",
+                        options: {
+                          client_id: process.env.FEDEX_CLIENT_ID,
+                          client_secret: process.env.FEDEX_CLIENT_SECRET,
+                          account_number: process.env.FEDEX_ACCOUNT_NUMBER,
+                          sandbox: process.env.FEDEX_SANDBOX === "true",
+                        },
+                      },
+                    ]
+                  : []),
+                ...(process.env.AUSPOST_CLIENT_ID
+                  ? [
+                      {
+                        resolve: "./src/modules/shipping-providers/auspost",
+                        id: "auspost",
+                        options: {
+                          client_id: process.env.AUSPOST_CLIENT_ID,
+                          client_secret: process.env.AUSPOST_CLIENT_SECRET,
+                          account_number: process.env.AUSPOST_ACCOUNT_NUMBER,
+                          sandbox: process.env.AUSPOST_SANDBOX === "true",
+                        },
+                      },
+                    ]
+                  : []),
+              ],
+            },
+          },
+        ]
+      : []),
   {
     resolve: "./src/modules/email_templates",
   },

@@ -9,6 +9,7 @@ import {
   CreateShippingOptionDTO,
 } from "@medusajs/framework/types"
 import { DelhiveryClient, DelhiveryOptions } from "./client"
+import { delhiveryWarehouseNameForLocation } from "./warehouse-name"
 import { Logger } from "@medusajs/framework/types"
 
 type InjectedDeps = { logger: Logger }
@@ -22,7 +23,18 @@ class DelhiveryFulfillmentService extends AbstractFulfillmentProviderService {
   constructor({ logger }: InjectedDeps, options: DelhiveryOptions) {
     super()
     this.logger = logger
-    this.client = new DelhiveryClient(options)
+    // The fulfillment-module provider builds its own client, independently of
+    // `resolveShippingProvider` — so the test transport has to be injected here
+    // too, or the order-fulfillment path (the one order #83 took) would still
+    // reach the live API. Delhivery has no sandbox; a live create is billable.
+    this.client = new DelhiveryClient({
+      ...options,
+      fetchImpl:
+        options.fetchImpl ??
+        (process.env.DELHIVERY_STUB === "1"
+          ? require("./stub-fetch").createDelhiveryStubFetch()
+          : undefined),
+    })
   }
 
   /**
@@ -247,9 +259,25 @@ class DelhiveryFulfillmentService extends AbstractFulfillmentProviderService {
         `weight source: ${hasActualWeight ? "variant" : "bracket estimate"}`
       )
 
-      // Use registered warehouse name from stock location metadata, fall back to location name
+      // Which registered Delhivery warehouse this ships FROM.
+      //
+      // `data` here is the shipping METHOD's data (core's `prepareFulfillmentData`
+      // passes `data: shippingMethod.data`), and nothing in this codebase ever
+      // writes `from_location` into it — so the old lookup below resolved to the
+      // literal string "Default" on every single admin fulfillment, and Delhivery
+      // rejected every one of them with "ClientWarehouse matching query does not
+      // exist." (order #83). The stock location IS reachable: core hands the
+      // provider the created fulfillment, which carries `location_id`.
+      //
+      // A fulfillment provider cannot resolve the stock-location module to read
+      // that location's metadata, so the name is DERIVED from the id using the
+      // same deterministic scheme the registration helper writes
+      // (`warehouse-<last 8>`). Delhivery matches the pickup name exactly and
+      // case-sensitively, so both sides computing it from the id is what makes
+      // them agree without a shared lookup.
       const pickupLocationName =
         fromLocation.metadata?.delhivery_warehouse_name ||
+        delhiveryWarehouseNameForLocation((fulfillment as any)?.location_id) ||
         fromLocation.name ||
         "Default"
 

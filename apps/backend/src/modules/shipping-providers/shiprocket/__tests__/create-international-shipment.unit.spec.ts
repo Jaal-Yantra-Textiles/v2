@@ -276,7 +276,11 @@ describe("buildInternationalCreateBody", () => {
     // The delivery block must still be explicit — the flag is not honoured.
     expect(body.shipping_is_billing).toBe(false)
     expect(body.shipping_pincode).toBe("9339904")
-    expect(body.shipping_phone).toBe("+972548043774")
+    // The phone goes as the NATIONAL number: Shiprocket concatenates `isd_code`
+    // onto it, so echoing the stored E.164 back here produced the doubled
+    // `+972-+972548043774` seen on prod labels. This assertion previously
+    // pinned that doubling.
+    expect(body.shipping_phone).toBe("548043774")
   })
 
   it("refuses to build a body for a country with no dial code, naming the real gap", () => {
