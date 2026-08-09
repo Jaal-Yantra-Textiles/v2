@@ -1,3 +1,10 @@
+# [13.77.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.76.2...v13.77.0) (2026-08-09)
+
+
+### Features
+
+* **production-runs:** let admins re-assign a parked run to the same or a new partner ([#1228](https://github.com/Jaal-Yantra-Textiles/v2/issues/1228)) ([#1229](https://github.com/Jaal-Yantra-Textiles/v2/issues/1229)) ([bfae110](https://github.com/Jaal-Yantra-Textiles/v2/commit/bfae1102f842160f5658e47a324a0607d253d2f1)), closes [#1093](https://github.com/Jaal-Yantra-Textiles/v2/issues/1093)
+
 ## [13.76.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.76.1...v13.76.2) (2026-08-08)
 
 
