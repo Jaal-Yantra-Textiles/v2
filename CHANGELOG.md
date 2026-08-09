@@ -1,3 +1,10 @@
+## [13.77.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.77.0...v13.77.1) (2026-08-09)
+
+
+### Bug Fixes
+
+* **partner:** add the missing MikroORM migration snapshot ([#1230](https://github.com/Jaal-Yantra-Textiles/v2/issues/1230)) ([5cadb75](https://github.com/Jaal-Yantra-Textiles/v2/commit/5cadb7583dd6bda5dd89bc2196b9533e48bc469e)), closes [#1228](https://github.com/Jaal-Yantra-Textiles/v2/issues/1228)
+
 # [13.77.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.76.2...v13.77.0) (2026-08-09)
 
 
