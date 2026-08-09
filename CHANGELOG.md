@@ -1,3 +1,10 @@
+# [13.78.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.77.1...v13.78.0) (2026-08-09)
+
+
+### Features
+
+* **production-runs:** goods transfers between partners, with carrier shipment ([#891](https://github.com/Jaal-Yantra-Textiles/v2/issues/891)) ([#1233](https://github.com/Jaal-Yantra-Textiles/v2/issues/1233)) ([b7df728](https://github.com/Jaal-Yantra-Textiles/v2/commit/b7df72891c17170af81d7e9bb797bfca9def80f0)), closes [#1225](https://github.com/Jaal-Yantra-Textiles/v2/issues/1225)
+
 ## [13.77.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.77.0...v13.77.1) (2026-08-09)
 
 
