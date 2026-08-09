@@ -1,3 +1,10 @@
+## [13.78.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.78.0...v13.78.1) (2026-08-09)
+
+
+### Bug Fixes
+
+* **shipping:** Delhivery fulfillments silently recorded with no waybill ([#1234](https://github.com/Jaal-Yantra-Textiles/v2/issues/1234)) ([#1235](https://github.com/Jaal-Yantra-Textiles/v2/issues/1235)) ([4928e32](https://github.com/Jaal-Yantra-Textiles/v2/commit/4928e325c9876cfb5ce1f055c7acee183ba3406e)), closes [#891](https://github.com/Jaal-Yantra-Textiles/v2/issues/891)
+
 # [13.78.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.77.1...v13.78.0) (2026-08-09)
 
 
