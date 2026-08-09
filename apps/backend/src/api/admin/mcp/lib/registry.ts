@@ -1520,20 +1520,45 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "update_production_run",
     description:
-      "Update a production run's quantity, role, run type or partner cost estimate. Sensitive: requires confirm:true. Structural edits (quantity/role/run_type) are REJECTED once the run has been accepted or started, and any edit is rejected on a cancelled run. Use dry_run to see the current run first.",
+      "Update a production run's quantity, role, run type, partner cost estimate, or correct the output the partner reported (produced_quantity / rejected_quantity). Sensitive: requires confirm:true. Structural edits (quantity/role/run_type) are REJECTED once the run has been accepted or started, and any edit is rejected on a cancelled run — but output corrections are allowed precisely BECAUSE the run is completed. Use dry_run to see the current run first.",
     method: "POST",
     path: "/admin/production-runs/:id",
     pathParams: ["id"],
     previewPath: "/admin/production-runs/:id",
     write: true,
     sensitive: true,
-    bodyParams: ["quantity", "role", "run_type", "partner_cost_estimate", "cost_type"],
+    bodyParams: [
+      "quantity",
+      "role",
+      "run_type",
+      "partner_cost_estimate",
+      "cost_type",
+      "produced_quantity",
+      "rejected_quantity",
+      "correction_reason",
+    ],
     inputSchema: obj(
       {
         id: STR("Production run id."),
-        quantity: { type: "number", description: "New quantity (pre-acceptance only)." },
+        quantity: {
+          type: "number",
+          description:
+            "New ORDERED quantity (pre-acceptance only). This is what was asked for — to correct what was actually MADE, use produced_quantity instead.",
+        },
         role: STR("New role for the run (pre-acceptance only)."),
         run_type: STR("'production' | 'sample' (pre-acceptance only)."),
+        produced_quantity: {
+          type: "number",
+          description:
+            "Correct the number of good pieces the partner reported making. Partners self-report this at completion and do over-report. Editable after completion. Feeds cost-per-unit, the design cost engine, goods-transfer quantities and the public production story, so pass correction_reason too.",
+        },
+        rejected_quantity: {
+          type: "number",
+          description: "Correct the number of rejected pieces the partner reported.",
+        },
+        correction_reason: STR(
+          "Why the reported output is being corrected (e.g. 'physical count was 3'). Recorded on the run's activity timeline alongside the before/after values."
+        ),
         partner_cost_estimate: {
           type: "number",
           description:

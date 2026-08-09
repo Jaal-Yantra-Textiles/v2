@@ -126,6 +126,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
  * run is accepted/started. Cost fields (partner_cost_estimate, cost_type) are
  * editable by admins any time except cancelled, since admins may need to
  * record/correct cost after the partner has already begun work.
+ *
+ * produced_quantity/rejected_quantity are corrections of what the PARTNER
+ * reported at completion, so — unlike the structural fields — they are editable
+ * precisely BECAUSE the run is completed. Partners self-report these
+ * (`POST /partners/production-runs/:id/complete`) and do over-report:
+ * `prod_run_01KYPM4G…` was reported as 9 produced when 3 were made, and there
+ * was no way to correct it short of a direct DB write. Every correction writes
+ * an append-only activity row recording who changed what from what, since the
+ * number feeds cost-per-unit, the design cost engine, goods-transfer quantities
+ * and the public production story.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const id = req.params.id
@@ -180,12 +190,91 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     update.cost_type = body.cost_type
   }
 
+  // Corrections to the partner's self-reported output. `null` clears the field
+  // back to "not reported"; a number must be a non-negative, finite quantity.
+  const readQuantityCorrection = (field: string): number | null | undefined => {
+    const raw = body[field]
+    if (raw === undefined) return undefined
+    if (raw === null) return null
+    const value = Number(raw)
+    if (!Number.isFinite(value) || value < 0) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `${field} must be a non-negative number, or null to clear it`
+      )
+    }
+    return value
+  }
+
+  const producedCorrection = readQuantityCorrection("produced_quantity")
+  const rejectedCorrection = readQuantityCorrection("rejected_quantity")
+
+  if (producedCorrection !== undefined) update.produced_quantity = producedCorrection
+  if (rejectedCorrection !== undefined) update.rejected_quantity = rejectedCorrection
+
   if (Object.keys(update).length === 0) {
     return res.json({ production_run: run, message: "No changes" })
   }
 
   await productionRunService.updateProductionRuns({ id, ...update })
   const updated = await productionRunService.retrieveProductionRun(id)
+
+  // Audit the output correction. Best-effort: the correction itself is already
+  // persisted and must not be rolled back because the timeline write failed.
+  if (producedCorrection !== undefined || rejectedCorrection !== undefined) {
+    const changes: string[] = []
+    if (producedCorrection !== undefined) {
+      changes.push(`produced ${run.produced_quantity ?? "—"} → ${producedCorrection ?? "—"}`)
+    }
+    if (rejectedCorrection !== undefined) {
+      changes.push(`rejected ${run.rejected_quantity ?? "—"} → ${rejectedCorrection ?? "—"}`)
+    }
+    const reason =
+      typeof body.correction_reason === "string" && body.correction_reason.trim()
+        ? body.correction_reason.trim()
+        : null
+
+    try {
+      await productionRunService.createProductionRunActivities({
+        production_run_id: id,
+        activity_type: "note",
+        kind: "output_corrected",
+        actor_type: "admin",
+        actor_id: (req as any).auth_context?.actor_id ?? null,
+        partner_id: run.partner_id ?? null,
+        channel: null,
+        message_id: null,
+        template_name: null,
+        recipient: null,
+        summary: `Admin corrected reported output: ${changes.join(", ")}`,
+        payload: {
+          reason,
+          quantity: run.quantity ?? null,
+          previous: {
+            produced_quantity: run.produced_quantity ?? null,
+            rejected_quantity: run.rejected_quantity ?? null,
+          },
+          corrected: {
+            produced_quantity:
+              producedCorrection !== undefined
+                ? producedCorrection
+                : run.produced_quantity ?? null,
+            rejected_quantity:
+              rejectedCorrection !== undefined
+                ? rejectedCorrection
+                : run.rejected_quantity ?? null,
+          },
+        },
+        occurred_at: new Date(),
+      } as any)
+    } catch (e: any) {
+      req.scope
+        .resolve(ContainerRegistrationKeys.LOGGER)
+        .error(
+          `[admin.production-runs] output correction saved but activity write failed for run=${id}: ${e?.message}`
+        )
+    }
+  }
 
   res.json({ production_run: updated })
 }
