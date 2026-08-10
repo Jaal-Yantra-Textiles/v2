@@ -1,3 +1,10 @@
+# [13.81.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.80.0...v13.81.0) (2026-08-10)
+
+
+### Features
+
+* **admin-assistant:** image attachments, materials from photos, idea-to-design tools ([#1238](https://github.com/Jaal-Yantra-Textiles/v2/issues/1238)) ([#1242](https://github.com/Jaal-Yantra-Textiles/v2/issues/1242)) ([e0819df](https://github.com/Jaal-Yantra-Textiles/v2/commit/e0819dfcf6890be360d8e042c61404840897dbac)), closes [#769](https://github.com/Jaal-Yantra-Textiles/v2/issues/769)
+
 # [13.80.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.79.0...v13.80.0) (2026-08-10)
 
 
