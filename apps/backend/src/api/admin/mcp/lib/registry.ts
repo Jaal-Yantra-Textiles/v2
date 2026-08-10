@@ -1828,6 +1828,8 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "cost_currency",
       "colors",
       "size_sets",
+      "inspiration_sources",
+      "thumbnail_url",
       "metadata",
     ],
     inputSchema: obj(
@@ -1845,6 +1847,15 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         target_completion_date: STR("Target completion date (ISO string)."),
         tags: { type: "array", items: { type: "string" }, description: "Free-form tags." },
         designer_notes: STR("Notes for the designer."),
+        inspiration_sources: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Reference urls the design came from — a Pinterest pin, a lookbook, a supplier page. Record the link the operator gave you here rather than dropping it.",
+        },
+        thumbnail_url: STR(
+          "Url of the reference/hero image for this design (e.g. an attached photo or a pin's image url)."
+        ),
         estimated_cost: { type: "number", description: "Estimated cost." },
         cost_currency: STR("Currency code for estimated_cost."),
         colors: {
@@ -1899,6 +1910,8 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "cost_currency",
       "colors",
       "size_sets",
+      "inspiration_sources",
+      "thumbnail_url",
       "metadata",
     ],
     inputSchema: obj(
@@ -1914,6 +1927,13 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         target_completion_date: STR("New target completion date (ISO string)."),
         tags: { type: "array", items: { type: "string" }, description: "Replacement tag list." },
         designer_notes: STR("New designer notes."),
+        inspiration_sources: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Reference urls the design came from — a Pinterest pin, a lookbook, a supplier page. Replaces the existing list.",
+        },
+        thumbnail_url: STR("Url of the reference/hero image for this design."),
         estimated_cost: { type: "number", description: "New estimated cost." },
         cost_currency: STR("Currency code for estimated_cost."),
         colors: {
@@ -2159,6 +2179,363 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ["id", "taskId", "partnerId"]
     ),
     sideEffects: "Links the task to the partner and notifies them.",
+  },
+
+  // ===== Images, materials and the idea -> design pipeline ================
+  // Everything here already existed as an admin route; what was missing was the
+  // assistant's ability to reach it. Two operator journeys drive the selection:
+  //   1. "here's a photo of what arrived" -> raw materials + inventory
+  //   2. "here's an idea and a reference"  -> design + attributes + construction
+  //      details + materials + partner + production run
+  {
+    name: "read_image",
+    description:
+      "Look at an image and answer a question about it (transcribe handwriting, describe a garment, read a label). Costs a real vision call and can take 30s — only use it when the operator asks, or when their request is impossible without seeing the image. Attaching an image is NOT a reason to read it.",
+    method: "POST",
+    path: "/admin/assistant/vision",
+    bodyParams: ["image_url", "prompt", "model"],
+    inputSchema: obj(
+      {
+        image_url: STR("Url of the image to read — take it from an [attachment] line."),
+        prompt: STR(
+          "The specific question to ask about the image. Be narrow: broad prompts on reasoning models can exhaust the token budget before they answer."
+        ),
+        model: STR(
+          "Optional model override, e.g. '@cf/meta/llama-4-scout-17b-16e-instruct' for a fast read or '@cf/google/gemma-4-26b-a4b-it' for an accurate one. Omit to use the configured ai_image_extraction platform."
+        ),
+      },
+      ["image_url"]
+    ),
+    sideEffects:
+      "Reads the image with a separately-configured vision model and returns text. Stores nothing and changes no records. Failures are configuration problems, not transient ones — relay the message rather than retrying.",
+  },
+  {
+    name: "extract_inventory_from_image",
+    description:
+      "Read a photo of fabric/trims/a delivery note and turn it into raw materials + inventory items. Run it with persist:false first to show the operator what was found; only persist:true creates records. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/ai/image-extraction",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "image_url",
+      "entity_type",
+      "notes",
+      "hints",
+      "verify",
+      "persist",
+      "defaults",
+    ],
+    inputSchema: obj(
+      {
+        image_url: STR("Url of the image to extract from."),
+        entity_type: STR(
+          "What to extract, e.g. 'raw_material' for fabric/trims or 'product'."
+        ),
+        notes: STR("Extra context for the extraction, in the operator's words."),
+        hints: {
+          type: "array",
+          items: { type: "string" },
+          description: "Hints that steer the extraction, e.g. 'metres not yards'.",
+        },
+        verify: {
+          type: "boolean",
+          description: "Ask the model to double-check its own extraction.",
+        },
+        persist: {
+          type: "boolean",
+          description:
+            "Create the raw materials and inventory items. Default false — preview first, always.",
+        },
+        defaults: {
+          type: "object",
+          description:
+            "Fallbacks for fields the image doesn't state: { notes, raw_materials: { width_inch, material_type }, inventory: { stock_location_id, default_stocked_quantity, default_incoming_quantity, incoming_from_extraction } }.",
+        },
+      },
+      ["image_url", "entity_type"]
+    ),
+    sideEffects:
+      "With persist:true, creates raw material records, inventory items and stock levels.",
+    nextSteps: ["list_raw_materials", "link_design_inventory"],
+  },
+  {
+    name: "list_raw_materials",
+    description:
+      "List raw materials (the inventory items that carry raw-material data: composition, unit of measure, unit cost).",
+    method: "GET",
+    path: "/admin/inventory-items/raw-materials",
+    queryParams: ["limit", "offset", "q"],
+    inputSchema: obj({ ...PAGINATION }),
+  },
+  {
+    name: "add_inventory_raw_material",
+    description:
+      "Attach raw-material data (composition, unit of measure, cost, material type) to an existing inventory item. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/inventory-items/:id/rawmaterials",
+    pathParams: ["id"],
+    previewPath: "/admin/inventory-items/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["rawMaterialData"],
+    inputSchema: obj(
+      {
+        id: STR("Inventory item id, e.g. 'iitem_...'."),
+        rawMaterialData: {
+          type: "object",
+          description:
+            "{ name, composition, unit_of_measure?, unit_cost?, material_type? (a category NAME, find-or-create) or material_type_id?, specifications?, media? }.",
+        },
+      },
+      ["id", "rawMaterialData"]
+    ),
+  },
+  {
+    name: "list_raw_material_groups",
+    description:
+      "List raw material groups — the colourway/spec families that designs pin their materials to.",
+    method: "GET",
+    path: "/admin/raw-material-groups",
+    queryParams: ["limit", "offset", "q"],
+    inputSchema: obj({ ...PAGINATION }),
+  },
+  {
+    name: "create_raw_material_group",
+    description:
+      "Create a raw material group holding the specs its colours inherit (composition, unit of measure, material type, cost). Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/raw-material-groups",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "name",
+      "description",
+      "status",
+      "composition",
+      "specifications",
+      "dimensions",
+      "unit_of_measure",
+      "material_type",
+      "material_type_id",
+      "unit_cost",
+      "cost_currency",
+      "lead_time_days",
+      "minimum_order_quantity",
+      "stock_location_id",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        name: STR("Group name (required)."),
+        description: STR("What this group covers."),
+        status: STR("Group status."),
+        composition: STR("e.g. '100% organic cotton'."),
+        specifications: { type: "object", description: "Arbitrary spec key/values." },
+        dimensions: {
+          type: "array",
+          items: { type: "object" },
+          description: "[{ key, label, values? }] — the group's variant axes.",
+        },
+        unit_of_measure: STR("Meter, Kilogram, Gram, Yard, Roll, Piece, ..."),
+        material_type: STR("Category NAME — resolved/created server-side."),
+        material_type_id: STR("Existing material type id, if known."),
+        unit_cost: { type: "number", description: "Cost per unit." },
+        cost_currency: STR("e.g. 'inr'."),
+        lead_time_days: { type: "integer", description: "Supplier lead time." },
+        minimum_order_quantity: { type: "integer", description: "MOQ." },
+        stock_location_id: STR("Default stock location."),
+        metadata: { type: "object", description: "Free-form metadata." },
+      },
+      ["name"]
+    ),
+    nextSteps: ["link_design_material_group"],
+  },
+  {
+    name: "link_design_inventory",
+    description:
+      "Link inventory items to a design as its bill of materials, with planned quantities. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/designs/:id/inventory",
+    pathParams: ["id"],
+    previewPath: "/admin/designs/:id/inventory",
+    write: true,
+    sensitive: true,
+    bodyParams: ["inventoryIds", "inventoryItems"],
+    inputSchema: obj(
+      {
+        id: STR("Design id, e.g. 'design_...'."),
+        inventoryIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "Inventory item ids to link.",
+        },
+        inventoryItems: {
+          type: "array",
+          items: { type: "object" },
+          description:
+            "Detailed links instead of bare ids: [{ inventoryId, plannedQuantity?, locationId?, metadata? }].",
+        },
+      },
+      ["id"]
+    ),
+    nextSteps: ["list_design_inventory", "create_design_production_run"],
+  },
+  {
+    name: "list_design_material_groups",
+    description: "List the raw material groups pinned to a design.",
+    method: "GET",
+    path: "/admin/designs/:id/material-groups",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Design id, e.g. 'design_...'.") }, ["id"]),
+  },
+  {
+    name: "link_design_material_group",
+    description:
+      "Pin a raw material group to a design — the Materials frame of its tech pack. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/designs/:id/material-groups",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "raw_material_group_id",
+      "resolved_raw_material_id",
+      "note",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Design id, e.g. 'design_...'."),
+        raw_material_group_id: STR("Raw material group id to pin (required)."),
+        resolved_raw_material_id: STR(
+          "The specific colour/material chosen from the group, if decided."
+        ),
+        note: STR("Why this material, in the designer's words."),
+        metadata: { type: "object", description: "Free-form metadata." },
+      },
+      ["id", "raw_material_group_id"]
+    ),
+  },
+  {
+    name: "list_construction_techniques",
+    description:
+      "List the canonical construction techniques a design can use — slug, label, family, garment areas, tunable params and ready-made presets. Call this BEFORE add_design_construction_detail: only these slugs are accepted.",
+    method: "GET",
+    path: "/admin/designs/:id/construction-techniques",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Design id, e.g. 'design_...'.") }, ["id"]),
+    nextSteps: ["add_design_construction_detail"],
+  },
+  {
+    name: "list_design_construction_details",
+    description:
+      "List a design's construction details (its Construction specifications — the tech-pack construction frame).",
+    method: "GET",
+    path: "/admin/designs/:id/construction-details",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Design id, e.g. 'design_...'.") }, ["id"]),
+  },
+  {
+    name: "add_design_construction_detail",
+    description:
+      "Add a construction detail to a design (dart, pleat, gather, topstitch, yoke, embroidery...). `technique` MUST be a slug from list_construction_techniques — free text is rejected. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/designs/:id/construction-details",
+    pathParams: ["id"],
+    previewPath: "/admin/designs/:id/construction-details",
+    write: true,
+    sensitive: true,
+    bodyParams: ["technique", "label", "params", "fabricRules", "note"],
+    inputSchema: obj(
+      {
+        id: STR("Design id, e.g. 'design_...'."),
+        technique: STR(
+          "Technique slug from list_construction_techniques, e.g. 'dart', 'knife-pleat'."
+        ),
+        label: STR("Display label. Defaults to the technique's own label."),
+        params: {
+          type: "object",
+          description:
+            "Numeric params for the technique, e.g. { intake: 0.6 }. Omit to take the technique's defaults.",
+        },
+        fabricRules: {
+          type: "array",
+          items: { type: "string" },
+          description: "Sewing/fabric rules, e.g. 'press toward centre front'.",
+        },
+        note: STR("Anything the maker needs to know."),
+      },
+      ["id", "technique"]
+    ),
+    sideEffects:
+      "Creates a Construction specification on the design. Its params are the numbers the tech-pack renderer draws, so prefer a preset's values over invented ones.",
+  },
+  {
+    name: "update_design_brief",
+    description:
+      "Set a design's brief — the attributes that describe the idea rather than the garment: concept theme, aesthetic keywords, target persona, competitors, price point, budget and milestones. Partial: only the keys you pass change. Sensitive: requires confirm:true.",
+    method: "PUT",
+    path: "/admin/designs/:id/brief",
+    pathParams: ["id"],
+    previewPath: "/admin/designs/:id/brief",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "concept_theme",
+      "aesthetic_keywords",
+      "persona",
+      "competitors",
+      "price_point",
+      "design_budget",
+      "cost_currency",
+      "milestones",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Design id, e.g. 'design_...'."),
+        concept_theme: STR("Short story/title for the concept, e.g. '90s Tokyo streetwear'."),
+        aesthetic_keywords: {
+          type: "array",
+          items: { type: "string" },
+          description: "3-5 keywords defining the look, e.g. ['utilitarian','nostalgic'].",
+        },
+        persona: {
+          type: "object",
+          description: "{ age_range, lifestyle, values[], pain_points[] }.",
+        },
+        competitors: {
+          type: "array",
+          items: { type: "object" },
+          description: "[{ name, url?, differentiator }].",
+        },
+        price_point: STR("'luxury' | 'mid_market' | 'budget'."),
+        design_budget: { type: "number", description: "Design-phase budget." },
+        cost_currency: STR("e.g. 'inr'."),
+        milestones: {
+          type: "array",
+          items: { type: "object" },
+          description: "[{ label, date? }] in order.",
+        },
+      },
+      ["id"]
+    ),
+  },
+  {
+    name: "search_pinterest",
+    description:
+      "Search Pinterest for reference images by keyword. Returns pins with image urls that can be read with read_image or recorded on a design as inspiration. Requires PINTEREST_ACCESS_TOKEN to be configured.",
+    method: "GET",
+    path: "/admin/pinterest",
+    queryParams: ["q", "bookmark"],
+    inputSchema: obj(
+      {
+        q: STR("Search query, e.g. 'indigo block print kurta'."),
+        bookmark: STR("Cursor from a previous response, for the next page."),
+      },
+      ["q"]
+    ),
+    nextSteps: ["read_image", "create_design"],
   },
 
   // ===== Tier 2: the first dangerous action ==============================

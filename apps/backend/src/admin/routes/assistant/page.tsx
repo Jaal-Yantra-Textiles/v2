@@ -13,7 +13,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { ChatBubbleLeftRight, Sparkles, ArrowUpMini, Spinner, Check, ExclamationCircle, ArrowPathMini, SquareTwoStack, Plus, Trash } from "@medusajs/icons"
+import { ChatBubbleLeftRight, Sparkles, ArrowUpMini, Spinner, Check, ExclamationCircle, ArrowPathMini, SquareTwoStack, Plus, Trash, Photo } from "@medusajs/icons"
 import { Container, Heading, Text, Button, Textarea, IconButton, Badge, Table, toast } from "@medusajs/ui"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
@@ -27,6 +27,53 @@ const SUGGESTIONS = [
   "List the most recent partners",
   "What production runs are open?",
 ]
+
+/** An uploaded image the operator attached to the next message. */
+type Attachment = {
+  url: string
+  name: string
+  mime_type: string
+}
+
+/** Images only, and small enough that a vision model can actually read it. */
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+const MAX_ATTACHMENTS = 4
+
+/**
+ * Upload one image and return the reference the chat route stores.
+ *
+ * Goes through /admin/medias (multipart), which base64-encodes the content —
+ * the path that must never regress to latin1, or every image ≥ 0x80 arrives
+ * corrupted and unreadable by any vision model (#769/#789).
+ */
+async function uploadAttachment(file: File): Promise<Attachment> {
+  const form = new FormData()
+  form.append("files", file)
+
+  const res = await fetch(`${API_BASE_URL.replace(/\/$/, "")}/admin/medias`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  })
+
+  const payload = await res.json().catch(() => null)
+  if (!res.ok) {
+    throw new Error(payload?.message || `Upload failed (${res.status})`)
+  }
+
+  // The media workflow returns { result: { mediaFiles: [...] } }; be defensive
+  // about the exact nesting rather than assuming one shape.
+  const files: any[] =
+    payload?.result?.mediaFiles ??
+    payload?.result?.media_files ??
+    (Array.isArray(payload?.result) ? payload.result : [])
+  const url = files?.[0]?.url ?? files?.[0]?.file_path
+  if (!url) {
+    throw new Error("Upload succeeded but returned no url")
+  }
+
+  return { url, name: file.name, mime_type: file.type || "image/*" }
+}
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v)
@@ -447,11 +494,27 @@ const AssistantChat = ({
     JSON.stringify(initialMessages.map((m) => [m.id, m.parts?.length]))
   )
 
+  // Attachments for the turn currently being sent. A ref, not state, because
+  // the transport closure is built once and must read the value at send time —
+  // and because clearing it must not race the re-render that follows send.
+  const pendingAttachmentsRef = useRef<Attachment[]>([])
+
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: `${API_BASE_URL.replace(/\/$/, "")}/admin/assistant/chat`,
         credentials: "include",
+        prepareSendMessagesRequest: ({ body, ...rest }: any) => {
+          const attachments = pendingAttachmentsRef.current
+          pendingAttachmentsRef.current = []
+          return {
+            ...rest,
+            body: {
+              ...body,
+              ...(attachments.length ? { attachments } : {}),
+            },
+          }
+        },
       }),
     []
   )
@@ -462,6 +525,9 @@ const AssistantChat = ({
 
   const [autoScroll, setAutoScroll] = useState(true)
   const [queued, setQueued] = useState<string[]>([])
+  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [compacting, setCompacting] = useState(false)
   const tokenEstimate = useMemo(() => estimateTokens(messages as any[]), [messages])
   const overBudget = tokenEstimate >= CONTEXT_WARN_TOKENS
@@ -539,14 +605,78 @@ const AssistantChat = ({
    */
   const submit = (text: string) => {
     const t = text.trim()
-    if (!t) return
+    // An image on its own IS a message — "here, file this" with no words is a
+    // normal thing to do, so don't require text when something is attached.
+    if (!t && attachments.length === 0) return
     setInput("")
+
     if (streaming) {
+      // Queued turns carry text only. Sending the attachment now would attach it
+      // to whichever turn happens to flush next, which is not the one the
+      // operator was looking at when they picked the file.
+      if (attachments.length) {
+        toast.warning("Wait for the current answer before sending an attachment")
+        return
+      }
       setQueued((q) => [...q, t])
       return
     }
-    sendMessage({ text: t })
+
+    if (attachments.length) {
+      pendingAttachmentsRef.current = attachments
+      setAttachments([])
+    }
+    sendMessage({ text: t || "(see attached)" })
   }
+
+  /** Validate, upload, and hold images for the next send. */
+  const attachFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files?.length) return
+      const picked = Array.from(files)
+
+      const room = MAX_ATTACHMENTS - attachments.length
+      if (room <= 0) {
+        toast.error(`You can attach at most ${MAX_ATTACHMENTS} images per message`)
+        return
+      }
+
+      const accepted: File[] = []
+      for (const f of picked.slice(0, room)) {
+        if (!f.type.startsWith("image/")) {
+          toast.error(`${f.name} is not an image — only images can be attached`)
+          continue
+        }
+        if (f.size > MAX_ATTACHMENT_BYTES) {
+          toast.error(
+            `${f.name} is ${(f.size / 1024 / 1024).toFixed(1)} MB — the limit is ${
+              MAX_ATTACHMENT_BYTES / 1024 / 1024
+            } MB`
+          )
+          continue
+        }
+        accepted.push(f)
+      }
+      if (!accepted.length) return
+
+      setUploading(true)
+      try {
+        const settled = await Promise.allSettled(accepted.map(uploadAttachment))
+        const ok = settled
+          .filter((s): s is PromiseFulfilledResult<Attachment> => s.status === "fulfilled")
+          .map((s) => s.value)
+        settled
+          .filter((s): s is PromiseRejectedResult => s.status === "rejected")
+          .forEach((s) =>
+            toast.error(`Could not attach: ${s.reason?.message ?? "upload failed"}`)
+          )
+        if (ok.length) setAttachments((a) => [...a, ...ok])
+      } finally {
+        setUploading(false)
+      }
+    },
+    [attachments.length]
+  )
 
   useEffect(() => {
     if (status !== "ready" || queued.length === 0 || error) return
@@ -713,7 +843,58 @@ const AssistantChat = ({
             </Button>
           </div>
         ) : null}
+        {attachments.length ? (
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            {attachments.map((a, i) => (
+              <div
+                key={`${a.url}-${i}`}
+                className="border-ui-border-base bg-ui-bg-subtle flex items-center gap-2 rounded-md border px-2 py-1"
+              >
+                <img
+                  src={a.url}
+                  alt={a.name}
+                  className="h-8 w-8 rounded object-cover"
+                />
+                <Text size="xsmall" className="max-w-[160px] truncate">
+                  {a.name}
+                </Text>
+                <IconButton
+                  size="2xsmall"
+                  variant="transparent"
+                  onClick={() =>
+                    setAttachments((list) => list.filter((_, idx) => idx !== i))
+                  }
+                >
+                  <Trash />
+                </IconButton>
+              </div>
+            ))}
+            <Text size="xsmall" className="text-ui-fg-muted">
+              Attached, not read — ask me to read one if you need what's in it.
+            </Text>
+          </div>
+        ) : null}
         <div className="flex items-end gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              void attachFiles(e.target.files)
+              // Reset so picking the same file twice still fires onChange.
+              e.target.value = ""
+            }}
+          />
+          <IconButton
+            variant="transparent"
+            isLoading={uploading}
+            disabled={uploading || attachments.length >= MAX_ATTACHMENTS}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Photo />
+          </IconButton>
           <Textarea
             placeholder={
               streaming ? "Type to queue the next message…" : "Ask the admin assistant…"
@@ -736,7 +917,7 @@ const AssistantChat = ({
           ) : null}
           <IconButton
             variant="primary"
-            disabled={!input.trim()}
+            disabled={!input.trim() && attachments.length === 0}
             onClick={() => submit(input)}
           >
             <ArrowUpMini />

@@ -243,6 +243,7 @@ import { ListConversationsQuerySchema, ListMessagesQuerySchema, SendMessageSchem
 import { AdminAiChatReq } from "./admin/ai/chat/chat/validators";
 import { AdminAssistantChatSchema } from "./admin/assistant/chat/validators";
 import { AdminAssistantSummarizeSchema } from "./admin/assistant/summarize/validators";
+import { AdminAssistantVisionSchema } from "./admin/assistant/vision/validators";
 import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId]/assign/validators";
 import { AdminPostPartnerTaskAssignReq } from "./admin/partners/[id]/tasks/[taskId]/assign/validators";
 import { AdminCreatePartnerTaskReq, AdminUpdatePartnerTaskReq } from "./admin/partners/[id]/tasks/validators";
@@ -3480,6 +3481,15 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [
         validateAndTransformBody(wrapSchema(AdminAssistantSummarizeSchema)),
+      ],
+    },
+    // Admin assistant on-demand image reading. Attaching a photo never sends
+    // pixels anywhere; this is the explicit "actually look at it" call.
+    {
+      matcher: "/admin/assistant/vision",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AdminAssistantVisionSchema)),
       ],
     },
 

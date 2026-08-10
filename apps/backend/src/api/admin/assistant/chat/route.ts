@@ -70,9 +70,48 @@ You are given the tools for the domains this conversation appears to be about, n
 - Sensitive/destructive tools refuse to run unless the user confirms. Never set \`confirm: true\` yourself. If a tool returns \`requires_confirmation\`, tell the user plainly what it will do and ask them to approve — the UI gives them a button.
 - Platform-destructive ("dangerous") tools additionally require a \`reason\`. If a tool returns \`requires_reason\`, ask the operator WHY they want to do it and pass their answer as the reason. Never invent a reason.
 
+## Images the operator attaches
+Attached images are uploaded and listed for you as \`[attachment N]\` lines with a url — but you CANNOT see them. Nothing about their content is available to you unless you go and read them.
+- Do NOT read an image just because it was attached. Most attachments are there to be filed against a record (a design's reference, an inventory item's photo), not interpreted, and reading costs real time and money.
+- Read one ONLY when the operator asks you to, or when they ask for something that is impossible without it ("add the raw materials from this photo", "what does this note say"). Then call \`read_image\` with the attachment's url and a specific question.
+- \`extract_inventory_from_image\` is the purpose-built path for "create raw materials / inventory from this photo" — prefer it over \`read_image\` + manual creation, and keep \`persist: false\` until the operator has seen and approved the extraction.
+- If a read fails, relay the reason verbatim — they are all actionable (no vision provider configured, a text-only model, a licence-gated model). Never retry silently and never guess at what the image showed.
+
+## Turning an idea into a design
+When an operator describes an idea — with or without a reference image or Pinterest link — build it out properly instead of creating a bare named record:
+1. \`create_design\` with the name, description and \`inspiration_sources\` (put the reference link there; a link they gave you and you dropped is a link they have to find again). Set \`thumbnail_url\` to the reference image when there is one.
+2. \`update_design_brief\` for the attributes that describe the IDEA — concept theme, aesthetic keywords, persona, price point. Take these from what the operator said; ask rather than invent a persona.
+3. \`list_construction_techniques\` then \`add_design_construction_detail\` for how the garment is actually made. The technique must be a slug from that list — the catalog IS the vocabulary, so map "gathered waist" onto the real slug rather than writing prose.
+4. Materials: \`link_design_material_group\` to pin a material group, and/or \`link_design_inventory\` for the specific items and planned quantities.
+5. \`link_design_partners\`, then \`create_design_production_run\` to actually put it into production.
+Each of those is sensitive, so the operator approves each one — narrate what you're about to do, don't dump five approval cards without explanation.
+
 ## Style
 - Be concise and operator-focused. After a successful change, confirm what you did in one short sentence.
 - Never invent ids, values, or fields outside the tool schemas.`
+
+/**
+ * Tell the model an attachment EXISTS without sending a single pixel.
+ *
+ * The url is what makes it actionable: `read_image` and
+ * `extract_inventory_from_image` both take one, so the model can act on an image
+ * it cannot see, but only deliberately.
+ */
+const renderAttachments = (
+  attachments: NonNullable<AdminAssistantChatReq["attachments"]>
+): string =>
+  [
+    "",
+    "---",
+    `The operator attached ${attachments.length} file(s) to this message. You cannot see them.`,
+    "Read one only if this request actually requires it (see: Images the operator attaches).",
+    ...attachments.map(
+      (a, i) =>
+        `[attachment ${i + 1}] name=${a.name ?? "untitled"} type=${
+          a.mime_type ?? "unknown"
+        } url=${a.url}`
+    ),
+  ].join("\n")
 
 export const POST = async (
   req: AuthenticatedMedusaRequest,
@@ -151,6 +190,20 @@ export const POST = async (
       parts: textParts.length ? textParts : [{ type: "text", text: "" }],
     }
   })
+
+  // Attachments ride on the LAST user message — the turn they were sent with.
+  // Appended as text so every provider handles it identically; a provider that
+  // can't do multimodal parts is not a special case here, because we never send
+  // parts it would have to understand.
+  const attachments = body.attachments ?? []
+  if (attachments.length) {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        messages[i].parts.push({ type: "text", text: renderAttachments(attachments) })
+        break
+      }
+    }
+  }
 
   // ---- Per-ask registry slicing -------------------------------------------
   // All ~100 tools stay BOUND (so any of them can still execute), but only the
