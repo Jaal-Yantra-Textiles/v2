@@ -1,3 +1,10 @@
+# [13.82.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.81.0...v13.82.0) (2026-08-10)
+
+
+### Features
+
+* **production-runs:** render the run activity timeline, and put goods movement on it ([#1239](https://github.com/Jaal-Yantra-Textiles/v2/issues/1239)) ([#1246](https://github.com/Jaal-Yantra-Textiles/v2/issues/1246)) ([886152e](https://github.com/Jaal-Yantra-Textiles/v2/commit/886152e18501778b16a0ed0b6d2e410949191a3c)), closes [#1093](https://github.com/Jaal-Yantra-Textiles/v2/issues/1093) [#1245](https://github.com/Jaal-Yantra-Textiles/v2/issues/1245)
+
 # [13.81.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.80.0...v13.81.0) (2026-08-10)
 
 
