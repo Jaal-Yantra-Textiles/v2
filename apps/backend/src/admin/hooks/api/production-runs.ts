@@ -419,6 +419,59 @@ export const useProductionRunTask = (
   return { ...data, ...rest }
 }
 
+/**
+ * A row of the run's activity stream — lifecycle transitions, reminder
+ * dispatches, admin corrections, and goods movement. Written by
+ * `production-run-activity-recorder` and by the routes that act on a run.
+ */
+export type AdminProductionRunActivity = Record<string, any> & {
+  id: string
+  production_run_id: string
+  activity_type: "lifecycle_event" | "reminder_sent" | "note" | "system"
+  kind: string
+  actor_type?: string | null
+  actor_id?: string | null
+  partner_id?: string | null
+  channel?: string | null
+  template_name?: string | null
+  summary: string
+  payload?: Record<string, any> | null
+  occurred_at: string
+}
+
+export type AdminProductionRunActivitiesResponse = {
+  activities: AdminProductionRunActivity[]
+  count: number
+  limit: number
+  offset: number
+}
+
+export const useProductionRunActivities = (
+  runId: string,
+  query?: Record<string, any>,
+  options?: Omit<
+    UseQueryOptions<
+      AdminProductionRunActivitiesResponse,
+      FetchError,
+      AdminProductionRunActivitiesResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: [...productionRunQueryKeys.detail(runId), "activities", query],
+    queryFn: async () =>
+      sdk.client.fetch<AdminProductionRunActivitiesResponse>(
+        `/admin/production-runs/${runId}/activities`,
+        { method: "GET", query }
+      ),
+    ...options,
+  })
+
+  return { ...data, ...rest }
+}
+
 export type AdminUpdateProductionRunTaskPayload = {
   title?: string
   description?: string

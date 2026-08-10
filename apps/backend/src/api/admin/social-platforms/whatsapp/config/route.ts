@@ -16,8 +16,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   let phoneInfo: any = null
   if (config.accessToken && config.phoneNumberId) {
     try {
+      // `name_status` and `is_official_business_account` are what gate the
+      // Groups API (#1245) — it is OBA-only — so they belong next to the rest
+      // of the number's standing rather than in a one-off script.
       phoneInfo = await graphApiRequest(
-        `${config.phoneNumberId}?fields=id,display_phone_number,verified_name,quality_rating,platform_type,account_mode`,
+        `${config.phoneNumberId}?fields=id,display_phone_number,verified_name,quality_rating,platform_type,account_mode,name_status,is_official_business_account`,
         config.accessToken
       )
     } catch { /* non-fatal */ }

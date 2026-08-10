@@ -30,6 +30,7 @@ import {
 import { TwoColumnPage } from "../../../components/pages/two-column-pages"
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton"
 import { ProductionRunChildrenSection } from "../../../components/production-runs/production-run-children-section"
+import { ProductionRunActivityTimeline } from "../../../components/production-runs/production-run-activity-timeline"
 import { productionRunLoader } from "./loader"
 import {
   useCancelProductionRun,
@@ -509,6 +510,8 @@ const ProductionRunDetailPage = () => {
             </div>
           </Container>
         )}
+
+        {id && <ProductionRunActivityTimeline runId={id} />}
       </TwoColumnPage.Main>
 
       <TwoColumnPage.Sidebar>
