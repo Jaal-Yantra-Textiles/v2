@@ -1,3 +1,10 @@
+## [13.82.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.82.0...v13.82.1) (2026-08-10)
+
+
+### Bug Fixes
+
+* **inventory-orders:** repair reversed order routes, and give the assistant the ops surface ([#1249](https://github.com/Jaal-Yantra-Textiles/v2/issues/1249)) ([365c86a](https://github.com/Jaal-Yantra-Textiles/v2/commit/365c86aefca4150c22f491ce55b8a55b3c14a5ca))
+
 # [13.82.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.81.0...v13.82.0) (2026-08-10)
 
 
