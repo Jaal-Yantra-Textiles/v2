@@ -404,6 +404,12 @@ export class DelhiveryClient {
     width?: number
     height?: number
     cod_amount?: number
+    /**
+     * Declared value of the goods. Distinct from `cod_amount` — a prepaid
+     * shipment collects nothing on delivery but still carries value, and
+     * omitting this is what made every manifest show as a ₹0 order.
+     */
+    total_amount?: number
     quantity?: number
     fragile_shipment?: boolean
     seller_gst_tin?: string
@@ -428,6 +434,7 @@ export class DelhiveryClient {
       products_desc: shipment.product_desc || "",
       weight: shipment.weight,
       cod_amount: shipment.cod_amount || 0,
+      total_amount: shipment.total_amount || 0,
       quantity: shipment.quantity || 1,
       seller_name: shipment.seller_name || "",
       seller_add: shipment.seller_address ? sanitizeAddress(shipment.seller_address) : "",
