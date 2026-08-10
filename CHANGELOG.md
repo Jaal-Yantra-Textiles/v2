@@ -1,3 +1,15 @@
+# [13.80.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.79.0...v13.80.0) (2026-08-10)
+
+
+### Bug Fixes
+
+* **delhivery:** declare the shipment's value and book the pickup from admin ([#1241](https://github.com/Jaal-Yantra-Textiles/v2/issues/1241)) ([0521f63](https://github.com/Jaal-Yantra-Textiles/v2/commit/0521f6345802cc1a51a5b4f77ffb7e629d281a9f)), closes [#83](https://github.com/Jaal-Yantra-Textiles/v2/issues/83) [#1234](https://github.com/Jaal-Yantra-Textiles/v2/issues/1234) [#83](https://github.com/Jaal-Yantra-Textiles/v2/issues/83)
+
+
+### Features
+
+* **admin-assistant:** context compaction, message queueing, scroll control ([#1238](https://github.com/Jaal-Yantra-Textiles/v2/issues/1238)) ([#1240](https://github.com/Jaal-Yantra-Textiles/v2/issues/1240)) ([9888278](https://github.com/Jaal-Yantra-Textiles/v2/commit/9888278e13fbf70e817e63fc4374b457fcf00afe))
+
 # [13.79.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.78.1...v13.79.0) (2026-08-09)
 
 
