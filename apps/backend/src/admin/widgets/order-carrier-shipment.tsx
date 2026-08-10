@@ -73,15 +73,25 @@ const FIELDS = [
 ].join(",")
 
 /** The AWB already on the order, if any — the state where actions are done. */
+/** Tomorrow, as YYYY-MM-DD — the earliest slot a packer can realistically make. */
+function defaultPickupDate(): string {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
 function existingAwbOf(fulfillments: Fulfillment[]): {
   awb?: string
   carrier?: string
+  fulfillmentId?: string
 } {
   for (const f of fulfillments) {
     const d = f.data || {}
     const awb =
       d.waybill || d.tracking_number || f.labels?.[0]?.tracking_number || undefined
-    if (awb) return { awb: String(awb), carrier: d.carrier || undefined }
+    if (awb) {
+      return { awb: String(awb), carrier: d.carrier || undefined, fulfillmentId: f.id }
+    }
   }
   return {}
 }
@@ -126,6 +136,48 @@ const OrderCarrierShipmentWidget = ({
   const [carrierChoice, setCarrierChoice] = useState<string | undefined>(undefined)
   const carrier = resolveSelectableCarrier(carrierChoice, destinationCountry)
   const isShiprocket = carrier === "shiprocket"
+
+  // Pickup booking. Separate from label creation on purpose: a waybill can be
+  // made the night before, but a pickup slot is a real-world commitment for a
+  // date, a package count and a warehouse.
+  const [pickupDate, setPickupDate] = useState(defaultPickupDate())
+  const [pickupTime, setPickupTime] = useState("14:00")
+  const [packageCount, setPackageCount] = useState("1")
+  const [schedulingPickup, setSchedulingPickup] = useState(false)
+  const [pickup, setPickup] = useState<
+    { pickup_id?: string; pickup_date: string; pickup_time: string } | null
+  >(null)
+
+  const schedulePickup = async (fulfillmentId: string) => {
+    if (!pickupDate || !pickupTime) {
+      toast.error("Pick a date and a time first")
+      return
+    }
+    setSchedulingPickup(true)
+    try {
+      const res = await sdk.client.fetch<{ pickup_id?: string }>(
+        `/admin/orders/${order.id}/fulfillments/${fulfillmentId}/pickup`,
+        {
+          method: "POST",
+          body: {
+            pickup_date: pickupDate,
+            pickup_time: pickupTime,
+            expected_package_count: Number(packageCount) || 1,
+          },
+        }
+      )
+      setPickup({
+        pickup_id: res?.pickup_id,
+        pickup_date: pickupDate,
+        pickup_time: pickupTime,
+      })
+      toast.success("Pickup scheduled")
+    } catch (e: any) {
+      toast.error(e?.message || "Could not schedule the pickup")
+    } finally {
+      setSchedulingPickup(false)
+    }
+  }
 
   // Parcel. Blank means "let the backend default it", which is how retail labels
   // used to ship at 500 g regardless of the box.
@@ -211,9 +263,11 @@ const OrderCarrierShipmentWidget = ({
     )
   }
 
-  // Already labelled — the tracking widget below owns that state in full.
-  // Render a one-line acknowledgement rather than a second set of controls that
-  // would only re-ship an order that is already moving.
+  // Already labelled — the tracking widget below owns that state in full, so
+  // this stays an acknowledgement rather than a second set of shipping controls.
+  // The one thing that DOES still need doing is booking the pickup: a waybill
+  // only tells the carrier a parcel exists, not to come and collect it. Order #83
+  // sat two days waiting for a pickup booked by hand on Delhivery's dashboard.
   if (existing.awb) {
     return (
       <Container className="divide-y p-0">
@@ -226,6 +280,72 @@ const OrderCarrierShipmentWidget = ({
             {carrierLabel(existing.carrier)} · {existing.awb}
           </Badge>
         </div>
+
+        {existing.fulfillmentId ? (
+          <div className="flex flex-col gap-y-3 px-6 py-4">
+            <Text size="small" className="text-ui-fg-subtle">
+              {pickup
+                ? `Pickup booked for ${pickup.pickup_date} at ${pickup.pickup_time}${
+                    pickup.pickup_id ? ` (#${pickup.pickup_id})` : ""
+                  }.`
+                : "The label exists, but the carrier won't collect until a pickup is booked."}
+            </Text>
+            {!pickup ? (
+              <>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="flex flex-col gap-y-1">
+                    <Label size="small" htmlFor="pickup_date">
+                      Pickup date
+                    </Label>
+                    <Input
+                      id="pickup_date"
+                      type="date"
+                      value={pickupDate}
+                      onChange={(e) => setPickupDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-y-1">
+                    <Label size="small" htmlFor="pickup_time">
+                      Time
+                    </Label>
+                    <Input
+                      id="pickup_time"
+                      type="time"
+                      value={pickupTime}
+                      onChange={(e) => setPickupTime(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-y-1">
+                    <Label size="small" htmlFor="package_count">
+                      Packages
+                    </Label>
+                    <Input
+                      id="package_count"
+                      type="number"
+                      min={1}
+                      value={packageCount}
+                      onChange={(e) => setPackageCount(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Button
+                    variant="secondary"
+                    size="small"
+                    isLoading={schedulingPickup}
+                    onClick={() => schedulePickup(existing.fulfillmentId!)}
+                  >
+                    Schedule pickup
+                  </Button>
+                  <Text size="xsmall" className="text-ui-fg-subtle mt-1">
+                    Books a real collection slot with {carrierLabel(existing.carrier)}.
+                    Only book it once the parcel is actually packed.
+                  </Text>
+                </div>
+              </>
+            ) : null}
+          </div>
+        ) : null}
       </Container>
     )
   }

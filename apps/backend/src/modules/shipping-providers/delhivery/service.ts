@@ -10,6 +10,7 @@ import {
 } from "@medusajs/framework/types"
 import { DelhiveryClient, DelhiveryOptions } from "./client"
 import { delhiveryWarehouseNameForLocation } from "./warehouse-name"
+import { declaredValueForShipment } from "./declared-value"
 import { Logger } from "@medusajs/framework/types"
 
 type InjectedDeps = { logger: Logger }
@@ -281,6 +282,22 @@ class DelhiveryFulfillmentService extends AbstractFulfillmentProviderService {
         fromLocation.name ||
         "Default"
 
+      // Declared value of the goods. Never sent before, so every manifest showed
+      // as a ₹0 order on the Delhivery dashboard — including prepaid ones, where
+      // cod_amount is legitimately 0. This is what a loss/damage claim pays out
+      // against, so it has to reflect what is actually in the box.
+      const declaredValue = declaredValueForShipment({
+        items: items as any[],
+        orderItemById,
+        order: order as any,
+      })
+      if (!declaredValue) {
+        this.logger.warn(
+          `Delhivery: could not resolve a declared value for fulfillment ${fulfillment?.id} — ` +
+            `the manifest will show 0`
+        )
+      }
+
       // Detect payment mode from order payment status
       const paymentStatus = (order as any)?.payment_status
       const paymentMode: "Pre-paid" | "COD" =
@@ -304,6 +321,7 @@ class DelhiveryFulfillmentService extends AbstractFulfillmentProviderService {
         product_desc: productDesc,
         weight: totalWeight || 500,
         quantity: totalQuantity,
+        total_amount: declaredValue,
         length: maxLength || undefined,
         width: maxWidth || undefined,
         height: maxHeight || undefined,
