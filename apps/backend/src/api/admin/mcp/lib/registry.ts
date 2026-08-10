@@ -2538,6 +2538,63 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["read_image", "create_design"],
   },
 
+  // ===== Data Plumbing (audited operational corrections) ==================
+  // These wrap the #457 maintenance-job surface. Every run is persisted to
+  // `ops_maintenance_run` with the acting admin, so assistant-driven repairs
+  // carry the same audit trail as hand-run ones.
+  {
+    name: "list_maintenance_jobs",
+    description:
+      "List the available Data Plumbing maintenance jobs — audited, guarded data corrections (repair a reversed inventory-order route, backfill a field, reconcile a mirror). Returns each job's id, label, description and parameter schema. Start here when an operator reports data that looks wrong rather than code that looks wrong.",
+    method: "GET",
+    path: "/admin/ops/maintenance-jobs",
+    inputSchema: obj({}),
+    nextSteps: ["run_maintenance_job", "list_maintenance_job_runs"],
+  },
+  {
+    name: "list_maintenance_job_runs",
+    description:
+      "Read the maintenance-job audit log — who ran what, when, dry-run or applied, and the change set. Use it to check whether a repair has already been attempted before running another.",
+    method: "GET",
+    path: "/admin/ops/maintenance-jobs/runs",
+    queryParams: ["limit", "offset", "job_id"],
+    inputSchema: obj({
+      ...PAGINATION,
+      job_id: STR("Only runs of this job id, e.g. 'repair-inventory-order-route'."),
+    }),
+  },
+  {
+    name: "run_maintenance_job",
+    description:
+      "Run a Data Plumbing maintenance job. SAFE BY DEFAULT: dry_run defaults to true and previews the exact change set without writing — always preview and show the operator the changes before applying. Pass dry_run:false to apply, which requires confirm:true. Per-job params are validated by the job itself; call list_maintenance_jobs first for the schema.",
+    method: "POST",
+    path: "/admin/ops/maintenance-jobs/:id/run",
+    pathParams: ["id"],
+    bodyParams: ["dry_run", "params"],
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      {
+        id: STR("Maintenance job id, e.g. 'repair-inventory-order-route'."),
+        dry_run: {
+          type: "boolean",
+          description:
+            "Preview only. Defaults to true — pass false to actually apply.",
+        },
+        params: {
+          type: "object",
+          description:
+            "Job-specific parameters. See the job's `params` from list_maintenance_jobs.",
+          additionalProperties: true,
+        },
+      },
+      ["id"]
+    ),
+    sideEffects:
+      "With dry_run:false, mutates production data as described by the job. Every run is written to the ops_maintenance_run audit log.",
+    nextSteps: ["list_maintenance_job_runs"],
+  },
+
   // ===== Tier 2: the first dangerous action ==============================
   // Platform-destructive: hidden + refused unless ADMIN_MCP_ENABLE_DANGEROUS is
   // on, and even then requires BOTH confirm:true AND a human-supplied reason.

@@ -42,6 +42,9 @@ export type AdminToolDomain =
 const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   ["/admin/mcp/usage", "observability"],
   ["/admin/mcp", "core"],
+  // Data Plumbing / maintenance jobs are audited operational corrections, so
+  // they ride the observability slice alongside the usage ledger.
+  ["/admin/ops", "observability"],
   ["/admin/orders", "orders"],
   ["/admin/order-edits", "orders"],
   ["/admin/products", "catalog"],
@@ -159,6 +162,12 @@ const DOMAIN_KEYWORDS: Record<Exclude<AdminToolDomain, "core">, string[]> = {
   observability: [
     "mcp", "tool usage", "telemetry", "observability", "ledger", "audit",
     "failing", "failures", "error rate",
+    // Data Plumbing vocabulary. An operator describing a data problem rarely
+    // says "maintenance job" — they say "the stock is wrong" or "reversed", so
+    // the repair words matter more than the product name.
+    "maintenance job", "maintenance jobs", "data plumbing", "backfill",
+    "backfills", "repair", "reconcile", "reconciliation", "dry run", "dry-run",
+    "reversed", "mis-assigned", "wrong location", "wrong warehouse",
   ],
 }
 
