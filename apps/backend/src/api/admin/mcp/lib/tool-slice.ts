@@ -58,6 +58,15 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   ["/admin/production-runs", "production"],
   ["/admin/inventory-items", "inventory"],
   ["/admin/inventory-orders", "inventory"],
+  ["/admin/raw-material-groups", "inventory"],
+  // Photo -> raw materials + inventory. Classified as inventory because that is
+  // what it CREATES; the image is just the input format.
+  ["/admin/ai/image-extraction", "inventory"],
+  // Reference-image search feeds design creation, so it lights up with designs.
+  ["/admin/pinterest", "designs"],
+  // Reading an attached image is domain-agnostic — it must be reachable from
+  // any conversation, so it lives in the always-present core slice.
+  ["/admin/assistant/vision", "core"],
   ["/admin/payments", "money"],
   ["/admin/publishing-campaigns", "marketing"],
   ["/admin/notifications", "marketing"],
@@ -113,6 +122,14 @@ const DOMAIN_KEYWORDS: Record<Exclude<AdminToolDomain, "core">, string[]> = {
     "size set", "size sets", "sizing", "measurement", "measurements",
     "colourway", "colorway", "revision", "revisions", "bom",
     "bill of materials", "work order", "work orders", "sample", "collection",
+    // The brief — attributes that describe the idea rather than the garment.
+    "brief", "concept", "aesthetic", "persona", "price point", "inspiration",
+    "reference", "pinterest", "mood board", "idea",
+    // Construction details. The technique nouns matter: an operator says
+    // "add a waist dart", never "add a construction detail".
+    "construction", "dart", "darts", "pleat", "pleats", "gather", "gathers",
+    "tuck", "tucks", "topstitch", "topstitching", "seam", "seams", "yoke",
+    "yokes", "embroidery", "silhouette", "garment",
   ],
   production: [
     "production", "production run", "production runs", "run", "runs",
@@ -124,6 +141,11 @@ const DOMAIN_KEYWORDS: Record<Exclude<AdminToolDomain, "core">, string[]> = {
     "inventory", "stock", "stocks", "raw material", "raw materials",
     "material", "materials", "fabric", "yarn", "warehouse", "location",
     "restock", "reorder", "purchase order",
+    // Material groups + the vocabulary of a physical delivery, which is what an
+    // operator photographs and asks us to file.
+    "material group", "material groups", "swatch", "swatches", "trim", "trims",
+    "bolt", "bolts", "roll", "rolls", "composition", "gsm", "yardage",
+    "meterage", "delivery note", "packing list", "unit cost", "moq",
   ],
   money: [
     "payment", "payments", "payout", "payouts", "invoice", "invoices",
