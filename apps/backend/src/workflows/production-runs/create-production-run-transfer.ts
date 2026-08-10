@@ -149,6 +149,70 @@ export async function resolveRunGoodsLocation(
   }
 }
 
+/**
+ * Put the hop on the run's timeline.
+ *
+ * A goods movement is exactly the kind of thing someone opening a run wants to
+ * see next to "partner marked the run finished" — but transfers used to write
+ * only a `goods_transfer` row, so the timeline showed the run being made and
+ * then nothing about the goods leaving. Best-effort throughout: the transfer
+ * (and any carrier booking it paid for) is already real, and must never be
+ * undone because an audit row failed to write.
+ */
+async function recordTransferActivity(
+  container: MedusaContainer,
+  run: { id: string; partner_id?: string | null },
+  transfer: ProductionRunTransferResult,
+  extra: { reason?: string; notes?: string | null }
+): Promise<void> {
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+  try {
+    const runService: any = container.resolve(PRODUCTION_RUNS_MODULE)
+
+    const [from, to] = await Promise.all([
+      getStockLocation(container, transfer.from_location_id),
+      getStockLocation(container, transfer.to_location_id),
+    ])
+    const fromName = from?.name || transfer.from_location_id
+    const toName = to?.name || transfer.to_location_id
+
+    const summary = transfer.carrier
+      ? `${transfer.quantity} unit${transfer.quantity === 1 ? "" : "s"} shipped ${fromName} → ${toName} via ${transfer.carrier}${transfer.awb ? ` (AWB ${transfer.awb})` : ""}`
+      : `${transfer.quantity} unit${transfer.quantity === 1 ? "" : "s"} recorded moving ${fromName} → ${toName} (no carrier)`
+
+    await runService.createProductionRunActivities({
+      production_run_id: run.id,
+      activity_type: "lifecycle_event",
+      kind: transfer.carrier ? "goods_transfer_shipped" : "goods_transfer_recorded",
+      actor_type: "system",
+      actor_id: null,
+      partner_id: run.partner_id ?? null,
+      channel: null,
+      message_id: null,
+      template_name: null,
+      recipient: null,
+      summary,
+      payload: {
+        goods_transfer_id: transfer.transfer_id,
+        from_location_id: transfer.from_location_id,
+        to_location_id: transfer.to_location_id,
+        quantity: transfer.quantity,
+        reason: extra.reason ?? null,
+        notes: extra.notes ?? null,
+        carrier: transfer.carrier ?? null,
+        awb: transfer.awb ?? null,
+        tracking_url: transfer.tracking_url ?? null,
+        shipment_id: transfer.shipment_id ?? null,
+      },
+      occurred_at: new Date(),
+    })
+  } catch (e: any) {
+    logger.error(
+      `[goods-transfer] transfer ${transfer.transfer_id} saved but timeline write failed: ${e?.message}`
+    )
+  }
+}
+
 export async function createProductionRunTransfer(
   container: MedusaContainer,
   input: CreateProductionRunTransferInput
@@ -217,7 +281,13 @@ export async function createProductionRunTransfer(
   }
 
   // No carrier asked for → a self-driven hop. The transfer stands on its own.
-  if (!input.carrier) return base
+  if (!input.carrier) {
+    await recordTransferActivity(container, run, base, {
+      reason: input.reason,
+      notes: input.notes ?? null,
+    })
+    return base
+  }
 
   const carrier = input.carrier
   const provider = await resolveShippingProvider(container, carrier)
@@ -341,7 +411,7 @@ export async function createProductionRunTransfer(
     shipment_id: shipmentRecordId ?? null,
   })
 
-  return {
+  const shipped: ProductionRunTransferResult = {
     ...base,
     status: "in_transit",
     carrier,
@@ -350,6 +420,13 @@ export async function createProductionRunTransfer(
     label_url: result.label_url,
     shipment_id: shipmentRecordId,
   }
+
+  await recordTransferActivity(container, run, shipped, {
+    reason: input.reason,
+    notes: input.notes ?? null,
+  })
+
+  return shipped
 }
 
 const createProductionRunTransferStep = createStep(
