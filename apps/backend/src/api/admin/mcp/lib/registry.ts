@@ -1633,6 +1633,37 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     sideEffects: "Creates partner tasks from the templates and notifies the assigned partner.",
   },
   {
+    name: "redispatch_parked_production_runs",
+    description:
+      "Re-send production runs parked in 'awaiting_reassignment' back to the PARTNER THEY CAME FROM, and dispatch them again — the batch answer to 'this partner says they'll take their lapsed runs now'. Each run goes to its own previous_partner_id; partner_id only FILTERS which parked runs are considered, so this can never hand one partner's work to another. Pass template_names to dispatch end-to-end; omit it and each run is assigned and started but left awaiting a template selection. Dry-run by default. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/production-runs/redispatch-parked",
+    write: true,
+    sensitive: true,
+    bodyParams: ["partner_id", "template_names", "limit", "note", "dry_run", "confirm"],
+    inputSchema: obj({
+      partner_id: STR(
+        "Only consider runs parked FROM this partner. Omit for every parked run."
+      ),
+      template_names: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Task templates to dispatch with. Omit and runs stop at 'awaiting_templates'.",
+      },
+      limit: { type: "integer", description: "Cap how many runs are re-sent." },
+      note: STR("Admin note recorded on each run's activity feed."),
+      dry_run: {
+        type: "boolean",
+        description: "Default true — preview which runs would be re-sent.",
+      },
+      confirm: { type: "boolean", description: "Required to actually re-send." },
+    }),
+    sideEffects:
+      "Assigns each run to its previous partner and starts dispatch, which notifies the partner. Runs dispatched without template_names stay in 'awaiting_templates' until resume_production_run_dispatch is called with the returned transaction_id.",
+    nextSteps: ["resume_production_run_dispatch", "list_production_runs"],
+  },
+  {
     name: "start_production_run_dispatch",
     description:
       "Begin the interactive dispatch of a production run. Returns a transaction_id and PARKS the workflow with the run in 'awaiting_templates' — you MUST follow up with resume_production_run_dispatch or the run stays stuck. Sensitive: requires confirm:true.",
