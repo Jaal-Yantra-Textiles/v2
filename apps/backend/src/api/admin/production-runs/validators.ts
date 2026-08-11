@@ -56,9 +56,28 @@ export const AdminResumeDispatchProductionRunReq = z.object({
   transaction_id: z.string().min(1),
 })
 
+/**
+ * Re-send parked runs to the partner they came from.
+ *
+ * `partner_id` FILTERS which parked runs are considered — it is never the
+ * partner assigned. Each run goes back to its own `previous_partner_id`, so
+ * this endpoint cannot hand one partner's work to another.
+ */
+export const AdminRedispatchParkedRunsReq = z.object({
+  partner_id: z.string().min(1).nullish(),
+  /** Templates to dispatch with. Omit and each run stops at awaiting_templates. */
+  template_names: z.array(z.string()).optional(),
+  limit: z.number().int().positive().optional(),
+  note: z.string().max(500).nullish(),
+  /** Defaults true — previewing costs nothing, dispatching messages partners. */
+  dry_run: z.boolean().optional(),
+  confirm: z.boolean().optional(),
+})
+
 export type AdminCreateProductionRunReq = z.infer<typeof AdminCreateProductionRunReq>
 export type AdminApproveProductionRunReq = z.infer<typeof AdminApproveProductionRunReq>
 export type AdminSendProductionRunToProductionReq = z.infer<typeof AdminSendProductionRunToProductionReq>
 export type AdminStartDispatchProductionRunReq = z.infer<typeof AdminStartDispatchProductionRunReq>
 export type AdminResumeDispatchProductionRunReq = z.infer<typeof AdminResumeDispatchProductionRunReq>
 export type AdminAssignProductionRunPartnerReq = z.infer<typeof AdminAssignProductionRunPartnerReq>
+export type AdminRedispatchParkedRunsReq = z.infer<typeof AdminRedispatchParkedRunsReq>

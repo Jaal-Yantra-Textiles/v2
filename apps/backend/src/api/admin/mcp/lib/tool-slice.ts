@@ -139,6 +139,11 @@ const DOMAIN_KEYWORDS: Record<Exclude<AdminToolDomain, "core">, string[]> = {
     "dispatch", "dispatched", "approve", "approval", "stage", "task", "tasks",
     "template", "templates", "manufacture", "manufacturing", "factory",
     "capacity", "wip", "in progress",
+    // The vocabulary of a lapsed run. "Send this partner's parked runs back to
+    // them" has to reach the production slice — without these it reads as a
+    // purely partner-domain question and the run tools never load.
+    "reassign", "reassignment", "re-assign", "re-assignment", "reassigned",
+    "parked", "lapsed", "declined", "redispatch", "re-dispatch",
   ],
   inventory: [
     "inventory", "stock", "stocks", "raw material", "raw materials",

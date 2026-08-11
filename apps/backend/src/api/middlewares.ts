@@ -135,6 +135,7 @@ import { AdminPutDesignTaskReq } from "./admin/designs/[id]/tasks/[taskId]/valid
 import {
   AdminApproveProductionRunReq,
   AdminAssignProductionRunPartnerReq,
+  AdminRedispatchParkedRunsReq,
   AdminCreateProductionRunReq,
   AdminCancelProductionRunReq,
   AdminResumeDispatchProductionRunReq,
@@ -4246,6 +4247,12 @@ export default defineMiddlewares({
       matcher: "/admin/production-runs/:id/assign-partner",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminAssignProductionRunPartnerReq))],
+    },
+    {
+      // Re-send parked runs to the partner they came from (batch).
+      matcher: "/admin/production-runs/redispatch-parked",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminRedispatchParkedRunsReq))],
     },
 
     {
