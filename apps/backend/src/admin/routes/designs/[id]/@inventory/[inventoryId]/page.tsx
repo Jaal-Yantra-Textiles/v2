@@ -17,14 +17,25 @@ import { Thumbnail } from "../../../../../components/common/thumbnail"
 import { firstMediaUrl } from "../../../../../lib/utils/first-media-url"
 
 
-const formatConsumedAt = (consumedAt?: string) => {
+/**
+ * Takes `unknown` on purpose: this renders straight into JSX, so returning a
+ * value that isn't a string crashes the whole drawer with "Objects are not
+ * valid as a React child". That is exactly what happened once `consumed_at`
+ * got its first real value and reached the UI as `{}` — never hand a raw
+ * API value back to the caller.
+ */
+const formatConsumedAt = (consumedAt?: unknown) => {
   if (!consumedAt) {
     return "Not recorded"
   }
 
-  const date = new Date(consumedAt)
+  if (typeof consumedAt !== "string" && !(consumedAt instanceof Date)) {
+    return "Not recorded"
+  }
+
+  const date = new Date(consumedAt as string | Date)
   if (Number.isNaN(date.getTime())) {
-    return consumedAt
+    return "Not recorded"
   }
 
   return date.toLocaleString()
