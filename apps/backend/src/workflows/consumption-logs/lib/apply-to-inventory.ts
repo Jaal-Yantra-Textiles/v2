@@ -31,7 +31,7 @@ export type ConsumptionApplyLog = {
 }
 
 export type ConsumptionApplyPlanInput = {
-  /** The only location stock may be deducted from. */
+  /** Default location stock is deducted from, when a log resolves no other. */
   brandLocationId: string
   logs: ConsumptionApplyLog[]
   /**
@@ -40,6 +40,25 @@ export type ConsumptionApplyPlanInput = {
    * that the material was never ours.
    */
   brandLevels: Record<string, number>
+  /**
+   * The location a given log actually draws from, keyed by log id — the design↔
+   * inventory link's `location_id` ("Preferred location" in the admin drawer).
+   *
+   * That field has always been rendered next to planned/consumed, implying it
+   * decides where the material comes from, while nothing read it: every
+   * deduction went to the one brand-store default. Honouring it here is what
+   * makes the UI's promise true, and gives per-design control instead of a
+   * single global default. A log with no entry falls back to `brandLocationId`,
+   * which is the previous behaviour exactly.
+   */
+  locationByLog?: Record<string, string>
+  /**
+   * Stocked quantities at any NON-brand location a log resolves to, keyed
+   * `${inventory_item_id}@${location_id}`. Merged over `brandLevels` into one
+   * running balance, so several logs drawing on the same item at the same
+   * location share it — and the same item at two locations does not.
+   */
+  levelsAtLocation?: Record<string, number>
   /**
    * Refuse any deduction whose shortfall would exceed this, skipping the log
    * instead of applying it.
@@ -78,6 +97,8 @@ export type ConsumptionApplyDecision =
       action: "apply"
       log_id: string
       inventory_item_id: string
+      /** The location this deduction lands on, once the link override applies. */
+      location_id: string
       /** The RESOLVED total actually deducted (per_piece × pieces when known). */
       quantity: number
       before: number
@@ -93,6 +114,14 @@ export type ConsumptionApplyDecision =
 
 export const APPLIED_AT_KEY = "inventory_applied_at"
 export const APPLIED_LOCATION_KEY = "inventory_applied_location_id"
+
+/**
+ * Key for one stocked balance. Exported so the job seeds `levelsAtLocation`
+ * with exactly the keys the planner looks up — a mismatch here would read as
+ * "no level at that location" and silently skip every affected log.
+ */
+export const levelKey = (inventoryItemId: string, locationId: string): string =>
+  `${inventoryItemId}@${locationId}`
 
 /**
  * Quantities here are decimal metres, so binary float noise is guaranteed:
@@ -117,7 +146,15 @@ const round = (n: number): number => Number(n.toFixed(6))
 export function planConsumptionApplication(
   input: ConsumptionApplyPlanInput
 ): ConsumptionApplyDecision[] {
-  const running: Record<string, number> = { ...input.brandLevels }
+  // One balance map keyed item@location. Keying by item alone would let the
+  // same material at two locations share a balance once per-design locations
+  // exist, which is how a double-deduction would get in.
+  const running: Record<string, number> = {}
+  for (const [itemId, qty] of Object.entries(input.brandLevels ?? {})) {
+    running[levelKey(itemId, input.brandLocationId)] = qty
+  }
+  Object.assign(running, input.levelsAtLocation ?? {})
+
   const decisions: ConsumptionApplyDecision[] = []
 
   const ordered = [...input.logs].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
@@ -140,13 +177,24 @@ export function planConsumptionApplication(
       skip("no inventory_item_id (labour/energy log)")
       continue
     }
-    // An explicitly-located log is taken at its word.
-    if (log.location_id && log.location_id !== input.brandLocationId) {
-      skip(`logged at a non-brand location (${log.location_id})`)
+    // Where this log draws from: the design↔inventory link's location when it
+    // has one, else the brand default.
+    const locationId =
+      input.locationByLog?.[log.id] ?? input.brandLocationId
+
+    // A log carrying its own location is taken at its word, and a log recorded
+    // somewhere other than where this design draws from is NOT ours to deduct.
+    // This is the check that protects partner-held material: without it, a log
+    // stamped with a partner's warehouse would silently deduct from ours.
+    if (log.location_id && log.location_id !== locationId) {
+      skip(
+        `logged at ${log.location_id}, which is not where this design draws stock from (${locationId})`
+      )
       continue
     }
-    if (!(log.inventory_item_id in running)) {
-      skip("item has no stock level at the brand location (partner-held)")
+    const key = levelKey(log.inventory_item_id, locationId)
+    if (!(key in running)) {
+      skip(`item has no stock level at ${locationId} (partner-held)`)
       continue
     }
 
@@ -180,7 +228,7 @@ export function planConsumptionApplication(
       quantity = round(perPiece * pieces)
     }
 
-    const before = running[log.inventory_item_id]
+    const before = running[key]
     const after = round(Math.max(0, before - quantity))
     const shortfall = round(quantity - (before - after))
 
@@ -191,11 +239,12 @@ export function planConsumptionApplication(
       continue
     }
 
-    running[log.inventory_item_id] = after
+    running[key] = after
     decisions.push({
       action: "apply",
       log_id: log.id,
       inventory_item_id: log.inventory_item_id,
+      location_id: locationId,
       quantity,
       before,
       after,

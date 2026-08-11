@@ -17,6 +17,7 @@ import { DESIGN_MODULE } from "../../../../modules/designs"
 import {
   APPLIED_AT_KEY,
   APPLIED_LOCATION_KEY,
+  levelKey,
   planConsumptionApplication,
   resolveBrandLocationId,
   type ConsumptionApplyLog,
@@ -31,9 +32,14 @@ import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./
  * That boundary is right for partner-held material and wrong for material
  * issued from our own warehouse. This job settles the backlog for the latter.
  *
- * Every deduction is gated on the brand store's own location, so partner-held
- * consumption is skipped rather than guessed at. Re-running is safe: an applied
- * log is stamped with `metadata.inventory_applied_at` and skipped thereafter.
+ * Every deduction is gated on a location WE hold the material at, so
+ * partner-held consumption is skipped rather than guessed at. Which location
+ * that is comes from the design↔inventory link's `location_id` — the "Preferred
+ * location" the admin drawer shows next to planned/consumed — falling back to
+ * the brand store's default when the link sets none. Honouring it is what makes
+ * that field mean what the UI has always implied; it used to be read by nothing
+ * at all. Re-running is safe: an applied log is stamped with
+ * `metadata.inventory_applied_at` and skipped thereafter.
  *
  * Dry-run (default) previews every decision, including the skips and why.
  */
@@ -58,7 +64,7 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
   id: "apply-committed-consumption-to-inventory",
   label: "Apply committed consumption to inventory (our own stock only)",
   description:
-    "Deduct committed material consumption from OUR stock — the movement that committing a consumption log has never performed. Gated on the brand store's own location: partner-held consumption is skipped, never guessed. Labour/energy logs (Hour, kWh — no inventory_item_id) are skipped. Also writes consumed_quantity/consumed_at on the design↔inventory link, which the admin UI renders but nothing has ever written. Idempotent via metadata.inventory_applied_at. Dry-run previews every decision including skips.",
+    "Deduct committed material consumption from OUR stock — the movement that committing a consumption log has never performed. Each log draws from the design↔inventory link's Preferred location, falling back to the brand store's default; partner-held consumption is skipped, never guessed. Labour/energy logs (Hour, kWh — no inventory_item_id) are skipped. Also writes consumed_quantity/consumed_at on the design↔inventory link, which the admin UI renders but nothing has ever written. Idempotent via metadata.inventory_applied_at. Dry-run previews every decision including skips.",
   params: [
     {
       name: "design_id",
@@ -77,7 +83,7 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       type: "string",
       required: false,
       description:
-        "Deduct from this location instead of the auto-resolved brand default location",
+        "Force every deduction to this location, overriding both each design's Preferred location and the brand default. Use when the brand store cannot be resolved automatically.",
     },
     {
       name: "limit",
@@ -148,22 +154,40 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
       .slice(0, limit ?? logs.length)
 
-    // Current stock at the brand location, per item. An item ABSENT from this
-    // map has no level there — the signal that it was never ours.
     const itemIds = Array.from(
       new Set(considered.map((l) => l.inventory_item_id).filter(Boolean))
     ) as string[]
+
+    // Where each log draws from. The design↔inventory link's "Preferred
+    // location" wins over the brand default — an EXPLICIT location_id param
+    // still overrides both, since that is the operator's escape hatch.
+    const locationByLog = location_id
+      ? {}
+      : await resolveLocationByLog(query, considered)
+
+    // Current stock at every location in play, keyed item@location. A key
+    // ABSENT means the item has no level there — the signal it was never ours.
+    const locationIds = Array.from(
+      new Set([brandLocationId, ...Object.values(locationByLog)])
+    )
     const brandLevels: Record<string, number> = {}
-    const levelIdByItem: Record<string, string> = {}
+    const levelsAtLocation: Record<string, number> = {}
+    const levelIdByKey: Record<string, string> = {}
     if (itemIds.length) {
       const { data: levels } = await query.graph({
         entity: "inventory_level",
         fields: ["id", "inventory_item_id", "location_id", "stocked_quantity"],
-        filters: { inventory_item_id: itemIds, location_id: brandLocationId },
+        filters: { inventory_item_id: itemIds, location_id: locationIds },
       })
       for (const lv of (levels || []) as any[]) {
-        brandLevels[lv.inventory_item_id] = Number(lv.stocked_quantity ?? 0)
-        levelIdByItem[lv.inventory_item_id] = lv.id
+        const key = levelKey(lv.inventory_item_id, lv.location_id)
+        const stocked = Number(lv.stocked_quantity ?? 0)
+        levelIdByKey[key] = lv.id
+        if (lv.location_id === brandLocationId) {
+          brandLevels[lv.inventory_item_id] = stocked
+        } else {
+          levelsAtLocation[key] = stocked
+        }
       }
     }
 
@@ -209,6 +233,8 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       brandLocationId,
       logs: considered,
       brandLevels,
+      locationByLog,
+      levelsAtLocation,
       maxShortfall: max_shortfall,
       piecesByLog,
       assumeBasisWhenUnknown: assumeBasis,
@@ -220,7 +246,7 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
 
     const changes: MaintenanceChange[] = applies.map((d) => ({
       entity: "inventory_level",
-      id: `${d.inventory_item_id}@${brandLocationId}`,
+      id: levelKey(d.inventory_item_id, d.location_id),
       field: `stocked_quantity (log ${d.log_id}${
         d.pieces != null ? `, ${d.per_piece}/pc × ${d.pieces} pcs` : ""
       })`,
@@ -243,9 +269,16 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       // level change in the repo is made (cancel-inventory-order,
       // partner-complete-inventory-order), so it inherits the workflow's
       // compensation rather than being a bare service write.
-      const finalByItem = new Map<string, number>()
+      const finalByLevel = new Map<
+        string,
+        { inventory_item_id: string; location_id: string; stocked: number }
+      >()
       for (const d of applies) {
-        finalByItem.set(d.inventory_item_id, d.after)
+        finalByLevel.set(levelKey(d.inventory_item_id, d.location_id), {
+          inventory_item_id: d.inventory_item_id,
+          location_id: d.location_id,
+          stocked: d.after,
+        })
       }
       // `inventory_item_id` + `location_id` are REQUIRED, not decoration:
       // `updateInventoryLevels_` ignores `id` entirely and re-resolves the level
@@ -255,11 +288,11 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       // compensation reads the same two fields, so omitting them also left the
       // rollback with nothing to restore. Matches how cancel-inventory-order and
       // partner-complete-inventory-order already shape their updates.
-      const updates = Array.from(finalByItem, ([itemId, stocked]) => ({
-        id: levelIdByItem[itemId],
-        inventory_item_id: itemId,
-        location_id: brandLocationId,
-        stocked_quantity: stocked,
+      const updates = Array.from(finalByLevel, ([key, lvl]) => ({
+        id: levelIdByKey[key],
+        inventory_item_id: lvl.inventory_item_id,
+        location_id: lvl.location_id,
+        stocked_quantity: lvl.stocked,
       }))
       await updateInventoryLevelsWorkflow(container as any).run({
         input: { updates: updates as any },
@@ -272,7 +305,7 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
           metadata: {
             ...(existing?.metadata || {}),
             [APPLIED_AT_KEY]: appliedAt,
-            [APPLIED_LOCATION_KEY]: brandLocationId,
+            [APPLIED_LOCATION_KEY]: d.location_id,
           },
         })
       }
@@ -290,7 +323,10 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
     const shortfalls = applies.filter((d) => d.shortfall)
 
     const summary = [
-      `${dry_run ? "Would apply" : "Applied"} ${applies.length} of ${considered.length} committed log(s) at ${brandLocationId}`,
+      `${dry_run ? "Would apply" : "Applied"} ${applies.length} of ${considered.length} committed log(s) at ${
+        Array.from(new Set(applies.map((d) => d.location_id))).join(", ") ||
+        brandLocationId
+      }`,
       shortfalls.length
         ? `⚠️ ${shortfalls.length} log(s) wanted more than the level held (floored at 0): ${shortfalls
             .map((d) => `${d.inventory_item_id} short ${d.shortfall}`)
@@ -313,6 +349,53 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       changes,
     }
   },
+}
+
+/**
+ * Map each log to the location its design draws that material from.
+ *
+ * The source is the design↔inventory link's `location_id` — the "Preferred
+ * location" the admin drawer has always shown beside planned/consumed while
+ * nothing read it. A pair with no location set is simply omitted, so the
+ * planner falls back to the brand default.
+ */
+async function resolveLocationByLog(
+  query: any,
+  logs: ConsumptionApplyLog[]
+): Promise<Record<string, string>> {
+  const pairs = logs.filter((l) => l.design_id && l.inventory_item_id)
+  if (!pairs.length) {
+    return {}
+  }
+
+  const { data: links } = await query.graph({
+    entity: "design_inventory_item",
+    fields: ["design_id", "inventory_item_id", "location_id"],
+    filters: {
+      design_id: Array.from(new Set(pairs.map((l) => l.design_id))),
+      inventory_item_id: Array.from(
+        new Set(pairs.map((l) => l.inventory_item_id))
+      ),
+    },
+  })
+
+  // Keyed on the PAIR: one design links several materials, each of which may
+  // sit in a different warehouse.
+  const byPair = new Map<string, string>()
+  for (const row of (links || []) as any[]) {
+    if (row?.location_id) {
+      byPair.set(`${row.design_id}::${row.inventory_item_id}`, row.location_id)
+    }
+  }
+
+  const out: Record<string, string> = {}
+  for (const l of pairs) {
+    const loc = byPair.get(`${l.design_id}::${l.inventory_item_id}`)
+    if (loc) {
+      out[l.id] = loc
+    }
+  }
+  return out
 }
 
 /**
