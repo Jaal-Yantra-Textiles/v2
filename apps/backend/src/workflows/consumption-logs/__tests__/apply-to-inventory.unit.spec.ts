@@ -37,6 +37,7 @@ describe("planConsumptionApplication", () => {
         action: "apply",
         log_id: "log_1",
         inventory_item_id: "iitem_denim",
+        location_id: BRAND,
         quantity: 2.15,
         before: 17.6,
         after: 15.45,
@@ -59,7 +60,7 @@ describe("planConsumptionApplication", () => {
   it("skips a log explicitly located somewhere other than the brand location", () => {
     const [d] = plan([log({ location_id: "sloc_weaver" })])
     expect(d.action).toBe("skip")
-    expect((d as any).reason).toMatch(/non-brand location/)
+    expect((d as any).reason).toMatch(/not where this design draws stock from/)
   })
 
   it("applies a log explicitly located AT the brand location", () => {
@@ -114,6 +115,124 @@ describe("planConsumptionApplication", () => {
     const a = plan([log({ id: "log_b", quantity: 5 }), log({ id: "log_a", quantity: 10 })])
     const b = plan([log({ id: "log_a", quantity: 10 }), log({ id: "log_b", quantity: 5 })])
     expect(a).toEqual(b)
+  })
+})
+
+/**
+ * The design↔inventory link's "Preferred location" is rendered next to
+ * planned/consumed in the admin drawer, implying it decides where the material
+ * comes from — while nothing read it and every deduction went to the single
+ * brand-store default. These pin it as load-bearing.
+ */
+describe("per-design Preferred location", () => {
+  const BRAND = "sloc_dharamshala"
+  const OTHER = "sloc_kashmir"
+
+  const log = (id: string, item = "item_a"): ConsumptionApplyLog => ({
+    id,
+    design_id: "d1",
+    inventory_item_id: item,
+    quantity: 2,
+    quantity_basis: "total",
+    is_committed: true,
+    location_id: null,
+    metadata: null,
+  })
+
+  it("deducts from the design's location instead of the brand default", () => {
+    const [d] = planConsumptionApplication({
+      brandLocationId: BRAND,
+      logs: [log("l1")],
+      brandLevels: { item_a: 100 },
+      locationByLog: { l1: OTHER },
+      levelsAtLocation: { [`item_a@${OTHER}`]: 10 },
+    })
+
+    expect(d).toMatchObject({
+      action: "apply",
+      location_id: OTHER,
+      before: 10,
+      after: 8,
+    })
+  })
+
+  it("falls back to the brand default when the link sets no location", () => {
+    const [d] = planConsumptionApplication({
+      brandLocationId: BRAND,
+      logs: [log("l1")],
+      brandLevels: { item_a: 17.6 },
+      locationByLog: {},
+    })
+
+    expect(d).toMatchObject({ action: "apply", location_id: BRAND, after: 15.6 })
+  })
+
+  it("skips when the item is not stocked at the design's location", () => {
+    // The material is ours, but not THERE — absence is still not ownership.
+    const [d] = planConsumptionApplication({
+      brandLocationId: BRAND,
+      logs: [log("l1")],
+      brandLevels: { item_a: 100 },
+      locationByLog: { l1: OTHER },
+      levelsAtLocation: {},
+    })
+
+    expect(d.action).toBe("skip")
+    expect((d as any).reason).toMatch(new RegExp(`no stock level at ${OTHER}`))
+  })
+
+  it("accepts a log whose own location matches the design's location", () => {
+    const [d] = planConsumptionApplication({
+      brandLocationId: BRAND,
+      logs: [{ ...log("l1"), location_id: OTHER }],
+      brandLevels: {},
+      locationByLog: { l1: OTHER },
+      levelsAtLocation: { [`item_a@${OTHER}`]: 10 },
+    })
+
+    expect(d.action).toBe("apply")
+  })
+
+  it("still refuses a log stamped with a partner's warehouse", () => {
+    // The whole safety property: a partner-located log must never deduct from
+    // our stock just because the design now points somewhere real.
+    const [d] = planConsumptionApplication({
+      brandLocationId: BRAND,
+      logs: [{ ...log("l1"), location_id: "sloc_partner" }],
+      brandLevels: { item_a: 100 },
+      locationByLog: { l1: OTHER },
+      levelsAtLocation: { [`item_a@${OTHER}`]: 10 },
+    })
+
+    expect(d.action).toBe("skip")
+  })
+
+  it("keeps one item's balance separate across two locations", () => {
+    // Keyed by item alone, the second log would read `before: 8` and both
+    // levels would end up wrong — this is the double-deduction trap.
+    const decisions = planConsumptionApplication({
+      brandLocationId: BRAND,
+      logs: [log("l1"), log("l2")],
+      brandLevels: { item_a: 10 },
+      locationByLog: { l2: OTHER },
+      levelsAtLocation: { [`item_a@${OTHER}`]: 5 },
+    })
+
+    expect(decisions[0]).toMatchObject({ location_id: BRAND, before: 10, after: 8 })
+    expect(decisions[1]).toMatchObject({ location_id: OTHER, before: 5, after: 3 })
+  })
+
+  it("shares a balance between two logs at the same location", () => {
+    const decisions = planConsumptionApplication({
+      brandLocationId: BRAND,
+      logs: [log("l1"), log("l2")],
+      brandLevels: {},
+      locationByLog: { l1: OTHER, l2: OTHER },
+      levelsAtLocation: { [`item_a@${OTHER}`]: 10 },
+    })
+
+    expect(decisions[0]).toMatchObject({ before: 10, after: 8 })
+    expect(decisions[1]).toMatchObject({ before: 8, after: 6 })
   })
 })
 
