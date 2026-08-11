@@ -55,6 +55,92 @@ import type { AdminAssistantChatReq } from "./validators"
 const FEATURE = "admin/assistant/chat"
 const ROLE = "ai_admin_assistant"
 
+/**
+ * Ceiling on a single tool result, in serialised bytes.
+ *
+ * A tool result is streamed to the client, stored in the thread, and sent back
+ * up on EVERY subsequent turn — so one large result is paid for repeatedly. A
+ * Data Plumbing sweep returns one `changes` row per affected record, which for
+ * a wide backfill runs to hundreds of kB and used to push the next request past
+ * the body limit ("Payload too large"). Raising that limit was the actual fix;
+ * this keeps a single job from silently eating the whole budget anyway.
+ *
+ * 64kB is far more than any result a human reads in a chat, and the model gets
+ * an explicit note that it was truncated rather than a silently short list.
+ */
+const MAX_TOOL_RESULT_BYTES = 64 * 1024
+
+/**
+ * Trim an oversized tool result to something a thread can carry.
+ *
+ * Arrays are the only thing that grows without bound here (`changes`, `runs`,
+ * result rows), so the biggest one is truncated and annotated. The summary,
+ * counts and every scalar field survive untouched — those are what the operator
+ * is reading, and dropping them to save bytes would defeat the point.
+ */
+export const capToolResult = (result: any): any => {
+  if (!result || typeof result !== "object") {
+    return result
+  }
+
+  const size = (v: unknown) => {
+    try {
+      return JSON.stringify(v)?.length ?? 0
+    } catch {
+      return 0
+    }
+  }
+
+  if (size(result) <= MAX_TOOL_RESULT_BYTES) {
+    return result
+  }
+
+  // Walk one level into the payload — tool results are `{ data: {...} }` or a
+  // flat object; either way the unbounded arrays sit at the top of one of them.
+  const trimContainer = (obj: any): any => {
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
+      return obj
+    }
+    const entries = Object.entries(obj)
+    const biggest = entries
+      .filter(([, v]) => Array.isArray(v) && v.length > 1)
+      .sort((a, b) => size(b[1]) - size(a[1]))[0]
+
+    if (!biggest) {
+      return obj
+    }
+
+    const [key, arr] = biggest as [string, unknown[]]
+    // Keep whatever prefix fits, always at least one row so the shape is legible.
+    let keep = arr.length
+    while (keep > 1 && size(arr.slice(0, keep)) > MAX_TOOL_RESULT_BYTES / 2) {
+      keep = Math.floor(keep / 2)
+    }
+
+    return {
+      ...obj,
+      [key]: arr.slice(0, keep),
+      truncated: {
+        field: key,
+        shown: keep,
+        total: arr.length,
+        note: `${key} was truncated to keep the conversation within its size budget. ${
+          arr.length - keep
+        } more row(s) exist — narrow the request, or read the full set via the audit log / admin UI.`,
+      },
+    }
+  }
+
+  const trimmed = trimContainer(result)
+  if (size(trimmed) <= MAX_TOOL_RESULT_BYTES) {
+    return trimmed
+  }
+  if (result.data && typeof result.data === "object") {
+    return { ...result, data: trimContainer(result.data) }
+  }
+  return trimmed
+}
+
 const SYSTEM_PROMPT = `You are the JYT admin assistant. You help platform operators run the business by calling Admin API tools on their behalf — reading orders, products, customers, partners, stores, designs, production runs, inventory, payments and campaigns, and (in later tiers) acting on them.
 
 ## How to work
@@ -168,7 +254,8 @@ export const POST = async (
             : "") +
           renderToolGuidance(def),
         inputSchema: jsonSchema(buildToolInputSchema(def)),
-        execute: async (input: any) => dispatchAdminTool(ctx, def.name, input),
+        execute: async (input: any) =>
+          capToolResult(await dispatchAdminTool(ctx, def.name, input)),
       }),
     ])
   )

@@ -57,6 +57,7 @@
  * }
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { updateTaskWorkflow } from "../../../../../workflows/tasks/update-task";
 import { setStepSuccessWorkflow } from "../../../../../workflows/tasks/task-engine/task-steps";
 import { Status } from "../../../../../workflows/tasks/create-task";
@@ -67,7 +68,24 @@ export async function POST(
 ) {
 
     const taskId = req.params.taskId
-    
+
+    // Accepting only ever moves a task forward — see the note on the
+    // assigned-tasks accept route. A completed task walked back to `accepted`
+    // is what left run prod_run_01KWPVZ4R2PWK6DW1X8X5DKNZE reading completed
+    // with open subtasks.
+    const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+    const { data: existing } = await query.graph({
+        entity: "task",
+        fields: ["id", "status"],
+        filters: { id: taskId },
+    })
+    const currentStatus = String((existing?.[0] as any)?.status || "")
+    if (["completed", "cancelled"].includes(currentStatus)) {
+        return res.status(409).json({
+            message: `Task is already ${currentStatus} and cannot be accepted again`,
+        })
+    }
+
     const { result, errors } = await updateTaskWorkflow(req.scope).run({
         input: {
             id: taskId,
