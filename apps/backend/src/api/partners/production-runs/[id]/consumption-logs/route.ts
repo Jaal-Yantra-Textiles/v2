@@ -54,6 +54,7 @@ export const POST = async (
       inventory_item_id: req.validatedBody.inventoryItemId,
       raw_material_id: req.validatedBody.rawMaterialId,
       quantity: req.validatedBody.quantity,
+      quantity_basis: req.validatedBody.quantityBasis ?? null,
       unit_cost: req.validatedBody.unitCost,
       unit_of_measure: req.validatedBody.unitOfMeasure,
       consumption_type: req.validatedBody.consumptionType,

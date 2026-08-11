@@ -50,7 +50,8 @@ const paramsSchema = z.object({
    * Treat each log's quantity as a PER-PIECE rate and multiply by the finished
    * pieces of the design's real production runs. Default true.
    */
-  per_piece: z.boolean().optional(),
+  /** Basis to assume for legacy logs whose quantity_basis is null. */
+  assume_basis: z.enum(["total", "per_piece"]).optional(),
 })
 
 export const applyCommittedConsumptionJob: MaintenanceJob = {
@@ -92,11 +93,11 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
         "Refuse any deduction short by more than this — the log is skipped, not stamped. Use 0 to apply only logs fully covered by stock on hand.",
     },
     {
-      name: "per_piece",
-      type: "boolean",
+      name: "assume_basis",
+      type: "string",
       required: false,
       description:
-        "Treat the logged quantity as PER PIECE and multiply by the design's completed production (default true). Set false to deduct the figure verbatim.",
+        "total | per_piece — how to read logs written before the form recorded a basis. Omit and those logs are skipped rather than guessed.",
     },
   ],
   run: async (container, { dry_run, params }): Promise<MaintenanceJobResult> => {
@@ -109,7 +110,7 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
     }
     const { design_id, design_ids, location_id, limit, max_shortfall } =
       parsed.data
-    const perPiece = parsed.data.per_piece !== false
+    const assumeBasis = parsed.data.assume_basis
 
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const consumptionService: any = container.resolve(CONSUMPTION_LOG_MODULE)
@@ -136,6 +137,7 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       id: l.id,
       design_id: l.design_id ?? null,
       production_run_id: l.production_run_id ?? null,
+      quantity_basis: l.quantity_basis ?? null,
       inventory_item_id: l.inventory_item_id ?? null,
       quantity: l.quantity ?? null,
       is_committed: Boolean(l.is_committed),
@@ -170,7 +172,7 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
     // has one, else from the design's completed leaf runs — with provenance runs
     // excluded, since those shipped from stock and consumed nothing.
     let piecesByLog: Record<string, number> | undefined
-    if (perPiece) {
+    {
       const runService: any = container.resolve(PRODUCTION_RUNS_MODULE)
       const designIds = Array.from(
         new Set(considered.map((l) => l.design_id).filter(Boolean))
@@ -209,6 +211,7 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       brandLevels,
       maxShortfall: max_shortfall,
       piecesByLog,
+      assumeBasisWhenUnknown: assumeBasis,
     })
     const applies = decisions.filter((d) => d.action === "apply") as Extract<
       (typeof decisions)[number],

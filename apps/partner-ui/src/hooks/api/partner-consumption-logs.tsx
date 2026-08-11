@@ -22,6 +22,7 @@ export type ConsumptionLog = {
   inventory_item_id: string
   raw_material_id?: string | null
   quantity: number
+  quantity_basis?: "total" | "per_piece" | null
   unit_of_measure: string
   consumption_type: "sample" | "production" | "wastage"
   is_committed: boolean
@@ -43,6 +44,7 @@ export type LogConsumptionPayload = {
   inventoryItemId: string
   rawMaterialId?: string
   quantity: number
+  quantityBasis?: "total" | "per_piece"
   unitCost?: number
   unitOfMeasure?: string
   consumptionType?: "sample" | "production" | "wastage"

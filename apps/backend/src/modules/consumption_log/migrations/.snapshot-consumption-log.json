@@ -102,6 +102,25 @@
           "enumItems": [],
           "mappedType": "float"
         },
+        "quantity_basis": {
+          "name": "quantity_basis",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [
+            "total",
+            "per_piece"
+          ],
+          "mappedType": "enum"
+        },
         "unit_cost": {
           "name": "unit_cost",
           "type": "real",

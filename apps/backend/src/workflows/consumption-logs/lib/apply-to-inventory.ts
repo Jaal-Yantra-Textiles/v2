@@ -22,6 +22,7 @@ export type ConsumptionApplyLog = {
   id: string
   design_id: string | null
   production_run_id?: string | null
+  quantity_basis?: "total" | "per_piece" | null
   inventory_item_id: string | null
   quantity: number | string | null
   is_committed: boolean
@@ -65,6 +66,11 @@ export type ConsumptionApplyPlanInput = {
    * Omitting the map entirely keeps the old 1:1 behaviour.
    */
   piecesByLog?: Record<string, number>
+  /**
+   * Basis to assume for logs written before the capture forms recorded one
+   * (`quantity_basis: null`). Undefined means refuse to guess: those logs skip.
+   */
+  assumeBasisWhenUnknown?: "total" | "per_piece"
 }
 
 export type ConsumptionApplyDecision =
@@ -150,11 +156,21 @@ export function planConsumptionApplication(
       continue
     }
 
-    // Resolve the per-piece figure to the run's actual material draw.
+    // What the figure measures decides whether it is multiplied at all. A null
+    // basis predates the forms asking, so it is resolved only against an
+    // explicit assumption — never defaulted.
+    const basis = log.quantity_basis ?? input.assumeBasisWhenUnknown
+    if (!basis) {
+      skip(
+        "quantity_basis unknown (logged before the form recorded it) — pass assume_basis to resolve"
+      )
+      continue
+    }
+
     let quantity = perPiece
     let pieces: number | undefined
-    if (input.piecesByLog) {
-      pieces = input.piecesByLog[log.id]
+    if (basis === "per_piece") {
+      pieces = input.piecesByLog?.[log.id]
       if (!pieces || pieces <= 0) {
         skip(
           "piece count unknown (no completed production run for this design) — cannot resolve a per-piece quantity"

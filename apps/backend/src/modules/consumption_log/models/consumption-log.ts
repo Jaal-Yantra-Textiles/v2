@@ -7,6 +7,13 @@ const ConsumptionLog = model.define("consumption_log", {
   inventory_item_id: model.text().nullable(),
   raw_material_id: model.text().nullable(),
   quantity: model.float(),
+  /**
+   * What `quantity` measures. NULLABLE on purpose: rows written before the
+   * capture forms asked the question have an unknowable basis, and guessing one
+   * would silently mis-scale both cost and stock. Consumers must resolve a null
+   * basis explicitly rather than defaulting it.
+   */
+  quantity_basis: model.enum(["total", "per_piece"]).nullable(),
   unit_cost: model.float().nullable(),
   unit_of_measure: model
     .enum([

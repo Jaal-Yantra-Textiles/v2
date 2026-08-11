@@ -5,6 +5,7 @@ export const AdminPostConsumptionLogReq = z.object({
   rawMaterialId: z.string().optional(),
   productionRunId: z.string().optional(),
   quantity: z.number().positive(),
+  quantityBasis: z.enum(["total", "per_piece"]).optional(),
   unitCost: z.number().positive().optional(),
   unitOfMeasure: z
     .enum([

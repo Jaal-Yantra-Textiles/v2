@@ -73,6 +73,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
   // Form state
   const [formInventoryId, setFormInventoryId] = useState("")
   const [formQuantity, setFormQuantity] = useState("")
+  const [formBasis, setFormBasis] = useState("per_piece")
   const [formUnitCost, setFormUnitCost] = useState("")
   const [formUnit, setFormUnit] = useState("Meter")
   const [formType, setFormType] = useState("production")
@@ -81,6 +82,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
   const resetForm = () => {
     setFormInventoryId("")
     setFormQuantity("")
+    setFormBasis("per_piece")
     setFormUnitCost("")
     setFormUnit("Meter")
     setFormType("production")
@@ -97,6 +99,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
       await logConsumption({
         inventoryItemId: formInventoryId,
         quantity: parseFloat(formQuantity),
+        quantityBasis: formBasis as "total" | "per_piece",
         unitCost: formUnitCost ? parseFloat(formUnitCost) : undefined,
         unitOfMeasure: formUnit,
         consumptionType: formType as "sample" | "production" | "wastage",
@@ -216,6 +219,27 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
                       value={formQuantity}
                       onChange={(e) => setFormQuantity(e.target.value)}
                     />
+                    {/*
+                      Which one this is CANNOT be inferred later: the same 2.15 m
+                      means 2.15 or 4.3 depending on the answer, and it scales
+                      both the costing and the stock deduction. Asked here, once.
+                    */}
+                    <div className="mt-1.5">
+                      <Select value={formBasis} onValueChange={setFormBasis}>
+                        <Select.Trigger>
+                          <Select.Value placeholder="Measured as" />
+                        </Select.Trigger>
+                        <Select.Content>
+                          <Select.Item value="per_piece">Per piece</Select.Item>
+                          <Select.Item value="total">Total for the run</Select.Item>
+                        </Select.Content>
+                      </Select>
+                    </div>
+                    <Text size="xsmall" className="text-ui-fg-muted mt-1">
+                      {formBasis === "per_piece"
+                        ? "Material for ONE finished piece — we multiply by how many you make."
+                        : "Material for the WHOLE run — recorded as entered."}
+                    </Text>
                   </div>
                   <div>
                     <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">

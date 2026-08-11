@@ -1346,6 +1346,7 @@ export interface LogConsumptionPayload {
   inventoryItemId: string;
   rawMaterialId?: string;
   quantity: number;
+  quantityBasis?: "total" | "per_piece";
   unitCost?: number;
   unitOfMeasure?: string;
   consumptionType?: "sample" | "production" | "wastage";

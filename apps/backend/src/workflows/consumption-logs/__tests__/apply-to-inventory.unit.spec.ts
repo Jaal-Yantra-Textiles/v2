@@ -21,6 +21,7 @@ describe("planConsumptionApplication", () => {
     design_id: "design_1",
     inventory_item_id: "iitem_denim",
     quantity: 2.15,
+    quantity_basis: "total",
     is_committed: true,
     location_id: null,
     metadata: null,
@@ -122,6 +123,7 @@ describe("maxShortfall guard", () => {
     design_id: "d1",
     inventory_item_id: item,
     quantity,
+    quantity_basis: "total" as const,
     is_committed: true,
     location_id: null,
     metadata: null,
@@ -187,6 +189,7 @@ describe("per-piece resolution", () => {
     design_id: "d1",
     inventory_item_id: item,
     quantity,
+    quantity_basis: "per_piece" as const,
     is_committed: true,
     location_id: null,
     metadata: null,
@@ -233,10 +236,10 @@ describe("per-piece resolution", () => {
     expect(d.action).toBe("skip")
   })
 
-  it("keeps 1:1 behaviour when no map is supplied", () => {
+  it("a total-basis log ignores the piece map entirely", () => {
     const [d] = planConsumptionApplication({
       brandLocationId: "sloc_brand",
-      logs: [log("l1", "item_a", 2.15)],
+      logs: [{ ...log("l1", "item_a", 2.15), quantity_basis: "total" as const }],
       brandLevels: { item_a: 17.6 },
     })
     expect(d).toMatchObject({ action: "apply", quantity: 2.15, after: 15.45 })
@@ -266,5 +269,74 @@ describe("per-piece resolution", () => {
     })
     expect(d.action).toBe("skip")
     expect((d as any).reason).toMatch(/shortfall 1.3 exceeds/)
+  })
+})
+
+describe("quantity_basis", () => {
+  const log = (id: string, quantity: number, basis?: "total" | "per_piece" | null) => ({
+    id,
+    design_id: "d1",
+    inventory_item_id: "item_a",
+    quantity,
+    quantity_basis: basis ?? null,
+    is_committed: true,
+    location_id: null,
+    metadata: null,
+  })
+
+  it("multiplies a per_piece log by its pieces", () => {
+    const [d] = planConsumptionApplication({
+      brandLocationId: "sloc_brand",
+      logs: [log("l1", 2.15, "per_piece")],
+      brandLevels: { item_a: 17.6 },
+      piecesByLog: { l1: 2 },
+    })
+    expect(d).toMatchObject({ action: "apply", quantity: 4.3, after: 13.3, pieces: 2 })
+  })
+
+  it("deducts a total log verbatim, even with pieces available", () => {
+    const [d] = planConsumptionApplication({
+      brandLocationId: "sloc_brand",
+      logs: [log("l1", 2.15, "total")],
+      brandLevels: { item_a: 17.6 },
+      piecesByLog: { l1: 2 },
+    })
+    expect(d).toMatchObject({ action: "apply", quantity: 2.15, after: 15.45 })
+    expect((d as any).pieces).toBeUndefined()
+  })
+
+  it("refuses to guess a null basis", () => {
+    // The 63 legacy prod logs. Reading 2.15 as a total or per-piece differs by
+    // the piece count, so the job must be told rather than assume.
+    const [d] = planConsumptionApplication({
+      brandLocationId: "sloc_brand",
+      logs: [log("l1", 2.15)],
+      brandLevels: { item_a: 17.6 },
+      piecesByLog: { l1: 2 },
+    })
+    expect(d.action).toBe("skip")
+    expect((d as any).reason).toMatch(/quantity_basis unknown/)
+  })
+
+  it("resolves a null basis only against an explicit assumption", () => {
+    const [d] = planConsumptionApplication({
+      brandLocationId: "sloc_brand",
+      logs: [log("l1", 2.15)],
+      brandLevels: { item_a: 17.6 },
+      piecesByLog: { l1: 2 },
+      assumeBasisWhenUnknown: "per_piece",
+    })
+    expect(d).toMatchObject({ action: "apply", quantity: 4.3 })
+  })
+
+  it("lets a recorded basis win over the assumption", () => {
+    const [d] = planConsumptionApplication({
+      brandLocationId: "sloc_brand",
+      logs: [log("l1", 2.15, "total")],
+      brandLevels: { item_a: 17.6 },
+      piecesByLog: { l1: 2 },
+      assumeBasisWhenUnknown: "per_piece",
+    })
+    expect(d).toMatchObject({ action: "apply", quantity: 2.15 })
   })
 })
