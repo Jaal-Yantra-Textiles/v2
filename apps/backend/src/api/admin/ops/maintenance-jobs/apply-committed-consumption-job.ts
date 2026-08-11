@@ -39,6 +39,8 @@ const paramsSchema = z.object({
   /** Override the resolved brand location (escape hatch for a second warehouse). */
   location_id: z.string().min(1).optional(),
   limit: z.number().int().positive().optional(),
+  /** Skip (don't stamp) any log whose shortfall would exceed this. */
+  max_shortfall: z.number().nonnegative().optional(),
 })
 
 export const applyCommittedConsumptionJob: MaintenanceJob = {
@@ -72,6 +74,13 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       required: false,
       description: "Cap the number of logs considered (applied after ordering)",
     },
+    {
+      name: "max_shortfall",
+      type: "number",
+      required: false,
+      description:
+        "Refuse any deduction short by more than this — the log is skipped, not stamped. Use 0 to apply only logs fully covered by stock on hand.",
+    },
   ],
   run: async (container, { dry_run, params }): Promise<MaintenanceJobResult> => {
     const parsed = paramsSchema.safeParse(params)
@@ -81,7 +90,8 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
         parsed.error.issues.map((i) => i.message).join("; ")
       )
     }
-    const { design_id, design_ids, location_id, limit } = parsed.data
+    const { design_id, design_ids, location_id, limit, max_shortfall } =
+      parsed.data
 
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const consumptionService: any = container.resolve(CONSUMPTION_LOG_MODULE)
@@ -140,6 +150,7 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       brandLocationId,
       logs: considered,
       brandLevels,
+      maxShortfall: max_shortfall,
     })
     const applies = decisions.filter((d) => d.action === "apply") as Extract<
       (typeof decisions)[number],

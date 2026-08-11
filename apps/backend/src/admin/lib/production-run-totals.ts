@@ -19,6 +19,27 @@ export type ProductionRunLike = {
   parent_run_id?: string | null
   status?: string | null
   quantity?: number | null
+  metadata?: Record<string, any> | null
+}
+
+/**
+ * A run minted from retail fulfillment rather than shop-floor work.
+ *
+ * `plan-fulfillment-production-runs.ts` creates these "born terminal" when a
+ * fulfilled line item has no run behind it: the goods shipped from stock, so
+ * nothing was produced and no material was consumed. They carry a real
+ * `quantity` and `status: "completed"` purely as provenance, which makes them
+ * indistinguishable from production to any plain status+quantity sum.
+ *
+ * Deliberately NOT `isOwnedProvenanceRun` from
+ * ../../lib/resolve-line-item-production: that helper additionally requires
+ * `design_id == null`, and the create path mints DESIGN-BACKED provenance runs
+ * too (`metadata.design_backed`). Testing the create-side marker alone is what
+ * catches both — the design-backed ones are exactly the ones that land on a
+ * design's totals.
+ */
+export function isFulfillmentProvenanceRun(run: ProductionRunLike): boolean {
+  return run?.metadata?.source === "order.fulfillment_created"
 }
 
 export const COMPLETED_STATUSES = ["completed"] as const
@@ -36,10 +57,16 @@ export type ProductionRunTotals = {
   completed: number
   /** Sum of in-progress leaf-run quantities. */
   inProgress: number
-  /** Number of leaf runs (parents with children are excluded). */
+  /** Number of leaf runs (parents with children, and provenance runs, excluded). */
   leafCount: number
   /** Total number of run records returned (parents + children). */
   total: number
+  /**
+   * Quantity on leaf runs minted from retail fulfillment — goods that shipped
+   * from stock rather than being produced. Reported rather than silently
+   * dropped, so a caller can show where the difference went.
+   */
+  shippedFromStock: number
 }
 
 /**
@@ -66,7 +93,11 @@ export function summarizeProductionRunTotals(
   runs: ProductionRunLike[]
 ): ProductionRunTotals {
   const list = Array.isArray(runs) ? runs : []
-  const leaves = leafProductionRuns(list)
+  // Leaf detection runs over the FULL set, before provenance is filtered out, so
+  // dropping a run can never promote its parent to a leaf.
+  const allLeaves = leafProductionRuns(list)
+  const provenanceLeaves = allLeaves.filter(isFulfillmentProvenanceRun)
+  const leaves = allLeaves.filter((r) => !isFulfillmentProvenanceRun(r))
 
   const sumByStatus = (statuses: readonly string[]) =>
     leaves
@@ -78,5 +109,9 @@ export function summarizeProductionRunTotals(
     inProgress: sumByStatus(IN_PROGRESS_STATUSES),
     leafCount: leaves.length,
     total: list.length,
+    shippedFromStock: provenanceLeaves.reduce(
+      (acc, r) => acc + (Number(r?.quantity) || 0),
+      0
+    ),
   }
 }

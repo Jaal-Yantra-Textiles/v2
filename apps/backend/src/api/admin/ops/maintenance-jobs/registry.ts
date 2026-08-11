@@ -91,6 +91,7 @@ import { generateNewsletterWinbackTargetsJob } from "./generate-newsletter-winba
 import { repairInventoryOrderSourceJob } from "./repair-inventory-order-source-job"
 import { repairInventoryOrderRouteJob } from "./repair-inventory-order-route-job"
 import { applyCommittedConsumptionJob } from "./apply-committed-consumption-job"
+import { reconcileConsumptionVsProductionJob } from "./reconcile-consumption-vs-production-job"
 import { backfillGoogleAdsHistoryJob } from "./backfill-google-ads-history-job"
 import { backfillDesignSizeSetsJob } from "./backfill-design-size-sets-job"
 import { backfillPartnerShippingOptionsJob } from "./backfill-partner-shipping-options-job"
@@ -5651,6 +5652,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   repairInventoryOrderSourceJob,
   repairInventoryOrderRouteJob,
   applyCommittedConsumptionJob,
+  reconcileConsumptionVsProductionJob,
   backfillGoogleAdsHistoryJob,
   backfillDesignSizeSetsJob,
   backfillPartnerShippingOptionsJob,

@@ -115,3 +115,68 @@ describe("planConsumptionApplication", () => {
     expect(a).toEqual(b)
   })
 })
+
+describe("maxShortfall guard", () => {
+  const log = (id: string, item: string, quantity: number) => ({
+    id,
+    design_id: "d1",
+    inventory_item_id: item,
+    quantity,
+    is_committed: true,
+    location_id: null,
+    metadata: null,
+  })
+
+  it("skips rather than stamps a log the level cannot cover", () => {
+    // The one-way door: applying floors at 0, records the shortfall, and stamps
+    // inventory_applied_at — so a later route repair can never re-apply it.
+    const decisions = planConsumptionApplication({
+      brandLocationId: "sloc_brand",
+      logs: [log("l1", "item_a", 5)],
+      brandLevels: { item_a: 0 },
+      maxShortfall: 0,
+    })
+    expect(decisions[0].action).toBe("skip")
+    expect((decisions[0] as any).reason).toMatch(/shortfall 5 exceeds max_shortfall 0/)
+  })
+
+  it("still applies a deduction fully covered by stock", () => {
+    const decisions = planConsumptionApplication({
+      brandLocationId: "sloc_brand",
+      logs: [log("l1", "item_a", 2.15)],
+      brandLevels: { item_a: 17.6 },
+      maxShortfall: 0,
+    })
+    expect(decisions[0]).toMatchObject({ action: "apply", before: 17.6, after: 15.45 })
+  })
+
+  it("allows a shortfall within the tolerance", () => {
+    const decisions = planConsumptionApplication({
+      brandLocationId: "sloc_brand",
+      logs: [log("l1", "item_a", 5)],
+      brandLevels: { item_a: 4.5 },
+      maxShortfall: 1,
+    })
+    expect(decisions[0]).toMatchObject({ action: "apply", after: 0, shortfall: 0.5 })
+  })
+
+  it("keeps prior behaviour when the guard is not set", () => {
+    const decisions = planConsumptionApplication({
+      brandLocationId: "sloc_brand",
+      logs: [log("l1", "item_a", 5)],
+      brandLevels: { item_a: 0 },
+    })
+    expect(decisions[0]).toMatchObject({ action: "apply", shortfall: 5 })
+  })
+
+  it("does not let a skipped log draw down the running balance", () => {
+    const decisions = planConsumptionApplication({
+      brandLocationId: "sloc_brand",
+      logs: [log("l1", "item_a", 99), log("l2", "item_a", 2)],
+      brandLevels: { item_a: 10 },
+      maxShortfall: 0,
+    })
+    expect(decisions[0].action).toBe("skip")
+    expect(decisions[1]).toMatchObject({ action: "apply", before: 10, after: 8 })
+  })
+})

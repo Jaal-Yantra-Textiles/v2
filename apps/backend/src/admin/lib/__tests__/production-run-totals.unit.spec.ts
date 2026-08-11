@@ -1,4 +1,5 @@
 import {
+  isFulfillmentProvenanceRun,
   leafProductionRuns,
   summarizeProductionRunTotals,
   type ProductionRunLike,
@@ -76,6 +77,7 @@ describe("summarizeProductionRunTotals (#498 double-count)", () => {
       inProgress: 0,
       leafCount: 0,
       total: 0,
+      shippedFromStock: 0,
     })
     // @ts-expect-error - guarding runtime misuse
     expect(summarizeProductionRunTotals(undefined).completed).toBe(0)
@@ -90,5 +92,85 @@ describe("summarizeProductionRunTotals (#498 double-count)", () => {
     const totals = summarizeProductionRunTotals(runs)
     expect(totals.total).toBe(3)
     expect(totals.leafCount).toBe(2)
+  })
+})
+
+describe("provenance runs are not production", () => {
+  const PROVENANCE = { source: "order.fulfillment_created" }
+
+  // The real prod shape: design 01KWWJ0S3Z… "Denim Trouser". Run A is shop-floor
+  // work (2 pieces, full lifecycle). Run B was minted when a retail line item
+  // shipped FROM STOCK — completed, quantity 1, no partner, no lifecycle, no
+  // activities. Both are leaves, so the pre-fix sum reported 3 produced.
+  const denimTrouser: ProductionRunLike[] = [
+    {
+      id: "prod_run_A",
+      parent_run_id: null,
+      status: "completed",
+      quantity: 2,
+      metadata: { source: "designs-produce-no-customer" },
+    },
+    {
+      id: "prod_run_B",
+      parent_run_id: null,
+      status: "completed",
+      quantity: 1,
+      metadata: { ...PROVENANCE, design_backed: true, is_custom_design: true },
+    },
+  ]
+
+  it("excludes fulfillment-provenance runs from produced quantity", () => {
+    const totals = summarizeProductionRunTotals(denimTrouser)
+    expect(totals.completed).toBe(2)
+    expect(totals.leafCount).toBe(1)
+  })
+
+  it("reports the shipped-from-stock quantity instead of dropping it", () => {
+    const totals = summarizeProductionRunTotals(denimTrouser)
+    expect(totals.shippedFromStock).toBe(1)
+    // Every record is still accounted for.
+    expect(totals.total).toBe(2)
+  })
+
+  it("catches DESIGN-BACKED provenance runs, which isOwnedProvenanceRun misses", () => {
+    // isOwnedProvenanceRun additionally requires design_id == null, so it
+    // returns false for run B. The create-side marker is the reliable signal.
+    expect(isFulfillmentProvenanceRun(denimTrouser[1])).toBe(true)
+    expect(isFulfillmentProvenanceRun(denimTrouser[0])).toBe(false)
+  })
+
+  it("does not treat a missing/!=marker metadata as provenance", () => {
+    expect(isFulfillmentProvenanceRun({ id: "x" })).toBe(false)
+    expect(isFulfillmentProvenanceRun({ id: "x", metadata: null })).toBe(false)
+    expect(
+      isFulfillmentProvenanceRun({ id: "x", metadata: { source: "order.placed" } })
+    ).toBe(false)
+  })
+
+  it("excludes provenance runs from in-progress too", () => {
+    const runs: ProductionRunLike[] = [
+      { id: "real", parent_run_id: null, status: "in_progress", quantity: 5 },
+      {
+        id: "prov",
+        parent_run_id: null,
+        status: "in_progress",
+        quantity: 3,
+        metadata: PROVENANCE,
+      },
+    ]
+    expect(summarizeProductionRunTotals(runs).inProgress).toBe(5)
+  })
+
+  it("still detects leaves using the full set when a parent is provenance", () => {
+    // A provenance parent must not promote its children out of existence, nor
+    // be counted itself.
+    const runs: ProductionRunLike[] = [
+      { id: "p", parent_run_id: null, status: "completed", quantity: 10, metadata: PROVENANCE },
+      { id: "c1", parent_run_id: "p", status: "completed", quantity: 4 },
+      { id: "c2", parent_run_id: "p", status: "completed", quantity: 6 },
+    ]
+    const totals = summarizeProductionRunTotals(runs)
+    expect(totals.completed).toBe(10)
+    expect(totals.shippedFromStock).toBe(0)
   })
 })

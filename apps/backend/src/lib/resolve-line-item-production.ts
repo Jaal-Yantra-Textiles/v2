@@ -100,19 +100,27 @@ export async function getProductionRunForLineItem(
 }
 
 /**
- * A provenance run this system minted from retail fulfillment (product-only,
- * born terminal). ONLY these are quantity-reconciled / soft-deleted by the
- * fulfillment + cancellation paths — a real production run (design work-order,
- * or a run that actually went through the shop) is never touched. Identified by
- * the create-side marker `metadata.source === "order.fulfillment_created"` and
- * the absence of a backing design.
+ * A provenance run this system minted from retail fulfillment (born terminal).
+ * ONLY these are quantity-reconciled / soft-deleted by the fulfillment +
+ * cancellation paths — a real production run (design work-order, or a run that
+ * actually went through the shop) is never touched.
+ *
+ * Identified SOLELY by the create-side marker
+ * `metadata.source === "order.fulfillment_created"`, which is written in exactly
+ * one place (`reconcile-provenance-runs.ts`) and never by any path that mints a
+ * real run. That marker alone is therefore sufficient.
+ *
+ * It previously ALSO required `design_id == null`, on the assumption that
+ * provenance runs are product-only. They are not: the same creator mints
+ * DESIGN-BACKED provenance runs whenever the fulfilled line resolves to a design
+ * (it stamps `design_backed: true` alongside the marker). Those runs matched the
+ * marker but failed the null check, so they were never adjusted when the
+ * fulfilled quantity changed and — worse — were never soft-deleted when the
+ * order was canceled, leaving a completed run claiming goods that never shipped.
  */
 export function isOwnedProvenanceRun(
   run: Pick<LineItemProductionRun, "design_id" | "metadata"> | null | undefined
 ): boolean {
   if (!run) return false
-  return (
-    run.design_id == null &&
-    run.metadata?.source === "order.fulfillment_created"
-  )
+  return run.metadata?.source === "order.fulfillment_created"
 }

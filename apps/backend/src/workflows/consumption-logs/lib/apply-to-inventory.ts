@@ -38,6 +38,19 @@ export type ConsumptionApplyPlanInput = {
    * that the material was never ours.
    */
   brandLevels: Record<string, number>
+  /**
+   * Refuse any deduction whose shortfall would exceed this, skipping the log
+   * instead of applying it.
+   *
+   * A shortfall means the level held less than the log claimed, so the applied
+   * movement is smaller than the reported consumption — and the log is then
+   * STAMPED `inventory_applied_at` and skipped forever after. When the stock
+   * simply hasn't arrived yet (a mis-routed inventory order, an un-received
+   * delivery), that stamp burns the log against a balance it was never measured
+   * against, and no later repair can re-apply it. Undefined keeps the previous
+   * behaviour of applying regardless.
+   */
+  maxShortfall?: number
 }
 
 export type ConsumptionApplyDecision =
@@ -121,6 +134,13 @@ export function planConsumptionApplication(
     const before = running[log.inventory_item_id]
     const after = round(Math.max(0, before - quantity))
     const shortfall = round(quantity - (before - after))
+
+    if (input.maxShortfall != null && shortfall > input.maxShortfall) {
+      skip(
+        `shortfall ${shortfall} exceeds max_shortfall ${input.maxShortfall} (level ${before} < logged ${quantity}) — stock likely not received yet`
+      )
+      continue
+    }
 
     running[log.inventory_item_id] = after
     decisions.push({

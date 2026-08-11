@@ -133,7 +133,15 @@ function DesignAdminProductionRunsSection({ designId }: { designId: string }) {
   // #498: a design's runs come back as a parent + one child per partner
   // assignment (all sharing design_id). The parent's quantity already equals
   // the sum of its children, so sum LEAF runs only to avoid double-counting.
-  const { completed: totalProduced, inProgress } = summarizeProductionRunTotals(runs)
+  //
+  // Runs minted from retail fulfillment are excluded from "completed": the goods
+  // shipped from stock, nothing was produced. They're reported separately rather
+  // than dropped, so the run list below still reconciles against the badges.
+  const {
+    completed: totalProduced,
+    inProgress,
+    shippedFromStock,
+  } = summarizeProductionRunTotals(runs)
 
   return (
     <div className="flex flex-col gap-y-3">
@@ -151,6 +159,14 @@ function DesignAdminProductionRunsSection({ designId }: { designId: string }) {
             <span className="h-1.5 w-1.5 rounded-full bg-ui-tag-blue-icon" />
             <Text size="xsmall" className="text-ui-tag-blue-text font-medium">
               {inProgress.toLocaleString()} in production
+            </Text>
+          </div>
+        )}
+        {shippedFromStock > 0 && (
+          <div className="flex items-center gap-x-1 rounded-full bg-ui-tag-neutral-bg px-2.5 py-0.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-ui-tag-neutral-icon" />
+            <Text size="xsmall" className="text-ui-tag-neutral-text font-medium">
+              {shippedFromStock.toLocaleString()} shipped from stock
             </Text>
           </div>
         )}
