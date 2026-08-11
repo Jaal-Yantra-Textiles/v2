@@ -1,3 +1,16 @@
+# [13.84.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.83.1...v13.84.0) (2026-08-11)
+
+
+### Bug Fixes
+
+* **ops:** stop rewind-production-run claiming it re-mirrors the unified order ([#1228](https://github.com/Jaal-Yantra-Textiles/v2/issues/1228)) ([#1252](https://github.com/Jaal-Yantra-Textiles/v2/issues/1252)) ([0128294](https://github.com/Jaal-Yantra-Textiles/v2/commit/0128294e533bb9c0a1bd0ab19cf2a082b57c9bdb))
+* **designs:** stop the inventory sanitiser rebuilding every Date as {} ([#1253](https://github.com/Jaal-Yantra-Textiles/v2/issues/1253)) ([49d935e](https://github.com/Jaal-Yantra-Textiles/v2/commit/49d935e7af4c7b295e367c4c65a4e53beb99a11c)), closes [#1248](https://github.com/Jaal-Yantra-Textiles/v2/issues/1248)
+
+
+### Features
+
+* **consumption:** make the design's Preferred location decide the deduction ([#1254](https://github.com/Jaal-Yantra-Textiles/v2/issues/1254)) ([96325a0](https://github.com/Jaal-Yantra-Textiles/v2/commit/96325a0d49e857e0fce2a36b44d0a349035d8b32))
+
 ## [13.83.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.83.0...v13.83.1) (2026-08-11)
 
 
