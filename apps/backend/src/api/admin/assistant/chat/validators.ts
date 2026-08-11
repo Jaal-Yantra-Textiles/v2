@@ -42,6 +42,9 @@ export const AdminAssistantChatSchema = z.object({
   messages: z.array(UiMessageSchema).min(1).max(60),
   id: z.string().optional(),
   trigger: z.string().optional(),
+  // Sent by the transport on `regenerate`. Unused server-side, but declared so a
+  // strict wrapper can never reject a regenerate turn.
+  messageId: z.string().optional(),
   attachments: z.array(AttachmentSchema).max(8).optional(),
 })
 

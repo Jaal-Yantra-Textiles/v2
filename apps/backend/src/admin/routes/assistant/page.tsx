@@ -504,13 +504,27 @@ const AssistantChat = ({
       new DefaultChatTransport({
         api: `${API_BASE_URL.replace(/\/$/, "")}/admin/assistant/chat`,
         credentials: "include",
-        prepareSendMessagesRequest: ({ body, ...rest }: any) => {
+        // The callback's `body` is ONLY the extra body option — `messages`, `id`,
+        // `trigger` and `messageId` arrive as siblings of it, and returning a
+        // `body` replaces the SDK's default wholesale. So they have to be spread
+        // back in by hand; spreading them at the top level instead drops them,
+        // because only `api`/`headers`/`credentials`/`body` are read from here.
+        prepareSendMessagesRequest: ({
+          body,
+          messages,
+          id,
+          trigger,
+          messageId,
+        }: any) => {
           const attachments = pendingAttachmentsRef.current
           pendingAttachmentsRef.current = []
           return {
-            ...rest,
             body: {
               ...body,
+              id,
+              messages,
+              trigger,
+              messageId,
               ...(attachments.length ? { attachments } : {}),
             },
           }
