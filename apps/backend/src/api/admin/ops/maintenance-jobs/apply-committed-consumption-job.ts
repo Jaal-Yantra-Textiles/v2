@@ -8,6 +8,11 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { updateInventoryLevelsWorkflow } from "@medusajs/medusa/core-flows"
 
 import { CONSUMPTION_LOG_MODULE } from "../../../../modules/consumption_log"
+import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
+import {
+  isProvenanceRun,
+  leafRuns,
+} from "../../../../workflows/consumption-logs/lib/reconcile-production-consumption"
 import { DESIGN_MODULE } from "../../../../modules/designs"
 import {
   APPLIED_AT_KEY,
@@ -39,6 +44,14 @@ const paramsSchema = z.object({
   /** Override the resolved brand location (escape hatch for a second warehouse). */
   location_id: z.string().min(1).optional(),
   limit: z.number().int().positive().optional(),
+  /** Skip (don't stamp) any log whose shortfall would exceed this. */
+  max_shortfall: z.number().nonnegative().optional(),
+  /**
+   * Treat each log's quantity as a PER-PIECE rate and multiply by the finished
+   * pieces of the design's real production runs. Default true.
+   */
+  /** Basis to assume for legacy logs whose quantity_basis is null. */
+  assume_basis: z.enum(["total", "per_piece"]).optional(),
 })
 
 export const applyCommittedConsumptionJob: MaintenanceJob = {
@@ -72,6 +85,20 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       required: false,
       description: "Cap the number of logs considered (applied after ordering)",
     },
+    {
+      name: "max_shortfall",
+      type: "number",
+      required: false,
+      description:
+        "Refuse any deduction short by more than this — the log is skipped, not stamped. Use 0 to apply only logs fully covered by stock on hand.",
+    },
+    {
+      name: "assume_basis",
+      type: "string",
+      required: false,
+      description:
+        "total | per_piece — how to read logs written before the form recorded a basis. Omit and those logs are skipped rather than guessed.",
+    },
   ],
   run: async (container, { dry_run, params }): Promise<MaintenanceJobResult> => {
     const parsed = paramsSchema.safeParse(params)
@@ -81,7 +108,9 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
         parsed.error.issues.map((i) => i.message).join("; ")
       )
     }
-    const { design_id, design_ids, location_id, limit } = parsed.data
+    const { design_id, design_ids, location_id, limit, max_shortfall } =
+      parsed.data
+    const assumeBasis = parsed.data.assume_basis
 
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const consumptionService: any = container.resolve(CONSUMPTION_LOG_MODULE)
@@ -107,6 +136,8 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
     const logs: ConsumptionApplyLog[] = ((rawLogs || []) as any[]).map((l) => ({
       id: l.id,
       design_id: l.design_id ?? null,
+      production_run_id: l.production_run_id ?? null,
+      quantity_basis: l.quantity_basis ?? null,
       inventory_item_id: l.inventory_item_id ?? null,
       quantity: l.quantity ?? null,
       is_committed: Boolean(l.is_committed),
@@ -136,10 +167,51 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       }
     }
 
+    // A logged quantity is a PER-PIECE rate, so it has to be multiplied by what
+    // the design actually finished. Pieces come from the log's own run when it
+    // has one, else from the design's completed leaf runs — with provenance runs
+    // excluded, since those shipped from stock and consumed nothing.
+    let piecesByLog: Record<string, number> | undefined
+    {
+      const runService: any = container.resolve(PRODUCTION_RUNS_MODULE)
+      const designIds = Array.from(
+        new Set(considered.map((l) => l.design_id).filter(Boolean))
+      ) as string[]
+      const [rawRuns] = designIds.length
+        ? await runService.listAndCountProductionRuns(
+            { design_id: designIds },
+            { take: null }
+          )
+        : [[]]
+      const completed = leafRuns((rawRuns || []) as any[]).filter(
+        (r: any) => r.status === "completed" && !isProvenanceRun(r)
+      )
+      const byDesign: Record<string, number> = {}
+      const byRun: Record<string, number> = {}
+      for (const r of completed as any[]) {
+        const q = Number(r.produced_quantity ?? r.quantity ?? 0) || 0
+        byRun[r.id] = q
+        if (r.design_id) {
+          byDesign[r.design_id] = (byDesign[r.design_id] ?? 0) + q
+        }
+      }
+      piecesByLog = {}
+      for (const l of considered) {
+        const runPieces = l.production_run_id
+          ? byRun[l.production_run_id]
+          : undefined
+        piecesByLog[l.id] =
+          runPieces ?? (l.design_id ? byDesign[l.design_id] ?? 0 : 0)
+      }
+    }
+
     const decisions = planConsumptionApplication({
       brandLocationId,
       logs: considered,
       brandLevels,
+      maxShortfall: max_shortfall,
+      piecesByLog,
+      assumeBasisWhenUnknown: assumeBasis,
     })
     const applies = decisions.filter((d) => d.action === "apply") as Extract<
       (typeof decisions)[number],
@@ -149,7 +221,9 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
     const changes: MaintenanceChange[] = applies.map((d) => ({
       entity: "inventory_level",
       id: `${d.inventory_item_id}@${brandLocationId}`,
-      field: `stocked_quantity (log ${d.log_id})`,
+      field: `stocked_quantity (log ${d.log_id}${
+        d.pieces != null ? `, ${d.per_piece}/pc × ${d.pieces} pcs` : ""
+      })`,
       before: d.before,
       after: d.after,
     }))
@@ -173,8 +247,18 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       for (const d of applies) {
         finalByItem.set(d.inventory_item_id, d.after)
       }
+      // `inventory_item_id` + `location_id` are REQUIRED, not decoration:
+      // `updateInventoryLevels_` ignores `id` entirely and re-resolves the level
+      // from the item/location pair. Passing the level id alone made it look up
+      // `(undefined, undefined)` and die with `Item undefined is not stocked at
+      // location undefined` — which is what the first prod apply hit. The step's
+      // compensation reads the same two fields, so omitting them also left the
+      // rollback with nothing to restore. Matches how cancel-inventory-order and
+      // partner-complete-inventory-order already shape their updates.
       const updates = Array.from(finalByItem, ([itemId, stocked]) => ({
         id: levelIdByItem[itemId],
+        inventory_item_id: itemId,
+        location_id: brandLocationId,
         stocked_quantity: stocked,
       }))
       await updateInventoryLevelsWorkflow(container as any).run({

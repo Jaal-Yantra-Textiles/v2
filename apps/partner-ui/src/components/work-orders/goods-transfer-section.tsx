@@ -42,14 +42,26 @@ const REASONS = [
   { value: "other", label: "Other" },
 ] as const
 
-// Mirrors the backend's supported carriers. "" is a real choice, not an empty
-// state: a van run between two of our own locations is a movement worth
-// recording even though no carrier is involved.
+// Mirrors the backend's supported carriers. "No carrier" is a real choice, not
+// an empty state: a van run between two of our own locations is a movement
+// worth recording even though no carrier is involved.
+//
+// It carries the sentinel `NO_CARRIER` rather than "" because Radix reserves
+// the empty string to mean "cleared, show the placeholder" and THROWS on a
+// `<Select.Item value="">` — which took the whole "Move to next location"
+// drawer down with a render error the moment it opened. The sentinel never
+// leaves this component: `carrierValue()` maps it back to undefined on submit.
+const NO_CARRIER = "none"
+
 const CARRIERS = [
-  { value: "", label: "No carrier (self-driven)" },
+  { value: NO_CARRIER, label: "No carrier (self-driven)" },
   { value: "shiprocket", label: "Shiprocket" },
   { value: "delhivery", label: "Delhivery" },
 ] as const
+
+/** Sentinel/blank → undefined, so the backend still sees "no carrier". */
+const carrierValue = (v: string): string | undefined =>
+  !v || v === NO_CARRIER ? undefined : v
 
 const STATUS_COLOR: Record<
   GoodsTransfer["status"],
@@ -78,7 +90,7 @@ export const GoodsTransferSection = ({ runId, isCompleted }: Props) => {
   const [open, setOpen] = useState(false)
   const [toLocationId, setToLocationId] = useState("")
   const [reason, setReason] = useState<GoodsTransfer["reason"]>("stock")
-  const [carrier, setCarrier] = useState("")
+  const [carrier, setCarrier] = useState<string>(NO_CARRIER)
   const [quantity, setQuantity] = useState("")
   const [weight, setWeight] = useState("")
   const [notes, setNotes] = useState("")
@@ -107,7 +119,7 @@ export const GoodsTransferSection = ({ runId, isCompleted }: Props) => {
       const res = await createTransfer({
         to_location_id: toLocationId,
         reason,
-        carrier: carrier || undefined,
+        carrier: carrierValue(carrier),
         quantity: positive(quantity),
         weight_grams: positive(weight),
         notes: notes.trim() || undefined,
@@ -120,6 +132,7 @@ export const GoodsTransferSection = ({ runId, isCompleted }: Props) => {
       )
       setOpen(false)
       setToLocationId("")
+      setCarrier(NO_CARRIER)
       setNotes("")
       setQuantity("")
       setWeight("")
@@ -218,7 +231,7 @@ export const GoodsTransferSection = ({ runId, isCompleted }: Props) => {
                 </Select.Trigger>
                 <Select.Content>
                   {CARRIERS.map((c) => (
-                    <Select.Item key={c.value || "none"} value={c.value}>
+                    <Select.Item key={c.value} value={c.value}>
                       {c.label}
                     </Select.Item>
                   ))}

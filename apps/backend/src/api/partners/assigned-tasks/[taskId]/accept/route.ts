@@ -129,8 +129,22 @@ export async function POST(
                          task.partners.some((p: any) => p.id === partner.id);
         
         if (!isLinked) {
-            return res.status(403).json({ 
-                message: "Task not assigned to this partner" 
+            return res.status(403).json({
+                message: "Task not assigned to this partner"
+            });
+        }
+
+        // Accepting is a FORWARD move. Without this the route happily walked a
+        // finished task backwards: completing a production run force-closes its
+        // linked tasks, and a partner whose UI still showed the old "Accept"
+        // button then flipped them from `completed` back to `accepted` seconds
+        // later — leaving the run reading completed while its subtasks read
+        // open, with nothing in the data to say which was right.
+        // (prod: run prod_run_01KWPVZ4R2PWK6DW1X8X5DKNZE, 2026-08-11.)
+        const currentStatus = String(task.status || "");
+        if (["completed", "cancelled"].includes(currentStatus)) {
+            return res.status(409).json({
+                message: `Task is already ${currentStatus} and cannot be accepted again`,
             });
         }
 

@@ -24,6 +24,8 @@ export type LogConsumptionInput = {
   inventory_item_id?: string
   raw_material_id?: string
   quantity: number
+  /** What `quantity` measures — see the model. */
+  quantity_basis?: "total" | "per_piece" | null
   unit_cost?: number
   unit_of_measure?:
     | "Meter"
@@ -96,6 +98,7 @@ const createConsumptionLogStep = createStep(
       inventory_item_id: input.inventory_item_id,
       raw_material_id: input.raw_material_id || null,
       quantity: input.quantity,
+      quantity_basis: input.quantity_basis ?? null,
       unit_cost: input.unit_cost ?? null,
       unit_of_measure: input.unit_of_measure || "Other",
       consumption_type: input.consumption_type || "sample",

@@ -2285,6 +2285,8 @@ export default defineMiddlewares({
     {
       matcher: "/partners/assistant/chat",
       method: "POST",
+      // Same 100kb Express default as the admin assistant — see the note there.
+      bodyParser: { sizeLimit: "5mb" },
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
@@ -2297,6 +2299,7 @@ export default defineMiddlewares({
     {
       matcher: "/partners/assistant/summarize",
       method: "POST",
+      bodyParser: { sizeLimit: "5mb" },
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
@@ -3468,9 +3471,18 @@ export default defineMiddlewares({
       middlewares: [],
     },
     // Admin agentic assistant — streaming tool-caller over the Admin MCP registry.
+    //
+    // The body carries up to 60 UI messages INCLUDING their tool parts, and a
+    // Data Plumbing job's `changes` array alone can be tens of kB. Medusa passes
+    // `sizeLimit` straight to express.json(), so leaving it unset means the
+    // Express default of 100kb — which a thread that has run a maintenance job
+    // blows through, and the operator sees an intermittent "Payload too large".
+    // The route discards tool parts before modelling anyway (see the normalise
+    // step in the handler); it just has to be able to RECEIVE them first.
     {
       matcher: "/admin/assistant/chat",
       method: "POST",
+      bodyParser: { sizeLimit: "5mb" },
       middlewares: [validateAndTransformBody(wrapSchema(AdminAssistantChatSchema))],
     },
     // Admin assistant context compaction — the client calls this when the thread
@@ -3479,6 +3491,9 @@ export default defineMiddlewares({
     {
       matcher: "/admin/assistant/summarize",
       method: "POST",
+      // Compaction is handed the very thread that grew too big to continue —
+      // the one request guaranteed to be large. Same 100kb default trap.
+      bodyParser: { sizeLimit: "5mb" },
       middlewares: [
         validateAndTransformBody(wrapSchema(AdminAssistantSummarizeSchema)),
       ],

@@ -90,7 +90,10 @@ import { recomputeEmailEngagementStatusJob } from "./recompute-email-engagement-
 import { generateNewsletterWinbackTargetsJob } from "./generate-newsletter-winback-targets-job"
 import { repairInventoryOrderSourceJob } from "./repair-inventory-order-source-job"
 import { repairInventoryOrderRouteJob } from "./repair-inventory-order-route-job"
+import { rewindProductionRunJob } from "./rewind-production-run-job"
+import { repairConsumptionLogJob } from "./repair-consumption-log-job"
 import { applyCommittedConsumptionJob } from "./apply-committed-consumption-job"
+import { reconcileConsumptionVsProductionJob } from "./reconcile-consumption-vs-production-job"
 import { backfillGoogleAdsHistoryJob } from "./backfill-google-ads-history-job"
 import { backfillDesignSizeSetsJob } from "./backfill-design-size-sets-job"
 import { backfillPartnerShippingOptionsJob } from "./backfill-partner-shipping-options-job"
@@ -5650,7 +5653,10 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   generateNewsletterWinbackTargetsJob,
   repairInventoryOrderSourceJob,
   repairInventoryOrderRouteJob,
+  rewindProductionRunJob,
+  repairConsumptionLogJob,
   applyCommittedConsumptionJob,
+  reconcileConsumptionVsProductionJob,
   backfillGoogleAdsHistoryJob,
   backfillDesignSizeSetsJob,
   backfillPartnerShippingOptionsJob,

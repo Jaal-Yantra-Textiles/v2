@@ -21,6 +21,8 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 export type ConsumptionApplyLog = {
   id: string
   design_id: string | null
+  production_run_id?: string | null
+  quantity_basis?: "total" | "per_piece" | null
   inventory_item_id: string | null
   quantity: number | string | null
   is_committed: boolean
@@ -38,6 +40,37 @@ export type ConsumptionApplyPlanInput = {
    * that the material was never ours.
    */
   brandLevels: Record<string, number>
+  /**
+   * Refuse any deduction whose shortfall would exceed this, skipping the log
+   * instead of applying it.
+   *
+   * A shortfall means the level held less than the log claimed, so the applied
+   * movement is smaller than the reported consumption — and the log is then
+   * STAMPED `inventory_applied_at` and skipped forever after. When the stock
+   * simply hasn't arrived yet (a mis-routed inventory order, an un-received
+   * delivery), that stamp burns the log against a balance it was never measured
+   * against, and no later repair can re-apply it. Undefined keeps the previous
+   * behaviour of applying regardless.
+   */
+  maxShortfall?: number
+  /**
+   * Finished pieces the log's quantity should be multiplied by, keyed by log id.
+   *
+   * A logged quantity is PER PIECE: a partner reporting 2.15 m against a run of
+   * 2 consumed 4.3 m. The column is read as a total everywhere else (cost is
+   * `quantity × unit_cost`), so the multiplication belongs here, at the point
+   * stock actually moves, and is reported explicitly on every decision.
+   *
+   * A log absent from this map, or mapped to 0, CANNOT be resolved — the piece
+   * count is unknown — and is skipped rather than deducted at face value.
+   * Omitting the map entirely keeps the old 1:1 behaviour.
+   */
+  piecesByLog?: Record<string, number>
+  /**
+   * Basis to assume for logs written before the capture forms recorded one
+   * (`quantity_basis: null`). Undefined means refuse to guess: those logs skip.
+   */
+  assumeBasisWhenUnknown?: "total" | "per_piece"
 }
 
 export type ConsumptionApplyDecision =
@@ -45,9 +78,14 @@ export type ConsumptionApplyDecision =
       action: "apply"
       log_id: string
       inventory_item_id: string
+      /** The RESOLVED total actually deducted (per_piece × pieces when known). */
       quantity: number
       before: number
       after: number
+      /** The figure as logged, when it was resolved as a per-piece rate. */
+      per_piece?: number
+      /** Finished pieces the per-piece figure was multiplied by. */
+      pieces?: number
       /** Set when the log wanted more than the level held. */
       shortfall?: number
     }
@@ -112,15 +150,46 @@ export function planConsumptionApplication(
       continue
     }
 
-    const quantity = Number(log.quantity ?? 0)
-    if (!Number.isFinite(quantity) || quantity <= 0) {
+    const perPiece = Number(log.quantity ?? 0)
+    if (!Number.isFinite(perPiece) || perPiece <= 0) {
       skip(`non-positive quantity (${log.quantity})`)
       continue
+    }
+
+    // What the figure measures decides whether it is multiplied at all. A null
+    // basis predates the forms asking, so it is resolved only against an
+    // explicit assumption — never defaulted.
+    const basis = log.quantity_basis ?? input.assumeBasisWhenUnknown
+    if (!basis) {
+      skip(
+        "quantity_basis unknown (logged before the form recorded it) — pass assume_basis to resolve"
+      )
+      continue
+    }
+
+    let quantity = perPiece
+    let pieces: number | undefined
+    if (basis === "per_piece") {
+      pieces = input.piecesByLog?.[log.id]
+      if (!pieces || pieces <= 0) {
+        skip(
+          "piece count unknown (no completed production run for this design) — cannot resolve a per-piece quantity"
+        )
+        continue
+      }
+      quantity = round(perPiece * pieces)
     }
 
     const before = running[log.inventory_item_id]
     const after = round(Math.max(0, before - quantity))
     const shortfall = round(quantity - (before - after))
+
+    if (input.maxShortfall != null && shortfall > input.maxShortfall) {
+      skip(
+        `shortfall ${shortfall} exceeds max_shortfall ${input.maxShortfall} (level ${before} < logged ${quantity}) — stock likely not received yet`
+      )
+      continue
+    }
 
     running[log.inventory_item_id] = after
     decisions.push({
@@ -130,6 +199,7 @@ export function planConsumptionApplication(
       quantity,
       before,
       after,
+      ...(pieces != null ? { per_piece: perPiece, pieces } : {}),
       ...(shortfall > 0 ? { shortfall } : {}),
     })
   }
