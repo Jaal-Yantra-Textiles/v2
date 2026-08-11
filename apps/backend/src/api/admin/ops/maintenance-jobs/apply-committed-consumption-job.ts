@@ -247,8 +247,18 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       for (const d of applies) {
         finalByItem.set(d.inventory_item_id, d.after)
       }
+      // `inventory_item_id` + `location_id` are REQUIRED, not decoration:
+      // `updateInventoryLevels_` ignores `id` entirely and re-resolves the level
+      // from the item/location pair. Passing the level id alone made it look up
+      // `(undefined, undefined)` and die with `Item undefined is not stocked at
+      // location undefined` — which is what the first prod apply hit. The step's
+      // compensation reads the same two fields, so omitting them also left the
+      // rollback with nothing to restore. Matches how cancel-inventory-order and
+      // partner-complete-inventory-order already shape their updates.
       const updates = Array.from(finalByItem, ([itemId, stocked]) => ({
         id: levelIdByItem[itemId],
+        inventory_item_id: itemId,
+        location_id: brandLocationId,
         stocked_quantity: stocked,
       }))
       await updateInventoryLevelsWorkflow(container as any).run({
