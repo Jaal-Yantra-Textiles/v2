@@ -1,3 +1,15 @@
+# [13.83.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.82.1...v13.83.0) (2026-08-11)
+
+
+### Bug Fixes
+
+* **admin-assistant:** stop the transport dropping every message ([#1238](https://github.com/Jaal-Yantra-Textiles/v2/issues/1238)) ([230f541](https://github.com/Jaal-Yantra-Textiles/v2/commit/230f541fa6ea8bf9dc489792c6d37069ec87c5eb)), closes [#1242](https://github.com/Jaal-Yantra-Textiles/v2/issues/1242)
+
+
+### Features
+
+* **consumption:** apply committed consumption to our own stock ([#1250](https://github.com/Jaal-Yantra-Textiles/v2/issues/1250)) ([6200bcc](https://github.com/Jaal-Yantra-Textiles/v2/commit/6200bcc3fcd0d206ebf351bbccd3803a72e2de8f))
+
 ## [13.82.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.82.0...v13.82.1) (2026-08-10)
 
 
