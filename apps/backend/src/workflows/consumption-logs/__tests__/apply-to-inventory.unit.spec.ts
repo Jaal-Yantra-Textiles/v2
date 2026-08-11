@@ -180,3 +180,91 @@ describe("maxShortfall guard", () => {
     expect(decisions[1]).toMatchObject({ action: "apply", before: 10, after: 8 })
   })
 })
+
+describe("per-piece resolution", () => {
+  const log = (id: string, item: string, quantity: number) => ({
+    id,
+    design_id: "d1",
+    inventory_item_id: item,
+    quantity,
+    is_committed: true,
+    location_id: null,
+    metadata: null,
+  })
+
+  it("multiplies the logged rate by finished pieces", () => {
+    // Denim Trouser: 2.15 m/piece against 2 finished pieces = 4.3 m, not 2.15.
+    const [d] = planConsumptionApplication({
+      brandLocationId: "sloc_brand",
+      logs: [log("l1", "item_a", 2.15)],
+      brandLevels: { item_a: 17.6 },
+      piecesByLog: { l1: 2 },
+    })
+    expect(d).toMatchObject({
+      action: "apply",
+      per_piece: 2.15,
+      pieces: 2,
+      quantity: 4.3,
+      before: 17.6,
+      after: 13.3,
+    })
+  })
+
+  it("skips when the piece count is unknown rather than deducting face value", () => {
+    // Partner-held designs have no completed runs; deducting 2.5 verbatim would
+    // be a guess, and stamping it would make the guess permanent.
+    const [d] = planConsumptionApplication({
+      brandLocationId: "sloc_brand",
+      logs: [log("l1", "item_a", 2.5)],
+      brandLevels: { item_a: 10 },
+      piecesByLog: { l1: 0 },
+    })
+    expect(d.action).toBe("skip")
+    expect((d as any).reason).toMatch(/piece count unknown/)
+  })
+
+  it("skips a log missing from the map entirely", () => {
+    const [d] = planConsumptionApplication({
+      brandLocationId: "sloc_brand",
+      logs: [log("l1", "item_a", 2.5)],
+      brandLevels: { item_a: 10 },
+      piecesByLog: {},
+    })
+    expect(d.action).toBe("skip")
+  })
+
+  it("keeps 1:1 behaviour when no map is supplied", () => {
+    const [d] = planConsumptionApplication({
+      brandLocationId: "sloc_brand",
+      logs: [log("l1", "item_a", 2.15)],
+      brandLevels: { item_a: 17.6 },
+    })
+    expect(d).toMatchObject({ action: "apply", quantity: 2.15, after: 15.45 })
+    expect((d as any).pieces).toBeUndefined()
+  })
+
+  it("draws the running balance down by the RESOLVED total", () => {
+    const decisions = planConsumptionApplication({
+      brandLocationId: "sloc_brand",
+      logs: [log("l1", "item_a", 2), log("l2", "item_a", 1)],
+      brandLevels: { item_a: 20 },
+      piecesByLog: { l1: 3, l2: 4 },
+    })
+    // 2×3 = 6 → 14, then 1×4 = 4 → 10
+    expect(decisions[0]).toMatchObject({ quantity: 6, after: 14 })
+    expect(decisions[1]).toMatchObject({ quantity: 4, before: 14, after: 10 })
+  })
+
+  it("applies max_shortfall against the RESOLVED total, not the logged rate", () => {
+    // 2.15 alone fits inside 3, but 2.15 × 2 does not — the guard must see 4.3.
+    const [d] = planConsumptionApplication({
+      brandLocationId: "sloc_brand",
+      logs: [log("l1", "item_a", 2.15)],
+      brandLevels: { item_a: 3 },
+      piecesByLog: { l1: 2 },
+      maxShortfall: 0,
+    })
+    expect(d.action).toBe("skip")
+    expect((d as any).reason).toMatch(/shortfall 1.3 exceeds/)
+  })
+})

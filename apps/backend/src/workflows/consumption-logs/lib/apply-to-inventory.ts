@@ -21,6 +21,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 export type ConsumptionApplyLog = {
   id: string
   design_id: string | null
+  production_run_id?: string | null
   inventory_item_id: string | null
   quantity: number | string | null
   is_committed: boolean
@@ -51,6 +52,19 @@ export type ConsumptionApplyPlanInput = {
    * behaviour of applying regardless.
    */
   maxShortfall?: number
+  /**
+   * Finished pieces the log's quantity should be multiplied by, keyed by log id.
+   *
+   * A logged quantity is PER PIECE: a partner reporting 2.15 m against a run of
+   * 2 consumed 4.3 m. The column is read as a total everywhere else (cost is
+   * `quantity × unit_cost`), so the multiplication belongs here, at the point
+   * stock actually moves, and is reported explicitly on every decision.
+   *
+   * A log absent from this map, or mapped to 0, CANNOT be resolved — the piece
+   * count is unknown — and is skipped rather than deducted at face value.
+   * Omitting the map entirely keeps the old 1:1 behaviour.
+   */
+  piecesByLog?: Record<string, number>
 }
 
 export type ConsumptionApplyDecision =
@@ -58,9 +72,14 @@ export type ConsumptionApplyDecision =
       action: "apply"
       log_id: string
       inventory_item_id: string
+      /** The RESOLVED total actually deducted (per_piece × pieces when known). */
       quantity: number
       before: number
       after: number
+      /** The figure as logged, when it was resolved as a per-piece rate. */
+      per_piece?: number
+      /** Finished pieces the per-piece figure was multiplied by. */
+      pieces?: number
       /** Set when the log wanted more than the level held. */
       shortfall?: number
     }
@@ -125,10 +144,24 @@ export function planConsumptionApplication(
       continue
     }
 
-    const quantity = Number(log.quantity ?? 0)
-    if (!Number.isFinite(quantity) || quantity <= 0) {
+    const perPiece = Number(log.quantity ?? 0)
+    if (!Number.isFinite(perPiece) || perPiece <= 0) {
       skip(`non-positive quantity (${log.quantity})`)
       continue
+    }
+
+    // Resolve the per-piece figure to the run's actual material draw.
+    let quantity = perPiece
+    let pieces: number | undefined
+    if (input.piecesByLog) {
+      pieces = input.piecesByLog[log.id]
+      if (!pieces || pieces <= 0) {
+        skip(
+          "piece count unknown (no completed production run for this design) — cannot resolve a per-piece quantity"
+        )
+        continue
+      }
+      quantity = round(perPiece * pieces)
     }
 
     const before = running[log.inventory_item_id]
@@ -150,6 +183,7 @@ export function planConsumptionApplication(
       quantity,
       before,
       after,
+      ...(pieces != null ? { per_piece: perPiece, pieces } : {}),
       ...(shortfall > 0 ? { shortfall } : {}),
     })
   }

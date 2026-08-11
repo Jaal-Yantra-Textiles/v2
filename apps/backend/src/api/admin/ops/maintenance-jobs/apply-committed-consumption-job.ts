@@ -8,6 +8,11 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { updateInventoryLevelsWorkflow } from "@medusajs/medusa/core-flows"
 
 import { CONSUMPTION_LOG_MODULE } from "../../../../modules/consumption_log"
+import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
+import {
+  isProvenanceRun,
+  leafRuns,
+} from "../../../../workflows/consumption-logs/lib/reconcile-production-consumption"
 import { DESIGN_MODULE } from "../../../../modules/designs"
 import {
   APPLIED_AT_KEY,
@@ -41,6 +46,11 @@ const paramsSchema = z.object({
   limit: z.number().int().positive().optional(),
   /** Skip (don't stamp) any log whose shortfall would exceed this. */
   max_shortfall: z.number().nonnegative().optional(),
+  /**
+   * Treat each log's quantity as a PER-PIECE rate and multiply by the finished
+   * pieces of the design's real production runs. Default true.
+   */
+  per_piece: z.boolean().optional(),
 })
 
 export const applyCommittedConsumptionJob: MaintenanceJob = {
@@ -81,6 +91,13 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       description:
         "Refuse any deduction short by more than this — the log is skipped, not stamped. Use 0 to apply only logs fully covered by stock on hand.",
     },
+    {
+      name: "per_piece",
+      type: "boolean",
+      required: false,
+      description:
+        "Treat the logged quantity as PER PIECE and multiply by the design's completed production (default true). Set false to deduct the figure verbatim.",
+    },
   ],
   run: async (container, { dry_run, params }): Promise<MaintenanceJobResult> => {
     const parsed = paramsSchema.safeParse(params)
@@ -92,6 +109,7 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
     }
     const { design_id, design_ids, location_id, limit, max_shortfall } =
       parsed.data
+    const perPiece = parsed.data.per_piece !== false
 
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const consumptionService: any = container.resolve(CONSUMPTION_LOG_MODULE)
@@ -117,6 +135,7 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
     const logs: ConsumptionApplyLog[] = ((rawLogs || []) as any[]).map((l) => ({
       id: l.id,
       design_id: l.design_id ?? null,
+      production_run_id: l.production_run_id ?? null,
       inventory_item_id: l.inventory_item_id ?? null,
       quantity: l.quantity ?? null,
       is_committed: Boolean(l.is_committed),
@@ -146,11 +165,50 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       }
     }
 
+    // A logged quantity is a PER-PIECE rate, so it has to be multiplied by what
+    // the design actually finished. Pieces come from the log's own run when it
+    // has one, else from the design's completed leaf runs — with provenance runs
+    // excluded, since those shipped from stock and consumed nothing.
+    let piecesByLog: Record<string, number> | undefined
+    if (perPiece) {
+      const runService: any = container.resolve(PRODUCTION_RUNS_MODULE)
+      const designIds = Array.from(
+        new Set(considered.map((l) => l.design_id).filter(Boolean))
+      ) as string[]
+      const [rawRuns] = designIds.length
+        ? await runService.listAndCountProductionRuns(
+            { design_id: designIds },
+            { take: null }
+          )
+        : [[]]
+      const completed = leafRuns((rawRuns || []) as any[]).filter(
+        (r: any) => r.status === "completed" && !isProvenanceRun(r)
+      )
+      const byDesign: Record<string, number> = {}
+      const byRun: Record<string, number> = {}
+      for (const r of completed as any[]) {
+        const q = Number(r.produced_quantity ?? r.quantity ?? 0) || 0
+        byRun[r.id] = q
+        if (r.design_id) {
+          byDesign[r.design_id] = (byDesign[r.design_id] ?? 0) + q
+        }
+      }
+      piecesByLog = {}
+      for (const l of considered) {
+        const runPieces = l.production_run_id
+          ? byRun[l.production_run_id]
+          : undefined
+        piecesByLog[l.id] =
+          runPieces ?? (l.design_id ? byDesign[l.design_id] ?? 0 : 0)
+      }
+    }
+
     const decisions = planConsumptionApplication({
       brandLocationId,
       logs: considered,
       brandLevels,
       maxShortfall: max_shortfall,
+      piecesByLog,
     })
     const applies = decisions.filter((d) => d.action === "apply") as Extract<
       (typeof decisions)[number],
@@ -160,7 +218,9 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
     const changes: MaintenanceChange[] = applies.map((d) => ({
       entity: "inventory_level",
       id: `${d.inventory_item_id}@${brandLocationId}`,
-      field: `stocked_quantity (log ${d.log_id})`,
+      field: `stocked_quantity (log ${d.log_id}${
+        d.pieces != null ? `, ${d.per_piece}/pc × ${d.pieces} pcs` : ""
+      })`,
       before: d.before,
       after: d.after,
     }))
