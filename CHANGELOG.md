@@ -1,3 +1,10 @@
+# [13.85.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.84.0...v13.85.0) (2026-08-11)
+
+
+### Features
+
+* **consumption:** deduct from where the material is, gated on locations we own ([#1255](https://github.com/Jaal-Yantra-Textiles/v2/issues/1255)) ([8b47491](https://github.com/Jaal-Yantra-Textiles/v2/commit/8b47491e998db933f55c511f7cc6cf0285e16330))
+
 # [13.84.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.83.1...v13.84.0) (2026-08-11)
 
 
