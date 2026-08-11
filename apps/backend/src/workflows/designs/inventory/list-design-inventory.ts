@@ -2,13 +2,23 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
 import DesignInventoryLink from "../../../links/design-inventory-link"
 
-const sanitizeBigInt = (value: any): any => {
+export const sanitizeBigInt = (value: any): any => {
   if (typeof value === "bigint") {
     return Number(value)
   }
 
   if (Array.isArray(value)) {
     return value.map((item) => sanitizeBigInt(item))
+  }
+
+  // A Date has no own enumerable properties, so the generic object branch below
+  // would rebuild it as `{}` — destroying every timestamp on the wire
+  // (`consumed_at`, `created_at`, `updated_at`). That went unnoticed for as long
+  // as `consumed_at` was always null; the moment the apply-consumption job gave
+  // it a real value, the admin drawer tried to render `{}` as a React child and
+  // threw. Hand it back untouched so it serializes as an ISO string.
+  if (value instanceof Date) {
+    return value
   }
 
   if (value && typeof value === "object") {
