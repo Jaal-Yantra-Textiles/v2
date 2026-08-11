@@ -351,3 +351,21 @@ describe("rewind-production-run — registry wiring", () => {
     expect(required).toEqual(["production_run_id"])
   })
 })
+
+describe("rewind-production-run — honest about what it does not do", () => {
+  it("says the unified order is not re-mirrored", async () => {
+    const { container } = makeContainer({ run: completedRun() })
+
+    const result = await rewindProductionRunJob.run(container, {
+      dry_run: true,
+      params: { production_run_id: "prod_run_1" },
+    } as any)
+
+    expect(result.summary).toMatch(/unified order.*NOT re-mirrored/)
+  })
+
+  it("does not claim in its description to do either of them", () => {
+    expect(rewindProductionRunJob.description).toMatch(/NOT reverse finished goods/)
+    expect(rewindProductionRunJob.description).toMatch(/NOT re-mirror the unified order/)
+  })
+})

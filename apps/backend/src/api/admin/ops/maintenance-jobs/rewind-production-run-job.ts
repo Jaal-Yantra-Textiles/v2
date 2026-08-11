@@ -131,7 +131,7 @@ export const rewindProductionRunJob: MaintenanceJob = {
   id: "rewind-production-run",
   label: "Rewind a prematurely completed production run",
   description:
-    "Put a run that was marked complete without its data back where the partner can finish it properly — clears the completion stamps and output, reopens the tasks completion force-closed, and re-mirrors the unified order. Refuses when completion left consumption logs a re-completion would duplicate, unless forced. Does NOT reverse finished goods already stocked; those are reported so you can decide. Dry-run previews every field.",
+    "Put a run that was marked complete without its data back where the partner can finish it properly — clears the completion stamps and output, reopens the tasks completion force-closed, and optionally rewinds the parent that completed by cascade. Refuses when completion left consumption logs a re-completion would duplicate, unless forced. Does NOT reverse finished goods already stocked, and does NOT re-mirror the unified order — both are reported so you can decide. Dry-run previews every field.",
   params: [
     {
       name: "production_run_id",
@@ -337,6 +337,13 @@ export const rewindProductionRunJob: MaintenanceJob = {
     // rather than let a silent double-count arrive at the next completion.
     notes.push(
       "finished goods stocked at completion are NOT reversed — check the partner location's levels before the run is completed again"
+    )
+    // The unified-order mirror is driven by the completion workflow's own step,
+    // which this job deliberately does not re-enter (it would re-fire the
+    // completion event). Prod already shows the two drifting apart, so say it
+    // rather than let the operator assume the order followed.
+    notes.push(
+      "the unified order's partner_status is NOT re-mirrored — verify it separately"
     )
 
     const summary = [
