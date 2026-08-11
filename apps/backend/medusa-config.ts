@@ -531,6 +531,9 @@ module.exports = defineConfig({
     resolve: "./src/modules/ops_audit",
   },
   {
+    resolve: "./src/modules/location_ownership",
+  },
+  {
     resolve: "./src/modules/marketing",
   },
   {

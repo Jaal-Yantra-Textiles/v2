@@ -23,7 +23,12 @@ import DesignInventoryLink from "../../../links/design-inventory-link"
 type InventoryLinkPayload = {
   inventory_id: string
   planned_quantity?: number
-  location_id?: string
+  /**
+   * Nullable: the link UI captures where a material is stocked and sends an
+   * explicit null when that is not unambiguous, rather than guessing which
+   * location consumption should later be deducted from.
+   */
+  location_id?: string | null
   metadata?: Record<string, any>
 }
 

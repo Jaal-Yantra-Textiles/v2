@@ -568,7 +568,12 @@ export const useApproveDesign = (
 export interface PlannedInventoryItemPayload {
   inventoryId: string;
   plannedQuantity?: number;
-  locationId?: string;
+  /**
+   * Nullable: the link UI sends an explicit null when a material is stocked
+   * nowhere, or in more than one place, rather than guessing which location
+   * consumption should later be deducted from.
+   */
+  locationId?: string | null;
   metadata?: Record<string, any>;
 }
 

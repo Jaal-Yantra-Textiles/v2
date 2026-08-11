@@ -25,9 +25,45 @@ interface SelectedRowConfig {
   inventoryId: string
   title?: string
   sku?: string
+  /** Where this material is stocked, captured at link time. */
+  locationId?: string
+  locationName?: string
 }
 
 const getRowId = (row: InventoryItem) => String(row.inventory_item_id || row.id)
+
+/**
+ * Where this material is stocked, if that is unambiguous.
+ *
+ * Mirrors `resolveLocationsFromLevels` on the server: only levels holding stock
+ * count, and exactly one of them means the material lives there. Capturing it
+ * as the link is made is the point — the field exists and the API has always
+ * accepted it, but nothing ever asked, so every link on prod carries null and
+ * consumption had to fall back to a single inferred default.
+ *
+ * A default, not a decision: the drawer can change it, and the server still
+ * refuses to deduct from a location we do not own.
+ */
+const resolveDefaultLocation = (
+  item: InventoryItem
+): { locationId?: string; locationName?: string } => {
+  const levels = ((item as any).location_levels ?? []) as any[]
+  const stocked = levels.filter((l) => Number(l?.stocked_quantity ?? 0) > 0)
+
+  if (stocked.length !== 1) {
+    return {}
+  }
+
+  const level = stocked[0]
+  const location = Array.isArray(level.stock_locations)
+    ? level.stock_locations[0]
+    : level.stock_locations
+
+  return {
+    locationId: level.location_id,
+    locationName: location?.name,
+  }
+}
 
 const createSelectionConfig = (item: InventoryItem): SelectedRowConfig => {
   const rowId = getRowId(item)
@@ -35,6 +71,7 @@ const createSelectionConfig = (item: InventoryItem): SelectedRowConfig => {
     inventoryId: rowId,
     title: item.inventory_item?.title || item.title,
     sku: item.inventory_item?.sku || item.sku,
+    ...resolveDefaultLocation(item),
   }
 }
 
@@ -265,14 +302,23 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
     const inventoryItemsPayload = selectedRowEntries.map(([, cfg]) => ({
       inventoryId: cfg.inventoryId,
       plannedQuantity: 1,
+      // Null when the material is stocked nowhere, or in more than one place —
+      // better an empty field the drawer can fill than a guess that silently
+      // decides where consumption gets deducted from.
+      locationId: cfg.locationId ?? null,
     }))
+
+    const placed = selectedRowEntries.filter(([, cfg]) => cfg.locationId).length
 
     linkInventory.mutate(
       { inventoryItems: inventoryItemsPayload },
       {
         onSuccess: () => {
           toast.success("Inventory items linked", {
-            description: "Manage planned usage from the design inventory drawer.",
+            description:
+              placed === selectedCount
+                ? `Stock location captured for ${placed === 1 ? "it" : "all " + placed}. Change it from the design inventory drawer.`
+                : `Stock location captured for ${placed} of ${selectedCount} — set the rest from the design inventory drawer.`,
             action: {
               label: "Go to design",
               altText: "Navigate to design detail page",
