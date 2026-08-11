@@ -1,3 +1,11 @@
+# [13.86.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.85.0...v13.86.0) (2026-08-11)
+
+
+### Features
+
+* **ops:** bring negative stock levels back to zero ([#1257](https://github.com/Jaal-Yantra-Textiles/v2/issues/1257)) ([77c7f47](https://github.com/Jaal-Yantra-Textiles/v2/commit/77c7f473631ca3bad3f208cb1b00f7a13b9f05b3)), closes [#1251](https://github.com/Jaal-Yantra-Textiles/v2/issues/1251)
+* **assistant:** re-send a partner's parked production runs back to them ([#1256](https://github.com/Jaal-Yantra-Textiles/v2/issues/1256)) ([d04ff10](https://github.com/Jaal-Yantra-Textiles/v2/commit/d04ff105a330ac44e9efe26c2ee2c297d4de6a36))
+
 # [13.85.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.84.0...v13.85.0) (2026-08-11)
 
 
