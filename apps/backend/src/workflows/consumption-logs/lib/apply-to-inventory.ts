@@ -1,6 +1,8 @@
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import type { MedusaContainer } from "@medusajs/framework/types"
 
+import { LOCATION_OWNERSHIP_MODULE } from "../../../modules/location_ownership"
+
 /**
  * Turning committed consumption into an inventory movement — the shared rule.
  *
@@ -59,6 +61,13 @@ export type ConsumptionApplyPlanInput = {
    * location share it — and the same item at two locations does not.
    */
   levelsAtLocation?: Record<string, number>
+  /**
+   * The locations we own. A log resolving anywhere else is skipped outright —
+   * this is the ownership boundary stated as a rule instead of emerging from
+   * "the item happens to have no level at the one brand location". Omit to
+   * skip the check (callers that have already constrained the locations).
+   */
+  coreLocationIds?: Set<string>
   /**
    * Refuse any deduction whose shortfall would exceed this, skipping the log
    * instead of applying it.
@@ -132,6 +141,66 @@ export const levelKey = (inventoryItemId: string, locationId: string): string =>
 const round = (n: number): number => Number(n.toFixed(6))
 
 /**
+ * PURE: where each material actually sits, from its own stock levels.
+ *
+ * This is the honest source of truth for a deduction. The design↔inventory
+ * link's "Preferred location" is an override an operator has to remember to
+ * set, and in practice never is — all nine designs carrying an unsettled
+ * material log on prod have it null. The material itself always knows: a log
+ * against `5210-MUSLIN-100S` should come off Dharamshala because that is where
+ * the muslin is, not because anyone configured a design.
+ *
+ * Only levels holding stock count, and that single rule carries the ownership
+ * boundary that used to need the brand-store lookup:
+ *
+ *   - exactly one location holds stock → that is where it came from
+ *   - NO location holds stock → we do not have this material; partner-held, and
+ *     left unresolved so the caller's fallback skips it
+ *   - more than one → genuinely ambiguous, left unresolved rather than guessed
+ *
+ * Denim Trouser is the case that proves the first rule earns its keep: it has
+ * levels at two locations, and only Dharamshala holds any (Shramdaan is 0), so
+ * it resolves without a tiebreak.
+ */
+export function resolveLocationsFromLevels(
+  levels: Array<{
+    inventory_item_id: string
+    location_id: string
+    stocked_quantity: number | string | null
+  }>,
+  /**
+   * The locations we own. Levels anywhere else are ignored outright — a
+   * material sitting in a partner's warehouse must never resolve as the place
+   * to deduct from, however unambiguously it sits there. Omit to consider every
+   * location (callers that have already filtered).
+   */
+  coreLocationIds?: Set<string>
+): Record<string, string> {
+  const stockedByItem = new Map<string, string[]>()
+  for (const lv of levels) {
+    if (!lv?.inventory_item_id || !lv.location_id) {
+      continue
+    }
+    if (coreLocationIds && !coreLocationIds.has(lv.location_id)) {
+      continue
+    }
+    if (Number(lv.stocked_quantity ?? 0) > 0) {
+      const list = stockedByItem.get(lv.inventory_item_id) ?? []
+      list.push(lv.location_id)
+      stockedByItem.set(lv.inventory_item_id, list)
+    }
+  }
+
+  const out: Record<string, string> = {}
+  for (const [itemId, locations] of stockedByItem) {
+    if (locations.length === 1) {
+      out[itemId] = locations[0]
+    }
+  }
+  return out
+}
+
+/**
  * PURE: decide what each log does. Exported for unit tests.
  *
  * Logs are processed in id order and the level is carried forward between them,
@@ -177,10 +246,16 @@ export function planConsumptionApplication(
       skip("no inventory_item_id (labour/energy log)")
       continue
     }
-    // Where this log draws from: the design↔inventory link's location when it
-    // has one, else the brand default.
+    // Where this log draws from: whatever the caller resolved for it, else the
+    // brand default. Empty means nothing could place it at all.
     const locationId =
-      input.locationByLog?.[log.id] ?? input.brandLocationId
+      input.locationByLog?.[log.id] || input.brandLocationId
+    if (!locationId) {
+      skip(
+        "no location could be resolved — the material is stocked at none of our locations, and no brand default was determinable"
+      )
+      continue
+    }
 
     // A log carrying its own location is taken at its word, and a log recorded
     // somewhere other than where this design draws from is NOT ours to deduct.
@@ -190,6 +265,12 @@ export function planConsumptionApplication(
       skip(
         `logged at ${log.location_id}, which is not where this design draws stock from (${locationId})`
       )
+      continue
+    }
+    // The ownership rule, stated outright: material drawn from a location we
+    // do not own is not ours to move, whatever its stock says.
+    if (input.coreLocationIds && !input.coreLocationIds.has(locationId)) {
+      skip(`${locationId} is not one of our locations (partner-held)`)
       continue
     }
     const key = levelKey(log.inventory_item_id, locationId)
@@ -254,6 +335,41 @@ export function planConsumptionApplication(
   }
 
   return decisions
+}
+
+/**
+ * The locations we own, and may deduct consumption from.
+ *
+ * Read from `location_ownership` rather than inferred: ownership decides
+ * whether stock moves at all, and the old inference (the one store no partner
+ * links to, then its default location) cannot express several warehouses and
+ * breaks on an orphan store.
+ *
+ * PRE-SEED FALLBACK: with no rows recorded yet, an empty set would make every
+ * location non-core and quietly turn the job into a no-op that reports nothing
+ * wrong. So an empty table falls back to the previously-inferred brand default
+ * — exactly the old behaviour — and the caller says so in its summary. Once a
+ * single row exists the table is authoritative and no inference happens.
+ */
+export async function resolveCoreLocationIds(
+  container: MedusaContainer
+): Promise<{ coreLocationIds: Set<string>; seeded: boolean }> {
+  const service: any = container.resolve(LOCATION_OWNERSHIP_MODULE)
+  const rows = await service.listLocationOwnerships({}, { take: null })
+
+  if (!rows?.length) {
+    const brandLocationId = await resolveBrandLocationId(container)
+    return { coreLocationIds: new Set([brandLocationId]), seeded: false }
+  }
+
+  return {
+    coreLocationIds: new Set(
+      (rows as any[])
+        .filter((r) => r.is_core && r.stock_location_id)
+        .map((r) => r.stock_location_id as string)
+    ),
+    seeded: true,
+  }
 }
 
 /**

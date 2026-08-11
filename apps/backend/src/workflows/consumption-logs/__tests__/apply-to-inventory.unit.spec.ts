@@ -1,6 +1,7 @@
 import {
   APPLIED_AT_KEY,
   planConsumptionApplication,
+  resolveLocationsFromLevels,
   type ConsumptionApplyLog,
 } from "../lib/apply-to-inventory"
 
@@ -119,6 +120,106 @@ describe("planConsumptionApplication", () => {
 })
 
 /**
+ * Where a material sits is what decides the deduction. Cases are the real prod
+ * shapes from the nine unsettled material logs.
+ */
+describe("resolveLocationsFromLevels", () => {
+  const level = (item: string, loc: string, qty: number | string | null) => ({
+    inventory_item_id: item,
+    location_id: loc,
+    stocked_quantity: qty,
+  })
+
+  it("places a material stocked in exactly one location", () => {
+    // 5210-MUSLIN-100S: stocked only at Dharamshala.
+    expect(
+      resolveLocationsFromLevels([level("iitem_muslin", "sloc_dharamshala", 23)])
+    ).toEqual({ iitem_muslin: "sloc_dharamshala" })
+  })
+
+  it("ignores a zero level, so two levels still resolve to one place", () => {
+    // Denim Trouser's FAB-HAN-IND-001: Dharamshala 17.6, Shramdaan 0.
+    expect(
+      resolveLocationsFromLevels([
+        level("iitem_denim", "sloc_dharamshala", 17.6),
+        level("iitem_denim", "sloc_shramdaan", 0),
+      ])
+    ).toEqual({ iitem_denim: "sloc_dharamshala" })
+  })
+
+  it("leaves a material stocked nowhere unresolved (partner-held)", () => {
+    // Six prod logs look exactly like this — the ownership boundary, for free.
+    expect(
+      resolveLocationsFromLevels([level("iitem_partner", "sloc_partner", 0)])
+    ).toEqual({})
+  })
+
+  it("treats a negative level as no stock", () => {
+    // Dark Desires Dress sits at -2.5.
+    expect(
+      resolveLocationsFromLevels([level("iitem_neg", "sloc_partner", -2.5)])
+    ).toEqual({})
+  })
+
+  it("refuses to guess when two locations both hold stock", () => {
+    expect(
+      resolveLocationsFromLevels([
+        level("iitem_x", "sloc_a", 5),
+        level("iitem_x", "sloc_b", 5),
+      ])
+    ).toEqual({})
+  })
+
+  it("ignores stock sitting at a location we do not own", () => {
+    // The hazard core-gating exists to close: a partner warehouse holding real
+    // stock would otherwise resolve as the place to deduct from.
+    expect(
+      resolveLocationsFromLevels(
+        [level("iitem_x", "sloc_partner", 40)],
+        new Set(["sloc_dharamshala"])
+      )
+    ).toEqual({})
+  })
+
+  it("resolves against our locations only, ignoring a partner's stock", () => {
+    expect(
+      resolveLocationsFromLevels(
+        [
+          level("iitem_x", "sloc_dharamshala", 12),
+          level("iitem_x", "sloc_partner", 40),
+        ],
+        new Set(["sloc_dharamshala"])
+      )
+    ).toEqual({ iitem_x: "sloc_dharamshala" })
+  })
+
+  it("resolves each material independently", () => {
+    expect(
+      resolveLocationsFromLevels([
+        level("iitem_a", "sloc_dharamshala", 35.6),
+        level("iitem_b", "sloc_partner", 0),
+        level("iitem_c", "sloc_kashmir", 3),
+      ])
+    ).toEqual({ iitem_a: "sloc_dharamshala", iitem_c: "sloc_kashmir" })
+  })
+
+  it("handles string quantities without treating them as text", () => {
+    expect(
+      resolveLocationsFromLevels([level("iitem_s", "sloc_a", "17.6")])
+    ).toEqual({ iitem_s: "sloc_a" })
+  })
+
+  it("ignores malformed rows rather than throwing", () => {
+    expect(
+      resolveLocationsFromLevels([
+        { inventory_item_id: "", location_id: "sloc_a", stocked_quantity: 5 },
+        level("iitem_ok", "sloc_a", 5),
+      ] as any)
+    ).toEqual({ iitem_ok: "sloc_a" })
+  })
+})
+
+/**
  * The design↔inventory link's "Preferred location" is rendered next to
  * planned/consumed in the admin drawer, implying it decides where the material
  * comes from — while nothing read it and every deduction went to the single
@@ -205,6 +306,45 @@ describe("per-design Preferred location", () => {
     })
 
     expect(d.action).toBe("skip")
+  })
+
+  it("refuses a log resolved to a location we do not own", () => {
+    const [d] = planConsumptionApplication({
+      brandLocationId: BRAND,
+      logs: [log("l1")],
+      brandLevels: {},
+      locationByLog: { l1: "sloc_partner" },
+      levelsAtLocation: { "item_a@sloc_partner": 40 },
+      coreLocationIds: new Set([BRAND]),
+    })
+
+    expect(d.action).toBe("skip")
+    expect((d as any).reason).toMatch(/not one of our locations/)
+  })
+
+  it("allows any of several locations we own", () => {
+    const decisions = planConsumptionApplication({
+      brandLocationId: BRAND,
+      logs: [log("l1"), log("l2")],
+      brandLevels: { item_a: 10 },
+      locationByLog: { l2: OTHER },
+      levelsAtLocation: { [`item_a@${OTHER}`]: 5 },
+      coreLocationIds: new Set([BRAND, OTHER]),
+    })
+
+    expect(decisions[0]).toMatchObject({ action: "apply", location_id: BRAND })
+    expect(decisions[1]).toMatchObject({ action: "apply", location_id: OTHER })
+  })
+
+  it("skips when nothing could place the log at all", () => {
+    const [d] = planConsumptionApplication({
+      brandLocationId: "",
+      logs: [log("l1")],
+      brandLevels: {},
+    })
+
+    expect(d.action).toBe("skip")
+    expect((d as any).reason).toMatch(/no location could be resolved/)
   })
 
   it("keeps one item's balance separate across two locations", () => {
