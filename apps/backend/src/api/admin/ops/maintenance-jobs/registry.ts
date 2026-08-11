@@ -93,6 +93,7 @@ import { repairInventoryOrderRouteJob } from "./repair-inventory-order-route-job
 import { rewindProductionRunJob } from "./rewind-production-run-job"
 import { repairConsumptionLogJob } from "./repair-consumption-log-job"
 import { setLocationOwnershipJob } from "./set-location-ownership-job"
+import { resetNegativeInventoryLevelsJob } from "./reset-negative-inventory-levels-job"
 import { applyCommittedConsumptionJob } from "./apply-committed-consumption-job"
 import { reconcileConsumptionVsProductionJob } from "./reconcile-consumption-vs-production-job"
 import { backfillGoogleAdsHistoryJob } from "./backfill-google-ads-history-job"
@@ -5657,6 +5658,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   rewindProductionRunJob,
   repairConsumptionLogJob,
   setLocationOwnershipJob,
+  resetNegativeInventoryLevelsJob,
   applyCommittedConsumptionJob,
   reconcileConsumptionVsProductionJob,
   backfillGoogleAdsHistoryJob,
