@@ -3,7 +3,10 @@ import { z } from "@medusajs/framework/zod";
 const inventoryLinkItemSchema = z.object({
   inventoryId: z.string(),
   plannedQuantity: z.number().int().optional(),
-  locationId: z.string().optional(),
+  // Nullable, matching the PATCH schema: the link UI captures where a material
+  // is stocked and sends an explicit null when that is not unambiguous, which
+  // `.optional()` alone would reject.
+  locationId: z.string().nullable().optional(),
   metadata: z.record(z.string(), z.any()).optional(),
 })
 
