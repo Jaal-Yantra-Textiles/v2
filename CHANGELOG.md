@@ -1,3 +1,10 @@
+## [13.83.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.83.0...v13.83.1) (2026-08-11)
+
+
+### Bug Fixes
+
+* **production-runs:** stop counting stock sales as production, and ask what a consumption quantity measures ([#1248](https://github.com/Jaal-Yantra-Textiles/v2/issues/1248)) ([#1251](https://github.com/Jaal-Yantra-Textiles/v2/issues/1251)) ([f70fe23](https://github.com/Jaal-Yantra-Textiles/v2/commit/f70fe235bfe8cf8b150e9476160c025e580d1277)), closes [#891](https://github.com/Jaal-Yantra-Textiles/v2/issues/891) [#1228](https://github.com/Jaal-Yantra-Textiles/v2/issues/1228) [#1238](https://github.com/Jaal-Yantra-Textiles/v2/issues/1238)
+
 # [13.83.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.82.1...v13.83.0) (2026-08-11)
 
 
