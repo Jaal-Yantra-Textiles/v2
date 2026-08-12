@@ -39,6 +39,89 @@ const paramsSchema = z.object({
   max_magnitude: z.number().positive().optional(),
 })
 
+/** Read the value out of a `raw_<field>` jsonb, whatever shape it arrives in. */
+const rawValue = (raw: unknown): number | null => {
+  if (raw == null) {
+    return null
+  }
+  const v =
+    typeof raw === "object" && raw !== null && "value" in (raw as any)
+      ? (raw as any).value
+      : raw
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+/**
+ * PURE: levels whose two storage columns disagree. Exported for unit tests.
+ *
+ * `model.bigNumber()` persists a field TWICE — `<field> numeric` and
+ * `raw_<field> jsonb` — and on 2026-08-11 a single row was found where they had
+ * drifted apart: `FAB-TWO-BLU-001` read `0` through
+ * `/admin/inventory-items/:id/location-levels` and `-2.5` through the item's
+ * `location_levels` relation, which is what the admin UI renders.
+ *
+ * That divergence is worse than a wrong number, because it defeats the check
+ * that would catch a wrong number: the negative-level sweep reported "no
+ * negative levels across 194" while an operator was looking at -2.5 on screen.
+ * Whichever side a tool happens to read, it is confident and it is not
+ * necessarily right.
+ *
+ * ⚠️ This REPORTS ONLY and never picks a winner. Neither column is inherently
+ * authoritative — the numeric side is what most queries filter on, the raw side
+ * is what the UI shows — so choosing between them is a judgement about what
+ * really happened to the stock, which belongs to a human. Same reasoning as
+ * refusing to guess a null `quantity_basis` (#1248).
+ */
+export function findLevelValueDivergence(
+  levels: Array<{
+    id: string
+    inventory_item_id: string
+    location_id: string
+    stocked_quantity: number | string | null
+    raw_stocked_quantity?: unknown
+    sku?: string | null
+  }>
+): Array<{
+  level_id: string
+  inventory_item_id: string
+  location_id: string
+  sku?: string | null
+  numeric: number
+  raw: number
+}> {
+  const out: Array<{
+    level_id: string
+    inventory_item_id: string
+    location_id: string
+    sku?: string | null
+    numeric: number
+    raw: number
+  }> = []
+
+  for (const lv of levels ?? []) {
+    const raw = rawValue(lv?.raw_stocked_quantity)
+    if (raw == null) {
+      // Not every read path returns the raw column; absence is not disagreement.
+      continue
+    }
+    const numeric = Number(lv?.stocked_quantity ?? 0)
+    if (!Number.isFinite(numeric) || numeric === raw) {
+      continue
+    }
+    out.push({
+      level_id: lv.id,
+      inventory_item_id: lv.inventory_item_id,
+      location_id: lv.location_id,
+      sku: lv.sku ?? null,
+      numeric,
+      raw,
+    })
+  }
+
+  return out
+}
+
 /**
  * PURE: which levels to reset, and to what. Exported for unit tests.
  *
@@ -51,6 +134,7 @@ export function planNegativeLevelResets(
     inventory_item_id: string
     location_id: string
     stocked_quantity: number | string | null
+    raw_stocked_quantity?: unknown
     sku?: string | null
   }>,
   options: { maxMagnitude?: number } = {}
@@ -72,8 +156,20 @@ export function planNegativeLevelResets(
   }> = []
 
   for (const lv of levels ?? []) {
-    const before = Number(lv?.stocked_quantity ?? 0)
-    if (!Number.isFinite(before) || before >= 0) {
+    // BOTH columns, and the WORST of them. Reading one side is exactly how the
+    // first version of this job missed the live case: it saw `stocked_quantity`
+    // 0 and reported "no negative levels across 194" while the admin UI, which
+    // renders the raw side, showed -2.5. A level is bad if EITHER side is.
+    const numeric = Number(lv?.stocked_quantity ?? 0)
+    const raw = rawValue(lv?.raw_stocked_quantity)
+    const candidates = [numeric, raw].filter(
+      (n): n is number => n != null && Number.isFinite(n)
+    )
+    if (!candidates.length) {
+      continue
+    }
+    const before = Math.min(...candidates)
+    if (before >= 0) {
       continue
     }
     if (options.maxMagnitude != null && Math.abs(before) > options.maxMagnitude) {
@@ -96,7 +192,7 @@ export const resetNegativeInventoryLevelsJob: MaintenanceJob = {
   id: "reset-negative-inventory-levels",
   label: "Bring negative stock levels back to zero",
   description:
-    "Find inventory levels with a negative stocked quantity and reset them to 0. A negative level is never a real position — it is the residue of a movement recorded with no counterpart, and available_quantity inherits the sign, so allocation downstream reasons about a balance that cannot exist. Reports every level it would touch with its current value. ⚠️ If a negative is really an un-recorded receipt, record the receipt instead of zeroing it — read the dry-run first. Safe to re-run as a periodic check: with nothing negative it reports no changes.",
+    "Find inventory levels with a negative stocked quantity and reset them to 0, and report levels whose two stored values disagree. A negative level is never a real position — it is the residue of a movement recorded with no counterpart, and available_quantity inherits the sign, so allocation downstream reasons about a balance that cannot exist. Reads BOTH halves of the bigNumber pair (numeric and raw_), because reading one side is how a level showing -2.5 in the admin was reported clean. Divergence is reported, never auto-resolved — neither side is inherently authoritative. ⚠️ If a negative is really an un-recorded receipt, record the receipt instead of zeroing it — read the dry-run first. Safe to re-run as a periodic check.",
   params: [
     {
       name: "inventory_item_id",
@@ -139,13 +235,22 @@ export const resetNegativeInventoryLevelsJob: MaintenanceJob = {
 
     const { data: levels } = await query.graph({
       entity: "inventory_level",
-      fields: ["id", "inventory_item_id", "location_id", "stocked_quantity"],
+      fields: [
+        "id",
+        "inventory_item_id",
+        "location_id",
+        "stocked_quantity",
+        // The other half of the bigNumber pair. Without it this job reads one
+        // side of the row and is confidently wrong when they disagree.
+        "raw_stocked_quantity",
+      ],
       ...(Object.keys(filters).length ? { filters } : {}),
     })
 
     const resets = planNegativeLevelResets((levels || []) as any[], {
       maxMagnitude: parsed.data.max_magnitude,
     })
+    const divergent = findLevelValueDivergence((levels || []) as any[])
 
     const changes: MaintenanceChange[] = resets.map((r) => ({
       entity: "inventory_level",
@@ -172,11 +277,26 @@ export const resetNegativeInventoryLevelsJob: MaintenanceJob = {
       })
     }
 
-    const summary = resets.length
-      ? `${dry_run ? "Would reset" : "Reset"} ${resets.length} negative level(s) to 0: ${resets
-          .map((r) => `${r.inventory_item_id}@${r.location_id} was ${r.before}`)
-          .join(", ")}`
-      : `No negative stock levels found across ${(levels || []).length} level(s)`
+    const summary = [
+      resets.length
+        ? `${dry_run ? "Would reset" : "Reset"} ${resets.length} negative level(s) to 0: ${resets
+            .map((r) => `${r.inventory_item_id}@${r.location_id} was ${r.before}`)
+            .join(", ")}`
+        : `No negative stock levels found across ${(levels || []).length} level(s)`,
+      // Reported, never auto-resolved — see findLevelValueDivergence.
+      divergent.length
+        ? `⚠️ ${divergent.length} level(s) whose two stored values DISAGREE (the UI shows the raw one): ${divergent
+            .map(
+              (d) =>
+                `${d.inventory_item_id}@${d.location_id} numeric=${d.numeric} raw=${d.raw}`
+            )
+            .join(
+              ", "
+            )}. Not resolved automatically — decide which is true, then write it with POST /admin/inventory-items/:id/location-levels/:location_id, which rewrites both.`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(". ")
 
     return {
       job_id: resetNegativeInventoryLevelsJob.id,
