@@ -1,3 +1,12 @@
+## [13.87.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.87.2...v13.87.3) (2026-08-12)
+
+
+### Bug Fixes
+
+* **production:** let an approval say which templates it means, and stop a failed dispatch from erasing it ([#1268](https://github.com/Jaal-Yantra-Textiles/v2/issues/1268)) ([#1269](https://github.com/Jaal-Yantra-Textiles/v2/issues/1269)) ([de03cd6](https://github.com/Jaal-Yantra-Textiles/v2/commit/de03cd62c46c0126047e27a636e292fa1b936162)), closes [#1262](https://github.com/Jaal-Yantra-Textiles/v2/issues/1262) [#1265](https://github.com/Jaal-Yantra-Textiles/v2/issues/1265) [#1261](https://github.com/Jaal-Yantra-Textiles/v2/issues/1261) [#1261](https://github.com/Jaal-Yantra-Textiles/v2/issues/1261)
+* **production:** move the dispatch callers onto template ids, and close the test gap ([#1265](https://github.com/Jaal-Yantra-Textiles/v2/issues/1265)) ([#1267](https://github.com/Jaal-Yantra-Textiles/v2/issues/1267)) ([9829ee8](https://github.com/Jaal-Yantra-Textiles/v2/commit/9829ee83bd2f36926ae36eb0a49ee9fe91416b82)), closes [#1262](https://github.com/Jaal-Yantra-Textiles/v2/issues/1262) [#1262](https://github.com/Jaal-Yantra-Textiles/v2/issues/1262) [#1248](https://github.com/Jaal-Yantra-Textiles/v2/issues/1248)
+* **designs:** stop stripping the template selection for auto-populated assignments ([#1270](https://github.com/Jaal-Yantra-Textiles/v2/issues/1270)) ([2dd1b08](https://github.com/Jaal-Yantra-Textiles/v2/commit/2dd1b08eb51091dc84d65bbda750ca38d124a82d)), closes [#1261](https://github.com/Jaal-Yantra-Textiles/v2/issues/1261) [#1268](https://github.com/Jaal-Yantra-Textiles/v2/issues/1268)
+
 ## [13.87.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.87.1...v13.87.2) (2026-08-12)
 
 
