@@ -21,6 +21,7 @@ import { InformationCircleSolid, ExclamationCircle } from "@medusajs/icons"
 import { useState } from "react"
 import { Link } from "react-router-dom"
 
+import { planCompletionOutput } from "../../lib/completion-output"
 import { PartnerDesign } from "../../hooks/api/partner-designs"
 import {
   useAcceptPartnerProductionRun,
@@ -941,6 +942,14 @@ const CompleteRunForm = ({
   const [rejectedQty, setRejectedQty] = useState("")
   const [rejectionReason, setRejectionReason] = useState("")
   const [rejectionNotes, setRejectionNotes] = useState("")
+  /**
+   * #1271 — what happened to units that were neither made nor rejected.
+   * The backend allows a genuine shortfall, but only with `allow_shortfall`
+   * AND a written explanation; without a control for it the only way past the
+   * gate was to inflate `produced_quantity`, which is what the gate exists to
+   * prevent.
+   */
+  const [shortfallReason, setShortfallReason] = useState("")
 
   // ── Step 2: Cost ──
   const [costType, setCostType] = useState<"per_unit" | "total">("total")
@@ -977,6 +986,15 @@ const CompleteRunForm = ({
   const produced = parseFloat(producedQty) || 0
   const rejected = parseFloat(rejectedQty) || 0
   const yieldPct = runQuantity > 0 ? Math.round((produced / runQuantity) * 100) : 0
+  // Rejects are output too — output that failed. Anything left over is
+  // unaccounted for, and the completion gate refuses it unless it is declared.
+  const outputPlan = planCompletionOutput({
+    ordered: runQuantity,
+    produced,
+    rejected,
+    shortfallReason,
+  })
+  const unaccounted = outputPlan.unaccounted
   const costValue = parseFloat(partnerEstimate) || 0
   const totalCost = costType === "per_unit" ? Math.round(costValue * produced * 100) / 100 : costValue
   const perUnitCost = costType === "total" && produced > 0 ? Math.round(costValue / produced * 100) / 100 : costValue
@@ -1011,11 +1029,34 @@ const CompleteRunForm = ({
       body.cost_type = costType
     }
     if (validConsumptions.length > 0) body.consumptions = validConsumptions
-    if (completionNotes.trim()) body.notes = completionNotes.trim()
+
+    // The shortfall explanation rides in `notes` — that is the field the gate
+    // reads, and it keeps the reason with the completion rather than in a
+    // side channel nobody looks at.
+    const noteParts = [outputPlan.noteLine || "", completionNotes.trim()].filter(
+      Boolean
+    )
+
+    if (noteParts.length) body.notes = noteParts.join("\n")
+    if (outputPlan.allowShortfall) body.allow_shortfall = true
+
     return body
   }
 
   const handleSubmit = async () => {
+    // Mirror the backend gate so the partner gets a control, not a 400 telling
+    // them to do something the form could not express (#1271).
+    if (outputPlan.needsReason) {
+      toast.error(
+        `${unaccounted} piece${unaccounted !== 1 ? "s" : ""} unaccounted for`,
+        {
+          description:
+            "Say what happened to them — record them as rejected, or write the reason in the shortfall box. Don't raise the produced count to cover them.",
+        }
+      )
+      return
+    }
+
     const body = buildBody()
 
     // Warn if no cost data
@@ -1084,14 +1125,7 @@ const CompleteRunForm = ({
               max={runQuantity}
               step="1"
               value={producedQty}
-              onChange={(e) => {
-                setProducedQty(e.target.value)
-                // Auto-calculate rejected
-                const p = parseFloat(e.target.value) || 0
-                const r = runQuantity - p
-                if (r > 0) setRejectedQty(String(r))
-                else setRejectedQty("")
-              }}
+              onChange={(e) => setProducedQty(e.target.value)}
             />
           </div>
           <div>
@@ -1117,7 +1151,46 @@ const CompleteRunForm = ({
             <Text size="xsmall" className="text-ui-fg-muted">
               {produced} of {runQuantity} pieces
               {rejected > 0 ? ` · ${rejected} rejected` : ""}
+              {unaccounted > 0 ? ` · ${unaccounted} unaccounted for` : ""}
             </Text>
+          </div>
+        )}
+
+        {/*
+          #1271 — the missing units. The form used to fill the rejected field
+          with the remainder automatically, which recorded units that were
+          never made as units that FAILED, and left a partner whose shortfall
+          was something else (fabric ran out, order cut short) with no way
+          through the completion gate except inflating the produced count.
+        */}
+        {unaccounted > 0 && (
+          <div className="mt-3 pt-3 border-t border-ui-border-base">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <Text size="xsmall" weight="plus" className="text-ui-tag-orange-text">
+                {unaccounted} piece{unaccounted !== 1 ? "s" : ""} not accounted for
+              </Text>
+              <Button
+                type="button"
+                size="small"
+                variant="secondary"
+                onClick={() => {
+                  setRejectedQty(String(rejected + unaccounted))
+                  setShortfallReason("")
+                }}
+              >
+                They were rejected
+              </Button>
+            </div>
+            <Text size="xsmall" className="text-ui-fg-subtle mb-1">
+              If they failed quality, record them as rejected. Otherwise say what
+              happened — a recorded shortfall is fine, a wrong produced count is not.
+            </Text>
+            <Textarea
+              rows={2}
+              placeholder="e.g. fabric ran out after 8 pieces — remaining 2 not cut"
+              value={shortfallReason}
+              onChange={(e) => setShortfallReason(e.target.value)}
+            />
           </div>
         )}
 
