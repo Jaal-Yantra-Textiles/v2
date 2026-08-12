@@ -10,7 +10,7 @@ export interface ImageTransformOptions {
   height?: number
   fit?: "scale-down" | "contain" | "cover" | "crop" | "pad"
   quality?: number
-  format?: "auto" | "webp" | "avif" | "json"
+  format?: "auto" | "webp" | "avif" | "json" | "jpeg" | "png"
 }
 
 /**
@@ -105,8 +105,66 @@ export function transformForInstagram(
 }
 
 /**
+ * Meta's hard ceiling for an image sent over the WhatsApp Cloud API.
+ * Exceed it and Meta rejects the ENTIRE message with error 131053 — not the
+ * image, the message. The recipient sees nothing at all.
+ */
+export const WHATSAPP_MAX_IMAGE_BYTES = 5 * 1024 * 1024
+
+/**
+ * Longest edge for an outbound WhatsApp image. WhatsApp itself downscales for
+ * display, so anything larger is bytes spent to be thrown away — and bytes are
+ * exactly what breaks the send.
+ */
+const WHATSAPP_MAX_EDGE = 1600
+
+/**
+ * Transform an image for the WhatsApp Cloud API (#1279).
+ *
+ * Between 2026-04 and 2026-08, 132 daily production-run reminders to partners
+ * FAILED with `131053 · Media upload error — Image file has size 6533833 bytes
+ * but must be atmost 5242880 bytes`. The reminder template carries the design
+ * image, the design image is the full-size upload, and Meta drops the whole
+ * message. Partners were never nagging-blind — they were never messaged. Runs
+ * then hit the reminder cap and were parked, unasked.
+ *
+ * Two decisions worth keeping:
+ *
+ * - **`format: "jpeg"`, not `"auto"`.** Cloudflare's `auto` serves WebP/AVIF to
+ *   clients that advertise them, and Meta's fetcher does not — an unsupported
+ *   format is the same rejected message by another route. Designs are also
+ *   uploaded as PNG, which is how a render reaches 6.5 MB in the first place;
+ *   forcing JPEG is most of the saving. Measured on a real design asset:
+ *   1,665,812 B PNG → 180,996 B JPEG.
+ * - **`fit: "scale-down"`.** Never enlarge, never crop. A design photo cropped
+ *   to a square is a worse message than a slightly large one.
+ *
+ * Non-Cloudflare URLs are returned untouched — there is nothing to rewrite, and
+ * silently sending a different image would be worse than sending the original.
+ * Callers must treat the result as best-effort, not as a guarantee of size.
+ */
+export function transformForWhatsApp(imageUrl: string): string {
+  if (!imageUrl || !isCloudflareUrl(imageUrl)) {
+    return imageUrl
+  }
+
+  // Already rewritten (a caller transformed it, or it is a resize URL from the
+  // media library). Rewriting a rewrite yields a 404 path, so leave it alone.
+  if (imageUrl.includes("/cdn-cgi/image/")) {
+    return imageUrl
+  }
+
+  return transformImageUrl(imageUrl, {
+    width: WHATSAPP_MAX_EDGE,
+    fit: "scale-down",
+    quality: 80,
+    format: "jpeg",
+  })
+}
+
+/**
  * Transform image for Facebook with optimal settings
- * 
+ *
  * @param imageUrl - Original image URL
  * @returns Transformed URL optimized for Facebook
  */

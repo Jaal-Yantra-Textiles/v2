@@ -8,6 +8,8 @@ import { handleIncomingMessage, resolvePartnerByPhone } from "../../../../workfl
 import { resolveAdminByPhone, handleAdminMessage } from "../../../../workflows/whatsapp/whatsapp-admin-handler"
 import { logger } from "@medusajs/framework"
 import  { MESSAGING_MODULE } from "../../../../modules/messaging"
+import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
+import { planReminderRollback } from "../../../../workflows/production-runs/emit-production-run-reminder"
 
 /**
  * GET /webhooks/social/whatsapp
@@ -270,6 +272,11 @@ async function processWhatsAppWebhook(
               const currentRank = STATUS_RANK[msg.status] ?? 0
               const newRank = STATUS_RANK[status.status] ?? 0
 
+              // A reminder Meta REFUSED was never a reminder. Decide before the
+              // status write, because the rollback is gated on the message not
+              // already being `failed` (#1279).
+              const rollback = planReminderRollback(msg, status.status)
+
               // Only progress forward (sent → delivered → read), never downgrade
               // Exception: "failed" always applies
               if (newRank > currentRank || status.status === "failed") {
@@ -278,6 +285,38 @@ async function processWhatsAppWebhook(
                   status: status.status as any,
                   ...(failReason ? { fail_reason: failReason } : {}),
                 })
+              }
+
+              if (rollback) {
+                // Un-count it. Otherwise the cap counts an attempt nobody
+                // received, and the run is eventually parked into
+                // `awaiting_reassignment` — the one state nothing watches —
+                // without its partner ever having been asked.
+                try {
+                  const runService = scope.resolve(PRODUCTION_RUNS_MODULE) as any
+                  const run = await runService
+                    .retrieveProductionRun(rollback.production_run_id)
+                    .catch(() => null)
+                  const current = run?.reminder_count ?? 0
+                  if (run && current > 0) {
+                    await runService.updateProductionRuns({
+                      id: rollback.production_run_id,
+                      reminder_count: current - 1,
+                    })
+                    logger.warn(
+                      `[whatsapp-webhook] Reminder to ${status.recipient_id} was REJECTED by Meta ` +
+                        `(${failReason ?? "no reason given"}) — un-counting it on ` +
+                        `${rollback.production_run_id}: reminder_count ${current} → ${current - 1}. ` +
+                        `The partner was never asked, so this must not count toward the cap.`
+                    )
+                  }
+                } catch (e: any) {
+                  // Never fail the webhook over a bookkeeping correction — Meta
+                  // retries the whole delivery, which would re-apply the status.
+                  logger.warn(
+                    `[whatsapp-webhook] Could not un-count the failed reminder on ${rollback.production_run_id}: ${e.message}`
+                  )
+                }
               }
             }
           } catch (e: any) {
