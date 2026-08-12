@@ -35,6 +35,13 @@ export type RecoveredTemplate = {
    * the second. Dispatch resolves by name, so it can pick the other one.
    */
   template_id: string | null
+  /**
+   * What actually separates two same-named templates. The two "Stitching" rows
+   * differ ONLY by category — Pre Production vs Production — which is to say
+   * they are different stages of the process wearing the same label. Showing
+   * the name alone hides the entire distinction.
+   */
+  category_name: string | null
 }
 
 export type RunTemplateHistory = {
@@ -55,6 +62,13 @@ export type RunTemplateHistory = {
   ambiguous_names: string[]
 }
 
+/** One row of the live template catalogue, used to resolve what a task points at. */
+export type TemplateCatalogEntry = {
+  id: string
+  name: string
+  category_name?: string | null
+}
+
 /**
  * PURE: recover one run's last dispatch from its tasks. Exported for unit tests.
  *
@@ -66,12 +80,22 @@ export type RunTemplateHistory = {
  * ⚠️ Cancelled tasks are INCLUDED deliberately. Every task on a parked run is
  * cancelled — that is what parking does — so excluding them would recover
  * nothing for exactly the runs this exists to serve.
+ *
+ * The catalogue is what turns a bare name into an identified template: the task
+ * records which id it was built from, and only the catalogue knows that id sits
+ * in "Production" rather than "Pre Production".
  */
 export function recoverRunTemplates(
   tasks: RunTask[],
   run?: { dispatch_template_names?: string[] | null } | null,
-  options: { templateNameCounts?: Map<string, number> } = {}
+  options: { catalog?: TemplateCatalogEntry[] } = {}
 ): RunTemplateHistory {
+  const catalog = options.catalog ?? []
+  const byId = new Map(catalog.map((t) => [t.id, t]))
+  const nameCounts = new Map<string, number>()
+  for (const t of catalog) {
+    nameCounts.set(t.name, (nameCounts.get(t.name) ?? 0) + 1)
+  }
   const seen = new Set<string>()
   const templates: RecoveredTemplate[] = []
 
@@ -92,7 +116,12 @@ export function recoverRunTemplates(
       continue
     }
     seen.add(key)
-    templates.push({ name, template_id: templateId })
+    templates.push({
+      name,
+      template_id: templateId,
+      category_name:
+        (templateId ? byId.get(templateId)?.category_name : null) ?? null,
+    })
   }
 
   const withAmbiguity = (
@@ -101,12 +130,12 @@ export function recoverRunTemplates(
   ): RunTemplateHistory => ({
     templates: list,
     source,
-    ambiguous_names: options.templateNameCounts
+    // Only meaningful against a catalogue — with none loaded, claiming zero
+    // ambiguity would assert something never checked.
+    ambiguous_names: catalog.length
       ? [
           ...new Set(
-            list
-              .map((t) => t.name)
-              .filter((n) => (options.templateNameCounts!.get(n) ?? 0) > 1)
+            list.map((t) => t.name).filter((n) => (nameCounts.get(n) ?? 0) > 1)
           ),
         ]
       : [],
@@ -123,7 +152,18 @@ export function recoverRunTemplates(
   )
   if (intent.length) {
     return withAmbiguity(
-      intent.map((name) => ({ name, template_id: null })),
+      intent.map((name) => {
+        // Intent recorded a NAME only. If exactly one template answers to it we
+        // can identify it; if two do, it stays unidentified — which is the
+        // honest reading, and the ambiguity flag says so.
+        const matches = catalog.filter((t) => t.name === name)
+        const only = matches.length === 1 ? matches[0] : undefined
+        return {
+          name,
+          template_id: only?.id ?? null,
+          category_name: only?.category_name ?? null,
+        }
+      }),
       "run_dispatch_intent"
     )
   }

@@ -197,6 +197,7 @@ export const GET = async (
       name?: string;
       priority?: "low" | "medium" | "high";
       category_id?: string;
+      category_name?: string;
       fields?: string[];
       expand?: string[];
     };
@@ -213,6 +214,10 @@ export const GET = async (
           name: req.query.name,
           priority: req.query.priority,
           category_id: req.query.category_id,
+          // Two templates can share a name and differ ONLY by category — prod
+          // has "Stitching" in both Pre Production and Production — so category
+          // is what makes a name unambiguous, not decoration.
+          category_name: req.query.category_name,
         },
         config: {
           skip: Number(req.query.offset) || 0,

@@ -10,6 +10,41 @@ import {
  * against prod 2026-08-12: all 7 parked runs recovered, across 4 DIFFERENT
  * template sets, which is why recovery is per run and never pooled.
  */
+/**
+ * The prod catalogue, trimmed. The point of it is the last two rows: "Stitching"
+ * exists TWICE and the two differ ONLY by category — Pre Production vs
+ * Production. They are different stages of the process wearing the same label,
+ * so a bare name does not identify a template.
+ */
+const CATALOG = [
+  {
+    id: "01JSV5QCNDEY73Q3RK1EHSE44K",
+    name: "Sampling",
+    category_name: "Pre Production",
+  },
+  {
+    id: "01KMMTZTEDBQXPMSFDV5N16CE7",
+    name: "Embroidery and Painting",
+    category_name: "Pre Production",
+  },
+  {
+    id: "01KMQ7R0NQGN50B7PSJZBSE1FQ",
+    name: "Quality Check",
+    category_name: "Production",
+  },
+  { id: "ship_1", name: "ship-to-next-location", category_name: null },
+  {
+    id: "01JW0Y600VQPWGMCBZXSGNZW67",
+    name: "Stitching",
+    category_name: "Pre Production",
+  },
+  {
+    id: "01K5S31SPKSW31S7XP3TYY296F",
+    name: "Stitching",
+    category_name: "Production",
+  },
+]
+
 describe("recoverRunTemplates", () => {
   const task = (
     templateName: string | null,
@@ -32,7 +67,11 @@ describe("recoverRunTemplates", () => {
 
     expect(h.source).toBe("tasks")
     expect(h.templates).toEqual([
-      { name: "Sampling", template_id: "01JSV5QCNDEY73Q3RK1EHSE44K" },
+      {
+        name: "Sampling",
+        template_id: "01JSV5QCNDEY73Q3RK1EHSE44K",
+        category_name: null,
+      },
     ])
   })
 
@@ -81,7 +120,9 @@ describe("recoverRunTemplates", () => {
     })
 
     expect(h.source).toBe("run_dispatch_intent")
-    expect(h.templates).toEqual([{ name: "Sampling", template_id: null }])
+    expect(h.templates).toEqual([
+      { name: "Sampling", template_id: null, category_name: null },
+    ])
   })
 
   it("prefers what actually happened over what was intended", () => {
@@ -105,7 +146,7 @@ describe("recoverRunTemplates", () => {
     const h = recoverRunTemplates(
       [task("Stitching", "01K5S31SPKSW31S7XP3TYY296F")],
       null,
-      { templateNameCounts: new Map([["Stitching", 2], ["Sampling", 1]]) }
+      { catalog: CATALOG }
     )
 
     expect(h.ambiguous_names).toEqual(["Stitching"])
@@ -113,7 +154,7 @@ describe("recoverRunTemplates", () => {
 
   it("does not flag a name that is unique", () => {
     const h = recoverRunTemplates([task("Sampling", "t_1")], null, {
-      templateNameCounts: new Map([["Sampling", 1]]),
+      catalog: CATALOG,
     })
 
     expect(h.ambiguous_names).toEqual([])
@@ -121,6 +162,99 @@ describe("recoverRunTemplates", () => {
 
   it("survives a task with no metadata at all", () => {
     expect(recoverRunTemplates([{ id: "t" } as any]).templates).toEqual([])
+  })
+
+  describe("category is what actually identifies a template", () => {
+    it("names the category the run really used, not just the label", () => {
+      // The three parked runs using "Stitching" used the PRODUCTION one. Saying
+      // only "Stitching" hides the entire distinction.
+      const h = recoverRunTemplates(
+        [task("Stitching", "01K5S31SPKSW31S7XP3TYY296F")],
+        null,
+        { catalog: CATALOG }
+      )
+
+      expect(h.templates).toEqual([
+        {
+          name: "Stitching",
+          template_id: "01K5S31SPKSW31S7XP3TYY296F",
+          category_name: "Production",
+        },
+      ])
+    })
+
+    it("distinguishes the two Stitchings by category, not by name", () => {
+      const h = recoverRunTemplates(
+        [
+          task("Stitching", "01JW0Y600VQPWGMCBZXSGNZW67"),
+          task("Stitching", "01K5S31SPKSW31S7XP3TYY296F"),
+        ],
+        null,
+        { catalog: CATALOG }
+      )
+
+      expect(h.templates.map((t) => t.category_name)).toEqual([
+        "Pre Production",
+        "Production",
+      ])
+    })
+
+    it("leaves the category null for a template no longer in the catalogue", () => {
+      // A deleted template must read as unidentified, never as uncategorised.
+      const h = recoverRunTemplates([task("Ghost", "gone_1")], null, {
+        catalog: CATALOG,
+      })
+
+      expect(h.templates[0]).toEqual({
+        name: "Ghost",
+        template_id: "gone_1",
+        category_name: null,
+      })
+    })
+
+    it("carries a genuinely uncategorised template through as null", () => {
+      const h = recoverRunTemplates([task("ship-to-next-location", "ship_1")], null, {
+        catalog: CATALOG,
+      })
+
+      expect(h.templates[0].category_name).toBeNull()
+    })
+
+    it("identifies an intent-only name when exactly one template answers to it", () => {
+      const h = recoverRunTemplates([], { dispatch_template_names: ["Sampling"] }, {
+        catalog: CATALOG,
+      })
+
+      expect(h.templates[0]).toEqual({
+        name: "Sampling",
+        template_id: "01JSV5QCNDEY73Q3RK1EHSE44K",
+        category_name: "Pre Production",
+      })
+    })
+
+    it("refuses to identify an intent-only name that two templates answer to", () => {
+      // Intent recorded a name and nothing else. Picking one of the two would
+      // be inventing the stage the partner worked at.
+      const h = recoverRunTemplates([], { dispatch_template_names: ["Stitching"] }, {
+        catalog: CATALOG,
+      })
+
+      expect(h.templates[0]).toEqual({
+        name: "Stitching",
+        template_id: null,
+        category_name: null,
+      })
+      expect(h.ambiguous_names).toEqual(["Stitching"])
+    })
+
+    it("claims no ambiguity when no catalogue was loaded, rather than asserting none", () => {
+      // With nothing to compare against, "not ambiguous" would be a claim we
+      // never checked.
+      const h = recoverRunTemplates([task("Stitching", "01K5S31SPKSW31S7XP3TYY296F")])
+
+      expect(h.ambiguous_names).toEqual([])
+      expect(h.templates[0].category_name).toBeNull()
+    })
   })
 })
 
@@ -131,7 +265,11 @@ describe("recoverRunTemplates", () => {
  */
 describe("resolveDispatchTemplates", () => {
   const history = (names: string[]) => ({
-    templates: names.map((name) => ({ name, template_id: `id_${name}` })),
+    templates: names.map((name) => ({
+      name,
+      template_id: `id_${name}`,
+      category_name: null,
+    })),
     source: "tasks" as const,
     ambiguous_names: [],
   })
@@ -172,7 +310,9 @@ describe("resolveDispatchTemplates", () => {
   it("labels an intent-sourced selection as intent, not as fact", () => {
     const r = resolveDispatchTemplates(
       {
-        templates: [{ name: "Sampling", template_id: null }],
+        templates: [
+          { name: "Sampling", template_id: null, category_name: null },
+        ],
         source: "run_dispatch_intent",
         ambiguous_names: [],
       },

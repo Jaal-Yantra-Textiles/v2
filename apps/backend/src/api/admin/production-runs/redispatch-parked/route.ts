@@ -29,6 +29,7 @@ import {
   recoverRunTemplates,
   resolveDispatchTemplates,
   type RunTemplateHistory,
+  type TemplateCatalogEntry,
 } from "./template-history"
 
 /**
@@ -80,25 +81,27 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const taskService: TaskService = req.scope.resolve(TASKS_MODULE)
 
-  // Names are not unique — prod carries two templates called "Stitching" — and
-  // dispatch resolves by name, so a recovered name can land on the wrong row.
-  // Counting them here lets the response SAY which ones are ambiguous instead
-  // of quietly picking.
-  const templateNameCounts = new Map<string, number>()
+  // The live catalogue. Names are not unique — prod's two "Stitching" rows
+  // differ ONLY by category, Pre Production vs Production — and dispatch
+  // resolves by name, so a recovered name can land on the wrong row. Loading
+  // the catalogue lets the response identify each recovered template by its
+  // category and SAY which names are ambiguous, instead of quietly picking.
+  let catalog: TemplateCatalogEntry[] = []
   try {
     const allTemplates = await (taskService as any).listTaskTemplates(
       {},
-      { take: null }
+      { take: null, relations: ["category"] }
     )
-    for (const t of allTemplates || []) {
-      const n = (t as any)?.name
-      if (typeof n === "string" && n.length) {
-        templateNameCounts.set(n, (templateNameCounts.get(n) ?? 0) + 1)
-      }
-    }
+    catalog = (allTemplates || [])
+      .filter((t: any) => typeof t?.name === "string" && t.name.length)
+      .map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        category_name: t.category?.name ?? null,
+      }))
   } catch {
-    // Ambiguity reporting is a courtesy, not a precondition. Losing it must not
-    // block a re-dispatch.
+    // Category and ambiguity reporting are a courtesy, not a precondition.
+    // Losing them must not block a re-dispatch.
   }
 
   /**
@@ -124,7 +127,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
       historyByRun.set(
         run.id,
-        recoverRunTemplates(tasks as any[], run as any, { templateNameCounts })
+        recoverRunTemplates(tasks as any[], run as any, { catalog })
       )
     } catch {
       // A run whose history cannot be read is reported as having none, which
@@ -155,6 +158,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         /** What this run went out with last time — the selection to confirm. */
         previous_template_names: history.templates.map((t) => t.name),
         previous_template_ids: history.templates.map((t) => t.template_id),
+        /**
+         * Identified, not just named. "Stitching (Production)" is a different
+         * template from "Stitching (Pre Production)", and the name alone cannot
+         * tell you which one the partner actually worked from.
+         */
+        previous_templates: history.templates,
         previous_templates_source: history.source,
         ambiguous_template_names: history.ambiguous_names,
         /** What this run would ACTUALLY dispatch with, given the request. */
@@ -177,10 +186,23 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       deferred_by_limit: deferred.map((r) => r.id),
       will_await_template_selection: stillAwaiting.length > 0,
       /**
-       * Every template that exists, so a selection can be made from this one
-       * response rather than guessed at.
+       * Every template that exists, GROUPED BY CATEGORY, so a selection can be
+       * made from this one response rather than guessed at. Grouped rather than
+       * flat because the category is what distinguishes two same-named
+       * templates, and a flat list of names would show "Stitching" twice with
+       * nothing to choose between them.
        */
-      available_template_names: [...templateNameCounts.keys()].sort(),
+      available_templates_by_category: [
+        ...catalog
+          .reduce((acc, t) => {
+            const key = t.category_name ?? "(uncategorised)"
+            acc.set(key, [...(acc.get(key) ?? []), t.name])
+            return acc
+          }, new Map<string, string[]>())
+          .entries(),
+      ]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([category, names]) => ({ category, template_names: names })),
       template_history: {
         runs_with_history: recovered.length,
         runs_without_history: rows.length - recovered.length,
@@ -189,11 +211,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       summary: [
         `Would re-send ${selected.length} parked run(s) to the partner they came from`,
         recovered.length
-          ? `Recovered last-dispatch templates for ${recovered.length}/${rows.length} run(s) across ${distinctSets.size} distinct set(s): ${rows
-              .filter((r) => r.previous_template_names.length)
+          ? `Recovered last-dispatch templates for ${recovered.length}/${rows.length} run(s) across ${distinctSets.size} distinct set(s): ${recovered
               .map(
                 (r) =>
-                  `${r.production_run_id} → ${r.previous_template_names.join(", ")}`
+                  `${r.production_run_id} → ${r.previous_templates
+                    .map(
+                      (t) =>
+                        // The category is the identity, so it is printed with
+                        // the name rather than left to a separate field nobody
+                        // reads.
+                        `${t.name}${t.category_name ? ` (${t.category_name})` : ""}`
+                    )
+                    .join(", ")}`
               )
               .join("; ")}`
           : `No previous templates recoverable for any run`,
@@ -208,9 +237,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         ambiguous.length
           ? `⚠️ ${ambiguous.length} run(s) reference a template name that matches MORE THAN ONE template (${[
               ...new Set(ambiguous.flatMap((r) => r.ambiguous_template_names)),
-            ].join(
-              ", "
-            )}). Dispatch resolves by name, so it may instantiate the other one — check before confirming.`
+            ]
+              .map((n) => {
+                const cats = catalog
+                  .filter((t) => t.name === n)
+                  .map((t) => t.category_name ?? "(uncategorised)")
+                return `${n} — in ${cats.join(" and ")}`
+              })
+              .join(
+                "; "
+              )}). These differ only by CATEGORY. Dispatch resolves by name, so it may instantiate the other one — check the recovered category before confirming.`
           : "",
         stillAwaiting.length
           ? `${stillAwaiting.length} run(s) would be left awaiting a template selection`

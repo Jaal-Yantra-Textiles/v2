@@ -1635,22 +1635,25 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "list_task_templates",
     description:
-      "List the task templates available to dispatch a production run with — the catalogue of process steps (Sampling, Cutting, Stitching, Quality Check, ship-to-next-location, the partner-* lifecycle templates …). Every tool that takes template_names needs names FROM HERE: a name that does not exist fails the dispatch with 'Missing task templates'. Use it to show the user a real choice instead of guessing a name. ⚠️ Names are NOT unique — more than one template can share a name, and dispatch resolves by name, so check for duplicates before relying on one.",
+      "List the task templates available to dispatch a production run with, ORGANISED BY CATEGORY — the catalogue of process steps. Categories are the real structure: 'Pre Production' (Sampling, Cutting, Measurement, Stitching, Embroidery and Painting), 'Production' (Research, Pattern Cutting, Stitching, Quality Check, Block Printing), 'Design Orders' and 'Partner Orders' (the partner-* lifecycle templates). Every tool that takes template_names needs names FROM HERE: a name that does not exist fails the dispatch with 'Missing task templates'. Use it to show the user a real choice instead of guessing. ⚠️ A NAME ALONE MAY NOT IDENTIFY A TEMPLATE — 'Stitching' exists in BOTH Pre Production and Production, and they are different steps. Always read `category.name` alongside the name, present the category to the user when a name is duplicated, and narrow with category_name when you know which stage you mean.",
     method: "GET",
     path: "/admin/task-templates",
-    // ONLY the three filters the handler actually forwards. `limit`, `offset`,
+    // ONLY the filters the handler actually forwards. `limit`, `offset`,
     // `fields` and `expand` are accepted by the route and then DROPPED —
-    // listTaskTemplatesStep passes `{relations:["category"]}` and discards
-    // `input.config` — so declaring them would silently ignore the model's
-    // paging, the same defect as #1172. The route returns every template.
-    queryParams: ["name", "priority", "category_id"],
+    // listTaskTemplatesStep discards `input.config` — so declaring them would
+    // silently ignore the model's paging, the same defect as #1172. The route
+    // returns every template.
+    queryParams: ["name", "priority", "category_id", "category_name"],
     inputSchema: obj({
       name: STR(
         "Exact template name. Omit to get every template — the list is small and unpaginated."
       ),
+      category_name: STR(
+        "Only templates in this category, BY NAME: 'Pre Production' | 'Production' | 'Design Orders' | 'Partner Orders' | 'Research'. The way to disambiguate a name that exists in more than one category."
+      ),
       priority: STR("Filter by priority: 'low' | 'medium' | 'high'."),
       category_id: STR(
-        "Only templates in this category (e.g. Research, Pre Production)."
+        "Only templates in this category, by id. Prefer category_name unless you already hold an id."
       ),
     }),
     nextSteps: [
