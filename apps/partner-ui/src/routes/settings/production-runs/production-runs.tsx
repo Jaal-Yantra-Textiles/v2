@@ -25,18 +25,29 @@ import {
  * the auto-accept path was dead code.
  */
 const AutoAcceptSection = () => {
-  const { partner, isPending, isError } = usePartnerSettings()
+  const { partner, productionRunPolicy, isPending, isError } =
+    usePartnerSettings()
   const { mutateAsync: updateSettings, isPending: isSaving } =
     useUpdatePartnerSettings()
 
   const enabled = !!partner?.auto_accept_production_runs
+
+  // Both halves must be on (#1228). The platform's is off on production, so a
+  // switch that only reported the partner's half was telling partners their
+  // re-sent runs would be accepted when nothing would accept them. `null` is
+  // "couldn't read it", which is not the same as "off" and mustn't be shown as
+  // a definite answer either way.
+  const platformAllows = productionRunPolicy?.auto_accept_on_retry ?? null
+  const inEffect = enabled && platformAllows === true
 
   const handleToggle = async (next: boolean) => {
     try {
       await updateSettings({ auto_accept_production_runs: next })
       toast.success(
         next
-          ? "Re-sent production runs will be accepted for you"
+          ? platformAllows === true
+            ? "Re-sent production runs will be accepted for you"
+            : "Saved — this will apply once the platform allows auto accept"
           : "Re-sent production runs will wait for you to accept"
       )
     } catch (e: any) {
@@ -93,7 +104,28 @@ const AutoAcceptSection = () => {
         />
       </div>
 
-      {enabled && (
+      {enabled && platformAllows === false && (
+        <div className="px-6 py-4">
+          <InlineTip variant="info" label="Not in effect yet">
+            Your preference is saved, but auto accept is currently switched off
+            for everyone on the platform, so every re-sent run still waits for
+            you to accept it by hand. This setting will start working the moment
+            that changes — you don't need to come back and turn it on again.
+          </InlineTip>
+        </div>
+      )}
+
+      {enabled && platformAllows === null && (
+        <div className="px-6 py-4">
+          <InlineTip variant="info" label="Saved">
+            We couldn't check whether the platform currently allows auto accept,
+            so we can't confirm this is taking effect. Your preference is saved
+            either way.
+          </InlineTip>
+        </div>
+      )}
+
+      {inEffect && (
         <div className="px-6 py-4">
           <InlineTip variant="warning" label="You own the work">
             An auto-accepted run is yours — the same deadlines, reminders and

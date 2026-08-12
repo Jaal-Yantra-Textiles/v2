@@ -37,9 +37,20 @@ export type PartnerSettings = Record<string, any> & {
   auto_accept_production_runs?: boolean
 }
 
+/**
+ * The PLATFORM half of the auto-accept decision (#1228). The partner's opt-in
+ * only does anything when this is on too, so the settings surface has to be
+ * able to say whether it is. `null` means the platform policy could not be
+ * read — unknown, not "off".
+ */
+export type ProductionRunPolicy = {
+  auto_accept_on_retry: boolean
+}
+
 type PartnerDetailsResponse = {
   partner?: PartnerSettings | null
   current_admin_id?: string | null
+  production_run_policy?: ProductionRunPolicy | null
 }
 
 export const usePartnerSettings = (
@@ -62,7 +73,11 @@ export const usePartnerSettings = (
     ...options,
   })
 
-  return { partner: data?.partner ?? null, ...rest }
+  return {
+    partner: data?.partner ?? null,
+    productionRunPolicy: data?.production_run_policy ?? null,
+    ...rest,
+  }
 }
 
 export type UpdatePartnerSettingsInput = {
