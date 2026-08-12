@@ -1,3 +1,10 @@
+## [13.86.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.86.0...v13.86.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* **ops:** read both halves of a stock level, and report when they disagree ([#1258](https://github.com/Jaal-Yantra-Textiles/v2/issues/1258)) ([b8636b8](https://github.com/Jaal-Yantra-Textiles/v2/commit/b8636b834f789bf27eb9b34a8e912faaba688f0d)), closes [#1248](https://github.com/Jaal-Yantra-Textiles/v2/issues/1248)
+
 # [13.86.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.85.0...v13.86.0) (2026-08-11)
 
 
