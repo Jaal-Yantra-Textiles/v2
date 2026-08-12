@@ -1,3 +1,10 @@
+## [13.88.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.88.1...v13.88.2) (2026-08-12)
+
+
+### Bug Fixes
+
+* **partner-ui:** stop the auto-accept switch promising what the platform won't do ([#1280](https://github.com/Jaal-Yantra-Textiles/v2/issues/1280)) ([af39d43](https://github.com/Jaal-Yantra-Textiles/v2/commit/af39d437723fa44ad60a82163a04eac448a14ac9)), closes [#1228](https://github.com/Jaal-Yantra-Textiles/v2/issues/1228) [#1274](https://github.com/Jaal-Yantra-Textiles/v2/issues/1274)
+
 ## [13.88.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.88.0...v13.88.1) (2026-08-12)
 
 
