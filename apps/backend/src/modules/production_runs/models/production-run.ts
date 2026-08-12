@@ -72,7 +72,28 @@ const ProductionRun = model.define("production_runs", {
     .default("idle"),
   dispatch_started_at: model.dateTime().nullable(),
   dispatch_completed_at: model.dateTime().nullable(),
+  /**
+   * INTENT, recorded at APPROVAL — the names an approver said the run should be
+   * dispatched with. Written only by `approve-production-run`, and only when the
+   * assignment named templates; a run whose templates are chosen later at
+   * dispatch time keeps this null forever. It is NOT evidence of what ran.
+   */
   dispatch_template_names: model.json().nullable(),
+  /**
+   * RECORD, written when the run is actually dispatched — the ids of the task
+   * templates that were resolved and instantiated. Written by
+   * `send-production-run-to-production`, which every dispatch path goes through.
+   *
+   * IDS, not names, deliberately: a name is not an identity (#1261 — prod had
+   * two `Stitching` rows differing only by category), and names are renameable,
+   * as the `deduplicate-task-template-names` job does. An id still answers
+   * "which process did this run actually follow?" after a rename.
+   *
+   * Before this existed the only evidence was the tasks themselves, so template
+   * recovery had to do archaeology on them and lost the answer entirely if they
+   * were deleted.
+   */
+  dispatched_template_ids: model.json().nullable(),
 
   snapshot: model.json(),
   captured_at: model.dateTime(),
