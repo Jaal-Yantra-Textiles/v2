@@ -123,6 +123,45 @@ export function findLevelValueDivergence(
 }
 
 /**
+ * PURE: how many levels the divergence check could actually compare. Exported
+ * for unit tests.
+ *
+ * `findLevelValueDivergence` skips any row missing a readable `raw_` column —
+ * absence is not disagreement — which means a detector that never receives that
+ * column reports "clean" forever. A dead detector and a working one print
+ * IDENTICAL output. That is the same trap that produced three false "no
+ * matches" while tracing the original bug (#1259): a zero means nothing unless
+ * you know the denominator.
+ *
+ * So the job states its denominator. `compared 194/194` is evidence; `compared
+ * 0/194` is visibly useless instead of quietly reassuring.
+ *
+ * The skip conditions here MUST mirror `findLevelValueDivergence` exactly — a
+ * count that disagrees with the check it describes is worse than no count.
+ */
+export function countComparableLevels(
+  levels: Array<{
+    stocked_quantity?: number | string | null
+    raw_stocked_quantity?: unknown
+  }>
+): { compared: number; total: number } {
+  let compared = 0
+
+  for (const lv of levels ?? []) {
+    const raw = rawValue(lv?.raw_stocked_quantity)
+    if (raw == null) {
+      continue
+    }
+    if (!Number.isFinite(Number(lv?.stocked_quantity ?? 0))) {
+      continue
+    }
+    compared++
+  }
+
+  return { compared, total: (levels ?? []).length }
+}
+
+/**
  * PURE: which levels to reset, and to what. Exported for unit tests.
  *
  * Only strictly-negative levels qualify — zero is already correct and must not
@@ -251,6 +290,7 @@ export const resetNegativeInventoryLevelsJob: MaintenanceJob = {
       maxMagnitude: parsed.data.max_magnitude,
     })
     const divergent = findLevelValueDivergence((levels || []) as any[])
+    const coverage = countComparableLevels((levels || []) as any[])
 
     const changes: MaintenanceChange[] = resets.map((r) => ({
       entity: "inventory_level",
@@ -294,6 +334,16 @@ export const resetNegativeInventoryLevelsJob: MaintenanceJob = {
               ", "
             )}. Not resolved automatically — decide which is true, then write it with POST /admin/inventory-items/:id/location-levels/:location_id, which rewrites both.`
         : "",
+      // ALWAYS stated, in both directions. Without it "no divergence" is
+      // unfalsifiable: it reads the same whether the check ran on every row or
+      // on none (#1259).
+      coverage.compared === coverage.total
+        ? `Compared ${coverage.compared}/${coverage.total} level(s) — both stored values present on every row`
+        : `⚠️ Compared only ${coverage.compared}/${coverage.total} level(s) — the rest did not return a readable raw_stocked_quantity, so the divergence check DID NOT look at them${
+            coverage.compared === 0
+              ? ". A 0/N reading means the divergence check is inert, NOT that the data agrees."
+              : ""
+          }`,
     ]
       .filter(Boolean)
       .join(". ")

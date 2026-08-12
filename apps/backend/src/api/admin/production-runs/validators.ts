@@ -65,8 +65,18 @@ export const AdminResumeDispatchProductionRunReq = z.object({
  */
 export const AdminRedispatchParkedRunsReq = z.object({
   partner_id: z.string().min(1).nullish(),
-  /** Templates to dispatch with. Omit and each run stops at awaiting_templates. */
+  /**
+   * Templates to dispatch every selected run with. Overrides recovered history,
+   * so it applies ONE set to runs that may not have used the same one — the
+   * dry-run says so when they disagree.
+   */
   template_names: z.array(z.string()).optional(),
+  /**
+   * Dispatch each run with the templates IT went out with last time, recovered
+   * from its own tasks. Per run, so a batch whose runs used different sets goes
+   * back out correctly — which on prod is every batch.
+   */
+  use_previous_templates: z.boolean().optional(),
   limit: z.number().int().positive().optional(),
   note: z.string().max(500).nullish(),
   /** Defaults true — previewing costs nothing, dispatching messages partners. */

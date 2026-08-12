@@ -1,4 +1,5 @@
 import {
+  countComparableLevels,
   findLevelValueDivergence,
   planNegativeLevelResets,
 } from "../reset-negative-inventory-levels-job"
@@ -181,5 +182,69 @@ describe("findLevelValueDivergence", () => {
 
   it("ignores an unparseable raw rather than reporting a false divergence", () => {
     expect(findLevelValueDivergence([lvl(19, { value: "abc" })])).toEqual([])
+  })
+})
+
+/**
+ * The denominator (#1259). `findLevelValueDivergence` skips rows with no
+ * readable raw_ column, so a detector that never receives that column reports
+ * clean forever — a dead check and a working one print identical output. These
+ * pin that the count mirrors the skip conditions exactly, because a count that
+ * disagrees with the check it describes is worse than no count at all.
+ */
+describe("countComparableLevels", () => {
+  const lvl = (numeric: number | string | null, raw: unknown) => ({
+    stocked_quantity: numeric,
+    raw_stocked_quantity: raw,
+  })
+
+  it("counts a row where both stored values are readable", () => {
+    expect(countComparableLevels([lvl(19, { value: "19", precision: 20 })])).toEqual({
+      compared: 1,
+      total: 1,
+    })
+  })
+
+  it("reports 0/N when no row carries a raw column — the inert-detector case", () => {
+    // This is the reading the job must never present as reassurance: the check
+    // looked at nothing and said nothing.
+    expect(countComparableLevels([lvl(19, null), lvl(0, undefined)])).toEqual({
+      compared: 0,
+      total: 2,
+    })
+  })
+
+  it("counts the diverging row too — comparable is not the same as agreeing", () => {
+    expect(
+      countComparableLevels([lvl(0, { value: "-2.5", precision: 20 })])
+    ).toEqual({ compared: 1, total: 1 })
+  })
+
+  it("does not count an unparseable raw, matching what the check skips", () => {
+    expect(countComparableLevels([lvl(19, { value: "abc" })])).toEqual({
+      compared: 0,
+      total: 1,
+    })
+  })
+
+  it("does not count a non-numeric stocked_quantity, matching what the check skips", () => {
+    expect(countComparableLevels([lvl("not-a-number", "19")])).toEqual({
+      compared: 0,
+      total: 1,
+    })
+  })
+
+  it("counts a partial denominator across a mixed set", () => {
+    expect(
+      countComparableLevels([
+        lvl(19, { value: "19", precision: 20 }),
+        lvl(0, null),
+        lvl(3, "3"),
+      ])
+    ).toEqual({ compared: 2, total: 3 })
+  })
+
+  it("never claims coverage it does not have on an empty read", () => {
+    expect(countComparableLevels([])).toEqual({ compared: 0, total: 0 })
   })
 })

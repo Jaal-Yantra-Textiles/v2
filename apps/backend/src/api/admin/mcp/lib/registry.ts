@@ -1633,14 +1633,52 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     sideEffects: "Creates partner tasks from the templates and notifies the assigned partner.",
   },
   {
+    name: "list_task_templates",
+    description:
+      "List the task templates available to dispatch a production run with, ORGANISED BY CATEGORY — the catalogue of process steps. Categories are the real structure: 'Pre Production' (Sampling, Cutting, Measurement, Stitching, Embroidery and Painting), 'Production' (Research, Pattern Cutting, Stitching, Quality Check, Block Printing), 'Design Orders' and 'Partner Orders' (the partner-* lifecycle templates). Every tool that takes template_names needs names FROM HERE: a name that does not exist fails the dispatch with 'Missing task templates'. Use it to show the user a real choice instead of guessing. ⚠️ A NAME ALONE MAY NOT IDENTIFY A TEMPLATE — 'Stitching' exists in BOTH Pre Production and Production, and they are different steps. Always read `category.name` alongside the name, present the category to the user when a name is duplicated, and narrow with category_name when you know which stage you mean.",
+    method: "GET",
+    path: "/admin/task-templates",
+    // ONLY the filters the handler actually forwards. `limit`, `offset`,
+    // `fields` and `expand` are accepted by the route and then DROPPED —
+    // listTaskTemplatesStep discards `input.config` — so declaring them would
+    // silently ignore the model's paging, the same defect as #1172. The route
+    // returns every template.
+    queryParams: ["name", "priority", "category_id", "category_name"],
+    inputSchema: obj({
+      name: STR(
+        "Exact template name. Omit to get every template — the list is small and unpaginated."
+      ),
+      category_name: STR(
+        "Only templates in this category, BY NAME: 'Pre Production' | 'Production' | 'Design Orders' | 'Partner Orders' | 'Research'. The way to disambiguate a name that exists in more than one category."
+      ),
+      priority: STR("Filter by priority: 'low' | 'medium' | 'high'."),
+      category_id: STR(
+        "Only templates in this category, by id. Prefer category_name unless you already hold an id."
+      ),
+    }),
+    nextSteps: [
+      "redispatch_parked_production_runs",
+      "send_production_run_to_production",
+      "resume_production_run_dispatch",
+    ],
+  },
+  {
     name: "redispatch_parked_production_runs",
     description:
-      "Re-send production runs parked in 'awaiting_reassignment' back to the PARTNER THEY CAME FROM, and dispatch them again — the batch answer to 'this partner says they'll take their lapsed runs now'. Each run goes to its own previous_partner_id; partner_id only FILTERS which parked runs are considered, so this can never hand one partner's work to another. Pass template_names to dispatch end-to-end; omit it and each run is assigned and started but left awaiting a template selection. Dry-run by default. Sensitive: requires confirm:true.",
+      "Re-send production runs parked in 'awaiting_reassignment' back to the PARTNER THEY CAME FROM, and dispatch them again — the batch answer to 'this partner says they'll take their lapsed runs now'. Each run goes to its own previous_partner_id; partner_id only FILTERS which parked runs are considered, so this can never hand one partner's work to another. THE DRY-RUN RECOVERS WHAT EACH RUN WAS DISPATCHED WITH LAST TIME (from its own tasks) and lists every available template, so you can show the user a real selection instead of asking them to remember: read `would_redispatch[].previous_template_names` and `available_template_names`. Then confirm with use_previous_templates:true to send each run back with ITS OWN set (parked runs usually do NOT share one), or template_names to override them all. Dry-run by default. Sensitive: requires confirm:true.",
     method: "POST",
     path: "/admin/production-runs/redispatch-parked",
     write: true,
     sensitive: true,
-    bodyParams: ["partner_id", "template_names", "limit", "note", "dry_run", "confirm"],
+    bodyParams: [
+      "partner_id",
+      "template_names",
+      "use_previous_templates",
+      "limit",
+      "note",
+      "dry_run",
+      "confirm",
+    ],
     inputSchema: obj({
       partner_id: STR(
         "Only consider runs parked FROM this partner. Omit for every parked run."
@@ -1649,7 +1687,12 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         type: "array",
         items: { type: "string" },
         description:
-          "Task templates to dispatch with. Omit and runs stop at 'awaiting_templates'.",
+          "Dispatch EVERY selected run with these templates, overriding recovered history. Use only when the runs really should share one set — otherwise prefer use_previous_templates.",
+      },
+      use_previous_templates: {
+        type: "boolean",
+        description:
+          "Dispatch each run with the templates IT used last time, recovered per run from its own tasks. The safe way to re-send a mixed batch end-to-end.",
       },
       limit: { type: "integer", description: "Cap how many runs are re-sent." },
       note: STR("Admin note recorded on each run's activity feed."),
@@ -1660,8 +1703,12 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       confirm: { type: "boolean", description: "Required to actually re-send." },
     }),
     sideEffects:
-      "Assigns each run to its previous partner and starts dispatch, which notifies the partner. Runs dispatched without template_names stay in 'awaiting_templates' until resume_production_run_dispatch is called with the returned transaction_id.",
-    nextSteps: ["resume_production_run_dispatch", "list_production_runs"],
+      "Assigns each run to its previous partner and starts dispatch, which notifies the partner. Runs dispatched with no template selection (neither template_names nor a recoverable history under use_previous_templates) stay in 'awaiting_templates' until resume_production_run_dispatch is called with the returned transaction_id.",
+    nextSteps: [
+      "list_task_templates",
+      "resume_production_run_dispatch",
+      "list_production_runs",
+    ],
   },
   {
     name: "start_production_run_dispatch",

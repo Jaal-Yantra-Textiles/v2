@@ -59,6 +59,11 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   ["/admin/design-work-orders", "designs"],
   ["/admin/production-run-policy", "production"],
   ["/admin/production-runs", "production"],
+  // Task templates ARE the dispatch vocabulary — every run tool that takes
+  // template_names needs a name from here, and an invented one fails the
+  // dispatch outright. Without this entry the tool classifies as undefined and
+  // loads in NO slice, so the model would keep guessing names it cannot see.
+  ["/admin/task-templates", "production"],
   ["/admin/inventory-items", "inventory"],
   ["/admin/inventory-orders", "inventory"],
   ["/admin/raw-material-groups", "inventory"],

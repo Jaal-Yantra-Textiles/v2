@@ -178,6 +178,38 @@ describe("admin-mcp per-ask tool slicing", () => {
     })
   })
 
+  describe("task templates reach the production slice", () => {
+    // The dispatch vocabulary. Every run tool taking `template_names` needs a
+    // name from here, and an invented one fails the dispatch with "Missing task
+    // templates" — so if this tool is not loaded alongside them, the model has
+    // no choice but to guess names it cannot see.
+    it("classifies list_task_templates as production", () => {
+      const byName = new Map(ADMIN_MCP_TOOLS.map((t) => [t.name, t]))
+      expect(toolDomain(byName.get("list_task_templates")!)).toBe("production")
+    })
+
+    it.each([
+      "send this partner's parked runs back to them",
+      "re-dispatch the lapsed production runs",
+      "what task templates do we have?",
+      "which templates should this run be dispatched with?",
+    ])("loads it next to the redispatch tool for: %s", (ask) => {
+      const slice = selectAdminToolSlice(ask, ADMIN_MCP_TOOLS)
+      expect(slice.names).toContain("list_task_templates")
+    })
+
+    it("loads templates and redispatch TOGETHER for a parked-run ask", () => {
+      // Either one alone is a dead end: the names without the action, or the
+      // action without any way to know a valid name.
+      const slice = selectAdminToolSlice(
+        "this partner will take their parked runs now, re-dispatch them",
+        ADMIN_MCP_TOOLS
+      )
+      expect(slice.names).toContain("redispatch_parked_production_runs")
+      expect(slice.names).toContain("list_task_templates")
+    })
+  })
+
   describe("customs / HS codes reach the catalog slice", () => {
     // Two independent wirings must BOTH be right or the tools are invisible:
     // PREFIX_DOMAINS classifies them, DOMAIN_KEYWORDS activates the slice.

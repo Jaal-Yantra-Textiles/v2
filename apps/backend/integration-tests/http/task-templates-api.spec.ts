@@ -145,6 +145,77 @@ setupSharedTestSuite(() => {
       });
     });
 
+    /**
+     * Category is what separates two templates that share a name. Prod carries
+     * "Stitching" in BOTH Pre Production and Production — different stages of
+     * the process wearing the same label — and dispatch resolves templates BY
+     * NAME, so narrowing by category is how a caller says which one it means.
+     *
+     * These run against the real DB on purpose: the filter builds a nested
+     * `{ category: { name } }`, and whether MikroORM honours that shape is not
+     * something a unit test with a stubbed service can establish.
+     */
+    describe("GET /admin/task-templates?category_name=", () => {
+      it("returns only the templates in that category", async () => {
+        const response = await api.get(
+          `/admin/task-templates?category_name=${encodeURIComponent(bugFixTemplate.category)}`,
+          { headers: headers.headers }
+        );
+
+        expect(response.status).toBe(200);
+        const names = response.data.task_templates.map((t) => t.name);
+        expect(names).toContain(bugFixTemplate.name);
+        expect(names).not.toContain(featureTemplate.name);
+      });
+
+      it("filters by the OTHER category too, so it is not just returning everything", () => {
+        // The assertion above passes trivially if the filter is ignored and the
+        // route returns both. This one fails in that case.
+        return api
+          .get(
+            `/admin/task-templates?category_name=${encodeURIComponent(featureTemplate.category)}`,
+            { headers: headers.headers }
+          )
+          .then((response) => {
+            const names = response.data.task_templates.map((t) => t.name);
+            expect(names).toContain(featureTemplate.name);
+            expect(names).not.toContain(bugFixTemplate.name);
+          });
+      });
+
+      it("returns nothing for a category that does not exist", async () => {
+        const response = await api.get(
+          "/admin/task-templates?category_name=No%20Such%20Category",
+          { headers: headers.headers }
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.data.task_templates).toHaveLength(0);
+      });
+
+      it("still returns every template when no filter is given", async () => {
+        const response = await api.get("/admin/task-templates", {
+          headers: headers.headers,
+        });
+
+        const names = response.data.task_templates.map((t) => t.name);
+        expect(names).toEqual(
+          expect.arrayContaining([bugFixTemplate.name, featureTemplate.name])
+        );
+      });
+
+      it("carries the category on each row, so a name can be identified", async () => {
+        const response = await api.get("/admin/task-templates", {
+          headers: headers.headers,
+        });
+
+        const row = response.data.task_templates.find(
+          (t) => t.name === bugFixTemplate.name
+        );
+        expect(row.category.name).toBe(bugFixTemplate.category);
+      });
+    });
+
     describe("GET /admin/task-templates/:id", () => {
       it("should retrieve bug fix template", async () => {
         const response = await api.get(`/admin/task-templates/${bugFixTemplateId}`, {
