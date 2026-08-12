@@ -1,3 +1,10 @@
+## [13.87.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.87.1...v13.87.2) (2026-08-12)
+
+
+### Bug Fixes
+
+* **production:** record which templates a run was dispatched with ([#1266](https://github.com/Jaal-Yantra-Textiles/v2/issues/1266)) ([da17ac7](https://github.com/Jaal-Yantra-Textiles/v2/commit/da17ac73cba2a3ac8e0390680fa1506985d67b62)), closes [#1261](https://github.com/Jaal-Yantra-Textiles/v2/issues/1261) [#1261](https://github.com/Jaal-Yantra-Textiles/v2/issues/1261) [#1262](https://github.com/Jaal-Yantra-Textiles/v2/issues/1262) [#1265](https://github.com/Jaal-Yantra-Textiles/v2/issues/1265)
+
 ## [13.87.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.87.0...v13.87.1) (2026-08-12)
 
 
