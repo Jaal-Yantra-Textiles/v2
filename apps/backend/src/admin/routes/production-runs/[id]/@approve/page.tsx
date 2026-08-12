@@ -29,6 +29,7 @@ const assignmentSchema = z.object({
   quantity: z.coerce.number().positive("Quantity must be > 0"),
   order: z.coerce.number().int().positive().optional(),
   template_names: z.array(z.string()).optional(),
+  template_ids: z.array(z.string()).optional(),
 })
 
 const approveSchema = z.object({
@@ -43,6 +44,7 @@ type Assignment = {
   quantity: number
   order?: number
   template_names?: string[]
+  template_ids?: string[]
 }
 
 const MODAL_ID = "approve-assignments"
@@ -58,6 +60,18 @@ const AssignmentsModal = ({
 }) => {
   const { setIsOpen } = useStackedModal()
   const [local, setLocal] = useState<Assignment[]>([])
+
+  /** Names more than one template answers to — these must show their category. */
+  const ambiguousNames = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const t of templatesToShow || []) {
+      const name = String((t as any)?.name || "")
+      counts.set(name, (counts.get(name) ?? 0) + 1)
+    }
+    return new Set(
+      [...counts.entries()].filter(([, n]) => n > 1).map(([name]) => name)
+    )
+  }, [templatesToShow])
 
   const currentAssignments: Assignment[] = form.watch("assignments") || []
 
@@ -75,7 +89,7 @@ const AssignmentsModal = ({
   const addAssignment = () => {
     setLocal((prev) => [
       ...prev,
-      { partner_id: "", role: "", quantity: 1, order: undefined, template_names: [] },
+      { partner_id: "", role: "", quantity: 1, order: undefined, template_ids: [] },
     ])
   }
 
@@ -89,15 +103,21 @@ const AssignmentsModal = ({
     )
   }
 
-  const toggleTemplate = (idx: number, name: string) => {
+  /**
+   * Keyed by id, not name (#1268). Two templates can share a name — different
+   * process steps wearing one label (#1261) — so a name-keyed toggle merged
+   * them into one control and then recorded an intent dispatch REFUSES, leaving
+   * the run approved and undispatchable.
+   */
+  const toggleTemplate = (idx: number, id: string) => {
     setLocal((prev) =>
       prev.map((a, i) => {
         if (i !== idx) return a
-        const current = a.template_names || []
-        const next = current.includes(name)
-          ? current.filter((n) => n !== name)
-          : [...current, name]
-        return { ...a, template_names: next }
+        const current = a.template_ids || []
+        const next = current.includes(id)
+          ? current.filter((t) => t !== id)
+          : [...current, id]
+        return { ...a, template_ids: next }
       })
     )
   }
@@ -201,16 +221,22 @@ const AssignmentsModal = ({
                   </Text>
                   <div className="flex flex-wrap gap-2">
                     {templatesToShow.map((tpl: any) => {
+                      const id = String(tpl.id)
                       const name = String(tpl.name)
-                      const selected = (assignment.template_names || []).includes(name)
+                      const selected = (assignment.template_ids || []).includes(id)
+                      // Without the category these are indistinguishable, and
+                      // they are different process steps (#1261).
+                      const label = ambiguousNames.has(name)
+                        ? `${name} — ${tpl.category?.name || "uncategorised"}`
+                        : name
                       return (
                         <button
-                          key={name}
+                          key={id}
                           type="button"
                           className="rounded-md border px-3 py-1.5 text-sm"
-                          onClick={() => toggleTemplate(idx, name)}
+                          onClick={() => toggleTemplate(idx, id)}
                         >
-                          <Badge color={selected ? "green" : "grey"}>{name}</Badge>
+                          <Badge color={selected ? "green" : "grey"}>{label}</Badge>
                         </button>
                       )
                     })}

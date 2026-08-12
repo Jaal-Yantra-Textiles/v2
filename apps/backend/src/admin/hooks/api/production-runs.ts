@@ -23,6 +23,8 @@ export type AdminCreateDesignProductionRunPayload = {
     role?: string
     quantity: number
     order?: number
+    /** #1268 — preferred; a name may match two templates and become undispatchable. */
+    template_ids?: string[]
     template_names?: string[]
   }>
 }
@@ -245,6 +247,8 @@ export type AdminApproveProductionRunPayload = {
     role?: string
     quantity?: number
     order?: number
+    /** #1268 — preferred; a name may match two templates and become undispatchable. */
+    template_ids?: string[]
     template_names?: string[]
   }>
 }

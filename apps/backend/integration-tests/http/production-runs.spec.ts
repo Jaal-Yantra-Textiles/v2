@@ -508,5 +508,138 @@ setupSharedTestSuite(() => {
       // The intent field stays null: it is not, and never was, this record.
       expect(run?.dispatch_template_names ?? null).toBeNull()
     })
+
+    /**
+     * #1268 — approval and auto-dispatch are two workflows in one request with
+     * no transaction across them, and approval commits first.
+     *
+     * An approval carrying template IDS dispatches straight through. An
+     * approval whose dispatch fails must still BE an approval: the old code let
+     * the throw escape, so the admin was told approval failed when it had
+     * committed, the run sat approved with no tasks, and `assertCanApprove`
+     * then refused a retry because it was no longer pending_review.
+     */
+    it("approves with template ids and auto-dispatches the children", async () => {
+      const { api } = getSharedTestEnv()
+
+      const unique = `${Date.now()}-appr`
+      const t1 = await api.post(
+        "/admin/task-templates",
+        {
+          name: `prod-approve-a-${unique}`,
+          description: "Approve step A",
+          priority: "medium",
+          estimated_duration: 30,
+          eventable: false,
+          notifiable: false,
+          metadata: { workflow_type: "production_run", step: "a" },
+          category: "Production",
+        },
+        adminHeaders
+      )
+      expect(t1.status).toBe(201)
+      const templateId = t1.data.task_template.id
+      const templateName = t1.data.task_template.name
+
+      const createRunRes = await api.post(
+        "/admin/production-runs",
+        { design_id: designId, quantity: 2 },
+        adminHeaders
+      )
+      expect(createRunRes.status).toBe(201)
+      const parentRunId = createRunRes.data.production_run.id
+
+      const approveRes = await api.post(
+        `/admin/production-runs/${parentRunId}/approve`,
+        {
+          assignments: [
+            {
+              partner_id: partnerId,
+              role: "production",
+              quantity: 2,
+              template_ids: [templateId],
+            },
+          ],
+        },
+        adminHeaders
+      )
+
+      expect(approveRes.status).toBe(200)
+      const childRunId = (approveRes.data.result?.children || [])[0]?.id
+      expect(childRunId).toBeTruthy()
+
+      // The approval carried the ids through, and the route reports what went out.
+      expect(approveRes.data.dispatch?.dispatched).toEqual([childRunId])
+      expect(approveRes.data.dispatch?.failed).toEqual([])
+
+      const runRes = await api.get(
+        `/admin/production-runs/${childRunId}`,
+        adminHeaders
+      )
+      expect(String(runRes.data.production_run.status)).toBe("sent_to_partner")
+      expect(runRes.data.production_run.dispatch_template_ids).toEqual([templateId])
+      // And what it was dispatched with was recorded (#1265).
+      expect(runRes.data.production_run.dispatched_template_ids).toEqual([templateId])
+      const titles = (runRes.data.tasks || []).map((t: any) => t.title)
+      expect(titles).toContain(templateName)
+    })
+
+    it("keeps the approval when the auto-dispatch fails, and says which run failed", async () => {
+      const { api } = getSharedTestEnv()
+
+      const createRunRes = await api.post(
+        "/admin/production-runs",
+        { design_id: designId, quantity: 2 },
+        adminHeaders
+      )
+      expect(createRunRes.status).toBe(201)
+      const parentRunId = createRunRes.data.production_run.id
+
+      // A template id that does not exist — dispatch refuses it outright, which
+      // is precisely the class of failure that used to 500 the approval.
+      const approveRes = await api.post(
+        `/admin/production-runs/${parentRunId}/approve`,
+        {
+          assignments: [
+            {
+              partner_id: partnerId,
+              role: "production",
+              quantity: 2,
+              template_ids: ["tpl_does_not_exist_01K"],
+            },
+          ],
+        },
+        adminHeaders
+      )
+
+      // The approval succeeded, and says so.
+      expect(approveRes.status).toBe(200)
+      const childRunId = (approveRes.data.result?.children || [])[0]?.id
+      expect(childRunId).toBeTruthy()
+
+      expect(approveRes.data.dispatch?.dispatched).toEqual([])
+      expect(approveRes.data.dispatch?.failed).toHaveLength(1)
+      expect(approveRes.data.dispatch?.failed[0].production_run_id).toBe(childRunId)
+      expect(String(approveRes.data.dispatch?.failed[0].message)).toContain(
+        "tpl_does_not_exist_01K"
+      )
+
+      // The run is approved and undispatched — recoverable through the normal
+      // dispatch drawer, rather than a run nobody can act on.
+      const parentRes = await api.get(
+        `/admin/production-runs/${parentRunId}`,
+        adminHeaders
+      )
+      expect(String(parentRes.data.production_run.status)).toBe("approved")
+
+      const childRes = await api.get(
+        `/admin/production-runs/${childRunId}`,
+        adminHeaders
+      )
+      expect(String(childRes.data.production_run.status)).toBe("approved")
+      expect(
+        childRes.data.production_run.dispatched_template_ids ?? null
+      ).toBeNull()
+    })
   })
 })
