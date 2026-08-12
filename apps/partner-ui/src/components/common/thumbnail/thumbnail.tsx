@@ -19,9 +19,16 @@ export const Thumbnail = ({ src, alt, size = "base" }: ThumbnailProps) => {
       )}
     >
       {src ? (
+        // These are full-resolution originals — the media store serves no
+        // resized derivative and ignores width params, so a table of ten rows
+        // pulls the originals (megabytes each) into a 24×32px box. Lazy +
+        // async decode keeps that off the critical path so the table paints
+        // instead of sitting blank while they download.
         <img
           src={src}
           alt={alt}
+          loading="lazy"
+          decoding="async"
           className="h-full w-full object-cover object-center"
         />
       ) : (
