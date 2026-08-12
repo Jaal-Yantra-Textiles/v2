@@ -1,3 +1,10 @@
+## [13.89.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.89.0...v13.89.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* **tests:** repair two CI-failing integration specs (shard 6 + shard 8) ([#1284](https://github.com/Jaal-Yantra-Textiles/v2/issues/1284)) ([fe90aa3](https://github.com/Jaal-Yantra-Textiles/v2/commit/fe90aa3b8110ea9e30afc6a25a60ea708ce7a1b4)), closes [#1206](https://github.com/Jaal-Yantra-Textiles/v2/issues/1206)
+
 # [13.89.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.88.2...v13.89.0) (2026-08-12)
 
 
