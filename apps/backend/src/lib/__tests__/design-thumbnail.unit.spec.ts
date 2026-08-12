@@ -66,6 +66,52 @@ describe("resolveDesignThumbnail", () => {
       "data:image/png;base64,AAAA"
     )
   })
+
+  /**
+   * Found on prod: a design whose only media file was a phone upload,
+   * `IMG_0701-….HEIC`. The summary returned it, the `<img>` could not decode
+   * it in Chrome, and the row looked exactly like a design with no picture.
+   */
+  it("skips formats an <img> cannot decode, falling through to one it can", () => {
+    expect(
+      resolveDesignThumbnail({
+        media_files: [
+          { url: "https://cdn/automatica/IMG_0701-21f20092.HEIC" },
+          { url: "https://cdn/automatica/PXL_20260621.jpg" },
+        ],
+      })
+    ).toBe("https://cdn/automatica/PXL_20260621.jpg")
+  })
+
+  it("prefers a renderable file over a FLAGGED unrenderable one", () => {
+    // The flag says "this is the thumbnail", but a picture nobody can see is
+    // worse than the next one down.
+    expect(
+      resolveDesignThumbnail({
+        media_files: [
+          { url: "https://cdn/shot.heif", isThumbnail: true },
+          { url: "https://cdn/shot.jpeg" },
+        ],
+      })
+    ).toBe("https://cdn/shot.jpeg")
+  })
+
+  it("returns null when every candidate is unrenderable", () => {
+    // The honest placeholder, rather than a broken-image box.
+    expect(
+      resolveDesignThumbnail({
+        media_files: [{ url: "https://cdn/only.HEIC" }],
+      })
+    ).toBeNull()
+  })
+
+  it("ignores a query string when reading the extension", () => {
+    expect(
+      resolveDesignThumbnail({
+        media_files: [{ url: "https://cdn/a.heic?v=2" }, { url: "https://cdn/b.png" }],
+      })
+    ).toBe("https://cdn/b.png")
+  })
 })
 
 describe("resolveMoodboardFirstImage", () => {

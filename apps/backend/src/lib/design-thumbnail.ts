@@ -28,6 +28,24 @@ export type DesignThumbnailSource = {
   metadata?: Record<string, any> | null
 }
 
+/**
+ * Formats an `<img>` cannot decode in Chrome or Firefox. A phone-camera upload
+ * lands as HEIC, and pointing an `<img>` at one renders a broken image rather
+ * than a picture — indistinguishable, to the person looking at the table, from
+ * the thumbnail being missing. Skipping them here lets the derivation fall
+ * through to a media file that WILL render, and otherwise show the honest
+ * placeholder.
+ *
+ * (Safari does decode HEIC. Preferring a renderable image everywhere beats a
+ * picture that appears for some of the team and not the rest.)
+ */
+const UNRENDERABLE_EXTENSIONS = [".heic", ".heif", ".tif", ".tiff"]
+
+const isRenderableImageUrl = (url: string): boolean => {
+  const path = url.split(/[?#]/)[0].toLowerCase()
+  return !UNRENDERABLE_EXTENSIONS.some((ext) => path.endsWith(ext))
+}
+
 const isUsableUrl = (
   value: unknown,
   allowDataUrl: boolean
@@ -42,7 +60,7 @@ const isUsableUrl = (
   if (url.startsWith("data:")) {
     return allowDataUrl
   }
-  return true
+  return isRenderableImageUrl(url)
 }
 
 /**
