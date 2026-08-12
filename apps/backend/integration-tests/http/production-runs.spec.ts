@@ -406,5 +406,107 @@ setupSharedTestSuite(() => {
       expect(runTaskTitles).toContain(templateA.name)
       expect(runTaskTitles).toContain(templateB.name)
     })
+
+    /**
+     * #1265 — a dispatched run must record WHICH templates it went out with.
+     *
+     * `dispatch_template_names` looks like it answers this and does not: it is
+     * approval-time intent, written only when an approver named templates, so a
+     * run whose templates are chosen at dispatch keeps it null forever. This
+     * asserts the field that dispatch itself writes, over the real HTTP path,
+     * and dispatches BY ID — a name is not an identity (#1261).
+     */
+    it("records dispatched_template_ids on the run when dispatched by id", async () => {
+      const { api } = getSharedTestEnv()
+
+      const unique = `${Date.now()}-rec`
+      const mkTemplate = (step: string) => ({
+        name: `prod-record-${step}-${unique}`,
+        description: `Record step ${step}`,
+        priority: "medium",
+        estimated_duration: 30,
+        eventable: false,
+        notifiable: false,
+        metadata: { workflow_type: "production_run", step },
+        category: "Production",
+      })
+
+      const templateA = mkTemplate("a")
+      const t1 = await api.post("/admin/task-templates", templateA, adminHeaders)
+      expect(t1.status).toBe(201)
+      const templateAId = t1.data.task_template.id
+      const categoryId = t1.data.task_template.category_id
+
+      const { category: _c, ...templateB } = {
+        ...mkTemplate("b"),
+        category_id: categoryId,
+      } as any
+      const t2 = await api.post("/admin/task-templates", templateB, adminHeaders)
+      expect(t2.status).toBe(201)
+      const templateBId = t2.data.task_template.id
+
+      const createRunRes = await api.post(
+        "/admin/production-runs",
+        { design_id: designId, quantity: 4 },
+        adminHeaders
+      )
+      expect(createRunRes.status).toBe(201)
+      const parentRunId = createRunRes.data.production_run.id
+
+      // Nothing is named at approval — exactly the case that leaves
+      // `dispatch_template_names` null forever.
+      const approveRes = await api.post(
+        `/admin/production-runs/${parentRunId}/approve`,
+        {
+          assignments: [
+            { partner_id: partnerId, role: "production", quantity: 4 },
+          ],
+        },
+        adminHeaders
+      )
+      expect(approveRes.status).toBe(200)
+      const childRunId = (approveRes.data.result?.children || [])[0]?.id
+      expect(childRunId).toBeTruthy()
+
+      const startRes = await api.post(
+        `/admin/production-runs/${childRunId}/start-dispatch`,
+        {},
+        adminHeaders
+      )
+      expect(startRes.status).toBe(202)
+
+      const resumeRes = await api.post(
+        `/admin/production-runs/${childRunId}/resume-dispatch`,
+        {
+          transaction_id: startRes.data.transaction_id,
+          template_ids: [templateAId, templateBId],
+        },
+        adminHeaders
+      )
+      expect(resumeRes.status).toBe(200)
+
+      const deadline = Date.now() + 15_000
+      let run: any = null
+      while (Date.now() < deadline) {
+        const res = await api.get(
+          `/admin/production-runs/${childRunId}`,
+          adminHeaders
+        )
+        run = res.data.production_run
+        if (
+          String(run?.status) === "sent_to_partner" &&
+          (run?.dispatched_template_ids || []).length
+        ) {
+          break
+        }
+        await new Promise((r) => setTimeout(r, 500))
+      }
+
+      expect(String(run?.status)).toBe("sent_to_partner")
+      // Caller order is the order the partner works in — preserved, not sorted.
+      expect(run?.dispatched_template_ids).toEqual([templateAId, templateBId])
+      // The intent field stays null: it is not, and never was, this record.
+      expect(run?.dispatch_template_names ?? null).toBeNull()
+    })
   })
 })

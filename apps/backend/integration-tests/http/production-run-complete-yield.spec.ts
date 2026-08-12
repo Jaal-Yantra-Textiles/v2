@@ -221,7 +221,19 @@ setupSharedTestSuite(() => {
 
     // ── Test: Complete without yield data (backward compat) ─────────
 
-    it("should still work without yield fields (backward compatibility)", async () => {
+    /**
+     * This asserted the OPPOSITE until #1262: completing with no output fields
+     * used to be a 200, and this test was named for that backward
+     * compatibility. #1262 closed the gap deliberately — a run could be closed
+     * with nothing said about what came out of it, which is the cause behind
+     * the #1248 thread — so an unaccounted completion is now REFUSED. The
+     * spec was never updated with the code, so it has been failing since.
+     *
+     * Compatibility is preserved only where it was always meaningful: a run
+     * with no ordered quantity has nothing to measure against and still
+     * completes without output fields (covered below).
+     */
+    it("should refuse a completion that says nothing about output", async () => {
       const { adminHeaders, unique } = await setupTestData()
       const { partnerId, partnerHeaders } = await createPartner(unique)
       const { templateName } = await createTemplates(adminHeaders, unique)
@@ -240,20 +252,38 @@ setupSharedTestSuite(() => {
 
       await advanceToFinished(runId, partnerHeaders)
 
-      // Complete with no yield fields — just like the old API
-      const completeRes = await api.post(
-        `/partners/production-runs/${runId}/complete`,
-        {
-          partner_cost_estimate: 1500,
-          notes: "Done",
-        },
-        { headers: partnerHeaders }
+      // Complete with no yield fields — just like the old API. 3 were ordered
+      // and this says nothing about how many were made.
+      const completeErr = await api
+        .post(
+          `/partners/production-runs/${runId}/complete`,
+          {
+            partner_cost_estimate: 1500,
+            notes: "Done",
+          },
+          { headers: partnerHeaders }
+        )
+        .then(
+          (res: any) => {
+            throw new Error(
+              `Expected the completion to be refused, got ${res.status}`
+            )
+          },
+          (err: any) => err
+        )
+
+      expect(completeErr.response?.status).toBe(400)
+      expect(String(completeErr.response?.data?.message)).toContain(
+        "produced_quantity is required"
       )
-      expect(completeRes.status).toBe(200)
-      expect(completeRes.data.production_run.status).toBe("completed")
-      expect(completeRes.data.production_run.partner_cost_estimate).toBe(1500)
-      // produced_quantity should be null (not sent)
-      expect(completeRes.data.production_run.produced_quantity).toBeNull()
+
+      // The run is untouched — a refused completion must not half-close it.
+      const afterRes = await api.get(
+        `/admin/production-runs/${runId}`,
+        adminHeaders
+      )
+      expect(afterRes.data.production_run.status).not.toBe("completed")
+      expect(afterRes.data.production_run.produced_quantity ?? null).toBeNull()
     })
 
     // ── Test: Complete with consumptions + yield ────────────────────
