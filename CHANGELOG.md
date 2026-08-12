@@ -1,3 +1,10 @@
+# [13.87.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.86.1...v13.87.0) (2026-08-12)
+
+
+### Features
+
+* **ops:** divergence denominator ([#1259](https://github.com/Jaal-Yantra-Textiles/v2/issues/1259)), and category-aware template recovery for parked runs ([#1260](https://github.com/Jaal-Yantra-Textiles/v2/issues/1260)) ([1825d45](https://github.com/Jaal-Yantra-Textiles/v2/commit/1825d453134c54c208c486bb9eada8cc7ae53480)), closes [#1172](https://github.com/Jaal-Yantra-Textiles/v2/issues/1172)
+
 ## [13.86.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.86.0...v13.86.1) (2026-08-12)
 
 
