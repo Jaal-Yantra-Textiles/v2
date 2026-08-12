@@ -10,6 +10,8 @@ const ProductionAssignmentSchema = z.object({
   // templates are picked — `.optional()` alone rejected that with
   // "Field is required" and never let the request reach the workflow.
   template_names: z.array(z.string()).nullish(),
+  /** #1268 — the preferred, unambiguous form. See production-runs/validators.ts. */
+  template_ids: z.array(z.string()).nullish(),
 })
 
 export const AdminCreateDesignProductionRunSchema = z.object({

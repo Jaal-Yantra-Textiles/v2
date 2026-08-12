@@ -13,6 +13,13 @@ const AssignmentSchema = z.object({
   // fired. With null/empty the auto-dispatch loop in the route handler
   // skips dispatch — the run lands in `approved`/idle.
   template_names: z.array(z.string()).nullish(),
+  /**
+   * #1268 — the same selection by id, and the preferred form. A name may match
+   * two templates, and dispatch refuses such a name, so an approval that
+   * recorded only names can become impossible to carry out. Same `.nullish()`
+   * tolerance as the names, for the same reason.
+   */
+  template_ids: z.array(z.string()).nullish(),
 })
 
 export const AdminCreateProductionRunReq = z.object({

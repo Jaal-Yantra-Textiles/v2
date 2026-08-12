@@ -80,6 +80,18 @@ const ProductionRun = model.define("production_runs", {
    */
   dispatch_template_names: model.json().nullable(),
   /**
+   * The same INTENT, said properly (#1268). `dispatch_template_names` records a
+   * label, and a label is not an identity: two templates can share one (#1261),
+   * in which case dispatch refuses the name outright and the approval it came
+   * from can no longer be carried out. Ids survive the
+   * `deduplicate-task-template-names` job renaming a row, too.
+   *
+   * Preferred over the names wherever both are present. Still INTENT — what an
+   * approver asked for, not what happened; `dispatched_template_ids` is the
+   * record of what actually went out.
+   */
+  dispatch_template_ids: model.json().nullable(),
+  /**
    * RECORD, written when the run is actually dispatched — the ids of the task
    * templates that were resolved and instantiated. Written by
    * `send-production-run-to-production`, which every dispatch path goes through.

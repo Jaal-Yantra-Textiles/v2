@@ -63,7 +63,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 
 import { approveProductionRunWorkflow } from "../../../../../workflows/production-runs/approve-production-run"
-import { sendProductionRunToProductionWorkflow } from "../../../../../workflows/production-runs/send-production-run-to-production"
+import { autoDispatchApprovedChildren } from "../../auto-dispatch-approved-children"
 import type { AdminApproveProductionRunReq } from "../../validators"
 
 export const POST = async (
@@ -80,27 +80,14 @@ export const POST = async (
     },
   })
 
-  // For each approved child that has dispatch_template_names,
-  // trigger sendProductionRunToProductionWorkflow to actually create tasks.
-  // If any child has cross-run ordering (depends_on_run_ids), skip auto-dispatch
-  // entirely — the admin controls dispatch sequencing via start-dispatch/resume-dispatch,
-  // and the task subscriber handles cascading dispatch when dependencies complete.
-  const children = result?.children || []
-  const hasOrdering = children.some((c: any) => c.depends_on_run_ids?.length)
+  // Dispatch each approved child that recorded a template selection, by id
+  // where the approval gave one. A dispatch failure here does NOT fail the
+  // approval — it already committed, and reporting it as a failure left runs
+  // approved, undispatched and un-retryable (#1268).
+  const dispatch = await autoDispatchApprovedChildren(
+    req.scope,
+    (result?.children || []) as any
+  )
 
-  if (!hasOrdering) {
-    for (const child of children) {
-      const templateNames = (child as any)?.dispatch_template_names as string[] | undefined
-      if (!templateNames?.length) continue
-
-      await sendProductionRunToProductionWorkflow(req.scope).run({
-        input: {
-          production_run_id: (child as any).id,
-          template_names: templateNames,
-        },
-      })
-    }
-  }
-
-  return res.status(200).json({ result })
+  return res.status(200).json({ result, dispatch })
 }

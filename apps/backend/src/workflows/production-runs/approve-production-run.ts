@@ -24,7 +24,14 @@ export type ProductionRunAssignment = {
   role?: string | null
   quantity?: number
   order?: number
+  /**
+   * Templates BY NAME. Kept because existing callers use it, but since #1261 a
+   * name may identify nothing — dispatch REFUSES one that matches more than one
+   * template, so an approval recorded this way can become uncarryable.
+   */
   template_names?: string[]
+  /** Templates BY ID — preferred. Wins over `template_names` when both are sent. */
+  template_ids?: string[]
 }
 
 export type ApproveProductionRunInput = {
@@ -120,7 +127,10 @@ const approveProductionRunStep = createStep(
         captured_at: (original as any).captured_at,
         status: "approved" as any,
         run_type: (original as any).run_type ?? "production",
+        // Both are recorded as sent. The ids are what dispatch should act on;
+        // the names stay so an older reader still sees what was asked for.
         dispatch_template_names: a.template_names?.length ? a.template_names : null,
+        dispatch_template_ids: a.template_ids?.length ? a.template_ids : null,
         metadata: Object.keys(inheritedMetadata).length ? inheritedMetadata : null,
       }
     })
