@@ -94,6 +94,7 @@ import { rewindProductionRunJob } from "./rewind-production-run-job"
 import { repairConsumptionLogJob } from "./repair-consumption-log-job"
 import { setLocationOwnershipJob } from "./set-location-ownership-job"
 import { resetNegativeInventoryLevelsJob } from "./reset-negative-inventory-levels-job"
+import { backfillDispatchedTemplateIdsJob } from "./backfill-dispatched-template-ids-job"
 import { deduplicateTaskTemplateNamesJob } from "./deduplicate-task-template-names-job"
 import { recordManualInventoryCorrectionJob } from "./record-manual-inventory-correction-job"
 import { applyCommittedConsumptionJob } from "./apply-committed-consumption-job"
@@ -5662,6 +5663,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   setLocationOwnershipJob,
   resetNegativeInventoryLevelsJob,
   deduplicateTaskTemplateNamesJob,
+  backfillDispatchedTemplateIdsJob,
   recordManualInventoryCorrectionJob,
   applyCommittedConsumptionJob,
   reconcileConsumptionVsProductionJob,
