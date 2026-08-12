@@ -1,3 +1,16 @@
+# [13.89.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.88.2...v13.89.0) (2026-08-12)
+
+
+### Bug Fixes
+
+* **whatsapp:** resize outbound images, and stop the cap counting reminders Meta refused ([#1279](https://github.com/Jaal-Yantra-Textiles/v2/issues/1279)) ([#1282](https://github.com/Jaal-Yantra-Textiles/v2/issues/1282)) ([063fcb4](https://github.com/Jaal-Yantra-Textiles/v2/commit/063fcb496710720b0f7bd194ea2d3d965f51fee8))
+* **inventory:** schedule the divergence check, and stop swallowing a failed stock rollback ([#1259](https://github.com/Jaal-Yantra-Textiles/v2/issues/1259)) ([#1281](https://github.com/Jaal-Yantra-Textiles/v2/issues/1281)) ([7bf654c](https://github.com/Jaal-Yantra-Textiles/v2/commit/7bf654c2be2188e7d8d6cd9cff0528c1e0b6de1a)), closes [#1260](https://github.com/Jaal-Yantra-Textiles/v2/issues/1260)
+
+
+### Features
+
+* **production-runs:** give parked runs an admin escalation, and the escalation a delivery ([#1279](https://github.com/Jaal-Yantra-Textiles/v2/issues/1279)) ([#1283](https://github.com/Jaal-Yantra-Textiles/v2/issues/1283)) ([3c3fbff](https://github.com/Jaal-Yantra-Textiles/v2/commit/3c3fbffcd43093085e74ec1dc6544c400487326b)), closes [#1093](https://github.com/Jaal-Yantra-Textiles/v2/issues/1093)
+
 ## [13.88.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.88.1...v13.88.2) (2026-08-12)
 
 
