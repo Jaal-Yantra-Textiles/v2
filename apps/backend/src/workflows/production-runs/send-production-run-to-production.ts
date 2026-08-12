@@ -456,6 +456,70 @@ const startLifecycleWorkflowStep = createStep(
   }
 )
 
+/**
+ * Record WHICH templates this run was actually dispatched with (#1265).
+ *
+ * `dispatch_template_names` looks like it answers this and does not: it is
+ * approval-time intent, written only when an approver named templates, so a run
+ * whose templates are chosen at dispatch keeps it null forever. Every one of the
+ * six runs re-dispatched on prod on 2026-08-12 had it null.
+ *
+ * Ids, not names — a name is not an identity (#1261), and the
+ * `deduplicate-task-template-names` job renames rows, so a stored name can stop
+ * meaning what it meant when it was written.
+ *
+ * Runs after the tasks exist and are linked, so the record can only claim a
+ * dispatch that really happened. Compensation restores the previous value rather
+ * than nulling it, so a rollback cannot erase an EARLIER dispatch's record — a
+ * re-dispatch of an already-dispatched run is exactly the case this protects.
+ */
+const recordDispatchedTemplateIdsStep = createStep(
+  "record-dispatched-template-ids",
+  async (
+    input: { production_run_id: string; template_ids: string[] },
+    { container }
+  ) => {
+    const ids = (input.template_ids || []).filter(
+      (id): id is string => typeof id === "string" && id.length > 0
+    )
+
+    if (!ids.length) {
+      return new StepResponse(null, null)
+    }
+
+    const productionRunService: ProductionRunService =
+      container.resolve(PRODUCTION_RUNS_MODULE)
+
+    const existing = await productionRunService.retrieveProductionRun(
+      input.production_run_id
+    )
+    const previous = (existing as any)?.dispatched_template_ids ?? null
+
+    await productionRunService.updateProductionRuns({
+      id: input.production_run_id,
+      dispatched_template_ids: ids,
+    } as any)
+
+    return new StepResponse(ids, {
+      production_run_id: input.production_run_id,
+      previous,
+    })
+  },
+  async (compensationInput, { container }) => {
+    if (!compensationInput) {
+      return
+    }
+
+    const productionRunService: ProductionRunService =
+      container.resolve(PRODUCTION_RUNS_MODULE)
+
+    await productionRunService.updateProductionRuns({
+      id: compensationInput.production_run_id,
+      dispatched_template_ids: compensationInput.previous,
+    } as any)
+  }
+)
+
 export const sendProductionRunToProductionWorkflow = createWorkflow(
   "send-production-run-to-production",
   (input: SendProductionRunToProductionInput) => {
@@ -493,6 +557,14 @@ export const sendProductionRunToProductionWorkflow = createWorkflow(
     linkProductionRunToTasksStep({
       production_run_id: input.production_run_id,
       task_ids: taskIds,
+    })
+
+    // The tasks exist and are linked, so this records a dispatch that happened.
+    recordDispatchedTemplateIdsStep({
+      production_run_id: input.production_run_id,
+      template_ids: transform({ resolved }, (data) =>
+        (data.resolved.templates || []).map((t: any) => t.id).filter(Boolean)
+      ),
     })
 
     const partnerId = transform({ run }, (data) => (data.run as any).partner_id as string)

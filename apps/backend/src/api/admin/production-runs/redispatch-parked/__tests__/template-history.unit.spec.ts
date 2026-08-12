@@ -125,6 +125,102 @@ describe("recoverRunTemplates", () => {
     ])
   })
 
+  /**
+   * #1265. Before this, `dispatch_template_names` was the only field on the run
+   * and it is approval-time INTENT — null for every one of the six runs
+   * re-dispatched on prod 2026-08-12, because their templates were chosen at
+   * dispatch. `dispatched_template_ids` is written BY dispatch, so it is the
+   * only field that answers "what did this run actually run?".
+   */
+  describe("the dispatch's own record", () => {
+    it("prefers the dispatched ids over archaeology on the tasks", () => {
+      const history = recoverRunTemplates(
+        [task("Sampling", "01JSV5QCNDEY73Q3RK1EHSE44K")],
+        {
+          dispatched_template_ids: ["01K5S31SPKSW31S7XP3TYY296F"],
+        },
+        { catalog: CATALOG }
+      )
+
+      expect(history.source).toBe("run_dispatched_ids")
+      expect(history.templates).toEqual([
+        {
+          name: "Stitching",
+          template_id: "01K5S31SPKSW31S7XP3TYY296F",
+          category_name: "Production",
+        },
+      ])
+    })
+
+    it("outlives the tasks it was recovered from", () => {
+      // The whole point: task deletion used to lose the answer entirely.
+      const history = recoverRunTemplates(
+        [],
+        { dispatched_template_ids: ["01KMQ7R0NQGN50B7PSJZBSE1FQ"] },
+        { catalog: CATALOG }
+      )
+
+      expect(history.source).toBe("run_dispatched_ids")
+      expect(history.templates[0].name).toBe("Quality Check")
+    })
+
+    it("says WHICH Stitching, because it stored an id and not a name", () => {
+      const history = recoverRunTemplates(
+        [],
+        { dispatched_template_ids: ["01JW0Y600VQPWGMCBZXSGNZW67"] },
+        { catalog: CATALOG }
+      )
+
+      expect(history.templates[0].category_name).toBe("Pre Production")
+    })
+
+    it("keeps an id the catalogue no longer knows rather than shrinking the set", () => {
+      // Dropping it would send a SHORTER process back out than the run ran.
+      const history = recoverRunTemplates(
+        [],
+        {
+          dispatched_template_ids: [
+            "01KMQ7R0NQGN50B7PSJZBSE1FQ",
+            "deleted_template",
+          ],
+        },
+        { catalog: CATALOG }
+      )
+
+      expect(history.templates).toHaveLength(2)
+      expect(history.templates[1]).toEqual({
+        name: "",
+        template_id: "deleted_template",
+        category_name: null,
+      })
+    })
+
+    it("falls back to the tasks when the record is empty or absent", () => {
+      for (const run of [
+        { dispatched_template_ids: [] },
+        { dispatched_template_ids: null },
+        {},
+      ]) {
+        const history = recoverRunTemplates(
+          [task("Sampling", "01JSV5QCNDEY73Q3RK1EHSE44K")],
+          run as any,
+          { catalog: CATALOG }
+        )
+        expect(history.source).toBe("tasks")
+      }
+    })
+
+    it("ignores junk entries rather than dispatching on them", () => {
+      const history = recoverRunTemplates(
+        [],
+        { dispatched_template_ids: ["", null, undefined] as any },
+        { catalog: CATALOG }
+      )
+
+      expect(history.source).toBe("none")
+    })
+  })
+
   it("prefers what actually happened over what was intended", () => {
     // Intent is what someone meant to dispatch; tasks are proof of what ran.
     const h = recoverRunTemplates([task("Cutting", "t_cut")], {

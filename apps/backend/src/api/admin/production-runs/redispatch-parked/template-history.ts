@@ -48,12 +48,16 @@ export type RunTemplateHistory = {
   templates: RecoveredTemplate[]
   /**
    * Where the answer came from, so a caller can tell evidence from intent:
-   * - `tasks` — templates actually instantiated. What really happened.
+   * - `run_dispatched_ids` — `dispatched_template_ids`, written BY dispatch
+   *   itself (#1265). The authoritative record, and ids rather than names, so a
+   *   later rename cannot change what it means. Survives task deletion.
+   * - `tasks` — templates actually instantiated. What really happened, but
+   *   recovered by archaeology, and gone if the tasks are.
    * - `run_dispatch_intent` — `dispatch_template_names`, recorded at APPROVAL.
    *   What someone meant to dispatch, which is not proof it was.
    * - `none` — nothing to go on; a selection must be made by hand.
    */
-  source: "tasks" | "run_dispatch_intent" | "none"
+  source: "run_dispatched_ids" | "tasks" | "run_dispatch_intent" | "none"
   /**
    * Recovered names that match more than one template row. Reported, never
    * resolved — picking one is a judgement about which process the partner
@@ -87,7 +91,10 @@ export type TemplateCatalogEntry = {
  */
 export function recoverRunTemplates(
   tasks: RunTask[],
-  run?: { dispatch_template_names?: string[] | null } | null,
+  run?: {
+    dispatch_template_names?: string[] | null
+    dispatched_template_ids?: string[] | null
+  } | null,
   options: { catalog?: TemplateCatalogEntry[] } = {}
 ): RunTemplateHistory {
   const catalog = options.catalog ?? []
@@ -140,6 +147,32 @@ export function recoverRunTemplates(
         ]
       : [],
   })
+
+  /**
+   * The dispatch's own record wins over task archaeology (#1265): it is written
+   * by dispatch, it is ids, and it survives the tasks being deleted.
+   *
+   * An id the catalogue no longer knows is kept rather than dropped — the run
+   * really was dispatched with it, and silently shrinking the set would send a
+   * shorter process back out than the run actually ran. It stays unnamed, which
+   * is the honest reading of a template that no longer exists.
+   */
+  const dispatchedIds = (run?.dispatched_template_ids ?? []).filter(
+    (id): id is string => typeof id === "string" && id.length > 0
+  )
+  if (dispatchedIds.length) {
+    return withAmbiguity(
+      dispatchedIds.map((id) => {
+        const hit = byId.get(id)
+        return {
+          name: hit?.name ?? "",
+          template_id: id,
+          category_name: hit?.category_name ?? null,
+        }
+      }),
+      "run_dispatched_ids"
+    )
+  }
 
   if (templates.length) {
     return withAmbiguity(templates, "tasks")
