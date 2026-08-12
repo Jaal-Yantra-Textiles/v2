@@ -6,6 +6,7 @@ import { TwoColumnPage } from "../../../components/layout/pages"
 import { InventoryOrderLines } from "../../../components/work-orders/inventory-order-lines"
 import { DesignOrderLines } from "../../../components/work-orders/design-order-lines"
 import { CollatedDesignRuns } from "../../../components/work-orders/collated-design-runs"
+import { DesignSectionsSkeleton } from "../../../components/work-orders/design-sections-skeleton"
 import {
   InventoryFulfillmentsSection,
   InventoryPaymentsSection,
@@ -16,6 +17,7 @@ import { ProductionRunCard } from "../../../components/work-orders/production-ru
 import { WorkOrderActivitySection } from "../../../components/work-orders/work-order-activity-section"
 import { WorkOrderSummarySection } from "../../../components/work-orders/work-order-summary-section"
 import { DesignInventoryBomSection } from "../../designs/design-detail/components/design-inventory-bom-section"
+import { DesignMediaSection } from "../../designs/design-detail/components/design-media-section"
 import { DesignSizeSetsSection } from "../../designs/design-detail/components/design-size-sets-section"
 import { DesignCostSection } from "../../designs/design-detail/components/design-cost-section"
 import { ordersQueryKeys, useOrder, useOrderPreview } from "../../../hooks/api/orders"
@@ -91,7 +93,21 @@ export const OrderDetail = () => {
     enabled: kind === "design" && !!legacyId,
   })
   const designId = (production_run as any)?.design_id as string | undefined
-  const { design } = usePartnerDesign(designId ?? "", { enabled: !!designId })
+  const { design, isError: isDesignError } = usePartnerDesign(designId ?? "", {
+    enabled: !!designId,
+  })
+
+  // Resolving a design work-order's design takes two hops (order → run →
+  // design), so the design sections used to be absent from the tree for a beat
+  // and then pop in, shoving the page down. Skeleton that window instead. A
+  // design that genuinely 404s for this partner (no design↔partner link) sets
+  // isError and falls through — that must not skeleton forever.
+  const isDesignResolving =
+    kind === "design" &&
+    !!legacyId &&
+    !(order as any)?.metadata?.collated_design_order &&
+    !design &&
+    !isDesignError
   const { logs: consumptionLogs = [], count: consumptionCount = 0 } =
     usePartnerConsumptionLogs(designId ?? "", undefined, { enabled: !!designId })
 
@@ -184,11 +200,19 @@ export const OrderDetail = () => {
                   />
                 </>
               )}
+            {isDesignResolving && <DesignSectionsSkeleton />}
             {kind === "design" &&
               !(order as any)?.metadata?.collated_design_order &&
               design && (
                 <>
                   <WorkOrderSummarySection kind="design" design={design} designId={designId} />
+                  {/* The design's pictures, in the order — the partner sees
+                      what they're making without leaving Orders. Links point at
+                      the design's media routes nested under this order. */}
+                  <DesignMediaSection
+                    design={design}
+                    linkBase={`design-details/${design.id}`}
+                  />
                   {/* Sizes (size_sets or legacy custom_sizes) + BOM inventory
                       with thumbnails — parity with the collated design view (#1, #3). */}
                   <DesignSizeSetsSection design={design} />

@@ -33,7 +33,9 @@ import {
   useFinishPartnerAssignedTask,
   useCompletePartnerAssignedTaskSubtask,
 } from "../../hooks/api/partner-assigned-tasks"
+import { useMe } from "../../hooks/api/users"
 import { getStatusBadgeColor } from "../../lib/status-badge"
+import { getReassignmentNotice } from "../../lib/reassignment-notice"
 import { extractErrorMessage } from "../../lib/extract-error-message"
 import { GoodsTransferSection } from "./goods-transfer-section"
 
@@ -319,6 +321,12 @@ export const ProductionRunCard = ({
   const tasks = run.tasks || []
   const isSample = run.run_type === "sample"
   const prompt = usePrompt()
+
+  // #1228 — how this run got here. Needs the viewer's own partner id to tell
+  // "re-assigned to you from someone else" apart from a run handed back to you.
+  const { user } = useMe()
+  const reassignmentNotice = getReassignmentNotice(run, user?.partner_id)
+
   const [showFinishForm, setShowFinishForm] = useState(false)
   const [showCompleteForm, setShowCompleteForm] = useState(false)
   const [finishNotes, setFinishNotes] = useState("")
@@ -516,6 +524,18 @@ export const ProductionRunCard = ({
           )}
         </div>
       </div>
+
+      {/* #1228 — how this run reached the partner. Sits ABOVE the stepper: a
+          re-sent run and a fresh one are otherwise identical on screen, and
+          "you're on your last chance to accept this" has to be read before the
+          Accept button, not after it. */}
+      {reassignmentNotice && (
+        <InfoBanner
+          title={reassignmentNotice.title}
+          description={reassignmentNotice.description}
+          variant={reassignmentNotice.variant}
+        />
+      )}
 
       {/* Progress stepper */}
       <ProgressStepper run={run} />

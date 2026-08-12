@@ -33,6 +33,8 @@ export type UpdatePartnerInput = {
     deployment_account_id: string | null
     deployment_project_id: string | null
     deployment_project_name: string | null
+    /** #1228 — accept a re-sent run on this partner's behalf (opt-in). */
+    auto_accept_production_runs: boolean
   }>
 }
 
@@ -76,6 +78,7 @@ export const updatePartnerStep = createStep(
       status: previous.status,
       is_verified: previous.is_verified,
       metadata: previous.metadata ?? null,
+      auto_accept_production_runs: previous.auto_accept_production_runs ?? false,
     } as any)
   }
 )

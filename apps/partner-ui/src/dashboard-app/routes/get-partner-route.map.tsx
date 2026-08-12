@@ -1020,6 +1020,14 @@ export function getPartnerRouteMap(): RouteObject[] {
                   ],
                 },
                 {
+                  // #1228 — the partner's own policy for work sent to them.
+                  // Home of the auto-accept opt-in, which had a column and a
+                  // reader but no way to switch on until now.
+                  path: "production-runs",
+                  lazy: () => import("../../routes/settings/production-runs"),
+                  handle: { breadcrumb: () => "Production Runs" },
+                },
+                {
                   path: "onboarding",
                   lazy: () => import("../../routes/settings/onboarding"),
                 },

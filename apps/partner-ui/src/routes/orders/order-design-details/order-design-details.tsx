@@ -13,8 +13,10 @@ import { DesignDetail } from "../../designs/design-detail/design-detail"
  * (`/orders/:id/design-details[/:designId]`). Instead of a reduced read-only
  * view with an "Open design manager" button that jumped to `/designs/:id`
  * (leaving the Orders context), this resolves the design id and renders the
- * FULL design manager INLINE, with a "Back to order" link — so the partner
- * drives the whole design from within the order and can return with one click.
+ * FULL design manager INLINE — so the partner drives the whole design from
+ * within the order. Getting back is the breadcrumb's job (Orders › id › Design
+ * details); the extra "Back to order" button above the first card duplicated it
+ * and pushed the design's own content down, so it's gone.
  *
  * Resolution: a collated order's per-design route names the design directly via
  * `:designId`; a legacy single-design order resolves it from the order's
@@ -54,13 +56,5 @@ export const OrderDesignDetails = () => {
     )
   }
 
-  return (
-    <DesignDetail
-      designId={designId}
-      backTo={{
-        to: `/orders/${id}`,
-        label: t("partner.workOrders.backToOrder", "Back to order"),
-      }}
-    />
-  )
+  return <DesignDetail designId={designId} />
 }

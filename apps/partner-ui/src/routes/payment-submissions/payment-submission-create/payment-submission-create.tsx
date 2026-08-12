@@ -253,7 +253,15 @@ export const PaymentSubmissionCreate = () => {
         </div>
       </RouteFocusModal.Header>
 
-      <RouteFocusModal.Body className="flex flex-col gap-y-6 p-6 md:p-16">
+      {/* FocusModal.Content is `overflow-hidden` and FocusModal.Body is only
+          `flex-1` — the body does NOT scroll unless it asks to. Without
+          `overflow-y-auto` a partner with more than a handful of eligible
+          designs or tasks had the rest of the list clipped off the bottom of
+          the modal with no way to reach it (the Submit button lives in the
+          header, so the form still "worked" — you just couldn't see or pick
+          anything past the fold). `min-h-0` lets the flex child actually shrink
+          below its content height, which is what makes the scroll take effect. */}
+      <RouteFocusModal.Body className="flex min-h-0 flex-1 flex-col gap-y-6 overflow-y-auto p-6 md:p-16">
         <div className="mx-auto w-full max-w-[720px]">
           {/* Notes */}
           <div className="mb-6">

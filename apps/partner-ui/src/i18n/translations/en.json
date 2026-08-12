@@ -3281,6 +3281,7 @@
   "partner": {
     "settingsSidebar": {
       "store": "Store",
+      "productionRuns": "Production Runs",
       "regions": "Regions",
       "locationsShipping": "Locations & Shipping",
       "salesChannels": "Sales Channels",
@@ -3483,7 +3484,6 @@
       "stockLocation": "Stock location",
       "designDetails": "Design details",
       "openDesignManager": "Open design manager",
-      "backToOrder": "Back to order",
       "noDesign": "No design linked to this order.",
       "activity": {
         "title": "Activity",

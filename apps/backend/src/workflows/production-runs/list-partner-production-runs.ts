@@ -59,6 +59,15 @@ export const PARTNER_PRODUCTION_RUN_LIST_FIELDS = [
   "rejection_reason",
   "rejection_notes",
   "depends_on_run_ids",
+  // #1228 — how the run got here. `previous_partner_id` is set when a run was
+  // taken off a partner who didn't accept it, and survives the re-dispatch to
+  // whoever holds it now; `reassign_retry_count` counts the times THIS partner
+  // has already been re-nudged on it. The partner UI needs both to say "this
+  // was re-assigned to you" vs "you've already missed one dispatch of this" —
+  // without them a re-sent run is indistinguishable from a fresh one, which is
+  // exactly the confusion this surfaces.
+  "previous_partner_id",
+  "reassign_retry_count",
   "metadata",
   "created_at",
   "updated_at",

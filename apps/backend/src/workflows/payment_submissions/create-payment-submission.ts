@@ -30,6 +30,25 @@ export type CreatePaymentSubmissionInput = {
   notes?: string
   documents?: Array<{ id?: string; url: string; filename?: string; mimeType?: string }>
   metadata?: Record<string, any>
+  /**
+   * The status the submission lands in. "Pending" (the default) is a partner
+   * saying "pay me for this". "Draft" is the system pre-filling one FOR the
+   * partner — see `require_design_status` — which they then review and submit.
+   */
+  status?: "Draft" | "Pending"
+  /**
+   * Whether the design's own status must be Approved / Commerce_Ready.
+   *
+   * Default true: a partner submitting by hand is asserting the design work is
+   * finished, and the design status is the check on that assertion.
+   *
+   * The run-completion auto-draft passes false, because there the proof of
+   * finished work is the COMPLETED PRODUCTION RUN itself — and completion sets
+   * the design to Technical_Review, so a status check would reject every single
+   * auto-draft. Only the auto path may set this; the partner-facing route never
+   * does.
+   */
+  require_design_status?: boolean
 }
 
 type ValidatedDesign = {
@@ -108,6 +127,9 @@ const validateDesignsForSubmissionStep = createStep(
       partner_id: string
       design_ids: string[]
       cost_overrides?: Record<string, number>
+      require_design_status?: boolean
+      /** Draft submissions also block a second Draft — see below. */
+      status?: "Draft" | "Pending"
     },
     { container }
   ) => {
@@ -135,16 +157,20 @@ const validateDesignsForSubmissionStep = createStep(
       )
     }
 
-    // 2. Validate status — must be Commerce_Ready or Approved
+    // 2. Validate status — must be Commerce_Ready or Approved.
+    // Skipped for the run-completion auto-draft, whose proof of finished work
+    // is the completed run rather than the design's status.
     const ELIGIBLE_STATUSES = ["Commerce_Ready", "Approved"]
-    const ineligible = typedDesigns.filter(
-      (d) => !ELIGIBLE_STATUSES.includes(d.status)
-    )
-    if (ineligible.length) {
-      throw new MedusaError(
-        MedusaError.Types.INVALID_DATA,
-        `Designs not eligible for payment (status must be Approved or Commerce_Ready): ${ineligible.map((d) => `${d.name || d.id} (${d.status})`).join(", ")}`
+    if (input.require_design_status !== false) {
+      const ineligible = typedDesigns.filter(
+        (d) => !ELIGIBLE_STATUSES.includes(d.status)
       )
+      if (ineligible.length) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Designs not eligible for payment (status must be Approved or Commerce_Ready): ${ineligible.map((d) => `${d.name || d.id} (${d.status})`).join(", ")}`
+        )
+      }
     }
 
     // 3. Validate all designs have a cost (estimated_cost, production_cost,
@@ -192,10 +218,19 @@ const validateDesignsForSubmissionStep = createStep(
       filters: { design_id: input.design_ids },
     })
 
+    // A Draft counts as blocking when we're about to create ANOTHER Draft:
+    // the run-completion auto-draft fires per completion, and without this a
+    // design completed twice (a redo, a re-dispatch) would accumulate duplicate
+    // drafts. A partner submitting by hand is NOT blocked by their own draft —
+    // that's them turning the draft into a real submission.
     const typedExistingLinks = existingLinks as unknown as SubmissionDesignLinkResult[]
+    const blockingStatuses = new Set(["Pending", "Under_Review"])
+    if (input.status === "Draft") {
+      blockingStatuses.add("Draft")
+    }
     const activeSubmissionDesigns = (typedExistingLinks || []).filter((link) => {
       const status = link.payment_submission?.status
-      return status === "Pending" || status === "Under_Review"
+      return !!status && blockingStatuses.has(status)
     })
 
     if (activeSubmissionDesigns.length) {
@@ -363,6 +398,7 @@ const createSubmissionRecordStep = createStep(
       notes?: string
       documents?: Array<{ id?: string; url: string; filename?: string; mimeType?: string }>
       metadata?: Record<string, any>
+      status?: "Draft" | "Pending"
     },
     { container }
   ) => {
@@ -386,12 +422,16 @@ const createSubmissionRecordStep = createStep(
 
     // documents is typed as json() (Record<string, unknown>) in the model
     // but we store an array of document objects — cast at the service boundary
+    // A Draft has not been submitted, so it carries no `submitted_at` — the
+    // partner stamps that when they submit it.
+    const status = input.status === "Draft" ? "Draft" : "Pending"
+
     const submission = await service.createPaymentSubmissions({
       partner_id: input.partner_id,
-      status: "Pending",
+      status,
       total_amount,
       currency: "inr",
-      submitted_at: new Date(),
+      submitted_at: status === "Draft" ? null : new Date(),
       notes: input.notes || null,
       documents: (input.documents || null) as Record<string, unknown> | null,
       metadata: input.metadata || null,
@@ -547,20 +587,34 @@ const emitSubmissionCreatedStep = createStep(
       partner_id: string
       total_amount: number | null
       currency: string | null
+      status?: "Draft" | "Pending"
     },
     { container },
   ) => {
     const eventService = container.resolve(
       Modules.EVENT_BUS,
     ) as IEventBusModuleService
+
+    // A Draft is not a submission the partner has made — telling them "we
+    // received your payment request" would be a lie, and the run-completion
+    // auto-draft fires on every completed run. It gets its own name, still
+    // under the `payment_submission.*` wildcard the visual flow listens on;
+    // that flow maps event names to templates explicitly and skips ones it
+    // doesn't know, so a draft sends no WhatsApp until someone maps it.
+    const name =
+      input.status === "Draft"
+        ? "payment_submission.drafted"
+        : "payment_submission.created"
+
     await eventService.emit([
       {
-        name: "payment_submission.created",
+        name,
         data: {
           payment_submission_id: input.submission_id,
           partner_id: input.partner_id,
           total_amount: input.total_amount,
           currency: input.currency,
+          status: input.status ?? "Pending",
         },
       },
     ])
@@ -583,6 +637,8 @@ export const createPaymentSubmissionWorkflow = createWorkflow(
       partner_id: input.partner_id,
       design_ids: input.design_ids || [],
       cost_overrides: costOverrides.designs,
+      require_design_status: input.require_design_status,
+      status: input.status,
     })
 
     const validatedTasks = validateTasksForSubmissionStep({
@@ -598,6 +654,7 @@ export const createPaymentSubmissionWorkflow = createWorkflow(
       notes: input.notes,
       documents: input.documents,
       metadata: input.metadata,
+      status: input.status,
     })
 
     linkSubmissionToPartnerStep({
@@ -620,6 +677,7 @@ export const createPaymentSubmissionWorkflow = createWorkflow(
       partner_id: input.partner_id,
       total_amount: submission.total_amount,
       currency: submission.currency,
+      status: input.status,
     })
 
     return new WorkflowResponse({ submission })
