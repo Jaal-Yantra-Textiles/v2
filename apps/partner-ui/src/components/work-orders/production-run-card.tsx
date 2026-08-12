@@ -669,7 +669,11 @@ export const ProductionRunCard = ({
       )}
 
       {/* Submitted details (cost, notes) */}
-      {(run.finish_notes || run.completion_notes || run.partner_cost_estimate) && (
+      {/* Boolean, not the last truthy operand — a cost of 0 with no notes
+          would otherwise render a bare 0 where the section should be. */}
+      {Boolean(
+        run.finish_notes || run.completion_notes || run.partner_cost_estimate != null
+      ) && (
         <div className="px-6 py-4">
           <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-2">
             Your submitted details

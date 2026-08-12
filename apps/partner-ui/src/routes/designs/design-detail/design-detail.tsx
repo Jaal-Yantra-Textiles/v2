@@ -380,7 +380,12 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
               })}
             />
           )}
-          {(design as any)?.estimated_cost && (
+          {/*
+            `!= null`, not truthiness: an estimated cost of 0 is a real value,
+            and `{0 && …}` renders the literal 0 into the page — the stray
+            zero under the design's meta rows.
+          */}
+          {(design as any)?.estimated_cost != null && (
             <SectionRow
               title="Estimated cost"
               value={
