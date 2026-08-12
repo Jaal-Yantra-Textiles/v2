@@ -1,3 +1,13 @@
+## [13.88.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.88.0...v13.88.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* **partner-ui:** give a genuine shortfall a control instead of a 400 ([#1271](https://github.com/Jaal-Yantra-Textiles/v2/issues/1271)) ([#1276](https://github.com/Jaal-Yantra-Textiles/v2/issues/1276)) ([fcbd910](https://github.com/Jaal-Yantra-Textiles/v2/commit/fcbd910977e6df951930879edee2956611c15777)), closes [#1262](https://github.com/Jaal-Yantra-Textiles/v2/issues/1262)
+* **designs:** key the create-run drawer's template selection by id ([#1272](https://github.com/Jaal-Yantra-Textiles/v2/issues/1272)) ([#1275](https://github.com/Jaal-Yantra-Textiles/v2/issues/1275)) ([47c395a](https://github.com/Jaal-Yantra-Textiles/v2/commit/47c395afbb03e71b3ff65a61d7abc7fdb27a8b48)), closes [#1261](https://github.com/Jaal-Yantra-Textiles/v2/issues/1261) [#1267](https://github.com/Jaal-Yantra-Textiles/v2/issues/1267) [#1269](https://github.com/Jaal-Yantra-Textiles/v2/issues/1269) [#1262](https://github.com/Jaal-Yantra-Textiles/v2/issues/1262) [#1267](https://github.com/Jaal-Yantra-Textiles/v2/issues/1267) [#1268](https://github.com/Jaal-Yantra-Textiles/v2/issues/1268)
+* **designs:** make produce_designs actually dispatch, per design ([#1263](https://github.com/Jaal-Yantra-Textiles/v2/issues/1263)) ([#1278](https://github.com/Jaal-Yantra-Textiles/v2/issues/1278)) ([7be211c](https://github.com/Jaal-Yantra-Textiles/v2/commit/7be211c597f6f68f96544380b6119c4a83fd2e26)), closes [#1261](https://github.com/Jaal-Yantra-Textiles/v2/issues/1261) [#1261](https://github.com/Jaal-Yantra-Textiles/v2/issues/1261) [post-#1262](https://github.com/post-/issues/1262)
+* **partner-ui:** stray 0 where a zero cost belongs, + the design-summary coverage [#1274](https://github.com/Jaal-Yantra-Textiles/v2/issues/1274) skipped ([#1277](https://github.com/Jaal-Yantra-Textiles/v2/issues/1277)) ([c728c88](https://github.com/Jaal-Yantra-Textiles/v2/commit/c728c88b4fa6b6e08da64e3d1454463c951f6c0d)), closes [#1199](https://github.com/Jaal-Yantra-Textiles/v2/issues/1199)
+
 # [13.88.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.87.3...v13.88.0) (2026-08-12)
 
 
