@@ -7,6 +7,8 @@ import type { IRegionModuleService } from "@medusajs/types"
 
 jest.setTimeout(90000)
 
+const originalFetch = global.fetch
+
 setupSharedTestSuite(() => {
   describe("E2E: Consumption cost propagation → Design estimate → Draft order", () => {
     const { api, getContainer } = getSharedTestEnv()
@@ -26,6 +28,26 @@ setupSharedTestSuite(() => {
         console.log(`[COST-PROP TEST] ${label}:`, payload)
       }
     }
+
+    beforeAll(() => {
+      global.fetch = (async (input: any, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input?.url
+        if (url && url.includes("api.frankfurter.app")) {
+          const u = new URL(url)
+          const to = (u.searchParams.get("to") || "inr").toUpperCase()
+          const from = (u.searchParams.get("from") || "eur").toUpperCase()
+          return new Response(
+            JSON.stringify({ base: from, date: "2026-08-12", rates: { [to]: 90 } }),
+            { status: 200, headers: { "content-type": "application/json" } }
+          )
+        }
+        return originalFetch(input, init)
+      }) as any
+    })
+
+    afterAll(() => {
+      global.fetch = originalFetch
+    })
 
     beforeEach(async () => {
       const container = getContainer()

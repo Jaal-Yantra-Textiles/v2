@@ -139,7 +139,7 @@ setupSharedTestSuite(() => {
             first_name: "Elena", last_name: "Doe", address_1: "9 Buyer Rd",
             city: "Dallas", province: "TX", postal_code: "75201", country_code: "us", phone: "8887776665",
           },
-          items: [{ title: "Tangaliya Stole", quantity: 1, unit_price: 1500, metadata: { hsn: "621410" } }],
+          items: [{ title: "Tangaliya Stole", quantity: 1, unit_price: 1500, metadata: { hsn: "62141010" } }],
         },
         adminHeaders
       )
