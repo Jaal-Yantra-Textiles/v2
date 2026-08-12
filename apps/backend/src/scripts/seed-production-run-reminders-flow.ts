@@ -2,7 +2,7 @@
  * Seed: Production Run Reminders — Scheduled Discoverer
  *
  * Daily-weekday scheduled visual flow that finds production runs which
- * are stuck in one of three buckets and emits a per-run reminder event.
+ * are stuck in one of four buckets and emits a per-run reminder event.
  * The actual WhatsApp send is handled by the existing wildcard seed
  * (src/scripts/seed-partner-run-whatsapp-flow.ts) which already listens
  * to `production_run.*` and is "attuned to production subscription".
@@ -13,6 +13,11 @@
  *   not_started         accepted_at set AND no started_at
  *                       AND accepted_at < now − 24h
  *   idle                status='in_progress' AND started_at < now − 72h
+ *   awaiting_reassignment  status='awaiting_reassignment' — PARKED, no partner.
+ *                       Not a nag: escalates to an ADMIN, weekly, until the run
+ *                       is re-dispatched. Added in #1279, where its absence
+ *                       from the read filter made parking terminal in practice
+ *                       and left six runs invisible for up to 4.5 months.
  *
  * Cadence:
  *   Cron `30 4 * * 1-5` = 10:00 IST Mon–Fri when the container runs UTC.
@@ -58,10 +63,26 @@ function ageMs(iso) {
 }
 
 const items = []
-const counts = { assignment_pending: 0, not_started: 0, idle: 0, skipped_no_partner: 0, skipped_not_overdue: 0 }
+const counts = { assignment_pending: 0, not_started: 0, idle: 0, awaiting_reassignment: 0, skipped_no_partner: 0, skipped_not_overdue: 0 }
 
 for (const run of records) {
   if (!run || !run.id) continue
+
+  // A parked run has NO partner — parking nulls partner_id and keeps
+  // previous_partner_id. It must be classified BEFORE the no-partner skip,
+  // which is exactly what hid it from this flow (#1279). Its escalation goes
+  // to an admin, not a partner, and the cadence lives in the emit workflow.
+  if (run.status === "awaiting_reassignment") {
+    counts.awaiting_reassignment++
+    items.push({
+      production_run_id: run.id,
+      partner_id: null,
+      design_id: run.design_id || null,
+      reminder_kind: "awaiting_reassignment",
+    })
+    continue
+  }
+
   if (!run.partner_id) {
     counts.skipped_no_partner++
     continue
@@ -100,14 +121,23 @@ return { items, counts, total_inspected: records.length }
 
 // ─── Flow definition ─────────────────────────────────────────────────────────
 
-const FLOW_DEF = {
+/**
+ * Exported so the `sync-production-run-reminders-flow` maintenance job can
+ * install OR REPLACE this flow from the Data-Plumbing console — single source
+ * of truth with the CLI seed. Without that, editing this file changes nothing
+ * on prod: the seeder below refuses to touch an existing flow, so the live row
+ * keeps whatever graph it was created with (#1279).
+ */
+export const FLOW_DEF = {
   name: FLOW_NAME,
   description:
     "Scheduled daily discoverer for stuck production runs. Reads active runs, " +
-    "classifies them into reminder buckets (assignment_pending / not_started / idle) " +
-    "and emits a per-run reminder event via the emit-production-run-reminder workflow. " +
-    "The existing wildcard partner-WhatsApp flow picks up the events and sends the " +
-    "appropriate Meta-approved template to the partner.",
+    "classifies them into reminder buckets (assignment_pending / not_started / idle / " +
+    "awaiting_reassignment) and emits a per-run reminder event via the " +
+    "emit-production-run-reminder workflow. The existing wildcard partner-WhatsApp flow " +
+    "picks up the partner-facing events and sends the appropriate Meta-approved template. " +
+    "awaiting_reassignment is the odd one out: a parked run has no partner, so it escalates " +
+    "weekly to an admin via the production-run-escalation-notifier subscriber instead.",
   status: "draft" as const,
   trigger_type: "schedule" as const,
   trigger_config: {
@@ -156,7 +186,14 @@ const FLOW_DEF = {
           "quantity",
         ],
         filters: {
-          status: { $in: ["sent_to_partner", "in_progress"] },
+          // #1279 — `awaiting_reassignment` was missing here, which made
+          // parking terminal in practice: the cap parked a run and the
+          // machinery that parked it could no longer see it. Six runs sat that
+          // way, the oldest for 4.5 months. It has NO partner, so the
+          // classifier below must not skip it for that.
+          status: {
+            $in: ["sent_to_partner", "in_progress", "awaiting_reassignment"],
+          },
         },
         limit: 500,
       },
@@ -215,6 +252,7 @@ const FLOW_DEF = {
           "assignment_pending={{ classify.counts.assignment_pending }} " +
           "not_started={{ classify.counts.not_started }} " +
           "idle={{ classify.counts.idle }} " +
+          "parked={{ classify.counts.awaiting_reassignment }} " +
           "dispatched={{ dispatch.triggered }} failed={{ dispatch.failed }}",
         level: "info",
       },

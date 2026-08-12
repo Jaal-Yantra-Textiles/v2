@@ -16,11 +16,25 @@ import { PARTNER_MODULE } from "../../modules/partner"
 import { reassignProductionRunWorkflow } from "./reassign-production-run"
 import { acceptProductionRunWorkflow } from "./accept-production-run"
 
-export type ReminderKind = "assignment_pending" | "not_started" | "idle"
+export type ReminderKind =
+  | "assignment_pending"
+  | "not_started"
+  | "idle"
+  /**
+   * #1279 — a run parked in `awaiting_reassignment`. Unlike every other kind
+   * this one has NO partner (parking nulls `partner_id` and keeps
+   * `previous_partner_id` for audit), so it is not a nag — it is an admin
+   * escalation. It exists because parking used to be terminal in practice:
+   * the reminder flow read only `sent_to_partner`/`in_progress`, so the moment
+   * the cap parked a run, the machinery that parked it could no longer see it.
+   * Six runs sat that way until a human noticed, the oldest for 4.5 months.
+   */
+  | "awaiting_reassignment"
 
 export type EmitProductionRunReminderInput = {
   production_run_id: string
-  partner_id: string
+  /** Null only for `awaiting_reassignment` — a parked run has no partner. */
+  partner_id: string | null
   design_id?: string | null
   reminder_kind: ReminderKind
 }
@@ -29,7 +43,20 @@ const REMINDER_EVENT_BY_KIND: Record<ReminderKind, string> = {
   assignment_pending: "production_run.reminder_assignment_pending",
   not_started: "production_run.reminder_not_started",
   idle: "production_run.reminder_idle",
+  awaiting_reassignment: "production_run.reminder_awaiting_reassignment",
 }
+
+/**
+ * #1279 — how long a parked run waits between admin escalations.
+ *
+ * Not daily: a parked run is waiting on a human decision that takes days, and
+ * a daily nag about the same six runs is how a channel gets muted. Not once
+ * either — "tell someone a single time and never again" is precisely the bug
+ * being fixed. Weekly is the compromise, and the escalation states how long
+ * the run has been parked so the message gets more pointed rather than more
+ * frequent.
+ */
+export const PARKED_ESCALATION_INTERVAL_DAYS = 7
 
 /**
  * #1093 — after this many reminders in a single bucket the run stops being
@@ -87,6 +114,66 @@ export function decideReminderAction(
   }
 
   return { action: "reminded", nextCount: effectiveCount + 1 }
+}
+
+/**
+ * PURE: should a parked run escalate to an admin right now? Exported for tests.
+ *
+ * Deliberately NOT folded into `decideReminderAction`. That function's contract
+ * — count up to a cap, then hand off — is about nagging a partner, and a parked
+ * run has no partner to nag. Reusing it would have meant `reminder_status ===
+ * "escalated" → skipped forever`, which recreates the original bug in a new
+ * place: told once, then silent while the run sits.
+ *
+ * So the rule is a cadence, not a cap:
+ *   - never escalated for this bucket → escalate now
+ *   - escalated less than the interval ago → stay quiet
+ *   - escalated longer ago than the interval → escalate again
+ *
+ * `parked_days` rides along so the message can sharpen over time instead of
+ * repeating itself.
+ */
+export function decideParkedEscalation(
+  run: {
+    reminder_kind?: string | null
+    reminder_status?: string | null
+    last_reminded_at?: string | Date | null
+    updated_at?: string | Date | null
+  },
+  now: Date = new Date(),
+  intervalDays: number = PARKED_ESCALATION_INTERVAL_DAYS
+): { action: "escalated" | "skipped"; parked_days: number; reason: string | null } {
+  const nowMs = now.getTime()
+  const asMs = (v: string | Date | null | undefined): number | null => {
+    if (!v) return null
+    const t = v instanceof Date ? v.getTime() : new Date(v).getTime()
+    return Number.isFinite(t) ? t : null
+  }
+
+  // How long it has been parked. `updated_at` is when parking last wrote the
+  // row; it is an approximation, and it is the only one available without a
+  // new column. Reported, never used to decide.
+  const parkedSince = asMs(run.updated_at)
+  const parked_days =
+    parkedSince == null ? 0 : Math.max(0, Math.floor((nowMs - parkedSince) / 86_400_000))
+
+  const alreadyInBucket = run.reminder_kind === "awaiting_reassignment"
+  const lastAt = alreadyInBucket ? asMs(run.last_reminded_at) : null
+
+  if (lastAt == null) {
+    return { action: "escalated", parked_days, reason: null }
+  }
+
+  const sinceDays = (nowMs - lastAt) / 86_400_000
+  if (sinceDays < intervalDays) {
+    return {
+      action: "skipped",
+      parked_days,
+      reason: "escalated_recently",
+    }
+  }
+
+  return { action: "escalated", parked_days, reason: null }
 }
 
 /**
@@ -168,7 +255,10 @@ const processReminderStep = createStep(
         reason: "unknown_reminder_kind",
       })
     }
-    if (!input.production_run_id || !input.partner_id) {
+    // A parked run legitimately has no partner — that is the whole point of the
+    // bucket. Every other kind still requires one.
+    const isParked = input.reminder_kind === "awaiting_reassignment"
+    if (!input.production_run_id || (!input.partner_id && !isParked)) {
       return new StepResponse<EmitStepResult>({
         action: "skipped",
         event: eventName,
@@ -190,8 +280,59 @@ const processReminderStep = createStep(
       })
     }
 
-    const { action, nextCount } = decideReminderAction(run, input.reminder_kind)
     const eventService = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService
+
+    // ── #1279: parked runs escalate to an admin on a cadence ─────────────────
+    // Handled before the partner buckets because none of that logic applies:
+    // there is nobody to nag, and the cap must not silence this.
+    if (isParked) {
+      const parked = decideParkedEscalation(run)
+
+      if (parked.action === "skipped") {
+        return new StepResponse<EmitStepResult>({
+          action: "skipped",
+          event: eventName,
+          reminder_count: run.reminder_count ?? 0,
+          reason: parked.reason,
+        })
+      }
+
+      await eventService.emit([
+        {
+          name: eventName,
+          data: {
+            production_run_id: input.production_run_id,
+            // Who it came FROM. A parked run has no current partner, and an
+            // admin's first question is always "who dropped it".
+            previous_partner_id: run.previous_partner_id ?? null,
+            design_id: input.design_id ?? run.design_id ?? null,
+            reminder_kind: input.reminder_kind,
+            parked_days: parked.parked_days,
+          },
+        },
+      ])
+
+      await service.updateProductionRuns({
+        id: input.production_run_id,
+        reminder_kind: input.reminder_kind,
+        reminder_status: "escalated",
+        // Doubles as "when we last told an admin" — the cadence reads it back.
+        last_reminded_at: new Date(),
+      })
+
+      return new StepResponse<EmitStepResult>({
+        action: "escalated",
+        event: eventName,
+        reminder_count: run.reminder_count ?? 0,
+        reason: null,
+      })
+    }
+
+    // Past the parked branch every kind is partner-facing, and the guard above
+    // already returned when a partner was missing. Narrow for the type system.
+    const partnerId = input.partner_id as string
+
+    const { action, nextCount } = decideReminderAction(run, input.reminder_kind)
 
     if (action === "skipped") {
       return new StepResponse<EmitStepResult>({
@@ -208,7 +349,7 @@ const processReminderStep = createStep(
           name: eventName,
           data: {
             production_run_id: input.production_run_id,
-            partner_id: input.partner_id,
+            partner_id: partnerId,
             design_id: input.design_id ?? null,
             reminder_kind: input.reminder_kind,
             reminder_count: nextCount,
@@ -255,7 +396,7 @@ const processReminderStep = createStep(
             name: "production_run.reminder_retried_same_partner",
             data: {
               production_run_id: input.production_run_id,
-              partner_id: input.partner_id,
+              partner_id: partnerId,
               design_id: input.design_id ?? null,
               reminder_kind: input.reminder_kind,
               retry_count: nextRetryCount,
@@ -271,7 +412,7 @@ const processReminderStep = createStep(
         if (reassignmentPolicy.auto_accept_on_retry && run.status === "sent_to_partner") {
           const partnerService: any = container.resolve(PARTNER_MODULE)
           const partner = await partnerService
-            .retrievePartner(input.partner_id)
+            .retrievePartner(partnerId)
             .catch(() => null)
 
           if (partner?.auto_accept_production_runs) {
@@ -279,7 +420,7 @@ const processReminderStep = createStep(
               .run({
                 input: {
                   production_run_id: input.production_run_id,
-                  partner_id: input.partner_id,
+                  partner_id: partnerId,
                 },
               })
               .then(() => {
@@ -303,7 +444,7 @@ const processReminderStep = createStep(
       await reassignProductionRunWorkflow(container).run({
         input: {
           production_run_id: input.production_run_id,
-          partner_id: input.partner_id,
+          partner_id: partnerId,
           source: "reminder_cap",
           reason: "reminder_cap_reached",
           composed_reason: `Auto-reassigned: no response after ${REMINDER_CAP} reminders`,
@@ -324,7 +465,7 @@ const processReminderStep = createStep(
         name: "production_run.reminder_escalated",
         data: {
           production_run_id: input.production_run_id,
-          partner_id: input.partner_id,
+          partner_id: partnerId,
           design_id: input.design_id ?? null,
           reminder_kind: input.reminder_kind,
           reminder_count: nextCount,

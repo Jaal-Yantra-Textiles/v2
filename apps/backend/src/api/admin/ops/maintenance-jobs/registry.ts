@@ -70,6 +70,7 @@ import { FLOW_DEF as INVENTORY_ORDER_STATUS_FLOW_DEF } from "../../../../scripts
 import { FLOW_DEF as INVENTORY_SHIPMENT_PICKUP_FLOW_DEF } from "../../../../scripts/seed-inventory-shipment-pickup-flow"
 import { FLOW_DEF as ARTISAN_PRODUCT_APPROVAL_FLOW_DEF } from "../../../../scripts/seed-artisan-product-approval-flow"
 import { FLOW_DEF as PARTNER_RUN_WHATSAPP_FLOW_DEF } from "../../../../scripts/seed-partner-run-whatsapp-flow"
+import { FLOW_DEF as RUN_REMINDERS_FLOW_DEF } from "../../../../scripts/seed-production-run-reminders-flow"
 import { ALL_WHATSAPP_TEMPLATES } from "../../../../scripts/whatsapp-templates/all-templates"
 import {
   syncWhatsAppTemplates,
@@ -4675,6 +4676,116 @@ export const syncPartnerRunWhatsAppFlowJob: MaintenanceJob = {
 }
 
 // ---------------------------------------------------------------------------
+// sync-production-run-reminders-flow (#1279) — install OR REPLACE the daily
+// "Production Run Reminders — Daily Discoverer" flow in place.
+//
+// Why this job has to exist: the CLI seeder REFUSES to touch an existing flow,
+// so editing the FLOW_DEF changes nothing on prod. The live row keeps the graph
+// it was created with. That is how `awaiting_reassignment` stayed out of the
+// read filter long after anyone would have called it fixed — a change that
+// looks shipped and is inert. Replacing in place is the only way the parked
+// bucket actually reaches production. Id and active/draft status are preserved.
+// ---------------------------------------------------------------------------
+
+export const syncProductionRunRemindersFlowJob: MaintenanceJob = {
+  id: "sync-production-run-reminders-flow",
+  label: "Install / replace the daily production-run reminders flow",
+  description:
+    "Install or REPLACE the 'Production Run Reminders — Daily Discoverer' visual flow in place, preserving its id and active/draft status (#1279). Needed because the CLI seeder refuses to overwrite an existing flow, so code changes to the flow graph do NOT reach prod on deploy — they need this. The current definition adds the awaiting_reassignment (parked) bucket to the read filter and classifier: parked runs have no partner and escalate weekly to an ADMIN instead of nagging one. ⚠️ Read the dry-run: it reports whether the live flow is already current, and replacing DISCARDS any hand edits made in the flow editor.",
+  params: [],
+  run: async (container, { dry_run }) => {
+    const service: any = container.resolve(VISUAL_FLOWS_MODULE)
+    const def = RUN_REMINDERS_FLOW_DEF
+    const flowName = def.name
+    const nodeCount = def.canvas_state?.nodes?.length ?? 0
+    const connCount = def.connections?.length ?? 0
+
+    const [existing] = await service.listVisualFlows({ name: flowName })
+    const mode = existing ? "replace" : "create"
+
+    // Is the live flow already carrying the parked bucket? Reported so a
+    // re-run reads as a no-op rather than looking like it did something. The
+    // read filter is the load-bearing half — without it the classifier never
+    // sees a parked run at all.
+    let alreadyCurrent = false
+    if (existing) {
+      try {
+        const ops = await service.listVisualFlowOperations({ flow_id: existing.id })
+        const read = (ops || []).find((o: any) => o.operation_key === "read_active_runs")
+        const statuses = read?.options?.filters?.status?.$in ?? []
+        alreadyCurrent = statuses.includes("awaiting_reassignment")
+      } catch {
+        // Non-fatal: the sync still works, we just cannot say whether it is a
+        // no-op. Better to under-claim than to assert a state we did not read.
+        alreadyCurrent = false
+      }
+    }
+
+    if (!dry_run) {
+      if (existing) {
+        await service.updateCompleteFlow(existing.id, {
+          description: def.description,
+          trigger_type: def.trigger_type,
+          trigger_config: def.trigger_config,
+          canvas_state: def.canvas_state,
+          operations: def.operations,
+          connections: def.connections,
+        })
+      } else {
+        await service.createCompleteFlow({
+          flow: {
+            name: def.name,
+            description: def.description,
+            status: def.status,
+            trigger_type: def.trigger_type,
+            trigger_config: def.trigger_config,
+            canvas_state: def.canvas_state,
+          },
+          operations: def.operations,
+          connections: def.connections,
+        })
+      }
+    }
+
+    const targetId = existing?.id ?? "(new)"
+    const changes: MaintenanceChange[] = [
+      {
+        entity: "visual_flow",
+        id: targetId,
+        field: mode === "replace" ? "replaced" : "created",
+        after: {
+          name: flowName,
+          nodes: nodeCount,
+          connections: connCount,
+          parked_bucket_present_before: alreadyCurrent,
+          status_preserved: existing ? (existing as any).status : def.status,
+        },
+      },
+    ]
+
+    const currency = alreadyCurrent
+      ? " The live flow ALREADY reads awaiting_reassignment, so this is a no-op re-sync."
+      : " The live flow does NOT currently read awaiting_reassignment — parked runs are invisible to it until this is applied."
+
+    const summary = dry_run
+      ? mode === "replace"
+        ? `Would REPLACE visual flow "${flowName}" (${targetId}) in place — ${nodeCount} nodes, ${connCount} connections; id and status preserved.${currency} Nothing written. ⚠️ Replacing discards hand edits made in the flow editor.`
+        : `Would create visual flow "${flowName}" (${nodeCount} nodes) as DRAFT. Nothing written.`
+      : mode === "replace"
+        ? `Replaced visual flow "${flowName}" (${targetId}) in place — ${nodeCount} nodes, ${connCount} connections; id and status preserved. Parked runs now escalate weekly to an admin.`
+        : `Created visual flow "${flowName}" as DRAFT — flip draft→active to go live.`
+
+    return {
+      job_id: syncProductionRunRemindersFlowJob.id,
+      dry_run,
+      applied: !dry_run,
+      summary,
+      changes,
+    }
+  },
+}
+
+// ---------------------------------------------------------------------------
 // generate-winback-targets (#659, report §12.5) — read ad_planning churn-risk
 // (+ optional CLV) scores, resolve each scored Person's email, and select
 // winback targets with a PURE, unit-tested selector (threshold + optional CLV
@@ -5638,6 +5749,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   installArtisanProductApprovalFlowJob,
   syncWhatsAppTemplatesJob,
   syncPartnerRunWhatsAppFlowJob,
+  syncProductionRunRemindersFlowJob,
   generateWinbackTargetsJob,
   sendMarketingDailySummaryJob,
   auditAiPlatformsJob,
