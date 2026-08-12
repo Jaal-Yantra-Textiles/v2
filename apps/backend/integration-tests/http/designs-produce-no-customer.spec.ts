@@ -149,5 +149,165 @@ setupSharedTestSuite(() => {
         expect(assignedDesignIds).toContain(designId)
       }
     })
+
+    /**
+     * #1263 — this path used to stop at creation. Runs were born
+     * `sent_to_partner` and no task template was ever instantiated, so the
+     * partner was handed work with nothing to accept while the record claimed
+     * it had been sent — the same "the record says one thing and the work says
+     * another" class as #1261.
+     */
+    describe("dispatching the batch (#1263)", () => {
+      const createTemplate = async (suffix: string, category: string) => {
+        const res = await api.post(
+          "/admin/task-templates",
+          {
+            name: `produce-batch-${suffix}-${Date.now()}`,
+            description: "produce batch step",
+            priority: "medium",
+            estimated_duration: 30,
+            eventable: false,
+            notifiable: false,
+            metadata: { workflow_type: "production_run" },
+            category,
+          },
+          adminHeaders
+        )
+        expect(res.status).toBe(201)
+        return res.data.task_template.id as string
+      }
+
+      const createDesign = async (label: string) => {
+        const res = await api.post(
+          "/admin/designs",
+          {
+            name: `Produce Batch ${label} ${Date.now()}`,
+            description: "produce batch test",
+            design_type: "Original",
+            status: "Approved",
+            priority: "Medium",
+          },
+          adminHeaders
+        )
+        expect(res.status).toBe(201)
+        return res.data.design.id as string
+      }
+
+      it("dispatches each design with ITS OWN templates", async () => {
+        const container = getContainer()
+        const templateA = await createTemplate("cut", "Pre Production")
+        const templateB = await createTemplate("stitch", "Production")
+        const batchDesignIds = [
+          await createDesign("A"),
+          await createDesign("B"),
+        ]
+
+        const result = await produceDesignsAsWorkOrder(
+          container,
+          batchDesignIds,
+          partnerId,
+          {
+            // Per design, not pooled: the #1261 recovery found 7 runs using 4
+            // different sets, so one batch-wide selection would be wrong for
+            // most of them.
+            selections: [
+              { design_id: batchDesignIds[0], template_ids: [templateA] },
+              { design_id: batchDesignIds[1], template_ids: [templateB] },
+            ],
+          }
+        )
+
+        expect(result.created).toBe(2)
+        expect(result.not_dispatched).toEqual([])
+        expect([...result.dispatched].sort()).toEqual(
+          [...batchDesignIds].sort()
+        )
+
+        const expected = new Map([
+          [batchDesignIds[0], templateA],
+          [batchDesignIds[1], templateB],
+        ])
+
+        const runService: any = container.resolve(PRODUCTION_RUNS_MODULE)
+        const runs = await runService.listProductionRuns(
+          { id: result.run_ids },
+          { select: ["id", "design_id", "status", "dispatched_template_ids"] }
+        )
+        expect(runs).toHaveLength(2)
+        for (const run of runs) {
+          expect(run.status).toBe("sent_to_partner")
+          // The whole point: the run now records what it was dispatched with.
+          expect(run.dispatched_template_ids).toEqual([
+            expected.get(run.design_id),
+          ])
+        }
+
+        // And the partner has something to accept — the old path created none.
+        const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+        for (const runId of result.run_ids) {
+          const { data } = await query.graph({
+            entity: "production_runs",
+            fields: ["id", "tasks.id"],
+            filters: { id: runId },
+          })
+          expect((data?.[0]?.tasks || []).length).toBeGreaterThan(0)
+        }
+      })
+
+      it("previews the design → templates plan without creating anything", async () => {
+        const container = getContainer()
+        const templateA = await createTemplate("dry", "Production")
+        const designId = await createDesign("Dry")
+
+        const result = await produceDesignsAsWorkOrder(
+          container,
+          [designId],
+          partnerId,
+          { templateIds: [templateA], dryRun: true }
+        )
+
+        expect(result.dry_run).toBe(true)
+        expect(result.created).toBe(0)
+        expect(result.run_ids).toEqual([])
+        expect(result.work_order_id).toBeNull()
+        expect(result.designs).toEqual([
+          expect.objectContaining({
+            design_id: designId,
+            template_ids: [templateA],
+            dispatched: false,
+          }),
+        ])
+
+        const runService: any = container.resolve(PRODUCTION_RUNS_MODULE)
+        const runs = await runService.listProductionRuns(
+          { design_id: designId },
+          { select: ["id"] }
+        )
+        expect(runs).toHaveLength(0)
+      })
+
+      it("reports a design left with no templates instead of silently creating a taskless run", async () => {
+        const container = getContainer()
+        const designId = await createDesign("NoTemplates")
+
+        const result = await produceDesignsAsWorkOrder(
+          container,
+          [designId],
+          partnerId
+        )
+
+        // Backwards compatible — the run is still created, as before. What is
+        // new is that the caller is told it carries no tasks.
+        expect(result.created).toBe(1)
+        expect(result.dispatched).toEqual([])
+        expect(result.not_dispatched).toEqual([
+          expect.objectContaining({
+            design_id: designId,
+            dispatched: false,
+            reason: expect.stringContaining("no templates selected"),
+          }),
+        ])
+      })
+    })
   })
 })

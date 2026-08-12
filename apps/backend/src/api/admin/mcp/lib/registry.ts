@@ -2149,23 +2149,61 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "produce_designs",
     description:
-      "Send a batch of designs to one partner for production (no customer order involved): creates one run per design, collated into a single work-order. Sensitive: requires confirm:true.",
+      "Send a batch of designs to one partner for production (no customer order involved): one run per design, each DISPATCHED with its own task templates, collated into a single work-order. Pass dry_run:true first to see which design gets which templates. Sensitive: requires confirm:true.",
     method: "POST",
     path: "/admin/designs/produce",
     write: true,
     sensitive: true,
-    bodyParams: ["design_ids", "partner_id"],
+    bodyParams: [
+      "design_ids",
+      "designs",
+      "partner_id",
+      "template_ids",
+      "dry_run",
+    ],
     inputSchema: obj(
       {
+        designs: {
+          type: "array",
+          description:
+            "Preferred. Per design: { design_id, template_ids?, quantity? }. Templates are per design — a batch rarely shares one process.",
+          items: obj(
+            {
+              design_id: STR("Design to produce."),
+              template_ids: {
+                type: "array",
+                items: { type: "string" },
+                description:
+                  "Task template IDS (not names — an ambiguous name is refused at dispatch).",
+              },
+              quantity: { type: "number", description: "Defaults to 1." },
+            },
+            ["design_id"]
+          ),
+        },
         design_ids: {
           type: "array",
           items: { type: "string" },
-          description: "Design ids to produce (required, non-empty).",
+          description:
+            "Design ids to produce. Use with template_ids when the whole batch shares one process; otherwise prefer `designs`.",
         },
         partner_id: STR("Partner to assign every created run to (required)."),
+        template_ids: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Fallback template ids for designs without their own selection. A design left with none is created but NOT dispatched, and is reported in not_dispatched.",
+        },
+        dry_run: {
+          type: "boolean",
+          description:
+            "Preview the design → templates plan and create nothing.",
+        },
       },
-      ["design_ids", "partner_id"]
+      ["partner_id"]
     ),
+    sideEffects:
+      "Dispatches each design to the partner (creates tasks and notifies). Designs with no template selection are created without tasks and listed under not_dispatched.",
     nextSteps: ["list_design_work_orders"],
   },
   {
