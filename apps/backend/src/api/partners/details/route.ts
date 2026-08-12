@@ -57,6 +57,8 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { Modules } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../helpers"
 import type { IAuthModuleService } from "@medusajs/types"
+import { PRODUCTION_POLICY_MODULE } from "../../../modules/production_policy"
+import type ProductionPolicyService from "../../../modules/production_policy/service"
 
 export const GET = async (
     req: AuthenticatedMedusaRequest,
@@ -101,8 +103,30 @@ export const GET = async (
         }
     }
 
+    // #1228 — the partner's `auto_accept_production_runs` opt-in is gated a
+    // SECOND time by the platform's reassignment policy, and on prod that gate
+    // is off. Without shipping the gate's state the settings switch promises
+    // something the platform will not do: a partner turns it on, is told
+    // re-sent runs will be accepted for them, and they never are. Read-only,
+    // and deliberately just the one flag the partner UI can act on.
+    let productionRunPolicy: { auto_accept_on_retry: boolean } | null = null
+    try {
+        const policyService: ProductionPolicyService = req.scope.resolve(
+            PRODUCTION_POLICY_MODULE
+        )
+        const reassignment = await policyService.getReassignmentPolicy()
+        productionRunPolicy = {
+            auto_accept_on_retry: reassignment.auto_accept_on_retry,
+        }
+    } catch {
+        // The partner's own details must not fail because the platform policy
+        // is unreadable. `null` means "unknown", which the UI states as such
+        // rather than claiming the switch works.
+    }
+
     res.json({
         partner,
         current_admin_id: currentAdminId,
+        production_run_policy: productionRunPolicy,
     })
 }
