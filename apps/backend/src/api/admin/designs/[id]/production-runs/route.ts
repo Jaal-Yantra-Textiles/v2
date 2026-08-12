@@ -21,8 +21,15 @@
  *                    assignments?: Array<{
  *                      partner_id?: string | null,
  *                      quantity: number,
+ *                      template_ids?: string[],
+ *                      template_names?: string[],
  *                      metadata?: Record<string, any>
  *                    }>,
+ *                    // Used ONLY for assignments this route builds itself from
+ *                    // the design's linked partners; ignored when `assignments`
+ *                    // are supplied.
+ *                    template_ids?: string[],
+ *                    template_names?: string[],
  *                    metadata?: Record<string, any>
  *                  }
  * @param res - MedusaResponse used to send the 201 JSON response.
@@ -145,6 +152,10 @@ export const POST = async (
         quantity: idx === linkedPartners.length - 1
           ? Number(body.quantity) - perPartner * (linkedPartners.length - 1)
           : perPartner,
+        // Ids where given — a name may match two templates and be refused at
+        // dispatch (#1261). Both are passed through; the approval records
+        // whichever it was told, and dispatch prefers the ids.
+        template_ids: body.template_ids || [],
         template_names: body.template_names || [],
       }))
     }

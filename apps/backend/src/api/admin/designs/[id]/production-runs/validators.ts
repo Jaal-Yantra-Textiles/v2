@@ -18,6 +18,21 @@ export const AdminCreateDesignProductionRunSchema = z.object({
   quantity: z.number().positive().optional(),
   run_type: z.enum(["production", "sample"]).optional(),
   assignments: z.array(ProductionAssignmentSchema).min(1).optional(),
+  /**
+   * The template selection to give assignments this route builds ITSELF, when
+   * the caller sent none and the design's linked partners are used instead.
+   *
+   * The route has always read `body.template_names` for that branch, but the
+   * schema never declared it, so zod stripped it before the handler ever saw
+   * it — the auto-populated assignments got `[]` every time and those runs were
+   * created approved and then never dispatched. Declaring the fields is the
+   * whole fix; the branch already does the right thing with them.
+   *
+   * Ignored when `assignments` are given — those carry their own selection.
+   * Ids preferred, for the reasons in production-runs/validators.ts.
+   */
+  template_ids: z.array(z.string()).nullish(),
+  template_names: z.array(z.string()).nullish(),
 })
 
 export type AdminCreateDesignProductionRunReq = z.infer<
