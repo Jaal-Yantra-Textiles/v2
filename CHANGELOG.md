@@ -1,3 +1,10 @@
+## [13.87.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.87.0...v13.87.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* **production:** dispatch templates by id, refuse ambiguous names ([#1261](https://github.com/Jaal-Yantra-Textiles/v2/issues/1261)) ([#1262](https://github.com/Jaal-Yantra-Textiles/v2/issues/1262)) ([36cd2f9](https://github.com/Jaal-Yantra-Textiles/v2/commit/36cd2f97717a22ac1d232cd0eba2ba652c62c127)), closes [#1248](https://github.com/Jaal-Yantra-Textiles/v2/issues/1248)
+
 # [13.87.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.86.1...v13.87.0) (2026-08-12)
 
 
