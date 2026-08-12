@@ -1,3 +1,10 @@
+# [13.88.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.87.3...v13.88.0) (2026-08-12)
+
+
+### Features
+
+* **partner-ui:** design pictures + stable loading in orders, run-policy settings, auto-drafted payouts ([#1274](https://github.com/Jaal-Yantra-Textiles/v2/issues/1274)) ([646a2eb](https://github.com/Jaal-Yantra-Textiles/v2/commit/646a2eb0beaa2ae8ad0af04fdaed2decf7676777))
+
 ## [13.87.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.87.2...v13.87.3) (2026-08-12)
 
 
