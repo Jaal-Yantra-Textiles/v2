@@ -6,6 +6,10 @@ import { useTranslation } from "react-i18next"
 import { useLocation } from "react-router-dom"
 
 import { _DataTable } from "../../../../../components/table/data-table/data-table"
+import {
+  DesignCell,
+  DesignHeader,
+} from "../../../../../components/table/table-cells/order/design-cell"
 import { useOrders } from "../../../../../hooks/api/orders"
 import { usePartnerStores } from "../../../../../hooks/api/partner-stores"
 import { useOrderTableColumns } from "../../../../../hooks/table/columns/use-order-table-columns"
@@ -28,6 +32,24 @@ const PAGE_SIZE = 20
 // Work-order-only column: the partner-facing lifecycle status. Shown on the
 // design/inventory/all tabs; retail rows have no partner_status and render "—".
 const workColumnHelper = createColumnHelper<any>()
+
+// Design-order-only column: the design's picture + name, from the `designs`
+// summary the partner orders list attaches to design-kind rows. Leads the table
+// because it's what identifies the job at a glance.
+const designColumn = workColumnHelper.display({
+  id: "design",
+  header: () => (
+    <div className="flex h-full w-full items-center px-4 py-2.5">
+      <DesignHeader />
+    </div>
+  ),
+  cell: ({ row }) => (
+    <div className="flex items-center px-4">
+      <DesignCell designs={(row.original as any)?.designs} />
+    </div>
+  ),
+})
+
 const partnerStatusColumn = workColumnHelper.display({
   id: "partner_status",
   header: () => (
@@ -85,11 +107,16 @@ export const OrderListTable = () => {
       ? ["customer", "sales_channel", "payment_status", "fulfillment_status", "country"]
       : [],
   })
-  const columns = useMemo(
-    () =>
-      kind === "retail" ? baseColumns : [...baseColumns, partnerStatusColumn],
-    [baseColumns, kind]
-  )
+  const columns = useMemo(() => {
+    if (kind === "retail") {
+      return baseColumns
+    }
+    // The design picture only means anything where every row IS a design;
+    // `all` and `inventory` mix in rows that have none.
+    return kind === "design"
+      ? [designColumn, ...baseColumns, partnerStatusColumn]
+      : [...baseColumns, partnerStatusColumn]
+  }, [baseColumns, kind])
 
   const { table } = useDataTable({
     data: orders ?? [],

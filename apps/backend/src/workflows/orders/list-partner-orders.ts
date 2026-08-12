@@ -9,6 +9,7 @@ import {
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { getOrdersListWorkflow } from "@medusajs/medusa/core-flows"
 import partnerOrderLink from "../../links/partner-order"
+import { resolveDesignThumbnail } from "../../lib/design-thumbnail"
 
 // Chunk 5 (T3.4, #342): the kind-aware partner orders listing, lifted out of the
 // route handler into a workflow so the scoping/discrimination logic is reusable
@@ -97,6 +98,116 @@ export const resolvePartnerWorkOrderIdsStep = createStep(
   }
 )
 
+// A design work-order row in the partner's table is otherwise all numbers and
+// badges — nothing on it says WHICH garment it is. This attaches, per order, a
+// small `designs` summary (id, name, thumbnail) so the table can show the
+// picture the partner recognises the job by.
+//
+// Two shapes have to be covered: a legacy single-design order links exactly one
+// production run, while a COLLATED order (#826) carries one design per line item
+// on `items.metadata.design_id`. We union both sources rather than pick one.
+//
+// Additive: it only ever ADDS `designs` to rows that resolve to a design, so
+// retail/inventory rows and the admin read-proxy (#843) are untouched.
+export const attachOrderDesignSummariesStep = createStep(
+  "attach-order-design-summaries",
+  async (input: { orders: any[] }, { container }) => {
+    const orders = Array.isArray(input.orders) ? input.orders : []
+    if (!orders.length) {
+      return new StepResponse(orders)
+    }
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const orderIds = orders.map((o) => o?.id).filter(Boolean)
+    if (!orderIds.length) {
+      return new StepResponse(orders)
+    }
+
+    // The reverse execution accessor resolves to an object for a 1:1 link and
+    // an array when several runs hang off one order — tolerate both.
+    const asArray = (rel: any): any[] =>
+      Array.isArray(rel) ? rel : rel ? [rel] : []
+
+    let rows: any[] = []
+    try {
+      const { data } = await query.graph({
+        entity: "orders",
+        fields: [
+          "id",
+          "production_runs.design_id",
+          "items.metadata",
+        ],
+        filters: { id: orderIds },
+      })
+      rows = data || []
+    } catch {
+      // Non-fatal: the table renders without pictures rather than 500-ing.
+      return new StepResponse(orders)
+    }
+
+    const designIdsByOrder = new Map<string, string[]>()
+    const allDesignIds = new Set<string>()
+    for (const row of rows) {
+      const ids = new Set<string>()
+      for (const run of asArray(row?.production_runs)) {
+        if (run?.design_id) {
+          ids.add(String(run.design_id))
+        }
+      }
+      for (const item of asArray(row?.items)) {
+        const designId = item?.metadata?.design_id
+        if (designId) {
+          ids.add(String(designId))
+        }
+      }
+      if (ids.size) {
+        designIdsByOrder.set(String(row.id), [...ids])
+        ids.forEach((id) => allDesignIds.add(id))
+      }
+    }
+
+    if (!allDesignIds.size) {
+      return new StepResponse(orders)
+    }
+
+    let designs: any[] = []
+    try {
+      const { data } = await query.graph({
+        entity: "design",
+        fields: ["id", "name", "media_files", "moodboard", "metadata"],
+        filters: { id: [...allDesignIds] },
+      })
+      designs = data || []
+    } catch {
+      return new StepResponse(orders)
+    }
+
+    const byId = new Map<string, any>(
+      designs.filter((d) => d?.id).map((d) => [String(d.id), d])
+    )
+
+    const enriched = orders.map((order) => {
+      const ids = designIdsByOrder.get(String(order?.id))
+      if (!ids?.length) {
+        return order
+      }
+      const summaries = ids
+        .map((id) => byId.get(id))
+        .filter(Boolean)
+        .map((design) => ({
+          id: String(design.id),
+          name: design.name ?? null,
+          // `allowDataUrl` stays off: a base64-inlined moodboard image would
+          // be megabytes of JSON per row on a list endpoint.
+          thumbnail: resolveDesignThumbnail(design),
+        }))
+      return summaries.length ? { ...order, designs: summaries } : order
+    })
+
+    return new StepResponse(enriched)
+  }
+)
+
 export const listPartnerOrdersWorkflow = createWorkflow(
   "list-partner-orders",
   (input: ListPartnerOrdersWorkflowInput) => {
@@ -171,21 +282,28 @@ export const listPartnerOrdersWorkflow = createWorkflow(
       (p) => !p.shortCircuit
     ).then(() => getOrdersListWorkflow.runAsStep({ input: listInput }))
 
-    const output = transform({ listed, input }, ({ listed, input }) => {
+    const page = transform({ listed }, ({ listed }) => {
       const result = listed as any
-      const orders = Array.isArray(result)
-        ? result
-        : result?.rows ?? []
+      const orders = Array.isArray(result) ? result : result?.rows ?? []
       const count = Array.isArray(result)
         ? result.length
         : result?.metadata?.count ?? orders.length
-      return {
-        orders,
-        count,
+      return { orders, count }
+    })
+
+    // Design pictures for the rows that have one. Runs over the page only
+    // (≤ `take` orders), and no-ops for retail/inventory pages.
+    const withDesigns = attachOrderDesignSummariesStep({ orders: page.orders })
+
+    const output = transform(
+      { page, withDesigns, input },
+      ({ page, withDesigns, input }) => ({
+        orders: withDesigns,
+        count: page.count,
         offset: input.skip,
         limit: input.take,
-      }
-    })
+      })
+    )
 
     return new WorkflowResponse(output)
   }

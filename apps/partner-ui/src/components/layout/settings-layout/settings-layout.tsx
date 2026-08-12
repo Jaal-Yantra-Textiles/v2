@@ -24,6 +24,10 @@ const useSettingRoutes = (): INavItem[] => {
   return useMemo(
     () => [
       { label: t("partner.settingsSidebar.store"), to: "/settings/store" },
+      {
+        label: t("partner.settingsSidebar.productionRuns"),
+        to: "/settings/production-runs",
+      },
       { label: t("partner.settingsSidebar.regions"), to: "/settings/regions" },
       { label: t("partner.settingsSidebar.locationsShipping"), to: "/settings/locations" },
       { label: t("partner.settingsSidebar.salesChannels"), to: "/settings/sales-channels" },

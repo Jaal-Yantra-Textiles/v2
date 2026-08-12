@@ -37,4 +37,9 @@ export const partnerUpdateSchema = z.object({
         .nullable()
         .optional(),
     metadata: z.record(z.string(), z.any()).nullable().optional(),
+    // #1228 — the partner pre-agreeing that work re-sent to them after a
+    // dispatch went stale is accepted on their behalf. A typed column, not
+    // metadata: it changes who owns the work, so it must be settable (and
+    // auditable) as a first-class field rather than a loose metadata key.
+    auto_accept_production_runs: z.boolean().optional(),
 })

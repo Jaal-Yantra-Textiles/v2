@@ -1,5 +1,5 @@
 import { ArrowUpRightOnBox } from "@medusajs/icons"
-import { Badge, Button, Container, Heading, Skeleton, StatusBadge, Text } from "@medusajs/ui"
+import { Badge, Button, Container, Heading, StatusBadge, Text } from "@medusajs/ui"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 
@@ -11,7 +11,9 @@ import { usePartnerDesign } from "../../hooks/api/partner-designs"
 import { usePartnerProductionRun } from "../../hooks/api/partner-production-runs"
 import { DesignCostSection } from "../../routes/designs/design-detail/components/design-cost-section"
 import { DesignInventoryBomSection } from "../../routes/designs/design-detail/components/design-inventory-bom-section"
+import { DesignMediaSection } from "../../routes/designs/design-detail/components/design-media-section"
 import { DesignSizeSetsSection } from "../../routes/designs/design-detail/components/design-size-sets-section"
+import { DesignSectionsSkeleton } from "./design-sections-skeleton"
 import { ProductionRunCard } from "./production-run-card"
 
 /**
@@ -158,6 +160,15 @@ export const DesignSpecs = ({ design }: { design: any }) => {
         )}
       </Container>
 
+      {/* The design's pictures, in the order. A partner working a collated
+          order sees what they're making without opening the design manager;
+          the links point at the design's own media routes, nested under this
+          order, so "Manage" stays in the Orders context. */}
+      <DesignMediaSection
+        design={design}
+        linkBase={`design-details/${design.id}`}
+      />
+
       {/* Sizes (size_sets or legacy custom_sizes) + full BOM. The design
           "specs" the operator asked to keep under the order form. */}
       <DesignSizeSetsSection design={design} />
@@ -247,12 +258,7 @@ export const DesignLineDetail = ({
   }
 
   if (!production_run || !design) {
-    return (
-      <Container className="p-6">
-        <Skeleton className="h-6 w-40" />
-        <Skeleton className="mt-3 h-24 w-full" />
-      </Container>
-    )
+    return <DesignSectionsSkeleton />
   }
 
   return (

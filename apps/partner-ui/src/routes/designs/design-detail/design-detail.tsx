@@ -1,8 +1,7 @@
 import React from "react"
-import { ArrowLeft } from "@medusajs/icons"
-import { Badge, Button, Container, Heading, Text } from "@medusajs/ui"
+import { Badge, Container, Heading, Text } from "@medusajs/ui"
 import { useMemo } from "react"
-import { Link, useParams } from "react-router-dom"
+import { useParams } from "react-router-dom"
 
 import { SectionRow } from "../../../components/common/section"
 import { TwoColumnPageSkeleton } from "../../../components/common/skeleton"
@@ -208,19 +207,17 @@ function getTipTapBlocks(input: unknown): BlockNode[] {
 /**
  * The full design manager. Standalone it reads the design id from the route
  * param (`/designs/:id`). Nested under an order (`/orders/:id/design-details`)
- * the resolver passes the design id + a `backTo` link explicitly, so the SAME
- * manager renders inside the order instead of jumping the partner to a new
- * top-level route. `backTo` swaps the standalone breadcrumb for a "Back to
- * order" affordance.
+ * the resolver passes the design id explicitly, so the SAME manager renders
+ * inside the order instead of jumping the partner to a new top-level route.
+ * Returning to the order is the breadcrumb's job either way — there is no
+ * separate back-link affordance.
  */
 export type DesignDetailProps = {
   /** Explicit design id (nested/in-order use). Falls back to the route param. */
   designId?: string
-  /** When set, renders a back link at the top (in-order use). */
-  backTo?: { to: string; label: string }
 }
 
-export const DesignDetail = ({ designId, backTo }: DesignDetailProps = {}) => {
+export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
   const { id: idParam } = useParams()
   const id = designId ?? idParam
 
@@ -318,16 +315,6 @@ export const DesignDetail = ({ designId, backTo }: DesignDetailProps = {}) => {
   return (
     <TwoColumnPage widgets={{ before: [], after: [], sideBefore: [], sideAfter: [] }} hasOutlet>
       <TwoColumnPage.Main>
-        {backTo && (
-          <div>
-            <Button size="small" variant="transparent" asChild>
-              <Link to={backTo.to}>
-                <ArrowLeft />
-                {backTo.label}
-              </Link>
-            </Button>
-          </div>
-        )}
         {design && <DesignOwnerActionsSection design={design} />}
         <Container className="divide-y p-0">
           <div className="px-6 py-4">

@@ -1,6 +1,10 @@
 import { HttpTypes } from "@medusajs/types"
 import { StatusBadge, createDataTableColumnHelper } from "@medusajs/ui"
 import { createTableAdapter, TableAdapter } from "../../../../../lib/table/table-adapters"
+import {
+  DesignCell,
+  DesignHeader,
+} from "../../../../../components/table/table-cells/order/design-cell"
 import { useOrders } from "../../../../../hooks/api/orders"
 import { useOrderTableFilters } from "./use-order-table-filters"
 import { orderColumnAdapter } from "../../../../../lib/table/entity-adapters"
@@ -40,6 +44,17 @@ const workStatusColumn = workColumnHelper.display({
   },
 }) as any
 
+// Derived "Design" column for the design kind — the picture + name that say
+// WHICH garment the row is. Fed by the `designs` summary the partner orders
+// list attaches server-side, so it needs no extra requested fields.
+const designColumn = workColumnHelper.display({
+  id: "design",
+  header: () => <DesignHeader />,
+  cell: ({ row }: { row: any }) => (
+    <DesignCell designs={(row.original as any)?.designs} />
+  ),
+}) as any
+
 /**
  * Create the order table adapter with all order-specific logic. The `kind`
  * (#342) makes the configurable table filter natively by which unified link is
@@ -57,7 +72,11 @@ export function createOrderTableAdapter(
     columnAdapter: orderColumnAdapter,
     // Work-order kinds carry a partner work-status badge the backend column
     // registry doesn't know about — append it as a derived column.
-    extraColumns: isWorkOrderKind ? [workStatusColumn] : undefined,
+    extraColumns: isWorkOrderKind
+      ? kind === "design"
+        ? [designColumn, workStatusColumn]
+        : [workStatusColumn]
+      : undefined,
 
     useData: (fields, params) => {
       const resolvedFields = isWorkOrderKind ? withWorkStatusField(fields) : fields
