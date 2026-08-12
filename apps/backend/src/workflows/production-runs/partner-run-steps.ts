@@ -378,9 +378,22 @@ export const stockFinishedGoodsStep = createStep(
       location_id: rollbackData.location_id,
     })
     if (level) {
-      await inventoryService.updateInventoryLevels(level.id, {
-        stocked_quantity: Math.max(0, (level.stocked_quantity || 0) - rollbackData.quantity),
-      }).catch(() => {})
+      try {
+        await inventoryService.updateInventoryLevels(level.id, {
+          stocked_quantity: Math.max(0, (level.stocked_quantity || 0) - rollbackData.quantity),
+        })
+      } catch (e: any) {
+        // A compensation must not throw — it would mask the original failure and
+        // leave the rest of the rollback undone. But it must not vanish either:
+        // this swallowed a failed stock rollback silently, which leaves the
+        // level carrying goods that were never produced and no trace of why
+        // (#1259). Failing quietly is what made the last inventory drift take
+        // four months to notice. Say it, then let the rollback continue.
+        const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+        logger?.error(
+          `[stock-finished-goods] Rollback FAILED for ${rollbackData.inventory_item_id}@${rollbackData.location_id}: could not remove ${rollbackData.quantity}. The level is now overstated by that amount. ${e?.message}`
+        )
+      }
     }
   }
 )
