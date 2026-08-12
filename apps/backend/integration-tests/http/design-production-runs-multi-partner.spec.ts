@@ -199,5 +199,104 @@ setupSharedTestSuite(() => {
       expect(Number(c2.quantity)).toBe(2)
       expect(c2.role).toBe("stitching")
     })
+
+    /**
+     * The route builds assignments itself from the design's linked partners
+     * when the caller sends none, and has always read a top-level template
+     * selection for them — but the schema never declared the field, so zod
+     * stripped it and the auto-populated assignments got `[]` every time.
+     * Those runs were created approved and then silently never dispatched.
+     *
+     * Ids, not names: a name may match two templates and be refused at
+     * dispatch (#1261).
+     */
+    it("dispatches auto-populated assignments with the top-level template selection", async () => {
+      const { api } = getSharedTestEnv()
+
+      const unique = Date.now()
+
+      const partnerRes = await api.post(
+        "/admin/partners",
+        {
+          partner: {
+            name: `MP Auto Partner ${unique}`,
+            handle: `mp-auto-partner-${unique}`,
+          },
+          admin: {
+            email: `mp-auto-partner-admin-${unique}@jyt.test`,
+            first_name: "MP",
+            last_name: "Auto",
+          },
+        },
+        adminHeaders
+      )
+      expect(partnerRes.status).toBe(201)
+      const partnerId = partnerRes.data.partner.id
+
+      const templateRes = await api.post(
+        "/admin/task-templates",
+        {
+          name: `mp-auto-step-${unique}`,
+          description: "Auto-populate step",
+          priority: "medium",
+          estimated_duration: 30,
+          eventable: false,
+          notifiable: false,
+          metadata: { workflow_type: "production_run" },
+          category: "Production",
+        },
+        adminHeaders
+      )
+      expect(templateRes.status).toBe(201)
+      const templateId = templateRes.data.task_template.id
+
+      const designRes = await api.post(
+        "/admin/designs",
+        {
+          name: `MP Auto Design ${unique}`,
+          description: "Design with a linked partner and no explicit assignments",
+          design_type: "Original",
+          status: "Commerce_Ready",
+          priority: "Medium",
+        },
+        adminHeaders
+      )
+      expect(designRes.status).toBe(201)
+      const designId = designRes.data.design.id
+
+      // Link the partner to the design so the route can auto-populate from it.
+      const linkRes = await api.post(
+        `/admin/designs/${designId}/partner`,
+        { partnerIds: [partnerId] },
+        adminHeaders
+      )
+      expect([200, 201]).toContain(linkRes.status)
+
+      // No `assignments` — the route builds them from the linked partner, and
+      // the top-level selection is what those assignments must carry.
+      const createRes = await api.post(
+        `/admin/designs/${designId}/production-runs`,
+        { quantity: 5, template_ids: [templateId] },
+        adminHeaders
+      )
+
+      expect(createRes.status).toBe(201)
+      const children = createRes.data.children || []
+      expect(children.length).toBe(1)
+      const childRunId = children[0].id
+
+      // Before this fix the selection was stripped, so this reported nothing
+      // dispatched and the run sat approved forever.
+      expect(createRes.data.dispatch?.dispatched).toEqual([childRunId])
+      expect(createRes.data.dispatch?.failed).toEqual([])
+
+      const runRes = await api.get(
+        `/admin/production-runs/${childRunId}`,
+        adminHeaders
+      )
+      expect(String(runRes.data.production_run.status)).toBe("sent_to_partner")
+      expect(runRes.data.production_run.dispatch_template_ids).toEqual([templateId])
+      expect(runRes.data.production_run.dispatched_template_ids).toEqual([templateId])
+    })
   })
 })
