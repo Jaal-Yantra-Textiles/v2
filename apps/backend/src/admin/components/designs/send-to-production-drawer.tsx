@@ -11,11 +11,20 @@ import {
 import { useNavigate } from "react-router-dom"
 import { AdminDesign } from "../../hooks/api/designs"
 import { usePartners, AdminPartner } from "../../hooks/api/partners"
+import { useTaskTemplates } from "../../hooks/api/task-templates"
 import { sdk } from "../../lib/config"
 import { useQueryClient } from "@tanstack/react-query"
 import { queryKeysFactory } from "../../lib/query-key-factory"
 
 const designQueryKeys = queryKeysFactory("designs" as const)
+
+interface ProduceDesignReport {
+  design_id: string
+  run_id: string | null
+  template_ids: string[]
+  dispatched: boolean
+  reason?: string
+}
 
 interface ProduceDesignsResponse {
   design_production: {
@@ -23,6 +32,9 @@ interface ProduceDesignsResponse {
     run_ids: string[]
     design_ids: string[]
     work_order_id: string | null
+    designs?: ProduceDesignReport[]
+    dispatched?: string[]
+    not_dispatched?: ProduceDesignReport[]
   }
 }
 
@@ -52,6 +64,38 @@ export const SendToProductionDrawer = ({
   const [search, setSearch] = useState("")
   const [selectedPartnerId, setSelectedPartnerId] = useState("")
   const [isSending, setIsSending] = useState(false)
+  /**
+   * #1263 — the process the partner is being asked to run. Without it the
+   * batch used to be created `sent_to_partner` with NO tasks: nothing for the
+   * partner to accept, while the record claimed it had been sent.
+   *
+   * By id, never name — two templates can share a name and dispatch refuses
+   * an ambiguous one (#1262). One selection applies to every design in the
+   * batch; per-design sets go through the API's `designs[]` form.
+   */
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([])
+  const { task_templates: taskTemplates = [] } = useTaskTemplates({
+    limit: 100,
+    offset: 0,
+  })
+
+  const templatesByCategory = useMemo(() => {
+    const groups = new Map<string, any[]>()
+    for (const tpl of taskTemplates as any[]) {
+      const category =
+        typeof tpl?.category === "object"
+          ? tpl.category?.name || "Uncategorized"
+          : String(tpl?.category || "Uncategorized")
+      groups.set(category, [...(groups.get(category) || []), tpl])
+    }
+    return [...groups.entries()]
+  }, [taskTemplates])
+
+  const toggleTemplate = (id: string) => {
+    setSelectedTemplateIds((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
+    )
+  }
 
   const filteredPartners = useMemo(() => {
     if (!search) return partners
@@ -73,6 +117,14 @@ export const SendToProductionDrawer = ({
       return
     }
 
+    if (!selectedTemplateIds.length) {
+      toast.error("Select at least one task template", {
+        description:
+          "Without one the partner is sent work with no tasks to accept.",
+      })
+      return
+    }
+
     setIsSending(true)
     try {
       const { design_production } =
@@ -83,11 +135,29 @@ export const SendToProductionDrawer = ({
             body: {
               design_ids: selectedDesigns.map((d) => d.id),
               partner_id: selectedPartnerId,
+              template_ids: selectedTemplateIds,
             },
           }
         )
 
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() })
+
+      // Per-design failure isolation means a partial batch is a real outcome,
+      // not an error — say so rather than reporting a clean success (#1263).
+      const undispatched = design_production.not_dispatched || []
+      if (undispatched.length) {
+        toast.warning(
+          `${undispatched.length} of ${design_production.created} design${
+            design_production.created > 1 ? "s" : ""
+          } were not dispatched`,
+          {
+            description:
+              undispatched[0]?.reason ||
+              "Their runs exist but carry no tasks — dispatch them from the run page.",
+          }
+        )
+      }
+
       toast.success(
         `Sent ${design_production.created} design${
           design_production.created > 1 ? "s" : ""
@@ -120,6 +190,7 @@ export const SendToProductionDrawer = ({
   const handleClose = () => {
     if (isSending) return
     setSelectedPartnerId("")
+    setSelectedTemplateIds([])
     setSearch("")
     onOpenChange(false)
   }
@@ -145,6 +216,49 @@ export const SendToProductionDrawer = ({
                 <Badge key={d.id} size="2xsmall" color="blue">
                   {d.name || d.id}
                 </Badge>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <Label className="mb-1.5">Task Templates</Label>
+            <Text size="xsmall" className="text-ui-fg-subtle mb-2">
+              The process these designs go through. Applied to every design in
+              this batch — for different processes per design, send them
+              separately.
+            </Text>
+            <div className="max-h-[220px] overflow-y-auto">
+              {templatesByCategory.map(([categoryName, templates]) => (
+                <div key={categoryName} className="mb-3">
+                  <Text
+                    size="xsmall"
+                    weight="plus"
+                    className="text-ui-fg-subtle mb-1"
+                  >
+                    {categoryName}
+                  </Text>
+                  <div className="flex flex-wrap gap-1.5">
+                    {templates.map((tpl: any) => {
+                      const id = String(tpl.id)
+                      const selected = selectedTemplateIds.includes(id)
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => toggleTemplate(id)}
+                          className="rounded-md border px-2 py-1 text-xs"
+                        >
+                          <Badge
+                            size="2xsmall"
+                            color={selected ? "green" : "grey"}
+                          >
+                            {String(tpl.name)}
+                          </Badge>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -218,7 +332,12 @@ export const SendToProductionDrawer = ({
           <Button variant="secondary" onClick={handleClose} disabled={isSending}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={!selectedPartnerId || isSending}>
+          <Button
+            onClick={handleSubmit}
+            disabled={
+              !selectedPartnerId || !selectedTemplateIds.length || isSending
+            }
+          >
             {isSending
               ? "Sending..."
               : `Send ${selectedDesigns.length} Design${
