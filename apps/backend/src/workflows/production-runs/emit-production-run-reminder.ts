@@ -90,6 +90,52 @@ export function decideReminderAction(
 }
 
 /**
+ * PURE: should a failed WhatsApp delivery un-count the reminder it carried?
+ * Exported for unit testing.
+ *
+ * The cap counts reminders SENT, and until #1279 "sent" meant "handed to Meta",
+ * not "reached anyone". Between 2026-04 and 2026-08, 132 reminders were
+ * rejected outright (`131053`, an oversized design image) and every one of them
+ * still incremented the count. Runs reached the cap and were parked having
+ * never been asked — which is the worst possible outcome, because parking is
+ * the state nothing watches.
+ *
+ * The send is asynchronous — the emitter increments long before Meta answers —
+ * so the correction has to happen when the delivery-status webhook lands. This
+ * decides whether it should.
+ *
+ * Conditions, all required:
+ *   - the new status is `failed` (delivered/read obviously stand)
+ *   - the message is NOT already `failed` — Meta can repeat a status, and the
+ *     webhook re-applies `failed` by design; decrementing twice for one message
+ *     would under-count and nag a partner forever
+ *   - the message is a production-run REMINDER, identified by the
+ *     `("production_run", "<run_id>:reminder:<date>")` context pair the reminder
+ *     path writes. A failed dispatch or ad-hoc message must not touch the cap.
+ */
+export function planReminderRollback(
+  message: {
+    status?: string | null
+    context_type?: string | null
+    context_id?: string | null
+  },
+  newStatus: string
+): { production_run_id: string } | null {
+  if (newStatus !== "failed" || message?.status === "failed") {
+    return null
+  }
+  if (message?.context_type !== "production_run" || !message?.context_id) {
+    return null
+  }
+  if (!message.context_id.includes(":reminder:")) {
+    return null
+  }
+
+  const runId = message.context_id.split(":")[0]
+  return runId ? { production_run_id: runId } : null
+}
+
+/**
  * #1228 — what a cap on an UNACCEPTED run does. Before #1228 this was always
  * "park it"; now the stored policy may buy the partner one more full reminder
  * cycle first, on the theory that a silent partner is usually a busy one rather

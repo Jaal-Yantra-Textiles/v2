@@ -1,6 +1,7 @@
 import { MedusaError, ContainerRegistrationKeys } from "@medusajs/utils"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { describeFetchError } from "../../utils/describe-fetch-error"
+import { transformForWhatsApp } from "./image-transformer"
 import { SOCIALS_MODULE } from "../socials"
 import { ENCRYPTION_MODULE } from "../encryption"
 import type EncryptionService from "../encryption/service"
@@ -310,11 +311,28 @@ export default class WhatsAppService {
       // string ("0"). Callers pass it as a number (typed) — coerce here so
       // the wire format matches Meta's spec for dynamic URL/quick-reply
       // button parameters.
-      payload.template.components = components.map((c) =>
-        c.type === "button" && c.index !== undefined
-          ? { ...c, index: String(c.index) }
-          : c
-      )
+      payload.template.components = components.map((c) => {
+        const coerced =
+          c.type === "button" && c.index !== undefined
+            ? { ...c, index: String(c.index) }
+            : c
+
+        // Header images ride along in template parameters, and an oversized one
+        // fails the WHOLE message (131053). Rewrite at the boundary rather than
+        // trusting every caller to remember — that is what cost 132 reminders
+        // between 2026-04 and 2026-08 (#1279).
+        if (!coerced.parameters?.length) {
+          return coerced
+        }
+        return {
+          ...coerced,
+          parameters: coerced.parameters.map((p) =>
+            p?.image?.link
+              ? { ...p, image: { ...p.image, link: transformForWhatsApp(p.image.link) } }
+              : p
+          ),
+        }
+      })
     }
 
     return this.sendRequest(payload, to, {
@@ -544,7 +562,9 @@ export default class WhatsAppService {
         messaging_product: "whatsapp",
         to,
         type: "image",
-        image: { link: imageUrl, ...(caption ? { caption } : {}) },
+        // Resized at the boundary — see transformForWhatsApp. Meta rejects the
+        // whole message over 5 MB, so this is not an optimisation (#1279).
+        image: { link: transformForWhatsApp(imageUrl), ...(caption ? { caption } : {}) },
       },
       to,
       audit
