@@ -35,6 +35,7 @@ const assignmentSchema = z.object({
   quantity: z.coerce.number().positive("Quantity must be > 0"),
   order: z.coerce.number().int().positive().optional(),
   template_names: z.array(z.string()).optional(),
+  template_ids: z.array(z.string()).optional(),
 })
 
 const createSchema = z.object({
@@ -43,6 +44,7 @@ const createSchema = z.object({
   assignments: z.array(assignmentSchema).optional(),
   send_to_production: z.boolean().optional(),
   template_names: z.array(z.string()).optional(),
+  template_ids: z.array(z.string()).optional(),
 })
 
 type FormValues = z.infer<typeof createSchema>
@@ -53,6 +55,43 @@ type Assignment = {
   quantity: number
   order?: number
   template_names?: string[]
+  template_ids?: string[]
+}
+
+/**
+ * Two templates can share a name — different process steps wearing one label
+ * (#1261) — and dispatch REFUSES an ambiguous name since #1262. Selection is
+ * therefore keyed by id everywhere below; the grouping by category already
+ * separates the common collision visually, so a name is only qualified further
+ * when it repeats INSIDE one category, where the header cannot tell them apart.
+ */
+const labelForTemplate = (tpl: any, siblingNameCount: number) => {
+  const name = String(tpl?.name || "")
+  return siblingNameCount > 1 ? `${name} · ${String(tpl?.id || "").slice(-6)}` : name
+}
+
+/** Group templates by category name, preserving the existing display order. */
+const groupByCategory = (templates: any[]): [string, any[]][] =>
+  Object.entries(
+    templates.reduce((acc: Record<string, any[]>, tpl: any) => {
+      const cat =
+        typeof tpl.category === "object"
+          ? tpl.category?.name || "Uncategorized"
+          : String(tpl.category || "Uncategorized")
+      if (!acc[cat]) acc[cat] = []
+      acc[cat].push(tpl)
+      return acc
+    }, {} as Record<string, any[]>)
+  )
+
+/** How many templates in `group` answer to each name — drives the label above. */
+const nameCounts = (group: any[]) => {
+  const counts = new Map<string, number>()
+  for (const t of group) {
+    const name = String(t?.name || "")
+    counts.set(name, (counts.get(name) ?? 0) + 1)
+  }
+  return counts
 }
 
 const MODAL_ID = "manage-assignments"
@@ -85,7 +124,7 @@ const AssignmentsModal = ({
   const addAssignment = () => {
     setLocal((prev) => [
       ...prev,
-      { partner_id: "", role: "", quantity: 1, order: undefined, template_names: [] },
+      { partner_id: "", role: "", quantity: 1, order: undefined, template_ids: [] },
     ])
   }
 
@@ -99,15 +138,16 @@ const AssignmentsModal = ({
     )
   }
 
-  const toggleTemplate = (idx: number, name: string) => {
+  /** Keyed by id, not name — see `labelForTemplate` (#1272). */
+  const toggleTemplate = (idx: number, id: string) => {
     setLocal((prev) =>
       prev.map((a, i) => {
         if (i !== idx) return a
-        const current = a.template_names || []
-        const next = current.includes(name)
-          ? current.filter((n) => n !== name)
-          : [...current, name]
-        return { ...a, template_names: next }
+        const current = a.template_ids || []
+        const next = current.includes(id)
+          ? current.filter((t) => t !== id)
+          : [...current, id]
+        return { ...a, template_ids: next }
       })
     )
   }
@@ -227,19 +267,12 @@ const AssignmentsModal = ({
                   <Text size="small" weight="plus" className="mb-2">
                     Task Templates
                   </Text>
-                  {Object.entries(
-                    templatesToShow.reduce((acc: Record<string, any[]>, tpl: any) => {
-                      const cat = typeof tpl.category === "object"
-                        ? tpl.category?.name || "Uncategorized"
-                        : String(tpl.category || "Uncategorized")
-                      if (!acc[cat]) acc[cat] = []
-                      acc[cat].push(tpl)
-                      return acc
-                    }, {} as Record<string, any[]>)
-                  ).map(([categoryName, categoryTemplates]: [string, any[]]) => {
-                    const categoryNames = categoryTemplates.map((t: any) => String(t.name))
-                    const selectedNames = assignment.template_names || []
-                    const allSelected = categoryNames.every((n: string) => selectedNames.includes(n))
+                  {groupByCategory(templatesToShow).map(
+                    ([categoryName, categoryTemplates]) => {
+                    const categoryIds = categoryTemplates.map((t: any) => String(t.id))
+                    const selectedIds = assignment.template_ids || []
+                    const allSelected = categoryIds.every((id: string) => selectedIds.includes(id))
+                    const counts = nameCounts(categoryTemplates)
 
                     return (
                       <div key={categoryName} className="mb-3">
@@ -253,12 +286,12 @@ const AssignmentsModal = ({
                             onClick={() => {
                               if (allSelected) {
                                 // Deselect all in this category
-                                const next = selectedNames.filter((n: string) => !categoryNames.includes(n))
-                                updateField(idx, "template_names", next)
+                                const next = selectedIds.filter((id: string) => !categoryIds.includes(id))
+                                updateField(idx, "template_ids", next)
                               } else {
                                 // Select all in this category
-                                const next = [...new Set([...selectedNames, ...categoryNames])]
-                                updateField(idx, "template_names", next)
+                                const next = [...new Set([...selectedIds, ...categoryIds])]
+                                updateField(idx, "template_ids", next)
                               }
                             }}
                           >
@@ -267,16 +300,18 @@ const AssignmentsModal = ({
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {categoryTemplates.map((tpl: any) => {
-                            const name = String(tpl.name)
-                            const selected = selectedNames.includes(name)
+                            const id = String(tpl.id)
+                            const selected = selectedIds.includes(id)
                             return (
                               <button
-                                key={name}
+                                key={id}
                                 type="button"
                                 className="rounded-md border px-3 py-1.5 text-sm"
-                                onClick={() => toggleTemplate(idx, name)}
+                                onClick={() => toggleTemplate(idx, id)}
                               >
-                                <Badge color={selected ? "green" : "grey"}>{name}</Badge>
+                                <Badge color={selected ? "green" : "grey"}>
+                                  {labelForTemplate(tpl, counts.get(String(tpl.name)) ?? 1)}
+                                </Badge>
                               </button>
                             )
                           })}
@@ -326,12 +361,12 @@ const CreateProductionRunDrawerForm = () => {
       run_type: "production",
       assignments: [],
       send_to_production: false,
-      template_names: [],
+      template_ids: [],
     },
   })
 
   const sendToProduction = form.watch("send_to_production")
-  const selectedTemplateNames = form.watch("template_names") || []
+  const selectedTemplateIds = form.watch("template_ids") || []
   const assignments = form.watch("assignments") || []
 
   const { partners = [] } = usePartners({ limit: 100, offset: 0 })
@@ -361,13 +396,13 @@ const CreateProductionRunDrawerForm = () => {
     }
 
     const hasPerAssignmentTemplates = values.assignments?.some(
-      (a) => a.template_names && a.template_names.length > 0
+      (a) => a.template_ids && a.template_ids.length > 0
     )
 
     if (
       values.send_to_production &&
       !hasPerAssignmentTemplates &&
-      (!values.template_names || !values.template_names.length)
+      (!values.template_ids || !values.template_ids.length)
     ) {
       toast.error("Select at least one task template")
       return
@@ -387,12 +422,12 @@ const CreateProductionRunDrawerForm = () => {
         return
       }
 
-      // When per-assignment template_names are set, the backend route
+      // When per-assignment template_ids are set, the backend route
       // already auto-dispatches each child (see
       // apps/backend/src/api/admin/designs/[id]/production-runs/route.ts
-      // — the for-loop over children with dispatch_template_names).
+      // — `autoDispatchApprovedChildren` over the approved children).
       // Calling sendMutation here would be a redundant second dispatch,
-      // and with `values.template_names = []` (global empty because the
+      // and with `values.template_ids = []` (global empty because the
       // user picked per-assignment templates) the strict `min(1)`
       // validator on /send-to-production would 400.
       if (hasPerAssignmentTemplates) {
@@ -416,7 +451,8 @@ const CreateProductionRunDrawerForm = () => {
       for (const run of runsToSend) {
         await sendMutation.mutateAsync({
           run_id: String(run.id),
-          template_names: values.template_names || [],
+          // By id — dispatch refuses an ambiguous name (#1262/#1272).
+          template_ids: values.template_ids || [],
         })
       }
 
@@ -552,18 +588,11 @@ const CreateProductionRunDrawerForm = () => {
                     </Text>
 
                     <div className="mt-2">
-                      {Object.entries(
-                        templatesToShow.reduce((acc: Record<string, any[]>, tpl: any) => {
-                          const cat = typeof tpl.category === "object"
-                            ? tpl.category?.name || "Uncategorized"
-                            : String(tpl.category || "Uncategorized")
-                          if (!acc[cat]) acc[cat] = []
-                          acc[cat].push(tpl)
-                          return acc
-                        }, {} as Record<string, any[]>)
-                      ).map(([categoryName, categoryTemplates]) => {
-                        const categoryNames = categoryTemplates.map((t: any) => String(t.name))
-                        const allSelected = categoryNames.every((n: string) => selectedTemplateNames.includes(n))
+                      {groupByCategory(templatesToShow).map(
+                        ([categoryName, categoryTemplates]) => {
+                        const categoryIds = categoryTemplates.map((t: any) => String(t.id))
+                        const allSelected = categoryIds.every((id: string) => selectedTemplateIds.includes(id))
+                        const counts = nameCounts(categoryTemplates)
 
                         return (
                           <div key={categoryName} className="mb-3">
@@ -575,17 +604,17 @@ const CreateProductionRunDrawerForm = () => {
                                 type="button"
                                 className="text-xs text-ui-fg-interactive hover:text-ui-fg-interactive-hover"
                                 onClick={() => {
-                                  const current = form.getValues("template_names") || []
+                                  const current = form.getValues("template_ids") || []
                                   if (allSelected) {
                                     form.setValue(
-                                      "template_names",
-                                      current.filter((n) => !categoryNames.includes(n)),
+                                      "template_ids",
+                                      current.filter((id) => !categoryIds.includes(id)),
                                       { shouldDirty: true }
                                     )
                                   } else {
                                     form.setValue(
-                                      "template_names",
-                                      [...new Set([...current, ...categoryNames])],
+                                      "template_ids",
+                                      [...new Set([...current, ...categoryIds])],
                                       { shouldDirty: true }
                                     )
                                   }
@@ -596,24 +625,26 @@ const CreateProductionRunDrawerForm = () => {
                             </div>
                             <div className="flex flex-wrap gap-2">
                               {categoryTemplates.map((tpl: any) => {
-                                const name = String(tpl.name)
-                                const selected = selectedTemplateNames.includes(name)
+                                const id = String(tpl.id)
+                                const selected = selectedTemplateIds.includes(id)
                                 return (
                                   <button
-                                    key={name}
+                                    key={id}
                                     type="button"
                                     className="rounded-md border px-2 py-1 text-xs"
                                     onClick={() => {
-                                      const current = form.getValues("template_names") || []
+                                      const current = form.getValues("template_ids") || []
                                       const next = selected
-                                        ? current.filter((n) => n !== name)
-                                        : [...current, name]
-                                      form.setValue("template_names", next, {
+                                        ? current.filter((t) => t !== id)
+                                        : [...current, id]
+                                      form.setValue("template_ids", next, {
                                         shouldDirty: true,
                                       })
                                     }}
                                   >
-                                    <Badge color={selected ? "green" : "grey"}>{name}</Badge>
+                                    <Badge color={selected ? "green" : "grey"}>
+                                      {labelForTemplate(tpl, counts.get(String(tpl.name)) ?? 1)}
+                                    </Badge>
                                   </button>
                                 )
                               })}
