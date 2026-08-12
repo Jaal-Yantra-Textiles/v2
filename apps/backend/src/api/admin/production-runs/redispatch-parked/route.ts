@@ -147,8 +147,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       const history = historyByRun.get(run.id)!
       const resolved = resolveDispatchTemplates(history, {
         explicit: body.template_names,
+        explicitIds: body.template_ids,
         usePrevious,
       })
+      const willResolveByName =
+        resolved.resolved_by === "name" &&
+        resolved.template_names.some((n) =>
+          history.ambiguous_names.includes(n)
+        )
       return {
         production_run_id: run.id,
         partner_id,
@@ -168,13 +174,29 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         ambiguous_template_names: history.ambiguous_names,
         /** What this run would ACTUALLY dispatch with, given the request. */
         would_dispatch_with: resolved.template_names,
-        would_await_template_selection: !resolved.template_names.length,
+        /**
+         * The identified selection. When present, dispatch resolves by id and
+         * the ambiguity below cannot bite — that is the whole point of #1261.
+         */
+        would_dispatch_with_ids: resolved.template_ids,
+        would_resolve_by: resolved.resolved_by,
+        /**
+         * True only when this run would go out on an AMBIGUOUS name. Dispatch
+         * now HARD-FAILS on one rather than picking, so this is a run that
+         * would be refused, not one that would quietly run the wrong process.
+         */
+        would_fail_on_ambiguous_name: willResolveByName,
+        would_await_template_selection:
+          !resolved.template_names.length && !resolved.template_ids.length,
       }
     })
 
     const recovered = rows.filter((r) => r.previous_template_names.length)
     const stillAwaiting = rows.filter((r) => r.would_await_template_selection)
     const ambiguous = rows.filter((r) => r.ambiguous_template_names.length)
+    // Ambiguity only BITES when the run would actually go out on the name.
+    // Recovered ids make the same run safe, so the two are reported apart.
+    const wouldFail = rows.filter((r) => r.would_fail_on_ambiguous_name)
     const distinctSets = new Set(
       recovered.map((r) => r.previous_template_names.join(" + "))
     )
@@ -196,13 +218,23 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         ...catalog
           .reduce((acc, t) => {
             const key = t.category_name ?? "(uncategorised)"
-            acc.set(key, [...(acc.get(key) ?? []), t.name])
+            acc.set(key, [...(acc.get(key) ?? []), t])
             return acc
-          }, new Map<string, string[]>())
+          }, new Map<string, TemplateCatalogEntry[]>())
           .entries(),
       ]
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([category, names]) => ({ category, template_names: names })),
+        .map(([category, entries]) => ({
+          category,
+          template_names: entries.map((t) => t.name),
+          /**
+           * The ids alongside the names, because `template_ids` is now the way
+           * to pick between two same-named templates and a list of names alone
+           * would leave the caller unable to act on the ambiguity it is told
+           * about.
+           */
+          templates: entries.map((t) => ({ id: t.id, name: t.name })),
+        })),
       template_history: {
         runs_with_history: recovered.length,
         runs_without_history: rows.length - recovered.length,
@@ -235,7 +267,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           ? `Pass use_previous_templates:true to dispatch each run with its own recovered set, or template_names to override all of them.`
           : "",
         ambiguous.length
-          ? `⚠️ ${ambiguous.length} run(s) reference a template name that matches MORE THAN ONE template (${[
+          ? `${ambiguous.length} run(s) reference a template name that matches MORE THAN ONE template (${[
               ...new Set(ambiguous.flatMap((r) => r.ambiguous_template_names)),
             ]
               .map((n) => {
@@ -246,7 +278,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
               })
               .join(
                 "; "
-              )}). These differ only by CATEGORY. Dispatch resolves by name, so it may instantiate the other one — check the recovered category before confirming.`
+              )}). These differ only by CATEGORY. Where the recovered history identified the template, dispatch now sends its ID and the name never gets looked up.`
+          : "",
+        // #1261: an ambiguous name is refused, not resolved. Said plainly here
+        // because "it will fail" and "it may run the wrong process" call for
+        // completely different actions from the operator.
+        wouldFail.length
+          ? `⚠️ ${wouldFail.length} run(s) would be REFUSED: they would dispatch on an ambiguous NAME with no id behind it. Dispatch hard-fails rather than guessing which process the partner should run. Pass template_ids for these (see available_templates_by_category), or leave them to be selected by hand.`
           : "",
         stillAwaiting.length
           ? `${stillAwaiting.length} run(s) would be left awaiting a template selection`
@@ -294,11 +332,17 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           source: "none",
           ambiguous_names: [],
         },
-        { explicit: body.template_names, usePrevious }
+        {
+          explicit: body.template_names,
+          explicitIds: body.template_ids,
+          usePrevious,
+        }
       )
 
       let dispatched = false
-      if (resolved.template_names.length && transactionId) {
+      const hasSelection =
+        resolved.template_ids.length || resolved.template_names.length
+      if (hasSelection && transactionId) {
         await engine.setStepSuccess({
           idempotencyKey: {
             action: TransactionHandlerType.INVOKE,
@@ -306,8 +350,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             stepId: waitDispatchTemplateSelectionStepId,
             workflowId: dispatchProductionRunWorkflowId,
           },
+          // Both are sent; dispatch prefers the ids. A run whose history was
+          // fully identified therefore never goes through the name lookup.
           stepResponse: new StepResponse({
             template_names: resolved.template_names,
+            template_ids: resolved.template_ids,
           }),
         })
         dispatched = true
@@ -321,6 +368,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         transaction_id: transactionId ?? null,
         awaiting_templates: !dispatched,
         template_names: resolved.template_names,
+        template_ids: resolved.template_ids,
+        resolved_by: resolved.resolved_by,
         template_source: resolved.source,
       })
     } catch (e: any) {

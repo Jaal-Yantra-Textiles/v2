@@ -178,7 +178,8 @@ setupSharedTestSuite(() => {
 
       // Complete lifecycle to clean up
       await api.post(`/partners/production-runs/${runId}/finish`, {}, { headers: partnerHeaders })
-      await api.post(`/partners/production-runs/${runId}/complete`, {}, { headers: partnerHeaders })
+      // A completion has to say what was made — the run was ordered as 1.
+      await api.post(`/partners/production-runs/${runId}/complete`, { produced_quantity: 1 }, { headers: partnerHeaders })
     })
   })
 })

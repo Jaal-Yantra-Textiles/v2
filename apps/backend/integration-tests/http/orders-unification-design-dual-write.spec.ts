@@ -330,7 +330,8 @@ setupSharedTestSuite(() => {
 
       const complete = await post(
         `/partners/production-runs/${childId}/complete`,
-        {},
+        // Ordered as 4 — a completion must account for all of it.
+        { produced_quantity: 4 },
         partnerHeaders
       )
       expect(complete.status).toBe(200)

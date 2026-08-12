@@ -277,7 +277,14 @@ describe("resolveDispatchTemplates", () => {
   it("uses the run's own history when asked", () => {
     expect(
       resolveDispatchTemplates(history(["Sampling"]), { usePrevious: true })
-    ).toEqual({ template_names: ["Sampling"], source: "tasks" })
+    ).toEqual({
+      template_names: ["Sampling"],
+      // #1261 — the recovered IDS travel with the names, so dispatch never
+      // re-derives the template from a name that may match two rows.
+      template_ids: ["id_Sampling"],
+      source: "tasks",
+      resolved_by: "id",
+    })
   })
 
   it("lets an explicit selection override history — a decision beats a record", () => {
@@ -286,7 +293,12 @@ describe("resolveDispatchTemplates", () => {
         explicit: ["Cutting"],
         usePrevious: true,
       })
-    ).toEqual({ template_names: ["Cutting"], source: "explicit" })
+    ).toEqual({
+      template_names: ["Cutting"],
+      template_ids: [],
+      source: "explicit",
+      resolved_by: "name",
+    })
   })
 
   it("does NOT use history unless asked, so a plain call still parks the run", () => {
@@ -294,7 +306,9 @@ describe("resolveDispatchTemplates", () => {
     // guess. Recovery informs the operator; it does not decide for them.
     expect(resolveDispatchTemplates(history(["Sampling"]), {})).toEqual({
       template_names: [],
+      template_ids: [],
       source: "none",
+      resolved_by: "none",
     })
   })
 
@@ -304,7 +318,12 @@ describe("resolveDispatchTemplates", () => {
         { templates: [], source: "none", ambiguous_names: [] },
         { usePrevious: true }
       )
-    ).toEqual({ template_names: [], source: "none" })
+    ).toEqual({
+      template_names: [],
+      template_ids: [],
+      source: "none",
+      resolved_by: "none",
+    })
   })
 
   it("labels an intent-sourced selection as intent, not as fact", () => {
@@ -338,5 +357,81 @@ describe("resolveDispatchTemplates", () => {
     r.template_names.push("Injected")
 
     expect(h.templates.map((t) => t.name)).toEqual(["Sampling"])
+  })
+
+  /**
+   * #1261. Recovery correctly identifies WHICH "Stitching" a run used, and the
+   * old resolver then threw that away by handing dispatch the bare name — which
+   * looked it up again and could land on the other row. These pin the id
+   * surviving all the way to the dispatch payload.
+   */
+  describe("#1261 — the recovered identity survives to dispatch", () => {
+    it("sends ids when every recovered template is identified", () => {
+      const r = resolveDispatchTemplates(
+        {
+          templates: [
+            {
+              name: "Stitching",
+              template_id: "01K5S31S",
+              category_name: "Production",
+            },
+          ],
+          source: "tasks",
+          ambiguous_names: ["Stitching"],
+        },
+        { usePrevious: true }
+      )
+
+      // The name is still carried for display, but `resolved_by: "id"` is what
+      // says the ambiguous lookup will not run.
+      expect(r.template_ids).toEqual(["01K5S31S"])
+      expect(r.resolved_by).toBe("id")
+    })
+
+    it("falls back to names when a recovered template has NO id", () => {
+      // Half-identified is not identified. An id list missing an entry would
+      // dispatch a SHORTER process than the run actually used, which is worse
+      // than falling back to a name that dispatch will now refuse if ambiguous.
+      const r = resolveDispatchTemplates(
+        {
+          templates: [
+            { name: "Sampling", template_id: "id_Sampling", category_name: null },
+            { name: "Stitching", template_id: null, category_name: null },
+          ],
+          source: "run_dispatch_intent",
+          ambiguous_names: [],
+        },
+        { usePrevious: true }
+      )
+
+      expect(r.template_ids).toEqual([])
+      expect(r.template_names).toEqual(["Sampling", "Stitching"])
+      expect(r.resolved_by).toBe("name")
+    })
+
+    it("prefers an explicit template_ids over an explicit template_names", () => {
+      const r = resolveDispatchTemplates(history(["Sampling"]), {
+        explicit: ["Cutting"],
+        explicitIds: ["01K5S31S"],
+        usePrevious: true,
+      })
+
+      expect(r).toEqual({
+        template_names: [],
+        template_ids: ["01K5S31S"],
+        source: "explicit",
+        resolved_by: "id",
+      })
+    })
+
+    it("copies the ids rather than aliasing the caller's array", () => {
+      const ids = ["01K5S31S"]
+      const r = resolveDispatchTemplates(history(["Sampling"]), {
+        explicitIds: ids,
+      })
+      r.template_ids.push("injected")
+
+      expect(ids).toEqual(["01K5S31S"])
+    })
   })
 })

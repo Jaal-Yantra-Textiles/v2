@@ -42,6 +42,12 @@ const CompleteBodySchema = z.object({
     )
     .optional(),
   notes: z.string().optional(),
+  /**
+   * Complete with less output than was ordered, deliberately. The workflow
+   * refuses an unaccounted-for shortfall — rejects count as accounted — so a
+   * genuine one has to be claimed here AND explained in notes.
+   */
+  allow_shortfall: z.boolean().optional(),
 })
 
 export async function POST(
@@ -77,6 +83,7 @@ export async function POST(
       rejection_notes: body.rejection_notes,
       partner_cost_estimate: body.partner_cost_estimate,
       cost_type: body.cost_type,
+      allow_shortfall: body.allow_shortfall,
       consumptions: body.consumptions,
       notes: body.notes,
     },

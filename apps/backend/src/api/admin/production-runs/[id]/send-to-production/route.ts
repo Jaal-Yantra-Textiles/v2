@@ -70,6 +70,9 @@ export const POST = async (
     input: {
       production_run_id: id,
       template_names: body.template_names,
+      // #1261 — ids identify a template; names may not. The workflow prefers
+      // ids and refuses a name that matches more than one row.
+      template_ids: body.template_ids,
     },
   })
 

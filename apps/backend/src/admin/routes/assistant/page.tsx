@@ -13,7 +13,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { ChatBubbleLeftRight, Sparkles, ArrowUpMini, Spinner, Check, ExclamationCircle, ArrowPathMini, SquareTwoStack, Plus, Trash, Photo } from "@medusajs/icons"
+import { ChatBubbleLeftRight, Sparkles, ArrowUpMini, Spinner, Check, ExclamationCircle, ArrowPathMini, SquareTwoStack, Plus, Trash, Photo, TriangleDownMini, TriangleRightMini } from "@medusajs/icons"
 import { Container, Heading, Text, Button, Textarea, IconButton, Badge, Table, toast } from "@medusajs/ui"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
@@ -158,6 +158,49 @@ function formatCell(v: unknown): string {
   return String(v)
 }
 
+/**
+ * A one-line description of what a tool result CONTAINS, shown on the collapsed
+ * header.
+ *
+ * The point of collapsing is that the answer stays on screen; a collapsed block
+ * that says nothing about what it hides just trades one kind of blindness for
+ * another. "24 rows" is enough to decide whether to open it.
+ */
+function describeToolData(data: unknown): string {
+  const rows = findRows(data)
+  if (rows) {
+    return `${rows.length} row${rows.length === 1 ? "" : "s"}`
+  }
+  if (Array.isArray(data)) {
+    return `${data.length} item${data.length === 1 ? "" : "s"}`
+  }
+  if (isRecord(data)) {
+    const keys = Object.keys(data)
+    return `${keys.length} field${keys.length === 1 ? "" : "s"}`
+  }
+  if (data == null) return "no data"
+  return "result"
+}
+
+/**
+ * Is this result big enough to bury the answer under it?
+ *
+ * Small results (a status, a couple of fields) are cheaper to read in place
+ * than to click open, so they stay expanded. The threshold exists so the
+ * collapse is felt only where it was the problem: a long streamed table that
+ * pushes the summary above the fold while it is still arriving.
+ */
+function isBulkyToolData(data: unknown): boolean {
+  const rows = findRows(data)
+  if (rows) return rows.length > 3
+  if (Array.isArray(data)) return data.length > 3
+  if (isRecord(data)) return Object.keys(data).length > 6
+  return typeof data === "string" && data.length > 400
+}
+
+/** Remembered "keep tool details collapsed" preference, per browser. */
+const COLLAPSE_PREF_KEY = "jyt.assistant.collapseToolDetails"
+
 /** Control keys the confirm bridge re-stamps itself — never re-send from input. */
 const CONTROL_ARGS = new Set(["confirm", "reason", "dry_run"])
 
@@ -203,8 +246,27 @@ const PlanSummary = ({ plan }: { plan: unknown }) => {
   )
 }
 
-/** One tool part: activity line + rendered result or approval card. */
-const ToolPart = ({ part }: { part: any }) => {
+/**
+ * One tool part: activity line + rendered result or approval card.
+ *
+ * The result body COLLAPSES. A list tool streaming twenty rows used to push the
+ * assistant's actual answer off the top of the viewport, so you sat watching a
+ * data preview grow with no idea what had been concluded unless you scrolled
+ * back up. The data is still one click away; what it no longer does is outrank
+ * the summary for screen space.
+ *
+ * ⚠️ An approval card NEVER collapses. It is not output to skim — it is a
+ * decision the run is blocked on, and hiding it behind a chevron would hide the
+ * fact that something is waiting.
+ */
+const ToolPart = ({
+  part,
+  collapsePreference,
+}: {
+  part: any
+  /** The thread-wide default. `null` = decide per result size. */
+  collapsePreference: boolean | null
+}) => {
   const toolName: string =
     part.type === "dynamic-tool"
       ? part.toolName
@@ -219,6 +281,21 @@ const ToolPart = ({ part }: { part: any }) => {
 
   const guarded = !!output && (output.requires_confirmation || output.requires_reason)
   const result = approved ?? output
+
+  const hasData = result?.data !== undefined
+  /**
+   * Explicit user action on THIS block, which outranks the thread-wide default —
+   * having opened one result, you do not want the next render to shut it again.
+   */
+  const [openOverride, setOpenOverride] = useState<boolean | null>(null)
+  const bulky = hasData && isBulkyToolData(result?.data)
+  const defaultOpen =
+    collapsePreference === true
+      ? false
+      : collapsePreference === false
+        ? true
+        : !bulky
+  const open = openOverride ?? defaultOpen
 
   const approve = async () => {
     if (output?.requires_reason && !reason.trim()) {
@@ -256,6 +333,23 @@ const ToolPart = ({ part }: { part: any }) => {
           <Badge size="2xsmall" color="green">done</Badge>
         ) : null}
         {result && !result.ok ? <Badge size="2xsmall" color="red">error</Badge> : null}
+
+        {/* Only data collapses — an approval card stays put. */}
+        {hasData && !(guarded && !approved) ? (
+          <button
+            type="button"
+            onClick={() => setOpenOverride(!open)}
+            aria-expanded={open}
+            className="text-ui-fg-muted hover:text-ui-fg-base ml-auto flex items-center gap-1 text-xs transition-colors"
+          >
+            <span>{describeToolData(result?.data)}</span>
+            {open ? (
+              <TriangleDownMini className="h-3 w-3" />
+            ) : (
+              <TriangleRightMini className="h-3 w-3" />
+            )}
+          </button>
+        ) : null}
       </div>
 
       {guarded && !approved ? (
@@ -303,8 +397,10 @@ const ToolPart = ({ part }: { part: any }) => {
             </div>
           </div>
         )
-      ) : result?.data !== undefined ? (
-        <ToolData data={result.data} />
+      ) : hasData ? (
+        open ? (
+          <ToolData data={result!.data} />
+        ) : null
       ) : result?.error ? (
         <Text size="small" className="text-ui-fg-error">
           {result.error}
@@ -488,6 +584,32 @@ const AssistantChat = ({
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [input, setInput] = useState("")
+  /**
+   * Thread-wide default for tool-result bodies. `null` = size-aware (big
+   * results start closed, small ones stay open). Remembered per browser,
+   * because someone who wants the data out of the way wants that every session,
+   * not once.
+   */
+  const [collapseTools, setCollapseTools] = useState<boolean | null>(() => {
+    try {
+      const stored = window.localStorage.getItem(COLLAPSE_PREF_KEY)
+      return stored === "true" ? true : stored === "false" ? false : null
+    } catch {
+      return null
+    }
+  })
+
+  const cycleCollapse = () => {
+    // auto → collapsed → expanded → auto
+    const next = collapseTools === null ? true : collapseTools ? false : null
+    setCollapseTools(next)
+    try {
+      if (next === null) window.localStorage.removeItem(COLLAPSE_PREF_KEY)
+      else window.localStorage.setItem(COLLAPSE_PREF_KEY, String(next))
+    } catch {
+      // A browser refusing storage costs the preference, not the feature.
+    }
+  }
   const idRef = useRef<string | null>(conversationId)
   const persistingRef = useRef(false)
   const lastPersistedRef = useRef<string>(
@@ -733,6 +855,30 @@ const AssistantChat = ({
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      {/*
+        Thread-wide control over how much room tool output may take. It sits
+        above the scroll area rather than inside it so it stays reachable while
+        a long result is streaming — which is exactly when it is wanted.
+      */}
+      <div className="border-ui-border-base flex items-center justify-end border-b px-6 py-1.5">
+        <button
+          type="button"
+          onClick={cycleCollapse}
+          className="text-ui-fg-muted hover:text-ui-fg-base flex items-center gap-1 text-xs transition-colors"
+          title="How much tool output to show by default"
+        >
+          {collapseTools === true ? (
+            <TriangleRightMini className="h-3 w-3" />
+          ) : (
+            <TriangleDownMini className="h-3 w-3" />
+          )}
+          {collapseTools === true
+            ? "Tool details: collapsed"
+            : collapseTools === false
+              ? "Tool details: expanded"
+              : "Tool details: auto"}
+        </button>
+      </div>
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -785,7 +931,11 @@ const AssistantChat = ({
                   )
                 ) : null}
                 {toolParts.map((p: any, i: number) => (
-                  <ToolPart key={p.toolCallId || i} part={p} />
+                  <ToolPart
+                    key={p.toolCallId || i}
+                    part={p}
+                    collapsePreference={collapseTools}
+                  />
                 ))}
               </div>
             </div>

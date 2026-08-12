@@ -25,8 +25,17 @@ export type DispatchProductionRunInput = {
   production_run_id: string
 }
 
+/**
+ * What the operator picked at the `awaiting_templates` pause.
+ *
+ * #1261: `template_ids` was added because names are not unique — the selection
+ * used to travel as names only, so an operator who knew exactly which
+ * "Stitching" they meant had no way to say it, and dispatch picked for them.
+ * Ids take precedence; names still work and are now rejected when ambiguous.
+ */
 type DispatchTemplateSelection = {
-  template_names: string[]
+  template_names?: string[]
+  template_ids?: string[]
 }
 
 const retrieveProductionRunForDispatchStep = createStep(
@@ -132,7 +141,8 @@ export const signalDispatchTemplateSelectionStep = createStep(
   async (
     input: {
       transaction_id: string
-      template_names: string[]
+      template_names?: string[]
+      template_ids?: string[]
     },
     { container }
   ) => {
@@ -147,7 +157,10 @@ export const signalDispatchTemplateSelectionStep = createStep(
         stepId: waitDispatchTemplateSelectionStepId,
         workflowId: dispatchProductionRunWorkflowId,
       },
-      stepResponse: new StepResponse({ template_names: input.template_names }),
+      stepResponse: new StepResponse({
+        template_names: input.template_names ?? [],
+        template_ids: input.template_ids ?? [],
+      }),
     })
 
     return new StepResponse(true)
@@ -172,6 +185,7 @@ export const dispatchProductionRunWorkflow = createWorkflow(
       input: transform({ input, selection }, (data) => ({
         production_run_id: data.input.production_run_id,
         template_names: data.selection?.template_names || [],
+        template_ids: data.selection?.template_ids || [],
       })),
     })
 

@@ -1618,17 +1618,24 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     previewPath: "/admin/production-runs/:id",
     write: true,
     sensitive: true,
-    bodyParams: ["template_names"],
+    bodyParams: ["template_names", "template_ids"],
     inputSchema: obj(
       {
         id: STR("Production run id."),
+        template_ids: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Task template IDS to instantiate — PREFERRED, and the only way to pick between two same-named templates. Get them from list_task_templates. Wins over template_names.",
+        },
         template_names: {
           type: "array",
           items: { type: "string" },
-          description: "Task template names to instantiate (required, non-empty).",
+          description:
+            "Task template names to instantiate. ⚠️ A name that matches MORE THAN ONE template (e.g. 'Stitching', which exists in both Pre Production and Production) is REJECTED — the dispatch fails and nothing is created. Use template_ids for those.",
         },
       },
-      ["id", "template_names"]
+      ["id"]
     ),
     sideEffects: "Creates partner tasks from the templates and notifies the assigned partner.",
   },
@@ -1665,7 +1672,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "redispatch_parked_production_runs",
     description:
-      "Re-send production runs parked in 'awaiting_reassignment' back to the PARTNER THEY CAME FROM, and dispatch them again — the batch answer to 'this partner says they'll take their lapsed runs now'. Each run goes to its own previous_partner_id; partner_id only FILTERS which parked runs are considered, so this can never hand one partner's work to another. THE DRY-RUN RECOVERS WHAT EACH RUN WAS DISPATCHED WITH LAST TIME (from its own tasks) and lists every available template, so you can show the user a real selection instead of asking them to remember: read `would_redispatch[].previous_template_names` and `available_template_names`. Then confirm with use_previous_templates:true to send each run back with ITS OWN set (parked runs usually do NOT share one), or template_names to override them all. Dry-run by default. Sensitive: requires confirm:true.",
+      "Re-send production runs parked in 'awaiting_reassignment' back to the PARTNER THEY CAME FROM, and dispatch them again — the batch answer to 'this partner says they'll take their lapsed runs now'. Each run goes to its own previous_partner_id; partner_id only FILTERS which parked runs are considered, so this can never hand one partner's work to another. THE DRY-RUN RECOVERS WHAT EACH RUN WAS DISPATCHED WITH LAST TIME (from its own tasks) and lists every available template, so you can show the user a real selection instead of asking them to remember: read `would_redispatch[].previous_template_names` and `available_template_names`. Then confirm with use_previous_templates:true to send each run back with ITS OWN set (parked runs usually do NOT share one), or template_names/template_ids to override them all. Recovered history dispatches by template ID where it identified one, so a run that used 'Stitching (Production)' cannot come back as 'Stitching (Pre Production)'; a run that would go out on an AMBIGUOUS name is reported as would_fail_on_ambiguous_name and must be given template_ids. Dry-run by default. Sensitive: requires confirm:true.",
     method: "POST",
     path: "/admin/production-runs/redispatch-parked",
     write: true,
@@ -1673,6 +1680,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     bodyParams: [
       "partner_id",
       "template_names",
+      "template_ids",
       "use_previous_templates",
       "limit",
       "note",
@@ -1687,7 +1695,13 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         type: "array",
         items: { type: "string" },
         description:
-          "Dispatch EVERY selected run with these templates, overriding recovered history. Use only when the runs really should share one set — otherwise prefer use_previous_templates.",
+          "Dispatch EVERY selected run with these templates, overriding recovered history. Use only when the runs really should share one set — otherwise prefer use_previous_templates. ⚠️ An ambiguous name is REJECTED at dispatch; use template_ids for those.",
+      },
+      template_ids: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "The same override BY ID — unambiguous, and what to use when a name matches two templates. Wins over template_names. Ids come from list_task_templates or the dry-run's available_templates_by_category[].templates[].id.",
       },
       use_previous_templates: {
         type: "boolean",
@@ -1733,18 +1747,25 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     pathParams: ["id"],
     write: true,
     sensitive: true,
-    bodyParams: ["template_names", "transaction_id"],
+    bodyParams: ["template_names", "template_ids", "transaction_id"],
     inputSchema: obj(
       {
         id: STR("Production run id."),
+        template_ids: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Task template IDS to dispatch — PREFERRED. The only unambiguous selection; wins over template_names.",
+        },
         template_names: {
           type: "array",
           items: { type: "string" },
-          description: "Task template names to dispatch (required, non-empty).",
+          description:
+            "Task template names to dispatch. ⚠️ An ambiguous name (one matching several templates, like 'Stitching') is REJECTED rather than guessed at — pass template_ids instead.",
         },
         transaction_id: STR("The transaction_id returned by start_production_run_dispatch (required)."),
       },
-      ["id", "template_names", "transaction_id"]
+      ["id", "transaction_id"]
     ),
   },
   {
