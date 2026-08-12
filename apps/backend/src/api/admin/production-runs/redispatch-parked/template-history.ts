@@ -171,26 +171,75 @@ export function recoverRunTemplates(
   return { templates: [], source: "none", ambiguous_names: [] }
 }
 
+export type ResolvedDispatchSelection = {
+  template_names: string[]
+  /**
+   * The recovered template ROWS, when every one of them is identified.
+   *
+   * #1261: sending the recovered *names* back through dispatch discarded the
+   * identification this file exists to produce — the history knew the run used
+   * `Stitching (Production)`, and the name-based lookup could then instantiate
+   * `Stitching (Pre Production)`. Ids close that gap end-to-end.
+   *
+   * Empty when any recovered template lacks an id: a half-identified list is
+   * not a selection, and falling back to names is honest because dispatch now
+   * refuses an ambiguous one outright.
+   */
+  template_ids: string[]
+  source: RunTemplateHistory["source"] | "explicit"
+  /** How dispatch will actually resolve this — the thing worth reporting. */
+  resolved_by: "id" | "name" | "none"
+}
+
 /**
  * PURE: what to actually dispatch each run with. Exported for unit tests.
  *
- * An explicit `template_names` always wins — an operator naming templates has
- * decided, and history must not override a decision. Recovered history is used
+ * An explicit selection always wins — an operator naming templates has decided,
+ * and history must not override a decision. Explicit IDS win over explicit
+ * names, for the same reason ids win everywhere else. Recovered history is used
  * ONLY when `use_previous_templates` asked for it, and then per run, never
  * pooled across the batch.
  */
 export function resolveDispatchTemplates(
   history: RunTemplateHistory,
-  options: { explicit?: string[] | null; usePrevious?: boolean }
-): { template_names: string[]; source: RunTemplateHistory["source"] | "explicit" } {
-  if (options.explicit?.length) {
-    return { template_names: [...options.explicit], source: "explicit" }
+  options: {
+    explicit?: string[] | null
+    explicitIds?: string[] | null
+    usePrevious?: boolean
   }
-  if (options.usePrevious && history.templates.length) {
+): ResolvedDispatchSelection {
+  if (options.explicitIds?.length) {
     return {
-      template_names: history.templates.map((t) => t.name),
-      source: history.source,
+      template_names: [],
+      template_ids: [...options.explicitIds],
+      source: "explicit",
+      resolved_by: "id",
     }
   }
-  return { template_names: [], source: "none" }
+  if (options.explicit?.length) {
+    return {
+      template_names: [...options.explicit],
+      template_ids: [],
+      source: "explicit",
+      resolved_by: "name",
+    }
+  }
+  if (options.usePrevious && history.templates.length) {
+    const ids = history.templates.map((t) => t.template_id)
+    const fullyIdentified = ids.every(
+      (id): id is string => typeof id === "string" && id.length > 0
+    )
+    return {
+      template_names: history.templates.map((t) => t.name),
+      template_ids: fullyIdentified ? (ids as string[]) : [],
+      source: history.source,
+      resolved_by: fullyIdentified ? "id" : "name",
+    }
+  }
+  return {
+    template_names: [],
+    template_ids: [],
+    source: "none",
+    resolved_by: "none",
+  }
 }

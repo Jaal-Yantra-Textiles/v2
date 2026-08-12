@@ -182,7 +182,8 @@ setupSharedTestSuite(() => {
       expect(designAfterFinish.data.design.status).toBe("Revision")
 
       // Complete → design transitions to Technical_Review
-      await api.post(`/partners/production-runs/${runId}/complete`, {}, { headers: partnerHeaders })
+      // A completion has to say what was made — the run was ordered as 1.
+      await api.post(`/partners/production-runs/${runId}/complete`, { produced_quantity: 1 }, { headers: partnerHeaders })
 
       await new Promise((resolve) => setTimeout(resolve, 1000))
 

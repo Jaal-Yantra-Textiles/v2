@@ -151,7 +151,9 @@ setupSharedTestSuite(() => {
         started_at: new Date(),
       })
 
-      const res = await post(`/partners/production-runs/${runId}/complete`, {}, partnerHeaders)
+      // Output is stated so the 400 comes from the status guard under test, not
+      // from the completion output gate.
+      const res = await post(`/partners/production-runs/${runId}/complete`, { produced_quantity: 1 }, partnerHeaders)
       expect(res.status).toBeGreaterThanOrEqual(400)
     })
 

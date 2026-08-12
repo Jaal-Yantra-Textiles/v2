@@ -495,8 +495,29 @@ describe("admin-mcp registry + dispatch", () => {
       const def = ADMIN_MCP_TOOLS.find((t) => t.name === "resume_production_run_dispatch")!
       expect(def.bodyParams).toContain("transaction_id")
       expect(def.inputSchema.required).toEqual(
-        expect.arrayContaining(["id", "template_names", "transaction_id"])
+        expect.arrayContaining(["id", "transaction_id"])
       )
+    })
+
+    /**
+     * #1261 — the selection may be made by id OR by name, so NEITHER can be a
+     * required field. A name does not identify a template (prod's two
+     * "Stitching" rows differ only by category), and dispatch now refuses an
+     * ambiguous one, so the id path has to be reachable.
+     */
+    it("offers template_ids alongside template_names on every dispatch lever", () => {
+      for (const name of [
+        "send_production_run_to_production",
+        "resume_production_run_dispatch",
+        "redispatch_parked_production_runs",
+      ]) {
+        const def = ADMIN_MCP_TOOLS.find((t) => t.name === name)!
+        expect(def.bodyParams).toContain("template_ids")
+        expect(def.inputSchema.properties).toHaveProperty("template_ids")
+        // Requiring either one would make the other unusable.
+        expect(def.inputSchema.required ?? []).not.toContain("template_ids")
+        expect(def.inputSchema.required ?? []).not.toContain("template_names")
+      }
     })
   })
 

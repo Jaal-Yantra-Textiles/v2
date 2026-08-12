@@ -220,7 +220,8 @@ setupSharedTestSuite(() => {
       // Complete
       const completeRes = await api.post(
         `/partners/production-runs/${runId}/complete`,
-        {},
+        // The run was ordered as 5; a completion must account for all of it.
+        { produced_quantity: 5 },
         { headers: partnerHeaders }
       )
       expect(completeRes.status).toBe(200)
@@ -232,7 +233,7 @@ setupSharedTestSuite(() => {
       try {
         await api.post(
           `/partners/production-runs/${runId}/complete`,
-          {},
+          { produced_quantity: 5 },
           { headers: partnerHeaders }
         )
         fail("double-complete should throw")

@@ -12,7 +12,7 @@ import {
   transform,
   when,
 } from "@medusajs/framework/workflows-sdk"
-import { Modules } from "@medusajs/framework/utils"
+import { MedusaError, Modules } from "@medusajs/framework/utils"
 
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
@@ -54,6 +54,103 @@ export type CompleteProductionRunInput = PartnerRunInput & {
   cost_type?: "per_unit" | "total"
   consumptions?: ConsumptionEntry[]
   notes?: string
+  /**
+   * Complete with LESS output than was ordered, deliberately.
+   *
+   * The gate below requires a completion to account for everything assigned.
+   * Real shortfalls happen — cloth ran out, a batch was scrapped — so they are
+   * allowed, but they have to be claimed rather than slipped through, and the
+   * shortfall must carry an explanation.
+   */
+  allow_shortfall?: boolean
+}
+
+export type CompletionOutputCheck =
+  | { ok: true; shortfall: number }
+  | { ok: false; reason: string }
+
+/**
+ * PURE: may this completion be recorded? Exported for unit tests.
+ *
+ * A run could be completed with `produced_quantity` left blank — it is optional
+ * on the model and nothing filled it in — so a partner could close work without
+ * ever saying what they made. That is the untouched cause behind the whole
+ * #1248 thread: the run reads `completed`, the output is null, and every
+ * downstream reader (cost summary, payout, provenance, order fulfilment) falls
+ * back to the ORDERED quantity and quietly assumes it was all made.
+ *
+ * So: output must be stated, and it must account for everything ordered.
+ * "Account for" is deliberately not "produce" — rejects are output too, they
+ * are simply output that failed. 9 good + 1 rejected against an order of 10 is
+ * a complete, honest completion. 9 good and nothing said about the tenth is not.
+ *
+ * A genuine shortfall is allowed via `allowShortfall`, WITH a written reason.
+ * Without that escape the gate would be unworkable and someone would route
+ * around it by inflating the number, which is worse than a recorded shortfall.
+ */
+export function checkCompletionOutput(input: {
+  assigned?: number | null
+  produced?: number | null
+  rejected?: number | null
+  allowShortfall?: boolean
+  notes?: string | null
+  rejectionReason?: string | null
+  rejectionNotes?: string | null
+}): CompletionOutputCheck {
+  const assigned = Number(input.assigned ?? 0)
+
+  // No ordered quantity to measure against — nothing to enforce. Runs created
+  // without one predate the field being meaningful; inventing a requirement
+  // for them would block completions over data that was never captured.
+  if (!Number.isFinite(assigned) || assigned <= 0) {
+    return { ok: true, shortfall: 0 }
+  }
+
+  const produced = input.produced
+
+  if (produced == null || !Number.isFinite(Number(produced))) {
+    return {
+      ok: false,
+      reason: `produced_quantity is required to complete this run: ${assigned} were ordered and nothing says how many were made. Report the good output (rejects go in rejected_quantity).`,
+    }
+  }
+
+  const good = Number(produced)
+  if (good < 0) {
+    return { ok: false, reason: `produced_quantity cannot be negative.` }
+  }
+
+  const rejected = Number(input.rejected ?? 0)
+  const accounted = good + (Number.isFinite(rejected) ? rejected : 0)
+  const shortfall = assigned - accounted
+
+  if (shortfall <= 0) {
+    return { ok: true, shortfall: 0 }
+  }
+
+  if (!input.allowShortfall) {
+    return {
+      ok: false,
+      reason: `This completion accounts for ${accounted} of ${assigned} ordered (${shortfall} unaccounted for). Report the missing units as rejected_quantity if they failed, or re-send with allow_shortfall:true and a note explaining what happened to them.`,
+    }
+  }
+
+  // Claimed shortfalls still need a reason. `allow_shortfall` alone would just
+  // be a checkbox that turns the gate off.
+  const explanation = [
+    input.notes,
+    input.rejectionReason,
+    input.rejectionNotes,
+  ].find((v) => typeof v === "string" && v.trim().length > 0)
+
+  if (!explanation) {
+    return {
+      ok: false,
+      reason: `allow_shortfall:true needs an explanation: ${shortfall} of ${assigned} ordered are unaccounted for. Put what happened in notes.`,
+    }
+  }
+
+  return { ok: true, shortfall }
 }
 
 // ---------------------------------------------------------------------------
@@ -125,6 +222,7 @@ type CompleteRunData = {
   cost_estimate?: number
   cost_type?: "per_unit" | "total"
   notes?: string
+  allow_shortfall?: boolean
 }
 
 const completeRunWithLockStep = createStep(
@@ -136,11 +234,35 @@ const completeRunWithLockStep = createStep(
 
     let previousStatus: string | null = null
     let alreadyCompleted = false
+    let outputError: string | null = null
 
     await lockingService.execute(lockKey, async () => {
       const freshRun = await service.retrieveProductionRun(input.production_run_id) as any
       if (freshRun.status === "completed") {
         alreadyCompleted = true
+        return
+      }
+
+      /**
+       * The output gate. Checked against the FRESH run inside the lock, so it
+       * measures against the quantity as it stands at completion rather than
+       * one read earlier in the workflow and possibly corrected since.
+       *
+       * Thrown outside the lock — releasing it first, so a rejected completion
+       * cannot hold the run locked behind a validation failure.
+       */
+      const check = checkCompletionOutput({
+        assigned: freshRun.quantity,
+        produced: input.produced_quantity,
+        rejected: input.rejected_quantity,
+        allowShortfall: input.allow_shortfall,
+        notes: input.notes,
+        rejectionReason: input.rejection_reason,
+        rejectionNotes: input.rejection_notes,
+      })
+
+      if (!check.ok) {
+        outputError = check.reason
         return
       }
 
@@ -159,6 +281,10 @@ const completeRunWithLockStep = createStep(
         ...(input.notes ? { completion_notes: input.notes } : {}),
       })
     })
+
+    if (outputError) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, outputError)
+    }
 
     return new StepResponse(
       { completed: !alreadyCompleted },
@@ -356,6 +482,7 @@ export const completeProductionRunWorkflow = createWorkflow(
       cost_estimate: data.input.partner_cost_estimate,
       cost_type: data.input.cost_type,
       notes: data.input.notes,
+      allow_shortfall: data.input.allow_shortfall,
     }))
 
     completeRunWithLockStep(completeData)

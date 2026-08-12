@@ -31,9 +31,32 @@ export const AdminApproveProductionRunReq = z.object({
   assignments: z.array(AssignmentSchema).optional(),
 })
 
-export const AdminSendProductionRunToProductionReq = z.object({
-  template_names: z.array(z.string()).min(1),
-})
+/**
+ * #1261 — a selection may be made by id or by name.
+ *
+ * Ids are preferred and win when both are sent: a name does not identify a
+ * template (prod's two "Stitching" rows differ only by category), and dispatch
+ * now REFUSES an ambiguous name rather than picking one. `template_names` stays
+ * because most names are unambiguous and every existing caller uses them.
+ */
+const templateSelection = {
+  template_names: z.array(z.string().min(1)).min(1).optional(),
+  template_ids: z.array(z.string().min(1)).min(1).optional(),
+}
+
+const requireOneSelection = (data: {
+  template_names?: string[]
+  template_ids?: string[]
+}) => Boolean(data.template_ids?.length || data.template_names?.length)
+
+const selectionRequired = {
+  message: "Pass template_ids (preferred) or template_names.",
+  path: ["template_ids"],
+}
+
+export const AdminSendProductionRunToProductionReq = z
+  .object(templateSelection)
+  .refine(requireOneSelection, selectionRequired)
 
 export const AdminStartDispatchProductionRunReq = z.object({})
 
@@ -51,10 +74,12 @@ export const AdminAssignProductionRunPartnerReq = z.object({
   note: z.string().max(500).nullish(),
 })
 
-export const AdminResumeDispatchProductionRunReq = z.object({
-  template_names: z.array(z.string()).min(1),
-  transaction_id: z.string().min(1),
-})
+export const AdminResumeDispatchProductionRunReq = z
+  .object({
+    ...templateSelection,
+    transaction_id: z.string().min(1),
+  })
+  .refine(requireOneSelection, selectionRequired)
 
 /**
  * Re-send parked runs to the partner they came from.
@@ -71,6 +96,11 @@ export const AdminRedispatchParkedRunsReq = z.object({
    * dry-run says so when they disagree.
    */
   template_names: z.array(z.string()).optional(),
+  /**
+   * The same override, BY ID — the only way to name one of two same-named
+   * templates. Wins over `template_names` when both are sent.
+   */
+  template_ids: z.array(z.string().min(1)).optional(),
   /**
    * Dispatch each run with the templates IT went out with last time, recovered
    * from its own tasks. Per run, so a batch whose runs used different sets goes

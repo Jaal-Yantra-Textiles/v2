@@ -4,8 +4,10 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import TaskService from "../../modules/tasks/service";
 import { TASKS_MODULE } from "../../modules/tasks";
+import { resolveUniqueTemplateName } from "./unique-name";
 import { InferTypeOf } from "@medusajs/framework/types";
 import TaskTemplate from "../../modules/tasks/models/tasktemplate";
 export type TaskTemplateType = InferTypeOf<typeof TaskTemplate>;
@@ -77,6 +79,56 @@ export const updateTaskTemplateStep = createStep(
       delete input.update.category;
     }
     
+    /**
+     * #1261 — a rename must not manufacture the collision creates now avoid.
+     *
+     * Renaming a template onto a name another template already holds would put
+     * dispatch back where it started: two rows answering to one name, and a
+     * dispatch that can pick the wrong process. Same rule as create — qualify
+     * with the category rather than refuse, and only when it actually collides.
+     */
+    if (typeof input.update.name === "string" && input.update.name.trim()) {
+      const existing = await (taskService as any).listTaskTemplates(
+        {},
+        { take: null, relations: ["category"] }
+      );
+
+      let categoryName: string | null = null;
+      const categoryId =
+        input.update.category_id ?? (originalTemplate as any)?.category_id;
+      if (categoryId) {
+        try {
+          const category = await taskService.retrieveTaskCategory(categoryId);
+          categoryName = (category as any)?.name ?? null;
+        } catch {
+          // No qualifier available; the helper falls back to a counter.
+        }
+      }
+
+      const unique = resolveUniqueTemplateName(
+        input.update.name,
+        categoryName,
+        (existing || []).map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          category_name: t.category?.name ?? null,
+        })),
+        // The row being renamed must not collide with its own current name.
+        input.id
+      );
+
+      if (unique.qualified) {
+        const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER);
+        logger.info(
+          `[TaskTemplate] Rename of ${input.id} to "${unique.requested}" collides with ${unique.collided_with
+            .map((t) => t.id)
+            .join(", ")} — stored as "${unique.name}".`
+        );
+      }
+
+      input.update.name = unique.name;
+    }
+
     // Update the template with new data
     const updatedTemplate = await taskService.updateTaskTemplates({
       selector: {

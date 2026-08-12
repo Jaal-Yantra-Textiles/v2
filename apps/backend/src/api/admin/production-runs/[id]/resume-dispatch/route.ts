@@ -67,7 +67,12 @@ export const POST = async (
       stepId: waitDispatchTemplateSelectionStepId,
       workflowId: dispatchProductionRunWorkflowId,
     },
-    stepResponse: new StepResponse({ template_names: body.template_names }),
+    // #1261 — the selection travels as ids AND names. Dispatch prefers the ids;
+    // the names are still carried so an unambiguous name-only call keeps working.
+    stepResponse: new StepResponse({
+      template_names: body.template_names ?? [],
+      template_ids: body.template_ids ?? [],
+    }),
   })
 
   return res.status(200).json({ success: true })
