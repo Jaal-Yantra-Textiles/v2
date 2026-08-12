@@ -140,7 +140,9 @@ export const useProductionRun = (
 
 export type AdminSendProductionRunToProductionPayload = {
   run_id: string
-  template_names: string[]
+  /** Preferred — see `AdminResumeDispatchPayload`. */
+  template_ids?: string[]
+  template_names?: string[]
 }
 
 export type AdminSendProductionRunToProductionResponse = {
@@ -163,6 +165,7 @@ export const useSendProductionRunToProduction = (
         {
           method: "POST",
           body: {
+            template_ids: payload.template_ids,
             template_names: payload.template_names,
           },
         }
@@ -197,7 +200,13 @@ export const useStartDispatch = (
 
 export type AdminResumeDispatchPayload = {
   transaction_id: string
-  template_names: string[]
+  /**
+   * #1261 — a name is not an identity: prod carries two "Stitching" templates
+   * differing only by category, and dispatch REFUSES an ambiguous name rather
+   * than picking one. Send ids; names remain accepted for older callers.
+   */
+  template_ids?: string[]
+  template_names?: string[]
 }
 
 export type AdminResumeDispatchResponse = {

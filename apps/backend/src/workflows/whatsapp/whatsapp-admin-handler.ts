@@ -692,10 +692,34 @@ async function handleSendRun(
     return { handled: true, action: "send_run", error: "not_found" }
   }
 
-  const templateNames = ((run as any).dispatch_template_names as string[]) || []
+  /**
+   * What this run was last dispatched with (#1265) beats what an approver
+   * intended (#1265 again: `dispatch_template_names` is written only at
+   * approval and is null on most runs — this command used to send an empty
+   * list and get "No task templates selected" back).
+   *
+   * Ids first: the dedup job renames template rows, and dispatch REFUSES a name
+   * that matches more than one row (#1261), so a name-only re-send of a run
+   * whose template shares its label would fail here with nothing to do about it
+   * over WhatsApp.
+   */
+  const dispatchedIds = (((run as any).dispatched_template_ids as string[]) || [])
+    .filter((id) => typeof id === "string" && id.length > 0)
+  const templateNames = (((run as any).dispatch_template_names as string[]) || [])
+    .filter((n) => typeof n === "string" && n.length > 0)
+
+  if (!dispatchedIds.length && !templateNames.length) {
+    await whatsapp.sendTextMessage(
+      phone,
+      `Run \`${runId}\` has no task templates on record — it was never dispatched, and no templates were chosen at approval.\n\nDispatch it from the admin (Production Run → Dispatch) once, and \`send run\` will be able to repeat that selection.`
+    )
+    return { handled: true, action: "send_run", error: "no_templates" }
+  }
 
   await sendProductionRunToProductionWorkflow(scope).run({
-    input: { production_run_id: runId, template_names: templateNames },
+    input: dispatchedIds.length
+      ? { production_run_id: runId, template_ids: dispatchedIds }
+      : { production_run_id: runId, template_names: templateNames },
   })
 
   const designName = await getDesignName(scope, run.design_id)
@@ -708,7 +732,9 @@ async function handleSendRun(
       admin_name: admin.name,
       design_name: designName,
       partner_id: run.partner_id ?? null,
-      template_names: templateNames,
+      // Record what was actually sent, not the field that happened to be read.
+      template_ids: dispatchedIds.length ? dispatchedIds : null,
+      template_names: dispatchedIds.length ? null : templateNames,
     },
   }
   await whatsapp.sendTextMessage(

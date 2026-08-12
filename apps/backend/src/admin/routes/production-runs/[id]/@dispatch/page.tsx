@@ -7,7 +7,7 @@ import {
   Text,
   toast,
 } from "@medusajs/ui"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useParams } from "react-router-dom"
 
 import { RouteDrawer } from "../../../../components/modal/route-drawer/route-drawer"
@@ -40,19 +40,89 @@ const DispatchProductionRunDrawerForm = () => {
     )
   }, [taskTemplates])
 
-  const [selectedTemplates, setSelectedTemplates] = useState<string[]>(
-    () => (run?.dispatch_template_names as string[]) || []
-  )
+  /**
+   * Names that more than one template answers to. Prod carries two "Stitching"
+   * rows differing only by category — different process steps wearing one label
+   * (#1261). Dispatch refuses such a name, so the picker has to show the
+   * category or the choice cannot be made here at all.
+   */
+  const ambiguousNames = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const t of templatesToShow) {
+      const name = String((t as any)?.name || "")
+      counts.set(name, (counts.get(name) ?? 0) + 1)
+    }
+    return new Set(
+      [...counts.entries()].filter(([, n]) => n > 1).map(([name]) => name)
+    )
+  }, [templatesToShow])
+
+  /**
+   * Selection is by ID, not name. Keying it by name merged the two "Stitching"
+   * rows into one toggle and then sent a name dispatch rejects.
+   */
+  const [selectedTemplates, setSelectedTemplates] = useState<string[]>([])
+  const [seededFrom, setSeededFrom] = useState<string | null>(null)
   const [step, setStep] = useState<DispatchStep>("select-templates")
+
+  /**
+   * Preselect what this run was last dispatched with (#1265) — the record
+   * written BY dispatch. `dispatch_template_names` is only approval-time intent
+   * and is null on most runs, so it is the fallback, and only for names that
+   * identify exactly one template.
+   */
+  useEffect(() => {
+    if (!run?.id || seededFrom === run.id || !templatesToShow.length) {
+      return
+    }
+
+    const knownIds = new Set(templatesToShow.map((t: any) => String(t.id)))
+    const dispatched = ((run as any)?.dispatched_template_ids as string[] | null) || []
+    const seed = dispatched.filter((id) => knownIds.has(String(id)))
+
+    if (!seed.length) {
+      const intent = ((run as any)?.dispatch_template_names as string[] | null) || []
+      for (const name of intent) {
+        if (ambiguousNames.has(String(name))) {
+          continue
+        }
+        const match = templatesToShow.find(
+          (t: any) => String(t.name) === String(name)
+        )
+        if (match) {
+          seed.push(String((match as any).id))
+        }
+      }
+    }
+
+    setSeededFrom(run.id)
+    if (seed.length) {
+      setSelectedTemplates(seed)
+    }
+  }, [run?.id, templatesToShow, ambiguousNames, seededFrom])
 
   const startDispatch = useStartDispatch(runId || "")
   const resumeDispatch = useResumeDispatch(runId || "")
 
   const isPending = startDispatch.isPending || resumeDispatch.isPending
 
-  const toggleTemplate = (name: string) => {
+  /** The summary line reads names, not the ids the selection is keyed on. */
+  const selectedLabels = useMemo(() => {
+    return selectedTemplates.map((id) => {
+      const tpl: any = templatesToShow.find((t: any) => String(t.id) === id)
+      if (!tpl) {
+        return id
+      }
+      const name = String(tpl.name)
+      return ambiguousNames.has(name)
+        ? `${name} (${tpl.category?.name || "uncategorised"})`
+        : name
+    })
+  }, [selectedTemplates, templatesToShow, ambiguousNames])
+
+  const toggleTemplate = (id: string) => {
     setSelectedTemplates((prev) =>
-      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
     )
   }
 
@@ -71,9 +141,10 @@ const DispatchProductionRunDrawerForm = () => {
       const { transaction_id } = await startDispatch.mutateAsync()
 
       // Step 2: Resume with selected templates
+      // Ids, not names — the selection already knows exactly which rows.
       await resumeDispatch.mutateAsync({
         transaction_id,
-        template_names: selectedTemplates,
+        template_ids: selectedTemplates,
       })
 
       setStep("done")
@@ -176,21 +247,23 @@ const DispatchProductionRunDrawerForm = () => {
                   ) : (
                     <div className="flex flex-col gap-2">
                       {templatesToShow.map((tpl: any) => {
+                        const id = String(tpl.id)
                         const name = String(tpl.name)
-                        const selected = selectedTemplates.includes(name)
+                        const selected = selectedTemplates.includes(id)
+                        const category = tpl.category?.name || null
                         const estCost = tpl.estimated_cost
                           ? ` (est. ${tpl.estimated_cost}${tpl.cost_currency ? ` ${tpl.cost_currency}` : ""})`
                           : ""
                         return (
                           <button
-                            key={name}
+                            key={id}
                             type="button"
                             className={`flex items-center justify-between rounded-lg border px-4 py-3 text-left transition-colors ${
                               selected
                                 ? "border-ui-border-interactive bg-ui-bg-interactive"
                                 : "border-ui-border-base hover:bg-ui-bg-base-hover"
                             }`}
-                            onClick={() => toggleTemplate(name)}
+                            onClick={() => toggleTemplate(id)}
                           >
                             <div className="flex flex-col">
                               <Text
@@ -199,6 +272,15 @@ const DispatchProductionRunDrawerForm = () => {
                                 className={selected ? "text-ui-fg-on-color" : ""}
                               >
                                 {name}
+                                {/* Without the category these two rows are
+                                    indistinguishable, and they are different
+                                    process steps (#1261). */}
+                                {ambiguousNames.has(name) && (
+                                  <span className="opacity-70">
+                                    {" "}
+                                    — {category || "uncategorised"}
+                                  </span>
+                                )}
                               </Text>
                               {tpl.description && (
                                 <Text
@@ -230,7 +312,7 @@ const DispatchProductionRunDrawerForm = () => {
                   <div className="px-6 py-3">
                     <Text size="small" className="text-ui-fg-subtle">
                       {selectedTemplates.length} template{selectedTemplates.length > 1 ? "s" : ""} selected:{" "}
-                      {selectedTemplates.join(", ")}
+                      {selectedLabels.join(", ")}
                     </Text>
                   </div>
                 )}
