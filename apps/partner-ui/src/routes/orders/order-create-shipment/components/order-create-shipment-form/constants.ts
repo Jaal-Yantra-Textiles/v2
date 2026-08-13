@@ -13,6 +13,11 @@ import { z } from "@medusajs/framework/zod"
 export const SHIPMENT_CARRIERS = [
   { value: "shiprocket", label: "Shiprocket" },
   { value: "delhivery", label: "Delhivery", domesticOnly: true },
+  // Blue Dart is NOT domestic-only: product "H" (IPC) is a real export product
+  // on the same account. Must stay in step with the admin twin at
+  // `apps/backend/src/admin/lib/shipment-carriers.ts` — both pickers drive the
+  // same backend, whose `SUPPORTED_CARRIERS` is the real authority.
+  { value: "bluedart", label: "Blue Dart" },
 ] as const
 
 /** True when a destination country is outside India (mirrors the backend). */

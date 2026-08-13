@@ -19,6 +19,11 @@
 export const SHIPMENT_CARRIERS = [
   { value: "shiprocket", label: "Shiprocket" },
   { value: "delhivery", label: "Delhivery", domesticOnly: true },
+  // Blue Dart is NOT domestic-only: product "H" (IPC) is a real export product
+  // on the same account, so it is offered for foreign destinations too. It is
+  // also the fallback for origins where the other carriers' pickups don't
+  // materialise, which is why it was integrated at all.
+  { value: "bluedart", label: "Blue Dart" },
 ] as const
 
 export type ShipmentCarrier = (typeof SHIPMENT_CARRIERS)[number]["value"]
