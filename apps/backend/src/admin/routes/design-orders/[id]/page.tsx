@@ -34,6 +34,7 @@ import {
   useProduceDesignOrder,
   useGenerateShiprocketLabel,
   useAttachShiprocketAwb,
+  useCancelShipment,
   useShiprocketRates,
 } from "../../../hooks/api/design-orders"
 import { usePartners } from "../../../hooks/api/partners"
@@ -288,6 +289,8 @@ const OrderSection = ({
     useGenerateShiprocketLabel(order?.id ?? "")
   const { mutateAsync: attachAwb, isPending: isAttaching } =
     useAttachShiprocketAwb(order?.id ?? "")
+  const { mutateAsync: cancelShipment, isPending: isCancellingShipment } =
+    useCancelShipment(order?.id ?? "")
   const [labelUrl, setLabelUrl] = useState<string | null>(null)
   const [attachOpen, setAttachOpen] = useState(false)
   const [awbValue, setAwbValue] = useState("")
@@ -713,6 +716,45 @@ const OrderSection = ({
                   <HandTruck className="w-4 h-4 mr-1" />
                   Track shipment
                 </a>
+              </Button>
+            )}
+            {order.tracking.fulfillment_id && (
+              <Button
+                variant="transparent"
+                size="small"
+                isLoading={isCancellingShipment}
+                onClick={async () => {
+                  const ok = await prompt({
+                    title: "Cancel this waybill?",
+                    description: `AWB ${order.tracking.awb} will be cancelled with ${
+                      order.tracking.carrier || "the carrier"
+                    }. This cannot be undone, and the customer is emailed that their courier has changed. The order can then be re-labelled with another carrier.`,
+                    confirmText: "Cancel waybill",
+                    cancelText: "Keep it",
+                  })
+                  if (!ok) return
+                  try {
+                    const res = await cancelShipment({
+                      fulfillmentId: order.tracking.fulfillment_id!,
+                    })
+                    toast.success(
+                      `AWB ${res.cancelled_shipment.awb} cancelled${
+                        res.cancelled_shipment.customer_notified
+                          ? " — customer emailed"
+                          : ""
+                      }`
+                    )
+                    if (!res.cancelled_shipment.customer_notified) {
+                      toast.warning(
+                        "The customer was NOT emailed about the courier change — send them a note by hand."
+                      )
+                    }
+                  } catch (e: any) {
+                    toast.error(e?.message || "Could not cancel the waybill")
+                  }
+                }}
+              >
+                Cancel waybill
               </Button>
             )}
           </div>

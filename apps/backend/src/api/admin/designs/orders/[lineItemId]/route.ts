@@ -102,6 +102,10 @@ export async function GET(
       activeFulfillment.find((f: any) => f.data?.carrier) ?? activeFulfillment[0]
     const tracking = tracked
       ? {
+          // The fulfillment this AWB is stamped on. Needed to cancel the
+          // waybill from here — cancel is addressed per-fulfillment, and this
+          // page otherwise never learns which one carries the shipment.
+          fulfillment_id: tracked.id ?? null,
           carrier: tracked.data?.carrier ?? null,
           awb: tracked.data?.waybill ?? tracked.data?.tracking_number ?? null,
           tracking_url: tracked.data?.tracking_url ?? null,
