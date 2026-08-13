@@ -90,6 +90,8 @@ export type DesignOrderDetail = {
     created_at: string;
     canceled_at: string | null;
     tracking: {
+      /** The fulfillment carrying this AWB — the address for cancelling it. */
+      fulfillment_id: string | null;
       carrier: string | null;
       awb: string | null;
       tracking_url: string | null;
@@ -501,6 +503,58 @@ export const useAttachShiprocketAwb = (
       sdk.client.fetch<AttachShiprocketAwbResponse>(
         `/admin/orders/${orderId}/shiprocket-attach-awb`,
         { method: "POST", body: { awb } }
+      ),
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({
+        queryKey: designOrdersQueryKeys.lists(),
+      });
+      options?.onSuccess?.(...args);
+    },
+    ...options,
+  });
+};
+
+export type CancelShipmentResponse = {
+  cancelled_shipment: {
+    fulfillment_id: string;
+    carrier?: string;
+    awb?: string;
+    cancelled_at: string;
+    /** False when the customer email could not be sent (see the seed script). */
+    customer_notified: boolean;
+  };
+};
+
+export type CancelShipmentVariables = {
+  fulfillmentId: string;
+  reason?: string;
+  /** Cancel even though the fulfillment is already marked shipped. */
+  force?: boolean;
+  /** Defaults to true on the backend. */
+  notify_customer?: boolean;
+};
+
+/**
+ * Void the carrier waybill on a fulfillment — the "the courier fell through /
+ * we're changing partner" path. Cancels at the carrier FIRST, then clears the
+ * refs, so a refusal leaves the live waybill attached rather than orphaned.
+ *
+ * Admin-only by design; there is no partner equivalent.
+ */
+export const useCancelShipment = (
+  orderId: string,
+  options?: UseMutationOptions<
+    CancelShipmentResponse,
+    FetchError,
+    CancelShipmentVariables
+  >
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ fulfillmentId, ...body }: CancelShipmentVariables) =>
+      sdk.client.fetch<CancelShipmentResponse>(
+        `/admin/orders/${orderId}/fulfillments/${fulfillmentId}/cancel-shipment`,
+        { method: "POST", body }
       ),
     onSuccess: (...args) => {
       queryClient.invalidateQueries({

@@ -24,9 +24,15 @@ import { SOCIALS_MODULE } from "../socials"
 import { CarrierId, ShipmentRef, ShippingProviderClient } from "./provider-interface"
 import { DelhiveryProviderAdapter } from "./delhivery/adapter"
 import { ShiprocketClient } from "./shiprocket/client"
+import { BlueDartProviderAdapter } from "./bluedart/adapter"
+import { DhlUnifiedTrackingClient } from "./dhl-unified-tracking"
 
 /** Carriers `resolveShippingProvider` can return a live client for. */
-export const SUPPORTED_CARRIERS: CarrierId[] = ["delhivery", "shiprocket"]
+export const SUPPORTED_CARRIERS: CarrierId[] = [
+  "delhivery",
+  "shiprocket",
+  "bluedart",
+]
 
 /**
  * True when a carrier has a registered ShippingProviderClient. Consumer routes
@@ -178,6 +184,69 @@ export async function resolveShippingProvider(
         cfg.pickup_location || process.env.SHIPROCKET_PICKUP_LOCATION,
       fetchImpl,
     })
+  }
+
+  if (id === "bluedart") {
+    // Two-layer credentials: the gateway pair mints the JWT, the shipping
+    // account travels in the request body. BOTH are required — a valid JWT with
+    // a wrong LicenceKey fails deep inside the call with "UnauthorizedUser".
+    const clientId =
+      readSecret(cfg, "client_id", encryption) || process.env.BLUE_DART_CLIENT_ID
+    const clientSecret =
+      readSecret(cfg, "client_secret", encryption) ||
+      process.env.BLUE_DART_CLIENT_SECRET
+    const loginId =
+      readSecret(cfg, "login_id", encryption) || process.env.BLUE_DART_LOGIN_ID
+    const licenceKey =
+      readSecret(cfg, "licence_key", encryption) ||
+      process.env.BLUE_DART_LICENCE_KEY
+    const customerCode =
+      cfg.customer_code || process.env.BLUE_DART_CUSTOMER_CODE
+
+    const missing = [
+      !clientId && "BLUE_DART_CLIENT_ID",
+      !clientSecret && "BLUE_DART_CLIENT_SECRET",
+      !loginId && "BLUE_DART_LOGIN_ID",
+      !licenceKey && "BLUE_DART_LICENCE_KEY",
+      !customerCode && "BLUE_DART_CUSTOMER_CODE",
+    ].filter(Boolean)
+    if (missing.length) {
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        `Blue Dart credentials not configured (missing ${missing.join(", ")})`
+      )
+    }
+
+    // Tracking goes through DHL's unified API when a key is available — Blue
+    // Dart's own tracking endpoint needs a licence key we don't hold. The
+    // gateway client id doubles as the DHL-API-Key.
+    const trackingKey =
+      readSecret(cfg, "dhl_tracking_api_key", encryption) ||
+      process.env.DHL_UNIFIED_TRACKING_API_KEY ||
+      clientId
+
+    return new BlueDartProviderAdapter(
+      {
+        client_id: clientId!,
+        client_secret: clientSecret!,
+        login_id: loginId!,
+        licence_key: licenceKey!,
+        customer_code: customerCode!,
+        api_type: cfg.api_type || process.env.BLUE_DART_API_TYPE,
+        version: cfg.version || process.env.BLUE_DART_VERSION,
+        origin_area: cfg.origin_area || process.env.BLUE_DART_ORIGIN_AREA,
+        tracking_licence_key: process.env.BLUE_DART_TRACKING_LICENCE_KEY,
+        // ⚠️ Blue Dart's sandbox issues SEPARATE shipping credentials — the
+        // production LoginID does NOT work against it ("RequestAuthenticationFailed").
+        // So sandbox mode is only meaningful with sandbox creds configured too.
+        sandbox:
+          (cfg.mode ? cfg.mode === "test" : undefined) ??
+          process.env.BLUE_DART_SANDBOX === "true",
+      },
+      trackingKey
+        ? new DhlUnifiedTrackingClient({ api_key: trackingKey })
+        : undefined
+    )
   }
 
   throw new MedusaError(

@@ -16,6 +16,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 
+import { persistPickupBookingSafely } from "../../../../../../../lib/persist-pickup-booking"
 import {
   isSupportedCarrier,
   resolveShippingProvider,
@@ -27,7 +28,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const { data: orders } = await query.graph({
     entity: "orders",
-    fields: ["id", "fulfillments.*", "fulfillments.labels.*"],
+    fields: [
+      "id",
+      "fulfillments.*",
+      "fulfillments.labels.*",
+      "fulfillments.metadata",
+    ],
     filters: { id: req.params.id },
   })
 
@@ -104,11 +110,37 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   })
 
   const raw = (result.raw as Record<string, any>) || {}
+  // `result.token` is the normalized fallback: Blue Dart returns its handle as
+  // `TokenNumber`, not `pickup_id`, and that token is the only thing that can
+  // call the collection off later. Dropping it means a pickup can be booked
+  // and then only cancelled by phone.
+  const pickupId = raw.pickup_id || result.token
+
+  // Best-effort: the carrier has already committed to the collection, so a
+  // failed write must not surface as "pickup failed" and send the operator to
+  // book a second one.
+  const { persisted, record } = await persistPickupBookingSafely(
+    req.scope,
+    fulfillment.id,
+    {
+      pickup_id: pickupId,
+      pickup_date: pickupDate,
+      pickup_time: pickupTime,
+      incoming_center_name: raw.incoming_center_name,
+      carrier,
+    },
+    fulfillment.metadata
+  )
+
   res.json({
-    pickup_id: raw.pickup_id,
+    pickup_id: pickupId,
     pickup_date: pickupDate,
     pickup_time: pickupTime,
     incoming_center_name: raw.incoming_center_name,
+    // `false` means the booking is live at the carrier but this order no longer
+    // knows its token — the UI must say so rather than render a clean success.
+    pickup_persisted: persisted,
+    booked_at: record.booked_at,
     ...raw,
   })
 }
