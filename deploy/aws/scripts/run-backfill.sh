@@ -66,9 +66,21 @@ echo
 
 # Resolve the task definition to run against.
 #
-# Default path (no IMAGE_TAG): use the current active revision of the
-# medusa-server family. The one-off task pulls whatever image that
-# revision references (:latest in prod today).
+# Default path (no IMAGE_TAG): use the revision the SERVICE is actually
+# running, NOT the newest revision in the family.
+#
+# This distinction is load-bearing. The IMAGE_TAG path below registers its
+# one-off revision into this same family, so after any IMAGE_TAG run the
+# family's newest revision is a side-revision pinned to a specific sha —
+# not the :latest the service runs. A later default-path run would then
+# inherit that pin, and once the sha ages out of ECR every backfill dies
+# with `CannotPullContainerError: ... not found` while the service beside
+# it is perfectly healthy. That is exactly what happened on 2026-08-13:
+# revision 89 was pinned to a sha that no longer existed, while the
+# service ran revision 78.
+#
+# Following the service instead means the escape hatch can never poison
+# the normal path, however many one-off revisions accumulate.
 #
 # Branch dry-run path (IMAGE_TAG set): describe the current revision,
 # swap the container image to the supplied sha tag, register a new
@@ -77,6 +89,34 @@ echo
 # by name and would still pick whatever the manifest says when the
 # next real deploy runs, so this side-revision doesn't pollute the
 # normal deploy path. ECS keeps old revisions free of charge.
+
+# The revision the service runs. Falls back to the family's newest revision
+# when the service can't be read (a fresh environment, or a cluster whose
+# service is named unconventionally) — a degraded answer beats no answer,
+# and the failure mode is the pre-existing one rather than a new one.
+SERVICE_ARN=$(aws ecs list-services \
+  --cluster "$ECS_CLUSTER" \
+  --region "$AWS_REGION" \
+  --query "serviceArns[?contains(@, '${TASK_FAMILY}')] | [0]" \
+  --output text 2>/dev/null || echo "None")
+
+BASE_TASK_DEF="$TASK_FAMILY"
+if [ -n "$SERVICE_ARN" ] && [ "$SERVICE_ARN" != "None" ]; then
+  SERVICE_TASK_DEF=$(aws ecs describe-services \
+    --cluster "$ECS_CLUSTER" \
+    --services "$SERVICE_ARN" \
+    --region "$AWS_REGION" \
+    --query "services[0].taskDefinition" \
+    --output text 2>/dev/null || echo "None")
+  if [ -n "$SERVICE_TASK_DEF" ] && [ "$SERVICE_TASK_DEF" != "None" ]; then
+    BASE_TASK_DEF="$SERVICE_TASK_DEF"
+    echo "== Base task def:   ${BASE_TASK_DEF} (live service revision)"
+  fi
+fi
+if [ "$BASE_TASK_DEF" = "$TASK_FAMILY" ]; then
+  echo "== Base task def:   ${TASK_FAMILY} (newest revision — service not resolved)"
+fi
+
 if [ -n "${IMAGE_TAG:-}" ]; then
   echo "Registering a one-off task def revision with image tag ${IMAGE_TAG}…"
   # Write describe-task-definition output to a temp file so python can
@@ -84,7 +124,7 @@ if [ -n "${IMAGE_TAG:-}" ]; then
   # so we can't pipe JSON in alongside the heredoc.
   CURRENT_DEF_FILE=$(mktemp -t run-backfill-current-td.XXXXXX.json)
   aws ecs describe-task-definition \
-    --task-definition "$TASK_FAMILY" \
+    --task-definition "$BASE_TASK_DEF" \
     --region "$AWS_REGION" \
     --output json > "$CURRENT_DEF_FILE"
 
@@ -138,7 +178,7 @@ PY
   echo "  Registered: ${TASK_DEF_ARN}"
 else
   TASK_DEF_ARN=$(aws ecs describe-task-definition \
-    --task-definition "$TASK_FAMILY" \
+    --task-definition "$BASE_TASK_DEF" \
     --region "$AWS_REGION" \
     --query "taskDefinition.taskDefinitionArn" \
     --output text)
