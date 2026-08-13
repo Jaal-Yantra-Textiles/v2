@@ -1,0 +1,1748 @@
+{
+  "openapi": "3.0.2",
+  "info": {
+    "title": "Starfleet REST Api",
+    "description": "Exhaustive list of APIs for Starfleet<br><b>Following characters are not allowed in manifest request i.e '&' '&bsol;' '%' '#' ';'</b><br><b>'*'(against field name) denotes Mandatory for Imports</b><br><b>'^'(against field name) denotes Mandatory for Exports</b><br>Our APIs require Authentication.</br>Parameters:<br>1. API Endpoint - <b>https://api-stage-starfleet.delhivery.com/auth/token</b><br>2. Content-Type - application/x-www-form-urlencoded<br>3. grant_type - 'password'<br>4. audience - 'StarFleet'<br>5. scope - \"starfleet openid profile email ^&bsol;/package&bsol;/batchGeneratePackages&bsol;:POST$ ^&bsol;/package&bsol;/batchGeneratePackages&bsol;/.+&bsol;:GET$ ^&bsol;/package&bsol;/auth-track&bsol;/.+&bsol;:GET$ ^&bsol;/package&bsol;/.+&bsol;/invoice&bsol;:GET$ ^&bsol;/package&bsol;/.+&bsol;/shipping-label&bsol;:GET$ ^&bsol;/package&bsol;/.+&bsol;/upload-kyc-doc&bsol;:POST$\". If this Oauth API is executed via code then you have to URL-Encode the \"scope\" parameter  <br>6. client_id (that is shared with you)<br>7. client_secret (that is shared with you)<br>8. username (Your login Username)<br>9. password (Your Login Password)",
+    "version": "1.0.2"
+  },
+  "servers": [
+    {
+      "url": "https://api-stage-starfleet.delhivery.com/package"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Package",
+      "description": "Metadata for shipments."
+    }
+  ],
+  "paths": {
+    "/batchGeneratePackages": {
+      "post": {
+        "tags": [
+          "Package"
+        ],
+        "parameters": [
+          {
+            "name": "id_token",
+            "in": "header",
+            "description": "user identification token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "summary": "Batch Job for Package Creation.",
+        "description": "Create packages in bulk.\n",
+        "operationId": "addBulkPackage",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePackageBatchRequest"
+              },
+              "example": {
+                "packages": [
+                  {
+                    "weight": 50,
+                    "dims": {
+                      "length": 10,
+                      "width": 15,
+                      "height": 20
+                    },
+                    "package_amount": 500,
+                    "total_commodity_value": 500,
+                    "shipment_type": "sample",
+                    "currency": "INR",
+                    "order_no": "UNIQUE_ID_123456",
+                    "client_name": "xxxxx-InternationalAccount-in",
+                    "transaction_type": "B2B",
+                    "payment_mode": "Prepaid",
+                    "cod_amount": 0,
+                    "service_type": "EXPORTS_DLV_SAVER",
+                    "billing_mode": "E",
+                    "battery": false,
+                    "eor": {
+                      "name": "[name]",
+                      "postal": "[address]",
+                      "phone": "+911234567890"
+                    },
+                    "ior": {
+                      "name": "[name]",
+                      "postal": "[address]",
+                      "phone": "+911234567890"
+                    },
+                    "invoice": {
+                      "number": "INV000000001",
+                      "date": "2024-01-20",
+                      "terms": "FOB",
+                      "igst_payment_status": "Paid",
+                      "lut_bond_ref": "LUT0000"
+                    },
+                    "pickup_location": {
+                      "country": "IN",
+                      "name": "[warehouse_name]",
+                      "zip": "400001",
+                      "state": "Maharashtra",
+                      "city": "Mumbai"
+                    },
+                    "delivery_location": {
+                      "postal": "Shipping",
+                      "city": "PARIS",
+                      "state": "PARIS",
+                      "country": "FR",
+                      "zip": "75002",
+                      "address": "[delivery_address]"
+                    },
+                    "bill_to": {
+                      "as_shipto": false,
+                      "name": "[name]",
+                      "address": "[billing_address]",
+                      "city": "PARIS",
+                      "state": "PARIS",
+                      "zip": "75002",
+                      "country": "FR",
+                      "phone": "+911234567890",
+                      "email": "test.user@example.com"
+                    },
+                    "clearance_mode": "courier",
+                    "products": [
+                      {
+                        "desc": "Men's knit jacket",
+                        "quantity": 1,
+                        "item_commodity_value": 100,
+                        "total_amount": 200,
+                        "hsn_code": "84713010",
+                        "euec": false,
+                        "product_amount": 2000,
+                        "meis": false,
+                        "unit_price": 1000,
+                        "igst_rate": 18,
+                        "igst_amount": 18,
+                        "type": "abc",
+                        "contains_artificial_jewellery": false
+                      }
+                    ],
+                    "add_on_services": {
+                      "free_domicile": false,
+                      "signature_pod": false
+                    },
+                    "consignor": {
+                      "name": "[company_name]",
+                      "phone": "+911234567890",
+                      "email": "test.user@example.com",
+                      "type": "Office",
+                      "address": "[address]",
+                      "city": "Gurugram",
+                      "state": "Haryana",
+                      "country": "IN",
+                      "zip": "122003",
+                      "document_id": "[document_id]",
+                      "document_type": "PAN",
+                      "iec": "[iec_code]",
+                      "pan": "[pan_number]",
+                      "gstin": "[gstin_number]",
+                      "bank_ad_code": "[bank_ad_code]",
+                      "bank_ifsc": "[bank_ifsc]",
+                      "bank_ac": "[bank_account]",
+                      "seller_id": "[seller_id]"
+                    },
+                    "consignee": {
+                      "name": "[name]",
+                      "email": "test.user@example.com",
+                      "phone": "+911234567890",
+                      "vat_no": ""
+                    },
+                    "e_waybill": ""
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateTaskApiResponse"
+                }
+              }
+            },
+            "links": {
+              "GetPackageById": {
+                "operationId": "GetBatchPackageJob",
+                "parameters": {
+                  "id": "$response.body.payload.id"
+                },
+                "description": "The Job ID returned can be used to query the status of the job as `id` parameter in `GET /batchCreatePackages/{id}`"
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/batchGeneratePackages/{id}": {
+      "get": {
+        "tags": [
+          "Package"
+        ],
+        "summary": "Get Status of Batch Package Creation Job.",
+        "description": "Fetches status of an asynchronous task\n",
+        "operationId": "GetBatchPackageJob",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "$ref": "#/components/schemas/UUID4"
+            }
+          },
+          {
+            "name": "id_token",
+            "in": "header",
+            "description": "user identification token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatePackageBatchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{id}/invoice": {
+      "get": {
+        "tags": [
+          "Package"
+        ],
+        "summary": "Get Invoice of a package with waybill `id`.",
+        "description": "Fetches Invoice of a package\n",
+        "operationId": "GetPackageInvoice",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "DL00000525CN"
+            }
+          },
+          {
+            "name": "id_token",
+            "in": "header",
+            "description": "user identification token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "accept",
+            "in": "header",
+            "description": "The content-type of the expected response of the api",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The response is of type pdf file, hence set this value as 'application/pdf'",
+              "example": "application/pdf"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{id}/shipping-label": {
+      "get": {
+        "tags": [
+          "Package"
+        ],
+        "summary": "Get Shipping Label of a package with waybill `id`.",
+        "description": "Fetches Shipping Label of a package\n",
+        "operationId": "GetPackageShippingLabel",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "DL00000525CN"
+            }
+          },
+          {
+            "name": "id_token",
+            "in": "header",
+            "description": "user identification token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "accept",
+            "in": "header",
+            "description": "The content-type of the expected response of the api",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The response is of type pdf file, hence set this value as 'application/pdf'",
+              "example": "application/pdf"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth-track/{id}": {
+      "get": {
+        "tags": [
+          "Package"
+        ],
+        "summary": "Fetches list of scan events for one or more waybill(s) (maximum 15 waybills)",
+        "operationId": "PackageTrackAPI",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "DL00000525CN,DL00000535CN"
+            }
+          },
+          {
+            "name": "id_token",
+            "in": "header",
+            "description": "user identification token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/trackApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{id}/upload-kyc-doc": {
+      "post": {
+        "tags": [
+          "Package"
+        ],
+        "parameters": [
+          {
+            "name": "dlv-image-type",
+            "in": "header",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "Front"
+            }
+          },
+          {
+            "name": "Content-Type",
+            "in": "header",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "image/jpeg"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "DL00000525CN"
+            }
+          }
+        ],
+        "summary": "Upload KYC documents for a waybill",
+        "description": "Upload KYC document\n",
+        "operationId": "UploadKycDoc",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              },
+              "examples": {
+                "sampleFile": {
+                  "summary": "A sample file",
+                  "externalValue": "home/example/example.jpeg"
+                }
+              }
+            },
+            "image/jpg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              },
+              "examples": {
+                "sampleFile": {
+                  "summary": "A sample file",
+                  "externalValue": "home/example/example.jpg"
+                }
+              }
+            },
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              },
+              "examples": {
+                "sampleFile": {
+                  "summary": "A sample file",
+                  "externalValue": "home/example/example.png"
+                }
+              }
+            },
+            "application/pdf": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              },
+              "examples": {
+                "sampleFile": {
+                  "summary": "A sample file",
+                  "externalValue": "home/example/example.pdf"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KycUploadApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KycUploadApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KycUploadApiErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KycUploadApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "UPUS10": {
+        "type": "string",
+        "description": "A unique identifier as defined by UPU S10 standard",
+        "example": "DL000000000CN"
+      },
+      "UUID4": {
+        "type": "string",
+        "description": "A unique identifier of the form UUID4",
+        "example": "e99f54a7-d726-42ef-bb02-9c6ebf4003f1"
+      },
+      "Product": {
+        "required": [
+          "desc",
+          "quantity",
+          "item_commodity_value",
+          "total_amount",
+          "hsn_code",
+          "product_amount",
+          "unit_price",
+          "igst_rate",
+          "igst_amount"
+        ],
+        "properties": {
+          "desc*^": {
+            "type": "string",
+            "description": "Description of the item being shipped",
+            "example": "50W Laser Pointer"
+          },
+          "quantity*^": {
+            "type": "integer",
+            "description": "quantity of item",
+            "example": 2
+          },
+          "item_commodity_value*^": {
+            "type": "number",
+            "description": "Item level Commodity/Taxable amount of the product, should be equal to 'product amount'",
+            "example": 200
+          },
+          "total_amount*^": {
+            "type": "number",
+            "description": "Total amount of the item (including tax)",
+            "example": 300
+          },
+          "hsn_code*^": {
+            "type": "string",
+            "description": "8 Digit HSN Code for the product; mandatory for all exports from India; mandatory for B2B,B2B2C imports into India; non-mandatory for B2C, C2C imports into India",
+            "example": "67909019"
+          },
+          "euec": {
+            "type": "boolean",
+            "description": "Flag for Export using E-Commerce. Only valid in case of 'commercial' type of shipment",
+            "example": true
+          },
+          "cu3c": {
+            "type": "string",
+            "description": "Commodity under 3C (only required in case MEIS benefit is marked 'Yes' under 'commercial' type of shipment)",
+            "example": "Leather Footwear",
+            "enum": [
+              "Handicrafts Items/Products",
+              "Handloom Products",
+              "Toys",
+              "Books/Periodicals",
+              "Leather Footwear",
+              "Customised Fashion Garments"
+            ]
+          },
+          "product_amount*^": {
+            "type": "number",
+            "description": "'unit price' multiplied by 'product quantity'",
+            "example": 5000
+          },
+          "meis": {
+            "type": "boolean",
+            "description": "Flag for MEIS benefit. Only valid in case of 'commercial' type of shipment",
+            "example": false
+          },
+          "unit_price*^": {
+            "type": "number",
+            "description": "Price of each unit of product",
+            "example": 400
+          },
+          "igst_rate": {
+            "type": "number",
+            "description": "Integrated GST rate(percent) for product(without percentage symbol) Only valid in case of 'commercial' type of shipment and IGST payment status as 'Paid'",
+            "example": 8,
+            "enum": [
+              0,
+              5,
+              8,
+              12,
+              18,
+              28
+            ]
+          },
+          "igst_amount": {
+            "type": "number",
+            "description": "Integrated GST amount for product or item. Only valid in case of 'commercial' type of shipment and IGST payment status as 'Paid'",
+            "example": 45
+          },
+          "size": {
+            "type": "string",
+            "description": "Size of product",
+            "example": "XL (46)"
+          },
+          "type": {
+            "type": "string",
+            "description": "Type of made of product",
+            "example": "Knitted or Woven"
+          },
+          "composition": {
+            "type": "string",
+            "description": "Composition of the product",
+            "example": "80% Cotton, 20% Polyester"
+          },
+          "sell_weblink": {
+            "type": "string",
+            "description": "Marketplace product weblink for price reference",
+            "example": "https://www.amazon.in/Red-Rose-Stylish-Sports-Shoes/dp/B083CS4LWC/ref=asc_df_B083CS4LWC/?tag=googleshopdes-21&linkCode=df0&hvadid=399395476524&hvpos=&hvnetw=g&hvrand=4411002271417656661&hvpone=&hvptwo=&hvqmt=&hvdev=c&hvdvcmdl=&hvlocint=&hvlocphy=9040175&hvtargid=pla-864285823436&psc=1&language=en_IN&ext_vrnc=hi"
+          },
+          "contains_artificial_jewellery": {
+            "type": "boolean",
+            "description": "Flag to indicate if the product contains artificial jewellery. Optional.",
+            "example": false
+          }
+        },
+        "description": "Metadata associated with a product"
+      },
+      "Contact": {
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name*^": {
+            "type": "string",
+            "description": "Name for the contact",
+            "example": "[name]"
+          },
+          "email^": {
+            "type": "string",
+            "description": "Email for the contact",
+            "example": "test.user@example.com"
+          },
+          "phone^": {
+            "type": "string",
+            "description": "Phone for the contact",
+            "example": "+911234567890"
+          }
+        },
+        "description": "Metadata for a person acting as the contact for the consignor/consignee/eor/ior"
+      },
+      "RegisteredAddress": {
+        "required": [
+          "pickup_warehouse_id",
+          "country"
+        ],
+        "properties": {
+          "pickup_warehouse_id*^": {
+            "type": "string",
+            "description": "Pickup address ID as provided by Delhivery",
+            "example": "VS_FC_01"
+          },
+          "country*^": {
+            "type": "string",
+            "description": "Country of the postal address in universal 2 letter code format",
+            "example": "IN"
+          }
+        },
+        "description": "Payload for requests against a Starfleet registered address"
+      },
+      "UnregisteredAddress": {
+        "required": [
+          "city",
+          "country",
+          "address",
+          "state",
+          "zip"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Type of address",
+            "example": "Office",
+            "enum": [
+              "Office",
+              "Residential"
+            ]
+          },
+          "address*^": {
+            "type": "string",
+            "description": "Complete postal address",
+            "example": "Plot-5, Sector-44"
+          },
+          "city*^": {
+            "type": "string",
+            "description": "City of the postal address",
+            "example": "Gurugram"
+          },
+          "state*^": {
+            "type": "string",
+            "description": "2 or 3 letter State/Region/Province of the postal address. Mandatory only in case of Exports to United States (US) and Canada (CA)",
+            "example": "HR"
+          },
+          "country*^": {
+            "type": "string",
+            "description": "Country of the postal address in universal 2 letter code format",
+            "example": "IN"
+          },
+          "zip*^": {
+            "type": "string",
+            "description": "Pin/Zip code of the postal address",
+            "example": "122003"
+          }
+        },
+        "description": "Payload for requests against unregistered or temporary address"
+      },
+      "PackageMetadata": {
+        "required": [
+          "client_name",
+          "order_no",
+          "consignee",
+          "consignor",
+          "delivery_location",
+          "pickup_location",
+          "products"
+        ],
+        "properties": {
+          "waybill": {
+            "$ref": "#/components/schemas/UPUS10"
+          },
+          "weight^": {
+            "type": "number",
+            "description": "Dead weight of the shipment in grams",
+            "example": 100
+          },
+          "dims^": {
+            "$ref": "#/components/schemas/Product_dim"
+          },
+          "package_amount*^": {
+            "type": "number",
+            "description": "Total package amount after taxes (or selling price). This will be the sum of all amounts calculated at item level and will be the final amount printed on shipping label.",
+            "example": 699.99
+          },
+          "total_commodity_value*^": {
+            "type": "number",
+            "description": "Total value (before tax) of all the commodities inside the shipment. This becomes the customs declared value of the product.",
+            "example": 34.44
+          },
+          "shipment_type*^": {
+            "type": "string",
+            "description": "Type of the shipment.",
+            "example": "sample",
+            "enum": [
+              "document",
+              "gift",
+              "sample",
+              "commercial",
+              "commercial_cargo"
+            ]
+          },
+          "currency*^": {
+            "type": "string",
+            "description": "Currency code of all the amounts",
+            "example": "INR"
+          },
+          "order_no*^": {
+            "type": "string",
+            "description": "Order id of the shipment",
+            "example": "12op90"
+          },
+          "client_name*^": {
+            "type": "string",
+            "description": "Account Name as provided by Delhivery",
+            "example": "GP HANDICRAFTS XB"
+          },
+          "transaction_type": {
+            "type": "string",
+            "description": "Type or nature of transaction for the shipment",
+            "example": "B2C",
+            "enum": [
+              "B2C",
+              "B2B",
+              "C2C",
+              "B2B2C"
+            ]
+          },
+          "payment_mode*^": {
+            "type": "string",
+            "description": "Payment mode for the shipment",
+            "example": "Prepaid",
+            "enum": [
+              "Prepaid",
+              "COD"
+            ]
+          },
+          "cod_amount": {
+            "type": "number",
+            "description": "Amount to be collected by consignee at the time of delivery. Only applicable in case of 'COD'",
+            "example": 100
+          },
+          "service_type*^": {
+            "type": "string",
+            "description": "Type of service for the shipment. Note: EXPORTS_DLV_SAVER is not applicable for document shipments.",
+            "example": "EXPORTS_EXPRESS",
+            "enum": [
+              "EXPORTS_EXPRESS",
+              "EXPORTS_DOCUMENT",
+              "EXPORTS_DEFERRED_EXPRESS",
+              "IMPORTS_EXPRESS",
+              "EXPORTS_DLV_SAVER"
+            ]
+          },
+          "billing_mode": {
+            "type": "string",
+            "description": "Mode of billing for the shipment",
+            "example": "E",
+            "enum": [
+              "E",
+              "S"
+            ]
+          },
+          "battery^": {
+            "type": "boolean",
+            "description": "Boolean indicative if the product is a battery requiring MSDS documentation or otherwise.",
+            "example": true
+          },
+          "eor": {
+            "type": "object",
+            "description": "Details of exporter on record",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Name of Exporter On Record. Mandatory in case of 'transaction type' is 'B2B2C'",
+                "example": "abc"
+              },
+              "postal": {
+                "type": "string",
+                "description": "Complete postal address of Exporter On Record. Mandatory in case of 'transaction type' is 'B2B2C'",
+                "example": "Tsuen Wen, Hongkong"
+              },
+              "phone": {
+                "type": "string",
+                "description": "Contact number of Exporter On Record. andatory in case of 'transaction type' is 'B2B2C'",
+                "example": "+911234567890"
+              }
+            }
+          },
+          "ior": {
+            "type": "object",
+            "description": "Details of importer on record",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Name of Importer On Record. Mandatory in case of 'transaction type' is 'B2B2C'",
+                "example": "abc"
+              },
+              "postal": {
+                "type": "string",
+                "description": "Complete postal address of Importer On Record. Mandatory in case of 'transaction type' is 'B2B2C'",
+                "example": "SEEPS, Andheri East, Mumbai"
+              },
+              "phone": {
+                "type": "string",
+                "description": "Contact number of Importer On Record. andatory in case of 'transaction type' is 'B2B2C'",
+                "example": "+911234567890"
+              }
+            }
+          },
+          "invoice": {
+            "type": "object",
+            "properties": {
+              "number*^": {
+                "type": "string",
+                "description": "Invoice number",
+                "example": "AMP/TI/19-20/1258"
+              },
+              "date*^": {
+                "type": "string",
+                "description": "Invoice date (Format: YYYY-MM-DD)",
+                "example": "2019-09-20"
+              },
+              "terms*^": {
+                "type": "string",
+                "description": "INCOterms for customs invoice",
+                "example": "CIF"
+              },
+              "igst_payment_status": {
+                "type": "string",
+                "description": "IGST payment status. Mandatory only in case of 'commercial' type of shipment",
+                "example": "Paid",
+                "enum": [
+                  "Paid",
+                  "LUT",
+                  "Bond"
+                ]
+              },
+              "lut_bond_ref": {
+                "type": "string",
+                "description": "LUT/Bond reference number. Only required in case IGST Payment Status is 'LUT' or 'Bond'",
+                "example": "07AAHCA12721C7A"
+              }
+            }
+          },
+          "return_location": {
+            "type": "object",
+            "properties": {
+              "address": {
+                "type": "string",
+                "description": "Complete postal address for return",
+                "example": "Plot no 5. Sector-44"
+              },
+              "zip": {
+                "type": "string",
+                "description": "Pin/Zip code of the postal address for return",
+                "example": "122002"
+              }
+            }
+          },
+          "pickup_location": {
+            "type": "object",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RegisteredAddress"
+              },
+              {
+                "$ref": "#/components/schemas/UnregisteredAddress"
+              }
+            ]
+          },
+          "delivery_location*^": {
+            "$ref": "#/components/schemas/UnregisteredAddress"
+          },
+          "bill_to": {
+            "type": "object",
+            "description": "Billing address details. Used when the billing address differs from the shipping address.",
+            "properties": {
+              "as_shipto": {
+                "type": "boolean",
+                "description": "If true, bill_to address is same as ship_to address",
+                "example": false
+              },
+              "name": {
+                "type": "string",
+                "description": "Name of the billing contact",
+                "example": "[name]"
+              },
+              "address": {
+                "type": "string",
+                "description": "Complete billing address",
+                "example": "123 Main Street, Suite 4B"
+              },
+              "city": {
+                "type": "string",
+                "description": "City of the billing address",
+                "example": "PARIS"
+              },
+              "state": {
+                "type": "string",
+                "description": "State/Region/Province of the billing address",
+                "example": "PARIS"
+              },
+              "zip": {
+                "type": "string",
+                "description": "Pin/Zip code of the billing address",
+                "example": "75002"
+              },
+              "country": {
+                "type": "string",
+                "description": "Country code of the billing address (2 letter ISO code)",
+                "example": "FR"
+              },
+              "phone": {
+                "type": "string",
+                "description": "Phone number of the billing contact",
+                "example": "+911234567890"
+              },
+              "email": {
+                "type": "string",
+                "description": "Email of the billing contact",
+                "example": "test.user@example.com"
+              }
+            }
+          },
+          "clearance_mode": {
+            "type": "string",
+            "description": "Type of clearance mode opted for",
+            "example": "courier",
+            "enum": [
+              "courier",
+              "cargo"
+            ]
+          },
+          "products*^": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Product"
+            }
+          },
+          "add_on_services": {
+            "type": "object",
+            "properties": {
+              "free_domicile": {
+                "type": "boolean",
+                "description": "Bill duties and/or taxes to shipper and no amount to be billed to consignee. This is an add on service (with additional charges) provided for exports out of India.",
+                "example": true
+              },
+              "signature_pod": {
+                "type": "boolean",
+                "description": "Mandatory signature POD required at the time of delivery. This is an add on service (with additional charges) provided for exports out of India.",
+                "example": true
+              }
+            }
+          },
+          "consignor*^": {
+            "type": "object",
+            "properties": {
+              "seller_id": {
+                "type": "string",
+                "description": "Actual Seller address ID as provided by Delhivery. All other fields inside this consignor object are not mandatory if this field is filled.",
+                "example": "PO_Handicrafts_1"
+              },
+              "name": {
+                "type": "string",
+                "description": "Name for the shipper/seller",
+                "example": "[company_name]"
+              },
+              "phone": {
+                "type": "string",
+                "description": "Contact number of shipper/seller with country code",
+                "example": "+911234567890"
+              },
+              "email": {
+                "type": "string",
+                "description": "Email for the shipper/seller",
+                "example": "test.user@example.com"
+              },
+              "type": {
+                "type": "string",
+                "description": "Type of address: Office or Residential",
+                "example": "Office",
+                "enum": [
+                  "Office",
+                  "Residential"
+                ]
+              },
+              "address": {
+                "type": "string",
+                "description": "Complete postal address of the shipper/seller as per KYC or customs invoice",
+                "example": "Plot-5, Sector-44"
+              },
+              "city": {
+                "type": "string",
+                "description": "City of the postal address of shipper/seller as per KYC or customs invoice",
+                "example": "Gurugram"
+              },
+              "state": {
+                "type": "string",
+                "description": "State/Region/Province of the postal address of shipper/seller as per KYC or customs invoice",
+                "example": "Haryana"
+              },
+              "country": {
+                "type": "string",
+                "description": "Two letter Country Code of the postal address of shipper/seller",
+                "example": "IN"
+              },
+              "zip": {
+                "type": "string",
+                "description": "Pin/Zip code of the postal address of shipper/seller",
+                "example": "122003"
+              },
+              "document_id": {
+                "type": "string",
+                "description": "ID number of the KYC document of the shipper that is provided to Delhivery",
+                "example": "AMBHGDNKFBG"
+              },
+              "document_type": {
+                "type": "string",
+                "description": "Name of the KYC document of the shipper that is provided to Delhivery",
+                "example": "PAN",
+                "enum": [
+                  "Aadhar",
+                  "Passport",
+                  "Voter ID",
+                  "PAN",
+                  "GST"
+                ]
+              },
+              "iec": {
+                "type": "string",
+                "description": "Importer Exporter Code of the shipper. This is mandatory in case of 'commercial' type of shipment under 'EXPORT' services",
+                "example": "795003556"
+              },
+              "pan": {
+                "type": "string",
+                "description": "PAN number of shipper. This is mandatory in case of 'commercial' type of shipment under 'EXPORT' services.",
+                "example": "AAACT5410T"
+              },
+              "gstin": {
+                "type": "string",
+                "description": "Registered GSTIN number of the shipper. This is mandatory in case of 'commercial' type of shipment under 'EXPORT' services.",
+                "example": "29AAACT5410T2RJ"
+              },
+              "bank_ad_code": {
+                "type": "string",
+                "description": "Authorized Dealer Code of the shipper. Should be 14 digits. This is mandatory in case of 'commercial' type of shipment under 'EXPORT' services.",
+                "example": "01234567891234"
+              },
+              "bank_ifsc": {
+                "type": "string",
+                "description": "Bank IFSC code of the shipper. This is mandatory in case of 'commercial' type of shipment under 'EXPORT' services.",
+                "example": "HDFC0000003"
+              },
+              "bank_ac": {
+                "type": "string",
+                "description": "Bank account no. of the shipper. This is mandatory in case of 'commercial' type of shipment under 'EXPORT' services.",
+                "example": "5010003456792"
+              }
+            }
+          },
+          "consignee*^": {
+            "$ref": "#/components/schemas/Contact"
+          },
+          "e_waybill": {
+            "type": "string",
+            "description": "E-Waybill number, mandatory for movement within India in case total shipment value is greater than 50,000 INR",
+            "example": "1810 0000 1387"
+          }
+        },
+        "description": "Metadata against a package. A package represents a physical shipment being routed via Starfleet"
+      },
+      "CreatePackageBatchRequest": {
+        "description": "Payload to trigger a job to create/manifest shipments in bulk.",
+        "required": [
+          "packages"
+        ],
+        "properties": {
+          "packages": {
+            "maxLength": 500,
+            "minLength": 2,
+            "type": "array",
+            "description": "List/Array of packages to be manifested",
+            "items": {
+              "$ref": "#/components/schemas/PackageMetadata"
+            }
+          },
+          "mps_amount": {
+            "type": "number",
+            "description": "Only valid in case of MPS shipment. Amount that needs to be collected from consignee. Enter 0 in case it is a prepaid shipment"
+          },
+          "no_of_pieces": {
+            "type": "number",
+            "description": "Only mandatory in case of MPS shipment. Enter total number of boxes associated with the shipment. The number entered will generate as many number of airwaybills associated with 1 master airwaybill. Leave blank in case of only 1 box."
+          },
+          "master_waybill": {
+            "type": "string",
+            "description": "Master Waybill for MPS Shipment. Only valid in case of MPS shipment."
+          }
+        }
+      },
+      "ApiResponse": {
+        "required": [
+          "payload"
+        ],
+        "type": "object",
+        "properties": {
+          "payload": {
+            "type": "object",
+            "description": "Actual payload containing results of actions implemented by API"
+          },
+          "message": {
+            "type": "string",
+            "description": "Any metadata to explain status of the job such as error codes on a FAILED job",
+            "example": "ok"
+          }
+        },
+        "description": "Common structure for any Api response"
+      },
+      "ApiErrorResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiResponse"
+          },
+          {
+            "required": [
+              "message"
+            ],
+            "properties": {
+              "message": {
+                "type": "string",
+                "example": "error message"
+              }
+            }
+          }
+        ]
+      },
+      "CreateTaskApiResponse": {
+        "description": "Common structure for any asynchronous Api response.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "payload": {
+                "$ref": "#/components/schemas/CreateTaskApiResponse_payload"
+              }
+            }
+          }
+        ]
+      },
+      "TaskStatusResponse": {
+        "description": "Common structure for any API that indicate the status of a previously triggered task",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CreateTaskApiResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "payload": {
+                "$ref": "#/components/schemas/TaskStatusResponse_payload"
+              }
+            }
+          }
+        ]
+      },
+      "CreatePackageBatchResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TaskStatusResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "payload": {
+                "$ref": "#/components/schemas/CreatePackageBatchResponse_payload"
+              }
+            }
+          }
+        ]
+      },
+      "trackApiResponse": {
+        "description": "Response for track waybill",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "payload": {
+                "$ref": "#/components/schemas/trackApiResponse_payload"
+              }
+            }
+          }
+        ]
+      },
+      "Product_dim": {
+        "required": [
+          "height",
+          "length",
+          "width"
+        ],
+        "type": "object",
+        "properties": {
+          "length^": {
+            "type": "number",
+            "description": "Length in centimeters",
+            "example": 10
+          },
+          "width^": {
+            "type": "number",
+            "description": "Width in centimeters",
+            "example": 4
+          },
+          "height^": {
+            "type": "number",
+            "description": "Height in centimeters",
+            "example": 2
+          }
+        },
+        "description": "Dimentions of the shipment"
+      },
+      "CreateTaskApiResponse_payload": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier/reference for the job/task created",
+            "example": "534530f6-7d5a-4011-adfe-e73a2a43f700"
+          }
+        }
+      },
+      "TaskStatusResponse_payload": {
+        "required": [
+          "data",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Status of a job/task",
+            "example": "COMPLETED",
+            "enum": [
+              "IN_PROCESS",
+              "COMPLETED",
+              "FAILED"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "description": "Paginated results of task action"
+          }
+        }
+      },
+      "CreatePackageBatchResponse_payload": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "total_count": {
+                "type": "string",
+                "description": "Total count of packages that are being processed for manifestation",
+                "example": 10
+              },
+              "error_count": {
+                "type": "string",
+                "description": "count of packages that failed to be manifested",
+                "example": 5
+              },
+              "success_count": {
+                "type": "string",
+                "description": "count of packages that successfully manifested",
+                "example": 5
+              },
+              "error_waybills": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "boolean",
+                      "description": "denotes fail status of package",
+                      "example": false
+                    },
+                    "waybill": {
+                      "type": "string",
+                      "description": "AWB No",
+                      "example": "DL00000000CN"
+                    },
+                    "order_id": {
+                      "type": "string",
+                      "description": "Order ID",
+                      "example": "111"
+                    },
+                    "reason": {
+                      "type": "string",
+                      "description": "denotes reason for why package could not be manifested",
+                      "example": "Client Name mismatch"
+                    }
+                  }
+                }
+              },
+              "success_waybills": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "boolean",
+                      "description": "denotes fail status of package",
+                      "example": false
+                    },
+                    "waybill": {
+                      "type": "string",
+                      "description": "AWB No",
+                      "example": "DL00000000CN"
+                    },
+                    "order_id": {
+                      "type": "string",
+                      "description": "Order ID",
+                      "example": "111"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "trackApiResponse_payload_scans": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string",
+            "example": "CN_Shenzen_P"
+          },
+          "state": {
+            "type": "string",
+            "example": "Shenzen"
+          },
+          "country": {
+            "type": "string",
+            "example": "CHN"
+          },
+          "time": {
+            "type": "string",
+            "example": "1566209100"
+          },
+          "action": {
+            "type": "string",
+            "example": "INT-PKG-MANF"
+          },
+          "remarks": {
+            "type": "string",
+            "example": "Package Manifestation Done"
+          }
+        }
+      },
+      "trackApiResponse_waybillFound_payload": {
+        "type": "object",
+        "properties": {
+          "waybill": {
+            "$ref": "#/components/schemas/UPUS10"
+          },
+          "scans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/trackApiResponse_payload_scans"
+            }
+          },
+          "shipment_type": {
+            "type": "string",
+            "example": "sample_or_gift"
+          },
+          "is_master": {
+            "type": "boolean",
+            "example": "true",
+            "description": "True if it is an mps master shipment. Note- this key will only be present when shipment_type is MPS"
+          },
+          "related_wbns": {
+            "type": "array",
+            "description": "List of Related AWB's of a MPS shipment. Note- this key will only be present when shipment_type is MPS",
+            "items": {
+              "type": "string",
+              "example": "DL00000000CN"
+            }
+          },
+          "master_wbn": {
+            "type": "string",
+            "description": "Master AWB of a MPS shipment. Note- this key will only be present when shipment_type is MPS",
+            "example": "DL00000000CN"
+          },
+          "origin": {
+            "type": "string",
+            "example": "testwarehouse"
+          },
+          "destination": {
+            "type": "object",
+            "properties": {
+              "address*^": {
+                "type": "string",
+                "description": "Complete postal address",
+                "example": "Plot-5, Sector-44"
+              },
+              "city*^": {
+                "type": "string",
+                "description": "City of the postal address",
+                "example": "Gurugram"
+              },
+              "state*^": {
+                "type": "string",
+                "description": "State/Region/Province of the postal address",
+                "example": "Haryana"
+              },
+              "country*^": {
+                "type": "string",
+                "description": "Country of the postal address",
+                "example": "IN"
+              },
+              "zip*^": {
+                "type": "string",
+                "description": "Pin code of the postal address",
+                "example": "122003"
+              }
+            }
+          }
+        }
+      },
+      "trackApiResponse_waybillNotFound_payload": {
+        "type": "object",
+        "properties": {
+          "waybill": {
+            "$ref": "#/components/schemas/UPUS10"
+          },
+          "status": {
+            "type": "string",
+            "example": "DL00000000CN Details not found"
+          }
+        }
+      },
+      "trackApiResponse_payload": {
+        "type": "object",
+        "properties": {
+          "waybills_found": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/trackApiResponse_waybillFound_payload"
+            }
+          },
+          "waybills_not_found": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/trackApiResponse_waybillNotFound_payload"
+            }
+          }
+        }
+      },
+      "KycUploadApiResponse": {
+        "required": [
+          "payload"
+        ],
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Boolean value if image upload was succesful or not",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "Data to indicate reason of failure or indicate success",
+            "example": "ok"
+          }
+        },
+        "description": "Common structure for any Api response"
+      },
+      "KycUploadApiErrorResponse": {
+        "required": [
+          "payload"
+        ],
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Boolean value if image upload was succesful or not",
+            "example": false
+          },
+          "message": {
+            "type": "string",
+            "description": "Data to indicate reason of failure or indicate success"
+          }
+        },
+        "description": "Common structure for any Api response"
+      }
+    }
+  }
+}
