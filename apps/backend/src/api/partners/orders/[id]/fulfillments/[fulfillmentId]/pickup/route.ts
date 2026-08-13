@@ -1,6 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { validatePartnerOrderOwnership } from "../../../../../helpers"
+import { persistPickupBookingSafely } from "../../../../../../../lib/persist-pickup-booking"
 import {
   isSupportedCarrier,
   resolveShippingProvider,
@@ -20,6 +21,7 @@ export const POST = async (
       "id",
       "fulfillments.*",
       "fulfillments.labels.*",
+      "fulfillments.metadata",
     ],
     filters: { id: req.params.id },
   })
@@ -98,11 +100,32 @@ export const POST = async (
   })
 
   const raw = (result.raw as Record<string, any>) || {}
+  // `|| result.token` is not cosmetic: Blue Dart returns its handle as
+  // `TokenNumber`, so without the fallback this route answered
+  // `pickup_id: undefined` for every Blue Dart collection — and the partner UI
+  // keys its "pickup booked" block on exactly that field.
+  const pickupId = raw.pickup_id || result.token
+
+  const { persisted, record } = await persistPickupBookingSafely(
+    req.scope,
+    fulfillment.id,
+    {
+      pickup_id: pickupId,
+      pickup_date: pickupDate,
+      pickup_time: pickupTime,
+      incoming_center_name: raw.incoming_center_name,
+      carrier,
+    },
+    fulfillment.metadata
+  )
+
   res.json({
-    pickup_id: raw.pickup_id,
+    pickup_id: pickupId,
     pickup_date: pickupDate,
     pickup_time: pickupTime,
     incoming_center_name: raw.incoming_center_name,
+    pickup_persisted: persisted,
+    booked_at: record.booked_at,
     ...raw,
   })
 }

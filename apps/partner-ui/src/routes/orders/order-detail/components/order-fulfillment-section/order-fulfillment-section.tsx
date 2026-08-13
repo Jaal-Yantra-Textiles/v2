@@ -291,7 +291,29 @@ const Fulfillment = ({
   const { mutateAsync: schedulePickup, isPending: isPickupPending } =
     useSchedulePickup(order.id, fulfillment.id)
 
-  const isDelhivery = (fulfillment as any).data?.carrier === "delhivery"
+  // Carriers whose pickup can be booked from here. Blue Dart books collections
+  // through the same route as Delhivery, so gating on `delhivery` alone left a
+  // Blue Dart shipment with a waybill and no way to summon a courier.
+  const CARRIERS_WITH_PICKUP = ["delhivery", "bluedart"]
+  const supportsPickup = CARRIERS_WITH_PICKUP.includes(
+    (fulfillment as any).data?.carrier
+  )
+
+  // A booking with no carrier reference is still a booking — Blue Dart returns
+  // its handle as a token and some carriers return nothing identifying at all.
+  // Gating on `pickup_id` alone would re-offer the form for a collection that is
+  // already scheduled, and a second courier would be dispatched.
+  const bookedPickup = (fulfillment as any).metadata?.pickup_date
+    ? {
+        pickup_id: (fulfillment as any).metadata?.pickup_id as
+          | string
+          | undefined,
+        pickup_date: (fulfillment as any).metadata.pickup_date as string,
+        pickup_time: (fulfillment as any).metadata?.pickup_time as
+          | string
+          | undefined,
+      }
+    : null
   const hasWaybill = !!(fulfillment as any).data?.waybill
 
   // #1195: `requires_shipping` is NOT a reliable gate. It is derived from
@@ -318,11 +340,11 @@ const Fulfillment = ({
     !fulfillment.canceled_at && !fulfillment.delivered_at
 
   const showPickupButton =
-    isDelhivery &&
+    supportsPickup &&
     hasWaybill &&
     !fulfillment.canceled_at &&
     !fulfillment.delivered_at &&
-    !(fulfillment as any).metadata?.pickup_id
+    !bookedPickup
 
   const handleFetchLabel = async () => {
     try {
@@ -450,14 +472,21 @@ const Fulfillment = ({
           })}
         </Heading>
         <div className="flex items-center gap-x-4">
-          {(fulfillment as any).metadata?.pickup_id && (
+          {bookedPickup && (
             <StatusBadge color="blue" className="text-nowrap">
               Pickup Scheduled
-              {(fulfillment as any).metadata?.pickup_date &&
-                ` — ${format(
-                  new Date((fulfillment as any).metadata.pickup_date),
-                  "dd MMM, HH:mm"
-                )}`}
+              {` — ${format(
+                // `pickup_date` is date-ONLY ("2026-08-14"); the slot is in
+                // `pickup_time`. Parsing the date alone rendered every booked
+                // pickup as "14 Aug, 00:00" — a midnight collection nobody
+                // scheduled.
+                new Date(
+                  `${bookedPickup.pickup_date}T${
+                    bookedPickup.pickup_time || "00:00"
+                  }:00`
+                ),
+                bookedPickup.pickup_time ? "dd MMM, HH:mm" : "dd MMM"
+              )}`}
             </StatusBadge>
           )}
           <Tooltip

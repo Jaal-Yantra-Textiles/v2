@@ -24,6 +24,7 @@ import {
 } from "../lib/shipment-carriers"
 import {
   useAttachShiprocketAwb,
+  useCancelShipment,
   useGenerateShiprocketLabel,
   useShiprocketRates,
 } from "../hooks/api/design-orders"
@@ -70,7 +71,32 @@ const FIELDS = [
   "fulfillments.id",
   "fulfillments.data",
   "fulfillments.labels.tracking_number",
+  // The booked pickup lives here. Without it the widget could only know about a
+  // pickup it had booked itself, in this tab, since the last refresh.
+  "fulfillments.metadata",
 ].join(",")
+
+/** A pickup already booked with the carrier, as persisted by the pickup route. */
+type BookedPickup = {
+  pickup_id?: string
+  pickup_date: string
+  pickup_time: string
+  incoming_center_name?: string
+}
+
+function bookedPickupOf(fulfillment: any): BookedPickup | null {
+  const m = fulfillment?.metadata
+  // `pickup_date` is the load-bearing field: Blue Dart hands back a
+  // `TokenNumber` and some carriers hand back nothing identifying at all, so a
+  // booking with no id is still a booking — a courier is still coming.
+  if (!m?.pickup_date) return null
+  return {
+    pickup_id: m.pickup_id,
+    pickup_date: m.pickup_date,
+    pickup_time: m.pickup_time,
+    incoming_center_name: m.incoming_center_name,
+  }
+}
 
 /** The AWB already on the order, if any — the state where actions are done. */
 /** Tomorrow, as YYYY-MM-DD — the earliest slot a packer can realistically make. */
@@ -87,13 +113,30 @@ function existingAwbOf(fulfillments: Fulfillment[]): {
 } {
   for (const f of fulfillments) {
     const d = f.data || {}
+    const live = d.waybill || d.tracking_number || undefined
+    // A cancelled shipment clears the carrier refs from `data` but the label row
+    // is a separate table. Trusting the label alone would keep showing a voided
+    // AWB and lock the widget in its "already labelled" branch — exactly the
+    // re-label this feature exists to allow. Once anything has been cancelled
+    // here, `data` is the only authority.
+    const cancelledBefore = Array.isArray(d.cancelled_shipments)
+      ? d.cancelled_shipments.length > 0
+      : false
     const awb =
-      d.waybill || d.tracking_number || f.labels?.[0]?.tracking_number || undefined
+      live || (cancelledBefore ? undefined : f.labels?.[0]?.tracking_number)
     if (awb) {
       return { awb: String(awb), carrier: d.carrier || undefined, fulfillmentId: f.id }
     }
   }
   return {}
+}
+
+/** "2026-08-14" + "14:00" → "14 Aug, 14:00". Falls back to the raw values. */
+function formatPickupWhen(date: string, time?: string): string {
+  const d = new Date(`${date}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return [date, time].filter(Boolean).join(" ")
+  const day = d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+  return time ? `${day}, ${time}` : day
 }
 
 /** Empty string → undefined, else a positive number (a blank is not 0 grams). */
@@ -144,9 +187,15 @@ const OrderCarrierShipmentWidget = ({
   const [pickupTime, setPickupTime] = useState("14:00")
   const [packageCount, setPackageCount] = useState("1")
   const [schedulingPickup, setSchedulingPickup] = useState(false)
-  const [pickup, setPickup] = useState<
-    { pickup_id?: string; pickup_date: string; pickup_time: string } | null
-  >(null)
+
+  // Server state, not local state. This used to be a `useState` set only by our
+  // own booking call, so a refresh — or an admin opening the order in a second
+  // tab, or a pickup a partner booked — showed an empty form for a collection
+  // that was already scheduled, inviting a duplicate booking.
+  const pickupFulfillment = fulfillments.find(
+    (f: any) => f.id === existing.fulfillmentId
+  )
+  const pickup = bookedPickupOf(pickupFulfillment)
 
   const schedulePickup = async (fulfillmentId: string) => {
     if (!pickupDate || !pickupTime) {
@@ -155,7 +204,10 @@ const OrderCarrierShipmentWidget = ({
     }
     setSchedulingPickup(true)
     try {
-      const res = await sdk.client.fetch<{ pickup_id?: string }>(
+      const res = await sdk.client.fetch<{
+        pickup_id?: string
+        pickup_persisted?: boolean
+      }>(
         `/admin/orders/${order.id}/fulfillments/${fulfillmentId}/pickup`,
         {
           method: "POST",
@@ -166,12 +218,21 @@ const OrderCarrierShipmentWidget = ({
           },
         }
       )
-      setPickup({
-        pickup_id: res?.pickup_id,
-        pickup_date: pickupDate,
-        pickup_time: pickupTime,
-      })
-      toast.success("Pickup scheduled")
+      // Refetch rather than set local state: the route is the thing that knows
+      // whether the booking was actually persisted.
+      await refetch()
+      if (res?.pickup_persisted === false) {
+        // Booked at the carrier but not saved. Saying "scheduled" here would be
+        // a lie by omission — the collection is live and its cancellation token
+        // is now only in the server log.
+        toast.warning(
+          `Pickup booked with the carrier${
+            res?.pickup_id ? ` (#${res.pickup_id})` : ""
+          }, but it could not be saved to this order. Note the reference — cancelling it later may need a phone call.`
+        )
+      } else {
+        toast.success("Pickup scheduled")
+      }
     } catch (e: any) {
       toast.error(e?.message || "Could not schedule the pickup")
     } finally {
@@ -210,6 +271,52 @@ const OrderCarrierShipmentWidget = ({
 
   const [labelUrl, setLabelUrl] = useState<string | null>(null)
   const [awbInput, setAwbInput] = useState("")
+
+  // Cancelling a waybill. Two-step on purpose: it costs money at the carrier and
+  // cannot be undone, so the reason field doubles as the confirmation gesture.
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [cancelReason, setCancelReason] = useState("")
+  const { mutateAsync: cancelShipment, isPending: isCancelling } =
+    useCancelShipment(order.id)
+
+  const handleCancel = async (fulfillmentId: string) => {
+    await cancelShipment(
+      { fulfillmentId, reason: cancelReason.trim() || undefined },
+      {
+        onSuccess: (res) => {
+          const c = res.cancelled_shipment
+          toast.success(
+            `AWB ${c.awb} cancelled${
+              c.customer_notified ? " — customer emailed" : ""
+            }`
+          )
+          if (!c.customer_notified) {
+            // Never silent: the whole point of the email is that the customer
+            // finds out from us rather than from a dead tracking link.
+            toast.warning(
+              "The customer was NOT emailed about the courier change — send them a note by hand."
+            )
+          }
+          setCancelOpen(false)
+          setCancelReason("")
+          setLabelUrl(null)
+          // The pickup is NOT cancelled by cancelling the waybill — they are
+          // separate bookings at the carrier, exactly as creating them is. A
+          // voided AWB with a live collection means a courier arrives for a
+          // parcel that no longer has a manifest.
+          if (pickup) {
+            toast.warning(
+              `The ${pickup.pickup_date} pickup is still booked${
+                pickup.pickup_id ? ` (#${pickup.pickup_id})` : ""
+              } — cancel it with the carrier, or a courier will still arrive.`
+            )
+          }
+          refetch()
+        },
+        onError: (e) => toast.error(e.message),
+      }
+    )
+  }
 
   const { mutateAsync: generateLabel, isPending: isGenerating } =
     useGenerateShiprocketLabel(order.id)
@@ -283,13 +390,35 @@ const OrderCarrierShipmentWidget = ({
 
         {existing.fulfillmentId ? (
           <div className="flex flex-col gap-y-3 px-6 py-4">
-            <Text size="small" className="text-ui-fg-subtle">
-              {pickup
-                ? `Pickup booked for ${pickup.pickup_date} at ${pickup.pickup_time}${
-                    pickup.pickup_id ? ` (#${pickup.pickup_id})` : ""
-                  }.`
-                : "The label exists, but the carrier won't collect until a pickup is booked."}
-            </Text>
+            {pickup ? (
+              <div className="flex flex-col gap-y-1">
+                <div className="flex items-center gap-x-2">
+                  <Badge size="2xsmall" color="green">
+                    Pickup booked
+                  </Badge>
+                  <Text size="small">
+                    {formatPickupWhen(pickup.pickup_date, pickup.pickup_time)}
+                  </Text>
+                </div>
+                <Text size="small" className="text-ui-fg-subtle">
+                  {pickup.pickup_id
+                    ? // Shown, not hidden behind a tooltip: for Blue Dart this
+                      // token is the only handle that can call the collection
+                      // off, and an operator on the phone to the carrier needs
+                      // to be able to read it out.
+                      `Reference #${pickup.pickup_id}`
+                    : "No reference returned by the carrier — cancelling may need a phone call."}
+                  {pickup.incoming_center_name
+                    ? ` · ${pickup.incoming_center_name}`
+                    : ""}
+                </Text>
+              </div>
+            ) : (
+              <Text size="small" className="text-ui-fg-subtle">
+                The label exists, but the carrier won't collect until a pickup is
+                booked.
+              </Text>
+            )}
             {!pickup ? (
               <>
                 <div className="grid grid-cols-3 gap-3">
@@ -344,6 +473,64 @@ const OrderCarrierShipmentWidget = ({
                 </div>
               </>
             ) : null}
+
+            {/* Something went wrong with this booking — void it and start over. */}
+            <div className="flex flex-col gap-y-2 border-t pt-4">
+              {!cancelOpen ? (
+                <div>
+                  <Button
+                    variant="danger"
+                    size="small"
+                    onClick={() => setCancelOpen(true)}
+                  >
+                    Cancel waybill
+                  </Button>
+                  <Text size="xsmall" className="text-ui-fg-subtle mt-1">
+                    For a pickup that never happened, a partner change, or an
+                    address caught late. Frees the order to be re-labelled with
+                    another carrier.
+                  </Text>
+                </div>
+              ) : (
+                <>
+                  <Label size="small" htmlFor="cancel_reason">
+                    Why is this being cancelled?
+                  </Label>
+                  <Input
+                    id="cancel_reason"
+                    placeholder="e.g. pickup no-show three days running"
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                  />
+                  <Text size="xsmall" className="text-ui-fg-subtle">
+                    Kept on the fulfillment for reconciling the carrier invoice.
+                    The customer is emailed that we've moved them to another
+                    courier — they are not shown this reason.
+                  </Text>
+                  <div className="flex items-center gap-x-2">
+                    <Button
+                      variant="danger"
+                      size="small"
+                      isLoading={isCancelling}
+                      onClick={() => handleCancel(existing.fulfillmentId!)}
+                    >
+                      Cancel AWB {existing.awb}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="small"
+                      disabled={isCancelling}
+                      onClick={() => {
+                        setCancelOpen(false)
+                        setCancelReason("")
+                      }}
+                    >
+                      Keep it
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         ) : null}
       </Container>
@@ -477,8 +664,9 @@ const OrderCarrierShipmentWidget = ({
           </div>
         ) : (
           <Text size="xsmall" className="text-ui-fg-subtle">
-            Delhivery assigns the courier itself — there is no courier picker,
-            and it serves domestic destinations only.
+            {carrier === "bluedart"
+              ? "Blue Dart carries the parcel itself — there is no courier picker. It serves international destinations too, on its IPC export product."
+              : "Delhivery assigns the courier itself — there is no courier picker, and it serves domestic destinations only."}
           </Text>
         )}
 
