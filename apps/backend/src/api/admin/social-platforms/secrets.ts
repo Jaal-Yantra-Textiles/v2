@@ -50,6 +50,14 @@ const PLAINTEXT_SECRET_FIELDS = [
   "app_secret",
   "webhook_verify_token",
   "password",
+  // Carrier credentials. Blue Dart splits its auth across two layers: the
+  // gateway pair mints the JWT (`client_secret`, already above) and the
+  // SHIPPING account travels in the request body. `licence_key` is the half
+  // that actually books a billable waybill, so leaving it off this list would
+  // have echoed it in plaintext from every GET /admin/social-platforms.
+  "licence_key",
+  "license_key",
+  "login_id",
 ] as const
 
 // Nested secret bags (OAuth1). Stripped wholesale by default.

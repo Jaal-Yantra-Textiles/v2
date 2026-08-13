@@ -85,6 +85,14 @@ export async function encryptSocialPlatformCredentials(
     // Google Business Manager: per-row OAuth client secret and Ads developer token
     encryptBearer("client_secret")
     encryptBearer("developer_token")
+    // Carrier shipping-account credentials. Blue Dart authenticates in two
+    // layers — the gateway pair mints the JWT (`client_secret` above) and the
+    // shipping account travels in the request body. `licence_key` is the half
+    // that books a billable waybill; without these it would sit in plaintext
+    // on disk while the gateway secret beside it was encrypted.
+    encryptBearer("licence_key")
+    encryptBearer("license_key")
+    encryptBearer("login_id")
 
     // OAuth1 user credentials
     if (

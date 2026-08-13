@@ -65,6 +65,30 @@ describe("redactApiConfig (#32A)", () => {
     expect(redactApiConfig(null)).toBeNull()
     expect(redactApiConfig(undefined)).toBeUndefined()
   })
+
+  // Carrier rows arrived after this list was written. Blue Dart's licence key
+  // is the credential that books a BILLABLE waybill, and it sits beside a
+  // `client_secret` that was already covered — so the row would have looked
+  // protected while echoing the expensive half in plaintext.
+  it("redacts carrier shipping-account credentials", () => {
+    const out = redactApiConfig({
+      provider: "bluedart",
+      login_id: "LOGIN",
+      licence_key: "LICENCE",
+      client_secret: "GATEWAY",
+      customer_code: "000001",
+    })!
+
+    expect(out.licence_key).toBeUndefined()
+    expect(out.login_id).toBeUndefined()
+    expect(out.client_secret).toBeUndefined()
+    expect(out.licence_key_present).toBe(true)
+    expect(out.login_id_present).toBe(true)
+    // Non-secret carrier config still comes back — the UI needs it to show
+    // which account is configured.
+    expect(out.provider).toBe("bluedart")
+    expect(out.customer_code).toBe("000001")
+  })
 })
 
 describe("preserveExistingSecrets (#32A)", () => {
