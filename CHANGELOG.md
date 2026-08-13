@@ -1,3 +1,10 @@
+# [13.90.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.89.1...v13.90.0) (2026-08-13)
+
+
+### Features
+
+* **shipping:** cancel a carrier waybill end-to-end + Blue Dart provider ([#1285](https://github.com/Jaal-Yantra-Textiles/v2/issues/1285)) ([#1286](https://github.com/Jaal-Yantra-Textiles/v2/issues/1286)) ([08ae67f](https://github.com/Jaal-Yantra-Textiles/v2/commit/08ae67fa5781569abee62562e863abeaedf87e39)), closes [#649](https://github.com/Jaal-Yantra-Textiles/v2/issues/649)
+
 ## [13.89.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.89.0...v13.89.1) (2026-08-12)
 
 
