@@ -117,6 +117,14 @@ const DOMAIN_KEYWORDS: Record<Exclude<AdminToolDomain, "core">, string[]> = {
     // above only classifies the tools; these are what ACTIVATE the slice.
     "hsn", "hs code", "hs codes", "hs_code", "customs", "harmonized",
     "harmonised", "tariff", "duty", "commodity code",
+    // Bulk catalogue vocabulary. `bulk_update_products` classifies as catalog
+    // (it lives under /admin/products) but the asks that need it are usually
+    // phrased in inventory words — "set stock to zero for everything", "start
+    // tracking stock on the whole range". Without these the ask matches only
+    // the inventory slice and the one tool that can do it never loads.
+    "bulk", "in bulk", "all products", "every product", "whole catalogue",
+    "whole catalog", "manage inventory", "manage_inventory", "track stock",
+    "tracking stock", "zero",
   ],
   customers: ["customer", "customers", "buyer", "buyers", "shopper", "shoppers"],
   partners: [
