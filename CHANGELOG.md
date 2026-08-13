@@ -1,3 +1,10 @@
+## [13.90.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.90.0...v13.90.1) (2026-08-13)
+
+
+### Bug Fixes
+
+* **security:** encrypt and redact carrier shipping-account credentials ([#1285](https://github.com/Jaal-Yantra-Textiles/v2/issues/1285)) ([#1289](https://github.com/Jaal-Yantra-Textiles/v2/issues/1289)) ([2178661](https://github.com/Jaal-Yantra-Textiles/v2/commit/217866179c24231ce144cb1c0a77328a0b7b9265))
+
 # [13.90.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.89.1...v13.90.0) (2026-08-13)
 
 
