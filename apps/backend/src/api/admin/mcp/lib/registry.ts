@@ -195,7 +195,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "List designs (paginated). Supports free-text search via q. Filter by status, design type, priority, partner or tags.",
     method: "GET",
     path: "/admin/designs",
-    queryParams: ["limit", "offset", "q", "status", "design_type", "priority", "partner_id", "tags", "name"],
+    queryParams: ["limit", "offset", "q", "status", "design_type", "priority", "partner_id", "tags", "name", "include_partner_owned"],
     inputSchema: obj({
       ...PAGINATION,
       name: STR("Partial or full name match."),
@@ -212,6 +212,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         description: "'Low' | 'Medium' | 'High' | 'Urgent'.",
       },
       partner_id: STR("Filter by owning partner id."),
+      include_partner_owned: BOOL("Set to true to include partner-owned (self-serve) designs — these are hidden by default. Pass this when filtering by partner_id, or the result may be empty."),
       tags: {
         type: "array",
         description: "Tag strings to filter by.",
