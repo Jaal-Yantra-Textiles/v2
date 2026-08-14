@@ -60,13 +60,10 @@ module.exports = defineConfig({
       optimizeDeps: {
         include: ["pdf-lib", "qrcode"],
       },
-            css: {
-        preprocessorOptions: {
-          scss: {
-            api: 'modern-compiler' // or "modern"
-          }
-        }
-      }
+      // `css.preprocessorOptions.scss.api: "modern-compiler"` was removed here on
+      // the Medusa 2.19 upgrade: Vite 7 dropped the legacy Sass API entirely and
+      // deleted the `api` option, so keeping it is a type error and a no-op —
+      // modern-compiler is now the only behaviour. Nothing changes at runtime.
     }),
     disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
     backendUrl: process.env.MEDUSA_BACKEND_URL,

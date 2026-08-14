@@ -38,13 +38,8 @@ module.exports = defineConfig({
               }
               // Keep Medusa's existing resolve options
             },
-            css: {
-        preprocessorOptions: {
-          scss: {
-            api: 'modern-compiler' // or "modern"
-          }
-        }
-      }
+      // `css.preprocessorOptions.scss.api` removed on the 2.19 upgrade — Vite 7
+      // dropped the legacy Sass API and the option with it. No runtime change.
     }),
     disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
     backendUrl: process.env.MEDUSA_BACKEND_URL,
