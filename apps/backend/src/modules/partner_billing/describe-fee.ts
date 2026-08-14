@@ -11,6 +11,10 @@
  * coerced with `Number(...)` and non-finite values count as 0.
  */
 
+// `reverse-shipping` is itself pure and dependency-free, so importing it here
+// keeps this file's "trivially unit-testable" contract intact.
+import { readShippingReversals } from "./reverse-shipping"
+
 export type PartnerFeeBasis = "percentage" | "flat"
 
 export type PartnerFeeRowLike = {
@@ -29,6 +33,7 @@ export type PartnerFeeRowLike = {
   shipping_amount?: number | string | null
   shipping_currency_code?: string | null
   shipping_carrier?: string | null
+  metadata?: Record<string, any> | null
 }
 
 /** Itemised components of a `retail_split` fee (gateway + commission). */
@@ -61,12 +66,35 @@ export type DescribedFee = {
    */
   shipping: ShippingCharge | null
   /**
+   * Platform-shipping charges that WERE deducted and have since been given back
+   * because their waybill was cancelled. Empty for the overwhelming majority of
+   * orders.
+   *
+   * These deduct nothing — they are already out of `net_payout`. They are
+   * carried into the display precisely so the payout doesn't appear to change
+   * value on its own between two views: the partner sees the charge arrive, sees
+   * it reversed, and sees the replacement carrier's charge as its own line.
+   */
+  shipping_reversals: ReversedShippingCharge[]
+  /**
    * What the partner actually receives: `order_total − fee_amount − shipping`.
    *
    * A non-collectible fee (waived / reversed) deducts nothing, so it drops out
-   * of the arithmetic rather than being subtracted anyway.
+   * of the arithmetic rather than being subtracted anyway. Reversed shipping is
+   * likewise absent — reversing is what removed it.
    */
   net_payout: number
+}
+
+/** A retired platform-shipping charge, shown for continuity, never deducted. */
+export type ReversedShippingCharge = {
+  amount: number
+  currency_code: string
+  carrier: string | null
+  /** The cancelled waybill — the handle for the carrier's credit note. */
+  awb: string | null
+  reversed_at: string | null
+  reason: string | null
 }
 
 /** Platform-shipping deduction, when the partner used our carrier account. */
@@ -158,6 +186,20 @@ export function describeFee(
             fee.shipping_currency_code.toUpperCase() !== currency_code,
         }
 
+  // Reversed charges are display-only — they were removed from the row when the
+  // waybill was cancelled, so they must never re-enter the arithmetic below.
+  // Coerced defensively: `metadata` is free-form jsonb and this must not throw.
+  const shipping_reversals: ReversedShippingCharge[] = readShippingReversals(
+    fee.metadata
+  ).map((r: any) => ({
+    amount: toNum(r?.amount),
+    currency_code: String(r?.currency_code || currency_code).toUpperCase(),
+    carrier: r?.carrier || null,
+    awb: r?.awb || null,
+    reversed_at: r?.reversed_at || null,
+    reason: r?.reason || null,
+  }))
+
   // Only deduct what is actually collected. A foreign-currency carrier charge
   // is deliberately NOT subtracted — converting it here would invent an FX rate
   // this pure function has no business choosing; the UI shows it as its own
@@ -178,6 +220,7 @@ export function describeFee(
     is_collectible,
     breakdown,
     shipping,
+    shipping_reversals,
     net_payout: order_total - deductions,
   }
 }

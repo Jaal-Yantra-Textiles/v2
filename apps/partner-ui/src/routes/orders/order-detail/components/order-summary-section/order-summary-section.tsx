@@ -1344,6 +1344,37 @@ const PartnerPayout = ({ order }: { order: AdminOrder }) => {
         </Text>
       </div>
 
+      {/* Freight we charged and then gave back because the waybill was
+          cancelled. Listed above the live charge so the panel reads in the order
+          it happened — charged, refunded, re-charged on the new courier — which
+          is the only way a partner who saw the earlier number can reconcile it
+          with the one below. */}
+      {(fee.shipping_reversals || []).map((reversal, i) => (
+        <div
+          key={`${reversal.awb || "reversal"}-${i}`}
+          className="text-ui-fg-muted flex items-start justify-between"
+        >
+          <div className="flex flex-col">
+            <Text size="small" leading="compact">
+              Shipping reversed
+              {reversal.carrier ? ` (${reversal.carrier})` : ""}
+            </Text>
+            <Text size="xsmall" leading="compact" className="text-ui-fg-muted">
+              {reversal.awb
+                ? `AWB ${reversal.awb} was cancelled — this charge was returned.`
+                : "That waybill was cancelled — this charge was returned."}
+            </Text>
+          </div>
+          <Text
+            size="small"
+            leading="compact"
+            className="whitespace-nowrap line-through"
+          >
+            {getStylizedAmount(reversal.amount, reversal.currency_code)}
+          </Text>
+        </div>
+      ))}
+
       {shipping && (
         <div className="text-ui-fg-subtle flex items-start justify-between">
           <div className="flex flex-col">

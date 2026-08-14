@@ -1,5 +1,10 @@
 import { MedusaService } from "@medusajs/framework/utils"
 import PartnerFee from "./models/partner-fee"
+import {
+  planShippingReversal,
+  type ShippingReversal,
+  type ShippingReversalEvent,
+} from "./reverse-shipping"
 
 /**
  * partner_billing — accrues platform commission fees per partner per order (#336).
@@ -50,6 +55,34 @@ class PartnerBillingService extends MedusaService({
       },
     ])
     return updated
+  }
+
+  /**
+   * Reverse the platform-shipping deduction on an order, when its waybill is
+   * cancelled (#1285 follow-up).
+   *
+   * Distinct from `reverseFeeForOrder`, which retires the whole COMMISSION on
+   * `order.canceled`. This retires only the freight line: the order is still
+   * live and will be re-labelled, most likely on a different carrier.
+   *
+   * Idempotent — a row with no active shipping charge returns null and is left
+   * untouched, so a retried cancel cannot stack reversals. Returns the reversal
+   * that was recorded so the caller can surface the amount it just gave back.
+   */
+  async reverseShippingForOrder(
+    orderId: string,
+    event: Omit<ShippingReversalEvent, "reversed_at"> & { reversed_at?: string }
+  ): Promise<ShippingReversal | null> {
+    const fee = await this.findFeeForOrder(orderId)
+    const planned = planShippingReversal(fee as any, {
+      ...event,
+      reversed_at: event.reversed_at || new Date().toISOString(),
+    })
+    if (!planned) {
+      return null
+    }
+    await this.updatePartnerFees([planned.update])
+    return planned.reversal
   }
 }
 

@@ -290,6 +290,14 @@ const OrderCarrierShipmentWidget = ({
               c.customer_notified ? " — customer emailed" : ""
             }`
           )
+          // Say what it was worth. The freight deduction is invisible on this
+          // widget (it lives on the payout panel), so without this the operator
+          // has no signal that the partner's payout just moved.
+          if (c.shipping_reversed) {
+            toast.info(
+              `Reversed ${c.shipping_reversed.amount} ${c.shipping_reversed.currency_code} of platform shipping on the partner's payout.`
+            )
+          }
           if (!c.customer_notified) {
             // Never silent: the whole point of the email is that the customer
             // finds out from us rather than from a dead tracking link.

@@ -51,6 +51,7 @@ describe("describeFee (#623)", () => {
       is_collectible: true,
       breakdown: null,
       shipping: null,
+      shipping_reversals: [],
       net_payout: 9799.51,
     })
   })
@@ -131,6 +132,112 @@ describe("describeFee (#623)", () => {
       expect(d.shipping!.currency_code).toBe("INR")
       expect(d.shipping!.is_foreign_currency).toBe(false)
       expect(d.net_payout).toBe(860)
+    })
+  })
+
+  describe("reversed platform shipping (#1285 follow-up)", () => {
+    const base = {
+      order_id: "o",
+      currency_code: "inr",
+      fee_rate: 200,
+      fee_amount: 100,
+      order_total: 1000,
+      status: "accrued",
+    }
+
+    it("is empty for a row that never carried a reversal", () => {
+      expect(describeFee(base)!.shipping_reversals).toEqual([])
+      expect(describeFee({ ...base, metadata: {} })!.shipping_reversals).toEqual([])
+    })
+
+    it("surfaces a reversal WITHOUT deducting it — that is the point", () => {
+      const d = describeFee({
+        ...base,
+        // Cleared by the reversal; the freight is no longer charged.
+        shipping_amount: null,
+        metadata: {
+          shipping_reversals: [
+            {
+              amount: 400.01,
+              currency_code: "INR",
+              carrier: "bluedart",
+              awb: "77712345678",
+              reversed_at: "2026-08-14T06:00:00.000Z",
+              reason: "pickup no-show",
+            },
+          ],
+        },
+      })!
+      expect(d.shipping).toBeNull()
+      expect(d.shipping_reversals).toHaveLength(1)
+      expect(d.shipping_reversals[0]).toEqual({
+        amount: 400.01,
+        currency_code: "INR",
+        carrier: "bluedart",
+        awb: "77712345678",
+        reversed_at: "2026-08-14T06:00:00.000Z",
+        reason: "pickup no-show",
+      })
+      // 1000 − 100 commission, and nothing for the reversed freight.
+      expect(d.net_payout).toBe(900)
+    })
+
+    it("shows the replacement carrier's charge beside the reversed one", () => {
+      const d = describeFee({
+        ...base,
+        shipping_amount: 250,
+        shipping_currency_code: "INR",
+        shipping_carrier: "delhivery",
+        metadata: {
+          shipping_reversals: [
+            { amount: 400, currency_code: "INR", carrier: "bluedart" },
+          ],
+        },
+      })!
+      expect(d.shipping!.amount).toBe(250)
+      expect(d.shipping!.carrier).toBe("delhivery")
+      expect(d.shipping_reversals[0].amount).toBe(400)
+      // Only the LIVE charge is deducted: 1000 − 100 − 250.
+      expect(d.net_payout).toBe(650)
+    })
+
+    it("keeps every reversal when a waybill is cancelled more than once", () => {
+      const d = describeFee({
+        ...base,
+        metadata: {
+          shipping_reversals: [
+            { amount: 400, currency_code: "INR", carrier: "bluedart" },
+            { amount: 250, currency_code: "INR", carrier: "delhivery" },
+          ],
+        },
+      })!
+      expect(d.shipping_reversals.map((r) => r.carrier)).toEqual([
+        "bluedart",
+        "delhivery",
+      ])
+      expect(d.net_payout).toBe(900)
+    })
+
+    it("never throws on malformed metadata — this is a reporting payload", () => {
+      expect(
+        describeFee({ ...base, metadata: { shipping_reversals: "nope" } as any })!
+          .shipping_reversals
+      ).toEqual([])
+      const d = describeFee({
+        ...base,
+        metadata: { shipping_reversals: [{}, { amount: "oops" }] },
+      })!
+      expect(d.shipping_reversals).toHaveLength(2)
+      expect(d.shipping_reversals[0]).toEqual({
+        amount: 0,
+        // Falls back to the order currency rather than an empty label.
+        currency_code: "INR",
+        carrier: null,
+        awb: null,
+        reversed_at: null,
+        reason: null,
+      })
+      expect(d.shipping_reversals[1].amount).toBe(0)
     })
   })
 
