@@ -9,9 +9,11 @@ import type {
   CreateShipmentInput,
   CustomsDeclaration,
   Dimensions,
+  ShipmentAddress,
   ShipmentItem,
   ShipmentResult,
 } from "../../modules/shipping-providers/provider-interface"
+import { resolveOriginAddress } from "../../modules/shipping-providers/origin-address"
 import { resolveExportIgstForCountry } from "../../modules/shipping-providers/export-igst"
 import {
   SHIPROCKET_PICKUP_METADATA_KEY,
@@ -130,6 +132,13 @@ export type BuildShipmentOpts = {
   preferredCourierId?: string | number
   /** Seller tax/GST ID to stamp on the label (#348); resolved by the caller. */
   taxId?: string
+  /**
+   * The ship-from address, read off the fulfillment's stock location. Shiprocket
+   * and Delhivery ignore it (they derive the origin from a registered pickup);
+   * Blue Dart puts it on the waybill and rejects a blank one. Omitted when the
+   * location has no usable address, which is the pre-existing behaviour.
+   */
+  originAddress?: ShipmentAddress
   /**
    * The fulfillment's own lines. When given, ONLY these are declared, at these
    * quantities — a shipment must describe what's in the box, not the whole
@@ -284,6 +293,11 @@ export function buildCreateShipmentInput(
       pincode,
       country: addr.country_code ? String(addr.country_code).toUpperCase() : "IN",
     },
+    // Blue Dart stamps this onto the waybill (Shipper + Returnadds) and rejects
+    // a blank one with an empty-bodied 400. Shiprocket and Delhivery ignore it
+    // and derive the origin from the registered pickup, so leaving it undefined
+    // when the location has no usable address changes nothing for them.
+    from: opts.originAddress,
     items,
     weight_grams: opts.weightGrams || DEFAULT_WEIGHT_GRAMS,
     dimensions_cm: opts.dimensionsCm,
@@ -538,6 +552,11 @@ export async function createShiprocketShipmentForFulfillment(
     taxId,
     fulfillmentItems,
     customs,
+    // Read from the fulfillment's own location, not the resolved pickup NAME:
+    // the name is a carrier-side registry key (and often the derived
+    // `warehouse-<last8>` handle), while this is the postal address Blue Dart
+    // puts on the waybill and the customs paperwork.
+    originAddress: await resolveOriginAddress(container, fulfillment.location_id),
   })
 
   // International FX (#1111 S3). Shiprocket declares the customs value only in a
