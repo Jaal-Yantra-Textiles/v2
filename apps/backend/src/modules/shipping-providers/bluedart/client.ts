@@ -61,6 +61,58 @@ export function describeBlueDartFailure(result: any): string | null {
   return null
 }
 
+/**
+ * Turn an HTTP-error body into one readable line.
+ *
+ * A rejected Blue Dart request is NOT the silent 400 this integration has long
+ * assumed. The gateway answers with a precise reason:
+ *
+ *   {"status":400,"title":"Bad Request",
+ *    "error-response":[{"StatusCode":"InvalidPinCode",
+ *                      "StatusInformation":"Pincode cannot be blank "}]}
+ *
+ * ...but it arrives pretty-printed and LEADING WITH NEWLINES, so a logger that
+ * keeps only the first line of an error message shows `failed (400): ` and
+ * nothing else. That apparent silence sent three separate sessions hunting auth
+ * and path faults for what the carrier had already named. Collapse it onto one
+ * line so the reason survives the log.
+ */
+export function describeBlueDartHttpError(body: string): string {
+  const raw = String(body || "").trim()
+  if (!raw) return "(empty body)"
+  try {
+    const json = JSON.parse(raw)
+    const errors = Array.isArray(json?.["error-response"])
+      ? json["error-response"]
+      : []
+    const described = errors
+      .map((e: any) =>
+        [e?.StatusCode, String(e?.StatusInformation || "").trim()]
+          .filter(Boolean)
+          .join(": ")
+      )
+      .filter(Boolean)
+      .join("; ")
+    if (described) return described
+  } catch {
+    // Not JSON — fall through and return the flattened text.
+  }
+  return raw.replace(/\s+/g, " ").slice(0, 300)
+}
+
+/** The `StatusCode`s from an HTTP-error body, for programmatic handling. */
+export function blueDartHttpErrorCodes(body: string): string[] {
+  try {
+    const json = JSON.parse(String(body || ""))
+    const errors = Array.isArray(json?.["error-response"])
+      ? json["error-response"]
+      : []
+    return errors.map((e: any) => e?.StatusCode).filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
 export class BlueDartClient {
   readonly carrier = "bluedart"
   private readonly baseUrl: string
@@ -143,7 +195,8 @@ export class BlueDartClient {
     const text = await res.text().catch(() => "")
     if (!res.ok) {
       throw new BlueDartApiError(
-        `Blue Dart ${path} failed (${res.status}): ${text.slice(0, 300)}`
+        `Blue Dart ${path} failed (${res.status}): ${describeBlueDartHttpError(text)}`,
+        blueDartHttpErrorCodes(text)
       )
     }
     try {

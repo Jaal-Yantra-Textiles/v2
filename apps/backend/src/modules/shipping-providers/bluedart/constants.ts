@@ -52,14 +52,59 @@ export const BLUEDART_PRODUCT = {
   domestic: "D",
   /** Apex — NOT available outbound from DHM. */
   apex: "A",
-  /** International IPC (Expedited / Standard). */
+  /**
+   * International IPC (Expedited / Standard).
+   *
+   * ⚠️ **DISPUTED.** A 2026-08-14 note claims `I` is the outbound IPC product
+   * and `H` is not mentioned. This file has said `H` since #1286. NOT changed:
+   * flipping the product code on an unverified claim risks breaking exports in
+   * a new way. `GetServicesforProduct` would settle it — it answers
+   * serviceability for a given product/sub-product — but the Finder is
+   * currently UNRELIABLE: on 2026-08-14 it returned real data once
+   * (`Area: "DHM"`, `IsError: false`, ordinary shipping profile) and then
+   * `UserDoesNotExists` on six consecutive identical calls, across four
+   * pincodes and both gateway keys.
+   *
+   * ⚠️ Do NOT read `UserDoesNotExists` as "not enrolled" — a success disproves
+   * that. Blue Dart errors routinely name the wrong culprit (see the `verno`
+   * "License Mismatch" trap). Cause unknown; retry before concluding anything.
+   *
+   * International is blocked on #1223's HS codes regardless.
+   */
   international: "H",
-  /** International import. */
+  /** International import. ⚠️ See the dispute above — may in fact be outbound IPC. */
   internationalImport: "I",
 } as const
 
-/** Sub-product for the international product. */
-export const BLUEDART_INTL_SUBPRODUCT = "IPC-Expedited"
+/**
+ * Sub-product for the international product. Max 1 char, A-Z — see the guard in
+ * `createShipment`.
+ *
+ * ⚠️ **UNVERIFIED against the carrier.** Supplied 2026-08-14 as "P = Prepaid,
+ * the single-letter sub-product for IPC Expedited". It is not published on
+ * developer.dhl.com, and Blue Dart support has not confirmed it. The previous
+ * value ("IPC-Expedited") was definitively wrong — that is the PICKUP API's
+ * vocabulary — so this can only be an improvement, but it is a candidate, not a
+ * fact. International is separately blocked on #1223's HS codes, so nothing
+ * ships on this until both are resolved.
+ */
+export const BLUEDART_INTL_SUBPRODUCT = "P"
+
+/**
+ * Dox vs NonDox. Everything this platform ships is textiles — goods, never
+ * documents — so the parcel value is the only one we use.
+ *
+ * ⚠️ **UNVERIFIED.** Supplied 2026-08-14: `ProductType` 0 = Docs, 1 = Dutiables
+ * (parcel); pickup `DoxNDox` "1" = Dox, "2" = NonDox. Neither enum is published
+ * on developer.dhl.com. What IS confirmed is the symptom: with the old values
+ * (`ProductType: 0`, `DoxNDox: "1"`), DHL Unified reported order 83's two
+ * garments as `productName: "Documents"` — so the old values were wrong.
+ *
+ * A wrong value here now fails LOUDLY (#1296 surfaces `error-response`), and a
+ * rejected waybill costs nothing. Verify on the next real shipment.
+ */
+export const BLUEDART_PRODUCT_TYPE_PARCEL = 1
+export const BLUEDART_PICKUP_DOXNDOX_PARCEL = "2"
 
 /** Pickup registration requires a non-empty SubProducts array. */
 export const BLUEDART_PICKUP_SUBPRODUCTS = ["TDD"]

@@ -21,7 +21,9 @@ import {
   BLUEDART_DEFAULT_DIMENSIONS,
   BLUEDART_INTL_SUBPRODUCT,
   BLUEDART_PICKUP_SUBPRODUCTS,
+  BLUEDART_PICKUP_DOXNDOX_PARCEL,
   BLUEDART_PRODUCT,
+  BLUEDART_PRODUCT_TYPE_PARCEL,
   gramsToKgString,
   toBlueDartTime,
   toMsJsonDate,
@@ -184,7 +186,9 @@ export class BlueDartProviderAdapter implements ShippingProviderClient {
         ProductCode: international
           ? BLUEDART_PRODUCT.international
           : BLUEDART_PRODUCT.domestic,
-        ProductType: 0,
+        // Parcel, not documents. `0` shipped order 83's two garments as
+        // `productName: "Documents"` — see BLUEDART_PRODUCT_TYPE_PARCEL.
+        ProductType: BLUEDART_PRODUCT_TYPE_PARCEL,
         // Booked separately by `schedulePickup` — see the class docblock.
         RegisterPickup: false,
         SpecialInstruction: blueDartField(input.product_description, 50),
@@ -367,15 +371,39 @@ export class BlueDartProviderAdapter implements ShippingProviderClient {
       )
     }
     const date = input.pickup_date ? new Date(input.pickup_date) : new Date()
+    // The collection address travels inline on every Blue Dart pickup — there
+    // is no pickup-location registry to look it up from. `pickup_location_name`
+    // is usually the derived `warehouse-<last8>` handle (#1234): a key into
+    // DELHIVERY's warehouse registry, not somewhere a courier can drive.
+    //
+    // Sending it as the name AND the address with a blank pincode is what made
+    // every pickup this app ever attempted fail. Verified live 2026-08-14: the
+    // same payload minus the pincode returns `InvalidPinCode` / "Pincode cannot
+    // be blank"; with the location's real address it returns InsertSuccess.
+    const pickupAddress = packBlueDartAddress(
+      input.from?.address_1,
+      input.from?.address_2
+    )
+    const pincode = blueDartDigits(input.from?.pincode, 6)
+    if (!pincode) {
+      throw new BlueDartApiError(
+        "Blue Dart needs the pickup location's pincode to register a collection — " +
+          `stock location for "${input.pickup_location_name}" has no postal code.`
+      )
+    }
+    const phone = blueDartDigits(input.from?.phone, 15)
+    const contact = blueDartField(input.from?.name || input.pickup_location_name)
     const result = await this.client.registerPickup({
       AWBNo: [String(awb)],
       AreaCode: this.client.originArea,
       CustomerCode: this.client.profile.Customercode,
-      CustomerName: input.pickup_location_name,
-      CustomerAddress1: input.pickup_location_name,
-      CustomerPincode: "",
-      CustomerTelephone: "",
-      ContactPersonName: input.pickup_location_name,
+      CustomerName: contact,
+      CustomerAddress1: pickupAddress.line1,
+      CustomerAddress2: pickupAddress.line2,
+      CustomerAddress3: pickupAddress.line3,
+      CustomerPincode: pincode,
+      CustomerTelephone: phone,
+      ContactPersonName: contact,
       ProductCode: BLUEDART_PRODUCT.domestic,
       NumberofPieces: input.expected_package_count || 1,
       WeightofShipment: 0.5,
@@ -387,7 +415,8 @@ export class BlueDartProviderAdapter implements ShippingProviderClient {
       // a colon it does not parse. Same helper, same format, both paths.
       ShipmentPickupTime: toBlueDartTime(input.pickup_time),
       OfficeCloseTime: toBlueDartTime("18:00"),
-      DoxNDox: "1",
+      // NonDox — the pickup must agree with the waybill's ProductType.
+      DoxNDox: BLUEDART_PICKUP_DOXNDOX_PARCEL,
       // Must be non-empty — an empty SubProducts array is rejected.
       SubProducts: BLUEDART_PICKUP_SUBPRODUCTS,
       IsForcePickup: false,
