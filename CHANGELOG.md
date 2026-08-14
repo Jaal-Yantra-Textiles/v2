@@ -1,3 +1,17 @@
+# [13.92.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.91.0...v13.92.0) (2026-08-14)
+
+
+### Bug Fixes
+
+* **bluedart:** legalise CreditReferenceNo, and assert every field limit locally ([#1285](https://github.com/Jaal-Yantra-Textiles/v2/issues/1285)) ([#1295](https://github.com/Jaal-Yantra-Textiles/v2/issues/1295)) ([286fe7d](https://github.com/Jaal-Yantra-Textiles/v2/commit/286fe7d020e8988304e3c2800eaef245e0ab5bfc))
+* **bluedart:** send a real shipper address, and fit both addresses to the field caps ([#1285](https://github.com/Jaal-Yantra-Textiles/v2/issues/1285)) ([#1293](https://github.com/Jaal-Yantra-Textiles/v2/issues/1293)) ([cc349ed](https://github.com/Jaal-Yantra-Textiles/v2/commit/cc349eda2c85a03aaa41c7d288fedd4a807350a3)), closes [#31](https://github.com/Jaal-Yantra-Textiles/v2/issues/31)
+
+
+### Features
+
+* **shipping:** attach and detach an externally-booked AWB ([#1285](https://github.com/Jaal-Yantra-Textiles/v2/issues/1285)) ([#1294](https://github.com/Jaal-Yantra-Textiles/v2/issues/1294)) ([59d01c2](https://github.com/Jaal-Yantra-Textiles/v2/commit/59d01c2c7abf965919c66a25ae0ea8d9176621ae)), closes [#1286](https://github.com/Jaal-Yantra-Textiles/v2/issues/1286) [#1225](https://github.com/Jaal-Yantra-Textiles/v2/issues/1225)
+* **billing:** bill platform shipping per fulfillment, not per order ([#1285](https://github.com/Jaal-Yantra-Textiles/v2/issues/1285)) ([#1292](https://github.com/Jaal-Yantra-Textiles/v2/issues/1292)) ([46d5ed9](https://github.com/Jaal-Yantra-Textiles/v2/commit/46d5ed987ce0a4377328a342b3f0f8e8e81b9465))
+
 # [13.91.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.90.1...v13.91.0) (2026-08-14)
 
 
