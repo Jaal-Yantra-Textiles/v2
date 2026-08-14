@@ -1,8 +1,10 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
 import { Container, Text, Badge, Heading, Button, Skeleton, toast } from "@medusajs/ui"
+import { PencilSquare } from "@medusajs/icons"
 import { DetailWidgetProps } from "@medusajs/framework/types"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { sdk } from "../lib/config"
+import { ActionMenu } from "../components/common/action-menu"
 
 type DesignType = {
   id: string
@@ -78,13 +80,28 @@ const DesignCard = ({
       {design.estimated_cost != null && (
         <Text>Est. cost: ${design.estimated_cost}</Text>
       )}
-      <Button
-        size="small"
-        disabled={design.status === "Approved" || isPending}
-        onClick={() => approve(design.id)}
-      >
-        {design.status === "Approved" ? "Approved ✓" : "Approve Design"}
-      </Button>
+      <div className="flex items-center gap-x-2">
+        <Button
+          size="small"
+          disabled={design.status === "Approved" || isPending}
+          onClick={() => approve(design.id)}
+        >
+          {design.status === "Approved" ? "Approved ✓" : "Approve Design"}
+        </Button>
+        <ActionMenu
+          groups={[
+            {
+              actions: [
+                {
+                  label: "View Design",
+                  icon: <PencilSquare />,
+                  to: `/designs/${design.id}`,
+                },
+              ],
+            },
+          ]}
+        />
+      </div>
     </div>
   )
 }
