@@ -432,6 +432,31 @@ module.exports = defineConfig({
                       },
                     ]
                   : []),
+                // Gated on the LICENCE KEY, not the gateway client id: Blue Dart's
+                // two auth layers are independent, and the gateway happily mints a
+                // valid JWT for EMPTY credentials (401 only for *wrong* ones), so
+                // a client-id check would register a provider that cannot ship.
+                ...(process.env.BLUE_DART_LICENCE_KEY
+                  ? [
+                      {
+                        resolve: "./src/modules/shipping-providers/bluedart",
+                        id: "bluedart",
+                        options: {
+                          client_id: process.env.BLUE_DART_CLIENT_ID,
+                          client_secret: process.env.BLUE_DART_CLIENT_SECRET,
+                          login_id: process.env.BLUE_DART_LOGIN_ID,
+                          licence_key: process.env.BLUE_DART_LICENCE_KEY,
+                          customer_code: process.env.BLUE_DART_CUSTOMER_CODE,
+                          api_type: process.env.BLUE_DART_API_TYPE,
+                          version: process.env.BLUE_DART_VERSION,
+                          origin_area: process.env.BLUE_DART_ORIGIN_AREA,
+                          tracking_licence_key:
+                            process.env.BLUE_DART_TRACKING_LICENCE_KEY,
+                          sandbox: process.env.BLUE_DART_SANDBOX === "true",
+                        },
+                      },
+                    ]
+                  : []),
                 ...(process.env.DHL_API_KEY
                   ? [
                       {
