@@ -429,11 +429,19 @@ module.exports = defineConfig({
                       },
                     ]
                   : []),
-                // Gated on the LICENCE KEY, not the gateway client id: Blue Dart's
-                // two auth layers are independent, and the gateway happily mints a
-                // valid JWT for EMPTY credentials (401 only for *wrong* ones), so
-                // a client-id check would register a provider that cannot ship.
-                ...(process.env.BLUE_DART_LICENCE_KEY
+                // Gated on an explicit ON/OFF SWITCH, not on a credential.
+                //
+                // Gating on BLUE_DART_LICENCE_KEY (as this did until #1285's
+                // follow-up) coupled "is this provider offered?" to "is this
+                // secret wired?" — and prod had neither, so #1297 shipped a
+                // registered provider that never appeared. A boolean is the same
+                // shape as STRIPE_CONNECT_ENABLED and is checkable at a glance.
+                //
+                // Credentials are NOT the gate: they live in the encrypted
+                // category:shipping SocialPlatform record. The env values below
+                // are a documented FALLBACK for when the module container cannot
+                // reach that store — see resolveAdapter() in bluedart/service.ts.
+                ...(process.env.BLUE_DART_PROVIDER_ENABLED === "true"
                   ? [
                       {
                         resolve: "./src/modules/shipping-providers/bluedart",

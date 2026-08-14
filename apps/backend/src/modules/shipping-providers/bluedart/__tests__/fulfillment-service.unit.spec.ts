@@ -32,11 +32,15 @@ const CONFIG: any = {
 
 const buildService = (createShipment: jest.Mock) => {
   const svc = new BlueDartFulfillmentService({ logger }, CONFIG)
-  ;(svc as any).adapter = {
+  // Credentials are resolved per call now (platform store first, env fallback),
+  // so the stub replaces the resolver rather than a constructor-built adapter.
+  const adapter = {
     createShipment,
     checkServiceability: jest.fn().mockResolvedValue(true),
     cancelShipment: jest.fn().mockResolvedValue({ success: true }),
   }
+  ;(svc as any).adapter = adapter
+  ;(svc as any).resolveAdapter = jest.fn().mockResolvedValue(adapter)
   return svc
 }
 
