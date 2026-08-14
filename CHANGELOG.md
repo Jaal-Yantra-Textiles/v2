@@ -1,3 +1,16 @@
+# [13.91.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.90.1...v13.91.0) (2026-08-14)
+
+
+### Bug Fixes
+
+* **ops:** make run-backfill follow the live service, not the newest task def ([#1290](https://github.com/Jaal-Yantra-Textiles/v2/issues/1290)) ([a23913d](https://github.com/Jaal-Yantra-Textiles/v2/commit/a23913d5413e601df81904223403e9aa5a5bb46f)), closes [#1285](https://github.com/Jaal-Yantra-Textiles/v2/issues/1285)
+* **billing:** reverse the platform shipping charge when a waybill is cancelled ([#1285](https://github.com/Jaal-Yantra-Textiles/v2/issues/1285)) ([#1291](https://github.com/Jaal-Yantra-Textiles/v2/issues/1291)) ([18d6ea2](https://github.com/Jaal-Yantra-Textiles/v2/commit/18d6ea2f46e10dc392d9cba2b93a53b17de9927c))
+
+
+### Features
+
+* **catalog:** bulk product + variant + inventory updates on both MCP surfaces ([#1287](https://github.com/Jaal-Yantra-Textiles/v2/issues/1287)) ([#1288](https://github.com/Jaal-Yantra-Textiles/v2/issues/1288)) ([48e99ac](https://github.com/Jaal-Yantra-Textiles/v2/commit/48e99ac98fe12b07acae38a3f16de8eff450e6cb)), closes [#843](https://github.com/Jaal-Yantra-Textiles/v2/issues/843)
+
 ## [13.90.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.90.0...v13.90.1) (2026-08-13)
 
 
