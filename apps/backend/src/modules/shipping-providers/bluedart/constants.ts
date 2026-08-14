@@ -35,6 +35,20 @@ export const BLUEDART_PATHS = {
    */
   cancelPickup: "/in/transportation/cancel-pickup/v1/CancelPickup",
   servicesForPincode: "/in/transportation/finder/v1/GetServicesforPincode",
+  /**
+   * The product/sub-product registry — the authoritative answer to "what codes
+   * exist", and free to call.
+   *
+   * ⚠️ POST, unlike the token endpoint which is GET. Body is
+   * `{"profile":{"Api_type","LicenceKey","LoginID"}}`.
+   *
+   * 🔑 Its scope is the PICKUP vocabulary (DHL documents it as feeding Pickup
+   * Registration's input params), so it confirms `SubProducts` full names —
+   * NOT the waybill's single-character `SubProductCode`. Verified live
+   * 2026-08-15; it is what settled `H` above.
+   */
+  allProductsAndSubProducts:
+    "/in/transportation/allproduct/v1/GetAllProductsAndSubProducts",
   tracking: "/in/transportation/tracking/v1",
 } as const
 
@@ -53,40 +67,55 @@ export const BLUEDART_PRODUCT = {
   /** Apex — NOT available outbound from DHM. */
   apex: "A",
   /**
-   * International IPC (Expedited / Standard).
+   * International IPC. ✅ **SETTLED 2026-08-15 — `H` is correct.**
    *
-   * ⚠️ **DISPUTED.** A 2026-08-14 note claims `I` is the outbound IPC product
-   * and `H` is not mentioned. This file has said `H` since #1286. NOT changed:
-   * flipping the product code on an unverified claim risks breaking exports in
-   * a new way. `GetServicesforProduct` would settle it — it answers
-   * serviceability for a given product/sub-product — but the Finder is
-   * currently UNRELIABLE: on 2026-08-14 it returned real data once
-   * (`Area: "DHM"`, `IsError: false`, ordinary shipping profile) and then
-   * `UserDoesNotExists` on six consecutive identical calls, across four
-   * pincodes and both gateway keys.
+   * The carrier's own registry (`GetAllProductsAndSubProducts`, see below)
+   * returns product `H` with exactly two sub-products: `IPC-Expedited` and
+   * `IPC-Standard`. That is the international product, and this value has been
+   * right since #1286.
    *
-   * ⚠️ Do NOT read `UserDoesNotExists` as "not enrolled" — a success disproves
-   * that. Blue Dart errors routinely name the wrong culprit (see the `verno`
-   * "License Mismatch" trap). Cause unknown; retry before concluding anything.
-   *
-   * International is blocked on #1223's HS codes regardless.
+   * ⚠️ This RETRACTS the 2026-08-14 conclusion that "`A`, `D`, `E` are the only
+   * valid product codes" and that `H`/`I` return `InvalidProductCode`. That came
+   * from `GetServicesforPincode`, a *pincode serviceability* call — which this
+   * file already suspected of covering domestic products only. The suspicion was
+   * correct. Do not "fix" this to `I` or `A`: it would break exports.
    */
   international: "H",
-  /** International import. ⚠️ See the dispute above — may in fact be outbound IPC. */
+  /**
+   * ⚠️ NOT "international import" — that label is wrong and is kept only because
+   * nothing sends this value. `GetAllProductsAndSubProducts` lists `I` with
+   * sub-products E-Tailing, SII, DTP, Express Easy 6, Express Easy 8, Express
+   * Pallete and Imp/EXP — a mixed import/export product, not the IPC one.
+   */
   internationalImport: "I",
+  /**
+   * Surface / ground. Identified 2026-08-15 from its sub-product list (SFC
+   * Laptop Box 10, FOD, FOV/DC, DOD, EDL, Express Pallete, Smart Box) — SFC is
+   * Surface Freight Cargo. Previously an unidentified valid code.
+   */
+  surface: "E",
 } as const
 
 /**
  * Sub-product for the international product. Max 1 char, A-Z — see the guard in
  * `createShipment`.
  *
- * ⚠️ **UNVERIFIED against the carrier.** Supplied 2026-08-14 as "P = Prepaid,
- * the single-letter sub-product for IPC Expedited". It is not published on
- * developer.dhl.com, and Blue Dart support has not confirmed it. The previous
- * value ("IPC-Expedited") was definitively wrong — that is the PICKUP API's
- * vocabulary — so this can only be an improvement, but it is a candidate, not a
- * fact. International is separately blocked on #1223's HS codes, so nothing
- * ships on this until both are resolved.
+ * ⚠️ **STILL UNVERIFIED, and now looking weaker.** Supplied 2026-08-14 as
+ * "P = Prepaid, the single-letter sub-product for IPC Expedited". It is not
+ * published on developer.dhl.com and Blue Dart support has not confirmed it.
+ *
+ * `GetAllProductsAndSubProducts` (2026-08-15) names the two real sub-products of
+ * product `H` — `IPC-Expedited` and `IPC-Standard` — and "Prepaid" appears
+ * nowhere in the carrier's registry. But that registry is the PICKUP
+ * vocabulary, which takes full names in a `SubProducts` ARRAY, whereas this
+ * field is the waybill's, capped at 1 char A-Z by the documented field limits
+ * (#1295). So the registry does NOT settle this value; it only removes the
+ * story behind it. `E` (Expedited) and `S` (Standard) are the obvious
+ * candidates — inference, not evidence. Left alone deliberately; it is one of
+ * the two open questions for Blue Dart support.
+ *
+ * International is separately blocked on #1223's HS codes, so nothing ships on
+ * this until both are resolved.
  */
 export const BLUEDART_INTL_SUBPRODUCT = "P"
 
