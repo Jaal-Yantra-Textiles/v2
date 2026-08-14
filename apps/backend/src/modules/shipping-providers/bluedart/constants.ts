@@ -58,10 +58,18 @@ export const BLUEDART_PRODUCT = {
    * ⚠️ **DISPUTED.** A 2026-08-14 note claims `I` is the outbound IPC product
    * and `H` is not mentioned. This file has said `H` since #1286. NOT changed:
    * flipping the product code on an unverified claim risks breaking exports in
-   * a new way, and `GetServicesforPincode` — which would settle it by listing
-   * the products a lane actually offers — answers **`UserDoesNotExists`** for
-   * our LoginID (the Finder API is not enrolled on this account). Resolve with
-   * Blue Dart before touching. International is blocked on #1223 regardless.
+   * a new way. `GetServicesforProduct` would settle it — it answers
+   * serviceability for a given product/sub-product — but the Finder is
+   * currently UNRELIABLE: on 2026-08-14 it returned real data once
+   * (`Area: "DHM"`, `IsError: false`, ordinary shipping profile) and then
+   * `UserDoesNotExists` on six consecutive identical calls, across four
+   * pincodes and both gateway keys.
+   *
+   * ⚠️ Do NOT read `UserDoesNotExists` as "not enrolled" — a success disproves
+   * that. Blue Dart errors routinely name the wrong culprit (see the `verno`
+   * "License Mismatch" trap). Cause unknown; retry before concluding anything.
+   *
+   * International is blocked on #1223's HS codes regardless.
    */
   international: "H",
   /** International import. ⚠️ See the dispute above — may in fact be outbound IPC. */
