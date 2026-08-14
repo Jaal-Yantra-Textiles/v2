@@ -120,6 +120,31 @@ secrets:
   ANALYTICS_INGEST_SECRET: /jyt/prod/ANALYTICS_INGEST_SECRET
   AUTH_CORS: /jyt/prod/AUTH_CORS
   AUTH_MFA_ENCRYPTION_KEY: /jyt/prod/AUTH_MFA_ENCRYPTION_KEY
+  # Blue Dart fulfillment provider (#1285).
+  #
+  # BLUE_DART_PROVIDER_ENABLED is the ON/OFF SWITCH — "true" registers the
+  # provider, anything else withdraws it. Same shape as STRIPE_CONNECT_ENABLED.
+  # Without it the provider does not appear in Fulfillment Providers at all,
+  # which is exactly what happened after #1297: the code was live and the
+  # provider still never showed, because nothing here was set.
+  # ⚠️ Medusa does NOT delete a withdrawn provider's row — it flips
+  # is_enabled=false and leaves it (verified locally both ways).
+  #
+  # The credentials below are a FALLBACK, not the design. They are needed
+  # because a fulfillment provider is built with the fulfillment MODULE's
+  # container, which cannot resolve other modules under module isolation — so it
+  # cannot read the encrypted category:shipping SocialPlatform record that
+  # resolveShippingProvider uses for every other Blue Dart call. See
+  # resolveAdapter() in bluedart/service.ts, which logs which path it took.
+  #
+  # api_type / version / origin_area are deliberately NOT wired: the client
+  # defaults them to "S" / "1.3" / "DHM", matching the values in use.
+  BLUE_DART_PROVIDER_ENABLED: /jyt/prod/BLUE_DART_PROVIDER_ENABLED
+  BLUE_DART_CLIENT_ID: /jyt/prod/BLUE_DART_CLIENT_ID
+  BLUE_DART_CLIENT_SECRET: /jyt/prod/BLUE_DART_CLIENT_SECRET
+  BLUE_DART_CUSTOMER_CODE: /jyt/prod/BLUE_DART_CUSTOMER_CODE
+  BLUE_DART_LICENCE_KEY: /jyt/prod/BLUE_DART_LICENCE_KEY
+  BLUE_DART_LOGIN_ID: /jyt/prod/BLUE_DART_LOGIN_ID
   CLOUDFLARE_API_TOKEN: /jyt/prod/CLOUDFLARE_API_TOKEN
   CLOUDFLARE_ZONE_ID: /jyt/prod/CLOUDFLARE_ZONE_ID
   COOKIE_SECRET: /jyt/prod/COOKIE_SECRET

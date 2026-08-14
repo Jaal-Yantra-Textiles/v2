@@ -42,6 +42,16 @@ secrets:
   # medusa-server (server mode skips scheduled jobs). The flag MUST be set on the
   # worker too or the drain early-returns and the Redis buffer never persists.
   ANALYTICS_BATCH_INGEST: /jyt/prod/ANALYTICS_BATCH_INGEST
+  # Blue Dart fulfillment provider (#1285) — see the fuller note in
+  # medusa-server/manifest.yml. Mirrored onto the worker because prod runs SPLIT
+  # server + worker off the same medusa-config.prod.ts; a provider registered on
+  # only one of the two is a "works on the server, missing on the worker" bug.
+  BLUE_DART_PROVIDER_ENABLED: /jyt/prod/BLUE_DART_PROVIDER_ENABLED
+  BLUE_DART_CLIENT_ID: /jyt/prod/BLUE_DART_CLIENT_ID
+  BLUE_DART_CLIENT_SECRET: /jyt/prod/BLUE_DART_CLIENT_SECRET
+  BLUE_DART_CUSTOMER_CODE: /jyt/prod/BLUE_DART_CUSTOMER_CODE
+  BLUE_DART_LICENCE_KEY: /jyt/prod/BLUE_DART_LICENCE_KEY
+  BLUE_DART_LOGIN_ID: /jyt/prod/BLUE_DART_LOGIN_ID
   CLOUDFLARE_API_TOKEN: /jyt/prod/CLOUDFLARE_API_TOKEN
   CLOUDFLARE_ZONE_ID: /jyt/prod/CLOUDFLARE_ZONE_ID
   DATABASE_URL: /jyt/prod/DATABASE_URL

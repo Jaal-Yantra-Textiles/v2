@@ -14,8 +14,12 @@ import { BlueDartProviderAdapter } from "./adapter"
 import { BLUEDART_CARRIER_ID } from "./constants"
 import type { BlueDartConfig } from "./types"
 import { CreateShipmentInput, ShipmentItem } from "../provider-interface"
+// Static, not dynamic: `await import("../resolver")` trips TS2835 under
+// node16 module resolution. No cycle — resolver.ts imports ./bluedart/adapter
+// directly, never this file or the barrel.
+import { resolveShippingProvider } from "../resolver"
 
-type InjectedDeps = { logger: Logger }
+type InjectedDeps = { logger: Logger } & Record<string, unknown>
 
 /**
  * Blue Dart fulfillment provider (#1285).
@@ -33,17 +37,71 @@ type InjectedDeps = { logger: Logger }
  * sandbox host is a separate base URL, not a dry-run flag on production. The
  * registration in `medusa-config.ts` sits behind `ENABLE_CARRIER_FULFILLMENT`
  * for exactly this reason.
+ *
+ * ## Credentials: platform store first, env second
+ *
+ * Registration is gated on `BLUE_DART_PROVIDER_ENABLED` — a plain on/off switch,
+ * mirroring `STRIPE_CONNECT_ENABLED` — rather than on the presence of a
+ * credential. Credentials live in the encrypted `category:shipping`
+ * SocialPlatform record, which is where `resolveShippingProvider` already reads
+ * them and how every real Blue Dart call is made today.
+ *
+ * ⚠️ Whether the store can be reached from HERE is not guaranteed: a module
+ * provider is constructed with the FULFILLMENT MODULE's container, and
+ * "the module's own __container__ cannot resolve other modules under module
+ * isolation" (see google_merchant/service.ts). `createFulfillment` is handed
+ * DTOs, not an app container, so there is no second chance to pass one in.
+ * Hence `resolveAdapter()`: try the store, fall back to the env-built client,
+ * and LOG which path was taken so the answer is observable in prod instead of
+ * assumed. Env credentials are therefore a fallback, not the design.
  */
 class BlueDartFulfillmentService extends AbstractFulfillmentProviderService {
   static identifier = BLUEDART_CARRIER_ID
 
-  protected adapter: BlueDartProviderAdapter
   protected logger: Logger
+  private readonly container: unknown
+  private readonly options: BlueDartConfig
 
-  constructor({ logger }: InjectedDeps, options: BlueDartConfig) {
+  constructor(deps: InjectedDeps, options: BlueDartConfig) {
     super()
-    this.logger = logger
-    this.adapter = new BlueDartProviderAdapter(new BlueDartClient(options))
+    this.logger = deps.logger
+    this.container = deps
+    this.options = options ?? ({} as BlueDartConfig)
+  }
+
+  /**
+   * Build an adapter for one call. Never cached: `resolveShippingProvider`
+   * re-reads (and re-decrypts) the platform record each time, so a credential
+   * rotated in the admin UI takes effect on the next call rather than on the
+   * next deploy.
+   */
+  protected async resolveAdapter(): Promise<BlueDartProviderAdapter> {
+    try {
+      const client = await resolveShippingProvider(
+        this.container as any,
+        BLUEDART_CARRIER_ID
+      )
+      if (client) {
+        this.logger.debug?.(
+          "[bluedart] credentials resolved from the SocialPlatform store"
+        )
+        return client as unknown as BlueDartProviderAdapter
+      }
+    } catch (e: any) {
+      this.logger.warn(
+        `[bluedart] platform-store credentials unavailable from the module ` +
+          `container (${e?.message}); falling back to env credentials`
+      )
+    }
+
+    if (!this.options.licence_key || !this.options.client_id) {
+      throw new Error(
+        "Blue Dart credentials are not available: the category:shipping " +
+          "SocialPlatform record could not be read from this container, and no " +
+          "BLUE_DART_* env fallback is configured."
+      )
+    }
+    return new BlueDartProviderAdapter(new BlueDartClient(this.options))
   }
 
   /**
@@ -93,7 +151,8 @@ class BlueDartFulfillmentService extends AbstractFulfillmentProviderService {
       (data.shipping_address as any)?.postal_code || (data as any).postal_code
     if (pin) {
       try {
-        const ok = await this.adapter.checkServiceability(String(pin))
+        const adapter = await this.resolveAdapter()
+        const ok = await adapter.checkServiceability(String(pin))
         if (!ok) {
           this.logger.warn(
             `Blue Dart reports pincode ${pin} is not serviceable inbound`
@@ -217,7 +276,8 @@ class BlueDartFulfillmentService extends AbstractFulfillmentProviderService {
     }
 
     try {
-      const result = await this.adapter.createShipment(input)
+      const adapter = await this.resolveAdapter()
+      const result = await adapter.createShipment(input)
       this.logger.info(`Blue Dart shipment created: awb=${result.awb}`)
       return {
         data: {
@@ -247,7 +307,8 @@ class BlueDartFulfillmentService extends AbstractFulfillmentProviderService {
     const waybill = fulfillment?.data?.waybill || fulfillment?.data?.tracking_number
     if (!waybill) return {}
     try {
-      return await this.adapter.cancelShipment({
+      const adapter = await this.resolveAdapter()
+      return await adapter.cancelShipment({
         awb: String(waybill),
         provider_refs: { waybill: String(waybill) },
       })

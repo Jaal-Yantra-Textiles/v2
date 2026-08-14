@@ -369,11 +369,13 @@ module.exports = defineConfig({
           // pickup routes go through `resolveShippingProvider` and the
           // external-platform credential store.
           //
-          // Gated on the LICENCE KEY, not the gateway client id: Blue Dart's two
-          // auth layers are independent, and the gateway mints a valid JWT for
-          // EMPTY credentials (401 only for *wrong* ones), so a client-id check
-          // would register a provider that cannot actually ship.
-          ...(process.env.BLUE_DART_LICENCE_KEY
+          // Gated on an explicit ON/OFF SWITCH, not on a credential — same shape
+          // as STRIPE_CONNECT_ENABLED. Gating on a secret is what let #1297 ship
+          // a registered provider that never appeared in prod, because neither
+          // the secret nor the manifest entry existed. Credentials live in the
+          // encrypted category:shipping SocialPlatform record; the env values
+          // below are the documented fallback (see bluedart/service.ts).
+          ...(process.env.BLUE_DART_PROVIDER_ENABLED === "true"
             ? [
                 {
                   resolve: "./src/modules/shipping-providers/bluedart",
