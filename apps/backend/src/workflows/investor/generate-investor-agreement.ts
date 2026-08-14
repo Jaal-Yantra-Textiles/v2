@@ -73,7 +73,9 @@ Handlebars.registerHelper("formatMoney", (currency: string, amount: number) =>
 const prepareInvestorAgreementStep = createStep(
   "prepare-investor-agreement",
   async (input: GenerateInvestorAgreementInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    // `: any` because Medusa 2.19 types this resolve as `unknown` — matching the
+    // service resolves just below, which have always been annotated this way.
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const investorSvc: any = container.resolve(INVESTOR_MODULE)
     const agreementsSvc: any = container.resolve(AGREEMENTS_MODULE)
     const responseSvc: any = container.resolve(AGREEMENT_RESPONSE_MODULE)

@@ -97,7 +97,9 @@ const verifyPartnerAuthEmailStep = createStep(
         // Determine entity type from config (same as backfill job)
         let entityType = "email"
         try {
-            const config = container.resolve(ContainerRegistrationKeys.CONFIG_MODULE)
+            // `: any` because Medusa 2.19 types this resolve as `{}`. The read
+            // below is already fully optional-chained inside a try/catch.
+            const config: any = container.resolve(ContainerRegistrationKeys.CONFIG_MODULE)
             const forPartner =
                 config?.projectConfig?.http?.authVerificationsPerActor?.partner
             const emailpass = (forPartner || []).find(
