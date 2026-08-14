@@ -83,7 +83,10 @@ describe("BlueDartFulfillmentService", () => {
     ])
     expect(opts.filter((o) => o.is_return)).toHaveLength(1)
     // International (product H) stays out until #1223's HS codes land.
-    expect(opts.some((o) => /international|ipc/i.test(o.name))).toBe(false)
+    // `String(...)` because FulfillmentOption types every field but `id` as
+    // `unknown` — the prod-config build (which mirrors the ECS Dockerfile) is
+    // stricter than `tsc --noEmit` here and rejects the bare value.
+    expect(opts.some((o) => /international|ipc/i.test(String(o.name)))).toBe(false)
   })
 
   it("declines to calculate rather than quoting zero", async () => {
