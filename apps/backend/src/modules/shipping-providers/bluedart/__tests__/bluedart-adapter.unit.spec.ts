@@ -175,7 +175,7 @@ describe("BlueDartProviderAdapter.createShipment", () => {
     expect(calls[0].body.Request.Services.RegisterPickup).toBe(false)
   })
 
-  it("sends product D domestically and product H with an IPC sub-product abroad", async () => {
+  it("sends product D domestically and product H abroad, with NO sub-product code", async () => {
     const { adapter: dom, calls: domCalls } = buildAdapter()
     await dom.createShipment(BASE_INPUT)
     expect(domCalls[0].body.Request.Services.ProductCode).toBe("D")
@@ -189,7 +189,12 @@ describe("BlueDartProviderAdapter.createShipment", () => {
     })
     const svc = intlCalls[0].body.Request.Services
     expect(svc.ProductCode).toBe("H")
-    expect(svc.SubProductCode).toBe("IPC-Expedited")
+    // `SubProductCode` is max 1 char, A-Z. "IPC-Expedited" is the PICKUP API's
+    // vocabulary — a SubProducts ARRAY of full names on a different call — and
+    // sending it here is a guaranteed empty-bodied 400. Until Blue Dart gives
+    // us the 1-letter code for IPC Expedited, send nothing rather than
+    // something known to be invalid.
+    expect(svc.SubProductCode).toBe("")
     expect(svc.CurrencyCode).toBe("USD")
     // Per-item customs lines are mandatory on the international product.
     expect(svc.itemdtl).toHaveLength(1)

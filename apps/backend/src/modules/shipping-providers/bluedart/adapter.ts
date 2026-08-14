@@ -27,8 +27,11 @@ import {
   toMsJsonDate,
 } from "./constants"
 import {
+  blueDartAlnum,
   blueDartDigits,
   blueDartField,
+  blueDartReference,
+  findBlueDartFieldViolations,
   packBlueDartAddress,
 } from "./address"
 import type { BlueDartConfig } from "./types"
@@ -155,7 +158,9 @@ export class BlueDartProviderAdapter implements ShippingProviderClient {
         CollectableAmount:
           input.payment_mode === "cod" ? Number(input.cod_amount) || 0 : 0,
         Commodity: this.commodityOf(input),
-        CreditReferenceNo: input.reference_id,
+        // Mandatory, max 20, A-Z0-9 only. A Medusa order id breaks all three
+        // rules at once — see `blueDartReference`.
+        CreditReferenceNo: blueDartReference(input.reference_id),
         CreditReferenceNo2: "",
         CreditReferenceNo3: "",
         DeclaredValue: this.declaredValueOf(input),
@@ -182,8 +187,17 @@ export class BlueDartProviderAdapter implements ShippingProviderClient {
         ProductType: 0,
         // Booked separately by `schedulePickup` — see the class docblock.
         RegisterPickup: false,
-        SpecialInstruction: input.product_description || "",
-        SubProductCode: international ? BLUEDART_INTL_SUBPRODUCT : "",
+        SpecialInstruction: blueDartField(input.product_description, 50),
+        // Max 1 char, A-Z. `BLUEDART_INTL_SUBPRODUCT` ("IPC-Expedited") is the
+        // PICKUP API's vocabulary, which takes a SubProducts ARRAY of full
+        // names — a different field on a different call that happens to share a
+        // prefix. Sending it here is a guaranteed rejection, so an
+        // international waybill fails loudly below rather than silently.
+        SubProductCode: international
+          ? /^[A-Z]$/.test(BLUEDART_INTL_SUBPRODUCT)
+            ? BLUEDART_INTL_SUBPRODUCT
+            : ""
+          : "",
         // "0" (a STRING) disables OTP delivery. The numeric 2 demands an OTPCode
         // and fails with "OTP Number cannot be blank" when one isn't supplied.
         OTPBasedDelivery: "0",
@@ -192,6 +206,16 @@ export class BlueDartProviderAdapter implements ShippingProviderClient {
         noOfDCGiven: 0,
         ...(international ? this.internationalServicesOf(input) : {}),
       },
+    }
+
+    // Blue Dart reports a field-limit breach as an empty-bodied 400 that names
+    // nothing. Catch it here, where we can say exactly which field and why.
+    const violations = findBlueDartFieldViolations(request, { international })
+    if (violations.length) {
+      throw new BlueDartApiError(
+        `Blue Dart would reject this waybill: ${violations.join("; ")}`,
+        violations
+      )
     }
 
     const result = await this.client.generateWaybill(request)
@@ -232,10 +256,15 @@ export class BlueDartProviderAdapter implements ShippingProviderClient {
     const codes = input.items
       .map((i) => i.hsn)
       .filter((c): c is string => Boolean(c && String(c).trim()))
+    // Max 30, alphanumeric — a product title carries punctuation a commodity
+    // line does not accept ("Denim Trouser, 32\"" being entirely ordinary).
     return {
-      CommodityDetail1: codes[0] || input.items[0]?.name || "Merchandise",
-      CommodityDetail2: codes[1] || "",
-      CommodityDetail3: codes[2] || "",
+      CommodityDetail1: blueDartAlnum(
+        codes[0] || input.items[0]?.name || "Merchandise",
+        30
+      ),
+      CommodityDetail2: blueDartAlnum(codes[1] || "", 30),
+      CommodityDetail3: blueDartAlnum(codes[2] || "", 30),
     }
   }
 
