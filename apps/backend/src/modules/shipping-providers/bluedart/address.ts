@@ -27,6 +27,95 @@
 export const BLUEDART_TEXT_MAX = 30
 
 /**
+ * Every field limit the developer guide publishes, checked BEFORE the call.
+ *
+ * Blue Dart answers a breach with a bare 400 and an empty body — no field name,
+ * no reason, indistinguishable from an auth or routing fault. Three separate
+ * violations hid behind that same silence on order 83 (blank shipper address,
+ * over-long address lines, and a 32-character `CreditReferenceNo`), and each
+ * one cost a live round trip to find because the previous fix simply revealed
+ * the next.
+ *
+ * So the limits are asserted locally. A violation now names the field, the cap
+ * and the offending value — which is the difference between a five-minute fix
+ * and another deploy cycle spent guessing.
+ */
+type FieldRule = { path: string; max: number; pattern?: RegExp; required?: boolean }
+
+const WAYBILL_RULES: FieldRule[] = [
+  { path: "Shipper.CustomerName", max: 30, required: true },
+  { path: "Shipper.CustomerAddress1", max: 30, required: true },
+  { path: "Shipper.CustomerAddress2", max: 30 },
+  { path: "Shipper.CustomerAddress3", max: 30 },
+  { path: "Shipper.CustomerPincode", max: 6, pattern: /^\d{6}$/, required: true },
+  { path: "Shipper.OriginArea", max: 3, pattern: /^[A-Z]{1,3}$/, required: true },
+  { path: "Consignee.ConsigneeName", max: 30, required: true },
+  { path: "Consignee.ConsigneeAddress1", max: 30, required: true },
+  { path: "Consignee.ConsigneeAddress2", max: 30 },
+  { path: "Consignee.ConsigneeAddress3", max: 30 },
+  // Domestic only. An export consignee's postcode is not an Indian PIN —
+  // Israel's is 7 digits, Ireland's is alphanumeric — so the 6-digit rule is
+  // applied conditionally below rather than listed here.
+  {
+    path: "Services.CreditReferenceNo",
+    max: 20,
+    pattern: /^[A-Z0-9]{1,20}$/,
+    required: true,
+  },
+  { path: "Services.ProductCode", max: 1, pattern: /^[A-Z]$/, required: true },
+  { path: "Services.SubProductCode", max: 1 },
+  { path: "Services.SpecialInstruction", max: 50 },
+]
+
+const readPath = (obj: any, path: string): any =>
+  path.split(".").reduce((o, k) => (o == null ? o : o[k]), obj)
+
+/**
+ * Field-limit violations in a waybill request, as human-readable lines. Empty
+ * when the request is within spec. Pure, so the whole rule table is testable
+ * without a carrier.
+ */
+export function findBlueDartFieldViolations(
+  request: any,
+  opts?: { international?: boolean }
+): string[] {
+  const problems: string[] = []
+  const rules: FieldRule[] = [
+    ...WAYBILL_RULES,
+    opts?.international
+      ? // An export postcode has no shared shape across countries; only guard
+        // the length so a runaway value still fails locally.
+        { path: "Consignee.ConsigneePincode", max: 10, required: true }
+      : {
+          path: "Consignee.ConsigneePincode",
+          max: 6,
+          pattern: /^\d{6}$/,
+          required: true,
+        },
+  ]
+  for (const rule of rules) {
+    const raw = readPath(request, rule.path)
+    const value = raw == null ? "" : String(raw)
+    if (!value) {
+      if (rule.required) {
+        problems.push(`${rule.path} is mandatory and was empty`)
+      }
+      continue
+    }
+    if (value.length > rule.max) {
+      problems.push(
+        `${rule.path} is ${value.length} chars, max ${rule.max} ("${value}")`
+      )
+    } else if (rule.pattern && !rule.pattern.test(value)) {
+      problems.push(
+        `${rule.path} does not match ${rule.pattern} ("${value}")`
+      )
+    }
+  }
+  return problems
+}
+
+/**
  * Characters Blue Dart accepts in a name or address line, per the developer
  * guide: alphanumerics plus `./?;:'~!\@"#$%^&*()[]+=_-`, and space.
  *
@@ -55,6 +144,36 @@ export function blueDartField(
   max: number = BLUEDART_TEXT_MAX
 ): string {
   return sanitiseBlueDartText(value).slice(0, max)
+}
+
+/**
+ * `CreditReferenceNo` — our reference, echoed back by Blue Dart. **Mandatory,
+ * max 20, A-Z and 0-9 ONLY.**
+ *
+ * A Medusa order id (`order_01KYPCSTQ783ZT1FKM72VHQABS`) breaks all three
+ * rules at once: 32 characters, lowercase, and an underscore. It is passed
+ * verbatim as `reference_id` by every caller, so this field alone rejected
+ * every waybill the app has ever attempted — silently, with an empty 400.
+ *
+ * Keeps the LAST 20 characters, not the first. The leading `ORDER` is constant
+ * across every order and would burn a quarter of the budget on nothing, while
+ * the ULID tail is where the entropy lives — truncating from the front would
+ * make references collide.
+ */
+export function blueDartReference(value: unknown, max = 20): string {
+  const alnum = String(value ?? "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+  return alnum.slice(-max)
+}
+
+/** Alphanumeric + space only, capped — what Commodity accepts. */
+export function blueDartAlnum(value: unknown, max: number): string {
+  return String(value ?? "")
+    .replace(/[^a-zA-Z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max)
 }
 
 /** Digits only — what Pincode and Mobile accept. */

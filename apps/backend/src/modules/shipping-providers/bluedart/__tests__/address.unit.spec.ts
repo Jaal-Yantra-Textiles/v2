@@ -1,4 +1,7 @@
 import {
+  blueDartAlnum,
+  blueDartReference,
+  findBlueDartFieldViolations,
   BLUEDART_TEXT_MAX,
   blueDartDigits,
   blueDartField,
@@ -129,5 +132,105 @@ describe("packBlueDartAddress", () => {
       line2: "",
       line3: "",
     })
+  })
+})
+
+describe("blueDartReference", () => {
+  it("makes a Medusa order id legal — 32 chars, lowercase and an underscore", () => {
+    // Order 83's id. Mandatory field, max 20, A-Z0-9 only: it broke all three
+    // rules at once, which is why every waybill the app ever attempted was
+    // rejected with an empty 400.
+    const ref = blueDartReference("order_01KYPCSTQ783ZT1FKM72VHQABS")
+    expect(ref).toMatch(/^[A-Z0-9]{1,20}$/)
+    expect(ref.length).toBe(20)
+  })
+
+  it("keeps the TAIL, where the entropy is", () => {
+    // "ORDER" is constant across every order; truncating from the front would
+    // burn a quarter of the budget and make references collide.
+    const a = blueDartReference("order_01KYPCSTQ783ZT1FKM72VHQABS")
+    const b = blueDartReference("order_01KYPCSTQ783ZT1FKM72VHQZZZ")
+    expect(a).not.toBe(b)
+  })
+
+  it("leaves an already-legal reference alone", () => {
+    expect(blueDartReference("REF123")).toBe("REF123")
+  })
+})
+
+describe("blueDartAlnum", () => {
+  it("strips punctuation a commodity line does not accept", () => {
+    expect(blueDartAlnum('Denim Trouser, 32"', 30)).toBe("Denim Trouser 32")
+  })
+  it("caps to the field width", () => {
+    expect(blueDartAlnum("x".repeat(40), 30).length).toBe(30)
+  })
+})
+
+describe("findBlueDartFieldViolations", () => {
+  const ok = {
+    Shipper: {
+      CustomerName: "JYT",
+      CustomerAddress1: "Ram Nagar Road Sharlho Factory",
+      CustomerPincode: "176215",
+      OriginArea: "DHM",
+    },
+    Consignee: {
+      ConsigneeName: "Chirag Titiya",
+      ConsigneeAddress1: "A502 Prathna Greens Sargasan",
+      ConsigneePincode: "382421",
+    },
+    Services: {
+      CreditReferenceNo: "3ZT1FKM72VHQABS",
+      ProductCode: "D",
+      SubProductCode: "",
+      SpecialInstruction: "",
+    },
+  }
+
+  it("passes a request that is within spec", () => {
+    expect(findBlueDartFieldViolations(ok)).toEqual([])
+  })
+
+  it("catches the blank shipper address that produced the first empty 400", () => {
+    const bad = {
+      ...ok,
+      Shipper: { ...ok.Shipper, CustomerAddress1: "", CustomerPincode: "" },
+    }
+    const found = findBlueDartFieldViolations(bad)
+    expect(found.join(" ")).toContain("Shipper.CustomerAddress1 is mandatory")
+    expect(found.join(" ")).toContain("Shipper.CustomerPincode is mandatory")
+  })
+
+  it("catches an over-long reference and names the cap", () => {
+    const bad = {
+      ...ok,
+      Services: {
+        ...ok.Services,
+        CreditReferenceNo: "order_01KYPCSTQ783ZT1FKM72VHQABS",
+      },
+    }
+    const found = findBlueDartFieldViolations(bad)
+    expect(found[0]).toContain("Services.CreditReferenceNo is 32 chars, max 20")
+  })
+
+  it("catches a multi-character SubProductCode", () => {
+    const bad = {
+      ...ok,
+      Services: { ...ok.Services, SubProductCode: "IPC-Expedited" },
+    }
+    expect(findBlueDartFieldViolations(bad)[0]).toContain(
+      "Services.SubProductCode is 13 chars, max 1"
+    )
+  })
+
+  it("catches a non-numeric pincode", () => {
+    const bad = {
+      ...ok,
+      Consignee: { ...ok.Consignee, ConsigneePincode: "38242A" },
+    }
+    expect(findBlueDartFieldViolations(bad)[0]).toContain(
+      "Consignee.ConsigneePincode does not match"
+    )
   })
 })
