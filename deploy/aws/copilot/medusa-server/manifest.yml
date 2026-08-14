@@ -120,6 +120,25 @@ secrets:
   ANALYTICS_INGEST_SECRET: /jyt/prod/ANALYTICS_INGEST_SECRET
   AUTH_CORS: /jyt/prod/AUTH_CORS
   AUTH_MFA_ENCRYPTION_KEY: /jyt/prod/AUTH_MFA_ENCRYPTION_KEY
+  # Blue Dart fulfillment provider (#1285). The env-gated block in
+  # medusa-config.prod.ts registers the provider whenever BLUE_DART_LICENCE_KEY is
+  # set — without it the provider does not appear in Fulfillment Providers at all,
+  # which is exactly what happened after #1297 shipped: the code was live and the
+  # provider still never showed, because none of these existed.
+  #
+  # Unlike Shiprocket (below), the FULL credential set is wired here, because
+  # BlueDartFulfillmentService builds its own BlueDartClient from these options —
+  # the licence key alone would register a provider that cannot call the carrier.
+  # Label/tracking/pickup via resolveShippingProvider still read the
+  # `category:shipping` SocialPlatform record; these are the boot-time source.
+  #
+  # api_type / version / origin_area are deliberately NOT wired: the client
+  # already defaults them to "S" / "1.3" / "DHM", matching the values in use.
+  BLUE_DART_CLIENT_ID: /jyt/prod/BLUE_DART_CLIENT_ID
+  BLUE_DART_CLIENT_SECRET: /jyt/prod/BLUE_DART_CLIENT_SECRET
+  BLUE_DART_CUSTOMER_CODE: /jyt/prod/BLUE_DART_CUSTOMER_CODE
+  BLUE_DART_LICENCE_KEY: /jyt/prod/BLUE_DART_LICENCE_KEY
+  BLUE_DART_LOGIN_ID: /jyt/prod/BLUE_DART_LOGIN_ID
   CLOUDFLARE_API_TOKEN: /jyt/prod/CLOUDFLARE_API_TOKEN
   CLOUDFLARE_ZONE_ID: /jyt/prod/CLOUDFLARE_ZONE_ID
   COOKIE_SECRET: /jyt/prod/COOKIE_SECRET
