@@ -74,13 +74,16 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "List orders (paginated). Supports free-text search via q. Defaults to RETAIL orders only — pass kind to see design/inventory orders or all of them. Use to answer 'what orders came in', revenue/volume, and to find an order id.",
     method: "GET",
     path: "/admin/orders",
-    queryParams: ["limit", "offset", "q", "status", "kind"],
+    queryParams: ["limit", "offset", "q", "status", "kind", "sales_channel_id", "region_id", "customer_id"],
     inputSchema: obj({
       ...PAGINATION,
       status: STR("Optional order status filter."),
       kind: STR(
         "Which order family to list: 'retail' (default) | 'design' | 'inventory' | 'all'."
       ),
+      sales_channel_id: STR("Filter to orders in a specific sales channel id."),
+      region_id: STR("Filter to orders in a specific region id."),
+      customer_id: STR("Filter to orders for a specific customer id."),
     }),
   },
   {
@@ -95,11 +98,24 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   // ===== Catalog ===========================================================
   {
     name: "list_products",
-    description: "List products (paginated). Supports free-text search via q.",
+    description:
+      "List products (paginated). Supports free-text search via q. Filter by status, sales channel, collection, category, type, tag or handle to scope results — e.g. pass sales_channel_id to see products in a partner's storefront, or status=published to see only live products.",
     method: "GET",
     path: "/admin/products",
-    queryParams: ["limit", "offset", "q"],
-    inputSchema: obj({ ...PAGINATION }),
+    queryParams: ["limit", "offset", "q", "status", "sales_channel_id", "collection_id", "category_id", "type_id", "tag_id", "handle"],
+    inputSchema: obj({
+      ...PAGINATION,
+      status: {
+        type: "string",
+        description: "Product status: 'draft' | 'proposed' | 'published' | 'rejected'.",
+      },
+      sales_channel_id: STR("Filter to products in a specific sales channel id (e.g. a partner store's default_sales_channel_id from list_stores)."),
+      collection_id: STR("Filter to products in a specific collection."),
+      category_id: STR("Filter to products in a specific category."),
+      type_id: STR("Filter to products of a specific type."),
+      tag_id: STR("Filter to products with a specific tag."),
+      handle: STR("Filter to a product by its URL handle."),
+    }),
   },
   {
     name: "get_product",
@@ -113,11 +129,19 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   // ===== Customers =========================================================
   {
     name: "list_customers",
-    description: "List customers (paginated). Supports free-text search via q.",
+    description:
+      "List customers (paginated). Supports free-text search via q. Filter by email, name, company or account type.",
     method: "GET",
     path: "/admin/customers",
-    queryParams: ["limit", "offset", "q"],
-    inputSchema: obj({ ...PAGINATION }),
+    queryParams: ["limit", "offset", "q", "email", "has_account", "company_name", "first_name", "last_name"],
+    inputSchema: obj({
+      ...PAGINATION,
+      email: STR("Filter to customers with a specific email."),
+      has_account: BOOL("Filter to registered (true) or guest (false) customers."),
+      company_name: STR("Filter by company name."),
+      first_name: STR("Filter by first name."),
+      last_name: STR("Filter by last name."),
+    }),
   },
 
   // ===== Partners & stores =================================================
@@ -139,6 +163,23 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     inputSchema: obj({ id: STR("Partner id, e.g. 'partner_...'.") }, ["id"]),
   },
   {
+    name: "list_partner_products",
+    description:
+      "List a specific partner's products — the sales-channel-scoped catalog that partner sees on their own portal. Use list_stores or get_partner to find the partner's stores first, then pass store_id to scope to a specific storefront. Without store_id, the partner's first store is used.",
+    method: "GET",
+    path: "/admin/partners/:id/products",
+    pathParams: ["id"],
+    queryParams: ["store_id", "q", "limit", "offset"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        store_id: STR("Optional store id to scope to a specific storefront. Defaults to the partner's first store."),
+        ...PAGINATION,
+      },
+      ["id"]
+    ),
+  },
+  {
     name: "list_stores",
     description: "List storefronts / stores configured on the platform.",
     method: "GET",
@@ -150,11 +191,33 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   // ===== Designs & production ==============================================
   {
     name: "list_designs",
-    description: "List designs (paginated). Supports free-text search via q.",
+    description:
+      "List designs (paginated). Supports free-text search via q. Filter by status, design type, priority, partner or tags.",
     method: "GET",
     path: "/admin/designs",
-    queryParams: ["limit", "offset", "q"],
-    inputSchema: obj({ ...PAGINATION }),
+    queryParams: ["limit", "offset", "q", "status", "design_type", "priority", "partner_id", "tags", "name"],
+    inputSchema: obj({
+      ...PAGINATION,
+      name: STR("Partial or full name match."),
+      status: {
+        type: "string",
+        description: "Design status: 'Conceptual' | 'In_Development' | 'Technical_Review' | 'Sample_Production' | 'Revision' | 'Approved' | 'Rejected' | 'On_Hold' | 'Commerce_Ready' | 'Superseded'.",
+      },
+      design_type: {
+        type: "string",
+        description: "'Original' | 'Derivative' | 'Custom' | 'Collaboration'.",
+      },
+      priority: {
+        type: "string",
+        description: "'Low' | 'Medium' | 'High' | 'Urgent'.",
+      },
+      partner_id: STR("Filter by owning partner id."),
+      tags: {
+        type: "array",
+        description: "Tag strings to filter by.",
+        items: { type: "string" },
+      },
+    }),
   },
   {
     name: "get_design",

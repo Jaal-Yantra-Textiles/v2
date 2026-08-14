@@ -283,18 +283,28 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   // ===== Read-only breadth across partner resources ========================
   {
     name: "list_orders",
-    description: "List the partner's orders (paginated). Supports free-text search via q.",
+    description:
+      "List the partner's orders (paginated). Supports free-text search via q. Pass kind to switch between retail, design or inventory work-orders. Filter by status, date range, region or sales channel.",
     method: "GET",
     path: "/partners/orders",
-    queryParams: ["limit", "offset", "q", "status"],
+    queryParams: ["limit", "offset", "q", "status", "kind", "created_at", "updated_at", "region_id", "sales_channel_id", "order"],
     inputSchema: obj({
       ...PAGINATION,
       status: STR("Optional order status filter."),
+      kind: STR(
+        "Which order family to list: 'retail' (default) | 'design' | 'inventory' | 'all'."
+      ),
+      created_at: STR("Date filter (ISO string, optionally with $gt/$lt/$gte/$lte operators)."),
+      updated_at: STR("Date filter (ISO string, optionally with $gt/$lt/$gte/$lte operators)."),
+      region_id: STR("Filter to orders in a specific region (retail only)."),
+      sales_channel_id: STR("Filter to orders in a specific sales channel (retail only)."),
+      order: STR("Sort field with optional leading '-' for DESC, e.g. '-created_at' (default) or 'display_id'."),
     }),
   },
   {
     name: "list_products",
-    description: "List the partner's products (paginated). Supports free-text search via q.",
+    description:
+      "List the partner's products (paginated). Supports free-text search via q. Prefer list_store_products with a store_id for store-scoped / sales-channel-filtered results.",
     method: "GET",
     path: "/partners/products",
     queryParams: ["limit", "offset", "q"],
@@ -396,11 +406,19 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   },
   {
     name: "list_designs",
-    description: "List the partner's designs / design briefs (paginated).",
+    description:
+      "List the partner's designs / design briefs (paginated). Filter by status or bucket (incoming / in_progress / completed / yours).",
     method: "GET",
     path: "/partners/designs",
-    queryParams: ["limit", "offset", "q"],
-    inputSchema: obj({ ...PAGINATION }),
+    queryParams: ["limit", "offset", "q", "status", "bucket"],
+    inputSchema: obj({
+      ...PAGINATION,
+      status: STR("Filter designs by status (e.g. 'In_Development', 'Approved')."),
+      bucket: {
+        type: "string",
+        description: "Action-oriented bucket: 'all' (default) | 'incoming' | 'in_progress' | 'completed' | 'yours'.",
+      },
+    }),
   },
   {
     name: "list_inventory_items",
