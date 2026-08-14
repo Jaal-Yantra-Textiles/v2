@@ -200,7 +200,7 @@ export async function cancelShipmentForFulfillment(
       MedusaError.Types.NOT_ALLOWED,
       `Fulfillment ${input.fulfillmentId} has no cancellable carrier${
         carrier ? ` (carrier "${carrier}")` : ""
-      }. Cancel it directly with the carrier, then detach the AWB here.`
+      }. Cancel it directly with the carrier, then detach it here: DELETE /admin/orders/${input.orderId}/fulfillments/${input.fulfillmentId}/external-awb`
     )
   }
   if (fulfillment.shipped_at && !input.force) {
