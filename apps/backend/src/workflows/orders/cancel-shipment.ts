@@ -12,6 +12,8 @@ import {
   shipmentRefFromFulfillment,
 } from "../../modules/shipping-providers/resolver"
 import { EMAIL_TEMPLATES_MODULE } from "../../modules/email_templates"
+import { PARTNER_BILLING_MODULE } from "../../modules/partner_billing"
+import type { ShippingReversal } from "../../modules/partner_billing/reverse-shipping"
 
 /**
  * Cancel a carrier waybill for a fulfillment, end to end.
@@ -46,6 +48,12 @@ export type CancelledShipmentRecord = {
   reason?: string
   /** Carrier-side ids, kept so the cancellation can be reconciled later. */
   provider_refs?: Record<string, any>
+  /**
+   * The platform-shipping deduction this cancellation gave back to the partner,
+   * when there was one. Absent for a retail order, a partner on their own
+   * carrier account, or a carrier that never quoted a rate.
+   */
+  shipping_reversed?: { amount: number; currency_code: string } | null
 }
 
 /** The carrier keys `createShiprocketShipmentForFulfillment` writes and this clears. */
@@ -114,6 +122,8 @@ export type CancelShipmentResult = {
   cancelled_at: string
   /** True when a customer email actually went out. */
   customer_notified: boolean
+  /** The freight deduction handed back to the partner, when there was one. */
+  shipping_reversed?: ShippingReversal | null
   raw?: any
 }
 
@@ -209,6 +219,19 @@ export async function cancelShipmentForFulfillment(
   }
 
   const cancelledAt = new Date().toISOString()
+
+  // Give the freight back BEFORE the fulfillment write, so the audit entry we
+  // are about to persist records what the cancellation was actually worth. The
+  // waybill is already dead at this point either way.
+  const shippingReversed = await reversePlatformShippingCost(container, {
+    orderId: input.orderId,
+    fulfillmentId: input.fulfillmentId,
+    awb,
+    reason: input.reason,
+    actingEmail: input.actingEmail,
+    reversedAt: cancelledAt,
+  })
+
   const record: CancelledShipmentRecord = {
     carrier,
     awb,
@@ -216,6 +239,12 @@ export async function cancelShipmentForFulfillment(
     cancelled_by: input.actingEmail,
     reason: input.reason,
     provider_refs: ref.provider_refs,
+    shipping_reversed: shippingReversed
+      ? {
+          amount: shippingReversed.amount,
+          currency_code: shippingReversed.currency_code,
+        }
+      : null,
   }
 
   await fulfillmentModule.updateFulfillment(input.fulfillmentId, {
@@ -249,7 +278,59 @@ export async function cancelShipmentForFulfillment(
     awb,
     cancelled_at: cancelledAt,
     customer_notified: customerNotified,
+    shipping_reversed: shippingReversed,
     raw: outcome.raw,
+  }
+}
+
+/**
+ * Hand back the platform-shipping deduction the cancelled label booked.
+ *
+ * `recordPlatformShippingCost` stamps the carrier's quoted rate onto the order's
+ * `partner_fee` at label generation, and the payout view subtracts it. Without
+ * this, cancelling the waybill left that deduction standing — the partner went
+ * on paying freight for an AWB that no longer existed — and the replacement
+ * label silently inherited it whenever the new carrier quoted no rate of its own
+ * (Delhivery never does), so the charge would even keep the dead carrier's name.
+ *
+ * Best-effort, for the same reason the customer email is: the waybill is already
+ * cancelled at the carrier and that cannot be undone. Failing the operation over
+ * a bookkeeping write would report "cancel failed" for a cancel that succeeded.
+ * A miss leaves a stale deduction, which is visible and correctable; a false
+ * failure sends an operator to re-cancel a waybill that is already dead.
+ */
+async function reversePlatformShippingCost(
+  container: MedusaContainer,
+  args: {
+    orderId: string
+    fulfillmentId: string
+    awb?: string
+    reason?: string
+    actingEmail?: string
+    reversedAt: string
+  }
+): Promise<ShippingReversal | null> {
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+  try {
+    const billing: any = container.resolve(PARTNER_BILLING_MODULE)
+    const reversal = await billing.reverseShippingForOrder(args.orderId, {
+      awb: args.awb,
+      fulfillment_id: args.fulfillmentId,
+      reason: args.reason,
+      reversed_by: args.actingEmail,
+      reversed_at: args.reversedAt,
+    })
+    if (reversal) {
+      logger?.info?.(
+        `[cancel-shipment] reversed platform shipping ${reversal.amount} ${reversal.currency_code} (${reversal.carrier}) on order ${args.orderId}`
+      )
+    }
+    return reversal
+  } catch (e: any) {
+    logger?.warn?.(
+      `[cancel-shipment] could not reverse the platform shipping cost on order ${args.orderId}: ${e?.message}. The waybill IS cancelled; the payout still shows the old freight deduction.`
+    )
+    return null
   }
 }
 

@@ -522,6 +522,17 @@ export type CancelShipmentResponse = {
     cancelled_at: string;
     /** False when the customer email could not be sent (see the seed script). */
     customer_notified: boolean;
+    /**
+     * The platform-shipping deduction handed back to the partner, when the
+     * cancelled label had booked one. Null for a retail order, a partner on
+     * their own carrier account, or a carrier that quoted no rate.
+     */
+    shipping_reversed?: {
+      amount: number;
+      currency_code: string;
+      carrier: string | null;
+      awb: string | null;
+    } | null;
   };
 };
 

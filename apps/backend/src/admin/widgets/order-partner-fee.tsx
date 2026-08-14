@@ -19,6 +19,16 @@ type ShippingCharge = {
   is_foreign_currency: boolean
 }
 
+/** A freight charge given back because its waybill was cancelled (#1285). */
+type ReversedShippingCharge = {
+  amount: number
+  currency_code: string
+  carrier: string | null
+  awb: string | null
+  reversed_at: string | null
+  reason: string | null
+}
+
 type DescribedFee = {
   order_id: string
   status: string
@@ -30,6 +40,8 @@ type DescribedFee = {
   is_collectible: boolean
   /** Null when the partner shipped on their own carrier account. */
   shipping: ShippingCharge | null
+  /** Retired freight charges — shown for continuity, never deducted. */
+  shipping_reversals: ReversedShippingCharge[]
   /** order_total − commission − platform shipping. */
   net_payout: number
 }
@@ -116,6 +128,32 @@ const OrderPartnerFeeWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) =
               {formatMoney(fee.fee_amount, fee.currency_code)}
             </Text>
           </div>
+          {/* Freight from a cancelled waybill, listed before the live charge so
+              the column reads in the order it happened: charged, given back,
+              charged again on the replacement carrier. Struck through and
+              signed "+" because it is money returned, not money taken. */}
+          {(fee.shipping_reversals || []).map((r, i) => (
+            <div
+              key={`${r.awb || "reversal"}-${i}`}
+              className="flex items-start justify-between"
+            >
+              <div className="flex flex-col">
+                <Text size="small" className="text-ui-fg-muted">
+                  Shipping reversed
+                  {r.carrier ? ` (${r.carrier})` : ""}
+                </Text>
+                {r.awb && (
+                  <Text size="xsmall" className="text-ui-fg-muted">
+                    AWB {r.awb} cancelled
+                    {r.reason ? ` — ${r.reason}` : ""}
+                  </Text>
+                )}
+              </div>
+              <Text size="small" className="text-ui-fg-muted line-through">
+                {formatMoney(r.amount, r.currency_code)}
+              </Text>
+            </div>
+          ))}
           {/* Platform shipping — present only when the partner generated the
               label on OUR carrier account rather than shipping themselves. A
               foreign-currency carrier charge is shown but never folded into
