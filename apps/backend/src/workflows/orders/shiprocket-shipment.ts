@@ -632,7 +632,13 @@ export async function createShiprocketShipmentForFulfillment(
       : {}),
   })
 
-  await recordPlatformShippingCost(container, input.orderId, carrier, result)
+  await recordPlatformShippingCost(
+    container,
+    input.orderId,
+    input.fulfillmentId,
+    carrier,
+    result
+  )
 
   return { ...result, fulfillment_id: input.fulfillmentId }
 }
@@ -645,6 +651,12 @@ export async function createShiprocketShipmentForFulfillment(
  * to see it, because they charged the customer a flat shipping rate while our
  * real cost varies by lane.
  *
+ * Booked against the FULFILLMENT, not just the order. `partner_fee` is one row
+ * per order but freight is bought per box, so writing a bare scalar meant the
+ * second box's label overwrote the first box's cost and the partner was
+ * under-charged for every multi-box order. The ledger upserts by fulfillment id,
+ * which also makes re-labelling the same box correct it rather than double-bill.
+ *
  * Best-effort by design: a billing bookkeeping write must never fail a label
  * that the carrier has already accepted and assigned an AWB to. A miss leaves
  * the payout line absent, which reads as "no platform shipping" — the same as
@@ -653,6 +665,7 @@ export async function createShiprocketShipmentForFulfillment(
 async function recordPlatformShippingCost(
   container: MedusaContainer,
   orderId: string,
+  fulfillmentId: string,
   carrier: string,
   result: ShipmentResult
 ): Promise<void> {
@@ -667,24 +680,19 @@ async function recordPlatformShippingCost(
     }
 
     const billing: any = container.resolve(PARTNER_BILLING_MODULE)
-    const fee = await billing.findFeeForOrder(orderId)
-    if (!fee) {
-      // Retail order with no partner, or the accrual subscriber hasn't run.
-      // There's no row to hang the cost off; don't invent one here — accrual
-      // owns that lifecycle.
-      return
-    }
-
-    await billing.updatePartnerFees([
-      {
-        id: fee.id,
-        shipping_amount: amount,
-        shipping_currency_code: String(
-          result.provider_refs?.courier_rate_currency || "INR"
-        ).toUpperCase(),
-        shipping_carrier: carrier,
-      },
-    ])
+    // Returns null for a retail order with no partner, or when the accrual
+    // subscriber hasn't run — there is no row to hang the cost off, and
+    // inventing one here isn't this path's business; accrual owns that
+    // lifecycle.
+    await billing.recordShippingChargeForOrder(orderId, {
+      fulfillment_id: fulfillmentId,
+      amount,
+      currency_code: String(
+        result.provider_refs?.courier_rate_currency || "INR"
+      ).toUpperCase(),
+      carrier,
+      awb: result.awb || null,
+    })
   } catch (e: any) {
     logger?.warn?.(
       `[shiprocket-shipment] could not record platform shipping cost for order ${orderId}: ${e?.message}`

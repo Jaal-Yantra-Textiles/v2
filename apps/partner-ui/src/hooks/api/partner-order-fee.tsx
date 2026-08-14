@@ -17,6 +17,19 @@ export type PartnerOrderShippingCharge = {
 }
 
 /**
+ * One box's freight, attributed to the fulfillment that booked it. An order
+ * shipped in several boxes buys several waybills, possibly on several carriers.
+ */
+export type PartnerOrderShippingChargeLine = {
+  fulfillment_id: string | null
+  amount: number
+  currency_code: string
+  carrier: string | null
+  awb: string | null
+  is_foreign_currency: boolean
+}
+
+/**
  * A platform-shipping charge that was deducted and has since been given back,
  * because its waybill was cancelled (#1285 follow-up). Deducts nothing — it is
  * already out of `net_payout`, and is shown so the payout never appears to
@@ -40,8 +53,10 @@ export type PartnerOrderFeeDisplay = {
   order_total: number
   currency_code: string
   is_collectible: boolean
-  /** Null when the partner shipped on their own account. */
+  /** Rollup of the live freight. Null when the partner shipped on their own. */
   shipping: PartnerOrderShippingCharge | null
+  /** One live charge per fulfillment; several when the order shipped in boxes. */
+  shipping_charges: PartnerOrderShippingChargeLine[]
   /** Freight from cancelled waybills, given back. Usually empty. */
   shipping_reversals: PartnerOrderShippingReversal[]
   /** order_total − commission − platform shipping. */

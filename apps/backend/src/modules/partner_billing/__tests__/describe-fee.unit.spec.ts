@@ -51,6 +51,7 @@ describe("describeFee (#623)", () => {
       is_collectible: true,
       breakdown: null,
       shipping: null,
+      shipping_charges: [],
       shipping_reversals: [],
       net_payout: 9799.51,
     })
@@ -132,6 +133,113 @@ describe("describeFee (#623)", () => {
       expect(d.shipping!.currency_code).toBe("INR")
       expect(d.shipping!.is_foreign_currency).toBe(false)
       expect(d.net_payout).toBe(860)
+    })
+  })
+
+  describe("multi-fulfillment shipping", () => {
+    const base = {
+      order_id: "o",
+      currency_code: "inr",
+      fee_rate: 200,
+      fee_amount: 100,
+      order_total: 1000,
+      status: "accrued",
+    }
+    const line = (over: Record<string, any> = {}) => ({
+      fulfillment_id: "ful_1",
+      amount: 400,
+      currency_code: "INR",
+      carrier: "bluedart",
+      awb: "AWB1",
+      ...over,
+    })
+
+    it("deducts EVERY box's freight, not just the last recorded", () => {
+      const d = describeFee({
+        ...base,
+        metadata: {
+          shipping_charges: [
+            line(),
+            line({ fulfillment_id: "ful_2", amount: 250, carrier: "delhivery" }),
+          ],
+        },
+      })!
+      expect(d.shipping_charges).toHaveLength(2)
+      expect(d.shipping!.amount).toBe(650)
+      // Two carriers → no single name is true; the lines carry the detail.
+      expect(d.shipping!.carrier).toBeNull()
+      expect(d.shipping_charges.map((c) => c.carrier)).toEqual([
+        "bluedart",
+        "delhivery",
+      ])
+      // 1000 − 100 commission − 650 freight.
+      expect(d.net_payout).toBe(250)
+    })
+
+    it("keeps the single-box shape untouched — the case that covers most orders", () => {
+      const d = describeFee({
+        ...base,
+        shipping_amount: 400,
+        shipping_currency_code: "INR",
+        shipping_carrier: "bluedart",
+      })!
+      expect(d.shipping).toEqual({
+        amount: 400,
+        currency_code: "INR",
+        carrier: "bluedart",
+        is_foreign_currency: false,
+      })
+      expect(d.shipping_charges).toHaveLength(1)
+      // A pre-ledger row can't say which box it was for.
+      expect(d.shipping_charges[0].fulfillment_id).toBeNull()
+      expect(d.net_payout).toBe(500)
+    })
+
+    it("shows a foreign-currency box but never folds it into the deduction", () => {
+      const d = describeFee({
+        ...base,
+        metadata: {
+          shipping_charges: [
+            line(),
+            line({ fulfillment_id: "ful_2", amount: 30, currency_code: "USD" }),
+          ],
+        },
+      })!
+      expect(d.shipping_charges[1].is_foreign_currency).toBe(true)
+      expect(d.shipping!.amount).toBe(400)
+      // Only the INR box is deducted: 1000 − 100 − 400.
+      expect(d.net_payout).toBe(500)
+    })
+
+    it("attributes each line to its fulfillment and waybill", () => {
+      const d = describeFee({
+        ...base,
+        metadata: {
+          shipping_charges: [line(), line({ fulfillment_id: "ful_2", awb: "AWB2" })],
+        },
+      })!
+      expect(d.shipping_charges.map((c) => [c.fulfillment_id, c.awb])).toEqual([
+        ["ful_1", "AWB1"],
+        ["ful_2", "AWB2"],
+      ])
+    })
+
+    it("reverses one box and keeps deducting the other", () => {
+      const d = describeFee({
+        ...base,
+        metadata: {
+          shipping_charges: [
+            line({ fulfillment_id: "ful_2", amount: 250, carrier: "delhivery" }),
+          ],
+          shipping_reversals: [
+            { amount: 400, currency_code: "INR", carrier: "bluedart", awb: "AWB1" },
+          ],
+        },
+      })!
+      expect(d.shipping!.amount).toBe(250)
+      expect(d.shipping_reversals[0].amount).toBe(400)
+      // 1000 − 100 − 250; the reversed box costs nothing.
+      expect(d.net_payout).toBe(650)
     })
   })
 

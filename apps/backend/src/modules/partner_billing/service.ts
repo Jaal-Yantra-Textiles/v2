@@ -1,10 +1,12 @@
 import { MedusaService } from "@medusajs/framework/utils"
 import PartnerFee from "./models/partner-fee"
 import {
+  planShippingChargeUpsert,
   planShippingReversal,
+  type ShippingChargeInput,
   type ShippingReversal,
   type ShippingReversalEvent,
-} from "./reverse-shipping"
+} from "./shipping-ledger"
 
 /**
  * partner_billing — accrues platform commission fees per partner per order (#336).
@@ -58,6 +60,34 @@ class PartnerBillingService extends MedusaService({
   }
 
   /**
+   * Record what ONE fulfillment's label cost on the platform's carrier account.
+   *
+   * Upserts the per-fulfillment ledger and re-derives the scalar columns, so an
+   * order shipped in several boxes accumulates its freight instead of the last
+   * label overwriting the previous one's cost. Re-labelling the same box
+   * corrects that box rather than charging for it twice.
+   *
+   * Returns null when there is no fee row to hang the cost off — a retail order
+   * with no partner, or an accrual that hasn't run. Inventing a row here is not
+   * this method's business; accrual owns that lifecycle.
+   */
+  async recordShippingChargeForOrder(
+    orderId: string,
+    charge: Omit<ShippingChargeInput, "recorded_at"> & { recorded_at?: string }
+  ) {
+    const fee = await this.findFeeForOrder(orderId)
+    const update = planShippingChargeUpsert(fee as any, {
+      ...charge,
+      recorded_at: charge.recorded_at || new Date().toISOString(),
+    })
+    if (!update) {
+      return null
+    }
+    const [updated] = await this.updatePartnerFees([update])
+    return updated
+  }
+
+  /**
    * Reverse the platform-shipping deduction on an order, when its waybill is
    * cancelled (#1285 follow-up).
    *
@@ -65,9 +95,12 @@ class PartnerBillingService extends MedusaService({
    * `order.canceled`. This retires only the freight line: the order is still
    * live and will be re-labelled, most likely on a different carrier.
    *
-   * Idempotent — a row with no active shipping charge returns null and is left
-   * untouched, so a retried cancel cannot stack reversals. Returns the reversal
-   * that was recorded so the caller can surface the amount it just gave back.
+   * Scoped to the cancelled FULFILLMENT: an order shipped in two boxes that
+   * loses one waybill keeps paying for the box still travelling.
+   *
+   * Idempotent — no matching charge returns null and leaves the row untouched,
+   * so a retried cancel cannot stack reversals. Returns the reversal that was
+   * recorded so the caller can surface the amount it just gave back.
    */
   async reverseShippingForOrder(
     orderId: string,
