@@ -36,6 +36,8 @@ export { renderToolGuidance } from "../../../../lib/mcp-core"
 // ---- Reusable JSON-Schema fragments ---------------------------------------
 
 const STR = (description: string) => ({ type: "string", description })
+const BOOL = (description: string) => ({ type: "boolean", description })
+const INT = (description: string) => ({ type: "integer", description })
 
 const obj = (
   properties: Record<string, any>,
@@ -333,6 +335,124 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ["id"]
     ),
     sideEffects: "Publishing a product makes it live on the storefront.",
+  },
+  {
+    name: "bulk_update_products",
+    description: [
+      "Update MANY products, their variants and their stock levels in one call. Sensitive: requires confirm:true. ALWAYS dry_run first — the plan names every product and variant it would touch, with the before/after quantity at each location, and there is no undo once it fires.",
+      "Returns a PER-ROW outcome: one bad id never discards the rest of the batch, so read `variants`, `products` and `warnings` rather than just the status.",
+      "",
+      "TARGETING — combine freely:",
+      "- `products: [{ product_id, update, variants }]` for named products. Omit a product's `variants` key to mean EVERY variant of it.",
+      "- `selector` for filter-based batches: `{ all: true }`, `collection_id`, `category_id`, `status`, `product_ids`. This is how 'zero the whole catalogue' is one call. `all: true` must be passed explicitly — the selector will not default to everything.",
+      "- `product_update` / `variant_update` apply to everything selected; a per-row `update` wins over them.",
+      "",
+      "INVENTORY — `set_inventory: { quantity, ensure_managed, location_ids }`:",
+      "- `quantity` is ABSOLUTE, not a delta. 0 zeroes the stock.",
+      "- 🔑 `ensure_managed: true` is what makes this work on untracked variants. Medusa CANNOT turn inventory tracking on for a variant that already exists — core only ever turns it off — so a variant with `manage_inventory: false` has no inventory item and nothing to stock. With this flag the tool creates the inventory item, links it to the variant, seeds the levels, then writes the quantity. Without it, untracked variants come back `skipped` and their stock is untouched.",
+      "- `location_ids` defaults to every location on the scoping sales channel.",
+      "",
+      "⚠️ `manage_inventory: false` is REFUSED here. Core dismisses the variant's inventory item and its levels with it, with no undo, so it is not something to do to a whole selector. Use `update_product_variant` one variant at a time.",
+      "Capped at 200 products per call.",
+    ].join("\n"),
+    method: "POST",
+    path: "/admin/products/bulk-update",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "products",
+      "selector",
+      "product_update",
+      "variant_update",
+      "set_inventory",
+      "dry_run",
+    ],
+    inputSchema: obj({
+      products: {
+        type: "array",
+        description:
+          "Named products. Omit a row's `variants` to target every variant of it.",
+        items: {
+          type: "object",
+          properties: {
+            product_id: STR("Product id, e.g. 'prod_...'."),
+            update: {
+              type: "object",
+              description:
+                "Product fields to change (title, subtitle, description, handle, status, material, hs_code, weight, metadata, …).",
+              additionalProperties: true,
+            },
+            variants: {
+              type: "array",
+              description:
+                "Specific variants only. Omit the key entirely to mean all of them.",
+              items: {
+                type: "object",
+                properties: {
+                  variant_id: STR("Variant id, e.g. 'variant_...'."),
+                  update: {
+                    type: "object",
+                    description:
+                      "Variant fields to change (title, sku, hs_code, origin_country, material, allow_backorder, weight, metadata, …).",
+                    additionalProperties: true,
+                  },
+                },
+                required: ["variant_id"],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ["product_id"],
+          additionalProperties: false,
+        },
+      },
+      selector: {
+        type: "object",
+        description:
+          "Filter-based targeting. Must narrow something; pass all: true to mean the whole catalogue.",
+        properties: {
+          all: BOOL("Every product in scope. Say this explicitly."),
+          product_ids: { type: "array", items: { type: "string" }, description: "Specific product ids." },
+          collection_id: { type: "array", items: { type: "string" }, description: "Restrict to these collections." },
+          category_id: { type: "array", items: { type: "string" }, description: "Restrict to these categories." },
+          status: { type: "array", items: { type: "string" }, description: "Restrict to these product statuses." },
+        },
+        additionalProperties: false,
+      },
+      product_update: {
+        type: "object",
+        description: "Product fields applied to every selected product.",
+        additionalProperties: true,
+      },
+      variant_update: {
+        type: "object",
+        description:
+          "Variant fields applied to every selected variant. manage_inventory: false is refused.",
+        additionalProperties: true,
+      },
+      set_inventory: {
+        type: "object",
+        description: "Stock to write on every selected variant.",
+        properties: {
+          quantity: INT("Absolute on-hand quantity. NOT a delta; 0 zeroes it."),
+          ensure_managed: BOOL(
+            "Turn inventory tracking on where it is off, creating the inventory item, link and levels core never makes for an existing variant. Untracked variants are skipped without this."
+          ),
+          location_ids: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Stock locations to write. Defaults to every location on the sales channel.",
+          },
+        },
+        required: ["quantity"],
+        additionalProperties: false,
+      },
+      dry_run: BOOL("Return the plan without writing. Do this first."),
+    }),
+    sideEffects:
+      "Overwrites live catalogue fields and on-hand stock across many products at once. Enabling tracking creates inventory items and levels. Setting a quantity below a variant's reserved stock oversells open orders — the response warns, it does not block.",
+    nextSteps: ["list_products", "get_product"],
   },
   // ===== Customs / HS codes ===============================================
   // Shiprocket rejects EVERY international shipment whose lines lack an HSN,

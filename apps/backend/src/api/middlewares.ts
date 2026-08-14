@@ -175,6 +175,7 @@ import { PartnerAssistantSummarizeSchema } from "./partners/assistant/summarize/
 import { CreateConversationSchema as PartnerCreateConversationSchema, UpdateConversationSchema as PartnerUpdateConversationSchema } from "./partners/assistant/conversations/validators";
 import { CreateConversationSchema as AdminAssistantCreateConversationSchema, UpdateConversationSchema as AdminAssistantUpdateConversationSchema } from "./admin/assistant/conversations/validators";
 import { BulkHsCodesSchema } from "./admin/customs/hs-codes/validators";
+import { BulkUpdateProductsSchema } from "./admin/products/bulk-update/validators";
 import {
   CreateExportLutSchema,
   UpdateExportLutSchema,
@@ -2425,6 +2426,25 @@ export default defineMiddlewares({
       matcher: "/admin/customs/hs-codes",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(BulkHsCodesSchema))],
+    },
+    // Bulk product / variant / inventory editing. The one path that can turn
+    // inventory tracking ON for an existing variant — core only ever turns it
+    // off. Partner mirror below is store- and location-scoped.
+    {
+      matcher: "/admin/products/bulk-update",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(BulkUpdateProductsSchema)),
+      ],
+    },
+    {
+      matcher: "/partners/stores/:id/products/bulk-update",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(BulkUpdateProductsSchema)),
+      ],
     },
     // Partner mirrors. These carry their own CORS + partner auth, and the POST
     // additionally re-checks every id against the store's catalogue inside the

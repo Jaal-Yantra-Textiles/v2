@@ -230,4 +230,26 @@ describe("admin-mcp per-ask tool slicing", () => {
       expect(slice.names).toContain("bulk_set_hs_codes")
     })
   })
+
+  describe("bulk product editing reaches the catalog slice", () => {
+    it("classifies bulk_update_products as catalog", () => {
+      const byName = new Map(ADMIN_MCP_TOOLS.map((t) => [t.name, t]))
+      expect(toolDomain(byName.get("bulk_update_products")!)).toBe("catalog")
+    })
+
+    // The tool lives under /admin/products and so classifies as catalog, but
+    // the asks that need it are usually phrased in INVENTORY words. Each of
+    // these would match only the inventory slice on its nouns alone, and the
+    // one tool that can serve them would never load.
+    it.each([
+      "zero the stock on everything",
+      "set stock to zero for all products",
+      "start tracking stock on the whole range",
+      "turn on manage inventory for every product",
+      "bulk update these products and their variants",
+    ])("activates it for: %s", (ask) => {
+      const slice = selectAdminToolSlice(ask, ADMIN_MCP_TOOLS)
+      expect(slice.names).toContain("bulk_update_products")
+    })
+  })
 })
