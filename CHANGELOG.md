@@ -1,3 +1,10 @@
+## [13.92.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.92.0...v13.92.1) (2026-08-14)
+
+
+### Bug Fixes
+
+* **bluedart:** send the pickup address, declare parcels as NonDox ([#1285](https://github.com/Jaal-Yantra-Textiles/v2/issues/1285)) ([#1296](https://github.com/Jaal-Yantra-Textiles/v2/issues/1296)) ([74b247d](https://github.com/Jaal-Yantra-Textiles/v2/commit/74b247dd74cefd91044b82eb046bffdf19b3c917))
+
 # [13.92.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.91.0...v13.92.0) (2026-08-14)
 
 
