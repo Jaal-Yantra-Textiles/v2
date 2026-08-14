@@ -282,5 +282,59 @@ setupSharedTestSuite(() => {
       await fulfillmentModule.updateFulfillment(fulfillmentId, { labels: [] })
       expect(await labelsOf()).toHaveLength(0)
     })
+
+    it("updateFulfillment MERGES data — delete is a no-op, null is what clears", async () => {
+      // The sibling of the labels rule above, and the OPPOSITE of it. Missing
+      // this cost us order 83 on prod: the cancel flow removed the carrier keys
+      // from the object it passed, the pure unit test asserted they were gone
+      // and passed, and the stored row went on advertising a Delhivery AWB that
+      // was already dead at the carrier. A pure-function test structurally
+      // cannot see this — only a round trip through the ORM can.
+      const container = getContainer()
+      const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+      const fulfillmentModule: any = container.resolve(Modules.FULFILLMENT)
+
+      const lineItemId = await buildDesignOrder()
+      const convertRes = await api.post(
+        `/admin/designs/orders/${lineItemId}/convert`,
+        { payment_mode: "prepaid" },
+        adminHeaders
+      )
+      const orderId = convertRes.data.design_order_conversion.order_id
+      const fulfillmentId = await ensureOrderFulfillment(container, orderId)
+
+      const dataOf = async () => {
+        const { data } = await query.graph({
+          entity: "fulfillment",
+          fields: ["id", "data"],
+          filters: { id: fulfillmentId },
+        })
+        return data?.[0]?.data || {}
+      }
+
+      await fulfillmentModule.updateFulfillment(fulfillmentId, {
+        data: { carrier: "delhivery", waybill: "AWB-MERGE-1", keep_me: "yes" },
+      })
+      expect((await dataOf()).waybill).toBe("AWB-MERGE-1")
+
+      // Omitting a key does NOT remove it — this is the trap.
+      await fulfillmentModule.updateFulfillment(fulfillmentId, {
+        data: { keep_me: "yes", cancelled_shipments: [{ awb: "AWB-MERGE-1" }] },
+      })
+      const afterOmit = await dataOf()
+      expect(afterOmit.cancelled_shipments).toHaveLength(1)
+      expect(afterOmit.waybill).toBe("AWB-MERGE-1")
+      expect(afterOmit.carrier).toBe("delhivery")
+
+      // An explicit null does, which is why the cancel and detach planners
+      // write nulls instead of deleting.
+      await fulfillmentModule.updateFulfillment(fulfillmentId, {
+        data: { ...afterOmit, carrier: null, waybill: null },
+      })
+      const afterNull = await dataOf()
+      expect(afterNull.waybill).toBeFalsy()
+      expect(afterNull.carrier).toBeFalsy()
+      expect(afterNull.keep_me).toBe("yes")
+    })
   })
 })
