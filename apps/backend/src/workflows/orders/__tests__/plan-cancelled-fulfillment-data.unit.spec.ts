@@ -18,7 +18,7 @@ const RECORD: CancelledShipmentRecord = {
 }
 
 describe("planCancelledFulfillmentData", () => {
-  it("strips every carrier ref so the fulfillment reads as un-labelled", () => {
+  it("NULLS every carrier ref — deleting them does not survive the jsonb merge", () => {
     const next = planCancelledFulfillmentData(
       {
         carrier: "delhivery",
@@ -33,8 +33,12 @@ describe("planCancelledFulfillmentData", () => {
       RECORD
     )
 
-    // The "generate label" path keys off these being absent — a leftover would
-    // make the order look shipped and block the re-label it exists to enable.
+    // This assertion used to be `not.toHaveProperty` and passed for months while
+    // the refs sat untouched on prod: `updateFulfillment` MERGES `data`, so a key
+    // this function removes is re-supplied from the stored row. Order 83's
+    // cancellation (Delhivery AWB 41712510000092) is the proof — audit entry
+    // written, labels dropped, `waybill` still there. The key must be PRESENT and
+    // null, which is what actually overwrites the stored value.
     for (const key of [
       "carrier",
       "waybill",
@@ -45,8 +49,22 @@ describe("planCancelledFulfillmentData", () => {
       "sr_order_id",
       "provider_refs",
     ]) {
-      expect(next).not.toHaveProperty(key)
+      expect(next).toHaveProperty(key)
+      expect(next[key]).toBeNull()
     }
+  })
+
+  it("leaves the refs falsy, which is what every reader actually tests", () => {
+    const next = planCancelledFulfillmentData(
+      { carrier: "bluedart", waybill: "AWB1", provider_refs: { waybill: "AWB1" } },
+      RECORD
+    )
+    // `shipmentRefFromFulfillment`, the label widget and the re-label path all
+    // key off truthiness, so a null reads identically to an absent key to them —
+    // that equivalence is the whole reason nulling is safe.
+    expect(next.waybill).toBeFalsy()
+    expect(next.carrier).toBeFalsy()
+    expect(next.provider_refs).toBeFalsy()
   })
 
   it("keeps unrelated fulfillment data untouched", () => {
@@ -76,12 +94,21 @@ describe("planCancelledFulfillmentData", () => {
   })
 
   it("survives a fulfillment that has no data at all", () => {
-    expect(planCancelledFulfillmentData(null, RECORD)).toEqual({
+    // The nulls are written unconditionally: a row that never had the key is
+    // unaffected by being sent an explicit null for it.
+    const expected = {
+      carrier: null,
+      waybill: null,
+      tracking_number: null,
+      tracking_url: null,
+      label_url: null,
+      shipment_id: null,
+      sr_order_id: null,
+      provider_refs: null,
       cancelled_shipments: [RECORD],
-    })
-    expect(planCancelledFulfillmentData(undefined, RECORD)).toEqual({
-      cancelled_shipments: [RECORD],
-    })
+    }
+    expect(planCancelledFulfillmentData(null, RECORD)).toEqual(expected)
+    expect(planCancelledFulfillmentData(undefined, RECORD)).toEqual(expected)
   })
 
   it("does not mutate the fulfillment data it was handed", () => {

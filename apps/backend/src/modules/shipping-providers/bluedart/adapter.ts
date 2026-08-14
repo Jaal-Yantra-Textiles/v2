@@ -26,6 +26,11 @@ import {
   toBlueDartTime,
   toMsJsonDate,
 } from "./constants"
+import {
+  blueDartDigits,
+  blueDartField,
+  packBlueDartAddress,
+} from "./address"
 import type { BlueDartConfig } from "./types"
 
 /**
@@ -79,17 +84,34 @@ export class BlueDartProviderAdapter implements ShippingProviderClient {
   async createShipment(input: CreateShipmentInput): Promise<ShipmentResult> {
     const international = isInternationalDestination(input.to.country)
     const dims = input.dimensions_cm
+    // Every name and address line is capped at 30 characters and Blue Dart
+    // reports a breach as an empty-bodied 400, so pack both addresses before
+    // building the request rather than discovering it at the gateway.
+    const consignee = packBlueDartAddress(input.to.address_1, input.to.address_2)
+    const shipper = packBlueDartAddress(
+      input.from?.address_1,
+      input.from?.address_2
+    )
+    // `pickup_location_name` is the fallback the Shipper block has always used,
+    // but it is frequently the derived `warehouse-<last8>` handle (#1234) — a
+    // routing key rather than a sender a courier should read.
+    const shipperName = blueDartField(
+      input.from?.name || input.pickup_location_name
+    )
     const request: Record<string, any> = {
       Consignee: {
-        ConsigneeName: input.to.name,
-        ConsigneeAddress1: input.to.address_1,
-        ConsigneeAddress2: input.to.address_2 || "",
-        ConsigneeAddress3: "",
+        ConsigneeName: blueDartField(input.to.name),
+        // Packed, not truncated: a 43-character street line (order 83's
+        // Gandhinagar address) has to wrap onto the optional lines or Blue Dart
+        // 400s with an empty body naming nothing.
+        ConsigneeAddress1: consignee.line1,
+        ConsigneeAddress2: consignee.line2,
+        ConsigneeAddress3: consignee.line3,
         ConsigneeAddressType: "R",
-        ConsigneeAttention: input.to.name,
+        ConsigneeAttention: blueDartField(input.to.name),
         ConsigneeEmailID: input.to.email || "",
-        ConsigneeMobile: input.to.phone,
-        ConsigneePincode: input.to.pincode,
+        ConsigneeMobile: blueDartDigits(input.to.phone, 15),
+        ConsigneePincode: blueDartDigits(input.to.pincode, 6),
         ConsigneeTelephone: "",
         ...(international
           ? {
@@ -99,29 +121,29 @@ export class BlueDartProviderAdapter implements ShippingProviderClient {
           : {}),
       },
       Shipper: {
-        CustomerName: input.from?.name || input.pickup_location_name,
+        CustomerName: shipperName,
         CustomerCode: this.client.profile.Customercode,
-        CustomerAddress1: input.from?.address_1 || "",
-        CustomerAddress2: input.from?.address_2 || "",
-        CustomerAddress3: "",
+        CustomerAddress1: shipper.line1,
+        CustomerAddress2: shipper.line2,
+        CustomerAddress3: shipper.line3,
         CustomerEmailID: input.from?.email || "",
         CustomerGSTNumber: input.tax_id || "",
-        CustomerMobile: input.from?.phone || "",
-        CustomerPincode: input.from?.pincode || "",
+        CustomerMobile: blueDartDigits(input.from?.phone, 15),
+        CustomerPincode: blueDartDigits(input.from?.pincode, 6),
         CustomerTelephone: "",
         IsToPayCustomer: false,
         OriginArea: this.client.originArea,
-        Sender: input.from?.name || input.pickup_location_name,
+        Sender: shipperName,
         VendorCode: "",
       },
       Returnadds: {
-        ReturnAddress1: input.from?.address_1 || "",
-        ReturnAddress2: input.from?.address_2 || "",
-        ReturnAddress3: "",
-        ReturnContact: input.from?.name || input.pickup_location_name,
+        ReturnAddress1: shipper.line1,
+        ReturnAddress2: shipper.line2,
+        ReturnAddress3: shipper.line3,
+        ReturnContact: shipperName,
         ReturnEmailID: input.from?.email || "",
-        ReturnMobile: input.from?.phone || "",
-        ReturnPincode: input.from?.pincode || "",
+        ReturnMobile: blueDartDigits(input.from?.phone, 15),
+        ReturnPincode: blueDartDigits(input.from?.pincode, 6),
         ReturnTelephone: "",
         ManifestNumber: "",
       },

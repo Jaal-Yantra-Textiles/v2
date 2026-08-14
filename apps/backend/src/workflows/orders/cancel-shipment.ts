@@ -77,6 +77,16 @@ const CARRIER_DATA_KEYS = [
  * anyone has for reconciling a carrier invoice against it later. Losing that on
  * the way out would make the cancellation itself untraceable.
  *
+ * ⚠️ The refs are NULLED, not deleted, and that is load-bearing.
+ * `updateFulfillment` MERGES the `data` jsonb (unlike `labels`, which it
+ * replaces wholesale), so a key removed from the object we hand it is simply
+ * re-supplied from the stored row. The first real cancellation on prod — order
+ * 83, Delhivery AWB 41712510000092 — proved it: the audit entry appeared, the
+ * label rows went, and `waybill` / `carrier` / `tracking_number` all survived a
+ * function whose unit tests correctly showed them deleted. Every reader treats
+ * these as truthy-or-absent, so an explicit null reads as "gone" while actually
+ * surviving the merge.
+ *
  * Exported for unit testing: this is the half that decides what survives.
  */
 export function planCancelledFulfillmentData(
@@ -85,7 +95,7 @@ export function planCancelledFulfillmentData(
 ): Record<string, any> {
   const next: Record<string, any> = { ...(data || {}) }
   for (const key of CARRIER_DATA_KEYS) {
-    delete next[key]
+    next[key] = null
   }
   const history = Array.isArray(next.cancelled_shipments)
     ? next.cancelled_shipments
