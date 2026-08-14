@@ -13,7 +13,7 @@ import {
 } from "../../modules/shipping-providers/resolver"
 import { EMAIL_TEMPLATES_MODULE } from "../../modules/email_templates"
 import { PARTNER_BILLING_MODULE } from "../../modules/partner_billing"
-import type { ShippingReversal } from "../../modules/partner_billing/reverse-shipping"
+import type { ShippingReversal } from "../../modules/partner_billing/shipping-ledger"
 
 /**
  * Cancel a carrier waybill for a fulfillment, end to end.
@@ -292,6 +292,10 @@ export async function cancelShipmentForFulfillment(
  * on paying freight for an AWB that no longer existed — and the replacement
  * label silently inherited it whenever the new carrier quoted no rate of its own
  * (Delhivery never does), so the charge would even keep the dead carrier's name.
+ *
+ * Scoped to THIS fulfillment. An order shipped in two boxes that loses one
+ * waybill must keep paying for the box still travelling, so the reversal takes
+ * only the cancelled box's line off the ledger.
  *
  * Best-effort, for the same reason the customer email is: the waybill is already
  * cancelled at the carrier and that cannot be undone. Failing the operation over

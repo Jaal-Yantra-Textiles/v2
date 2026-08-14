@@ -1304,6 +1304,9 @@ const PartnerPayout = ({ order }: { order: AdminOrder }) => {
   }
 
   const shipping = fee.shipping
+  // Several boxes → itemise. The customer-paid comparison below only makes
+  // sense against a single parcel's freight, so it is dropped in that case.
+  const multiBox = (fee.shipping_charges || []).length > 1
   // What the customer was charged for shipping, for the side-by-side compare.
   const customerPaidShipping = order.shipping_total ?? 0
   const showShippingCompare =
@@ -1375,7 +1378,41 @@ const PartnerPayout = ({ order }: { order: AdminOrder }) => {
         </div>
       ))}
 
-      {shipping && (
+      {/* One line per box once an order ships in more than one. A partner
+          querying a freight deduction asks "which parcel?" first, and a single
+          summed number cannot answer it. One box keeps the original line, with
+          its customer-paid comparison. */}
+      {multiBox &&
+        fee.shipping_charges.map((charge, i) => (
+          <div
+            key={charge.fulfillment_id || charge.awb || i}
+            className="text-ui-fg-subtle flex items-start justify-between"
+          >
+            <div className="flex flex-col">
+              <Text size="small" leading="compact">
+                Platform shipping
+                {charge.carrier ? ` (${charge.carrier})` : ""}
+              </Text>
+              {charge.awb && (
+                <Text size="xsmall" leading="compact" className="text-ui-fg-muted">
+                  AWB {charge.awb}
+                </Text>
+              )}
+              {charge.is_foreign_currency && (
+                <Text size="xsmall" leading="compact" className="text-ui-fg-muted">
+                  Charged in {charge.currency_code}; settled separately at the
+                  prevailing rate.
+                </Text>
+              )}
+            </div>
+            <Text size="small" leading="compact" className="whitespace-nowrap">
+              {charge.is_foreign_currency ? "" : "− "}
+              {getStylizedAmount(charge.amount, charge.currency_code)}
+            </Text>
+          </div>
+        ))}
+
+      {!multiBox && shipping && (
         <div className="text-ui-fg-subtle flex items-start justify-between">
           <div className="flex flex-col">
             <Text size="small" leading="compact">

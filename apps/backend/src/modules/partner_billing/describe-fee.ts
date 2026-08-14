@@ -11,9 +11,9 @@
  * coerced with `Number(...)` and non-finite values count as 0.
  */
 
-// `reverse-shipping` is itself pure and dependency-free, so importing it here
+// `shipping-ledger` is itself pure and dependency-free, so importing it here
 // keeps this file's "trivially unit-testable" contract intact.
-import { readShippingReversals } from "./reverse-shipping"
+import { readShippingCharges, readShippingReversals } from "./shipping-ledger"
 
 export type PartnerFeeBasis = "percentage" | "flat"
 
@@ -66,6 +66,16 @@ export type DescribedFee = {
    */
   shipping: ShippingCharge | null
   /**
+   * The live freight charges, one per fulfillment. Freight is booked per BOX
+   * while the fee row is per ORDER, so a multi-box order carries several.
+   *
+   * `shipping` above is their rollup and remains the right thing to render for
+   * the single-box case that covers almost every order; this is what a UI shows
+   * when there is more than one, since "platform shipping" as a single number
+   * can't say which box, which carrier, or which waybill.
+   */
+  shipping_charges: ShippingChargeLine[]
+  /**
    * Platform-shipping charges that WERE deducted and have since been given back
    * because their waybill was cancelled. Empty for the overwhelming majority of
    * orders.
@@ -84,6 +94,17 @@ export type DescribedFee = {
    * likewise absent — reversing is what removed it.
    */
   net_payout: number
+}
+
+/** One box's freight charge, attributed to the fulfillment that booked it. */
+export type ShippingChargeLine = {
+  fulfillment_id: string | null
+  amount: number
+  currency_code: string
+  carrier: string | null
+  awb: string | null
+  /** True when quoted outside the order currency — shown, never deducted. */
+  is_foreign_currency: boolean
 }
 
 /** A retired platform-shipping charge, shown for continuity, never deducted. */
@@ -174,17 +195,51 @@ export function describeFee(
   // `null`/absent means the partner didn't use our shipping. A recorded 0 is a
   // real free-shipping rate and must survive as a shipping row, so test for
   // presence rather than truthiness.
+  // Freight is booked per fulfillment; the ledger keeps one line per box and
+  // synthesises a single line from the legacy scalar for rows written before it
+  // existed, so this reads the same either way.
+  const ledger = readShippingCharges(fee)
+  // With no order currency recorded there is no way to tell "same currency" from
+  // "foreign", so the first line sets the reference rather than everything being
+  // classed foreign and silently dropping out of the payout.
+  const reference = currency_code || ledger[0]?.currency_code || ""
+  const shipping_charges: ShippingChargeLine[] = ledger.map((c) => ({
+    fulfillment_id: c.fulfillment_id,
+    amount: c.amount,
+    currency_code: c.currency_code,
+    carrier: c.carrier,
+    awb: c.awb,
+    is_foreign_currency: c.currency_code !== reference,
+  }))
+  const deductibleLines = shipping_charges.filter((c) => !c.is_foreign_currency)
+
+  // The rollup. A single charge passes through untouched — that is the shape
+  // every existing client reads and the case that covers almost every order.
+  // Several collapse to the deductible total, with the carrier dropped when more
+  // than one is involved (no single name is true) and the detail left in
+  // `shipping_charges`.
   const shipping: ShippingCharge | null =
-    fee.shipping_amount === null || fee.shipping_amount === undefined
+    shipping_charges.length === 0
       ? null
-      : {
-          amount: toNum(fee.shipping_amount),
-          currency_code: (fee.shipping_currency_code || currency_code).toUpperCase(),
-          carrier: fee.shipping_carrier || null,
-          is_foreign_currency:
-            !!fee.shipping_currency_code &&
-            fee.shipping_currency_code.toUpperCase() !== currency_code,
-        }
+      : shipping_charges.length === 1
+        ? {
+            amount: shipping_charges[0].amount,
+            currency_code: shipping_charges[0].currency_code,
+            carrier: shipping_charges[0].carrier,
+            is_foreign_currency: shipping_charges[0].is_foreign_currency,
+          }
+        : deductibleLines.length === 0
+          ? null
+          : {
+              amount: deductibleLines.reduce((s, c) => s + c.amount, 0),
+              currency_code: reference,
+              carrier:
+                new Set(deductibleLines.map((c) => c.carrier).filter(Boolean))
+                  .size === 1
+                  ? deductibleLines.find((c) => c.carrier)!.carrier
+                  : null,
+              is_foreign_currency: false,
+            }
 
   // Reversed charges are display-only — they were removed from the row when the
   // waybill was cancelled, so they must never re-enter the arithmetic below.
@@ -204,9 +259,12 @@ export function describeFee(
   // is deliberately NOT subtracted — converting it here would invent an FX rate
   // this pure function has no business choosing; the UI shows it as its own
   // line in its own currency instead.
+  // Every box's freight comes off, not just the last one recorded. Summed from
+  // the lines rather than the rollup so a multi-carrier order deducts each
+  // order-currency charge even where no single carrier name applies.
   const deductions =
     (is_collectible ? fee_amount : 0) +
-    (shipping && !shipping.is_foreign_currency ? shipping.amount : 0)
+    deductibleLines.reduce((s, c) => s + c.amount, 0)
 
   return {
     order_id: String(fee.order_id),
@@ -220,6 +278,7 @@ export function describeFee(
     is_collectible,
     breakdown,
     shipping,
+    shipping_charges,
     shipping_reversals,
     net_payout: order_total - deductions,
   }

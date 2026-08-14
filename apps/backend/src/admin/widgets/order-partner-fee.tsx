@@ -19,6 +19,16 @@ type ShippingCharge = {
   is_foreign_currency: boolean
 }
 
+/** One box's freight, attributed to the fulfillment that booked it. */
+type ShippingChargeLine = {
+  fulfillment_id: string | null
+  amount: number
+  currency_code: string
+  carrier: string | null
+  awb: string | null
+  is_foreign_currency: boolean
+}
+
 /** A freight charge given back because its waybill was cancelled (#1285). */
 type ReversedShippingCharge = {
   amount: number
@@ -38,8 +48,10 @@ type DescribedFee = {
   order_total: number
   currency_code: string
   is_collectible: boolean
-  /** Null when the partner shipped on their own carrier account. */
+  /** Rollup of the live freight. Null when the partner shipped on their own. */
   shipping: ShippingCharge | null
+  /** One live charge per fulfillment — several when the order shipped in boxes. */
+  shipping_charges: ShippingChargeLine[]
   /** Retired freight charges — shown for continuity, never deducted. */
   shipping_reversals: ReversedShippingCharge[]
   /** order_total − commission − platform shipping. */
@@ -158,18 +170,45 @@ const OrderPartnerFeeWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) =
               label on OUR carrier account rather than shipping themselves. A
               foreign-currency carrier charge is shown but never folded into
               net_payout (no FX rate is invented server-side). */}
-          {fee.shipping && (
-            <div className="flex items-center justify-between">
-              <Text size="small" className="text-ui-fg-subtle">
-                Platform shipping
-                {fee.shipping.carrier ? ` (${fee.shipping.carrier})` : ""}
-              </Text>
-              <Text size="small" weight="plus">
-                {formatMoney(fee.shipping.amount, fee.shipping.currency_code)}
-                {fee.shipping.is_foreign_currency ? " *" : ""}
-              </Text>
-            </div>
-          )}
+          {/* One line per box once an order ships in more than one. A single
+              "Platform shipping" number can't say which box, which carrier or
+              which waybill, and those are exactly the questions asked when the
+              figure is queried. One box keeps the original single line. */}
+          {(fee.shipping_charges || []).length > 1
+            ? fee.shipping_charges.map((c, i) => (
+                <div
+                  key={c.fulfillment_id || c.awb || i}
+                  className="flex items-start justify-between"
+                >
+                  <div className="flex flex-col">
+                    <Text size="small" className="text-ui-fg-subtle">
+                      Platform shipping
+                      {c.carrier ? ` (${c.carrier})` : ""}
+                    </Text>
+                    {c.awb && (
+                      <Text size="xsmall" className="text-ui-fg-muted">
+                        AWB {c.awb}
+                      </Text>
+                    )}
+                  </div>
+                  <Text size="small" weight="plus">
+                    {formatMoney(c.amount, c.currency_code)}
+                    {c.is_foreign_currency ? " *" : ""}
+                  </Text>
+                </div>
+              ))
+            : fee.shipping && (
+                <div className="flex items-center justify-between">
+                  <Text size="small" className="text-ui-fg-subtle">
+                    Platform shipping
+                    {fee.shipping.carrier ? ` (${fee.shipping.carrier})` : ""}
+                  </Text>
+                  <Text size="small" weight="plus">
+                    {formatMoney(fee.shipping.amount, fee.shipping.currency_code)}
+                    {fee.shipping.is_foreign_currency ? " *" : ""}
+                  </Text>
+                </div>
+              )}
           <div className="flex items-center justify-between">
             <Text size="small" className="text-ui-fg-subtle">
               Order total
@@ -186,10 +225,13 @@ const OrderPartnerFeeWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) =
               {formatMoney(fee.net_payout, fee.currency_code)}
             </Text>
           </div>
-          {fee.shipping?.is_foreign_currency && (
+          {/* Read from the lines, not the rollup: on a multi-box order the
+              rollup is the deductible total and is never itself foreign, so
+              keying the footnote off it would hide the asterisk it explains. */}
+          {(fee.shipping_charges || []).some((c) => c.is_foreign_currency) && (
             <Text size="xsmall" className="text-ui-fg-muted">
-              * Shipping was charged in {fee.shipping.currency_code} and is
-              settled separately, so it is not deducted above.
+              * Charged in the carrier's own currency and settled separately, so
+              it is not deducted above.
             </Text>
           )}
         </div>
