@@ -361,7 +361,7 @@ export const CARRIER_CHANGED_TEMPLATE_KEY = "order-courier-changed"
  * definitively succeeded — the worst possible lie to tell an operator who now
  * has to decide whether to retry.
  */
-async function notifyCustomerOfCarrierChange(
+export async function notifyCustomerOfCarrierChange(
   container: MedusaContainer,
   args: { order: any; carrier?: string; reason?: string }
 ): Promise<boolean> {

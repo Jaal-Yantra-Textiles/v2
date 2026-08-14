@@ -105,6 +105,8 @@ import { backfillDesignSizeSetsJob } from "./backfill-design-size-sets-job"
 import { backfillPartnerShippingOptionsJob } from "./backfill-partner-shipping-options-job"
 import { repairShippingOptionStoreVisibilityJob } from "./repair-shipping-option-store-visibility-job"
 import { backfillOpenOrderRequiresShippingJob } from "./backfill-open-order-requires-shipping-job"
+import { cleanOrderFulfillmentDataJob } from "./clean-order-fulfillment-data-job"
+import { sendCourierChangedEmailJob } from "./send-courier-changed-email-job"
 import { backfillProductShippingProfilesJob } from "./backfill-product-shipping-profiles-job"
 import { normalizeArtisanProductsJob } from "./normalize-artisan-products-job"
 import { linkArtisanDetailRowsJob } from "./link-artisan-detail-rows-job"
@@ -5723,6 +5725,8 @@ export const seedGoodsTransferTaskTemplateJob: MaintenanceJob = {
 }
 
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
+  cleanOrderFulfillmentDataJob,
+  sendCourierChangedEmailJob,
   recalculateDesignCostJob,
   recalculateDesignCostBulkJob,
   correctProductionRunCostJob,
