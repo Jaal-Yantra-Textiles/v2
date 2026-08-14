@@ -21,7 +21,9 @@ import {
   BLUEDART_DEFAULT_DIMENSIONS,
   BLUEDART_INTL_SUBPRODUCT,
   BLUEDART_PICKUP_SUBPRODUCTS,
+  BLUEDART_PICKUP_DOXNDOX_PARCEL,
   BLUEDART_PRODUCT,
+  BLUEDART_PRODUCT_TYPE_PARCEL,
   gramsToKgString,
   toBlueDartTime,
   toMsJsonDate,
@@ -184,7 +186,9 @@ export class BlueDartProviderAdapter implements ShippingProviderClient {
         ProductCode: international
           ? BLUEDART_PRODUCT.international
           : BLUEDART_PRODUCT.domestic,
-        ProductType: 0,
+        // Parcel, not documents. `0` shipped order 83's two garments as
+        // `productName: "Documents"` — see BLUEDART_PRODUCT_TYPE_PARCEL.
+        ProductType: BLUEDART_PRODUCT_TYPE_PARCEL,
         // Booked separately by `schedulePickup` — see the class docblock.
         RegisterPickup: false,
         SpecialInstruction: blueDartField(input.product_description, 50),
@@ -411,7 +415,8 @@ export class BlueDartProviderAdapter implements ShippingProviderClient {
       // a colon it does not parse. Same helper, same format, both paths.
       ShipmentPickupTime: toBlueDartTime(input.pickup_time),
       OfficeCloseTime: toBlueDartTime("18:00"),
-      DoxNDox: "1",
+      // NonDox — the pickup must agree with the waybill's ProductType.
+      DoxNDox: BLUEDART_PICKUP_DOXNDOX_PARCEL,
       // Must be non-empty — an empty SubProducts array is rejected.
       SubProducts: BLUEDART_PICKUP_SUBPRODUCTS,
       IsForcePickup: false,

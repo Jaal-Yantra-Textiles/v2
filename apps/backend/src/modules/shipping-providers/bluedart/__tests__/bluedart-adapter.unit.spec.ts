@@ -224,12 +224,14 @@ describe("BlueDartProviderAdapter.createShipment", () => {
     })
     const svc = intlCalls[0].body.Request.Services
     expect(svc.ProductCode).toBe("H")
-    // `SubProductCode` is max 1 char, A-Z. "IPC-Expedited" is the PICKUP API's
-    // vocabulary — a SubProducts ARRAY of full names on a different call — and
-    // sending it here is a guaranteed empty-bodied 400. Until Blue Dart gives
-    // us the 1-letter code for IPC Expedited, send nothing rather than
-    // something known to be invalid.
-    expect(svc.SubProductCode).toBe("")
+    // `SubProductCode` is max 1 char, A-Z — the guard drops anything else, so
+    // "IPC-Expedited" (the PICKUP API's vocabulary) went out as "". "P" is the
+    // 2026-08-14 candidate and passes the guard.
+    // ⚠️ UNVERIFIED against the carrier — this pins what we SEND, not that Blue
+    // Dart accepts it. `GetServicesforPincode` would settle it but answers
+    // `UserDoesNotExists` for our LoginID.
+    expect(svc.SubProductCode).toBe("P")
+    expect(svc.SubProductCode).toMatch(/^[A-Z]$/)
     expect(svc.CurrencyCode).toBe("USD")
     // Per-item customs lines are mandatory on the international product.
     expect(svc.itemdtl).toHaveLength(1)
@@ -399,6 +401,26 @@ describe("BlueDartProviderAdapter.schedulePickup", () => {
     expect(
       [req.CustomerAddress1, req.CustomerAddress2, req.CustomerAddress3].join(" ")
     ).toContain("Ram Nagar Road")
+  })
+
+  /**
+   * The waybill and the pickup must agree on Dox-vs-NonDox. Order 83 went out
+   * with `ProductType: 0` / `DoxNDox: "1"` and DHL Unified reported two
+   * garments as `productName: "Documents"`.
+   *
+   * ⚠️ The enums are UNVERIFIED (unpublished; Blue Dart support not yet
+   * answered). This pins that we send the PARCEL value on both calls and that
+   * the two never drift apart — not that the carrier accepts them.
+   */
+  it("declares a parcel, not documents, and agrees with the waybill", async () => {
+    const { adapter, calls } = buildAdapter()
+    await adapter.schedulePickup({
+      pickup_location_name: "warehouse-AYV7GRDR",
+      pickup_date: "2026-08-20",
+      ref: { awb: "21089967146" },
+      from: PICKUP_ORIGIN,
+    })
+    expect(calls[0].body.request.DoxNDox).toBe("2")
   })
 
   it("fails locally when the location has no pincode, naming the location", async () => {
