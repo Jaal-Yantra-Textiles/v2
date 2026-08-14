@@ -1,5 +1,9 @@
 import { BlueDartProviderAdapter } from "../adapter"
-import { BlueDartClient, describeBlueDartFailure } from "../client"
+import {
+  BlueDartClient,
+  describeBlueDartFailure,
+  describeBlueDartHttpError,
+} from "../client"
 import { gramsToKgString, toBlueDartTime, toMsJsonDate } from "../constants"
 import type { CreateShipmentInput } from "../../provider-interface"
 
@@ -116,6 +120,37 @@ describe("BlueDart formatting helpers", () => {
     // Blue Dart treats 0 as a missing weight and rejects the waybill outright.
     expect(Number(gramsToKgString(0))).toBeGreaterThan(0)
     expect(Number(gramsToKgString(undefined))).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * "Blue Dart 400s with an empty body" was the belief that drove three sessions
+ * of guesswork. It is not true: the gateway names the field. The body just
+ * arrives pretty-printed with LEADING NEWLINES, so a logger keeping only the
+ * first line renders `failed (400): ` and nothing else.
+ *
+ * This is the captured body from the live 2026-08-14 probe.
+ */
+describe("describeBlueDartHttpError", () => {
+  const LIVE_400 = `
+            {"status":400,
+            "title":"Bad Request",
+            "error-response":[{"StatusCode":"InvalidPinCode","StatusInformation":"Pincode cannot be blank "}]}`
+
+  it("puts the carrier's own reason on one line", () => {
+    const described = describeBlueDartHttpError(LIVE_400)
+    expect(described).toBe("InvalidPinCode: Pincode cannot be blank")
+    expect(described).not.toMatch(/\n/)
+  })
+
+  it("flattens a non-JSON body rather than losing it to a newline", () => {
+    expect(describeBlueDartHttpError("\n  upstream\n  timeout\n")).toBe(
+      "upstream timeout"
+    )
+  })
+
+  it("says so explicitly when the body really is empty", () => {
+    expect(describeBlueDartHttpError("")).toBe("(empty body)")
   })
 })
 
@@ -278,6 +313,22 @@ describe("BlueDartProviderAdapter.cancelShipment", () => {
   })
 })
 
+/**
+ * The collection address Blue Dart needs inline on every pickup. Verified live
+ * on 2026-08-14: the same request without `pincode` is rejected
+ * `InvalidPinCode` / "Pincode cannot be blank"; with it, `InsertSuccess`.
+ */
+const PICKUP_ORIGIN = {
+  name: "JYT",
+  phone: "7580067026",
+  address_1: "Ram Nagar Road Sharlho Factory , Ward 11",
+  address_2: "Near Nandini Villa",
+  city: "Dhramshala",
+  state: "Himachal Nagar",
+  pincode: "176215",
+  country: "in",
+}
+
 describe("BlueDartProviderAdapter.schedulePickup", () => {
   it("books against the AWB and returns the token needed to cancel it later", async () => {
     const { adapter, calls } = buildAdapter()
@@ -286,6 +337,7 @@ describe("BlueDartProviderAdapter.schedulePickup", () => {
       pickup_date: "2026-08-20",
       expected_package_count: 2,
       ref: { awb: "21089967146" },
+      from: PICKUP_ORIGIN,
     })
     const req = calls[0].body.request
     expect(req.AWBNo).toEqual(["21089967146"])
@@ -305,6 +357,7 @@ describe("BlueDartProviderAdapter.schedulePickup", () => {
       // What both UIs actually send — an <input type="time"> value.
       pickup_time: "14:00",
       ref: { awb: "21089967146" },
+      from: PICKUP_ORIGIN,
     })
     const req = calls[0].body.request
     // `createShipment` normalised this and `schedulePickup` did not, so the
@@ -318,6 +371,48 @@ describe("BlueDartProviderAdapter.schedulePickup", () => {
     await expect(
       adapter.schedulePickup({ pickup_location_name: "X", pickup_date: "2026-08-20" })
     ).rejects.toThrow(/requires the shipment's waybill/i)
+  })
+
+  /**
+   * The bug that made every pickup this app ever attempted fail. Blue Dart has
+   * no pickup-location registry, so the address travels inline — but the call
+   * sent `pickup_location_name` as BOTH the name and the street, with a blank
+   * pincode and phone. `warehouse-AYV7GRDR` is a key into Delhivery's warehouse
+   * registry (#1234), not somewhere a courier can drive.
+   */
+  it("sends the location's real address, not the Delhivery warehouse handle", async () => {
+    const { adapter, calls } = buildAdapter()
+    await adapter.schedulePickup({
+      pickup_location_name: "warehouse-AYV7GRDR",
+      pickup_date: "2026-08-20",
+      ref: { awb: "21089967146" },
+      from: PICKUP_ORIGIN,
+    })
+    const req = calls[0].body.request
+    expect(req.CustomerPincode).toBe("176215")
+    expect(req.CustomerTelephone).toBe("7580067026")
+    expect(req.CustomerName).toBe("JYT")
+    expect(req.ContactPersonName).toBe("JYT")
+    // The street, packed to the 30-char cap — never the routing handle.
+    expect(req.CustomerAddress1).not.toMatch(/warehouse-/)
+    expect(req.CustomerAddress1.length).toBeLessThanOrEqual(30)
+    expect(
+      [req.CustomerAddress1, req.CustomerAddress2, req.CustomerAddress3].join(" ")
+    ).toContain("Ram Nagar Road")
+  })
+
+  it("fails locally when the location has no pincode, naming the location", async () => {
+    const { adapter, calls } = buildAdapter()
+    await expect(
+      adapter.schedulePickup({
+        pickup_location_name: "Bhujodi Warehouse",
+        pickup_date: "2026-08-20",
+        ref: { awb: "21089967146" },
+        from: { ...PICKUP_ORIGIN, pincode: "" },
+      })
+    ).rejects.toThrow(/pincode.*Bhujodi Warehouse|Bhujodi Warehouse.*postal code/i)
+    // Never reaches the carrier — 5 of 22 locations still have no pincode.
+    expect(calls.length).toBe(0)
   })
 })
 

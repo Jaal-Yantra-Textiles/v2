@@ -196,6 +196,18 @@ export type SchedulePickupInput = {
   expected_package_count?: number
   /** Some providers schedule per-shipment rather than per-location. */
   ref?: ShipmentRef
+  /**
+   * Where the courier is actually being sent.
+   *
+   * Carriers that keep a pickup-location registry (Shiprocket, Delhivery) only
+   * need `pickup_location_name` — the address lives on their side against that
+   * nickname. Blue Dart has no such registry: the collection address travels
+   * inline on every RegisterPickup call, so without this the request goes out
+   * with a blank pincode and phone and is rejected `InvalidPinCode`.
+   *
+   * Same omission as `CreateShipmentInput.from` before #1293, on the other call.
+   */
+  from?: ShipmentAddress
 }
 
 export type SchedulePickupResult = {

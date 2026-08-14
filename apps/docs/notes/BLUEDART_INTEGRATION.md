@@ -113,6 +113,35 @@ unlike Delhivery, whose exports run on the separate Cross Border service.
 made the night before, but a pickup slot is a commitment for a date and a
 warehouse. Same split settled for Delhivery in #1241.
 
+### ⚠️ "Blue Dart 400s with an empty body" is FALSE
+
+It names the field. Live capture, 2026-08-14:
+
+```json
+{"status":400,"title":"Bad Request",
+ "error-response":[{"StatusCode":"InvalidPinCode",
+                    "StatusInformation":"Pincode cannot be blank "}]}
+```
+
+The body arrives **pretty-printed, leading with newlines**, so a logger that
+keeps the first line of an error message shows `failed (400): ` and nothing
+after it. That apparent silence is ours, not the carrier's — and it cost three
+sessions of guessing at auth faults, path faults, slot cutoffs and field caps
+for a question Blue Dart had already answered on the first attempt.
+`describeBlueDartHttpError` now flattens `error-response[]` onto one line.
+
+**Corollary: do not trust any earlier note in this file, a handoff, or an issue
+comment that reasons from the "empty body".** Re-read the response.
+
+### Pickup registration carries its own address
+
+There is no pickup-location registry (see below), so `RegisterPickup` needs
+`CustomerPincode`, `CustomerTelephone` and a real street — every call. Until
+2026-08-14 `schedulePickup` sent `pickup_location_name` as both the name and the
+street with both those fields blank, so **no pickup this app ever attempted
+succeeded.** The tokens cancelled on 2026-08-13 came from a direct probe script,
+not from this code path — prod logs show no `/pickup` route hit that day.
+
 ### Gotchas that are load-bearing
 
 Each of these is pinned by a unit test:
@@ -131,6 +160,7 @@ Each of these is pinned by a unit test:
 | `SubProducts` must be non-empty on pickup registration | rejected |
 | Product availability is **per origin area** | `A` is not available outbound from DHM (176215); `D` is |
 | A 200 can still be a failure | check `IsError`, non-`Valid`/`InsertSuccess` `Status[]`, **and** a bare `Error` string |
+| Pickup needs the collection address **inline** — pincode and phone included | `InvalidPinCode`, "Pincode cannot be blank" |
 | Sandbox has **separate** shipping credentials | production creds return `RequestAuthenticationFailed` |
 
 `checkServiceability` reads the **inbound** flags. Outbound describes what can

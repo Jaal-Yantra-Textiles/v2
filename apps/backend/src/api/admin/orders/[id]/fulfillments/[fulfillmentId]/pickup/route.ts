@@ -17,6 +17,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 
 import { persistPickupBookingSafely } from "../../../../../../../lib/persist-pickup-booking"
+import { resolveOriginAddress } from "../../../../../../../modules/shipping-providers/origin-address"
 import {
   isSupportedCarrier,
   resolveShippingProvider,
@@ -107,6 +108,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     pickup_time: pickupTime,
     expected_package_count: body.expected_package_count || 1,
     ref: shipmentRefFromFulfillment(fulfillment.data),
+    // Blue Dart carries the collection address inline — see SchedulePickupInput.
+    // Carriers with a pickup registry ignore this, so it can only add detail.
+    from: await resolveOriginAddress(req.scope, locationId),
   })
 
   const raw = (result.raw as Record<string, any>) || {}
