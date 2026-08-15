@@ -1,3 +1,16 @@
+# [13.93.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.92.1...v13.93.0) (2026-08-15)
+
+
+### Features
+
+* **order-design:** add View Design dropdown action to order design widget ([#1303](https://github.com/Jaal-Yantra-Textiles/v2/issues/1303)) ([a1e3849](https://github.com/Jaal-Yantra-Textiles/v2/commit/a1e3849e003db7b1f73e14f3ee35f588c8838839))
+* **mcp:** expose route-level filters on admin + partner tool registries ([#1299](https://github.com/Jaal-Yantra-Textiles/v2/issues/1299)) ([37fba30](https://github.com/Jaal-Yantra-Textiles/v2/commit/37fba305b1184cbc78696f5377db51f988f4af7e))
+* **mcp:** expose route-level filters on admin + partner tool registries ([#1300](https://github.com/Jaal-Yantra-Textiles/v2/issues/1300)) ([df124e9](https://github.com/Jaal-Yantra-Textiles/v2/commit/df124e9c9ea22b4bd0b33bac054cf78acf895547))
+* **bluedart:** gate the provider on BLUE_DART_PROVIDER_ENABLED ([#1285](https://github.com/Jaal-Yantra-Textiles/v2/issues/1285)) ([#1302](https://github.com/Jaal-Yantra-Textiles/v2/issues/1302)) ([6a828b8](https://github.com/Jaal-Yantra-Textiles/v2/commit/6a828b805c25b2abb76f2c984f1a872055ef0eaa)), closes [#1301](https://github.com/Jaal-Yantra-Textiles/v2/issues/1301) [#1297](https://github.com/Jaal-Yantra-Textiles/v2/issues/1297)
+* **ops:** order fulfillment-data cleanup + courier-changed email jobs ([#1285](https://github.com/Jaal-Yantra-Textiles/v2/issues/1285)) ([#1304](https://github.com/Jaal-Yantra-Textiles/v2/issues/1304)) ([f3ccb0f](https://github.com/Jaal-Yantra-Textiles/v2/commit/f3ccb0ffdaf2747d3181e75c68a07ec55a25737a)), closes [#1293](https://github.com/Jaal-Yantra-Textiles/v2/issues/1293)
+* **billing:** record externally-booked freight with FX conversion ([#1285](https://github.com/Jaal-Yantra-Textiles/v2/issues/1285)) ([#1305](https://github.com/Jaal-Yantra-Textiles/v2/issues/1305)) ([f0d15a7](https://github.com/Jaal-Yantra-Textiles/v2/commit/f0d15a7e9f4cd848bcd2626770d020e6acea41fb))
+* **bluedart:** register Blue Dart as a fulfillment provider ([#1285](https://github.com/Jaal-Yantra-Textiles/v2/issues/1285)) ([#1297](https://github.com/Jaal-Yantra-Textiles/v2/issues/1297)) ([09b9696](https://github.com/Jaal-Yantra-Textiles/v2/commit/09b9696e9dd1727e7297030c2d0e336cd62be6a6)), closes [#1286](https://github.com/Jaal-Yantra-Textiles/v2/issues/1286) [#1223](https://github.com/Jaal-Yantra-Textiles/v2/issues/1223)
+
 ## [13.92.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.92.0...v13.92.1) (2026-08-14)
 
 
