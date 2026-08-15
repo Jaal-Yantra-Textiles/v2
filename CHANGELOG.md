@@ -1,3 +1,10 @@
+# [13.95.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.94.0...v13.95.0) (2026-08-15)
+
+
+### Features
+
+* **mcp:** admin settings UI for per-credential MCP scopes ([#1306](https://github.com/Jaal-Yantra-Textiles/v2/issues/1306)) ([#1309](https://github.com/Jaal-Yantra-Textiles/v2/issues/1309)) ([5012d1b](https://github.com/Jaal-Yantra-Textiles/v2/commit/5012d1b937965f12b7189f28c1e82524367b7bb3))
+
 # [13.94.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.93.0...v13.94.0) (2026-08-15)
 
 
