@@ -114,6 +114,17 @@ export type McpContext = {
    */
   enableDangerous?: boolean
   /**
+   * When false, `sensitive` tools (explicitly flagged ones, every DELETE, and
+   * every dangerous tool) are hidden from `tools/list` and refused at dispatch.
+   *
+   * This is a PERMISSION, distinct from the confirm rail: the rail asks a human
+   * to approve, whereas from a third-party MCP client the model supplies
+   * `confirm: true` itself, so the rail is not a boundary there (#1306 Track C).
+   * A token scoped to `write` gets ordinary mutations without the confirm-gated
+   * ones. Undefined means allowed, so surfaces that don't scope are unaffected.
+   */
+  enableSensitive?: boolean
+  /**
    * When true, the confirm/reason safety rails are skipped entirely and every
    * tool is either a read or a plain write (write-gated only). The store
    * surface sets this: there a DELETE (`remove_line_item`) is an ordinary cart

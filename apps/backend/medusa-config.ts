@@ -208,6 +208,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/ai_usage",
     },
     {
+      resolve: "./src/modules/mcp_access",
+    },
+    {
       resolve: "./src/modules/unified_order_status",
     },
     {

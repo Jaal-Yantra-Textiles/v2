@@ -45,10 +45,10 @@ import {
   type AdminMcpContext,
 } from "../../mcp/lib/dispatch"
 import {
-  isAdminWriteEnabled,
-  isAdminDangerousEnabled,
   resolveAdminBaseUrl,
+  resolveAdminMcpScope,
 } from "../../mcp/lib/handler"
+import { mcpScopeToContextFlags } from "../../../../lib/mcp-scope"
 import { makeMcpLedgerSink } from "../../../../lib/mcp-ledger"
 import type { AdminAssistantChatReq } from "./validators"
 
@@ -217,13 +217,20 @@ export const POST = async (
 
   // Loopback context — forward the admin's auth so wrapped routes authenticate
   // as the admin user. Writes/dangerous still require confirmation (+ reason)
-  // via the shared dispatcher; the write/dangerous flags gate visibility.
+  // via the shared dispatcher; the scope flags gate visibility.
+  //
+  // The level is min(process ceiling, this principal's mcp_access_scope row),
+  // resolved exactly as the JSON-RPC endpoint does (#1306 Track C) — the two
+  // tool surfaces must not disagree about what a credential may reach. In
+  // practice this is the process ceiling, since the assistant is driven by a
+  // human admin and scope rows are written for machine credentials.
+  const { level: scopeLevel } = await resolveAdminMcpScope(req)
+  const scopeFlags = mcpScopeToContextFlags(scopeLevel)
   const ctx: AdminMcpContext = {
     baseUrl: resolveAdminBaseUrl(req),
     bearer: req.get("authorization") || undefined,
     cookie: req.get("cookie") || undefined,
-    enableWrite: isAdminWriteEnabled(),
-    enableDangerous: isAdminDangerousEnabled(),
+    ...scopeFlags,
     surface: "admin",
     observe: makeMcpLedgerSink(req.scope, {
       id: (req as any).auth_context?.actor_id ?? null,
@@ -232,13 +239,16 @@ export const POST = async (
   }
   const writeEnabled = ctx.enableWrite !== false
   const dangerousEnabled = ctx.enableDangerous === true
+  const sensitiveEnabled = ctx.enableSensitive !== false
 
   // Bind the registry as AI-SDK tools. One source of truth (JSON Schema) feeds
   // both this binding and the MCP endpoint's tools/list. Disabled tiers are
   // hidden from the model entirely (and refused at dispatch as a backstop).
   const enabled = ADMIN_MCP_TOOLS.filter(
     (def) =>
-      (writeEnabled || !def.write) && (dangerousEnabled || !isDangerous(def))
+      (writeEnabled || !def.write) &&
+      (dangerousEnabled || !isDangerous(def)) &&
+      (sensitiveEnabled || !isSensitive(def))
   )
 
   const tools: Record<string, any> = Object.fromEntries(

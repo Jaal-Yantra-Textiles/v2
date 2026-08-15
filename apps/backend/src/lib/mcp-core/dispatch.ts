@@ -127,6 +127,15 @@ export async function dispatchMcpTool(
       `Tool '${name}' is a platform-destructive action and dangerous tools are disabled on this server.`
     )
   }
+  // Sensitive tools refused when this credential's scope stops below them
+  // (#1306 Track C). Deliberately keyed off `isSensitive(def)` rather than the
+  // `sensitive` local: `disableSensitiveRails` turns off the confirm UX for the
+  // store surface, but it must never widen a permission.
+  if (isSensitive(def) && ctx.enableSensitive === false) {
+    return fail(
+      `Tool '${name}' is a sensitive action and this credential's scope does not include sensitive tools.`
+    )
+  }
 
   // Resolve the tenant publishable key for multi-tenant (store) surfaces. A
   // `store` argument (handle/domain) wins and is resolved per-call; otherwise

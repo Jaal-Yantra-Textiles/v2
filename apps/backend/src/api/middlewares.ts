@@ -31,6 +31,13 @@ import {
   CatalogLookupSchema,
 } from "./ucp/validators";
 import { resolveStorefrontUrl } from "./ucp/lib/context";
+import {
+  isMcpMachinePrincipal,
+  loadMcpScopeLevel,
+  mcpPrincipalFromRequest,
+  mcpScopeAllows,
+  MCP_SCOPE_EXEMPT_ADMIN_PATHS,
+} from "../lib/mcp-scope";
 
 // Helper function to wrap Zod schemas for compatibility with validateAndTransformBody.
 // Historically this wrapped with z.preprocess((obj) => obj, schema) — under Zod v3
@@ -659,8 +666,83 @@ const applyCategoryFilters = (req: MedusaRequest, _res: MedusaResponse, next: Me
   next()
 }
 
+/**
+ * Enforce a machine credential's MCP scope on ordinary `/admin/*` mutations
+ * (#1306 Track C).
+ *
+ * Without this the scope would be theatre: a Medusa secret API key authenticates
+ * every admin route, so a token scoped to `read` on the MCP surface could simply
+ * POST the wrapped route directly. Enforcing at the HTTP layer makes the scope
+ * real and, because the MCP dispatcher reaches routes over the same loopback
+ * HTTP path, gives one unbypassable choke point rather than two that can drift.
+ *
+ * Applies to MACHINE principals only (api-key / OAuth). A human admin holds a
+ * dashboard session and can do anything through the UI, so restricting their raw
+ * HTTP writes would restrict nothing while risking locking a real person out;
+ * their scope row still narrows the MCP tool surface.
+ *
+ * Absent a scope row this is a pass-through, so the behaviour of every existing
+ * key is unchanged until someone writes one.
+ */
+const enforceMcpScopeOnAdminWrites = async (
+  req: MedusaRequest,
+  res: MedusaResponse,
+  next: MedusaNextFunction
+) => {
+  const method = (req.method || "GET").toUpperCase()
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
+    return next()
+  }
+
+  // `req.path` is relative to the matched mount, so read the full path.
+  const path = (req.originalUrl || "").split("?")[0].replace(/\/+$/, "")
+  if (MCP_SCOPE_EXEMPT_ADMIN_PATHS.includes(path)) {
+    return next()
+  }
+
+  const principal = mcpPrincipalFromRequest(req)
+  if (!principal || !isMcpMachinePrincipal(principal)) {
+    return next()
+  }
+
+  try {
+    const granted = await loadMcpScopeLevel(req.scope, principal)
+    if (!granted || mcpScopeAllows(granted, "write")) {
+      return next()
+    }
+    return res.status(403).json({
+      message:
+        `This credential is scoped to '${granted}' and cannot perform write ` +
+        `operations. Scope is set per credential in mcp_access_scope; widen it ` +
+        `via POST /admin/mcp/scopes as an admin user.`,
+    })
+  } catch {
+    // Fail CLOSED. `loadMcpScopeLevel` already returns null (→ pass through)
+    // when the module simply isn't registered, so reaching here means the
+    // module is present and the read failed — and a permission check that
+    // cannot read the permission must not grant it. Affects machine
+    // credentials only; human admin traffic never reaches this branch.
+    return res.status(503).json({
+      message:
+        "Could not read this credential's MCP scope; refusing the write rather than assuming it is permitted. Retry shortly.",
+    })
+  }
+}
+
 export default defineMiddlewares({
   routes: [
+    // Per-credential scope guard (#1306 Track C).
+    //
+    // No `method`/`methods` key on purpose: Medusa's routes sorter buckets a
+    // method-less entry as "global", and globals are concatenated ahead of
+    // wildcard/regex/static/params, so this registers as `app.use()` before
+    // every `/admin/*` route handler. It also runs after the framework's own
+    // admin auth middleware (applied in the loader before user middlewares),
+    // which is what makes `req.auth_context` available here.
+    {
+      matcher: "/admin/*",
+      middlewares: [enforceMcpScopeOnAdminWrites],
+    },
     // ─── Store collection & category validation (replicate framework middleware) ───
     {
       matcher: "/store/collections",
