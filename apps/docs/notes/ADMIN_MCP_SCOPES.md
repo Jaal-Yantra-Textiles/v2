@@ -71,6 +71,11 @@ listed here, so a future read-only POST tool fails the suite instead of silently
 
 ## Managing scopes
 
+**Settings → MCP Access Scopes** in the admin dashboard is the normal way in.
+For the step-by-step — including how to authenticate as a human admin, and the
+403-vs-400 probe that proves a scope is actually enforced — see
+[`ADMIN_MCP_SCOPES_OPERATOR_GUIDE.md`](./ADMIN_MCP_SCOPES_OPERATOR_GUIDE.md).
+
 ```
 GET    /admin/mcp/scopes        # list + ceiling + tool count per level
 POST   /admin/mcp/scopes        # upsert { principal_type, principal_id, level, label?, note? }
