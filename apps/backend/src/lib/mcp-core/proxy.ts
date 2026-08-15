@@ -72,9 +72,19 @@ export async function callMcpRoute({
 
   const headers: Record<string, string> = { accept: "application/json" }
   if (bearer) {
-    headers["authorization"] = bearer.toLowerCase().startsWith("bearer ")
-      ? bearer
-      : `Bearer ${bearer}`
+    // Forward an already-schemed header VERBATIM; only a bare token gets the
+    // Bearer prefix.
+    //
+    // `Basic` matters as much as `Bearer`: a Medusa secret API key authenticates
+    // over HTTP Basic and ONLY over Basic (the framework returns a pointed 401
+    // when one arrives as a Bearer token). Prefixing unconditionally turned
+    // `Basic <b64>` into `Bearer Basic <b64>`, so every tool CALL from an
+    // API-key-authenticated MCP client 401'd on the loopback — while
+    // `initialize` and `tools/list`, which never touch a route, kept working.
+    // That combination is why the surface looked functional for a key holder.
+    const scheme = bearer.trim().split(" ")[0].toLowerCase()
+    headers["authorization"] =
+      scheme === "bearer" || scheme === "basic" ? bearer : `Bearer ${bearer}`
   }
   if (cookie) {
     headers["cookie"] = cookie

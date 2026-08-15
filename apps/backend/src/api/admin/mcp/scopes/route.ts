@@ -113,13 +113,25 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const counts = adminToolCountsByLevel()
   const ceiling = adminMcpCeiling()
+  const effective = minMcpScope(ceiling, level as McpScopeLevel)
 
   res.json({
     scope,
-    effective_level: minMcpScope(ceiling, level as McpScopeLevel),
+    effective_level: effective,
     ceiling,
-    // Echo what this level actually buys, so an operator who picks `write`
-    // sees immediately that it exposes no more tools than `read` does.
-    tools_visible: counts[level as McpScopeLevel],
+    // Counted at the EFFECTIVE level, not the requested one — a row granting
+    // more than the ceiling is stored but clamped, and reporting the granted
+    // level's count here would overstate what the credential can actually see.
+    tools_visible: counts[effective],
+    // Stated explicitly rather than left for the reader to infer from two
+    // fields that happen to differ.
+    ...(effective !== level
+      ? {
+          warning: `Stored as '${level}', but the process ceiling is '${ceiling}', so this credential operates at '${effective}'. Raising it requires ADMIN_MCP_ENABLE_WRITE / ADMIN_MCP_ENABLE_DANGEROUS.`,
+        }
+      : {}),
+    // ⚠️ `write` exposes exactly what `read` does today — every admin write tool
+    // is flagged sensitive. Surfaced so picking `write` doesn't look useful.
+    tools_by_level: counts,
   })
 }
