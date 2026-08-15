@@ -21,11 +21,34 @@ describe("buildAttachAwbLabels (#1195)", () => {
     ).toEqual([{ id: "fulab_1" }, label])
   })
 
-  it("is idempotent — re-attaching the same AWB adds nothing", () => {
+  it("re-attaching the same AWB adds no ROW — it corrects the one there", () => {
+    // #1305: re-supplying an AWB is how a tracking or label URL that arrived
+    // late gets recorded. Returning a bare `{id}` kept the old (usually empty)
+    // URLs while the caller saw a 200 and `data.tracking_url` updated — so the
+    // label row and `data` disagreed permanently. Order 79 is the proof.
     expect(
       buildAttachAwbLabels(
         [{ id: "fulab_1", tracking_number: "AWB123" }],
         label
+      )
+    ).toEqual([
+      { id: "fulab_1", tracking_url: "https://shiprocket.co/tracking/AWB123" },
+    ])
+  })
+
+  it("never blanks a URL it already has with one the caller doesn't", () => {
+    // An operator attaching an AWB they have no label PDF for must not destroy
+    // the PDF link someone else recorded.
+    expect(
+      buildAttachAwbLabels(
+        [
+          {
+            id: "fulab_1",
+            tracking_number: "AWB123",
+            label_url: "https://cdn/label.pdf",
+          },
+        ],
+        { ...label, tracking_url: "", label_url: "" }
       )
     ).toEqual([{ id: "fulab_1" }])
   })

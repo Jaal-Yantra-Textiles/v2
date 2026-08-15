@@ -6,6 +6,9 @@ import {
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { createOrderShipmentWorkflow } from "@medusajs/medusa/core-flows"
 import { buildAttachAwbLabels } from "./shiprocket-attach-awb"
+import { resolveShippingFx } from "./shipping-fx"
+import { PARTNER_BILLING_MODULE } from "../../modules/partner_billing"
+import type { ShippingFxRecord } from "../../modules/partner_billing/shipping-ledger"
 
 /**
  * Attach (and detach) a waybill we did NOT book — the manual override.
@@ -139,6 +142,26 @@ export type AttachExternalAwbInput = {
   markShipped?: boolean
   notes?: string
   actingEmail?: string
+  /**
+   * What this waybill cost, when the operator knows it.
+   *
+   * Unique to this path: every integrated carrier returns a rate with the label
+   * (`provider_refs.courier_rate`), so freight records itself. A counter booking
+   * has a receipt and no API, and until #1305 there was nowhere to put it — the
+   * order kept whatever the ABANDONED booking had cost, which is how order 79
+   * came to carry a ₹6,944 Shiprocket charge for a parcel that went DTDC.
+   *
+   * Omitted leaves the ledger untouched. Attaching a waybill and knowing its
+   * price are separate facts, and a blank field must not read as "free".
+   */
+  shippingAmount?: number | null
+  /** Currency of `shippingAmount`. Defaults to the order's when omitted. */
+  shippingCurrencyCode?: string | null
+  /**
+   * The FX rate actually paid, when it differs from the market rate. Only used
+   * if the charge currency differs from the order's. See `resolveShippingFx`.
+   */
+  shippingFxRate?: number | null
 }
 
 export type AttachExternalAwbResult = {
@@ -147,6 +170,18 @@ export type AttachExternalAwbResult = {
   awb: string
   attached_at: string
   marked_shipped: boolean
+  /**
+   * What was written to the freight ledger, or null when no cost was supplied
+   * or there was no partner fee row to hang it off. Returned rather than
+   * swallowed so an operator can see the CONVERTED figure that will actually
+   * come off the payout — which is the number they will be asked about, and is
+   * not the one they typed.
+   */
+  shipping_charge: {
+    amount: number
+    currency_code: string
+    fx: ShippingFxRecord | null
+  } | null
 }
 
 export async function attachExternalAwb(
@@ -270,6 +305,17 @@ export async function attachExternalAwb(
     }
   }
 
+  const shippingCharge = await recordExternalFreight(container, {
+    orderId: input.orderId,
+    fulfillmentId: input.fulfillmentId,
+    carrier,
+    awb,
+    amount: input.shippingAmount,
+    currencyCode: input.shippingCurrencyCode,
+    operatorRate: input.shippingFxRate,
+    recordedAt: attachedAt,
+  })
+
   logger?.info?.(
     `[external-awb] attached ${carrier} ${awb} to fulfillment ${input.fulfillmentId} (order ${input.orderId})${
       input.notes ? `: ${input.notes}` : ""
@@ -282,6 +328,93 @@ export async function attachExternalAwb(
     awb,
     attached_at: attachedAt,
     marked_shipped: markedShipped,
+    shipping_charge: shippingCharge,
+  }
+}
+
+/**
+ * Write an externally-booked parcel's freight onto the partner fee ledger.
+ *
+ * Best-effort by design, mirroring the integrated carriers' own recording step:
+ * the waybill IS attached by the time this runs, and failing the whole attach
+ * because a billing row could not be updated would send an operator back to
+ * re-attach a parcel that is already correct.
+ *
+ * Returns what was recorded — CONVERTED, if the carrier billed in a currency
+ * other than the order's — or null when there was no cost to record or no fee
+ * row to record it against.
+ */
+async function recordExternalFreight(
+  container: MedusaContainer,
+  args: {
+    orderId: string
+    fulfillmentId: string
+    carrier: string
+    awb: string
+    amount?: number | null
+    currencyCode?: string | null
+    operatorRate?: number | null
+    recordedAt: string
+  }
+): Promise<AttachExternalAwbResult["shipping_charge"]> {
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+  const amount = Number(args.amount)
+  // Absent means "cost unknown", which is not the same as free. A recorded 0 IS
+  // a real charge and passes here, matching the rule the ledger already applies.
+  if (args.amount === null || args.amount === undefined || !Number.isFinite(amount)) {
+    return null
+  }
+
+  try {
+    const billing: any = container.resolve(PARTNER_BILLING_MODULE)
+    const fee = await billing.findFeeForOrder(args.orderId)
+    if (!fee) {
+      // Retail order with no partner, or accrual hasn't run. Nothing to hang the
+      // cost off, and inventing a fee row is not this path's business.
+      logger?.info?.(
+        `[external-awb] no partner fee row for order ${args.orderId}; freight of ${amount} not recorded.`
+      )
+      return null
+    }
+
+    const orderCurrency = String(fee.currency_code || "").toUpperCase()
+    const charged = String(args.currencyCode || orderCurrency).toUpperCase()
+
+    const converted = await resolveShippingFx(container, {
+      amount,
+      currency_code: charged,
+      orderCurrency,
+      operatorRate: args.operatorRate,
+      now: args.recordedAt,
+    })
+
+    await billing.recordShippingChargeForOrder(args.orderId, {
+      fulfillment_id: args.fulfillmentId,
+      amount: converted ? converted.amount : amount,
+      currency_code: converted ? converted.currency_code : charged,
+      carrier: args.carrier,
+      awb: args.awb,
+      recorded_at: args.recordedAt,
+      fx: converted?.fx ?? null,
+    })
+
+    logger?.info?.(
+      `[external-awb] recorded freight for order ${args.orderId}: ${amount} ${charged}` +
+        (converted
+          ? ` -> ${converted.amount} ${converted.currency_code} @ ${converted.fx.fx_rate} (${converted.fx.fx_source})`
+          : "")
+    )
+
+    return {
+      amount: converted ? converted.amount : amount,
+      currency_code: converted ? converted.currency_code : charged,
+      fx: converted?.fx ?? null,
+    }
+  } catch (e: any) {
+    logger?.warn?.(
+      `[external-awb] could not record freight for order ${args.orderId}: ${e?.message}. The AWB IS attached.`
+    )
+    return null
   }
 }
 

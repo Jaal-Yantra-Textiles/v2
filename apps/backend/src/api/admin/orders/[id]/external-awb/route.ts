@@ -33,6 +33,20 @@ const Body = z.object({
   mark_shipped: z.boolean().optional(),
   /** Why this was booked outside the system. Kept in the audit trail. */
   notes: z.string().trim().max(500).optional(),
+  /**
+   * What the waybill cost. Omit when unknown — a blank must not read as free,
+   * so absence leaves the freight ledger untouched while 0 records free
+   * shipping. Negative is rejected: a refund is a reversal, not a charge.
+   */
+  shipping_amount: z.number().nonnegative().optional(),
+  /** Currency of `shipping_amount`; defaults to the order's currency. */
+  shipping_currency_code: z.string().trim().length(3).optional(),
+  /**
+   * The FX rate actually paid, when the charge is in another currency. Beats
+   * the cached market rate, which is the fallback — only the rate you were
+   * billed at reconciles against a bank statement.
+   */
+  shipping_fx_rate: z.number().positive().optional(),
 })
 
 /** The logged-in admin's email, recorded on the attachment. */
@@ -67,6 +81,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     markShipped: body.mark_shipped === true,
     notes: body.notes,
     actingEmail: await resolveActorEmail(req),
+    shippingAmount: body.shipping_amount,
+    shippingCurrencyCode: body.shipping_currency_code,
+    shippingFxRate: body.shipping_fx_rate,
   })
 
   res.status(200).json({ external_awb: result })

@@ -1,5 +1,6 @@
 import {
   planShippingChargeUpsert,
+  planShippingFxConversion,
   planShippingReversal,
   readShippingCharges,
   readShippingReversals,
@@ -53,6 +54,9 @@ describe("readShippingCharges — legacy rows", () => {
         carrier: "bluedart",
         awb: null,
         recorded_at: null,
+        // A pre-ledger row predates FX: the column holds whatever the carrier
+        // quoted, with no rate recorded anywhere to reconstruct.
+        fx: null,
       },
     ])
   })
@@ -87,6 +91,7 @@ describe("readShippingCharges — legacy rows", () => {
       carrier: null,
       awb: null,
       recorded_at: null,
+      fx: null,
     })
     expect(lines[1].amount).toBe(0)
   })
@@ -323,5 +328,187 @@ describe("planShippingReversal", () => {
     )!
     expect(planned.reversal.awb).toBe("LEDGER1")
     expect(planned.reversal.reason).toBeNull()
+  })
+})
+
+describe("planShippingFxConversion (#1305)", () => {
+  const AT_FX = "2026-08-15T07:00:00.000Z"
+  const convert = (over: Record<string, any> = {}) =>
+    planShippingFxConversion({
+      amount: 11767,
+      currency_code: "INR",
+      orderCurrency: "usd",
+      rate: 0.01048,
+      source: "fx_rates",
+      convertedAt: AT_FX,
+      ...over,
+    })
+
+  it("converts into the order currency and keeps the original for the invoice", () => {
+    // Order 79: a DTDC counter booking billed in INR against a USD order.
+    expect(convert()).toEqual({
+      amount: 123.32,
+      currency_code: "USD",
+      fx: {
+        original_amount: 11767,
+        original_currency_code: "INR",
+        fx_rate: 0.01048,
+        fx_source: "fx_rates",
+        converted_at: AT_FX,
+      },
+    })
+  })
+
+  it("rounds to the minor unit — a payout must match an invoice", () => {
+    // Left at full precision this is 123.31816, and no statement ever agrees.
+    expect(convert()!.amount).toBe(123.32)
+  })
+
+  it("returns null for a same-currency charge rather than stamping rate 1", () => {
+    // There is nothing to convert; an fx record would claim a conversion that
+    // never happened and invite someone to 'correct' the rate later.
+    expect(convert({ currency_code: "USD", orderCurrency: "usd" })).toBeNull()
+  })
+
+  it("REFUSES a rate that is missing, zero, negative or not finite", () => {
+    // Each returns null = "record it unconverted", which is the pre-FX
+    // behaviour: shown in its own currency, never deducted. A bad rate must
+    // never produce a wrong deduction.
+    for (const rate of [null, undefined, 0, -1, NaN, Infinity]) {
+      expect(convert({ rate })).toBeNull()
+    }
+  })
+
+  it("returns null when either currency is missing", () => {
+    expect(convert({ orderCurrency: null })).toBeNull()
+    expect(convert({ currency_code: "" })).toBeNull()
+  })
+
+  it("marks an operator-supplied rate as such — only it matches a statement", () => {
+    const r = convert({ rate: 0.0112, source: "operator" })!
+    expect(r.fx.fx_source).toBe("operator")
+    expect(r.amount).toBe(131.79)
+  })
+})
+
+describe("the FX ledger round trip (#1305)", () => {
+  const AT_FX = "2026-08-15T07:00:00.000Z"
+  const converted = planShippingFxConversion({
+    amount: 11767,
+    currency_code: "INR",
+    orderCurrency: "usd",
+    rate: 0.01048,
+    source: "fx_rates",
+    convertedAt: AT_FX,
+  })!
+
+  // Order 79 exactly: a legacy scalar-only row holding the ABANDONED
+  // Shiprocket charge, on a USD order.
+  const legacyRow = {
+    id: "pfee_79",
+    currency_code: "usd",
+    shipping_amount: 6944,
+    shipping_currency_code: "INR",
+    shipping_carrier: "shiprocket",
+    metadata: { kind: "retail" },
+  }
+
+  it("a converted charge becomes DEDUCTIBLE — the whole point of #1305", () => {
+    const update = planShippingChargeUpsert(legacyRow, {
+      fulfillment_id: "ful_79",
+      amount: converted.amount,
+      currency_code: converted.currency_code,
+      carrier: "dtdc",
+      awb: "N40878729",
+      recorded_at: AT_FX,
+      fx: converted.fx,
+    })!
+    // Before: an INR charge on a USD order rolled up to null and never reached
+    // the payout. After: it is USD, so it does.
+    expect(update.shipping_amount).toBe(123.32)
+    expect(update.shipping_currency_code).toBe("USD")
+    expect(update.shipping_carrier).toBe("dtdc")
+  })
+
+  it("REPLACES the abandoned carrier's charge instead of stacking on it", () => {
+    // The legacy line is claimed, not appended to — otherwise order 79 would be
+    // billed for both the cancelled Shiprocket booking and the DTDC one.
+    const update = planShippingChargeUpsert(legacyRow, {
+      fulfillment_id: "ful_79",
+      amount: converted.amount,
+      currency_code: converted.currency_code,
+      carrier: "dtdc",
+      awb: "N40878729",
+      recorded_at: AT_FX,
+      fx: converted.fx,
+    })!
+    expect(update.metadata.shipping_charges).toHaveLength(1)
+    expect(update.metadata.shipping_charges[0].carrier).toBe("dtdc")
+    expect(update.metadata.shipping_charges[0].fx.original_amount).toBe(11767)
+  })
+
+  it("survives the read back — the rate is not lost in the jsonb", () => {
+    const update = planShippingChargeUpsert(legacyRow, {
+      fulfillment_id: "ful_79",
+      amount: converted.amount,
+      currency_code: converted.currency_code,
+      carrier: "dtdc",
+      awb: "N40878729",
+      recorded_at: AT_FX,
+      fx: converted.fx,
+    })!
+    const [line] = readShippingCharges({ ...legacyRow, ...update } as any)
+    expect(line.fx).toEqual(converted.fx)
+  })
+
+  it("drops a PARTIAL fx record rather than patching it with defaults", () => {
+    // A rate of 0 or a missing original would misstate what a partner was
+    // charged. Absent fx is already a correct state; a wrong rate is not.
+    const [line] = readShippingCharges({
+      id: "pfee_1",
+      currency_code: "usd",
+      metadata: {
+        shipping_charges: [
+          {
+            fulfillment_id: "ful_1",
+            amount: 100,
+            currency_code: "USD",
+            fx: { original_amount: 9000, fx_rate: 0 },
+          },
+        ],
+      },
+    })
+    expect(line.fx).toBeNull()
+    expect(line.amount).toBe(100)
+  })
+
+  it("carries the rate onto the reversal so a credit note can be matched", () => {
+    const row = {
+      id: "pfee_79",
+      currency_code: "usd",
+      metadata: {
+        shipping_charges: [
+          {
+            fulfillment_id: "ful_79",
+            amount: converted.amount,
+            currency_code: "USD",
+            carrier: "dtdc",
+            awb: "N40878729",
+            recorded_at: AT_FX,
+            fx: converted.fx,
+          },
+        ],
+      },
+    }
+    const planned = planShippingReversal(row, {
+      fulfillment_id: "ful_79",
+      awb: "N40878729",
+      reason: "returned to origin",
+      reversed_at: AT_FX,
+    })!
+    // The payout gave back USD 123.32, but DTDC will credit INR 11,767.
+    expect(planned.reversal.amount).toBe(123.32)
+    expect(planned.reversal.fx!.original_amount).toBe(11767)
+    expect(planned.update.shipping_amount).toBeNull()
   })
 })
