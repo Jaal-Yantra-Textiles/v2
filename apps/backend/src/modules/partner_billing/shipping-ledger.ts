@@ -21,6 +21,32 @@
  * Pure and dependency-free so the whole ledger is unit-testable without a DB.
  */
 
+/**
+ * What a converted freight charge remembers about the conversion.
+ *
+ * A charge quoted in the carrier's currency is stored CONVERTED — `amount` and
+ * `currency_code` are the ORDER's — because that is what makes it deductible
+ * without every reader having to know about FX. That would be lossy on its own:
+ * the carrier's invoice is in the original currency, and reconciling it against
+ * a converted number is impossible unless the rate is kept. So the original is
+ * kept alongside, and a payout can always be reconstructed from the row.
+ *
+ * `source` distinguishes a rate an operator actually paid from a market rate we
+ * looked up — they differ, sometimes by several percent, and only the first
+ * matches a bank statement.
+ */
+export type ShippingFxRecord = {
+  /** Amount as the carrier billed it, before conversion. */
+  original_amount: number
+  /** Currency the carrier billed in. */
+  original_currency_code: string
+  /** Multiplier applied: `amount = original_amount * fx_rate`. */
+  fx_rate: number
+  /** `operator` = supplied by a human; `fx_rates` = the cached market rate. */
+  fx_source: "operator" | "fx_rates"
+  converted_at: string
+}
+
 /** One live freight charge, for one fulfillment. */
 export type ShippingChargeLine = {
   /** The fulfillment whose label booked it. Null on a pre-ledger legacy row. */
@@ -31,6 +57,12 @@ export type ShippingChargeLine = {
   /** The waybill, so a carrier invoice line can be matched to it. */
   awb: string | null
   recorded_at: string | null
+  /**
+   * Present only when this line was converted. Absent means `amount` is exactly
+   * what the carrier charged — which is every line written before FX existed,
+   * and every line whose carrier already quoted in the order's currency.
+   */
+  fx: ShippingFxRecord | null
 }
 
 /** A charge that was deducted and has since been given back. */
@@ -43,6 +75,12 @@ export type ShippingReversal = {
   reversed_at: string
   reason: string | null
   reversed_by: string | null
+  /**
+   * Carried over from the charge being reversed, so a credit note in the
+   * carrier's own currency can still be matched after the line is gone. `amount`
+   * above is the converted figure that actually came off the payout.
+   */
+  fx?: ShippingFxRecord | null
 }
 
 /**
@@ -68,6 +106,35 @@ const toNum = (v: unknown): number => {
 }
 
 const upper = (v: unknown): string => String(v || "").toUpperCase()
+
+/**
+ * Read an FX record off a stored line, defensively — `metadata` is free-form
+ * jsonb written by past and future versions of this code.
+ *
+ * A partial record is treated as ABSENT rather than patched with defaults. An
+ * `fx_rate` of 0 or a missing original amount would silently misstate what a
+ * partner was charged, and a line with no FX record is already a correct,
+ * meaningful state ("this was never converted"). Failing back to it loses only
+ * the audit trail; inventing a rate loses the money.
+ */
+function readFx(raw: any): ShippingFxRecord | null {
+  if (!raw || typeof raw !== "object") {
+    return null
+  }
+  const rate = Number(raw.fx_rate)
+  const originalAmount = Number(raw.original_amount)
+  const originalCurrency = upper(raw.original_currency_code)
+  if (!Number.isFinite(rate) || rate <= 0) return null
+  if (!Number.isFinite(originalAmount)) return null
+  if (!originalCurrency) return null
+  return {
+    original_amount: originalAmount,
+    original_currency_code: originalCurrency,
+    fx_rate: rate,
+    fx_source: raw.fx_source === "operator" ? "operator" : "fx_rates",
+    converted_at: String(raw.converted_at || ""),
+  }
+}
 
 /** Existing reversals, defensively — `metadata` is free-form jsonb. */
 export function readShippingReversals(
@@ -103,6 +170,7 @@ export function readShippingCharges(
       carrier: c?.carrier || null,
       awb: c?.awb || null,
       recorded_at: c?.recorded_at || null,
+      fx: readFx(c?.fx),
     }))
   }
   if (fee.shipping_amount === null || fee.shipping_amount === undefined) {
@@ -116,6 +184,9 @@ export function readShippingCharges(
       carrier: fee.shipping_carrier || null,
       awb: null,
       recorded_at: null,
+      // A legacy scalar row predates FX entirely: the column holds whatever the
+      // carrier quoted, in whatever currency, with no rate recorded anywhere.
+      fx: null,
     },
   ]
 }
@@ -178,6 +249,61 @@ export type ShippingChargeInput = {
   carrier: string | null
   awb?: string | null
   recorded_at: string
+  /**
+   * Set by the caller when `amount`/`currency_code` are already the CONVERTED,
+   * order-currency figures. Resolving a rate needs the fx_rates module, which
+   * this pure planner (and the module service that calls it) cannot reach under
+   * module isolation — so conversion happens at the container edge and arrives
+   * here as a finished fact. See `resolveShippingFx`.
+   */
+  fx?: ShippingFxRecord | null
+}
+
+/**
+ * Convert a carrier's quote into the order's currency.
+ *
+ * Pure, and deliberately refuses more often than it succeeds: a rate that is
+ * absent, zero, negative or not finite yields `null`, which the callers treat as
+ * "leave the charge in its own currency" — the pre-FX behaviour, where the line
+ * is displayed but never deducted. That is the safe direction. A bad rate does
+ * not produce a wrong deduction; it produces no deduction, which is visible in
+ * the UI as a foreign-currency line and gets asked about.
+ *
+ * Same-currency input returns `null` too: there is nothing to convert and
+ * stamping an `fx_rate: 1` record would imply a conversion that never happened.
+ */
+export function planShippingFxConversion(input: {
+  amount: number
+  currency_code: string
+  orderCurrency: string | null | undefined
+  rate: number | null | undefined
+  source: "operator" | "fx_rates"
+  convertedAt: string
+}): { amount: number; currency_code: string; fx: ShippingFxRecord } | null {
+  const from = upper(input.currency_code)
+  const to = upper(input.orderCurrency)
+  if (!from || !to || from === to) {
+    return null
+  }
+  const rate = Number(input.rate)
+  if (!Number.isFinite(rate) || rate <= 0) {
+    return null
+  }
+  const original = toNum(input.amount)
+  // Money, so round to the minor unit. Left at full precision the payout picks
+  // up a fraction of a cent that no invoice will ever agree with.
+  const converted = Math.round(original * rate * 100) / 100
+  return {
+    amount: converted,
+    currency_code: to,
+    fx: {
+      original_amount: original,
+      original_currency_code: from,
+      fx_rate: rate,
+      fx_source: input.source,
+      converted_at: input.convertedAt,
+    },
+  }
 }
 
 /**
@@ -207,6 +333,7 @@ export function planShippingChargeUpsert(
     carrier: charge.carrier || null,
     awb: charge.awb || null,
     recorded_at: charge.recorded_at,
+    fx: readFx(charge.fx),
   }
 
   const claimsLegacyLine =
@@ -295,6 +422,7 @@ export function planShippingReversal(
     reversed_at: event.reversed_at,
     reason: event.reason || null,
     reversed_by: event.reversed_by || null,
+    fx: removed.fx,
   }
 
   return {

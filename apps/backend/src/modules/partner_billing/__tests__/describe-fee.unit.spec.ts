@@ -285,6 +285,8 @@ describe("describeFee (#623)", () => {
         awb: "77712345678",
         reversed_at: "2026-08-14T06:00:00.000Z",
         reason: "pickup no-show",
+        // Pre-FX reversal: nothing was converted, so there is no rate to carry.
+        fx: null,
       })
       // 1000 − 100 commission, and nothing for the reversed freight.
       expect(d.net_payout).toBe(900)
@@ -344,6 +346,7 @@ describe("describeFee (#623)", () => {
         awb: null,
         reversed_at: null,
         reason: null,
+        fx: null,
       })
       expect(d.shipping_reversals[1].amount).toBe(0)
     })

@@ -13,7 +13,11 @@
 
 // `shipping-ledger` is itself pure and dependency-free, so importing it here
 // keeps this file's "trivially unit-testable" contract intact.
-import { readShippingCharges, readShippingReversals } from "./shipping-ledger"
+import {
+  readShippingCharges,
+  readShippingReversals,
+  type ShippingFxRecord,
+} from "./shipping-ledger"
 
 export type PartnerFeeBasis = "percentage" | "flat"
 
@@ -103,8 +107,17 @@ export type ShippingChargeLine = {
   currency_code: string
   carrier: string | null
   awb: string | null
-  /** True when quoted outside the order currency — shown, never deducted. */
+  /**
+   * True when quoted outside the order currency — shown, never deducted.
+   *
+   * A CONVERTED line is false here: it was quoted in the carrier's currency but
+   * is stored in the order's, and is deducted like any other. `fx` is what says
+   * a conversion happened, so a UI can render "₹11,767 @ 0.01048 = $123.32"
+   * rather than a bare converted number nobody can tie to an invoice.
+   */
   is_foreign_currency: boolean
+  /** The conversion, when this line was converted. Null when it was not. */
+  fx: ShippingFxRecord | null
 }
 
 /** A retired platform-shipping charge, shown for continuity, never deducted. */
@@ -116,6 +129,8 @@ export type ReversedShippingCharge = {
   awb: string | null
   reversed_at: string | null
   reason: string | null
+  /** The conversion behind `amount`, so a credit note can still be matched. */
+  fx: ShippingFxRecord | null
 }
 
 /** Platform-shipping deduction, when the partner used our carrier account. */
@@ -210,6 +225,7 @@ export function describeFee(
     carrier: c.carrier,
     awb: c.awb,
     is_foreign_currency: c.currency_code !== reference,
+    fx: c.fx,
   }))
   const deductibleLines = shipping_charges.filter((c) => !c.is_foreign_currency)
 
@@ -253,6 +269,7 @@ export function describeFee(
     awb: r?.awb || null,
     reversed_at: r?.reversed_at || null,
     reason: r?.reason || null,
+    fx: (r?.fx as ShippingFxRecord) || null,
   }))
 
   // Only deduct what is actually collected. A foreign-currency carrier charge

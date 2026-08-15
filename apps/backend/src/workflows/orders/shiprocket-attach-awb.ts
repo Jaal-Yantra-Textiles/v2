@@ -76,12 +76,33 @@ export function deriveFulfillmentState(
 export function buildAttachAwbLabels(
   existingLabels: any[] | undefined,
   label: { tracking_number: string; tracking_url: string; label_url: string }
-): Array<{ id: string } | typeof label> {
+): Array<
+  { id: string; tracking_url?: string; label_url?: string } | typeof label
+> {
   const existing = existingLabels ?? []
+  const match = existing.find(
+    (l: any) => l?.tracking_number === label.tracking_number
+  )
   const carried = existing
     .filter((l: any) => !!l?.id)
-    .map((l: any) => ({ id: l.id as string }))
-  if (existing.some((l: any) => l?.tracking_number === label.tracking_number)) {
+    .map((l: any) =>
+      // Re-supplying the SAME AWB is a correction, not a duplicate: the tracking
+      // or label URL arrived later, or was wrong. Merging them onto the existing
+      // row is what makes that possible — returning a bare `{id}` (as this did
+      // until #1305) silently kept the old, usually empty, URLs while the caller
+      // saw a 200 and `data.tracking_url` updated, so the two disagreed forever.
+      //
+      // Only non-empty values overwrite. A caller attaching an AWB it has no
+      // label URL for must not blank one that is already there.
+      l.id === (match as any)?.id
+        ? {
+            id: l.id as string,
+            ...(label.tracking_url ? { tracking_url: label.tracking_url } : {}),
+            ...(label.label_url ? { label_url: label.label_url } : {}),
+          }
+        : { id: l.id as string }
+    )
+  if (match) {
     return carried
   }
   return [...carried, label]
