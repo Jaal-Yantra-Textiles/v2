@@ -51,9 +51,13 @@ export function buildMcpServer(
 
   const writeEnabled = ctx.enableWrite !== false
   const dangerousEnabled = ctx.enableDangerous === true
+  // Undefined = allowed, so an unscoped surface keeps every sensitive tool.
+  const sensitiveEnabled = ctx.enableSensitive !== false
   const visibleTools = tools.filter(
     (t) =>
-      (writeEnabled || !t.write) && (dangerousEnabled || !isDangerous(t))
+      (writeEnabled || !t.write) &&
+      (dangerousEnabled || !isDangerous(t)) &&
+      (sensitiveEnabled || !isSensitive(t))
   )
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
