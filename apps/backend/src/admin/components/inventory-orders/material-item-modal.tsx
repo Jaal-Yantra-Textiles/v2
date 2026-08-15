@@ -3,6 +3,8 @@ import { Badge, Button, FocusModal, Text } from "@medusajs/ui"
 import { InventoryItem, RawMaterial } from "../../hooks/api/raw-materials"
 import { StackedFocusModal } from "../modal/stacked-modal/stacked-focused-modal"
 import { StackedModalContext } from "../modal/stacked-modal/stacked-modal-context"
+import { ThumbnailPreview } from "../common/thumbnail-preview"
+import { firstMediaUrl } from "../../lib/utils/first-media-url"
 
 type MaterialItem = (InventoryItem & { raw_materials?: RawMaterial | null }) | null
 
@@ -26,32 +28,56 @@ const InfoRow = ({
 const Divider = () => <div className="border-t border-ui-border-base" />
 
 /** Shared header + body content, reused by the stacked modal and the fallback. */
-const MaterialItemHeaderContent = ({ item }: { item: MaterialItem }) => (
-  <div className="flex flex-col gap-1">
-    <Text size="small" className="text-ui-fg-subtle uppercase">
-      Inventory Item
-    </Text>
-    <div className="flex flex-wrap items-center gap-2">
-      <FocusModal.Title asChild>
-        <Text weight="plus" size="large">
-          {item?.title || "Untitled item"}
-        </Text>
-      </FocusModal.Title>
-      {item?.sku && (
-        <Badge size="small" color="grey">
-          SKU: {item.sku}
-        </Badge>
-      )}
+const MaterialItemHeaderContent = ({ item }: { item: MaterialItem }) => {
+  const photo =
+    firstMediaUrl(item?.raw_materials?.media) || item?.thumbnail || undefined
+  return (
+    <div className="flex flex-col gap-1">
+      <Text size="small" className="text-ui-fg-subtle uppercase">
+        Inventory Item
+      </Text>
+      <div className="flex flex-wrap items-center gap-3">
+        {photo && (
+          <ThumbnailPreview
+            src={photo}
+            alt={item?.title || "Item"}
+            size="small"
+          />
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <FocusModal.Title asChild>
+            <Text weight="plus" size="large">
+              {item?.title || "Untitled item"}
+            </Text>
+          </FocusModal.Title>
+          {item?.sku && (
+            <Badge size="small" color="grey">
+              SKU: {item.sku}
+            </Badge>
+          )}
+        </div>
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 const MaterialItemBodyContent = ({ item }: { item: MaterialItem }) => {
   if (!item) {
     return null
   }
+  const heroPhoto =
+    firstMediaUrl(item.raw_materials?.media) || item.thumbnail || undefined
   return (
     <div className="flex flex-col gap-6">
+      {heroPhoto && (
+        <div className="flex justify-center">
+          <ThumbnailPreview
+            src={heroPhoto}
+            alt={item.title || "Item"}
+            size="large"
+          />
+        </div>
+      )}
       <div className="flex flex-col gap-3">
         <Text size="small" className="text-ui-fg-subtle">
           {item.description || "No description provided."}
@@ -76,6 +102,44 @@ const MaterialItemBodyContent = ({ item }: { item: MaterialItem }) => {
         <div className="flex flex-col gap-3">
           <Divider />
           <Text weight="plus">Raw Material</Text>
+          {(() => {
+            const media = item.raw_materials?.media
+            const files: string[] = []
+            if (media && Array.isArray((media as { files?: unknown }).files)) {
+              for (const entry of (media as { files: unknown[] }).files) {
+                const url =
+                  typeof entry === "string" ? entry : firstMediaUrl(entry)
+                if (url) {
+                  files.push(url)
+                }
+              }
+            } else {
+              const url = firstMediaUrl(media)
+              if (url) {
+                files.push(url)
+              }
+            }
+            if (files.length > 0) {
+              return (
+                <div className="flex flex-col gap-2">
+                  <Text size="small" className="text-ui-fg-subtle">
+                    Media
+                  </Text>
+                  <div className="flex flex-wrap gap-2">
+                    {files.map((url, index) => (
+                      <ThumbnailPreview
+                        key={index}
+                        src={url}
+                        alt={`${item.raw_materials?.name ?? "Raw material"} media ${index + 1}`}
+                        size="large"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )
+            }
+            return null
+          })()}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <InfoRow label="Name" value={item.raw_materials.name} />
             <InfoRow label="Color" value={item.raw_materials.color} />

@@ -9,6 +9,8 @@ import { Eye, Trash } from "@medusajs/icons";
 import { Combobox } from "../inputs/combobox/combobox";
 import { InventoryItem, RawMaterial } from "../../hooks/api/raw-materials";
 import { MaterialItemModal } from "../inventory-orders/material-item-modal";
+import { ThumbnailPreview } from "../common/thumbnail-preview";
+import { firstMediaUrl } from "../../lib/utils/first-media-url";
 
 type PickerOption = { label: string; value: string; keywords?: string; disabled?: boolean };
 
@@ -268,6 +270,31 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
 
   const columns: ColumnDef<InventoryOrderLine>[] = [
     columnHelper.column({
+      id: "image",
+      name: "Image",
+      header: "Image",
+      cell: (context: any) => {
+        const inventoryItemId =
+          lineAt(context.row.index)?.inventory_item_id || ""
+        const inventoryItem = inventoryItemId
+          ? inventoryItemMap.get(inventoryItemId) || null
+          : null
+        const photo =
+          firstMediaUrl(inventoryItem?.raw_materials?.media) ||
+          inventoryItem?.thumbnail ||
+          undefined
+        return (
+          <div className="flex h-full items-center justify-center px-2">
+            <ThumbnailPreview
+              src={photo}
+              alt={inventoryItem?.title || "Item"}
+              size="small"
+            />
+          </div>
+        )
+      },
+    }),
+    columnHelper.column({
       id: "item",
       name: "Item",
       header: "Item",
@@ -438,6 +465,9 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
   // Increase widths for a more comfortable layout
   const sizedColumns: ColumnDef<InventoryOrderLine>[] = useMemo(() => {
     return columns.map((col) => {
+      if (col.id === "image") {
+        return { ...col, size: 72, maxSize: 96 }
+      }
       if (col.id === "item") {
         return { ...col, size: 480, maxSize: 720 }
       }
