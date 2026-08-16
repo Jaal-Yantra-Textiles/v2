@@ -1,3 +1,16 @@
+# [13.98.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.97.0...v13.98.0) (2026-08-16)
+
+
+### Bug Fixes
+
+* **assistant:** render message parts in order, not text-then-tools ([#1312](https://github.com/Jaal-Yantra-Textiles/v2/issues/1312)) ([e2b1044](https://github.com/Jaal-Yantra-Textiles/v2/commit/e2b1044d7b9511b93701f58e65d2d8726d41a4eb))
+* **shipping:** send the promised tracking mail when a replacement AWB is attached ([#1313](https://github.com/Jaal-Yantra-Textiles/v2/issues/1313)) ([defc651](https://github.com/Jaal-Yantra-Textiles/v2/commit/defc6512f84b968bacceb9ff27aab7a20eb489e9))
+
+
+### Features
+
+* **mcp:** make the `write` scope rung real, and enforce tiers per route ([#1306](https://github.com/Jaal-Yantra-Textiles/v2/issues/1306)) ([#1310](https://github.com/Jaal-Yantra-Textiles/v2/issues/1310)) ([2b1a8cc](https://github.com/Jaal-Yantra-Textiles/v2/commit/2b1a8cc5c18e5b514a3cdc646839441aa5fe5f65))
+
 # [13.97.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.96.0...v13.97.0) (2026-08-16)
 
 
