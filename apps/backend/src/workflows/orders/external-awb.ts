@@ -127,6 +127,44 @@ export function planDetachedFulfillmentData(
 }
 
 /**
+ * Public tracking-page URL patterns for carriers we do NOT integrate.
+ *
+ * An integrated carrier builds its own link in its adapter (see bluedart's
+ * `adapter.ts`). This path has no adapter by definition — the whole point is a
+ * waybill from a carrier we cannot call — so the link has to come from
+ * somewhere, and "the operator remembers to paste one" is not somewhere. Order
+ * 79 shipped with an empty `tracking_url` for exactly that reason, leaving a
+ * tracking mail with a bare number and nothing to click.
+ *
+ * Keys are the lowercased carrier name as the operator types it.
+ */
+export const EXTERNAL_CARRIER_TRACKING_URLS: Record<string, string> = {
+  dtdc: "https://www.dtdc.com/track-your-shipment/?awb={awb}",
+}
+
+/**
+ * The tracking link to stamp on this attachment.
+ *
+ * An operator-supplied URL always wins — they are holding the waybill and may
+ * have a better link than any pattern. Otherwise fall back to a known public
+ * pattern, and to "" when the carrier has none, which is what every reader
+ * already treats as absent.
+ */
+export function resolveExternalTrackingUrl(
+  carrier: string,
+  awb: string,
+  explicit?: string
+): string {
+  const supplied = (explicit || "").trim()
+  if (supplied) return supplied
+  if (!awb) return ""
+  const template = EXTERNAL_CARRIER_TRACKING_URLS[carrier.trim().toLowerCase()]
+  return template
+    ? template.replace("{awb}", encodeURIComponent(awb))
+    : ""
+}
+
+/**
  * Should marking this externally-booked parcel shipped tell the customer?
  *
  * **Yes, unless the operator says otherwise.** Same as every other shipment —
@@ -321,9 +359,11 @@ export async function attachExternalAwb(
   // #1195: the label row is the ONLY way a fulfillment can be found from an AWB
   // (`data` is jsonb and cannot be filtered), so it is what makes this parcel
   // discoverable to any later status push or manual lookup.
+  const trackingUrl = resolveExternalTrackingUrl(carrier, awb, input.trackingUrl)
+
   const labels = buildAttachAwbLabels(fulfillment.labels, {
     tracking_number: awb,
-    tracking_url: input.trackingUrl || "",
+    tracking_url: trackingUrl,
     label_url: input.labelUrl || "",
   })
 
@@ -331,7 +371,7 @@ export async function attachExternalAwb(
     data: planExternalAttachData(fulfillment.data, {
       carrier,
       awb,
-      trackingUrl: input.trackingUrl,
+      trackingUrl,
       labelUrl: input.labelUrl,
       attachment,
     }),

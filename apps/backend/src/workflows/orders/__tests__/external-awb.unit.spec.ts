@@ -2,6 +2,7 @@ import {
   planDetachedFulfillmentData,
   planExternalAttachData,
   resolveExternalAwbNotify,
+  resolveExternalTrackingUrl,
   type ExternalAttachment,
 } from "../external-awb"
 
@@ -203,6 +204,43 @@ describe("resolveExternalAwbNotify", () => {
     ).toBe(true)
     expect(resolveExternalAwbNotify({ cancelled_shipments: 3 as any })).toBe(
       true
+    )
+  })
+})
+
+describe("resolveExternalTrackingUrl", () => {
+  it("fills DTDC's per-AWB link so the mail has something to click", () => {
+    // Order 79 shipped with an empty tracking_url and the customer got a bare
+    // number. The operator remembering to paste a link is not a mechanism.
+    expect(resolveExternalTrackingUrl("dtdc", "N40878729")).toBe(
+      "https://www.dtdc.com/track-your-shipment/?awb=N40878729"
+    )
+  })
+
+  it("matches the carrier case-insensitively, as an operator types it", () => {
+    expect(resolveExternalTrackingUrl("DTDC", "N40878729")).toContain(
+      "awb=N40878729"
+    )
+    expect(resolveExternalTrackingUrl(" Dtdc ", "N40878729")).toContain(
+      "awb=N40878729"
+    )
+  })
+
+  it("lets an operator-supplied url win — they hold the waybill", () => {
+    expect(
+      resolveExternalTrackingUrl("dtdc", "N40878729", "https://example.com/x")
+    ).toBe("https://example.com/x")
+  })
+
+  it("returns empty for a carrier with no known pattern", () => {
+    // "" is what every reader already treats as absent.
+    expect(resolveExternalTrackingUrl("india post", "IP2")).toBe("")
+    expect(resolveExternalTrackingUrl("dtdc", "")).toBe("")
+  })
+
+  it("url-encodes the waybill", () => {
+    expect(resolveExternalTrackingUrl("dtdc", "N 40/878")).toBe(
+      "https://www.dtdc.com/track-your-shipment/?awb=N%2040%2F878"
     )
   })
 })
