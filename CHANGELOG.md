@@ -1,3 +1,10 @@
+# [13.97.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.96.0...v13.97.0) (2026-08-16)
+
+
+### Features
+
+* **admin:** manage partner storefront custom domain via drawer + action menu ([#1311](https://github.com/Jaal-Yantra-Textiles/v2/issues/1311)) ([75aabb0](https://github.com/Jaal-Yantra-Textiles/v2/commit/75aabb0e719c2abb37eab8221c95336ff9466c55))
+
 # [13.96.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.95.0...v13.96.0) (2026-08-16)
 
 
