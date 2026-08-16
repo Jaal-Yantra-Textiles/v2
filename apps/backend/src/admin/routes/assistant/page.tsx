@@ -905,38 +905,57 @@ const AssistantChat = ({
 
         {messages.map((m: any) => {
           const text = getText(m.parts)
-          const toolParts = (m.parts || []).filter(
-            (p: any) =>
-              p?.type === "dynamic-tool" || String(p?.type || "").startsWith("tool-")
-          )
           return (
             <div key={m.id} className={m.role === "user" ? "flex justify-end" : ""}>
               <div
                 className={
                   m.role === "user"
                     ? "bg-ui-bg-interactive text-ui-fg-on-color max-w-[80%] rounded-lg px-3 py-2"
-                    : "max-w-[92%]"
+                    : "max-w-[92%] space-y-2"
                 }
               >
-                {text ? (
-                  m.role === "user" ? (
+                {m.role === "user" ? (
+                  text ? (
                     <Text size="small" className="whitespace-pre-wrap">
                       {text}
                     </Text>
-                  ) : (
-                    <>
-                      <Markdown content={text} />
-                      {!streaming ? <CopyButton text={text} /> : null}
-                    </>
-                  )
-                ) : null}
-                {toolParts.map((p: any, i: number) => (
-                  <ToolPart
-                    key={p.toolCallId || i}
-                    part={p}
-                    collapsePreference={collapseTools}
-                  />
-                ))}
+                  ) : null
+                ) : (
+                  <>
+                    {/*
+                      In part ORDER. This used to concatenate every text part
+                      into one blob and render it above every tool card, so an
+                      answer written around its tool calls came out inverted:
+                      the summary the model wrote after a tool grew on top of
+                      the call it was describing, and each further step appended
+                      to that same block. Walking the parts puts narration
+                      before its tool and the closing summary last, which is the
+                      order the model actually wrote them in.
+                    */}
+                    {(m.parts || []).map((p: any, i: number) => {
+                      if (p?.type === "text" && typeof p.text === "string") {
+                        return p.text ? (
+                          <Markdown key={i} content={p.text} />
+                        ) : null
+                      }
+                      if (
+                        p?.type === "dynamic-tool" ||
+                        String(p?.type || "").startsWith("tool-")
+                      ) {
+                        return (
+                          <ToolPart
+                            key={p.toolCallId || i}
+                            part={p}
+                            collapsePreference={collapseTools}
+                          />
+                        )
+                      }
+                      return null
+                    })}
+                    {/* One copy affordance for the whole answer, not per block. */}
+                    {text && !streaming ? <CopyButton text={text} /> : null}
+                  </>
+                )}
               </div>
             </div>
           )
