@@ -12,6 +12,12 @@
  *     running; the frontend surfaces an approval card and, on confirm, calls
  *     POST /partners/mcp directly with `confirm: true`.
  *
+ * The full registry stays bound (every tool stays callable), but only a
+ * per-ask slice is serialised to the provider via `activeTools` + prepareStep
+ * (see ../../mcp/lib/tool-slice) — so the ~178-tool registry does not become a
+ * per-turn token cost. A `load_partner_tools` escape hatch widens the slice
+ * mid-run when the model asks for a domain it wasn't given.
+ *
  * Pipeline mirrors the theme-editor chat (#339): resolve the chat model for the
  * `ai_partner_assistant` role (DB-configured platform → OpenRouter free
  * fallback), bind tools, `streamText(...)`, and pipe the UI message stream into
@@ -30,6 +36,12 @@ import { resolveRoleTextModel, logAiUsage } from "../../../../mastra/services/ai
 import { dynamicFreeToolTextModel } from "../../../../mastra/providers/dynamic-text-model"
 import { foldSystemForProvider } from "../../../store/ai/chat/system-fold-lib"
 import { PARTNER_MCP_TOOLS, renderToolGuidance } from "../../mcp/lib/registry"
+import {
+  selectPartnerToolSlice,
+  toolsInDomains,
+  toolDomain,
+  SELECTABLE_DOMAINS,
+} from "../../mcp/lib/tool-slice"
 import {
   dispatchPartnerTool,
   buildToolInputSchema,
@@ -53,6 +65,9 @@ const SYSTEM_PROMPT = `You are the JYT partner-portal assistant. You help partne
 - For ONBOARDING: guide the partner conversationally. The essential gate is a business name + a persona (workspace_type: 'seller' | 'manufacturer' | 'individual' | 'designer'). Set those with \`update_partner_profile\`, and when both are set, merge \`metadata.onboarding_essentials_done = true\` into their existing metadata (read it from get_partner_profile first — metadata is REPLACED, not patched, so always spread the existing values). Record deeper answers (what they sell, team size, selling mode, etc.) with \`update_onboarding_profile\`.
 - For LAYOUT personalization: use the layout tools to reorder or hide sidebar/home widgets for zones 'sidebar.main' and 'home'.
 - To answer questions about their business, use the read tools (list_orders, list_products, list_stores, list_designs, list_inventory_items, list_notifications).
+
+## Your tools are loaded on demand
+You are given the tools for the domains this conversation appears to be about, not the full partner surface. If the tool you need is not in your list, DO NOT tell the user it is impossible or improvise with a different tool — call \`load_partner_tools\` with the relevant domains (orders, catalog, storefront, designs, production, inventory, customers, money) and the tools become callable on your next step. Loading a domain you turn out not to need is harmless.
 
 ## Safety rails (important)
 - Every tool accepts \`dry_run: true\`. Use it to PREVIEW a change and inspect the current object before you actually write — especially before any update. Show the user what will change, then run the tool for real.
@@ -95,8 +110,10 @@ export const POST = async (
 
   // Bind the registry as AI-SDK tools. One source of truth (JSON Schema) feeds
   // both this binding and the MCP endpoint's tools/list.
-  const tools = Object.fromEntries(
-    PARTNER_MCP_TOOLS.filter((def) => writeEnabled || !def.write).map((def) => [
+  const enabled = PARTNER_MCP_TOOLS.filter((def) => writeEnabled || !def.write)
+
+  const tools: Record<string, any> = Object.fromEntries(
+    enabled.map((def) => [
       def.name,
       tool({
         description:
@@ -127,6 +144,69 @@ export const POST = async (
     }
   })
 
+  // ---- Per-ask registry slicing -------------------------------------------
+  // All ~178 tools stay BOUND (so any of them can still execute), but only the
+  // slice this ask needs is serialised to the provider via `activeTools`.
+  // Without this every turn re-sends the whole registry, which is both the
+  // dominant token cost of a conversation and — because the free rotator ranks
+  // by context length — a lever on which model answers.
+  //
+  // `activated` is the live slice. It starts from keyword matching on the recent
+  // conversation and can only ever GROW, via load_partner_tools below, so a bad
+  // initial guess costs one round trip rather than a capability.
+  const recentText = messages
+    .slice(-6)
+    .map((m: any) => m.parts.map((p: any) => p.text).join(" "))
+    .join("\n")
+
+  const initialSlice = selectPartnerToolSlice(recentText, enabled)
+  const activated = new Set<string>(initialSlice.names)
+
+  logger.debug?.(
+    `[${FEATURE}] tool slice: ${activated.size}/${enabled.length} tools` +
+      ` (domains: ${initialSlice.domains.join(", ") || "none matched"})`
+  )
+
+  // The escape hatch. Always active, so the model is never boxed in by a slice
+  // that guessed wrong — it names the domains it needs and they light up on the
+  // next step. This is also why the slice can be aggressive.
+  tools.load_partner_tools = tool({
+    description:
+      "Load the tools for one or more partner domains when the tool you need is not currently available to you. " +
+      `Valid domains: ${SELECTABLE_DOMAINS.join(", ")}. ` +
+      "Returns the names and descriptions of the tools that just became callable — call them on your next step. " +
+      "Use this instead of telling the user something is impossible.",
+    inputSchema: jsonSchema({
+      type: "object",
+      properties: {
+        domains: {
+          type: "array",
+          items: { type: "string", enum: SELECTABLE_DOMAINS },
+          description: "The partner domains to load tools for.",
+        },
+      },
+      required: ["domains"],
+      additionalProperties: false,
+    }),
+    execute: async ({ domains }: { domains: string[] }) => {
+      const names = toolsInDomains(domains ?? [], enabled)
+      names.forEach((n) => activated.add(n))
+      return {
+        ok: true,
+        loaded: names.length,
+        domains: domains ?? [],
+        tools: enabled
+          .filter((d) => names.includes(d.name))
+          .map((d) => ({
+            name: d.name,
+            domain: toolDomain(d),
+            description: d.description,
+          })),
+      }
+    },
+  })
+  activated.add("load_partner_tools")
+
   // This assistant REQUIRES tool calling. The free rotator ranks by context
   // length and can land on a text-only model ("No endpoints found that support
   // tool use"), so on the free path use the tool-capable variant (openrouter/
@@ -155,6 +235,9 @@ export const POST = async (
         ...(folded.system ? { system: folded.system } : {}),
         messages: convertToModelMessages(folded.messages as any),
         tools,
+        // Re-read `activated` before every step so tools loaded via
+        // load_partner_tools become callable on the very next one.
+        prepareStep: () => ({ activeTools: [...activated] }),
         stopWhen: stepCountIs(8),
         temperature: 0.3,
         // Let the AI SDK retry transient network/5xx failures at the model
