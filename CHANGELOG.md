@@ -1,3 +1,10 @@
+# [13.96.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.95.0...v13.96.0) (2026-08-16)
+
+
+### Features
+
+* **inventory-orders:** show raw_material thumbnails in order-lines grid and item details modal ([#1307](https://github.com/Jaal-Yantra-Textiles/v2/issues/1307)) ([4639ce9](https://github.com/Jaal-Yantra-Textiles/v2/commit/4639ce9ad1d93b8fc7d42b4a09a200572a0ba5de))
+
 # [13.95.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.94.0...v13.95.0) (2026-08-15)
 
 
