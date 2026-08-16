@@ -3886,6 +3886,27 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [],
     },
+    // Admin Partner Storefront Domain (mirror of /partners/storefront/domain)
+    {
+      matcher: "/admin/partners/:id/storefront/domain",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/partners/:id/storefront/domain",
+      method: "POST",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/partners/:id/storefront/domain",
+      method: "DELETE",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/partners/:id/storefront/domain/verify",
+      method: "POST",
+      middlewares: [],
+    },
     // Admin Partner Admins routes
     {
       matcher: "/admin/partners/:id/admins",
