@@ -31,6 +31,13 @@ const Body = z.object({
   fulfillment_id: z.string().trim().optional(),
   /** Defaults to false — attaching and handing over are different events. */
   mark_shipped: z.boolean().optional(),
+  /**
+   * Email the customer the new tracking when `mark_shipped` is set. Omit for
+   * AUTO: on when a waybill on this fulfillment was cancelled earlier, because
+   * `cancel-shipment` already promised the customer a fresh link; off for a
+   * first attach, where no such promise was made.
+   */
+  notify_customer: z.boolean().optional(),
   /** Why this was booked outside the system. Kept in the audit trail. */
   notes: z.string().trim().max(500).optional(),
   /**
@@ -79,6 +86,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     trackingUrl: body.tracking_url,
     labelUrl: body.label_url,
     markShipped: body.mark_shipped === true,
+    notifyCustomer: body.notify_customer,
     notes: body.notes,
     actingEmail: await resolveActorEmail(req),
     shippingAmount: body.shipping_amount,
