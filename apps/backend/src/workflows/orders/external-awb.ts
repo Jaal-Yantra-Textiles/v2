@@ -126,6 +126,41 @@ export function planDetachedFulfillmentData(
   return next
 }
 
+/**
+ * Should marking this externally-booked parcel shipped tell the customer?
+ *
+ * **Yes, unless the operator says otherwise.** Same as every other shipment —
+ * which is the whole point, because this path was the only one that silently
+ * differed.
+ *
+ * An earlier draft defaulted to "only when a waybill on this fulfillment was
+ * cancelled first", reasoning that a first attach promised nothing and that one
+ * parcel should not yield two shipped mails. Prod falsified that. **Order 79**
+ * (`rpivko@gmail.com`, DTDC `N40878729`) is an external attach marked shipped on
+ * 2026-08-08 with **no** `cancelled_shipments` record — its abandoned Shiprocket
+ * booking was never cancelled through `cancel-shipment`, so nothing was written
+ * here. Under that rule the customer would stay silent forever, and in fact has:
+ * the parcel shipped and nobody ever sent them a tracking number.
+ *
+ * The double-mail worry was unfounded. Marking shipped emits exactly ONE shipped
+ * mail on the ordinary path; on this path it emitted zero, because
+ * `no_notification` was hardcoded true. So the old default did not prevent a
+ * second mail — it suppressed the only one.
+ *
+ * A cancelled predecessor makes it more urgent (`cancel-shipment` explicitly
+ * promised a fresh link) but it was never the thing that made it correct.
+ *
+ * Pure so the decision is testable without a container — the surrounding attach
+ * needs a live fulfillment module, which is exactly how this stayed an
+ * un-inspectable hardcoded `true` long enough to strand two orders.
+ */
+export function resolveExternalAwbNotify(
+  _fulfillmentData: Record<string, any> | null | undefined,
+  explicit?: boolean
+): boolean {
+  return typeof explicit === "boolean" ? explicit : true
+}
+
 export type AttachExternalAwbInput = {
   orderId: string
   fulfillmentId: string
@@ -140,6 +175,24 @@ export type AttachExternalAwbInput = {
    * generated the night before. The operator says when it actually left.
    */
   markShipped?: boolean
+  /**
+   * Email the customer the tracking details when this is marked shipped.
+   *
+   * **Defaults to TRUE** — the same as every other shipment. This path was the
+   * only one that silently differed: it hardcoded `no_notification: true`, so a
+   * parcel booked at a counter went out and nobody ever told the customer.
+   * Order 79's DTDC waybill shipped on 2026-08-08 and its customer has still
+   * never been sent a tracking number.
+   *
+   * Set false for a back-fill or a correction, where the customer already has
+   * the details and a second mail would only confuse.
+   *
+   * Only meaningful with `markShipped`: without a shipment there is nothing to
+   * send, since the mail is built from the shipment's labels. That also matches
+   * what `cancel-shipment` promises — the fresh link comes when the new courier
+   * has collected the parcel, not when its waybill was printed.
+   */
+  notifyCustomer?: boolean
   notes?: string
   actingEmail?: string
   /**
@@ -170,6 +223,14 @@ export type AttachExternalAwbResult = {
   awb: string
   attached_at: string
   marked_shipped: boolean
+  /**
+   * Whether the customer was sent the new tracking details.
+   *
+   * Returned rather than assumed: the mail is best-effort (a missing template
+   * must not fail an attach that succeeded), and "did the customer get told"
+   * is the question an operator asks straight after a courier change.
+   */
+  customer_notified: boolean
   /**
    * What was written to the freight ledger, or null when no cost was supplied
    * or there was no partner fee row to hang it off. Returned rather than
@@ -277,7 +338,13 @@ export async function attachExternalAwb(
     labels: labels as any,
   })
 
+  const notifyCustomer = resolveExternalAwbNotify(
+    fulfillment.data,
+    input.notifyCustomer
+  )
+
   let markedShipped = false
+  let customerNotified = false
   if (input.markShipped) {
     const items = (order.items || []).map((i: any) => ({
       id: i.id,
@@ -292,10 +359,16 @@ export async function attachExternalAwb(
           // NOT `[]` — that is a full replace and would drop the AWB label we
           // just wrote, taking the parcel's only discoverable handle with it.
           labels: labels as any,
-          no_notification: true,
+          // Reuses the ordinary shipped mail rather than a bespoke one: it is
+          // already built from the fulfillment's labels, which now hold THIS
+          // waybill, so the customer gets real tracking for the carrier the
+          // parcel is actually on. A template invented for this path would be a
+          // second thing to seed and a second thing to be missing on prod.
+          no_notification: !notifyCustomer,
         },
       })
       markedShipped = true
+      customerNotified = notifyCustomer
     } catch (e: any) {
       // Best-effort: the AWB is attached either way, and reporting a failed
       // attach for one that succeeded would send an operator to re-attach it.
@@ -328,6 +401,7 @@ export async function attachExternalAwb(
     awb,
     attached_at: attachedAt,
     marked_shipped: markedShipped,
+    customer_notified: customerNotified,
     shipping_charge: shippingCharge,
   }
 }

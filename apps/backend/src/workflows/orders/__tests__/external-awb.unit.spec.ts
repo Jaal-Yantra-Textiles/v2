@@ -1,6 +1,7 @@
 import {
   planDetachedFulfillmentData,
   planExternalAttachData,
+  resolveExternalAwbNotify,
   type ExternalAttachment,
 } from "../external-awb"
 
@@ -164,5 +165,44 @@ describe("planDetachedFulfillmentData", () => {
     const next = planDetachedFulfillmentData({ waybill: "A", carrier: "dtdc" }, RECORD)
     expect(next.waybill).toBeFalsy()
     expect(next.carrier).toBeFalsy()
+  })
+})
+
+describe("resolveExternalAwbNotify", () => {
+  it("notifies by default — a shipped parcel tells its customer", () => {
+    // This path was the ONLY one that silently differed. Order 79's DTDC
+    // waybill N40878729 shipped 2026-08-08 and its customer was never told.
+    expect(resolveExternalAwbNotify({})).toBe(true)
+    expect(resolveExternalAwbNotify(null)).toBe(true)
+    expect(resolveExternalAwbNotify(undefined)).toBe(true)
+  })
+
+  it("notifies for a replacement waybill too — the promised fresh link", () => {
+    // cancel-shipment promised a fresh link once the new courier collects.
+    // Order 83 is waiting on exactly this.
+    expect(
+      resolveExternalAwbNotify({
+        cancelled_shipments: [{ carrier: "delhivery", awb: "41712510000092" }],
+      })
+    ).toBe(true)
+  })
+
+  it("lets the operator suppress it for a back-fill", () => {
+    // The only legitimate silence: the customer already has the details.
+    expect(resolveExternalAwbNotify({}, false)).toBe(false)
+    expect(
+      resolveExternalAwbNotify({ cancelled_shipments: [{ awb: "x" }] }, false)
+    ).toBe(false)
+    expect(resolveExternalAwbNotify({}, true)).toBe(true)
+  })
+
+  it("does not let corrupt jsonb change the answer", () => {
+    // Same tolerance the planners already have: jsonb is not a schema.
+    expect(
+      resolveExternalAwbNotify({ cancelled_shipments: "not-an-array" as any })
+    ).toBe(true)
+    expect(resolveExternalAwbNotify({ cancelled_shipments: 3 as any })).toBe(
+      true
+    )
   })
 })

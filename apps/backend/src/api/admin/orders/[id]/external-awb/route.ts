@@ -31,6 +31,13 @@ const Body = z.object({
   fulfillment_id: z.string().trim().optional(),
   /** Defaults to false — attaching and handing over are different events. */
   mark_shipped: z.boolean().optional(),
+  /**
+   * Email the customer their tracking when `mark_shipped` is set. Defaults to
+   * TRUE, matching every other shipment — this path used to be silent, which is
+   * how order 79 shipped without its customer ever being told. Pass false for a
+   * back-fill, where the customer already has the details.
+   */
+  notify_customer: z.boolean().optional(),
   /** Why this was booked outside the system. Kept in the audit trail. */
   notes: z.string().trim().max(500).optional(),
   /**
@@ -79,6 +86,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     trackingUrl: body.tracking_url,
     labelUrl: body.label_url,
     markShipped: body.mark_shipped === true,
+    notifyCustomer: body.notify_customer,
     notes: body.notes,
     actingEmail: await resolveActorEmail(req),
     shippingAmount: body.shipping_amount,
