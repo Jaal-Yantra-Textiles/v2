@@ -32,10 +32,10 @@ const Body = z.object({
   /** Defaults to false — attaching and handing over are different events. */
   mark_shipped: z.boolean().optional(),
   /**
-   * Email the customer the new tracking when `mark_shipped` is set. Omit for
-   * AUTO: on when a waybill on this fulfillment was cancelled earlier, because
-   * `cancel-shipment` already promised the customer a fresh link; off for a
-   * first attach, where no such promise was made.
+   * Email the customer their tracking when `mark_shipped` is set. Defaults to
+   * TRUE, matching every other shipment — this path used to be silent, which is
+   * how order 79 shipped without its customer ever being told. Pass false for a
+   * back-fill, where the customer already has the details.
    */
   notify_customer: z.boolean().optional(),
   /** Why this was booked outside the system. Kept in the audit trail. */

@@ -169,38 +169,40 @@ describe("planDetachedFulfillmentData", () => {
 })
 
 describe("resolveExternalAwbNotify", () => {
-  it("emails when a waybill on this fulfillment was cancelled first", () => {
-    // cancel-shipment promised "we'll send you a fresh one as soon as the new
-    // courier has collected your parcel". This is the only thing that keeps it.
+  it("notifies by default — a shipped parcel tells its customer", () => {
+    // This path was the ONLY one that silently differed. Order 79's DTDC
+    // waybill N40878729 shipped 2026-08-08 and its customer was never told.
+    expect(resolveExternalAwbNotify({})).toBe(true)
+    expect(resolveExternalAwbNotify(null)).toBe(true)
+    expect(resolveExternalAwbNotify(undefined)).toBe(true)
+  })
+
+  it("notifies for a replacement waybill too — the promised fresh link", () => {
+    // cancel-shipment promised a fresh link once the new courier collects.
+    // Order 83 is waiting on exactly this.
     expect(
       resolveExternalAwbNotify({
-        cancelled_shipments: [{ carrier: "bluedart", awb: "21091376574" }],
+        cancelled_shipments: [{ carrier: "delhivery", awb: "41712510000092" }],
       })
     ).toBe(true)
   })
 
-  it("stays silent on a first attach — nothing was promised", () => {
-    expect(resolveExternalAwbNotify({})).toBe(false)
-    expect(resolveExternalAwbNotify(null)).toBe(false)
-    expect(resolveExternalAwbNotify(undefined)).toBe(false)
-    // Present but empty is a fulfillment that never had a cancel.
-    expect(resolveExternalAwbNotify({ cancelled_shipments: [] })).toBe(false)
-  })
-
-  it("lets the operator override in both directions", () => {
+  it("lets the operator suppress it for a back-fill", () => {
+    // The only legitimate silence: the customer already has the details.
+    expect(resolveExternalAwbNotify({}, false)).toBe(false)
     expect(
       resolveExternalAwbNotify({ cancelled_shipments: [{ awb: "x" }] }, false)
     ).toBe(false)
     expect(resolveExternalAwbNotify({}, true)).toBe(true)
   })
 
-  it("does not treat a corrupt history as a cancellation", () => {
+  it("does not let corrupt jsonb change the answer", () => {
     // Same tolerance the planners already have: jsonb is not a schema.
     expect(
       resolveExternalAwbNotify({ cancelled_shipments: "not-an-array" as any })
-    ).toBe(false)
+    ).toBe(true)
     expect(resolveExternalAwbNotify({ cancelled_shipments: 3 as any })).toBe(
-      false
+      true
     )
   })
 })

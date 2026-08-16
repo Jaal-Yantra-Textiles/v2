@@ -127,26 +127,38 @@ export function planDetachedFulfillmentData(
 }
 
 /**
- * Should attaching this waybill tell the customer?
+ * Should marking this externally-booked parcel shipped tell the customer?
  *
- * An explicit choice always wins. Absent one, the answer is "yes if a waybill on
- * this fulfillment was cancelled earlier" — because `cancel-shipment` told the
- * customer their tracking link would go dead and a fresh one would follow, and
- * `cancelled_shipments` is the record that it did. A first attach stays silent:
- * nothing was promised, and one parcel should not produce two shipped mails
- * just because its AWB arrived by hand rather than over an API.
+ * **Yes, unless the operator says otherwise.** Same as every other shipment —
+ * which is the whole point, because this path was the only one that silently
+ * differed.
+ *
+ * An earlier draft defaulted to "only when a waybill on this fulfillment was
+ * cancelled first", reasoning that a first attach promised nothing and that one
+ * parcel should not yield two shipped mails. Prod falsified that. **Order 79**
+ * (`rpivko@gmail.com`, DTDC `N40878729`) is an external attach marked shipped on
+ * 2026-08-08 with **no** `cancelled_shipments` record — its abandoned Shiprocket
+ * booking was never cancelled through `cancel-shipment`, so nothing was written
+ * here. Under that rule the customer would stay silent forever, and in fact has:
+ * the parcel shipped and nobody ever sent them a tracking number.
+ *
+ * The double-mail worry was unfounded. Marking shipped emits exactly ONE shipped
+ * mail on the ordinary path; on this path it emitted zero, because
+ * `no_notification` was hardcoded true. So the old default did not prevent a
+ * second mail — it suppressed the only one.
+ *
+ * A cancelled predecessor makes it more urgent (`cancel-shipment` explicitly
+ * promised a fresh link) but it was never the thing that made it correct.
  *
  * Pure so the decision is testable without a container — the surrounding attach
- * needs a live fulfillment module, which is exactly why this used to be an
- * un-inspectable hardcoded `true`.
+ * needs a live fulfillment module, which is exactly how this stayed an
+ * un-inspectable hardcoded `true` long enough to strand two orders.
  */
 export function resolveExternalAwbNotify(
-  fulfillmentData: Record<string, any> | null | undefined,
+  _fulfillmentData: Record<string, any> | null | undefined,
   explicit?: boolean
 ): boolean {
-  if (typeof explicit === "boolean") return explicit
-  const history = (fulfillmentData || {}).cancelled_shipments
-  return Array.isArray(history) && history.length > 0
+  return typeof explicit === "boolean" ? explicit : true
 }
 
 export type AttachExternalAwbInput = {
@@ -164,23 +176,21 @@ export type AttachExternalAwbInput = {
    */
   markShipped?: boolean
   /**
-   * Email the customer the new tracking details when this is marked shipped.
+   * Email the customer the tracking details when this is marked shipped.
    *
-   * Defaults to AUTO: on when this fulfillment has a cancelled shipment behind
-   * it, off otherwise. That default is a promise being kept, not a preference.
-   * `cancel-shipment` tells the customer "any tracking link we sent earlier will
-   * stop updating — we'll send you a fresh one as soon as the new courier has
-   * collected your parcel", and until now nothing on this path ever did: the
-   * attach hardcoded `no_notification: true`, so a courier change that ended on
-   * a counter booking went silent after promising otherwise.
+   * **Defaults to TRUE** — the same as every other shipment. This path was the
+   * only one that silently differed: it hardcoded `no_notification: true`, so a
+   * parcel booked at a counter went out and nobody ever told the customer.
+   * Order 79's DTDC waybill shipped on 2026-08-08 and its customer has still
+   * never been sent a tracking number.
    *
-   * A first-ever attach stays silent by default. No promise was made there, and
-   * the shipped mail is the shipped mail — it should not fire twice for one
-   * parcel just because the AWB arrived by hand.
+   * Set false for a back-fill or a correction, where the customer already has
+   * the details and a second mail would only confuse.
    *
    * Only meaningful with `markShipped`: without a shipment there is nothing to
-   * send, since the mail is built from the shipment's labels. That matches what
-   * the customer was told — the link comes when the parcel is collected.
+   * send, since the mail is built from the shipment's labels. That also matches
+   * what `cancel-shipment` promises — the fresh link comes when the new courier
+   * has collected the parcel, not when its waybill was printed.
    */
   notifyCustomer?: boolean
   notes?: string
