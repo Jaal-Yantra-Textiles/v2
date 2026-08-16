@@ -25,6 +25,7 @@ import type {
   McpToolResult,
 } from "./types"
 import { isDangerous, isSensitive } from "./schema"
+import { mcpScopeAllows, mcpToolTier } from "./tiers"
 import { callMcpRoute, type McpProxyError } from "./proxy"
 
 const substitutePath = (
@@ -115,26 +116,44 @@ export async function dispatchMcpTool(
   const sensitive = railsOn && isSensitive(def)
   const dangerous = railsOn && isDangerous(def)
 
-  if (write && ctx.enableWrite === false) {
-    return fail(
-      ctx.writeDisabledMessage?.(name) ??
-        `Tool '${name}' is a write tool and writes are disabled on this server.`
-    )
-  }
-  // Dangerous tools are hidden + refused when the surface hasn't opted in.
-  if (dangerous && ctx.enableDangerous === false) {
-    return fail(
-      `Tool '${name}' is a platform-destructive action and dangerous tools are disabled on this server.`
-    )
-  }
-  // Sensitive tools refused when this credential's scope stops below them
-  // (#1306 Track C). Deliberately keyed off `isSensitive(def)` rather than the
-  // `sensitive` local: `disableSensitiveRails` turns off the confirm UX for the
-  // store surface, but it must never widen a permission.
-  if (isSensitive(def) && ctx.enableSensitive === false) {
-    return fail(
-      `Tool '${name}' is a sensitive action and this credential's scope does not include sensitive tools.`
-    )
+  // ── Permission ──────────────────────────────────────────────────────────────
+  //
+  // Two mutually exclusive modes, and they MUST NOT both run. A `write`-scoped
+  // credential calling a write-tier tool that is also confirm-gated (every
+  // interesting one) would clear the tier check and then be refused by the
+  // `enableSensitive` check, which is precisely the conflation this replaces.
+  if (ctx.scopeLevel) {
+    // One tier comparison, expressive per tool rather than per class (#1306).
+    const required = mcpToolTier(def)
+    if (!mcpScopeAllows(ctx.scopeLevel, required)) {
+      return fail(
+        `Tool '${name}' requires the '${required}' scope and this credential is ` +
+          `scoped to '${ctx.scopeLevel}'. Scope is set per credential in ` +
+          `mcp_access_scope; widen it via POST /admin/mcp/scopes as an admin user.`
+      )
+    }
+  } else {
+    if (write && ctx.enableWrite === false) {
+      return fail(
+        ctx.writeDisabledMessage?.(name) ??
+          `Tool '${name}' is a write tool and writes are disabled on this server.`
+      )
+    }
+    // Dangerous tools are hidden + refused when the surface hasn't opted in.
+    if (dangerous && ctx.enableDangerous === false) {
+      return fail(
+        `Tool '${name}' is a platform-destructive action and dangerous tools are disabled on this server.`
+      )
+    }
+    // Sensitive tools refused when this credential's scope stops below them
+    // (#1306 Track C). Deliberately keyed off `isSensitive(def)` rather than the
+    // `sensitive` local: `disableSensitiveRails` turns off the confirm UX for the
+    // store surface, but it must never widen a permission.
+    if (isSensitive(def) && ctx.enableSensitive === false) {
+      return fail(
+        `Tool '${name}' is a sensitive action and this credential's scope does not include sensitive tools.`
+      )
+    }
   }
 
   // Resolve the tenant publishable key for multi-tenant (store) surfaces. A

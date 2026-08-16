@@ -22,43 +22,30 @@
  * revoked scope keeps working for its TTL — the wrong trade for a permission.
  */
 import type { MedusaRequest } from "@medusajs/framework/http"
+import {
+  isMcpScopeLevel,
+  mcpScopeAllows,
+  minMcpScope,
+  type McpScopeLevel,
+} from "./mcp-core/tiers"
 import { MCP_ACCESS_MODULE } from "../modules/mcp_access"
 import type McpAccessService from "../modules/mcp_access/service"
 
 /**
- * The scope ladder, weakest first. A level implies every level below it, so a
- * "dangerous" token can also read. Index in this array IS the rank.
+ * The ladder itself lives in `mcp-core/tiers` — dependency-free, so the
+ * dispatcher and the admin dashboard bundle can share it without dragging in
+ * the module resolution below. Re-exported here because this is the import path
+ * every caller already uses.
  */
-export const MCP_SCOPE_LEVELS = [
-  "read",
-  "write",
-  "sensitive",
-  "dangerous",
-] as const
-
-export type McpScopeLevel = (typeof MCP_SCOPE_LEVELS)[number]
-
-export const isMcpScopeLevel = (value: unknown): value is McpScopeLevel =>
-  typeof value === "string" &&
-  (MCP_SCOPE_LEVELS as readonly string[]).includes(value)
-
-/** Rank on the ladder; unknown strings rank as the weakest level (fail shut). */
-export const mcpScopeRank = (level: string): number => {
-  const i = (MCP_SCOPE_LEVELS as readonly string[]).indexOf(level)
-  return i === -1 ? 0 : i
-}
-
-/** The weaker of two levels — how a row is intersected with the ceiling. */
-export const minMcpScope = (
-  a: McpScopeLevel,
-  b: McpScopeLevel
-): McpScopeLevel => (mcpScopeRank(a) <= mcpScopeRank(b) ? a : b)
-
-/** True when `level` reaches at least `required` on the ladder. */
-export const mcpScopeAllows = (
-  level: McpScopeLevel,
-  required: McpScopeLevel
-): boolean => mcpScopeRank(level) >= mcpScopeRank(required)
+export {
+  MCP_SCOPE_LEVELS,
+  isMcpScopeLevel,
+  mcpScopeRank,
+  minMcpScope,
+  mcpScopeAllows,
+  mcpToolTier,
+} from "./mcp-core/tiers"
+export type { McpScopeLevel } from "./mcp-core/tiers"
 
 /**
  * Translate a level into the three flags `McpContext` already understands.

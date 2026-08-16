@@ -21,6 +21,7 @@ import {
   isSensitive,
   renderToolGuidance,
 } from "./schema"
+import { mcpScopeAllows, mcpToolTier } from "./tiers"
 
 export type BuildMcpServerOptions = {
   /** MCP server identity, e.g. { name: "jyt-admin", version: "0.1.0" }. */
@@ -53,12 +54,18 @@ export function buildMcpServer(
   const dangerousEnabled = ctx.enableDangerous === true
   // Undefined = allowed, so an unscoped surface keeps every sensitive tool.
   const sensitiveEnabled = ctx.enableSensitive !== false
-  const visibleTools = tools.filter(
-    (t) =>
-      (writeEnabled || !t.write) &&
-      (dangerousEnabled || !isDangerous(t)) &&
-      (sensitiveEnabled || !isSensitive(t))
-  )
+  // A ladder level, when the surface supplies one, decides visibility on its
+  // own: it is strictly more expressive than the three flags, which can only
+  // include or exclude a whole class (#1306). Surfaces that don't scope leave
+  // it undefined and keep the flag behaviour exactly.
+  const visibleTools = ctx.scopeLevel
+    ? tools.filter((t) => mcpScopeAllows(ctx.scopeLevel!, mcpToolTier(t)))
+    : tools.filter(
+        (t) =>
+          (writeEnabled || !t.write) &&
+          (dangerousEnabled || !isDangerous(t)) &&
+          (sensitiveEnabled || !isSensitive(t))
+      )
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: visibleTools.map((t) => ({

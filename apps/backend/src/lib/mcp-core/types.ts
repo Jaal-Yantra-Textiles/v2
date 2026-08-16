@@ -12,6 +12,9 @@
  * a new endpoint is a single registry row.
  */
 
+// Type-only, so no runtime cycle with `./tiers` (which imports McpToolDef).
+import type { McpScopeLevel } from "./tiers"
+
 /** HTTP verb of the wrapped route. GET = read (always exposed). */
 export type McpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
 
@@ -55,6 +58,19 @@ export type McpToolDef = {
    * dispatch when the surface's dangerous flag is off. Implies `sensitive`.
    */
   dangerous?: boolean
+  /**
+   * Rung on the scope ladder a credential must reach to call this tool (#1306).
+   *
+   * Independent of `sensitive`, which stays the confirm-gate. Set `tier:
+   * "write"` on a confirm-worthy but ordinary mutation — reversible, no money,
+   * no effect outside the platform — to make it reachable by a `write`-scoped
+   * third-party credential while the admin UI keeps asking to confirm it.
+   *
+   * Omit it and the rung is derived from the existing flags, which is the
+   * pre-#1306 behaviour. It can only ever NARROW relative to that derivation
+   * for a dangerous tool; see `mcpToolTier`.
+   */
+  tier?: McpScopeLevel
   /**
    * Companion GET path (same `:param` substitution) used during `dry_run` to
    * fetch the current object so the model can see what it is about to change.
@@ -133,6 +149,20 @@ export type McpContext = {
    * partner/admin keep the full rails.
    */
   disableSensitiveRails?: boolean
+  /**
+   * The credential's effective rung on the scope ladder (#1306).
+   *
+   * When set it SUPERSEDES the three `enable*` flags for visibility and
+   * dispatch: a tool is exposed and callable iff `scopeLevel` reaches its
+   * `mcpToolTier(def)`. That is what makes the `write` rung mean something —
+   * the flags cannot express "ordinary mutations but not the confirm-gated
+   * ones" per tool, only per class, and every admin write is in the sensitive
+   * class.
+   *
+   * Left undefined by surfaces that don't scope (store, partner), which keep
+   * the flag behaviour unchanged.
+   */
+  scopeLevel?: McpScopeLevel
   /** Which surface this context serves — labels observability + server name. */
   surface?: string
   /** Optional sink for per-call observability events (#844). */
