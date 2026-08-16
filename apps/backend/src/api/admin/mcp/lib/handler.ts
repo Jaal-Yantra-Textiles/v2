@@ -31,11 +31,12 @@ import {
   envFlagDefaultFalse,
 } from "../../../../lib/mcp-core"
 import { makeMcpLedgerSink } from "../../../../lib/mcp-ledger"
-import { isDangerous, isSensitive } from "../../../../lib/mcp-core"
 import {
   MCP_SCOPE_LEVELS,
   mcpCeilingLevel,
+  mcpScopeAllows,
   mcpScopeToContextFlags,
+  mcpToolTier,
   resolveMcpScope,
   type McpScopeLevel,
   type ResolvedMcpScope,
@@ -82,24 +83,19 @@ export function adminMcpCeiling(): McpScopeLevel {
 }
 
 /**
- * How many tools each level actually exposes, using the same filter the server
- * applies to `tools/list`.
+ * How many tools each level actually exposes, using the same tier comparison
+ * the server applies to `tools/list`.
  *
- * Surfaced by `/admin/mcp/scopes` because the ladder alone hides something an
- * operator needs to see: every admin write tool is currently `sensitive`, so
- * scoping a credential to `write` exposes exactly what `read` does. A number
- * next to the level makes that obvious at the moment of choosing it, instead of
- * after the third-party client starts refusing every call.
+ * Surfaced by `/admin/mcp/scopes` so an operator sees what a rung is worth at
+ * the moment of choosing it, rather than after the third-party client starts
+ * refusing calls. It existed because `write` used to expose exactly what `read`
+ * did; now that the rung is real the number is what proves it.
  */
 export function adminToolCountsByLevel(): Record<McpScopeLevel, number> {
   const counts = {} as Record<McpScopeLevel, number>
   for (const level of MCP_SCOPE_LEVELS) {
-    const f = mcpScopeToContextFlags(level)
-    counts[level] = ADMIN_MCP_TOOLS.filter(
-      (t) =>
-        (f.enableWrite || !t.write) &&
-        (f.enableDangerous || !isDangerous(t)) &&
-        (f.enableSensitive || !isSensitive(t))
+    counts[level] = ADMIN_MCP_TOOLS.filter((t) =>
+      mcpScopeAllows(level, mcpToolTier(t))
     ).length
   }
   return counts
@@ -123,7 +119,12 @@ export function buildAdminMcpServer(
       baseUrl: resolveAdminBaseUrl(req),
       bearer: req.get("authorization") || undefined,
       cookie: req.get("cookie") || undefined,
+      // Both, deliberately. `scopeLevel` is what the server and dispatcher act
+      // on (per-tool tiers); the three flags are kept in sync for anything that
+      // still reads them — notably the `writesRequireKey` guidance text — so the
+      // two can never describe different permissions.
       ...mcpScopeToContextFlags(level),
+      scopeLevel: level,
       surface: "admin",
       observe: makeMcpLedgerSink(req.scope, {
         id: actorId ?? null,

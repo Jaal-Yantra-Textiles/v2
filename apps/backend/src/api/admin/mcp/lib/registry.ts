@@ -2098,6 +2098,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     path: "/admin/designs",
     write: true,
     sensitive: true,
+    tier: "write",
     bodyParams: [
       "name",
       "description",
@@ -2180,6 +2181,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     previewPath: "/admin/designs/:id",
     write: true,
     sensitive: true,
+    tier: "write",
     bodyParams: [
       "name",
       "description",
@@ -2455,6 +2457,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     previewPath: "/admin/designs/:id/tasks/:taskId",
     write: true,
     sensitive: true,
+    tier: "write",
     bodyParams: [
       "title",
       "description",
@@ -2599,6 +2602,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     previewPath: "/admin/inventory-items/:id",
     write: true,
     sensitive: true,
+    tier: "write",
     bodyParams: ["rawMaterialData"],
     inputSchema: obj(
       {
@@ -2629,6 +2633,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     path: "/admin/raw-material-groups",
     write: true,
     sensitive: true,
+    tier: "write",
     bodyParams: [
       "name",
       "description",
@@ -2682,6 +2687,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     previewPath: "/admin/designs/:id/inventory",
     write: true,
     sensitive: true,
+    tier: "write",
     bodyParams: ["inventoryIds", "inventoryItems"],
     inputSchema: obj(
       {
@@ -2719,6 +2725,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     pathParams: ["id"],
     write: true,
     sensitive: true,
+    tier: "write",
     bodyParams: [
       "raw_material_group_id",
       "resolved_raw_material_id",
@@ -2767,6 +2774,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     previewPath: "/admin/designs/:id/construction-details",
     write: true,
     sensitive: true,
+    tier: "write",
     bodyParams: ["technique", "label", "params", "fabricRules", "note"],
     inputSchema: obj(
       {
@@ -2802,6 +2810,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     previewPath: "/admin/designs/:id/brief",
     write: true,
     sensitive: true,
+    tier: "write",
     bodyParams: [
       "concept_theme",
       "aesthetic_keywords",

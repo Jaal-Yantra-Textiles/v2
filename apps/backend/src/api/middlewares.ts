@@ -38,6 +38,7 @@ import {
   mcpScopeAllows,
   MCP_SCOPE_EXEMPT_ADMIN_PATHS,
 } from "../lib/mcp-scope";
+import { adminRouteTier } from "./admin/mcp/lib/route-tier";
 
 // Helper function to wrap Zod schemas for compatibility with validateAndTransformBody.
 // Historically this wrapped with z.preprocess((obj) => obj, schema) — under Zod v3
@@ -707,14 +708,22 @@ const enforceMcpScopeOnAdminWrites = async (
 
   try {
     const granted = await loadMcpScopeLevel(req.scope, principal)
-    if (!granted || mcpScopeAllows(granted, "write")) {
+    if (!granted) {
+      return next()
+    }
+    // Per-ROUTE, not merely "is this a write" (#1306). Asking only the latter
+    // would let a `write`-scoped credential POST /admin/orders/:id/shipping-label
+    // — a route its MCP tool surface refuses — and spend money at a carrier
+    // through the route the tool just wraps.
+    const required = adminRouteTier(method, path)
+    if (mcpScopeAllows(granted, required)) {
       return next()
     }
     return res.status(403).json({
       message:
-        `This credential is scoped to '${granted}' and cannot perform write ` +
-        `operations. Scope is set per credential in mcp_access_scope; widen it ` +
-        `via POST /admin/mcp/scopes as an admin user.`,
+        `This credential is scoped to '${granted}' and this route requires ` +
+        `'${required}'. Scope is set per credential in mcp_access_scope; widen ` +
+        `it via POST /admin/mcp/scopes as an admin user.`,
     })
   } catch {
     // Fail CLOSED. `loadMcpScopeLevel` already returns null (→ pass through)

@@ -19,6 +19,15 @@ export {
   renderToolGuidance,
   buildToolInputSchema,
 } from "./schema"
+export {
+  MCP_SCOPE_LEVELS,
+  isMcpScopeLevel,
+  mcpScopeRank,
+  minMcpScope,
+  mcpScopeAllows,
+  mcpToolTier,
+  type McpScopeLevel,
+} from "./tiers"
 export { dispatchMcpTool } from "./dispatch"
 export { callMcpRoute, type McpProxyArgs, type McpProxyError } from "./proxy"
 export { buildMcpServer, type BuildMcpServerOptions } from "./server"
