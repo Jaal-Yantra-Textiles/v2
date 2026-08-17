@@ -1,3 +1,10 @@
+# [13.99.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.98.0...v13.99.0) (2026-08-17)
+
+
+### Features
+
+* **ops:** resend-shipment-email — correct a customer's stale tracking number ([#1314](https://github.com/Jaal-Yantra-Textiles/v2/issues/1314)) ([97f30e1](https://github.com/Jaal-Yantra-Textiles/v2/commit/97f30e131540dddc955acba1c2d4c2993eb4e0f9))
+
 # [13.98.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.97.0...v13.98.0) (2026-08-16)
 
 
