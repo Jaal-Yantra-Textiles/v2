@@ -2528,6 +2528,21 @@ export default defineMiddlewares({
         validateAndTransformBody(wrapSchema(PartnerAssistantChatSchema)),
       ],
     },
+    // Partner assistant photo attachments. Multipart, so bodyParser is OFF and
+    // multer owns the body — Medusa already parses urlencoded on every route
+    // and a second parser on a stream whose `end` has fired hangs the request.
+    // Disk-backed (mediaUpload) rather than memory: a partner attaching several
+    // phone photos at once is tens of MB and memory storage OOMs the worker.
+    {
+      matcher: "/partners/assistant/attachments",
+      method: "POST",
+      bodyParser: false,
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        adaptMulter(mediaUpload.array("files")),
+      ],
+    },
     // Partner assistant context compaction — the client calls this when the
     // chat approaches the model's context window; the route returns a short
     // summary the client stores in place of the older turns.

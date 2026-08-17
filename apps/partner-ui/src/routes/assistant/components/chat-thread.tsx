@@ -15,8 +15,12 @@
  *     (streaming or reasoning) so the partner can interrupt a long turn.
  *   - Retry: an inline "Retry" button appears when a turn errors, calling
  *     `regenerate()`. The backend also retries construction once.
- *   - Media upload: not supported in chat — a disabled attachment button with a
- *     tooltip tells the partner so, instead of silently failing.
+ *   - Photo attachments: the partner can attach images, a few at a time across
+ *     several messages, and later ask for a product to be built from them. Each
+ *     upload goes into the partner's own assistant media folder (so it stays
+ *     findable after the chat), and the model is told the photo EXISTS — name,
+ *     type, url — but never receives pixels; looking is a deliberate act
+ *     (`describe_image`).
  *   - Context window: a rough token estimate is tracked across the thread;
  *     near the limit a banner offers "Compact summary" (POST .../summarize),
  *     which replaces the older turns with a short summary so the chat keeps
@@ -45,10 +49,77 @@ type ChatThreadProps = {
   conversationId: string | null
   /** Messages to seed the thread with (empty for a new chat). */
   initialMessages: StoredMessage[]
+  /**
+   * The saved conversation's upload key, if it has one. Photos are found by
+   * matching this against the `conversation_id` stamped on each upload, so
+   * reopening a conversation must reuse the SAME key or its photos drop out of
+   * context. Null for a fresh chat — one is generated and persisted on save.
+   */
+  storedThreadKey?: string | null
   /** Fired once, when a fresh chat is first persisted (gets its server id). */
   onCreated: (id: string, title: string) => void
   /** Fired after a context compaction replaces the stored history. */
   onCompacted?: () => void
+}
+
+/** A photo the partner attached, already uploaded to their assistant folder. */
+type Attachment = {
+  url: string
+  name: string
+  mime_type: string
+  media_id?: string
+}
+
+/** Images only — the assistant's vision path can do nothing with anything else,
+ *  and a file it cannot read is worse than one it refuses, because it will
+ *  cheerfully describe a photo it never saw. */
+const ATTACHMENT_ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
+const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024
+/** Per message. The backend enforces its own cap independently. */
+const MAX_ATTACHMENTS = 8
+
+/**
+ * Upload photos into the partner's own assistant folder and return the
+ * references the chat route stores.
+ *
+ * Goes to /partners/assistant/attachments rather than the older
+ * /partners/medias/uploads/* pair, which writes objects to the bucket ROOT with
+ * no media record — an upload nothing can attribute once the chat is gone.
+ */
+async function uploadAttachments(
+  files: File[],
+  conversationKey: string,
+  token: string | null
+): Promise<Attachment[]> {
+  const form = new FormData()
+  for (const f of files) form.append("files", f)
+  form.append("conversation_id", conversationKey)
+
+  const res = await fetch(
+    `${backendUrl.replace(/\/$/, "")}/partners/assistant/attachments`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: form,
+    }
+  )
+
+  const payload = await res.json().catch(() => null)
+  if (!res.ok) {
+    throw new Error(payload?.message || `Upload failed (${res.status})`)
+  }
+
+  const attachments: Attachment[] = (payload?.attachments ?? []).map((a: any) => ({
+    url: a.url,
+    name: a.name ?? "untitled",
+    mime_type: a.type ?? "image/jpeg",
+    media_id: a.media_id,
+  }))
+  if (!attachments.length) {
+    throw new Error("Upload succeeded but returned no file")
+  }
+  return attachments
 }
 
 const SUGGESTIONS = [
@@ -112,6 +183,7 @@ function estimateTokens(messages: any[]): number {
 
 export const ChatThread = ({
   conversationId,
+  storedThreadKey,
   initialMessages,
   onCreated,
   onCompacted,
@@ -128,20 +200,66 @@ export const ChatThread = ({
   )
   const persistingRef = useRef(false)
 
+  // Photos held for the NEXT send, and the ones already sent this session.
+  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const pendingAttachmentsRef = useRef<Attachment[]>([])
+
+  // Stable key tying this thread's uploads to its chat turns. The server
+  // recovers a conversation's photos by matching this against the
+  // `conversation_id` stamped on each upload, so the SAME value must reach both
+  // the upload route and `body.id` on the chat request — hence an explicit id
+  // rather than the one useChat would generate internally.
+  //
+  // Reopening a saved conversation restores its key from the server, which is
+  // what keeps photos shared days ago in context. A fresh chat generates one
+  // and persists it on the first save (see the persist effect below).
+  const threadKeyRef = useRef<string>(
+    storedThreadKey ??
+      `chat_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+  )
+
+  const authToken = () =>
+    (sdk as any).client?.token ||
+    (typeof window !== "undefined"
+      ? localStorage.getItem(jwtTokenStorageKey)
+      : null)
+
   const transport = new DefaultChatTransport({
     api: `${backendUrl.replace(/\/$/, "")}/partners/assistant/chat`,
     credentials: "include",
     headers: () => {
-      const token =
-        (sdk as any).client?.token ||
-        (typeof window !== "undefined"
-          ? localStorage.getItem(jwtTokenStorageKey)
-          : null)
+      const token = authToken()
       return token ? { Authorization: `Bearer ${token}` } : {}
+    },
+    // Returning a `body` REPLACES the SDK's default wholesale, so `id`,
+    // `trigger` and `messageId` have to be spread back in by hand — only
+    // api/headers/credentials/body are read from here.
+    prepareSendMessagesRequest: ({
+      body,
+      messages,
+      id,
+      trigger,
+      messageId,
+    }: any) => {
+      const pending = pendingAttachmentsRef.current
+      pendingAttachmentsRef.current = []
+      return {
+        body: {
+          ...body,
+          id,
+          messages,
+          trigger,
+          messageId,
+          ...(pending.length ? { attachments: pending } : {}),
+        },
+      }
     },
   })
 
   const { messages, sendMessage, setMessages, status, error, stop, regenerate, clearError } = useChat({
+    id: threadKeyRef.current,
     transport,
     messages: initialMessages as any,
   })
@@ -182,7 +300,15 @@ export const ChatThread = ({
             conversation: { id: string; title: string }
           }>("/partners/assistant/conversations", {
             method: "POST",
-            body: { title, messages: stored },
+            body: {
+              title,
+              messages: stored,
+              // Written once, on the first save. Without it a reopened
+              // conversation would generate a fresh key and lose every photo
+              // shared in it — the server merges metadata on PATCH so later
+              // title/message writes cannot drop it.
+              metadata: { thread_key: threadKeyRef.current },
+            },
           })
           idRef.current = conversation.id
           onCreated(conversation.id, conversation.title)
@@ -202,11 +328,74 @@ export const ChatThread = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || status !== "ready") return
+    // A message carrying only photos is legitimate — "here are three more" is a
+    // complete turn when the partner is uploading a batch at a time.
+    if ((!input.trim() && attachments.length === 0) || status !== "ready") return
     clearError?.()
-    sendMessage({ text: input.trim() })
+    if (attachments.length) {
+      pendingAttachmentsRef.current = attachments
+      setAttachments([])
+    }
+    sendMessage({
+      text: input.trim() || "I've shared some photos.",
+    })
     setInput("")
   }
+
+  /** Validate, upload, and hold photos for the next send. */
+  const handleFiles = useCallback(
+    async (fileList: FileList | null) => {
+      const picked = Array.from(fileList ?? [])
+      if (!picked.length) return
+
+      const room = MAX_ATTACHMENTS - attachments.length
+      if (room <= 0) {
+        toast.error(`You can attach up to ${MAX_ATTACHMENTS} photos per message.`)
+        return
+      }
+
+      const accepted: File[] = []
+      for (const file of picked.slice(0, room)) {
+        if (!file.type.startsWith("image/")) {
+          toast.error(`${file.name} isn't an image.`)
+          continue
+        }
+        if (file.size > MAX_ATTACHMENT_BYTES) {
+          toast.error(
+            `${file.name} is too large (max ${Math.round(
+              MAX_ATTACHMENT_BYTES / (1024 * 1024)
+            )}MB).`
+          )
+          continue
+        }
+        accepted.push(file)
+      }
+      if (picked.length > room) {
+        toast.error(
+          `Only the first ${room} photo(s) were attached — the limit is ${MAX_ATTACHMENTS} per message.`
+        )
+      }
+      if (!accepted.length) return
+
+      setUploading(true)
+      try {
+        const uploaded = await uploadAttachments(
+          accepted,
+          threadKeyRef.current,
+          authToken()
+        )
+        setAttachments((prev) => [...prev, ...uploaded])
+      } catch (err: any) {
+        toast.error(`Could not attach: ${err?.message ?? "upload failed"}`)
+      } finally {
+        setUploading(false)
+      }
+    },
+    [attachments.length]
+  )
+
+  const removeAttachment = (url: string) =>
+    setAttachments((prev) => prev.filter((a) => a.url !== url))
 
   const handleStop = () => {
     try {
@@ -378,9 +567,40 @@ export const ChatThread = ({
         )}
       </div>
 
+      {attachments.length > 0 && (
+        <div className="border-t border-ui-border-base px-3 pt-3 flex flex-wrap gap-2">
+          {attachments.map((a) => (
+            <div
+              key={a.url}
+              className="flex items-center gap-x-2 rounded-lg border border-ui-border-base bg-ui-bg-subtle px-2 py-1"
+            >
+              <img
+                src={a.url}
+                alt={a.name}
+                className="h-8 w-8 rounded object-cover"
+              />
+              <Text size="xsmall" className="max-w-[10rem] truncate">
+                {a.name}
+              </Text>
+              <IconButton
+                type="button"
+                size="small"
+                variant="transparent"
+                aria-label={`Remove ${a.name}`}
+                onClick={() => removeAttachment(a.url)}
+              >
+                <XMarkMini />
+              </IconButton>
+            </div>
+          ))}
+        </div>
+      )}
+
       <form
         onSubmit={handleSubmit}
-        className="border-t border-ui-border-base p-3 flex items-end gap-x-2"
+        className={`border-ui-border-base p-3 flex items-end gap-x-2 ${
+          attachments.length > 0 ? "" : "border-t"
+        }`}
       >
         <textarea
           value={input}
@@ -395,11 +615,36 @@ export const ChatThread = ({
           placeholder="Ask the assistant…"
           className="flex-1 resize-none rounded-lg border border-ui-border-base bg-ui-bg-field px-3 py-2 text-sm focus:outline-none focus:border-ui-border-interactive max-h-32"
         />
-        {/* Media upload is intentionally not supported in chat. The attachment
-            tool exists in the registry (initiate/complete_media_upload) for the
-            model to call, but a partner cannot attach a file in the composer. */}
-        <Tooltip content="Media upload isn't supported in chat — start a new chat if you need to share a file." side="top">
-          <IconButton type="button" size="large" disabled aria-label="Attach media">
+        {/* Photos go into the partner's own assistant media folder, so they are
+            still findable after the chat ends. */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ATTACHMENT_ACCEPT}
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            void handleFiles(e.target.files)
+            // Reset so picking the SAME file twice still fires onChange.
+            e.target.value = ""
+          }}
+        />
+        <Tooltip
+          content={
+            attachments.length >= MAX_ATTACHMENTS
+              ? `Up to ${MAX_ATTACHMENTS} photos per message`
+              : "Attach photos"
+          }
+          side="top"
+        >
+          <IconButton
+            type="button"
+            size="large"
+            aria-label="Attach photos"
+            isLoading={uploading}
+            disabled={uploading || attachments.length >= MAX_ATTACHMENTS}
+            onClick={() => fileInputRef.current?.click()}
+          >
             <PaperClip />
           </IconButton>
         </Tooltip>
@@ -417,7 +662,9 @@ export const ChatThread = ({
           <IconButton
             type="submit"
             size="large"
-            disabled={!input.trim() || status !== "ready"}
+            disabled={
+              (!input.trim() && attachments.length === 0) || status !== "ready"
+            }
             aria-label="Send message"
           >
             <ArrowUpMini />

@@ -54,6 +54,12 @@ import {
   resolvePartnerBaseUrl,
 } from "../../mcp/lib/handler"
 import { makeMcpLedgerSink } from "../../../../lib/mcp-ledger"
+import { getPartnerFromAuthContext } from "../../helpers"
+import {
+  loadConversationAttachments,
+  mergeAttachments,
+  renderAttachments,
+} from "./attachments"
 import type { PartnerAssistantChatReq } from "./validators"
 
 const FEATURE = "partners/assistant/chat"
@@ -73,6 +79,29 @@ You are given the tools for the domains this conversation appears to be about, n
 ## Safety rails (important)
 - Every tool accepts \`dry_run: true\`. Use it to PREVIEW a change and inspect the current object before you actually write — especially before any update. Show the user what will change, then run the tool for real.
 - Sensitive/destructive tools (deletes, resets) will refuse to run unless the user confirms. Never set \`confirm: true\` yourself. If a tool returns \`requires_confirmation\`, tell the user plainly what it will do and ask them to confirm — the UI gives them an approve button.
+
+## Photos the partner shares
+Photos are uploaded into the partner's own media folder and listed for you as \`[photo N]\` lines with a url — but you CANNOT see them. Nothing about their content is available to you unless you go and look.
+- Do NOT look at a photo just because it was shared. Reading costs real time and money.
+- Look at one ONLY when the request needs it ("make a product from these", "what colour is this") — then call \`describe_image\` with that photo's url and a specific question.
+- If a read fails, relay the reason verbatim. Never retry silently and never guess at what the photo showed.
+
+## Creating a product from photos
+Photos may arrive a few at a time across several messages. They accumulate — the list you are given covers the whole conversation, not just the last message.
+
+**Never call \`create_product\` on your first reply to "make a product from these".** A product is cheap to create and expensive to correct: variants cannot be renamed into existence later, and inventory tracking CANNOT be switched on for a variant that was created without it. So gather the spec first, in ONE message containing every question you still need answered:
+
+1. **Variants** — exactly which ones, in the partner's own words ("Mill Spun and Hand Spun"). Do not invent variants, sizes or colours they did not ask for. If they named a set, use exactly that set.
+2. **Price per variant** — required. Different variants often differ in price (hand spun usually costs more than mill spun); ask per variant rather than assuming one price covers all.
+3. **Stocked or made to order** — this sets \`manage_inventory\` and CANNOT be changed afterwards. Made-to-order → \`manage_inventory: false\` (no stock is tracked). Stocked → \`manage_inventory: true\`, and quantities are set separately afterwards.
+4. **Weight and dimensions** — needed for shipping labels; a product without them cannot ship internationally. Ask for weight in grams and length/width/height in cm.
+5. **Which store**, if the partner has more than one.
+
+Then show the full spec back as a short list and create it only after they say yes. Set \`status: 'draft'\` unless they explicitly asked for it to be live. Put the photo urls in \`images\`.
+
+Two things to tell them truthfully afterwards:
+- If the result comes back as \`proposed\` rather than what you asked for, say so — some partners' products go to JYT for review instead of publishing directly. Do not describe a proposed product as published.
+- A draft is not visible on the storefront until published.
 
 ## Style
 - Be concise and action-oriented. Prefer doing (calling a tool) over describing.
@@ -144,6 +173,33 @@ export const POST = async (
       parts: textParts.length ? textParts : [{ type: "text", text: "" }],
     }
   })
+
+  // ---- Photo context ------------------------------------------------------
+  // Recovered from the partner's assistant folder rather than the message
+  // history, because history arrives text-only: anything appended to a previous
+  // turn is gone by this one, and "upload a few, then build the product" is the
+  // whole feature. See ./attachments.
+  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
+  const conversationAttachments = partner
+    ? await loadConversationAttachments(req.scope, partner.id, body.id)
+    : []
+  const attachments = mergeAttachments(
+    conversationAttachments,
+    (body.attachments ?? []) as any
+  )
+  if (attachments.length) {
+    // Attach to the last USER message — that is the turn the model is answering,
+    // and appending to an assistant turn would read as something it once said.
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        messages[i].parts.push({
+          type: "text",
+          text: renderAttachments(attachments),
+        })
+        break
+      }
+    }
+  }
 
   // ---- Per-ask registry slicing -------------------------------------------
   // All ~178 tools stay BOUND (so any of them can still execute), but only the

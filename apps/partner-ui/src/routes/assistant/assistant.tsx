@@ -30,6 +30,9 @@ export const Assistant = () => {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [threadKey, setThreadKey] = useState(0)
   const [initialMessages, setInitialMessages] = useState<StoredMessage[]>([])
+  // The reopened conversation's stable upload key, so photos shared in it are
+  // still in context after a reload. Null for a fresh chat (one is generated).
+  const [storedThreadKey, setStoredThreadKey] = useState<string | null>(null)
   const [opening, setOpening] = useState(false)
   // Desktop: history sidebar visible by default, collapsible to give the chat
   // thread the full width (e.g. when starting a fresh "New chat").
@@ -40,6 +43,7 @@ export const Assistant = () => {
   const startNew = useCallback(() => {
     setActiveId(null)
     setInitialMessages([])
+    setStoredThreadKey(null)
     setThreadKey((k) => k + 1)
     setMobileOpen(false)
   }, [])
@@ -53,10 +57,15 @@ export const Assistant = () => {
       setOpening(true)
       try {
         const { conversation } = await sdk.client.fetch<{
-          conversation: { id: string; messages: StoredMessage[] }
+          conversation: {
+            id: string
+            messages: StoredMessage[]
+            metadata?: { thread_key?: string } | null
+          }
         }>(`/partners/assistant/conversations/${id}`, { method: "GET" })
         setActiveId(id)
         setInitialMessages(conversation.messages || [])
+        setStoredThreadKey(conversation.metadata?.thread_key ?? null)
         setThreadKey((k) => k + 1)
         setMobileOpen(false)
       } catch {
@@ -191,6 +200,7 @@ export const Assistant = () => {
             key={threadKey}
             conversationId={activeId}
             initialMessages={initialMessages}
+            storedThreadKey={storedThreadKey}
             onCreated={onCreated}
             onCompacted={onCompacted}
           />

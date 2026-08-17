@@ -86,11 +86,22 @@ describe("partner-mcp registry + dispatch", () => {
         "log_production_run_consumption", "accept_production_run",
         "complete_production_run", "get_production_run_cost_summary",
         "create_product", "set_artisan_detail",
-        "initiate_media_upload", "complete_media_upload",
         "get_order", "create_order_fulfillment", "mark_fulfillment_delivered",
       ]) {
         expect(names.has(n)).toBe(true)
       }
+    })
+
+    it("does not advertise the media-upload tools, which never worked", () => {
+      // This assertion used to run the other way, which is what kept two dead
+      // tools on the surface: they sent file_name/mime_type/upload_id where the
+      // routes read name/type/uploadId, so every call 400'd, and the middle step
+      // was a binary PUT no model can perform. A test asserting a tool EXISTS
+      // says nothing about whether it works — and here it actively preserved
+      // the breakage. Photos go through POST /partners/assistant/attachments.
+      const names = new Set(PARTNER_MCP_TOOLS.map((t) => t.name))
+      expect(names.has("initiate_media_upload")).toBe(false)
+      expect(names.has("complete_media_upload")).toBe(false)
     })
 
     it("covers the broader dashboard reads (customers, payments, returns/claims/exchanges, inventory)", () => {
