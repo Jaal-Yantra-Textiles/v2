@@ -76,14 +76,32 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, PartnerToolDomain]> = [
   // the partner's catalog, so it belongs here next to create_product.
   ["/partners/discover", "catalog"],
 
-  // ---- storefront: store channels + the public site + store product listings ----
-  // Note: store product listings (incl. bulk_update_products) live under
-  // /partners/stores/:id/products, so they classify as storefront, not catalog.
-  // A partner "updating a product's price" almost always means a store product
-  // (update_store_product), so the storefront keywords below include the
-  // product vocabulary to light this slice up for that ask.
+  // ---- storefront: store channels + the public site + store configuration ----
   ["/partners/stores", "storefront"],
   ["/partners/storefront", "storefront"],
+
+  // Sub-trees of /partners/stores that belong to ANOTHER domain by meaning.
+  //
+  // Longest-prefix wins, so these override the "/partners/stores" line above.
+  // They exist because a domain is only useful if the words a partner would use
+  // for a tool select the domain that OWNS it, and the store sub-tree is where
+  // route shape and vocabulary part company hardest:
+  //
+  //   - store products/variants ARE the partner's products. "update the price
+  //     of my product", "list my variants" and "bulk update" all say product,
+  //     never "store", so they must land in `catalog` alongside create_product.
+  //   - HS/HSN codes are a customs question about those same products.
+  //   - a store "location" is a stock location — the tool's own description
+  //     says "Location / warehouse name", which is the inventory vocabulary.
+  //   - payment providers are a money question.
+  //
+  // What stays `storefront` is the genuine store CONFIGURATION surface: the
+  // public site, regions, shipping options, tax regions and sales channels.
+  ["/partners/stores/:id/products", "catalog"],
+  ["/partners/stores/:id/product-variants", "catalog"],
+  ["/partners/stores/:id/customs", "catalog"],
+  ["/partners/stores/:id/locations", "inventory"],
+  ["/partners/stores/:id/payment-providers", "money"],
 
   // ---- designs: the design record + cost / consumption / media ----
   ["/partners/designs", "designs"],
@@ -112,20 +130,43 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, PartnerToolDomain]> = [
   ["/partners/payment-collections", "money"],
 ]
 
+/** The route family (PREFIX_DOMAINS entry) a tool matched — longest wins. */
+const matchPrefix = (
+  path: string
+): readonly [string, PartnerToolDomain] | undefined => {
+  let best: readonly [string, PartnerToolDomain] | undefined
+  for (const entry of PREFIX_DOMAINS) {
+    const [prefix] = entry
+    if (
+      (path === prefix || path.startsWith(`${prefix}/`)) &&
+      (!best || prefix.length > best[0].length)
+    ) {
+      best = entry
+    }
+  }
+  return best
+}
+
 /** Classify one tool by the route it wraps. */
 export function toolDomain(def: McpToolDef): PartnerToolDomain | undefined {
   const path = def.path
   if (!path) return "core" // native tools are grounding/discovery
-  let best: { len: number; domain: PartnerToolDomain } | undefined
-  for (const [prefix, domain] of PREFIX_DOMAINS) {
-    if (
-      (path === prefix || path.startsWith(`${prefix}/`)) &&
-      (!best || prefix.length > best.len)
-    ) {
-      best = { len: prefix.length, domain }
-    }
-  }
-  return best?.domain
+  return matchPrefix(path)?.[1]
+}
+
+/**
+ * The route family a tool belongs to — its matched prefix, or "native" for the
+ * pathless grounding tools.
+ *
+ * Exported for the vocabulary-coverage invariant: classification alone does not
+ * make a tool reachable, so the suite asserts every FAMILY has a phrasing that
+ * selects it. A new route family therefore fails the suite twice over until it
+ * has both a prefix and words a partner would actually type.
+ */
+export function toolRouteFamily(def: McpToolDef): string {
+  const path = def.path
+  if (!path) return "native"
+  return matchPrefix(path)?.[0] ?? "unclassified"
 }
 
 /**
@@ -139,26 +180,40 @@ const DOMAIN_KEYWORDS: Record<Exclude<PartnerToolDomain, "core">, string[]> = {
     "ship", "shipped", "shipping", "shipment", "deliver", "delivered",
     "delivery", "courier", "awb", "waybill", "label", "tracking", "cancel",
     "refund", "return", "returns", "claim", "claims", "exchange", "exchanges",
-    "line item", "line items", "mark as delivered", "fulfillment", "mark delivered",
+    "line item", "line items", "mark as delivered", "mark delivered",
     "order edit", "order edits", "edit order", "request edit", "confirm edit",
   ],
   catalog: [
     "product", "products", "variant", "variants", "sku", "catalog",
     "catalogue", "category", "categories", "collection", "collections",
-    "tag", "tags", "product type", "product types", "price preference",
-    "price preferences", "price list", "discover", "copy product",
-    "artisan", "artisan detail", "resubmit",
-  ],
-  storefront: [
-    "store", "stores", "storefront", "website", "web site", "page", "pages",
-    "block", "blocks", "domain", "provision", "provisioning", "deploy",
-    "redeploy", "seed", "region", "regions", "listing", "listings",
-    "homepage", "home page", "landing", "hero", "store product",
-    "product listing", "product listings", "store product variant",
+    "tag", "tags", "product type", "product types", "price", "prices",
+    "pricing", "price preference", "price preferences", "price list",
+    "discover", "copy product", "artisan", "artisan detail", "resubmit",
+    // Store product listings classify here (see PREFIX_DOMAINS), so the
+    // listing vocabulary belongs with them.
+    "store product", "product listing", "product listings",
+    "store product variant", "listing", "listings",
     // Bulk store-product edits are the partner's "update all my products"
     // path; without these the one tool that can serve it never loads.
     "bulk", "in bulk", "all products", "every product", "all my products",
     "bulk update",
+    // Customs codes are set ON products (/partners/stores/:id/customs), and a
+    // partner asks about them in customs words, never product ones. Mirrors
+    // the admin slicer, which carries the same list for /admin/customs.
+    "hsn", "hs code", "hs codes", "hs_code", "customs", "harmonized",
+    "harmonised", "tariff", "duty", "commodity code",
+  ],
+  storefront: [
+    "store", "stores", "storefront", "website", "web site", "page", "pages",
+    "block", "blocks", "domain", "provision", "provisioning", "deploy",
+    "redeploy", "seed", "region", "regions",
+    "homepage", "home page", "landing", "hero",
+    // Store CONFIGURATION. Without these the shipping-option / tax-region /
+    // sales-channel tools have no phrasing that reaches them: "shipping" alone
+    // selects `orders`, whose tools are order fulfilment, not store setup.
+    "shipping option", "shipping options", "delivery option",
+    "delivery options", "tax", "taxes", "tax region", "tax regions",
+    "sales channel", "sales channels", "channel", "channels",
   ],
   designs: [
     "design", "designs", "designer", "moodboard", "tech pack", "techpack",
@@ -270,6 +325,50 @@ export function toolsInDomains(
 ): string[] {
   const wanted = new Set(domains)
   return tools.filter((t) => wanted.has(toolDomain(t) ?? "")).map((t) => t.name)
+}
+
+/** The escape-hatch tool the model calls to widen its own slice. */
+export const LOAD_TOOLS_TOOL_NAME = "load_partner_tools"
+
+/**
+ * Domains the model already widened into earlier in THIS conversation.
+ *
+ * The slice is recomputed per HTTP request from keywords, and the chat route
+ * strips tool parts from history — so without this a domain bought with a
+ * round trip on turn N is silently gone on turn N+1, and the model has no
+ * transcript evidence it ever had it. A follow-up like "now do the same for the
+ * other one" would re-pay the widening AND burn one of the step budget.
+ *
+ * Reads the RAW inbound messages (before the route's text-only normalisation),
+ * and only ever returns known selectable domains, so a malformed or
+ * adversarial history part can widen nothing it could not widen by asking.
+ */
+export function widenedDomainsFromHistory(
+  rawMessages: unknown
+): PartnerToolDomain[] {
+  const selectable = new Set<string>(SELECTABLE_DOMAINS)
+  const found = new Set<PartnerToolDomain>()
+
+  for (const m of Array.isArray(rawMessages) ? rawMessages : []) {
+    const parts = Array.isArray((m as any)?.parts) ? (m as any).parts : []
+    for (const p of parts) {
+      const isLoadCall =
+        p?.type === `tool-${LOAD_TOOLS_TOOL_NAME}` ||
+        (p?.type === "dynamic-tool" && p?.toolName === LOAD_TOOLS_TOOL_NAME)
+      if (!isLoadCall) continue
+      // The call's own args are the reliable half; the result echoes them back,
+      // so read both and let the allow-list below discard anything odd.
+      for (const d of [
+        ...(Array.isArray(p?.input?.domains) ? p.input.domains : []),
+        ...(Array.isArray(p?.output?.domains) ? p.output.domains : []),
+      ]) {
+        if (typeof d === "string" && selectable.has(d)) {
+          found.add(d as PartnerToolDomain)
+        }
+      }
+    }
+  }
+  return [...found]
 }
 
 /** The domains a partner can ask to be widened into. */
