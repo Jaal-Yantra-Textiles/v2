@@ -39,3 +39,4 @@ export {
   envFlagDefaultFalse,
 } from "./handler"
 export { makeMcpLogSink } from "./observability"
+export { widenedDomainsFromHistory } from "./tool-slice"

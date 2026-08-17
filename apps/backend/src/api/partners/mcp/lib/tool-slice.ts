@@ -18,6 +18,8 @@
  * wrong costs a round trip, not a capability.
  */
 import type { McpToolDef } from "../../../../lib/mcp-core"
+// Submodule, not the barrel — see the admin slicer for why.
+import { widenedDomainsFromHistory as sharedWidenedDomainsFromHistory } from "../../../../lib/mcp-core/tool-slice"
 
 export type PartnerToolDomain =
   | "core"
@@ -342,33 +344,17 @@ export const LOAD_TOOLS_TOOL_NAME = "load_partner_tools"
  * Reads the RAW inbound messages (before the route's text-only normalisation),
  * and only ever returns known selectable domains, so a malformed or
  * adversarial history part can widen nothing it could not widen by asking.
+ *
+ * The parse is shared with the admin surface via lib/mcp-core; only the domain
+ * union and the load-tool name differ.
  */
 export function widenedDomainsFromHistory(
   rawMessages: unknown
 ): PartnerToolDomain[] {
-  const selectable = new Set<string>(SELECTABLE_DOMAINS)
-  const found = new Set<PartnerToolDomain>()
-
-  for (const m of Array.isArray(rawMessages) ? rawMessages : []) {
-    const parts = Array.isArray((m as any)?.parts) ? (m as any).parts : []
-    for (const p of parts) {
-      const isLoadCall =
-        p?.type === `tool-${LOAD_TOOLS_TOOL_NAME}` ||
-        (p?.type === "dynamic-tool" && p?.toolName === LOAD_TOOLS_TOOL_NAME)
-      if (!isLoadCall) continue
-      // The call's own args are the reliable half; the result echoes them back,
-      // so read both and let the allow-list below discard anything odd.
-      for (const d of [
-        ...(Array.isArray(p?.input?.domains) ? p.input.domains : []),
-        ...(Array.isArray(p?.output?.domains) ? p.output.domains : []),
-      ]) {
-        if (typeof d === "string" && selectable.has(d)) {
-          found.add(d as PartnerToolDomain)
-        }
-      }
-    }
-  }
-  return [...found]
+  return sharedWidenedDomainsFromHistory(rawMessages, {
+    loadToolName: LOAD_TOOLS_TOOL_NAME,
+    selectable: SELECTABLE_DOMAINS,
+  })
 }
 
 /** The domains a partner can ask to be widened into. */

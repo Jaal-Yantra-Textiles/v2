@@ -1,4 +1,4 @@
-import { BlueDartProviderAdapter } from "../adapter"
+import { BlueDartProviderAdapter, classifyBlueDartScan } from "../adapter"
 import {
   BlueDartClient,
   describeBlueDartFailure,
@@ -540,5 +540,33 @@ describe("BlueDartClient.trackShipment", () => {
     await expect(client.trackShipment("21089967146")).rejects.toThrow(
       /Incorrect waybill number or No information/
     )
+  })
+})
+
+describe("classifyBlueDartScan", () => {
+  // Order 83 sat on this exact scan for three days — booked 2026-08-14, still
+  // uncollected on 2026-08-17 — while Blue Dart's own StatusCode read
+  // `pre-transit`. Calling it "picked_up" made the timeline an operator reads to
+  // answer "has it been collected?" answer yes for a parcel on the shelf.
+  it("does not treat a registered pickup as a collection", () => {
+    expect(classifyBlueDartScan("PICKUP HAS BEEN REGISTERED")).toBe(
+      "pickup_scheduled"
+    )
+    expect(classifyBlueDartScan("Pickup Scheduled")).toBe("pickup_scheduled")
+    expect(classifyBlueDartScan("Awaiting Pickup")).toBe("pickup_scheduled")
+  })
+
+  it("still recognises a real collection", () => {
+    expect(classifyBlueDartScan("SHIPMENT PICKED UP")).toBe("picked_up")
+    expect(classifyBlueDartScan("Picked up from shipper")).toBe("picked_up")
+  })
+
+  it("keeps the rest of the mapping intact", () => {
+    expect(classifyBlueDartScan("SHIPMENT DELIVERED")).toBe("delivered")
+    expect(classifyBlueDartScan("OUT FOR DELIVERY")).toBe("out_for_delivery")
+    expect(classifyBlueDartScan("UNDELIVERED")).toBe("exception")
+    expect(classifyBlueDartScan("RTO INITIATED")).toBe("returned")
+    // An unrecognised live scan is in_transit, never delivered (#1206).
+    expect(classifyBlueDartScan("REACHED HUB")).toBe("in_transit")
   })
 })
