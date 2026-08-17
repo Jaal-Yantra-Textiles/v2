@@ -1,4 +1,5 @@
 import {
+  pickupFromMetadata,
   statusFromFulfillment,
   timelineFromFulfillment,
 } from "../fulfillment-tracking"
@@ -76,5 +77,66 @@ describe("timelineFromFulfillment", () => {
 
   it("returns an empty timeline rather than inventing one", () => {
     expect(timelineFromFulfillment({})).toEqual([])
+  })
+})
+
+/**
+ * The pickup code. For Blue Dart this is `TokenNumber`, and it is the ONLY
+ * handle that can call a collection off — cancelling the waybill does not. It
+ * lived in the shipment widget alone, so whoever asked the tracking question
+ * ("has it been collected?") could not see the field they need the moment the
+ * answer is "no, and it isn't coming".
+ */
+describe("pickupFromMetadata", () => {
+  it("reads order 83's Blue Dart token", () => {
+    expect(
+      pickupFromMetadata({
+        pickup_id: "4175751",
+        pickup_date: "2026-08-17",
+        pickup_time: "14:00",
+        carrier: "bluedart",
+        booked_at: "2026-08-17T05:00:00.000Z",
+        pickup_bookings: [{ pickup_id: "4175751" }],
+      })
+    ).toEqual({
+      code: "4175751",
+      date: "2026-08-17",
+      time: "14:00",
+      carrier: "bluedart",
+      incoming_center_name: null,
+      booked_at: "2026-08-17T05:00:00.000Z",
+      bookings_count: 1,
+    })
+  })
+
+  it("gates on pickup_date, not on the code — a booking with no token is still a courier coming", () => {
+    const pickup = pickupFromMetadata({
+      pickup_date: "2026-08-17",
+      pickup_time: "14:00",
+    })
+    expect(pickup).not.toBeNull()
+    // Null rather than "" so the UI can warn that cancelling needs a phone call.
+    expect(pickup!.code).toBeNull()
+  })
+
+  it("returns null when no pickup has been recorded", () => {
+    expect(pickupFromMetadata(null)).toBeNull()
+    expect(pickupFromMetadata({})).toBeNull()
+    expect(pickupFromMetadata({ pickup_id: "4175751" })).toBeNull()
+  })
+
+  it("counts every booking — a re-book can leave an earlier collection live", () => {
+    expect(
+      pickupFromMetadata({
+        pickup_date: "2026-08-17",
+        pickup_bookings: [{ pickup_id: "4175751" }, { pickup_id: "4175752" }],
+      })!.bookings_count
+    ).toBe(2)
+  })
+
+  it("stringifies a numeric token — Blue Dart sends TokenNumber as a number", () => {
+    expect(
+      pickupFromMetadata({ pickup_id: 4175751, pickup_date: "2026-08-17" })!.code
+    ).toBe("4175751")
   })
 })

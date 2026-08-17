@@ -34,6 +34,27 @@ export type TrackingEvent = {
   scan_type: string
 }
 
+/**
+ * The booked collection, as the operator needs to read it out loud.
+ *
+ * For Blue Dart the code is `TokenNumber`, and it is **the only handle that can
+ * call the collection off** — a waybill cancellation does not cancel the pickup.
+ * It was previously visible only in the shipment widget, so anyone asking the
+ * tracking question ("has it been collected?") could not see the one field they
+ * would need the moment the answer was "no, and it's not coming".
+ */
+export type PickupSummary = {
+  /** Carrier's handle: Blue Dart `TokenNumber`, Shiprocket `pickup_token_number`. */
+  code: string | null
+  date: string
+  time: string
+  carrier: string | null
+  incoming_center_name: string | null
+  booked_at: string | null
+  /** Bookings recorded on this fulfillment; >1 means a pickup was re-booked. */
+  bookings_count: number
+}
+
 export type FulfillmentTracking = {
   waybill: string
   carrier: string
@@ -43,6 +64,8 @@ export type FulfillmentTracking = {
   origin: string
   destination: string
   events: TrackingEvent[]
+  /** The booked collection, or null when none has been recorded. */
+  pickup: PickupSummary | null
   /**
    * Whether these events came from the carrier or were synthesised locally.
    *
@@ -82,6 +105,42 @@ export function timelineFromFulfillment(fulfillment: {
     .sort(
       (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     )
+}
+
+/**
+ * PURE: the booked pickup recorded on a fulfillment. Exported for testing.
+ *
+ * Reads `metadata`, not `data` — `data` is the carrier's opaque blob and is
+ * cleared wholesale by cancel-shipment, which must not erase the record of a
+ * collection the carrier is still coming for (see `persist-pickup-booking`).
+ *
+ * `pickup_date` is the load-bearing field, matching the shipment widget: Blue
+ * Dart can hand back a booking with no token at all, and a record with a date
+ * but no code still has to render — as a WARNING, because cancelling it then
+ * means a phone call.
+ */
+export function pickupFromMetadata(
+  metadata: Record<string, any> | null | undefined
+): PickupSummary | null {
+  const m = metadata ?? {}
+  if (!m.pickup_date) return null
+
+  const bookings = Array.isArray(m.pickup_bookings) ? m.pickup_bookings : []
+
+  return {
+    code: m.pickup_id ? String(m.pickup_id) : null,
+    date: String(m.pickup_date),
+    time: String(m.pickup_time ?? ""),
+    carrier: m.carrier ? String(m.carrier) : null,
+    incoming_center_name: m.incoming_center_name
+      ? String(m.incoming_center_name)
+      : null,
+    booked_at: m.booked_at ? String(m.booked_at) : null,
+    // Kept because a re-booked pickup can leave an EARLIER collection live at
+    // the carrier under a different token — the orphan class cancel-shipment
+    // exists to prevent, one level up.
+    bookings_count: bookings.length,
+  }
 }
 
 /**
@@ -145,6 +204,7 @@ export async function getFulfillmentTracking(
   }
 
   const carrier = fulfillment.data?.carrier
+  const pickup = pickupFromMetadata(fulfillment.metadata)
 
   if (isSupportedCarrier(carrier)) {
     try {
@@ -168,6 +228,7 @@ export async function getFulfillmentTracking(
         origin: result.origin || "",
         destination: result.destination || "",
         events: result.events,
+        pickup,
         source: "carrier",
       }
     } catch (e: any) {
@@ -189,6 +250,7 @@ export async function getFulfillmentTracking(
     origin: "",
     destination: "",
     events: timelineFromFulfillment(fulfillment),
+    pickup,
     source: "fulfillment",
   }
 }
