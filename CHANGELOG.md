@@ -1,3 +1,15 @@
+# [13.104.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.103.2...v13.104.0) (2026-08-17)
+
+
+### Bug Fixes
+
+* **theme:** add a Center gallery position, the only one that keeps the product page readable ([#1325](https://github.com/Jaal-Yantra-Textiles/v2/issues/1325)) ([de70b8c](https://github.com/Jaal-Yantra-Textiles/v2/commit/de70b8c2cd6f193a806e8af797460e09e841ad89))
+
+
+### Features
+
+* **mcp:** expose social post tools and filter create-post UI to social platforms ([#1336](https://github.com/Jaal-Yantra-Textiles/v2/issues/1336)) ([891af8a](https://github.com/Jaal-Yantra-Textiles/v2/commit/891af8a290cdc5fc8e28329d9c4518de0a09dc26))
+
 ## [13.103.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.103.1...v13.103.2) (2026-08-17)
 
 
