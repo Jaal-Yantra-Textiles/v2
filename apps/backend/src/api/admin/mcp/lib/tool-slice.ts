@@ -18,6 +18,10 @@
  * round trip, not a capability.
  */
 import type { McpToolDef } from "../../../../lib/mcp-core"
+// Imported from the submodule, not the barrel: this module is otherwise a
+// type-only consumer of mcp-core, and pulling the barrel in for one function
+// would drag dispatch/proxy/server into every context that slices a registry.
+import { widenedDomainsFromHistory as sharedWidenedDomainsFromHistory } from "../../../../lib/mcp-core/tool-slice"
 
 export type AdminToolDomain =
   | "core"
@@ -281,34 +285,16 @@ export const LOAD_TOOLS_TOOL_NAME = "load_admin_tools"
  * adversarial history part can widen nothing it could not widen by asking.
  *
  * Mirrored for the partner surface in partners/mcp/lib/tool-slice — the two
- * slicers are deliberately parallel modules over different domain unions.
+ * slicers are deliberately parallel modules over different domain unions, but
+ * the history parse itself is one implementation in lib/mcp-core.
  */
 export function widenedDomainsFromHistory(
   rawMessages: unknown
 ): AdminToolDomain[] {
-  const selectable = new Set<string>(SELECTABLE_DOMAINS)
-  const found = new Set<AdminToolDomain>()
-
-  for (const m of Array.isArray(rawMessages) ? rawMessages : []) {
-    const parts = Array.isArray((m as any)?.parts) ? (m as any).parts : []
-    for (const p of parts) {
-      const isLoadCall =
-        p?.type === `tool-${LOAD_TOOLS_TOOL_NAME}` ||
-        (p?.type === "dynamic-tool" && p?.toolName === LOAD_TOOLS_TOOL_NAME)
-      if (!isLoadCall) continue
-      // The call's own args are the reliable half; the result echoes them back,
-      // so read both and let the allow-list below discard anything odd.
-      for (const d of [
-        ...(Array.isArray(p?.input?.domains) ? p.input.domains : []),
-        ...(Array.isArray(p?.output?.domains) ? p.output.domains : []),
-      ]) {
-        if (typeof d === "string" && selectable.has(d)) {
-          found.add(d as AdminToolDomain)
-        }
-      }
-    }
-  }
-  return [...found]
+  return sharedWidenedDomainsFromHistory(rawMessages, {
+    loadToolName: LOAD_TOOLS_TOOL_NAME,
+    selectable: SELECTABLE_DOMAINS,
+  })
 }
 
 /** The domains an operator can ask to be widened into. */
