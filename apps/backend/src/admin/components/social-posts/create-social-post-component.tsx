@@ -190,7 +190,7 @@ export const CreateSocialPostComponent = () => {
   const {
     socialPlatforms = [],
     isLoading: isPlatformsLoading,
-  } = useSocialPlatforms()
+  } = useSocialPlatforms({ category: "social" })
 
   // Watch selected platform and post_type to conditionally render fields
   const platformId = useWatch({ control: form.control, name: "platform_id" })

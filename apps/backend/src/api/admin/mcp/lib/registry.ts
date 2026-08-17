@@ -319,6 +319,120 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     inputSchema: obj({ ...PAGINATION }),
   },
 
+  // ===== Social posts & platforms =========================================
+  // Social-platform integrations (Facebook, Instagram, Twitter/X, LinkedIn)
+  // are stored as SocialPlatform rows with category "social". These tools let
+  // the assistant list the configured social platforms, create draft posts,
+  // and publish them — the same surface the admin UI exposes.
+  {
+    name: "list_social_platforms",
+    description:
+      "List the configured platform integrations. ALWAYS pass category:'social' for social-media work (Facebook, Instagram, Twitter/X, LinkedIn, FBINSTA) — the route applies NO default, so omitting it returns every integration, including payment, shipping, email, SMS, analytics, CRM and storage rows. Each row carries the platform id, name, auth type and status. Use to find a platform_id for create_social_post. Secrets are stripped from the response.",
+    method: "GET",
+    path: "/admin/social-platforms",
+    queryParams: ["limit", "offset", "q", "category", "status"],
+    inputSchema: obj({
+      ...PAGINATION,
+      category: STR("Filter by category. Pass 'social' to list only social-media platforms; omitted means NO filter, not 'social'."),
+      status: STR("Filter by platform status: 'active' | 'inactive' | 'error' | 'pending'."),
+    }),
+  },
+  {
+    name: "list_social_posts",
+    description:
+      "List social posts (paginated). Filter by status (draft/scheduled/posted/failed/archived) or free-text search by name. Use to see what's queued, published or failed.",
+    method: "GET",
+    path: "/admin/social-posts",
+    queryParams: ["limit", "offset", "q", "status", "posted_at", "error_message"],
+    inputSchema: obj({
+      ...PAGINATION,
+      status: STR("Post status: 'draft' | 'scheduled' | 'posted' | 'failed' | 'archived'."),
+      posted_at: STR("Filter by posted date (ISO string or partial match)."),
+      error_message: STR("Filter by error message."),
+    }),
+  },
+  {
+    name: "get_social_post",
+    description:
+      "Get a single social post by id (status, caption, media attachments, platform, publish results). Use before publish_social_post to review the post.",
+    method: "GET",
+    path: "/admin/social-posts/:id",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Social post id, e.g. 'spost_...'.") }, ["id"]),
+  },
+  {
+    name: "create_social_post",
+    description:
+      "Create a new social post (draft by default). Sensitive: requires confirm:true. Pass platform_id (from list_social_platforms), a name, and a message/caption. For Facebook/FBINSTA, pass page_id and/or ig_user_id in metadata, and set post_type (photo/feed/reel). Pass media_urls for image/video posts. Set metadata.auto_publish to publish immediately after creation. Use dry_run first to review the payload.",
+    method: "POST",
+    path: "/admin/social-posts",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "name",
+      "platform_id",
+      "caption",
+      "message",
+      "link",
+      "media_urls",
+      "post_type",
+      "status",
+      "scheduled_at",
+      "platform_name",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        name: STR("Post name (required)."),
+        platform_id: STR("Social platform id from list_social_platforms (required)."),
+        caption: STR("Post caption text."),
+        message: STR("Post message text (alias for caption; preferred by the UI)."),
+        link: STR("Optional URL for link/feed posts."),
+        media_urls: {
+          type: "array",
+          items: { type: "string" },
+          description: "Media URLs for photo/reel posts (1-10 images or 1 video).",
+        },
+        post_type: STR("'photo' | 'feed' | 'reel'. Required for Facebook/Instagram."),
+        status: STR("'draft' (default) | 'scheduled' | 'posted' | 'failed' | 'archived'."),
+        scheduled_at: STR("ISO datetime for scheduled publishing."),
+        platform_name: STR("Platform name (e.g. 'facebook', 'instagram', 'FBINSTA'). Set for the workflow's platform detection."),
+        metadata: {
+          type: "object",
+          description:
+            "Platform-specific fields: { page_id, ig_user_id, publish_target ('facebook'|'instagram'|'both'), auto_publish (boolean) }. The workflow reads these to route the post.",
+        },
+      },
+      ["name", "platform_id"]
+    ),
+    sideEffects:
+      "Creates a draft social post linked to the configured platform. With metadata.auto_publish, also triggers the publish workflow immediately.",
+    nextSteps: ["get_social_post", "publish_social_post"],
+  },
+  {
+    name: "publish_social_post",
+    description:
+      "Publish a social post to its configured platform(s) — goes LIVE publicly. PLATFORM-DESTRUCTIVE: requires confirm:true AND a human reason, and is only available when ADMIN_MCP_ENABLE_DANGEROUS is enabled. This calls the real Facebook/Instagram/Twitter/LinkedIn API and creates a public post. Always dry_run first to review the post content and target. Pass override_page_id or override_ig_user_id to redirect to a different account than the one stored on the post.",
+    method: "POST",
+    path: "/admin/social-posts/:id/publish",
+    pathParams: ["id"],
+    previewPath: "/admin/social-posts/:id",
+    write: true,
+    dangerous: true,
+    bodyParams: ["override_page_id", "override_ig_user_id"],
+    inputSchema: obj(
+      {
+        id: STR("Social post id to publish, e.g. 'spost_...'."),
+        override_page_id: STR("Override the Facebook Page ID to publish to."),
+        override_ig_user_id: STR("Override the Instagram Business account ID to publish to."),
+      },
+      ["id"]
+    ),
+    sideEffects:
+      "Calls the live social platform API and creates a public post. Failed publishes are recorded on the post for retry; partial successes (e.g. Facebook ok, Instagram failed) are reported per-platform.",
+    nextSteps: ["get_social_post", "list_social_posts"],
+  },
+
   // ===== Observability (#844) =============================================
   {
     name: "get_mcp_usage",
