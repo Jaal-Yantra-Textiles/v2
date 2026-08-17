@@ -1,3 +1,10 @@
+## [13.101.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.101.0...v13.101.1) (2026-08-17)
+
+
+### Bug Fixes
+
+* **shipping:** never email empty tracking, and stop calling a registered pickup a collection ([#1319](https://github.com/Jaal-Yantra-Textiles/v2/issues/1319)) ([f5a5f8e](https://github.com/Jaal-Yantra-Textiles/v2/commit/f5a5f8e460d1aea3dbbcdf76f7f1c7348308444d)), closes [#1314](https://github.com/Jaal-Yantra-Textiles/v2/issues/1314) [#1285](https://github.com/Jaal-Yantra-Textiles/v2/issues/1285)
+
 # [13.101.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.100.1...v13.101.0) (2026-08-17)
 
 
