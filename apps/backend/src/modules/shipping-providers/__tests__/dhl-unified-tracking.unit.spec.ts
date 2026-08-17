@@ -105,8 +105,38 @@ describe("classifyDhlStatus", () => {
     expect(classifyDhlStatus("failure", "Delivery exception")).toBe("exception")
   })
 
-  it("reads a pickup scan as picked_up", () => {
-    expect(classifyDhlStatus("pre-transit", "PICKUP HAS BEEN REGISTERED")).toBe("picked_up")
+  /**
+   * This test used to assert the opposite, and that is why the defect survived:
+   * "PICKUP HAS BEEN REGISTERED" is what Blue Dart emits when a pickup is
+   * BOOKED, and it keeps emitting it until someone physically collects. Order
+   * 83 sat on this exact scan from 14 to 17 Aug 2026 — uncollected — while the
+   * timeline told operators it had been picked up. Note the statusCode in the
+   * same payload: `pre-transit`. The carrier was contradicting us in the very
+   * response we were misreading.
+   */
+  it("does not read a REGISTERED pickup as a collection", () => {
+    expect(classifyDhlStatus("pre-transit", "PICKUP HAS BEEN REGISTERED")).toBe(
+      "pickup_scheduled"
+    )
+    expect(classifyDhlStatus("pre-transit", "Pickup Scheduled")).toBe(
+      "pickup_scheduled"
+    )
+    expect(classifyDhlStatus("pre-transit", "AWAITING PICKUP")).toBe(
+      "pickup_scheduled"
+    )
+  })
+
+  it("still reads a real collection as picked_up", () => {
+    expect(classifyDhlStatus("transit", "SHIPMENT PICKED UP")).toBe("picked_up")
+    expect(classifyDhlStatus("transit", "Shipment collected from shipper")).toBe(
+      "picked_up"
+    )
+  })
+
+  it("keeps reading a cancelled pickup as cancelled, not scheduled", () => {
+    expect(classifyDhlStatus("pre-transit", "PICKUP HAS BEEN CANCELLED")).toBe(
+      "cancelled"
+    )
   })
 
   it("never guesses delivered for an unrecognised scan", () => {
