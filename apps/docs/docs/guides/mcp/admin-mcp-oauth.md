@@ -1,9 +1,16 @@
+---
+title: "Admin MCP over OAuth"
+sidebar_label: "Admin MCP over OAuth"
+sidebar_position: 1
+---
+
 # Admin MCP over OAuth — operator guide
 
 How to let Claude, ChatGPT or Cursor drive the Admin MCP as you, and how to take
-that away again. The per-credential restriction model lives in
-[`ADMIN_MCP_SCOPES_OPERATOR_GUIDE.md`](./ADMIN_MCP_SCOPES_OPERATOR_GUIDE.md);
-this is the front door in front of it.
+that away again. The per-credential restriction model it sits on top of is
+covered separately, in the internal scopes runbook
+(`apps/docs/notes/ADMIN_MCP_SCOPES_OPERATOR_GUIDE.md`); this is the front door in
+front of it.
 
 Everything marked ✅ below was measured against **prod** on 2026-08-17, on `main`
 @ `cddd8b7ad` (deploy run `31999774055`). Numbers marked ⚠️ are **local**
@@ -48,8 +55,8 @@ browser. Nothing has to be created in advance — no key, no client, no config.
 The tool count for each level is shown next to it, because the honest answer to
 "how much am I giving away?" is a number, not an adjective.
 
-The selection defaults to the **narrowest** of {what the client asked for, the
-ceiling}, falling back to `read` when the client asked for nothing — the default
+The selection defaults to the **narrower** of what the client asked for and the
+ceiling, falling back to `read` when the client asked for nothing — the default
 a tired admin accepts at 1am should be the least powerful one that works.
 
 ### The URL is the only input
@@ -160,8 +167,8 @@ them on prod requires a signed-in admin, and a secret key cannot do it.
 
 ## 5. Narrow one further
 
-An authorization is a principal like any other, so
-[the scopes model](./ADMIN_MCP_SCOPES_OPERATOR_GUIDE.md) applies unchanged:
+An authorization is a principal like any other, so the scopes model applies
+unchanged:
 
 ```jsonc
 POST /admin/mcp/scopes
