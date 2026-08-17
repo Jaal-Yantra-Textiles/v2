@@ -1,3 +1,10 @@
+# [13.101.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.100.1...v13.101.0) (2026-08-17)
+
+
+### Features
+
+* **mcp:** OAuth 2.1 + PKCE front door for the Admin MCP ([#1306](https://github.com/Jaal-Yantra-Textiles/v2/issues/1306) Track B) ([#1318](https://github.com/Jaal-Yantra-Textiles/v2/issues/1318)) ([cddd8b7](https://github.com/Jaal-Yantra-Textiles/v2/commit/cddd8b7add6450c361db1a9733f0b6f3f43be4a4)), closes [#1310](https://github.com/Jaal-Yantra-Textiles/v2/issues/1310) [#1310](https://github.com/Jaal-Yantra-Textiles/v2/issues/1310)
+
 ## [13.100.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.100.0...v13.100.1) (2026-08-17)
 
 
