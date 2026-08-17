@@ -1,3 +1,10 @@
+# [13.103.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.102.0...v13.103.0) (2026-08-17)
+
+
+### Features
+
+* **partner-assistant:** build products from photos shared in chat ([#1322](https://github.com/Jaal-Yantra-Textiles/v2/issues/1322)) ([2702297](https://github.com/Jaal-Yantra-Textiles/v2/commit/2702297d0d5366f846d565b99e060e4c555f0e7b)), closes [#769](https://github.com/Jaal-Yantra-Textiles/v2/issues/769)
+
 # [13.102.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.101.1...v13.102.0) (2026-08-17)
 
 
