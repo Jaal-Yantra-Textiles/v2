@@ -511,6 +511,14 @@ export function classifyBlueDartScan(status: string): string {
   const s = status.toLowerCase()
   if (/deliver/.test(s) && !/undeliver|out for deliver/.test(s)) return "delivered"
   if (/out for delivery/.test(s)) return "out_for_delivery"
+  // Registering a pickup is a REQUEST for a courier, not a collection. Blue Dart
+  // says "PICKUP HAS BEEN REGISTERED" the moment the booking lands and keeps
+  // saying it until someone physically collects — order 83 sat on that scan for
+  // three days while its own StatusCode read `pre-transit`. Matching /pick/
+  // first called that "picked_up", so the timeline an operator reads to answer
+  // "has it been collected?" answered yes for a parcel still on the shelf.
+  if (/pickup (has been )?(registered|scheduled|booked)|awaiting pickup/.test(s))
+    return "pickup_scheduled"
   if (/pick|collect|shipment picked/.test(s)) return "picked_up"
   if (/rto|return/.test(s)) return "returned"
   if (/cancel/.test(s)) return "cancelled"
