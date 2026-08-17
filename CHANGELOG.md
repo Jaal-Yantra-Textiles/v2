@@ -1,3 +1,10 @@
+## [13.100.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.100.0...v13.100.1) (2026-08-17)
+
+
+### Bug Fixes
+
+* **ops:** make align_provider actually write, and give admins carrier tracking ([#1317](https://github.com/Jaal-Yantra-Textiles/v2/issues/1317)) ([d2bfc6c](https://github.com/Jaal-Yantra-Textiles/v2/commit/d2bfc6c6a2d47fd0244af74f8921c46727bcb74d)), closes [#83](https://github.com/Jaal-Yantra-Textiles/v2/issues/83) [#1285](https://github.com/Jaal-Yantra-Textiles/v2/issues/1285) [#4175751](https://github.com/Jaal-Yantra-Textiles/v2/issues/4175751) [#1285](https://github.com/Jaal-Yantra-Textiles/v2/issues/1285)
+
 # [13.100.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.99.0...v13.100.0) (2026-08-17)
 
 
