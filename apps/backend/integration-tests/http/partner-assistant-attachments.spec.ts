@@ -14,6 +14,7 @@ import FormData from "form-data"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import { MEDIA_MODULE } from "../../src/modules/media"
 import { assistantFolderSlug } from "../../src/api/partners/assistant/attachments/folder-naming"
+import { loadConversationAttachments } from "../../src/api/partners/assistant/chat/attachments"
 
 const TEST_PARTNER_PASSWORD = "supersecret"
 
@@ -201,6 +202,49 @@ setupSharedTestSuite(() => {
         folder_id: first.data.folder_id,
       })
       expect(files).toHaveLength(2)
+    })
+
+    it("recovers a conversation's photos later, oldest first, and only that conversation's", async () => {
+      // This is what makes "upload a few now, build the product later" work.
+      // Message history arrives text-only, so the photos have to be recovered
+      // from the folder — and scoped, or one chat's photos would leak into
+      // another's context.
+      await upload(
+        [{ buf: buildBinaryImage(), filename: "first.jpg", contentType: "image/jpeg" }],
+        "chat_one"
+      )
+      await upload(
+        [{ buf: buildBinaryImage(), filename: "second.jpg", contentType: "image/jpeg" }],
+        "chat_one"
+      )
+      await upload(
+        [{ buf: buildBinaryImage(), filename: "other.jpg", contentType: "image/jpeg" }],
+        "chat_two"
+      )
+
+      const recovered = await loadConversationAttachments(
+        getContainer(),
+        partnerId,
+        "chat_one"
+      )
+      expect(recovered.map((a) => a.name)).toEqual(["first.jpg", "second.jpg"])
+      for (const a of recovered) expect(a.url).toBeTruthy()
+
+      const otherChat = await loadConversationAttachments(
+        getContainer(),
+        partnerId,
+        "chat_two"
+      )
+      expect(otherChat.map((a) => a.name)).toEqual(["other.jpg"])
+
+      // An unknown conversation, and a missing one, both yield nothing rather
+      // than falling back to "all this partner's photos".
+      expect(
+        await loadConversationAttachments(getContainer(), partnerId, "chat_nope")
+      ).toEqual([])
+      expect(
+        await loadConversationAttachments(getContainer(), partnerId, undefined)
+      ).toEqual([])
     })
 
     it("refuses non-image uploads instead of attaching something unreadable", async () => {

@@ -132,6 +132,55 @@ setupSharedTestSuite(() => {
       expect(res.data.conversation.messages).toHaveLength(2)
     })
 
+    it("persists thread_key and KEEPS it through later message-only PATCHes", async () => {
+      // thread_key ties a conversation to the photos uploaded during it. It is
+      // written once, on the first save, and every later PATCH sends only
+      // title/messages — so a metadata write that REPLACED rather than merged
+      // would silently drop it on the very next turn and orphan the photos.
+      // The reopened conversation would then look fine and simply have no
+      // photos, which is exactly the kind of failure nobody reports as a bug.
+      const post = await api.post(
+        "/partners/assistant/conversations",
+        {
+          title: "Pashmina photos",
+          messages: SAMPLE_MESSAGES,
+          metadata: { thread_key: "chat_abc123" },
+        },
+        { headers: partner.headers }
+      )
+      expect(post.status).toBe(201)
+      expect(post.data.conversation.metadata?.thread_key).toBe("chat_abc123")
+      const id = post.data.conversation.id
+
+      // A normal follow-up turn: messages only, no metadata.
+      const patched = await api.patch(
+        `/partners/assistant/conversations/${id}`,
+        {
+          messages: [
+            ...SAMPLE_MESSAGES,
+            { id: "m3", role: "user", parts: [{ type: "text", text: "More" }] },
+          ],
+        },
+        { headers: partner.headers }
+      )
+      expect(patched.status).toBe(200)
+      expect(patched.data.conversation.messages).toHaveLength(3)
+      expect(patched.data.conversation.metadata?.thread_key).toBe("chat_abc123")
+
+      // And a metadata PATCH must not wipe sibling keys either.
+      await api.patch(
+        `/partners/assistant/conversations/${id}`,
+        { metadata: { something_else: true } },
+        { headers: partner.headers }
+      )
+      const get = await api.get(
+        `/partners/assistant/conversations/${id}`,
+        { headers: partner.headers }
+      )
+      expect(get.data.conversation.metadata?.thread_key).toBe("chat_abc123")
+      expect(get.data.conversation.metadata?.something_else).toBe(true)
+    })
+
     it("DELETE removes the conversation", async () => {
       const post = await api.post(
         "/partners/assistant/conversations",

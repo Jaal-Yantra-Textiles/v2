@@ -49,6 +49,13 @@ type ChatThreadProps = {
   conversationId: string | null
   /** Messages to seed the thread with (empty for a new chat). */
   initialMessages: StoredMessage[]
+  /**
+   * The saved conversation's upload key, if it has one. Photos are found by
+   * matching this against the `conversation_id` stamped on each upload, so
+   * reopening a conversation must reuse the SAME key or its photos drop out of
+   * context. Null for a fresh chat — one is generated and persisted on save.
+   */
+  storedThreadKey?: string | null
   /** Fired once, when a fresh chat is first persisted (gets its server id). */
   onCreated: (id: string, title: string) => void
   /** Fired after a context compaction replaces the stored history. */
@@ -176,6 +183,7 @@ function estimateTokens(messages: any[]): number {
 
 export const ChatThread = ({
   conversationId,
+  storedThreadKey,
   initialMessages,
   onCreated,
   onCompacted,
@@ -203,8 +211,12 @@ export const ChatThread = ({
   // `conversation_id` stamped on each upload, so the SAME value must reach both
   // the upload route and `body.id` on the chat request — hence an explicit id
   // rather than the one useChat would generate internally.
+  //
+  // Reopening a saved conversation restores its key from the server, which is
+  // what keeps photos shared days ago in context. A fresh chat generates one
+  // and persists it on the first save (see the persist effect below).
   const threadKeyRef = useRef<string>(
-    conversationId ??
+    storedThreadKey ??
       `chat_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
   )
 
@@ -288,7 +300,15 @@ export const ChatThread = ({
             conversation: { id: string; title: string }
           }>("/partners/assistant/conversations", {
             method: "POST",
-            body: { title, messages: stored },
+            body: {
+              title,
+              messages: stored,
+              // Written once, on the first save. Without it a reopened
+              // conversation would generate a fresh key and lose every photo
+              // shared in it — the server merges metadata on PATCH so later
+              // title/message writes cannot drop it.
+              metadata: { thread_key: threadKeyRef.current },
+            },
           })
           idRef.current = conversation.id
           onCreated(conversation.id, conversation.title)

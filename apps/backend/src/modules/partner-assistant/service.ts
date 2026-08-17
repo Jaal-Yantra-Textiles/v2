@@ -45,7 +45,11 @@ class PartnerAssistantService extends MedusaService({
 
   createConversationForPartner(
     partnerId: string,
-    input: { title?: string; messages?: unknown[] }
+    input: {
+      title?: string
+      messages?: unknown[]
+      metadata?: Record<string, unknown>
+    }
   ) {
     // `messages` is an array stored in a json column, which the generated
     // create typing narrows to an object — cast at the boundary.
@@ -53,6 +57,9 @@ class PartnerAssistantService extends MedusaService({
       partner_id: partnerId,
       ...(input.title !== undefined ? { title: input.title } : {}),
       messages: (input.messages ?? []) as any,
+      ...(input.metadata !== undefined
+        ? { metadata: input.metadata as any }
+        : {}),
     })
   }
 
@@ -60,9 +67,13 @@ class PartnerAssistantService extends MedusaService({
   async updateConversationForPartner(
     partnerId: string,
     id: string,
-    input: { title?: string; messages?: unknown[] }
+    input: {
+      title?: string
+      messages?: unknown[]
+      metadata?: Record<string, unknown>
+    }
   ) {
-    await this.getConversationForPartner(partnerId, id)
+    const existing = await this.getConversationForPartner(partnerId, id)
     const [updated] = await this.updatePartnerAssistantConversations([
       {
         id,
@@ -70,6 +81,17 @@ class PartnerAssistantService extends MedusaService({
         // json column holds an array; cast past the object-narrowed typing.
         ...(input.messages !== undefined
           ? { messages: input.messages as any }
+          : {}),
+        // MERGE rather than replace. `thread_key` is written once, on the first
+        // save, and every later PATCH sends only title/messages — a replacing
+        // write would drop it and orphan the conversation's photos.
+        ...(input.metadata !== undefined
+          ? {
+              metadata: {
+                ...((existing as any)?.metadata ?? {}),
+                ...input.metadata,
+              } as any,
+            }
           : {}),
       },
     ])

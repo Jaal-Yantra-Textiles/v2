@@ -616,49 +616,24 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     inputSchema: obj({ id: STR("Production-run id.") }, ["id"]),
   },
 
-  // ===== Media upload (presigned multipart) =================================
-  {
-    name: "initiate_media_upload",
-    description:
-      "Start a multipart media upload; returns an upload id + presigned part URLs. The raw bytes are PUT to those URLs out-of-band, then complete_media_upload is called.",
-    method: "POST",
-    path: "/partners/medias/uploads/initiate",
-    write: true,
-    bodyParams: ["file_name", "mime_type", "size", "parts", "folder_id", "metadata"],
-    inputSchema: obj(
-      {
-        file_name: STR("Original file name."),
-        mime_type: STR("MIME type, e.g. 'image/jpeg'."),
-        size: INT("File size in bytes."),
-        parts: INT("Number of parts to split into."),
-        folder_id: STR("Optional target folder id."),
-        metadata: { type: "object", additionalProperties: true },
-      },
-      ["file_name", "mime_type"]
-    ),
-  },
-  {
-    name: "complete_media_upload",
-    description:
-      "Finalize a multipart media upload once all parts are uploaded. Returns the stored media record.",
-    method: "POST",
-    path: "/partners/medias/uploads/complete",
-    write: true,
-    bodyParams: ["upload_id", "parts", "key", "metadata"],
-    inputSchema: obj(
-      {
-        upload_id: STR("Upload id from initiate."),
-        key: STR("Object key from initiate."),
-        parts: {
-          type: "array",
-          description: "Uploaded parts: [{ part_number, etag }].",
-          items: { type: "object", additionalProperties: true },
-        },
-        metadata: { type: "object", additionalProperties: true },
-      },
-      ["upload_id"]
-    ),
-  },
+  // ===== Media upload =======================================================
+  // `initiate_media_upload` / `complete_media_upload` used to live here and are
+  // deliberately GONE. They could never have worked:
+  //
+  //   - dispatch does a bare `pick(def.bodyParams, args)` with no renaming, and
+  //     the tools sent file_name/mime_type/upload_id where the routes read
+  //     name/type/uploadId — every call 400'd on "Missing required fields";
+  //   - `complete` writes NO media record at all and `initiate` deliberately
+  //     builds a flat key at the BUCKET ROOT, so even a fixed-up call left an
+  //     object nothing could attribute — while the tool description claimed it
+  //     "returns the stored media record";
+  //   - and the middle step is a raw binary PUT to a presigned URL, which a
+  //     language model cannot perform. No amount of field-name repair makes
+  //     these callable by the thing they were exposed to.
+  //
+  // Photos now reach the assistant through POST /partners/assistant/attachments,
+  // driven by the browser (which is where the bytes are), landing in the
+  // partner's own media folder. The routes themselves are untouched.
 
   // ===== Products (write) ===================================================
   {
