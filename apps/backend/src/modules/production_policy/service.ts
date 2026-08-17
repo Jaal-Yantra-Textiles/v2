@@ -1,6 +1,13 @@
 import { MedusaError, MedusaService } from "@medusajs/framework/utils"
 
 import ProductionRunPolicy from "./models/production-run-policy"
+import {
+  DEFAULT_REASSIGNMENT_POLICY,
+  defaultPolicyConfig,
+  mergePolicyConfig,
+  missingPolicyKeys,
+  type ReassignmentPolicy,
+} from "./policy-config"
 
 import { InferTypeOf } from "@medusajs/framework/types"
 import  ProductionRun from "../../modules/production_runs/models/production-run"
@@ -19,26 +26,11 @@ type ProductionRunLike = {
   metadata?: Record<string, any> | null
 }
 
-/** #1228 — what the reminder cap does before parking a run for reassignment. */
-export type ReassignmentPolicy = {
-  /**
-   * How many times the cap re-nudges the SAME partner (resetting the reminder
-   * cycle) before the run is parked in `awaiting_reassignment`. 0 restores the
-   * original #1093 behaviour: cap → park immediately.
-   */
-  same_partner_retries: number
-  /**
-   * On a same-partner retry ONLY, accept the run on the partner's behalf so
-   * production can move without another round-trip. Gated a second time by the
-   * partner's own `auto_accept_production_runs` opt-in — both must be true.
-   */
-  auto_accept_on_retry: boolean
-}
-
-export const DEFAULT_REASSIGNMENT_POLICY: ReassignmentPolicy = {
-  same_partner_retries: 1,
-  auto_accept_on_retry: false,
-}
+// The policy's shape, defaults and reconciliation live in ./policy-config so
+// they can be unit-tested without a container. Re-exported here because
+// existing callers import them from the service.
+export { DEFAULT_REASSIGNMENT_POLICY, defaultPolicyConfig, mergePolicyConfig }
+export type { ReassignmentPolicy }
 
 type StoredPolicy = {
   id: string
@@ -64,33 +56,7 @@ class ProductionPolicyService extends MedusaService({
   }
 
   private defaultPolicyConfig(): Record<string, any> {
-    return {
-      transitions: {
-        approve_from: ["draft", "pending_review"],
-        dispatch_from: ["approved"],
-        send_to_production_from: ["approved"],
-        accept_from: ["sent_to_partner"],
-        // Partner work lifecycle. Accepting moves the run to in_progress;
-        // start/finish/complete then stage within it via the lifecycle
-        // timestamps (started_at / finished_at).
-        start_work_from: ["in_progress"],
-        finish_work_from: ["in_progress"],
-        complete_work_from: ["in_progress"],
-        decline_from: ["draft", "pending_review", "approved", "sent_to_partner", "in_progress"],
-        // #1228 — manual (re)assignment. Deliberately a SEPARATE key from
-        // dispatch_from: `allowedStatuses` falls back per-key, so adding this
-        // takes effect on already-stored policy configs without a backfill,
-        // whereas widening dispatch_from would need one.
-        assign_partner_from: [
-          "awaiting_reassignment",
-          "draft",
-          "pending_review",
-          "approved",
-          "sent_to_partner",
-        ],
-      },
-      reassignment: DEFAULT_REASSIGNMENT_POLICY,
-    }
+    return defaultPolicyConfig()
   }
 
   /**
@@ -208,9 +174,40 @@ class ProductionPolicyService extends MedusaService({
     return updated as any
   }
 
+  /**
+   * The config that actually governs transitions: defaults with the stored row
+   * layered on top.
+   *
+   * Reads were already falling back per key, so this changes no behaviour — it
+   * makes the fallback explicit and gives one place to ask "what is in force?".
+   * The stored row is NOT written to; see getPolicyView for what an operator is
+   * shown.
+   */
   async getPolicyConfig(): Promise<Record<string, any>> {
     const policy = await this.getOrCreatePolicy()
-    return (policy?.config || this.defaultPolicyConfig()) as Record<string, any>
+    return mergePolicyConfig(policy?.config)
+  }
+
+  /**
+   * What the settings screen needs: the row as stored, the config actually in
+   * force, and which keys differ between them.
+   *
+   * The gap is the point. Prod's row predates five transition keys and the
+   * whole reassignment block, so the screen was rendering fewer than half the
+   * rules it claimed to show — which is why the reassignment switch looked
+   * broken rather than unsaved.
+   */
+  async getPolicyView(): Promise<{
+    policy: StoredPolicy
+    effective_config: Record<string, any>
+    missing: { transitions: string[]; sections: string[] }
+  }> {
+    const policy = await this.getOrCreatePolicy()
+    return {
+      policy,
+      effective_config: mergePolicyConfig(policy?.config),
+      missing: missingPolicyKeys(policy?.config),
+    }
   }
 
   async assertCanAccept(run: ProductionRun) {
