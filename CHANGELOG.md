@@ -1,3 +1,15 @@
+# [13.100.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.99.0...v13.100.0) (2026-08-17)
+
+
+### Bug Fixes
+
+* **assistant:** carry a widened tool slice across turns on the admin chat ([#1316](https://github.com/Jaal-Yantra-Textiles/v2/issues/1316)) ([c554718](https://github.com/Jaal-Yantra-Textiles/v2/commit/c5547180b6f203f7cdfa2b9622fee63211835451)), closes [#1315](https://github.com/Jaal-Yantra-Textiles/v2/issues/1315)
+
+
+### Features
+
+* **mcp:** per-ask tool slicing for the partner assistant ([#1315](https://github.com/Jaal-Yantra-Textiles/v2/issues/1315)) ([843e5ca](https://github.com/Jaal-Yantra-Textiles/v2/commit/843e5ca7367d6bdceba7ec82534a7ca3720c44e4))
+
 # [13.99.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.98.0...v13.99.0) (2026-08-17)
 
 
