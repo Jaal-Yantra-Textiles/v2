@@ -84,6 +84,20 @@ type BookedPickup = {
   incoming_center_name?: string
 }
 
+/**
+ * What the carrier calls the pickup's handle.
+ *
+ * Blue Dart returns it as `TokenNumber` and its phone agents ask for the "token
+ * number"; a label reading "Reference" sends the operator hunting for a field
+ * that does not exist on the carrier's side. It is also the ONLY thing that can
+ * cancel a collection — cancelling the waybill does not.
+ */
+function pickupCodeLabel(carrier?: string): string {
+  return String(carrier || "").toLowerCase() === "bluedart"
+    ? "Pickup token"
+    : "Reference"
+}
+
 function bookedPickupOf(fulfillment: any): BookedPickup | null {
   const m = fulfillment?.metadata
   // `pickup_date` is the load-bearing field: Blue Dart hands back a
@@ -413,8 +427,10 @@ const OrderCarrierShipmentWidget = ({
                     ? // Shown, not hidden behind a tooltip: for Blue Dart this
                       // token is the only handle that can call the collection
                       // off, and an operator on the phone to the carrier needs
-                      // to be able to read it out.
-                      `Reference #${pickup.pickup_id}`
+                      // to be able to read it out. Named by what the carrier
+                      // calls it, because that is the word the agent on the
+                      // phone will ask for — Blue Dart says "token number".
+                      `${pickupCodeLabel(existing.carrier)} #${pickup.pickup_id}`
                     : "No reference returned by the carrier — cancelling may need a phone call."}
                   {pickup.incoming_center_name
                     ? ` · ${pickup.incoming_center_name}`

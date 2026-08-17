@@ -487,6 +487,11 @@ const Fulfillment = ({
                 ),
                 bookedPickup.pickup_time ? "dd MMM, HH:mm" : "dd MMM"
               )}`}
+              {/* The carrier's handle for the collection — Blue Dart's token
+                  number. Shown because it is what the carrier's phone agent
+                  asks for, and (for Blue Dart) the only thing that can call the
+                  collection off; cancelling the waybill does not. */}
+              {bookedPickup.pickup_id ? ` · #${bookedPickup.pickup_id}` : ""}
             </StatusBadge>
           )}
           <Tooltip
