@@ -1,3 +1,15 @@
+# [13.102.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.101.1...v13.102.0) (2026-08-17)
+
+
+### Bug Fixes
+
+* **shipping:** the LIVE tracking path also called a registered pickup a collection ([#1321](https://github.com/Jaal-Yantra-Textiles/v2/issues/1321)) ([8a2c93d](https://github.com/Jaal-Yantra-Textiles/v2/commit/8a2c93d92cbfe393bb26e683b6a85229c9254bdf)), closes [#1319](https://github.com/Jaal-Yantra-Textiles/v2/issues/1319) [#1285](https://github.com/Jaal-Yantra-Textiles/v2/issues/1285)
+
+
+### Features
+
+* **mcp:** settings screen for OAuth authorizations ([#1309](https://github.com/Jaal-Yantra-Textiles/v2/issues/1309)) ([#1320](https://github.com/Jaal-Yantra-Textiles/v2/issues/1320)) ([a8f45c5](https://github.com/Jaal-Yantra-Textiles/v2/commit/a8f45c5a83c8f589622963d05e92e4e928366557)), closes [#1318](https://github.com/Jaal-Yantra-Textiles/v2/issues/1318) [#1306](https://github.com/Jaal-Yantra-Textiles/v2/issues/1306)
+
 ## [13.101.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.101.0...v13.101.1) (2026-08-17)
 
 
