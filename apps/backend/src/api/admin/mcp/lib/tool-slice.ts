@@ -264,6 +264,53 @@ export function toolsInDomains(
   return tools.filter((t) => wanted.has(toolDomain(t) ?? "")).map((t) => t.name)
 }
 
+/** The escape-hatch tool the model calls to widen its own slice. */
+export const LOAD_TOOLS_TOOL_NAME = "load_admin_tools"
+
+/**
+ * Domains the model already widened into earlier in THIS conversation.
+ *
+ * The slice is recomputed per HTTP request from keywords, and the chat route
+ * strips tool parts from history — so without this a domain bought with a
+ * `load_admin_tools` round trip on turn N is silently gone on turn N+1, and the
+ * model has no transcript evidence it ever had it. A follow-up like "now do the
+ * same for the other one" re-pays the widening AND burns one of the 8 steps.
+ *
+ * Reads the RAW inbound messages (before the route's text-only normalisation),
+ * and only ever returns known selectable domains, so a malformed or
+ * adversarial history part can widen nothing it could not widen by asking.
+ *
+ * Mirrored for the partner surface in partners/mcp/lib/tool-slice — the two
+ * slicers are deliberately parallel modules over different domain unions.
+ */
+export function widenedDomainsFromHistory(
+  rawMessages: unknown
+): AdminToolDomain[] {
+  const selectable = new Set<string>(SELECTABLE_DOMAINS)
+  const found = new Set<AdminToolDomain>()
+
+  for (const m of Array.isArray(rawMessages) ? rawMessages : []) {
+    const parts = Array.isArray((m as any)?.parts) ? (m as any).parts : []
+    for (const p of parts) {
+      const isLoadCall =
+        p?.type === `tool-${LOAD_TOOLS_TOOL_NAME}` ||
+        (p?.type === "dynamic-tool" && p?.toolName === LOAD_TOOLS_TOOL_NAME)
+      if (!isLoadCall) continue
+      // The call's own args are the reliable half; the result echoes them back,
+      // so read both and let the allow-list below discard anything odd.
+      for (const d of [
+        ...(Array.isArray(p?.input?.domains) ? p.input.domains : []),
+        ...(Array.isArray(p?.output?.domains) ? p.output.domains : []),
+      ]) {
+        if (typeof d === "string" && selectable.has(d)) {
+          found.add(d as AdminToolDomain)
+        }
+      }
+    }
+  }
+  return [...found]
+}
+
 /** The domains an operator can ask to be widened into. */
 export const SELECTABLE_DOMAINS: AdminToolDomain[] = [
   "orders",

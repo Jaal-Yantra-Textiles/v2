@@ -3,6 +3,7 @@ import {
   matchDomains,
   toolDomain,
   toolsInDomains,
+  widenedDomainsFromHistory,
   ALWAYS_ON_TOOLS,
   SELECTABLE_DOMAINS,
 } from "../tool-slice"
@@ -250,6 +251,87 @@ describe("admin-mcp per-ask tool slicing", () => {
     ])("activates it for: %s", (ask) => {
       const slice = selectAdminToolSlice(ask, ADMIN_MCP_TOOLS)
       expect(slice.names).toContain("bulk_update_products")
+    })
+  })
+
+  describe("carrying a widened slice across turns", () => {
+    // The slice is recomputed from keywords on every request and history
+    // arrives text-only, so a domain the model bought with a load_admin_tools
+    // round trip on turn N was gone on turn N+1 — the follow-up ask paid for
+    // it again and burned one of the 8 steps.
+    const loadPart = (domains: any, key: "input" | "output" = "input") => ({
+      role: "assistant",
+      parts: [{ type: "tool-load_admin_tools", [key]: { domains } }],
+    })
+
+    it("recovers the domains loaded on an earlier turn", () => {
+      expect(widenedDomainsFromHistory([loadPart(["money"])])).toEqual(["money"])
+      expect(
+        widenedDomainsFromHistory([loadPart(["marketing"], "output")])
+      ).toEqual(["marketing"])
+    })
+
+    it("reads dynamic-tool parts too", () => {
+      expect(
+        widenedDomainsFromHistory([
+          {
+            role: "assistant",
+            parts: [
+              {
+                type: "dynamic-tool",
+                toolName: "load_admin_tools",
+                input: { domains: ["inventory"] },
+              },
+            ],
+          },
+        ])
+      ).toEqual(["inventory"])
+    })
+
+    it("accepts only known domains, whatever the history claims", () => {
+      expect(
+        widenedDomainsFromHistory([
+          loadPart(["money", "not_a_domain", "core", 42, null]),
+        ])
+      ).toEqual(["money"])
+    })
+
+    it("survives malformed or absent history without throwing", () => {
+      expect(widenedDomainsFromHistory(undefined)).toEqual([])
+      expect(widenedDomainsFromHistory([])).toEqual([])
+      expect(widenedDomainsFromHistory([{ role: "user" }])).toEqual([])
+      expect(
+        widenedDomainsFromHistory([
+          { role: "assistant", parts: [{ type: "text", text: "hi" }] },
+        ])
+      ).toEqual([])
+      expect(widenedDomainsFromHistory([loadPart("money" as any)])).toEqual([])
+    })
+
+    it("ignores other tools' parts", () => {
+      expect(
+        widenedDomainsFromHistory([
+          {
+            role: "assistant",
+            parts: [{ type: "tool-list_orders", input: { domains: ["money"] } }],
+          },
+        ])
+      ).toEqual([])
+    })
+
+    it("what it recovers is exactly what the escape hatch would load", () => {
+      // The carry-forward must be equivalent to re-calling load_admin_tools —
+      // otherwise turn N+1 gets a subtly different surface from turn N.
+      const carried = widenedDomainsFromHistory([loadPart(["money"])])
+      expect(toolsInDomains(carried, ADMIN_MCP_TOOLS)).toEqual(
+        toolsInDomains(["money"], ADMIN_MCP_TOOLS)
+      )
+    })
+
+    it("every selectable domain survives a round trip through history", () => {
+      for (const domain of SELECTABLE_DOMAINS) {
+        expect(widenedDomainsFromHistory([loadPart([domain])])).toEqual([domain])
+      }
     })
   })
 })

@@ -34,6 +34,7 @@ import { ADMIN_MCP_TOOLS, renderToolGuidance } from "../../mcp/lib/registry"
 import {
   selectAdminToolSlice,
   toolsInDomains,
+  widenedDomainsFromHistory,
   toolDomain,
   SELECTABLE_DOMAINS,
 } from "../../mcp/lib/tool-slice"
@@ -320,9 +321,19 @@ export const POST = async (
   const initialSlice = selectAdminToolSlice(recentText, enabled)
   const activated = new Set<string>(initialSlice.names)
 
+  // Carry forward whatever the model widened into earlier in this conversation.
+  // Keyword matching runs fresh every request and history arrives text-only, so
+  // without this a domain bought with a round trip on the previous turn is gone
+  // on this one — and "now do the same for the other one" pays for it twice.
+  const carried = widenedDomainsFromHistory(body.messages)
+  if (carried.length) {
+    toolsInDomains(carried, enabled).forEach((n) => activated.add(n))
+  }
+
   logger.debug?.(
     `[${FEATURE}] tool slice: ${activated.size}/${enabled.length} tools` +
-      ` (domains: ${initialSlice.domains.join(", ") || "none matched"})`
+      ` (domains: ${initialSlice.domains.join(", ") || "none matched"}` +
+      `${carried.length ? `; carried: ${carried.join(", ")}` : ""})`
   )
 
   // The escape hatch. Always active, so the model is never boxed in by a slice
