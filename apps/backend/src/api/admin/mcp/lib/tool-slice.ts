@@ -82,6 +82,10 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   ["/admin/payments", "money"],
   ["/admin/publishing-campaigns", "marketing"],
   ["/admin/notifications", "marketing"],
+  // Social posts and platform integrations belong to marketing — they are the
+  // organic publishing surface alongside the automated campaigns.
+  ["/admin/social-posts", "marketing"],
+  ["/admin/social-platforms", "marketing"],
 ]
 
 /** Classify one tool by the route it wraps. */
@@ -180,6 +184,12 @@ const DOMAIN_KEYWORDS: Record<Exclude<AdminToolDomain, "core">, string[]> = {
     "campaign", "campaigns", "newsletter", "email", "emails", "notification",
     "notifications", "marketing", "publish campaign", "blog", "subscriber",
     "subscribers",
+    // Social post vocabulary — the organic publishing surface. Without these
+    // a "post to Instagram" or "create a Facebook post" ask never lights the
+    // marketing slice, so the social tools never load.
+    "social", "social post", "social posts", "social media", "instagram",
+    "facebook", "twitter", "tweet", "linkedin", "post to", "publish post",
+    "reel", "caption", "hashtag", "hashtags", "fbinsta",
   ],
   observability: [
     "mcp", "tool usage", "telemetry", "observability", "ledger", "audit",
