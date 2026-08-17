@@ -52,7 +52,7 @@ export const POST = async (
   const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
 
   if (providerName === "vercel") {
-    const applied = await deployment.applyRecommendedDns(domain)
+    const applied = await deployment.applyRecommendedDns(domain, req.scope)
 
     let recommendation: Awaited<
       ReturnType<DeploymentService["getDomainConfig"]>
@@ -83,7 +83,7 @@ export const POST = async (
     id: projectRef || domain,
     name: projectRef || domain,
   })
-  const applied = await deployment.ensureCname(domain, target)
+  const applied = await deployment.ensureCname(domain, target, req.scope)
 
   return res.json({
     domain,

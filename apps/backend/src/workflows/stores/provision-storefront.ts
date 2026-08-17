@@ -346,7 +346,7 @@ const createCnameStep = createStep(
     try {
       if (input.providerName === "vercel") {
         // Vercel's per-project CNAME recommendation (e.g. <hash>.vercel-dns-017.com).
-        const result = await deployment.applyRecommendedDns(fullDomain)
+        const result = await deployment.applyRecommendedDns(fullDomain, container)
         console.log("[provision-storefront] DNS (vercel recommended):", JSON.stringify(result))
         return new StepResponse(result as any)
       }
@@ -375,7 +375,7 @@ const createCnameStep = createStep(
         name: input.projectName,
         originHost: input.originHost ?? undefined,
       })
-      const result = await deployment.ensureCname(fullDomain, target)
+      const result = await deployment.ensureCname(fullDomain, target, container)
       console.log(
         `[provision-storefront] DNS (${input.providerName} CNAME → ${target}):`,
         JSON.stringify(result)

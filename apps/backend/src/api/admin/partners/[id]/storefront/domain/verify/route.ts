@@ -54,7 +54,7 @@ export const POST = async (
     // Vercel-only: apply Vercel's recommended DNS via Cloudflare. No-op for
     // domains outside our zone.
     const deployment: DeploymentService = req.scope.resolve(DEPLOYMENT_MODULE)
-    applied = await deployment.applyRecommendedDns(customDomain)
+    applied = await deployment.applyRecommendedDns(customDomain, req.scope)
   } else {
     // Self-heal: idempotently (re)attach each host.
     const hosts = [pair.primary, pair.counterpart].filter(

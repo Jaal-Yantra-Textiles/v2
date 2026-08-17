@@ -14,6 +14,7 @@ export const ApiCategorySchema = z.enum([
   "authentication",
   "google",
   "ai", // AI/LLM providers (OpenRouter, DashScope, Cloudflare AI, Vercel AI, custom)
+  "hosting", // Hosting/DNS providers (Cloudflare zone + API token, Vercel, ...)
   "other",
 ]);
 
