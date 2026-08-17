@@ -1,3 +1,10 @@
+## [13.103.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.103.1...v13.103.2) (2026-08-17)
+
+
+### Bug Fixes
+
+* **production-policy:** show the rules that are in force, not just the stored ones ([#1324](https://github.com/Jaal-Yantra-Textiles/v2/issues/1324)) ([cdb2dcd](https://github.com/Jaal-Yantra-Textiles/v2/commit/cdb2dcd38f5f7381332fe72587e9e3d5edfd372e)), closes [#1280](https://github.com/Jaal-Yantra-Textiles/v2/issues/1280)
+
 ## [13.103.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.103.0...v13.103.1) (2026-08-17)
 
 
