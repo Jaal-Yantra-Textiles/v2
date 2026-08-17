@@ -13,8 +13,18 @@ export type AdminProductionRunPolicy = {
   deleted_at?: Date | null
 }
 
+/** Which parts of the policy are in force but absent from the stored row. */
+export type AdminProductionRunPolicyMissing = {
+  transitions: string[]
+  sections: string[]
+}
+
 export type AdminProductionRunPolicyResponse = {
   policy: AdminProductionRunPolicy
+  /** Defaults with the stored row layered on top — what actually governs
+   *  transitions. The stored `policy.config` can be a strict subset. */
+  effective_config: Record<string, any>
+  missing: AdminProductionRunPolicyMissing
 }
 
 export type AdminUpdateProductionRunPolicyPayload = {
@@ -41,6 +51,8 @@ export const useProductionRunPolicy = () => {
   return {
     ...rest,
     policy: data?.policy,
+    effectiveConfig: data?.effective_config,
+    missing: data?.missing,
   }
 }
 

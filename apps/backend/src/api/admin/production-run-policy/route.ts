@@ -100,9 +100,17 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     PRODUCTION_POLICY_MODULE
   )
 
-  const policy = await productionPolicyService.getOrCreatePolicy()
+  // `policy` is the row exactly as stored — unchanged, so existing consumers
+  // are unaffected. `effective_config` is what actually governs transitions
+  // (defaults with the stored row layered on top), and `missing` names the keys
+  // that are in force but absent from the row.
+  //
+  // Reading the two separately is deliberate: the stored row predates several
+  // transition keys and the whole reassignment block, and showing only the
+  // stored config is what made those rules invisible. Nothing here writes.
+  const view = await productionPolicyService.getPolicyView()
 
-  return res.status(200).json({ policy })
+  return res.status(200).json(view)
 }
 
 export const PUT = async (
