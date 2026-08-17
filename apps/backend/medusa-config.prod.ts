@@ -597,6 +597,9 @@ module.exports = defineConfig({
     resolve: "./src/modules/mcp_access",
   },
   {
+    resolve: "./src/modules/mcp_oauth",
+  },
+  {
     resolve: "./src/modules/fx_rates",
   },
   {

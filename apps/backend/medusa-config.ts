@@ -211,6 +211,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/mcp_access",
     },
     {
+      resolve: "./src/modules/mcp_oauth",
+    },
+    {
       resolve: "./src/modules/unified_order_status",
     },
     {
