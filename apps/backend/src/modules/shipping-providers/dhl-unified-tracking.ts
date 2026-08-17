@@ -159,6 +159,20 @@ export function classifyDhlStatus(
   if (/out for delivery/.test(d)) return "out_for_delivery"
   if (/undeliver|delivery attempt failed|refused/.test(d)) return "exception"
   if (/cancel/.test(d)) return "cancelled"
+  // Registering a pickup is a REQUEST for a courier, not a collection. Blue
+  // Dart emits "PICKUP HAS BEEN REGISTERED" the moment the booking lands and
+  // keeps emitting it until someone physically collects — order 83 sat on that
+  // scan for three days while the SAME payload's statusCode read `pre-transit`.
+  // The old `/pickup has been/` branch was written for this exact string and
+  // called it `picked_up`, so the timeline an operator reads to answer "has the
+  // courier taken it?" said yes for a parcel still on the shelf.
+  if (
+    /pickup (has been )?(registered|scheduled|booked|arranged)|awaiting pickup|pickup requested/.test(
+      d
+    )
+  ) {
+    return "pickup_scheduled"
+  }
   if (/picked up|pickup has been|shipment collected/.test(d)) return "picked_up"
   if (/delivered/.test(d) && !/undelivered/.test(d)) return "delivered"
 
