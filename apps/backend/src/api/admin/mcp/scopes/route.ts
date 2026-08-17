@@ -65,9 +65,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     // The ceiling is the process-wide cap; a row can only ever restrict below
     // it, so a level above `ceiling` is stored but has no effect.
     ceiling: adminMcpCeiling(),
-    // Tools each level exposes. ⚠️ `write` currently equals `read` — every
-    // admin write tool is flagged sensitive — so a credential that needs to
-    // change anything needs `sensitive`.
+    // Tools each level exposes. The rungs are genuinely distinct since #1310
+    // split the tier axis out of the `sensitive` flag — `write` no longer
+    // equals `read`, so picking it is a real choice.
     levels: MCP_SCOPE_LEVELS.map((level) => ({
       level,
       tools: counts[level],
@@ -130,8 +130,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           warning: `Stored as '${level}', but the process ceiling is '${ceiling}', so this credential operates at '${effective}'. Raising it requires ADMIN_MCP_ENABLE_WRITE / ADMIN_MCP_ENABLE_DANGEROUS.`,
         }
       : {}),
-    // ⚠️ `write` exposes exactly what `read` does today — every admin write tool
-    // is flagged sensitive. Surfaced so picking `write` doesn't look useful.
+    // The whole ladder, so the operator can see what the neighbouring rungs
+    // would have bought at the moment of choosing this one.
     tools_by_level: counts,
   })
 }

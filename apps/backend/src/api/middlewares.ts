@@ -39,6 +39,11 @@ import {
   MCP_SCOPE_EXEMPT_ADMIN_PATHS,
 } from "../lib/mcp-scope";
 import { adminRouteTier } from "./admin/mcp/lib/route-tier";
+import { mcpOauthTokenIdFromRequest } from "../lib/mcp-oauth";
+import { MCP_OAUTH_MODULE } from "../modules/mcp_oauth";
+import type McpOauthService from "../modules/mcp_oauth/service";
+import { GET as oauthProtectedResourceDoc } from "./well-known/oauth-protected-resource/route";
+import { GET as oauthAuthorizationServerDoc } from "./well-known/oauth-authorization-server/route";
 
 // Helper function to wrap Zod schemas for compatibility with validateAndTransformBody.
 // Historically this wrapped with z.preprocess((obj) => obj, schema) — under Zod v3
@@ -738,8 +743,68 @@ const enforceMcpScopeOnAdminWrites = async (
   }
 }
 
+/**
+ * Refuse a revoked OAuth authorization on every `/admin/*` request (#1306
+ * Track B).
+ *
+ * An access token minted by the OAuth front door is a real Medusa user JWT, so
+ * it verifies on its signature alone and would otherwise keep working for the
+ * remainder of its hour no matter what the admin did in the settings UI. This
+ * is the only thing standing between "revoked" and "revoked in an hour".
+ *
+ * Ordered before `enforceMcpScopeOnAdminWrites` and — unlike that guard —
+ * applied to READS too. A revoked credential must not read either; scoping is
+ * about what a live credential may do, revocation is about whether it is live
+ * at all.
+ *
+ * Costs nothing for ordinary traffic: without the `mcp_oauth` claim it returns
+ * on the first line. Dashboard sessions and API keys never reach the lookup.
+ */
+const enforceMcpOauthRevocation = async (
+  req: MedusaRequest,
+  res: MedusaResponse,
+  next: MedusaNextFunction
+) => {
+  const tokenId = mcpOauthTokenIdFromRequest(req);
+  if (!tokenId) {
+    return next();
+  }
+  try {
+    const oauth = req.scope.resolve(MCP_OAUTH_MODULE) as McpOauthService;
+    const row = await oauth.getToken(tokenId);
+    if (!row || row.revoked_at) {
+      // A claim pointing at a row that no longer exists authorizes nothing —
+      // treat a missing row exactly like a revoked one.
+      return res.status(401).json({
+        message:
+          "This OAuth authorization has been revoked. Re-authorize the client to obtain a new token.",
+      });
+    }
+    return next();
+  } catch {
+    // Fail CLOSED, same reasoning as the scope guard below: a check that
+    // cannot read the permission must not grant it. Only affects requests that
+    // actually carry the claim.
+    return res.status(503).json({
+      message:
+        "Could not verify this token's revocation status; refusing the request rather than assuming it is valid. Retry shortly.",
+    });
+  }
+};
+
+/** Public, credential-free endpoints — safe to allow any origin. */
+const publicCors = cors({ origin: "*", credentials: false });
+
 export default defineMiddlewares({
   routes: [
+    // OAuth revocation check (#1306 Track B). Method-less on purpose, exactly
+    // like the scope guard below — a "global" entry is concatenated ahead of
+    // every /admin/* handler — and registered FIRST so a revoked credential is
+    // rejected before anything asks what it is allowed to do.
+    {
+      matcher: "/admin/*",
+      middlewares: [enforceMcpOauthRevocation],
+    },
     // Per-credential scope guard (#1306 Track C).
     //
     // No `method`/`methods` key on purpose: Medusa's routes sorter buckets a
@@ -751,6 +816,82 @@ export default defineMiddlewares({
     {
       matcher: "/admin/*",
       middlewares: [enforceMcpScopeOnAdminWrites],
+    },
+
+    // =====================================================
+    // OAuth 2.1 front door for the Admin MCP (#1306 Track B)
+    // =====================================================
+
+    // Discovery documents. Medusa's file-based router ignores directories
+    // starting with ".", so the handlers in src/api/well-known/* are registered
+    // here — the /.well-known/ucp precedent further down. The wildcard variants
+    // exist because MCP clients probe the path-suffixed form
+    // (/.well-known/oauth-protected-resource/mcp/admin); this server protects
+    // exactly one resource, so both forms answer identically.
+    {
+      matcher: "/.well-known/oauth-protected-resource",
+      method: "GET",
+      middlewares: [publicCors, oauthProtectedResourceDoc as any],
+    },
+    {
+      matcher: "/.well-known/oauth-protected-resource/*",
+      method: "GET",
+      middlewares: [publicCors, oauthProtectedResourceDoc as any],
+    },
+    {
+      matcher: "/.well-known/oauth-authorization-server",
+      method: "GET",
+      middlewares: [publicCors, oauthAuthorizationServerDoc as any],
+    },
+    {
+      matcher: "/.well-known/oauth-authorization-server/*",
+      method: "GET",
+      middlewares: [publicCors, oauthAuthorizationServerDoc as any],
+    },
+
+    // Open CORS on the machine-facing endpoints. None of them read cookies, and
+    // all three are reached from clients whose origin we cannot know ahead of
+    // time.
+    //
+    // No body parser here: Medusa's own stack already applies
+    // `express.urlencoded({ extended: true })` to every route
+    // (`framework/dist/http/middlewares/bodyparser.js`), so the form encoding
+    // RFC 6749 specifies for the token endpoint is parsed before any of this
+    // runs. Adding a second parser does not merely duplicate work — it HANGS
+    // the request, because the stream is already consumed and the `end` event
+    // it waits for has long since fired.
+    {
+      matcher: "/oauth/token",
+      method: "POST",
+      middlewares: [publicCors],
+    },
+    {
+      matcher: "/oauth/revoke",
+      method: "POST",
+      middlewares: [publicCors],
+    },
+    {
+      matcher: "/oauth/register",
+      method: "POST",
+      middlewares: [publicCors],
+    },
+
+    // The consent step. `/oauth/*` is otherwise unauthenticated — this is the
+    // one endpoint that must know which admin is approving, and it gets that
+    // from the bearer the consent page just obtained via
+    // POST /auth/user/emailpass.
+    {
+      matcher: "/oauth/authorize/consent",
+      method: "POST",
+      middlewares: [authenticate("user", ["bearer", "session"])],
+    },
+
+    // The OAuth-facing MCP mount authenticates itself (it has to, in order to
+    // emit the RFC 9728 challenge on 401), so no `authenticate` here — only
+    // CORS, for browser-based clients.
+    {
+      matcher: "/mcp/admin",
+      middlewares: [publicCors],
     },
     // ─── Store collection & category validation (replicate framework middleware) ───
     {

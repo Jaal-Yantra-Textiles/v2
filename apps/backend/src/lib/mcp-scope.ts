@@ -28,6 +28,7 @@ import {
   minMcpScope,
   type McpScopeLevel,
 } from "./mcp-core/tiers"
+import { mcpOauthTokenIdFromRequest } from "./mcp-oauth"
 import { MCP_ACCESS_MODULE } from "../modules/mcp_access"
 import type McpAccessService from "../modules/mcp_access/service"
 
@@ -93,6 +94,17 @@ export type McpPrincipal = {
  * "api-key" }` (see the framework's authenticate middleware — API keys are the
  * one hard-coded actor type). For a dashboard session or admin JWT it is the
  * user id with `actor_type: "user"`.
+ *
+ * ⚠️ An OAuth access token (#1306 Track B) is deliberately ALSO a `user` JWT —
+ * Medusa 401s every other actor type on `/admin/*`, so it has no choice. What
+ * distinguishes it is the `mcp_oauth` claim, and this is the one place that
+ * matters: a request carrying it resolves to `{ type: "oauth", id: token_id }`,
+ * so scope binds to the TOKEN rather than to the admin who authorized it, and
+ * the credential counts as a machine principal for the HTTP write guard.
+ *
+ * `req.auth_context` is left untouched on purpose. Many admin routes read
+ * `actor_id` as a user id (audit trails, `created_by`); rewriting the actor
+ * type there instead of reading the claim here would break them silently.
  */
 export const mcpPrincipalFromRequest = (
   req: MedusaRequest
@@ -102,6 +114,10 @@ export const mcpPrincipalFromRequest = (
   const type = ctx?.actor_type
   if (typeof id !== "string" || !id || typeof type !== "string" || !type) {
     return null
+  }
+  const oauthTokenId = mcpOauthTokenIdFromRequest(req)
+  if (oauthTokenId) {
+    return { type: "oauth", id: oauthTokenId }
   }
   return { type, id }
 }
