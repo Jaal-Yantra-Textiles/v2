@@ -1,3 +1,10 @@
+## [13.103.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.103.0...v13.103.1) (2026-08-17)
+
+
+### Bug Fixes
+
+* **deployment:** read Cloudflare credentials from a platform row, not env ([#1323](https://github.com/Jaal-Yantra-Textiles/v2/issues/1323)) ([bb78d2b](https://github.com/Jaal-Yantra-Textiles/v2/commit/bb78d2b493692bc09088dffe9a4a602b53fd275e))
+
 # [13.103.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.102.0...v13.103.0) (2026-08-17)
 
 
