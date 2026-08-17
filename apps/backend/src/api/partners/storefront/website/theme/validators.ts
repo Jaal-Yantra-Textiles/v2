@@ -221,7 +221,13 @@ export const websiteThemeSchema = z.object({
       show_sku: z.boolean().optional(),
       show_stock_status: z.boolean().optional(),
       image_layout: z.enum(["gallery", "single", "grid"]).optional(),
-      gallery_position: z.enum(["left", "right"]).optional(),
+      // "center" keeps the gallery between the description and the buy box.
+      // Left/right push it to an edge, which pulls those two narrow columns
+      // together so the description renders beside Add to cart. Center was
+      // previously only reachable by omitting the key entirely, which the
+      // editor could not do — so every partner who touched this setting got
+      // the collapsed layout.
+      gallery_position: z.enum(["left", "center", "right"]).optional(),
       description_layout: z.enum(["tabs", "accordion", "stacked"]).optional(),
       cta_text: z.string().optional(),
       sample_product_name: z.string().optional(),

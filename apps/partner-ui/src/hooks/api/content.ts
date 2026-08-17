@@ -340,7 +340,7 @@ export type WebsiteTheme = {
     show_sku?: boolean
     show_stock_status?: boolean
     image_layout?: "gallery" | "single" | "grid"
-    gallery_position?: "left" | "right"
+    gallery_position?: "left" | "center" | "right"
     description_layout?: "tabs" | "accordion" | "stacked"
     cta_text?: string
     sample_product_name?: string

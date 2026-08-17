@@ -2213,12 +2213,17 @@ function ProductPagePanel({ form, updateForm }: PanelProps) {
 
         <div className="space-y-1">
           <Label size="xsmall">Gallery Position</Label>
-          <div className="grid grid-cols-2 gap-1">
-            {(["left", "right"] as const).map((v) => (
+          {/* "Center" keeps the images between the description and the buy box.
+              Left/right push the gallery to an edge, which pulls those two
+              narrow columns together — the description then sits directly
+              beside Add to cart, which reads as a broken page. Center is the
+              default for that reason. */}
+          <div className="grid grid-cols-3 gap-1">
+            {(["left", "center", "right"] as const).map((v) => (
               <button
                 key={v}
                 className={`px-2 py-1 text-xs rounded border ${
-                  (pp.gallery_position || "left") === v
+                  (pp.gallery_position || "center") === v
                     ? "border-ui-fg-interactive bg-ui-bg-interactive text-ui-fg-on-color"
                     : "border-ui-border-base text-ui-fg-subtle"
                 }`}
@@ -2228,6 +2233,11 @@ function ProductPagePanel({ form, updateForm }: PanelProps) {
               </button>
             ))}
           </div>
+          {(pp.gallery_position === "left" || pp.gallery_position === "right") && (
+            <Text size="xsmall" className="text-ui-fg-subtle">
+              Description and Add to cart sit side by side in this layout.
+            </Text>
+          )}
         </div>
 
         <div className="space-y-1">
