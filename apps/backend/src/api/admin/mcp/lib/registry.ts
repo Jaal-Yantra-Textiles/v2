@@ -327,13 +327,13 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "list_social_platforms",
     description:
-      "List the configured social-media platform integrations (Facebook, Instagram, Twitter/X, LinkedIn, FBINSTA). Each row carries the platform id, name, auth type and status. Use to find a platform_id for create_social_post. Secrets are stripped from the response.",
+      "List the configured platform integrations. ALWAYS pass category:'social' for social-media work (Facebook, Instagram, Twitter/X, LinkedIn, FBINSTA) — the route applies NO default, so omitting it returns every integration, including payment, shipping, email, SMS, analytics, CRM and storage rows. Each row carries the platform id, name, auth type and status. Use to find a platform_id for create_social_post. Secrets are stripped from the response.",
     method: "GET",
     path: "/admin/social-platforms",
     queryParams: ["limit", "offset", "q", "category", "status"],
     inputSchema: obj({
       ...PAGINATION,
-      category: STR("Filter by category. Pass 'social' (default) to list only social-media platforms."),
+      category: STR("Filter by category. Pass 'social' to list only social-media platforms; omitted means NO filter, not 'social'."),
       status: STR("Filter by platform status: 'active' | 'inactive' | 'error' | 'pending'."),
     }),
   },
