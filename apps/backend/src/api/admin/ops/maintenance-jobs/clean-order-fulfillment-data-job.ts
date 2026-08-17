@@ -51,6 +51,23 @@ import type {
  * this verifies the target provider row EXISTS before writing and refuses
  * otherwise — an FK violation mid-run is a worse outcome than a clear refusal.
  *
+ * ⚠️ THE SECOND TRAP: `provider_id` CANNOT BE WRITTEN THROUGH THE MODULE
+ * ---------------------------------------------------------------------
+ * This job used to align the provider with
+ * `updateFulfillment(id, { provider_id } as any)`, reasoning that
+ * `updateFulfillment_` spreads its argument straight into
+ * `fulfillmentService_.update([{ id, ...data }])`. The spread is real, but the
+ * key never lands: `Fulfillment` declares `provider: model.hasOne(..., {
+ * foreignKey: true })`, so the column belongs to a RELATION, and the loose
+ * scalar is dropped by the ORM **without raising**. On order 83 that produced
+ * the worst possible outcome — `applied: true`, a change record reading
+ * `delhivery_delhivery → bluedart_bluedart`, and a row that never moved.
+ *
+ * So the provider write goes through SQL, where a no-op cannot masquerade as a
+ * success, and EVERY write is verified by re-reading the row (see
+ * `unlandedWrites`). A repair tool that reports a repair it did not make is
+ * worse than one that fails loudly: it retires the ticket.
+ *
  * Dry-run (the default) previews every before→after without writing. Apply is
  * idempotent: a second run finds the keys already null and reports no changes.
  */
@@ -135,6 +152,77 @@ export function targetProviderId(fulfillment: any): string | null {
   return fulfillment?.provider_id === target ? null : target
 }
 
+/** One fulfillment's intended writes, kept so they can be checked afterwards. */
+export type IntendedWrite = {
+  id: string
+  /** `data` keys and their intended values (nulls included). */
+  patch: Record<string, unknown>
+  /** Intended `provider_id`, or null when no alignment was requested. */
+  providerId: string | null
+}
+
+/** Structural equality that survives a jsonb round-trip. */
+const sameValue = (a: unknown, b: unknown): boolean =>
+  a === b ||
+  (a !== null &&
+    b !== null &&
+    typeof a === "object" &&
+    typeof b === "object" &&
+    JSON.stringify(a) === JSON.stringify(b))
+
+/**
+ * PURE: which intended writes are NOT visible in the rows read back after the
+ * write. Exported for unit testing.
+ *
+ * This exists because both of this job's write paths can no-op silently — the
+ * `data` merge (a `delete` or an omission changes nothing) and the `provider_id`
+ * relation FK (a loose scalar is discarded by the ORM). Neither raises, so
+ * without a read-back the job's own success report is just a restatement of its
+ * intent. Order 83 was repaired, reported `applied: true`, and kept pointing at
+ * Delhivery.
+ */
+export function unlandedWrites(
+  intended: IntendedWrite[],
+  actual: Array<{
+    id: string
+    provider_id?: string | null
+    data?: Record<string, any> | null
+  }>
+): Array<{ id: string; message: string }> {
+  const byId = new Map(actual.map((f) => [f.id, f]))
+  const errors: Array<{ id: string; message: string }> = []
+
+  for (const write of intended) {
+    const row = byId.get(write.id)
+    if (!row) {
+      errors.push({
+        id: write.id,
+        message: `Wrote ${write.id} but could not read it back to verify — treat this run as NOT applied.`,
+      })
+      continue
+    }
+
+    const staleKeys = Object.entries(write.patch)
+      .filter(([key, value]) => !sameValue((row.data ?? {})[key], value))
+      .map(([key]) => key)
+    if (staleKeys.length) {
+      errors.push({
+        id: write.id,
+        message: `data key(s) did not persist: ${staleKeys.join(", ")}. The write returned without error but the row is unchanged.`,
+      })
+    }
+
+    if (write.providerId && row.provider_id !== write.providerId) {
+      errors.push({
+        id: write.id,
+        message: `provider_id did not persist: still '${row.provider_id}', expected '${write.providerId}'. The column is a relation FK, so a module-level write is silently dropped.`,
+      })
+    }
+  }
+
+  return errors
+}
+
 export const cleanOrderFulfillmentDataJob: MaintenanceJob = {
   id: "clean-order-fulfillment-data",
   label: "Clean stale carrier residue off order fulfillments (#1285)",
@@ -171,6 +259,9 @@ export const cleanOrderFulfillmentDataJob: MaintenanceJob = {
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const fulfillmentModule: any = container.resolve(Modules.FULFILLMENT)
     const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+    const pgConnection: any = container.resolve(
+      ContainerRegistrationKeys.PG_CONNECTION
+    )
 
     // --- load the target fulfillments ---------------------------------------
     let fulfillments: any[] = []
@@ -216,6 +307,8 @@ export const cleanOrderFulfillmentDataJob: MaintenanceJob = {
 
     const changes: MaintenanceChange[] = []
     const errors: Array<{ id: string; message: string }> = []
+    /** What we actually asked the database for, to be verified after the run. */
+    const intended: IntendedWrite[] = []
 
     for (const f of fulfillments) {
       const patch = buildDataPatch(f.data, clear_keys, set)
@@ -265,19 +358,35 @@ export const cleanOrderFulfillmentDataJob: MaintenanceJob = {
           await fulfillmentModule.updateFulfillment(f.id, { data: patch })
         }
         if (nextProviderId) {
-          // `provider_id` is absent from UpdateFulfillmentDTO, but updateFulfillment_
-          // spreads `data` straight into the underlying update — the same
-          // deliberate, load-bearing cast used by backfill-open-order-requires-shipping.
-          await fulfillmentModule.updateFulfillment(f.id, {
-            provider_id: nextProviderId,
-          } as any)
+          // SQL, not the module — see the docblock. `provider_id` is the FK of a
+          // `hasOne` relation, so passing it to `updateFulfillment` is discarded
+          // silently. The target's existence was checked above, so the FK is
+          // safe; `updated_at` is bumped by hand because we bypass the ORM.
+          await pgConnection.raw(
+            'update "fulfillment" set "provider_id" = ?, "updated_at" = now() where "id" = ?',
+            [nextProviderId, f.id]
+          )
         }
+        intended.push({ id: f.id, patch, providerId: nextProviderId })
         logger?.info?.(
           `[clean-order-fulfillment-data] repaired ${f.id} (${Object.keys(patch).join(", ") || "provider only"}${nextProviderId ? ` → ${nextProviderId}` : ""})`
         )
       } catch (e: any) {
         errors.push({ id: f.id, message: e?.message ?? String(e) })
       }
+    }
+
+    // --- read back and prove the writes landed --------------------------------
+    // Both write paths can no-op without raising, so "no exception" is not
+    // evidence. Anything that did not persist becomes an error, which drops
+    // `applied` to false — the report then describes the ROW, not the intent.
+    if (!dry_run && intended.length) {
+      const { data: readBack } = await query.graph({
+        entity: "fulfillment",
+        filters: { id: intended.map((w) => w.id) },
+        fields: ["id", "provider_id", "data"],
+      })
+      errors.push(...unlandedWrites(intended, readBack ?? []))
     }
 
     const dataChanges = changes.filter((c) => c.entity === "fulfillment.data").length
@@ -289,7 +398,10 @@ export const cleanOrderFulfillmentDataJob: MaintenanceJob = {
       dry_run,
       applied,
       summary: changes.length
-        ? `${dry_run ? "Would repair" : "Repaired"} ${dataChanges} data key(s) and ${providerChanges} provider attribution(s) across ${fulfillments.length} fulfillment(s)${errors.length ? `; ${errors.length} error(s)` : ""}`
+        ? // "Repaired" is claimed only after the read-back agreed. Otherwise the
+          // verb is ATTEMPTED — the whole point of the check is that this job
+          // once reported a repair it had not made.
+          `${dry_run ? "Would repair" : applied ? "Repaired" : "ATTEMPTED"} ${dataChanges} data key(s) and ${providerChanges} provider attribution(s) across ${fulfillments.length} fulfillment(s)${errors.length ? `; ${errors.length} error(s) — NOT applied, see errors` : ""}`
         : `Nothing to repair across ${fulfillments.length} fulfillment(s)`,
       changes,
       ...(errors.length ? { errors } : {}),
