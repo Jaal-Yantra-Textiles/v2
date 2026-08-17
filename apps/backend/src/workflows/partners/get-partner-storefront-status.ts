@@ -67,7 +67,7 @@ export const resolvePartnerStorefrontStatusStep = createStep(
         provider: refs.providerName,
         message: "Storefront has not been provisioned yet",
         vercel_configured: deployment.isVercelConfigured(),
-        cloudflare_configured: deployment.isCloudflareConfigured(),
+        cloudflare_configured: await deployment.isCloudflareConfigured(container),
       } as PartnerStorefrontStatus)
     }
 
@@ -135,7 +135,7 @@ export const resolvePartnerStorefrontStatusStep = createStep(
         project: { id: project.id, name: project.name },
         latest_deployment: deploymentInfo,
         vercel_configured: deployment.isVercelConfigured(),
-        cloudflare_configured: deployment.isCloudflareConfigured(),
+        cloudflare_configured: await deployment.isCloudflareConfigured(container),
       } as PartnerStorefrontStatus)
     } catch (e: any) {
       // Project no longer exists on the provider — the refs we hold are stale.

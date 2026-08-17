@@ -6,8 +6,14 @@
  */
 
 import { MedusaService } from "@medusajs/framework/utils";
+import type { MedusaContainer } from "@medusajs/framework/types";
 
 import DeploymentAccount from "./models/deployment-account";
+import {
+  resolveCloudflareCredentials,
+  resolveZoneIdByName,
+  type CloudflareCreds,
+} from "./providers/cloudflare-credentials";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -100,14 +106,28 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
     return Boolean(process.env.VERCEL_TOKEN)
   }
 
-  isCloudflareConfigured(): boolean {
-    const configured = Boolean(
-      process.env.CLOUDFLARE_API_TOKEN && process.env.CLOUDFLARE_ZONE_ID
-    )
+  /**
+   * Whether Cloudflare DNS can be driven at all.
+   *
+   * Pass the app container to consult the operator-managed platform row
+   * (`category: "hosting"`, `provider_type: "cloudflare"`); without it this
+   * falls back to env, which is what a caller with no container gets.
+   *
+   * ⚠️ This is a PRESENCE check, not a validity check. It answers "are there
+   * credentials to try", never "do they work" — a dead token and a stale zone
+   * id both pass here and fail at the API. That is exactly how the last
+   * breakage stayed invisible, so do not read a `true` as healthy.
+   */
+  async isCloudflareConfigured(
+    appContainer?: MedusaContainer
+  ): Promise<boolean> {
+    const creds = await resolveCloudflareCredentials(appContainer)
+    const configured = Boolean(creds?.token && (creds?.zoneId || creds?.zoneName))
     if (!configured) {
       this.log("warn", "Cloudflare not configured", {
-        hasToken: Boolean(process.env.CLOUDFLARE_API_TOKEN),
-        hasZoneId: Boolean(process.env.CLOUDFLARE_ZONE_ID),
+        hasToken: Boolean(creds?.token),
+        hasZoneId: Boolean(creds?.zoneId),
+        source: creds?.source ?? "none",
       })
     }
     return configured
@@ -401,16 +421,51 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
 
   // ── Cloudflare ──────────────────────────────────────────────────────────
 
-  private cloudflareHeaders(): Record<string, string> {
-    const token = process.env.CLOUDFLARE_API_TOKEN
-    if (!token) throw new Error("CLOUDFLARE_API_TOKEN environment variable is not set")
-    return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+  /**
+   * Resolve credentials once per operation and hand them down, rather than
+   * re-reading them per HTTP call. Kept explicit (no instance cache) because
+   * the module service is long-lived: a cached token would outlive an
+   * operator's rotation and the fix would look like it hadn't worked.
+   */
+  private async cloudflareCreds(
+    appContainer?: MedusaContainer
+  ): Promise<CloudflareCreds> {
+    const creds = await resolveCloudflareCredentials(appContainer)
+    if (!creds?.token) {
+      throw new Error(
+        "Cloudflare is not configured: add an active platform (category 'hosting', provider_type 'cloudflare') with an api_token, or set CLOUDFLARE_API_TOKEN."
+      )
+    }
+    return creds
   }
 
-  private cloudflareZoneId(): string {
-    const zoneId = process.env.CLOUDFLARE_ZONE_ID
-    if (!zoneId) throw new Error("CLOUDFLARE_ZONE_ID environment variable is not set")
-    return zoneId
+  private cloudflareHeaders(creds: CloudflareCreds): Record<string, string> {
+    return {
+      Authorization: `Bearer ${creds.token}`,
+      "Content-Type": "application/json",
+    }
+  }
+
+  /**
+   * The zone to write into. Prefers the stored id, but falls back to looking it
+   * up by name — a zone removed and re-added to Cloudflare keeps its name and
+   * gets a NEW id, and every call then fails with an error that blames auth
+   * rather than the id.
+   */
+  private async cloudflareZoneId(creds: CloudflareCreds): Promise<string> {
+    if (creds.zoneId) return creds.zoneId
+    if (creds.zoneName) {
+      const found = await resolveZoneIdByName(creds, creds.zoneName)
+      if (found) {
+        this.log("info", "Cloudflare zone id resolved by name", {
+          zoneName: creds.zoneName,
+        })
+        return found
+      }
+    }
+    throw new Error(
+      "Cloudflare zone is not configured: set zone_id (or zone_name) on the platform row, or CLOUDFLARE_ZONE_ID."
+    )
   }
 
   async createDnsRecord(input: {
@@ -419,12 +474,13 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
     type?: string
     proxied?: boolean
     ttl?: number
-  }): Promise<CloudflareDnsRecord> {
-    const zoneId = this.cloudflareZoneId()
+  }, creds?: CloudflareCreds): Promise<CloudflareDnsRecord> {
+    const c = creds ?? (await this.cloudflareCreds())
+    const zoneId = await this.cloudflareZoneId(c)
     this.log("info", `Cloudflare createDnsRecord`, { zoneId: zoneId.slice(0, 8) + "...", name: input.name, content: input.content })
     const res = await fetch(`${CLOUDFLARE_API_BASE}/zones/${zoneId}/dns_records`, {
       method: "POST",
-      headers: this.cloudflareHeaders(),
+      headers: this.cloudflareHeaders(c),
       body: JSON.stringify({
         type: input.type || "CNAME",
         name: input.name,
@@ -446,14 +502,15 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
   async listDnsRecords(input: {
     name?: string
     type?: string
-  }): Promise<CloudflareDnsRecord[]> {
-    const zoneId = this.cloudflareZoneId()
+  }, creds?: CloudflareCreds): Promise<CloudflareDnsRecord[]> {
+    const c = creds ?? (await this.cloudflareCreds())
+    const zoneId = await this.cloudflareZoneId(c)
     const params = new URLSearchParams()
     if (input.name) params.set("name", input.name)
     if (input.type) params.set("type", input.type)
     const res = await fetch(
       `${CLOUDFLARE_API_BASE}/zones/${zoneId}/dns_records?${params.toString()}`,
-      { method: "GET", headers: this.cloudflareHeaders() }
+      { method: "GET", headers: this.cloudflareHeaders(c) }
     )
     const data: CloudflareResponse<CloudflareDnsRecord[]> = await res.json()
     if (!data.success) {
@@ -464,14 +521,16 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
 
   async updateDnsRecord(
     recordId: string,
-    input: { name: string; content: string; type?: string; proxied?: boolean; ttl?: number }
+    input: { name: string; content: string; type?: string; proxied?: boolean; ttl?: number },
+    creds?: CloudflareCreds
   ): Promise<CloudflareDnsRecord> {
-    const zoneId = this.cloudflareZoneId()
+    const c = creds ?? (await this.cloudflareCreds())
+    const zoneId = await this.cloudflareZoneId(c)
     const res = await fetch(
       `${CLOUDFLARE_API_BASE}/zones/${zoneId}/dns_records/${recordId}`,
       {
         method: "PUT",
-        headers: this.cloudflareHeaders(),
+        headers: this.cloudflareHeaders(c),
         body: JSON.stringify({
           type: input.type || "CNAME",
           name: input.name,
@@ -488,11 +547,12 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
     return data.result
   }
 
-  async deleteDnsRecord(recordId: string): Promise<void> {
-    const zoneId = this.cloudflareZoneId()
+  async deleteDnsRecord(recordId: string, creds?: CloudflareCreds): Promise<void> {
+    const c = creds ?? (await this.cloudflareCreds())
+    const zoneId = await this.cloudflareZoneId(c)
     const res = await fetch(
       `${CLOUDFLARE_API_BASE}/zones/${zoneId}/dns_records/${recordId}`,
-      { method: "DELETE", headers: this.cloudflareHeaders() }
+      { method: "DELETE", headers: this.cloudflareHeaders(c) }
     )
     const data: CloudflareResponse<{ id: string }> = await res.json()
     if (!data.success) {
@@ -508,20 +568,23 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
    */
   async ensureVercelCname(
     subdomain: string,
-    rootDomain: string
+    rootDomain: string,
+    appContainer?: MedusaContainer
   ): Promise<EnsureCnameResult> {
     this.log("info", `ensureVercelCname called`, { subdomain, rootDomain })
 
-    if (!this.isCloudflareConfigured()) {
+    if (!(await this.isCloudflareConfigured(appContainer))) {
       this.log("warn", "ensureVercelCname skipped — Cloudflare not configured")
       return { action: "skipped", reason: "Cloudflare not configured" }
     }
+
+    const creds = await this.cloudflareCreds(appContainer)
 
     const fullDomain = `${subdomain}.${rootDomain}`
     const vercelCname = "cname.vercel-dns.com"
 
     this.log("info", `Looking up existing CNAME for ${fullDomain}`)
-    const existing = await this.listDnsRecords({ name: fullDomain, type: "CNAME" })
+    const existing = await this.listDnsRecords({ name: fullDomain, type: "CNAME" }, creds)
     this.log("info", `Found ${existing.length} existing records for ${fullDomain}`)
 
     if (existing.length > 0) {
@@ -535,7 +598,7 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
         name: fullDomain,
         content: vercelCname,
         proxied: false,
-      })
+      }, creds)
       this.log("info", `CNAME updated successfully`, { id: updated.id })
       return { action: "updated", record: updated }
     }
@@ -545,7 +608,7 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
       name: fullDomain,
       content: vercelCname,
       proxied: false,
-    })
+    }, creds)
     this.log("info", `CNAME created successfully`, { id: created.id, name: created.name })
     return { action: "created", record: created }
   }
@@ -564,11 +627,14 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
    *     recommended records, leaving DNS apply to the operator)
    */
   async applyRecommendedDns(
-    domain: string
+    domain: string,
+    appContainer?: MedusaContainer
   ): Promise<ApplyRecommendedDnsResult> {
-    if (!this.isCloudflareConfigured()) {
+    if (!(await this.isCloudflareConfigured(appContainer))) {
       return { action: "skipped", reason: "Cloudflare not configured" }
     }
+
+    const creds = await this.cloudflareCreds(appContainer)
 
     let config: VercelDomainConfig | null = null
     try {
@@ -593,7 +659,7 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
       : recommendedCNAME || "cname.vercel-dns.com"
 
     try {
-      const existing = await this.listDnsRecords({ name: domain, type })
+      const existing = await this.listDnsRecords({ name: domain, type }, creds)
 
       if (existing.length > 0) {
         const record = existing[0]
@@ -606,7 +672,7 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
           content,
           type,
           proxied: false,
-        })
+        }, creds)
         this.log(
           "info",
           `applyRecommendedDns: updated ${type} for ${domain} → ${content}`
@@ -619,7 +685,7 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
         content,
         type,
         proxied: false,
-      })
+      }, creds)
       this.log(
         "info",
         `applyRecommendedDns: created ${type} for ${domain} → ${content}`
@@ -642,13 +708,15 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
    */
   async ensureCname(
     fullDomain: string,
-    target: string
+    target: string,
+    appContainer?: MedusaContainer
   ): Promise<ApplyRecommendedDnsResult> {
-    if (!this.isCloudflareConfigured()) {
+    if (!(await this.isCloudflareConfigured(appContainer))) {
       return { action: "skipped", reason: "Cloudflare not configured" }
     }
+    const creds = await this.cloudflareCreds(appContainer)
     try {
-      const existing = await this.listDnsRecords({ name: fullDomain, type: "CNAME" })
+      const existing = await this.listDnsRecords({ name: fullDomain, type: "CNAME" }, creds)
       if (existing.length > 0) {
         const record = existing[0]
         if (record.content === target) {
@@ -659,7 +727,7 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
           content: target,
           type: "CNAME",
           proxied: false,
-        })
+        }, creds)
         return { action: "updated", type: "CNAME", name: fullDomain, content: target, record: updated }
       }
       const created = await this.createDnsRecord({
@@ -667,7 +735,7 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
         content: target,
         type: "CNAME",
         proxied: false,
-      })
+      }, creds)
       return { action: "created", type: "CNAME", name: fullDomain, content: target, record: created }
     } catch (e: any) {
       this.log("error", `ensureCname failed for ${fullDomain}`, { error: e.message })
@@ -687,7 +755,7 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
       return []
     }
 
-    if (!this.isCloudflareConfigured()) {
+    if (!(await this.isCloudflareConfigured())) {
       this.log("warn", "Cannot create verification records — Cloudflare not configured")
       return verification.map((v) => ({ domain: v.domain, action: "skipped" }))
     }
@@ -740,16 +808,19 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
    * Remove DNS record for a storefront domain. Skips if Cloudflare is not configured.
    */
   async removeStorefrontDns(
-    domain: string
+    domain: string,
+    appContainer?: MedusaContainer
   ): Promise<{ action: string; error?: string }> {
-    if (!this.isCloudflareConfigured()) {
+    if (!(await this.isCloudflareConfigured(appContainer))) {
       return { action: "skipped" }
     }
 
+    const creds = await this.cloudflareCreds(appContainer)
+
     try {
-      const records = await this.listDnsRecords({ name: domain, type: "CNAME" })
+      const records = await this.listDnsRecords({ name: domain, type: "CNAME" }, creds)
       if (records.length > 0) {
-        await this.deleteDnsRecord(records[0].id)
+        await this.deleteDnsRecord(records[0].id, creds)
         return { action: "deleted" }
       }
       return { action: "not_found" }
