@@ -487,6 +487,13 @@ export function getPartnerRouteMap(): RouteObject[] {
                             import("../../routes/products/product-metadata"),
                         },
                         {
+                          // #1349 — the production spec is written here, in a
+                          // focus modal, and only READ on the detail page.
+                          path: "spec/edit",
+                          lazy: () =>
+                            import("../../routes/products/product-spec"),
+                        },
+                        {
                           path: "options/create",
                           lazy: () =>
                             import(
