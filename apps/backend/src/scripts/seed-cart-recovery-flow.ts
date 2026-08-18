@@ -386,8 +386,54 @@ export default async function seedCartRecoveryFlow({
 
   const [existing] = await service.listVisualFlows({ name: FLOW_NAME } as any)
   if (existing) {
-    console.log(`Flow "${FLOW_NAME}" already exists (${existing.id}) — skipping.`)
-    console.log(`Delete it in the admin UI (or by id) to re-seed.`)
+    console.log(`Flow "${FLOW_NAME}" already exists (${existing.id}).`)
+
+    // The flow that is sending duplicates is by definition one that ALREADY
+    // EXISTS, so a plain early-return here means the #1334 fix ships to
+    // everything except the installation that needs it. Re-seeding is not the
+    // answer either: `createCompleteFlow` writes `status: "draft"`, so deleting
+    // and re-creating would silently stop recovery mail until someone noticed
+    // and re-activated it.
+    //
+    // So backfill just the one option, onto the live row, leaving the flow's
+    // status, schedule and every other operation untouched. Idempotent: a flow
+    // that already carries the key is left alone.
+    // Read the wanted value from the seed definition itself, so the backfill
+    // cannot drift from what a fresh seed would write.
+    const dispatchOp = FLOW_DEF.operations.find(
+      (o) => o.operation_key === "dispatch"
+    )
+    if (!dispatchOp) {
+      console.log(`  ⚠️  Seed definition has no "dispatch" operation.`)
+      return
+    }
+    const [liveDispatch] = await service.listVisualFlowOperations({
+      flow_id: existing.id,
+      operation_key: "dispatch",
+    } as any)
+
+    if (!liveDispatch) {
+      console.log(`  ⚠️  No "dispatch" operation on this flow — nothing to backfill.`)
+      return
+    }
+
+    const liveOptions = (liveDispatch as any).options ?? {}
+    const wanted = (dispatchOp.options as any).idempotency_key_template
+
+    if (liveOptions.idempotency_key_template === wanted) {
+      console.log(`  ✓ Per-cart idempotency key already set — nothing to do.`)
+      return
+    }
+
+    await service.updateVisualFlowOperations({
+      id: (liveDispatch as any).id,
+      options: { ...liveOptions, idempotency_key_template: wanted },
+    } as any)
+
+    console.log(
+      `  ✓ Backfilled idempotency_key_template="${wanted}" onto the live dispatch operation (#1334).`
+    )
+    console.log(`  (Delete the flow in the admin UI to re-seed it from scratch.)`)
     return
   }
 

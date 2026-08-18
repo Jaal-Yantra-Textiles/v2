@@ -4,6 +4,17 @@ import { VISUAL_FLOWS_MODULE } from "../modules/visual_flows"
 import VisualFlowService from "../modules/visual_flows/service"
 import { executeVisualFlowWorkflow } from "../workflows/visual-flows"
 
+/**
+ * TTL (seconds) on a scanner's per-flow+minute claim.
+ *
+ * A crash-safety net, not a hold time: the claim is released in a `finally`
+ * as soon as the enqueue marker is written. It only has to outlast the three DB
+ * round-trips inside the claim under prod load — comfortably, since a claim
+ * that expires early lets a second scanner in and re-opens the race the claim
+ * exists to close.
+ */
+const SCHEDULE_LOCK_TTL_SECONDS = 120
+
 function parseCronParts(cron: string): string[] | null {
   const parts = cron.trim().split(/\s+/)
   if (parts.length !== 5) {
@@ -176,17 +187,36 @@ export default async function runScheduledVisualFlows(container: MedusaContainer
     // and both fire the workflow. The lock serializes the claim: only one
     // scanner holds `scheduled-flow:{flowId}:{minuteKey}` at a time.
     //
-    // `execute` with a 1-second timeout: if another scanner already holds
-    // the lock, this one gives up immediately instead of blocking the
-    // every-minute scanner. Inside the lock we re-check the minute key
-    // (double-check pattern) because the flow list was read at the top of
-    // the tick and the marker may have been written by the time we enter.
+    // `acquire` is NON-BLOCKING: if another scanner already holds the key it
+    // throws at once and this scanner moves on, rather than blocking the
+    // every-minute tick. Inside the claim we re-check the minute key
+    // (double-check pattern) because the flow list was read at the top of the
+    // tick and the marker may have been written by the time we enter.
+    //
+    // Deliberately NOT `locking.execute(..., { timeout: 1 })`, which reads like
+    // "give up after a second" and is neither: the Redis provider maps
+    // `timeout` to the key's TTL (`expire: args?.timeout ? timeoutSeconds : 60`)
+    // and passes `awaitQueue: true`. That set a ONE-SECOND expiry over a body
+    // doing three DB round-trips — so under load the key expired while the
+    // first scanner was still inside it — and made the second scanner retry for
+    // that whole second rather than skip. Both scanners could then fire.
     const lockKey = `scheduled-flow:${flow.id}:${nowKey}`
 
     try {
-      await locking.execute(
-        lockKey,
-        async () => {
+      // TTL is a crash-safety net only: the claim is released in `finally`
+      // below. It has to comfortably exceed the enclosed DB writes, not the
+      // fire-and-forget workflow, which is deliberately not awaited.
+      await locking.acquire(lockKey, { expire: SCHEDULE_LOCK_TTL_SECONDS })
+    } catch (e: any) {
+      // Another scanner holds this flow+minute. The next tick retries.
+      logger.warn(
+        `[run-scheduled-visual-flows] flow=${flow.id} skipped (claim held: ${e?.message})`
+      )
+      continue
+    }
+
+    try {
+      await (async () => {
           // Re-check inside the lock — another scanner may have claimed this
           // minute while we were acquiring.
           const fresh = await service.retrieveVisualFlow(flow.id)
@@ -259,15 +289,15 @@ export default async function runScheduledVisualFlows(container: MedusaContainer
                 /* best-effort status write */
               })
             })
-        },
-        { timeout: 1 }
-      )
+      })()
     } catch (e: any) {
-      // Lock contention (another scanner holds it) or Redis hiccup — skip
-      // this flow this tick. The next tick retries.
-      logger.warn(
-        `[run-scheduled-visual-flows] flow=${flow.id} skipped (lock: ${e?.message})`
+      logger.error(
+        `[run-scheduled-visual-flows] flow=${flow.id} failed inside claim: ${e?.message}`
       )
+    } finally {
+      await locking.release(lockKey).catch(() => {
+        // Best-effort — the TTL clears it if this fails.
+      })
     }
   }
 }

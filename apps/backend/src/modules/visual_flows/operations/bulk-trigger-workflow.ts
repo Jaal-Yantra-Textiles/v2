@@ -5,13 +5,23 @@ import { OperationDefinition, OperationContext, OperationResult } from "./types"
 import { interpolateVariables, interpolateString } from "./utils"
 
 /**
- * Default TTL (seconds) for a per-item idempotency lock. Long enough to cover
- * the workflow trigger + a crash-recovery margin, short enough that a
- * genuinely failed item is retried on the next scheduled tick. The lock is
- * always released explicitly after the trigger resolves, so this is only the
- * crash-safety net.
+ * TTL (seconds) for a per-item idempotency key.
+ *
+ * This is the DEDUP WINDOW, not a mutex hold — which is why the key is not
+ * released after a successful trigger. Two racing executions walk the same item
+ * list serially, so the second one reaches a given item seconds or minutes
+ * after the first finished it; a key released on success is simply gone by
+ * then, and the item sends twice. The key has to outlive the window in which a
+ * duplicate could still arrive.
+ *
+ * An hour comfortably covers a rolling ECS deploy (the window in which two
+ * scanners coexist) while staying far shorter than the hourly cart-recovery
+ * cadence's own per-cart guard (`recovery_email_count` / `recovery_email_sent_at`),
+ * which remains the durable record. A key is released early only when the
+ * trigger FAILED, so a cart whose mail never went out is retried at once
+ * rather than being blacklisted for the window.
  */
-const IDEMPOTENCY_LOCK_TTL_SECONDS = 300
+const IDEMPOTENCY_LOCK_TTL_SECONDS = 3600
 
 /**
  * Substitute $index placeholder in a serialised template.
@@ -56,14 +66,24 @@ export const bulkTriggerWorkflowOperation: OperationDefinition = {
     /**
      * Per-item idempotency lock key template (#1334).
      *
-     * When set, each item's workflow trigger is guarded by a distributed
-     * lock (Modules.LOCKING) keyed on the interpolated template. If the lock
-     * is already held — meaning another concurrent execution is processing
-     * the same item — the item is skipped immediately (not queued).
+     * When set, each item's trigger claims a distributed key (Modules.LOCKING)
+     * built from the interpolated template. A key that is already claimed means
+     * another execution has ALREADY TRIGGERED this item — within the last
+     * IDEMPOTENCY_LOCK_TTL_SECONDS — so the item is skipped, not queued.
      *
-     * The template supports the same {{ item.field }} and $index
-     * interpolation as `input_template`. Example:
+     * The key is held for the whole dedup window rather than released after the
+     * trigger: the racing execution arrives late, not simultaneously (see the
+     * TTL note above). It IS released early when the trigger fails, so a failed
+     * item is retried immediately.
+     *
+     * Supports {{ item.field }} interpolation (NOT $index, which is applied to
+     * `input_template` only — a key containing it would stay literal and
+     * collapse every item onto one key). Example:
      *   "cart-abandoned:{{ item.cart_id }}"
+     *
+     * The interpolated key must be non-empty and fully resolved; an
+     * unresolvable path would otherwise silently collapse every item onto the
+     * same key and drop all but the first.
      *
      * Omit for workflows that don't need per-item idempotency (the original
      * behaviour — every item triggers its workflow unconditionally).
@@ -140,18 +160,32 @@ export const bulkTriggerWorkflowOperation: OperationDefinition = {
             input = interpolateVariables(templateWithIndex, chainWithItem)
           }
 
-          // ── Per-item idempotency lock (#1334) ───────────────────────────────
+          // ── Per-item idempotency key (#1334) ────────────────────────────
           //
-          // When `idempotency_key_template` is set, acquire a distributed lock
-          // BEFORE triggering the workflow. `acquire` is non-blocking — it
-          // succeeds immediately or throws if another execution holds the
-          // lock. A skipped item means another concurrent execution is already
-          // processing it, so we move on. The lock is released in a `finally`
-          // after the trigger resolves, and carries an TTL as a crash-safety
-          // net so a dead worker can't pin an item forever.
+          // Claim the key BEFORE triggering. A claimed key means this item was
+          // already triggered inside the dedup window, so we skip it.
+          //
+          // The claim is NOT released on success: the racing execution reaches
+          // this item late (both walk the list serially), so a key released the
+          // moment the trigger resolved would already be gone when the
+          // duplicate arrives. It IS released when the trigger fails, so a send
+          // that never happened can be retried at once.
           let idempotencyKey: string | null = null
           if (idempotencyTemplate) {
             idempotencyKey = interpolateString(idempotencyTemplate, chainWithItem)
+
+            // `interpolateString` substitutes "" for a path it cannot resolve.
+            // Left alone, a typo'd template collapses every item onto one key —
+            // one item sends and the rest are reported as idempotency skips —
+            // and a fully unresolved template yields "", which is falsy and so
+            // disables the guard entirely. Both fail silently, in the direction
+            // of sending nothing while claiming success.
+            if (!idempotencyKey || idempotencyKey === idempotencyTemplate) {
+              throw new Error(
+                `idempotency_key_template "${idempotencyTemplate}" did not resolve for item ${i} — ` +
+                  `check the field names on the items feeding this operation`
+              )
+            }
           }
 
           if (idempotencyKey && locking) {
@@ -159,11 +193,27 @@ export const bulkTriggerWorkflowOperation: OperationDefinition = {
               await locking.acquire(idempotencyKey, {
                 expire: IDEMPOTENCY_LOCK_TTL_SECONDS,
               })
-            } catch {
-              // Lock already held — another execution is handling this item.
+            } catch (lockError: any) {
+              // CONFLICT is contention — the item is genuinely already handled.
+              // Anything else (Redis unreachable, timeout) is infrastructure
+              // failing, and reading it as "already sent" would turn a total
+              // send outage into `success: true` with every item reported as a
+              // tidy skip.
+              const isContention =
+                lockError?.type === "conflict" ||
+                lockError?.type === "not_allowed" ||
+                /failed to acquire lock/i.test(lockError?.message ?? "")
+
+              if (!isContention) {
+                throw new Error(
+                  `Locking backend unavailable while claiming "${idempotencyKey}": ` +
+                    `${lockError?.message || lockError}`
+                )
+              }
+
               skipped++
               results.push({ index: i, ok: false, error: "idempotency-skip", skipped: true })
-              console.log(`[bulk_trigger_workflow] [${i}] skipped (idempotency lock held: ${idempotencyKey})`)
+              console.log(`[bulk_trigger_workflow] [${i}] skipped (already triggered: ${idempotencyKey})`)
               continue
             }
           }
@@ -183,14 +233,17 @@ export const bulkTriggerWorkflowOperation: OperationDefinition = {
             }
 
             results.push({ index: i, ok: true, record: result })
-          } finally {
+          } catch (triggerError) {
+            // Failed send → drop the claim so the next execution can retry.
+            // A successful send keeps it until the TTL expires.
             if (idempotencyKey && locking) {
               try {
                 await locking.release(idempotencyKey)
               } catch {
-                // Best-effort release — the TTL will clean up if this fails.
+                // Best-effort — the TTL will clean up if this fails.
               }
             }
+            throw triggerError
           }
         } catch (e: any) {
           const error = e?.message || "Unknown error"
@@ -203,7 +256,9 @@ export const bulkTriggerWorkflowOperation: OperationDefinition = {
               error,
               data: {
                 triggered: results.filter((r) => r.ok).length,
-                failed: results.filter((r) => !r.ok).length,
+                // Excludes skips, matching the normal return below — counting
+                // them here reported failures that never happened.
+                failed: results.filter((r) => !r.ok && !r.skipped).length,
                 skipped,
                 records: results.filter((r) => r.ok).map((r) => r.record),
                 results,
