@@ -114,6 +114,12 @@ jobs:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
+        # The theme drift test reads apps/storefront-starter's theme type to
+        # check that every setting the API accepts is actually rendered. Without
+        # this the file is simply absent on the runner and that half of the
+        # guard cannot run. The submodule is a PUBLIC repo over HTTPS, so the
+        # default job token is enough — no PAT.
+        submodules: true
 
     - name: Install pnpm
       uses: pnpm/action-setup@v4

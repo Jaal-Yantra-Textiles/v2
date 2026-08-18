@@ -75,8 +75,16 @@ export const PUT = async (
   // Theme touches the root layout (branding, footer, navigation,
   // colours, every home section). Path-scoped revalidation isn't
   // enough — flush the whole app's data cache via paths:['/'].
-  // Fire-and-forget; logged but never blocks the response.
-  triggerStorefrontRevalidate(website, { paths: ["/"] }).catch(() => {})
+  //
+  // Awaited, not fire-and-forget: this hop is exactly where partner edits go
+  // to die (a mismatched secret answers 401 forever, and the save still looked
+  // green), so the partner is told whether their change is actually live. The
+  // helper caps itself at 5s and never throws, so the worst case is a slower
+  // save — not a failed one. The theme is already written at this point;
+  // `revalidation` describes visibility, not persistence.
+  const revalidation = await triggerStorefrontRevalidate(website, {
+    paths: ["/"],
+  })
 
-  res.json({ theme: merged })
+  res.json({ theme: merged, revalidation })
 }

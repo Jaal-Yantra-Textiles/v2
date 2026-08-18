@@ -12,6 +12,7 @@
  *      - `update_theme` — propose a scoped theme patch (no persist).
  *      - `list_media` — list uploaded images from the media library
  *        so the LLM can suggest images by URL.
+ *      - page tools — create/extend website pages as drafts (page-tools.ts).
  *   5. `streamText(...)` and pipe the AI-SDK UI message stream straight
  *      into the Express response.
  *
@@ -25,6 +26,8 @@ import { resolveRoleTextModel, logAiUsage } from "../../../../../../mastra/servi
 import { foldSystemForProvider } from "../../../../../store/ai/chat/system-fold-lib"
 import { safeThemePatchSchema, SAFE_TOKEN_DESCRIPTION } from "../safe-patch-schema"
 import { S3_LISTING_MODULE } from "../../../../../../modules/custom-s3-provider"
+import { buildPageTools, PAGE_TOOL_DESCRIPTION } from "./page-tools"
+import { getPartnerWebsite } from "../../../helpers"
 import type { ThemeChatReq } from "./validators"
 
 const SYSTEM_PROMPT = `You are a theme design assistant inside a storefront theme editor. The user describes changes in natural language and you propose structured theme edits.
@@ -42,7 +45,9 @@ Rules:
 - Never invent token names or values outside the allowed enums.
 - After calling the tool, briefly explain what you changed in one short sentence.
 - If the user asks for something outside the allowed tokens, explain politely that it's not available in this version and suggest the closest alternative within the allowed set.
-- Keep responses concise — this is a tool, not a chatbot.`
+- Keep responses concise — this is a tool, not a chatbot.
+
+${PAGE_TOOL_DESCRIPTION}`
 
 export const POST = async (
   req: AuthenticatedMedusaRequest,
@@ -68,7 +73,22 @@ export const POST = async (
     // Module not registered — media listing will be unavailable
   }
 
+  // Page tools need the partner's website id; the theme tools do not, so a
+  // failure to resolve it degrades to a theme-only assistant rather than a
+  // 500. A partner with no website row can still restyle the preview.
+  let pageTools: Record<string, any> = {}
+  try {
+    const { website } = await getPartnerWebsite(req.auth_context, req.scope)
+    pageTools = buildPageTools({ scope: req.scope, websiteId: website.id })
+  } catch (e: any) {
+    logger?.warn?.(
+      `[theme-chat] page tools unavailable: ${e?.message || e}`
+    )
+  }
+
   const tools = {
+    ...pageTools,
+
     update_theme: tool({
       description:
         "Propose a theme edit. Pass only the tokens you want to change. The patch will be deep-merged with the existing theme — omitted sections are preserved. The user must click Apply to confirm.",

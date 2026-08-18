@@ -381,8 +381,30 @@ const ThemeEditorInner = () => {
   const handleSave = async () => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     try {
-      await updateThemeRef.current(formRef.current)
-      toast.success("Theme saved")
+      const res: any = await updateThemeRef.current(formRef.current)
+
+      // The save and the live site are two different outcomes. A theme can be
+      // stored perfectly while the storefront keeps serving its cached copy —
+      // that is what happened when the revalidate secret was misnamed, and the
+      // only signal was a green "Theme saved" toast. Say which one happened.
+      const revalidation = res?.revalidation
+      if (revalidation && !revalidation.ok) {
+        const why =
+          revalidation.reason === "rejected" && revalidation.status === 401
+            ? "the storefront rejected the refresh (secret mismatch)"
+            : revalidation.reason === "rejected" && revalidation.status === 503
+              ? "the storefront has no revalidate secret set"
+              : revalidation.reason === "unreachable"
+                ? "the storefront could not be reached"
+                : revalidation.reason === "no_backend_secret"
+                  ? "this environment has no storefront revalidate secret"
+                  : "the live site could not be refreshed"
+        toast.warning("Saved — but your live site may lag", {
+          description: `${why}. Your changes are stored and will appear within a few minutes.`,
+        })
+      } else {
+        toast.success("Theme saved")
+      }
     } catch (e: any) {
       toast.error("Could not save theme", {
         description: e?.message || "Something went wrong",
@@ -1153,6 +1175,45 @@ function HeroPanel({
           />
         </div>
 
+        {/*
+          Hero height. Presets cover the cases partners actually ask for — a
+          full-bleed photo, a shorter band, a compact text hero — while the
+          text field keeps any CSS length reachable. The setting existed in the
+          API for a while with nothing rendering it and no control here, so
+          every hero was 75vh whatever the content was.
+        */}
+        <div className="space-y-1">
+          <Label size="xsmall">Height</Label>
+          <div className="flex flex-wrap gap-1">
+            {[
+              ["Full", "100vh"],
+              ["Tall", "75vh"],
+              ["Medium", "60vh"],
+              ["Short", "45vh"],
+            ].map(([label, value]) => (
+              <button
+                key={value}
+                type="button"
+                className={`rounded border px-2 py-1 text-xs ${
+                  (form.hero?.min_height || "75vh") === value
+                    ? "border-ui-fg-base bg-ui-bg-base-pressed"
+                    : "border-ui-border-base"
+                }`}
+                onClick={() =>
+                  updateForm("hero", { ...form.hero, min_height: value })
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <FieldInput
+            label="Custom height (any CSS length)"
+            value={form.hero?.min_height || ""}
+            onChange={(v) => updateForm("hero", { ...form.hero, min_height: v })}
+          />
+        </div>
+
         <div className="grid grid-cols-2 gap-2">
           <FieldInput
             label="CTA Text"
@@ -1808,6 +1869,39 @@ function TrustBannerEditor({ hs, writeSection }: SubEditorWithWriteProps) {
           />
         </div>
       </div>
+      {/*
+        Text colour is optional: leave it blank and the renderer flips the text
+        light or dark from the background's luminance. That auto-flip is right
+        most of the time and wrong on mid-tone backgrounds, which is why the
+        schema and the renderer both support an override — there was simply no
+        control for it here, so the automatic choice was the only choice.
+      */}
+      <div className="space-y-1">
+        <Label size="xsmall">Text Color (optional)</Label>
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            className="h-7 w-7 cursor-pointer rounded border border-ui-border-base shrink-0"
+            value={tb.text_color || "#ffffff"}
+            onChange={(e) => writeTrustBanner({ text_color: e.target.value })}
+          />
+          <Input
+            size="small"
+            placeholder="auto from background"
+            value={tb.text_color || ""}
+            onChange={(e) => writeTrustBanner({ text_color: e.target.value })}
+          />
+          {tb.text_color ? (
+            <button
+              type="button"
+              className="text-xs text-ui-fg-interactive hover:underline shrink-0"
+              onClick={() => writeTrustBanner({ text_color: undefined })}
+            >
+              Auto
+            </button>
+          ) : null}
+        </div>
+      </div>
       <div className="flex items-center justify-between pt-1">
         <Label size="xsmall">Items</Label>
         <button
@@ -2044,6 +2138,33 @@ function BannerEditor({ hs, updateForm }: SubEditorProps) {
             value={b.background_color || ""}
             onChange={(e) => write({ background_color: e.target.value })}
           />
+        </div>
+      </div>
+      {/* Optional override; blank keeps the renderer's luminance auto-flip. */}
+      <div className="space-y-1">
+        <Label size="xsmall">Text Color (optional)</Label>
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            className="h-7 w-7 cursor-pointer rounded border border-ui-border-base shrink-0"
+            value={b.text_color || "#ffffff"}
+            onChange={(e) => write({ text_color: e.target.value })}
+          />
+          <Input
+            size="small"
+            placeholder="auto from background"
+            value={b.text_color || ""}
+            onChange={(e) => write({ text_color: e.target.value })}
+          />
+          {b.text_color ? (
+            <button
+              type="button"
+              className="text-xs text-ui-fg-interactive hover:underline shrink-0"
+              onClick={() => write({ text_color: undefined })}
+            >
+              Auto
+            </button>
+          ) : null}
         </div>
       </div>
       <FieldInput

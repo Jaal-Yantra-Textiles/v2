@@ -165,28 +165,51 @@ export const validatePartnerBlockOwnership = async (
  * are saved on the backend but invisible to visitors until the next
  * storefront-starter deploy.
  *
- * - Skips silently when STOREFRONT_REVALIDATE_SECRET isn't set (dev,
- *   tests, or instances that don't run a revalidate endpoint yet).
+ * - Skips when STOREFRONT_REVALIDATE_SECRET isn't set (dev, tests, or
+ *   instances that don't run a revalidate endpoint yet).
  * - Hard 5s timeout — never lets a slow / dead storefront block the
- *   partner's mutation response.
- * - Logs but doesn't throw. Theme PUT must not 500 because the
- *   webhook flaked.
+ *   partner's mutation response indefinitely.
+ * - Never throws. Theme PUT must not 500 because the webhook flaked.
+ *
+ * RETURNS the outcome rather than void. It used to return void and warn to
+ * the backend's own console, which meant a storefront answering 401 (secret
+ * mismatch) or 503 (secret unset on the storefront side) produced a perfectly
+ * green save and a live site that never changed — for the life of the
+ * deployment. Callers are expected to surface this so the partner learns that
+ * their edit is stored but not yet visible. A 200 on save proves the write,
+ * never the effect.
  *
  * Pass `paths: ['/']` for theme/layout edits (revalidates everything
  * via 'layout' scope). Pass specific `paths` like `['/products/foo']`
  * for narrow updates. Pass `tags` if you've wired specific cache tags.
  */
+export type RevalidateOutcome = {
+  /** false when we had no secret or no domain, so no request was made. */
+  attempted: boolean
+  /** true only when the storefront answered 2xx. */
+  ok: boolean
+  /** HTTP status when we got one — 401 = secret mismatch, 503 = unset there. */
+  status?: number
+  /** Short machine-readable why, for the caller to surface. */
+  reason?:
+    | "no_backend_secret"
+    | "no_domain"
+    | "rejected"
+    | "unreachable"
+    | "ok"
+}
+
 export const triggerStorefrontRevalidate = async (
   website: { domain?: string | null },
   opts: { paths?: string[]; tags?: string[] } = {}
-): Promise<void> => {
+): Promise<RevalidateOutcome> => {
   const secret = process.env.STOREFRONT_REVALIDATE_SECRET
   if (!secret) {
-    return
+    return { attempted: false, ok: false, reason: "no_backend_secret" }
   }
   const domain = website?.domain
   if (!domain) {
-    return
+    return { attempted: false, ok: false, reason: "no_domain" }
   }
 
   const url = domain.startsWith("http")
@@ -210,13 +233,26 @@ export const triggerStorefrontRevalidate = async (
     })
     if (!res.ok) {
       console.warn(
-        `[storefront-revalidate] ${url} returned ${res.status}`
+        `[storefront-revalidate] ${url} returned ${res.status}` +
+          (res.status === 401
+            ? " — the storefront's REVALIDATE_SECRET does not match this backend's STOREFRONT_REVALIDATE_SECRET"
+            : res.status === 503
+              ? " — the storefront has no REVALIDATE_SECRET set"
+              : "")
       )
+      return {
+        attempted: true,
+        ok: false,
+        status: res.status,
+        reason: "rejected",
+      }
     }
+    return { attempted: true, ok: true, status: res.status, reason: "ok" }
   } catch (err: any) {
     console.warn(
       `[storefront-revalidate] ${url} failed: ${err?.message || err}`
     )
+    return { attempted: true, ok: false, reason: "unreachable" }
   } finally {
     clearTimeout(timer)
   }
