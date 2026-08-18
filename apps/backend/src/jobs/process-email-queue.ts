@@ -6,6 +6,12 @@ import EmailProviderManagerService from "../modules/email-provider-manager/servi
 import { EMAIL_TEMPLATES_MODULE } from "../modules/email_templates"
 import EmailTemplatesService from "../modules/email_templates/service"
 import { sendMailjetBulk, BulkEmailEntry } from "../modules/mailjet/bulk"
+import {
+  isBotRecipient,
+  classifyRecipient,
+  botSuppressionLog,
+  BOT_SUPPRESSED_SEND_ID,
+} from "../lib/bot-recipients"
 import * as Handlebars from "handlebars"
 
 const MAX_ATTEMPTS = 3
@@ -41,7 +47,7 @@ export default async function processEmailQueue(container: MedusaContainer) {
   const today = new Date().toISOString().split("T")[0]
 
   // Fetch pending entries scheduled for today or earlier
-  const pendingEntries = await providerManager.listEmailQueues(
+  let pendingEntries = await providerManager.listEmailQueues(
     { status: "pending", scheduled_for: { $lte: today } } as any,
     { take: 500, order: { scheduled_for: "ASC" } }
   ) as any[]
@@ -52,6 +58,44 @@ export default async function processEmailQueue(container: MedusaContainer) {
   }
 
   logger.info(`[Email Queue] Found ${pendingEntries.length} pending emails`)
+
+  /**
+   * Retire known-bot rows before anything else (#1333).
+   *
+   * The provider guard already refuses to mail these, but a suppressed address
+   * comes back in neither `successful` nor `failed`, so a row left in the run
+   * is never updated: it stays pending, is re-picked every day forever, and
+   * consumes a provider allocation slot each time (capacity is allocated
+   * BEFORE the send). Retiring here is terminal and costs no allocation.
+   *
+   * Marked `failed` rather than a new `suppressed` status on purpose: the
+   * status is a DB enum and widening it needs a check-constraint migration
+   * (see #1208). `last_error` carries the reason and is greppable by the same
+   * prefix as the provider log line. What matters is that it never reads
+   * `sent` — nothing was sent.
+   */
+  const botEntries = pendingEntries.filter((e) => isBotRecipient(e.to_email))
+  let suppressedCount = 0
+  for (const entry of botEntries) {
+    const verdict = classifyRecipient(entry.to_email)
+    logger.warn(botSuppressionLog("email-queue", entry.to_email, entry.template, verdict))
+    await providerManager.updateEmailQueues({
+      id: entry.id,
+      status: "failed",
+      last_error: `[bot-recipient-suppressed] rule=${verdict.rule} — ${verdict.note}`,
+    })
+    suppressedCount++
+  }
+  if (suppressedCount > 0) {
+    logger.warn(
+      `[Email Queue] Retired ${suppressedCount} known-bot recipient(s) without sending`
+    )
+    pendingEntries = pendingEntries.filter((e) => !isBotRecipient(e.to_email))
+    if (pendingEntries.length === 0) {
+      logger.info("[Email Queue] Nothing left to process after bot suppression")
+      return
+    }
+  }
 
   // Mark as processing to prevent concurrent runs from picking them up
   for (const entry of pendingEntries) {
@@ -198,6 +242,20 @@ export default async function processEmailQueue(container: MedusaContainer) {
       }
     }
 
+    // Defensive: the provider is the enforcement point, so it can suppress an
+    // address this job did not pre-filter (policy widened between the filter
+    // above and the send). Retire those rows too — never leave them pending.
+    for (const dropped of bulkResult.suppressed || []) {
+      const entry = emailToEntry.get(dropped.email)
+      if (!entry) continue
+      await providerManager.updateEmailQueues({
+        id: entry.id,
+        status: "failed",
+        last_error: `[bot-recipient-suppressed] rule=${dropped.rule} — ${dropped.note}`,
+      })
+      suppressedCount++
+    }
+
     try {
       await providerManager.recordUsage("mailjet", bulkResult.successful.length)
     } catch (err) {
@@ -227,12 +285,29 @@ export default async function processEmailQueue(container: MedusaContainer) {
       }
 
       try {
-        await notificationService.createNotifications({
+        const created: any = await notificationService.createNotifications({
           to: email,
           channel: "email",
           template: entry.template,
           data: notificationData,
         })
+
+        // A suppressed send resolves normally — the provider returns the
+        // synthetic id instead of a message id. Without this check the row
+        // would read `sent` for mail that never left (#1333).
+        const externalId = Array.isArray(created)
+          ? created[0]?.external_id
+          : created?.external_id
+        if (externalId === BOT_SUPPRESSED_SEND_ID) {
+          const verdict = classifyRecipient(email)
+          await providerManager.updateEmailQueues({
+            id: entry.id,
+            status: "failed",
+            last_error: `[bot-recipient-suppressed] rule=${verdict.rule} — ${verdict.note}`,
+          })
+          suppressedCount++
+          continue
+        }
 
         await providerManager.updateEmailQueues({ id: entry.id, status: "sent" })
         sentCount++
@@ -289,7 +364,8 @@ export default async function processEmailQueue(container: MedusaContainer) {
   }
 
   logger.info(
-    `[Email Queue] Complete: ${sentCount} sent, ${failedCount} failed permanently`
+    `[Email Queue] Complete: ${sentCount} sent, ${failedCount} failed permanently` +
+    (suppressedCount > 0 ? `, ${suppressedCount} suppressed (bot recipients)` : "")
   )
 }
 

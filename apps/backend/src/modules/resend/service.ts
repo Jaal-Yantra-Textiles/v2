@@ -7,6 +7,11 @@ import {
 import { Resend } from "resend"
 import React from "react"
 import DefaultEmail from "./templates/default-email"
+import {
+  classifyRecipient,
+  botSuppressionLog,
+  BOT_SUPPRESSED_SEND_ID,
+} from "../../lib/bot-recipients"
 
 type InjectedDependencies = {
   logger: Logger
@@ -51,6 +56,17 @@ class ResendNotificationProviderService extends AbstractNotificationProviderServ
   async send(
     notification: ProviderSendNotificationDTO
   ): Promise<ProviderSendNotificationResultsDTO> {
+    // Bot-recipient guard (#1333). Every email that leaves the platform passes
+    // through a provider, so this is the one place the policy cannot be bypassed
+    // by a new caller. Suppress, don't block — see src/lib/bot-recipients.ts.
+    const botVerdict = classifyRecipient(notification.to)
+    if (botVerdict.bot) {
+      this.logger.warn(
+        botSuppressionLog("resend", notification.to, notification.template, botVerdict)
+      )
+      return { id: BOT_SUPPRESSED_SEND_ID }
+    }
+
     let template: string | null = null
     let subject = "We have a message for you"
     let fromAddress = this.options.from // Default to environment variable

@@ -12,6 +12,12 @@ const mailerooImport = import("maileroo-sdk")
 type MailerooClientType = InstanceType<
   Awaited<typeof mailerooImport>["MailerooClient"]
 >
+import {
+  classifyRecipient,
+  partitionBotRecipients,
+  botSuppressionLog,
+  BOT_SUPPRESSED_SEND_ID,
+} from "../../lib/bot-recipients"
 
 type InjectedDependencies = {
   logger: Logger
@@ -43,6 +49,14 @@ export type BulkSendSuccess = {
 export type BulkSendResult = {
   successful: BulkSendSuccess[]
   failed: { email: string; error: string }[]
+  /**
+   * Addresses dropped by the bot-recipient guard (#1333). These are NOT in
+   * `successful` and NOT in `failed`, so a caller that only walks those two
+   * lists leaves its queue row untouched — pending forever, re-picked every
+   * run. Callers MUST retire these rows: suppression is terminal, not a
+   * failure to retry.
+   */
+  suppressed: { email: string; rule: string; note: string }[]
 }
 
 // ---------------------------------------------------------------------------
@@ -99,6 +113,17 @@ class MailerooNotificationProviderService extends AbstractNotificationProviderSe
   async send(
     notification: ProviderSendNotificationDTO
   ): Promise<ProviderSendNotificationResultsDTO> {
+    // Bot-recipient guard (#1333). Every email that leaves the platform passes
+    // through a provider, so this is the one place the policy cannot be bypassed
+    // by a new caller. Suppress, don't block — see src/lib/bot-recipients.ts.
+    const botVerdict = classifyRecipient(notification.to)
+    if (botVerdict.bot) {
+      this.logger.warn(
+        botSuppressionLog("maileroo", notification.to, notification.template, botVerdict)
+      )
+      return { id: BOT_SUPPRESSED_SEND_ID }
+    }
+
     const templateData = notification.data as any
 
     // If already sent via bulk API, skip
@@ -168,6 +193,18 @@ class MailerooNotificationProviderService extends AbstractNotificationProviderSe
   // -------------------------------------------------------------------------
 
   async sendBulk(entries: BulkEmailEntry[]): Promise<BulkSendResult> {
+    // Bot-recipient guard (#1333). Bulk bypasses the notification module and
+    // therefore send() — a crawler address inside a 50-address batch is the same
+    // waste as a single send, so the same policy is applied here.
+    const partitioned = partitionBotRecipients(entries, (e) => e.to)
+    const suppressed = partitioned.suppressed.map(({ entry, verdict }) => {
+      this.logger?.warn(
+        botSuppressionLog("maileroo-bulk", entry.to, undefined, verdict)
+      )
+      return { email: entry.to, rule: verdict.rule, note: verdict.note }
+    })
+    entries = partitioned.send
+
     const defaultFrom = this.options.from_email
     const defaultName = this.options.from_name || "Jaal Yantra Textiles"
 
@@ -250,7 +287,7 @@ class MailerooNotificationProviderService extends AbstractNotificationProviderSe
       `Maileroo bulk: ${successful.length} sent, ${failed.length} failed (${entries.length} total)`
     )
 
-    return { successful, failed }
+    return { successful, failed, suppressed }
   }
 }
 
