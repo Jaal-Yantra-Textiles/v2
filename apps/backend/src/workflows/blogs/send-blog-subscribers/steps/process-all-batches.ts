@@ -2,6 +2,10 @@ import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { SubscriberBatch, EmailSendingResult, SendingSummary } from "../types"
 import { Modules } from "@medusajs/framework/utils"
 import { sendMailjetBulk, BulkEmailEntry } from "../../../../modules/mailjet/bulk"
+import {
+  classifyRecipient,
+  BOT_SUPPRESSED_SEND_ID,
+} from "../../../../lib/bot-recipients"
 import { INotificationModuleService } from "@medusajs/types"
 import { EMAIL_PROVIDER_MANAGER_MODULE } from "../../../../modules/email-provider-manager"
 import EmailProviderManagerService from "../../../../modules/email-provider-manager/service"
@@ -285,6 +289,19 @@ export const processAllBatchesStep = createStep(
           const entry = emailToSubscriber.get(fail.email)
           allResults.push({ success: false, subscriber_id: entry?.subscriber.id || "", email: fail.email, error: fail.error })
         }
+
+        // Known-bot recipients (#1333) are in neither list. Record them as a
+        // non-retryable result so the totals still add up and the retry pass
+        // below never re-queues them — they are not a delivery failure.
+        for (const dropped of bulkResult.suppressed || []) {
+          const entry = emailToSubscriber.get(dropped.email)
+          allResults.push({
+            success: false,
+            subscriber_id: entry?.subscriber.id || "",
+            email: dropped.email,
+            error: `[bot-recipient-suppressed] rule=${dropped.rule} — ${dropped.note}`,
+          })
+        }
       }
 
       // --- Resend one-at-a-time sending (passes _template_* flags) ---
@@ -391,14 +408,28 @@ export const processAllBatchesStep = createStep(
             notificationData._template_processed = true
           }
 
-          await notificationModuleService.createNotifications({
+          const created: any = await notificationModuleService.createNotifications({
             to: subscriber.email,
             channel: "email",
             template: BLOG_TEMPLATE_KEY,
             data: notificationData,
           })
 
-          allResults.push({ success: true, subscriber_id: subscriber.id, email: subscriber.email })
+          // A suppressed send resolves normally; the provider returns the
+          // synthetic id in place of a message id. Recording success here
+          // would make suppressed mail read as delivered (#1333).
+          const externalId = Array.isArray(created)
+            ? created[0]?.external_id
+            : created?.external_id
+          if (externalId === BOT_SUPPRESSED_SEND_ID) {
+            const verdict = classifyRecipient(subscriber.email)
+            allResults.push({
+              success: false, subscriber_id: subscriber.id, email: subscriber.email,
+              error: `[bot-recipient-suppressed] rule=${verdict.rule} — ${verdict.note}`,
+            })
+          } else {
+            allResults.push({ success: true, subscriber_id: subscriber.id, email: subscriber.email })
+          }
         } catch (error) {
           allResults.push({
             success: false, subscriber_id: subscriber.id, email: subscriber.email,
@@ -413,6 +444,9 @@ export const processAllBatchesStep = createStep(
     // Retry failed sends that are not validation errors (queue for next day)
     const PERMANENT_ERROR_PATTERNS = [
       "invalid `to` field", "validation_error", "invalid email", "email address",
+      // A known-bot recipient (#1333) is a decision, not a transient failure —
+      // re-queueing it would reintroduce the daily waste this fix removes.
+      "[bot-recipient-suppressed]",
     ]
 
     if (providerManager) {
