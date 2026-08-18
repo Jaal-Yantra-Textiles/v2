@@ -1,3 +1,16 @@
+# [13.106.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.105.0...v13.106.0) (2026-08-18)
+
+
+### Bug Fixes
+
+* **partner-assistant:** hand an approved tool's real result back to the model ([#1341](https://github.com/Jaal-Yantra-Textiles/v2/issues/1341)) ([b0b67a7](https://github.com/Jaal-Yantra-Textiles/v2/commit/b0b67a724f9560d313fae7f25a210938003d25e8))
+* **flows:** prevent duplicate cart-abandoned sends with distributed locks ([#1340](https://github.com/Jaal-Yantra-Textiles/v2/issues/1340)) ([8173e66](https://github.com/Jaal-Yantra-Textiles/v2/commit/8173e661659f78aa3a5fd33303dd977177bc2ce4)), closes [#1334](https://github.com/Jaal-Yantra-Textiles/v2/issues/1334) [#1334](https://github.com/Jaal-Yantra-Textiles/v2/issues/1334)
+
+
+### Features
+
+* **partner-products:** partner-authored production spec (weave, palette, custom fields) ([#1342](https://github.com/Jaal-Yantra-Textiles/v2/issues/1342)) ([5e857da](https://github.com/Jaal-Yantra-Textiles/v2/commit/5e857da2edeb795ca5d33c6642705d2d35cb78a2)), closes [#859](https://github.com/Jaal-Yantra-Textiles/v2/issues/859)
+
 # [13.105.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.104.0...v13.105.0) (2026-08-18)
 
 
