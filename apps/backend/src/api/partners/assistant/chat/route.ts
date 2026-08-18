@@ -54,6 +54,8 @@ import {
   resolvePartnerBaseUrl,
 } from "../../mcp/lib/handler"
 import { makeMcpLedgerSink } from "../../../../lib/mcp-ledger"
+import { ASSISTANT_CONTEXT_CACHE_MODULE } from "../../../../modules/assistant-context-cache"
+import { extractContextFromTurn, loadAndFormatContext } from "../../../../lib/assistant-context"
 import { getPartnerFromAuthContext } from "../../helpers"
 import {
   loadConversationAttachments,
@@ -234,6 +236,24 @@ export const POST = async (
       `${carried.length ? `; carried: ${carried.join(", ")}` : ""})`
   )
 
+  // ---- Prior context injection (cross-conversation cache) -----------------
+  // Read the domain-keyed cache for this partner and inject a thin "you
+  // already found this" block into the system prompt. Lets the model skip a
+  // re-fetch when the partner repeats a task from a previous conversation.
+  const partnerId = partner?.id ?? (req as any).auth_context?.actor_id ?? null
+  const cacheService = partnerId
+    ? req.scope.resolve(ASSISTANT_CONTEXT_CACHE_MODULE) as any
+    : null
+  const activeDomains = initialSlice.domains.filter((d) => d !== "core")
+  const priorContext = cacheService
+    ? await loadAndFormatContext(
+        cacheService,
+        partnerId,
+        "partner",
+        activeDomains
+      )
+    : undefined
+
   // The escape hatch. Always active, so the model is never boxed in by a slice
   // that guessed wrong — it names the domains it needs and they light up on the
   // next step. This is also why the slice can be aggressive.
@@ -281,7 +301,11 @@ export const POST = async (
   const chatModel =
     resolved.source === "free" ? dynamicFreeToolTextModel : resolved.model
 
-  const folded = foldSystemForProvider(resolved.providerType, SYSTEM_PROMPT, messages)
+  const folded = foldSystemForProvider(
+    resolved.providerType,
+    priorContext ? `${SYSTEM_PROMPT}\n\n${priorContext}` : SYSTEM_PROMPT,
+    messages
+  )
   const startedAt = Date.now()
 
   const usageBase = {
@@ -312,13 +336,37 @@ export const POST = async (
         // (dynamic-text-model.ts), so this covers non-free providers and
         // generic upstream hiccups.
         maxRetries: 3,
-        onFinish: ({ usage: u }: any) => {
+        onFinish: async ({ usage: u, toolResults }: any) => {
           logAiUsage(logger, {
             ...usageBase,
             ok: true,
             ms: Date.now() - startedAt,
             tokens: u?.totalTokens,
           })
+
+          // Fire-and-forget: cache what was found so the next conversation can
+          // skip the same fetch. A failure here is logged and swallowed — the
+          // conversation already completed, and a missing cache entry is
+          // harmless.
+          if (cacheService && partnerId) {
+            try {
+              const entries = extractContextFromTurn(toolResults)
+              for (const entry of entries) {
+                await cacheService.upsertContextEntry({
+                  principalId: partnerId,
+                  surface: "partner",
+                  domain: entry.domain,
+                  entityIds: entry.entityIds,
+                  summary: entry.summary,
+                  conversationId: body.id ?? null,
+                })
+              }
+            } catch (e: any) {
+              logger.debug?.(
+                `[${FEATURE}] context cache write failed: ${e?.message}`
+              )
+            }
+          }
         },
         onError: (err: any) => {
           logAiUsage(logger, {
