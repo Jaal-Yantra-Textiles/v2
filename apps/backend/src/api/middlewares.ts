@@ -290,6 +290,7 @@ import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-item
 import { BulkImportSchema } from "./admin/inventory-items/bulk-import/validators";
 import { PartnerCreateStoreReq } from "./partners/stores/validators";
 import { PartnerCreateProductReq, PartnerArtisanProductDetailReq, PartnerProductSpecReq } from "./partners/products/validators";
+import { StoreMadeToSpecReq } from "./store/carts/[id]/made-to-spec/validators";
 import {
   PartnerCreateRegionReq,
   PartnerUpdateRegionReq,
@@ -4511,6 +4512,15 @@ export default defineMiddlewares({
       middlewares: [
         authenticate("customer", ["session", "bearer"]),
       ],
+    },
+    {
+      // #1349: add a made-to-order line item, validated against the partner's
+      // published production spec. Deliberately NOT customer-authenticated —
+      // a guest cart is a cart, and requiring a login to configure a piece
+      // would put the sign-up wall before the thing that motivates it.
+      matcher: "/store/carts/:id/made-to-spec",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(StoreMadeToSpecReq))],
     },
     // Task-Templates
     {
