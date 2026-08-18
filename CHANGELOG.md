@@ -1,3 +1,10 @@
+# [13.108.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.107.0...v13.108.0) (2026-08-18)
+
+
+### Features
+
+* **product-spec:** read/edit split on both surfaces, and made-to-order on the storefront ([#1349](https://github.com/Jaal-Yantra-Textiles/v2/issues/1349)) ([#1349](https://github.com/Jaal-Yantra-Textiles/v2/issues/1349)) ([146ad42](https://github.com/Jaal-Yantra-Textiles/v2/commit/146ad42e4e0db731ba0f1a519abc20746a604c91)), closes [#1342](https://github.com/Jaal-Yantra-Textiles/v2/issues/1342) [starter#8](https://github.com/starter/issues/8)
+
 # [13.107.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.106.0...v13.107.0) (2026-08-18)
 
 
