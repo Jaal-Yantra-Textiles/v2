@@ -555,6 +555,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/artisan-product-detail",
     },
     {
+      resolve: "./src/modules/product-spec",
+    },
+    {
       resolve: "./src/modules/designer-invite",
     },
     {

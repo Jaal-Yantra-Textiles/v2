@@ -4,6 +4,7 @@ import { TwoColumnPageSkeleton } from "../../../components/common/skeleton"
 import { TwoColumnPage } from "../../../components/layout/pages"
 import { useProduct } from "../../../hooks/api/products"
 import { ProductArtisanSection } from "./components/product-artisan-section"
+import { ProductSpecSection } from "./components/product-spec-section"
 import { ProductAttributeSection } from "./components/product-attribute-section"
 import { ProductGeneralSection } from "./components/product-general-section"
 import { ProductReviewBanner } from "./components/product-review-banner/product-review-banner"
@@ -75,6 +76,7 @@ export const ProductDetail = () => {
         <ProductVariantSection product={product} />
         <ProductProductionRunsSection product={product} />
         <ProductArtisanSection product={product} />
+        <ProductSpecSection product={product} />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
         <ProductSalesChannelSection product={product} />
