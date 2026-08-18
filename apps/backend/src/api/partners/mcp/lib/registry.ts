@@ -22,6 +22,11 @@
  */
 
 import type { McpToolDef } from "../../../../lib/mcp-core"
+import {
+  PRODUCT_SPEC_BODY_PARAMS,
+  PRODUCT_SPEC_WRITE_GUIDANCE,
+  productSpecSchemaProps,
+} from "../../../../modules/product-spec/tool-schema"
 
 /**
  * Partner tool definition. The declarative model now lives in the shared
@@ -738,6 +743,48 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       },
       ["id"]
     ),
+  },
+
+  // ===== Production spec (#1342 / #1346) ===================================
+  // The weave and its measured parameters, the colour palette, and whatever the
+  // catalog cannot say. The catalog read is listed FIRST deliberately: the
+  // write validates `params` against the chosen technique's ranges, so a model
+  // that guesses a GSM without reading the ranges gets a rejection, not a spec.
+  {
+    name: "get_spec_catalog",
+    description:
+      "List the weaving techniques a production spec can use — families, per-technique parameters with min/max/step/default, presets and default finishes. Read this BEFORE calling set_product_spec: the ranges shown here are the ranges the write enforces.",
+    method: "GET",
+    path: "/partners/products/spec-catalog",
+    inputSchema: obj({}),
+    nextSteps: ["get_product_spec", "set_product_spec"],
+  },
+  {
+    name: "get_product_spec",
+    description:
+      "Get a product's production spec — weave technique and parameters, colour palette, custom fields, custom-order availability. Returns null when the partner has not written one, which is the normal state for most products.",
+    method: "GET",
+    path: "/partners/products/:id/spec",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Product id.") }, ["id"]),
+    nextSteps: ["set_product_spec", "get_spec_catalog"],
+  },
+  {
+    name: "set_product_spec",
+    description: `Create or update a product's production spec: weave technique + parameters, finishes, colour palette, partner-defined fields, and custom-order availability. ${PRODUCT_SPEC_WRITE_GUIDANCE}`,
+    method: "POST",
+    path: "/partners/products/:id/spec",
+    pathParams: ["id"],
+    write: true,
+    previewPath: "/partners/products/:id/spec",
+    bodyParams: PRODUCT_SPEC_BODY_PARAMS,
+    inputSchema: obj(
+      { id: STR("Product id."), ...productSpecSchemaProps() },
+      ["id"]
+    ),
+    sideEffects:
+      "Replaces the stored palette and custom fields when those keys are passed.",
+    nextSteps: ["get_product_spec"],
   },
 
   // ===== Partner orders (detail + fulfillment) =============================

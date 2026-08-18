@@ -133,6 +133,15 @@ const DOMAIN_KEYWORDS: Record<Exclude<AdminToolDomain, "core">, string[]> = {
     "bulk", "in bulk", "all products", "every product", "whole catalogue",
     "whole catalog", "manage inventory", "manage_inventory", "track stock",
     "tracking stock", "zero",
+    // Production-spec vocabulary (#1346). The spec tools classify as catalog by
+    // route, but a maker's ask for them is phrased in loom words — "record the
+    // weave and palette for this shawl" says neither "product" nor "catalog".
+    // Classification without an activating phrase is a tool nobody can reach.
+    "spec", "specs", "specification", "production spec", "weave", "weaves",
+    "woven", "weaving", "warp", "weft", "loom", "gsm", "thread count",
+    "ends per inch", "picks per inch", "palette", "colour palette",
+    "color palette", "colours", "colors", "finish", "finishes",
+    "custom order", "custom orders", "made to order",
   ],
   customers: ["customer", "customers", "buyer", "buyers", "shopper", "shoppers"],
   partners: [

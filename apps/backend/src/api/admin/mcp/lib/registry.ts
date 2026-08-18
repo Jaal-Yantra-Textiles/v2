@@ -27,6 +27,11 @@
  * size is a per-request token cost.
  */
 import type { McpToolDef } from "../../../../lib/mcp-core"
+import {
+  PRODUCT_SPEC_BODY_PARAMS,
+  PRODUCT_SPEC_WRITE_GUIDANCE,
+  productSpecSchemaProps,
+} from "../../../../modules/product-spec/tool-schema"
 
 /** Admin tool definition. Alias of the shared core tool model. */
 export type AdminMcpToolDef = McpToolDef
@@ -124,6 +129,54 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     path: "/admin/products/:id",
     pathParams: ["id"],
     inputSchema: obj({ id: STR("Product id, e.g. 'prod_...'.") }, ["id"]),
+  },
+
+  // ---- Production spec (#1342 / #1346): the admin mirror of the partner
+  // tools. Same module, same workflow, same weave catalog — an admin is simply
+  // not scoped to one partner's products. The catalog read is listed first
+  // because the write validates `params` against the chosen technique's ranges.
+  {
+    name: "get_spec_catalog",
+    description:
+      "List the weaving techniques a production spec can use — families, per-technique parameters with min/max/step/default, presets and default finishes. Read this BEFORE calling set_product_spec: the ranges shown here are the ranges the write enforces.",
+    method: "GET",
+    path: "/admin/products/spec-catalog",
+    inputSchema: obj({}),
+    nextSteps: ["get_product_spec", "set_product_spec"],
+  },
+  {
+    name: "get_product_spec",
+    description:
+      "Get a product's production spec — weave technique and parameters, colour palette, custom fields, custom-order availability. Returns null when nobody has written one, which is the normal state for most products.",
+    method: "GET",
+    path: "/admin/products/:id/spec",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Product id, e.g. 'prod_...'.") }, ["id"]),
+    nextSteps: ["set_product_spec", "get_spec_catalog"],
+  },
+  {
+    name: "set_product_spec",
+    description: `Create or update a product's production spec: weave technique + parameters, finishes, colour palette, custom fields, and custom-order availability. ${PRODUCT_SPEC_WRITE_GUIDANCE}`,
+    method: "POST",
+    path: "/admin/products/:id/spec",
+    pathParams: ["id"],
+    write: true,
+    // Confirm-gated like every other admin write, because an admin writes ANY
+    // maker's spec, not their own — the partner tool is ownership-scoped and
+    // needs no such gate. `tier: "write"` keeps that confirm from also costing
+    // a scoped credential access it should have: a spec spends no money, calls
+    // no carrier and messages nobody.
+    sensitive: true,
+    tier: "write",
+    previewPath: "/admin/products/:id/spec",
+    bodyParams: PRODUCT_SPEC_BODY_PARAMS,
+    inputSchema: obj(
+      { id: STR("Product id, e.g. 'prod_...'."), ...productSpecSchemaProps() },
+      ["id"]
+    ),
+    sideEffects:
+      "Replaces the stored palette and custom fields when those keys are passed. The spec is the maker's own record of the product — check with the partner before overwriting one they authored.",
+    nextSteps: ["get_product_spec"],
   },
 
   // ===== Customers =========================================================
