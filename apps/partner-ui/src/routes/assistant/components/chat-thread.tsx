@@ -8,7 +8,10 @@
  *     conversation after each completed turn (create-on-first-turn, then patch);
  *   - generic tool rendering: any registry tool result is summarised;
  *   - a sensitive-tool confirmation card that executes via POST /partners/mcp
- *     on the user's explicit approval (the model never self-confirms).
+ *     on the user's explicit approval (the model never self-confirms), and then
+ *     hands the REAL result back to the model so its next words describe what
+ *     happened rather than re-asking for the approval it just got (see
+ *     ../../../lib/assistant-approval).
  *
  * UX additions:
  *   - Stop: a stop button replaces the send button while the model is working
@@ -39,6 +42,11 @@ import {
   type StoredMessage,
 } from "../../../hooks/api/assistant-conversations"
 import { runPartnerMcpTool } from "../../../lib/assistant-mcp"
+import {
+  approvalNote,
+  approvalNoteTool,
+  resolveToolPart,
+} from "../../../lib/assistant-approval"
 import { Markdown } from "./markdown"
 import { ToolData } from "./tool-data"
 
@@ -326,6 +334,37 @@ export const ChatThread = ({
     void run()
   }, [status, messages, onCreated])
 
+  /**
+   * A sensitive tool was approved (and ran) or cancelled in a ToolCard.
+   *
+   * Writes the outcome back into the thread so it is what gets persisted — a
+   * reloaded conversation must not offer to run an action that already ran —
+   * and, on approval, drops the model's now-stale "please confirm…" prose and
+   * asks it to continue from the real result.
+   */
+  const handleToolResolved = useCallback(
+    (
+      messageId: string,
+      toolCallId: string,
+      name: string,
+      result: any,
+      action: "approved" | "rejected"
+    ) => {
+      setMessages?.((prev: any[]) =>
+        prev.map((m: any) =>
+          m.id === messageId
+            ? { ...m, parts: resolveToolPart(m.parts, toolCallId, result, action) }
+            : m
+        )
+      )
+
+      if (action === "approved") {
+        void sendMessage({ text: approvalNote(name, result) })
+      }
+    },
+    [setMessages, sendMessage]
+  )
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // A message carrying only photos is legitimate — "here are three more" is a
@@ -513,7 +552,7 @@ export const ChatThread = ({
         )}
 
         {messages.map((m: any) => (
-          <MessageRow key={m.id} message={m} />
+          <MessageRow key={m.id} message={m} onToolResolved={handleToolResolved} />
         ))}
 
         {streaming && (
@@ -683,8 +722,35 @@ export const ChatThread = ({
   )
 }
 
-function MessageRow({ message: m }: { message: any }) {
+type ToolResolvedHandler = (
+  messageId: string,
+  toolCallId: string,
+  name: string,
+  result: any,
+  action: "approved" | "rejected"
+) => void
+
+function MessageRow({
+  message: m,
+  onToolResolved,
+}: {
+  message: any
+  onToolResolved: ToolResolvedHandler
+}) {
   if (m.role === "user") {
+    // An approval hand-back is addressed to the model, not something the
+    // partner typed — show it as what it is: a record that they approved.
+    const approvedTool = approvalNoteTool(getText(m.parts).trim())
+    if (approvedTool) {
+      return (
+        <div className="flex items-center gap-x-1.5 px-2">
+          <Check className="text-ui-tag-green-icon" />
+          <Text size="xsmall" className="text-ui-fg-muted capitalize">
+            Approved · {approvedTool.replace(/_/g, " ")}
+          </Text>
+        </div>
+      )
+    }
     return (
       <div className="flex justify-end">
         <div className="bg-ui-bg-highlight rounded-lg rounded-br-sm px-3 py-2 max-w-[85%]">
@@ -725,6 +791,9 @@ function MessageRow({ message: m }: { message: any }) {
               input={part.input}
               output={part.output}
               state={part.state}
+              onResolved={(result, action) =>
+                onToolResolved(m.id, part.toolCallId, name, result, action)
+              }
             />
           )
         }
@@ -779,11 +848,15 @@ function ToolCard({
   input,
   output,
   state,
+  onResolved,
 }: {
   name: string
   input: any
   output: any
   state?: string
+  /** Reports the outcome to the thread, which persists it and (on approval)
+   *  asks the model to continue from the real result. */
+  onResolved: (result: any, action: "approved" | "rejected") => void
 }) {
   const [confirming, setConfirming] = useState(false)
   const [resolved, setResolved] = useState<null | "approved" | "rejected">(null)
@@ -797,6 +870,9 @@ function ToolCard({
       const r = await runPartnerMcpTool(name, (input as any) || {})
       setResult(r)
       setResolved("approved")
+      // Hand the outcome to the thread BEFORE toasting: the model has to answer
+      // from what actually happened, not from the ask it wrote before the run.
+      onResolved(r, "approved")
       if (r.ok) {
         toast.success(`Done: ${label}`)
       } else {
@@ -807,7 +883,21 @@ function ToolCard({
     } finally {
       setConfirming(false)
     }
-  }, [name, input, label])
+  }, [name, input, label, onResolved])
+
+  const onCancel = useCallback(() => {
+    setResolved("rejected")
+    // Persisted too — a reopened chat must not re-offer an action the partner
+    // already declined as though it were still pending.
+    const cancelled = {
+      ok: false,
+      cancelled: true,
+      tool: name,
+      error: "Cancelled — nothing ran.",
+    }
+    setResult(cancelled)
+    onResolved(cancelled, "rejected")
+  }, [name, onResolved])
 
   // Still streaming the tool input / awaiting execution.
   if (state && state !== "output-available" && state !== "output-error") {
@@ -839,25 +929,31 @@ function ToolCard({
           </Text>
         )}
         <PlanSummary plan={out.plan} />
-        {resolved === "rejected" ? (
-          <Text size="xsmall" className="text-ui-fg-muted">
-            Cancelled.
-          </Text>
-        ) : (
-          <div className="flex justify-end gap-x-2 pt-1">
-            <Button
-              size="small"
-              variant="secondary"
-              onClick={() => setResolved("rejected")}
-              disabled={confirming}
-            >
-              Cancel
-            </Button>
-            <Button size="small" onClick={onApprove} isLoading={confirming}>
-              Approve &amp; run
-            </Button>
-          </div>
-        )}
+        <div className="flex justify-end gap-x-2 pt-1">
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={onCancel}
+            disabled={confirming}
+          >
+            Cancel
+          </Button>
+          <Button size="small" onClick={onApprove} isLoading={confirming}>
+            Approve &amp; run
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Declined by the partner — not a failure, and nothing ran.
+  if (out?.cancelled) {
+    return (
+      <div className="border border-ui-border-base rounded-lg px-3 py-2 bg-ui-bg-base flex items-center gap-x-1.5">
+        <XMarkMini className="text-ui-fg-muted" />
+        <Text size="xsmall" className="text-ui-fg-muted capitalize">
+          Cancelled: {label} — nothing ran.
+        </Text>
       </div>
     )
   }
