@@ -109,3 +109,9 @@ node_modules 2/
 .e2e-seed.json
 test-results/
 apps/backend/test-results/
+
+# Hyperbee/autobase stores the backend writes on startup. Created at runtime,
+# per-machine, never source — they showed up as untracked noise in every
+# `git status` and are one careless `git add -A` away from being committed.
+apps/backend/_crm_hb_e2e/
+apps/backend/_pp_hb_e2e/
