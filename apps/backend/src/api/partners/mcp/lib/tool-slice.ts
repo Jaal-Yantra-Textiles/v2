@@ -204,6 +204,15 @@ const DOMAIN_KEYWORDS: Record<Exclude<PartnerToolDomain, "core">, string[]> = {
     // the admin slicer, which carries the same list for /admin/customs.
     "hsn", "hs code", "hs codes", "hs_code", "customs", "harmonized",
     "harmonised", "tariff", "duty", "commodity code",
+    // Production-spec vocabulary (#1346). The spec tools classify as catalog by
+    // route, but a maker's ask for them is phrased in loom words — "record the
+    // weave and palette for this shawl" says neither "product" nor "catalog".
+    // Classification without an activating phrase is a tool nobody can reach.
+    "spec", "specs", "specification", "production spec", "weave", "weaves",
+    "woven", "weaving", "warp", "weft", "loom", "gsm", "thread count",
+    "ends per inch", "picks per inch", "palette", "colour palette",
+    "color palette", "colours", "colors", "finish", "finishes",
+    "custom order", "custom orders", "made to order",
   ],
   storefront: [
     "store", "stores", "storefront", "website", "web site", "page", "pages",

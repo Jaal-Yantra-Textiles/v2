@@ -90,6 +90,7 @@ describe("admin MCP tool tiers", () => {
         "create_raw_material_group",
         "link_design_inventory",
         "link_design_material_group",
+        "set_product_spec",
         "update_design",
         "update_design_brief",
         "update_design_task",

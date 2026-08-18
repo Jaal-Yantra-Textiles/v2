@@ -4908,6 +4908,18 @@ export default defineMiddlewares({
       middlewares: [],
     },
     {
+      // #1346: the admin mirror of the partner production-spec write. Shares
+      // the partner request schema deliberately — two copies of the shape a
+      // spec may take is one edit from the surfaces disagreeing about what a
+      // valid spec is, and the workflow behind both is already the single
+      // place that knows the weave ranges.
+      matcher: "/admin/products/:id/spec",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(PartnerProductSpecReq)),
+      ],
+    },
+    {
       matcher: "/admin/products/:id/linkDesign",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(LinkDesignValidator))],
