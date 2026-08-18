@@ -1,3 +1,15 @@
+# [13.107.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.106.0...v13.107.0) (2026-08-18)
+
+
+### Bug Fixes
+
+* **mcp:** make create_storefront_page satisfy its own route ([#1348](https://github.com/Jaal-Yantra-Textiles/v2/issues/1348)) ([61889e3](https://github.com/Jaal-Yantra-Textiles/v2/commit/61889e33110d07b1ae261078487ee7f1cdecbf04))
+
+
+### Features
+
+* **mcp:** expose the production spec as tools on both assistants ([#1346](https://github.com/Jaal-Yantra-Textiles/v2/issues/1346)) ([#1347](https://github.com/Jaal-Yantra-Textiles/v2/issues/1347)) ([9f0c8dd](https://github.com/Jaal-Yantra-Textiles/v2/commit/9f0c8dd02de819a386bd4436818810e90c82d05d)), closes [#1342](https://github.com/Jaal-Yantra-Textiles/v2/issues/1342) [#1315](https://github.com/Jaal-Yantra-Textiles/v2/issues/1315)
+
 # [13.106.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.105.0...v13.106.0) (2026-08-18)
 
 
