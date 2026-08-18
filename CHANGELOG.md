@@ -1,3 +1,15 @@
+# [13.105.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.104.0...v13.105.0) (2026-08-18)
+
+
+### Bug Fixes
+
+* **email:** suppress known-bot recipients at every provider ([#1333](https://github.com/Jaal-Yantra-Textiles/v2/issues/1333)) ([#1337](https://github.com/Jaal-Yantra-Textiles/v2/issues/1337)) ([cb555d8](https://github.com/Jaal-Yantra-Textiles/v2/commit/cb555d8da1bd389a139bcb74a7a7a67592b3f86a)), closes [#1208](https://github.com/Jaal-Yantra-Textiles/v2/issues/1208)
+
+
+### Features
+
+* **storefront:** surface revalidate failures, guard theme drift, and let the assistant build pages ([#1338](https://github.com/Jaal-Yantra-Textiles/v2/issues/1338)) ([5608f27](https://github.com/Jaal-Yantra-Textiles/v2/commit/5608f270bff7d3de2ab11f5b7f01a5375b76d3a0)), closes [nextjs-starter-medusa#7](https://github.com/nextjs-starter-medusa/issues/7)
+
 # [13.104.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.103.2...v13.104.0) (2026-08-17)
 
 
