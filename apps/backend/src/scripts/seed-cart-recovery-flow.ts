@@ -204,7 +204,9 @@ const FLOW_DEF = {
     " reminders, spaced >= " +
     RESEND_GAP_HOURS +
     "h apart (metadata.recovery_email_count + recovery_email_sent_at); " +
-    "converted carts (metadata.converted_order_id) are skipped.",
+    "converted carts (metadata.converted_order_id) are skipped. " +
+    "Per-cart idempotency lock (cart-abandoned:{cart_id}) prevents " +
+    "duplicate sends during concurrent executions (#1334).",
   status: "draft" as const,
   trigger_type: "schedule" as const,
   trigger_config: {
@@ -293,6 +295,13 @@ const FLOW_DEF = {
     },
 
     // ── 3. Bulk-trigger send-notification-email per cart ──────────────────
+    //
+    // `idempotency_key_template` (#1334): each cart's send is guarded by a
+    // distributed lock keyed on `cart-abandoned:{cart_id}`. If two flow
+    // executions race (e.g. a rolling deploy overlaps two worker tasks),
+    // only the first to acquire the lock sends — the second skips the item
+    // immediately instead of producing a duplicate email. The `mark_sent`
+    // step still runs after dispatch as the durable per-cart record.
     {
       operation_key: "dispatch",
       operation_type: "bulk_trigger_workflow",
@@ -308,6 +317,7 @@ const FLOW_DEF = {
           template: "{{ item.template }}",
           data: "{{ item.data }}",
         },
+        idempotency_key_template: "cart-abandoned:{{ item.cart_id }}",
         continue_on_error: true,
         max_items: 500,
       },
@@ -350,7 +360,7 @@ const FLOW_DEF = {
           "converted={{ classify.counts.converted }} " +
           "gap_wait={{ classify.counts.gap_wait }} " +
           "sent={{ dispatch.triggered }} failed={{ dispatch.failed }} " +
-          "marked={{ mark_sent.updated }}",
+          "skipped={{ dispatch.skipped }} marked={{ mark_sent.updated }}",
         level: "info",
       },
     },
