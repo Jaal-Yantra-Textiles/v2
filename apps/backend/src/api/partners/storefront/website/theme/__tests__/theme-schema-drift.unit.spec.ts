@@ -49,7 +49,16 @@ const EXEMPT: Record<string, { from: Array<"storefront" | "editor">; why: string
 
 const read = (p: string): string => {
   if (!fs.existsSync(p)) {
-    throw new Error(`${p} not found — has the file moved?`)
+    // Failing loudly is the point. `apps/storefront-starter` is a SUBMODULE,
+    // so a runner that checks out without `submodules: true` has no such file
+    // — and the alternative (skip when absent) would let this guard quietly
+    // stop guarding in CI while still looking green locally, which is the
+    // exact failure mode it exists to prevent.
+    throw new Error(
+      `${p} not found. If this is CI, the storefront-starter submodule was ` +
+        `not checked out — add \`submodules: true\` to actions/checkout. ` +
+        `Locally, run \`git submodule update --init\`.`
+    )
   }
   return fs.readFileSync(p, "utf8")
 }
