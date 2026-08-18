@@ -384,10 +384,23 @@ export const useWebsiteTheme = (
   return { theme: data?.theme || {}, ...rest }
 }
 
+/**
+ * What the backend reports about pushing the saved theme to the LIVE site.
+ * Persistence and visibility are different things: the theme is written before
+ * this is computed, so `ok: false` means "saved, not yet visible" — never
+ * "lost". See triggerStorefrontRevalidate in the backend.
+ */
+export type ThemeRevalidation = {
+  attempted: boolean
+  ok: boolean
+  status?: number
+  reason?: "no_backend_secret" | "no_domain" | "rejected" | "unreachable" | "ok"
+}
+
 export const useUpdateWebsiteTheme = () => {
   return useMutation({
     mutationFn: (payload: WebsiteTheme) =>
-      sdk.client.fetch<{ theme: WebsiteTheme }>(
+      sdk.client.fetch<{ theme: WebsiteTheme; revalidation?: ThemeRevalidation }>(
         "/partners/storefront/website/theme",
         { method: "PUT", body: payload }
       ),
