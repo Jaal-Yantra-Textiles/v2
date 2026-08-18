@@ -204,7 +204,9 @@ const FLOW_DEF = {
     " reminders, spaced >= " +
     RESEND_GAP_HOURS +
     "h apart (metadata.recovery_email_count + recovery_email_sent_at); " +
-    "converted carts (metadata.converted_order_id) are skipped.",
+    "converted carts (metadata.converted_order_id) are skipped. " +
+    "Per-cart idempotency lock (cart-abandoned:{cart_id}) prevents " +
+    "duplicate sends during concurrent executions (#1334).",
   status: "draft" as const,
   trigger_type: "schedule" as const,
   trigger_config: {
@@ -293,6 +295,13 @@ const FLOW_DEF = {
     },
 
     // ── 3. Bulk-trigger send-notification-email per cart ──────────────────
+    //
+    // `idempotency_key_template` (#1334): each cart's send is guarded by a
+    // distributed lock keyed on `cart-abandoned:{cart_id}`. If two flow
+    // executions race (e.g. a rolling deploy overlaps two worker tasks),
+    // only the first to acquire the lock sends — the second skips the item
+    // immediately instead of producing a duplicate email. The `mark_sent`
+    // step still runs after dispatch as the durable per-cart record.
     {
       operation_key: "dispatch",
       operation_type: "bulk_trigger_workflow",
@@ -308,6 +317,7 @@ const FLOW_DEF = {
           template: "{{ item.template }}",
           data: "{{ item.data }}",
         },
+        idempotency_key_template: "cart-abandoned:{{ item.cart_id }}",
         continue_on_error: true,
         max_items: 500,
       },
@@ -350,7 +360,7 @@ const FLOW_DEF = {
           "converted={{ classify.counts.converted }} " +
           "gap_wait={{ classify.counts.gap_wait }} " +
           "sent={{ dispatch.triggered }} failed={{ dispatch.failed }} " +
-          "marked={{ mark_sent.updated }}",
+          "skipped={{ dispatch.skipped }} marked={{ mark_sent.updated }}",
         level: "info",
       },
     },
@@ -376,8 +386,54 @@ export default async function seedCartRecoveryFlow({
 
   const [existing] = await service.listVisualFlows({ name: FLOW_NAME } as any)
   if (existing) {
-    console.log(`Flow "${FLOW_NAME}" already exists (${existing.id}) — skipping.`)
-    console.log(`Delete it in the admin UI (or by id) to re-seed.`)
+    console.log(`Flow "${FLOW_NAME}" already exists (${existing.id}).`)
+
+    // The flow that is sending duplicates is by definition one that ALREADY
+    // EXISTS, so a plain early-return here means the #1334 fix ships to
+    // everything except the installation that needs it. Re-seeding is not the
+    // answer either: `createCompleteFlow` writes `status: "draft"`, so deleting
+    // and re-creating would silently stop recovery mail until someone noticed
+    // and re-activated it.
+    //
+    // So backfill just the one option, onto the live row, leaving the flow's
+    // status, schedule and every other operation untouched. Idempotent: a flow
+    // that already carries the key is left alone.
+    // Read the wanted value from the seed definition itself, so the backfill
+    // cannot drift from what a fresh seed would write.
+    const dispatchOp = FLOW_DEF.operations.find(
+      (o) => o.operation_key === "dispatch"
+    )
+    if (!dispatchOp) {
+      console.log(`  ⚠️  Seed definition has no "dispatch" operation.`)
+      return
+    }
+    const [liveDispatch] = await service.listVisualFlowOperations({
+      flow_id: existing.id,
+      operation_key: "dispatch",
+    } as any)
+
+    if (!liveDispatch) {
+      console.log(`  ⚠️  No "dispatch" operation on this flow — nothing to backfill.`)
+      return
+    }
+
+    const liveOptions = (liveDispatch as any).options ?? {}
+    const wanted = (dispatchOp.options as any).idempotency_key_template
+
+    if (liveOptions.idempotency_key_template === wanted) {
+      console.log(`  ✓ Per-cart idempotency key already set — nothing to do.`)
+      return
+    }
+
+    await service.updateVisualFlowOperations({
+      id: (liveDispatch as any).id,
+      options: { ...liveOptions, idempotency_key_template: wanted },
+    } as any)
+
+    console.log(
+      `  ✓ Backfilled idempotency_key_template="${wanted}" onto the live dispatch operation (#1334).`
+    )
+    console.log(`  (Delete the flow in the admin UI to re-seed it from scratch.)`)
     return
   }
 
