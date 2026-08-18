@@ -743,3 +743,200 @@ export const useUpsertArtisanProductDetail = (
     ...options,
   })
 }
+
+// ── Product spec (#1342) ─────────────────────────────────────────────────────
+//
+// The partner-authored production spec: the weave, its measured parameters, the
+// colour palette the product can be made in, and any spec the catalog does not
+// cover. Written before a custom order is taken, which is why it lives in its
+// own linked module rather than in product metadata — a product save would
+// overwrite that blob wholesale.
+
+const PRODUCT_SPEC_QUERY_KEY = "product_spec" as const
+export const productSpecQueryKeys = queryKeysFactory(PRODUCT_SPEC_QUERY_KEY)
+
+const WEAVE_CATALOG_QUERY_KEY = "weave_catalog" as const
+export const weaveCatalogQueryKeys = queryKeysFactory(WEAVE_CATALOG_QUERY_KEY)
+
+/** Mirrors `WeaveParamDef` in the backend catalog — min/max/step drive the input. */
+export type WeaveParamDef = {
+  key: string
+  label: string
+  unit: string
+  min: number
+  max: number
+  step: number
+  default: number
+}
+
+export type WeavePreset = {
+  value: string
+  label: string
+  detailLabel: string
+  params?: Record<string, number>
+  finishes?: string[]
+  note?: string
+}
+
+export type WeaveTechnique = {
+  slug: string
+  label: string
+  family: string
+  description: string
+  params: WeaveParamDef[]
+  defaultFinishes: string[]
+  presets: WeavePreset[]
+}
+
+export type ProductSpecColor = {
+  id?: string
+  name: string
+  hex_code?: string | null
+  usage_notes?: string | null
+  order?: number
+  available?: boolean
+}
+
+export type ProductSpecField = {
+  id?: string
+  key: string
+  label?: string | null
+  value?: string | null
+  order?: number
+}
+
+export type ProductSpec = {
+  id?: string
+  product_id?: string
+  weave_technique?: string | null
+  weave_label?: string | null
+  params?: Record<string, number> | null
+  finishes?: string[] | null
+  notes?: string | null
+  accepting_custom_orders?: boolean | null
+  custom_order_lead_time_days?: number | null
+  colors?: ProductSpecColor[]
+  fields?: ProductSpecField[]
+} | null
+
+/** The payload the upsert route accepts. `colors`/`fields` REPLACE when sent. */
+export type ProductSpecPayload = Omit<
+  NonNullable<ProductSpec>,
+  "id" | "product_id"
+>
+
+/**
+ * The weaving-technique catalog behind the picker.
+ *
+ * Static for the life of a deploy — the ranges, defaults and presets come from
+ * the same module the backend validates against — so it is cached hard rather
+ * than refetched per product.
+ */
+export const useWeaveCatalog = (
+  options?: Omit<
+    UseQueryOptions<
+      { families: string[]; techniques: WeaveTechnique[] },
+      FetchError,
+      { families: string[]; techniques: WeaveTechnique[] },
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: weaveCatalogQueryKeys.lists(),
+    queryFn: () =>
+      sdk.client.fetch<{ families: string[]; techniques: WeaveTechnique[] }>(
+        "/partners/products/spec-catalog",
+        { method: "GET" }
+      ),
+    staleTime: Infinity,
+    ...options,
+  })
+
+  return { ...data, ...rest }
+}
+
+/** Read one of the partner's own products' spec (`spec` is null if unwritten). */
+export const useProductSpec = (
+  productId: string,
+  options?: Omit<
+    UseQueryOptions<
+      { spec: ProductSpec },
+      FetchError,
+      { spec: ProductSpec },
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: productSpecQueryKeys.detail(productId),
+    queryFn: () =>
+      sdk.client.fetch<{ spec: ProductSpec }>(
+        `/partners/products/${productId}/spec`,
+        { method: "GET" }
+      ),
+    ...options,
+  })
+
+  return { ...data, ...rest }
+}
+
+/** Create or update the spec. Omitting `colors`/`fields` leaves them alone. */
+export const useUpsertProductSpec = (
+  productId: string,
+  options?: UseMutationOptions<
+    { spec: ProductSpec },
+    FetchError,
+    ProductSpecPayload
+  >
+) => {
+  return useMutation({
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ spec: ProductSpec }>(
+        `/partners/products/${productId}/spec`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: async (data, variables, context) => {
+      await queryClient.invalidateQueries({
+        queryKey: productSpecQueryKeys.detail(productId),
+      })
+      await queryClient.invalidateQueries({
+        queryKey: productsQueryKeys.detail(productId),
+      })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+/**
+ * Upsert a spec for a product whose id is only known at call time.
+ *
+ * The create wizard needs this: the spec is authored BEFORE the product
+ * exists, so there is no id to close over when the hook is called — the
+ * product is created first, and its id arrives with the mutation variables.
+ */
+export const useUpsertProductSpecFor = (
+  options?: UseMutationOptions<
+    { spec: ProductSpec },
+    FetchError,
+    { product_id: string; payload: ProductSpecPayload }
+  >
+) => {
+  return useMutation({
+    mutationFn: ({ product_id, payload }) =>
+      sdk.client.fetch<{ spec: ProductSpec }>(
+        `/partners/products/${product_id}/spec`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: async (data, variables, context) => {
+      await queryClient.invalidateQueries({
+        queryKey: productSpecQueryKeys.detail(variables.product_id),
+      })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}

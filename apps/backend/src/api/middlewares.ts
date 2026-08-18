@@ -289,7 +289,7 @@ import { ListIdentitiesQuerySchema } from "./admin/users/identities/validators";
 import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-items/raw-materials/validators";
 import { BulkImportSchema } from "./admin/inventory-items/bulk-import/validators";
 import { PartnerCreateStoreReq } from "./partners/stores/validators";
-import { PartnerCreateProductReq, PartnerArtisanProductDetailReq } from "./partners/products/validators";
+import { PartnerCreateProductReq, PartnerArtisanProductDetailReq, PartnerProductSpecReq } from "./partners/products/validators";
 import {
   PartnerCreateRegionReq,
   PartnerUpdateRegionReq,
@@ -1585,6 +1585,35 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerArtisanProductDetailReq)),
+      ],
+    },
+    {
+      // #1342: the weaving-technique catalog the spec picker is built from.
+      // Static segment, so it must not be shadowed by /partners/products/:id.
+      matcher: "/partners/products/spec-catalog",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      // #1342: read the partner-authored production spec for a product.
+      matcher: "/partners/products/:id/spec",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      // #1342: upsert the production spec (weave, params, palette, fields).
+      matcher: "/partners/products/:id/spec",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerProductSpecReq)),
       ],
     },
 

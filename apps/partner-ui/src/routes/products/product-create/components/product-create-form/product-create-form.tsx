@@ -1,5 +1,5 @@
 import { HttpTypes } from "@medusajs/types"
-import { Button, ProgressStatus, ProgressTabs, toast } from "@medusajs/ui"
+import { Button, Heading, ProgressStatus, ProgressTabs, Text, toast } from "@medusajs/ui"
 import { useEffect, useMemo, useState } from "react"
 import { useWatch } from "react-hook-form"
 import { useTranslation } from "react-i18next"
@@ -9,7 +9,13 @@ import {
 } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useExtendableForm } from "../../../../../dashboard-app/forms/hooks"
-import { useCreateProduct } from "../../../../../hooks/api/products"
+import {
+  useCreateProduct,
+  useUpsertProductSpecFor,
+  useWeaveCatalog,
+  type ProductSpecPayload,
+} from "../../../../../hooks/api/products"
+import { ProductSpecForm } from "../../../../../components/forms/product-spec-form"
 import { usePartnerUpload } from "../../../../../hooks/api/uploads"
 import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 import { useExtension } from "../../../../../providers/extension-provider"
@@ -29,11 +35,22 @@ enum Tab {
   ORGANIZE = "organize",
   VARIANTS = "variants",
   INVENTORY = "inventory",
+  SPEC = "spec",
 }
 
 type TabState = Record<Tab, ProgressStatus>
 
 const SAVE_DRAFT_BUTTON = "save-draft-button"
+
+const EMPTY_SPEC: ProductSpecPayload = {
+  weave_technique: null,
+  weave_label: null,
+  params: null,
+  finishes: [],
+  notes: null,
+  colors: [],
+  fields: [],
+}
 
 type ProductCreateFormProps = {
   defaultChannel?: HttpTypes.AdminSalesChannel
@@ -54,6 +71,7 @@ export const ProductCreateForm = ({
     [Tab.ORGANIZE]: "not-started",
     [Tab.VARIANTS]: "not-started",
     [Tab.INVENTORY]: "not-started",
+    [Tab.SPEC]: "not-started",
   })
 
   const { t } = useTranslation()
@@ -74,6 +92,21 @@ export const ProductCreateForm = ({
 
   const { mutateAsync, isPending } = useCreateProduct()
   const { mutateAsync: uploadFiles } = usePartnerUpload()
+
+  // #1342: the production spec is authored here but SAVED AFTER the product
+  // exists — it lives on a linked module keyed by product id, which the wizard
+  // does not have until the create call returns. Held outside the form schema
+  // because it is not part of the product payload at all.
+  const { mutateAsync: saveSpec } = useUpsertProductSpecFor()
+  const { families, techniques } = useWeaveCatalog()
+  const [spec, setSpec] = useState<ProductSpecPayload>(EMPTY_SPEC)
+  const specHasContent =
+    !!spec.weave_technique ||
+    !!spec.weave_label?.trim() ||
+    !!spec.notes?.trim() ||
+    !!spec.finishes?.length ||
+    !!spec.colors?.some((c) => c.name.trim()) ||
+    !!spec.fields?.some((f) => (f.label ?? f.key).trim())
 
   const regionsCurrencyMap = useMemo(() => {
     if (!regions?.length) {
@@ -151,12 +184,39 @@ export const ProductCreateForm = ({
         regionsCurrencyMap,
       }),
       {
-        onSuccess: (data) => {
+        onSuccess: async (data) => {
           toast.success(
             t("products.create.successToast", {
               title: data.product.title,
             })
           )
+
+          // The product is already created at this point, so a failing spec
+          // save must not read as a failed create. Report it and continue to
+          // the product, where the spec panel can be filled in again — losing
+          // the typed spec is bad, but stranding the partner on a wizard whose
+          // product HAS been created would be worse.
+          if (specHasContent) {
+            try {
+              await saveSpec({
+                product_id: data.product.id,
+                payload: {
+                  ...spec,
+                  colors: (spec.colors ?? []).filter((c) => c.name.trim()),
+                  fields: (spec.fields ?? []).filter((f) =>
+                    (f.label ?? f.key).trim()
+                  ),
+                },
+              })
+            } catch (error) {
+              toast.error(
+                extractErrorMessage(
+                  error,
+                  "The product was created, but its spec could not be saved. Add it from the product page."
+                )
+              )
+            }
+          }
 
           handleSuccess(`../${data.product.id}`)
         },
@@ -183,7 +243,11 @@ export const ProductCreateForm = ({
     }
 
     if (currentTab === Tab.VARIANTS) {
-      setTab(Tab.INVENTORY)
+      setTab(showInventoryTab ? Tab.INVENTORY : Tab.SPEC)
+    }
+
+    if (currentTab === Tab.INVENTORY) {
+      setTab(Tab.SPEC)
     }
   }
 
@@ -207,6 +271,15 @@ export const ProductCreateForm = ({
       currentState[Tab.VARIANTS] = "completed"
       currentState[Tab.INVENTORY] = "in-progress"
     }
+    if (tab === Tab.SPEC) {
+      currentState[Tab.DETAILS] = "completed"
+      currentState[Tab.ORGANIZE] = "completed"
+      currentState[Tab.VARIANTS] = "completed"
+      if (showInventoryTab) {
+        currentState[Tab.INVENTORY] = "completed"
+      }
+      currentState[Tab.SPEC] = "in-progress"
+    }
 
     setTabState({ ...currentState })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- we only want this effect to run when the tab changes
@@ -228,7 +301,10 @@ export const ProductCreateForm = ({
             e.preventDefault()
 
             if (e.metaKey || e.ctrlKey) {
-              if (tab !== Tab.VARIANTS) {
+              // ⌘/Ctrl+Enter advances until the LAST tab, where it submits.
+              // Spec is now that tab (#1342) — keyed off VARIANTS it would have
+              // published from the middle of the wizard.
+              if (tab !== Tab.SPEC) {
                 e.preventDefault()
                 e.stopPropagation()
                 onNext(tab)
@@ -290,6 +366,13 @@ export const ProductCreateForm = ({
                     {t("products.create.tabs.inventory")}
                   </ProgressTabs.Trigger>
                 )}
+                <ProgressTabs.Trigger
+                  status={tabState[Tab.SPEC]}
+                  value={Tab.SPEC}
+                  className="max-w-[200px] truncate"
+                >
+                  Spec
+                </ProgressTabs.Trigger>
               </ProgressTabs.List>
             </div>
           </RouteFocusModal.Header>
@@ -325,6 +408,30 @@ export const ProductCreateForm = ({
                 <ProductCreateInventoryKitForm form={form} />
               </ProgressTabs.Content>
             )}
+            <ProgressTabs.Content
+              className="size-full overflow-y-auto"
+              value={Tab.SPEC}
+            >
+              <div className="mx-auto flex w-full max-w-[720px] flex-col gap-y-6 px-6 py-8">
+                <div>
+                  <Heading level="h1">Production spec</Heading>
+                  <Text size="small" className="text-ui-fg-subtle">
+                    Optional. The weave, colours and specs you'd make this to —
+                    worth writing down before you take a custom order. You can
+                    add or change all of it later.
+                  </Text>
+                </div>
+                <ProductSpecForm
+                  value={spec}
+                  onChange={setSpec}
+                  techniques={techniques}
+                  families={families}
+                  /* A product that does not exist yet cannot be accepting
+                     orders — that switch belongs on the product page. */
+                  showCustomOrderSection={false}
+                />
+              </div>
+            </ProgressTabs.Content>
           </RouteFocusModal.Body>
         </ProgressTabs>
         <RouteFocusModal.Footer>
@@ -343,12 +450,7 @@ export const ProductCreateForm = ({
             >
               {t("actions.saveAsDraft")}
             </Button>
-            <PrimaryButton
-              tab={tab}
-              next={onNext}
-              isLoading={isPending}
-              showInventoryTab={showInventoryTab}
-            />
+            <PrimaryButton tab={tab} next={onNext} isLoading={isPending} />
           </div>
         </RouteFocusModal.Footer>
       </KeyboundForm>
@@ -360,21 +462,12 @@ type PrimaryButtonProps = {
   tab: Tab
   next: (tab: Tab) => void
   isLoading?: boolean
-  showInventoryTab: boolean
 }
 
-const PrimaryButton = ({
-  tab,
-  next,
-  isLoading,
-  showInventoryTab,
-}: PrimaryButtonProps) => {
+const PrimaryButton = ({ tab, next, isLoading }: PrimaryButtonProps) => {
   const { t } = useTranslation()
 
-  if (
-    (tab === Tab.VARIANTS && !showInventoryTab) ||
-    (tab === Tab.INVENTORY && showInventoryTab)
-  ) {
+  if (tab === Tab.SPEC) {
     return (
       <Button
         data-name="publish-button"
