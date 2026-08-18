@@ -15,6 +15,32 @@ const MAX_DOMAIN_ENTRIES = 3
 /** Maximum total characters of the injected block. */
 const MAX_BLOCK_LEN = 1200
 
+/**
+ * How old an entry may be before it is dropped rather than injected.
+ *
+ * The block tells the model it already has this data, so an entry that has
+ * outlived its subject does not merely waste tokens — it invites a confident
+ * answer from a stale summary ("you have 5 orders, most recent order_abc").
+ * Volatile domains change between conversations as a matter of course, so they
+ * expire in an hour; the rest are a day. Beyond that the model should look
+ * again, which is the behaviour the cache exists to make cheap, not to prevent.
+ */
+const VOLATILE_DOMAINS = new Set(["orders", "money", "inventory", "production"])
+const VOLATILE_MAX_AGE_MS = 60 * 60 * 1000
+const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000
+
+/** Max age for a domain's entry, in ms. */
+export const maxAgeForDomain = (domain: string): number =>
+  VOLATILE_DOMAINS.has(domain) ? VOLATILE_MAX_AGE_MS : DEFAULT_MAX_AGE_MS
+
+/** True when a row is still worth injecting. Unparseable dates are dropped. */
+export function isFresh(row: ContextCacheRow, now = Date.now()): boolean {
+  const ts = row.updated_at instanceof Date ? row.updated_at : new Date(row.updated_at)
+  const age = now - ts.getTime()
+  if (Number.isNaN(age)) return false
+  return age >= 0 && age <= maxAgeForDomain(row.domain)
+}
+
 export interface ContextCacheRow {
   domain: string
   entity_ids: string[] | unknown
@@ -33,8 +59,11 @@ export interface ContextCacheRow {
 export function formatPriorContext(rows: ContextCacheRow[]): string | undefined {
   if (!rows?.length) return undefined
 
+  const usable = rows.filter((r) => isFresh(r))
+  if (!usable.length) return undefined
+
   const sections: string[] = []
-  for (const row of rows.slice(0, MAX_DOMAIN_ENTRIES)) {
+  for (const row of usable.slice(0, MAX_DOMAIN_ENTRIES)) {
     const ids = Array.isArray(row.entity_ids) ? row.entity_ids : []
     const idList = ids.slice(0, 8).join(", ")
     const time = formatRelativeTime(row.updated_at)
@@ -50,7 +79,9 @@ export function formatPriorContext(rows: ContextCacheRow[]): string | undefined 
   }
 
   const block = sections.join("\n\n")
-  const header = "## Prior context from earlier conversations\nYou already looked at these areas recently. Use this to avoid re-fetching the same data unless the user asks for fresh results or you have reason to believe the data changed.\n\n"
+  const header =
+    "## Prior context from earlier conversations\n" +
+    "A note of what you looked at recently, to save you rediscovering ids. It is a POINTER, not a source of truth: it may be out of date, so never state a count, status, total or name from it as current — call the tool when the answer has to be right.\n\n"
   const full = header + block
 
   return full.length > MAX_BLOCK_LEN ? full.slice(0, MAX_BLOCK_LEN) + "\n(truncated)" : full
@@ -88,7 +119,16 @@ export async function loadAndFormatContext(
 ): Promise<string | undefined> {
   if (!cacheService || !principalId || !domains?.length) return undefined
 
-  const rows = await cacheService.getContextForPrincipal(principalId, surface, domains)
+  // The read sits before streamText on the assistant's hot path. A cache miss
+  // and a cache OUTAGE (missing table, DB blip) must look the same from here:
+  // the turn proceeds without prior context. Only the write path was guarded
+  // when this was reviewed, which left the read able to fail the whole turn.
+  let rows: any[] | undefined
+  try {
+    rows = await cacheService.getContextForPrincipal(principalId, surface, domains)
+  } catch {
+    return undefined
+  }
   if (!rows?.length) return undefined
 
   // Filter to only the domains that were actually asked for (the service may

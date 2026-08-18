@@ -12,7 +12,9 @@ describe("assistant-context: formatPriorContext", () => {
         domain: "orders",
         entity_ids: ["order_001", "order_002"],
         summary: "list_orders: 2 orders, first: order_001",
-        updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        // Within the volatile-domain window: `orders` entries older than an
+        // hour are now dropped rather than injected (see wiring.unit.spec).
+        updated_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
       },
     ]
     const result = formatPriorContext(rows)
@@ -21,7 +23,7 @@ describe("assistant-context: formatPriorContext", () => {
     expect(result!).toContain("### orders")
     expect(result!).toContain("list_orders: 2 orders")
     expect(result!).toContain("Entity ids: order_001, order_002")
-    expect(result!).toContain("2 hours ago")
+    expect(result!).toContain("30 min ago")
   })
 
   it("formats multiple domain entries", () => {
@@ -97,12 +99,14 @@ describe("assistant-context: formatPriorContext", () => {
       [0, "just now"],
       [30 * 60 * 1000, "30 min ago"],
       [3 * 60 * 60 * 1000, "3 hours ago"],
-      [2 * 24 * 60 * 60 * 1000, "2 days ago"],
+      [20 * 60 * 60 * 1000, "20 hours ago"],
     ]
+    // A slow-moving domain, so this stays a test of the FORMATTER: every age
+    // here has to survive the freshness filter to reach the string.
     for (const [ms, expected] of cases) {
       const rows: ContextCacheRow[] = [
         {
-          domain: "orders",
+          domain: "catalog",
           entity_ids: [],
           summary: "test",
           updated_at: new Date(Date.now() - ms).toISOString(),

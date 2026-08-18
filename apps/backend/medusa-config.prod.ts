@@ -552,6 +552,12 @@ module.exports = defineConfig({
       resolve: "./src/modules/admin-assistant",
     },
     {
+      // The assistants' cross-conversation context cache. Registered in BOTH
+      // config files: prod loads its own, so a module listed only here is
+      // absent on ECS, and the chat routes resolve it on every turn.
+      resolve: "./src/modules/assistant-context-cache",
+    },
+    {
       resolve: "./src/modules/artisan-product-detail",
     },
     {

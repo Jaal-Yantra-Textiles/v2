@@ -51,8 +51,11 @@ import {
 } from "../../mcp/lib/handler"
 import { mcpScopeToContextFlags } from "../../../../lib/mcp-scope"
 import { makeMcpLedgerSink } from "../../../../lib/mcp-ledger"
-import { ASSISTANT_CONTEXT_CACHE_MODULE } from "../../../../modules/assistant-context-cache"
-import { extractContextFromTurn, loadAndFormatContext } from "../../../../lib/assistant-context"
+import {
+  extractContextFromTurn,
+  loadAndFormatContext,
+  resolveContextCache,
+} from "../../../../lib/assistant-context"
 import type { AdminAssistantChatReq } from "./validators"
 
 const FEATURE = "admin/assistant/chat"
@@ -343,9 +346,9 @@ export const POST = async (
   // already found this" block into the system prompt. Lets the model skip a
   // re-fetch when the user repeats a task from a previous conversation.
   const adminUserId = (req as any).auth_context?.actor_id ?? null
-  const cacheService = adminUserId
-    ? req.scope.resolve(ASSISTANT_CONTEXT_CACHE_MODULE) as any
-    : null
+  // Resolved defensively: the cache only ever saves a re-fetch, so it must
+  // never be able to fail the turn (see lib/assistant-context/resolve).
+  const cacheService = adminUserId ? resolveContextCache(req.scope, logger) : null
   const activeDomains = initialSlice.domains.filter((d) => d !== "core")
   const priorContext = cacheService
     ? await loadAndFormatContext(
@@ -447,7 +450,7 @@ export const POST = async (
           // harmless.
           if (cacheService && adminUserId) {
             try {
-              const entries = extractContextFromTurn(toolResults)
+              const entries = extractContextFromTurn(toolResults, "admin")
               for (const entry of entries) {
                 await cacheService.upsertContextEntry({
                   principalId: adminUserId,

@@ -65,14 +65,37 @@ class AssistantContextCacheService extends MedusaService({
       return updated
     }
 
-    return this.createAssistantContextCaches({
-      principal_id: input.principalId,
-      surface: input.surface,
-      domain: input.domain,
-      entity_ids: input.entityIds as any,
-      summary: input.summary,
-      conversation_id: input.conversationId ?? null,
-    })
+    try {
+      return await this.createAssistantContextCaches({
+        principal_id: input.principalId,
+        surface: input.surface,
+        domain: input.domain,
+        entity_ids: input.entityIds as any,
+        summary: input.summary,
+        conversation_id: input.conversationId ?? null,
+      })
+    } catch (e) {
+      // The list-then-create above is not atomic, and the unique index on
+      // (principal_id, surface, domain) is doing its job: two turns of the same
+      // conversation can finish close enough together that both saw no row.
+      // Losing the write here would be silent — the caller swallows errors —
+      // so re-read and update instead of surfacing a conflict as "no cache".
+      const [raced] = await this.listAssistantContextCaches({
+        principal_id: input.principalId,
+        surface: input.surface,
+        domain: input.domain,
+      })
+      if (!raced) throw e
+      const [updated] = await this.updateAssistantContextCaches([
+        {
+          id: raced.id,
+          entity_ids: input.entityIds as any,
+          summary: input.summary,
+          conversation_id: input.conversationId ?? null,
+        },
+      ])
+      return updated
+    }
   }
 
   /**

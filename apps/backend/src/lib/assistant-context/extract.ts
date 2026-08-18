@@ -14,7 +14,7 @@
  * - Anything it can't parse is silently skipped — a missing cache entry is
  *   harmless, a crash in onFinish is not.
  */
-import { toolNameToDomain } from "./domains"
+import { toolNameToDomain, type AssistantSurface } from "./domains"
 
 export interface ExtractedContextEntry {
   domain: string
@@ -62,12 +62,19 @@ const LIST_KEYS = [
   "production_runs", "runs", "items", "variants", "stores",
   "conversations", "payments", "campaigns", "notifications",
   "inventory_items", "raw_materials", "raw_material_groups",
-  "tasks", "social_posts", "results", "stores",
+  "tasks", "social_posts", "results",
 ]
+
+/** Read one property off an unknown value without asserting its shape. */
+const prop = (v: unknown, key: string): unknown =>
+  v && typeof v === "object" ? (v as Record<string, unknown>)[key] : undefined
 
 /** Build a one-line summary from a tool result. */
 function buildToolSummary(toolName: string, output: unknown): string {
-  const data = output?.data ?? output
+  // The dispatcher wraps results as { data } for some tools and returns them
+  // bare for others, so unwrap defensively — `output` is genuinely unknown
+  // here and reaching into it directly is what failed the prod build.
+  const data = prop(output, "data") ?? output
 
   if (data && typeof data === "object") {
     // List shape: { orders: [...] } or { items: [...] }
@@ -114,7 +121,8 @@ const MAX_SUMMARY_LEN = 200
  * can't recognise is skipped, and it never throws.
  */
 export function extractContextFromTurn(
-  toolResults: Array<{ toolName?: string; output?: unknown }> | undefined
+  toolResults: Array<{ toolName?: string; output?: unknown }> | undefined,
+  surface?: AssistantSurface
 ): ExtractedContextEntry[] {
   if (!toolResults?.length) return []
 
@@ -124,7 +132,9 @@ export function extractContextFromTurn(
     const toolName = tr?.toolName
     if (!toolName) continue
 
-    const domain = toolNameToDomain(toolName)
+    // Surface-aware: a domain this surface's slicer cannot select would be
+    // written and then never read.
+    const domain = toolNameToDomain(toolName, surface)
     if (!domain) continue
 
     const output = tr.output

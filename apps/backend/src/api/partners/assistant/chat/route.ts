@@ -54,8 +54,11 @@ import {
   resolvePartnerBaseUrl,
 } from "../../mcp/lib/handler"
 import { makeMcpLedgerSink } from "../../../../lib/mcp-ledger"
-import { ASSISTANT_CONTEXT_CACHE_MODULE } from "../../../../modules/assistant-context-cache"
-import { extractContextFromTurn, loadAndFormatContext } from "../../../../lib/assistant-context"
+import {
+  extractContextFromTurn,
+  loadAndFormatContext,
+  resolveContextCache,
+} from "../../../../lib/assistant-context"
 import { getPartnerFromAuthContext } from "../../helpers"
 import {
   loadConversationAttachments,
@@ -241,9 +244,9 @@ export const POST = async (
   // already found this" block into the system prompt. Lets the model skip a
   // re-fetch when the partner repeats a task from a previous conversation.
   const partnerId = partner?.id ?? (req as any).auth_context?.actor_id ?? null
-  const cacheService = partnerId
-    ? req.scope.resolve(ASSISTANT_CONTEXT_CACHE_MODULE) as any
-    : null
+  // Resolved defensively: the cache only ever saves a re-fetch, so it must
+  // never be able to fail the turn (see lib/assistant-context/resolve).
+  const cacheService = partnerId ? resolveContextCache(req.scope, logger) : null
   const activeDomains = initialSlice.domains.filter((d) => d !== "core")
   const priorContext = cacheService
     ? await loadAndFormatContext(
@@ -350,7 +353,7 @@ export const POST = async (
           // harmless.
           if (cacheService && partnerId) {
             try {
-              const entries = extractContextFromTurn(toolResults)
+              const entries = extractContextFromTurn(toolResults, "partner")
               for (const entry of entries) {
                 await cacheService.upsertContextEntry({
                   principalId: partnerId,
