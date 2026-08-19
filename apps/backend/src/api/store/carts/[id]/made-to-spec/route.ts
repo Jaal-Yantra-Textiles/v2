@@ -67,7 +67,7 @@ export const POST = async (req: MedusaRequest<Body>, res: MedusaResponse) => {
   try {
     snapshot = buildMadeToSpecSnapshot({
       spec,
-      selection: { color: body.color, note: body.note },
+      selection: { color: body.color, note: body.note, options: body.options },
       now: new Date(),
     })
   } catch (e: any) {

@@ -30,6 +30,29 @@ export type StoreSpecField = {
   value?: string | null
 }
 
+export type StoreSpecOptionValue = {
+  id?: string
+  label: string
+  note?: string | null
+}
+
+/**
+ * A partner-defined choice on the spec — "Color Pattern", "Embroidery".
+ *
+ * `values` is already filtered to what is orderable by the read route, so an
+ * empty `values` on a `required` group means the piece cannot be ordered right
+ * now. The form says so rather than hiding the group, because a page that
+ * silently drops a required axis looks orderable and is not.
+ */
+export type StoreSpecOption = {
+  id?: string
+  key: string
+  label: string
+  help_text?: string | null
+  required: boolean
+  values: StoreSpecOptionValue[]
+}
+
 export type StoreProductSpec = {
   id?: string
   weave_technique?: string | null
@@ -40,6 +63,7 @@ export type StoreProductSpec = {
   custom_order_lead_time_days?: number | null
   colors: StoreSpecColor[]
   fields: StoreSpecField[]
+  options?: StoreSpecOption[]
 }
 
 export type StoreSpecTechnique = {
@@ -90,12 +114,15 @@ export async function addMadeToSpecToCart({
   quantity,
   color,
   note,
+  options,
   countryCode,
 }: {
   variantId: string
   quantity: number
   color?: string | null
   note?: string | null
+  /** Option key → chosen value label, as published by the spec read. */
+  options?: Record<string, string> | null
   countryCode: string
 }) {
   if (!variantId) {
@@ -120,6 +147,8 @@ export async function addMadeToSpecToCart({
         quantity,
         color: color || undefined,
         note: note || undefined,
+        options:
+          options && Object.keys(options).length ? options : undefined,
       },
       headers,
     })

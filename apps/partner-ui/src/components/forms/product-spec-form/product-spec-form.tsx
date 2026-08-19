@@ -16,6 +16,8 @@ import { useMemo } from "react"
 import type {
   ProductSpecColor,
   ProductSpecField,
+  ProductSpecOption,
+  ProductSpecOptionValue,
   ProductSpecPayload,
   WeaveTechnique,
 } from "../../../hooks/api/products"
@@ -53,6 +55,25 @@ const emptyColor = (order: number): ProductSpecColor => ({
   usage_notes: "",
   order,
   available: true,
+})
+
+const emptyOptionValue = (order: number): ProductSpecOptionValue => ({
+  label: "",
+  note: "",
+  order,
+  available: true,
+})
+
+const emptyOption = (order: number): ProductSpecOption => ({
+  key: "",
+  label: "",
+  help_text: "",
+  required: false,
+  order,
+  // A group is born with one empty value: the backend rejects a group with
+  // none, and starting at zero makes "add a choice" a step a partner can miss
+  // and then be told about only on save.
+  values: [emptyOptionValue(0)],
 })
 
 const emptyField = (order: number): ProductSpecField => ({
@@ -136,6 +157,22 @@ export const ProductSpecForm = ({
 
   const setField = (i: number, next: Partial<ProductSpecField>) =>
     patch({ fields: fields.map((f, j) => (i === j ? { ...f, ...next } : f)) })
+
+  const options = value.options ?? []
+
+  const setOption = (i: number, next: Partial<ProductSpecOption>) =>
+    patch({ options: options.map((o, j) => (i === j ? { ...o, ...next } : o)) })
+
+  const setOptionValue = (
+    i: number,
+    vi: number,
+    next: Partial<ProductSpecOptionValue>
+  ) =>
+    setOption(i, {
+      values: (options[i]?.values ?? []).map((v, j) =>
+        vi === j ? { ...v, ...next } : v
+      ),
+    })
 
   return (
     <div className="flex flex-col gap-y-8">
@@ -362,6 +399,167 @@ export const ProductSpecForm = ({
           >
             <Plus />
             Add colour
+          </Button>
+        </div>
+      </section>
+
+      {/* ── Options the customer chooses ───────────────────────────────── */}
+      <section className="flex flex-col gap-y-4">
+        <div>
+          <Heading level="h2">Choices you offer</Heading>
+          <Text size="small" className="text-ui-fg-subtle">
+            Things the customer picks when ordering this made to order —
+            embroidery, a border, a colour pattern. Use these instead of product
+            variants when the choice doesn't change what you keep in stock.
+          </Text>
+        </div>
+
+        {options.map((o, i) => (
+          <div
+            key={i}
+            className="flex flex-col gap-y-3 rounded-lg border border-ui-border-base p-3"
+          >
+            <div className="grid items-end gap-3 md:grid-cols-[1fr_auto]">
+              <div className="flex flex-col gap-y-2">
+                <Label size="small" weight="plus">
+                  What are they choosing?
+                </Label>
+                <Input
+                  placeholder="Embroidery"
+                  value={o.label ?? ""}
+                  onChange={(e) =>
+                    // Key derived from the label and normalised again
+                    // server-side, exactly as the custom fields do it.
+                    setOption(i, { label: e.target.value, key: e.target.value })
+                  }
+                />
+              </div>
+              <IconButton
+                type="button"
+                size="small"
+                variant="transparent"
+                aria-label={`Remove ${o.label || "choice"}`}
+                onClick={() =>
+                  patch({ options: options.filter((_, j) => j !== i) })
+                }
+              >
+                <Trash />
+              </IconButton>
+            </div>
+
+            <div className="flex flex-col gap-y-2">
+              <Label size="small" weight="plus">
+                Hint (optional)
+              </Label>
+              <Input
+                placeholder="Hand-worked — adds about two weeks"
+                value={o.help_text ?? ""}
+                onChange={(e) => setOption(i, { help_text: e.target.value })}
+              />
+            </div>
+
+            <div className="flex items-center gap-x-2">
+              <Checkbox
+                id={`spec-option-required-${i}`}
+                checked={!!o.required}
+                onCheckedChange={(checked) =>
+                  setOption(i, { required: !!checked })
+                }
+              />
+              <Label size="small" htmlFor={`spec-option-required-${i}`}>
+                They must choose one
+              </Label>
+            </div>
+
+            <div className="flex flex-col gap-y-2">
+              <Label size="small" weight="plus">
+                Choices
+              </Label>
+              {(o.values ?? []).map((v, vi) => (
+                <div
+                  key={vi}
+                  className="grid items-center gap-2 md:grid-cols-[1fr_1fr_auto_auto]"
+                >
+                  <Input
+                    placeholder="Kashida — cuff and pallu"
+                    value={v.label}
+                    onChange={(e) =>
+                      setOptionValue(i, vi, { label: e.target.value })
+                    }
+                  />
+                  <Input
+                    placeholder="Note (optional)"
+                    value={v.note ?? ""}
+                    onChange={(e) =>
+                      setOptionValue(i, vi, { note: e.target.value })
+                    }
+                  />
+                  <div className="flex items-center gap-x-2">
+                    {/* Off rather than deleted: a choice your embroiderer is
+                      *  booked out of comes back, and every order that already
+                      *  named it must keep resolving. */}
+                    <Switch
+                      id={`spec-option-value-available-${i}-${vi}`}
+                      checked={v.available !== false}
+                      onCheckedChange={(checked) =>
+                        setOptionValue(i, vi, { available: !!checked })
+                      }
+                    />
+                    <Label
+                      size="xsmall"
+                      htmlFor={`spec-option-value-available-${i}-${vi}`}
+                    >
+                      Available
+                    </Label>
+                  </div>
+                  <IconButton
+                    type="button"
+                    size="small"
+                    variant="transparent"
+                    aria-label={`Remove ${v.label || "choice"}`}
+                    onClick={() =>
+                      setOption(i, {
+                        values: (o.values ?? []).filter((_, j) => j !== vi),
+                      })
+                    }
+                  >
+                    <XMarkMini />
+                  </IconButton>
+                </div>
+              ))}
+              <div>
+                <Button
+                  type="button"
+                  size="small"
+                  variant="transparent"
+                  onClick={() =>
+                    setOption(i, {
+                      values: [
+                        ...(o.values ?? []),
+                        emptyOptionValue((o.values ?? []).length),
+                      ],
+                    })
+                  }
+                >
+                  <Plus />
+                  Add choice
+                </Button>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        <div>
+          <Button
+            type="button"
+            size="small"
+            variant="secondary"
+            onClick={() =>
+              patch({ options: [...options, emptyOption(options.length)] })
+            }
+          >
+            <Plus />
+            Add something to choose
           </Button>
         </div>
       </section>

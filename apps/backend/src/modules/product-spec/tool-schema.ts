@@ -24,6 +24,7 @@ export const PRODUCT_SPEC_BODY_PARAMS = [
   "custom_order_lead_time_days",
   "colors",
   "fields",
+  "options",
 ]
 
 /**
@@ -96,8 +97,64 @@ export const productSpecSchemaProps = () => ({
       additionalProperties: false,
     },
   },
+  options: {
+    type: "array",
+    description:
+      "Choices the CUSTOMER makes when ordering this made to order — embroidery, a border, a colour pattern. Distinct from `fields`, which are facts the partner states and the customer cannot change. Use these instead of product variants when the choice doesn't change what is kept in stock. REPLACES the stored options wholesale when passed — omit to leave alone, pass [] to delete all. Max 12.",
+    items: {
+      type: "object",
+      properties: {
+        key: {
+          type: "string",
+          description: "Option key, e.g. 'embroidery' (≤ 60 chars).",
+        },
+        label: {
+          type: "string",
+          description: "What the customer sees, e.g. 'Embroidery' (≤ 120 chars).",
+        },
+        help_text: {
+          type: "string",
+          description: "One line under the label (≤ 500 chars).",
+        },
+        required: {
+          type: "boolean",
+          description:
+            "Whether the customer must choose before adding to cart. If true and no value is available, the piece cannot be ordered at all.",
+        },
+        order: { type: "integer", description: "Display order (0–999)." },
+        values: {
+          type: "array",
+          description:
+            "The selectable values. At least 1, max 40 — a group with none is rejected.",
+          items: {
+            type: "object",
+            properties: {
+              label: {
+                type: "string",
+                description: "What the customer picks by (≤ 160 chars).",
+              },
+              note: {
+                type: "string",
+                description: "Detail shown beside the value (≤ 500 chars).",
+              },
+              order: { type: "integer", description: "Display order (0–999)." },
+              available: {
+                type: "boolean",
+                description:
+                  "Orderable right now. Switch off rather than deleting, so orders that already named it still resolve.",
+              },
+            },
+            required: ["label"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["key", "values"],
+      additionalProperties: false,
+    },
+  },
 })
 
 /** Shared guidance appended to the write tool's description on both surfaces. */
 export const PRODUCT_SPEC_WRITE_GUIDANCE =
-  "Call get_spec_catalog first: `params` are validated against the CHOSEN technique's min/max and the whole write is rejected if any value is out of range. `colors` and `fields` REPLACE what is stored when passed, so send the full list, not just the additions."
+  "Call get_spec_catalog first: `params` are validated against the CHOSEN technique's min/max and the whole write is rejected if any value is out of range. `colors`, `fields` and `options` REPLACE what is stored when passed, so send the full list, not just the additions."

@@ -13,6 +13,11 @@ export const StoreMadeToSpecReq = z.object({
   quantity: z.number().int().positive().max(100).optional(),
   color: z.string().min(1).max(200).nullish(),
   note: z.string().max(500).nullish(),
+  // Keyed by the option's `key`, valued by the chosen value's label — both as
+  // published by GET /store/products/:id/spec. WHICH values are orderable is
+  // decided in `lib.ts` against the stored option groups, for the same reason
+  // the palette is: zod cannot see the database.
+  options: z.record(z.string().min(1).max(60), z.string().min(1).max(160)).nullish(),
 })
 
 export type StoreMadeToSpecReqType = z.infer<typeof StoreMadeToSpecReq>
