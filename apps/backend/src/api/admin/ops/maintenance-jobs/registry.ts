@@ -86,6 +86,7 @@ import { repointPartnerStorefrontSharedJob } from "./repoint-partner-storefront-
 import { enableStripeConnectEurRegionsJob } from "./enable-stripe-connect-eur-regions-job"
 import { suppressBouncedSubscribersJob } from "./suppress-bounced-subscribers-job"
 import { backfillAudienceEntriesJob } from "./backfill-audience-entries-job"
+import { importLeadsToCrmJob } from "./import-leads-to-crm-job"
 import { backfillRetailPartnerFeesJob } from "./backfill-retail-partner-fees-job"
 import { recomputeEmailEngagementStatusJob } from "./recompute-email-engagement-status-job"
 import { generateNewsletterWinbackTargetsJob } from "./generate-newsletter-winback-targets-job"
@@ -5772,6 +5773,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   enableStripeConnectEurRegionsJob,
   suppressBouncedSubscribersJob,
   backfillAudienceEntriesJob,
+  importLeadsToCrmJob,
   recomputeEmailEngagementStatusJob,
   generateNewsletterWinbackTargetsJob,
   repairInventoryOrderSourceJob,

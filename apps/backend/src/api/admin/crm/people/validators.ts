@@ -2,7 +2,10 @@ import { z } from "zod";
 
 export const CreateCrmPersonSchema = z.object({
   first_name: z.string().min(1),
-  last_name: z.string().min(1),
+  // Optional, matching crmPersonContract: real lead data routinely carries a
+  // single-token name with no surname. Kept `.min(1)` when present so the
+  // caller cannot smuggle in an empty string as a stand-in for "unknown".
+  last_name: z.string().min(1).nullish(),
   email: z.string().email().nullish(),
   phone: z.string().nullish(),
   title: z.string().nullish(),

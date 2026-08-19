@@ -179,6 +179,57 @@ describe("admin-mcp per-ask tool slicing", () => {
     })
   })
 
+  describe("the CRM reaches the vocabulary people actually use", () => {
+    // #1315's lesson: a tool that CLASSIFIES into a domain is not the same as a
+    // tool that is REACHABLE. These asks are how a founder actually phrases CRM
+    // work, and most of them never contain the word "crm".
+    const byName = new Map(ADMIN_MCP_TOOLS.map((t) => [t.name, t]))
+
+    it("classifies the CRM tools and the lead intake into one domain", () => {
+      expect(toolDomain(byName.get("list_crm_contacts")!)).toBe("crm")
+      expect(toolDomain(byName.get("update_crm_opportunity")!)).toBe("crm")
+      // The ad-lead list is the CRM's intake queue, not a marketing report.
+      expect(toolDomain(byName.get("list_ad_leads")!)).toBe("crm")
+    })
+
+    it.each([
+      "who came in from the ads and hasn't been contacted?",
+      "show me the leads from last month",
+      "what's in the pipeline right now?",
+      "move this deal to sampling",
+      "which deals are at quoted?",
+      "log a note against this contact",
+      "who do I need to follow up with this week?",
+      "list the enquiries that came through the form",
+      "add this boutique as a prospect",
+      "which buyers are qualified?",
+    ])("lights the CRM slice for: %s", (ask) => {
+      const slice = selectAdminToolSlice(ask, ADMIN_MCP_TOOLS)
+      expect(slice.domains).toContain("crm")
+    })
+
+    it("puts the lead list and the contact-create tool in the same slice", () => {
+      // The whole point of the intake: read the leads, then promote one. If
+      // these load separately every promotion costs an extra round trip.
+      const slice = selectAdminToolSlice(
+        "who came in from the ads and hasn't been contacted?",
+        ADMIN_MCP_TOOLS
+      )
+      expect(slice.names).toContain("list_ad_leads")
+      expect(slice.names).toContain("create_crm_contact")
+      expect(slice.names).toContain("list_crm_contacts")
+    })
+
+    it("does not light the CRM for unrelated operational asks", () => {
+      // A generous keyword list is fine; one that fires on everything is not.
+      for (const ask of ["ship order_123 today", "how much yarn is left?"]) {
+        expect(selectAdminToolSlice(ask, ADMIN_MCP_TOOLS).domains).not.toContain(
+          "crm"
+        )
+      }
+    })
+  })
+
   describe("task templates reach the production slice", () => {
     // The dispatch vocabulary. Every run tool taking `template_names` needs a
     // name from here, and an invented one fails the dispatch with "Missing task
