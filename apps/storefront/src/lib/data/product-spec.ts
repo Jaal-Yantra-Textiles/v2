@@ -80,6 +80,27 @@ export type StoreProductSpecResponse = {
 }
 
 /**
+ * How long a cached spec may be stale.
+ *
+ * A spec is edited by a partner or an admin in another application entirely,
+ * and nothing in this storefront is told when that happens: the tag below is
+ * attached but NOTHING ANYWHERE revalidates it, and `getCacheTag` returns ""
+ * for a visitor with no `_medusa_cache_id` cookie, so for most traffic there is
+ * no tag to revalidate in the first place. Without a TTL, `force-cache` then
+ * means what it says — the first response is served until the next deploy.
+ *
+ * That is not hypothetical: every product currently resolves to `spec: null`,
+ * so the null is what gets pinned, and the first spec anyone publishes would
+ * never appear. It is the same shape as the theme cache that served stale
+ * storefront content until redeploy (#1338).
+ *
+ * Five minutes: a spec is edited rarely and read on every product page, so this
+ * is still a cache hit essentially always, while an edit lands on its own
+ * without anyone knowing to go and clear anything.
+ */
+const SPEC_CACHE_TTL_SECONDS = 300
+
+/**
  * A product's spec, by id or handle.
  *
  * Most products have none, and that is not an error — an absent spec resolves
@@ -91,6 +112,7 @@ export const getProductSpec = async (
 ): Promise<StoreProductSpecResponse> => {
   const next = {
     ...(await getCacheOptions(`product-spec-${idOrHandle}`)),
+    revalidate: SPEC_CACHE_TTL_SECONDS,
   }
 
   return sdk.client
@@ -98,7 +120,17 @@ export const getProductSpec = async (
       `/store/products/${encodeURIComponent(idOrHandle)}/spec`,
       { next, cache: "force-cache" }
     )
-    .catch(() => ({ spec: null, technique: null }))
+    .catch((e) => {
+      // A failed read must still render the page — the spec block is optional.
+      // But it must not be INDISTINGUISHABLE from "this product has no spec":
+      // that is how a 500 gets read as a design decision and nobody looks.
+      console.error(
+        `[product-spec] Could not load the spec for ${idOrHandle}: ${
+          e?.message ?? e
+        }`
+      )
+      return { spec: null, technique: null }
+    })
 }
 
 /**
