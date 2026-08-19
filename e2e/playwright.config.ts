@@ -18,7 +18,13 @@ export default defineConfig({
   // This config only boots the admin (`medusa develop` on :9000). Specs that
   // need the partner-ui (:5173) or a live LLM are tagged `@partnerui` and run
   // only locally — skip them on CI so a shared admin e2e stays deterministic.
-  grepInvert: process.env.CI ? /@partnerui/ : undefined,
+  //
+  // `@localstack` is the same idea for the other direction: a spec that needs a
+  // storefront on :8000 AND a seeded product. Note this is NOT implied by
+  // `@storefront` — the other storefront specs hit LIVE deployed sites and run
+  // here quite happily, which is exactly why the new tag was needed rather than
+  // widening the existing one.
+  grepInvert: process.env.CI ? /@partnerui|@localstack/ : undefined,
 
   webServer: {
     command: `pnpm exec medusa develop`,

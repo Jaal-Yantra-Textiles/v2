@@ -37,6 +37,24 @@ export type SpecField = {
   value?: string | null
 }
 
+export type SpecOptionValue = {
+  id?: string
+  label: string
+  note?: string | null
+  available?: boolean
+  order?: number
+}
+
+export type SpecOption = {
+  id?: string
+  key: string
+  label?: string | null
+  help_text?: string | null
+  required?: boolean
+  order?: number
+  values?: SpecOptionValue[]
+}
+
 export type ProductSpecRecord = {
   id?: string
   weave_technique?: string | null
@@ -47,6 +65,7 @@ export type ProductSpecRecord = {
   custom_order_lead_time_days?: number | null
   colors?: SpecColor[]
   fields?: SpecField[]
+  options?: SpecOption[]
 } | null
 
 export type MadeToSpecSelection = {
@@ -54,6 +73,14 @@ export type MadeToSpecSelection = {
   color?: string | null
   /** Free text from the customer — a monogram, a length, an occasion date. */
   note?: string | null
+  /**
+   * The partner-defined choices, keyed by the option's `key` and valued by the
+   * chosen value's LABEL — which is what the customer saw and what the read
+   * route published. Keyed by id instead would be tidier to validate and worse
+   * to debug: an order line reading `psov_01J…` tells a support conversation
+   * nothing.
+   */
+  options?: Record<string, string> | null
 }
 
 /** What ends up on the line item, and later on the order. */
@@ -67,10 +94,116 @@ export type MadeToSpecSnapshot = {
   note?: string | null
   /** The spec's own fields at time of order — what the piece is made to. */
   spec_fields?: { label: string; value: string }[]
+  /**
+   * What the customer CHOSE, as against `spec_fields` which is what the partner
+   * stated. Copied label-and-all for the same reason the colour is: the partner
+   * may rename "Kashida — cuff only" next month, and the order must still read
+   * the way it was agreed.
+   */
+  options?: { key: string; label: string; value: string; note?: string | null }[]
   captured_at: string
 }
 
 const normalize = (value: string) => value.trim().toLowerCase()
+
+/**
+ * Resolve the partner-defined option groups against what the customer picked.
+ *
+ * The rule is the palette's rule, applied to an axis the partner named: a value
+ * counts only if the partner listed it AND left it available. Two cases are
+ * worth stating because they are the ones a storefront gets wrong:
+ *
+ * - A group whose values are ALL unavailable is not silently skipped when it is
+ *   `required`. Skipping would let the piece be ordered without an axis it
+ *   cannot be made without, and the partner would find out at the loom. It is
+ *   rejected loudly instead; an optional group in that state is simply not
+ *   offered.
+ * - An unknown key is rejected rather than ignored. A storefront sending
+ *   `embroidery` at a spec that has since dropped the group is stale, and
+ *   dropping the value quietly would record an order the customer did not place.
+ */
+const resolveOptionSelections = (
+  specOptions: SpecOption[],
+  selected: Record<string, string> | null | undefined
+): MadeToSpecSnapshot["options"] => {
+  const groups = (specOptions ?? [])
+    .slice()
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+
+  const byKey = new Map(groups.map((o) => [normalize(o.key), o]))
+
+  for (const key of Object.keys(selected ?? {})) {
+    if (!byKey.has(normalize(key))) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        groups.length
+          ? `"${key}" is not an option on this product. Options: ${groups
+              .map((o) => o.key)
+              .join(", ")}.`
+          : `"${key}" is not an option on this product.`
+      )
+    }
+  }
+
+  const chosen: NonNullable<MadeToSpecSnapshot["options"]> = []
+
+  for (const group of groups) {
+    const label = (group.label ?? group.key).trim()
+    const available = (group.values ?? [])
+      .filter((v) => v.available !== false)
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+
+    const raw = (selected ?? {})[group.key] ?? (selected ?? {})[normalize(group.key)]
+    const requested = typeof raw === "string" ? raw.trim() : ""
+
+    if (!available.length) {
+      if (group.required) {
+        throw new MedusaError(
+          MedusaError.Types.NOT_ALLOWED,
+          `${label} is required for this piece, but none of its choices are available right now.`
+        )
+      }
+      // Optional and nothing to offer — not a choice at all this week.
+      if (requested) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `${label} has no choices available right now.`
+        )
+      }
+      continue
+    }
+
+    if (!requested) {
+      if (group.required) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Choose ${label}. Available: ${available.map((v) => v.label).join(", ")}.`
+        )
+      }
+      continue
+    }
+
+    const match = available.find((v) => normalize(v.label) === normalize(requested))
+    if (!match) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `"${requested}" is not available for ${label}. Available: ${available
+          .map((v) => v.label)
+          .join(", ")}.`
+      )
+    }
+
+    chosen.push({
+      key: group.key,
+      label,
+      value: match.label,
+      ...(match.note ? { note: match.note } : {}),
+    })
+  }
+
+  return chosen
+}
 
 /**
  * Build the snapshot, or throw a MedusaError the store route surfaces as a 4xx.
@@ -135,6 +268,8 @@ export const buildMadeToSpecSnapshot = ({
     )
   }
 
+  const chosenOptions = resolveOptionSelections(spec.options ?? [], selection.options)
+
   const specFields = (spec.fields ?? [])
     .filter((f) => (f.value ?? "").trim())
     .map((f) => ({
@@ -151,6 +286,7 @@ export const buildMadeToSpecSnapshot = ({
     lead_time_days: spec.custom_order_lead_time_days ?? null,
     note: note || null,
     ...(specFields.length ? { spec_fields: specFields } : {}),
+    ...(chosenOptions?.length ? { options: chosenOptions } : {}),
     captured_at: now.toISOString(),
   }
 }

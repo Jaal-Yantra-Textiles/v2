@@ -216,3 +216,7 @@ export const config = defineRouteConfig({
 });
 
 export default CrmLeadsPage;
+
+export const handle = {
+  breadcrumb: () => "Intake",
+};

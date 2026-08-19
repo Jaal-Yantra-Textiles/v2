@@ -655,6 +655,54 @@ export async function seedShipmentGatePartner(
   return { email, password: SEED_PASSWORD, partnerId }
 }
 
+/**
+ * One CRM contact with a prior inbound activity, for the contact-detail spec.
+ *
+ * The CRM lives on a Hyperbee node, not Postgres — the e2e run uses the
+ * EMBEDDED store (`CRM_HYPERBEE=true`), so this writes through the module
+ * service exactly as the admin route does. If the module is disabled the
+ * resolve throws, which is the honest failure: a CRM spec against no CRM would
+ * otherwise "pass" by finding nothing.
+ *
+ * The activity matters as much as the person. An empty timeline renders the
+ * same empty-state whether the section works or not, so the spec needs at least
+ * one row it can point at.
+ */
+async function seedCrmContact(container: any): Promise<{
+  personId: string
+  personName: string
+  activityBody: string
+}> {
+  const crm: any = container.resolve("crm")
+
+  const first = "Noor"
+  const last = `Weaver-${Date.now()}`
+  const person = await crm.createCrmPeople({
+    first_name: first,
+    last_name: last,
+    email: `e2e-crm-${Date.now()}@jyt.test`,
+    phone: "+911234567890",
+    title: "Head weaver",
+  })
+  const created = Array.isArray(person) ? person[0] : person
+
+  const activityBody = "Asked for a photo of the border before sampling."
+  await crm.recordCrmActivity({
+    related_type: "person",
+    related_id: created.id,
+    activity_type: "message",
+    direction: "inbound",
+    channel: "whatsapp",
+    body: activityBody,
+  })
+
+  return {
+    personId: created.id,
+    personName: `${first} ${last}`,
+    activityBody,
+  }
+}
+
 const SEED_PASSWORD = "e2etest123!"
 const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
 
@@ -782,6 +830,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
     gate.currencyCode
   )
 
+  logger.info("E2E seed: creating the CRM contact + one logged activity...")
+  const crmContact = await seedCrmContact(container)
+
   const seedData = {
     email,
     password: SEED_PASSWORD,
@@ -811,6 +862,11 @@ export default async function e2eSeed({ container }: ExecArgs) {
     parkedRunLapsedPartnerId: parkedRun.lapsedPartnerId,
     parkedRunLapsedPartnerName: parkedRun.lapsedPartnerName,
     parkedRunFreshPartnerName: parkedRun.freshPartnerName,
+    // CRM contact fixture — consumed by crm-contact-activity.spec.ts (admin,
+    // CI). Requires CRM_HYPERBEE=true so the embedded store is registered.
+    crmPersonId: crmContact.personId,
+    crmPersonName: crmContact.personName,
+    crmActivityBody: crmContact.activityBody,
   }
 
   fs.writeFileSync(SEED_FILE, JSON.stringify(seedData, null, 2))

@@ -34,6 +34,24 @@ const MadeToOrderForm = ({ spec, variants }: Props) => {
     spec.colors[0]?.name ?? null
   )
   const [note, setNote] = useState("")
+
+  const specOptions = spec.options ?? []
+
+  // Required groups default to their first orderable value so the common path
+  // is one click. Optional ones start UNSET on purpose — pre-selecting an
+  // add-on is how a customer ends up paying for embroidery they never chose.
+  const [selected, setSelected] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      specOptions
+        .filter((o) => o.required && o.values.length)
+        .map((o) => [o.key, o.values[0].label])
+    )
+  )
+
+  // A required group the partner has nothing available for. The backend refuses
+  // these outright, so the button must too — otherwise the page invites a click
+  // whose only outcome is an error.
+  const blockedBy = specOptions.filter((o) => o.required && !o.values.length)
   const [isAdding, setIsAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [added, setAdded] = useState(false)
@@ -47,6 +65,7 @@ const MadeToOrderForm = ({ spec, variants }: Props) => {
         quantity: 1,
         color,
         note,
+        options: selected,
         countryCode,
       })
       setAdded(true)
@@ -132,6 +151,76 @@ const MadeToOrderForm = ({ spec, variants }: Props) => {
         </div>
       )}
 
+      {specOptions.map((option) => (
+        <div key={option.key} className="flex flex-col gap-y-2">
+          <div className="flex flex-col">
+            <Text size="small" className="text-ui-fg-subtle">
+              {option.label}
+              {option.required ? "" : " (optional)"}
+            </Text>
+            {option.help_text && (
+              <Text size="xsmall" className="text-ui-fg-muted">
+                {option.help_text}
+              </Text>
+            )}
+          </div>
+
+          {!option.values.length ? (
+            <Text size="small" className="text-ui-fg-error">
+              None of the {option.label.toLowerCase()} choices can be made at the
+              moment.
+            </Text>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {/* An optional group needs a way BACK to "not chosen". Without it
+                *  the first tap is irreversible, which is the same trap as
+                *  pre-selecting. */}
+              {(option.required
+                ? option.values
+                : [{ id: `${option.key}-none`, label: "", note: null }, ...option.values]
+              ).map((value) => {
+                const isClear = value.label === ""
+                const isSelected = isClear
+                  ? !selected[option.key]
+                  : selected[option.key] === value.label
+                return (
+                  <button
+                    key={value.id ?? value.label}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() =>
+                      setSelected((prev) => {
+                        const next = { ...prev }
+                        if (isClear) {
+                          delete next[option.key]
+                        } else {
+                          next[option.key] = value.label
+                        }
+                        return next
+                      })
+                    }
+                    title={value.note ?? undefined}
+                    className={clx(
+                      "rounded-full border px-3 py-1 text-left transition-colors",
+                      isSelected
+                        ? "border-ui-fg-base bg-ui-bg-base"
+                        : "border-ui-border-base bg-ui-bg-subtle hover:border-ui-fg-muted"
+                    )}
+                  >
+                    <Text size="small">{isClear ? "No thanks" : value.label}</Text>
+                    {value.note && (
+                      <Text size="xsmall" className="text-ui-fg-muted">
+                        {value.note}
+                      </Text>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      ))}
+
       <div className="flex flex-col gap-y-2">
         <Text size="small" className="text-ui-fg-subtle">
           Anything we should know? (optional)
@@ -155,7 +244,7 @@ const MadeToOrderForm = ({ spec, variants }: Props) => {
       <Button
         onClick={handleSubmit}
         isLoading={isAdding}
-        disabled={isAdding || !variantId}
+        disabled={isAdding || !variantId || !!blockedBy.length}
         variant="secondary"
         className="w-full"
       >

@@ -1,6 +1,7 @@
 import { model } from "@medusajs/framework/utils"
 import ProductSpecColor from "./product-spec-color"
 import ProductSpecField from "./product-spec-field"
+import ProductSpecOption from "./product-spec-option"
 
 /**
  * Partner-authored production spec for a product (#1342).
@@ -57,6 +58,7 @@ const ProductSpec = model.define("product_spec", {
   custom_order_lead_time_days: model.number().nullable(),
 
   colors: model.hasMany(() => ProductSpecColor, { mappedBy: "spec" }),
+  options: model.hasMany(() => ProductSpecOption, { mappedBy: "spec" }),
   fields: model.hasMany(() => ProductSpecField, { mappedBy: "spec" }),
 })
 

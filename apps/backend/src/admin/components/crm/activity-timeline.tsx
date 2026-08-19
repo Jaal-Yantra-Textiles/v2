@@ -1,6 +1,8 @@
 import {
   Badge,
   Button,
+  Container,
+  Drawer,
   Heading,
   Select,
   Text,
@@ -21,12 +23,19 @@ import {
 import { sdk } from "../../lib/config";
 
 /**
- * The interaction timeline for one CRM record, plus the one-box logger.
+ * The interaction history for one CRM record.
  *
- * Logging is deliberately three fields — direction, channel, what happened —
- * because an activity form that asks for ten is a form nobody fills in, and an
- * unlogged conversation is worse than a roughly-logged one. Everything else
- * (summary, occurred_at, engagement recompute) is derived server-side.
+ * Split in two on purpose, which is how every CRM that people actually use is
+ * built: the timeline is a SECTION of the record — always visible, scannable,
+ * the thing you came to read — and logging happens in a DRAWER on top of it.
+ * The earlier shape put a three-field form above the history, so the first
+ * thing the page said was "type something" rather than "here is where this
+ * conversation got to", and the form ate the fold on every visit.
+ *
+ * Logging stays three fields — direction, channel, what happened — because an
+ * activity form that asks for ten is a form nobody fills in, and an unlogged
+ * conversation is worse than a roughly-logged one. Everything else (summary,
+ * occurred_at, engagement recompute) is derived server-side.
  */
 
 type CrmActivity = {
@@ -43,6 +52,8 @@ type CrmActivity = {
   occurred_at: string;
   outcome?: string | null;
 };
+
+export type CrmRelatedType = "person" | "company" | "opportunity";
 
 const DIRECTION_LABELS: Record<CrmActivityDirection, string> = {
   inbound: "They contacted us",
@@ -95,29 +106,27 @@ export const EngagementBadge = ({
   );
 };
 
-export const ActivityTimeline = ({
+/**
+ * The logger. A controlled drawer rather than a routed modal: this is a widget
+ * inside a page, and a routed modal opens on mount and navigates away on close
+ * — see `route-modal-context-usage` (#1352) for why that shape does not belong
+ * to a component the page renders itself.
+ */
+export const ActivityLogDrawer = ({
   relatedType,
   relatedId,
+  open,
+  onOpenChange,
 }: {
-  relatedType: "person" | "company" | "opportunity";
+  relatedType: CrmRelatedType;
   relatedId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) => {
   const queryClient = useQueryClient();
   const [direction, setDirection] = useState<CrmActivityDirection>("outbound");
   const [channel, setChannel] = useState<CrmActivityChannel>("whatsapp");
   const [body, setBody] = useState("");
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["crm-activities", relatedType, relatedId],
-    queryFn: () =>
-      sdk.client.fetch<{ crm_activities: CrmActivity[] }>(
-        "/admin/crm/activities",
-        {
-          query: { related_type: relatedType, related_id: relatedId, limit: 100 },
-        }
-      ),
-    enabled: !!relatedId,
-  });
 
   const log = useMutation({
     mutationFn: () =>
@@ -142,72 +151,147 @@ export const ActivityTimeline = ({
       // The engagement state is recomputed server-side on every log, so the
       // contact header is stale the moment this succeeds.
       queryClient.invalidateQueries({ queryKey: ["crm-person"] });
+      onOpenChange(false);
     },
     onError: (e: any) => toast.error(e?.message ?? "Could not log that"),
+  });
+
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <Drawer.Content>
+        <Drawer.Header>
+          <Drawer.Title>Log activity</Drawer.Title>
+          <Drawer.Description>
+            Every call, message and reply recorded here is what moves the
+            conversation state.
+          </Drawer.Description>
+        </Drawer.Header>
+        <Drawer.Body className="flex flex-col gap-y-4 overflow-y-auto">
+          <div className="flex flex-col gap-2">
+            <Text size="small" weight="plus">
+              What kind of contact was it?
+            </Text>
+            <Select
+              size="small"
+              value={direction}
+              onValueChange={(v) => setDirection(v as CrmActivityDirection)}
+            >
+              <Select.Trigger>
+                <Select.Value />
+              </Select.Trigger>
+              <Select.Content>
+                {(
+                  ["outbound", "inbound", "internal"] as CrmActivityDirection[]
+                ).map((d) => (
+                  <Select.Item key={d} value={d}>
+                    {DIRECTION_LABELS[d]}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
+          </div>
+
+          {direction !== "internal" && (
+            <div className="flex flex-col gap-2">
+              <Text size="small" weight="plus">
+                Channel
+              </Text>
+              <Select
+                size="small"
+                value={channel}
+                onValueChange={(v) => setChannel(v as CrmActivityChannel)}
+              >
+                <Select.Trigger>
+                  <Select.Value />
+                </Select.Trigger>
+                <Select.Content>
+                  {CRM_ACTIVITY_CHANNELS.map((c) => (
+                    <Select.Item key={c} value={c}>
+                      {c.replace(/_/g, " ")}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2">
+            <Text size="small" weight="plus">
+              What happened?
+            </Text>
+            <Textarea
+              placeholder="Called about the sampling order — asked for a photo of the border."
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={5}
+            />
+          </div>
+        </Drawer.Body>
+        <Drawer.Footer>
+          <Button
+            variant="secondary"
+            size="small"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="small"
+            disabled={!body.trim() || log.isPending}
+            isLoading={log.isPending}
+            onClick={() => log.mutate()}
+          >
+            Log activity
+          </Button>
+        </Drawer.Footer>
+      </Drawer.Content>
+    </Drawer>
+  );
+};
+
+/**
+ * The timeline as a section of the record — its own container, the way a CRM
+ * lays out a contact: details above, the conversation below.
+ */
+export const ActivitySection = ({
+  relatedType,
+  relatedId,
+}: {
+  relatedType: CrmRelatedType;
+  relatedId: string;
+}) => {
+  const [logging, setLogging] = useState(false);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["crm-activities", relatedType, relatedId],
+    queryFn: () =>
+      sdk.client.fetch<{ crm_activities: CrmActivity[] }>(
+        "/admin/crm/activities",
+        {
+          query: { related_type: relatedType, related_id: relatedId, limit: 100 },
+        }
+      ),
+    enabled: !!relatedId,
   });
 
   const activities = data?.crm_activities ?? [];
 
   return (
-    <div className="divide-y">
-      <div className="flex flex-col gap-2 px-6 py-4">
-        <Heading level="h3">Activity</Heading>
-
-        <div className="flex flex-col gap-2 md:flex-row">
-          <Select
-            size="small"
-            value={direction}
-            onValueChange={(v) => setDirection(v as CrmActivityDirection)}
-          >
-            <Select.Trigger className="md:w-56">
-              <Select.Value />
-            </Select.Trigger>
-            <Select.Content>
-              {(
-                ["outbound", "inbound", "internal"] as CrmActivityDirection[]
-              ).map((d) => (
-                <Select.Item key={d} value={d}>
-                  {DIRECTION_LABELS[d]}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select>
-
-          {direction !== "internal" && (
-            <Select
-              size="small"
-              value={channel}
-              onValueChange={(v) => setChannel(v as CrmActivityChannel)}
-            >
-              <Select.Trigger className="md:w-40">
-                <Select.Value />
-              </Select.Trigger>
-              <Select.Content>
-                {CRM_ACTIVITY_CHANNELS.map((c) => (
-                  <Select.Item key={c} value={c}>
-                    {c.replace(/_/g, " ")}
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select>
-          )}
+    <Container className="divide-y p-0">
+      <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex flex-col">
+          <Heading level="h2">Activity</Heading>
+          <Text size="small" className="text-ui-fg-subtle">
+            {activities.length
+              ? `${activities.length} logged interaction${
+                  activities.length === 1 ? "" : "s"
+                }`
+              : "Nothing logged yet"}
+          </Text>
         </div>
-
-        <Textarea
-          placeholder="What happened?"
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          rows={2}
-        />
-        <div>
-          <Button
-            size="small"
-            disabled={!body.trim() || log.isPending}
-            onClick={() => log.mutate()}
-          >
-            Log activity
-          </Button>
-        </div>
+        <Button size="small" variant="secondary" onClick={() => setLogging(true)}>
+          Log activity
+        </Button>
       </div>
 
       {isLoading && (
@@ -221,8 +305,8 @@ export const ActivityTimeline = ({
       {!isLoading && activities.length === 0 && (
         <div className="px-6 py-6">
           <Text size="small" className="text-ui-fg-muted">
-            Nothing logged yet. Every call, message and reply recorded here is
-            what moves the conversation state.
+            Every call, message and reply recorded here is what moves the
+            conversation state.
           </Text>
         </div>
       )}
@@ -246,6 +330,13 @@ export const ActivityTimeline = ({
           )}
         </div>
       ))}
-    </div>
+
+      <ActivityLogDrawer
+        relatedType={relatedType}
+        relatedId={relatedId}
+        open={logging}
+        onOpenChange={setLogging}
+      />
+    </Container>
   );
 };

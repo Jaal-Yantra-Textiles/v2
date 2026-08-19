@@ -12,6 +12,7 @@ type MadeToSpec = {
   color_hex?: string | null
   lead_time_days?: number | null
   note?: string | null
+  options?: { key: string; label: string; value: string; note?: string | null }[]
 }
 
 const readMadeToSpec = (
@@ -75,6 +76,24 @@ const LineItemOptions = ({
                 : ""}
             </Text>
           </div>
+          {/* The partner-defined choices — "Color Pattern", "Embroidery".
+            *  Shown as label AND value: "Kashida — cuff and pallu" alone does
+            *  not say which question it answered, and on an order that is the
+            *  difference between a record and a riddle. */}
+          {!!madeToSpec.options?.length && (
+            <div className="flex flex-col gap-y-0.5">
+              {madeToSpec.options.map((option) => (
+                <Text
+                  key={option.key}
+                  className="txt-small text-ui-fg-subtle"
+                  data-testid="line-item-spec-option"
+                >
+                  {option.label}: {option.value}
+                </Text>
+              ))}
+            </div>
+          )}
+
           {madeToSpec.weave && (
             <Text className="txt-small text-ui-fg-muted">
               {madeToSpec.weave}
