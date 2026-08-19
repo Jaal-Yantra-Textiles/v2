@@ -231,13 +231,27 @@ const upsertProductSpecStep = createStep(
       }
     }
 
-    // Ensure the link on BOTH paths (idempotent). Creating it only on first
-    // write is what left artisan-detail rows readable by their own module but
-    // invisible to query.graph, so the storefront silently dropped them (#859).
-    await link.create({
+    // Ensure the link on BOTH paths. Creating it only on first write is what
+    // left artisan-detail rows readable by their own module but invisible to
+    // query.graph, so the storefront silently dropped them (#859).
+    //
+    // But `link.create` is NOT itself idempotent, which this block used to
+    // claim it was. product↔productSpec is a one-to-one definition, so the SDK
+    // refuses a second create for the pair — including the SAME pair — with
+    // "Cannot create multiple links between 'product' and 'productSpec'".
+    // Every re-run of a seed hit it (both local seed scripts document
+    // themselves as idempotent and were not). Check first; create only when
+    // the link is genuinely absent.
+    const linkDefinition = {
       [Modules.PRODUCT]: { product_id: input.product_id },
       [PRODUCT_SPEC_MODULE]: { product_spec_id: spec.id },
-    })
+    }
+
+    const alreadyLinked = await link.list(linkDefinition, { take: 1 })
+
+    if (!alreadyLinked?.length) {
+      await link.create(linkDefinition)
+    }
 
     const saved = await service.findByProduct(input.product_id)
     return new StepResponse(saved, compensation)

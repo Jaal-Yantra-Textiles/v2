@@ -3,7 +3,7 @@
 import { addToCart } from "@lib/data/cart"
 import { useIntersection } from "@lib/hooks/use-in-view"
 import { HttpTypes } from "@medusajs/types"
-import { Button } from "@medusajs/ui"
+import { Button, Text } from "@medusajs/ui"
 import Divider from "@modules/common/components/divider"
 import OptionSelect from "@modules/products/components/product-actions/option-select"
 import { isEqual } from "lodash"
@@ -13,12 +13,31 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import ProductPrice from "../product-price"
 import MobileActions from "./mobile-actions"
+import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import SpecChoices from "../production-spec/spec-choices"
+import {
+  blockedGroups,
+  hasAnySpecChoice,
+  initialSpecChoices,
+  leadTimePhrase,
+  needsSecondStep,
+  summariseChoices,
+  type SpecChoiceState,
+} from "../production-spec/spec-choices-util"
+import {
+  addMadeToSpecToCart,
+  type StoreProductSpec,
+} from "@lib/data/product-spec"
 import { useRouter } from "next/navigation"
 
 type ProductActionsProps = {
   product: HttpTypes.StoreProduct
   region: HttpTypes.StoreRegion
   disabled?: boolean
+  // #1365 — the partner's made-to-order spec, fetched server-side by the
+  // wrapper. Absent (or not accepting custom orders) leaves every line below
+  // inert, so an ordinary product's buying column is byte-for-byte unchanged.
+  spec?: StoreProductSpec | null
 }
 
 const optionsAsKeymap = (
@@ -33,6 +52,7 @@ const optionsAsKeymap = (
 export default function ProductActions({
   product,
   disabled,
+  spec = null,
 }: ProductActionsProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -41,6 +61,20 @@ export default function ProductActions({
   const [options, setOptions] = useState<Record<string, string | undefined>>({})
   const [isAdding, setIsAdding] = useState(false)
   const countryCode = useParams().countryCode as string
+
+  // #1365 — made-to-order selection lives HERE, beside the variant options,
+  // because one button now decides between an ordinary purchase and a woven-to
+  // -order one by reading it.
+  const [specChoices, setSpecChoices] = useState<SpecChoiceState>(() =>
+    initialSpecChoices(spec)
+  )
+  const [specError, setSpecError] = useState<string | null>(null)
+
+  const offersChoices = !!spec?.accepting_custom_orders
+  const secondStep = needsSecondStep(spec)
+  const madeToOrder = hasAnySpecChoice(spec, specChoices)
+  const specBlocked = blockedGroups(spec)
+  const leadTime = leadTimePhrase(spec)
 
   // If there is only 1 variant, preselect the options
   useEffect(() => {
@@ -127,6 +161,7 @@ export default function ProductActions({
     if (!selectedVariant?.id) return null
 
     setIsAdding(true)
+    setSpecError(null)
 
     // The analytics snippet (analytics.min.js) writes its visitor id to
     // localStorage["jyt_visitor_id"]. Reading it here and passing it
@@ -142,14 +177,34 @@ export default function ProductActions({
       visitorId = undefined
     }
 
-    await addToCart({
-      variantId: selectedVariant.id,
-      quantity: 1,
-      countryCode,
-      visitorId,
-    })
-
-    setIsAdding(false)
+    // #1365 — ONE button. Which purchase it makes is decided by whether the
+    // customer expressed a made-to-order intent, not by which of two buttons
+    // they found.
+    try {
+      if (madeToOrder) {
+        await addMadeToSpecToCart({
+          variantId: selectedVariant.id,
+          quantity: 1,
+          color: specChoices.color,
+          note: specChoices.note,
+          options: specChoices.options,
+          countryCode,
+        })
+      } else {
+        await addToCart({
+          variantId: selectedVariant.id,
+          quantity: 1,
+          countryCode,
+          visitorId,
+        })
+      }
+    } catch (e: any) {
+      // The backend's rejection names the colours that ARE available. Showing
+      // our own generic message instead would throw that away.
+      setSpecError(e?.message || "We couldn't add this to your cart.")
+    } finally {
+      setIsAdding(false)
+    }
   }
 
   return (
@@ -177,6 +232,40 @@ export default function ProductActions({
           )}
         </div>
 
+        {/* #1365 — between the variant selector and the price. A made-to-order
+            choice is part of deciding WHAT you are buying, so it belongs above
+            the number, not below the button. */}
+        {offersChoices && !secondStep && (
+          <div className="flex flex-col gap-y-4 pb-2">
+            <SpecChoices
+              spec={spec!}
+              value={specChoices}
+              onChange={setSpecChoices}
+              disabled={!!disabled || isAdding}
+            />
+          </div>
+        )}
+
+        {/* Too many choices for a narrow column. A summary of what is on offer
+            and a real link — never a disclosure that reflows the whole page. */}
+        {offersChoices && secondStep && (
+          <div
+            className="flex flex-col gap-y-1 pb-2"
+            data-testid="customise-summary"
+          >
+            <Text size="small" className="text-ui-fg-subtle">
+              Made to order — {summariseChoices(spec)}
+            </Text>
+            <LocalizedClientLink
+              href={`/products/${product.handle}/customise`}
+              className="text-ui-fg-base underline underline-offset-4 txt-compact-small-plus"
+              data-testid="customise-link"
+            >
+              Customise this piece &rarr;
+            </LocalizedClientLink>
+          </div>
+        )}
+
         <ProductPrice product={product} variant={selectedVariant} />
 
         <div className="flex flex-col gap-y-4">
@@ -192,7 +281,8 @@ export default function ProductActions({
                 !selectedVariant ||
                 !!disabled ||
                 isAdding ||
-                !isValidVariant
+                !isValidVariant ||
+                (madeToOrder && !!specBlocked.length)
               }
               variant="primary"
               className="w-full h-10 shadow-elevation-card-rest hover:shadow-elevation-card-hover transition-shadow"
@@ -206,6 +296,29 @@ export default function ProductActions({
                   : "Add to cart"}
             </Button>
           </motion.div>
+
+          {/* #1365 — #1349 split the two buttons precisely so the wait could not
+              hide until checkout. Folding them back into one is only honest
+              with this line present: it appears the moment the selection turns
+              the purchase into a made-to-order one. */}
+          {madeToOrder && leadTime && (
+            <Text
+              size="small"
+              className="text-ui-fg-subtle text-center"
+              data-testid="made-to-order-lead-time"
+            >
+              {leadTime}
+            </Text>
+          )}
+          {specError && (
+            <Text
+              size="small"
+              className="text-ui-fg-error"
+              data-testid="spec-error"
+            >
+              {specError}
+            </Text>
+          )}
 
           <div className="mt-2 rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4">
             <p className="text-sm text-ui-fg-subtle mb-3">
