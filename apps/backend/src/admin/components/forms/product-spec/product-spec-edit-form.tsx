@@ -2,35 +2,34 @@ import { Button, Heading, Text, toast } from "@medusajs/ui"
 import { useEffect, useState } from "react"
 import { useParams } from "react-router-dom"
 
-import { ProductSpecForm } from "../../../components/forms/product-spec-form"
-import { RouteFocusModal, useRouteModal } from "../../../components/modals"
+import { ProductSpecForm } from "../../product-spec-form"
+import { RouteFocusModal } from "../../modal/route-focus-modal"
+import { useRouteModal } from "../../modal/use-route-modal"
 import {
   useProductSpec,
   useUpsertProductSpec,
   useWeaveCatalog,
   type ProductSpecPayload,
-} from "../../../hooks/api/products"
-import { extractErrorMessage } from "../../../lib/extract-error-message"
+} from "../../../hooks/api/product-spec"
 
 /**
- * #1349 — the production spec editor, lifted out of the detail page.
+ * #1349 — the ADMIN production spec editor.
  *
- * The section on product detail now READS; writing happens here, in a focus
- * modal at `products/:id/spec/edit`. The editor is a five-part form (weave,
- * parameters, finishes, palette, custom fields) and inlining it made the
- * detail page's main column mostly spec — while the sections above it, which a
- * partner edits far more often, were pushed off screen.
+ * Lives on its own route (`/products/:id/spec`) rather than inside the widget,
+ * so the edit is a `RouteFocusModal` like every other admin edit of this size —
+ * closing returns to the product page, the URL is shareable, and back works.
  *
- * Same `ProductSpecForm` the create wizard hosts. There is still exactly one
- * editor; only its host changed.
+ * The widget it replaced held the modal itself with local `open` state. A
+ * routed modal cannot be driven that way: `RouteFocusModal` opens on mount and
+ * navigates to `prev` on close, so hosting one inside an always-mounted widget
+ * would pop the editor open on every product page load and, on close, navigate
+ * off the product entirely.
  *
- * Split into a host and an inner component on purpose: `RouteFocusModal`
- * creates the `RouteModalProvider` around its OWN children, so a
- * `useRouteModal()` call in the component that renders the modal sits outside
- * the context and throws "useRouteModal must be used within a
- * RouteModalProvider" the moment the route is opened. Every other route modal
- * in this app is shaped the same way — host renders the shell, a child holds
- * the hook.
+ * NOTE the host/child split below. `RouteFocusModal` creates the
+ * `RouteModalProvider` around its OWN children, so the component that renders
+ * the modal must not call `useRouteModal()` — that is what threw
+ * "useRouteModal must be used within a RouteModalProvider" on the partner side
+ * of this same feature.
  */
 
 const EMPTY: ProductSpecPayload = {
@@ -45,20 +44,21 @@ const EMPTY: ProductSpecPayload = {
   fields: [],
 }
 
-/** Everything that needs the modal context. Only ever rendered as a child of
- *  `RouteFocusModal`, which is what makes `useRouteModal` legal here. */
-const ProductSpecEditor = ({ id }: { id: string }) => {
+export const ProductSpecEditForm = () => {
+  const { id } = useParams()
+  const productId = id!
+
   const { handleSuccess } = useRouteModal()
 
-  const { spec, isLoading, isError, error } = useProductSpec(id)
-  const { families, techniques, isLoading: catalogLoading } = useWeaveCatalog()
-  const { mutateAsync, isPending } = useUpsertProductSpec(id)
+  const { spec, isLoading } = useProductSpec(productId)
+  const { techniques, families, isLoading: catalogLoading } = useWeaveCatalog()
+  const { mutateAsync, isPending } = useUpsertProductSpec(productId)
 
   const [value, setValue] = useState<ProductSpecPayload>(EMPTY)
   const [dirty, setDirty] = useState(false)
 
   // Hydrate once the saved spec loads. Guarded on `dirty` so a slow refetch
-  // cannot overwrite edits the partner has already started making.
+  // cannot overwrite edits the admin has already started making.
   useEffect(() => {
     if (!spec || dirty) {
       return
@@ -80,19 +80,10 @@ const ProductSpecEditor = ({ id }: { id: string }) => {
     })
   }, [spec, dirty])
 
-  if (isError) {
-    throw error
-  }
-
-  const handleChange = (next: ProductSpecPayload) => {
-    setDirty(true)
-    setValue(next)
-  }
-
   const handleSave = async () => {
     // Drop half-written rows rather than sending them: the route rejects a
-    // colour with no name, and losing the whole save over an empty row the
-    // partner forgot about is a worse outcome than silently ignoring it.
+    // colour with no name, and losing the whole save over a row the admin
+    // forgot about is worse than silently ignoring it.
     const payload: ProductSpecPayload = {
       ...value,
       weave_label: value.weave_label?.trim() ? value.weave_label.trim() : null,
@@ -104,10 +95,10 @@ const ProductSpecEditor = ({ id }: { id: string }) => {
     try {
       await mutateAsync(payload)
       setDirty(false)
-      toast.success("Spec saved")
+      toast.success("Production spec saved")
       handleSuccess()
-    } catch (e) {
-      toast.error(extractErrorMessage(e, "Could not save the spec"))
+    } catch (e: any) {
+      toast.error(e?.message || "Could not save the production spec")
     }
   }
 
@@ -140,22 +131,23 @@ const ProductSpecEditor = ({ id }: { id: string }) => {
         </span>
       </RouteFocusModal.Description>
 
-      {/* FocusModal.Body does not scroll on its own in this app — without
-       *  overflow-y-auto a spec with a long palette is unreachable below the
-       *  fold. Same trap the partner-ui modal audit records. */}
+      {/* FocusModal.Body does not scroll on its own — without overflow-y-auto a
+       *  spec with a long palette is unreachable below the fold. */}
       <RouteFocusModal.Body className="flex flex-1 flex-col overflow-y-auto">
         <div className="mx-auto flex w-full max-w-[720px] flex-col gap-y-6 px-6 py-16">
           <div className="flex flex-col gap-y-1">
             <Heading level="h2">Production spec</Heading>
             <Text size="small" className="text-ui-fg-subtle">
-              The weave, colours and specs you&apos;ll make this to — agreed
-              before you take a custom order.
+              What this product is made to.
             </Text>
           </div>
 
           <ProductSpecForm
             value={value}
-            onChange={handleChange}
+            onChange={(next) => {
+              setDirty(true)
+              setValue(next)
+            }}
             techniques={techniques}
             families={families}
             isLoading={isLoading || catalogLoading}
@@ -163,15 +155,5 @@ const ProductSpecEditor = ({ id }: { id: string }) => {
         </div>
       </RouteFocusModal.Body>
     </>
-  )
-}
-
-export const ProductSpec = () => {
-  const { id } = useParams()
-
-  return (
-    <RouteFocusModal>
-      <ProductSpecEditor id={id!} />
-    </RouteFocusModal>
   )
 }

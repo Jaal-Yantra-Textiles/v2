@@ -1,55 +1,38 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
 import { DetailWidgetProps } from "@medusajs/framework/types"
 import { PencilSquare } from "@medusajs/icons"
-import {
-  Badge,
-  Button,
-  Container,
-  FocusModal,
-  Heading,
-  Text,
-  toast,
-} from "@medusajs/ui"
-import { useEffect, useState } from "react"
+import { Badge, Button, Container, Heading, Text } from "@medusajs/ui"
+import { useNavigate } from "react-router-dom"
 
-import { ProductSpecForm } from "../components/product-spec-form"
 import {
   useProductSpec,
-  useUpsertProductSpec,
   useWeaveCatalog,
   type ProductSpecColor,
   type ProductSpecField,
-  type ProductSpecPayload,
   type WeaveTechnique,
 } from "../hooks/api/product-spec"
 
 /**
  * #1349 — the production spec on the ADMIN product page.
  *
- * Same shape as the partner surface: the widget READS, and a modal writes.
- * Admins were the one audience with no way to see a spec at all — the data was
- * reachable only through the partner portal or an MCP call, so a support
- * question about what a piece is made to could not be answered from the admin.
+ * Same shape as the partner surface: the widget READS, and a separate route
+ * writes. Admins were the one audience with no way to see a spec at all — the
+ * data was reachable only through the partner portal or an MCP call, so a
+ * support question about what a piece is made to could not be answered from
+ * the admin.
  *
- * A `FocusModal` rather than the `Drawer` the admin guidance prefers for edits:
- * the editor is a five-part form with a parameter grid and a repeatable colour
- * palette, and a drawer's width forces every row to wrap. The rule exists so
- * edits stay in place and lightweight; this edit is neither.
+ * The editor is a `RouteFocusModal` at `/products/:id/spec`, not a `FocusModal`
+ * held open by this widget's own state. A widget is mounted with the product
+ * page, and `RouteFocusModal` opens on mount and navigates away on close, so
+ * the two cannot be combined — hence the navigate below, which is how
+ * `product-designs` opens `link-design` too. A `FocusModal` rather than the
+ * `Drawer` the admin guidance prefers for edits: the editor is a five-part form
+ * with a parameter grid and a repeatable colour palette, and a drawer's width
+ * forces every row to wrap. The rule exists so edits stay in place and
+ * lightweight; this edit is neither.
  */
 
 type AdminProduct = { id: string; title?: string }
-
-const EMPTY: ProductSpecPayload = {
-  weave_technique: null,
-  weave_label: null,
-  params: null,
-  finishes: [],
-  notes: null,
-  accepting_custom_orders: false,
-  custom_order_lead_time_days: null,
-  colors: [],
-  fields: [],
-}
 
 /** A stored param rendered with the label + unit its technique defines. Falls
  *  back to the raw key so a param whose technique was renamed still shows. */
@@ -78,36 +61,10 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
 const ProductProductionSpecWidget = ({
   data: product,
 }: DetailWidgetProps<AdminProduct>) => {
-  const [open, setOpen] = useState(false)
-  const [value, setValue] = useState<ProductSpecPayload>(EMPTY)
-  const [dirty, setDirty] = useState(false)
+  const navigate = useNavigate()
 
-  // Display query — no `enabled` gate on modal state, or the widget renders
-  // empty every time the page is refreshed with the modal closed.
   const { spec, isLoading } = useProductSpec(product.id)
-  const { techniques, families, isLoading: catalogLoading } = useWeaveCatalog()
-  const { mutateAsync, isPending } = useUpsertProductSpec(product.id)
-
-  useEffect(() => {
-    if (!spec || dirty) {
-      return
-    }
-    setValue({
-      weave_technique: spec.weave_technique ?? null,
-      weave_label: spec.weave_label ?? null,
-      params: spec.params ?? null,
-      finishes: spec.finishes ?? [],
-      notes: spec.notes ?? null,
-      accepting_custom_orders: !!spec.accepting_custom_orders,
-      custom_order_lead_time_days: spec.custom_order_lead_time_days ?? null,
-      colors: (spec.colors ?? [])
-        .slice()
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
-      fields: (spec.fields ?? [])
-        .slice()
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
-    })
-  }, [spec, dirty])
+  const { techniques, isLoading: catalogLoading } = useWeaveCatalog()
 
   const technique = techniques.find((t) => t.slug === spec?.weave_technique)
   const colors: ProductSpecColor[] = (spec?.colors ?? [])
@@ -130,28 +87,6 @@ const ProductProductionSpecWidget = ({
     !!colors.length ||
     !!fields.length
 
-  const handleSave = async () => {
-    // Drop half-written rows rather than sending them: the route rejects a
-    // colour with no name, and losing the whole save over a row the admin
-    // forgot about is worse than silently ignoring it.
-    const payload: ProductSpecPayload = {
-      ...value,
-      weave_label: value.weave_label?.trim() ? value.weave_label.trim() : null,
-      notes: value.notes?.trim() ? value.notes.trim() : null,
-      colors: (value.colors ?? []).filter((c) => c.name.trim()),
-      fields: (value.fields ?? []).filter((f) => (f.label ?? f.key).trim()),
-    }
-
-    try {
-      await mutateAsync(payload)
-      setDirty(false)
-      setOpen(false)
-      toast.success("Production spec saved")
-    } catch (e: any) {
-      toast.error(e?.message || "Could not save the production spec")
-    }
-  }
-
   return (
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
@@ -172,7 +107,7 @@ const ProductProductionSpecWidget = ({
           <Button
             size="small"
             variant="secondary"
-            onClick={() => setOpen(true)}
+            onClick={() => navigate(`/products/${product.id}/spec`)}
             disabled={isLoading || catalogLoading}
           >
             <PencilSquare />
@@ -270,45 +205,6 @@ const ProductProductionSpecWidget = ({
           ))}
         </>
       )}
-
-      <FocusModal open={open} onOpenChange={setOpen}>
-        <FocusModal.Content>
-          <FocusModal.Header>
-            <div className="flex items-center justify-end gap-x-2">
-              <Button
-                size="small"
-                onClick={handleSave}
-                isLoading={isPending}
-                disabled={isPending}
-              >
-                Save
-              </Button>
-            </div>
-          </FocusModal.Header>
-          <FocusModal.Body className="flex flex-1 flex-col overflow-y-auto">
-            <div className="mx-auto flex w-full max-w-[720px] flex-col gap-y-6 px-6 py-16">
-              <div className="flex flex-col gap-y-1">
-                <Heading level="h2">Production spec</Heading>
-                <Text size="small" className="text-ui-fg-subtle">
-                  {product.title
-                    ? `What ${product.title} is made to.`
-                    : "What this product is made to."}
-                </Text>
-              </div>
-              <ProductSpecForm
-                value={value}
-                onChange={(next) => {
-                  setDirty(true)
-                  setValue(next)
-                }}
-                techniques={techniques}
-                families={families}
-                isLoading={isLoading || catalogLoading}
-              />
-            </div>
-          </FocusModal.Body>
-        </FocusModal.Content>
-      </FocusModal>
     </Container>
   )
 }
