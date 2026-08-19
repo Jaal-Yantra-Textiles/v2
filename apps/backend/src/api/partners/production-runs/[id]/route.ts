@@ -106,6 +106,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 
 import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import type ProductionRunService from "../../../../modules/production_runs/service"
+import { readRunAllocation } from "../../../../lib/production-run-allocation"
 
 export async function GET(
   req: AuthenticatedMedusaRequest & { params: { id: string } },
@@ -163,9 +164,28 @@ export async function GET(
     ? (node as any).order[0]?.id
     : (node as any)?.order?.id
 
+  // The materials THIS run was assigned. Empty means no selection was ever
+  // made, which is not the same as "no materials" — the UI falls back to the
+  // design's full bill of materials in that case, as it always did. Sent as an
+  // explicit `materials_constrained` flag so the client does not have to infer
+  // that distinction from an empty array and get it wrong.
+  const allocation = await readRunAllocation(req.scope, id)
+
+  // Also hung on the run itself: every consumer that has the run object (the
+  // card is rendered from three places) then has the allocation with it,
+  // instead of some of them silently falling back to the design's full BOM and
+  // offering the partner materials the consumption gate will refuse.
+  const runWithMaterials = {
+    ...(node as any),
+    materials: allocation,
+    materials_constrained: allocation.length > 0,
+  }
+
   return res.status(200).json({
-    production_run: node,
+    production_run: runWithMaterials,
     tasks: node?.tasks || [],
     unified_order_id: unifiedOrderId,
+    materials: allocation,
+    materials_constrained: allocation.length > 0,
   })
 }

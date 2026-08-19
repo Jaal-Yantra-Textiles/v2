@@ -21,7 +21,12 @@ import { useStackedModal } from "../../../../components/modal/stacked-modal/use-
 
 import { usePartners } from "../../../../hooks/api/partners"
 import { useTaskTemplates } from "../../../../hooks/api/task-templates"
-import { useApproveProductionRun } from "../../../../hooks/api/production-runs"
+import { useApproveProductionRun, useProductionRun } from "../../../../hooks/api/production-runs"
+import { useDesignInventory } from "../../../../hooks/api/designs"
+import {
+  cleanAssignmentMaterialsForSave,
+  type DraftMaterial,
+} from "../../../../components/forms/production-run/clean-assignment-materials"
 
 const assignmentSchema = z.object({
   partner_id: z.string().min(1, "Partner is required"),
@@ -30,6 +35,12 @@ const assignmentSchema = z.object({
   order: z.coerce.number().int().positive().optional(),
   template_names: z.array(z.string()).optional(),
   template_ids: z.array(z.string()).optional(),
+  /**
+   * Draft rows for the material picker — every BOM item, selected or not. They
+   * are cleaned into the API's `materials` on submit; an unselected row is
+   * noise and never leaves the form (#1361).
+   */
+  materials_draft: z.array(z.any()).optional(),
 })
 
 const approveSchema = z.object({
@@ -45,6 +56,7 @@ type Assignment = {
   order?: number
   template_names?: string[]
   template_ids?: string[]
+  materials_draft?: DraftMaterial[]
 }
 
 const MODAL_ID = "approve-assignments"
@@ -53,10 +65,13 @@ const AssignmentsModal = ({
   form,
   partners,
   templatesToShow,
+  bomItems,
 }: {
   form: any
   partners: any[]
   templatesToShow: any[]
+  /** The design's bill of materials — what an assignment may be a subset OF. */
+  bomItems: Array<{ id: string; label: string; planned_quantity?: number | null }>
 }) => {
   const { setIsOpen } = useStackedModal()
   const [local, setLocal] = useState<Assignment[]>([])
@@ -82,14 +97,33 @@ const AssignmentsModal = ({
   }, [form])
 
   const handleSave = useCallback(() => {
+    // Catch a bad quantity HERE, in the modal where the field is, rather than
+    // letting it surface as a zod path after the drawer has been submitted.
+    for (const [i, a] of local.entries()) {
+      const cleaned = cleanAssignmentMaterialsForSave(
+        a.materials_draft,
+        (id) => bomItems.find((b) => b.id === id)?.label || id
+      )
+      if (!cleaned.ok) {
+        toast.error(`Assignment ${i + 1}: ${cleaned.error}`)
+        return
+      }
+    }
     form.setValue("assignments", local, { shouldDirty: true })
     setIsOpen(MODAL_ID, false)
-  }, [form, local, setIsOpen])
+  }, [form, local, setIsOpen, bomItems])
 
   const addAssignment = () => {
     setLocal((prev) => [
       ...prev,
-      { partner_id: "", role: "", quantity: 1, order: undefined, template_ids: [] },
+      {
+        partner_id: "",
+        role: "",
+        quantity: 1,
+        order: undefined,
+        template_ids: [],
+        materials_draft: [],
+      },
     ])
   }
 
@@ -118,6 +152,42 @@ const AssignmentsModal = ({
           ? current.filter((t) => t !== id)
           : [...current, id]
         return { ...a, template_ids: next }
+      })
+    )
+  }
+
+  /**
+   * The material picker. Every BOM item is a row; `selected` is what makes it
+   * part of THIS assignment. Rows are kept even when unselected so a quantity
+   * typed, deselected and reselected is not lost mid-edit — and dropped on save
+   * by `cleanAssignmentMaterialsForSave`, never sent as a blank.
+   */
+  const materialDraft = (a: Assignment): DraftMaterial[] => {
+    const byId = new Map(
+      (a.materials_draft || []).map((d) => [d.inventory_item_id, d])
+    )
+    return bomItems.map(
+      (item) =>
+        byId.get(item.id) || {
+          inventory_item_id: item.id,
+          selected: false,
+          planned_quantity: "",
+        }
+    )
+  }
+
+  const updateMaterial = (
+    idx: number,
+    inventoryItemId: string,
+    patch: Partial<DraftMaterial>
+  ) => {
+    setLocal((prev) =>
+      prev.map((a, i) => {
+        if (i !== idx) return a
+        const rows = materialDraft(a).map((row) =>
+          row.inventory_item_id === inventoryItemId ? { ...row, ...patch } : row
+        )
+        return { ...a, materials_draft: rows }
       })
     )
   }
@@ -242,6 +312,66 @@ const AssignmentsModal = ({
                     })}
                   </div>
                 </div>
+
+                {bomItems.length > 0 && (
+                  <div className="mt-4">
+                    <Text size="small" weight="plus" className="mb-1">
+                      Materials for this partner
+                    </Text>
+                    <Text size="xsmall" className="text-ui-fg-subtle mb-2">
+                      Select which of the design&apos;s inventory items THIS
+                      partner is sent. Select none and they get the whole bill of
+                      materials, as before. Once you select any, they cannot log
+                      consumption against anything else.
+                    </Text>
+                    <div className="flex flex-col gap-2">
+                      {materialDraft(assignment).map((row) => {
+                        const item = bomItems.find(
+                          (b) => b.id === row.inventory_item_id
+                        )
+                        return (
+                          <div
+                            key={row.inventory_item_id}
+                            className="flex items-center gap-x-3"
+                          >
+                            <button
+                              type="button"
+                              className="rounded-md border px-3 py-1.5 text-sm"
+                              onClick={() =>
+                                updateMaterial(idx, row.inventory_item_id, {
+                                  selected: !row.selected,
+                                })
+                              }
+                            >
+                              <Badge color={row.selected ? "green" : "grey"}>
+                                {item?.label || row.inventory_item_id}
+                              </Badge>
+                            </button>
+                            {row.selected && (
+                              <Input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                className="max-w-[10rem]"
+                                placeholder={
+                                  item?.planned_quantity != null
+                                    ? `Design plans ${item.planned_quantity}`
+                                    : "Qty (optional)"
+                                }
+                                value={String(row.planned_quantity ?? "")}
+                                onChange={(e) =>
+                                  updateMaterial(idx, row.inventory_item_id, {
+                                    planned_quantity: e.target.value,
+                                  })
+                                }
+                              />
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
 
@@ -288,6 +418,30 @@ const ApproveProductionRunDrawerForm = () => {
   const { partners = [] } = usePartners({ limit: 100, offset: 0 })
   const { task_templates: taskTemplates = [] } = useTaskTemplates({ limit: 100, offset: 0 })
 
+  // The design's bill of materials — what an assignment's selection is a subset
+  // OF. A run with no design (the #1112 product-only path) simply has none, and
+  // the picker does not render.
+  const { production_run } = useProductionRun(runId || "", undefined, {
+    enabled: !!runId,
+  } as any)
+  const designId = (production_run as any)?.design_id || ""
+  const { data: designInventory } = useDesignInventory(designId, {
+    enabled: !!designId,
+  })
+
+  const bomItems = useMemo(
+    () =>
+      (designInventory?.inventory_items || []).map((row: any) => ({
+        id: row.inventory_item_id,
+        label:
+          row.inventory_item?.title ||
+          row.inventory_item?.sku ||
+          row.inventory_item_id,
+        planned_quantity: row.planned_quantity ?? null,
+      })),
+    [designInventory]
+  )
+
   const templatesToShow = useMemo(() => {
     return [...(taskTemplates || [])].sort((a: any, b: any) =>
       String(a?.name || "").localeCompare(String(b?.name || ""))
@@ -307,9 +461,31 @@ const ApproveProductionRunDrawerForm = () => {
       return
     }
 
+    // Build the API payload: the picker's draft rows become `materials`, and
+    // `materials_draft` — a form-only field — never leaves the browser.
+    let payload: any[] | undefined
+    if (values.assignments?.length) {
+      payload = []
+      for (const [i, a] of (values.assignments as Assignment[]).entries()) {
+        const cleaned = cleanAssignmentMaterialsForSave(
+          a.materials_draft,
+          (id) => bomItems.find((b) => b.id === id)?.label || id
+        )
+        if (!cleaned.ok) {
+          toast.error(`Assignment ${i + 1}: ${cleaned.error}`)
+          return
+        }
+        const { materials_draft: _drop, ...rest } = a
+        payload.push({
+          ...rest,
+          ...(cleaned.materials.length ? { materials: cleaned.materials } : {}),
+        })
+      }
+    }
+
     try {
       await approveRun({
-        assignments: values.assignments?.length ? values.assignments : undefined,
+        assignments: payload,
       })
       toast.success("Production run approved")
       handleSuccess()
@@ -339,6 +515,7 @@ const ApproveProductionRunDrawerForm = () => {
                   form={form}
                   partners={partners}
                   templatesToShow={templatesToShow}
+                  bomItems={bomItems}
                 />
               </div>
 

@@ -93,6 +93,10 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 
 import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import type ProductionRunService from "../../../../modules/production_runs/service"
+import {
+  readRunAllocation,
+  setRunAllocation,
+} from "../../../../lib/production-run-allocation"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const id = req.params.id
@@ -117,7 +121,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     // ignore if link not yet synced
   }
 
-  return res.status(200).json({ production_run: run, tasks })
+  const allocation = await readRunAllocation(req.scope, id)
+
+  return res.status(200).json({
+    production_run: run,
+    tasks,
+    // What this run was actually assigned, as opposed to what its design can be
+    // made of. Empty = no selection was made; the run is unconstrained.
+    materials: allocation,
+    materials_constrained: allocation.length > 0,
+  })
 }
 
 /**
@@ -136,6 +149,13 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
  * an append-only activity row recording who changed what from what, since the
  * number feeds cost-per-unit, the design cost engine, goods-transfer quantities
  * and the public production story.
+ *
+ * `materials` — the per-assignment allocation — follows the STRUCTURAL rule, not
+ * the correction rule: it is what the partner was sent, so it is editable while
+ * the assignment is still a proposal and frozen once they have accepted it.
+ * Sending it REPLACES the allocation wholesale (the same shape as
+ * `PUT /admin/production-run-policy`); sending `[]` or `null` clears it, which
+ * returns the run to unconstrained — the whole design BOM available again.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const id = req.params.id
@@ -212,7 +232,37 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (producedCorrection !== undefined) update.produced_quantity = producedCorrection
   if (rejectedCorrection !== undefined) update.rejected_quantity = rejectedCorrection
 
+  // The allocation lives in link rows, not columns, so it is applied
+  // separately — and gated BEFORE anything is written, not after.
+  const touchesMaterials = body.materials !== undefined
+  if (touchesMaterials) {
+    if (run.accepted_at || run.started_at) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        "Cannot change the assigned materials after the run has been accepted or started"
+      )
+    }
+    if (run.status === "completed") {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        "Cannot edit a completed production run"
+      )
+    }
+    await setRunAllocation(req.scope, {
+      production_run_id: id,
+      design_id: run.design_id ?? null,
+      materials: body.materials,
+    })
+  }
+
   if (Object.keys(update).length === 0) {
+    if (touchesMaterials) {
+      const refreshed = await productionRunService.retrieveProductionRun(id)
+      return res.json({
+        production_run: refreshed,
+        materials: await readRunAllocation(req.scope, id),
+      })
+    }
     return res.json({ production_run: run, message: "No changes" })
   }
 
@@ -276,5 +326,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
-  res.json({ production_run: updated })
+  res.json({
+    production_run: updated,
+    ...(touchesMaterials
+      ? { materials: await readRunAllocation(req.scope, id) }
+      : {}),
+  })
 }

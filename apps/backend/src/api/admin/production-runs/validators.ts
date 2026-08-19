@@ -1,5 +1,21 @@
 import { z } from "@medusajs/framework/zod"
 
+/**
+ * The materials an assignment is issued — a subset of the design's bill of
+ * materials, not a free-form list. The workflow re-checks membership against
+ * the design (the validator cannot see the BOM); this shape only guarantees the
+ * fields it can. `planned_quantity` is `.positive()` because "allocate 0 of the
+ * silk" would pass the consumption gate while promising nothing.
+ */
+const RunMaterialSchema = z.object({
+  inventory_item_id: z.string().trim().min(1),
+  planned_quantity: z.number().positive().nullish(),
+  location_id: z.string().trim().min(1).nullish(),
+  resolved_raw_material_id: z.string().trim().min(1).nullish(),
+  note: z.string().nullish(),
+  metadata: z.record(z.string(), z.any()).nullish(),
+})
+
 const AssignmentSchema = z.object({
   partner_id: z.string().min(1),
   role: z.string().optional(),
@@ -20,6 +36,12 @@ const AssignmentSchema = z.object({
    * tolerance as the names, for the same reason.
    */
   template_ids: z.array(z.string()).nullish(),
+  /**
+   * Which of the design's inventory items THIS partner is sent, and how much.
+   * Omit (or send an empty array) and the assignment is unconstrained — the
+   * child run carries the whole BOM, exactly as before this field existed.
+   */
+  materials: z.array(RunMaterialSchema).nullish(),
 })
 
 export const AdminCreateProductionRunReq = z.object({
@@ -32,6 +54,7 @@ export const AdminCreateProductionRunReq = z.object({
   order_id: z.string().optional(),
   order_line_item_id: z.string().optional(),
   metadata: z.record(z.string(), z.any()).optional(),
+  materials: z.array(RunMaterialSchema).nullish(),
 })
 
 export const AdminApproveProductionRunReq = z.object({

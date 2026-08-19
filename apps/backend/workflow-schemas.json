@@ -6182,6 +6182,13 @@
         "placeholder": "{{ $last.task_ids }}"
       },
       {
+        "name": "materials",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.materials }}",
+        "description": "The per-assignment material allocation: WHICH of the design's inventory items this run is actually sent out with, and how much of each. Omit to keep the historical behaviour — the whole design BOM stays available to the partner. Must be a subset of the design's linked inventory items."
+      },
+      {
         "name": "execution_mode",
         "type": "string",
         "required": false,

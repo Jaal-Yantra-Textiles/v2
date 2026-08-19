@@ -206,6 +206,7 @@ export const POST = async (
       order_id: body.order_id,
       order_line_item_id: body.order_line_item_id,
       metadata: body.metadata,
+      materials: body.materials ?? undefined,
     },
   })
 
@@ -236,8 +237,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   if (q.product_id) {
     filters.product_id = q.product_id
   }
-  // #826 — filter by the commissioning order so the admin design-order detail
-  // can list all the per-design runs a produce fanned out for that one order.
+  // #826 — filter by the COMMISSIONING order (the customer order that caused
+  // the work) so the admin design-order detail can list all the per-design runs
+  // a produce fanned out for that one order.
+  //
+  // ⚠️ This is `run.order_id`, and it is NOT the collated work-order. Since
+  // #826 S3a a design work-order is a SEPARATE `kind=design` order that holds
+  // the runs through the order↔production_run LINK, while `run.order_id` keeps
+  // pointing at the commissioning order. Passing a work-order id here therefore
+  // matched nothing and returned an empty list — indistinguishable from "that
+  // order has no runs". `work_order_id` below answers the other question.
   if (q.order_id) {
     filters.order_id = q.order_id
   }
@@ -255,6 +264,38 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+
+  // Filter by the COLLATED work-order — the runs reachable through the
+  // order↔production_run link rather than through `run.order_id`. Resolved to
+  // ids first because the link is what holds the relation; there is no column
+  // to filter on. An unknown/unlinked work-order yields an id list of `[]`,
+  // which must produce an empty page rather than an unfiltered one.
+  let workOrderRunIds: string[] | null = null
+  if (q.work_order_id) {
+    const { data: linked } = await (query as any).graph({
+      entity: "order",
+      fields: ["id", "production_runs.id"],
+      filters: { id: q.work_order_id },
+    })
+    const node = (linked || [])[0]
+    const linkedRuns = Array.isArray(node?.production_runs)
+      ? node.production_runs
+      : node?.production_runs
+      ? [node.production_runs]
+      : []
+    workOrderRunIds = linkedRuns
+      .map((r: any) => r?.id)
+      .filter(Boolean) as string[]
+    if (!workOrderRunIds!.length) {
+      return res.status(200).json({
+        production_runs: [],
+        count: 0,
+        limit,
+        offset,
+      })
+    }
+    filters.id = workOrderRunIds
+  }
 
   // #1172 — `q` was not read at all, so a search term was dropped without error
   // and the caller got back an unfiltered first page. Sits alongside the

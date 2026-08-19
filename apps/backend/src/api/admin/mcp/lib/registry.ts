@@ -91,6 +91,40 @@ const PAGINATION = {
   q: { type: "string", description: "Free-text search filter." },
 } as const
 
+// The per-assignment material allocation, as the model sees it. Mirrors
+// `RunMaterialSchema` in the production-run validators — the row IS a contract
+// with its validator (#1348/#1361), so `planned_quantity` carries the same
+// "must be positive" limit here rather than letting a model discover it as a 400.
+const RUN_MATERIALS_PARAM = {
+  type: "array" as const,
+  description:
+    "The materials THIS assignment is sent: a SUBSET of the design's bill of materials (call list_design_inventory first to see what is available), with how much of each. Omit to leave the run unconstrained — the partner then sees the design's whole BOM, which is the behaviour every run had before this existed. Once set, the partner is REFUSED when logging consumption against anything outside the list.",
+  items: {
+    type: "object" as const,
+    properties: {
+      inventory_item_id: {
+        type: "string",
+        description:
+          "Inventory item id. MUST already be linked to the design — the write is rejected otherwise, it does not link it for you.",
+      },
+      planned_quantity: {
+        type: "number",
+        description:
+          "How much of this item this partner is issued. Must be POSITIVE — 0 is not an allocation, and it is rejected.",
+      },
+      location_id: { type: "string", description: "Stock location to issue from, if not the design's." },
+      resolved_raw_material_id: {
+        type: "string",
+        description:
+          "Which colour/variant of a pinned raw-material group this run uses. Per-run, so two runs of one design can be two colours.",
+      },
+      note: { type: "string", description: "Free note for the partner about this material." },
+    },
+    required: ["inventory_item_id"],
+  },
+}
+
+
 export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   // ===== Grounding =========================================================
   {
@@ -314,7 +348,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "list_production_runs",
     description:
-      "List production runs / work orders (paginated). Free-text search via q (matches run id and the design, partner or product the run is for). Filter by status, partner, design, product, order, run type or parent run. Use to see open runs, their stage and assigned partner.",
+      "List production runs / work orders (paginated). Free-text search via q (matches run id and the design, partner or product the run is for). Filter by status, partner, design, product, order, run type or parent run. Use to see open runs, their stage and assigned partner. NOTE there are TWO order ids and they are not interchangeable — see order_id vs work_order_id.",
     method: "GET",
     path: "/admin/production-runs",
     // `q` was withheld here until #1172 — the route accepted the param but never
@@ -328,6 +362,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "design_id",
       "product_id",
       "order_id",
+      "work_order_id",
       "parent_run_id",
       "run_type",
       "include_tasks",
@@ -344,7 +379,12 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       partner_id: STR("Only runs assigned to this partner."),
       design_id: STR("Only runs for this design."),
       product_id: STR("Only runs for this product."),
-      order_id: STR("Only runs for this order."),
+      order_id: STR(
+        "Only runs for this COMMISSIONING order — the customer order that caused the work. This is NOT the collated design work-order: passing a work-order id here returns an empty list, which looks exactly like 'that order has no runs'. Use work_order_id for that."
+      ),
+      work_order_id: STR(
+        "Only runs collated under this design WORK-ORDER (the kind=design order from list_design_work_orders). One order can hold many runs — that collation is the whole point of a work-order."
+      ),
       parent_run_id: STR("Only child runs of this parent run."),
       run_type: STR("'production' | 'sample'."),
       include_tasks: STR("Pass 'true' to include each run's tasks."),
@@ -1888,7 +1928,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "get_production_run",
     description:
-      "Get a single production run by id, with its linked tasks. Use to read the run's status, quantity, assigned partner, dispatch state and cost fields.",
+      "Get a single production run by id, with its linked tasks and its assigned materials. Use to read the run's status, quantity, assigned partner, dispatch state and cost fields. `materials` is what THIS run was allocated; `materials_constrained: false` means no selection was made and the partner may use the design's whole bill of materials.",
     method: "GET",
     path: "/admin/production-runs/:id",
     pathParams: ["id"],
@@ -1964,6 +2004,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "order_id",
       "order_line_item_id",
       "metadata",
+      "materials",
     ],
     inputSchema: obj(
       {
@@ -1976,6 +2017,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         order_id: STR("Optional originating order id."),
         order_line_item_id: STR("Optional originating order line item id."),
         metadata: { type: "object", description: "Optional key/value metadata." },
+        materials: RUN_MATERIALS_PARAM,
       },
       ["design_id"]
     ),
@@ -1985,7 +2027,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "update_production_run",
     description:
-      "Update a production run's quantity, role, run type, partner cost estimate, or correct the output the partner reported (produced_quantity / rejected_quantity). Sensitive: requires confirm:true. Structural edits (quantity/role/run_type) are REJECTED once the run has been accepted or started, and any edit is rejected on a cancelled run — but output corrections are allowed precisely BECAUSE the run is completed. Use dry_run to see the current run first.",
+      "Update a production run's quantity, role, run type, assigned materials, partner cost estimate, or correct the output the partner reported (produced_quantity / rejected_quantity). Sensitive: requires confirm:true. Structural edits (quantity/role/run_type) are REJECTED once the run has been accepted or started, and any edit is rejected on a cancelled run — but output corrections are allowed precisely BECAUSE the run is completed. Use dry_run to see the current run first.",
     method: "POST",
     path: "/admin/production-runs/:id",
     pathParams: ["id"],
@@ -2001,6 +2043,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "produced_quantity",
       "rejected_quantity",
       "correction_reason",
+      "materials",
     ],
     inputSchema: obj(
       {
@@ -2030,6 +2073,12 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
             "Partner cost estimate. Note: the dispatcher drops null arguments, so this tool can set a cost but not clear one — clear it from the admin UI.",
         },
         cost_type: STR("'total' | 'per_unit'."),
+        materials: {
+          ...RUN_MATERIALS_PARAM,
+          description:
+            RUN_MATERIALS_PARAM.description +
+            " REPLACES the run's whole allocation — it is not merged, so send the complete list. Send [] to clear it and make the run unconstrained again. Pre-acceptance only: rejected once the partner has accepted or started, like quantity/role/run_type.",
+        },
       },
       ["id"]
     ),
@@ -2051,7 +2100,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         assignments: {
           type: "array",
           description:
-            "Partner assignments. Each: { partner_id (required), role?, quantity?, order? (dispatch sequence), template_names? (task templates to auto-dispatch; omit or null for none) }.",
+            "Partner assignments. Each: { partner_id (required), role?, quantity?, order? (dispatch sequence), template_ids?/template_names? (task templates to auto-dispatch; omit or null for none), materials? (the subset of the design's inventory THIS partner is sent) }. Different partners can be given different materials from the same design — that is what makes this an assignment rather than a copy of the design.",
           items: obj(
             {
               partner_id: STR("Partner to assign (required)."),
@@ -2061,8 +2110,14 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
               template_names: {
                 type: "array",
                 items: { type: "string" },
-                description: "Task templates to instantiate and auto-dispatch for this partner.",
+                description: "Task templates to instantiate and auto-dispatch for this partner. A name may match two templates, and dispatch REFUSES an ambiguous one — prefer template_ids.",
               },
+              template_ids: {
+                type: "array",
+                items: { type: "string" },
+                description: "The same selection BY ID, and the preferred form (#1268): an id survives a rename and cannot be ambiguous. Wins over template_names when both are sent.",
+              },
+              materials: RUN_MATERIALS_PARAM,
             },
             ["partner_id"]
           ),
@@ -2320,13 +2375,28 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "list_design_work_orders",
     description:
-      "List collated design work-orders — each with its per-design production runs, the designs themselves and the assigned partners. This is the single best read for 'what is in production right now'.",
+      "List collated design work-orders — each with its per-design production runs, the designs themselves and the assigned partners. One work-order collates the N runs of a commissioning order, so this is where 'this order has several runs' is visible. The single best read for 'what is in production right now'. Pass source_order_id to go from a CUSTOMER order to the work-order it produced, or id to fetch just one.",
     method: "GET",
     path: "/admin/design-work-orders",
-    queryParams: ["limit", "offset"],
+    queryParams: [
+      "limit",
+      "offset",
+      "id",
+      "source_order_id",
+      "partner_id",
+      "run_status",
+    ],
     inputSchema: obj({
       limit: { type: "integer", description: "Max results (default 20)." },
       offset: { type: "integer", description: "Pagination offset." },
+      id: STR("Fetch a single work-order by its order id."),
+      source_order_id: STR(
+        "The COMMISSIONING order the work-order was collated from — the bridge from a customer order to its work-order. (Going the other way, from a work-order to its runs, is list_production_runs with work_order_id.)"
+      ),
+      partner_id: STR("Only work-orders with at least one run assigned to this partner."),
+      run_status: STR(
+        "Only work-orders with at least one run in this status, e.g. 'sent_to_partner'. A work-order's runs can be in different statuses, so this is 'contains', not 'is'."
+      ),
     }),
   },
   {
