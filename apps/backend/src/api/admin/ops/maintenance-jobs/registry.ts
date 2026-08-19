@@ -87,6 +87,7 @@ import { enableStripeConnectEurRegionsJob } from "./enable-stripe-connect-eur-re
 import { suppressBouncedSubscribersJob } from "./suppress-bounced-subscribers-job"
 import { backfillAudienceEntriesJob } from "./backfill-audience-entries-job"
 import { importLeadsToCrmJob } from "./import-leads-to-crm-job"
+import { crmEngagementSweepJob } from "./crm-engagement-sweep-job"
 import { backfillRetailPartnerFeesJob } from "./backfill-retail-partner-fees-job"
 import { recomputeEmailEngagementStatusJob } from "./recompute-email-engagement-status-job"
 import { generateNewsletterWinbackTargetsJob } from "./generate-newsletter-winback-targets-job"
@@ -5774,6 +5775,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   suppressBouncedSubscribersJob,
   backfillAudienceEntriesJob,
   importLeadsToCrmJob,
+  crmEngagementSweepJob,
   recomputeEmailEngagementStatusJob,
   generateNewsletterWinbackTargetsJob,
   repairInventoryOrderSourceJob,

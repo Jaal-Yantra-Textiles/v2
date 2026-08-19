@@ -227,6 +227,20 @@ const DOMAIN_KEYWORDS: Record<Exclude<AdminToolDomain, "core">, string[]> = {
     // from the ads" — none of these say "lead" either.
     "enquiry", "enquiries", "inquiry", "inquiries", "form fill", "sign up",
     "signups", "buyer", "buyers", "wholesale", "stockist", "boutique",
+    // The CONVERSATION axis. "did they reply?", "chase them Tuesday", "who has
+    // gone quiet" are all CRM asks that name no CRM noun at all.
+    "reply", "replied", "replies", "reach out", "reached out", "chase",
+    "chasing", "conversation", "conversations", "timeline", "activity",
+    "activities", "engagement", "engaged", "stalled", "gone quiet",
+    "unresponsive", "opt out", "opted out", "opt-out", "unsubscribe",
+    "do not contact", "touchpoint", "interaction", "interactions",
+    // Logging a real-world touch. Bare "call" is deliberately absent — it fires
+    // on "call the workflow" / "call the API"; the past tenses do not.
+    "called", "phoned", "rang", "spoke to", "call with", "voicemail",
+    // How an opt-out is actually reported. "taken off the list" names nothing
+    // in the vocabulary, and it is the one ask where a miss is a compliance
+    // problem rather than an extra round trip.
+    "taken off", "take me off", "remove from list", "stop messaging",
   ],
   observability: [
     "mcp", "tool usage", "telemetry", "observability", "ledger", "audit",

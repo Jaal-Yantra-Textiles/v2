@@ -1,5 +1,11 @@
 import type { ModelRepository } from "@jytextiles/mikrohyperbee";
 
+import {
+  deriveEngagement,
+  summarizeActivity,
+  type EngagementActivity,
+} from "./activity";
+
 /**
  * CrmService — the module service for the Hyperbee-only CRM module.
  *
@@ -127,6 +133,96 @@ class CrmService {
   }
   async deleteCrmTasks(selector: any) {
     return this.repo("crmTaskService").delete(selector);
+  }
+
+  // ── activities ────────────────────────────────────────────────────────────
+  async createCrmActivities(data: any) {
+    return this.repo("crmActivityService").create(data);
+  }
+  async retrieveCrmActivity(id: string) {
+    return this.repo("crmActivityService").retrieve(id);
+  }
+  async listCrmActivities(filters?: any, config?: any) {
+    return this.repo("crmActivityService").list(filters, config);
+  }
+  async listAndCountCrmActivities(filters?: any, config?: any) {
+    return this.repo("crmActivityService").listAndCount(filters, config);
+  }
+  async updateCrmActivities(data: any) {
+    return this.repo("crmActivityService").update(data);
+  }
+  async deleteCrmActivities(selector: any) {
+    return this.repo("crmActivityService").delete(selector);
+  }
+
+  // ── the two composed operations ───────────────────────────────────────────
+
+  /**
+   * Record an interaction AND refresh the contact's engagement cache.
+   *
+   * These are one operation on purpose. An activity written without the
+   * recompute leaves `engagement_state` describing a conversation that has
+   * since moved on — and since flows select on that field, a stale value does
+   * not merely look wrong, it decides who gets messaged. Every write path
+   * (route, subscriber, flow, MCP tool) goes through here.
+   *
+   * The recompute is best-effort: the interaction genuinely happened, so
+   * failing to update a derived cache must not lose the record of it. A failed
+   * recompute is repaired by the next activity or by the sweep job.
+   */
+  async recordCrmActivity(input: any) {
+    const occurred_at = input.occurred_at ?? new Date().toISOString();
+    const activity = await this.createCrmActivities({
+      ...input,
+      occurred_at,
+      summary: input.summary ?? summarizeActivity({ ...input, occurred_at }),
+    });
+
+    if (input.related_type === "person" && input.related_id) {
+      await this.refreshCrmEngagement(input.related_id).catch(() => {});
+    }
+    return activity;
+  }
+
+  /**
+   * Recompute one contact's engagement snapshot from its activity log.
+   *
+   * Returns the snapshot, and writes it only when something actually changed —
+   * so a settled contact costs a read and no write. That matters more here
+   * than in Postgres: every write is an HTTP round trip to the CRM node and an
+   * Autobase append that replicates.
+   */
+  async refreshCrmEngagement(personId: string, now: Date = new Date()) {
+    const person: any = await this.retrieveCrmPerson(personId);
+    const activities: EngagementActivity[] = await this.listCrmActivities(
+      { related_type: "person", related_id: personId },
+      { take: null }
+    );
+
+    const snapshot = deriveEngagement(activities, {
+      now,
+      scheduledFollowUpAt: person?.next_follow_up_at ?? null,
+    });
+
+    const changed =
+      person?.engagement_state !== snapshot.engagement_state ||
+      person?.last_activity_at !== snapshot.last_activity_at ||
+      person?.last_inbound_at !== snapshot.last_inbound_at ||
+      person?.last_outbound_at !== snapshot.last_outbound_at ||
+      (person?.next_follow_up_at ?? null) !== snapshot.next_follow_up_at;
+
+    if (changed) {
+      await this.updateCrmPeople({
+        id: personId,
+        engagement_state: snapshot.engagement_state,
+        last_activity_at: snapshot.last_activity_at,
+        last_inbound_at: snapshot.last_inbound_at,
+        last_outbound_at: snapshot.last_outbound_at,
+        next_follow_up_at: snapshot.next_follow_up_at,
+      });
+    }
+
+    return { ...snapshot, changed, previous_state: person?.engagement_state ?? null };
   }
 }
 

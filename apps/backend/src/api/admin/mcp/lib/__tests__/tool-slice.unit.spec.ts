@@ -220,6 +220,28 @@ describe("admin-mcp per-ask tool slicing", () => {
       expect(slice.names).toContain("list_crm_contacts")
     })
 
+    it.each([
+      "did they ever reply?",
+      "chase the ones who have gone quiet",
+      "what have we said to this contact so far?",
+      "log that I called them",
+      "who should I follow up with on Tuesday?",
+      "they asked to be taken off the list",
+    ])("lights the CRM for conversation-axis asks: %s", (ask) => {
+      // None of these name a CRM noun. Before the conversation keywords they
+      // all fell through to the always-on slice, where no CRM tool exists.
+      expect(selectAdminToolSlice(ask, ADMIN_MCP_TOOLS).domains).toContain("crm")
+    })
+
+    it("loads the timeline reader next to the activity writer", () => {
+      const slice = selectAdminToolSlice(
+        "what have we said to this contact so far?",
+        ADMIN_MCP_TOOLS
+      )
+      expect(slice.names).toContain("list_crm_activities")
+      expect(slice.names).toContain("log_crm_activity")
+    })
+
     it("does not light the CRM for unrelated operational asks", () => {
       // A generous keyword list is fine; one that fires on everything is not.
       for (const ask of ["ship order_123 today", "how much yarn is left?"]) {

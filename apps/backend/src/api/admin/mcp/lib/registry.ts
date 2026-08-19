@@ -3121,13 +3121,25 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "List CRM contacts (people in the sales pipeline). Filter by email, last_name or company_id. NOTE: a CRM contact is a prospect — somebody who has not necessarily bought. For people who HAVE placed orders use list_customers; for the weaver directory use the persons tools.",
     method: "GET",
     path: "/admin/crm/people",
-    queryParams: ["email", "last_name", "company_id", "limit", "offset"],
+    queryParams: [
+      "email",
+      "last_name",
+      "company_id",
+      "engagement_state",
+      "limit",
+      "offset",
+    ],
     inputSchema: obj({
       email: STR("Exact email match."),
       last_name: STR("Exact surname match."),
       company_id: STR("Only contacts at this company, e.g. 'crmco_...'."),
+      engagement_state: STR(
+        "Where the CONVERSATION is (not the deal): 'not_contacted' | 'awaiting_reply' | 'in_conversation' | 'follow_up_due' | 'stalled' | 'do_not_contact' | 'closed'. Use 'follow_up_due' and 'not_contacted' to answer 'who needs chasing'."
+      ),
       ...PAGINATION,
     }),
+    sideEffects:
+      "engagement_state is derived from the activity log — never set it by hand; log an activity instead.",
   },
   {
     name: "get_crm_contact",
@@ -3288,11 +3300,15 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "phone",
       "title",
       "company_id",
+      "next_follow_up_at",
       "metadata",
     ],
     inputSchema: obj(
       {
         id: STR("Contact id, e.g. 'crmp_...'."),
+        next_follow_up_at: STR(
+          "ISO datetime to chase this contact. When it passes, the contact moves to 'follow_up_due' and a crm.follow_up_due event fires for any visual flow listening."
+        ),
         first_name: STR("New given name."),
         last_name: STR("New surname."),
         email: STR("New email (must stay unique)."),
@@ -3456,5 +3472,94 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       },
       ["title"]
     ),
+  },
+
+  {
+    name: "list_crm_activities",
+    description:
+      "Read the interaction timeline for a CRM contact, company or deal — every call, message and note, with its direction. Pass related_type + related_id to scope it. Answers 'what have we actually said to them' and 'when did they last reply'. Returned newest-first.",
+    method: "GET",
+    path: "/admin/crm/activities",
+    queryParams: [
+      "related_type",
+      "related_id",
+      "direction",
+      "channel",
+      "activity_type",
+      "limit",
+      "offset",
+    ],
+    inputSchema: obj({
+      related_type: STR("'person' | 'company' | 'opportunity'."),
+      related_id: STR("Id of the record, e.g. 'crmp_...'."),
+      direction: STR(
+        "'inbound' (they contacted us) | 'outbound' (we contacted them) | 'internal' (logged on our side, nobody was reached)."
+      ),
+      channel: STR("'whatsapp' | 'email' | 'phone' | 'instagram' | 'facebook' | 'in_person' | 'other'."),
+      activity_type: STR("'message' | 'call' | 'meeting' | 'note' | 'lifecycle' | 'system'."),
+      ...PAGINATION,
+    }),
+    nextSteps: ["log_crm_activity", "get_crm_contact"],
+  },
+  {
+    name: "log_crm_activity",
+    description:
+      "Record an interaction with a CRM contact — an inbound reply, an outbound message, a call, a meeting. This is how the conversation state moves: logging an inbound activity marks the contact as replying, an outbound one as awaiting reply. Use direction 'internal' for something that did not actually reach them. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/crm/activities",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: [
+      "related_type",
+      "related_id",
+      "activity_type",
+      "kind",
+      "direction",
+      "channel",
+      "subject",
+      "body",
+      "summary",
+      "actor_type",
+      "actor_id",
+      "message_id",
+      "template_name",
+      "recipient",
+      "outcome",
+      "occurred_at",
+      "payload",
+    ],
+    inputSchema: obj(
+      {
+        related_type: STR("'person' | 'company' | 'opportunity'. Required."),
+        related_id: STR("Id of the record this happened with. Required."),
+        activity_type: STR(
+          "'message' | 'call' | 'meeting' | 'note' | 'lifecycle' | 'system'. Required."
+        ),
+        kind: STR(
+          "Finer type within the bucket, e.g. 'reply', 'quote_sent', 'no_answer'. Use 'opt_out' to mark somebody as do-not-contact."
+        ),
+        direction: STR(
+          "'inbound' | 'outbound' | 'internal' (default). Getting this right is what makes the engagement state correct."
+        ),
+        channel: STR("'whatsapp' | 'email' | 'phone' | 'instagram' | 'facebook' | 'in_person' | 'other'."),
+        subject: STR("Short subject line."),
+        body: STR("What was said."),
+        summary: STR("One-line timeline text. Computed automatically if omitted."),
+        actor_type: STR("'system' | 'admin' | 'contact' | 'flow'."),
+        actor_id: STR("Who did it."),
+        message_id: STR("Correlating messaging_message id, when this was a real send."),
+        template_name: STR("WhatsApp/email template used."),
+        recipient: STR("Address or number it went to."),
+        outcome: STR("'pending' | 'delivered' | 'replied' | 'no_answer' | 'bounced' | 'failed'."),
+        occurred_at: STR(
+          "ISO datetime the interaction happened. Defaults to now — pass it explicitly when recording something after the fact, which is normal for inbound messages."
+        ),
+        payload: { type: "object", description: "Type-specific structured extras." },
+      },
+      ["related_type", "related_id", "activity_type"]
+    ),
+    sideEffects:
+      "Also recomputes the contact's engagement_state, which is what visual flows select on. Logging an activity with kind 'opt_out' makes the contact permanently do_not_contact.",
   },
 ]

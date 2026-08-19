@@ -28,6 +28,12 @@ POST /crm/opportunities {"stage": "sampling"}   → 422   "must be one of
                                                   lost], got 'sampling'"
 ```
 
+A **new collection** is the strongest case of all: the node builds its repo map
+from `crmContracts` and its URL segments from `CRM_MODEL_BY_SEGMENT`, both at
+bundle time. Until it is redeployed, `/crm/activities` is simply not a route it
+serves — every activity write fails with the node's own 404, which reads exactly
+like a missing Medusa route.
+
 So: **widening** a field (required → nullable) needs no redeploy, because the
 old contract already accepted the wider value. **Changing an enum** does. After
 any edit to `stages.ts` or `crm-contracts.ts`, rebuild the bundle (step 1),

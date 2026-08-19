@@ -383,6 +383,10 @@ import {
   CreateCrmTaskSchema,
   UpdateCrmTaskSchema,
 } from "./admin/crm/tasks/validators";
+import {
+  CreateCrmActivitySchema,
+  UpdateCrmActivitySchema,
+} from "./admin/crm/activities/validators";
 import { VerifyWeaverSchema } from "./web/census/verify/validators";
 
 /**
@@ -3639,6 +3643,16 @@ export default defineMiddlewares({
       matcher: "/admin/crm/people/:id",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(UpdateCrmPersonSchema))],
+    },
+    {
+      matcher: "/admin/crm/activities",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateCrmActivitySchema))],
+    },
+    {
+      matcher: "/admin/crm/activities/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateCrmActivitySchema))],
     },
     {
       matcher: "/admin/crm/opportunities",

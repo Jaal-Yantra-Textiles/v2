@@ -98,6 +98,7 @@ describe("admin MCP tool tiers", () => {
         "create_crm_task",
         "create_design",
         "create_raw_material_group",
+        "log_crm_activity",
         "log_crm_note",
         "link_design_inventory",
         "link_design_material_group",

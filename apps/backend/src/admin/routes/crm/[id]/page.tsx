@@ -4,6 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import {
+  ActivityTimeline,
+  EngagementBadge,
+} from "../../../components/crm/activity-timeline";
 import { sdk } from "../../../lib/config";
 
 type CrmPerson = {
@@ -14,6 +18,10 @@ type CrmPerson = {
   phone?: string | null;
   title?: string | null;
   company_id?: string | null;
+  engagement_state?: string | null;
+  last_inbound_at?: string | null;
+  last_outbound_at?: string | null;
+  next_follow_up_at?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -62,12 +70,20 @@ const CrmPersonDetailPage = () => {
             </Text>
           )}
         </div>
-        <Link to="/crm">
-          <Button variant="secondary" size="small">
-            <ArrowLeft />
-            Back
-          </Button>
-        </Link>
+        <div className="flex items-center gap-4">
+          {person && (
+            <EngagementBadge
+              state={person.engagement_state}
+              nextFollowUpAt={person.next_follow_up_at}
+            />
+          )}
+          <Link to="/crm">
+            <Button variant="secondary" size="small">
+              <ArrowLeft />
+              Back
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {isLoading && (
@@ -103,6 +119,20 @@ const CrmPersonDetailPage = () => {
               {person.id}
             </Text>
           </Row>
+          <Row label="Last reply from them">
+            {val(
+              person.last_inbound_at
+                ? new Date(person.last_inbound_at).toLocaleString()
+                : null
+            )}
+          </Row>
+          <Row label="Last time we reached out">
+            {val(
+              person.last_outbound_at
+                ? new Date(person.last_outbound_at).toLocaleString()
+                : null
+            )}
+          </Row>
           <Row label="Created">
             {val(
               person.created_at
@@ -111,6 +141,10 @@ const CrmPersonDetailPage = () => {
             )}
           </Row>
         </div>
+      )}
+
+      {person && (
+        <ActivityTimeline relatedType="person" relatedId={person.id} />
       )}
     </Container>
   );
