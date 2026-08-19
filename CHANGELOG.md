@@ -1,3 +1,16 @@
+# [13.109.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.108.0...v13.109.0) (2026-08-19)
+
+
+### Bug Fixes
+
+* **product-spec:** host the spec editors inside their modal provider ([#1352](https://github.com/Jaal-Yantra-Textiles/v2/issues/1352)) ([f6b25c9](https://github.com/Jaal-Yantra-Textiles/v2/commit/f6b25c99a17223a68df3207bef19a4afe18694de)), closes [#1349](https://github.com/Jaal-Yantra-Textiles/v2/issues/1349) [#1351](https://github.com/Jaal-Yantra-Textiles/v2/issues/1351)
+
+
+### Features
+
+* **crm:** make the CRM usable — leads, pipeline stages, activity timeline, MCP tools, capture extension ([#1354](https://github.com/Jaal-Yantra-Textiles/v2/issues/1354)) ([de7a0e7](https://github.com/Jaal-Yantra-Textiles/v2/commit/de7a0e704179812cfedddc3951b4f7df8483ae49)), closes [#1348](https://github.com/Jaal-Yantra-Textiles/v2/issues/1348) [#1306](https://github.com/Jaal-Yantra-Textiles/v2/issues/1306)
+* **product-spec:** partner-defined option groups, and a CRM contact screen you can read ([#1357](https://github.com/Jaal-Yantra-Textiles/v2/issues/1357)) ([9b5d203](https://github.com/Jaal-Yantra-Textiles/v2/commit/9b5d203e175caafc457a8509abf79fd2cdcec20f)), closes [#1348](https://github.com/Jaal-Yantra-Textiles/v2/issues/1348) [#9](https://github.com/Jaal-Yantra-Textiles/v2/issues/9) [#1352](https://github.com/Jaal-Yantra-Textiles/v2/issues/1352)
+
 # [13.108.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.107.0...v13.108.0) (2026-08-18)
 
 
