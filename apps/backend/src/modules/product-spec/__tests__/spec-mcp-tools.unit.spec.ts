@@ -147,3 +147,49 @@ describe("production-spec MCP tools", () => {
     }
   })
 })
+
+/**
+ * #1348's lesson, applied to the option groups: an MCP row is a CONTRACT with
+ * the route validator behind it. Where the two disagree, the caller finds out
+ * by 400 — and the message is a zod field path.
+ *
+ * The live report that prompted this: the admin spec editor answered a partner
+ * with `Value for field 'options, 0, values, 0, label' too small, expected at
+ * least: '1'`. The form was fixed to stop sending blank rows, but a model
+ * calling `set_product_spec` could send exactly the same payload, and the tool
+ * schema said nothing about it — `label` was merely `required`, with no
+ * minLength. These cases pin the schema to the validator's actual limits.
+ */
+describe("set_product_spec options schema mirrors the route validator", () => {
+  const { PRODUCT_SPEC_TOOL_SCHEMA_PROPS = null } = require("../tool-schema") as any
+  const props =
+    PRODUCT_SPEC_TOOL_SCHEMA_PROPS ?? require("../tool-schema").productSpecSchemaProps()
+  const options = props.options
+  const group = options.items
+  const value = group.properties.values.items
+
+  it("bounds the option list the way the validator does (max 12)", () => {
+    expect(options.maxItems).toBe(12)
+  })
+
+  it("requires a non-empty value label — z.string().trim().min(1)", () => {
+    expect(value.properties.label.minLength).toBe(1)
+    expect(value.properties.label.maxLength).toBe(160)
+    expect(value.required).toContain("label")
+  })
+
+  it("requires a non-empty option key — z.string().trim().min(1).max(60)", () => {
+    expect(group.properties.key.minLength).toBe(1)
+    expect(group.properties.key.maxLength).toBe(60)
+    expect(group.required).toContain("key")
+  })
+
+  it("states that a group needs at least one value, and at most 40", () => {
+    expect(group.properties.values.minItems).toBe(1)
+    expect(group.properties.values.maxItems).toBe(40)
+  })
+
+  it("caps the group label at the validator's 120", () => {
+    expect(group.properties.label.maxLength).toBe(120)
+  })
+})

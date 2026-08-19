@@ -1,4 +1,5 @@
 import { Button, Heading, Text, toast } from "@medusajs/ui"
+import { cleanSpecOptionsForSave } from "./clean-spec-options"
 import { useEffect, useState } from "react"
 import { useParams } from "react-router-dom"
 
@@ -93,12 +94,22 @@ const ProductSpecEditor = ({ id }: { id: string }) => {
     // Drop half-written rows rather than sending them: the route rejects a
     // colour with no name, and losing the whole save over an empty row the
     // partner forgot about is a worse outcome than silently ignoring it.
+    // Options were the one collection this never cleaned, and the form SEEDS a
+    // blank value row by design — so adding a group and saving answered the
+    // partner with `options, 0, values, 0, label` about a row the form made.
+    const cleanedOptions = cleanSpecOptionsForSave(value.options)
+    if (!cleanedOptions.ok) {
+      toast.error(cleanedOptions.error)
+      return
+    }
+
     const payload: ProductSpecPayload = {
       ...value,
       weave_label: value.weave_label?.trim() ? value.weave_label.trim() : null,
       notes: value.notes?.trim() ? value.notes.trim() : null,
       colors: (value.colors ?? []).filter((c) => c.name.trim()),
       fields: (value.fields ?? []).filter((f) => (f.label ?? f.key).trim()),
+      options: cleanedOptions.options,
     }
 
     try {
