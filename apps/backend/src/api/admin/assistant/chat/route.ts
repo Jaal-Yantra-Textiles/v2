@@ -51,6 +51,11 @@ import {
 } from "../../mcp/lib/handler"
 import { mcpScopeToContextFlags } from "../../../../lib/mcp-scope"
 import { makeMcpLedgerSink } from "../../../../lib/mcp-ledger"
+import {
+  extractContextFromTurn,
+  loadAndFormatContext,
+  resolveContextCache,
+} from "../../../../lib/assistant-context"
 import type { AdminAssistantChatReq } from "./validators"
 
 const FEATURE = "admin/assistant/chat"
@@ -336,6 +341,24 @@ export const POST = async (
       `${carried.length ? `; carried: ${carried.join(", ")}` : ""})`
   )
 
+  // ---- Prior context injection (cross-conversation cache) -----------------
+  // Read the domain-keyed cache for this principal and inject a thin "you
+  // already found this" block into the system prompt. Lets the model skip a
+  // re-fetch when the user repeats a task from a previous conversation.
+  const adminUserId = (req as any).auth_context?.actor_id ?? null
+  // Resolved defensively: the cache only ever saves a re-fetch, so it must
+  // never be able to fail the turn (see lib/assistant-context/resolve).
+  const cacheService = adminUserId ? resolveContextCache(req.scope, logger) : null
+  const activeDomains = initialSlice.domains.filter((d) => d !== "core")
+  const priorContext = cacheService
+    ? await loadAndFormatContext(
+        cacheService,
+        adminUserId,
+        "admin",
+        activeDomains
+      )
+    : undefined
+
   // The escape hatch. Always active, so the model is never boxed in by a slice
   // that guessed wrong — it names the domains it needs and they light up on the
   // next step. This is also why the slice can be aggressive.
@@ -382,7 +405,11 @@ export const POST = async (
   const chatModel =
     resolved.source === "free" ? dynamicFreeToolTextModel : resolved.model
 
-  const folded = foldSystemForProvider(resolved.providerType, SYSTEM_PROMPT, messages)
+  const folded = foldSystemForProvider(
+    resolved.providerType,
+    priorContext ? `${SYSTEM_PROMPT}\n\n${priorContext}` : SYSTEM_PROMPT,
+    messages
+  )
   const startedAt = Date.now()
 
   const usageBase = {
@@ -409,13 +436,37 @@ export const POST = async (
         stopWhen: stepCountIs(8),
         temperature: 0.3,
         maxRetries: 3,
-        onFinish: ({ usage: u }: any) => {
+        onFinish: async ({ usage: u, toolResults }: any) => {
           logAiUsage(logger, {
             ...usageBase,
             ok: true,
             ms: Date.now() - startedAt,
             tokens: u?.totalTokens,
           })
+
+          // Fire-and-forget: cache what was found so the next conversation can
+          // skip the same fetch. A failure here is logged and swallowed — the
+          // conversation already completed, and a missing cache entry is
+          // harmless.
+          if (cacheService && adminUserId) {
+            try {
+              const entries = extractContextFromTurn(toolResults, "admin")
+              for (const entry of entries) {
+                await cacheService.upsertContextEntry({
+                  principalId: adminUserId,
+                  surface: "admin",
+                  domain: entry.domain,
+                  entityIds: entry.entityIds,
+                  summary: entry.summary,
+                  conversationId: body.id ?? null,
+                })
+              }
+            } catch (e: any) {
+              logger.debug?.(
+                `[${FEATURE}] context cache write failed: ${e?.message}`
+              )
+            }
+          }
         },
         onError: (err: any) => {
           logAiUsage(logger, {
