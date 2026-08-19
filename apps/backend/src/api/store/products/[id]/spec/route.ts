@@ -122,6 +122,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
             key: p.key,
             label: p.label,
             unit: p.unit,
+            // #1364 — the glyph the storefront draws beside this row. Sent from
+            // the registry rather than mapped storefront-side on the param
+            // name, so a param added here cannot quietly render naked.
+            icon: p.icon,
           })),
         }
       : null,

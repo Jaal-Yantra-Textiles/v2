@@ -10,6 +10,7 @@ import {
   Tooltip,
   IconButton,
   Badge,
+  Textarea,
 } from "@medusajs/ui"
 import { ArrowPath, Plus, Trash, Sparkles } from "@medusajs/icons"
 
@@ -2304,6 +2305,178 @@ function SectionsOrderEditor({ hs, updateForm }: SubEditorProps) {
   )
 }
 
+
+/**
+ * #1364 — the detail band: the full-width region BELOW the product gallery.
+ *
+ * Not to be confused with "Description Layout" above it, which only ever chose
+ * a container for two hardcoded panels inside the narrow sticky column. This
+ * one decides what appears under the image, and how it is arranged.
+ *
+ * The blocks are a fixed vocabulary rather than free-form content, because
+ * every source reads something the PRODUCT already has — its spec, its maker,
+ * its own fields. The theme picks which of those to show and in what order; it
+ * cannot state a fact about a piece it has never seen. The two exceptions,
+ * Care and Shipping, are the same promise on every product and so are written
+ * here, once.
+ *
+ * A block whose product has nothing to show is hidden on that product. That is
+ * what makes one arrangement safe across a whole catalogue: turning on "Made
+ * by" does not put an empty heading on the pieces with no maker story.
+ */
+const DETAIL_BAND_SOURCES = [
+  { value: "spec", label: "Made to", hint: "Weave, measurements and finishes, with icons" },
+  { value: "spec_fields", label: "Details", hint: "The extra fields you named on each product" },
+  { value: "attributes", label: "Product information", hint: "Material, origin, type, weight, size" },
+  { value: "maker", label: "Made by", hint: "The maker story, where a product has one" },
+  { value: "care", label: "Care", hint: "Your own copy — same on every product" },
+  { value: "shipping", label: "Shipping & returns", hint: "Your own copy — same on every product" },
+] as const
+
+const DETAIL_BAND_LAYOUTS = [
+  { value: "rows", label: "Rows" },
+  { value: "grid-2", label: "2 across" },
+  { value: "grid-3", label: "3 across" },
+  { value: "tabs", label: "Tabs" },
+  { value: "accordion", label: "Collapsible" },
+] as const
+
+type DetailBandValue = NonNullable<
+  NonNullable<WebsiteTheme["product_page"]>["detail_band"]
+>
+
+const DetailBandEditor = ({
+  band,
+  onChange,
+}: {
+  band?: DetailBandValue
+  onChange: (band: DetailBandValue) => void
+}) => {
+  const b = band || {}
+  const blocks = b.blocks || []
+
+  const patch = (next: Partial<DetailBandValue>) => onChange({ ...b, ...next })
+
+  const toggleSource = (source: string) => {
+    const existing = blocks.find((x) => x.source === source)
+    if (existing) {
+      patch({ blocks: blocks.filter((x) => x.source !== source) })
+      return
+    }
+    patch({ blocks: [...blocks, { source: source as any }] })
+  }
+
+  const patchBlock = (source: string, next: Record<string, any>) =>
+    patch({
+      blocks: blocks.map((x) => (x.source === source ? { ...x, ...next } : x)),
+    })
+
+  return (
+    <div className="space-y-3 rounded-lg border border-ui-border-base p-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <Label size="xsmall">Detail band</Label>
+          <Text size="xsmall" className="text-ui-fg-subtle">
+            Blocks shown below the product image
+          </Text>
+        </div>
+        <Switch
+          checked={b.enabled === true}
+          onCheckedChange={(v) => patch({ enabled: v })}
+        />
+      </div>
+
+      {b.enabled && (
+        <>
+          <FieldInput
+            label="Heading (optional)"
+            value={b.heading || ""}
+            onChange={(v) => patch({ heading: v })}
+            placeholder="About this piece"
+          />
+
+          <div className="space-y-1">
+            <Label size="xsmall">Arrangement</Label>
+            <div className="grid grid-cols-3 gap-1">
+              {DETAIL_BAND_LAYOUTS.map((l) => (
+                <button
+                  key={l.value}
+                  className={`px-2 py-1 text-xs rounded border ${
+                    (b.layout || "rows") === l.value
+                      ? "border-ui-fg-interactive bg-ui-bg-interactive text-ui-fg-on-color"
+                      : "border-ui-border-base text-ui-fg-subtle"
+                  }`}
+                  onClick={() => patch({ layout: l.value })}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label size="xsmall">Blocks</Label>
+            {DETAIL_BAND_SOURCES.map((src) => {
+              const block = blocks.find((x) => x.source === src.value)
+              const on = !!block
+              const authored = src.value === "care" || src.value === "shipping"
+              return (
+                <div key={src.value} className="rounded border border-ui-border-base p-2">
+                  <div className="flex items-center justify-between gap-x-2">
+                    <div className="min-w-0">
+                      <Text size="xsmall" weight="plus">{src.label}</Text>
+                      <Text size="xsmall" className="text-ui-fg-subtle">
+                        {src.hint}
+                      </Text>
+                    </div>
+                    <Switch checked={on} onCheckedChange={() => toggleSource(src.value)} />
+                  </div>
+
+                  {on && (
+                    <div className="mt-2 space-y-2">
+                      <FieldInput
+                        label="Heading"
+                        value={block?.label || ""}
+                        onChange={(v) => patchBlock(src.value, { label: v })}
+                        placeholder={src.label}
+                      />
+                      {authored && (
+                        <div className="space-y-1">
+                          <Label size="xsmall">Text</Label>
+                          <Textarea
+                            rows={3}
+                            value={block?.body || ""}
+                            onChange={(e) =>
+                              patchBlock(src.value, { body: e.target.value })
+                            }
+                            placeholder={
+                              src.value === "care"
+                                ? "Hand wash cold, dry flat in shade…"
+                                : "Dispatched in 2–3 working days…"
+                            }
+                          />
+                          {/* Without copy there is no product to fall back to,
+                              so the block simply will not appear. Saying so
+                              here beats a partner wondering why. */}
+                          {!(block?.body || "").trim() && (
+                            <Text size="xsmall" className="text-ui-fg-muted">
+                              Add text or this block stays hidden.
+                            </Text>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function ProductPagePanel({ form, updateForm }: PanelProps) {
   const pp = form.product_page || {}
   const colors = form.colors || {}
@@ -2379,6 +2552,11 @@ function ProductPagePanel({ form, updateForm }: PanelProps) {
             ))}
           </div>
         </div>
+
+        <DetailBandEditor
+          band={pp.detail_band}
+          onChange={(band) => updateForm("product_page", { ...pp, detail_band: band })}
+        />
 
         <FieldInput
           label="Add to Cart Text"

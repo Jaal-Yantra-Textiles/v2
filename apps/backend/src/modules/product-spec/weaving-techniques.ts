@@ -27,7 +27,37 @@ export interface WeaveParamDef {
   max: number
   step: number
   default: number
+  /**
+   * #1364 — which glyph a storefront draws beside this row.
+   *
+   * Lives HERE rather than in a storefront lookup keyed on the param name, for
+   * the same reason the label and the unit do: this file is where a param is
+   * defined, and a mapping kept anywhere else silently loses its entry the day
+   * someone adds a param — the row would still render, just naked, and nobody
+   * would notice. A storefront that does not recognise a name falls back to a
+   * neutral mark, so an unknown icon is a plain row and never a crash.
+   */
+  icon: SpecIcon
 }
+
+/**
+ * The glyph vocabulary. Deliberately small and about MEASUREMENT rather than
+ * decoration — a row saying "Weight 240 GSM" wants a scale, not a picture of
+ * cloth. Storefronts draw these; they are names, not assets.
+ */
+export type SpecIcon =
+  | "weave"
+  | "weight"
+  | "warp"
+  | "weft"
+  | "yarn"
+  | "width"
+  | "angle"
+  | "density"
+  | "loom"
+  | "metal"
+  | "finish"
+  | "note"
 
 /** A ready-made spec — picking one auto-fills the whole form. */
 export interface WeavePreset {
@@ -79,6 +109,7 @@ const GSM: WeaveParamDef = {
   max: 900,
   step: 5,
   default: 120,
+  icon: "weight",
 }
 const ENDS: WeaveParamDef = {
   key: "ends_per_inch",
@@ -88,6 +119,7 @@ const ENDS: WeaveParamDef = {
   max: 200,
   step: 1,
   default: 60,
+  icon: "warp",
 }
 const PICKS: WeaveParamDef = {
   key: "picks_per_inch",
@@ -97,6 +129,7 @@ const PICKS: WeaveParamDef = {
   max: 200,
   step: 1,
   default: 60,
+  icon: "weft",
 }
 const WARP_COUNT: WeaveParamDef = {
   key: "warp_yarn_count",
@@ -106,6 +139,7 @@ const WARP_COUNT: WeaveParamDef = {
   max: 200,
   step: 1,
   default: 40,
+  icon: "yarn",
 }
 const WEFT_COUNT: WeaveParamDef = {
   key: "weft_yarn_count",
@@ -115,6 +149,7 @@ const WEFT_COUNT: WeaveParamDef = {
   max: 200,
   step: 1,
   default: 40,
+  icon: "yarn",
 }
 const LOOM_WIDTH: WeaveParamDef = {
   key: "loom_width_cm",
@@ -124,6 +159,7 @@ const LOOM_WIDTH: WeaveParamDef = {
   max: 300,
   step: 1,
   default: 91,
+  icon: "width",
 }
 
 export const WEAVE_TECHNIQUES: WeaveTechnique[] = [
@@ -169,6 +205,7 @@ export const WEAVE_TECHNIQUES: WeaveTechnique[] = [
         max: 75,
         step: 5,
         default: 45,
+  icon: "angle",
       },
     ],
     defaultFinishes: ["hand wash", "press on reverse"],
@@ -232,6 +269,7 @@ export const WEAVE_TECHNIQUES: WeaveTechnique[] = [
         max: 200,
         step: 1,
         default: 40,
+        icon: "loom",
       },
     ],
     defaultFinishes: ["dry clean only"],
@@ -275,6 +313,7 @@ export const WEAVE_TECHNIQUES: WeaveTechnique[] = [
         max: 200,
         step: 1,
         default: 25,
+        icon: "density",
       },
     ],
     defaultFinishes: ["do not soak", "hand wash cold"],
@@ -308,6 +347,7 @@ export const WEAVE_TECHNIQUES: WeaveTechnique[] = [
         max: 100,
         step: 1,
         default: 15,
+        icon: "metal",
       },
     ],
     defaultFinishes: ["dry clean only", "store folded in muslin"],
@@ -331,6 +371,7 @@ export const WEAVE_TECHNIQUES: WeaveTechnique[] = [
         max: 10000,
         step: 100,
         default: 1200,
+        icon: "loom",
       },
     ],
     defaultFinishes: ["dry clean"],
@@ -354,6 +395,7 @@ export const WEAVE_TECHNIQUES: WeaveTechnique[] = [
         max: 32,
         step: 1,
         default: 8,
+        icon: "loom",
       },
     ],
     defaultFinishes: ["hand wash"],
