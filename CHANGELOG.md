@@ -1,3 +1,21 @@
+# [13.110.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.109.0...v13.110.0) (2026-08-19)
+
+
+### Bug Fixes
+
+* **storefront:** a published spec could never reach the product page ([#1360](https://github.com/Jaal-Yantra-Textiles/v2/issues/1360)) ([609aab3](https://github.com/Jaal-Yantra-Textiles/v2/commit/609aab385ef4179c3f798b14c776629947cbc3a4)), closes [#1338](https://github.com/Jaal-Yantra-Textiles/v2/issues/1338) [#1356](https://github.com/Jaal-Yantra-Textiles/v2/issues/1356) [#1351](https://github.com/Jaal-Yantra-Textiles/v2/issues/1351) [starter#10](https://github.com/starter/issues/10)
+* **product-spec:** the editor made a blank row it could not save ([#1361](https://github.com/Jaal-Yantra-Textiles/v2/issues/1361)) ([5e8a5c4](https://github.com/Jaal-Yantra-Textiles/v2/commit/5e8a5c40333b3aaf2d89055fbfaa125a0c4d2651)), closes [#1348](https://github.com/Jaal-Yantra-Textiles/v2/issues/1348) [#1356](https://github.com/Jaal-Yantra-Textiles/v2/issues/1356) [#1351](https://github.com/Jaal-Yantra-Textiles/v2/issues/1351)
+* **crm:** wind the CRM's clock — schedule the engagement sweep ([#1359](https://github.com/Jaal-Yantra-Textiles/v2/issues/1359)) ([7945842](https://github.com/Jaal-Yantra-Textiles/v2/commit/79458427661b45c53bfd17fc4de47375665e0576)), closes [#1355](https://github.com/Jaal-Yantra-Textiles/v2/issues/1355)
+
+
+### Features
+
+* **partner-mcp:** add storefront page-block write tools ([#1363](https://github.com/Jaal-Yantra-Textiles/v2/issues/1363)) ([0fb14e2](https://github.com/Jaal-Yantra-Textiles/v2/commit/0fb14e299e412dfc1f90ff86c4852ed7801bcd55))
+* **admin:** create a product into a partner's store, on the record ([#1362](https://github.com/Jaal-Yantra-Textiles/v2/issues/1362)) ([1d02925](https://github.com/Jaal-Yantra-Textiles/v2/commit/1d029258421c6bc05ef873e7f6da5e7721897c47)), closes [#1348](https://github.com/Jaal-Yantra-Textiles/v2/issues/1348) [#1356](https://github.com/Jaal-Yantra-Textiles/v2/issues/1356)
+* **assistant:** cross-conversation context cache for AI assistants ([#1345](https://github.com/Jaal-Yantra-Textiles/v2/issues/1345)) ([7ae1c7d](https://github.com/Jaal-Yantra-Textiles/v2/commit/7ae1c7d464f01ba1e48fff628a6002ea5568c059))
+* **admin:** run actions from the WhatsApp messaging inbox ([#1358](https://github.com/Jaal-Yantra-Textiles/v2/issues/1358)) ([f063197](https://github.com/Jaal-Yantra-Textiles/v2/commit/f0631975494e4163b8f573b577c4193f93062aab))
+* send a partner ONE material, not the whole design — and a detail band below the gallery ([#1364](https://github.com/Jaal-Yantra-Textiles/v2/issues/1364), [#1365](https://github.com/Jaal-Yantra-Textiles/v2/issues/1365)) ([#1366](https://github.com/Jaal-Yantra-Textiles/v2/issues/1366)) ([25ce82e](https://github.com/Jaal-Yantra-Textiles/v2/commit/25ce82e1e882a2325f14abfa5f58e90a7504eb4e)), closes [#1314](https://github.com/Jaal-Yantra-Textiles/v2/issues/1314) [#1358](https://github.com/Jaal-Yantra-Textiles/v2/issues/1358) [#826](https://github.com/Jaal-Yantra-Textiles/v2/issues/826) [#1361](https://github.com/Jaal-Yantra-Textiles/v2/issues/1361) [#1314](https://github.com/Jaal-Yantra-Textiles/v2/issues/1314) [#1360](https://github.com/Jaal-Yantra-Textiles/v2/issues/1360) [#1338](https://github.com/Jaal-Yantra-Textiles/v2/issues/1338)
+
 # [13.109.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.108.0...v13.109.0) (2026-08-19)
 
 
