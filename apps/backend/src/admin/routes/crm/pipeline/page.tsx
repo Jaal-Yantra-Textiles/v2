@@ -256,3 +256,8 @@ export const config = defineRouteConfig({
 });
 
 export default CrmPipelinePage;
+
+export const handle = {
+  // Without this the crumb reads the raw path segment ("pipeline").
+  breadcrumb: () => "Pipeline",
+};
