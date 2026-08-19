@@ -27,11 +27,15 @@ import {
   PRODUCT_SPEC_WRITE_GUIDANCE,
   productSpecSchemaProps,
 } from "../../../../modules/product-spec/tool-schema"
-// The page vocabulary comes from the validator that enforces it, never a copy.
+// The page + block vocabulary comes from the validator that enforces it, never a copy.
 import {
   PAGE_STATUSES,
   PAGE_TYPES,
 } from "../../../admin/websites/[id]/pages/validators"
+import {
+  BLOCK_STATUSES,
+  BLOCK_TYPES,
+} from "../../../admin/websites/[id]/pages/[pageId]/blocks/validators"
 
 /**
  * Partner tool definition. The declarative model now lives in the shared
@@ -85,6 +89,52 @@ const PAGE_STATUS_ENUM = {
   description:
     "Page status. Capitalised. 'Published' is LIVE on the storefront; new pages should be 'Draft' unless the partner asked to publish.",
   enum: [...PAGE_STATUSES],
+} as const
+
+/**
+ * Block vocabulary, taken from the blocks validator rather than restated.
+ * `Hero` + `MainContent` are what the storefront actually renders (a heading
+ * band, then prose sections); the unique types may only appear once per page.
+ */
+const BLOCK_TYPE_ENUM = {
+  type: "string",
+  description:
+    "Block type. Use 'Hero' for the top heading band and 'MainContent' for body prose — these are the two the storefront renders as designed. Other values render as a fallback dump.",
+  enum: [...BLOCK_TYPES],
+} as const
+
+const BLOCK_STATUS_ENUM = {
+  type: "string",
+  description: "Block status. Leave as 'Active' so the block shows on the page.",
+  enum: [...BLOCK_STATUSES],
+} as const
+
+/** One block's content, keyed by type. */
+const BLOCK_SCHEMA = obj(
+  {
+    name: STR("Internal label shown in the editor's block list, e.g. 'Hero' or 'Our story'."),
+    type: BLOCK_TYPE_ENUM,
+    content: {
+      type: "object",
+      additionalProperties: true,
+      description:
+        "Block content, keyed by type. Hero: { title, subtitle?, align? ('left'|'center') }. MainContent: { title?, body } where body is plain text and blank lines split paragraphs.",
+    },
+    settings: { type: "object", additionalProperties: true },
+    order: { type: "integer", description: "Render order (0-based). Omit to append after existing blocks." },
+    status: BLOCK_STATUS_ENUM,
+    metadata: { type: "object", additionalProperties: true },
+  },
+  ["name", "type", "content"]
+)
+
+const BLOCKS_ARRAY = {
+  type: "array",
+  minItems: 1,
+  maxItems: 12,
+  items: BLOCK_SCHEMA,
+  description:
+    "The blocks to add, in render order. First ask the partner what they want in each section.",
 } as const
 
 /** Unit-of-measure enum shared by consumption-log tools. */
@@ -1242,11 +1292,86 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   },
   {
     name: "list_storefront_page_blocks",
-    description: "List the content blocks of a storefront page.",
+    description: "List the content blocks of a storefront page (ids, types, content, order).",
     method: "GET",
     path: "/partners/storefront/pages/:pageId/blocks",
     pathParams: ["pageId"],
     inputSchema: obj({ pageId: STR("Page id.") }, ["pageId"]),
+  },
+  // Blocks — not the page's `content` text — are what the storefront renders.
+  // A page with an empty blocks array shows only its title, so these tools are
+  // how a page actually gets its Hero + MainContent layout. The model is
+  // instructed to ASK the partner what they want in each block before calling.
+  {
+    name: "add_storefront_page_blocks",
+    description:
+      "Add content blocks to a storefront page. Blocks are what the storefront renders — a page without them shows only its title. ASK the partner what they want in each section first (the Hero heading/subtitle, then MainContent body copy), then send a `blocks` array in render order.",
+    method: "POST",
+    path: "/partners/storefront/pages/:pageId/blocks",
+    pathParams: ["pageId"],
+    write: true,
+    previewPath: "/partners/storefront/pages/:pageId/blocks",
+    bodyParams: ["blocks"],
+    inputSchema: obj(
+      {
+        pageId: STR("Page id to add blocks to."),
+        blocks: BLOCKS_ARRAY,
+      },
+      ["pageId", "blocks"]
+    ),
+    sideEffects:
+      "Appends blocks to the page. If the page is already 'Published' these changes are live immediately — confirm with the partner before editing a live page.",
+    nextSteps: ["get_storefront_page", "list_storefront_page_blocks"],
+  },
+  {
+    name: "update_storefront_page_block",
+    description:
+      "Update a block on a storefront page (its title, subtitle, body, order, …). Get the block ids from list_storefront_page_blocks, then pass only the fields that change; `content` merges over the existing content rather than replacing it. ASK the partner what changed before editing.",
+    method: "PUT",
+    path: "/partners/storefront/pages/:pageId/blocks/:blockId",
+    pathParams: ["pageId", "blockId"],
+    write: true,
+    previewPath: "/partners/storefront/pages/:pageId/blocks/:blockId",
+    bodyParams: ["name", "type", "content", "settings", "order", "status", "metadata"],
+    inputSchema: obj(
+      {
+        pageId: STR("Page id the block belongs to."),
+        blockId: STR("Block id from list_storefront_page_blocks."),
+        name: STR("Optional internal label."),
+        type: BLOCK_TYPE_ENUM,
+        content: {
+          type: "object",
+          additionalProperties: true,
+          description:
+            "Block content, keyed by type. Hero: { title, subtitle?, align? ('left'|'center') }. MainContent: { title?, body } where body is plain text and blank lines split paragraphs. Merged over the existing content.",
+        },
+        settings: { type: "object", additionalProperties: true },
+        order: { type: "integer", description: "Render order (0-based)." },
+        status: BLOCK_STATUS_ENUM,
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["pageId", "blockId"]
+    ),
+    sideEffects:
+      "Editing a block on a 'Published' page is live immediately — confirm with the partner before editing a live page.",
+  },
+  {
+    name: "delete_storefront_page_block",
+    description:
+      "Delete a block from a storefront page. Sensitive — the block is removed immediately and cannot be recovered.",
+    method: "DELETE",
+    path: "/partners/storefront/pages/:pageId/blocks/:blockId",
+    pathParams: ["pageId", "blockId"],
+    write: true,
+    inputSchema: obj(
+      {
+        pageId: STR("Page id the block belongs to."),
+        blockId: STR("Block id from list_storefront_page_blocks."),
+      },
+      ["pageId", "blockId"]
+    ),
+    sideEffects:
+      "The block is deleted permanently. On a 'Published' page this changes the live site immediately.",
   },
   // The two page writes below mirror `postPagesSchema` / `updatePageSchema`
   // field for field. They did not, and the gap was invisible from here: the row
@@ -1258,7 +1383,7 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   {
     name: "create_storefront_page",
     description:
-      "Create a storefront page. `content` is REQUIRED — it is the page's body text, and the route rejects the call without it. Blocks are NOT part of this call: create the page, then use the page-block tools to lay it out. Call list_storefront_pages first so you do not reuse an existing slug.",
+      "Create a storefront page. `content` is REQUIRED — it is the page's body text, and the route rejects the call without it (write a short lead/summary; the storefront renders BLOCKS, not this field). Blocks are NOT part of this call: after creating, ASK the partner what they want in each section and lay the page out with add_storefront_page_blocks (Hero + MainContent). Call list_storefront_pages first so you do not reuse an existing slug.",
     method: "POST",
     path: "/partners/storefront/pages",
     write: true,
@@ -1282,12 +1407,12 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     ),
     sideEffects:
       "A page created with status 'Published' is immediately visible on the live storefront. Omit status (or send 'Draft') unless the partner asked to publish.",
-    nextSteps: ["get_storefront_page", "list_storefront_page_blocks"],
+    nextSteps: ["add_storefront_page_blocks", "get_storefront_page", "list_storefront_page_blocks"],
   },
   {
     name: "update_storefront_page",
     description:
-      "Update a storefront page. Every field is optional here — pass only what changes. Blocks are NOT part of this call; use the page-block tools.",
+      "Update a storefront page. Every field is optional here — pass only what changes. Blocks are NOT part of this call; use add/update/delete_storefront_page_block to change the layout.",
     method: "PUT",
     path: "/partners/storefront/pages/:pageId",
     pathParams: ["pageId"],

@@ -156,6 +156,8 @@ describe("partner-mcp registry + dispatch", () => {
         "update_storefront_website", "get_storefront_analytics",
         "update_storefront_analytics", "list_storefront_pages",
         "get_storefront_page", "list_storefront_page_blocks",
+        "add_storefront_page_blocks", "update_storefront_page_block",
+        "delete_storefront_page_block",
         "create_storefront_page", "update_storefront_page",
         "get_storefront_domain", "update_storefront_domain",
         "verify_storefront_domain", "provision_storefront",
@@ -173,6 +175,11 @@ describe("partner-mcp registry + dispatch", () => {
       // Routine page edits are writes but not sensitive (no confirmation friction).
       expect(isSensitive(byName("update_storefront_page"))).toBe(false)
       expect(byName("update_storefront_page").write).toBe(true)
+      // Adding/editing blocks is a routine write; deleting a block is a DELETE,
+      // so it is implicitly sensitive.
+      expect(isSensitive(byName("add_storefront_page_blocks"))).toBe(false)
+      expect(isSensitive(byName("update_storefront_page_block"))).toBe(false)
+      expect(isSensitive(byName("delete_storefront_page_block"))).toBe(true)
     })
 
     it("covers store config (Tier 3) under /partners/stores/:id", () => {

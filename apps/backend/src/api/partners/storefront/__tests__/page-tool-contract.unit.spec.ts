@@ -19,6 +19,12 @@ import {
   postPagesSchema,
   updatePageSchema,
 } from "../../../admin/websites/[id]/pages/validators"
+import {
+  BLOCK_TYPES,
+  BLOCK_STATUSES,
+  createBlocksSchema,
+  updateBlockSchema,
+} from "../../../admin/websites/[id]/pages/[pageId]/blocks/validators"
 
 const tool = (name: string) => {
   const def = PARTNER_MCP_TOOLS.find((t) => t.name === name)
@@ -126,5 +132,71 @@ describe("one page vocabulary", () => {
     )
     expect(pageTools).toContain("import { PAGE_TYPES }")
     expect(pageTools).not.toMatch(/const PAGE_TYPES = \[/)
+  })
+})
+
+describe("block tools ↔ blocks validator", () => {
+  const blockShape = (createBlocksSchema as any).shape.blocks.element.shape
+
+  const addDef = tool("add_storefront_page_blocks")
+  const updateDef = tool("update_storefront_page_block")
+
+  it("add_storefront_page_blocks requires name/type/content on every block", () => {
+    const missing = requiredKeys(blockShape).filter(
+      (k) => !(addDef.inputSchema.properties.blocks.items.required ?? []).includes(k)
+    )
+    expect(missing).toEqual([])
+  })
+
+  it("add_storefront_page_blocks forwards only `blocks` (pageId is a path param)", () => {
+    const declared = Object.keys(addDef.inputSchema.properties).filter(
+      (k) => !(addDef.pathParams ?? []).includes(k)
+    )
+    expect(declared).toEqual(["blocks"])
+    expect(addDef.bodyParams).toEqual(["blocks"])
+  })
+
+  it("offers exactly the block enum values the route accepts", () => {
+    expect(addDef.inputSchema.properties.blocks.items.properties.type.enum).toEqual([...BLOCK_TYPES])
+    expect(addDef.inputSchema.properties.blocks.items.properties.status.enum).toEqual([...BLOCK_STATUSES])
+    expect(updateDef.inputSchema.properties.type.enum).toEqual([...BLOCK_TYPES])
+    expect(updateDef.inputSchema.properties.status.enum).toEqual([...BLOCK_STATUSES])
+  })
+
+  it("passes a realistic block payload through the real validator", () => {
+    const payload = {
+      blocks: [
+        {
+          name: "Hero",
+          type: "Hero",
+          content: { title: "About us", subtitle: "Our story", align: "center" },
+          order: 0,
+          status: "Active",
+        },
+        {
+          name: "Our story",
+          type: "MainContent",
+          content: { body: "We are a weaving collective in Kashmir." },
+          order: 1,
+        },
+      ],
+    }
+    expect(() => createBlocksSchema.parse(payload)).not.toThrow()
+  })
+
+  it("update_storefront_page_block forwards only fields the validator accepts", () => {
+    const shape = (updateBlockSchema as any).shape
+    const declared = Object.keys(updateDef.inputSchema.properties).filter(
+      (k) => !(updateDef.pathParams ?? []).includes(k)
+    )
+    expect(declared.filter((k) => !updateDef.bodyParams.includes(k))).toEqual([])
+    expect(updateDef.bodyParams.filter((k: string) => !(k in shape))).toEqual([])
+  })
+
+  it("delete_storefront_page_block is a sensitive DELETE on the block path", () => {
+    const del = tool("delete_storefront_page_block")
+    expect(del.method).toBe("DELETE")
+    expect(del.pathParams).toEqual(["pageId", "blockId"])
+    expect(del.path).toBe("/partners/storefront/pages/:pageId/blocks/:blockId")
   })
 })

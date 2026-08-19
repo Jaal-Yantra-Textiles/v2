@@ -1,28 +1,35 @@
 import { z } from "@medusajs/framework/zod";
 
+/**
+ * The block vocabulary, exported so the surfaces that OFFER these values read
+ * the same list the validator enforces (see the page validator's note for why
+ * this must never be restated). `Hero` and `MainContent` are what the
+ * storefront `[slug]` renderer turns into a heading band and a prose section;
+ * the unique ones may only appear once per page.
+ */
+export const BLOCK_TYPES = [
+  "Hero",
+  "Header",
+  "Footer",
+  "MainContent",
+  "ContactForm",
+  "Feature",
+  "Gallery",
+  "Testimonial",
+  "Product",
+  "Section",
+  "Custom",
+] as const
+
+export const BLOCK_STATUSES = ["Active", "Inactive", "Draft"] as const
+
 const blockBaseSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  type: z.enum([
-    "Hero",
-    "Header",
-    "Footer",
-    "MainContent",
-    "ContactForm",
-    "Feature",
-    "Gallery",
-    "Testimonial",
-    "Product",
-    "Section",
-    "Custom"
-  ]),
+  type: z.enum(BLOCK_TYPES),
   content: z.record(z.string(), z.unknown()),
   settings: z.record(z.string(), z.unknown()).optional(),
   order: z.number().optional(),
-  status: z.enum([
-    "Active",
-    "Inactive",
-    "Draft"
-  ]).optional(),
+  status: z.enum(BLOCK_STATUSES).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
