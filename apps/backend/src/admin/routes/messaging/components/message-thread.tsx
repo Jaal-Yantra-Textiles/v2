@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react"
-import { Text, Badge, IconButton, toast } from "@medusajs/ui"
+import { Text, Badge, IconButton, toast, Skeleton } from "@medusajs/ui"
 import { XMark } from "@medusajs/icons"
 import { useConversationMessages, useSendMessage } from "../../../hooks/api/messaging"
-import { MessageBubble } from "./message-bubble"
+import { MessageBubble, MessageBubbleSkeleton, type MessageAction } from "./message-bubble"
 import { MessageInput, type SendPayload } from "./message-input"
 
 export const MessageThread = ({
@@ -41,8 +41,18 @@ export const MessageThread = ({
 
   if (isPending) {
     return (
-      <div className="flex items-center justify-center h-full text-ui-fg-muted bg-ui-bg-subtle">
-        Loading messages...
+      <div className="flex flex-col h-full bg-ui-bg-subtle">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-ui-border-base bg-ui-bg-base shrink-0">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          <Skeleton className="h-6 w-16" />
+        </div>
+        <div className="flex-1 overflow-hidden px-6 py-4">
+          <MessageBubbleSkeleton count={6} />
+        </div>
+        <Skeleton className="h-16 w-full shrink-0" />
       </div>
     )
   }
@@ -80,7 +90,14 @@ export const MessageThread = ({
         ) : (
           <div className="space-y-1 max-w-full">
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} />
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                onMessageAction={(action: MessageAction, _msg) => {
+                  // Legacy thread — actions not wired to modals here.
+                  // The route page ([conversationId]/page.tsx) is the full UI.
+                }}
+              />
             ))}
           </div>
         )}

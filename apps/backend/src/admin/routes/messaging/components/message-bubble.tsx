@@ -1,6 +1,7 @@
-import { clx, DropdownMenu } from "@medusajs/ui"
+import { clx, DropdownMenu, Badge, Skeleton } from "@medusajs/ui"
 import type { Message } from "../../../hooks/api/messaging"
 import { ContextCard } from "./context-card"
+import type { MessageRunActionType } from "./message-run-action-modal"
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g
 
@@ -17,7 +18,6 @@ const RichContent = ({ text, isOutbound }: { text: string; isOutbound: boolean }
       {urls.length > 0 && (
         <div className="flex flex-col gap-1.5 mb-1.5">
           {urls.map((url, i) => {
-            // Try to extract domain and path for a simple preview
             let domain = ""
             let path = ""
             try {
@@ -101,7 +101,7 @@ function formatTime(dateStr: string): string {
 
 function statusIcon(status: string): string {
   switch (status) {
-    case "queued": return "\u23F3"    // hourglass
+    case "queued": return "\u23F3"
     case "sent": return "\u2713"
     case "delivered": return "\u2713\u2713"
     case "read": return "\u2713\u2713"
@@ -116,6 +116,36 @@ function isImageMime(mime?: string | null): boolean {
 
 function isVideoMime(mime?: string | null): boolean {
   return !!mime && mime.startsWith("video/")
+}
+
+/**
+ * A small badge identifying WhatsApp template / interactive messages so
+ * the operator can tell system-sent templates apart from free-form text.
+ */
+const MessageTypeBadge = ({ message, isOutbound }: { message: Message; isOutbound: boolean }) => {
+  if (message.message_type === "template") {
+    return (
+      <Badge
+        size="2xsmall"
+        color="grey"
+        className={clx("mb-1", isOutbound && "bg-white/20 text-ui-fg-on-color border-white/30")}
+      >
+        Template
+      </Badge>
+    )
+  }
+  if (message.message_type === "interactive") {
+    return (
+      <Badge
+        size="2xsmall"
+        color="grey"
+        className={clx("mb-1", isOutbound && "bg-white/20 text-ui-fg-on-color border-white/30")}
+      >
+        Interactive
+      </Badge>
+    )
+  }
+  return null
 }
 
 const MediaPreview = ({ message }: { message: Message }) => {
@@ -192,19 +222,31 @@ const ReplyPreview = ({ snapshot, isOutbound }: { snapshot: Message["reply_to_sn
   )
 }
 
+/**
+ * The set of per-message actions the conversation page can handle. The
+ * MessageBubble emits the action type + the message; the page owns the
+ * modal so we don't end up with N modals in the DOM.
+ */
+export type MessageAction =
+  | "payment"
+  | MessageRunActionType
+
 export const MessageBubble = ({
   message,
   onReply,
-  onCreatePayment,
+  onMessageAction,
 }: {
   message: Message
   onReply?: (message: Message) => void
-  // Optional — when provided, inbound messages get a kebab menu with a
-  // "Create payment request" entry. Page-level state owns the modal so
-  // we don't end up with N modals (one per bubble) in the DOM.
-  onCreatePayment?: (message: Message) => void
+  /**
+   * When provided, inbound messages get a kebab menu with per-message
+   * actions: create payment, add to run activity log, attach media to
+   * run, complete production run. Page-level state owns the modal.
+   */
+  onMessageAction?: (action: MessageAction, message: Message) => void
 }) => {
   const isOutbound = message.direction === "outbound"
+  const hasMedia = !!message.media_url
 
   return (
     <div
@@ -237,6 +279,8 @@ export const MessageBubble = ({
           </div>
         )}
 
+        <MessageTypeBadge message={message} isOutbound={isOutbound} />
+
         <ReplyPreview snapshot={message.reply_to_snapshot} isOutbound={isOutbound} />
 
         {message.context_snapshot && message.context_type && (
@@ -268,8 +312,6 @@ export const MessageBubble = ({
           )}
         </div>
 
-        {/* Why a delivery failed (Meta error). Captured from the WhatsApp status
-            webhook so the operator sees the reason instead of a bare ✗. */}
         {isOutbound && message.status === "failed" && message.fail_reason && (
           <div
             className="mt-1 text-[10px] text-red-300 text-right break-words"
@@ -281,7 +323,7 @@ export const MessageBubble = ({
       </div>
 
       {/* Reply + actions (right side for inbound) */}
-      {!isOutbound && (onReply || onCreatePayment) && (
+      {!isOutbound && (onReply || onMessageAction) && (
         <div className="flex flex-col gap-y-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
           {onReply && (
             <button
@@ -294,7 +336,7 @@ export const MessageBubble = ({
               </svg>
             </button>
           )}
-          {onCreatePayment && (
+          {onMessageAction && (
             <DropdownMenu>
               <DropdownMenu.Trigger asChild>
                 <button
@@ -308,14 +350,62 @@ export const MessageBubble = ({
                 </button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Content side="right" align="start">
-                <DropdownMenu.Item onClick={() => onCreatePayment(message)}>
-                  Create payment request from this message
+                <DropdownMenu.Label>Production run</DropdownMenu.Label>
+                <DropdownMenu.Item onClick={() => onMessageAction("activity_note", message)}>
+                  Add to run activity log
+                </DropdownMenu.Item>
+                {hasMedia && (
+                  <DropdownMenu.Item onClick={() => onMessageAction("attach_media", message)}>
+                    Attach media to run
+                  </DropdownMenu.Item>
+                )}
+                <DropdownMenu.Item onClick={() => onMessageAction("complete_run", message)}>
+                  Complete production run
+                </DropdownMenu.Item>
+                <DropdownMenu.Separator />
+                <DropdownMenu.Item onClick={() => onMessageAction("payment", message)}>
+                  Create payment request
                 </DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu>
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Skeleton placeholder for a message bubble — used while the conversation
+ * is loading instead of a plain "Loading messages..." text.
+ */
+export const MessageBubbleSkeleton = ({ count = 6 }: { count?: number }) => {
+  return (
+    <div className="space-y-3 max-w-3xl mx-auto">
+      {Array.from({ length: count }).map((_, i) => {
+        const isOutbound = i % 2 === 0
+        return (
+          <div
+            key={i}
+            className={clx(
+              "flex w-full items-start gap-1",
+              isOutbound ? "justify-end" : "justify-start"
+            )}
+          >
+            <div
+              className={clx(
+                "max-w-[70%] rounded-lg px-3 py-2",
+                isOutbound ? "bg-ui-bg-interactive/50 rounded-br-none" : "bg-ui-bg-subtle rounded-bl-none"
+              )}
+            >
+              {!isOutbound && <Skeleton className="h-3 w-20 mb-2" />}
+              <Skeleton className="h-4 w-full max-w-[280px] mb-1" />
+              <Skeleton className={clx("h-4", isOutbound ? "w-40" : "w-48")} />
+              <Skeleton className="h-3 w-12 mt-2" />
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
