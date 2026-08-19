@@ -1,3 +1,10 @@
+# [13.111.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.110.0...v13.111.0) (2026-08-19)
+
+
+### Features
+
+* one add-to-cart, and the choices where the decision is made ([#1365](https://github.com/Jaal-Yantra-Textiles/v2/issues/1365)) ([#1367](https://github.com/Jaal-Yantra-Textiles/v2/issues/1367)) ([3b864bf](https://github.com/Jaal-Yantra-Textiles/v2/commit/3b864bf488d022c254314b0073e47cf4ff6bce2e)), closes [#1349](https://github.com/Jaal-Yantra-Textiles/v2/issues/1349) [nextjs-starter-medusa#12](https://github.com/nextjs-starter-medusa/issues/12) [nextjs-starter-medusa#12](https://github.com/nextjs-starter-medusa/issues/12)
+
 # [13.110.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.109.0...v13.110.0) (2026-08-19)
 
 
