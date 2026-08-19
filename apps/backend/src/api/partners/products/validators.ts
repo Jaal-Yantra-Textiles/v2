@@ -66,6 +66,38 @@ export const PartnerProductSpecFieldReq = z
   })
   .strict()
 
+/**
+ * A partner-defined selectable option group and its values.
+ *
+ * The partner names the axis, so this schema deliberately constrains nothing
+ * about WHAT the choice is — "Embroidery", "Border", "Pallu finish" are all the
+ * same shape. What it does constrain is size: an option group with 200 values
+ * is not a choice, it is a search box, and a made-to-order page that renders
+ * one has stopped being usable.
+ */
+export const PartnerProductSpecOptionValueReq = z
+  .object({
+    label: z.string().trim().min(1).max(160),
+    note: z.string().trim().max(500).nullable().optional(),
+    order: z.number().int().min(0).max(999).optional(),
+    available: z.boolean().optional(),
+  })
+  .strict()
+
+export const PartnerProductSpecOptionReq = z
+  .object({
+    key: z.string().trim().min(1).max(60),
+    label: z.string().trim().max(120).nullable().optional(),
+    help_text: z.string().trim().max(500).nullable().optional(),
+    required: z.boolean().optional(),
+    order: z.number().int().min(0).max(999).optional(),
+    // A group with no values is not "no choice offered", it is a broken choice
+    // the customer cannot satisfy — and if it is `required` too, the product
+    // becomes unorderable. Rejected at the door rather than at add-to-cart.
+    values: z.array(PartnerProductSpecOptionValueReq).min(1).max(40),
+  })
+  .strict()
+
 export const PartnerProductSpecReq = z
   .object({
     weave_technique: z.string().trim().max(60).nullable().optional(),
@@ -85,6 +117,8 @@ export const PartnerProductSpecReq = z
       .optional(),
     colors: z.array(PartnerProductSpecColorReq).max(60).optional(),
     fields: z.array(PartnerProductSpecFieldReq).max(40).optional(),
+    // Replaces wholesale when present, exactly like colors/fields.
+    options: z.array(PartnerProductSpecOptionReq).max(12).optional(),
   })
   .strict()
 

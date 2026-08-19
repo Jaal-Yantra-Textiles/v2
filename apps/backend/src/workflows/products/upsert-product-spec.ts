@@ -28,6 +28,22 @@ export type ProductSpecFieldInput = {
   order?: number
 }
 
+export type ProductSpecOptionValueInput = {
+  label: string
+  note?: string | null
+  order?: number
+  available?: boolean
+}
+
+export type ProductSpecOptionInput = {
+  key: string
+  label?: string | null
+  help_text?: string | null
+  required?: boolean
+  order?: number
+  values: ProductSpecOptionValueInput[]
+}
+
 export type ProductSpecInput = {
   weave_technique?: string | null
   weave_label?: string | null
@@ -40,6 +56,8 @@ export type ProductSpecInput = {
   colors?: ProductSpecColorInput[]
   /** Full replacement of the custom fields when present; omit to leave alone. */
   fields?: ProductSpecFieldInput[]
+  /** Full replacement of the selectable option groups; omit to leave alone. */
+  options?: ProductSpecOptionInput[]
 }
 
 export type UpsertProductSpecInput = {
@@ -54,8 +72,10 @@ type UpsertCompensation = {
   prev?: Record<string, unknown>
   prevColors?: any[]
   prevFields?: any[]
+  prevOptions?: any[]
   replacedColors: boolean
   replacedFields: boolean
+  replacedOptions: boolean
 }
 
 /**
@@ -66,7 +86,7 @@ type UpsertCompensation = {
  * not a request-shape rule: whether 900 GSM is a typo depends on the technique
  * that was chosen, which only this layer knows.
  *
- * Palette and fields are REPLACED wholesale when supplied. Diffing them by id
+ * Palette, fields and option groups are REPLACED wholesale when supplied. Diffing them by id
  * would be kinder to concurrent editors, but a partner spec has exactly one
  * editor, and a replace cannot leave a colour the partner deleted alive because
  * its row failed to match.
@@ -77,7 +97,7 @@ const upsertProductSpecStep = createStep(
     const service: any = container.resolve(PRODUCT_SPEC_MODULE)
     const link: any = container.resolve(ContainerRegistrationKeys.LINK)
 
-    const { colors, fields, ...specData } = input.data
+    const { colors, fields, options, ...specData } = input.data
 
     // Parameters are only meaningful against a technique. Validating here means
     // a spec can never be stored claiming 8000 GSM because a UI let it through.
@@ -119,8 +139,10 @@ const upsertProductSpecStep = createStep(
         },
         prevColors: existing.colors ?? [],
         prevFields: existing.fields ?? [],
+        prevOptions: existing.options ?? [],
         replacedColors: !!colors,
         replacedFields: !!fields,
+        replacedOptions: !!options,
       }
     } else {
       spec = await service.createProductSpecs({
@@ -133,6 +155,7 @@ const upsertProductSpecStep = createStep(
         product_id: input.product_id,
         replacedColors: !!colors,
         replacedFields: !!fields,
+        replacedOptions: !!options,
       }
     }
 
@@ -169,6 +192,45 @@ const upsertProductSpecStep = createStep(
       }
     }
 
+    if (options) {
+      // Values first, then their groups: a value row whose option is already
+      // gone is unreachable garbage, and the FK points that way. Deleting the
+      // parent first would strand every value it owned.
+      const staleOptions = existing?.options ?? []
+      const staleValueIds = staleOptions.flatMap((o: any) =>
+        (o.values ?? []).map((v: any) => v.id)
+      )
+      if (staleValueIds.length)
+        await service.deleteProductSpecOptionValues(staleValueIds)
+      const staleOptionIds = staleOptions.map((o: any) => o.id)
+      if (staleOptionIds.length)
+        await service.deleteProductSpecOptions(staleOptionIds)
+
+      for (const [i, o] of options.entries()) {
+        const created = await service.createProductSpecOptions({
+          key: normalizeKey(o.key),
+          label: o.label ?? o.key.trim(),
+          help_text: o.help_text ?? null,
+          required: o.required ?? false,
+          order: o.order ?? i,
+          spec_id: spec.id,
+        })
+        // `createX` returns one row for an object input and an array for an
+        // array input — normalise rather than assume, because guessing wrong
+        // yields `undefined.id` as the FK and every value lands orphaned.
+        const optionRow = Array.isArray(created) ? created[0] : created
+        await service.createProductSpecOptionValues(
+          o.values.map((v, vi) => ({
+            label: v.label.trim(),
+            note: v.note ?? null,
+            order: v.order ?? vi,
+            available: v.available ?? true,
+            option_id: optionRow.id,
+          }))
+        )
+      }
+    }
+
     // Ensure the link on BOTH paths (idempotent). Creating it only on first
     // write is what left artisan-detail rows readable by their own module but
     // invisible to query.graph, so the storefront silently dropped them (#859).
@@ -195,12 +257,20 @@ const upsertProductSpecStep = createStep(
       // Children go with the parent — deleting the spec alone would leave
       // orphan colour/field rows pointing at an id that no longer exists.
       const spec = await service
-        .retrieveProductSpec(compensation.id, { relations: ["colors", "fields"] })
+        .retrieveProductSpec(compensation.id, {
+          relations: ["colors", "fields", "options", "options.values"],
+        })
         .catch(() => null)
       const colorIds = (spec?.colors ?? []).map((c: any) => c.id)
       const fieldIds = (spec?.fields ?? []).map((f: any) => f.id)
+      const optionIds = (spec?.options ?? []).map((o: any) => o.id)
+      const valueIds = (spec?.options ?? []).flatMap((o: any) =>
+        (o.values ?? []).map((v: any) => v.id)
+      )
       if (colorIds.length) await service.deleteProductSpecColors(colorIds)
       if (fieldIds.length) await service.deleteProductSpecFields(fieldIds)
+      if (valueIds.length) await service.deleteProductSpecOptionValues(valueIds)
+      if (optionIds.length) await service.deleteProductSpecOptions(optionIds)
       await service.deleteProductSpecs(compensation.id)
       return
     }
@@ -247,6 +317,42 @@ const upsertProductSpecStep = createStep(
             spec_id: compensation.id,
           }))
         )
+      }
+    }
+
+    if (compensation.replacedOptions) {
+      const current = await service.listProductSpecOptions(
+        { spec_id: compensation.id },
+        { relations: ["values"] }
+      )
+      const valueIds = (current ?? []).flatMap((o: any) =>
+        (o.values ?? []).map((v: any) => v.id)
+      )
+      const optionIds = (current ?? []).map((o: any) => o.id)
+      if (valueIds.length) await service.deleteProductSpecOptionValues(valueIds)
+      if (optionIds.length) await service.deleteProductSpecOptions(optionIds)
+
+      for (const o of compensation.prevOptions ?? []) {
+        const restored = await service.createProductSpecOptions({
+          key: o.key,
+          label: o.label,
+          help_text: o.help_text,
+          required: o.required,
+          order: o.order,
+          spec_id: compensation.id,
+        })
+        const optionRow = Array.isArray(restored) ? restored[0] : restored
+        if (o.values?.length) {
+          await service.createProductSpecOptionValues(
+            o.values.map((v: any) => ({
+              label: v.label,
+              note: v.note,
+              order: v.order,
+              available: v.available,
+              option_id: optionRow.id,
+            }))
+          )
+        }
       }
     }
   }

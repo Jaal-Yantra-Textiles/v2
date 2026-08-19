@@ -38,6 +38,7 @@ import { createPageWorkflow } from "../../../../../../workflows/website/website-
 import { listPageWorkflow } from "../../../../../../workflows/website/website-page/list-page"
 import { createBatchBlocksWorkflow } from "../../../../../../workflows/website/page-blocks/create-batch-blocks"
 import { listBlocksWorkflow } from "../../../../../../workflows/website/page-blocks/list-blocks"
+import { PAGE_TYPES } from "../../../../../admin/websites/[id]/pages/validators"
 
 /** Prose the model needs in its system prompt to use these tools well. */
 export const PAGE_TOOL_DESCRIPTION = `## Website Pages
@@ -83,18 +84,8 @@ const blockSchema = z.object({
     .describe("Block content. Hero uses title/subtitle/align; Main uses title/body."),
 })
 
-const PAGE_TYPES = [
-  "Home",
-  "About",
-  "Contact",
-  "Blog",
-  "Product",
-  "Service",
-  "Portfolio",
-  "Landing",
-  "Custom",
-  "Newsletter",
-] as const
+// One list, owned by the validator that enforces it — this file used to keep
+// its own copy, which is how the MCP row ended up advertising a third.
 
 /** Slug hygiene — the model writes prose, not URL segments. */
 const normalizeSlug = (raw: string): string =>

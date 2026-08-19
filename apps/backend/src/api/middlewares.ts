@@ -290,6 +290,7 @@ import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-item
 import { BulkImportSchema } from "./admin/inventory-items/bulk-import/validators";
 import { PartnerCreateStoreReq } from "./partners/stores/validators";
 import { PartnerCreateProductReq, PartnerArtisanProductDetailReq, PartnerProductSpecReq } from "./partners/products/validators";
+import { StoreMadeToSpecReq } from "./store/carts/[id]/made-to-spec/validators";
 import {
   PartnerCreateRegionReq,
   PartnerUpdateRegionReq,
@@ -382,6 +383,10 @@ import {
   CreateCrmTaskSchema,
   UpdateCrmTaskSchema,
 } from "./admin/crm/tasks/validators";
+import {
+  CreateCrmActivitySchema,
+  UpdateCrmActivitySchema,
+} from "./admin/crm/activities/validators";
 import { VerifyWeaverSchema } from "./web/census/verify/validators";
 
 /**
@@ -3640,6 +3645,16 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(UpdateCrmPersonSchema))],
     },
     {
+      matcher: "/admin/crm/activities",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateCrmActivitySchema))],
+    },
+    {
+      matcher: "/admin/crm/activities/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateCrmActivitySchema))],
+    },
+    {
       matcher: "/admin/crm/opportunities",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(CreateCrmOpportunitySchema))],
@@ -4512,6 +4527,15 @@ export default defineMiddlewares({
         authenticate("customer", ["session", "bearer"]),
       ],
     },
+    {
+      // #1349: add a made-to-order line item, validated against the partner's
+      // published production spec. Deliberately NOT customer-authenticated —
+      // a guest cart is a cart, and requiring a login to configure a piece
+      // would put the sign-up wall before the thing that motivates it.
+      matcher: "/store/carts/:id/made-to-spec",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(StoreMadeToSpecReq))],
+    },
     // Task-Templates
     {
       matcher: "/admin/task-templates",
@@ -4906,6 +4930,18 @@ export default defineMiddlewares({
       matcher: "/admin/products/:id/hang-tag",
       method: "GET",
       middlewares: [],
+    },
+    {
+      // #1346: the admin mirror of the partner production-spec write. Shares
+      // the partner request schema deliberately — two copies of the shape a
+      // spec may take is one edit from the surfaces disagreeing about what a
+      // valid spec is, and the workflow behind both is already the single
+      // place that knows the weave ranges.
+      matcher: "/admin/products/:id/spec",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(PartnerProductSpecReq)),
+      ],
     },
     {
       matcher: "/admin/products/:id/linkDesign",

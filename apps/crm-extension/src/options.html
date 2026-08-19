@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>JYT CRM Capture — Settings</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        max-width: 520px;
+        margin: 40px auto;
+        padding: 0 20px;
+        font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      h1 { font-size: 17px; }
+      label { display: block; margin: 16px 0 4px; font-weight: 600; font-size: 12px; }
+      input { width: 100%; padding: 7px 9px; font: inherit; border: 1px solid #d4d4d8; border-radius: 6px; }
+      button { margin-top: 18px; padding: 8px 16px; font: inherit; font-weight: 600; border-radius: 6px; border: 0; background: #18181b; color: #fff; cursor: pointer; }
+      .warn { margin-top: 22px; padding: 11px 13px; border-left: 3px solid #d97706; background: #fffbeb; color: #78350f; font-size: 12.5px; border-radius: 4px; }
+      .hint { font-size: 12px; color: #71717a; margin-top: 3px; }
+      #saved { margin-left: 10px; color: #15803d; font-size: 12px; }
+      @media (prefers-color-scheme: dark) {
+        body { background: #18181b; color: #fafafa; }
+        input { background: #27272a; color: #fafafa; border-color: #3f3f46; }
+        button { background: #fafafa; color: #18181b; }
+        .warn { background: #292524; color: #fde68a; }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>JYT CRM Capture — Settings</h1>
+
+    <label for="baseUrl">Backend URL</label>
+    <input id="baseUrl" placeholder="https://v3.jaalyantra.com" />
+    <div class="hint">
+      The prod backend is <code>v3.jaalyantra.com</code>. A host not listed in
+      the extension manifest will be blocked by Chrome even if the URL is right.
+    </div>
+
+    <label for="token">Admin API key</label>
+    <input id="token" type="password" placeholder="sk_..." autocomplete="off" />
+    <div class="hint">Stored locally in this browser profile. Never synced.</div>
+
+    <button id="save">Save</button><span id="saved"></span>
+
+    <div class="warn">
+      <strong>This key is not scoped to the CRM.</strong> A Medusa admin secret
+      key reaches the entire admin API. Create one specifically for this
+      extension so it can be revoked on its own without disturbing anything
+      else, and treat it like a password.
+    </div>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

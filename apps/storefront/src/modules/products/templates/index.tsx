@@ -13,6 +13,7 @@ import { notFound } from "next/navigation"
 import ProductActionsWrapper from "./product-actions-wrapper"
 import SizeGuide from "@modules/products/components/size-guide"
 import MakerStory from "@modules/products/components/artisan-detail/maker-story"
+import ProductionSpec from "@modules/products/components/production-spec"
 import MadeToOrderNotice from "@modules/products/components/artisan-detail/made-to-order-notice"
 import { getArtisanDetail } from "@modules/products/components/artisan-detail"
 import { HttpTypes } from "@medusajs/types"
@@ -139,6 +140,10 @@ const ProductTemplate = async ({
 
             <ProductActionsWrapper id={product.id} region={region} />
             <MadeToOrderNotice detail={getArtisanDetail(product)} className="mt-4" />
+            {/* #1349 — what the piece is made to, and (when the partner takes
+                the work) the form to have one woven in a chosen colour. Renders
+                nothing when the product has no spec, which is most of them. */}
+            <ProductionSpec product={product} />
             <MakerStory product={product} className="mt-4" />
             <div className="mt-4 flex items-center gap-x-2">
               <Text className="txt-medium">Size Guide</Text>

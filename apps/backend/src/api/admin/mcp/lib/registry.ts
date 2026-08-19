@@ -27,6 +27,11 @@
  * size is a per-request token cost.
  */
 import type { McpToolDef } from "../../../../lib/mcp-core"
+import {
+  PRODUCT_SPEC_BODY_PARAMS,
+  PRODUCT_SPEC_WRITE_GUIDANCE,
+  productSpecSchemaProps,
+} from "../../../../modules/product-spec/tool-schema"
 
 /** Admin tool definition. Alias of the shared core tool model. */
 export type AdminMcpToolDef = McpToolDef
@@ -124,6 +129,54 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     path: "/admin/products/:id",
     pathParams: ["id"],
     inputSchema: obj({ id: STR("Product id, e.g. 'prod_...'.") }, ["id"]),
+  },
+
+  // ---- Production spec (#1342 / #1346): the admin mirror of the partner
+  // tools. Same module, same workflow, same weave catalog — an admin is simply
+  // not scoped to one partner's products. The catalog read is listed first
+  // because the write validates `params` against the chosen technique's ranges.
+  {
+    name: "get_spec_catalog",
+    description:
+      "List the weaving techniques a production spec can use — families, per-technique parameters with min/max/step/default, presets and default finishes. Read this BEFORE calling set_product_spec: the ranges shown here are the ranges the write enforces.",
+    method: "GET",
+    path: "/admin/products/spec-catalog",
+    inputSchema: obj({}),
+    nextSteps: ["get_product_spec", "set_product_spec"],
+  },
+  {
+    name: "get_product_spec",
+    description:
+      "Get a product's production spec — weave technique and parameters, colour palette, custom fields, custom-order availability. Returns null when nobody has written one, which is the normal state for most products.",
+    method: "GET",
+    path: "/admin/products/:id/spec",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Product id, e.g. 'prod_...'.") }, ["id"]),
+    nextSteps: ["set_product_spec", "get_spec_catalog"],
+  },
+  {
+    name: "set_product_spec",
+    description: `Create or update a product's production spec: weave technique + parameters, finishes, colour palette, custom fields, and custom-order availability. ${PRODUCT_SPEC_WRITE_GUIDANCE}`,
+    method: "POST",
+    path: "/admin/products/:id/spec",
+    pathParams: ["id"],
+    write: true,
+    // Confirm-gated like every other admin write, because an admin writes ANY
+    // maker's spec, not their own — the partner tool is ownership-scoped and
+    // needs no such gate. `tier: "write"` keeps that confirm from also costing
+    // a scoped credential access it should have: a spec spends no money, calls
+    // no carrier and messages nobody.
+    sensitive: true,
+    tier: "write",
+    previewPath: "/admin/products/:id/spec",
+    bodyParams: PRODUCT_SPEC_BODY_PARAMS,
+    inputSchema: obj(
+      { id: STR("Product id, e.g. 'prod_...'."), ...productSpecSchemaProps() },
+      ["id"]
+    ),
+    sideEffects:
+      "Replaces the stored palette and custom fields when those keys are passed. The spec is the maker's own record of the product — check with the partner before overwriting one they authored.",
+    nextSteps: ["get_product_spec"],
   },
 
   // ===== Customers =========================================================
@@ -3054,5 +3107,459 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     dangerous: true,
     inputSchema: obj({ id: STR("Product id to delete, e.g. 'prod_...'.") }, ["id"]),
     sideEffects: "Irreversibly removes the product and its variants from the catalog.",
+  },
+
+  // ===== CRM (contacts, companies, deals, follow-ups) =======================
+  // The CRM is NOT Postgres: these routes proxy to the Autobase node over a
+  // Cloudflare tunnel (modules/crm/loaders/hyperbee-dal.ts). Behaviourally that
+  // matters in one place — there is no query.graph and no cross-module join, so
+  // a contact's company arrives as a `company_id` to look up, never as an
+  // embedded object.
+  {
+    name: "list_crm_contacts",
+    description:
+      "List CRM contacts (people in the sales pipeline). Filter by email, last_name or company_id. NOTE: a CRM contact is a prospect — somebody who has not necessarily bought. For people who HAVE placed orders use list_customers; for the weaver directory use the persons tools.",
+    method: "GET",
+    path: "/admin/crm/people",
+    queryParams: [
+      "email",
+      "last_name",
+      "company_id",
+      "engagement_state",
+      "limit",
+      "offset",
+    ],
+    inputSchema: obj({
+      email: STR("Exact email match."),
+      last_name: STR("Exact surname match."),
+      company_id: STR("Only contacts at this company, e.g. 'crmco_...'."),
+      engagement_state: STR(
+        "Where the CONVERSATION is (not the deal): 'not_contacted' | 'awaiting_reply' | 'in_conversation' | 'follow_up_due' | 'stalled' | 'do_not_contact' | 'closed'. Use 'follow_up_due' and 'not_contacted' to answer 'who needs chasing'."
+      ),
+      ...PAGINATION,
+    }),
+    sideEffects:
+      "engagement_state is derived from the activity log — never set it by hand; log an activity instead.",
+  },
+  {
+    name: "get_crm_contact",
+    description:
+      "Get one CRM contact by id, including the provenance metadata recording which ad campaign or capture produced them.",
+    method: "GET",
+    path: "/admin/crm/people/:id",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Contact id, e.g. 'crmp_...'.") }, ["id"]),
+  },
+  {
+    name: "list_crm_companies",
+    description:
+      "List CRM companies (the organizations contacts belong to — boutiques, stockists, wholesale buyers).",
+    method: "GET",
+    path: "/admin/crm/companies",
+    queryParams: ["name", "industry", "region", "limit", "offset"],
+    inputSchema: obj({
+      name: STR("Exact company name match."),
+      industry: STR("Exact industry match."),
+      region: STR("Exact region match."),
+      ...PAGINATION,
+    }),
+  },
+  {
+    name: "list_crm_opportunities",
+    description:
+      "List CRM opportunities (open and closed deals). Filter by stage to read the pipeline: prospecting, sampling, quoted, negotiation, won, lost. 'sampling' means a swatch or sample has physically gone out.",
+    method: "GET",
+    path: "/admin/crm/opportunities",
+    queryParams: ["stage", "company_id", "owner_person_id", "limit", "offset"],
+    inputSchema: obj({
+      stage: STR(
+        "Pipeline stage: 'prospecting' | 'sampling' | 'quoted' | 'negotiation' | 'won' | 'lost'."
+      ),
+      company_id: STR("Only deals for this company."),
+      owner_person_id: STR("Only deals whose contact is this person."),
+      ...PAGINATION,
+    }),
+  },
+  {
+    name: "list_crm_tasks",
+    description:
+      "List CRM follow-up tasks. Filter by status or assignee to answer 'what do I owe somebody this week'.",
+    method: "GET",
+    path: "/admin/crm/tasks",
+    queryParams: [
+      "status",
+      "assignee_person_id",
+      "related_type",
+      "related_id",
+      "limit",
+      "offset",
+    ],
+    inputSchema: obj({
+      status: STR("'pending' | 'in_progress' | 'completed' | 'cancelled'."),
+      assignee_person_id: STR("Only tasks assigned to this contact."),
+      related_type: STR("'person' | 'company' | 'opportunity'."),
+      related_id: STR("Id of the related record."),
+      ...PAGINATION,
+    }),
+  },
+  {
+    name: "list_crm_notes",
+    description:
+      "List notes logged against a CRM record — the conversation history for a contact, company or deal. Pass related_type + related_id to scope it.",
+    method: "GET",
+    path: "/admin/crm/notes",
+    queryParams: ["related_type", "related_id", "limit", "offset"],
+    inputSchema: obj({
+      related_type: STR("'person' | 'company' | 'opportunity' | 'task'."),
+      related_id: STR("Id of the related record."),
+      ...PAGINATION,
+    }),
+  },
+  {
+    name: "list_ad_leads",
+    description:
+      "List raw ad-leads — the intake queue feeding the CRM (Meta/Instagram/Facebook lead-ad form fills and email enquiries). These are NOT yet CRM contacts. Use this to see what has come in and what is still unworked; status 'new' means nobody has touched it.",
+    method: "GET",
+    path: "/admin/meta-ads/leads",
+    queryParams: [
+      "status",
+      "campaign_id",
+      "form_id",
+      "platform_id",
+      "since",
+      "until",
+      "q",
+      "limit",
+      "offset",
+    ],
+    inputSchema: obj({
+      status: STR(
+        "'new' | 'contacted' | 'qualified' | 'unqualified' | 'converted' | 'lost' | 'archived'."
+      ),
+      campaign_id: STR("Only leads from this campaign."),
+      form_id: STR("Only leads from this lead form."),
+      platform_id: STR("Only leads from this social platform record."),
+      since: STR("ISO date — leads created after this."),
+      until: STR("ISO date — leads created before this."),
+      ...PAGINATION,
+    }),
+    sideEffects:
+      "Source platform is stored unnormalized: 'fb' and 'facebook' are the same channel, and 'ig' is Instagram.",
+    nextSteps: ["create_crm_contact", "list_crm_contacts"],
+  },
+  {
+    name: "create_crm_contact",
+    description:
+      "Create a CRM contact. Email must be unique across the CRM — creating a contact whose email already exists is rejected, so check with list_crm_contacts first. last_name is optional: many real contacts have a single-token name. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/crm/people",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: [
+      "first_name",
+      "last_name",
+      "email",
+      "phone",
+      "title",
+      "company_id",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        first_name: STR("Given name. Required."),
+        last_name: STR("Surname. Omit when the contact has none."),
+        email: STR("Email — the uniqueness key for the whole CRM."),
+        phone: STR("Phone number."),
+        title: STR("Job title."),
+        company_id: STR("Company id, e.g. 'crmco_...'."),
+        metadata: {
+          type: "object",
+          description:
+            "Provenance and free-form detail (source, campaign, captured_at, page URL).",
+        },
+      },
+      ["first_name"]
+    ),
+  },
+  {
+    name: "update_crm_contact",
+    description:
+      "Update a CRM contact's details. Sensitive: requires confirm:true. Use dry_run to see the current record first.",
+    method: "POST",
+    path: "/admin/crm/people/:id",
+    pathParams: ["id"],
+    previewPath: "/admin/crm/people/:id",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: [
+      "first_name",
+      "last_name",
+      "email",
+      "phone",
+      "title",
+      "company_id",
+      "next_follow_up_at",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Contact id, e.g. 'crmp_...'."),
+        next_follow_up_at: STR(
+          "ISO datetime to chase this contact. When it passes, the contact moves to 'follow_up_due' and a crm.follow_up_due event fires for any visual flow listening."
+        ),
+        first_name: STR("New given name."),
+        last_name: STR("New surname."),
+        email: STR("New email (must stay unique)."),
+        phone: STR("New phone."),
+        title: STR("New job title."),
+        company_id: STR("Attach to this company."),
+        metadata: { type: "object", description: "Metadata to merge." },
+      },
+      ["id"]
+    ),
+  },
+  {
+    name: "create_crm_company",
+    description:
+      "Create a CRM company. The name must be unique. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/crm/companies",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: ["name", "website", "industry", "size", "region", "metadata"],
+    inputSchema: obj(
+      {
+        name: STR("Company name — unique across the CRM."),
+        website: STR("Website URL."),
+        industry: STR("Industry, e.g. 'boutique retail'."),
+        size: STR("Rough size, e.g. '1-10'."),
+        region: STR("Region or city."),
+        metadata: { type: "object", description: "Free-form detail." },
+      },
+      ["name"]
+    ),
+  },
+  {
+    name: "create_crm_opportunity",
+    description:
+      "Open a deal in the pipeline. Create this when a lead is genuinely qualified, not on first contact — an opportunity per enquiry makes the pipeline meaningless. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/crm/opportunities",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: [
+      "title",
+      "stage",
+      "amount",
+      "currency",
+      "expected_close_date",
+      "company_id",
+      "owner_person_id",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        title: STR("What the deal is for, e.g. '40 pashmina stoles - Sharlho'."),
+        stage: STR(
+          "'prospecting' (default) | 'sampling' | 'quoted' | 'negotiation' | 'won' | 'lost'."
+        ),
+        amount: { type: "number", description: "Expected value, >= 0." },
+        currency: STR("ISO currency, defaults to INR."),
+        expected_close_date: STR("ISO datetime."),
+        company_id: STR("Buying company, e.g. 'crmco_...'."),
+        owner_person_id: STR("The contact this deal belongs to, 'crmp_...'."),
+        metadata: { type: "object", description: "Free-form detail." },
+      },
+      ["title"]
+    ),
+  },
+  {
+    name: "update_crm_opportunity",
+    description:
+      "Update a deal — most often to move its stage along the pipeline. Sensitive: requires confirm:true. Use dry_run to see the deal's current stage before moving it.",
+    method: "POST",
+    path: "/admin/crm/opportunities/:id",
+    pathParams: ["id"],
+    previewPath: "/admin/crm/opportunities/:id",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: [
+      "title",
+      "stage",
+      "amount",
+      "currency",
+      "expected_close_date",
+      "company_id",
+      "owner_person_id",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Opportunity id, e.g. 'crmo_...'."),
+        title: STR("New title."),
+        stage: STR(
+          "'prospecting' | 'sampling' | 'quoted' | 'negotiation' | 'won' | 'lost'."
+        ),
+        amount: { type: "number", description: "Revised value." },
+        currency: STR("ISO currency."),
+        expected_close_date: STR("ISO datetime."),
+        company_id: STR("Reassign to this company."),
+        owner_person_id: STR("Reassign to this contact."),
+        metadata: { type: "object", description: "Metadata to merge." },
+      },
+      ["id"]
+    ),
+    sideEffects:
+      "Moving a deal to 'won' or 'lost' closes it and takes it off the working board.",
+  },
+  {
+    name: "log_crm_note",
+    description:
+      "Log a note against a CRM contact, company or deal — what was said on the call, what the buyer asked for. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/crm/notes",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: ["body", "author", "related_type", "related_id", "metadata"],
+    inputSchema: obj(
+      {
+        body: STR("The note text."),
+        author: STR("Who wrote it."),
+        related_type: STR("'person' | 'company' | 'opportunity' | 'task'."),
+        related_id: STR("Id of the record the note is about."),
+        metadata: { type: "object", description: "Free-form detail." },
+      },
+      ["body"]
+    ),
+  },
+  {
+    name: "create_crm_task",
+    description:
+      "Create a follow-up task against a contact, company or deal. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/crm/tasks",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: [
+      "title",
+      "description",
+      "due_date",
+      "status",
+      "priority",
+      "assignee_person_id",
+      "related_type",
+      "related_id",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        title: STR("What needs doing, e.g. 'Send swatch pack'."),
+        description: STR("Detail."),
+        due_date: STR("ISO datetime."),
+        status: STR("'pending' (default) | 'in_progress' | 'completed' | 'cancelled'."),
+        priority: STR("'low' | 'medium' (default) | 'high'."),
+        assignee_person_id: STR("CRM contact responsible, 'crmp_...'."),
+        related_type: STR("'person' | 'company' | 'opportunity'."),
+        related_id: STR("Id of the related record."),
+        metadata: { type: "object", description: "Free-form detail." },
+      },
+      ["title"]
+    ),
+  },
+
+  {
+    name: "list_crm_activities",
+    description:
+      "Read the interaction timeline for a CRM contact, company or deal — every call, message and note, with its direction. Pass related_type + related_id to scope it. Answers 'what have we actually said to them' and 'when did they last reply'. Returned newest-first.",
+    method: "GET",
+    path: "/admin/crm/activities",
+    queryParams: [
+      "related_type",
+      "related_id",
+      "direction",
+      "channel",
+      "activity_type",
+      "limit",
+      "offset",
+    ],
+    inputSchema: obj({
+      related_type: STR("'person' | 'company' | 'opportunity'."),
+      related_id: STR("Id of the record, e.g. 'crmp_...'."),
+      direction: STR(
+        "'inbound' (they contacted us) | 'outbound' (we contacted them) | 'internal' (logged on our side, nobody was reached)."
+      ),
+      channel: STR("'whatsapp' | 'email' | 'phone' | 'instagram' | 'facebook' | 'in_person' | 'other'."),
+      activity_type: STR("'message' | 'call' | 'meeting' | 'note' | 'lifecycle' | 'system'."),
+      ...PAGINATION,
+    }),
+    nextSteps: ["log_crm_activity", "get_crm_contact"],
+  },
+  {
+    name: "log_crm_activity",
+    description:
+      "Record an interaction with a CRM contact — an inbound reply, an outbound message, a call, a meeting. This is how the conversation state moves: logging an inbound activity marks the contact as replying, an outbound one as awaiting reply. Use direction 'internal' for something that did not actually reach them. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/crm/activities",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: [
+      "related_type",
+      "related_id",
+      "activity_type",
+      "kind",
+      "direction",
+      "channel",
+      "subject",
+      "body",
+      "summary",
+      "actor_type",
+      "actor_id",
+      "message_id",
+      "template_name",
+      "recipient",
+      "outcome",
+      "occurred_at",
+      "payload",
+    ],
+    inputSchema: obj(
+      {
+        related_type: STR("'person' | 'company' | 'opportunity'. Required."),
+        related_id: STR("Id of the record this happened with. Required."),
+        activity_type: STR(
+          "'message' | 'call' | 'meeting' | 'note' | 'lifecycle' | 'system'. Required."
+        ),
+        kind: STR(
+          "Finer type within the bucket, e.g. 'reply', 'quote_sent', 'no_answer'. Use 'opt_out' to mark somebody as do-not-contact."
+        ),
+        direction: STR(
+          "'inbound' | 'outbound' | 'internal' (default). Getting this right is what makes the engagement state correct."
+        ),
+        channel: STR("'whatsapp' | 'email' | 'phone' | 'instagram' | 'facebook' | 'in_person' | 'other'."),
+        subject: STR("Short subject line."),
+        body: STR("What was said."),
+        summary: STR("One-line timeline text. Computed automatically if omitted."),
+        actor_type: STR("'system' | 'admin' | 'contact' | 'flow'."),
+        actor_id: STR("Who did it."),
+        message_id: STR("Correlating messaging_message id, when this was a real send."),
+        template_name: STR("WhatsApp/email template used."),
+        recipient: STR("Address or number it went to."),
+        outcome: STR("'pending' | 'delivered' | 'replied' | 'no_answer' | 'bounced' | 'failed'."),
+        occurred_at: STR(
+          "ISO datetime the interaction happened. Defaults to now — pass it explicitly when recording something after the fact, which is normal for inbound messages."
+        ),
+        payload: { type: "object", description: "Type-specific structured extras." },
+      },
+      ["related_type", "related_id", "activity_type"]
+    ),
+    sideEffects:
+      "Also recomputes the contact's engagement_state, which is what visual flows select on. Logging an activity with kind 'opt_out' makes the contact permanently do_not_contact.",
   },
 ]

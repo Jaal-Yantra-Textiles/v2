@@ -1,3 +1,35 @@
+# [13.108.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.107.0...v13.108.0) (2026-08-18)
+
+
+### Features
+
+* **product-spec:** read/edit split on both surfaces, and made-to-order on the storefront ([#1349](https://github.com/Jaal-Yantra-Textiles/v2/issues/1349)) ([#1349](https://github.com/Jaal-Yantra-Textiles/v2/issues/1349)) ([146ad42](https://github.com/Jaal-Yantra-Textiles/v2/commit/146ad42e4e0db731ba0f1a519abc20746a604c91)), closes [#1342](https://github.com/Jaal-Yantra-Textiles/v2/issues/1342) [starter#8](https://github.com/starter/issues/8)
+
+# [13.107.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.106.0...v13.107.0) (2026-08-18)
+
+
+### Bug Fixes
+
+* **mcp:** make create_storefront_page satisfy its own route ([#1348](https://github.com/Jaal-Yantra-Textiles/v2/issues/1348)) ([61889e3](https://github.com/Jaal-Yantra-Textiles/v2/commit/61889e33110d07b1ae261078487ee7f1cdecbf04))
+
+
+### Features
+
+* **mcp:** expose the production spec as tools on both assistants ([#1346](https://github.com/Jaal-Yantra-Textiles/v2/issues/1346)) ([#1347](https://github.com/Jaal-Yantra-Textiles/v2/issues/1347)) ([9f0c8dd](https://github.com/Jaal-Yantra-Textiles/v2/commit/9f0c8dd02de819a386bd4436818810e90c82d05d)), closes [#1342](https://github.com/Jaal-Yantra-Textiles/v2/issues/1342) [#1315](https://github.com/Jaal-Yantra-Textiles/v2/issues/1315)
+
+# [13.106.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.105.0...v13.106.0) (2026-08-18)
+
+
+### Bug Fixes
+
+* **partner-assistant:** hand an approved tool's real result back to the model ([#1341](https://github.com/Jaal-Yantra-Textiles/v2/issues/1341)) ([b0b67a7](https://github.com/Jaal-Yantra-Textiles/v2/commit/b0b67a724f9560d313fae7f25a210938003d25e8))
+* **flows:** prevent duplicate cart-abandoned sends with distributed locks ([#1340](https://github.com/Jaal-Yantra-Textiles/v2/issues/1340)) ([8173e66](https://github.com/Jaal-Yantra-Textiles/v2/commit/8173e661659f78aa3a5fd33303dd977177bc2ce4)), closes [#1334](https://github.com/Jaal-Yantra-Textiles/v2/issues/1334) [#1334](https://github.com/Jaal-Yantra-Textiles/v2/issues/1334)
+
+
+### Features
+
+* **partner-products:** partner-authored production spec (weave, palette, custom fields) ([#1342](https://github.com/Jaal-Yantra-Textiles/v2/issues/1342)) ([5e857da](https://github.com/Jaal-Yantra-Textiles/v2/commit/5e857da2edeb795ca5d33c6642705d2d35cb78a2)), closes [#859](https://github.com/Jaal-Yantra-Textiles/v2/issues/859)
+
 # [13.105.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.104.0...v13.105.0) (2026-08-18)
 
 

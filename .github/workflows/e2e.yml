@@ -54,6 +54,11 @@ jobs:
       DATABASE_URL: postgresql://runner@localhost:5432/postgres
       POSTGRES_USER: runner
       POSTGRES_PASSWORD: runner
+      # The CRM is a Hyperbee node, not Postgres. Without this the module is
+      # not registered at all and the CRM screens render an empty state — which
+      # a spec would pass against. The embedded store is single-writer and
+      # dev-only, which is exactly what a single-worker e2e is.
+      CRM_HYPERBEE: "true"
 
     steps:
       - uses: actions/checkout@v4

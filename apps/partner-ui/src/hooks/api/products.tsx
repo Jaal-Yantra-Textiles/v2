@@ -805,6 +805,29 @@ export type ProductSpecField = {
   order?: number
 }
 
+export type ProductSpecOptionValue = {
+  id?: string
+  label: string
+  note?: string | null
+  order?: number
+  available?: boolean
+}
+
+/**
+ * A choice the CUSTOMER makes, as against `ProductSpecField` which is a fact the
+ * partner states. The partner names the axis, so "Embroidery", "Border" and
+ * "Color Pattern" are all this one shape.
+ */
+export type ProductSpecOption = {
+  id?: string
+  key: string
+  label?: string | null
+  help_text?: string | null
+  required?: boolean
+  order?: number
+  values: ProductSpecOptionValue[]
+}
+
 export type ProductSpec = {
   id?: string
   product_id?: string
@@ -817,9 +840,13 @@ export type ProductSpec = {
   custom_order_lead_time_days?: number | null
   colors?: ProductSpecColor[]
   fields?: ProductSpecField[]
+  options?: ProductSpecOption[]
 } | null
 
-/** The payload the upsert route accepts. `colors`/`fields` REPLACE when sent. */
+/**
+ * The payload the upsert route accepts. `colors`/`fields`/`options` REPLACE
+ * what is stored when sent, so omitting a key and sending `[]` differ.
+ */
 export type ProductSpecPayload = Omit<
   NonNullable<ProductSpec>,
   "id" | "product_id"

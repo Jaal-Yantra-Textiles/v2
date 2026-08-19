@@ -40,6 +40,7 @@ function registerCrm(container: LoaderOptions["container"], repos: CrmRepositori
     crmOpportunityService: asValue(repos.crmOpportunityService),
     crmNoteService: asValue(repos.crmNoteService),
     crmTaskService: asValue(repos.crmTaskService),
+    crmActivityService: asValue(repos.crmActivityService),
     baseRepository: asValue(baseRepository),
   });
 }

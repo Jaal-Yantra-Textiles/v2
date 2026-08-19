@@ -22,6 +22,16 @@
  */
 
 import type { McpToolDef } from "../../../../lib/mcp-core"
+import {
+  PRODUCT_SPEC_BODY_PARAMS,
+  PRODUCT_SPEC_WRITE_GUIDANCE,
+  productSpecSchemaProps,
+} from "../../../../modules/product-spec/tool-schema"
+// The page vocabulary comes from the validator that enforces it, never a copy.
+import {
+  PAGE_STATUSES,
+  PAGE_TYPES,
+} from "../../../admin/websites/[id]/pages/validators"
 
 /**
  * Partner tool definition. The declarative model now lives in the shared
@@ -59,6 +69,23 @@ const obj = (
   ...(required.length ? { required } : {}),
   additionalProperties: false,
 })
+
+/**
+ * Page vocabulary, taken from the route's validator rather than restated, so
+ * the values offered are exactly the values accepted.
+ */
+const PAGE_TYPE_ENUM = {
+  type: "string",
+  description: "Page type. Capitalised — these are the only accepted values.",
+  enum: [...PAGE_TYPES],
+} as const
+
+const PAGE_STATUS_ENUM = {
+  type: "string",
+  description:
+    "Page status. Capitalised. 'Published' is LIVE on the storefront; new pages should be 'Draft' unless the partner asked to publish.",
+  enum: [...PAGE_STATUSES],
+} as const
 
 /** Unit-of-measure enum shared by consumption-log tools. */
 const UOM = {
@@ -740,6 +767,48 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     ),
   },
 
+  // ===== Production spec (#1342 / #1346) ===================================
+  // The weave and its measured parameters, the colour palette, and whatever the
+  // catalog cannot say. The catalog read is listed FIRST deliberately: the
+  // write validates `params` against the chosen technique's ranges, so a model
+  // that guesses a GSM without reading the ranges gets a rejection, not a spec.
+  {
+    name: "get_spec_catalog",
+    description:
+      "List the weaving techniques a production spec can use — families, per-technique parameters with min/max/step/default, presets and default finishes. Read this BEFORE calling set_product_spec: the ranges shown here are the ranges the write enforces.",
+    method: "GET",
+    path: "/partners/products/spec-catalog",
+    inputSchema: obj({}),
+    nextSteps: ["get_product_spec", "set_product_spec"],
+  },
+  {
+    name: "get_product_spec",
+    description:
+      "Get a product's production spec — weave technique and parameters, colour palette, custom fields, custom-order availability. Returns null when the partner has not written one, which is the normal state for most products.",
+    method: "GET",
+    path: "/partners/products/:id/spec",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Product id.") }, ["id"]),
+    nextSteps: ["set_product_spec", "get_spec_catalog"],
+  },
+  {
+    name: "set_product_spec",
+    description: `Create or update a product's production spec: weave technique + parameters, finishes, colour palette, partner-defined fields, and custom-order availability. ${PRODUCT_SPEC_WRITE_GUIDANCE}`,
+    method: "POST",
+    path: "/partners/products/:id/spec",
+    pathParams: ["id"],
+    write: true,
+    previewPath: "/partners/products/:id/spec",
+    bodyParams: PRODUCT_SPEC_BODY_PARAMS,
+    inputSchema: obj(
+      { id: STR("Product id."), ...productSpecSchemaProps() },
+      ["id"]
+    ),
+    sideEffects:
+      "Replaces the stored palette and custom fields when those keys are passed.",
+    nextSteps: ["get_product_spec"],
+  },
+
   // ===== Partner orders (detail + fulfillment) =============================
   {
     name: "get_order",
@@ -1179,46 +1248,72 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     pathParams: ["pageId"],
     inputSchema: obj({ pageId: STR("Page id.") }, ["pageId"]),
   },
+  // The two page writes below mirror `postPagesSchema` / `updatePageSchema`
+  // field for field. They did not, and the gap was invisible from here: the row
+  // never mentioned `content` (which the route REQUIRES), never required
+  // `slug`, offered lowercase 'home'/'published' against a capitalised enum,
+  // and advertised a `blocks` array that zod strips on the way through. Every
+  // create attempt came back "Field 'content' is required" — a tool that could
+  // not satisfy its own route no matter what the model sent.
   {
     name: "create_storefront_page",
-    description: "Create a storefront page (title, slug, page_type, status). The route validator is the source of truth.",
+    description:
+      "Create a storefront page. `content` is REQUIRED — it is the page's body text, and the route rejects the call without it. Blocks are NOT part of this call: create the page, then use the page-block tools to lay it out. Call list_storefront_pages first so you do not reuse an existing slug.",
     method: "POST",
     path: "/partners/storefront/pages",
     write: true,
-    bodyParams: ["title", "slug", "page_type", "status", "blocks", "metadata"],
+    bodyParams: [
+      "title", "slug", "content", "page_type", "status",
+      "meta_title", "meta_description", "meta_keywords", "metadata",
+    ],
     inputSchema: obj(
       {
         title: STR("Page title."),
-        slug: STR("URL slug."),
-        page_type: STR("Page type, e.g. 'home'."),
-        status: STR("Optional status, e.g. 'published'."),
-        blocks: { type: "array", items: { type: "object", additionalProperties: true } },
+        slug: STR("URL slug: lowercase-with-hyphens, no leading slash."),
+        content: STR("The page's body text. Required, and must not be empty — write real copy, not a placeholder."),
+        page_type: PAGE_TYPE_ENUM,
+        status: PAGE_STATUS_ENUM,
+        meta_title: STR("Optional SEO title."),
+        meta_description: STR("Optional one-sentence search snippet."),
+        meta_keywords: STR("Optional comma-separated keywords."),
         metadata: { type: "object", additionalProperties: true },
       },
-      ["title"]
+      ["title", "slug", "content"]
     ),
+    sideEffects:
+      "A page created with status 'Published' is immediately visible on the live storefront. Omit status (or send 'Draft') unless the partner asked to publish.",
+    nextSteps: ["get_storefront_page", "list_storefront_page_blocks"],
   },
   {
     name: "update_storefront_page",
-    description: "Update a storefront page (title, slug, status, blocks). Pass only the fields to change.",
+    description:
+      "Update a storefront page. Every field is optional here — pass only what changes. Blocks are NOT part of this call; use the page-block tools.",
     method: "PUT",
     path: "/partners/storefront/pages/:pageId",
     pathParams: ["pageId"],
     write: true,
     previewPath: "/partners/storefront/pages/:pageId",
-    bodyParams: ["title", "slug", "page_type", "status", "blocks", "metadata"],
+    bodyParams: [
+      "title", "slug", "content", "page_type", "status",
+      "meta_title", "meta_description", "meta_keywords", "metadata",
+    ],
     inputSchema: obj(
       {
         pageId: STR("Page id to update."),
         title: STR("Page title."),
-        slug: STR("URL slug."),
-        page_type: STR("Page type."),
-        status: STR("Status."),
-        blocks: { type: "array", items: { type: "object", additionalProperties: true } },
+        slug: STR("URL slug: lowercase-with-hyphens, no leading slash."),
+        content: STR("The page's body text. Must not be empty if sent."),
+        page_type: PAGE_TYPE_ENUM,
+        status: PAGE_STATUS_ENUM,
+        meta_title: STR("Optional SEO title."),
+        meta_description: STR("Optional one-sentence search snippet."),
+        meta_keywords: STR("Optional comma-separated keywords."),
         metadata: { type: "object", additionalProperties: true },
       },
       ["pageId"]
     ),
+    sideEffects:
+      "Setting status to 'Published' makes the page live immediately; setting it to 'Draft' or 'Archived' takes a live page down.",
   },
   {
     name: "get_storefront_domain",
