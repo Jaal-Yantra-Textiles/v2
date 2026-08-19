@@ -399,6 +399,124 @@ async function seedParkedProductionRun(container: any): Promise<{
 }
 
 /**
+ * #1363 — a design with a MULTI-ITEM bill of materials and an approvable run,
+ * so the per-assignment material allocation can be driven through the admin UI.
+ *
+ * The BOM has to have more than one item or the fixture cannot discriminate:
+ * the whole defect was that a run carried EVERY item its design was linked to,
+ * and a one-item design looks identical whether the feature works or not. Three
+ * items means an assignment that takes one is visibly a choice.
+ *
+ * Two partners, because the point is that two assignments off the SAME design
+ * can be sent different materials. The run is left in `pending_review` — the
+ * status `approve` is allowed from — so the spec drives the real approval, not
+ * a shortcut into the end state.
+ */
+async function seedAllocationDesignRun(container: any): Promise<{
+  runId: string
+  designId: string
+  designName: string
+  partnerAName: string
+  partnerBName: string
+  materialALabel: string
+  materialBLabel: string
+  materialCLabel: string
+  materialAId: string
+  materialCId: string
+}> {
+  const partnerModule: any = container.resolve("partner")
+  const designService: any = container.resolve("design")
+  const runService: any = container.resolve("production_runs")
+  const inventoryService: any = container.resolve(Modules.INVENTORY)
+  const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+
+  const stamp = Date.now()
+
+  const mkPartner = async (label: string) => {
+    const created = await partnerModule.createPartners({
+      name: `E2E Alloc ${label} ${stamp}`,
+      handle: `e2e-alloc-${label.toLowerCase()}-${stamp}`,
+      status: "active",
+      is_verified: true,
+    })
+    const row = Array.isArray(created) ? created[0] : created
+    return { id: row.id as string, name: row.name as string }
+  }
+
+  const partnerA = await mkPartner("Weaver")
+  const partnerB = await mkPartner("Finisher")
+
+  const designName = `Allocation Fixture (e2e ${stamp})`
+  const design = await designService.createDesigns({
+    name: designName,
+    description: "e2e #1363 per-assignment material allocation fixture",
+    design_type: "Original",
+    status: "Commerce_Ready",
+    priority: "Medium",
+  })
+  const designId = (Array.isArray(design) ? design[0] : design).id as string
+
+  // The bill of materials. Stamped titles because the spec selects on them and
+  // a repeat seed must not produce two chips reading the same thing.
+  const specs = [
+    { title: `E2E Mulberry Silk ${stamp}`, planned: 40 },
+    { title: `E2E Cotton Thread ${stamp}`, planned: 2 },
+    { title: `E2E Lining ${stamp}`, planned: 12 },
+  ]
+
+  const items: Array<{ id: string; title: string }> = []
+  for (const spec of specs) {
+    const created = await inventoryService.createInventoryItems({
+      title: spec.title,
+      sku: `e2e-alloc-${items.length}-${stamp}`,
+      requires_shipping: false,
+    })
+    const row = Array.isArray(created) ? created[0] : created
+    items.push({ id: row.id as string, title: spec.title })
+  }
+
+  await remoteLink.create(
+    items.map((item, i) => ({
+      design: { design_id: designId },
+      [Modules.INVENTORY]: { inventory_item_id: item.id },
+      data: { planned_quantity: specs[i].planned },
+    }))
+  )
+
+  const run = await runService.createProductionRuns({
+    design_id: designId,
+    quantity: 6,
+    run_type: "production",
+    // The parent snapshots the design's FULL BOM — that is what it is, the
+    // design's plan. The children get narrowed to what each partner is issued.
+    snapshot: {
+      design: { id: designId, name: designName },
+      inventory_links: items.map((item, i) => ({
+        inventory_item_id: item.id,
+        planned_quantity: specs[i].planned,
+        inventory_item: { id: item.id, title: item.title },
+      })),
+    },
+    captured_at: new Date(),
+    status: "pending_review",
+  })
+  const runId = (Array.isArray(run) ? run[0] : run).id as string
+
+  return {
+    runId,
+    designId,
+    designName,
+    partnerAName: partnerA.name,
+    partnerBName: partnerB.name,
+    materialALabel: specs[0].title,
+    materialBLabel: specs[1].title,
+    materialCLabel: specs[2].title,
+    materialAId: items[0].id,
+    materialCId: items[2].id,
+  }
+}
+
+/**
  * #1113 — seed a design carrying a full brief (concept + aesthetic anchor +
  * persona + competitors + price point + milestones + design budget), so the
  * designer-invite → brief-moodboard flow (S1 invite/accept + S2 generate) can be
@@ -822,6 +940,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: creating the #1228 parked production run + partners...")
   const parkedRun = await seedParkedProductionRun(container)
 
+  logger.info("E2E seed: creating the #1363 allocation design (3-item BOM) + approvable run...")
+  const allocation = await seedAllocationDesignRun(container)
+
   logger.info("E2E seed: creating the gate order's partner fee (payout spec)...")
   const gateFee = await seedPartnerFeeForGateOrder(
     container,
@@ -867,6 +988,20 @@ export default async function e2eSeed({ container }: ExecArgs) {
     crmPersonId: crmContact.personId,
     crmPersonName: crmContact.personName,
     crmActivityBody: crmContact.activityBody,
+    // #1363 per-assignment material allocation — consumed by
+    // production-run-material-allocation.spec.ts (admin, CI). SINGLE-USE like
+    // every other run fixture: the spec approves the run, and an approved run
+    // cannot be approved again.
+    allocationRunId: allocation.runId,
+    allocationDesignId: allocation.designId,
+    allocationDesignName: allocation.designName,
+    allocationPartnerAName: allocation.partnerAName,
+    allocationPartnerBName: allocation.partnerBName,
+    allocationMaterialALabel: allocation.materialALabel,
+    allocationMaterialBLabel: allocation.materialBLabel,
+    allocationMaterialCLabel: allocation.materialCLabel,
+    allocationMaterialAId: allocation.materialAId,
+    allocationMaterialCId: allocation.materialCId,
   }
 
   fs.writeFileSync(SEED_FILE, JSON.stringify(seedData, null, 2))

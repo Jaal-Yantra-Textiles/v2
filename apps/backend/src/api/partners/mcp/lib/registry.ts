@@ -629,7 +629,7 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   {
     name: "log_production_run_consumption",
     description:
-      "Record material/energy/labor consumed by a production run. Quantity > 0; inventoryItemId required.",
+      "Record material/energy/labor consumed by a production run. Quantity > 0; inventoryItemId required. The run may have an ASSIGNED material list — a subset of the design's bill of materials chosen when the work was given to you. If it does, consumption against anything outside that list is REFUSED; read the run first (get_production_run → materials) rather than picking from the design's full BOM.",
     method: "POST",
     path: "/partners/production-runs/:id/consumption-logs",
     pathParams: ["id"],
@@ -970,6 +970,15 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       run_type: { type: "string", enum: ["production", "sample"], description: "Run type filter." },
       design_id: STR("Filter to runs for a specific design."),
     }),
+  },
+  {
+    name: "get_production_run",
+    description:
+      "Get one of the partner's production runs, with its tasks and — the part the list does not carry — the MATERIALS this run was assigned. `materials_constrained: true` means only those items may be consumed against the run; `false` means no selection was made and the design's whole bill of materials is available, as it always was. Read this before log_production_run_consumption.",
+    method: "GET",
+    path: "/partners/production-runs/:id",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Production-run id.") }, ["id"]),
   },
   {
     name: "list_customers",

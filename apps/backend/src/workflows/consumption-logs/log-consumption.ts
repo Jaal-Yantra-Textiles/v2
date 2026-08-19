@@ -14,6 +14,11 @@ import ConsumptionLogService from "../../modules/consumption_log/service"
 import { DESIGN_MODULE } from "../../modules/designs"
 import DesignService from "../../modules/designs/service"
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
+import {
+  allocationLabels,
+  readRunAllocation,
+} from "../../lib/production-run-allocation"
+import { checkConsumptionAgainstAllocation } from "../production-runs/lib/run-materials"
 
 // Energy/labor consumption types that don't require an inventory item
 const NON_INVENTORY_TYPES = ["energy_electricity", "energy_water", "energy_gas", "labor"]
@@ -84,6 +89,43 @@ const validateInventoryItemStep = createStep(
     }
 
     return new StepResponse(item)
+  }
+)
+
+/**
+ * A run may only consume what it was assigned.
+ *
+ * Deliberately here in the WORKFLOW rather than on the partner route: three
+ * routes reach this workflow (partner run, partner design, admin design) and a
+ * guard on one path is not a guard — #1314 refused loudly on the manual path
+ * while the automatic one went through silently. Every consumption that names a
+ * production run passes through this step.
+ *
+ * Runs to completion BEFORE the log row is created, so a refusal writes nothing.
+ *
+ * Silent on runs with no allocation, which is every run made before this
+ * existed. See run-materials.ts — absence is "nobody chose", not "chose
+ * nothing", and treating them alike would 400 the entire existing floor.
+ */
+const assertConsumptionWithinAllocationStep = createStep(
+  "log-consumption-assert-within-allocation",
+  async (
+    input: { production_run_id: string; inventory_item_id: string },
+    { container }
+  ) => {
+    const allocation = await readRunAllocation(container, input.production_run_id)
+
+    const verdict = checkConsumptionAgainstAllocation({
+      allocatedInventoryItemIds: allocation.map((a) => a.inventory_item_id),
+      inventoryItemId: input.inventory_item_id,
+      labelsById: allocationLabels(allocation),
+    })
+
+    if (!verdict.allowed) {
+      throw new MedusaError(MedusaError.Types.NOT_ALLOWED, verdict.reason)
+    }
+
+    return new StepResponse({ constrained: verdict.constrained })
   }
 )
 
@@ -198,6 +240,24 @@ export const logConsumptionWorkflow = createWorkflow(
 
     when(hasInventoryItem, (data) => data.has_item).then(() => {
       validateInventoryItemStep({ inventory_item_id: hasInventoryItem.inventory_item_id })
+    })
+
+    // Only material consumption against a named run can be off-plan; energy and
+    // labour have no inventory item to be outside the allocation.
+    const allocationCheck = transform({ input }, (data) => ({
+      production_run_id: data.input.production_run_id || "",
+      inventory_item_id: data.input.inventory_item_id || "",
+      applies:
+        !!data.input.production_run_id &&
+        !!data.input.inventory_item_id &&
+        !NON_INVENTORY_TYPES.includes(data.input.consumption_type || ""),
+    }))
+
+    when(allocationCheck, (data) => data.applies).then(() => {
+      assertConsumptionWithinAllocationStep({
+        production_run_id: allocationCheck.production_run_id,
+        inventory_item_id: allocationCheck.inventory_item_id,
+      })
     })
 
     const log = createConsumptionLogStep(input)

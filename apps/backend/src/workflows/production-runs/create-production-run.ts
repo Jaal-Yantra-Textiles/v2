@@ -15,6 +15,11 @@ import type ProductionRunService from "../../modules/production_runs/service"
 
 import { TASKS_MODULE } from "../../modules/tasks"
 import DesignInventoryLink from "../../links/design-inventory-link"
+import {
+  normalizeRunMaterials,
+  type NormalizedRunMaterial,
+  type RunMaterialInput,
+} from "./lib/run-materials"
 import { dualWriteUnifiedRunOrderStep } from "./dual-write-unified-run-order"
 
 const sanitizeBigInt = (value: any): any => {
@@ -53,6 +58,13 @@ export type CreateProductionRunInput = {
   order_line_item_id?: string
   metadata?: Record<string, any>
   task_ids?: string[]
+  /**
+   * The per-assignment material allocation: WHICH of the design's inventory
+   * items this run is actually sent out with, and how much of each. Omit to
+   * keep the historical behaviour — the whole design BOM stays available to the
+   * partner. Must be a subset of the design's linked inventory items.
+   */
+  materials?: RunMaterialInput[]
   // Roadmap #6 Phase 4 — partner self-serve runs.
   status?:
     | "draft"
@@ -102,24 +114,29 @@ const fetchDesignSnapshotStep = createStep(
 
 const fetchDesignInventorySnapshotStep = createStep(
   "fetch-design-inventory-snapshot",
-  async (input: Pick<CreateProductionRunInput, "design_id">, { container }) => {
+  async (
+    input: Pick<CreateProductionRunInput, "design_id" | "materials">,
+    { container }
+  ) => {
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
 
-    const { data: linkRows } = await query.graph({
-      entity: DesignInventoryLink.entryPoint,
-      fields: [
-        "*",
-        "inventory_item.*",
-        "inventory_item.raw_materials.*",
-        "inventory_item.location_levels.*",
-        "inventory_item.location_levels.stock_locations.*",
-      ],
-      filters: {
-        design_id: input.design_id,
-      },
-    })
+    const { data: linkRows } = input.design_id
+      ? await query.graph({
+          entity: DesignInventoryLink.entryPoint,
+          fields: [
+            "*",
+            "inventory_item.*",
+            "inventory_item.raw_materials.*",
+            "inventory_item.location_levels.*",
+            "inventory_item.location_levels.stock_locations.*",
+          ],
+          filters: {
+            design_id: input.design_id,
+          },
+        })
+      : { data: [] }
 
-    const inventoryLinks = (linkRows || []).map((row: any) => {
+    const bomLinks = (linkRows || []).map((row: any) => {
       const sanitizedRow = sanitizeBigInt(row)
       return {
         inventory_item_id: sanitizedRow.inventory_item_id,
@@ -132,7 +149,91 @@ const fetchDesignInventorySnapshotStep = createStep(
       }
     })
 
-    return new StepResponse({ inventory_links: inventoryLinks })
+    // No allocation asked for → the run snapshots the whole BOM, exactly as it
+    // always did. "Nobody chose" is not "chose nothing"; see run-materials.ts.
+    const normalized = normalizeRunMaterials(
+      input.materials,
+      input.design_id ? bomLinks.map((l: any) => l.inventory_item_id) : null
+    )
+    if (!normalized.ok) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, normalized.error)
+    }
+    if (!normalized.materials.length) {
+      return new StepResponse({
+        inventory_links: bomLinks,
+        allocation: [] as NormalizedRunMaterial[],
+      })
+    }
+
+    // Narrow the snapshot to the allocation, and let the assignment's
+    // planned_quantity win over the design's — the design says how much the
+    // GARMENT needs, the assignment says how much THIS partner is being issued.
+    const bomById = new Map(bomLinks.map((l: any) => [l.inventory_item_id, l]))
+    const inventoryLinks = normalized.materials.map((m) => {
+      const bom: any = bomById.get(m.inventory_item_id) || {}
+      return {
+        ...bom,
+        inventory_item_id: m.inventory_item_id,
+        planned_quantity:
+          m.planned_quantity ?? bom.planned_quantity ?? null,
+        location_id: m.location_id ?? bom.location_id ?? null,
+        resolved_raw_material_id: m.resolved_raw_material_id ?? null,
+        metadata: { ...(bom.metadata || {}), ...(m.metadata || {}) },
+      }
+    })
+
+    return new StepResponse({
+      inventory_links: inventoryLinks,
+      allocation: normalized.materials,
+    })
+  }
+)
+
+/**
+ * Persist the allocation as real link rows. The snapshot above is provenance;
+ * THIS is what the consumption gate reads, because a rule that decides a 400
+ * must not live in a json blob a wholesale write can replace.
+ */
+const linkProductionRunMaterialsStep = createStep(
+  "link-production-run-materials",
+  async (
+    input: {
+      production_run_id: string
+      allocation: NormalizedRunMaterial[]
+    },
+    { container }
+  ) => {
+    if (!input.allocation?.length) {
+      return new StepResponse([] as LinkDefinition[], [] as LinkDefinition[])
+    }
+
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+
+    const links: LinkDefinition[] = input.allocation.map((m) => ({
+      [PRODUCTION_RUNS_MODULE]: {
+        production_runs_id: input.production_run_id,
+      },
+      [Modules.INVENTORY]: {
+        inventory_item_id: m.inventory_item_id,
+      },
+      data: {
+        planned_quantity: m.planned_quantity,
+        location_id: m.location_id,
+        resolved_raw_material_id: m.resolved_raw_material_id,
+        note: m.note,
+        metadata: m.metadata,
+      },
+    }))
+
+    await remoteLink.create(links)
+    return new StepResponse(links, links)
+  },
+  async (links: LinkDefinition[] | undefined, { container }) => {
+    if (!links?.length) {
+      return
+    }
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+    await remoteLink.dismiss(links)
   }
 )
 
@@ -219,7 +320,10 @@ const createProductionRunStep = createStep(
     input: {
       payload: CreateProductionRunInput
       design?: any
-      inventory?: { inventory_links: any[] } | null
+      inventory?: {
+        inventory_links: any[]
+        allocation?: NormalizedRunMaterial[]
+      } | null
       captured_at: Date
       snapshot: Record<string, any>
     },
@@ -316,8 +420,13 @@ export const createProductionRunWorkflow = createWorkflow(
       () => fetchDesignSnapshotStep({ design_id: input.design_id })
     )
     const inventory = when({ input }, (data) =>
-      Boolean(data.input.design_id)
-    ).then(() => fetchDesignInventorySnapshotStep({ design_id: input.design_id }))
+      Boolean(data.input.design_id) || Boolean(data.input.materials?.length)
+    ).then(() =>
+      fetchDesignInventorySnapshotStep({
+        design_id: input.design_id,
+        materials: input.materials,
+      })
+    )
     const product = when({ input }, (data) => !data.input.design_id).then(() =>
       fetchProductSnapshotStep({ product_id: input.product_id })
     )
@@ -393,6 +502,18 @@ export const createProductionRunWorkflow = createWorkflow(
       linkProductionRunToProductStep({
         production_run_id: productionRunId,
         product_id: input.product_id,
+      })
+    })
+
+    // The allocation rows. Gated on the input, not on the step result, so a run
+    // created without `materials` writes nothing and stays unconstrained.
+    when({ input }, (data) => Boolean(data.input.materials?.length)).then(() => {
+      linkProductionRunMaterialsStep({
+        production_run_id: productionRunId,
+        allocation: transform(
+          { inventory },
+          (d) => ((d.inventory as any)?.allocation || []) as NormalizedRunMaterial[]
+        ),
       })
     })
 

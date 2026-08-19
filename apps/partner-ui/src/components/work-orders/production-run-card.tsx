@@ -21,6 +21,7 @@ import { InformationCircleSolid, ExclamationCircle } from "@medusajs/icons"
 import { useState } from "react"
 import { Link } from "react-router-dom"
 
+import { resolveRunMaterialOptions } from "../../lib/run-materials"
 import { planCompletionOutput } from "../../lib/completion-output"
 import { PartnerDesign } from "../../hooks/api/partner-designs"
 import {
@@ -933,7 +934,11 @@ const CompleteRunForm = ({
   isSample: boolean
   existingConsumptionCount: number
 }) => {
-  const inventoryItems = (design?.inventory_items || []) as Array<Record<string, any>>
+  // Only what THIS run was assigned. Falls back to the design's full bill of
+  // materials when the run carries no allocation — which is every run made
+  // before assignments could carry materials.
+  const { options: inventoryItems, constrained: materialsConstrained } =
+    resolveRunMaterialOptions(run, design)
   const tasks = run.tasks || []
   const pendingTasks = tasks.filter(
     (t: any) => t.status !== "completed" && t.status !== "cancelled"
@@ -1309,6 +1314,19 @@ const CompleteRunForm = ({
             </Badge>
           )}
         </div>
+
+        {materialsConstrained && (
+          <Text size="xsmall" className="text-ui-fg-subtle mb-2">
+            This run was assigned specific materials
+            {inventoryItems.some((i) => i.planned_quantity != null)
+              ? ` — ${inventoryItems
+                  .filter((i) => i.planned_quantity != null)
+                  .map((i) => `${i.title || i.sku || i.id}: ${i.planned_quantity}`)
+                  .join(", ")}`
+              : ""}
+            . Only these can be logged against it.
+          </Text>
+        )}
 
         {existingConsumptionCount > 0 ? (
           <Text size="xsmall" className="text-ui-fg-subtle mb-3">

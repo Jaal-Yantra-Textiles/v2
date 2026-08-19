@@ -1,4 +1,4 @@
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import {
   createStep,
   createWorkflow,
@@ -7,6 +7,7 @@ import {
   transform,
 } from "@medusajs/framework/workflows-sdk"
 import type { LinkDefinition } from "@medusajs/framework/types"
+import type { Link } from "@medusajs/modules-sdk"
 
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
@@ -18,6 +19,12 @@ import { DESIGN_MODULE } from "../../modules/designs"
 import { PARTNER_MODULE } from "../../modules/partner"
 import designPartnersLink from "../../links/design-partners-link"
 import { dualWriteChildRunOrdersStep } from "./dual-write-unified-run-order"
+import DesignInventoryLink from "../../links/design-inventory-link"
+import {
+  normalizeRunMaterials,
+  type NormalizedRunMaterial,
+  type RunMaterialInput,
+} from "./lib/run-materials"
 
 export type ProductionRunAssignment = {
   partner_id: string
@@ -32,6 +39,16 @@ export type ProductionRunAssignment = {
   template_names?: string[]
   /** Templates BY ID — preferred. Wins over `template_names` when both are sent. */
   template_ids?: string[]
+  /**
+   * The materials THIS partner is being sent: a subset of the design's bill of
+   * materials, with the quantity issued to them.
+   *
+   * Omit and the assignment behaves exactly as it always has — the child run
+   * carries the whole design BOM and the partner is asked to account for all of
+   * it. That was the only available behaviour before this field existed, which
+   * is why absence has to keep meaning "unconstrained" rather than "nothing".
+   */
+  materials?: RunMaterialInput[]
 }
 
 export type ApproveProductionRunInput = {
@@ -77,6 +94,38 @@ const approveProductionRunStep = createStep(
 
     await productionPolicyService.assertCanApprove(original as any)
 
+    // Validate every assignment's material allocation BEFORE anything is
+    // written. An invalid `materials` array must be a no-op, not a parent left
+    // flipped to `approved` with no children to show for it (#1358's shape:
+    // the rejection that is a corruption because the write already happened).
+    const requestedAssignments = input.assignments || []
+    const wantsMaterials = requestedAssignments.some((a) => a.materials?.length)
+    let bomItemIds: string[] | null = null
+    if (wantsMaterials && (original as any).design_id) {
+      const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+      const { data: bomRows } = await query.graph({
+        entity: DesignInventoryLink.entryPoint,
+        fields: ["inventory_item_id"],
+        filters: { design_id: (original as any).design_id },
+      })
+      bomItemIds = (bomRows || [])
+        .map((r: any) => r.inventory_item_id)
+        .filter(Boolean)
+    }
+
+    const allocationByIndex: NormalizedRunMaterial[][] = requestedAssignments.map(
+      (a, idx) => {
+        const normalized = normalizeRunMaterials(a.materials, bomItemIds)
+        if (!normalized.ok) {
+          throw new MedusaError(
+            MedusaError.Types.INVALID_DATA,
+            `assignment ${idx} (partner ${a.partner_id}): ${normalized.error}`
+          )
+        }
+        return normalized.materials
+      }
+    )
+
     const updatedParent = await productionRunService.updateProductionRuns({
       id: original.id,
       status: "approved" as any,
@@ -98,13 +147,38 @@ const approveProductionRunStep = createStep(
     const { unified_order_id: _omitParentOrderRef, ...inheritedMetadata } =
       ((original as any).metadata ?? {}) as Record<string, any>
 
-    const childPayloads = assignments.map((a) => {
+    const childPayloads = assignments.map((a, idx) => {
       const quantity = a.quantity ?? (original as any).quantity ?? 1
+      const allocation = allocationByIndex[idx] || []
 
       const originalSnapshot = (original as any).snapshot
+      // Narrow the child's snapshot to what this partner is actually getting.
+      // The parent still carries the full BOM — it is the design's plan; the
+      // child carries the issue list, which is a different fact.
+      const parentLinks: any[] = Array.isArray(originalSnapshot?.inventory_links)
+        ? originalSnapshot.inventory_links
+        : []
+      const parentLinkById = new Map(
+        parentLinks.map((l: any) => [l.inventory_item_id, l])
+      )
+      const narrowedLinks = allocation.length
+        ? allocation.map((m) => {
+            const base: any = parentLinkById.get(m.inventory_item_id) || {}
+            return {
+              ...base,
+              inventory_item_id: m.inventory_item_id,
+              planned_quantity: m.planned_quantity ?? base.planned_quantity ?? null,
+              location_id: m.location_id ?? base.location_id ?? null,
+              resolved_raw_material_id: m.resolved_raw_material_id ?? null,
+              metadata: { ...(base.metadata || {}), ...(m.metadata || {}) },
+            }
+          })
+        : parentLinks
+
       const snapshot = originalSnapshot
         ? {
             ...originalSnapshot,
+            inventory_links: narrowedLinks,
             provenance: {
               ...(originalSnapshot as any).provenance,
               partner_id: a.partner_id,
@@ -139,6 +213,32 @@ const approveProductionRunStep = createStep(
     const children = Array.isArray(createdChildren) ? createdChildren : [createdChildren]
 
     const childIds = children.map((c: any) => c.id).filter(Boolean)
+
+    // The authoritative allocation. Written after the children exist (it needs
+    // their ids) but validated long before — see above.
+    const allocationLinks: LinkDefinition[] = []
+    for (let i = 0; i < children.length; i++) {
+      const childId = (children[i] as any)?.id
+      const allocation = allocationByIndex[i] || []
+      if (!childId || !allocation.length) continue
+      for (const m of allocation) {
+        allocationLinks.push({
+          [PRODUCTION_RUNS_MODULE]: { production_runs_id: childId },
+          [Modules.INVENTORY]: { inventory_item_id: m.inventory_item_id },
+          data: {
+            planned_quantity: m.planned_quantity,
+            location_id: m.location_id,
+            resolved_raw_material_id: m.resolved_raw_material_id,
+            note: m.note,
+            metadata: m.metadata,
+          },
+        })
+      }
+    }
+    if (allocationLinks.length) {
+      const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+      await remoteLink.create(allocationLinks)
+    }
 
     // Compute depends_on_run_ids based on assignment order
     const hasOrdering = assignments.some((a) => a.order != null)
@@ -178,21 +278,32 @@ const approveProductionRunStep = createStep(
 
       return new StepResponse(
         { parent: updatedParent, children: refreshedChildren },
-        { parentOriginal: original, childIds }
+        { parentOriginal: original, childIds, allocationLinks }
       )
     }
 
     return new StepResponse(
       { parent: updatedParent, children },
-      { parentOriginal: original, childIds }
+      { parentOriginal: original, childIds, allocationLinks }
     )
   },
   async (
-    rollbackData: { parentOriginal: any; childIds: string[] } | undefined,
+    rollbackData:
+      | {
+          parentOriginal: any
+          childIds: string[]
+          allocationLinks?: LinkDefinition[]
+        }
+      | undefined,
     { container }
   ) => {
     if (!rollbackData) {
       return
+    }
+
+    if (rollbackData.allocationLinks?.length) {
+      const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+      await remoteLink.dismiss(rollbackData.allocationLinks)
     }
 
     const productionRunService: ProductionRunService = container.resolve(

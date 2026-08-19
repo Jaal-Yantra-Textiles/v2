@@ -1,4 +1,5 @@
 import { z } from "@medusajs/framework/zod"
+import { detailBandSchema } from "./detail-band"
 
 const hexColor = z
   .string()
@@ -229,6 +230,10 @@ export const websiteThemeSchema = z.object({
       // the collapsed layout.
       gallery_position: z.enum(["left", "center", "right"]).optional(),
       description_layout: z.enum(["tabs", "accordion", "stacked"]).optional(),
+      // #1364 — the full-width band BELOW the gallery. Distinct from
+      // `description_layout`, which only ever chose a container for two
+      // hardcoded panels inside the 300px sticky column.
+      detail_band: detailBandSchema.optional(),
       cta_text: z.string().optional(),
       sample_product_name: z.string().optional(),
       sample_product_price: z.string().optional(),

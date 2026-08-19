@@ -17,6 +17,15 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const scService: any = req.scope.resolve(Modules.SALES_CHANNEL)
   const limit = Number((req.query as any).limit) || 20
   const offset = Number((req.query as any).offset) || 0
+  // Filters. Without these the only way to find ONE work-order was to page the
+  // whole channel and match by eye — and the route already loads every order in
+  // it unbounded, so the caller paid for that either way.
+  const idFilter = ((req.query as any).id || "").trim()
+  // The COMMISSIONING order this work-order was collated from. The bridge
+  // between the two order ids: given a customer order, find its work-order.
+  const sourceOrderFilter = ((req.query as any).source_order_id || "").trim()
+  const partnerFilter = ((req.query as any).partner_id || "").trim()
+  const runStatusFilter = ((req.query as any).run_status || "").trim()
 
   const [channel] = await scService.listSalesChannels({
     name: PARTNER_WORK_ORDERS_CHANNEL,
@@ -50,11 +59,22 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     filters: { sales_channel_id: channel.id },
   })
 
-  const collated = (orders || []).filter(
-    (o: any) =>
-      o?.metadata?.collated_design_order === true &&
-      (o?.production_runs?.length ?? 0) > 0
-  )
+  const collated = (orders || []).filter((o: any) => {
+    if (o?.metadata?.collated_design_order !== true) return false
+    const runs = o?.production_runs ?? []
+    if (!runs.length) return false
+    if (idFilter && o.id !== idFilter) return false
+    if (sourceOrderFilter && o?.metadata?.source_order_id !== sourceOrderFilter) {
+      return false
+    }
+    if (partnerFilter && !runs.some((r: any) => r?.partner_id === partnerFilter)) {
+      return false
+    }
+    if (runStatusFilter && !runs.some((r: any) => r?.status === runStatusFilter)) {
+      return false
+    }
+    return true
+  })
   collated.sort((a: any, b: any) => (a.created_at < b.created_at ? 1 : -1))
 
   const count = collated.length

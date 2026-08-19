@@ -342,6 +342,29 @@ export type WebsiteTheme = {
     image_layout?: "gallery" | "single" | "grid"
     gallery_position?: "left" | "center" | "right"
     description_layout?: "tabs" | "accordion" | "stacked"
+    /**
+     * #1364 — the full-width band BELOW the gallery. `description_layout` above
+     * only ever chose a container for two hardcoded panels inside the narrow
+     * sticky column; this decides what appears under the image.
+     */
+    detail_band?: {
+      enabled?: boolean
+      heading?: string
+      layout?: "grid-2" | "grid-3" | "rows" | "tabs" | "accordion"
+      blocks?: Array<{
+        source:
+          | "spec"
+          | "spec_fields"
+          | "attributes"
+          | "maker"
+          | "care"
+          | "shipping"
+        label?: string
+        /** Only read for the theme-authored sources (care, shipping). */
+        body?: string
+        enabled?: boolean
+      }>
+    }
     cta_text?: string
     sample_product_name?: string
     sample_product_price?: string
