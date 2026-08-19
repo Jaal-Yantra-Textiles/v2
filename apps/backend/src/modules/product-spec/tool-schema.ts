@@ -99,6 +99,7 @@ export const productSpecSchemaProps = () => ({
   },
   options: {
     type: "array",
+    maxItems: 12,
     description:
       "Choices the CUSTOMER makes when ordering this made to order — embroidery, a border, a colour pattern. Distinct from `fields`, which are facts the partner states and the customer cannot change. Use these instead of product variants when the choice doesn't change what is kept in stock. REPLACES the stored options wholesale when passed — omit to leave alone, pass [] to delete all. Max 12.",
     items: {
@@ -106,10 +107,13 @@ export const productSpecSchemaProps = () => ({
       properties: {
         key: {
           type: "string",
+          minLength: 1,
+          maxLength: 60,
           description: "Option key, e.g. 'embroidery' (≤ 60 chars).",
         },
         label: {
           type: "string",
+          maxLength: 120,
           description: "What the customer sees, e.g. 'Embroidery' (≤ 120 chars).",
         },
         help_text: {
@@ -124,13 +128,23 @@ export const productSpecSchemaProps = () => ({
         order: { type: "integer", description: "Display order (0–999)." },
         values: {
           type: "array",
+          minItems: 1,
+          maxItems: 40,
           description:
             "The selectable values. At least 1, max 40 — a group with none is rejected.",
           items: {
             type: "object",
             properties: {
               label: {
+                // The validator is `z.string().trim().min(1)`. Stating that
+                // here as well is the point of the row: a caller that sends
+                // "" should be told by the schema, not by a 400 naming
+                // `options, 0, values, 0, label` — which is exactly what the
+                // spec editor did to a partner before the form learned to
+                // strip its own blank rows.
                 type: "string",
+                minLength: 1,
+                maxLength: 160,
                 description: "What the customer picks by (≤ 160 chars).",
               },
               note: {
