@@ -20,6 +20,7 @@
  *      applies it.
  */
 import { z } from "@medusajs/framework/zod"
+import { detailBandSchema } from "./detail-band"
 
 const hexColorStrict = z
   .string()
@@ -199,6 +200,12 @@ export const safeThemePatchSchema = z.object({
       show_breadcrumbs: z.boolean().optional(),
       show_sku: z.boolean().optional(),
       cta_text: z.string().optional(),
+      // #1364 — the band below the gallery. Safe for the chat surface: every
+      // per-product source reads content the product already has, and the two
+      // theme-authored ones (care, shipping) are plain copy. The assistant
+      // cannot invent a fact about a piece here, only choose what to show and
+      // how to arrange it.
+      detail_band: detailBandSchema.optional(),
     })
     .optional(),
   cart: z
@@ -260,6 +267,19 @@ home_sections:
 
 ## Product Page
 product_page: show_related_products (boolean), related_heading, show_breadcrumbs (boolean), show_sku (boolean), cta_text
+
+### The detail band — the full-width region BELOW the product image
+product_page.detail_band: { enabled (boolean), heading, layout, blocks[] }
+  - layout: "grid-2" | "grid-3" | "rows" | "tabs" | "accordion"
+  - blocks[]: { source, label, body, enabled (boolean) } — at most 8
+  - source (required, one of): "spec" (weave/params/finishes, shown with icons)
+    | "spec_fields" (the partner's own named fields on that product)
+    | "attributes" (material, origin, type, weight, dimensions)
+    | "maker" (the artisan story) | "care" | "shipping"
+  - "body" applies ONLY to "care" and "shipping", which are the same copy on
+    every product. The other sources read the product itself — do NOT write a
+    body for them, it is ignored. A block whose product has nothing to show is
+    hidden automatically, so it is safe to list one every product may not have.
 
 ## Cart
 cart: heading, empty_message, empty_cta_text, checkout_button_text, show_free_shipping_bar (boolean)
