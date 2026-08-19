@@ -78,6 +78,12 @@ describe("admin MCP tool tiers", () => {
   it("only demotes tools with no money, no carrier and no third-party message", () => {
     // Locked deliberately. Adding a name here is a permission decision, so it
     // should be a visible line in a diff rather than a quiet registry edit.
+    //
+    // The CRM rows qualify on the stated rule: creating a contact or moving a
+    // deal along the pipeline spends no money, books nothing with a carrier and
+    // sends nothing to a third party. They remain `sensitive` for the confirm
+    // gate — a write-scoped credential may reach them, a model still cannot fire
+    // one without confirm:true.
     expect(
       ADMIN_MCP_TOOLS.filter((t) => t.tier === "write")
         .map((t) => t.name)
@@ -86,11 +92,19 @@ describe("admin MCP tool tiers", () => {
       [
         "add_design_construction_detail",
         "add_inventory_raw_material",
+        "create_crm_company",
+        "create_crm_contact",
+        "create_crm_opportunity",
+        "create_crm_task",
         "create_design",
         "create_raw_material_group",
+        "log_crm_activity",
+        "log_crm_note",
         "link_design_inventory",
         "link_design_material_group",
         "set_product_spec",
+        "update_crm_contact",
+        "update_crm_opportunity",
         "update_design",
         "update_design_brief",
         "update_design_task",

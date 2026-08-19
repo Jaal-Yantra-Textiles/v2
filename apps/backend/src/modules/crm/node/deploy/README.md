@@ -9,6 +9,37 @@ the API tasks).
 No secrets live in this directory. The bearer token and the cloudflared connector
 token are generated at deploy time and kept only in SSM / on the box.
 
+## ⚠️ When a contract change REQUIRES a redeploy
+
+The node validates every write against **its own bundled copy** of
+`../dal/crm-contracts.ts` (and, through it, `../../stages.ts`). Medusa validates
+too, but the node has the last word — so a vocabulary change that ships only in
+the backend is rejected here, at the proxy, with a 422 naming the *old* enum.
+`tsc`, the unit tests and `check:prod-build` are all blind to it: they only ever
+see the new copy.
+
+Verified by probe on 2026-08-19 against the live node:
+
+```
+POST /crm/people       {"last_name": null}      → 201   (widening a field: safe)
+POST /crm/opportunities {"stage": "sampling"}   → 422   "must be one of
+                                                  [prospecting, qualification,
+                                                  proposal, negotiation, won,
+                                                  lost], got 'sampling'"
+```
+
+A **new collection** is the strongest case of all: the node builds its repo map
+from `crmContracts` and its URL segments from `CRM_MODEL_BY_SEGMENT`, both at
+bundle time. Until it is redeployed, `/crm/activities` is simply not a route it
+serves — every activity write fails with the node's own 404, which reads exactly
+like a missing Medusa route.
+
+So: **widening** a field (required → nullable) needs no redeploy, because the
+old contract already accepted the wider value. **Changing an enum** does. After
+any edit to `stages.ts` or `crm-contracts.ts`, rebuild the bundle (step 1),
+re-ship it (step 2) and `sudo systemctl restart crm-node`, then re-probe the new
+value before believing the pipeline works.
+
 ## 1. Build the bundle (from repo root)
 
 A single self-contained CJS file — `server.ts` + `../dal/crm-contracts.ts` +

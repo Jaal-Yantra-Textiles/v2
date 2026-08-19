@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Capture to JYT CRM</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #18181b;
+        --muted: #71717a;
+        --border: #e4e4e7;
+        --accent: #18181b;
+        --accent-fg: #ffffff;
+        --ok: #15803d;
+        --err: #b91c1c;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #18181b;
+          --fg: #fafafa;
+          --muted: #a1a1aa;
+          --border: #3f3f46;
+          --accent: #fafafa;
+          --accent-fg: #18181b;
+          --ok: #4ade80;
+          --err: #f87171;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        width: 360px;
+        margin: 0;
+        padding: 14px;
+        font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+      }
+      h1 { font-size: 13px; margin: 0 0 2px; }
+      .sub { color: var(--muted); font-size: 11px; margin-bottom: 12px; word-break: break-all; }
+      label { display: block; font-size: 11px; color: var(--muted); margin: 9px 0 3px; }
+      input, textarea, select {
+        width: 100%;
+        padding: 6px 8px;
+        font: inherit;
+        color: var(--fg);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+      }
+      textarea { resize: vertical; min-height: 52px; }
+      .row { display: flex; gap: 8px; }
+      .row > div { flex: 1; min-width: 0; }
+      button {
+        width: 100%;
+        margin-top: 14px;
+        padding: 8px;
+        font: inherit;
+        font-weight: 600;
+        color: var(--accent-fg);
+        background: var(--accent);
+        border: 0;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      button:disabled { opacity: 0.5; cursor: default; }
+      #status { margin-top: 10px; font-size: 11px; min-height: 15px; }
+      #status.ok { color: var(--ok); }
+      #status.err { color: var(--err); }
+      .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+      a { color: inherit; }
+    </style>
+  </head>
+  <body>
+    <h1>Capture to JYT CRM</h1>
+    <div class="sub" id="page-url">Reading page…</div>
+
+    <div id="form" hidden>
+      <div class="row">
+        <div>
+          <label for="first_name">First name *</label>
+          <input id="first_name" autocomplete="off" />
+        </div>
+        <div>
+          <label for="last_name">Last name</label>
+          <input id="last_name" autocomplete="off" />
+        </div>
+      </div>
+
+      <label for="email">Email *</label>
+      <select id="email-pick" hidden></select>
+      <input id="email" type="email" autocomplete="off" />
+      <div class="hint">The CRM keys contacts on email — it must be unique.</div>
+
+      <label for="phone">Phone</label>
+      <input id="phone" autocomplete="off" />
+
+      <label for="title">Job title</label>
+      <input id="title" autocomplete="off" />
+
+      <label for="company">Company</label>
+      <input id="company" autocomplete="off" />
+      <div class="hint">Saved as a note — companies are linked in the admin.</div>
+
+      <label for="note">Note</label>
+      <textarea id="note"></textarea>
+
+      <button id="save">Save to CRM</button>
+    </div>
+
+    <div id="setup" hidden>
+      <p>No backend credentials set yet.</p>
+      <button id="open-options">Open settings</button>
+    </div>
+
+    <div id="status"></div>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

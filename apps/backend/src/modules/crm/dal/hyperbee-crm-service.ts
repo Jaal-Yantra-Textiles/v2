@@ -69,6 +69,7 @@ export interface CrmRepositories {
   crmOpportunityService: ModelRepository;
   crmNoteService: ModelRepository;
   crmTaskService: ModelRepository;
+  crmActivityService: ModelRepository;
 }
 
 export function createCrmRepositories(bee: BeeLike): CrmRepositories {
@@ -111,5 +112,6 @@ export function createCrmRepositories(bee: BeeLike): CrmRepositories {
     crmOpportunityService: wrapped.crm_opportunity,
     crmNoteService: wrapped.crm_note,
     crmTaskService: wrapped.crm_task,
+    crmActivityService: wrapped.crm_activity,
   };
 }

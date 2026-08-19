@@ -34,6 +34,7 @@ export type AdminToolDomain =
   | "inventory"
   | "money"
   | "marketing"
+  | "crm"
   | "observability"
 
 /**
@@ -86,6 +87,15 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   // organic publishing surface alongside the automated campaigns.
   ["/admin/social-posts", "marketing"],
   ["/admin/social-platforms", "marketing"],
+  // The sales CRM (contacts, companies, deals, follow-up tasks). Distinct from
+  // `customers`, which is the Medusa storefront customer — a CRM contact is
+  // somebody who has NOT bought yet. Distinct again from /admin/persons, which
+  // is the weaver directory.
+  ["/admin/crm", "crm"],
+  // Ad-leads are the CRM's intake, so they light up with it rather than with
+  // marketing: the question "who came in from the ads" is answered by working
+  // the lead list, not by reading campaign spend.
+  ["/admin/meta-ads/leads", "crm"],
 ]
 
 /** Classify one tool by the route it wraps. */
@@ -199,6 +209,38 @@ const DOMAIN_KEYWORDS: Record<Exclude<AdminToolDomain, "core">, string[]> = {
     "social", "social post", "social posts", "social media", "instagram",
     "facebook", "twitter", "tweet", "linkedin", "post to", "publish post",
     "reel", "caption", "hashtag", "hashtags", "fbinsta",
+  ],
+  crm: [
+    "crm", "lead", "leads", "contact", "contacts", "prospect", "prospects",
+    // Word boundaries are exact: "contact" does NOT match "contacted", and
+    // "who came in from the ads and hasn't been contacted?" is the single most
+    // natural way to ask for the unworked intake queue.
+    "contacted", "uncontacted", "unworked", "ad lead", "ad leads",
+    "pipeline", "deal", "deals", "opportunity", "opportunities",
+    "follow up", "follow-up", "followup", "outreach",
+    // The pipeline stage names ARE the vocabulary: "move it to sampling" or
+    // "who is at quoted" must reach the CRM slice, and neither sentence
+    // contains the word "crm".
+    "prospecting", "sampling", "quoted", "negotiation", "qualified",
+    "unqualified", "converted",
+    // What a lead physically is here. "who filled the form", "the enquiries
+    // from the ads" — none of these say "lead" either.
+    "enquiry", "enquiries", "inquiry", "inquiries", "form fill", "sign up",
+    "signups", "buyer", "buyers", "wholesale", "stockist", "boutique",
+    // The CONVERSATION axis. "did they reply?", "chase them Tuesday", "who has
+    // gone quiet" are all CRM asks that name no CRM noun at all.
+    "reply", "replied", "replies", "reach out", "reached out", "chase",
+    "chasing", "conversation", "conversations", "timeline", "activity",
+    "activities", "engagement", "engaged", "stalled", "gone quiet",
+    "unresponsive", "opt out", "opted out", "opt-out", "unsubscribe",
+    "do not contact", "touchpoint", "interaction", "interactions",
+    // Logging a real-world touch. Bare "call" is deliberately absent — it fires
+    // on "call the workflow" / "call the API"; the past tenses do not.
+    "called", "phoned", "rang", "spoke to", "call with", "voicemail",
+    // How an opt-out is actually reported. "taken off the list" names nothing
+    // in the vocabulary, and it is the one ask where a miss is a compliance
+    // problem rather than an extra round trip.
+    "taken off", "take me off", "remove from list", "stop messaging",
   ],
   observability: [
     "mcp", "tool usage", "telemetry", "observability", "ledger", "audit",
@@ -327,5 +369,6 @@ export const SELECTABLE_DOMAINS: AdminToolDomain[] = [
   "inventory",
   "money",
   "marketing",
+  "crm",
   "observability",
 ]
