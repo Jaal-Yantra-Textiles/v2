@@ -5408,6 +5408,20 @@
         "type": "object",
         "required": false,
         "placeholder": "{}"
+      },
+      {
+        "name": "status",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.status }}",
+        "description": "The status the submission lands in. \"Pending\" (the default) is a partner saying \"pay me for this\". \"Draft\" is the system pre-filling one FOR the partner — see `require_design_status` — which they then review and submit."
+      },
+      {
+        "name": "require_design_status",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false",
+        "description": "The status the submission lands in. \"Pending\" (the default) is a partner saying \"pay me for this\". \"Draft\" is the system pre-filling one FOR the partner — see `require_design_status` — which they then review and submit. / status?: \"Draft\" | \"Pending\" /** Whether the design's own status must be Approved / Commerce_Ready. Default true: a partner submitting by hand is asserting the design work is finished, and the design status is the check on that assertion. The run-completion auto-draft passes false, because there the proof of finished work is the COMPLETED PRODUCTION RUN itself — and completion sets the design to Technical_Review, so a status check would reject every single auto-draft. Only the auto path may set this; the partner-facing route never does."
       }
     ],
     "source": "custom_ts",
@@ -5905,6 +5919,31 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/production-runs/accept-production-run.ts"
   },
+  "admin-complete-production-run": {
+    "fields": [
+      {
+        "name": "production_run_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.production_run_id }}"
+      },
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "override_note",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.override_note }}",
+        "description": "Admin: complete a production run on the partner's behalf, from a message. Why this exists as its own workflow rather than a few writes in the route. `completeProductionRunWorkflow` gates on `assertCanCompleteWork`, which requires BOTH `status ∈ complete_work_from` (prod: `[\"in_progress\"]`) and a `finished_at`. In the WhatsApp-driven flow the partner never formally accepted, started or finished the run in the partner app — they said so in a message — so the run is typically still `sent_to_partner` with no lifecycle timestamps at all. Something has to bring it to a completable state first. The order of operations IS the safety property here. Stamping the timestamps and then letting the gate run turns a rejection into a corruption: the run is left permanently claiming it was started and finished at a moment it wasn't, and is pre-armed to slip past the `finished_at` gate on some later call. So: 1. `evaluateAdminCompletionOverride` decides — from the policy, before any write — whether this run may be overridden at all, and what the override would have to change. It is PURE, so the decision is unit-testable without a DB. 2. The override is applied in a step that captures the previous values and restores them in its compensation. 3. `completeProductionRunWorkflow` runs as a nested step. If it throws for any reason, the engine compensates step 2 and the run goes back to exactly the state it was in. The promotable set is derived from the policy rather than hardcoded, for the same reason `partner-run-steps` defers to it: allowed transitions live in ONE place. A run may be overridden from a status that could legitimately reach `in_progress` in a single step (`accept_from`) or that is already completable (`complete_work_from`). Anything else — a draft, an unapproved run, one parked for reassignment — is refused with no write at all. / import { MedusaError } from \"@medusajs/framework/utils\" import { StepResponse, WorkflowResponse, createStep, createWorkflow, } from \"@medusajs/framework/workflows-sdk\" import { PRODUCTION_RUNS_MODULE } from \"../../modules/production_runs\" import type ProductionRunService from \"../../modules/production_runs/service\" import { PRODUCTION_POLICY_MODULE } from \"../../modules/production_policy\" import type ProductionPolicyService from \"../../modules/production_policy/service\" import { completeProductionRunWorkflow, type CompleteProductionRunInput, } from \"./complete-production-run\" export type AdminCompleteProductionRunInput = CompleteProductionRunInput & { /** Free-form partner message this completion was raised from, if any."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/production-runs/admin-complete-production-run.ts"
+  },
   "approve-production-run": {
     "fields": [
       {
@@ -6176,7 +6215,8 @@
         "name": "partner_id",
         "type": "id",
         "required": true,
-        "placeholder": "{{ $last.partner_id }}"
+        "placeholder": "{{ $last.partner_id }}",
+        "description": "#1279 — a run parked in `awaiting_reassignment`. Unlike every other kind this one has NO partner (parking nulls `partner_id` and keeps `previous_partner_id` for audit), so it is not a nag — it is an admin escalation. It exists because parking used to be terminal in practice: the reminder flow read only `sent_to_partner`/`in_progress`, so the moment the cap parked a run, the machinery that parked it could no longer see it. Six runs sat that way until a human noticed, the oldest for 4.5 months. / | \"awaiting_reassignment\" export type EmitProductionRunReminderInput = { production_run_id: string /** Null only for `awaiting_reassignment` — a parked run has no partner."
       },
       {
         "name": "design_id",
@@ -6553,6 +6593,42 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/products/upsert-artisan-product-detail.ts"
+  },
+  "upsert-product-spec": {
+    "fields": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.name }}"
+      },
+      {
+        "name": "hex_code",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.hex_code }}"
+      },
+      {
+        "name": "usage_notes",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.usage_notes }}"
+      },
+      {
+        "name": "order",
+        "type": "number",
+        "required": false,
+        "placeholder": "0"
+      },
+      {
+        "name": "available",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/products/upsert-product-spec.ts"
   },
   "create-raw-material": {
     "fields": [

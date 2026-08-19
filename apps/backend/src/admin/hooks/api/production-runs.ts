@@ -571,3 +571,114 @@ export const useRecreateProductionRun = (
     ...options,
   })
 }
+
+// --- WhatsApp messaging inbox integration hooks ---
+// These hooks power the per-message actions in the WhatsApp conversation
+// view: log a message as a run activity note, attach media to a run, and
+// complete a run from a partner's WhatsApp message.
+
+export type AdminAddRunActivityNotePayload = {
+  summary: string
+  message_id?: string
+  conversation_id?: string
+  partner_id?: string
+  payload?: Record<string, any>
+}
+
+export const useAddRunActivityNote = (
+  runId: string,
+  options?: UseMutationOptions<
+    { activity: AdminProductionRunActivity },
+    FetchError,
+    AdminAddRunActivityNotePayload
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: AdminAddRunActivityNotePayload) =>
+      sdk.client.fetch<{ activity: AdminProductionRunActivity }>(
+        `/admin/production-runs/${runId}/activities/note`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({
+        queryKey: [...productionRunQueryKeys.detail(runId), "activities"],
+      })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
+export type AdminCompleteRunPayload = {
+  produced_quantity?: number
+  rejected_quantity?: number
+  rejection_reason?: string
+  rejection_notes?: string
+  partner_cost_estimate?: number
+  cost_type?: "per_unit" | "total"
+  notes?: string
+  allow_shortfall?: boolean
+  from_message_id?: string
+  from_conversation_id?: string
+}
+
+export const useAdminCompleteRun = (
+  runId: string,
+  options?: UseMutationOptions<
+    { production_run: AdminProductionRun; message: string },
+    FetchError,
+    AdminCompleteRunPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: AdminCompleteRunPayload) =>
+      sdk.client.fetch<{ production_run: AdminProductionRun; message: string }>(
+        `/admin/production-runs/${runId}/complete`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.detail(runId) })
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
+export type AdminAttachMediaToRunPayload = {
+  media_url: string
+  media_mime_type?: string
+  filename?: string
+  message_id?: string
+  conversation_id?: string
+}
+
+export const useAttachMediaToRun = (
+  runId: string,
+  options?: UseMutationOptions<
+    { production_run: AdminProductionRun; message: string },
+    FetchError,
+    AdminAttachMediaToRunPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: AdminAttachMediaToRunPayload) =>
+      sdk.client.fetch<{ production_run: AdminProductionRun; message: string }>(
+        `/admin/production-runs/${runId}/attach-media`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.detail(runId) })
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}

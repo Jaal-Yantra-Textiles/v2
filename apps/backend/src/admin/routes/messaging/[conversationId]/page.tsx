@@ -1,6 +1,6 @@
 import { useParams } from "react-router-dom"
 import {
-  Button, Heading, Text, Badge, toast,
+  Button, Heading, Text, Badge, toast, Skeleton,
   DataTable, useDataTable,
   createDataTableFilterHelper, createDataTableColumnHelper, createDataTableCommandHelper,
   type DataTablePaginationState, type DataTableFilteringState,
@@ -10,12 +10,14 @@ import { RouteFocusModal } from "../../../components/modal/route-focus-modal"
 import { StackedFocusModal } from "../../../components/modal/stacked-modal/stacked-focused-modal"
 import { useConversationMessages, useSendMessage } from "../../../hooks/api/messaging"
 import { useEffect, useRef, useState, useCallback, useMemo } from "react"
-import { MessageBubble } from "../components/message-bubble"
+import { MessageBubble, MessageBubbleSkeleton, type MessageAction } from "../components/message-bubble"
 import { MessageInput, type SendPayload, type ReplyTo } from "../components/message-input"
 import { SenderPicker } from "../components/sender-picker"
 import { CreatePaymentFromMessageModal } from "../components/create-payment-from-message-modal"
+import { MessageRunActionModal, type MessageRunActionType } from "../components/message-run-action-modal"
 import type { Message } from "../../../hooks/api/messaging"
 import { type AdminDesign, useDesigns } from "../../../hooks/api/designs"
+import type { AdminProductionRun } from "../../../hooks/api/production-runs"
 
 const ConversationThreadModal = () => {
   const { conversationId } = useParams<{ conversationId: string }>()
@@ -23,10 +25,11 @@ const ConversationThreadModal = () => {
   const [replyTo, setReplyTo] = useState<ReplyTo | null>(null)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState("")
-  // Single-modal-per-page pattern: kebab on a bubble sets the message
-  // and opens the payment modal. Keeps only one CreatePaymentModal in
-  // the DOM regardless of message count.
-  const [paymentMessage, setPaymentMessage] = useState<Message | null>(null)
+
+  // Single-modal-per-page pattern: the kebab on a bubble sets the active
+  // action + message and opens the corresponding modal. Only one modal is
+  // in the DOM at a time regardless of message count.
+  const [activeAction, setActiveAction] = useState<{ type: MessageAction; message: Message } | null>(null)
 
   const { conversation, messages = [], isPending } = useConversationMessages(
     conversationId!,
@@ -51,6 +54,10 @@ const ConversationThreadModal = () => {
       media_url: message.media_url,
       media_mime_type: message.media_mime_type,
     })
+  }
+
+  const handleMessageAction = (action: MessageAction, message: Message) => {
+    setActiveAction({ type: action, message })
   }
 
   const handleSend = (payload: SendPayload) => {
@@ -81,13 +88,53 @@ const ConversationThreadModal = () => {
     }
   }
 
+  // After completing a run from the messaging inbox, send a short WhatsApp
+  // summary back to the partner: "your current production run stands here".
+  const handleRunCompleted = (run: AdminProductionRun) => {
+    const lines = [
+      `✅ *Production Run Completed*`,
+      ``,
+      `*Run ID:* ${run.id}`,
+      `*Status:* Completed`,
+    ]
+    if (run.quantity) lines.push(`*Ordered:* ${run.quantity}`)
+    if (run.produced_quantity != null) lines.push(`*Produced:* ${run.produced_quantity}`)
+    if (run.rejected_quantity) lines.push(`*Rejected:* ${run.rejected_quantity}`)
+    lines.push(``)
+    lines.push(`Thank you for your work on this run. 🙏`)
+
+    sendMutation.mutate(
+      { content: lines.join("\n") },
+      {
+        onSuccess: () => toast.success("Summary sent to partner"),
+        onError: (err: any) => toast.error(err?.message || "Failed to send summary — 24h window may be closed"),
+      }
+    )
+  }
+
+  const isRunAction = (type: MessageAction): type is MessageRunActionType =>
+    type === "activity_note" || type === "attach_media" || type === "complete_run"
+
   return (
     <RouteFocusModal prev="/messaging">
       <RouteFocusModal.Header />
       <RouteFocusModal.Body className="flex flex-1 flex-col overflow-hidden p-0">
         {isPending ? (
-          <div className="flex items-center justify-center flex-1 text-ui-fg-muted">
-            Loading messages...
+          <div className="flex flex-col h-full px-6 py-4 bg-ui-bg-subtle">
+            {/* Header skeleton */}
+            <div className="flex items-center justify-between px-0 py-3 border-b border-ui-border-base shrink-0">
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+              <Skeleton className="h-8 w-40" />
+            </div>
+            {/* Message skeletons */}
+            <div className="flex-1 overflow-hidden py-4">
+              <MessageBubbleSkeleton count={8} />
+            </div>
+            {/* Input skeleton */}
+            <Skeleton className="h-16 w-full shrink-0" />
           </div>
         ) : !conversation ? (
           <div className="flex items-center justify-center flex-1 text-ui-fg-muted">
@@ -171,7 +218,7 @@ const ConversationThreadModal = () => {
                       key={msg.id}
                       message={msg}
                       onReply={handleReply}
-                      onCreatePayment={setPaymentMessage}
+                      onMessageAction={handleMessageAction}
                     />
                   ))}
                 </div>
@@ -192,13 +239,28 @@ const ConversationThreadModal = () => {
         )}
       </RouteFocusModal.Body>
 
+      {/* Payment modal */}
       {conversation && (
         <CreatePaymentFromMessageModal
-          open={!!paymentMessage}
-          onClose={() => setPaymentMessage(null)}
-          message={paymentMessage}
+          open={!!activeAction && activeAction.type === "payment"}
+          onClose={() => setActiveAction(null)}
+          message={activeAction?.type === "payment" ? activeAction.message : null}
           partnerId={conversation.partner_id}
           partnerName={conversation.partner_name}
+        />
+      )}
+
+      {/* Run action modal (activity note / attach media / complete run) */}
+      {conversation && (
+        <MessageRunActionModal
+          open={!!activeAction && isRunAction(activeAction.type)}
+          onClose={() => setActiveAction(null)}
+          actionType={activeAction && isRunAction(activeAction.type) ? activeAction.type : "activity_note"}
+          message={activeAction && isRunAction(activeAction.type) ? activeAction.message : null}
+          partnerId={conversation.partner_id}
+          partnerName={conversation.partner_name}
+          conversationId={conversationId!}
+          onRunCompleted={handleRunCompleted}
         />
       )}
     </RouteFocusModal>
