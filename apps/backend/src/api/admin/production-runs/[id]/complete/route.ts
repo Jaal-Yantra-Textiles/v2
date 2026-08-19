@@ -6,7 +6,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import type ProductionRunService from "../../../../../modules/production_runs/service"
-import { completeProductionRunWorkflow } from "../../../../../workflows/production-runs/complete-production-run"
+import { adminCompleteProductionRunWorkflow } from "../../../../../workflows/production-runs/admin-complete-production-run"
 
 const REJECTION_REASONS = [
   "stitching_defect",
@@ -40,15 +40,17 @@ const CompleteBodySchema = z.object({
  * is done, and the admin completes the run from that message without
  * leaving the conversation view.
  *
- * The completion workflow (`completeProductionRunWorkflow`) validates that
- * the calling partner owns the run and that the run is in a completable
- * state (`assertCanCompleteWork` — requires `in_progress` + `finished_at`).
- * In the WhatsApp-driven flow the partner may never have formally "finished"
- * the run through the partner app, so this route applies an admin override
- * first: if `started_at` / `finished_at` are missing they are stamped now
- * so the workflow's policy gate passes. The workflow then handles stocking,
- * task completion, design cost update, parent cascade and event emission
- * exactly as a partner-initiated completion would.
+ * The partner may never have formally accepted, started or finished the run
+ * in the partner app — they said the work was done in a message — so the run
+ * has to be brought to a completable state before
+ * `completeProductionRunWorkflow`'s policy gate will pass.
+ *
+ * That override is NOT done here. `adminCompleteProductionRunWorkflow` decides
+ * from the policy whether the run may be overridden at all BEFORE writing
+ * anything, applies the change in a compensatable step, and runs the real
+ * completion nested inside it — so a rejected completion leaves the run exactly
+ * as it was rather than permanently claiming it was started and finished.
+ * Doing it in this route meant a rejection was a corruption, not a no-op.
  */
 export const POST = async (
   req: AuthenticatedMedusaRequest & { params: { id: string } },
@@ -88,28 +90,10 @@ export const POST = async (
   }
 
   const body = parsed.data
-
-  // Admin override: stamp lifecycle timestamps the partner may have skipped
-  // so the workflow's policy gate (`assertCanCompleteWork`) passes. The
-  // partner told the admin via WhatsApp that the work is done — that IS the
-  // finish signal — so recording it now is faithful, not fabricated.
   const adminActorId = (req as any).auth_context?.actor_id ?? null
-  const now = new Date()
 
-  if (!run.started_at) {
-    await service.updateProductionRuns({ id: runId, started_at: now })
-  }
-  if (!run.finished_at) {
-    await service.updateProductionRuns({
-      id: runId,
-      finished_at: now,
-      finish_notes: body.notes
-        ? `Completed via WhatsApp — partner message: ${body.notes.substring(0, 200)}`
-        : "Completed via WhatsApp (admin override)",
-    })
-  }
-
-  // Use the run's partner_id — the workflow validates ownership.
+  // Use the run's partner_id — the workflow validates ownership. Checked
+  // before the workflow so a run with no partner is refused without a write.
   const partnerId = run.partner_id
   if (!partnerId) {
     throw new MedusaError(
@@ -118,7 +102,9 @@ export const POST = async (
     )
   }
 
-  const { result, errors } = await completeProductionRunWorkflow(req.scope).run({
+  const { result, errors } = await adminCompleteProductionRunWorkflow(
+    req.scope
+  ).run({
     input: {
       production_run_id: runId,
       partner_id: partnerId,
@@ -130,7 +116,9 @@ export const POST = async (
       cost_type: body.cost_type,
       allow_shortfall: body.allow_shortfall,
       notes: body.notes,
+      override_note: body.notes,
     },
+    throwOnError: false,
   })
 
   if (errors?.length) {
