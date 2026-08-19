@@ -6,7 +6,7 @@ import { z } from "zod";
 import {
   CRM_OPPORTUNITY_DEFAULT_STAGE,
   CRM_OPPORTUNITY_STAGES,
-} from "../../../../modules/crm/dal/crm-contracts";
+} from "../../../../modules/crm/stages";
 
 const STAGES = CRM_OPPORTUNITY_STAGES;
 

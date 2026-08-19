@@ -6,42 +6,20 @@
  */
 import { defineContract, type Contract } from "@jytextiles/mikrohyperbee";
 
-/**
- * The deal pipeline, in order. THE single source of truth for the stage
- * vocabulary — the API validator (api/admin/crm/opportunities/validators.ts)
- * and the admin pipeline board both import from here rather than restating it.
- * They used to each carry their own copy, which is the same shape of defect as
- * #1348: one vocabulary, two artifacts, free to drift.
- *
- * Shaped for textiles rather than generic SaaS. `sampling` is the decisive
- * stage in this business — a swatch or sample has physically gone out — and it
- * was invisible in the previous list. `quoted` replaces `proposal` for the same
- * reason: what gets sent is a price for a quantity, not a document.
- *
- * ⚠️ This enum is enforced in BOTH processes: Medusa validates on the way in,
- * and the standalone CRM node re-validates against its own bundled copy of this
- * file. Changing it therefore requires REBUILDING AND REDEPLOYING the node
- * bundle (see modules/crm/node/deploy/README.md) — until that happens the node
- * rejects any new value and the write fails at the proxy, not at the validator.
- */
-export const CRM_OPPORTUNITY_STAGES = [
-  "prospecting",
-  "sampling",
-  "quoted",
-  "negotiation",
-  "won",
-  "lost",
-] as const;
+import {
+  CRM_OPPORTUNITY_DEFAULT_STAGE,
+  CRM_OPPORTUNITY_STAGES,
+} from "../stages";
 
-export type CrmOpportunityStage = (typeof CRM_OPPORTUNITY_STAGES)[number];
-
-export const CRM_OPPORTUNITY_DEFAULT_STAGE: CrmOpportunityStage = "prospecting";
-
-/** Stages that end the deal. Used to keep won/lost off the working board. */
-export const CRM_OPPORTUNITY_CLOSED_STAGES: readonly CrmOpportunityStage[] = [
-  "won",
-  "lost",
-];
+// The stage vocabulary lives in a dependency-free leaf so the admin dashboard
+// can import it without pulling the hypercore stack into a browser bundle.
+// Re-exported here because this file is what the CRM node bundles.
+export {
+  CRM_OPPORTUNITY_STAGES,
+  CRM_OPPORTUNITY_DEFAULT_STAGE,
+  CRM_OPPORTUNITY_CLOSED_STAGES,
+  type CrmOpportunityStage,
+} from "../stages";
 
 export const crmCompanyContract = defineContract("crm_company", {
   id: { prefix: "crmco" },

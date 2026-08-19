@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "JYT CRM Capture",
+  "version": "0.1.0",
+  "description": "Capture a contact from any web page into the JYT CRM.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://v3.jaalyantra.com/*",
+    "http://localhost/*"
+  ],
+  "action": {
+    "default_title": "Capture to JYT CRM",
+    "default_popup": "src/popup.html"
+  },
+  "options_page": "src/options.html"
+}
