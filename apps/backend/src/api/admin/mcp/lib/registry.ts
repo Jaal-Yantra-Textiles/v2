@@ -33,6 +33,36 @@ import {
   productSpecSchemaProps,
 } from "../../../../modules/product-spec/tool-schema"
 
+/**
+ * The FORWARD LIST for `create_product_for_partner`.
+ *
+ * `bodyParams` is what the dispatcher actually sends; a field the schema
+ * advertises but this omits is silently STRIPPED, and the caller gets a
+ * successful-looking create missing whatever it named (#1348). Variants and
+ * prices are exactly the fields whose loss is invisible until someone opens
+ * the storefront and finds an unbuyable product.
+ *
+ * `sales_channels` is deliberately ABSENT: the route derives it from the store,
+ * and letting a caller pass one would let a product be created into a partner's
+ * store while pointing somewhere else entirely.
+ */
+const PARTNER_PRODUCT_BODY_PARAMS = [
+  "title",
+  "handle",
+  "status",
+  "description",
+  "subtitle",
+  "thumbnail",
+  "images",
+  "options",
+  "variants",
+  "collection_id",
+  "type_id",
+  "categories",
+  "tags",
+  "metadata",
+]
+
 /** Admin tool definition. Alias of the shared core tool model. */
 export type AdminMcpToolDef = McpToolDef
 
@@ -541,6 +571,90 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     ),
     sideEffects: "Creates a new product in 'draft' status unless status is set.",
     nextSteps: ["get_product", "update_product"],
+  },
+  {
+    // Creating a product for someone ELSE, into their live shop. Core
+    // `create_product` above wraps Medusa's `/admin/products`, which binds no
+    // sales channel and seeds no inventory levels — the product is invisible on
+    // every storefront and every variant reads 0 stock. Every store-scoped
+    // product route lived under `/partners/*` behind partner auth, so an admin
+    // had no way to do this at all.
+    name: "create_product_for_partner",
+    description:
+      "Create a product INSIDE a partner's store, on their behalf — binds it to the store's sales channel, seeds inventory levels and materialises FX prices, so it actually appears on their storefront. Use this instead of create_product whenever the product belongs in a partner shop; create_product makes a product that is in NO sales channel and therefore invisible. The act is recorded against the partner and announced to them. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/stores/:id/products",
+    pathParams: ["id"],
+    write: true,
+    // Sensitive because it publishes into someone else's business, not merely
+    // because it writes: the product lands on the partner's public storefront
+    // and is attributed to them.
+    sensitive: true,
+    bodyParams: PARTNER_PRODUCT_BODY_PARAMS,
+    inputSchema: obj(
+      {
+        id: STR("Store id to create the product in, e.g. 'store_...'. Get it from list_stores."),
+        title: STR("Product title (required)."),
+        handle: STR("URL handle. Derived from the title when omitted."),
+        status: STR("'draft' | 'proposed' | 'published' | 'rejected'. Defaults to draft — publish deliberately."),
+        description: STR("Product description."),
+        subtitle: STR("Optional subtitle."),
+        thumbnail: STR("Thumbnail URL."),
+        images: {
+          type: "array",
+          description: "Images as [{ url }].",
+          items: {
+            type: "object",
+            properties: { url: { type: "string" } },
+            required: ["url"],
+          },
+        },
+        options: {
+          type: "array",
+          description:
+            "PRODUCT options (the variant axes, e.g. Size). NOT the made-to-order choices — those are spec option groups, set with set_product_spec.",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              values: { type: "array", items: { type: "string" } },
+            },
+            required: ["title", "values"],
+          },
+        },
+        variants: {
+          type: "array",
+          description:
+            "Variants with prices, e.g. [{ title, options: { Size: 'M' }, prices: [{ amount, currency_code }] }]. A product with no variant cannot be bought.",
+          items: { type: "object", additionalProperties: true },
+        },
+        collection_id: STR("Optional collection id."),
+        type_id: STR("Optional product type id."),
+        categories: {
+          type: "array",
+          description: "Categories as [{ id }].",
+          items: {
+            type: "object",
+            properties: { id: { type: "string" } },
+            required: ["id"],
+          },
+        },
+        tags: {
+          type: "array",
+          description: "Tags as [{ id }].",
+          items: {
+            type: "object",
+            properties: { id: { type: "string" } },
+            required: ["id"],
+          },
+        },
+        metadata: { type: "object", description: "Optional key/value metadata." },
+      },
+      ["id", "title"]
+    ),
+    sideEffects:
+      "Creates the product in the partner's store bound to its default sales channel, seeds 0-quantity inventory levels at the store location, and fans out FX prices. Records who created it on the partner-product ownership link and emits product.created_for_partner so the partner can be told. Refuses if the store has no sales channel or no linked partner.",
+    nextSteps: ["set_product_spec", "get_product", "update_product"],
   },
   {
     name: "update_product",
