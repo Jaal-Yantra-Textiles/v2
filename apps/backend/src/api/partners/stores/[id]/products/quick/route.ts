@@ -1,11 +1,11 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, ProductStatus } from "@medusajs/framework/utils"
+import { batchInventoryItemLevelsWorkflow } from "@medusajs/medusa/core-flows"
 import {
-  batchInventoryItemLevelsWorkflow,
-  createProductsWorkflow,
-} from "@medusajs/medusa/core-flows"
-import { validatePartnerStoreAccess } from "../../../../helpers"
-import { requestVariantPriceFanout } from "../../../../../../workflows/fx/fanout-variant-prices"
+  ensureInventoryLevelsForVariants,
+  validatePartnerStoreAccess,
+} from "../../../../helpers"
+import { createPartnerProductWorkflow } from "../../../../../../workflows/partner/create-partner-product"
 
 /**
  * POST /partners/stores/:id/products/quick
@@ -20,7 +20,7 @@ export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerStoreAccess(
+  const { partner } = await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
     req.scope
@@ -100,7 +100,6 @@ export const POST = async (
     status: body.status ?? ProductStatus.PUBLISHED,
     thumbnail: body.thumbnail || body.images?.[0] || undefined,
     images: body.images?.length ? body.images.map((url) => ({ url })) : undefined,
-    sales_channels: [{ id: store.default_sales_channel_id }],
     options: [
       { title: "Default option", values: ["Default option value"] },
     ],
@@ -114,18 +113,25 @@ export const POST = async (
     ],
   }
 
-  const { result } = await createProductsWorkflow(req.scope).run({
-    input: { products: [productInput] },
+  // #1380 — the shared create workflow (sales channel + FX fanout + the gate).
+  //
+  // `seedInventoryLevels: false` is deliberate and is the one place the shared
+  // seeding must NOT run: this route writes a REAL quantity at the store's
+  // default location a few lines down. If the workflow seeded a 0-qty level
+  // first and that location is linked to the sales channel, both would target
+  // the same (inventory_item, location) pair and the create below would collide.
+  // The seeding still happens — after, via the same helper, where it can see the
+  // level this route wrote and fill in only what is missing.
+  const { result } = await createPartnerProductWorkflow(req.scope).run({
+    input: {
+      partnerId: partner.id,
+      storeId: store.id,
+      product: productInput,
+      seedInventoryLevels: false,
+    },
   })
 
-  const product = result[0] as any
-
-  // FX fanout — auto-convert the single price into the store's other
-  // supported currencies. Idempotent + never throws.
-  await requestVariantPriceFanout(req.scope, {
-    storeId: store.id,
-    variantIds: (product?.variants || []).map((v: any) => v.id),
-  })
+  const product = result.product as any
 
   // Seed stock at the store's default location (if set and the user asked for it).
   if (
@@ -166,6 +172,16 @@ export const POST = async (
       })
     }
   }
+
+  // Close the gap this route has always had: its variants are ALWAYS
+  // `manage_inventory: true`, but the stock seeding above only runs when the
+  // caller passed a quantity. Without a level, partner-ui 404s on the item.
+  // Runs last so it observes any level written above and only fills the rest.
+  await ensureInventoryLevelsForVariants(
+    req.scope,
+    store,
+    (product?.variants || []).map((v: any) => v.id)
+  )
 
   res.status(201).json({ product })
 }

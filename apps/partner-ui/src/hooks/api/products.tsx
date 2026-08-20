@@ -245,7 +245,23 @@ export const useUpdateProductVariantsBatch = (
       payload: HttpTypes.AdminBatchProductVariantRequest["update"]
     ) =>
       sdk.client.fetch<any>(
-        `/partners/stores/${storeId}/products/${productId}/variants/batch`,
+        // `?fields=id` — this mutation DISCARDS the response body. `onSuccess`
+        // below takes no data argument; it invalidates three query keys and the
+        // pricing screen navigates away, so the grid re-renders from the
+        // refetch, never from this response.
+        //
+        // The server pays for that body: re-reading the written variants was
+        // 377ms-6002ms across prod samples, and 15977ms of a 16364ms request at
+        // its worst (#1370). Asking for `id` alone skips the price-set and
+        // options expansions that nothing here reads.
+        //
+        // ⚠️ Update-only on purpose. A CREATE batch must keep the full field
+        // set — the client cannot know the new variant and price ids otherwise.
+        //
+        // `fields=id` does NOT starve the FX fanout: the server appends
+        // `price_set.prices.id` to any narrowed set (`withPriceIds`), so the
+        // invariant does not depend on this query string staying correct.
+        `/partners/stores/${storeId}/products/${productId}/variants/batch?fields=id`,
         { method: "POST", body: { update: payload } }
       ),
     onSuccess: (data: any, variables: any, context: any) => {

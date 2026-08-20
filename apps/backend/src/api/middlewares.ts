@@ -56,6 +56,18 @@ import { GET as oauthAuthorizationServerDoc } from "./well-known/oauth-authoriza
 const wrapSchema = <T extends z.ZodType>(schema: T) => schema as any;
 
 /**
+ * Like `wrapSchema`, but for a body whose top level is deliberately open.
+ *
+ * `zodValidator` calls `.strict()` on any schema that exposes it, which
+ * overrides `.passthrough()` and rejects every unlisted key. Wrapping in
+ * `z.preprocess` produces a schema with no `.strict` method, so the schema's own
+ * looseness survives. Use ONLY where the payload is genuinely open-ended — a
+ * closed payload should stay strict and reject typos.
+ */
+const wrapLooseSchema = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((obj) => obj, schema) as any;
+
+/**
  * HTTP status for a MedusaError `type`, mirroring the framework's own handler
  * (`@medusajs/framework/dist/http/middlewares/error-handler.js`).
  *
@@ -289,7 +301,8 @@ import { ListIdentitiesQuerySchema } from "./admin/users/identities/validators";
 import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-items/raw-materials/validators";
 import { BulkImportSchema } from "./admin/inventory-items/bulk-import/validators";
 import { PartnerCreateStoreReq } from "./partners/stores/validators";
-import { PartnerCreateProductReq, PartnerArtisanProductDetailReq, PartnerProductSpecReq } from "./partners/products/validators";
+import { PartnerCreateProductReq, PartnerArtisanProductDetailReq, PartnerProductSpecReq, PartnerStoreCreateProductReq, PartnerQuickCreateProductReq } from "./partners/products/validators";
+import { BATCH_VARIANT_FIELDS } from "../workflows/partner/batch-partner-variants";
 import { StoreMadeToSpecReq } from "./store/carts/[id]/made-to-spec/validators";
 import {
   PartnerCreateRegionReq,
@@ -3010,6 +3023,8 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+        // #1380 step 1 — this partner-facing route had no body validation at all.
+        validateAndTransformBody(wrapLooseSchema(PartnerStoreCreateProductReq)),
       ],
     },
     {
@@ -3018,6 +3033,7 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerQuickCreateProductReq)),
       ],
     },
     {
@@ -3067,6 +3083,16 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+        // #1370 — core's admin batch route wires `req.queryConfig.fields` into
+        // `refetchBatchVariants`, so a caller can shrink the response. This
+        // route hard-coded the list, and the enrichment it pays for is the
+        // phase that ran 377ms-6002ms (15977ms at its worst). `defaults` is
+        // exactly what the route used to hard-code, so nothing changes for a
+        // caller that sends no `?fields=`.
+        validateAndTransformQuery(
+          z.object({ fields: z.string().optional() }) as any,
+          { defaults: BATCH_VARIANT_FIELDS }
+        ),
       ],
     },
     {

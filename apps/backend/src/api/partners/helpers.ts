@@ -584,3 +584,23 @@ export const phaseTimer = (logger: any, label: string, requestId: string) => {
     },
   }
 }
+
+/**
+ * Log the phase map a workflow returns in the same shape `phaseTimer` emits, so
+ * the existing CloudWatch filter (`'"[partners/'`) keeps working now that the
+ * post-create work lives in `create-partner-product` rather than in the routes.
+ *
+ * A branch that did not run reports `skipped`, never `0ms`.
+ */
+export const logWorkflowPhases = (
+    logger: any,
+    label: string,
+    requestId: string,
+    totalMs: number,
+    phases: Record<string, unknown>,
+): void => {
+    const parts = Object.entries(phases).map(([k, v]) =>
+        typeof v === "number" ? `${k}=${v}ms` : `${k}=${v}`
+    )
+    logger?.info?.(`[${label}] ${requestId} total=${totalMs}ms ${parts.join(" ")}`)
+}

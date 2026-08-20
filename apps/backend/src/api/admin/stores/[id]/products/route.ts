@@ -7,11 +7,9 @@ import {
   MedusaError,
   Modules,
 } from "@medusajs/framework/utils"
-import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
+import { createPartnerProductWorkflow } from "../../../../../workflows/partner/create-partner-product"
 
 import { PARTNER_MODULE } from "../../../../../modules/partner"
-import { ensureInventoryLevelsForVariants } from "../../../../partners/helpers"
-import { requestVariantPriceFanout } from "../../../../../workflows/fx/fanout-variant-prices"
 import { recordProductProvenance } from "./lib/provenance"
 
 /**
@@ -88,13 +86,20 @@ export const POST = async (
     )
   }
 
-  body.sales_channels = [{ id: store.default_sales_channel_id }]
-
-  const { result } = await createProductsWorkflow(req.scope).run({
-    input: { products: [body] as any },
+  // #1380 — same workflow as the two partner create routes, so the sales-channel
+  // injection, the inventory-level seeding and the FX fanout are described once.
+  // The artisan proposal gate stays OFF: this route has never applied it, and an
+  // admin creating on behalf of a partner is already the approval.
+  const { result } = await createPartnerProductWorkflow(req.scope).run({
+    input: {
+      partnerId: ownerPartner.id,
+      storeId: store.id,
+      product: body,
+      applyArtisanGate: false,
+    },
   })
 
-  const product = result?.[0]
+  const product = result.product
 
   // Ownership + provenance + the partner-facing announcement. Never throws;
   // returns what it managed so the response can be honest about it.
@@ -106,16 +111,6 @@ export const POST = async (
     actor_id: req.auth_context?.actor_id ?? null,
     source: "admin_store_products",
   })
-
-  // Without location levels the variant reads 0 stock everywhere and
-  // partner-ui 404s on the item. Idempotent + never throws.
-  const variantIds = (product?.variants || []).map((v: any) => v.id)
-  await ensureInventoryLevelsForVariants(req.scope, store, variantIds)
-
-  // Materialise auto-converted prices in the store's other supported
-  // currencies, or the product reads "not available" outside its native
-  // region. Idempotent + never throws.
-  await requestVariantPriceFanout(req.scope, { storeId: store.id, variantIds })
 
   res.status(201).json({
     product,

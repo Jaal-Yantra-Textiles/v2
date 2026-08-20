@@ -123,3 +123,49 @@ export const PartnerProductSpecReq = z
   .strict()
 
 export type PartnerProductSpecReqType = z.infer<typeof PartnerProductSpecReq>
+
+/**
+ * #1380 step 1 — body validation for the two partner create paths that had
+ * NONE. Both passed `req.body as Record<string, any>` straight into
+ * `createProductsWorkflow`, which is how the only Zod-guarded create path ended
+ * up being the legacy route everyone assumed was the disposable one.
+ *
+ * Deliberately permissive about the product's interior: `createProductsWorkflow`
+ * is still the authority on variant/option/price shape, and tightening that here
+ * would reject payloads the partner UI sends today. What these add is the outer
+ * guarantee — a title exists, and a typo'd top-level key is a 400 rather than a
+ * silently ignored field.
+ */
+export const PartnerStoreCreateProductReq = z
+  .object({
+    title: z.string().trim().min(1, "title is required"),
+  })
+  .passthrough()
+
+export type PartnerStoreCreateProductReqType = z.infer<
+  typeof PartnerStoreCreateProductReq
+>
+
+/**
+ * Quick-create takes a flat, closed payload — every field it understands is
+ * listed here, so `.strict()` is safe and a misspelled `stock` or `qty` fails
+ * loudly instead of silently creating a product with no stock.
+ */
+export const PartnerQuickCreateProductReq = z
+  .object({
+    title: z.string().trim().min(1, "title is required"),
+    description: z.string().nullable().optional(),
+    thumbnail: z.string().nullable().optional(),
+    images: z.array(z.string()).optional(),
+    price: z.number().min(0, "price must be a non-negative number"),
+    stock_quantity: z
+      .number()
+      .min(0, "stock_quantity must be a non-negative number")
+      .optional(),
+    status: z.string().optional(),
+  })
+  .strict()
+
+export type PartnerQuickCreateProductReqType = z.infer<
+  typeof PartnerQuickCreateProductReq
+>

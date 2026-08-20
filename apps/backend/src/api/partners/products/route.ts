@@ -58,7 +58,7 @@
  * @param {PartnerProductInput} request.body.required - Product data to create
  * @returns {PartnerProductResponse} 201 - Created product object with partner and store information
  * @throws {MedusaError} 401 - Unauthorized - Partner authentication required or no partner associated with this admin
- * @throws {MedusaError} 404 - Not Found - Store not found
+ * @throws {MedusaError} 401 - Unauthorized - Store not found, or not associated with this partner
  * @throws {MedusaError} 400 - Invalid Data - Store has no default sales channel configured
  *
  * @example request
@@ -118,139 +118,71 @@
  * }
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError, ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { MedusaError, ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { PartnerCreateProductReq } from "./validators"
-import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
-import { getPartnerFromAuthContext, ensureInventoryLevelsForVariants, phaseTimer } from "../helpers"
-import { requestVariantPriceFanout } from "../../../workflows/fx/fanout-variant-prices"
-import { PARTNER_MODULE } from "../../../modules/partner"
-import { PARTNER_ONBOARDING_PROFILE_MODULE } from "../../../modules/partner-onboarding-profile"
+import { logWorkflowPhases, validatePartnerStoreAccess } from "../helpers"
+import { createPartnerProductWorkflow } from "../../../workflows/partner/create-partner-product"
 
+/**
+ * #1380 — this route is now a thin adapter over `create-partner-product`, the
+ * same workflow the store-scoped route runs. It keeps three things that are
+ * wire-visible to its callers (the assistant's `create_product` tool and every
+ * third-party MCP client) and therefore must NOT be unified away:
+ *
+ *   1. the `{ store_id, product }` envelope and its `.strict()` validator —
+ *      this is still the only create path with request validation at all;
+ *   2. the `{ message, partner_id, store_id, product }` response shape;
+ *   3. the documented 400 when the store has no default sales channel.
+ *
+ * One behaviour DID change, deliberately: the store is now resolved through
+ * `validatePartnerStoreAccess`, so a partner can only create in a store that is
+ * actually theirs. This route previously looked the store up by id alone, which
+ * let any authenticated partner create a product in any store.
+ */
 export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
   if (!req.auth_context?.actor_id) {
-    throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "Partner authentication required")
-  }
-
-  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
-  const timer = phaseTimer(logger, "partners/products", req.get("x-request-id") || "-")
-
-  const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
-  if (!partner) {
-    throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "No partner associated with this admin")
-  }
-
-  const body = PartnerCreateProductReq.parse(req.body)
-
-  // Fetch target store and determine the sales channel to associate the product with
-  const storeService = req.scope.resolve(Modules.STORE)
-  const [store] = await storeService.listStores({ id: body.store_id })
-  if (!store) {
-    throw new MedusaError(MedusaError.Types.NOT_FOUND, `Store ${body.store_id} not found`)
-  }
-  if (!store.default_sales_channel_id) {
     throw new MedusaError(
-      MedusaError.Types.INVALID_DATA,
-      `Store ${body.store_id} has no default sales channel configured`
+      MedusaError.Types.UNAUTHORIZED,
+      "Partner authentication required"
     )
   }
 
-  // #859 S2 (#861) — artisan proposal flow. A `core_channel_listing` partner
-  // doesn't publish directly: their product enters as `proposed` (native
-  // ProductStatus) bound only to their own channel, and an admin publishes it
-  // to cross-list onto the core cicilabel.com channel (via the cross-list
-  // subscriber). Other selling modes keep the existing behaviour.
-  const onboardingService: any = req.scope.resolve(
-    PARTNER_ONBOARDING_PROFILE_MODULE
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+  const t0 = Date.now()
+
+  const body = PartnerCreateProductReq.parse(req.body)
+
+  const { partner, store } = await validatePartnerStoreAccess(
+    req.auth_context,
+    body.store_id,
+    req.scope
   )
-  const profile = await onboardingService
-    .findByPartner(partner.id)
-    .catch(() => null)
-  const isCoreChannelListing = profile?.selling_mode === "core_channel_listing"
 
-  // Ensure product is associated to the store's default sales channel
-  const productInput = {
-    ...body.product,
-    title: body.product.title || "",
-    // Proposal override wins over any client-supplied status for artisans.
-    ...(isCoreChannelListing ? { status: "proposed" as const } : {}),
-    sales_channels: [
-      {
-        id: store.default_sales_channel_id,
-      },
-    ],
-  }
-
-  timer.mark("prepare")
-
-  const { result } = await createProductsWorkflow(req.scope).run({
+  const { result } = await createPartnerProductWorkflow(req.scope).run({
     input: {
-      products: [productInput],
+      partnerId: partner.id,
+      storeId: store.id,
+      product: body.product,
+      // Documented 400 on this route only.
+      requireSalesChannel: true,
     },
   })
-  timer.mark("createWorkflow")
 
-  const created = result?.[0]
-
-  // Auto-seed inventory_level rows at the partner's stock location(s) for every
-  // managed-inventory variant. createProductsWorkflow makes the product +
-  // variants + inventory ITEMS but no location LEVELS — without a level the
-  // variant reads 0 stock everywhere and the partner-ui inventory page 404s on
-  // it. The store-scoped route (stores/[id]/products) already does this; this
-  // legacy route (which the AI assistant's `create_product` tool calls) was
-  // missing it, so AI-created products landed level-less. Idempotent + never
-  // throws (see ensureInventoryLevelsForVariants).
-  const variantIds = (created?.variants || []).map((v: any) => v.id)
-  await ensureInventoryLevelsForVariants(req.scope, store, variantIds)
-  timer.mark("inventoryLevels")
-
-  // FX fanout — materialise auto-converted prices in the store's other
-  // supported currencies. EXACTLY the same gap as the inventory levels above,
-  // on exactly the same route, and it survived the sweep that fixed the other
-  // seven callers: fanout-variant-prices.ts documents adding this to
-  // create-product / quick-create / single-variant / discover-copy, but this
-  // legacy route — the one `create_product` (assistant + every MCP client)
-  // actually posts to — was never in that list. Effect: a price set through
-  // the assistant or MCP existed only in the store's native currency and read
-  // as "not available" in every other region, while the same product created
-  // through the partner UI fanned out correctly.
-  //
-  // Async (emits fx.fanout_requested; the worker's subscriber does the work) —
-  // never inline. See requestVariantPriceFanout for why that distinction is a
-  // availability concern and not a latency one.
-  await requestVariantPriceFanout(req.scope, { storeId: store.id, variantIds })
-  timer.mark("fanoutEmit")
-
-  // Record product → owning partner so the cross-list subscriber can resolve
-  // ownership cleanly on publish (see links/partner-product.ts).
-  if (isCoreChannelListing && created?.id) {
-    const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
-    await remoteLink.create({
-      [PARTNER_MODULE]: { partner_id: partner.id },
-      [Modules.PRODUCT]: { product_id: created.id },
-    })
-
-    // Dedicated proposal event — the seam for admin-review notifications and
-    // visual flows (registered in visual-flow-event-trigger.ts). Kept off the
-    // generic `product.created`/`updated` firehose so flows only wake on real
-    // artisan proposals.
-    const eventBus = req.scope.resolve(Modules.EVENT_BUS) as any
-    await eventBus
-      .emit({
-        name: "partner_product.proposed",
-        data: { id: created.id, partner_id: partner.id },
-      })
-      .catch(() => {})
-  }
-  timer.mark("linkAndEvent")
-  timer.done(` variants=${variantIds.length}`)
+  logWorkflowPhases(
+    logger,
+    "partners/products",
+    req.get("x-request-id") || "-",
+    Date.now() - t0,
+    result.phases
+  )
 
   return res.status(201).json({
-    message: isCoreChannelListing ? "Product proposed" : "Product created",
+    message: result.isCoreChannelListing ? "Product proposed" : "Product created",
     partner_id: partner.id,
     store_id: store.id,
-    product: created,
+    product: result.product,
   })
 }
