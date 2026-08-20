@@ -537,23 +537,55 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   {
     name: "update_design",
     description:
-      "Update a design's fields (name, description, status, colors, sizes, custom fields, metadata, …). Pass only the fields to change. The route validator is the source of truth for allowed keys.",
+      "Update a design's fields. Pass only the fields to change, at the top level — not wrapped in a `design` object.",
     method: "PUT",
     path: "/partners/designs/:designId",
     pathParams: ["designId"],
     write: true,
     previewPath: "/partners/designs/:designId",
-    bodyParams: ["design"],
+    // The single `design` wrapper this used to advertise was not a key the
+    // validator has: the route spreads its flat validatedBody straight into
+    // updateDesignWorkflow. A .strict() 400 on every call.
+    bodyParams: [
+      "name",
+      "description",
+      "design_type",
+      "status",
+      "priority",
+      "target_completion_date",
+      "tags",
+      "designer_notes",
+    ],
     inputSchema: obj(
       {
         designId: STR("Design id to update."),
-        design: {
-          type: "object",
-          description: "Partial design fields to update.",
-          additionalProperties: true,
+        name: STR("Design name."),
+        description: STR("Design description."),
+        design_type: {
+          type: "string",
+          enum: ["Original", "Derivative", "Custom", "Collaboration"],
         },
+        status: {
+          type: "string",
+          enum: [
+            "Conceptual",
+            "In_Development",
+            "Technical_Review",
+            "Sample_Production",
+            "Revision",
+            "Approved",
+            "Rejected",
+            "On_Hold",
+            "Commerce_Ready",
+            "Superseded",
+          ],
+        },
+        priority: { type: "string", enum: ["Low", "Medium", "High", "Urgent"] },
+        target_completion_date: STR("ISO-8601 datetime."),
+        tags: { type: "array", items: { type: "string" } },
+        designer_notes: STR("Free-text notes from the designer."),
       },
-      ["designId", "design"]
+      ["designId"]
     ),
   },
   {
@@ -2128,22 +2160,57 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   {
     name: "add_store_shipping_option",
     description:
-      "Add a shipping option to a store (name, provider, price type, amount, …). Body follows the route validator.",
+      "Add a shipping option to a store. Needs a service zone and a shipping profile, and prices are an array — one entry per currency or region, not a single amount.",
     method: "POST",
     path: "/partners/stores/:id/shipping-options",
     pathParams: ["id"],
     write: true,
-    bodyParams: ["name", "provider_id", "price_type", "amount", "metadata"],
+    // This tool could never succeed: it advertised `amount` and `metadata`,
+    // neither of which the validator has, and omitted service_zone_id,
+    // shipping_profile_id and prices, all three of which it REQUIRES. The
+    // tool's own `required` list said ["id","name"], so the #1371 required-args
+    // gate had nothing to catch — the lie was in the list itself.
+    bodyParams: [
+      "name",
+      "provider_id",
+      "price_type",
+      "service_zone_id",
+      "shipping_profile_id",
+      "prices",
+    ],
     inputSchema: obj(
       {
         id: STR("Store id."),
         name: STR("Shipping option name."),
         provider_id: STR("Fulfillment provider id."),
         price_type: STR("Price type, e.g. 'flat'."),
-        amount: { type: "number", description: "Flat amount (if applicable)." },
-        metadata: { type: "object", additionalProperties: true },
+        service_zone_id: STR("Service zone this option serves."),
+        shipping_profile_id: STR("Shipping profile this option belongs to."),
+        prices: {
+          type: "array",
+          description:
+            "One price per currency or region. At least one entry is required.",
+          items: {
+            type: "object",
+            properties: {
+              amount: { type: "number", description: "Price amount." },
+              currency_code: { type: "string", description: "e.g. 'inr'." },
+              region_id: { type: "string", description: "Region-scoped price." },
+            },
+            required: ["amount"],
+            additionalProperties: false,
+          },
+        },
       },
-      ["id", "name"]
+      [
+        "id",
+        "name",
+        "price_type",
+        "provider_id",
+        "service_zone_id",
+        "shipping_profile_id",
+        "prices",
+      ]
     ),
   },
   {
@@ -2156,19 +2223,36 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   },
   {
     name: "add_store_tax_region",
-    description: "Add a tax region to a store (country_code, rate, …). Body follows the route validator.",
+    description:
+      "Add a tax region to a store. The rate is nested under default_tax_rate, not top level. A root region (no parent) requires provider_id.",
     method: "POST",
     path: "/partners/stores/:id/tax-regions",
     pathParams: ["id"],
     write: true,
-    bodyParams: ["country_code", "province_code", "rate", "metadata"],
+    // `rate` used to be advertised at the top level, where the validator has no
+    // such key — a .strict() 400 on every call. And `provider_id` was never
+    // advertised at all, though the validator's .refine() requires it for any
+    // root region, so no root tax region could be created through this tool.
+    bodyParams: ["country_code", "province_code", "provider_id", "default_tax_rate"],
     inputSchema: obj(
       {
         id: STR("Store id."),
         country_code: STR("ISO-2 country code, e.g. 'in'."),
         province_code: STR("Optional province/state code."),
-        rate: { type: "number", description: "Tax rate (e.g. 0.05 for 5%)." },
-        metadata: { type: "object", additionalProperties: true },
+        provider_id: STR(
+          "Tax provider id. Required unless this is a province-level region under a parent."
+        ),
+        default_tax_rate: {
+          type: "object",
+          description: "The region's default rate.",
+          properties: {
+            rate: { type: "number", description: "Tax rate, e.g. 5 for 5%." },
+            code: { type: "string", description: "Rate code." },
+            name: { type: "string", description: "Human-readable rate name." },
+            is_combinable: { type: "boolean" },
+          },
+          additionalProperties: false,
+        },
       },
       ["id", "country_code"]
     ),
