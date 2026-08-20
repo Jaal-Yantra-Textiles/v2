@@ -1,4 +1,6 @@
-import { MedusaError } from "@medusajs/framework/utils"
+import { randomUUID } from "crypto"
+
+import { MedusaError, Modules } from "@medusajs/framework/utils"
 import {
   createStep,
   createWorkflow,
@@ -23,13 +25,34 @@ export type AttachMediaToProductionRunInput = {
 
 type RunAttachComp = {
   id: string
-  prev_metadata: Record<string, any> | null
+  /**
+   * The single attachment this step appended, identified by its own id. The
+   * compensation removes exactly that entry rather than restoring the whole
+   * metadata blob it saw beforehand — a wholesale restore reverts whatever any
+   * concurrent writer put in `metadata` in the meantime, including keys that
+   * have nothing to do with media.
+   */
+  attachment_id: string
 }
+
+/** One run's attach-media critical section. */
+const runAttachLockKey = (runId: string) => `production-run-attach-media:${runId}`
 
 /**
  * Append the media to the run (metadata + activity note) and gate the run's
  * validity up front, so a bad id or a cancelled run fails the whole workflow
  * before anything is written.
+ *
+ * `attached_media` lives inside the `metadata` JSON blob, so appending to it is
+ * a read-modify-write of the WHOLE column: two attaches that interleave both
+ * read the same array and the second write drops the first, silently. That is
+ * the normal case, not an edge case — a partner sending two photos back to back
+ * on WhatsApp produces exactly this. So the read, the append and the write all
+ * happen inside the run's lock, re-reading the run FRESH inside it; the copy
+ * fetched for validation above is already stale by then. (#1387)
+ *
+ * Same shape as `complete-production-run`, including throwing OUTSIDE the lock
+ * so a rejected attach cannot hold the run locked behind a validation failure.
  */
 const attachMediaToRunStep = createStep(
   "attach-media-to-run",
@@ -52,12 +75,12 @@ const attachMediaToRunStep = createStep(
       )
     }
 
-    const existingMeta = (run.metadata as Record<string, any>) || {}
-    const existingMedia: any[] = Array.isArray(existingMeta.attached_media)
-      ? existingMeta.attached_media
-      : []
+    const lockingService = container.resolve(Modules.LOCKING) as any
 
     const attachment = {
+      // Identity for the compensation. Without it the only way to undo this
+      // append is to restore the whole blob, which clobbers concurrent writes.
+      id: randomUUID(),
       url: input.media_url,
       mime_type: input.media_mime_type ?? null,
       filename: input.filename ?? null,
@@ -67,13 +90,41 @@ const attachMediaToRunStep = createStep(
       attached_at: new Date().toISOString(),
     }
 
-    await service.updateProductionRuns({
-      id: run.id,
-      metadata: {
-        ...existingMeta,
-        attached_media: [...existingMedia, attachment],
-      },
+    let cancelledDuringLock = false
+
+    await lockingService.execute(runAttachLockKey(run.id), async () => {
+      // Re-read INSIDE the lock. The `run` above was fetched before we held
+      // it, so its metadata may already be a lost update.
+      const freshRun = (await service.retrieveProductionRun(run.id)) as any
+
+      // Re-check against the fresh row: the run can be cancelled between the
+      // validation above and acquiring the lock.
+      if (freshRun.status === "cancelled") {
+        cancelledDuringLock = true
+        return
+      }
+
+      const existingMeta = (freshRun.metadata as Record<string, any>) || {}
+      const existingMedia: any[] = Array.isArray(existingMeta.attached_media)
+        ? existingMeta.attached_media
+        : []
+
+      await service.updateProductionRuns({
+        id: freshRun.id,
+        metadata: {
+          ...existingMeta,
+          attached_media: [...existingMedia, attachment],
+        },
+      })
     })
+
+    // Thrown outside the lock — see the step's header.
+    if (cancelledDuringLock) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        "Cannot attach media to a cancelled production run"
+      )
+    }
 
     // Audit note — best-effort, never fails the attachment.
     try {
@@ -107,14 +158,35 @@ const attachMediaToRunStep = createStep(
 
     return new StepResponse(
       { production_run: updated, design_id: run.design_id ?? null },
-      { id: run.id, prev_metadata: run.metadata ?? null }
+      { id: run.id, attachment_id: attachment.id }
     )
   },
   async (comp: RunAttachComp, { container }) => {
     const service: ProductionRunService = container.resolve(PRODUCTION_RUNS_MODULE)
-    await service.updateProductionRuns({
-      id: comp.id,
-      metadata: comp.prev_metadata,
+    const lockingService = container.resolve(Modules.LOCKING) as any
+
+    // Undo by REMOVING our own entry, under the same lock, from a fresh read.
+    // Restoring the metadata we saw before the write would also revert any
+    // other attach that landed in between — a compensation that loses someone
+    // else's data is worse than the failure it is cleaning up after.
+    await lockingService.execute(runAttachLockKey(comp.id), async () => {
+      const freshRun = (await service
+        .retrieveProductionRun(comp.id)
+        .catch(() => null)) as any
+      if (!freshRun) return
+
+      const meta = (freshRun.metadata as Record<string, any>) || {}
+      const media: any[] = Array.isArray(meta.attached_media)
+        ? meta.attached_media
+        : []
+
+      await service.updateProductionRuns({
+        id: comp.id,
+        metadata: {
+          ...meta,
+          attached_media: media.filter((m: any) => m?.id !== comp.attachment_id),
+        },
+      })
     })
   }
 )
