@@ -48,6 +48,20 @@ import FxRatesService from "../../modules/fx_rates/service"
  *   step throws so the workflow reports failure to the subscriber.
  */
 
+/**
+ * Identity of a price WITHIN a price set: currency plus its quantity bounds.
+ *
+ * Bounds arrive as BigNumberValue — a string from `query.graph`, a number when
+ * we set it ourselves — so `50` and `"50"` must collapse to the same key or a
+ * tier is re-created on every fanout. `null`/`undefined` (an unbounded price)
+ * normalises to the empty string, which is distinct from any numeric bound.
+ */
+export const tierKey = (currency: string, min: any, max: any): string => {
+  const norm = (v: any) =>
+    v === null || v === undefined || v === "" ? "" : String(Number(v))
+  return `${String(currency).toLowerCase()}|${norm(min)}|${norm(max)}`
+}
+
 export type FanoutPricesInput = {
   /** Source price id (the one the partner just set). */
   source_price_id: string
@@ -97,6 +111,12 @@ const fanoutPricesStep = createStep(
         "amount",
         "currency_code",
         "price_set_id",
+        // Quantity bounds make a price a TIER. Without them the fanout
+        // converted each tier into an unbounded row per currency, so bulk
+        // breaks existed in the base currency only and every other currency
+        // got N overlapping prices with no boundaries (#B2B tiered pricing).
+        "min_quantity",
+        "max_quantity",
         "fx_price_meta.id",
       ],
     })
@@ -170,20 +190,28 @@ const fanoutPricesStep = createStep(
       return new StepResponse(output)
     }
 
-    // 4. Find which currencies in the price_set are already priced.
+    // 4. Find which (currency, tier) pairs in the price_set are already
+    //    priced. Keying on currency ALONE was wrong once tiers existed: the
+    //    50+ tier would see `usd` present from the 1-49 tier and skip, so a
+    //    price set either lost tiers or — when the per-price fanouts raced —
+    //    gained several unbounded rows in the same currency.
     const { data: existingPrices } = await query.graph({
       entity: "price",
       filters: { price_set_id: source.price_set_id },
-      fields: ["id", "currency_code"],
+      fields: ["id", "currency_code", "min_quantity", "max_quantity"],
     })
     const alreadyPriced = new Set(
       (existingPrices ?? []).map((p: any) =>
-        String(p.currency_code).toLowerCase()
+        tierKey(p.currency_code, p.min_quantity, p.max_quantity)
       )
     )
 
     const sourceCurrency = String(source.currency_code).toLowerCase()
     const sourceAmount = Number(source.amount)
+    // The tier this source price belongs to. Converted rows must carry the
+    // SAME bounds — an converted amount without them is not the same offer.
+    const sourceMinQty = source.min_quantity ?? null
+    const sourceMaxQty = source.max_quantity ?? null
 
     // 5. For each missing currency, compute converted amount.
     const newPrices: Array<{
@@ -195,7 +223,7 @@ const fanoutPricesStep = createStep(
     for (const sc of supportedCurrencies) {
       const target = String(sc.currency_code).toLowerCase()
       if (target === sourceCurrency) continue
-      if (alreadyPriced.has(target)) {
+      if (alreadyPriced.has(tierKey(target, sourceMinQty, sourceMaxQty))) {
         output.skipped_currencies.push(target)
         continue
       }
@@ -233,6 +261,9 @@ const fanoutPricesStep = createStep(
         prices: newPrices.map((p) => ({
           amount: p.amount,
           currency_code: p.currency_code,
+          // Carry the source tier's bounds onto the converted row.
+          ...(sourceMinQty !== null ? { min_quantity: sourceMinQty } : {}),
+          ...(sourceMaxQty !== null ? { max_quantity: sourceMaxQty } : {}),
         })),
       })
     } catch (err) {
@@ -246,11 +277,19 @@ const fanoutPricesStep = createStep(
       return new StepResponse(output)
     }
 
-    const createdPrices: Array<{ id: string; currency_code: string }> = (
-      returnedPriceSet?.prices ?? []
-    ).filter((p: any) => {
-      const c = String(p.currency_code).toLowerCase()
-      return newPrices.some((np) => np.currency_code === c)
+    // Match on (currency, tier), not currency alone. A tiered price set holds
+    // several rows per currency, so a currency-only match would also pick up
+    // OTHER tiers' rows and zip their fx_price_meta to the wrong price.
+    const createdPrices: Array<{
+      id: string
+      currency_code: string
+      min_quantity?: any
+      max_quantity?: any
+    }> = (returnedPriceSet?.prices ?? []).filter((p: any) => {
+      const k = tierKey(p.currency_code, p.min_quantity, p.max_quantity)
+      return newPrices.some(
+        (np) => tierKey(np.currency_code, sourceMinQty, sourceMaxQty) === k
+      )
     })
 
     // 7. Write FxPriceMeta rows + Medusa links. One row + one link
@@ -258,7 +297,9 @@ const fanoutPricesStep = createStep(
     const metasToCreate = createdPrices
       .map((p) => {
         const match = newPrices.find(
-          (np) => np.currency_code === String(p.currency_code).toLowerCase()
+          (np) =>
+            tierKey(np.currency_code, sourceMinQty, sourceMaxQty) ===
+            tierKey(p.currency_code, p.min_quantity, p.max_quantity)
         )
         if (!match) return null
         return {
