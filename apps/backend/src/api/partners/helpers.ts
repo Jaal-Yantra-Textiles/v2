@@ -481,13 +481,28 @@ export const ensureInventoryLevelsForVariants = async (
             stocked_quantity?: number
         }> = []
 
+        // ONE query for every item, not one per item. This used to loop
+        // `listInventoryLevels({ inventory_item_id: itemId })` sequentially, so
+        // a partner saving N variants paid N round trips before a single level
+        // was written — and the create-product path calls this with every
+        // variant on the product at once. The filter takes an array; nothing
+        // about the per-item shape was required.
+        const existing = await inventoryService.listInventoryLevels({
+            inventory_item_id: inventoryItemIds,
+        })
+
+        // item id -> locations it already has a level at.
+        const existingByItem = new Map<string, Set<string>>()
+        for (const level of (existing as any[]) || []) {
+            const itemId = level?.inventory_item_id
+            if (!itemId) continue
+            if (!existingByItem.has(itemId)) existingByItem.set(itemId, new Set())
+            existingByItem.get(itemId)!.add(level.location_id)
+        }
+
         for (const itemId of inventoryItemIds) {
-            const existing = await inventoryService.listInventoryLevels({
-                inventory_item_id: itemId,
-            })
-            const existingLocationIds = new Set(
-                (existing as any[]).map((l) => l.location_id),
-            )
+            const existingLocationIds =
+                existingByItem.get(itemId) ?? new Set<string>()
             for (const locId of locationIds) {
                 if (!existingLocationIds.has(locId)) {
                     levelsToCreate.push({
