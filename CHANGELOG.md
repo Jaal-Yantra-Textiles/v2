@@ -1,3 +1,10 @@
+## [13.111.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.111.4...v13.111.5) (2026-08-20)
+
+
+### Performance Improvements
+
+* **partners:** one workflow behind all four product-create routes ([#1380](https://github.com/Jaal-Yantra-Textiles/v2/issues/1380)) ([#1381](https://github.com/Jaal-Yantra-Textiles/v2/issues/1381)) ([ca74b52](https://github.com/Jaal-Yantra-Textiles/v2/commit/ca74b5207ed8eebf5958e15d7d0fe5d81450c4c1)), closes [#1370](https://github.com/Jaal-Yantra-Textiles/v2/issues/1370) [#1370](https://github.com/Jaal-Yantra-Textiles/v2/issues/1370) [#1306](https://github.com/Jaal-Yantra-Textiles/v2/issues/1306) [#1370](https://github.com/Jaal-Yantra-Textiles/v2/issues/1370) [#1370](https://github.com/Jaal-Yantra-Textiles/v2/issues/1370)
+
 ## [13.111.4](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.111.3...v13.111.4) (2026-08-20)
 
 
