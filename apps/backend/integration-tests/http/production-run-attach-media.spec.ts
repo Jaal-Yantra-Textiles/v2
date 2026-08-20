@@ -141,6 +141,48 @@ setupSharedTestSuite(() => {
       expect(design.media_files[0].url).toBe(mediaUrl)
     })
 
+    /**
+     * #1387 — the lost-update race.
+     *
+     * `attached_media` lives inside the `metadata` JSON blob, so appending is a
+     * read-modify-write of the whole column. The de-duplication test above
+     * attaches twice too, but SEQUENTIALLY, so it passes whether or not the
+     * write is serialised — sequential is not concurrent, and that is exactly
+     * why this went unnoticed.
+     *
+     * Fired concurrently, both requests read the same array and the second
+     * write drops the first. Without the run lock this asserts 3 and gets 1
+     * or 2. Realistic: a partner sending photos back to back on WhatsApp.
+     */
+    it("does not lose attachments when several land concurrently", async () => {
+      const unique = Date.now() + 7
+      const designId = await createDesign(unique)
+      const runId = await createRun(designId)
+
+      const urls = [1, 2, 3].map(
+        (n) => `https://cdn.jyt.test/wa/${unique}/race-${n}.jpg`
+      )
+
+      const results = await Promise.all(
+        urls.map((media_url) =>
+          api.post(
+            `/admin/production-runs/${runId}/attach-media`,
+            { media_url },
+            adminHeaders
+          )
+        )
+      )
+      for (const res of results) {
+        expect(res.status).toBe(200)
+      }
+
+      const run = await getRun(runId)
+      const attached = run.metadata.attached_media
+      expect(attached).toHaveLength(3)
+      // Every distinct URL survived — not just the right count.
+      expect(attached.map((m: any) => m.url).sort()).toEqual([...urls].sort())
+    })
+
     it("rejects a cancelled run", async () => {
       const unique = Date.now() + 2
       const designId = await createDesign(unique)
