@@ -82,6 +82,54 @@ const pick = (
   return out
 }
 
+/**
+ * Arguments the dispatcher itself consumes. They are never forwarded to a
+ * route, so their absence from `bodyParams` is correct, not a defect.
+ */
+const CONTROL_ARGS = new Set([
+  "dry_run",
+  "confirm",
+  "store",
+  "reason",
+  "context",
+])
+
+/**
+ * Argument names the caller sent that NO forwarding list claims.
+ *
+ * `pick()` is an allowlist walk, so an unlisted key is dropped completely
+ * silently — no error, no log, and (because the dry_run plan is built from the
+ * already-picked body) not visible in a rehearsal either. A registry row that
+ * forgot a field therefore looks *identical* to one that has it: the tool
+ * returns ok, the route 200s, and nothing is written.
+ *
+ * That is not hypothetical. `weight` was missing from every single-record
+ * product/variant tool while every route behind them accepted it; partners set
+ * weights through the assistant for days and nothing persisted.
+ *
+ * These are surfaced as warnings rather than rejected. Rejecting would turn
+ * every stale registry row into a hard failure for callers who are doing
+ * nothing wrong — but silence is what made the original bug survive, so the
+ * caller gets told.
+ */
+const droppedArgs = (
+  def: McpToolDef,
+  args: Record<string, unknown>
+): string[] => {
+  const claimed = new Set<string>([
+    ...(def.pathParams ?? []),
+    ...(def.queryParams ?? []),
+    ...(def.bodyParams ?? []),
+  ])
+  return Object.keys(args).filter(
+    (k) =>
+      !claimed.has(k) &&
+      !CONTROL_ARGS.has(k) &&
+      args[k] !== undefined &&
+      args[k] !== null
+  )
+}
+
 export async function dispatchMcpTool(
   ctx: McpContext,
   tools: McpToolDef[],
@@ -233,6 +281,11 @@ export async function dispatchMcpTool(
   const body = pick(def.bodyParams, args)
   const method = def.method ?? "GET"
 
+  // Anything the caller sent that no forwarding list claims. Reported on the
+  // plan AND on the result, so a dry run can finally reveal a dropped field
+  // instead of rehearsing a write that silently loses it.
+  const dropped = droppedArgs(def, args)
+
   const plan = {
     method,
     path,
@@ -240,6 +293,14 @@ export async function dispatchMcpTool(
     ...(Object.keys(body).length ? { body } : {}),
     ...(context ? { context } : {}),
     ...(reason ? { reason } : {}),
+    ...(dropped.length
+      ? {
+          dropped_arguments: dropped,
+          dropped_arguments_note: `This tool does not forward: ${dropped.join(
+            ", "
+          )}. These values were NOT sent and will NOT be saved.`,
+        }
+      : {}),
   }
 
   // Fetch the current object for writes that declare a previewPath — so the
@@ -334,7 +395,23 @@ export async function dispatchMcpTool(
       ms: Date.now() - startedAt,
       context,
     })
-    return { ok: true, tool: name, data: out }
+    return {
+      ok: true,
+      tool: name,
+      data: out,
+      // A 200 that quietly discarded half the caller's intent is the failure
+      // mode this whole change exists to end. Say so on the successful result,
+      // not only in the rehearsal.
+      ...(dropped.length
+        ? {
+            warnings: [
+              `Ignored ${dropped.length} argument(s) this tool does not accept: ${dropped.join(
+                ", "
+              )}. Those values were NOT saved.`,
+            ],
+          }
+        : {}),
+    }
   } catch (e) {
     const err = e as McpProxyError
     const error = `Error calling ${name} (${path}): ${err.message}`

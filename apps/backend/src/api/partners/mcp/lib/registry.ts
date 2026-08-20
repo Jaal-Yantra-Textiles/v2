@@ -23,6 +23,10 @@
 
 import type { McpToolDef } from "../../../../lib/mcp-core"
 import {
+  PHYSICAL_AND_CUSTOMS_BODY_PARAMS,
+  physicalAndCustomsSchemaProps,
+} from "../../../../lib/product-attributes/tool-schema"
+import {
   PRODUCT_SPEC_BODY_PARAMS,
   PRODUCT_SPEC_WRITE_GUIDANCE,
   productSpecSchemaProps,
@@ -1867,7 +1871,18 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     path: "/partners/stores/:id/products/:productId/variants",
     pathParams: ["id", "productId"],
     write: true,
-    bodyParams: ["title", "sku", "options", "prices", "manage_inventory", "allow_backorder"],
+    bodyParams: [
+      "title",
+      "sku",
+      "options",
+      "prices",
+      "manage_inventory",
+      "allow_backorder",
+      // A variant born without a weight cannot be quoted for freight, and the
+      // partner has to come back and fix it through a second tool. Setting it
+      // at creation is the only way the data is right by default.
+      ...PHYSICAL_AND_CUSTOMS_BODY_PARAMS,
+    ],
     sideEffects:
       "creates the variant + its inventory item; the new variant starts at 0 stock.",
     nextSteps: ["set_inventory_level"],
@@ -1877,6 +1892,7 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
         productId: STR("Product id."),
         title: STR("Variant title, e.g. 'Red / M'."),
         sku: STR("Stock-keeping unit."),
+        ...physicalAndCustomsSchemaProps(),
         options: {
           type: "object",
           description: "Option→value map, e.g. { Size: 'M', Color: 'Red' }.",
@@ -1917,13 +1933,14 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       "prices",
       "manage_inventory",
       "allow_backorder",
-      // Customs fields. The route already spreads the whole body into
-      // updateProductVariantsWorkflow, so these have always persisted — they
-      // were simply never exposed, which left the assistant unable to fix the
-      // missing-HSN failures that block international labels.
-      "hs_code",
-      "origin_country",
-      "material",
+      // Physical + customs fields. The route already spreads the whole body
+      // into updateProductVariantsWorkflow, so these have always persisted —
+      // they were simply never exposed. The customs trio was added first (it
+      // blocked international labels); `weight` and the dimensions were left
+      // out in the same way and blocked every freight quote, silently, because
+      // the dispatcher drops unlisted keys without a word. See
+      // lib/product-attributes/tool-schema.ts.
+      ...PHYSICAL_AND_CUSTOMS_BODY_PARAMS,
     ],
     inputSchema: obj(
       {
@@ -1932,11 +1949,7 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
         variantId: STR("Variant id to update."),
         title: STR("New variant title."),
         sku: STR("New SKU."),
-        hs_code: STR(
-          "HS/HSN customs code. Required for international shipping labels."
-        ),
-        origin_country: STR("ISO-2 country of manufacture."),
-        material: STR("Material description for customs."),
+        ...physicalAndCustomsSchemaProps(),
         options: {
           type: "object",
           description: "Option→value map to change.",

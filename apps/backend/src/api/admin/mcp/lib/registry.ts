@@ -28,6 +28,10 @@
  */
 import type { McpToolDef } from "../../../../lib/mcp-core"
 import {
+  PHYSICAL_AND_CUSTOMS_BODY_PARAMS,
+  physicalAndCustomsSchemaProps,
+} from "../../../../lib/product-attributes/tool-schema"
+import {
   PRODUCT_SPEC_BODY_PARAMS,
   PRODUCT_SPEC_WRITE_GUIDANCE,
   productSpecSchemaProps,
@@ -706,7 +710,18 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     previewPath: "/admin/products/:id",
     write: true,
     sensitive: true,
-    bodyParams: ["title", "status", "description", "subtitle", "handle", "metadata"],
+    bodyParams: [
+      "title",
+      "status",
+      "description",
+      "subtitle",
+      "handle",
+      "metadata",
+      // Product-level physical + customs attributes. Core's UpdateProduct
+      // validator accepts all of them. Product-level weight is the fallback the
+      // shipping estimate uses when a variant carries none.
+      ...PHYSICAL_AND_CUSTOMS_BODY_PARAMS,
+    ],
     inputSchema: obj(
       {
         id: STR("Product id, e.g. 'prod_...'."),
@@ -715,6 +730,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         description: STR("New description."),
         subtitle: STR("New subtitle."),
         handle: STR("New URL handle."),
+        ...physicalAndCustomsSchemaProps(),
         metadata: { type: "object", description: "Metadata to merge." },
       },
       ["id"]
@@ -916,12 +932,13 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     bodyParams: [
       "title",
       "sku",
-      "hs_code",
-      "origin_country",
-      "material",
       "manage_inventory",
       "allow_backorder",
       "metadata",
+      // Core's UpdateProductVariant validator accepts all of these; they were
+      // simply never advertised, and the dispatcher drops unlisted keys in
+      // silence. `weight` in particular blocked every freight quote.
+      ...PHYSICAL_AND_CUSTOMS_BODY_PARAMS,
     ],
     inputSchema: obj(
       {
@@ -929,9 +946,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         id: STR("Variant id, e.g. 'variant_...'."),
         title: STR("New variant title."),
         sku: STR("New SKU."),
-        hs_code: STR("HS/HSN customs code."),
-        origin_country: STR("ISO-2 country of manufacture."),
-        material: STR("Material description."),
+        ...physicalAndCustomsSchemaProps(),
         manage_inventory: { type: "boolean", description: "Track stock for this variant." },
         allow_backorder: { type: "boolean", description: "Allow ordering beyond stock." },
         metadata: { type: "object", description: "Metadata to merge." },
