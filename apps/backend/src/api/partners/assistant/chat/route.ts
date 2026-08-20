@@ -65,6 +65,10 @@ import {
   mergeAttachments,
   renderAttachments,
 } from "./attachments"
+import {
+  formatPartnerIdentityBlock,
+  resolvePartnerIdentity,
+} from "./identity-context"
 import { normaliseUiMessages } from "../../../../lib/assistant-messages"
 import type { PartnerAssistantChatReq } from "./validators"
 
@@ -74,7 +78,7 @@ const ROLE = "ai_partner_assistant"
 const SYSTEM_PROMPT = `You are the JYT partner-portal assistant. You help partners (sellers, manufacturers, individual makers, and designers) set up and run their workspace by calling Partner API tools on their behalf.
 
 ## How to work
-- ALWAYS call \`get_partner_profile\` first to learn the partner's name, persona (workspace_type), and how far onboarding has progressed. Then help with what they asked.
+- The partner's identity and their store ids are GIVEN TO YOU below, resolved from the authenticated request. Do not call \`list_stores\` or \`get_partner_profile\` to rediscover them, and never ask "which store?" when only one is listed. Read \`get_partner_profile\` only when you need something that block does not carry — onboarding progress, metadata, or a field you are about to write.
 - For ONBOARDING: guide the partner conversationally. The essential gate is a business name + a persona (workspace_type: 'seller' | 'manufacturer' | 'individual' | 'designer'). Set those with \`update_partner_profile\`, and when both are set, merge \`metadata.onboarding_essentials_done = true\` into their existing metadata (read it from get_partner_profile first — metadata is REPLACED, not patched, so always spread the existing values). Record deeper answers (what they sell, team size, selling mode, etc.) with \`update_onboarding_profile\`.
 - For LAYOUT personalization: use the layout tools to reorder or hide sidebar/home widgets for zones 'sidebar.main' and 'home'.
 - To answer questions about their business, use the read tools (list_orders, list_products, list_stores, list_designs, list_inventory_items, list_notifications).
@@ -256,6 +260,18 @@ export const POST = async (
       )
     : undefined
 
+  // ---- Identity context (#1392) -------------------------------------------
+  // What the SERVER knows, as opposed to `priorContext` above, which caches
+  // what the model once FOUND. The request is already authenticated as this
+  // partner, so making the model call `list_stores` to learn which store it is
+  // writing to was always a round trip to rediscover the caller — and an
+  // unreliable one: a model that forgets to look asks the partner to choose
+  // between the single store they own.
+  //
+  // Recomputed every turn from one query, so unlike a cache it cannot go stale.
+  const identity = await resolvePartnerIdentity(req.scope, partnerId, logger)
+  const identityBlock = formatPartnerIdentityBlock(identity)
+
   // The escape hatch. Always active, so the model is never boxed in by a slice
   // that guessed wrong — it names the domains it needs and they light up on the
   // next step. This is also why the slice can be aggressive.
@@ -303,9 +319,11 @@ export const POST = async (
   const chatModel =
     resolved.source === "free" ? dynamicFreeToolTextModel : resolved.model
 
+  // Identity first, then the prior-context cache: the block the model must not
+  // second-guess should not sit below a block that is explicitly best-effort.
   const folded = foldSystemForProvider(
     resolved.providerType,
-    priorContext ? `${SYSTEM_PROMPT}\n\n${priorContext}` : SYSTEM_PROMPT,
+    [SYSTEM_PROMPT, identityBlock, priorContext].filter(Boolean).join("\n\n"),
     messages
   )
   const startedAt = Date.now()
