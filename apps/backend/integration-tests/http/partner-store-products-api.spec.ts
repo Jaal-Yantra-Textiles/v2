@@ -214,6 +214,48 @@ setupSharedTestSuite(() => {
         expect(res.status).toBe(200)
         expect(res.data.product.title).toBe("Updated Product Title")
       })
+
+      // The MCP tool `update_store_product` declares `bodyParams: ["product",
+      // "metadata"]`, so a model's write arrives NESTED. The route used to pass
+      // the raw body straight to `updateProducts`, which ignores unknown keys
+      // without throwing — so the call returned 200 with the product echoed
+      // back UNCHANGED and wrote nothing. Verified broken on prod before the
+      // fix. Asserting on the response is what hid it: the read-back below is
+      // the assertion that catches it.
+      it("accepts the MCP-shaped NESTED body and actually persists it", async () => {
+        const res = await api.post(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}`,
+          { product: { title: "Nested Shape Title", subtitle: "nested-ok" } },
+          { headers: partner.headers }
+        )
+        expect(res.status).toBe(200)
+
+        const readBack = await api.get(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}`,
+          { headers: partner.headers }
+        )
+        expect(readBack.data.product.title).toBe("Nested Shape Title")
+        expect(readBack.data.product.subtitle).toBe("nested-ok")
+      })
+
+      it("keeps top-level metadata when the body is nested", async () => {
+        const res = await api.post(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}`,
+          {
+            product: { title: "Nested With Metadata" },
+            metadata: { b2b_min_order_qty: 50 },
+          },
+          { headers: partner.headers }
+        )
+        expect(res.status).toBe(200)
+
+        const readBack = await api.get(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}`,
+          { headers: partner.headers }
+        )
+        expect(readBack.data.product.title).toBe("Nested With Metadata")
+        expect(readBack.data.product.metadata?.b2b_min_order_qty).toBe(50)
+      })
     })
 
     describe("Product Variant Management", () => {
