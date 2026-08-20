@@ -1,3 +1,16 @@
+## [13.111.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.111.2...v13.111.3) (2026-08-20)
+
+
+### Bug Fixes
+
+* **messaging:** give the rejection-reason select item a non-empty value ([#1375](https://github.com/Jaal-Yantra-Textiles/v2/issues/1375)) ([abdf4f1](https://github.com/Jaal-Yantra-Textiles/v2/commit/abdf4f139bead2ecde4af52ee48da9adb813963c))
+* **mcp:** validate required args before the confirm gate ([#1371](https://github.com/Jaal-Yantra-Textiles/v2/issues/1371)) ([#1376](https://github.com/Jaal-Yantra-Textiles/v2/issues/1376)) ([c691cd6](https://github.com/Jaal-Yantra-Textiles/v2/commit/c691cd6b67106272bbce7986ea73d81eff7f4291)), closes [#1348](https://github.com/Jaal-Yantra-Textiles/v2/issues/1348)
+
+
+### Performance Improvements
+
+* **partners:** cut the variants/batch response enrichment, which was 97% of the save ([#1374](https://github.com/Jaal-Yantra-Textiles/v2/issues/1374)) ([a27ac5f](https://github.com/Jaal-Yantra-Textiles/v2/commit/a27ac5f391ce8be115701a3760da792d6c85f434)), closes [#1369](https://github.com/Jaal-Yantra-Textiles/v2/issues/1369) [#1372](https://github.com/Jaal-Yantra-Textiles/v2/issues/1372)
+
 ## [13.111.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.111.1...v13.111.2) (2026-08-20)
 
 
