@@ -10,7 +10,13 @@ image:
   # No `port:` — this service doesn't accept inbound HTTP.
 
 cpu: 512        # 0.5 vCPU
-memory: 1024    # 1 GB
+memory: 2048    # 2 GB. Was 1024. Raised 2026-08-20 because the FX price
+                # fanout MOVED HERE — routes now emit fx.fanout_requested and
+                # src/subscribers/fx-fanout-prices.ts does the work, so the
+                # burst that OOM-killed the API container twice now lands on
+                # this service. Moving an unbounded job onto a SMALLER box just
+                # relocates the outage; the fanout is bounded
+                # (FANOUT_MAX_CONCURRENCY) and this has room for that bound.
 
 # Fixed singleton on Fargate Spot.
 # Running 2+ would double-execute scheduled jobs and subscribers.
@@ -25,6 +31,10 @@ variables:
   NODE_ENV: production
   MEDUSA_WORKER_MODE: worker
   DISABLE_MEDUSA_ADMIN: "true"
+  # Same reasoning as the server manifest: without an explicit heap ceiling
+  # Node sizes old-space from the HOST and is SIGKILLed by the cgroup with no
+  # stack trace. 1536 of 2048 leaves headroom for non-heap memory.
+  NODE_OPTIONS: --max-old-space-size=1536
   # #707/#712 — base URL for partner-portal product links in WhatsApp confirmation
   # messages. The worker runs the subscribers (visual-flow-event-trigger →
   # createDraftProductFromExtractionWorkflow) that build these links via
