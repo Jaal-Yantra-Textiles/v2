@@ -121,7 +121,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { MedusaError, ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { PartnerCreateProductReq } from "./validators"
 import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
-import { getPartnerFromAuthContext, ensureInventoryLevelsForVariants } from "../helpers"
+import { getPartnerFromAuthContext, ensureInventoryLevelsForVariants, phaseTimer } from "../helpers"
 import { requestVariantPriceFanout } from "../../../workflows/fx/fanout-variant-prices"
 import { PARTNER_MODULE } from "../../../modules/partner"
 import { PARTNER_ONBOARDING_PROFILE_MODULE } from "../../../modules/partner-onboarding-profile"
@@ -133,6 +133,9 @@ export const POST = async (
   if (!req.auth_context?.actor_id) {
     throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "Partner authentication required")
   }
+
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+  const timer = phaseTimer(logger, "partners/products", req.get("x-request-id") || "-")
 
   const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
   if (!partner) {
@@ -180,11 +183,14 @@ export const POST = async (
     ],
   }
 
+  timer.mark("prepare")
+
   const { result } = await createProductsWorkflow(req.scope).run({
     input: {
       products: [productInput],
     },
   })
+  timer.mark("createWorkflow")
 
   const created = result?.[0]
 
@@ -198,6 +204,7 @@ export const POST = async (
   // throws (see ensureInventoryLevelsForVariants).
   const variantIds = (created?.variants || []).map((v: any) => v.id)
   await ensureInventoryLevelsForVariants(req.scope, store, variantIds)
+  timer.mark("inventoryLevels")
 
   // FX fanout — materialise auto-converted prices in the store's other
   // supported currencies. EXACTLY the same gap as the inventory levels above,
@@ -214,6 +221,7 @@ export const POST = async (
   // never inline. See requestVariantPriceFanout for why that distinction is a
   // availability concern and not a latency one.
   await requestVariantPriceFanout(req.scope, { storeId: store.id, variantIds })
+  timer.mark("fanoutEmit")
 
   // Record product → owning partner so the cross-list subscriber can resolve
   // ownership cleanly on publish (see links/partner-product.ts).
@@ -236,6 +244,8 @@ export const POST = async (
       })
       .catch(() => {})
   }
+  timer.mark("linkAndEvent")
+  timer.done(` variants=${variantIds.length}`)
 
   return res.status(201).json({
     message: isCoreChannelListing ? "Product proposed" : "Product created",
