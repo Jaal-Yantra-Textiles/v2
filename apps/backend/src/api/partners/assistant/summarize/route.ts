@@ -18,6 +18,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { convertToModelMessages, generateText } from "ai"
 import { resolveRoleTextModel, logAiUsage } from "../../../../mastra/services/ai-platforms"
 import { foldSystemForProvider } from "../../../store/ai/chat/system-fold-lib"
+import { boundSummaryInput } from "./bound-input"
 import type { PartnerAssistantSummarizeReq } from "./validators"
 
 const FEATURE = "partners/assistant/summarize"
@@ -62,7 +63,13 @@ export const POST = async (
     return { role: m.role, parts: textParts.length ? textParts : [{ type: "text", text: "" }] }
   })
 
-  const folded = foldSystemForProvider(resolved.providerType, SUMMARIZE_SYSTEM, messages)
+  // The client's whole job is to SHRINK context, but it was seen POSTing a
+  // 2.38 MB history (prod, 2026-08-20) — unbounded, that blows the model's
+  // context window and 502s. Bound it here so the server cannot be blown up by
+  // a client, keeping the first turn (the store/task anchor) and recent turns.
+  const bounded = boundSummaryInput(messages as any)
+
+  const folded = foldSystemForProvider(resolved.providerType, SUMMARIZE_SYSTEM, bounded)
   const startedAt = Date.now()
   const usageBase = {
     feature: FEATURE,
@@ -81,6 +88,9 @@ export const POST = async (
         ...(folded.system ? { system: folded.system } : {}),
         messages: convertToModelMessages(folded.messages as any),
         temperature: 0.2,
+        // A "4-8 bullet" summary needs no more than this; the cap stops the
+        // model running away with a full re-transcription (the "large thing").
+        maxOutputTokens: 700,
         maxRetries: 3,
       })
       logAiUsage(logger, { ...usageBase, ok: true, ms: Date.now() - startedAt })
