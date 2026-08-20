@@ -1,3 +1,10 @@
+## [13.112.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.112.1...v13.112.2) (2026-08-20)
+
+
+### Bug Fixes
+
+* **mcp:** weight was silently stripped from every variant write, + bulk spec, assistant identity, orphan-store job ([#1393](https://github.com/Jaal-Yantra-Textiles/v2/issues/1393)) ([57faca4](https://github.com/Jaal-Yantra-Textiles/v2/commit/57faca41091a365f532eb11efbc26873d9572c9b)), closes [#1348](https://github.com/Jaal-Yantra-Textiles/v2/issues/1348) [#1392](https://github.com/Jaal-Yantra-Textiles/v2/issues/1392)
+
 ## [13.112.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.112.0...v13.112.1) (2026-08-20)
 
 
