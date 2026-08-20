@@ -37,8 +37,10 @@ type Props = {
   onRunCompleted?: (run: AdminProductionRun) => void
 }
 
+const NO_REJECTION = "none"
+
 const REJECTION_REASONS = [
-  { label: "—", value: "" },
+  { label: "—", value: NO_REJECTION },
   { label: "Stitching Defect", value: "stitching_defect" },
   { label: "Fabric Flaw", value: "fabric_flaw" },
   { label: "Color Mismatch", value: "color_mismatch" },
@@ -187,7 +189,10 @@ export const MessageRunActionModal = ({
       completeMutation.mutate({
         produced_quantity: produced,
         rejected_quantity: rejected,
-        rejection_reason: rejectionReason || undefined,
+        rejection_reason:
+          rejectionReason && rejectionReason !== NO_REJECTION
+            ? rejectionReason
+            : undefined,
         rejection_notes: rejectionNotes || undefined,
         partner_cost_estimate: costEstimate ? Number(costEstimate) : undefined,
         cost_type: costType,
@@ -425,7 +430,7 @@ export const MessageRunActionModal = ({
                   </div>
                 </div>
 
-                {rejectionReason && (
+                {rejectionReason && rejectionReason !== NO_REJECTION && (
                   <div className="mb-4">
                     <Label htmlFor="rejection-notes">Rejection notes</Label>
                     <Textarea
