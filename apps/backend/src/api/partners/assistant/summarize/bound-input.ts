@@ -50,6 +50,32 @@ const wrap = (role: SummaryMessage["role"], text: string): SummaryMessage => ({
   parts: [{ type: "text", text }],
 })
 
+/**
+ * Render the bounded turns into a flat transcript.
+ *
+ * Summarize must NOT hand the turns to the model as a live chat: a chat model
+ * answers the last user turn and CONTINUES the conversation instead of
+ * summarizing it (observed live on prod — the model replied "what HS code?"
+ * rather than producing a summary). Collapsing to a single transcript, wrapped
+ * by an instruction, leaves no dangling turn to answer.
+ */
+export const renderTranscript = (messages: SummaryMessage[]): string =>
+  messages
+    .map((m) => {
+      const who =
+        m.role === "assistant"
+          ? "ASSISTANT"
+          : m.role === "system"
+          ? "NOTE"
+          : "USER"
+      const text = (m.parts || [])
+        .map((p) => p.text)
+        .filter(Boolean)
+        .join("\n")
+      return `${who}: ${text}`
+    })
+    .join("\n\n")
+
 export const boundSummaryInput = (
   messages: SummaryMessage[]
 ): SummaryMessage[] => {

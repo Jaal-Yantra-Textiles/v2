@@ -15,10 +15,13 @@
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { convertToModelMessages, generateText } from "ai"
-import { resolveRoleTextModel, logAiUsage } from "../../../../mastra/services/ai-platforms"
-import { foldSystemForProvider } from "../../../store/ai/chat/system-fold-lib"
-import { boundSummaryInput } from "./bound-input"
+import { generateText } from "ai"
+import {
+  resolveRoleTextModel,
+  logAiUsage,
+  buildGenerateArgs,
+} from "../../../../mastra/services/ai-platforms"
+import { boundSummaryInput, renderTranscript } from "./bound-input"
 import type { PartnerAssistantSummarizeReq } from "./validators"
 
 const FEATURE = "partners/assistant/summarize"
@@ -69,7 +72,16 @@ export const POST = async (
   // a client, keeping the first turn (the store/task anchor) and recent turns.
   const bounded = boundSummaryInput(messages as any)
 
-  const folded = foldSystemForProvider(resolved.providerType, SUMMARIZE_SYSTEM, bounded)
+  // Feed the conversation as a TRANSCRIPT inside one instruction, not as live
+  // chat turns. Handed the turns directly, a chat model answers the last user
+  // turn and continues the conversation instead of summarizing it (seen on
+  // prod: it replied "what HS code?" rather than producing a summary).
+  // `buildGenerateArgs` places the system text the way each provider accepts —
+  // native `system` for OpenRouter, folded into the user message otherwise.
+  const prompt = `Conversation to summarize:\n\n${renderTranscript(
+    bounded
+  )}\n\nNow write the "Summary so far" as instructed above. Output ONLY the summary — do not answer or continue the conversation.`
+  const folded = buildGenerateArgs(resolved, SUMMARIZE_SYSTEM, prompt)
   const startedAt = Date.now()
   const usageBase = {
     feature: FEATURE,
@@ -86,7 +98,7 @@ export const POST = async (
       const { text } = await generateText({
         model: resolved.model,
         ...(folded.system ? { system: folded.system } : {}),
-        messages: convertToModelMessages(folded.messages as any),
+        messages: folded.messages,
         temperature: 0.2,
         // A "4-8 bullet" summary needs no more than this; the cap stops the
         // model running away with a full re-transcription (the "large thing").

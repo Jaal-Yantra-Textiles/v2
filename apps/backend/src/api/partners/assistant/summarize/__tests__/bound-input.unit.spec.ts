@@ -1,5 +1,6 @@
 import {
   boundSummaryInput,
+  renderTranscript,
   MAX_MSG_CHARS,
   MAX_TOTAL_CHARS,
   type SummaryMessage,
@@ -75,5 +76,41 @@ describe("boundSummaryInput", () => {
     expect(out.some((m) => /earlier turn\(s\) omitted/.test(textOf(m)))).toBe(
       true
     )
+  })
+})
+
+describe("renderTranscript", () => {
+  const msg = (role: SummaryMessage["role"], text: string): SummaryMessage => ({
+    role,
+    parts: [{ type: "text", text }],
+  })
+
+  it("labels each turn by speaker", () => {
+    const t = renderTranscript([
+      msg("user", "set the weight"),
+      msg("assistant", "done"),
+    ])
+    expect(t).toBe("USER: set the weight\n\nASSISTANT: done")
+  })
+
+  it("renders the omission marker as a NOTE, not a USER turn", () => {
+    // A system-role turn (the omission marker boundSummaryInput inserts) must
+    // not read as a user turn — otherwise the model might answer it.
+    const t = renderTranscript([msg("system", "[3 earlier turns omitted]")])
+    expect(t).toBe("NOTE: [3 earlier turns omitted]")
+  })
+
+  it("produces a flat string with no trailing dangling question turn", () => {
+    // The whole point: the transcript is DATA. Even when the last turn is a
+    // question, it ends up inside the transcript body, and the route appends
+    // the summarize instruction after it — so nothing dangles as the model's
+    // turn to answer.
+    const t = renderTranscript([
+      msg("user", "hi"),
+      msg("assistant", "hello"),
+      msg("user", "what HS code?"),
+    ])
+    expect(t.endsWith("USER: what HS code?")).toBe(true)
+    expect(typeof t).toBe("string")
   })
 })
