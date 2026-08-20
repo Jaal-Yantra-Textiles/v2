@@ -1,3 +1,10 @@
+## [13.112.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.112.0...v13.112.1) (2026-08-20)
+
+
+### Bug Fixes
+
+* **partners:** summarize 502 + wrong-output — bound input, fix continuation ([#1391](https://github.com/Jaal-Yantra-Textiles/v2/issues/1391)) ([274344c](https://github.com/Jaal-Yantra-Textiles/v2/commit/274344cbd79ae66759bb1d8e89b29bd60f5224bf))
+
 # [13.112.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.111.6...v13.112.0) (2026-08-20)
 
 
