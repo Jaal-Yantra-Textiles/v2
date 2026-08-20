@@ -100,7 +100,20 @@ export const POST = async (
     req.scope
   )
 
-  const body = req.body as Record<string, any>
+  // Two callers, two body shapes. partner-ui posts the product fields FLAT
+  // (`{ title, status, … }`); the MCP tool `update_store_product` declares
+  // `bodyParams: ["product", "metadata"]` and therefore nests them under
+  // `product`. `updateProducts` ignores unknown keys silently, so the nested
+  // shape returned 200 with `ok: true` and wrote NOTHING (verified on prod).
+  // Accept both: unwrap `product` when present, keeping top-level `metadata`.
+  const raw = req.body as Record<string, any>
+  const body =
+    raw && typeof raw.product === "object" && raw.product !== null
+      ? {
+          ...(raw.product as Record<string, any>),
+          ...(raw.metadata !== undefined ? { metadata: raw.metadata } : {}),
+        }
+      : raw
   const productService = req.scope.resolve(Modules.PRODUCT) as any
   const updated = await productService.updateProducts(req.params.productId, body)
 
