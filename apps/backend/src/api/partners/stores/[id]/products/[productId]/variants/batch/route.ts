@@ -88,40 +88,67 @@ export const POST = async (
   }
   timer.mark("inventoryLevels")
 
+  /**
+   * Response enrichment. This was ~97% of the request.
+   *
+   * Measured on prod, warm, with the phase log this route already emits:
+   *
+   *   product                       variants written   responseQueries
+   *   ikkat      (1 option  x 2 values)      2               327 ms
+   *   grey/white (3 options x 3 values)      1              3211 ms
+   *   grey/white (3 options x 3 values)      9             15094 ms
+   *
+   * ONE variant of the option-heavy product cost 10x what TWO variants of the
+   * simple one did, so the cost tracks the product's OPTION graph and not the
+   * number of variants written. `options.option.*` walks from each variant's
+   * option VALUE back to the product option it belongs to — the same handful of
+   * parent options, re-resolved per variant, per value.
+   *
+   * Neither `options.option` nor `inventory_items` is read by anything.
+   * `remapVariantResponse` only reshapes `price_set.prices`, and the sole
+   * caller of this route (partner-ui `pricing-edit.tsx`) ignores the response
+   * body entirely — its `onSuccess` invalidates its queries and works from
+   * state it computed before the request. They were pass-through weight.
+   *
+   * `options.*` stays: it is a direct FK read on the variant, and it is what
+   * makes the returned variant identifiable as "Hand Spun / Grey".
+   */
   const variantFields = [
     "*",
     "product_id",
     "price_set.prices.*",
     "price_set.prices.price_rules.*",
     "options.*",
-    "options.option.*",
-    "inventory_items.*",
   ]
 
   let created: any[] = []
   let updated: any[] = []
 
-  if (createdIds.length) {
+  // One query, not two. `created` and `updated` were fetched separately with
+  // identical field sets, so a batch doing both paid the enrichment twice.
+  const idsToFetch = [...createdIds, ...updatedIds]
+  if (idsToFetch.length) {
     const { data } = await query.graph({
       entity: "product_variants",
       fields: variantFields,
-      filters: { id: createdIds },
+      filters: { id: idsToFetch },
     })
-    created = (data as any[]).map((v) => remapVariantResponse(v))
+    const createdSet = new Set(createdIds)
+    for (const row of data as any[]) {
+      const mapped = remapVariantResponse(row)
+      if (createdSet.has(row.id)) {
+        created.push(mapped)
+      } else {
+        updated.push(mapped)
+      }
+    }
   }
-
-  if (updatedIds.length) {
-    const { data } = await query.graph({
-      entity: "product_variants",
-      fields: variantFields,
-      filters: { id: updatedIds },
-    })
-    updated = (data as any[]).map((v) => remapVariantResponse(v))
-  }
-  // The response-enrichment reads. `variantFields` expands price_set.prices.*,
-  // price_rules.*, options.option.* and inventory_items.* — and every FX fanout
-  // adds 5 more price rows per price to what this has to pull back.
-  timer.mark("responseQueries")
+  // Counts are logged alongside the timing because the whole diagnosis above
+  // turned on cost-per-variant differing 10x between two products. A duration
+  // with no denominator could not have shown that.
+  timer.mark(
+    `responseQueries(n=${idsToFetch.length})`
+  )
 
   // FX fanout — Medusa's pricing module doesn't emit a `price.created`
   // event we can subscribe to, so we kick off the fanout workflow here for
