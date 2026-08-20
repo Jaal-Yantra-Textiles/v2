@@ -2,7 +2,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { getPartnerStore } from "../../../../helpers"
-import { fanoutVariantPrices } from "../../../../../../workflows/fx/fanout-variant-prices"
+import { requestVariantPriceFanout } from "../../../../../../workflows/fx/fanout-variant-prices"
 
 /**
  * POST /partners/discover/products/:id/copy
@@ -139,7 +139,7 @@ export const POST = async (
   // FX fanout — the copied product's prices came from the source channel in
   // one currency; materialise this store's other supported currencies.
   // Idempotent + never throws.
-  await fanoutVariantPrices(req.scope, {
+  await requestVariantPriceFanout(req.scope, {
     storeId: store.id,
     variantIds: ((created as any)?.variants || []).map((v: any) => v.id),
   })

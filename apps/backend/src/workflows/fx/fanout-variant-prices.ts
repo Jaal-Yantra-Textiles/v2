@@ -1,4 +1,4 @@
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import fanoutPricesWorkflow from "./fanout-prices"
 
@@ -65,11 +65,60 @@ export type FanoutVariantPricesResult = {
 }
 
 /**
+ * How many `fanoutPricesWorkflow` runs may be in flight at once.
+ *
+ * This is a MEMORY bound, not a throughput tuning knob. Each run is a full
+ * workflow-engine execution (own context, steps, Redis-persisted state, DB
+ * work), so the peak footprint of a fanout is `concurrency × per-run cost`,
+ * NOT `per-run cost`. Before this was bounded the helper launched one run per
+ * price simultaneously — a partner saving a multi-variant product across a
+ * multi-currency store fanned out into hundreds of concurrent workflow runs.
+ *
+ * That is what OOM-killed the prod API container twice on 2026-08-19 (11:38
+ * and 23:42 UTC, exit 137): memory went 57% → 99% of a 2 GB task inside ONE
+ * minute, with the event loop blocked long enough to stop logging for 65s.
+ * Both kills came through this helper — once via `create_product`, once via
+ * `variants/batch`.
+ *
+ * The old code claimed "bounded concurrency via Promise.allSettled" in this
+ * very docblock. `Promise.allSettled` bounds NOTHING; it waits on whatever it
+ * is handed, all of which starts immediately. The comment described the
+ * intent and hid the defect for as long as it stood.
+ */
+export const FANOUT_MAX_CONCURRENCY = 4
+
+/**
+ * Run `task` over `items` with at most `limit` in flight at a time.
+ *
+ * A fixed pool of workers pulling from a shared cursor, rather than
+ * fixed-size batches: a slow price never idles the other workers waiting for
+ * its batch to drain. Each task is expected to swallow its own errors — this
+ * runner never rejects.
+ */
+export async function mapWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  task: (item: T) => Promise<void>
+): Promise<void> {
+  let cursor = 0
+  const workers = Array.from(
+    { length: Math.max(1, Math.min(limit, items.length)) },
+    async () => {
+      while (cursor < items.length) {
+        const item = items[cursor++]
+        await task(item)
+      }
+    }
+  )
+  await Promise.all(workers)
+}
+
+/**
  * Fire-and-forget FX fanout for freshly written variant prices. Resolves the
  * target price ids from `priceIds` (preferred) or by looking them up from
- * `variantIds`, then runs `fanoutPricesWorkflow` once per price with bounded
- * concurrency via Promise.allSettled. Never throws — the worst case is a
- * logged warning and no auto-prices, exactly the pre-existing behaviour.
+ * `variantIds`, then runs `fanoutPricesWorkflow` once per price, at most
+ * FANOUT_MAX_CONCURRENCY at a time. Never throws — the worst case is a logged
+ * warning and no auto-prices, exactly the pre-existing behaviour.
  */
 export async function fanoutVariantPrices(
   scope: any,
@@ -102,8 +151,10 @@ export async function fanoutVariantPrices(
 
     if (!priceIds.length) return result
 
-    await Promise.allSettled(
-      priceIds.map(async (priceId) => {
+    await mapWithConcurrency(
+      priceIds,
+      FANOUT_MAX_CONCURRENCY,
+      async (priceId) => {
         try {
           const { result: fanoutResult } = await fanoutPricesWorkflow(scope).run({
             input: { source_price_id: priceId, store_id: input.storeId },
@@ -123,7 +174,7 @@ export async function fanoutVariantPrices(
           const message = err instanceof Error ? err.message : String(err)
           logger.warn(`[fanout] price ${priceId} workflow failed: ${message}`)
         }
-      })
+      }
     )
   } catch (err) {
     // Resolving the query graph / anything above must never break the save.
@@ -135,3 +186,58 @@ export async function fanoutVariantPrices(
 }
 
 export default fanoutVariantPrices
+
+/**
+ * Event that asks for an FX fanout to be performed off the request path.
+ * Handled by src/subscribers/fx-fanout-prices.ts, which runs on the WORKER.
+ */
+export const FX_FANOUT_REQUESTED = "fx.fanout_requested"
+
+export type FxFanoutRequestedPayload = {
+  store_id: string
+  price_ids?: string[]
+  variant_ids?: string[]
+}
+
+/**
+ * ASYNC entry point — what routes should call.
+ *
+ * Emits FX_FANOUT_REQUESTED and returns immediately; the actual fanout runs in
+ * the worker's subscriber. Three reasons this is not just a perf nicety:
+ *
+ *  1. MEMORY. The fanout's peak footprint is `concurrency × workflow-run cost`.
+ *     Running it inline put that peak inside the public API container, which is
+ *     the one that gets OOM-killed and takes the storefront down with it (twice
+ *     on 2026-08-19). The worker can die and retry without a single 503.
+ *  2. LATENCY. The partner's save used to block on every price's workflow run.
+ *  3. DURABILITY. Inline, a fanout interrupted mid-flight (deploy, OOM, client
+ *     disconnect) left prices half-materialised with nothing to resume it.
+ *
+ * Never throws. If the event bus itself is unreachable the fanout is skipped
+ * and logged — exactly the pre-existing "worst case is no auto-prices"
+ * contract, and never a failed save for the partner.
+ */
+export async function requestVariantPriceFanout(
+  scope: any,
+  input: FanoutVariantPricesInput
+): Promise<void> {
+  const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
+  const payload: FxFanoutRequestedPayload = {
+    store_id: input.storeId,
+    ...(input.priceIds?.length ? { price_ids: input.priceIds } : {}),
+    ...(input.variantIds?.length ? { variant_ids: input.variantIds } : {}),
+  }
+
+  // Nothing to fan out — don't wake the worker for an empty job.
+  if (!payload.price_ids?.length && !payload.variant_ids?.length) return
+
+  try {
+    const eventBus: any = scope.resolve(Modules.EVENT_BUS)
+    await eventBus.emit({ name: FX_FANOUT_REQUESTED, data: payload })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    logger?.warn?.(
+      `[fanout] could not enqueue FX fanout for store ${input.storeId}: ${message}`
+    )
+  }
+}

@@ -7,7 +7,7 @@ import {
   scopeAndAggregateVariantInventory,
   validatePartnerStoreAccess,
 } from "../../../../../helpers"
-import { fanoutVariantPrices } from "../../../../../../../workflows/fx/fanout-variant-prices"
+import { requestVariantPriceFanout } from "../../../../../../../workflows/fx/fanout-variant-prices"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -86,7 +86,7 @@ export const POST = async (
   // FX fanout — auto-convert the new variant's prices into the store's other
   // supported currencies. Idempotent + never throws.
   if (variant?.id) {
-    await fanoutVariantPrices(req.scope, {
+    await requestVariantPriceFanout(req.scope, {
       storeId: store.id,
       variantIds: [variant.id],
     })

@@ -4,7 +4,7 @@ import { batchProductVariantsWorkflow } from "@medusajs/medusa/core-flows"
 import { remapVariantResponse } from "@medusajs/medusa/api/admin/products/helpers"
 import {
   collectVariantPriceIds,
-  fanoutVariantPrices,
+  requestVariantPriceFanout,
 } from "../../../../../../../../workflows/fx/fanout-variant-prices"
 import {
   ensureInventoryLevelsForVariants,
@@ -83,7 +83,7 @@ export const POST = async (
   // every non-auto price on the touched variants. Idempotent + never throws;
   // see fanout-variant-prices.ts.
   const touched = [...created, ...updated]
-  await fanoutVariantPrices(req.scope, {
+  await requestVariantPriceFanout(req.scope, {
     storeId: store.id,
     priceIds: collectVariantPriceIds(touched),
   })

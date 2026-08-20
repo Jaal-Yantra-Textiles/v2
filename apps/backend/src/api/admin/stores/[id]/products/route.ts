@@ -11,7 +11,7 @@ import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 
 import { PARTNER_MODULE } from "../../../../../modules/partner"
 import { ensureInventoryLevelsForVariants } from "../../../../partners/helpers"
-import { fanoutVariantPrices } from "../../../../../workflows/fx/fanout-variant-prices"
+import { requestVariantPriceFanout } from "../../../../../workflows/fx/fanout-variant-prices"
 import { recordProductProvenance } from "./lib/provenance"
 
 /**
@@ -115,7 +115,7 @@ export const POST = async (
   // Materialise auto-converted prices in the store's other supported
   // currencies, or the product reads "not available" outside its native
   // region. Idempotent + never throws.
-  await fanoutVariantPrices(req.scope, { storeId: store.id, variantIds })
+  await requestVariantPriceFanout(req.scope, { storeId: store.id, variantIds })
 
   res.status(201).json({
     product,

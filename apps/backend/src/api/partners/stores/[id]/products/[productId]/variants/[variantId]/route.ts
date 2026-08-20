@@ -6,7 +6,7 @@ import {
 } from "@medusajs/medusa/core-flows"
 import { remapVariantResponse } from "@medusajs/medusa/api/admin/products/helpers"
 import { scopeAndAggregateVariantInventory, validatePartnerStoreAccess } from "../../../../../../helpers"
-import { fanoutVariantPrices } from "../../../../../../../../workflows/fx/fanout-variant-prices"
+import { requestVariantPriceFanout } from "../../../../../../../../workflows/fx/fanout-variant-prices"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -103,7 +103,7 @@ export const POST = async (
   // other supported currencies. Idempotent (existing currencies are skipped) +
   // never throws.
   if (variant?.id) {
-    await fanoutVariantPrices(req.scope, {
+    await requestVariantPriceFanout(req.scope, {
       storeId: store.id,
       variantIds: [variant.id],
     })

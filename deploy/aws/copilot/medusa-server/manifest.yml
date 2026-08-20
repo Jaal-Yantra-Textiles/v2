@@ -32,16 +32,44 @@ image:
   port: 9000
 
 cpu: 512        # 0.5 vCPU
-memory: 2048    # 2 GB. Bumped on 2026-05-20 along with RDS max_connections
-                # bump to 200 (was 79) and switch to fixed count: 1. Even
-                # so, rolling deploys still see some concurrent-bootstrap
-                # failures; investigation continues (task #18).
+memory: 4096    # 4 GB. Was 2048 (bumped 2026-05-20 alongside the RDS
+                # max_connections bump to 200). Raised to 4096 on 2026-08-20
+                # after two OOM kills in one day (exit 137, 11:38 + 23:42 UTC):
+                # memory went 57% → 99% of the 2 GB inside a single minute.
+                # 512 CPU / 4096 MB is a valid Fargate combination.
+                #
+                # Headroom is the SECOND line of defence, not the fix. The
+                # cause was an unbounded FX price fanout (one workflow run per
+                # price, all launched at once) — now bounded AND moved to the
+                # worker. Without those, 4 GB just buys a bigger burst before
+                # the same kill.
 
-# Fixed count: 1. Autoscaling disabled.
-# Default ECS rolling deploy with desired=1: 1 new task launches + 1 old
-# drains. Total of 2 tasks in flight = manageable connection demand.
-# Re-enable autoscaling once the boot-stall is understood/fixed.
-count: 1
+# Autoscaling, re-enabled 2026-08-20 (was `count: 1`, disabled pending the
+# task #18 boot-stall investigation).
+#
+# The MIN of 2 is the part that matters for availability, and it is why this
+# changed. At count: 1 a single task death is a full outage — that is exactly
+# what the 23:42 OOM was: ~2 minutes of hard 503 on v3.jaalyantra.com while
+# ECS rescheduled. At min 2 the ALB simply stops routing to the dead target.
+#
+# Be honest about what the scaling rules do and do not cover: ECS target
+# tracking reacts over MINUTES. It would not have prevented either OOM, both of
+# which went from steady-state to dead inside 60 seconds. These thresholds are
+# for sustained load; the redundancy is for sudden death.
+#
+# Connection math (the original reason autoscaling was switched off): observed
+# prod usage is 4-10 connections steady, 35 at its worst — against
+# max_connections 200. 4 server tasks + the worker + a rolling deploy's extra
+# task stays far inside that.
+count:
+  range: 2-4
+  cooldown:
+    # Scale OUT fast, scale IN slowly: adding a task is cheap and reversible,
+    # while dropping one under load is how you get a retry storm.
+    in: 300s
+    out: 60s
+  cpu_percentage: 70
+  memory_percentage: 75
 
 # Public subnets for Phase 0 (saves $32/mo NAT Gateway).
 # Tighten to private+NAT in Phase 1 hardening.
@@ -53,6 +81,18 @@ network:
 variables:
   NODE_ENV: production
   MEDUSA_WORKER_MODE: server
+  # Node has to be TOLD the container limit. Without this it sizes its heap
+  # from the HOST's memory, never approaches its own ceiling, and gets
+  # SIGKILLed by the cgroup instead — which is precisely why both 2026-08-19
+  # kills produced a bare "Killed" + exit 137 with no stack trace, no heap
+  # dump, and nothing to debug from. With it, an over-allocating request throws
+  # a catchable JS heap error that names the allocation site, and the process
+  # GCs harder before it gets there.
+  #
+  # 3072 of the task's 4096 leaves ~1 GB for what V8 does not count as
+  # old-space: native modules, Buffers, stream machinery, RSS overhead. Setting
+  # this at or near the task memory puts you straight back to a kernel kill.
+  NODE_OPTIONS: --max-old-space-size=3072
   # #707/#712 — base URL for partner-portal product links in WhatsApp confirmation
   # messages. Read by buildPartnerProductUrl (src/workflows/whatsapp/partner-product-url.ts),
   # which falls back to a hardcoded default if unset; this makes the prod value explicit.

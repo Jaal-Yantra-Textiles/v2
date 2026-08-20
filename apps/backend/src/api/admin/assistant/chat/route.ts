@@ -56,6 +56,7 @@ import {
   loadAndFormatContext,
   resolveContextCache,
 } from "../../../../lib/assistant-context"
+import { normaliseUiMessages } from "../../../../lib/assistant-messages"
 import type { AdminAssistantChatReq } from "./validators"
 
 const FEATURE = "admin/assistant/chat"
@@ -276,23 +277,23 @@ export const POST = async (
     ])
   )
 
-  // Normalise inbound UI messages — strip tool parts from history.
-  const messages = body.messages.map((m: any) => {
-    const parts = Array.isArray(m.parts) ? m.parts : null
-    const textParts = parts
-      ? parts
-          .filter(
-            (p: any) =>
-              p?.type === "text" && typeof p.text === "string" && p.text.length > 0
-          )
-          .map((p: any) => ({ type: "text", text: p.text }))
-      : [{ type: "text", text: String(m.content ?? "") }]
-
-    return {
-      role: m.role,
-      parts: textParts.length ? textParts : [{ type: "text", text: "" }],
-    }
-  })
+  // Normalise inbound UI messages — strip tool parts from history, then bound
+  // what we keep. This route accepts a 5 MB body deliberately (a thread that
+  // ran a Data Plumbing job replays tool parts far past Express's 100 kB
+  // default), but nothing used to stop that 5 MB being copied through parse →
+  // zod → normalise → convertToModelMessages → fold.
+  //
+  // `capToolResult` above does NOT cover this: it bounds one tool result on the
+  // way OUT, not a thread replaying dozens of prior turns back IN.
+  // See lib/assistant-messages for the ceilings and why they sit above real use.
+  const normalised = normaliseUiMessages(body.messages)
+  const messages = normalised.messages
+  if (normalised.bounded) {
+    logger.warn(
+      `[${FEATURE}] payload bounded: dropped ${normalised.droppedMessages} old message(s), ` +
+        `truncated ${normalised.truncatedParts} part(s). Conversation ${body.id ?? "unknown"}.`
+    )
+  }
 
   // Attachments ride on the LAST user message — the turn they were sent with.
   // Appended as text so every provider handles it identically; a provider that

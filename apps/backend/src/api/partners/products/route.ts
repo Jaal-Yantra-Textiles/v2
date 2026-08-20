@@ -122,6 +122,7 @@ import { MedusaError, ContainerRegistrationKeys, Modules } from "@medusajs/frame
 import { PartnerCreateProductReq } from "./validators"
 import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { getPartnerFromAuthContext, ensureInventoryLevelsForVariants } from "../helpers"
+import { requestVariantPriceFanout } from "../../../workflows/fx/fanout-variant-prices"
 import { PARTNER_MODULE } from "../../../modules/partner"
 import { PARTNER_ONBOARDING_PROFILE_MODULE } from "../../../modules/partner-onboarding-profile"
 
@@ -197,6 +198,22 @@ export const POST = async (
   // throws (see ensureInventoryLevelsForVariants).
   const variantIds = (created?.variants || []).map((v: any) => v.id)
   await ensureInventoryLevelsForVariants(req.scope, store, variantIds)
+
+  // FX fanout — materialise auto-converted prices in the store's other
+  // supported currencies. EXACTLY the same gap as the inventory levels above,
+  // on exactly the same route, and it survived the sweep that fixed the other
+  // seven callers: fanout-variant-prices.ts documents adding this to
+  // create-product / quick-create / single-variant / discover-copy, but this
+  // legacy route — the one `create_product` (assistant + every MCP client)
+  // actually posts to — was never in that list. Effect: a price set through
+  // the assistant or MCP existed only in the store's native currency and read
+  // as "not available" in every other region, while the same product created
+  // through the partner UI fanned out correctly.
+  //
+  // Async (emits fx.fanout_requested; the worker's subscriber does the work) —
+  // never inline. See requestVariantPriceFanout for why that distinction is a
+  // availability concern and not a latency one.
+  await requestVariantPriceFanout(req.scope, { storeId: store.id, variantIds })
 
   // Record product → owning partner so the cross-list subscriber can resolve
   // ownership cleanly on publish (see links/partner-product.ts).

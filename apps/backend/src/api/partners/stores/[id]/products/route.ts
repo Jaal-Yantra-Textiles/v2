@@ -5,7 +5,7 @@ import {
   validatePartnerStoreAccess,
 } from "../../../helpers"
 import listStoreProductsWorkflow from "../../../../../workflows/partner/list-store-products"
-import { fanoutVariantPrices } from "../../../../../workflows/fx/fanout-variant-prices"
+import { requestVariantPriceFanout } from "../../../../../workflows/fx/fanout-variant-prices"
 import {
   isCoreChannelListingPartner,
   recordArtisanProposal,
@@ -88,7 +88,7 @@ export const POST = async (
   // FX fanout — materialise auto-converted prices in the store's other
   // supported currencies so the product isn't "not available" in non-native
   // regions. Idempotent + never throws (see fanout-variant-prices.ts).
-  await fanoutVariantPrices(req.scope, { storeId: store.id, variantIds })
+  await requestVariantPriceFanout(req.scope, { storeId: store.id, variantIds })
 
   res.status(201).json({ product })
 }
